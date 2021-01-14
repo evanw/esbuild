@@ -9,6 +9,8 @@ function validateTarget(target: string): string {
   return target
 }
 
+let canBeAnything = () => null;
+
 let mustBeBoolean = (value: boolean | undefined): string | null =>
   typeof value === 'boolean' ? null : 'a boolean';
 
@@ -429,7 +431,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           throw new Error(`Invalid command: ` + (request as any)!.command);
       }
     } catch (e) {
-      sendResponse(id, { errors: [await extractErrorMessageV8(e, streamIn)] } as any);
+      sendResponse(id, { errors: [await extractErrorMessageV8(e, streamIn, null)] } as any);
     }
   };
 
@@ -464,7 +466,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
-  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number) => {
+  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number, details: MessageDetails) => {
     if (streamIn.isSync) throw new Error('Cannot use plugins in synchronous API calls');
 
     let onResolveCallbacks: {
@@ -560,12 +562,12 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (path != null) response.path = path;
                 if (namespace != null) response.namespace = namespace;
                 if (external != null) response.external = external;
-                if (errors != null) response.errors = sanitizeMessages(errors, 'errors');
-                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings');
+                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', details);
+                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', details);
                 break;
               }
             } catch (e) {
-              return { id, errors: [await extractErrorMessageV8(e, streamIn)] };
+              return { id, errors: [await extractErrorMessageV8(e, streamIn, details)] };
             }
           }
           return response;
@@ -598,12 +600,12 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 else if (contents != null) response.contents = protocol.encodeUTF8(contents);
                 if (resolveDir != null) response.resolveDir = resolveDir;
                 if (loader != null) response.loader = loader;
-                if (errors != null) response.errors = sanitizeMessages(errors, 'errors');
-                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings');
+                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', details);
+                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', details);
                 break;
               }
             } catch (e) {
-              return { id, errors: [await extractErrorMessageV8(e, streamIn)] };
+              return { id, errors: [await extractErrorMessageV8(e, streamIn, details)] };
             }
           }
           return response;
@@ -660,6 +662,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
     service: {
       buildOrServe(callName, serveOptions, options, isTTY, callback) {
+        const details = createMessageDetails();
         const logLevelDefault = 'info';
         try {
           let key = nextBuildKey++;
@@ -667,7 +670,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           let { flags, write, plugins, stdinContents, stdinResolveDir, incremental } = flagsForBuildOptions(callName, options, isTTY, logLevelDefault, writeDefault);
           let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdinContents, stdinResolveDir, incremental };
           let serve = serveOptions && buildServeData(serveOptions, request);
-          let pluginCleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key);
+          let pluginCleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key, details);
 
           // Factor out response handling so it can be reused for rebuilds
           let rebuild: types.BuildResult['rebuild'] | undefined;
@@ -675,8 +678,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             response: protocol.BuildResponse | null,
             callback: (error: Error | null, result: types.BuildResult | null) => void,
           ): void => {
-            let errors = response!.errors;
-            let warnings = response!.warnings;
+            let errors = replaceDetailsInMessages(response!.errors, details);
+            let warnings = replaceDetailsInMessages(response!.warnings, details);
             if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
             let result: types.BuildResult = { warnings };
             if (response!.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
@@ -729,13 +732,14 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         } catch (e) {
           let flags: string[] = [];
           try { pushLogFlags(flags, options, {}, isTTY, logLevelDefault) } catch { }
-          sendRequest({ command: 'error', flags, error: extractErrorMessageV8(e, streamIn) }, () => {
+          sendRequest({ command: 'error', flags, error: extractErrorMessageV8(e, streamIn, details) }, () => {
             callback(e, null);
           });
         }
       },
 
       transform(callName, input, options, isTTY, fs, callback) {
+        const details = createMessageDetails();
         const logLevelDefault = 'silent';
 
         // Ideally the "transform()" API would be faster than calling "build()"
@@ -764,8 +768,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             };
             sendRequest<protocol.TransformRequest, protocol.TransformResponse>(request, (error, response) => {
               if (error) return callback(new Error(error), null);
-              let errors = response!.errors;
-              let warnings = response!.warnings;
+              let errors = replaceDetailsInMessages(response!.errors, details);
+              let warnings = replaceDetailsInMessages(response!.warnings, details);
               let outstanding = 1;
               let next = () => --outstanding === 0 && callback(null, { warnings, code: response!.code, map: response!.map });
               if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
@@ -801,7 +805,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           } catch (e) {
             let flags: string[] = [];
             try { pushLogFlags(flags, options, {}, isTTY, logLevelDefault) } catch { }
-            sendRequest({ command: 'error', flags, error: extractErrorMessageV8(e, streamIn) }, () => {
+            sendRequest({ command: 'error', flags, error: extractErrorMessageV8(e, streamIn, details) }, () => {
               callback(e, null);
             });
           }
@@ -816,7 +820,28 @@ export function createChannel(streamIn: StreamIn): StreamOut {
   };
 }
 
-function extractErrorMessageV8(e: any, streamIn: StreamIn): types.Message {
+interface MessageDetails {
+  load(id: number): any;
+  store(detail: any): number;
+}
+
+function createMessageDetails(): MessageDetails {
+  const map = new Map<number, any>();
+  let nextID = 0;
+  return {
+    load(id) {
+      return map.get(id);
+    },
+    store(detail) {
+      if (detail === void 0) return -1;
+      const id = nextID++;
+      map.set(id, detail);
+      return id;
+    },
+  };
+}
+
+function extractErrorMessageV8(e: any, streamIn: StreamIn, details: MessageDetails | null): types.Message {
   let text = 'Internal error'
   let location: types.Location | null = null
 
@@ -869,7 +894,7 @@ function extractErrorMessageV8(e: any, streamIn: StreamIn): types.Message {
   } catch {
   }
 
-  return { text, location }
+  return { text, location, detail: details ? details.store(e) : -1 }
 }
 
 function failureErrorWithLog(text: string, errors: types.Message[], warnings: types.Message[]): Error {
@@ -887,7 +912,14 @@ function failureErrorWithLog(text: string, errors: types.Message[], warnings: ty
   return error;
 }
 
-function sanitizeMessages(messages: types.PartialMessage[], property: string): types.Message[] {
+function replaceDetailsInMessages(messages: types.Message[], details: MessageDetails): types.Message[] {
+  for (const message of messages) {
+    message.detail = details.load(message.detail);
+  }
+  return messages;
+}
+
+function sanitizeMessages(messages: types.PartialMessage[], property: string, details: MessageDetails): types.Message[] {
   let messagesClone: types.Message[] = [];
   let index = 0;
 
@@ -895,6 +927,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string): t
     let keys: OptionKeys = {};
     let text = getFlag(message, keys, 'text', mustBeString);
     let location = getFlag(message, keys, 'location', mustBeObjectOrNull);
+    let detail = getFlag(message, keys, 'detail', canBeAnything);
     checkForInvalidFlags(message, keys, `in element ${index} of "${property}"`);
 
     let locationClone: types.Message['location'] = null;
@@ -921,6 +954,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string): t
     messagesClone.push({
       text: text || '',
       location: locationClone,
+      detail: details.store(detail),
     });
     index++;
   }

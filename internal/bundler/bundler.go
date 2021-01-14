@@ -581,7 +581,14 @@ func logPluginMessages(
 		if name != "" {
 			text = fmt.Sprintf("[%s] %s", name, text)
 		}
-		log.AddRangeError(importSource, importPathRange, text)
+		log.AddMsg(logger.Msg{
+			Kind: logger.Error,
+			Data: logger.MsgData{
+				Text:       text,
+				Location:   logger.LocationOrNil(importSource, importPathRange),
+				UserDetail: thrown,
+			},
+		})
 	}
 
 	return didLogError

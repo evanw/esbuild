@@ -63,6 +63,9 @@ type Msg struct {
 type MsgData struct {
 	Text     string
 	Location *MsgLocation
+
+	// Optional user-specified data that is passed through unmodified
+	UserDetail interface{}
 }
 
 type MsgLocation struct {

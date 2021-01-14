@@ -713,6 +713,13 @@ func encodeMessages(msgs []api.Message) []interface{} {
 		values[i] = value
 		value["text"] = msg.Text
 
+		// Send "-1" to mean "undefined"
+		detail, ok := msg.Detail.(int)
+		if !ok {
+			detail = -1
+		}
+		value["detail"] = detail
+
 		// Some messages won't have a location
 		loc := msg.Location
 		if loc == nil {
@@ -734,7 +741,10 @@ func decodeMessages(values []interface{}) []api.Message {
 	msgs := make([]api.Message, len(values))
 	for i, value := range values {
 		obj := value.(map[string]interface{})
-		msg := api.Message{Text: obj["text"].(string)}
+		msg := api.Message{
+			Text:   obj["text"].(string),
+			Detail: obj["detail"].(int),
+		}
 
 		// Some messages won't have a location
 		loc := obj["location"]
@@ -760,7 +770,10 @@ func decodeMessages(values []interface{}) []api.Message {
 }
 
 func decodeMessageToPrivate(obj map[string]interface{}) logger.Msg {
-	msg := logger.Msg{Data: logger.MsgData{Text: obj["text"].(string)}}
+	msg := logger.Msg{Data: logger.MsgData{
+		Text:       obj["text"].(string),
+		UserDetail: obj["detail"].(int),
+	}}
 
 	// Some messages won't have a location
 	loc := obj["location"]

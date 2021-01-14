@@ -747,8 +747,7 @@ let pluginTests = {
     const output = path.join(testDir, 'out.js')
     await esbuild.build({
       stdin: {
-        contents: `import x from "plugin"; export default x`,
-        sourcefile: 'stdin-sourcefile',
+        contents: `import x from "plugin"; export default x`, sourcefile: 'stdin-sourcefile',
       },
       bundle: true, outfile: output, format: 'cjs', plugins: [{
         name: 'name',
@@ -774,8 +773,7 @@ let pluginTests = {
     const output = path.join(testDir, 'out.js')
     await esbuild.build({
       stdin: {
-        contents: `import x from "plugin"; export default x`,
-        sourcefile: 'stdin-sourcefile',
+        contents: `import x from "plugin"; export default x`, sourcefile: 'stdin-sourcefile',
         resolveDir: testDir,
       },
       bundle: true, outfile: output, format: 'cjs', plugins: [{
@@ -802,8 +800,7 @@ let pluginTests = {
     const output = path.join(testDir, 'out.js')
     await esbuild.build({
       stdin: {
-        contents: `import x from "plugin"; export default x`,
-        sourcefile: path.join(testDir, 'stdin-sourcefile'),
+        contents: `import x from "plugin"; export default x`, sourcefile: path.join(testDir, 'stdin-sourcefile'),
         resolveDir: testDir,
       },
       bundle: true, outfile: output, format: 'cjs', plugins: [{
@@ -854,8 +851,7 @@ let pluginTests = {
     const output = path.join(testDir, 'out', 'out.js')
     await esbuild.build({
       stdin: {
-        contents: `import x from "./stdinRelative.js"; export default x`,
-        resolveDir: testDir,
+        contents: `import x from "./stdinRelative.js"; export default x`, resolveDir: testDir,
       },
       bundle: true, outfile: output, format: 'cjs', plugins: [{
         name: 'name',
@@ -897,8 +893,7 @@ let pluginTests = {
     const outfile = path.join(testDir, 'out', 'output.mjs')
     await esbuild.build({
       stdin: {
-        contents: `
-          const fs = require('fs')
+        contents: `const fs = require('fs')
           const url = require('url')
           const path = require('path')
           export default fs.readdirSync(path.dirname(url.fileURLToPath(import.meta.url)))
@@ -958,6 +953,228 @@ let pluginTests = {
       let value = new Function(result.outputFiles[0].text)()
       assert.deepStrictEqual(value, problem)
     }
+  },
+
+  async transformUndefinedDetailForError({ esbuild }) {
+    try {
+      await esbuild.transform('x y')
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.deepStrictEqual(e.warnings, [])
+      assert.deepStrictEqual(e.errors, [{
+        text: 'Expected ";" but found "y"',
+        location: {
+          file: '<stdin>',
+          line: 1,
+          column: 2,
+          length: 1,
+          lineText: 'x y',
+        },
+        detail: void 0,
+      }])
+    }
+  },
+
+  async transformUndefinedDetailForWarning({ esbuild }) {
+    const result = await esbuild.transform('typeof x == "null"')
+    assert.deepStrictEqual(result.warnings, [{
+      text: 'The "typeof" operator will never evaluate to "null"',
+      location: {
+        file: '<stdin>',
+        line: 1,
+        column: 12,
+        length: 6,
+        lineText: 'typeof x == "null"',
+      },
+      detail: void 0,
+    }])
+  },
+
+  async buildUndefinedDetailForError({ esbuild }) {
+    try {
+      await esbuild.build({
+        stdin: { contents: 'x y' },
+        write: false,
+        logLevel: 'silent',
+      })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.deepStrictEqual(e.warnings, [])
+      assert.deepStrictEqual(e.errors, [{
+        text: 'Expected ";" but found "y"',
+        location: {
+          file: '<stdin>',
+          line: 1,
+          column: 2,
+          length: 1,
+          lineText: 'x y',
+        },
+        detail: void 0,
+      }])
+    }
+  },
+
+  async buildUndefinedDetailForWarning({ esbuild }) {
+    const result = await esbuild.build({
+      stdin: { contents: 'typeof x == "null"' },
+      write: false,
+      logLevel: 'silent',
+    })
+    assert.deepStrictEqual(result.warnings, [{
+      text: 'The "typeof" operator will never evaluate to "null"',
+      location: {
+        file: '<stdin>',
+        line: 1,
+        column: 12,
+        length: 6,
+        lineText: 'typeof x == "null"',
+      },
+      detail: void 0,
+    }])
+  },
+
+  async specificDetailForOnResolvePluginThrowError({ esbuild }) {
+    const theError = new Error('theError');
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, () => {
+              throw theError;
+            })
+          },
+        }],
+      })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.strictEqual(e.warnings.length, 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].text, '[plugin] theError')
+      assert.strictEqual(e.errors[0].detail, theError)
+    }
+  },
+
+  async specificDetailForOnLoadPluginThrowError({ esbuild }) {
+    const theError = new Error('theError');
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, () => ({ path: 'abc', namespace: 'xyz' }))
+            build.onLoad({ filter: /.*/ }, () => {
+              throw theError;
+            })
+          },
+        }],
+      })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.strictEqual(e.warnings.length, 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].text, '[plugin] theError')
+      assert.strictEqual(e.errors[0].detail, theError)
+    }
+  },
+
+  async specificDetailForOnResolvePluginReturnError({ esbuild }) {
+    const theError = new Error('theError');
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, () => {
+              return { errors: [{ text: 'some error', detail: theError }] };
+            })
+          },
+        }],
+      })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.strictEqual(e.warnings.length, 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].text, '[plugin] some error')
+      assert.strictEqual(e.errors[0].detail, theError)
+    }
+  },
+
+  async specificDetailForOnResolvePluginReturnWarning({ esbuild }) {
+    const theError = new Error('theError');
+    const result = await esbuild.build({
+      entryPoints: ['entry'],
+      write: false,
+      logLevel: 'silent',
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, () => {
+            return { path: 'abc', namespace: 'xyz', warnings: [{ text: 'some warning', detail: theError }] };
+          })
+          build.onLoad({ filter: /.*/ }, () => ({ contents: '' }))
+        },
+      }],
+    })
+    assert.strictEqual(result.warnings.length, 1)
+    assert.strictEqual(result.warnings[0].text, '[plugin] some warning')
+    assert.strictEqual(result.warnings[0].detail, theError)
+  },
+
+  async specificDetailForOnLoadPluginReturnError({ esbuild }) {
+    const theError = new Error('theError');
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, () => ({ path: 'abc', namespace: 'xyz' }))
+            build.onLoad({ filter: /.*/ }, () => {
+              return { errors: [{ text: 'some error', detail: theError }] };
+            })
+          },
+        }],
+      })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.strictEqual(e.warnings.length, 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].text, '[plugin] some error')
+      assert.strictEqual(e.errors[0].detail, theError)
+    }
+  },
+
+  async specificDetailForOnLoadPluginReturnWarning({ esbuild }) {
+    const theError = new Error('theError');
+    const result = await esbuild.build({
+      entryPoints: ['entry'],
+      write: false,
+      logLevel: 'silent',
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, () => ({ path: 'abc', namespace: 'xyz' }))
+          build.onLoad({ filter: /.*/ }, () => {
+            return { contents: '', warnings: [{ text: 'some warning', detail: theError }] };
+          })
+        },
+      }],
+    })
+    assert.strictEqual(result.warnings.length, 1)
+    assert.strictEqual(result.warnings[0].text, '[plugin] some warning')
+    assert.strictEqual(result.warnings[0].detail, theError)
   },
 }
 

@@ -67,6 +67,10 @@ export interface StdinOptions {
 export interface Message {
   text: string;
   location: Location | null;
+
+  // Optional user-specified data that is passed through unmodified. You can
+  // use this to stash the original error, for example.
+  detail: any;
 }
 
 export interface Location {
@@ -209,6 +213,7 @@ export interface OnLoadResult {
 export interface PartialMessage {
   text?: string;
   location?: Partial<Location> | null;
+  detail?: any;
 }
 
 // This is the type information for the "metafile" JSON format

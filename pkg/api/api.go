@@ -169,6 +169,10 @@ type Location struct {
 type Message struct {
 	Text     string
 	Location *Location
+
+	// Optional user-specified data that is passed through unmodified. You can
+	// use this to stash the original error, for example.
+	Detail interface{}
 }
 
 type StderrColor uint8

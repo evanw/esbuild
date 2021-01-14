@@ -467,6 +467,7 @@ func convertMessagesToPublic(kind logger.MsgKind, msgs []logger.Msg) []Message {
 			filtered = append(filtered, Message{
 				Text:     msg.Data.Text,
 				Location: location,
+				Detail:   msg.Data.UserDetail,
 			})
 		}
 	}
@@ -496,8 +497,9 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 		msgs = append(msgs, logger.Msg{
 			Kind: kind,
 			Data: logger.MsgData{
-				Text:     message.Text,
-				Location: location,
+				Text:       message.Text,
+				Location:   location,
+				UserDetail: message.Detail,
 			},
 		})
 	}
