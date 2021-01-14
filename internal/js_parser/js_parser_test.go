@@ -1176,8 +1176,9 @@ func TestArrow(t *testing.T) {
 	expectParseError(t, "(async x\n=> {})", "<stdin>: error: Unexpected newline before \"=>\"\n")
 	expectParseError(t, "(async ()\n=> {})", "<stdin>: error: Unexpected newline before \"=>\"\n")
 
-	expectPrinted(t, "(() => {}) ? 1 : 2", "1;\n")
-	expectParseError(t, "() => {} ? 1 : 2", "<stdin>: error: Expected \";\" but found \"?\"\n")
+	expectPrinted(t, "(() => {}) ? a : b", "(() => {\n}) ? a : b;\n")
+	expectPrintedMangle(t, "(() => {}) ? a : b", "a;\n")
+	expectParseError(t, "() => {} ? a : b", "<stdin>: error: Expected \";\" but found \"?\"\n")
 	expectPrinted(t, "1 < (() => {})", "1 < (() => {\n});\n")
 	expectParseError(t, "1 < () => {}", "<stdin>: error: Unexpected \")\"\n")
 	expectParseError(t, "(...x = y) => {}", "<stdin>: error: A rest argument cannot have a default initializer\n")
@@ -1264,8 +1265,11 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "!!0n", "false;\n")
 	expectPrinted(t, "!!1n", "true;\n")
 
-	expectPrinted(t, "1 ? 2 : 3", "2;\n")
-	expectPrinted(t, "0 ? 1 : 2", "2;\n")
+	expectPrinted(t, "1 ? a : b", "1 ? a : b;\n")
+	expectPrinted(t, "0 ? a : b", "0 ? a : b;\n")
+	expectPrintedMangle(t, "1 ? a : b", "a;\n")
+	expectPrintedMangle(t, "0 ? a : b", "b;\n")
+
 	expectPrinted(t, "1 && 2", "2;\n")
 	expectPrinted(t, "1 || 2", "1;\n")
 	expectPrinted(t, "0 && 1", "0;\n")
@@ -1387,10 +1391,10 @@ func TestConstantFolding(t *testing.T) {
 func TestConstantFoldingScopes(t *testing.T) {
 	// Parsing will crash if somehow the scope traversal is misaligned between
 	// the parsing and binding passes. This checks for those cases.
-	expectPrinted(t, "1 ? 0 : ()=>{}; (()=>{})()", "0;\n(() => {\n})();\n")
-	expectPrinted(t, "0 ? ()=>{} : 1; (()=>{})()", "1;\n(() => {\n})();\n")
-	expectPrinted(t, "0 && (()=>{}); (()=>{})()", "0;\n(() => {\n})();\n")
-	expectPrinted(t, "1 || (()=>{}); (()=>{})()", "1;\n(() => {\n})();\n")
+	expectPrintedMangle(t, "x; 1 ? 0 : ()=>{}; (()=>{})()", "x, (() => {\n})();\n")
+	expectPrintedMangle(t, "x; 0 ? ()=>{} : 1; (()=>{})()", "x, (() => {\n})();\n")
+	expectPrinted(t, "x; 0 && (()=>{}); (()=>{})()", "x;\n0;\n(() => {\n})();\n")
+	expectPrinted(t, "x; 1 || (()=>{}); (()=>{})()", "x;\n1;\n(() => {\n})();\n")
 	expectPrintedMangle(t, "if (1) 0; else ()=>{}; (()=>{})()", "(() => {\n})();\n")
 	expectPrintedMangle(t, "if (0) ()=>{}; else 1; (()=>{})()", "(() => {\n})();\n")
 }

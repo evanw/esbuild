@@ -9966,13 +9966,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				e.No = p.visitExpr(e.No)
 				p.isControlFlowDead = old
 
-				// "(1 ? fn : 2)()" => "fn()"
-				// "(1 ? this.fn : 2)" => "this.fn"
-				// "(1 ? this.fn : 2)()" => "(0, this.fn)()"
-				if isCallTarget && hasValueForThisInCall(e.Yes) {
-					return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Test.Loc, Data: &js_ast.ENumber{}}, e.Yes), exprOut{}
+				if p.options.mangleSyntax {
+					// "(1 ? fn : 2)()" => "fn()"
+					// "(1 ? this.fn : 2)" => "this.fn"
+					// "(1 ? this.fn : 2)()" => "(0, this.fn)()"
+					if isCallTarget && hasValueForThisInCall(e.Yes) {
+						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Test.Loc, Data: &js_ast.ENumber{}}, e.Yes), exprOut{}
+					}
+
+					return e.Yes, exprOut{}
 				}
-				return e.Yes, exprOut{}
 			} else {
 				// "false ? dead : live"
 				old := p.isControlFlowDead
@@ -9981,13 +9984,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				p.isControlFlowDead = old
 				e.No = p.visitExpr(e.No)
 
-				// "(0 ? 1 : fn)()" => "fn()"
-				// "(0 ? 1 : this.fn)" => "this.fn"
-				// "(0 ? 1 : this.fn)()" => "(0, this.fn)()"
-				if isCallTarget && hasValueForThisInCall(e.No) {
-					return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Test.Loc, Data: &js_ast.ENumber{}}, e.No), exprOut{}
+				if p.options.mangleSyntax {
+					// "(0 ? 1 : fn)()" => "fn()"
+					// "(0 ? 1 : this.fn)" => "this.fn"
+					// "(0 ? 1 : this.fn)()" => "(0, this.fn)()"
+					if isCallTarget && hasValueForThisInCall(e.No) {
+						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Test.Loc, Data: &js_ast.ENumber{}}, e.No), exprOut{}
+					}
+
+					return e.No, exprOut{}
 				}
-				return e.No, exprOut{}
 			}
 		}
 

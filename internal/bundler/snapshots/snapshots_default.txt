@@ -1989,8 +1989,8 @@ try {
 if (false) {
   console.log(null);
 }
-console.log(0);
-console.log(0);
+console.log(false ? null : 0);
+console.log(true ? 0 : null);
 console.log(false);
 console.log(true);
 console.log(true);

@@ -25,6 +25,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		t.Helper()
 		log := logger.NewDeferLog()
 		tree, ok := js_parser.Parse(log, test.SourceForTest(contents), js_parser.OptionsFromConfig(&config.Options{
+			MangleSyntax:          options.MangleSyntax,
 			UnsupportedJSFeatures: options.UnsupportedFeatures,
 		}))
 		msgs := log.Done()
@@ -60,6 +61,14 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [mangled]", contents, expected, Options{
 		MangleSyntax: true,
+	})
+}
+
+func expectPrintedMangleMinify(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [mangled, minified]", contents, expected, Options{
+		MangleSyntax:     true,
+		RemoveWhitespace: true,
 	})
 }
 
@@ -277,16 +286,16 @@ func TestCall(t *testing.T) {
 	expectPrinted(t, "eval?.(x, y)", "eval?.(x, y);\n")
 	expectPrinted(t, "(1, eval)(x)", "(1, eval)(x);\n")
 	expectPrinted(t, "(1, eval)?.(x)", "(1, eval)?.(x);\n")
-	expectPrinted(t, "(1 ? eval : 2)(x)", "(0, eval)(x);\n")
-	expectPrinted(t, "(1 ? eval : 2)?.(x)", "(0, eval)?.(x);\n")
+	expectPrintedMangle(t, "(1 ? eval : 2)(x)", "(0, eval)(x);\n")
+	expectPrintedMangle(t, "(1 ? eval : 2)?.(x)", "(0, eval)?.(x);\n")
 
 	expectPrintedMinify(t, "eval?.(x)", "eval?.(x);")
 	expectPrintedMinify(t, "eval(x,y)", "eval(x,y);")
 	expectPrintedMinify(t, "eval?.(x,y)", "eval?.(x,y);")
 	expectPrintedMinify(t, "(1, eval)(x)", "(1,eval)(x);")
 	expectPrintedMinify(t, "(1, eval)?.(x)", "(1,eval)?.(x);")
-	expectPrintedMinify(t, "(1 ? eval : 2)(x)", "(0,eval)(x);")
-	expectPrintedMinify(t, "(1 ? eval : 2)?.(x)", "(0,eval)?.(x);")
+	expectPrintedMangleMinify(t, "(1 ? eval : 2)(x)", "(0,eval)(x);")
+	expectPrintedMangleMinify(t, "(1 ? eval : 2)?.(x)", "(0,eval)?.(x);")
 }
 
 func TestMember(t *testing.T) {
@@ -717,9 +726,9 @@ func TestMinify(t *testing.T) {
 	expectPrintedMinify(t, "export {a, b as c} from 'path'", "export{a,b as c}from\"path\";")
 
 	// Print some strings using template literals when minifying
-	expectPrinted(t, "'\\n'", "\"\\n\";\n")
-	expectPrintedMangle(t, "'\\n'", "`\n`;\n")
-	expectPrintedMangle(t, "({'\\n': 0})", "({\"\\n\": 0});\n")
+	expectPrinted(t, "x = '\\n'", "x = \"\\n\";\n")
+	expectPrintedMangle(t, "x = '\\n'", "x = `\n`;\n")
+	expectPrintedMangle(t, "x = {'\\n': 0}", "x = {\"\\n\": 0};\n")
 	expectPrintedMangle(t, "(class{'\\n' = 0})", "(class {\n  \"\\n\" = 0;\n});\n")
 	expectPrintedMangle(t, "class Foo{'\\n' = 0}", "class Foo {\n  \"\\n\" = 0;\n}\n")
 
