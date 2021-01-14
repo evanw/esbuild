@@ -259,7 +259,7 @@ require/parcel/node_modules:
 require/parcel2/node_modules:
 	mkdir -p require/parcel2
 	echo '{}' > require/parcel2/package.json
-	cd require/parcel2 && npm install parcel@2.0.0-nightly.527 @parcel/transformer-typescript-tsc@2.0.0-nightly.529 typescript@4.1.2
+	cd require/parcel2 && npm install parcel@2.0.0-nightly.532 @parcel/transformer-typescript-tsc@2.0.0-nightly.534 typescript@4.1.2
 
 lib/node_modules:
 	cd lib && npm ci
