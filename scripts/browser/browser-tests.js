@@ -5,7 +5,9 @@ const url = require('url')
 const fs = require('fs')
 
 const js = fs.readFileSync(path.join(__dirname, '..', '..', 'npm', 'esbuild-wasm', 'lib', 'browser.js'))
+const jsMin = fs.readFileSync(path.join(__dirname, '..', '..', 'npm', 'esbuild-wasm', 'lib', 'browser.min.js'))
 const esm = fs.readFileSync(path.join(__dirname, '..', '..', 'npm', 'esbuild-wasm', 'esm', 'browser.js'))
+const esmMin = fs.readFileSync(path.join(__dirname, '..', '..', 'npm', 'esbuild-wasm', 'esm', 'browser.min.js'))
 const wasm = fs.readFileSync(path.join(__dirname, '..', '..', 'npm', 'esbuild-wasm', 'esbuild.wasm'))
 
 // This is converted to a string and run inside the browser
@@ -130,9 +132,39 @@ let pages = {
       }
     </script>
   `,
+  iifeMin: `
+    <script src="/lib/esbuild.min.js"></script>
+    <script>
+      testStart = function() {
+        esbuild.startService({ wasmURL: '/esbuild.wasm' }).then(service => {
+          return (${runAllTests})({ esbuild, service })
+        }).then(() => {
+          testDone()
+        }).catch(e => {
+          testFail('' + (e && e.stack || e))
+          testDone()
+        })
+      }
+    </script>
+  `,
   esm: `
     <script type="module">
       import * as esbuild from '/esm/esbuild.js'
+      window.testStart = function() {
+        esbuild.startService({ wasmURL: '/esbuild.wasm' }).then(service => {
+          return (${runAllTests})({ esbuild, service })
+        }).then(() => {
+          testDone()
+        }).catch(e => {
+          testFail('' + (e && e.stack || e))
+          testDone()
+        })
+      }
+    </script>
+  `,
+  esmMin: `
+    <script type="module">
+      import * as esbuild from '/esm/esbuild.min.js'
       window.testStart = function() {
         esbuild.startService({ wasmURL: '/esbuild.wasm' }).then(service => {
           return (${runAllTests})({ esbuild, service })
@@ -155,9 +187,21 @@ const server = http.createServer((req, res) => {
       return
     }
 
+    if (req.url === '/lib/esbuild.min.js') {
+      res.writeHead(200, { 'Content-Type': 'application/javascript' })
+      res.end(jsMin)
+      return
+    }
+
     if (req.url === '/esm/esbuild.js') {
       res.writeHead(200, { 'Content-Type': 'application/javascript' })
       res.end(esm)
+      return
+    }
+
+    if (req.url === '/esm/esbuild.min.js') {
+      res.writeHead(200, { 'Content-Type': 'application/javascript' })
+      res.end(esmMin)
       return
     }
 

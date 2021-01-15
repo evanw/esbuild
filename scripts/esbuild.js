@@ -63,48 +63,55 @@ function buildWasmLib(esbuildPath) {
   fs.writeFileSync(path.join(libDir, 'browser.d.ts'), types_ts)
   fs.writeFileSync(path.join(esmDir, 'browser.d.ts'), types_ts)
 
-  // Minify "npm/esbuild-wasm/wasm_exec.js"
-  const wasm_exec_js = path.join(npmWasmDir, 'wasm_exec.js')
-  const wasmExecMin = childProcess.execFileSync(esbuildPath, [
-    wasm_exec_js,
-    '--minify',
-  ], { cwd: repoDir }).toString()
-  const commentLines = fs.readFileSync(wasm_exec_js, 'utf8').split('\n')
-  const firstNonComment = commentLines.findIndex(line => !line.startsWith('//'))
-  const wasmExecMinCode = '\n' + commentLines.slice(0, firstNonComment).concat(wasmExecMin).join('\n')
+  for (const minify of [false, true]) {
+    const minifyFlags = minify ? ['--minify'] : []
 
-  // Minify "lib/worker.ts"
-  const workerMinCode = childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'worker.ts'),
-    '--minify',
-    '--define:ESBUILD_VERSION=' + JSON.stringify(version),
-  ], { cwd: repoDir }).toString().trim()
+    // Process "npm/esbuild-wasm/wasm_exec.js"
+    const wasm_exec_js = path.join(npmWasmDir, 'wasm_exec.js')
+    let wasmExecCode = fs.readFileSync(wasm_exec_js, 'utf8');
+    if (minify) {
+      const wasmExecMin = childProcess.execFileSync(esbuildPath, [
+        wasm_exec_js,
+        '--target=es2015',
+      ].concat(minifyFlags), { cwd: repoDir }).toString()
+      const commentLines = wasmExecCode.split('\n')
+      const firstNonComment = commentLines.findIndex(line => !line.startsWith('//'))
+      wasmExecCode = '\n' + commentLines.slice(0, firstNonComment).concat(wasmExecMin).join('\n')
+    }
 
-  // Generate "npm/esbuild-wasm/lib/browser.js"
-  const umdPrefix = `(exports=>{`
-  const umdSuffix = `})(typeof exports==="object"?exports:(typeof self!=="undefined"?self:this).esbuild={});\n`
-  const browserCJS = childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'browser.ts'),
-    '--bundle',
-    '--target=es2015',
-    '--minify',
-    '--format=cjs',
-    '--define:ESBUILD_VERSION=' + JSON.stringify(version),
-    '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmExecMinCode + workerMinCode),
-  ], { cwd: repoDir }).toString()
-  fs.writeFileSync(path.join(libDir, 'browser.js'), umdPrefix + browserCJS.trim() + umdSuffix)
+    // Process "lib/worker.ts"
+    const workerCode = childProcess.execFileSync(esbuildPath, [
+      path.join(repoDir, 'lib', 'worker.ts'),
+      '--target=es2015',
+      '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+    ].concat(minifyFlags), { cwd: repoDir }).toString().trim()
 
-  // Generate "npm/esbuild-wasm/esm/browser.js"
-  const browserESM = childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'browser.ts'),
-    '--bundle',
-    '--target=es2017',
-    '--minify',
-    '--format=esm',
-    '--define:ESBUILD_VERSION=' + JSON.stringify(version),
-    '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmExecMinCode + workerMinCode),
-  ], { cwd: repoDir }).toString()
-  fs.writeFileSync(path.join(esmDir, 'browser.js'), browserESM.trim())
+    // Generate "npm/esbuild-wasm/lib/browser.*"
+    const umdPrefix = `(exports=>{`
+    const umdSuffix = `})(typeof exports==="object"?exports:(typeof self!=="undefined"?self:this).esbuild={});`
+    const browserCJS = childProcess.execFileSync(esbuildPath, [
+      path.join(repoDir, 'lib', 'browser.ts'),
+      '--bundle',
+      '--target=es2015',
+      '--format=cjs',
+      '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+      '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmExecCode + workerCode),
+      '--banner=' + umdPrefix,
+      '--footer=' + umdSuffix,
+    ].concat(minifyFlags), { cwd: repoDir }).toString()
+    fs.writeFileSync(path.join(libDir, minify ? 'browser.min.js' : 'browser.js'), browserCJS)
+
+    // Generate "npm/esbuild-wasm/esm/browser.min.js"
+    const browserESM = childProcess.execFileSync(esbuildPath, [
+      path.join(repoDir, 'lib', 'browser.ts'),
+      '--bundle',
+      '--target=es2017',
+      '--format=esm',
+      '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+      '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmExecCode + workerCode),
+    ].concat(minifyFlags), { cwd: repoDir }).toString()
+    fs.writeFileSync(path.join(esmDir, minify ? 'browser.min.js' : 'browser.js'), browserESM)
+  }
 }
 
 exports.buildBinary = () => {
