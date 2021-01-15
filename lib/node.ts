@@ -198,10 +198,14 @@ export let startService: typeof types.startService = common.referenceCountedServ
           if (err) {
             reject(err)
           } else {
-            let rebuild = (res as types.BuildResult).rebuild
-            if (rebuild) {
-              (res as any).rebuild = () => refPromise(rebuild!());
-              (res as any).rebuild.dispose = rebuild.dispose;
+            let oldRebuild = (res as types.BuildResult).rebuild
+            if (oldRebuild) {
+              let newRebuild: any = () => refPromise(oldRebuild!().then(res2 => {
+                res2.rebuild = newRebuild;
+                return res2;
+              }));
+              newRebuild.dispose = oldRebuild.dispose;
+              (res as any).rebuild = newRebuild;
             }
             resolve(res as types.BuildResult);
           }

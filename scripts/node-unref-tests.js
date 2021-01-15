@@ -36,6 +36,10 @@ async function tests() {
     const result2 = await result.rebuild()
     assert.deepStrictEqual(result2.outputFiles.length, 1);
     assert.deepStrictEqual(result2.outputFiles[0].text, '1 + 2;\n');
+
+    const result3 = await result2.rebuild()
+    assert.deepStrictEqual(result3.outputFiles.length, 1);
+    assert.deepStrictEqual(result3.outputFiles[0].text, '1 + 2;\n');
   }
 
   const service = await esbuild.startService();
