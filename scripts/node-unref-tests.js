@@ -24,17 +24,32 @@ async function tests() {
     await server.wait
   }
 
+  async function testBuild() {
+    const result = await esbuild.build({
+      stdin: { contents: '1+2' },
+      write: false,
+      incremental: true,
+    })
+    assert.deepStrictEqual(result.outputFiles.length, 1);
+    assert.deepStrictEqual(result.outputFiles[0].text, '1 + 2;\n');
+
+    const result2 = await result.rebuild()
+    assert.deepStrictEqual(result2.outputFiles.length, 1);
+    assert.deepStrictEqual(result2.outputFiles[0].text, '1 + 2;\n');
+  }
+
   const service = await esbuild.startService();
   try {
     await testTransform()
     await testServe()
+    await testBuild()
   } catch (error) {
     service.stop();
     throw error;
   }
 }
 
-// Called when this is the hild process to run the tests.
+// Called when this is the child process to run the tests.
 function runTests() {
   process.exitCode = 1;
   tests().then(() => {
@@ -61,7 +76,7 @@ function startChildProcess() {
   child.on('exit', (code) => {
     clearTimeout(timeout);
     if (code) {
-      console.error('❌ node unref tests failed')
+      console.error(`❌ node unref tests failed: child exited with code ${code}`)
       process.exit(1);
     } else {
       console.log(`✅ node unref tests passed`)

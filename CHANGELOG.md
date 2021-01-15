@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix esbuild potentially exiting early during incremental rebuilds
+
+    The change in the previous release to make calling `stop()` optional caused a regression for incremental rebuilds where calling `rebuild()` could potentially cause the process to exit early before the incremental rebuild is completed. This is because the implementation of `rebuild()` was missing a reference count to track that the service is now temporarily needed again. This omission was an oversight, and has now been fixed.
+
 ## 0.8.32
 
 * Calling `stop()` on the JavaScript API is now optional ([#656](https://github.com/evanw/esbuild/pull/656))

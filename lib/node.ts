@@ -192,10 +192,22 @@ export let startService: typeof types.startService = common.referenceCountedServ
 
   // Create an asynchronous Promise-based API
   return Promise.resolve({
-    build: (options: types.BuildOptions): Promise<any> =>
-      refPromise(new Promise<types.BuildResult>((resolve, reject) =>
-        service.buildOrServe('build', null, options, isTTY(), (err, res) =>
-          err ? reject(err) : resolve(res as types.BuildResult)))),
+    build: (options: types.BuildOptions): Promise<any> => {
+      return refPromise(new Promise<types.BuildResult>((resolve, reject) => {
+        service.buildOrServe('build', null, options, isTTY(), (err, res) => {
+          if (err) {
+            reject(err)
+          } else {
+            let rebuild = (res as types.BuildResult).rebuild
+            if (rebuild) {
+              (res as any).rebuild = () => refPromise(rebuild!());
+              (res as any).rebuild.dispose = rebuild.dispose;
+            }
+            resolve(res as types.BuildResult);
+          }
+        })
+      }))
+    },
     serve: (serveOptions, buildOptions) => {
       if (serveOptions === null || typeof serveOptions !== 'object')
         throw new Error('The first argument must be an object')
