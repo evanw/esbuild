@@ -240,7 +240,7 @@ require/webpack/node_modules:
 require/webpack5/node_modules:
 	mkdir -p require/webpack5
 	echo '{}' > require/webpack5/package.json
-	cd require/webpack5 && npm install webpack@5.0.0-rc.4 webpack-cli@4.0.0-rc.1 ts-loader@8.0.4 typescript@4.0.3
+	cd require/webpack5 && npm install webpack@5.14.0 webpack-cli@4.3.1 ts-loader@8.0.14 typescript@4.1.3
 
 require/rollup/node_modules:
 	mkdir -p require/rollup
@@ -564,7 +564,7 @@ bench-three-webpack5: | require/webpack5/node_modules bench/three
 	mkdir -p require/webpack5/bench/three bench/three/webpack5
 	ln -s ../../../../bench/three/src require/webpack5/bench/three/src
 	ln -s ../../../../bench/three/webpack5 require/webpack5/bench/three/out
-	cd require/webpack5/bench/three && time -p ../../node_modules/.bin/webpack ./src/entry.js $(THREE_WEBPACK5_FLAGS) -o out/entry.webpack5.js
+	cd require/webpack5/bench/three && time -p ../../node_modules/.bin/webpack --entry ./src/entry.js $(THREE_WEBPACK5_FLAGS) -o out/entry.webpack5.js
 	du -h bench/three/webpack5/entry.webpack5.js*
 
 bench-three-parcel: | require/parcel/node_modules bench/three
