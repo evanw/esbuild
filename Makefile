@@ -489,7 +489,7 @@ demo-three-webpack5: | require/webpack5/node_modules demo/three
 	mkdir -p require/webpack5/demo/three demo/three/webpack5
 	ln -s ../../../../demo/three/src require/webpack5/demo/three/src
 	ln -s ../../../../demo/three/webpack5 require/webpack5/demo/three/out
-	cd require/webpack5/demo/three && time -p ../../node_modules/.bin/webpack ./src/Three.js $(THREE_WEBPACK5_FLAGS) -o out/Three.webpack5.js
+	cd require/webpack5/demo/three && time -p ../../node_modules/.bin/webpack --entry ./src/Three.js $(THREE_WEBPACK5_FLAGS) -o out/Three.webpack5.js
 	du -h demo/three/webpack5/Three.webpack5.js*
 
 THREE_PARCEL_FLAGS += --global THREE
