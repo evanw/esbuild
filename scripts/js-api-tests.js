@@ -2394,6 +2394,18 @@ let syncTests = {
 `)
   },
 
+  async transformSyncJSMapNoContent({ esbuild }) {
+    const { code, map } = esbuild.transformSync(`1+2`, { sourcemap: true, sourcesContent: false })
+    assert.strictEqual(code, `1 + 2;\n`)
+    assert.strictEqual(map, `{
+  "version": 3,
+  "sources": ["<stdin>"],
+  "mappings": "AAAA,IAAE;",
+  "names": []
+}
+`)
+  },
+
   async transformSyncCSS({ esbuild }) {
     const { code, map } = esbuild.transformSync(`a{b:c}`, { loader: 'css' })
     assert.strictEqual(code, `a {\n  b: c;\n}\n`)
