@@ -6,6 +6,10 @@
 
     The change in the previous release to make calling `stop()` optional caused a regression for incremental rebuilds where calling `rebuild()` could potentially cause the process to exit early before the incremental rebuild is completed. This is because the implementation of `rebuild()` was missing a reference count to track that the service is now temporarily needed again. This omission was an oversight, and has now been fixed.
 
+* Fix using the new `sourcesContent` option with the transform API ([#682](https://github.com/evanw/esbuild/issues/682))
+
+    Due to an oversight, the `sourcesContent: false` option that was added in version 0.8.27 didn't work with the JavaScript transform API. This was unintentional and has been fixed. This fix was contributed by [@jschaf](https://github.com/jschaf).
+
 * Provide minified and non-minified versions of in-browser API library ([#616](https://github.com/evanw/esbuild/issues/616))
 
     The in-browser JavaScript API libraries for esbuild are in the [esbuild-wasm](https://www.npmjs.com/package/esbuild-wasm) package. There are two: `esbuild-wasm/lib/browser.js` in UMD format and `esbuild-wasm/esm/browser.js` in ESM format. Previously these were minified since they contain a large string of JavaScript that cannot be minified by other tools. Now they are no longer minified, and there are new minified versions available at `esbuild-wasm/lib/browser.min.js` and `esbuild-wasm/esm/browser.min.js`.
