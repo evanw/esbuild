@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.33
 
 * Fix esbuild potentially exiting early during incremental rebuilds
 
