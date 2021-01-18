@@ -1923,9 +1923,12 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		// Insert the instance field initializers after the super call if there is one
 		stmtsFrom := ctor.Fn.Body.Stmts
 		stmtsTo := []js_ast.Stmt{}
-		if len(stmtsFrom) > 0 && js_ast.IsSuperCall(stmtsFrom[0]) {
-			stmtsTo = append(stmtsTo, stmtsFrom[0])
-			stmtsFrom = stmtsFrom[1:]
+		for i, stmt := range stmtsFrom {
+			if js_ast.IsSuperCall(stmt) {
+				stmtsTo = append(stmtsTo, stmtsFrom[0:i+1]...)
+				stmtsFrom = stmtsFrom[i+1:]
+				break
+			}
 		}
 		stmtsTo = append(stmtsTo, parameterFields...)
 		stmtsTo = append(stmtsTo, instanceMembers...)

@@ -10,6 +10,43 @@
 
     Due to an oversight, the `sourcesContent: false` option that was added in version 0.8.27 didn't work with the JavaScript transform API. This was unintentional and has been fixed. This fix was contributed by [@jschaf](https://github.com/jschaf).
 
+* Insert the object spread shim in constructor methods after the `super()` call ([#678](https://github.com/evanw/esbuild/issues/678))
+
+    This fixes an issue with the transform for object spread to older compile targets. Previously the following code would be transformed to code that crashes when run if the compile target is `es2017` or lower:
+
+    ```js
+    class Derived extends Base {
+      prop = null;
+      constructor({ ...args }) {
+        super(args);
+      }
+    }
+    ```
+
+    This code was incorrectly compiled to something like this, which will throw `ReferenceError: Must call super constructor in derived class before accessing 'this' or returning from derived constructor`:
+
+    ```js
+    class Derived extends Base {
+      constructor(_a) {
+        __publicField(this, "prop", null);
+        var args = __rest(_a, []);
+        super(args);
+      }
+    }
+    ```
+
+    With this release, it will now be compiled to something like this instead:
+
+    ```js
+    class Derived extends Base {
+      constructor(_a) {
+        var args = __rest(_a, []);
+        super(args);
+        __publicField(this, "prop", null);
+      }
+    }
+    ```
+
 * Provide minified and non-minified versions of in-browser API library ([#616](https://github.com/evanw/esbuild/issues/616))
 
     The in-browser JavaScript API libraries for esbuild are in the [esbuild-wasm](https://www.npmjs.com/package/esbuild-wasm) package. There are two: `esbuild-wasm/lib/browser.js` in UMD format and `esbuild-wasm/esm/browser.js` in ESM format. Previously these were minified since they contain a large string of JavaScript that cannot be minified by other tools. Now they are no longer minified, and there are new minified versions available at `esbuild-wasm/lib/browser.min.js` and `esbuild-wasm/esm/browser.min.js`.

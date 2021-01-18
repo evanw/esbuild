@@ -183,6 +183,16 @@ func TestLowerClassInstance(t *testing.T) {
   }
 }
 `)
+	expectPrintedTarget(t, 2015, "class Foo extends Bar { bar() {} foo; constructor({ ...args }) { super() } }", `class Foo extends Bar {
+  constructor(_a) {
+    var args = __rest(_a, []);
+    super();
+    __publicField(this, "foo");
+  }
+  bar() {
+  }
+}
+`)
 }
 
 func TestLowerClassStatic(t *testing.T) {
