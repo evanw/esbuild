@@ -893,3 +893,67 @@ func TestPackageJsonMainFieldsB(t *testing.T) {
 		},
 	})
 }
+
+func TestPackageJsonNeutralNoDefaultMainFields(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./main.esm.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.esm.js": `
+				export default function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNeutral,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "demo-pkg" (mark it as external to exclude it from the bundle)
+`,
+	})
+}
+
+func TestPackageJsonNeutralExplicitMainFields(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"hello": "./main.js",
+					"module": "./main.esm.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNeutral,
+			MainFields:    []string{"hello"},
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}

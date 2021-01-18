@@ -1,4 +1,4 @@
-export type Platform = 'browser' | 'node';
+export type Platform = 'browser' | 'node' | 'neutral';
 export type Format = 'iife' | 'cjs' | 'esm';
 export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'css' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary' | 'default';
 export type LogLevel = 'info' | 'warning' | 'error' | 'silent';

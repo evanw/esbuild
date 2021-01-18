@@ -290,6 +290,8 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				buildOpts.Platform = api.PlatformBrowser
 			case "node":
 				buildOpts.Platform = api.PlatformNode
+			case "neutral":
+				buildOpts.Platform = api.PlatformNeutral
 			default:
 				return fmt.Errorf("Invalid platform: %q (valid: browser, node)", value)
 			}

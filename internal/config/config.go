@@ -27,6 +27,7 @@ type Platform uint8
 const (
 	PlatformBrowser Platform = iota
 	PlatformNode
+	PlatformNeutral
 )
 
 type StrictOptions struct {

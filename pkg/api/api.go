@@ -130,6 +130,7 @@ type Platform uint8
 const (
 	PlatformBrowser Platform = iota
 	PlatformNode
+	PlatformNeutral
 )
 
 type Format uint8

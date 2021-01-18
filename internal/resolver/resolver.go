@@ -49,6 +49,11 @@ var defaultMainFields = map[config.Platform][]string{
 	// configure the main fields to be "module" and then "main". Keep in mind
 	// that some packages may break if you do this.
 	config.PlatformNode: []string{"main", "module"},
+
+	// The neutral platform is for people that don't want esbuild to try to
+	// pick good defaults for their platform. In that case, the list of main
+	// fields is empty by default. You must explicitly configure it yourself.
+	config.PlatformNeutral: []string{},
 }
 
 // Path resolution is a mess. One tricky issue is the "module" override for the

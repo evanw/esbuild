@@ -35,6 +35,8 @@ func validatePlatform(value Platform) config.Platform {
 		return config.PlatformBrowser
 	case PlatformNode:
 		return config.PlatformNode
+	case PlatformNeutral:
+		return config.PlatformNeutral
 	default:
 		panic("Invalid platform")
 	}
@@ -637,6 +639,8 @@ func rebuildImpl(
 			options.OutputFormat = config.FormatIIFE
 		case config.PlatformNode:
 			options.OutputFormat = config.FormatCommonJS
+		case config.PlatformNeutral:
+			options.OutputFormat = config.FormatESModule
 		}
 	}
 

@@ -362,3 +362,17 @@ function main_esm_default() {
 
 // Users/user/project/src/entry.js
 console.log(main_esm_default());
+
+================================================================================
+TestPackageJsonNeutralExplicitMainFields
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/demo-pkg/main.js
+var require_main = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
+
+// Users/user/project/src/entry.js
+var import_demo_pkg = __toModule(require_main());
+console.log(import_demo_pkg.default());

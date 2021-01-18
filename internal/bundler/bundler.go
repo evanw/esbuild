@@ -1789,6 +1789,8 @@ func (cache *runtimeCache) processedDefines(key config.Platform) (defines *confi
 		platform = "browser"
 	case config.PlatformNode:
 		platform = "node"
+	case config.PlatformNeutral:
+		platform = "neutral"
 	}
 	result := config.ProcessDefines(map[string]config.DefineData{
 		"__platform": {
