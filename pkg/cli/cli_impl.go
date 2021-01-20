@@ -293,7 +293,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			case "neutral":
 				buildOpts.Platform = api.PlatformNeutral
 			default:
-				return fmt.Errorf("Invalid platform: %q (valid: browser, node)", value)
+				return fmt.Errorf("Invalid platform: %q (valid: browser, node, neutral)", value)
 			}
 
 		case strings.HasPrefix(arg, "--format="):
