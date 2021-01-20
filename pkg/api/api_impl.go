@@ -270,7 +270,7 @@ func validateExternals(log logger.Log, fs fs.FS, paths []string) config.External
 			}
 		} else if resolver.IsPackagePath(path) {
 			result.NodeModules[path] = true
-		} else if absPath := validatePath(log, fs, path); absPath != "" {
+		} else if absPath := validatePath(log, fs, path, "external path"); absPath != "" {
 			result.AbsPaths[absPath] = true
 		}
 	}
@@ -420,13 +420,13 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 	return &processed, injectedDefines
 }
 
-func validatePath(log logger.Log, fs fs.FS, relPath string) string {
+func validatePath(log logger.Log, fs fs.FS, relPath string, pathKind string) string {
 	if relPath == "" {
 		return ""
 	}
 	absPath, ok := fs.Abs(relPath)
 	if !ok {
-		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid path: %s", relPath))
+		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid %s: %s", pathKind, relPath))
 	}
 	return absPath
 }
@@ -558,16 +558,16 @@ func rebuildImpl(
 		GlobalName:            validateGlobalName(log, buildOpts.GlobalName),
 		CodeSplitting:         buildOpts.Splitting,
 		OutputFormat:          validateFormat(buildOpts.Format),
-		AbsOutputFile:         validatePath(log, realFS, buildOpts.Outfile),
-		AbsOutputDir:          validatePath(log, realFS, buildOpts.Outdir),
-		AbsOutputBase:         validatePath(log, realFS, buildOpts.Outbase),
-		AbsMetadataFile:       validatePath(log, realFS, buildOpts.Metafile),
+		AbsOutputFile:         validatePath(log, realFS, buildOpts.Outfile, "outfile path"),
+		AbsOutputDir:          validatePath(log, realFS, buildOpts.Outdir, "outdir path"),
+		AbsOutputBase:         validatePath(log, realFS, buildOpts.Outbase, "outbase path"),
+		AbsMetadataFile:       validatePath(log, realFS, buildOpts.Metafile, "metafile path"),
 		OutputExtensionJS:     outJS,
 		OutputExtensionCSS:    outCSS,
 		ExtensionToLoader:     validateLoaders(log, buildOpts.Loader),
 		ExtensionOrder:        validateResolveExtensions(log, buildOpts.ResolveExtensions),
 		ExternalModules:       validateExternals(log, realFS, buildOpts.External),
-		TsConfigOverride:      validatePath(log, realFS, buildOpts.Tsconfig),
+		TsConfigOverride:      validatePath(log, realFS, buildOpts.Tsconfig, "tsconfig path"),
 		MainFields:            buildOpts.MainFields,
 		PublicPath:            buildOpts.PublicPath,
 		KeepNames:             buildOpts.KeepNames,
@@ -577,7 +577,7 @@ func rebuildImpl(
 		Plugins:               plugins,
 	}
 	for i, path := range buildOpts.Inject {
-		options.InjectAbsPaths[i] = validatePath(log, realFS, path)
+		options.InjectAbsPaths[i] = validatePath(log, realFS, path, "inject path")
 	}
 	if options.PublicPath != "" && !strings.HasSuffix(options.PublicPath, "/") && !strings.HasSuffix(options.PublicPath, "\\") {
 		options.PublicPath += "/"
@@ -590,7 +590,7 @@ func rebuildImpl(
 			Loader:        validateLoader(buildOpts.Stdin.Loader),
 			Contents:      buildOpts.Stdin.Contents,
 			SourceFile:    buildOpts.Stdin.Sourcefile,
-			AbsResolveDir: validatePath(log, realFS, buildOpts.Stdin.ResolveDir),
+			AbsResolveDir: validatePath(log, realFS, buildOpts.Stdin.ResolveDir, "resolve directory path"),
 		}
 	}
 
@@ -950,7 +950,8 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 
 			result.Contents = response.Contents
 			result.Loader = validateLoader(response.Loader)
-			if absPath := validatePath(impl.log, impl.fs, response.ResolveDir); absPath != "" {
+			pathKind := fmt.Sprintf("resolve directory path for plugin %q", impl.plugin.Name)
+			if absPath := validatePath(impl.log, impl.fs, response.ResolveDir, pathKind); absPath != "" {
 				result.AbsResolveDir = absPath
 			}
 
