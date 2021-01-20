@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add new `neutral` platform to help text ([#695](https://github.com/evanw/esbuild/pull/695))
+
+    The new `--platform=neutral` API option that was added in the previous release was incorrectly not listed in the CLI help text for the platform feature. This omission has been fixed. The fix was contributed by [@hardfist](https://github.com/hardfist).
+
 ## 0.8.33
 
 * Fix esbuild potentially exiting early during incremental rebuilds
