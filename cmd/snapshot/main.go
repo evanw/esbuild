@@ -47,6 +47,20 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		return true
 	}
 
+	// HACK: this is needed to make esbuild include the metafile with the out files in the
+	// result. I'm not sure how that works with the `{ write: false }` JS API.
+	// Additionally in that case the `Outdir` needs to be set as well.
+	// Note however that despite all this nothing is ever written and all paths are changed
+	// to `<stdout>` when writing output files to JSON (see `snap_api/snap_cmd_helpers.go`)
+	outdir := ""
+	metafile := args.Metafile
+	if !args.Write {
+		outdir = "/"
+		if metafile == "" {
+			metafile = "/"
+		}
+	}
+
 	return api.Build(api.BuildOptions{
 		// https://esbuild.github.io/api/#log-level
 		LogLevel: api.LogLevelInfo,
@@ -58,9 +72,12 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		// https://esbuild.github.io/api/#bundle
 		Bundle: true,
 
+		// https://esbuild.github.io/api/#outdir
+		Outdir: outdir,
+
 		// write out a JSON file with metadata about the build
 		// https://esbuild.github.io/api/#metafile
-		Metafile: args.Metafile,
+		Metafile: metafile,
 
 		// Applies when one entry point is used.
 		// https://esbuild.github.io/api/#outfile
@@ -104,9 +121,10 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		// i.e.: Define: map[string]string{"DEBUG": "true"},
 		Define: nil,
 
-		// When `false` a buffer is returned instead
+		// When `false` a buffer is returned instead.
+		// The default for the snapshot version is `false`
 		// https://esbuild.github.io/api/#write
-		Write: true,
+		Write: args.Write,
 
 		Snapshot: &api.SnapshotOptions{
 			CreateSnapshot:       true,

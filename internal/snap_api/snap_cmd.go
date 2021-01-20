@@ -31,6 +31,7 @@ type SnapCmdArgs struct {
 	Outfile     string
 	Basedir     string
 	Metafile    string
+	Write       bool
 	Deferred    []string
 	Norewrite   []string
 	NorewriteRx []*regexp.Regexp
@@ -118,6 +119,9 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 		case strings.HasPrefix(arg, "--metafile="):
 			cmdArgs.Metafile = arg[len("--metafile="):]
 
+		case strings.HasPrefix(arg, "--write="):
+			cmdArgs.Write = true
+
 		case strings.HasPrefix(arg, "--basedir="):
 			cmdArgs.Basedir = arg[len("--basedir="):]
 
@@ -145,12 +149,12 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 		fmt.Fprintf(os.Stderr, "Need entry point\n\n%s\n", helpText)
 		os.Exit(1)
 	}
-	if cmdArgs.Outfile == "" {
-		fmt.Fprintf(os.Stderr, "Need outfile\n\n%s\n", helpText)
+	if cmdArgs.Write && cmdArgs.Outfile == "" {
+		fmt.Fprintf(os.Stderr, "Need outfil when writing\n\n%s\n", helpText)
 		os.Exit(1)
 	}
-	if cmdArgs.Metafile == "" {
-		fmt.Fprintf(os.Stderr, "Need metafile\n\n%s\n", helpText)
+	if cmdArgs.Write && cmdArgs.Metafile == "" {
+		fmt.Fprintf(os.Stderr, "Need metafile when writing\n\n%s\n", helpText)
 		os.Exit(1)
 	}
 	if cmdArgs.Basedir == "" {
@@ -162,9 +166,11 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 	}
 
 	result := processArgs(&cmdArgs)
+	json := resultToJSON(result, cmdArgs.Write)
+	fmt.Fprintln(os.Stdout, json)
 
 	exitCode := len(result.Errors)
-	if logger.GetTerminalInfo(os.Stdin).IsTTY {
+	if cmdArgs.Write && logger.GetTerminalInfo(os.Stdin).IsTTY {
 		for _, warning := range result.Warnings {
 			fmt.Fprintln(os.Stderr, warning)
 		}
