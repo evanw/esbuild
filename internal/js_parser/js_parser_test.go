@@ -1182,6 +1182,102 @@ func TestArrow(t *testing.T) {
 	expectPrinted(t, "1 < (() => {})", "1 < (() => {\n});\n")
 	expectParseError(t, "1 < () => {}", "<stdin>: error: Unexpected \")\"\n")
 	expectParseError(t, "(...x = y) => {}", "<stdin>: error: A rest argument cannot have a default initializer\n")
+
+	expectParseError(t, "() => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseError(t, "x => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseError(t, "async () => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseError(t, "async x => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseError(t, "async (x) => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
+
+	expectPrinted(t, "() => {}\n(0)", "() => {\n};\n0;\n")
+	expectPrinted(t, "x => {}\n(0)", "(x) => {\n};\n0;\n")
+	expectPrinted(t, "async () => {}\n(0)", "async () => {\n};\n0;\n")
+	expectPrinted(t, "async x => {}\n(0)", "async (x) => {\n};\n0;\n")
+	expectPrinted(t, "async (x) => {}\n(0)", "async (x) => {\n};\n0;\n")
+
+	expectPrinted(t, "() => {}\n,0", "() => {\n}, 0;\n")
+	expectPrinted(t, "x => {}\n,0", "(x) => {\n}, 0;\n")
+	expectPrinted(t, "async () => {}\n,0", "async () => {\n}, 0;\n")
+	expectPrinted(t, "async x => {}\n,0", "async (x) => {\n}, 0;\n")
+	expectPrinted(t, "async (x) => {}\n,0", "async (x) => {\n}, 0;\n")
+
+	expectPrinted(t, "(() => {})\n(0)", "(() => {\n})(0);\n")
+	expectPrinted(t, "(x => {})\n(0)", "((x) => {\n})(0);\n")
+	expectPrinted(t, "(async () => {})\n(0)", "(async () => {\n})(0);\n")
+	expectPrinted(t, "(async x => {})\n(0)", "(async (x) => {\n})(0);\n")
+	expectPrinted(t, "(async (x) => {})\n(0)", "(async (x) => {\n})(0);\n")
+
+	expectParseError(t, "y = () => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseError(t, "y = x => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseError(t, "y = async () => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseError(t, "y = async x => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseError(t, "y = async (x) => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
+
+	expectPrinted(t, "y = () => {}\n(0)", "y = () => {\n};\n0;\n")
+	expectPrinted(t, "y = x => {}\n(0)", "y = (x) => {\n};\n0;\n")
+	expectPrinted(t, "y = async () => {}\n(0)", "y = async () => {\n};\n0;\n")
+	expectPrinted(t, "y = async x => {}\n(0)", "y = async (x) => {\n};\n0;\n")
+	expectPrinted(t, "y = async (x) => {}\n(0)", "y = async (x) => {\n};\n0;\n")
+
+	expectPrinted(t, "y = () => {}\n,0", "y = () => {\n}, 0;\n")
+	expectPrinted(t, "y = x => {}\n,0", "y = (x) => {\n}, 0;\n")
+	expectPrinted(t, "y = async () => {}\n,0", "y = async () => {\n}, 0;\n")
+	expectPrinted(t, "y = async x => {}\n,0", "y = async (x) => {\n}, 0;\n")
+	expectPrinted(t, "y = async (x) => {}\n,0", "y = async (x) => {\n}, 0;\n")
+
+	expectPrinted(t, "y = (() => {})\n(0)", "y = (() => {\n})(0);\n")
+	expectPrinted(t, "y = (x => {})\n(0)", "y = ((x) => {\n})(0);\n")
+	expectPrinted(t, "y = (async () => {})\n(0)", "y = (async () => {\n})(0);\n")
+	expectPrinted(t, "y = (async x => {})\n(0)", "y = (async (x) => {\n})(0);\n")
+	expectPrinted(t, "y = (async (x) => {})\n(0)", "y = (async (x) => {\n})(0);\n")
+
+	expectParseError(t, "(() => {}(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "(x => {}(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "(async () => {}(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "(async x => {}(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "(async (x) => {}(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+
+	expectParseError(t, "(() => {}\n(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "(x => {}\n(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "(async () => {}\n(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "(async x => {}\n(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "(async (x) => {}\n(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+
+	expectPrinted(t, "(() => {}\n,0)", "() => {\n}, 0;\n")
+	expectPrinted(t, "(x => {}\n,0)", "(x) => {\n}, 0;\n")
+	expectPrinted(t, "(async () => {}\n,0)", "async () => {\n}, 0;\n")
+	expectPrinted(t, "(async x => {}\n,0)", "async (x) => {\n}, 0;\n")
+	expectPrinted(t, "(async (x) => {}\n,0)", "async (x) => {\n}, 0;\n")
+
+	expectPrinted(t, "((() => {})\n(0))", "(() => {\n})(0);\n")
+	expectPrinted(t, "((x => {})\n(0))", "((x) => {\n})(0);\n")
+	expectPrinted(t, "((async () => {})\n(0))", "(async () => {\n})(0);\n")
+	expectPrinted(t, "((async x => {})\n(0))", "(async (x) => {\n})(0);\n")
+	expectPrinted(t, "((async (x) => {})\n(0))", "(async (x) => {\n})(0);\n")
+
+	expectParseError(t, "y = (() => {}(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "y = (x => {}(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "y = (async () => {}(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "y = (async x => {}(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "y = (async (x) => {}(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+
+	expectParseError(t, "y = (() => {}\n(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "y = (x => {}\n(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "y = (async () => {}\n(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "y = (async x => {}\n(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+	expectParseError(t, "y = (async (x) => {}\n(0))", "<stdin>: error: Expected \")\" but found \"(\"\n")
+
+	expectPrinted(t, "y = (() => {}\n,0)", "y = (() => {\n}, 0);\n")
+	expectPrinted(t, "y = (x => {}\n,0)", "y = ((x) => {\n}, 0);\n")
+	expectPrinted(t, "y = (async () => {}\n,0)", "y = (async () => {\n}, 0);\n")
+	expectPrinted(t, "y = (async x => {}\n,0)", "y = (async (x) => {\n}, 0);\n")
+	expectPrinted(t, "y = (async (x) => {}\n,0)", "y = (async (x) => {\n}, 0);\n")
+
+	expectPrinted(t, "y = ((() => {})\n(0))", "y = (() => {\n})(0);\n")
+	expectPrinted(t, "y = ((x => {})\n(0))", "y = ((x) => {\n})(0);\n")
+	expectPrinted(t, "y = ((async () => {})\n(0))", "y = (async () => {\n})(0);\n")
+	expectPrinted(t, "y = ((async x => {})\n(0))", "y = (async (x) => {\n})(0);\n")
+	expectPrinted(t, "y = ((async (x) => {})\n(0))", "y = (async (x) => {\n})(0);\n")
 }
 
 func TestTemplate(t *testing.T) {

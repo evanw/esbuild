@@ -221,6 +221,24 @@ type parser struct {
 	// makes it easier to quickly scan the top-level statements for "var" locals
 	// with the guarantee that all will be found.
 	relocatedTopLevelVars []js_ast.LocRef
+
+	// ArrowFunction is a special case in the grammar. Although it appears to be
+	// a PrimaryExpression, it's actually an AssigmentExpression. This means if
+	// a AssigmentExpression ends up producing an ArrowFunction then nothing can
+	// come after it other than the comma operator, since the comma operator is
+	// the only thing above AssignmentExpression under the Expression rule:
+	//
+	//   AssignmentExpression:
+	//     ArrowFunction
+	//     ConditionalExpression
+	//     LeftHandSideExpression = AssignmentExpression
+	//     LeftHandSideExpression AssignmentOperator AssignmentExpression
+	//
+	//   Expression:
+	//     AssignmentExpression
+	//     Expression , AssignmentExpression
+	//
+	afterArrowBodyLoc logger.Loc
 }
 
 // This is used as part of an incremental build cache key. Some of these values
@@ -1846,10 +1864,9 @@ func (p *parser) parseArrowBody(args []js_ast.Arg, data fnOrArrowDataParse) *js_
 	data.allowSuperCall = p.fnOrArrowDataParse.allowSuperCall
 
 	if p.lexer.Token == js_lexer.TOpenBrace {
-		return &js_ast.EArrow{
-			Args: args,
-			Body: p.parseFnBody(data),
-		}
+		body := p.parseFnBody(data)
+		p.afterArrowBodyLoc = p.lexer.Loc()
+		return &js_ast.EArrow{Args: args, Body: body}
 	}
 
 	p.pushScopeForParsePass(js_ast.ScopeFunctionBody, arrowLoc)
@@ -2138,20 +2155,12 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 			p.log.AddRangeError(&p.source, spreadRange, "Unexpected \"...\"")
 			panic(js_lexer.LexerPanic{})
 		}
-		value := js_ast.JoinAllWithComma(items)
-		markExprAsParenthesized(value)
-		return value
+		return js_ast.JoinAllWithComma(items)
 	}
 
 	// Indicate that we expected an arrow function
 	p.lexer.Expected(js_lexer.TEqualsGreaterThan)
 	return js_ast.Expr{}
-}
-
-func markExprAsParenthesized(value js_ast.Expr) {
-	if e, ok := value.Data.(*js_ast.EArrow); ok {
-		e.IsParenthesized = true
-	}
 }
 
 func (p *parser) convertExprToBindingAndInitializer(expr js_ast.Expr, invalidLog []logger.Loc) (js_ast.Binding, *js_ast.Expr, []logger.Loc) {
@@ -2317,7 +2326,6 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			p.allowIn = true
 
 			value := p.parseExpr(js_ast.LLowest)
-			markExprAsParenthesized(value)
 			p.lexer.Expect(js_lexer.TCloseParen)
 
 			p.allowIn = oldAllowIn
@@ -2963,24 +2971,10 @@ func (p *parser) parseExprCommon(level js_ast.L, errors *deferredErrors, flags e
 }
 
 func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredErrors, flags exprFlag) js_ast.Expr {
-	// ArrowFunction is a special case in the grammar. Although it appears to be
-	// a PrimaryExpression, it's actually an AssigmentExpression. This means if
-	// a AssigmentExpression ends up producing an ArrowFunction then nothing can
-	// come after it other than the comma operator, since the comma operator is
-	// the only thing above AssignmentExpression under the Expression rule:
-	//
-	//   AssignmentExpression:
-	//     ArrowFunction
-	//     ConditionalExpression
-	//     LeftHandSideExpression = AssignmentExpression
-	//     LeftHandSideExpression AssignmentOperator AssignmentExpression
-	//
-	//   Expression:
-	//     AssignmentExpression
-	//     Expression , AssignmentExpression
-	//
-	if level < js_ast.LAssign {
-		if arrow, ok := left.Data.(*js_ast.EArrow); ok && !arrow.IsParenthesized {
+	optionalChain := js_ast.OptionalChainNone
+
+	for {
+		if p.lexer.Loc() == p.afterArrowBodyLoc {
 			for {
 				switch p.lexer.Token {
 				case js_lexer.TComma:
@@ -2995,11 +2989,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				}
 			}
 		}
-	}
 
-	optionalChain := js_ast.OptionalChainNone
-
-	for {
 		// Stop now if this token is forbidden to follow a TypeScript "as" cast
 		if p.lexer.Loc() == p.forbidSuffixAfterAsLoc {
 			return left
@@ -11610,6 +11600,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		fnOrArrowDataParse: fnOrArrowDataParse{isOutsideFn: true},
 		runtimeImports:     make(map[string]js_ast.Ref),
 		promiseRef:         js_ast.InvalidRef,
+		afterArrowBodyLoc:  logger.Loc{Start: -1},
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,

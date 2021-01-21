@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+* Fix a parser bug about suffix expressions after an arrow function body ([#701](https://github.com/evanw/esbuild/issues/701))
+
+    The JavaScript parser incorrectly handled suffix expressions after a non-expression arrow function body. In practice, this came up when a semicolon was omitted from the end of an expression statement and the following expression could be considered a suffix expression:
+
+    ```js
+    x = () => {}
+    (y)
+    ```
+
+    This was incorrectly parsed as `(x = () => {})(y);` instead of `x = () => {}; y;`. With this release, this edge case should now be parsed correctly.
+
 * Add new `neutral` platform to help text ([#695](https://github.com/evanw/esbuild/pull/695))
 
     The new `--platform=neutral` API option that was added in the previous release was incorrectly not listed in the CLI help text for the platform feature. This omission has been fixed. The fix was contributed by [@hardfist](https://github.com/hardfist).

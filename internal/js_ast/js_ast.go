@@ -489,10 +489,9 @@ type EArrow struct {
 	Args []Arg
 	Body FnBody
 
-	IsAsync         bool
-	HasRestArg      bool
-	IsParenthesized bool
-	PreferExpr      bool // Use shorthand if true and "Body" is a single return statement
+	IsAsync    bool
+	HasRestArg bool
+	PreferExpr bool // Use shorthand if true and "Body" is a single return statement
 }
 
 type EFunction struct{ Fn Fn }
