@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.34
 
 * Fix a parser bug about suffix expressions after an arrow function body ([#701](https://github.com/evanw/esbuild/issues/701))
 

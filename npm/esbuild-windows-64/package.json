@@ -1,6 +1,6 @@
 {
   "name": "esbuild-windows-64",
-  "version": "0.8.33",
+  "version": "0.8.34",
   "description": "The Windows 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
