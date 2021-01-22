@@ -2,7 +2,7 @@
 
 _An extremely fast JavaScript bundler_
 
-[Website](https://esbuild.github.io/) | [Getting started](https://esbuild.github.io/getting-started/) | [Documentation](https://esbuild.github.io/api/) | [FAQ](https://esbuild.github.io/faq/)
+[Website](https://esbuild.github.io/) | [Getting started](https://esbuild.github.io/getting-started/) | [Documentation](https://esbuild.github.io/api/) | [Plugins](https://esbuild.github.io/plugins/) | [FAQ](https://esbuild.github.io/faq/)
 
 ## Why?
 
