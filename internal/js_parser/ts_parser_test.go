@@ -1283,6 +1283,12 @@ func TestTSNew(t *testing.T) {
 	expectParseError(t, "new Foo!()", "<stdin>: error: Unexpected \"!\"\n")
 }
 
+func TestTSExponentiation(t *testing.T) {
+	// More info: https://github.com/microsoft/TypeScript/issues/41755
+	expectParseErrorTS(t, "await x! ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectPrintedTS(t, "await x as any ** 2", "(await x) ** 2;\n")
+}
+
 func TestTSImport(t *testing.T) {
 	expectPrintedTS(t, "import {x} from 'foo'", "")
 	expectPrintedTS(t, "import {x} from 'foo'; log(x)", "import {x} from \"foo\";\nlog(x);\n")

@@ -2375,7 +2375,11 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 					if p.fnOrArrowDataParse.arrowArgErrors != nil {
 						p.fnOrArrowDataParse.arrowArgErrors.invalidExprAwait = nameRange
 					}
-					return js_ast.Expr{Loc: loc, Data: &js_ast.EAwait{Value: p.parseExpr(js_ast.LPrefix)}}
+					value := p.parseExpr(js_ast.LPrefix)
+					if p.lexer.Token == js_lexer.TAsteriskAsterisk {
+						p.lexer.Unexpected()
+					}
+					return js_ast.Expr{Loc: loc, Data: &js_ast.EAwait{Value: value}}
 				}
 			}
 
