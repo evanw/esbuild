@@ -222,6 +222,9 @@ clean:
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
 	rm -rf npm/esbuild/lib
 	rm -rf npm/esbuild-wasm/lib
+	rm -rf require/*/bench/
+	rm -rf require/*/demo/
+	rm -rf require/*/node_modules/
 	go clean -testcache ./internal/...
 
 # This also cleans directories containing cached code from other projects
@@ -233,33 +236,23 @@ clean-all: clean
 # because we want to install the same package name at multiple versions
 
 require/webpack/node_modules:
-	mkdir -p require/webpack
-	echo '{}' > require/webpack/package.json
-	cd require/webpack && npm install webpack@4.44.2 webpack-cli@3.3.12 ts-loader@8.0.4 typescript@4.0.3
+	cd require/webpack && npm ci
 
 require/webpack5/node_modules:
-	mkdir -p require/webpack5
-	echo '{}' > require/webpack5/package.json
-	cd require/webpack5 && npm install webpack@5.14.0 webpack-cli@4.3.1 ts-loader@8.0.14 typescript@4.1.3
+	cd require/webpack5 && npm ci
 
 require/rollup/node_modules:
-	mkdir -p require/rollup
-	echo '{}' > require/rollup/package.json
-	cd require/rollup && npm install rollup@2.29.0 rollup-plugin-terser@7.0.2
+	cd require/rollup && npm ci
 
 require/parcel/node_modules:
-	mkdir -p require/parcel
-	echo '{}' > require/parcel/package.json
-	cd require/parcel && npm install parcel@1.12.4 typescript@4.1.2
+	cd require/parcel && npm ci
 
 	# Fix a bug where parcel doesn't know about one specific node builtin module
 	mkdir -p require/parcel/node_modules/inspector
 	touch require/parcel/node_modules/inspector/index.js
 
 require/parcel2/node_modules:
-	mkdir -p require/parcel2
-	echo '{}' > require/parcel2/package.json
-	cd require/parcel2 && npm install parcel@2.0.0-nightly.532 @parcel/transformer-typescript-tsc@2.0.0-nightly.534 typescript@4.1.2
+	cd require/parcel2 && npm ci
 
 lib/node_modules:
 	cd lib && npm ci
