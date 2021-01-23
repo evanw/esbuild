@@ -3001,6 +3001,8 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSX(t, "<a.b/>", "/* @__PURE__ */ React.createElement(a.b, null);\n")
 	expectPrintedJSX(t, "<_a/>", "/* @__PURE__ */ React.createElement(_a, null);\n")
 	expectPrintedJSX(t, "<a-b/>", "/* @__PURE__ */ React.createElement(\"a-b\", null);\n")
+	expectPrintedJSX(t, "<a0/>", "/* @__PURE__ */ React.createElement(\"a0\", null);\n")
+	expectParseErrorJSX(t, "<0a/>", "<stdin>: error: Expected identifier but found \"0\"\n")
 
 	expectPrintedJSX(t, "<a b/>", "/* @__PURE__ */ React.createElement(\"a\", {\n  b: true\n});\n")
 	expectPrintedJSX(t, "<a b=\"\\\"/>", "/* @__PURE__ */ React.createElement(\"a\", {\n  b: \"\\\\\"\n});\n")
@@ -3119,7 +3121,6 @@ func TestJSX(t *testing.T) {
 		"<stdin>: error: Expected closing tag \"c.d\" to match opening tag \"a.b\"\n<stdin>: note: The opening tag \"a.b\" is here\n")
 	expectParseErrorJSX(t, "<a-b.c>", "<stdin>: error: Expected \">\" but found \".\"\n")
 	expectParseErrorJSX(t, "<a.b-c>", "<stdin>: error: Unexpected \"-\"\n")
-	expectParseErrorJSX(t, "<a:b>", "<stdin>: error: Expected \">\" but found \":\"\n")
 	expectParseErrorJSX(t, "<a>{...children}</a>", "<stdin>: error: Unexpected \"...\"\n")
 
 	expectPrintedJSX(t, "< /**/ a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
@@ -3157,6 +3158,25 @@ func TestJSX(t *testing.T) {
 	expectParseErrorJSX(t, "<a b/**/>", "<stdin>: error: Unexpected end of file\n")
 	expectParseErrorJSX(t, "<a b/**/ />", "")
 	expectParseErrorJSX(t, "<a b// \n />", "")
+
+	// JSX namespaced names
+	expectPrintedJSX(t, "<a:b/>", "/* @__PURE__ */ React.createElement(\"a:b\", null);\n")
+	expectPrintedJSX(t, "<a-b:c-d/>", "/* @__PURE__ */ React.createElement(\"a-b:c-d\", null);\n")
+	expectPrintedJSX(t, "<a-:b-/>", "/* @__PURE__ */ React.createElement(\"a-:b-\", null);\n")
+	expectPrintedJSX(t, "<Te:st/>", "/* @__PURE__ */ React.createElement(\"Te:st\", null);\n")
+	expectPrintedJSX(t, "<x a:b/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  \"a:b\": true\n});\n")
+	expectPrintedJSX(t, "<x a-b:c-d/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  \"a-b:c-d\": true\n});\n")
+	expectPrintedJSX(t, "<x a-:b-/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  \"a-:b-\": true\n});\n")
+	expectPrintedJSX(t, "<x Te:st/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  \"Te:st\": true\n});\n")
+	expectPrintedJSX(t, "<x a:b={0}/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  \"a:b\": 0\n});\n")
+	expectPrintedJSX(t, "<x a-b:c-d={0}/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  \"a-b:c-d\": 0\n});\n")
+	expectPrintedJSX(t, "<x a-:b-={0}/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  \"a-:b-\": 0\n});\n")
+	expectPrintedJSX(t, "<x Te:st={0}/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  \"Te:st\": 0\n});\n")
+	expectPrintedJSX(t, "<a-b a-b={a-b}/>", "/* @__PURE__ */ React.createElement(\"a-b\", {\n  \"a-b\": a - b\n});\n")
+	expectParseErrorJSX(t, "<x:/>", "<stdin>: error: Expected identifier after \"x:\" in namespaced JSX name\n")
+	expectParseErrorJSX(t, "<x :y/>", "<stdin>: error: Expected \">\" but found \":\"\n")
+	expectParseErrorJSX(t, "<x:y:/>", "<stdin>: error: Expected \">\" but found \":\"\n")
+	expectParseErrorJSX(t, "<x:0y/>", "<stdin>: error: Expected identifier after \"x:\" in namespaced JSX name\n")
 }
 
 func TestJSXPragmas(t *testing.T) {

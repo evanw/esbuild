@@ -6,6 +6,33 @@
 
     I recently discovered an interesting discussion about JavaScript syntax entitled ["Most implementations seem to have missed that `await x ** 2` is not legal"](https://github.com/tc39/ecma262/issues/2197). Indeed esbuild has missed this, but this is not surprising because V8 has missed this as well and I usually test esbuild against V8 to test if esbuild is conformant with the JavaScript standard. Regardless, it sounds like the result of the discussion is that the specification should stay the same and implementations should be fixed. This release fixes this bug in esbuild's parser. The syntax `await x ** 2` is no longer allowed and parentheses are now preserved for the syntax `(await x) ** 2`.
 
+* Allow namespaced names in JSX syntax ([#702](https://github.com/evanw/esbuild/issues/702))
+
+    XML-style namespaced names with a `:` in the middle are a part of the [JSX specification](http://facebook.github.io/jsx/) but they are explicitly unimplemented by React and TypeScript so esbuild doesn't currently support them. However, there was a user request to support this feature since it's part of the JSX specification and esbuild's JSX support can be used for non-React purposes. So this release now supports namespaced names in JSX expressions:
+
+    ```jsx
+    let xml =
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <rdf:Description rdf:ID="local-record">
+          <dc:title>Local Record</dc:title>
+        </rdf:Description>
+      </rdf:RDF>
+    ```
+
+    This JSX expression is now transformed by esbuild to the following JavaScript:
+
+    ```js
+    let xml = React.createElement("rdf:RDF", {
+      "xmlns:rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+      "xmlns:dc": "http://purl.org/dc/elements/1.1/"
+    }, React.createElement("rdf:Description", {
+      "rdf:ID": "local-record"
+    }, React.createElement("dc:title", null, "Local Record")));
+    ```
+
+    Note that if you are trying to namespace your React components, this is _not_ the feature to use. You should be using a `.` instead of a `:` for namespacing your React components since `.` resolves to a JavaScript property access.
+
 ## 0.8.34
 
 * Fix a parser bug about suffix expressions after an arrow function body ([#701](https://github.com/evanw/esbuild/issues/701))

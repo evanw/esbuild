@@ -3699,7 +3699,7 @@ func (p *parser) parseJSXTag() (logger.Range, string, *js_ast.Expr) {
 	p.lexer.ExpectInsideJSXElement(js_lexer.TIdentifier)
 
 	// Certain identifiers are strings
-	if strings.ContainsRune(name, '-') || (p.lexer.Token != js_lexer.TDot && name[0] >= 'a' && name[0] <= 'z') {
+	if strings.ContainsAny(name, "-:") || (p.lexer.Token != js_lexer.TDot && name[0] >= 'a' && name[0] <= 'z') {
 		return tagRange, name, &js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}}
 	}
 

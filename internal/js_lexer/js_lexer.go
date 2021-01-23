@@ -238,6 +238,7 @@ type Lexer struct {
 	rescanCloseBraceAsTemplateToken bool
 	forGlobalName                   bool
 	json                            json
+	prevErrorLoc                    logger.Loc
 
 	// The log is disabled during speculative scans that may backtrack
 	IsLogDisabled bool
@@ -247,8 +248,9 @@ type LexerPanic struct{}
 
 func NewLexer(log logger.Log, source logger.Source) Lexer {
 	lexer := Lexer{
-		log:    log,
-		source: source,
+		log:          log,
+		source:       source,
+		prevErrorLoc: logger.Loc{Start: -1},
 	}
 	lexer.step()
 	lexer.Next()
@@ -259,6 +261,7 @@ func NewLexerGlobalName(log logger.Log, source logger.Source) Lexer {
 	lexer := Lexer{
 		log:           log,
 		source:        source,
+		prevErrorLoc:  logger.Loc{Start: -1},
 		forGlobalName: true,
 	}
 	lexer.step()
@@ -268,8 +271,9 @@ func NewLexerGlobalName(log logger.Log, source logger.Source) Lexer {
 
 func NewLexerJSON(log logger.Log, source logger.Source, allowComments bool) Lexer {
 	lexer := Lexer{
-		log:    log,
-		source: source,
+		log:          log,
+		source:       source,
+		prevErrorLoc: logger.Loc{Start: -1},
 		json: json{
 			parse:         true,
 			allowComments: allowComments,
@@ -917,6 +921,24 @@ func (lexer *Lexer) NextInsideJSXElement() {
 				for IsIdentifierContinue(lexer.codePoint) || lexer.codePoint == '-' {
 					lexer.step()
 				}
+
+				// Parse JSX namespaces. These are not supported by React or TypeScript
+				// but someone using JSX syntax in more obscure ways may find a use for
+				// them. A namespaced name is just always turned into a string so you
+				// can't use this feature to reference JavaScript identifiers.
+				if lexer.codePoint == ':' {
+					lexer.step()
+					if IsIdentifierStart(lexer.codePoint) {
+						lexer.step()
+						for IsIdentifierContinue(lexer.codePoint) || lexer.codePoint == '-' {
+							lexer.step()
+						}
+					} else {
+						lexer.addError(logger.Loc{Start: lexer.Range().End()},
+							fmt.Sprintf("Expected identifier after %q in namespaced JSX name", lexer.Raw()))
+					}
+				}
+
 				lexer.Identifier = lexer.Raw()
 				lexer.Token = TIdentifier
 				break
@@ -2330,18 +2352,36 @@ func (lexer *Lexer) step() {
 }
 
 func (lexer *Lexer) addError(loc logger.Loc, text string) {
+	// Don't report multiple errors in the same spot
+	if loc == lexer.prevErrorLoc {
+		return
+	}
+	lexer.prevErrorLoc = loc
+
 	if !lexer.IsLogDisabled {
 		lexer.log.AddError(&lexer.source, loc, text)
 	}
 }
 
 func (lexer *Lexer) addErrorWithNotes(loc logger.Loc, text string, notes []logger.MsgData) {
+	// Don't report multiple errors in the same spot
+	if loc == lexer.prevErrorLoc {
+		return
+	}
+	lexer.prevErrorLoc = loc
+
 	if !lexer.IsLogDisabled {
 		lexer.log.AddErrorWithNotes(&lexer.source, loc, text, notes)
 	}
 }
 
 func (lexer *Lexer) addRangeError(r logger.Range, text string) {
+	// Don't report multiple errors in the same spot
+	if r.Loc == lexer.prevErrorLoc {
+		return
+	}
+	lexer.prevErrorLoc = r.Loc
+
 	if !lexer.IsLogDisabled {
 		lexer.log.AddRangeError(&lexer.source, r, text)
 	}
