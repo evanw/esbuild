@@ -8614,7 +8614,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					nextNumericValue = e.Value + 1
 				case *js_ast.EString:
 					hasStringValue = true
-					if s.IsConst {
+					if s.IsConst && !s.IsExport {
 						valuesSoFar[name] = e
 					}
 				default:
