@@ -240,18 +240,22 @@ TestTSImportConstEnumInsideNamespace
 // common.ts
 var NS;
 (function(NS2) {
-  let Foo2;
-  (function(Foo3) {
-    Foo3[Foo3["A"] = 1] = "A";
-    Foo3["B"] = "a";
-    Foo3[Foo3["FromBase"] = 1] = "FromBase";
-  })(Foo2 = NS2.Foo || (NS2.Foo = {}));
-  let usageInsideNamespace = bar(1, 1, Foo2.invalid);
+  let Base;
+  /* @__PURE__ */ (function(Base2) {
+    Base2["A"] = "from base enum";
+  })(Base || (Base = {}));
+  let Foo;
+  (function(Foo2) {
+    Foo2[Foo2["A"] = 1] = "A";
+    Foo2["B"] = "a";
+    Foo2["FromBase"] = "from base enum";
+  })(Foo = NS2.Foo || (NS2.Foo = {}));
+  let usageInsideNamespace = bar("from base enum", 1, Foo.invalid);
 })(NS || (NS = {}));
 var usageInBaseModule = bar(NS.Foo.A, NS.Foo.FromBase, NS.Foo.invalid);
 
 // entry.ts
-var usage = bar(NS.Foo.A, NS.Foo.B, Foo.FromBase);
+var usageWithoutInliningValues = bar(NS.Foo.A, NS.Foo.B, NS.Foo.FromBase);
 var noErrorsShownFor = bar(NS.invalidMember, NS.Foo.invalid);
 
 ================================================================================
@@ -302,6 +306,46 @@ var e = class {
 console.log(a, b, c, d, e, real);
 
 ================================================================================
+TestTSInlinableLocalConstEnum
+---------- /out.js ----------
+// common.ts
+var usage = bar(1, 2, 3, "stringsWorkToo");
+
+// entry.ts
+usage();
+
+================================================================================
+TestTSInlinableLocalConstEnumInsideNamespace
+---------- /out.js ----------
+// common.ts
+var NS;
+(function(NS2) {
+  let Foo;
+  /* @__PURE__ */ (function(Foo2) {
+    Foo2[Foo2.A = 1] = "A", Foo2[Foo2.B = 2] = "B", Foo2[Foo2.C = 3] = "C", Foo2.D = "stringsWorkToo";
+  })(Foo || (Foo = {})), NS2.usage = bar(1, 2, 3, "stringsWorkToo");
+})(NS || (NS = {}));
+
+// entry.ts
+NS.usage();
+
+================================================================================
+TestTSLocalConstEnumWithUnknownPropertyAccess
+---------- /out.js ----------
+// common.ts
+var Foo;
+/* @__PURE__ */ (function(Foo2) {
+  Foo2[Foo2["A"] = 1] = "A";
+  Foo2[Foo2["B"] = 2] = "B";
+  Foo2[Foo2["C"] = 3] = "C";
+  Foo2["D"] = "stringsWorkToo";
+})(Foo || (Foo = {}));
+var usage = bar(1, 2, 3, "stringsWorkToo", Foo.E);
+
+// entry.ts
+usage();
+
+================================================================================
 TestTSMinifiedBundleCommonJS
 ---------- /out.js ----------
 var n=e(r=>{r.foo=function(){return 123}});var u=e((j,t)=>{t.exports={test:!0}});var{foo:c}=n();console.log(c(),u());
@@ -338,12 +382,6 @@ var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||(e.Bar={}))})(Foo||(
 
 ---------- /b.js ----------
 export var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||(e.Bar={}))})(Foo||(Foo={}));
-
-================================================================================
-TestTSValidConstEnum
----------- /out.js ----------
-// entry.ts
-var usage = bar(1, 2, 3, "stringsWorkToo", Foo.E);
 
 ================================================================================
 TestTypeScriptDecorators

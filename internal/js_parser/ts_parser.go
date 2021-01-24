@@ -975,6 +975,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	stmts []js_ast.Stmt, stmtLoc logger.Loc, isExport bool, nameLoc logger.Loc,
 	nameRef js_ast.Ref, argRef js_ast.Ref, stmtsInsideClosure []js_ast.Stmt,
+	canBeRemovedIfUnused bool,
 ) []js_ast.Stmt {
 	// Follow the link chain in case symbols were merged
 	symbol := p.symbols[nameRef.InnerIndex]
@@ -1033,14 +1034,16 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 		// "name || (name = {})"
 		argExpr = js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
 			Op:   js_ast.BinOpLogicalOr,
-			Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+			Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef, CanBeRemovedIfUnused: canBeRemovedIfUnused}},
 			Right: js_ast.Assign(
-				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef, CanBeRemovedIfUnused: canBeRemovedIfUnused}},
 				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
 			),
 		}}
-		p.recordUsage(nameRef)
-		p.recordUsage(nameRef)
+		if !canBeRemovedIfUnused {
+			p.recordUsage(nameRef)
+			p.recordUsage(nameRef)
+		}
 	}
 
 	// Call the closure with the name object
@@ -1049,8 +1052,9 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 			Args: []js_ast.Arg{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: argRef}}}},
 			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
 		}}},
-		Args: []js_ast.Expr{argExpr},
-	}}}})
+		Args:                   []js_ast.Expr{argExpr},
+		CanBeUnwrappedIfUnused: canBeRemovedIfUnused,
+	}}, DoesNotAffectTreeShaking: canBeRemovedIfUnused}})
 
 	return stmts
 }

@@ -8620,7 +8620,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				default:
 					if s.IsConst {
 						r := js_lexer.RangeOfIdentifier(p.source, value.Value.Loc)
-						p.log.AddRangeError(&p.source, r, "const enum member initializers can only contain literal values and other computed enum values")
+						p.log.AddRangeError(&p.source, r, "Const enum member initializers can only contain literal values and other computed enum values")
 					}
 				}
 			} else if hasNumericValue {
@@ -8676,25 +8676,23 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		p.shouldFoldNumericConstants = oldShouldFoldNumericConstants
 
-		if !s.IsConst || s.IsExport {
-			// Generate statements from expressions
-			valueStmts := []js_ast.Stmt{}
-			if len(valueExprs) > 0 {
-				if p.options.mangleSyntax {
-					// "a; b; c;" => "a, b, c;"
-					joined := js_ast.JoinAllWithComma(valueExprs)
-					valueStmts = append(valueStmts, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SExpr{Value: joined}})
-				} else {
-					for _, expr := range valueExprs {
-						valueStmts = append(valueStmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
-					}
+		// Generate statements from expressions
+		valueStmts := []js_ast.Stmt{}
+		if len(valueExprs) > 0 {
+			if p.options.mangleSyntax {
+				// "a; b; c;" => "a, b, c;"
+				joined := js_ast.JoinAllWithComma(valueExprs)
+				valueStmts = append(valueStmts, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SExpr{Value: joined}})
+			} else {
+				for _, expr := range valueExprs {
+					valueStmts = append(valueStmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
 				}
 			}
-
-			// Wrap this enum definition in a closure
-			stmts = p.generateClosureForTypeScriptNamespaceOrEnum(
-				stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, valueStmts)
 		}
+
+		// Wrap this enum definition in a closure
+		stmts = p.generateClosureForTypeScriptNamespaceOrEnum(
+			stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, valueStmts, s.IsConst && !s.IsExport)
 
 		return stmts
 
@@ -8723,7 +8721,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Generate a closure for this namespace
 		stmts = p.generateClosureForTypeScriptNamespaceOrEnum(
-			stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, stmtsInsideNamespace)
+			stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, stmtsInsideNamespace, false)
 		return stmts
 
 	default:
@@ -9492,6 +9490,7 @@ func (p *parser) maybeRewritePropertyAccess(
 		if p.options.ts.Parse && optionalChain == js_ast.OptionalChainNone {
 			if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
 				if enumValue, ok := enumValueMap[name]; ok {
+					p.ignoreUsage(id.Ref)
 					return js_ast.Expr{Loc: loc, Data: enumValue}, true
 				} else {
 					r := js_lexer.RangeOfIdentifier(p.source, loc)
@@ -11607,6 +11606,7 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 			// If this is a known enum value, inline the value of the enum
 			if enumValueMap, ok := p.knownEnumValues[nsRef]; ok {
 				if enumValue, ok := enumValueMap[name]; ok {
+					p.ignoreUsage(nsRef)
 					return js_ast.Expr{Loc: loc, Data: enumValue}
 				} else {
 					r := js_lexer.RangeOfIdentifier(p.source, loc)

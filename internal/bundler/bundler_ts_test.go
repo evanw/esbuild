@@ -154,19 +154,19 @@ func TestTSInvalidConstEnum(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `entry.ts: error: Enum member must have initializer
-entry.ts: error: const enum member initializers can only contain literal values and other computed enum values
-entry.ts: error: const enum member initializers can only contain literal values and other computed enum values
-entry.ts: error: const enum member initializers can only contain literal values and other computed enum values
+entry.ts: error: Const enum member initializers can only contain literal values and other computed enum values
+entry.ts: error: Const enum member initializers can only contain literal values and other computed enum values
+entry.ts: error: Const enum member initializers can only contain literal values and other computed enum values
 entry.ts: warning: Unknown member H on enum Foo
 entry.ts: warning: Unknown member X on enum Foo
 `,
 	})
 }
 
-func TestTSValidConstEnum(t *testing.T) {
+func TestTSLocalConstEnumWithUnknownPropertyAccess(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.ts": `
+			"/common.ts": `
 				const enum Foo {
 					A = 1,
 					B = A * 2,
@@ -174,7 +174,12 @@ func TestTSValidConstEnum(t *testing.T) {
 					D = 'stringsWorkToo',
 				}
 				
-				let usage = bar(Foo.A, Foo.B, Foo.C, Foo.D, Foo.E)
+				export let usage = bar(Foo.A, Foo.B, Foo.C, Foo.D, Foo.E)
+			`,
+			"/entry.ts": `
+				import { usage } from './common.ts';
+
+				usage();
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -182,8 +187,66 @@ func TestTSValidConstEnum(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.ts: warning: Unknown member E on enum Foo
+		expectedScanLog: `common.ts: warning: Unknown member E on enum Foo
 `,
+	})
+}
+
+func TestTSInlinableLocalConstEnum(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/common.ts": `
+				const enum Foo {
+					A = 1,
+					B = A * 2,
+					C,
+					D = 'stringsWorkToo',
+				}
+
+				export let usage = bar(Foo.A, Foo.B, Foo.C, Foo.D)
+			`,
+			"/entry.ts": `
+				import { usage } from './common.ts';
+
+				usage();
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleSyntax:  true,
+		},
+	})
+}
+
+func TestTSInlinableLocalConstEnumInsideNamespace(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/common.ts": `
+				export namespace NS {
+					const enum Foo {
+						A = 1,
+						B = A * 2,
+						C,
+						D = 'stringsWorkToo',
+					}
+
+					export let usage = bar(Foo.A, Foo.B, Foo.C, Foo.D)
+				}
+			`,
+			"/entry.ts": `
+				import { NS } from './common.ts';
+
+				NS.usage();
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleSyntax:  true,
+		},
 	})
 }
 
@@ -199,6 +262,7 @@ func TestTSImportConstEnum(t *testing.T) {
 			"/entry.ts": `
 				import { Foo } from './common';
 				
+				// Imported const enums are not inlined
 				let usage = bar(Foo.A, Foo.B)
 			`,
 		},
@@ -216,7 +280,7 @@ func TestTSImportConstEnumInsideNamespace(t *testing.T) {
 			"/common.ts": `
 				export namespace NS {
 					const enum Base {
-						A = 1,
+						A = 'from base enum',
 					}
 
 					export const enum Foo {
@@ -233,7 +297,7 @@ func TestTSImportConstEnumInsideNamespace(t *testing.T) {
 			"/entry.ts": `
 				import { NS } from './common';
 				
-				let usage = bar(NS.Foo.A, NS.Foo.B, Foo.FromBase)
+				let usageWithoutInliningValues = bar(NS.Foo.A, NS.Foo.B, NS.Foo.FromBase)
 				let noErrorsShownFor = bar(NS.invalidMember, NS.Foo.invalid)
 			`,
 		},
