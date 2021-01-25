@@ -1,6 +1,7 @@
 // This file is part of the web worker source code
 
 declare const ESBUILD_VERSION: string;
+declare function postMessage(message: any): void;
 
 onmessage = ({ data: wasm }) => {
   let decoder = new TextDecoder()
@@ -9,7 +10,7 @@ onmessage = ({ data: wasm }) => {
   let stderr = ''
   fs.writeSync = (fd: number, buffer: Uint8Array) => {
     if (fd === 1) {
-      (self as any).postMessage(buffer)
+      postMessage(buffer)
     } else if (fd === 2) {
       stderr += decoder.decode(buffer)
       let parts = stderr.split('\n')
