@@ -40,7 +40,8 @@ export const startService: typeof types.startService = common.referenceCountedSe
     `let global={};` +
     `for(let o=self;o;o=Object.getPrototypeOf(o))` +
     `for(let k of Object.getOwnPropertyNames(o))` +
-    `global[k]=self[k];` +
+    `if(!(k in global))` +
+    `Object.defineProperty(global,k,{get:()=>self[k]});` +
     WEB_WORKER_SOURCE_CODE +
     `}`
   let worker: {
