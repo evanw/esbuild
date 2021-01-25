@@ -39,6 +39,16 @@
 
     This option was unintentionally broken when the internal JavaScript web worker source code was moved from an inline function to a string in version 0.5.20. The regression has been fixed and the `worker: false` scenario now has test coverage.
 
+* Add a hack for faster command-line execution for the WebAssembly module in certain cases
+
+    The package `esbuild-wasm` has an `esbuild` command implemented using WebAssembly instead of using native code. It uses node's WebAssembly implementation and calls methods on node's `fs` module to access the file system.
+
+    Node has an unfortunate bug where the node process is unnecessarily kept open while a WebAssembly module is being optimized: https://github.com/nodejs/node/issues/36616. This means cases where running `esbuild` should take a few milliseconds can end up taking many seconds instead.
+
+    The workaround is to force node to exit by ending the process early. This is done in one of two ways depending on the exit code. For non-zero exit codes (i.e. when there is a build error), the `esbuild` command now calls `process.kill(process.pid)` to avoid the hang.
+
+    For zero exit codes, the `esbuild` command now loads a N-API native node extension that calls the operating system's `exit(0)` function. This is done without requiring `node-gyp` by precompiling each supported platform and just including all of them in the `esbuild-wasm` package since they are so small. If this hack doesn't work in certain cases, the process should exit anyway just potentially many seconds later. Currently the only supported platforms for this hack are 64-bit macOS, Windows, and Linux.
+
 ## 0.8.34
 
 * Fix a parser bug about suffix expressions after an arrow function body ([#701](https://github.com/evanw/esbuild/issues/701))

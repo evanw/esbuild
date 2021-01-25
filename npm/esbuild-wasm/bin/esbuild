@@ -4,6 +4,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 const wasm_exec = path.join(__dirname, '..', 'wasm_exec.js');
 const esbuild_wasm = path.join(__dirname, '..', 'esbuild.wasm');
@@ -18,6 +19,38 @@ function instantiate(bytes, importObject) {
   const instance = new WebAssembly.Instance(module, importObject);
   return Promise.resolve({ instance, module });
 }
+
+// Node has an unfortunate bug where the node process is unnecessarily kept open while a
+// WebAssembly module is being optimized: https://github.com/nodejs/node/issues/36616.
+// This means cases where running "esbuild" should take a few milliseconds can end up
+// taking many seconds instead. To work around this bug, it is possible to force node to
+// exit by calling the operating system's exit function. That's what this code does.
+process.on('exit', code => {
+  // If it's a non-zero exit code, we can just kill our own process to stop. This will
+  // preserve the fact that there is a non-zero exit code although the exit code will
+  // be different. We cannot use this if the exit code is supposed to be zero.
+  if (code !== 0) {
+    try {
+      process.kill(process.pid, 'SIGINT');
+    } catch (e) {
+    }
+    return;
+  }
+
+  // Otherwise if the exit code is zero, try to fall back to a binary N-API module that
+  // calls the operating system's "exit(0)" function.
+  const key = `${process.platform}-${os.arch()}-${os.endianness()}`;
+  switch (key) {
+    case 'darwin-x64-LE':
+    case 'linux-x64-LE':
+    case 'win32-x64-LE':
+      try {
+        require(path.join(__dirname, '..', 'exit0', key + '.node'));
+      } catch (e) {
+      }
+      break;
+  }
+});
 
 const argv = ['node', wasm_exec, esbuild_wasm].concat(process.argv.slice(2));
 wrapper(require, require.main, Object.assign(Object.create(process), { argv }), { instantiate });
