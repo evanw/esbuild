@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -689,7 +688,7 @@ func rebuildImpl(
 							go func(result bundler.OutputFile) {
 								fs.BeforeFileOpen()
 								defer fs.AfterFileClose()
-								if err := os.MkdirAll(filepath.Dir(result.AbsPath), 0755); err != nil {
+								if err := os.MkdirAll(realFS.Dir(result.AbsPath), 0755); err != nil {
 									log.AddError(nil, logger.Loc{}, fmt.Sprintf(
 										"Failed to create output directory: %s", err.Error()))
 								} else {
@@ -996,6 +995,7 @@ type apiHandler struct {
 	onRequest    func(ServeOnRequestArgs)
 	rebuild      func() BuildResult
 	currentBuild *runningBuild
+	fs           fs.FS
 }
 
 type runningBuild struct {
@@ -1107,7 +1107,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 		// Check the output files for a match
 		for _, file := range result.OutputFiles {
-			if relPath, err := filepath.Rel(h.outdir, file.Path); err == nil {
+			if relPath, ok := h.fs.Rel(h.outdir, file.Path); ok {
 				relPath = strings.ReplaceAll(relPath, "\\", "/")
 
 				// An exact match
@@ -1171,7 +1171,8 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResult, error) {
 	// The output directory isn't actually ever written to. It just needs to be
 	// very unlikely to be used as a source file so it doesn't collide.
-	outdir := filepath.Join(os.TempDir(), strconv.FormatInt(rand.NewSource(time.Now().Unix()).Int63(), 36))
+	realFS := fs.RealFS()
+	outdir := realFS.Join(os.TempDir(), strconv.FormatInt(rand.NewSource(time.Now().Unix()).Int63(), 36))
 	buildOptions.Incremental = true
 	buildOptions.Write = false
 	buildOptions.Outfile = ""
@@ -1218,6 +1219,7 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 		outdir:    outdir,
 		onRequest: serveOptions.OnRequest,
 		rebuild:   func() BuildResult { return Build(buildOptions) },
+		fs:        realFS,
 	}
 
 	// Start the server

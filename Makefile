@@ -7,7 +7,7 @@ test:
 	make -j6 test-common
 
 # These tests are for development
-test-common: test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests register-test
+test-common: test-go vet-go no-filepath verify-source-map end-to-end-tests js-api-tests plugin-tests register-test
 
 # These tests are for release (the extra tests are not included in "test" because they are pretty slow)
 test-all:
@@ -27,6 +27,10 @@ vet-go:
 
 fmt-go:
 	go fmt ./cmd/... ./internal/... ./pkg/...
+
+no-filepath:
+	@! grep --color --include '*.go' -r '"path/filepath"' cmd internal pkg || ( \
+		echo 'error: Use of "path/filepath" is disallowed. See http://golang.org/issue/43768.' && false)
 
 test-wasm-node: esbuild
 	PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./internal/...

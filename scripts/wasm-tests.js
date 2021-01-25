@@ -20,6 +20,62 @@ const tests = {
     new Function('module', 'exports', stdout)(module, module.exports);
     assert.deepStrictEqual(module.exports.default, 3);
   },
+
+  stdinOutfileTest({ testDir, esbuildPath }) {
+    const outfile = path.join(testDir, 'out.js')
+    child_process.execFileSync('node', [
+      esbuildPath,
+      '--bundle',
+      '--format=cjs',
+      '--outfile=' + outfile,
+    ], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      cwd: testDir,
+      input: `export default 1+2`,
+    }).toString();
+
+    // Check that the bundle is valid
+    const exports = require(outfile);
+    assert.deepStrictEqual(exports.default, 3);
+  },
+
+  importRelativeFileTest({ testDir, esbuildPath }) {
+    const outfile = path.join(testDir, 'out.js')
+    const packageJSON = path.join(__dirname, '..', 'npm', 'esbuild-wasm', 'package.json');
+    child_process.execFileSync('node', [
+      esbuildPath,
+      '--bundle',
+      '--format=cjs',
+      '--outfile=' + outfile,
+    ], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      cwd: testDir,
+      input: `export {default} from ` + JSON.stringify('./' + path.relative(testDir, packageJSON)),
+    }).toString();
+
+    // Check that the bundle is valid
+    const exports = require(outfile);
+    assert.deepStrictEqual(exports.default, require(packageJSON));
+  },
+
+  importAbsoluteFileTest({ testDir, esbuildPath }) {
+    const outfile = path.join(testDir, 'out.js')
+    const packageJSON = path.join(__dirname, '..', 'npm', 'esbuild-wasm', 'package.json');
+    child_process.execFileSync('node', [
+      esbuildPath,
+      '--bundle',
+      '--format=cjs',
+      '--outfile=' + outfile,
+    ], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      cwd: testDir,
+      input: `export {default} from ` + JSON.stringify(packageJSON),
+    }).toString();
+
+    // Check that the bundle is valid
+    const exports = require(outfile);
+    assert.deepStrictEqual(exports.default, require(packageJSON));
+  },
 };
 
 function runTest({ testDir, esbuildPath, test }) {

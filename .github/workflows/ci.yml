@@ -37,6 +37,10 @@ jobs:
     - name: go vet
       run: go vet ./cmd/... ./internal/... ./pkg/...
 
+    - name: Test for path/filepath
+      if: matrix.os == 'ubuntu-latest'
+      run: make no-filepath
+
     - name: go fmt
       if: matrix.os == 'macos-latest'
       run: make fmt-go && git diff-index --quiet HEAD --

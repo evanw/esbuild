@@ -5,13 +5,13 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/evanw/esbuild/internal/cli_helpers"
+	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/pkg/api"
 )
@@ -629,14 +629,14 @@ func printSummary(osArgs []string, outputFiles []api.OutputFile, start time.Time
 	var table logger.SummaryTable = make([]logger.SummaryTableEntry, len(outputFiles))
 
 	if len(outputFiles) > 0 {
-		cwd, _ := os.Getwd()
+		realFS := fs.RealFS()
 
 		for i, file := range outputFiles {
-			path, err := filepath.Rel(cwd, file.Path)
-			if err != nil {
+			path, ok := realFS.Rel(realFS.Cwd(), file.Path)
+			if !ok {
 				path = file.Path
 			}
-			dir, base := filepath.Split(path)
+			base := realFS.Base(path)
 			n := len(file.Contents)
 			var size string
 			if n < 1024 {
@@ -649,7 +649,7 @@ func printSummary(osArgs []string, outputFiles []api.OutputFile, start time.Time
 				size = fmt.Sprintf("%.1fgb", float64(n)/(1024*1024*1024))
 			}
 			table[i] = logger.SummaryTableEntry{
-				Dir:         dir,
+				Dir:         path[:len(path)-len(base)],
 				Base:        base,
 				Size:        size,
 				Bytes:       n,

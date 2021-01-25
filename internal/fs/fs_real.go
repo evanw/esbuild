@@ -3,7 +3,6 @@ package fs
 import (
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"syscall"
 )
 
@@ -11,8 +10,11 @@ type realFS struct {
 	// Stores the file entries for directories we've listed before
 	entries map[string]entriesOrErr
 
-	// For the current working directory
-	cwd string
+	// When building with WebAssembly, the Go compiler doesn't correctly handle
+	// platform-specific path behavior. Hack around these bugs by compiling
+	// support for both Unix and Windows paths into all executables and switch
+	// between them at run-time instead.
+	fp goFilepath
 }
 
 type entriesOrErr struct {
@@ -21,9 +23,18 @@ type entriesOrErr struct {
 }
 
 func RealFS() FS {
-	cwd, err := os.Getwd()
-	if err != nil {
-		cwd = ""
+	var fp goFilepath
+	if checkIfWindows() {
+		fp.isWindows = true
+		fp.pathSeparator = '\\'
+	} else {
+		fp.isWindows = false
+		fp.pathSeparator = '/'
+	}
+
+	if cwd, err := os.Getwd(); err != nil {
+		// This probably only happens in the browser
+		fp.cwd = "/"
 	} else {
 		// Resolve symlinks in the current working directory. Symlinks are resolved
 		// when input file paths are converted to absolute paths because we need to
@@ -39,13 +50,16 @@ func RealFS() FS {
 		// encounter an error later anyway. And if we don't encounter an error
 		// later, then the current working directory didn't even matter and the
 		// error is unimportant.
-		if path, err := filepath.EvalSymlinks(cwd); err == nil {
-			cwd = path
+		if path, err := fp.evalSymlinks(cwd); err == nil {
+			fp.cwd = path
+		} else {
+			fp.cwd = cwd
 		}
 	}
+
 	return &realFS{
 		entries: make(map[string]entriesOrErr),
-		cwd:     cwd,
+		fp:      fp,
 	}
 }
 
@@ -110,37 +124,37 @@ func (fs *realFS) ModKey(path string) (ModKey, error) {
 	return modKey(path)
 }
 
-func (*realFS) IsAbs(p string) bool {
-	return filepath.IsAbs(p)
+func (fs *realFS) IsAbs(p string) bool {
+	return fs.fp.isAbs(p)
 }
 
-func (*realFS) Abs(p string) (string, bool) {
-	abs, err := filepath.Abs(p)
+func (fs *realFS) Abs(p string) (string, bool) {
+	abs, err := fs.fp.abs(p)
 	return abs, err == nil
 }
 
-func (*realFS) Dir(p string) string {
-	return filepath.Dir(p)
+func (fs *realFS) Dir(p string) string {
+	return fs.fp.dir(p)
 }
 
-func (*realFS) Base(p string) string {
-	return filepath.Base(p)
+func (fs *realFS) Base(p string) string {
+	return fs.fp.base(p)
 }
 
-func (*realFS) Ext(p string) string {
-	return filepath.Ext(p)
+func (fs *realFS) Ext(p string) string {
+	return fs.fp.ext(p)
 }
 
-func (*realFS) Join(parts ...string) string {
-	return filepath.Clean(filepath.Join(parts...))
+func (fs *realFS) Join(parts ...string) string {
+	return fs.fp.clean(fs.fp.join(parts))
 }
 
 func (fs *realFS) Cwd() string {
-	return fs.cwd
+	return fs.fp.cwd
 }
 
-func (*realFS) Rel(base string, target string) (string, bool) {
-	if rel, err := filepath.Rel(base, target); err == nil {
+func (fs *realFS) Rel(base string, target string) (string, bool) {
+	if rel, err := fs.fp.rel(base, target); err == nil {
 		return rel, true
 	}
 	return "", false
@@ -184,7 +198,7 @@ func readdir(dirname string) ([]string, error) {
 }
 
 func (fs *realFS) kind(dir string, base string) (symlink string, kind EntryKind) {
-	entryPath := filepath.Join(dir, base)
+	entryPath := fs.fp.join([]string{dir, base})
 
 	// Use "lstat" since we want information about symbolic links
 	BeforeFileOpen()
@@ -201,10 +215,10 @@ func (fs *realFS) kind(dir string, base string) (symlink string, kind EntryKind)
 		if err != nil {
 			return // Skip over this entry
 		}
-		if !filepath.IsAbs(link) {
-			link = filepath.Join(dir, link)
+		if !fs.fp.isAbs(link) {
+			link = fs.fp.join([]string{dir, link})
 		}
-		symlink = filepath.Clean(link)
+		symlink = fs.fp.clean(link)
 
 		// Re-run "lstat" on the symlink target
 		stat2, err2 := os.Lstat(symlink)
