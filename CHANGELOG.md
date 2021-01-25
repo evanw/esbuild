@@ -39,9 +39,15 @@
 
     This option was unintentionally broken when the internal JavaScript web worker source code was moved from an inline function to a string in version 0.5.20. The regression has been fixed and the `worker: false` scenario now has test coverage.
 
-* Add a hack for faster command-line execution for the WebAssembly module in certain cases
+* Fix using stdin with the `esbuild-wasm` package on Windows ([#687](https://github.com/evanw/esbuild/issues/687))
 
     The package `esbuild-wasm` has an `esbuild` command implemented using WebAssembly instead of using native code. It uses node's WebAssembly implementation and calls methods on node's `fs` module to access the file system.
+
+    Node has [an old bug ([nodejs/node#19831](https://github.com/nodejs/node/issues/19831), [nodejs/node#35997](https://github.com/nodejs/node/issues/35997)) where `fs.read` returns an EOF error at the end of stdin on Windows. This causes Go's WebAssembly implementation to panic when esbuild tries to read from stdin.
+
+    The workaround was to manually check for this case and then ignore the error in this specific case. With this release, it should now be possible to pipe something to the `esbuild` command on Windows.
+
+* Add a hack for faster command-line execution for the WebAssembly module in certain cases
 
     Node has an unfortunate bug where the node process is unnecessarily kept open while a WebAssembly module is being optimized: https://github.com/nodejs/node/issues/36616. This means cases where running `esbuild` should take a few milliseconds can end up taking many seconds instead.
 

@@ -52,5 +52,24 @@ process.on('exit', code => {
   }
 });
 
+// Node has another bug where using "fs.read" to read from stdin reads
+// everything successfully and then throws an error, but only on Windows. Go's
+// WebAssembly support uses "fs.read" so it hits this problem. This is a patch
+// to try to work around the bug in node. This bug has been reported to node
+// at least twice in https://github.com/nodejs/node/issues/35997 and in
+// https://github.com/nodejs/node/issues/19831. This issue has also been
+// reported to the Go project: https://github.com/golang/go/issues/43913.
+const read = fs.read;
+fs.read = function () {
+  const callback = arguments[5];
+  arguments[5] = function (err, count) {
+    if (count === 0 && err && err.code === 'EOF') {
+      arguments[0] = null;
+    }
+    return callback.apply(this, arguments);
+  };
+  return read.apply(this, arguments);
+};
+
 const argv = ['node', wasm_exec, esbuild_wasm].concat(process.argv.slice(2));
 wrapper(require, require.main, Object.assign(Object.create(process), { argv }), { instantiate });

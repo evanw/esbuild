@@ -8,7 +8,7 @@ const repoDir = path.dirname(__dirname)
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
 const version = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
 
-function buildNativeLib(esbuildPath) {
+const buildNativeLib = (esbuildPath) => {
   const libDir = path.join(npmDir, 'lib')
   fs.mkdirSync(libDir, { recursive: true })
 
@@ -38,12 +38,25 @@ function buildNativeLib(esbuildPath) {
   fs.writeFileSync(path.join(libDir, 'main.d.ts'), types_ts)
 }
 
-function buildWasmLib(esbuildPath) {
+exports.buildWasmLib = async (esbuildPath) => {
+  // Asynchronously start building the WebAssembly module
   const npmWasmDir = path.join(repoDir, 'npm', 'esbuild-wasm')
+  const goBuildPromise = new Promise((resolve, reject) => childProcess.execFile('go',
+    ['build', '-o', path.join(npmWasmDir, 'esbuild.wasm'), path.join(repoDir, 'cmd', 'esbuild')],
+    { cwd: repoDir, stdio: 'inherit', env: { ...process.env, GOOS: 'js', GOARCH: 'wasm' } },
+    err => err ? reject(err) : resolve()))
+
   const libDir = path.join(npmWasmDir, 'lib')
   const esmDir = path.join(npmWasmDir, 'esm')
   fs.mkdirSync(libDir, { recursive: true })
   fs.mkdirSync(esmDir, { recursive: true })
+
+  // Generate "npm/esbuild-wasm/wasm_exec.js"
+  const GOROOT = childProcess.execFileSync('go', ['env', 'GOROOT']).toString().trim();
+  fs.copyFileSync(
+    path.join(GOROOT, 'misc', 'wasm', 'wasm_exec.js'),
+    path.join(npmWasmDir, 'wasm_exec.js'),
+  );
 
   // Generate "npm/esbuild-wasm/lib/main.js"
   childProcess.execFileSync(esbuildPath, [
@@ -112,6 +125,9 @@ function buildWasmLib(esbuildPath) {
     ].concat(minifyFlags), { cwd: repoDir }).toString()
     fs.writeFileSync(path.join(esmDir, minify ? 'browser.min.js' : 'browser.js'), browserESM)
   }
+
+  // Join with the asynchronous WebAssembly build
+  await goBuildPromise;
 }
 
 exports.buildBinary = () => {
@@ -172,8 +188,8 @@ exports.dirname = __dirname
 // The main Makefile invokes this script before publishing
 if (require.main === module) {
   if (process.argv.indexOf('--wasm') >= 0) {
-    buildWasmLib(process.argv[2])
+    exports.buildWasmLib(process.argv[2])
   } else {
-    buildNativeLib(process.argv[2])
+    exports.buildNativeLib(process.argv[2])
   }
 }

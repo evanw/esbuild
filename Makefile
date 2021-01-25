@@ -3,10 +3,6 @@ ESBUILD_VERSION = $(shell cat version.txt)
 esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
 	go build "-ldflags=-s -w" ./cmd/esbuild
 
-npm/esbuild-wasm/esbuild.wasm: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go
-	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
-	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
-
 test:
 	make -j6 test-common
 
@@ -32,9 +28,9 @@ vet-go:
 fmt-go:
 	go fmt ./cmd/... ./internal/... ./pkg/...
 
-test-wasm-node: platform-wasm
+test-wasm-node: esbuild
 	PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./internal/...
-	npm/esbuild-wasm/bin/esbuild --version
+	node scripts/wasm-tests.js
 
 test-wasm-browser: platform-wasm | scripts/browser/node_modules
 	cd scripts/browser && node browser-tests.js
@@ -144,9 +140,8 @@ platform-linux-mips64le:
 platform-linux-ppc64le:
 	make GOOS=linux GOARCH=ppc64le NPMDIR=npm/esbuild-linux-ppc64le platform-unixlike
 
-platform-wasm: esbuild npm/esbuild-wasm/esbuild.wasm | scripts/node_modules
+platform-wasm: esbuild | scripts/node_modules
 	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	mkdir -p npm/esbuild-wasm/lib
 	node scripts/esbuild.js ./esbuild --wasm
 
 platform-neutral: esbuild lib-typecheck | scripts/node_modules
@@ -459,7 +454,7 @@ demo-three-esbuild: esbuild | demo/three
 	du -h demo/three/esbuild/Three.esbuild.js*
 	shasum demo/three/esbuild/Three.esbuild.js*
 
-demo-three-eswasm: npm/esbuild-wasm/esbuild.wasm | demo/three
+demo-three-eswasm: platform-wasm | demo/three
 	rm -fr demo/three/eswasm
 	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --summary --global-name=THREE \
 		--sourcemap --minify demo/three/src/Three.js --outfile=demo/three/eswasm/Three.eswasm.js
@@ -548,7 +543,7 @@ bench-three-esbuild: esbuild | bench/three
 	du -h bench/three/esbuild/entry.esbuild.js*
 	shasum bench/three/esbuild/entry.esbuild.js*
 
-bench-three-eswasm: npm/esbuild-wasm/esbuild.wasm | bench/three
+bench-three-eswasm: platform-wasm | bench/three
 	rm -fr bench/three/eswasm
 	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --summary --global-name=THREE \
 		--sourcemap --minify bench/three/src/entry.js --outfile=bench/three/eswasm/entry.eswasm.js
@@ -803,7 +798,7 @@ bench-readmin-esbuild: esbuild | bench/readmin
 	du -h bench/readmin/esbuild/main.js*
 	shasum bench/readmin/esbuild/main.js*
 
-bench-readmin-eswasm: npm/esbuild-wasm/esbuild.wasm | bench/readmin
+bench-readmin-eswasm: platform-wasm | bench/readmin
 	rm -fr bench/readmin/eswasm
 	time -p ./npm/esbuild-wasm/bin/esbuild $(READMIN_ESBUILD_FLAGS) --outfile=bench/readmin/eswasm/main.js bench/readmin/repo/src/index.js
 	echo "$(READMIN_HTML)" > bench/readmin/eswasm/index.html
