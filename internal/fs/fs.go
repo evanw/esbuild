@@ -2,8 +2,6 @@ package fs
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"sync"
 )
 
@@ -23,65 +21,24 @@ type Entry struct {
 	needStat bool
 }
 
-func (e *Entry) Kind() EntryKind {
+func (e *Entry) Kind(fs FS) EntryKind {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	if e.needStat {
-		e.stat()
+		e.needStat = false
+		e.symlink, e.kind = fs.kind(e.dir, e.base)
 	}
 	return e.kind
 }
 
-func (e *Entry) Symlink() string {
+func (e *Entry) Symlink(fs FS) string {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	if e.needStat {
-		e.stat()
+		e.needStat = false
+		e.symlink, e.kind = fs.kind(e.dir, e.base)
 	}
 	return e.symlink
-}
-
-func (e *Entry) stat() {
-	e.needStat = false
-	entryPath := filepath.Join(e.dir, e.base)
-
-	// Use "lstat" since we want information about symbolic links
-	BeforeFileOpen()
-	defer AfterFileClose()
-	stat, err := os.Lstat(entryPath)
-	if err != nil {
-		return
-	}
-	mode := stat.Mode()
-
-	// Follow symlinks now so the cache contains the translation
-	if (mode & os.ModeSymlink) != 0 {
-		link, err := os.Readlink(entryPath)
-		if err != nil {
-			return // Skip over this entry
-		}
-		if !filepath.IsAbs(link) {
-			link = filepath.Join(e.dir, link)
-		}
-		e.symlink = filepath.Clean(link)
-
-		// Re-run "lstat" on the symlink target
-		stat2, err2 := os.Lstat(e.symlink)
-		if err2 != nil {
-			return // Skip over this entry
-		}
-		mode = stat2.Mode()
-		if (mode & os.ModeSymlink) != 0 {
-			return // Symlink chains are not supported
-		}
-	}
-
-	// We consider the entry either a directory or a file
-	if (mode & os.ModeDir) != 0 {
-		e.kind = DirEntry
-	} else {
-		e.kind = FileEntry
-	}
 }
 
 type FS interface {
@@ -114,6 +71,9 @@ type FS interface {
 	Join(parts ...string) string
 	Cwd() string
 	Rel(base string, target string) (string, bool)
+
+	// This is used in the implementation of "Entry"
+	kind(dir string, base string) (symlink string, kind EntryKind)
 }
 
 type ModKey struct {

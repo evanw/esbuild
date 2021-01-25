@@ -138,3 +138,8 @@ func (*mockFS) Rel(base string, target string) (string, bool) {
 	// Otherwise, down to the parent
 	return commonParent + target, true
 }
+
+func (fs *mockFS) kind(dir string, base string) (symlink string, kind EntryKind) {
+	// This will never be called
+	return
+}

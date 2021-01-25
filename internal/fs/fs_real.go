@@ -182,3 +182,46 @@ func readdir(dirname string) ([]string, error) {
 
 	return entries, err
 }
+
+func (fs *realFS) kind(dir string, base string) (symlink string, kind EntryKind) {
+	entryPath := filepath.Join(dir, base)
+
+	// Use "lstat" since we want information about symbolic links
+	BeforeFileOpen()
+	defer AfterFileClose()
+	stat, err := os.Lstat(entryPath)
+	if err != nil {
+		return
+	}
+	mode := stat.Mode()
+
+	// Follow symlinks now so the cache contains the translation
+	if (mode & os.ModeSymlink) != 0 {
+		link, err := os.Readlink(entryPath)
+		if err != nil {
+			return // Skip over this entry
+		}
+		if !filepath.IsAbs(link) {
+			link = filepath.Join(dir, link)
+		}
+		symlink = filepath.Clean(link)
+
+		// Re-run "lstat" on the symlink target
+		stat2, err2 := os.Lstat(symlink)
+		if err2 != nil {
+			return // Skip over this entry
+		}
+		mode = stat2.Mode()
+		if (mode & os.ModeSymlink) != 0 {
+			return // Symlink chains are not supported
+		}
+	}
+
+	// We consider the entry either a directory or a file
+	if (mode & os.ModeDir) != 0 {
+		kind = DirEntry
+	} else {
+		kind = FileEntry
+	}
+	return
+}

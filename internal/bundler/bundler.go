@@ -1074,7 +1074,7 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 			dir := s.fs.Dir(absPath)
 			base := s.fs.Base(absPath)
 			if entries, err := s.fs.ReadDirectory(dir); err == nil {
-				if entry := entries[base]; entry != nil && entry.Kind() == fs.FileEntry {
+				if entry := entries[base]; entry != nil && entry.Kind(s.fs) == fs.FileEntry {
 					entryPoints[i] = "./" + path
 				}
 			}
