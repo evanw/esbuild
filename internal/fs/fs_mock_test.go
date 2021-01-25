@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestBasic(t *testing.T) {
+func TestMockFSBasic(t *testing.T) {
 	fs := MockFS(map[string]string{
 		"/README.md":    "// README.md",
 		"/package.json": "// package.json",
@@ -62,7 +62,7 @@ func TestBasic(t *testing.T) {
 	}
 }
 
-func TestRel(t *testing.T) {
+func TestMockFSRel(t *testing.T) {
 	fs := MockFS(map[string]string{})
 
 	expect := func(a string, b string, c string) {
