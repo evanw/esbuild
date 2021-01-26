@@ -6,6 +6,10 @@
 
     The previous release introduced a regression where large output files written to stdout were incorrectly truncated when using the WebAssembly `esbuild` command. This regression was due to a missing callback to the JavaScript `write()` function when called on the stdout stream. The regression has been fixed.
 
+* Hide the N-API native node extensions from Yarn 2
+
+    The previous release introduced some very small (1-2kb) `*.node` native extensions to fix a bug with node failing to exit properly. However, this causes Yarn 2 to unzip the esbuild package, which is undesirable. This release puts these native node extensions inside JavaScript code instead to hide them from Yarn 2. The native extensions are written to a temporary file at run-time if necessary.
+
 ## 0.8.35
 
 * Fix a commonly-missed corner case with `await` inside `**`

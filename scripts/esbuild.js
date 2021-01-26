@@ -1,6 +1,7 @@
 const childProcess = require('child_process')
 const rimraf = require('rimraf')
 const path = require('path')
+const zlib = require('zlib')
 const fs = require('fs')
 const os = require('os')
 
@@ -150,6 +151,25 @@ exports.buildWasmLib = async (esbuildPath) => {
     ].concat(minifyFlags), { cwd: repoDir }).toString()
     fs.writeFileSync(path.join(esmDir, minify ? 'browser.min.js' : 'browser.js'), browserESM)
   }
+
+  // Generate the "exit0" stubs
+  const exit0Map = {};
+  const exit0Dir = path.join(__dirname, '..', 'lib', 'exit0');
+  for (const entry of fs.readdirSync(exit0Dir)) {
+    if (entry.endsWith('.node')) {
+      const absPath = path.join(exit0Dir, entry);
+      const compressed = zlib.deflateRawSync(fs.readFileSync(absPath), { level: 9 });
+      exit0Map[entry] = compressed.toString('base64');
+    }
+  }
+  fs.writeFileSync(path.join(npmWasmDir, 'bin', 'exit0.js'), `
+// Each of these is a native module that calls "exit(0)". This is a workaround
+// for https://github.com/nodejs/node/issues/36616. These native modules are
+// stored in a string both to make them smaller and to hide them from Yarn 2,
+// since they make Yarn 2 unzip this package.
+
+module.exports = ${JSON.stringify(exit0Map, null, 2)};
+`);
 
   // Join with the asynchronous WebAssembly build
   await goBuildPromise;

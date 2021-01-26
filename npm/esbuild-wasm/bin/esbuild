@@ -3,6 +3,7 @@
 // Forward to the automatically-generated WebAssembly loader from the Go compiler
 
 const path = require('path');
+const zlib = require('zlib');
 const fs = require('fs');
 const os = require('os');
 
@@ -39,16 +40,15 @@ process.on('exit', code => {
 
   // Otherwise if the exit code is zero, try to fall back to a binary N-API module that
   // calls the operating system's "exit(0)" function.
-  const key = `${process.platform}-${os.arch()}-${os.endianness()}`;
-  switch (key) {
-    case 'darwin-x64-LE':
-    case 'linux-x64-LE':
-    case 'win32-x64-LE':
-      try {
-        require(path.join(__dirname, '..', 'exit0', key + '.node'));
-      } catch (e) {
-      }
-      break;
+  const nativeModule = `${process.platform}-${os.arch()}-${os.endianness()}.node`;
+  const data = require('./exit0')[nativeModule];
+  if (data) {
+    try {
+      const tempFile = path.join(os.tmpdir(), `${Math.random().toString(36).slice(2)}-${nativeModule}`);
+      fs.writeFileSync(tempFile, zlib.inflateRawSync(Buffer.from(data, 'base64')));
+      require(tempFile);
+    } catch (e) {
+    }
   }
 });
 
