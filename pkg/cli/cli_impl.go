@@ -52,6 +52,9 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.MinifyIdentifiers = true
 			}
 
+		case arg == "--export-star-functions":
+			buildOpts.ExportStarFunctions = true
+
 		case arg == "--minify-syntax":
 			if buildOpts != nil {
 				buildOpts.MinifySyntax = true

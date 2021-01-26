@@ -97,6 +97,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let globalName = getFlag(options, keys, 'globalName', mustBeString);
   let minify = getFlag(options, keys, 'minify', mustBeBoolean);
   let minifySyntax = getFlag(options, keys, 'minifySyntax', mustBeBoolean);
+  let exportStarFunctions = getFlag(options, keys, 'exportStarFunctions', mustBeBoolean);
   let minifyWhitespace = getFlag(options, keys, 'minifyWhitespace', mustBeBoolean);
   let minifyIdentifiers = getFlag(options, keys, 'minifyIdentifiers', mustBeBoolean);
   let charset = getFlag(options, keys, 'charset', mustBeString);
@@ -120,6 +121,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
 
   if (minify) flags.push('--minify');
   if (minifySyntax) flags.push('--minify-syntax');
+  if (exportStarFunctions) flags.push('--export-star-functions');
   if (minifyWhitespace) flags.push('--minify-whitespace');
   if (minifyIdentifiers) flags.push('--minify-identifiers');
   if (charset) flags.push(`--charset=${charset}`);

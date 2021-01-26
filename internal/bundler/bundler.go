@@ -1708,11 +1708,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 	}
 
 	// Determine which source to use
-	if key.ES6 {
-		source = runtime.ES6Source
-	} else {
-		source = runtime.ES5Source
-	}
+	source = runtime.CreateESSource(key.ES6, options.ExportStarFunctions)
 
 	// Cache hit?
 	(func() {
