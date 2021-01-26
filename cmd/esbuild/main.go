@@ -81,7 +81,7 @@ var helpText = func(colors logger.Colors) string {
   --tree-shaking=...        Set to "ignore-annotations" to work with packages
                             that have incorrect tree-shaking annotations
   --tsconfig=...            Use this tsconfig.json file instead of other ones
-  --version                 Print the current version and exit (` + esbuildVersion + `)
+  --version                 Print the current version (` + esbuildVersion + `) and exit
 
 ` + colors.Bold + `Examples:` + colors.Default + `
   ` + colors.Dim + `# Produces dist/entry_point.js and dist/entry_point.js.map` + colors.Default + `
