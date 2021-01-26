@@ -63,6 +63,19 @@ async function runAllTests({ esbuild, service }) {
       assertStrictEqual(fib10, 55)
     },
 
+    async buildRelativeIssue693() {
+      const result = await service.build({
+        stdin: {
+          contents: `const x=1`,
+        },
+        write: false,
+        outfile: 'esbuild.js',
+      });
+      assertStrictEqual(result.outputFiles.length, 1)
+      assertStrictEqual(result.outputFiles[0].path, '/esbuild.js')
+      assertStrictEqual(result.outputFiles[0].text, 'const x = 1;\n')
+    },
+
     async serve() {
       expectThrownError(service.serve, 'The "serve" API only works in node')
     },
@@ -96,8 +109,8 @@ async function runAllTests({ esbuild, service }) {
   function assertStrictEqual(a, b) {
     if (a !== b) {
       throw new Error(`Assertion failed:
-  Expected: ${JSON.stringify(a)}
-  Observed: ${JSON.stringify(b)}`);
+  Observed: ${JSON.stringify(a)}
+  Expected: ${JSON.stringify(b)}`);
     }
   }
 

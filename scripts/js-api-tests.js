@@ -1282,6 +1282,19 @@ console.log("success");
     assert.strictEqual(code, `div {\n  color: red;\n}\n`)
   },
 
+  async buildRelativeIssue693({ service }) {
+    const result = await service.build({
+      stdin: {
+        contents: `const x=1`,
+      },
+      write: false,
+      outfile: 'esbuild.js',
+    });
+    assert.strictEqual(result.outputFiles.length, 1)
+    assert.strictEqual(result.outputFiles[0].path, path.join(process.cwd(), 'esbuild.js'))
+    assert.strictEqual(result.outputFiles[0].text, 'const x = 1;\n')
+  },
+
   async noRebuild({ esbuild, service, testDir }) {
     for (const toTest of [esbuild, service]) {
       const input = path.join(testDir, 'in.js')
