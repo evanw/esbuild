@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.35
 
 * Fix a commonly-missed corner case with `await` inside `**`
 

@@ -8,7 +8,7 @@ const repoDir = path.dirname(__dirname)
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
 const version = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
 
-const buildNativeLib = (esbuildPath) => {
+exports.buildNativeLib = (esbuildPath) => {
   const libDir = path.join(npmDir, 'lib')
   fs.mkdirSync(libDir, { recursive: true })
 
@@ -182,7 +182,7 @@ exports.removeRecursiveSync = path => {
 exports.installForTests = () => {
   // Build the "esbuild" binary and library
   const esbuildPath = exports.buildBinary()
-  buildNativeLib(esbuildPath)
+  exports.buildNativeLib(esbuildPath)
 
   // Install the "esbuild" package to a temporary directory. On Windows, it's
   // sometimes randomly impossible to delete this installation directory. My
