@@ -5,9 +5,9 @@ const path = require('path');
 const fs = require('fs');
 
 const tests = {
-  basicStdinTest({ testDir, esbuildPath }) {
+  basicStdinTest({ testDir, esbuildPathWASM }) {
     const stdout = child_process.execFileSync('node', [
-      esbuildPath,
+      esbuildPathWASM,
       '--format=cjs',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
@@ -21,10 +21,10 @@ const tests = {
     assert.deepStrictEqual(module.exports.default, 3);
   },
 
-  stdinOutfileTest({ testDir, esbuildPath }) {
+  stdinOutfileTest({ testDir, esbuildPathWASM }) {
     const outfile = path.join(testDir, 'out.js')
     child_process.execFileSync('node', [
-      esbuildPath,
+      esbuildPathWASM,
       '--bundle',
       '--format=cjs',
       '--outfile=' + outfile,
@@ -39,9 +39,9 @@ const tests = {
     assert.deepStrictEqual(exports.default, 3);
   },
 
-  stdinStdoutUnicodeTest({ testDir, esbuildPath }) {
+  stdinStdoutUnicodeTest({ testDir, esbuildPathWASM }) {
     const stdout = child_process.execFileSync('node', [
-      esbuildPath,
+      esbuildPathWASM,
       '--format=cjs',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
@@ -55,10 +55,10 @@ const tests = {
     assert.deepStrictEqual(module.exports.default, ['π', '🍕']);
   },
 
-  stdinOutfileUnicodeTest({ testDir, esbuildPath }) {
+  stdinOutfileUnicodeTest({ testDir, esbuildPathWASM }) {
     const outfile = path.join(testDir, 'out.js')
     child_process.execFileSync('node', [
-      esbuildPath,
+      esbuildPathWASM,
       '--bundle',
       '--format=cjs',
       '--outfile=' + outfile,
@@ -73,11 +73,67 @@ const tests = {
     assert.deepStrictEqual(exports.default, ['π', '🍕']);
   },
 
-  importRelativeFileTest({ testDir, esbuildPath }) {
+  stdoutLargeTest({ testDir, esbuildPathNative, esbuildPathWASM }) {
+    const entryPoint = path.join(__dirname, 'js-api-tests.js');
+
+    // Build with native
+    const stdoutNative = child_process.execFileSync(esbuildPathNative, [
+      entryPoint,
+    ], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      cwd: testDir,
+    }).toString();
+
+    // Build with WASM
+    const stdoutWASM = child_process.execFileSync('node', [
+      esbuildPathWASM,
+      entryPoint,
+    ], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      cwd: testDir,
+    }).toString();
+
+    // Check that the output is equal
+    assert.deepStrictEqual(stdoutNative.length, stdoutWASM.length);
+    assert.deepStrictEqual(stdoutNative, stdoutWASM);
+  },
+
+  outfileLargeTest({ testDir, esbuildPathNative, esbuildPathWASM }) {
+    const entryPoint = path.join(__dirname, 'js-api-tests.js');
+
+    // Build with native
+    const outfileNative = path.join(testDir, 'a.js');
+    const stdoutNative = child_process.execFileSync(esbuildPathNative, [
+      entryPoint,
+      '--outfile=' + outfileNative,
+    ], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      cwd: testDir,
+    }).toString();
+    const jsNative = fs.readFileSync(outfileNative, 'utf8');
+
+    // Build with WASM
+    const outfileWASM = path.join(testDir, 'b.js');
+    const stdoutWASM = child_process.execFileSync('node', [
+      esbuildPathWASM,
+      entryPoint,
+      '--outfile=' + outfileWASM,
+    ], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      cwd: testDir,
+    }).toString();
+    const jsWASM = fs.readFileSync(outfileWASM, 'utf8');
+
+    // Check that the output is equal
+    assert.deepStrictEqual(jsNative.length, jsWASM.length);
+    assert.deepStrictEqual(jsNative, jsWASM);
+  },
+
+  importRelativeFileTest({ testDir, esbuildPathWASM }) {
     const outfile = path.join(testDir, 'out.js')
     const packageJSON = path.join(__dirname, '..', 'npm', 'esbuild-wasm', 'package.json');
     child_process.execFileSync('node', [
-      esbuildPath,
+      esbuildPathWASM,
       '--bundle',
       '--format=cjs',
       '--outfile=' + outfile,
@@ -92,11 +148,11 @@ const tests = {
     assert.deepStrictEqual(exports.default, require(packageJSON));
   },
 
-  importAbsoluteFileTest({ testDir, esbuildPath }) {
+  importAbsoluteFileTest({ testDir, esbuildPathWASM }) {
     const outfile = path.join(testDir, 'out.js')
     const packageJSON = path.join(__dirname, '..', 'npm', 'esbuild-wasm', 'package.json');
     child_process.execFileSync('node', [
-      esbuildPath,
+      esbuildPathWASM,
       '--bundle',
       '--format=cjs',
       '--outfile=' + outfile,
@@ -112,10 +168,10 @@ const tests = {
   },
 };
 
-function runTest({ testDir, esbuildPath, test }) {
+function runTest({ testDir, esbuildPathNative, esbuildPathWASM, test }) {
   try {
     fs.mkdirSync(testDir, { recursive: true })
-    test({ testDir, esbuildPath })
+    test({ testDir, esbuildPathNative, esbuildPathWASM })
     return true
   } catch (e) {
     console.error(`❌ ${test.name} failed: ${e && e.message || e}`)
@@ -125,9 +181,10 @@ function runTest({ testDir, esbuildPath, test }) {
 
 async function main() {
   // Generate the WebAssembly module
-  await buildWasmLib(path.join(__dirname, '..', process.platform === 'win32' ? 'esbuild.exe' : 'esbuild'));
+  const esbuildPathNative = path.join(__dirname, '..', process.platform === 'win32' ? 'esbuild.exe' : 'esbuild');
+  await buildWasmLib(esbuildPathNative);
 
-  const esbuildPath = path.join(__dirname, '..', 'npm', 'esbuild-wasm', 'bin', 'esbuild');
+  const esbuildPathWASM = path.join(__dirname, '..', 'npm', 'esbuild-wasm', 'bin', 'esbuild');
   const testDir = path.join(__dirname, '.wasm-tests')
 
   // Run all tests in serial because WebAssembly compilation is a CPU hog
@@ -136,7 +193,8 @@ async function main() {
     if (!runTest({
       testDir: path.join(testDir, test),
       test: tests[test],
-      esbuildPath,
+      esbuildPathNative,
+      esbuildPathWASM,
     })) {
       allTestsPassed = false;
     }

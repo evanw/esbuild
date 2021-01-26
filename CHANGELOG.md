@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix an issue with writing large files to stdout using the WebAssembly executable
+
+    The previous release introduced a regression where large output files written to stdout were incorrectly truncated when using the WebAssembly `esbuild` command. This regression was due to a missing callback to the JavaScript `write()` function when called on the stdout stream. The regression has been fixed.
+
 ## 0.8.35
 
 * Fix a commonly-missed corner case with `await` inside `**`

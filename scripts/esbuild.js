@@ -59,23 +59,24 @@ exports.buildWasmLib = async (esbuildPath) => {
   if (index === -1) throw new Error(`Failed to find ${JSON.stringify(toReplace)} in Go JS shim code`);
   wasm_exec_js = wasm_exec_js.replace(toReplace, `
     global.fs = Object.assign({}, fs, {
-      // Hack around a bug in node: https://github.com/nodejs/node/issues/24550
-      writeSync(fd, buf) {
-        if (fd === process.stdout.fd) return process.stdout.write(buf), buf.length;
-        if (fd === process.stderr.fd) return process.stderr.write(buf), buf.length;
-        return fs.writeSync(fd, buf);
-      },
+      // Hack around a Unicode bug in node: https://github.com/nodejs/node/issues/24550
       write(fd, buf, offset, length, position, callback) {
         if (offset === 0 && length === buf.length && position === null) {
           if (fd === process.stdout.fd) {
-            try { process.stdout.write(buf); }
-            catch (err) { return callback(err, 0, null); }
-            return callback(null, length, buf);
+            try {
+              process.stdout.write(buf, err => err ? callback(err, 0, null) : callback(null, length, buf));
+            } catch (err) {
+              callback(err, 0, null);
+            }
+            return;
           }
           if (fd === process.stderr.fd) {
-            try { process.stderr.write(buf); }
-            catch (err) { return callback(err, 0, null); }
-            return callback(null, length, buf);
+            try {
+              process.stderr.write(buf, err => err ? callback(err, 0, null) : callback(null, length, buf));
+            } catch (err) {
+              callback(err, 0, null);
+            }
+            return;
           }
         }
         fs.write(fd, buf, offset, length, position, callback);
