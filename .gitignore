@@ -5,6 +5,7 @@
 /npm/esbuild-wasm/browser.js
 /npm/esbuild-wasm/esbuild.wasm
 /npm/esbuild-wasm/esm/
+/npm/esbuild-wasm/exit0.js
 /npm/esbuild-wasm/lib/
 /npm/esbuild-wasm/wasm_exec.js
 /npm/esbuild/install.js

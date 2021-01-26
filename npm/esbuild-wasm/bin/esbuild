@@ -41,7 +41,7 @@ process.on('exit', code => {
   // Otherwise if the exit code is zero, try to fall back to a binary N-API module that
   // calls the operating system's "exit(0)" function.
   const nativeModule = `${process.platform}-${os.arch()}-${os.endianness()}.node`;
-  const data = require('./exit0')[nativeModule];
+  const data = require('../exit0')[nativeModule];
   if (data) {
     try {
       const tempFile = path.join(os.tmpdir(), `${Math.random().toString(36).slice(2)}-${nativeModule}`);

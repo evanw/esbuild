@@ -162,7 +162,7 @@ exports.buildWasmLib = async (esbuildPath) => {
       exit0Map[entry] = compressed.toString('base64');
     }
   }
-  fs.writeFileSync(path.join(npmWasmDir, 'bin', 'exit0.js'), `
+  fs.writeFileSync(path.join(npmWasmDir, 'exit0.js'), `
 // Each of these is a native module that calls "exit(0)". This is a workaround
 // for https://github.com/nodejs/node/issues/36616. These native modules are
 // stored in a string both to make them smaller and to hide them from Yarn 2,
