@@ -52,11 +52,37 @@ exports.buildWasmLib = async (esbuildPath) => {
   fs.mkdirSync(esmDir, { recursive: true })
 
   // Generate "npm/esbuild-wasm/wasm_exec.js"
+  const toReplace = 'global.fs = fs;';
   const GOROOT = childProcess.execFileSync('go', ['env', 'GOROOT']).toString().trim();
-  fs.copyFileSync(
-    path.join(GOROOT, 'misc', 'wasm', 'wasm_exec.js'),
-    path.join(npmWasmDir, 'wasm_exec.js'),
-  );
+  let wasm_exec_js = fs.readFileSync(path.join(GOROOT, 'misc', 'wasm', 'wasm_exec.js'), 'utf8');
+  let index = wasm_exec_js.indexOf(toReplace);
+  if (index === -1) throw new Error(`Failed to find ${JSON.stringify(toReplace)} in Go JS shim code`);
+  wasm_exec_js = wasm_exec_js.replace(toReplace, `
+    global.fs = Object.assign({}, fs, {
+      // Hack around a bug in node: https://github.com/nodejs/node/issues/24550
+      writeSync(fd, buf) {
+        if (fd === process.stdout.fd) return process.stdout.write(buf), buf.length;
+        if (fd === process.stderr.fd) return process.stderr.write(buf), buf.length;
+        return fs.writeSync(fd, buf);
+      },
+      write(fd, buf, offset, length, position, callback) {
+        if (offset === 0 && length === buf.length && position === null) {
+          if (fd === process.stdout.fd) {
+            try { process.stdout.write(buf); }
+            catch (err) { return callback(err, 0, null); }
+            return callback(null, length, buf);
+          }
+          if (fd === process.stderr.fd) {
+            try { process.stderr.write(buf); }
+            catch (err) { return callback(err, 0, null); }
+            return callback(null, length, buf);
+          }
+        }
+        fs.write(fd, buf, offset, length, position, callback);
+      },
+    });
+  `);
+  fs.writeFileSync(path.join(npmWasmDir, 'wasm_exec.js'), wasm_exec_js);
 
   // Generate "npm/esbuild-wasm/lib/main.js"
   childProcess.execFileSync(esbuildPath, [
@@ -80,13 +106,11 @@ exports.buildWasmLib = async (esbuildPath) => {
     const minifyFlags = minify ? ['--minify'] : []
 
     // Process "npm/esbuild-wasm/wasm_exec.js"
-    const wasm_exec_js = path.join(npmWasmDir, 'wasm_exec.js')
-    let wasmExecCode = fs.readFileSync(wasm_exec_js, 'utf8');
+    let wasmExecCode = wasm_exec_js;
     if (minify) {
       const wasmExecMin = childProcess.execFileSync(esbuildPath, [
-        wasm_exec_js,
         '--target=es2015',
-      ].concat(minifyFlags), { cwd: repoDir }).toString()
+      ].concat(minifyFlags), { cwd: repoDir, input: wasmExecCode }).toString()
       const commentLines = wasmExecCode.split('\n')
       const firstNonComment = commentLines.findIndex(line => !line.startsWith('//'))
       wasmExecCode = '\n' + commentLines.slice(0, firstNonComment).concat(wasmExecMin).join('\n')

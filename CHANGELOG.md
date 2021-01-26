@@ -55,6 +55,12 @@
 
     The workaround was to manually check for this case and then ignore the error in this specific case. With this release, it should now be possible to pipe something to the `esbuild` command on Windows.
 
+* Fix stdout and stderr not supporting Unicode in the `esbuild-wasm` package on Windows ([#687](https://github.com/evanw/esbuild/issues/687))
+
+    Node's `fs.write` API is broken when writing Unicode to stdout and stderr on Windows, and this will never be fixed: [nodejs/node#24550](https://github.com/nodejs/node/issues/24550). This is problematic for Go's WebAssembly implementation because it uses this API for writing to all file descriptors.
+
+    The workaround is to manually intercept the file descriptors for stdout and stderr and redirect them to `process.stdout` and `process.stderr` respectively. Passing Unicode text to `write()` on these objects instead of on the `fs` API strangely works fine. So with this release, Unicode text should now display correctly when using esbuild's WebAssembly implementation on Windows (or at least, as correctly as the poor Unicode support in Windows Command Prompt allows).
+
 * Add a hack for faster command-line execution for the WebAssembly module in certain cases
 
     Node has an unfortunate bug where the node process is unnecessarily kept open while a WebAssembly module is being optimized: https://github.com/nodejs/node/issues/36616. This means cases where running `esbuild` should take a few milliseconds can end up taking many seconds instead.

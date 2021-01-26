@@ -39,6 +39,40 @@ const tests = {
     assert.deepStrictEqual(exports.default, 3);
   },
 
+  stdinStdoutUnicodeTest({ testDir, esbuildPath }) {
+    const stdout = child_process.execFileSync('node', [
+      esbuildPath,
+      '--format=cjs',
+    ], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      cwd: testDir,
+      input: `export default ['π', '🍕']`,
+    }).toString();
+
+    // Check that the bundle is valid
+    const module = { exports: {} };
+    new Function('module', 'exports', stdout)(module, module.exports);
+    assert.deepStrictEqual(module.exports.default, ['π', '🍕']);
+  },
+
+  stdinOutfileUnicodeTest({ testDir, esbuildPath }) {
+    const outfile = path.join(testDir, 'out.js')
+    child_process.execFileSync('node', [
+      esbuildPath,
+      '--bundle',
+      '--format=cjs',
+      '--outfile=' + outfile,
+    ], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      cwd: testDir,
+      input: `export default ['π', '🍕']`,
+    }).toString();
+
+    // Check that the bundle is valid
+    const exports = require(outfile);
+    assert.deepStrictEqual(exports.default, ['π', '🍕']);
+  },
+
   importRelativeFileTest({ testDir, esbuildPath }) {
     const outfile = path.join(testDir, 'out.js')
     const packageJSON = path.join(__dirname, '..', 'npm', 'esbuild-wasm', 'package.json');
