@@ -17,7 +17,7 @@ test-all:
 test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
 
 check-go-version:
-	@go version | grep 'go1\.15\.5' || (echo 'Please install Go version 1.15.5' && false)
+	@go version | grep 'go1\.15\.7' || (echo 'Please install Go version 1.15.7' && false)
 
 test-go:
 	go test ./internal/...

@@ -30,7 +30,7 @@ var defaultMainFields = map[config.Platform][]string{
 	// This is deliberate because the presence of the "browser" field is a
 	// good signal that the "module" field may have non-browser stuff in it,
 	// which will crash or fail to be bundled when targeting the browser.
-	config.PlatformBrowser: []string{"browser", "module", "main"},
+	config.PlatformBrowser: {"browser", "module", "main"},
 
 	// Note that this means if a package specifies "module" and "main", the ES6
 	// module will not be selected. This means tree shaking will not work when
@@ -48,12 +48,12 @@ var defaultMainFields = map[config.Platform][]string{
 	// If you want to enable tree shaking when targeting node, you will have to
 	// configure the main fields to be "module" and then "main". Keep in mind
 	// that some packages may break if you do this.
-	config.PlatformNode: []string{"main", "module"},
+	config.PlatformNode: {"main", "module"},
 
 	// The neutral platform is for people that don't want esbuild to try to
 	// pick good defaults for their platform. In that case, the list of main
 	// fields is empty by default. You must explicitly configure it yourself.
-	config.PlatformNeutral: []string{},
+	config.PlatformNeutral: {},
 }
 
 // Path resolution is a mess. One tricky issue is the "module" override for the
