@@ -2,6 +2,7 @@
 
 // Forward to the automatically-generated WebAssembly loader from the Go compiler
 
+const crypto = require('crypto');
 const path = require('path');
 const zlib = require('zlib');
 const fs = require('fs');
@@ -41,12 +42,20 @@ process.on('exit', code => {
   // Otherwise if the exit code is zero, try to fall back to a binary N-API module that
   // calls the operating system's "exit(0)" function.
   const nativeModule = `${process.platform}-${os.arch()}-${os.endianness()}.node`;
-  const data = require('../exit0')[nativeModule];
-  if (data) {
+  const base64 = require('../exit0')[nativeModule];
+  if (base64) {
     try {
-      const tempFile = path.join(os.tmpdir(), `${Math.random().toString(36).slice(2)}-${nativeModule}`);
-      fs.writeFileSync(tempFile, zlib.inflateRawSync(Buffer.from(data, 'base64')));
-      require(tempFile);
+      const data = zlib.inflateRawSync(Buffer.from(base64, 'base64'));
+      const hash = crypto.createHash('sha256').update(base64).digest().toString('hex').slice(0, 16);
+      const tempFile = path.join(os.tmpdir(), `${hash}-${nativeModule}`);
+      try {
+        if (fs.readFileSync(tempFile).equals(data)) {
+          require(tempFile);
+        }
+      } finally {
+        fs.writeFileSync(tempFile, data);
+        require(tempFile);
+      }
     } catch (e) {
     }
   }
