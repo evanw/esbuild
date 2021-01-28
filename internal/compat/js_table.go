@@ -103,6 +103,7 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Edge:    {79},
 		ES:      {2020},
 		Firefox: {68},
+		IOS:     {14},
 		Node:    {10, 4},
 		Safari:  {14},
 	},
@@ -119,12 +120,14 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Chrome:  {72},
 		Edge:    {79},
 		Firefox: {69},
+		IOS:     {14},
 		Node:    {12, 0},
 		Safari:  {14},
 	},
 	ClassPrivateAccessor: {
 		Chrome: {84},
 		Edge:   {84},
+		Node:   {14, 6},
 	},
 	ClassPrivateField: {
 		Chrome: {74},
@@ -134,10 +137,12 @@ var jsTable = map[JSFeature]map[Engine][]int{
 	ClassPrivateMethod: {
 		Chrome: {84},
 		Edge:   {84},
+		Node:   {14, 6},
 	},
 	ClassPrivateStaticAccessor: {
 		Chrome: {84},
 		Edge:   {84},
+		Node:   {14, 6},
 	},
 	ClassPrivateStaticField: {
 		Chrome: {74},
@@ -147,6 +152,7 @@ var jsTable = map[JSFeature]map[Engine][]int{
 	ClassPrivateStaticMethod: {
 		Chrome: {84},
 		Edge:   {84},
+		Node:   {14, 6},
 	},
 	ClassStaticField: {
 		Chrome:  {72},
@@ -252,7 +258,10 @@ var jsTable = map[JSFeature]map[Engine][]int{
 	},
 	LogicalAssignment: {
 		Chrome:  {85},
+		Edge:    {85},
 		Firefox: {79},
+		IOS:     {14},
+		Node:    {15, 0},
 		Safari:  {14},
 	},
 	NestedRestBinding: {
