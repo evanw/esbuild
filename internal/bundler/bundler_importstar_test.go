@@ -574,6 +574,57 @@ func TestReExportStarNameCollisionNotAmbiguousExport(t *testing.T) {
 	})
 }
 
+func TestReExportStarNameShadowingNotAmbiguous(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {x} from './a'
+				console.log(x)
+			`,
+			"/a.js": `
+				export * from './b'
+				export let x = 1
+			`,
+			"/b.js": `
+				export let x = 2
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestReExportStarNameShadowingNotAmbiguousReExport(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {x} from './a'
+				console.log(x)
+			`,
+			"/a.js": `
+				export * from './b'
+			`,
+			"/b.js": `
+				export * from './c'
+				export let x = 1
+			`,
+			"/c.js": `
+				export let x = 2
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestImportStarOfExportStarAs(t *testing.T) {
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{

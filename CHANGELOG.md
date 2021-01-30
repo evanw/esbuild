@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-* Improve ambiguous import errors
+* Improve ambiguous import handling ([#723](https://github.com/evanw/esbuild/issues/723))
 
-    It is an error to try to import a symbol from a file with multiple matching re-exports. Previously the error message just said that there was an ambiguous import but didn't have any additional information. With this release, the error message also points out where the two different exports that have collided are in their original source files. Hopefully this should make it quicker to diagnose these types of issues.
+    It is an error to try to import a name from a file where there are multiple matching exports due to multiple `export * from` statements from files which export that name. This release contains a few improvements to ambiguous import handling.
+
+    This release fixes a bug where named export shadowing didn't work correctly with multiple levels of re-exports. A named export closer in the re-export chain is supposed to hide a named export deeper in the re-export chain without causing an ambiguous import. The bug caused this case to be incorrectly flagged as an error even though it should have been allowed. This case is now allowed without an error.
+
+    Previously the error message just said that there was an ambiguous import but didn't have any additional information. With this release, the error message also points out where the two different exports that have collided are in their original source files. Hopefully this should make it quicker to diagnose these types of issues.
 
 ## 0.8.36
 

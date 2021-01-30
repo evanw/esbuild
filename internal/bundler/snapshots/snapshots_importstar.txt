@@ -851,3 +851,21 @@ var y = 2;
 
 // entry.js
 console.log(x, y);
+
+================================================================================
+TestReExportStarNameShadowingNotAmbiguous
+---------- /out.js ----------
+// a.js
+var x = 1;
+
+// entry.js
+console.log(x);
+
+================================================================================
+TestReExportStarNameShadowingNotAmbiguousReExport
+---------- /out.js ----------
+// b.js
+var x = 1;
+
+// entry.js
+console.log(x);

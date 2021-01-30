@@ -234,10 +234,6 @@ type exportData struct {
 	// different from the file that contains this object if this is a re-export.
 	sourceIndex uint32
 	nameLoc     logger.Loc // Optional, goes with sourceIndex, ignore if zero
-
-	// Exports from export stars are shadowed by other exports. This flag helps
-	// implement this behavior.
-	isFromExportStar bool
 }
 
 // This contains linker-specific metadata corresponding to a "js_ast.Part" struct
@@ -1148,6 +1144,7 @@ func (c *linkerContext) scanImportsAndExports() {
 	// Step 3: Resolve "export * from" statements. This must be done after we
 	// discover all modules that can be CommonJS because export stars are ignored
 	// for CommonJS modules.
+	exportStarStack := make([]uint32, 0, 32)
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
 		repr, ok := file.repr.(*reprJS)
@@ -1188,8 +1185,7 @@ func (c *linkerContext) scanImportsAndExports() {
 
 		// Propagate exports for export star statements
 		if len(repr.ast.ExportStarImportRecords) > 0 {
-			visited := make(map[uint32]bool)
-			c.addExportsForExportStar(repr.meta.resolvedExports, sourceIndex, visited)
+			c.addExportsForExportStar(repr.meta.resolvedExports, sourceIndex, exportStarStack)
 		}
 
 		// Add an empty part for the namespace export that we can fill in later
@@ -2058,13 +2054,15 @@ func (c *linkerContext) isCommonJSDueToExportStar(sourceIndex uint32, visited ma
 func (c *linkerContext) addExportsForExportStar(
 	resolvedExports map[string]exportData,
 	sourceIndex uint32,
-	visited map[uint32]bool,
+	sourceIndexStack []uint32,
 ) {
 	// Avoid infinite loops due to cycles in the export star graph
-	if visited[sourceIndex] {
-		return
+	for _, prevSourceIndex := range sourceIndexStack {
+		if prevSourceIndex == sourceIndex {
+			return
+		}
 	}
-	visited[sourceIndex] = true
+	sourceIndexStack = append(sourceIndexStack, sourceIndex)
 	repr := c.files[sourceIndex].repr.(*reprJS)
 
 	for _, importRecordIndex := range repr.ast.ExportStarImportRecords {
@@ -2089,26 +2087,27 @@ func (c *linkerContext) addExportsForExportStar(
 		}
 
 		// Accumulate this file's exports
+	nextExport:
 		for alias, name := range otherRepr.ast.NamedExports {
 			// ES6 export star statements ignore exports named "default"
 			if alias == "default" {
 				continue
 			}
 
-			existing, ok := resolvedExports[alias]
-
-			// Don't overwrite real exports, which shadow export stars
-			if ok && !existing.isFromExportStar {
-				continue
+			// This export star is shadowed if any file in the stack has a matching real named export
+			for _, prevSourceIndex := range sourceIndexStack {
+				prevRepr := c.files[prevSourceIndex].repr.(*reprJS)
+				if _, ok := prevRepr.ast.NamedExports[alias]; ok {
+					continue nextExport
+				}
 			}
 
-			if !ok {
+			if existing, ok := resolvedExports[alias]; !ok {
 				// Initialize the re-export
 				resolvedExports[alias] = exportData{
-					ref:              name.Ref,
-					sourceIndex:      otherSourceIndex,
-					nameLoc:          name.AliasLoc,
-					isFromExportStar: true,
+					ref:         name.Ref,
+					sourceIndex: otherSourceIndex,
+					nameLoc:     name.AliasLoc,
 				}
 
 				// Make sure the symbol is marked as imported so that code splitting
@@ -2130,7 +2129,7 @@ func (c *linkerContext) addExportsForExportStar(
 		}
 
 		// Search further through this file's export stars
-		c.addExportsForExportStar(resolvedExports, otherSourceIndex, visited)
+		c.addExportsForExportStar(resolvedExports, otherSourceIndex, sourceIndexStack)
 	}
 }
 
