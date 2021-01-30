@@ -1176,6 +1176,83 @@ let pluginTests = {
     assert.strictEqual(result.warnings[0].text, '[plugin] some warning')
     assert.strictEqual(result.warnings[0].detail, theError)
   },
+
+  async pluginDataResolveToLoad({ esbuild }) {
+    const theObject = {}
+    const result = await esbuild.build({
+      entryPoints: ['entry'],
+      write: false,
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, () => ({
+            path: 'abc',
+            namespace: 'xyz',
+            pluginData: theObject,
+          }))
+          build.onLoad({ filter: /.*/ }, args => {
+            assert.strictEqual(args.pluginData, theObject)
+            return { contents: 'foo()' };
+          })
+        },
+      }],
+    })
+    assert.strictEqual(result.outputFiles[0].text, 'foo();\n')
+  },
+
+  async pluginDataResolveToLoadNested({ esbuild }) {
+    const theObject = {}
+    const result = await esbuild.build({
+      entryPoints: ['entry'],
+      write: false,
+      bundle: true,
+      format: 'esm',
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => {
+            if (args.path === 'entry') return { path: 'entry', namespace: 'xyz' }
+            return {
+              path: 'nested',
+              namespace: 'xyz',
+              pluginData: theObject,
+            }
+          })
+          build.onLoad({ filter: /.*/ }, args => {
+            if (args.path === 'entry') return { contents: 'import "nested"' };
+            assert.strictEqual(args.pluginData, theObject)
+            return { contents: 'foo()' };
+          })
+        },
+      }],
+    })
+    assert.strictEqual(result.outputFiles[0].text, '// xyz:nested\nfoo();\n')
+  },
+
+  async pluginDataLoadToResolve({ esbuild }) {
+    const theObject = {}
+    const result = await esbuild.build({
+      entryPoints: ['entry'],
+      write: false,
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => {
+            if (args === 'import') {
+              assert.strictEqual(args.pluginData, theObject)
+              return { external: true }
+            }
+            return { path: 'abc', namespace: 'xyz' }
+          })
+          build.onLoad({ filter: /.*/ }, () => ({
+            contents: 'import("import")',
+            pluginData: theObject,
+          }))
+        },
+      }],
+    })
+    assert.strictEqual(result.outputFiles[0].text, 'import("import");\n')
+  },
 }
 
 async function main() {

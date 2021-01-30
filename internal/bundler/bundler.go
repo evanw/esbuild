@@ -33,10 +33,11 @@ import (
 )
 
 type file struct {
-	source    logger.Source
-	repr      fileRepr
-	loader    config.Loader
-	sourceMap *sourcemap.SourceMap
+	source     logger.Source
+	repr       fileRepr
+	loader     config.Loader
+	sourceMap  *sourcemap.SourceMap
+	pluginData interface{}
 
 	// The minimum number of links in the module graph to get from an entry point
 	// to this file
@@ -136,6 +137,7 @@ type parseArgs struct {
 	ignoreIfUnused     bool
 	ignoreIfUnusedData *resolver.IgnoreIfUnusedData
 	importPathRange    logger.Range
+	pluginData         interface{}
 	options            config.Options
 	results            chan parseResult
 	inject             chan config.InjectedFile
@@ -160,6 +162,7 @@ func parseFile(args parseArgs) {
 	var loader config.Loader
 	var absResolveDir string
 	var pluginName string
+	var pluginData interface{}
 
 	if stdin := args.options.Stdin; stdin != nil {
 		// Special-case stdin
@@ -179,6 +182,7 @@ func parseFile(args parseArgs) {
 			&source,
 			args.importSource,
 			args.importPathRange,
+			args.pluginData,
 		)
 		if !ok {
 			if args.inject != nil {
@@ -192,6 +196,7 @@ func parseFile(args parseArgs) {
 		loader = result.loader
 		absResolveDir = result.absResolveDir
 		pluginName = result.pluginName
+		pluginData = result.pluginData
 	}
 
 	_, base, ext := logger.PlatformIndependentPathDirBaseExt(source.KeyPath.Text)
@@ -203,8 +208,9 @@ func parseFile(args parseArgs) {
 
 	result := parseResult{
 		file: file{
-			source: source,
-			loader: loader,
+			source:     source,
+			loader:     loader,
+			pluginData: pluginData,
 
 			// Record information from "sideEffects" in "package.json"
 			ignoreIfUnused:     args.ignoreIfUnused,
@@ -406,6 +412,7 @@ func parseFile(args parseArgs) {
 					record.Path.Text,
 					record.Kind,
 					absResolveDir,
+					pluginData,
 				)
 				cache[record.Path.Text] = resolveResult
 
@@ -611,10 +618,12 @@ func runOnResolvePlugins(
 	path string,
 	kind ast.ImportKind,
 	absResolveDir string,
+	pluginData interface{},
 ) (*resolver.ResolveResult, bool) {
 	resolverArgs := config.OnResolveArgs{
 		Path:       path,
 		ResolveDir: absResolveDir,
+		PluginData: pluginData,
 	}
 	applyPath := logger.Path{Text: path}
 	if importSource != nil {
@@ -673,6 +682,7 @@ func runOnResolvePlugins(
 			return &resolver.ResolveResult{
 				PathPair:   resolver.PathPair{Primary: result.Path},
 				IsExternal: result.External,
+				PluginData: result.PluginData,
 			}, false
 		}
 	}
@@ -687,6 +697,7 @@ type loaderPluginResult struct {
 	loader        config.Loader
 	absResolveDir string
 	pluginName    string
+	pluginData    interface{}
 }
 
 func runOnLoadPlugins(
@@ -698,9 +709,11 @@ func runOnLoadPlugins(
 	source *logger.Source,
 	importSource *logger.Source,
 	importPathRange logger.Range,
+	pluginData interface{},
 ) (loaderPluginResult, bool) {
 	loaderArgs := config.OnLoadArgs{
-		Path: source.KeyPath,
+		Path:       source.KeyPath,
+		PluginData: pluginData,
 	}
 
 	// Apply loader plugins in order until one succeeds
@@ -739,6 +752,7 @@ func runOnLoadPlugins(
 				loader:        loader,
 				absResolveDir: result.AbsResolveDir,
 				pluginName:    pluginName,
+				pluginData:    result.PluginData,
 			}, true
 		}
 	}
@@ -867,6 +881,7 @@ func (s *scanner) maybeParseFile(
 	prettyPath string,
 	importSource *logger.Source,
 	importPathRange logger.Range,
+	pluginData interface{},
 	kind inputKind,
 	inject chan config.InjectedFile,
 ) uint32 {
@@ -932,6 +947,7 @@ func (s *scanner) maybeParseFile(
 		ignoreIfUnused:     resolveResult.IgnorePrimaryIfUnused != nil,
 		ignoreIfUnusedData: resolveResult.IgnorePrimaryIfUnused,
 		importPathRange:    importPathRange,
+		pluginData:         pluginData,
 		options:            optionsClone,
 		results:            s.resultChannel,
 		inject:             inject,
@@ -1027,7 +1043,7 @@ func (s *scanner) preprocessInjectedFiles() {
 		i := len(injectedFiles)
 		injectedFiles = append(injectedFiles, config.InjectedFile{})
 		channel := make(chan config.InjectedFile)
-		s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, inputKindNormal, channel)
+		s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, nil, inputKindNormal, channel)
 
 		// Wait for the results in parallel
 		injectWaitGroup.Add(1)
@@ -1058,7 +1074,7 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 			}
 		}
 		resolveResult := resolver.ResolveResult{PathPair: resolver.PathPair{Primary: stdinPath}}
-		sourceIndex := s.maybeParseFile(resolveResult, s.res.PrettyPath(stdinPath), nil, logger.Range{}, inputKindStdin, nil)
+		sourceIndex := s.maybeParseFile(resolveResult, s.res.PrettyPath(stdinPath), nil, logger.Range{}, nil, inputKindStdin, nil)
 		entryPointIndices = append(entryPointIndices, sourceIndex)
 	}
 
@@ -1107,6 +1123,7 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 				path,
 				ast.ImportEntryPoint,
 				entryPointAbsResolveDir,
+				nil,
 			)
 			if resolveResult != nil {
 				if resolveResult.IsExternal {
@@ -1133,7 +1150,7 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 	for _, resolveResult := range entryPointResolveResults {
 		if resolveResult != nil {
 			prettyPath := s.res.PrettyPath(resolveResult.PathPair.Primary)
-			sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, inputKindEntryPoint, nil)
+			sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, resolveResult.PluginData, inputKindEntryPoint, nil)
 			if duplicateEntryPoints[sourceIndex] {
 				s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate entry point %q", prettyPath))
 				continue
@@ -1171,7 +1188,7 @@ func (s *scanner) scanAllDependencies() {
 				if !resolveResult.IsExternal {
 					// Handle a path within the bundle
 					prettyPath := s.res.PrettyPath(path)
-					sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, &result.file.source, record.Range, inputKindNormal, nil)
+					sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, &result.file.source, record.Range, resolveResult.PluginData, inputKindNormal, nil)
 					record.SourceIndex = &sourceIndex
 				} else {
 					// If the path to the external module is relative to the source

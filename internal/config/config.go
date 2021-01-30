@@ -318,13 +318,15 @@ type OnResolveArgs struct {
 	Path       string
 	Importer   logger.Path
 	ResolveDir string
+	PluginData interface{}
 }
 
 type OnResolveResult struct {
 	PluginName string
 
-	Path     logger.Path
-	External bool
+	Path       logger.Path
+	External   bool
+	PluginData interface{}
 
 	Msgs        []logger.Msg
 	ThrownError error
@@ -338,7 +340,8 @@ type OnLoad struct {
 }
 
 type OnLoadArgs struct {
-	Path logger.Path
+	Path       logger.Path
+	PluginData interface{}
 }
 
 type OnLoadResult struct {
@@ -347,6 +350,7 @@ type OnLoadResult struct {
 	Contents      *string
 	AbsResolveDir string
 	Loader        Loader
+	PluginData    interface{}
 
 	Msgs        []logger.Msg
 	ThrownError error

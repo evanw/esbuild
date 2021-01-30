@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add `pluginData` to pass data between plugins ([#696](https://github.com/evanw/esbuild/issues/696))
+
+    You can now return additional data from a plugin in the optional `pluginData` field and it will be passed to the next plugin that runs in the plugin chain. So if you return it from an `onLoad` plugin, it will be passed to the `onResolve` plugins for any imports in that file, and if you return it from an `onResolve` plugin, an arbitrary one will be passed to the `onLoad` plugin when it loads the file (it's arbitrary since the relationship is many-to-one). This is useful to pass data between different plugins without them having to coordinate directly.
+
 ## 0.8.37
 
 * Improve ambiguous import handling ([#723](https://github.com/evanw/esbuild/issues/723))

@@ -92,6 +92,9 @@ type IgnoreIfUnusedData struct {
 type ResolveResult struct {
 	PathPair PathPair
 
+	// If this was resolved by a plugin, the plugin gets to store its data here
+	PluginData interface{}
+
 	// If not empty, these should override the default values
 	JSXFactory  []string // Default if empty: "React.createElement"
 	JSXFragment []string // Default if empty: "React.Fragment"

@@ -401,6 +401,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 						"importer":   args.Importer,
 						"namespace":  args.Namespace,
 						"resolveDir": args.ResolveDir,
+						"pluginData": args.PluginData,
 					}).(map[string]interface{})
 
 					if value, ok := response["id"]; ok {
@@ -427,6 +428,9 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 					if value, ok := response["external"]; ok {
 						result.External = value.(bool)
 					}
+					if value, ok := response["pluginData"]; ok {
+						result.PluginData = value.(int)
+					}
 					if value, ok := response["errors"]; ok {
 						result.Errors = decodeMessages(value.([]interface{}))
 					}
@@ -452,11 +456,12 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 					}
 
 					response := service.sendRequest(map[string]interface{}{
-						"command":   "load",
-						"key":       key,
-						"ids":       ids,
-						"path":      args.Path,
-						"namespace": args.Namespace,
+						"command":    "load",
+						"key":        key,
+						"ids":        ids,
+						"path":       args.Path,
+						"namespace":  args.Namespace,
+						"pluginData": args.PluginData,
 					}).(map[string]interface{})
 
 					if value, ok := response["id"]; ok {
@@ -480,6 +485,9 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 					}
 					if value, ok := response["resolveDir"]; ok {
 						result.ResolveDir = value.(string)
+					}
+					if value, ok := response["pluginData"]; ok {
+						result.PluginData = value.(int)
 					}
 					if value, ok := response["errors"]; ok {
 						result.Errors = decodeMessages(value.([]interface{}))

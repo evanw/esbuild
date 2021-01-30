@@ -388,6 +388,7 @@ type OnResolveArgs struct {
 	Importer   string
 	Namespace  string
 	ResolveDir string
+	PluginData interface{}
 }
 
 type OnResolveResult struct {
@@ -396,9 +397,10 @@ type OnResolveResult struct {
 	Errors   []Message
 	Warnings []Message
 
-	Path      string
-	External  bool
-	Namespace string
+	Path       string
+	External   bool
+	Namespace  string
+	PluginData interface{}
 }
 
 type OnLoadOptions struct {
@@ -407,8 +409,9 @@ type OnLoadOptions struct {
 }
 
 type OnLoadArgs struct {
-	Path      string
-	Namespace string
+	Path       string
+	Namespace  string
+	PluginData interface{}
 }
 
 type OnLoadResult struct {
@@ -420,4 +423,5 @@ type OnLoadResult struct {
 	Contents   *string
 	ResolveDir string
 	Loader     Loader
+	PluginData interface{}
 }

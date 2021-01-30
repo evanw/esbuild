@@ -100,6 +100,7 @@ export interface OnResolveRequest {
   importer: string;
   namespace: string;
   resolveDir: string;
+  pluginData: number;
 }
 
 export interface OnResolveResponse {
@@ -112,6 +113,7 @@ export interface OnResolveResponse {
   path?: string;
   external?: boolean;
   namespace?: string;
+  pluginData?: number;
 }
 
 export interface OnLoadRequest {
@@ -120,6 +122,7 @@ export interface OnLoadRequest {
   ids: number[];
   path: string;
   namespace: string;
+  pluginData: number;
 }
 
 export interface OnLoadResponse {
@@ -132,6 +135,7 @@ export interface OnLoadResponse {
   contents?: Uint8Array;
   resolveDir?: string;
   loader?: string;
+  pluginData?: number;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

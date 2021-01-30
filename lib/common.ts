@@ -466,7 +466,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
-  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number, details: MessageDetails) => {
+  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number, stash: ObjectStash) => {
     if (streamIn.isSync) throw new Error('Cannot use plugins in synchronous API calls');
 
     let onResolveCallbacks: {
@@ -544,6 +544,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 importer: request.importer,
                 namespace: request.namespace,
                 resolveDir: request.resolveDir,
+                pluginData: stash.load(request.pluginData),
               });
 
               if (result != null) {
@@ -553,6 +554,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 let path = getFlag(result, keys, 'path', mustBeString);
                 let namespace = getFlag(result, keys, 'namespace', mustBeString);
                 let external = getFlag(result, keys, 'external', mustBeBoolean);
+                let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
                 let errors = getFlag(result, keys, 'errors', mustBeArray);
                 let warnings = getFlag(result, keys, 'warnings', mustBeArray);
                 checkForInvalidFlags(result, keys, `from onResolve() callback in plugin ${JSON.stringify(name)}`);
@@ -562,12 +564,13 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (path != null) response.path = path;
                 if (namespace != null) response.namespace = namespace;
                 if (external != null) response.external = external;
-                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', details);
-                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', details);
+                if (pluginData != null) response.pluginData = stash.store(pluginData);
+                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash);
+                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash);
                 break;
               }
             } catch (e) {
-              return { id, errors: [await extractErrorMessageV8(e, streamIn, details)] };
+              return { id, errors: [await extractErrorMessageV8(e, streamIn, stash)] };
             }
           }
           return response;
@@ -581,6 +584,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               let result = await callback({
                 path: request.path,
                 namespace: request.namespace,
+                pluginData: stash.load(request.pluginData),
               });
 
               if (result != null) {
@@ -589,6 +593,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
                 let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array);
                 let resolveDir = getFlag(result, keys, 'resolveDir', mustBeString);
+                let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
                 let loader = getFlag(result, keys, 'loader', mustBeString);
                 let errors = getFlag(result, keys, 'errors', mustBeArray);
                 let warnings = getFlag(result, keys, 'warnings', mustBeArray);
@@ -599,13 +604,14 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (contents instanceof Uint8Array) response.contents = contents;
                 else if (contents != null) response.contents = protocol.encodeUTF8(contents);
                 if (resolveDir != null) response.resolveDir = resolveDir;
+                if (pluginData != null) response.pluginData = stash.store(pluginData);
                 if (loader != null) response.loader = loader;
-                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', details);
-                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', details);
+                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash);
+                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash);
                 break;
               }
             } catch (e) {
-              return { id, errors: [await extractErrorMessageV8(e, streamIn, details)] };
+              return { id, errors: [await extractErrorMessageV8(e, streamIn, stash)] };
             }
           }
           return response;
@@ -662,7 +668,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
     service: {
       buildOrServe(callName, serveOptions, options, isTTY, callback) {
-        const details = createMessageDetails();
+        const details = createObjectStash();
         const logLevelDefault = 'info';
         try {
           let key = nextBuildKey++;
@@ -739,7 +745,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       },
 
       transform(callName, input, options, isTTY, fs, callback) {
-        const details = createMessageDetails();
+        const details = createObjectStash();
         const logLevelDefault = 'silent';
 
         // Ideally the "transform()" API would be faster than calling "build()"
@@ -820,28 +826,33 @@ export function createChannel(streamIn: StreamIn): StreamOut {
   };
 }
 
-interface MessageDetails {
+// This stores JavaScript objects on the JavaScript side and temporarily
+// substitutes them with an integer that can be passed through the Go side
+// and back. That way we can associate JavaScript objects with Go objects
+// even if the JavaScript objects aren't serializable. And we also avoid
+// the overhead of serializing large JavaScript objects.
+interface ObjectStash {
   load(id: number): any;
-  store(detail: any): number;
+  store(value: any): number;
 }
 
-function createMessageDetails(): MessageDetails {
+function createObjectStash(): ObjectStash {
   const map = new Map<number, any>();
   let nextID = 0;
   return {
     load(id) {
       return map.get(id);
     },
-    store(detail) {
-      if (detail === void 0) return -1;
+    store(value) {
+      if (value === void 0) return -1;
       const id = nextID++;
-      map.set(id, detail);
+      map.set(id, value);
       return id;
     },
   };
 }
 
-function extractErrorMessageV8(e: any, streamIn: StreamIn, details: MessageDetails | null): types.Message {
+function extractErrorMessageV8(e: any, streamIn: StreamIn, stash: ObjectStash | null): types.Message {
   let text = 'Internal error'
   let location: types.Location | null = null
 
@@ -894,7 +905,7 @@ function extractErrorMessageV8(e: any, streamIn: StreamIn, details: MessageDetai
   } catch {
   }
 
-  return { text, location, detail: details ? details.store(e) : -1 }
+  return { text, location, detail: stash ? stash.store(e) : -1 }
 }
 
 function failureErrorWithLog(text: string, errors: types.Message[], warnings: types.Message[]): Error {
@@ -912,14 +923,14 @@ function failureErrorWithLog(text: string, errors: types.Message[], warnings: ty
   return error;
 }
 
-function replaceDetailsInMessages(messages: types.Message[], details: MessageDetails): types.Message[] {
+function replaceDetailsInMessages(messages: types.Message[], stash: ObjectStash): types.Message[] {
   for (const message of messages) {
-    message.detail = details.load(message.detail);
+    message.detail = stash.load(message.detail);
   }
   return messages;
 }
 
-function sanitizeMessages(messages: types.PartialMessage[], property: string, details: MessageDetails): types.Message[] {
+function sanitizeMessages(messages: types.PartialMessage[], property: string, stash: ObjectStash): types.Message[] {
   let messagesClone: types.Message[] = [];
   let index = 0;
 
@@ -954,7 +965,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, de
     messagesClone.push({
       text: text || '',
       location: locationClone,
-      detail: details.store(detail),
+      detail: stash.store(detail),
     });
     index++;
   }

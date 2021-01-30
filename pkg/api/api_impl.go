@@ -909,6 +909,7 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 				Importer:   args.Importer.Text,
 				Namespace:  args.Importer.Namespace,
 				ResolveDir: args.ResolveDir,
+				PluginData: args.PluginData,
 			})
 			result.PluginName = response.PluginName
 
@@ -919,6 +920,7 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 
 			result.Path = logger.Path{Text: response.Path, Namespace: response.Namespace}
 			result.External = response.External
+			result.PluginData = response.PluginData
 
 			// Convert log messages
 			if len(response.Errors)+len(response.Warnings) > 0 {
@@ -945,8 +947,9 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 		Namespace: options.Namespace,
 		Callback: func(args config.OnLoadArgs) (result config.OnLoadResult) {
 			response, err := callback(OnLoadArgs{
-				Path:      args.Path.Text,
-				Namespace: args.Path.Namespace,
+				Path:       args.Path.Text,
+				Namespace:  args.Path.Namespace,
+				PluginData: args.PluginData,
 			})
 			result.PluginName = response.PluginName
 
@@ -957,6 +960,7 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 
 			result.Contents = response.Contents
 			result.Loader = validateLoader(response.Loader)
+			result.PluginData = response.PluginData
 			pathKind := fmt.Sprintf("resolve directory path for plugin %q", impl.plugin.Name)
 			if absPath := validatePath(impl.log, impl.fs, response.ResolveDir, pathKind); absPath != "" {
 				result.AbsResolveDir = absPath

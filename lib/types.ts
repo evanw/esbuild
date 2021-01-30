@@ -176,6 +176,7 @@ export interface OnResolveArgs {
   importer: string;
   namespace: string;
   resolveDir: string;
+  pluginData: any;
 }
 
 export interface OnResolveResult {
@@ -187,6 +188,7 @@ export interface OnResolveResult {
   path?: string;
   external?: boolean;
   namespace?: string;
+  pluginData?: any;
 }
 
 export interface OnLoadOptions {
@@ -197,6 +199,7 @@ export interface OnLoadOptions {
 export interface OnLoadArgs {
   path: string;
   namespace: string;
+  pluginData: any;
 }
 
 export interface OnLoadResult {
@@ -208,6 +211,7 @@ export interface OnLoadResult {
   contents?: string | Uint8Array;
   resolveDir?: string;
   loader?: Loader;
+  pluginData?: any;
 }
 
 export interface PartialMessage {
