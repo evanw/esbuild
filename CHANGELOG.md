@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.37
 
 * Improve ambiguous import handling ([#723](https://github.com/evanw/esbuild/issues/723))
 
