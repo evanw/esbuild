@@ -1573,7 +1573,7 @@
       expectedStderr: ` > in.js: warning: This assignment will throw because "Foo" is a constant
     5 │             static #foo = Foo = class Bar {}
       ╵                           ~~~
-     in.js: note: "Foo" was declared a constant here
+   in.js: note: "Foo" was declared a constant here
     3 │           class Foo {
       ╵                 ~~~
 
@@ -1598,7 +1598,7 @@
       expectedStderr: ` > in.js: warning: This assignment will throw because "Foo" is a constant
     4 │           static #foo() { Foo = class Bar{} }
       ╵                           ~~~
-     in.js: note: "Foo" was declared a constant here
+   in.js: note: "Foo" was declared a constant here
     2 │         class Foo {
       ╵               ~~~
 

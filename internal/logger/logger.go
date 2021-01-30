@@ -759,7 +759,7 @@ func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, d
 		kindColor = colorResetBold
 		textResetColor = colorReset
 		if options.IncludeSource {
-			textIndent = strings.Repeat(" ", maxMargin+extraMarginChars-3)
+			textIndent = "   "
 		}
 
 	default:
