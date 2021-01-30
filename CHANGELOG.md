@@ -20,6 +20,10 @@
 
     This release fixes a bug where the serve API did not work with the `outfile` setting. Using this setting with the serve API should now work fine.
 
+* Warn about duplicate keys in object literals
+
+    Using a duplicate key in an object literal such as `{x: 1, x: 2}` is now a warning. This is allowed in JavaScript but results in subsequent keys overwriting the previous key. It's usually a copy/paste error and isn't ever useful so it's worth warning about.
+
 ## 0.8.36
 
 * Fix an issue with writing large files to stdout using the WebAssembly executable

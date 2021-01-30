@@ -735,6 +735,14 @@ func TestObject(t *testing.T) {
 	expectParseError(t, "({set [foo]() {}})", "<stdin>: error: Setter property must have exactly one argument\n")
 	expectParseError(t, "({get [foo](x) {}})", "<stdin>: error: Getter property must have zero arguments\n")
 	expectParseError(t, "({set [foo](x, y) {}})", "<stdin>: error: Setter property must have exactly one argument\n")
+
+	expectParseError(t, "({x, x})", "<stdin>: warning: Duplicate key \"x\" in object literal\n")
+	expectParseError(t, "({x() {}, x() {}})", "<stdin>: warning: Duplicate key \"x\" in object literal\n")
+	expectParseError(t, "({get x() {}, get x() {}})", "<stdin>: warning: Duplicate key \"x\" in object literal\n")
+	expectParseError(t, "({get x() {}, set x(y) {}, get x() {}})", "<stdin>: warning: Duplicate key \"x\" in object literal\n")
+	expectParseError(t, "({get x() {}, set x(y) {}, set x(y) {}})", "<stdin>: warning: Duplicate key \"x\" in object literal\n")
+	expectParseError(t, "({get x() {}, set x(y) {}})", "")
+	expectParseError(t, "({set x(y) {}, get x() {}})", "")
 }
 
 func TestComputedProperty(t *testing.T) {

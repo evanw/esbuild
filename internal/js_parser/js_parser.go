@@ -10104,6 +10104,42 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
+		// Check for and warn about duplicate keys in object literals
+		if len(e.Properties) > 1 && !p.options.suppressWarningsAboutWeirdCode {
+			type keyKind uint8
+			const (
+				keyMissing keyKind = iota
+				keyNormal
+				keyGet
+				keySet
+				keyGetAndSet
+			)
+			keys := make(map[string]keyKind)
+			for _, property := range e.Properties {
+				if property.Kind != js_ast.PropertySpread {
+					if str, ok := property.Key.Data.(*js_ast.EString); ok {
+						key := js_lexer.UTF16ToString(str.Value)
+						prevKind := keys[key]
+						nextKind := keyNormal
+						if property.Kind == js_ast.PropertyGet {
+							nextKind = keyGet
+						} else if property.Kind == js_ast.PropertySet {
+							nextKind = keySet
+						}
+						if prevKind != keyMissing && key != "__proto__" {
+							if (prevKind == keyGet && nextKind == keySet) || (prevKind == keySet && nextKind == keyGet) {
+								nextKind = keyGetAndSet
+							} else {
+								r := js_lexer.RangeOfIdentifier(p.source, property.Key.Loc)
+								p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Duplicate key %q in object literal", key))
+							}
+						}
+						keys[key] = nextKind
+					}
+				}
+			}
+		}
+
 		if in.assignTarget == js_ast.AssignTargetNone {
 			// "{a, ...{b, c}, d}" => "{a, b, c, d}"
 			if p.options.mangleSyntax && hasSpread {
