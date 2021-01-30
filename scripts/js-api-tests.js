@@ -443,6 +443,8 @@ body {
     // Check outputs
     assert.strictEqual(typeof json.outputs[makePath(output)].bytes, 'number')
     assert.strictEqual(typeof json.outputs[makePath(output) + '.map'].bytes, 'number')
+    assert.deepStrictEqual(json.outputs[makePath(output) + '.map'].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(output) + '.map'].exports, [])
     assert.deepStrictEqual(json.outputs[makePath(output) + '.map'].inputs, {})
 
     // Check inputs for main output
@@ -910,6 +912,8 @@ body {
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
     const fileName = require(path.join(outdir, 'entry1.js')).default
     const fileKey = makePath(path.join(outdir, fileName))
+    assert.deepStrictEqual(json.outputs[fileKey].imports, [])
+    assert.deepStrictEqual(json.outputs[fileKey].exports, [])
     assert.deepStrictEqual(json.outputs[fileKey].inputs, { [makePath(file)]: { bytesInOutput: 14 } })
 
     // Make sure this key is only in the JSON metafile once

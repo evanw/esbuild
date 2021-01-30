@@ -3911,7 +3911,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 				var jsonMetadataChunk []byte
 				if c.options.AbsMetadataFile != "" {
 					jsonMetadataChunk = []byte(fmt.Sprintf(
-						"{\n      \"imports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(sourceMap)))
+						"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(sourceMap)))
 				}
 
 				// Figure out the base name for the source map which may include the content hash

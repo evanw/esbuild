@@ -312,10 +312,13 @@ func parseFile(args parseArgs) {
 		// Optionally add metadata about the file
 		var jsonMetadataChunk []byte
 		if args.options.AbsMetadataFile != "" {
-			jsonMetadataChunk = []byte(fmt.Sprintf(
-				"{\n      \"inputs\": {\n        %s: {\n          \"bytesInOutput\": %d\n        }\n      },\n      \"bytes\": %d\n    }",
+			inputs := fmt.Sprintf("{\n        %s: {\n          \"bytesInOutput\": %d\n        }\n      }",
 				js_printer.QuoteForJSON(source.PrettyPath, args.options.ASCIIOnly),
 				len(source.Contents),
+			)
+			jsonMetadataChunk = []byte(fmt.Sprintf(
+				"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": %s,\n      \"bytes\": %d\n    }",
+				inputs,
 				len(source.Contents),
 			))
 		}

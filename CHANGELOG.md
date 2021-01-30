@@ -28,6 +28,10 @@
 
     The `output` map that is generated when the `metafile` feature is active could potentially have duplicate keys if the `file` loader is used, there are multiple entry points, and two or more entry points reference the same file. This is harmless because both keys mapped to the same value, but it's confusing and unnecessary. Duplicate keys are no longer present in the output map in this latest release.
 
+* Make the JSON metafile structure match the type definitions ([#726](https://github.com/evanw/esbuild/pull/726))
+
+    Previously `imports` and/or `exports` could be missing from entries in the `output` map in certain cases (specifically for source maps and files loaded with the `file` loader). This was problematic because the TypeScript type definitions for the metafile say that the `imports` and `exports` properties are non-optional. With this release, the `imports` and `exports` properties are now always present so the existing TypeScript type definitions are now accurate.
+
 * Update from Go 1.15.5 to Go 1.15.7
 
     The version of Go used to build the released binary executables on npm is now Go 1.15.7. This change shouldn't result in any visible changes to esbuild. It was only upgraded because the Go extension for the VSCode IDE now uses the official `gopls` Go language service and this extension wanted the latest version of Go.
