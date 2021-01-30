@@ -28,6 +28,10 @@
 
     The `output` map that is generated when the `metafile` feature is active could potentially have duplicate keys if the `file` loader is used, there are multiple entry points, and two or more entry points reference the same file. This is harmless because both keys mapped to the same value, but it's confusing and unnecessary. Duplicate keys are no longer present in the output map in this latest release.
 
+* Update from Go 1.15.5 to Go 1.15.7
+
+    The version of Go used to build the released binary executables on npm is now Go 1.15.7. This change shouldn't result in any visible changes to esbuild. It was only upgraded because the Go extension for the VSCode IDE now uses the official `gopls` Go language service and this extension wanted the latest version of Go.
+
 ## 0.8.36
 
 * Fix an issue with writing large files to stdout using the WebAssembly executable
