@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Improve ambiguous import errors
+
+    It is an error to try to import a symbol from a file with multiple matching re-exports. Previously the error message just said that there was an ambiguous import but didn't have any additional information. With this release, the error message also points out where the two different exports that have collided are in their original source files. Hopefully this should make it quicker to diagnose these types of issues.
+
 ## 0.8.36
 
 * Fix an issue with writing large files to stdout using the WebAssembly executable

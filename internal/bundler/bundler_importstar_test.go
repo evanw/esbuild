@@ -513,6 +513,8 @@ func TestImportExportStarAmbiguousError(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedCompileLog: `entry.js: error: Ambiguous import "y" has multiple matching exports
+foo.js: note: One matching export is here
+bar.js: note: Another matching export is here
 `,
 	})
 }

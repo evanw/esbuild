@@ -200,6 +200,7 @@ type fileMeta struct {
 
 type importToBind struct {
 	sourceIndex uint32
+	nameLoc     logger.Loc // Optional, goes with sourceIndex, ignore if zero
 	ref         js_ast.Ref
 }
 
@@ -232,6 +233,7 @@ type exportData struct {
 	// This is the file that the named export above came from. This will be
 	// different from the file that contains this object if this is a re-export.
 	sourceIndex uint32
+	nameLoc     logger.Loc // Optional, goes with sourceIndex, ignore if zero
 
 	// Exports from export stars are shadowed by other exports. This flag helps
 	// implement this behavior.
@@ -396,6 +398,7 @@ func newLinkerContext(
 				resolvedExports[alias] = exportData{
 					ref:         name.Ref,
 					sourceIndex: sourceIndex,
+					nameLoc:     name.AliasLoc,
 				}
 			}
 
@@ -532,6 +535,11 @@ func findReachableFiles(files []file, entryPoints []uint32) []uint32 {
 
 func (c *linkerContext) addRangeError(source logger.Source, r logger.Range, text string) {
 	c.log.AddRangeError(&source, r, text)
+	c.hasErrors = true
+}
+
+func (c *linkerContext) addRangeErrorWithNotes(source logger.Source, r logger.Range, text string, notes []logger.MsgData) {
+	c.log.AddRangeErrorWithNotes(&source, r, text, notes)
 	c.hasErrors = true
 }
 
@@ -1773,7 +1781,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 		c.cycleDetector = c.cycleDetector[:0]
 
 		importRef := js_ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(innerIndex)}
-		result := c.matchImportWithExport(importTracker{sourceIndex, importRef})
+		result := c.matchImportWithExport(importTracker{sourceIndex: sourceIndex, importRef: importRef})
 		switch result.kind {
 		case matchImportNormal:
 			repr.meta.importsToBind[importRef] = importToBind{
@@ -1808,8 +1816,18 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 		case matchImportAmbiguous:
 			namedImport := repr.ast.NamedImports[importRef]
-			c.addRangeError(file.source, js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc),
-				fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
+			r := js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc)
+			msg := fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias)
+			if result.nameLoc.Start != 0 && result.otherNameLoc.Start != 0 {
+				a := c.files[result.sourceIndex].source
+				b := c.files[result.otherSourceIndex].source
+				c.addRangeErrorWithNotes(file.source, r, msg, []logger.MsgData{
+					logger.RangeData(&a, js_lexer.RangeOfIdentifier(a, result.nameLoc), "One matching export is here"),
+					logger.RangeData(&b, js_lexer.RangeOfIdentifier(b, result.otherNameLoc), "Another matching export is here"),
+				})
+			} else {
+				c.addRangeError(file.source, r, msg)
+			}
 		}
 	}
 }
@@ -1840,11 +1858,14 @@ const (
 )
 
 type matchImportResult struct {
-	kind         matchImportKind
-	namespaceRef js_ast.Ref
-	alias        string
-	sourceIndex  uint32
-	ref          js_ast.Ref
+	kind             matchImportKind
+	namespaceRef     js_ast.Ref
+	alias            string
+	sourceIndex      uint32
+	nameLoc          logger.Loc // Optional, goes with sourceIndex, ignore if zero
+	otherSourceIndex uint32
+	otherNameLoc     logger.Loc // Optional, goes with otherSourceIndex, ignore if zero
+	ref              js_ast.Ref
 }
 
 func (c *linkerContext) matchImportWithExport(tracker importTracker) (result matchImportResult) {
@@ -1952,6 +1973,7 @@ loop:
 						kind:        matchImportNormal,
 						sourceIndex: ambiguousTracker.sourceIndex,
 						ref:         ambiguousTracker.ref,
+						nameLoc:     ambiguousTracker.nameLoc,
 					})
 				}
 			}
@@ -1965,6 +1987,7 @@ loop:
 				kind:        matchImportNormal,
 				sourceIndex: nextTracker.sourceIndex,
 				ref:         nextTracker.importRef,
+				nameLoc:     nextTracker.nameLoc,
 			}
 
 			// If this is a re-export of another import, continue for another
@@ -1985,6 +2008,16 @@ loop:
 	// If there is a potential ambiguity, all results must be the same
 	for _, ambiguousResult := range ambiguousResults {
 		if ambiguousResult != result {
+			if result.kind == matchImportNormal && ambiguousResult.kind == matchImportNormal &&
+				result.nameLoc.Start != 0 && ambiguousResult.nameLoc.Start != 0 {
+				return matchImportResult{
+					kind:             matchImportAmbiguous,
+					sourceIndex:      result.sourceIndex,
+					nameLoc:          result.nameLoc,
+					otherSourceIndex: ambiguousResult.sourceIndex,
+					otherNameLoc:     ambiguousResult.nameLoc,
+				}
+			}
 			return matchImportResult{kind: matchImportAmbiguous}
 		}
 	}
@@ -2074,6 +2107,7 @@ func (c *linkerContext) addExportsForExportStar(
 				resolvedExports[alias] = exportData{
 					ref:              name.Ref,
 					sourceIndex:      otherSourceIndex,
+					nameLoc:          name.AliasLoc,
 					isFromExportStar: true,
 				}
 
@@ -2089,6 +2123,7 @@ func (c *linkerContext) addExportsForExportStar(
 					append(existing.potentiallyAmbiguousExportStarRefs, importToBind{
 						sourceIndex: otherSourceIndex,
 						ref:         name.Ref,
+						nameLoc:     name.AliasLoc,
 					})
 				resolvedExports[alias] = existing
 			}
@@ -2101,6 +2136,7 @@ func (c *linkerContext) addExportsForExportStar(
 
 type importTracker struct {
 	sourceIndex uint32
+	nameLoc     logger.Loc // Optional, goes with sourceIndex, ignore if zero
 	importRef   js_ast.Ref
 }
 
@@ -2162,7 +2198,11 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	// Match this import up with an export from the imported file
 	if matchingExport, ok := otherRepr.meta.resolvedExports[namedImport.Alias]; ok {
 		// Check to see if this is a re-export of another import
-		return importTracker{matchingExport.sourceIndex, matchingExport.ref}, importFound, matchingExport.potentiallyAmbiguousExportStarRefs
+		return importTracker{
+			sourceIndex: matchingExport.sourceIndex,
+			importRef:   matchingExport.ref,
+			nameLoc:     matchingExport.nameLoc,
+		}, importFound, matchingExport.potentiallyAmbiguousExportStarRefs
 	}
 
 	// Missing re-exports in TypeScript files are indistinguishable from types
