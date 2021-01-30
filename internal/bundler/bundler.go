@@ -1663,16 +1663,22 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile, allReachableFiles []
 
 	// Write outputs
 	isFirst = true
+	paths := make(map[string]bool)
 	for _, result := range results {
 		if len(result.jsonMetadataChunk) > 0 {
+			path := b.res.PrettyPath(logger.Path{Text: result.AbsPath, Namespace: "file"})
+			if paths[path] {
+				// Don't write out the same path twice (can happen with the "file" loader)
+				continue
+			}
 			if isFirst {
 				isFirst = false
 				j.AddString("\n    ")
 			} else {
 				j.AddString(",\n    ")
 			}
-			j.AddString(fmt.Sprintf("%s: ", js_printer.QuoteForJSON(b.res.PrettyPath(
-				logger.Path{Text: result.AbsPath, Namespace: "file"}), asciiOnly)))
+			paths[path] = true
+			j.AddString(fmt.Sprintf("%s: ", js_printer.QuoteForJSON(path, asciiOnly)))
 			j.AddBytes(result.jsonMetadataChunk)
 		}
 	}

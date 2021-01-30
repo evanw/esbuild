@@ -882,6 +882,42 @@ body {
     })
   },
 
+  async metafileLoaderFileMultipleEntry({ esbuild, testDir }) {
+    const entry1 = path.join(testDir, 'entry1.js')
+    const entry2 = path.join(testDir, 'entry2.js')
+    const file = path.join(testDir, 'x.file')
+    const outdir = path.join(testDir, 'out')
+    const metafile = path.join(testDir, 'meta.json')
+    await writeFileAsync(entry1, `
+      export {default} from './x.file'
+    `)
+    await writeFileAsync(entry2, `
+      import z from './x.file'
+      console.log(z)
+    `)
+    await writeFileAsync(file, `
+      This is a file
+    `)
+    await esbuild.build({
+      entryPoints: [entry1, entry2],
+      bundle: true,
+      loader: { '.file': 'file' },
+      outdir,
+      metafile,
+      format: 'cjs',
+    })
+    const contents = await readFileAsync(metafile, 'utf8')
+    const json = JSON.parse(contents)
+    const cwd = process.cwd()
+    const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
+    const fileName = require(path.join(outdir, 'entry1.js')).default
+    const fileKey = makePath(path.join(outdir, fileName))
+    assert.deepStrictEqual(json.outputs[fileKey].inputs, {})
+
+    // Make sure this key is only in the JSON metafile once
+    assert.deepStrictEqual(contents.split(JSON.stringify(fileKey)).length, 2)
+  },
+
   // Test in-memory output files
   async writeFalse({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')

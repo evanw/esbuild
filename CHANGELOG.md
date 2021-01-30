@@ -24,6 +24,10 @@
 
     Using a duplicate key in an object literal such as `{x: 1, x: 2}` is now a warning. This is allowed in JavaScript but results in subsequent keys overwriting the previous key. It's usually a copy/paste error and isn't ever useful so it's worth warning about.
 
+* Avoid generating duplicate keys in JSON metadata
+
+    The `output` map that is generated when the `metafile` feature is active could potentially have duplicate keys if the `file` loader is used, there are multiple entry points, and two or more entry points reference the same file. This is harmless because both keys mapped to the same value, but it's confusing and unnecessary. Duplicate keys are no longer present in the output map in this latest release.
+
 ## 0.8.36
 
 * Fix an issue with writing large files to stdout using the WebAssembly executable
