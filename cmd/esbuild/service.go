@@ -293,7 +293,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	key := request["key"].(int)
 	write := request["write"].(bool)
 	incremental := request["incremental"].(bool)
-	serve, isServe := request["serve"].(interface{})
+	serveObj, isServe := request["serve"].(interface{})
 	flags := decodeStringArray(request["flags"].([]interface{}))
 
 	options, err := cli.ParseBuildOptions(flags)
@@ -335,72 +335,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	}
 
 	if isServe {
-		var serveOptions api.ServeOptions
-		serve := serve.(map[string]interface{})
-		serveID := serve["serveID"].(int)
-		if port, ok := serve["port"]; ok {
-			serveOptions.Port = uint16(port.(int))
-		}
-		if host, ok := serve["host"]; ok {
-			serveOptions.Host = host.(string)
-		}
-		serveOptions.OnRequest = func(args api.ServeOnRequestArgs) {
-			service.sendRequest(map[string]interface{}{
-				"command": "serve-request",
-				"serveID": serveID,
-				"args": map[string]interface{}{
-					"remoteAddress": args.RemoteAddress,
-					"method":        args.Method,
-					"path":          args.Path,
-					"status":        args.Status,
-					"timeInMS":      args.TimeInMS,
-				},
-			})
-		}
-		result, err := api.Serve(serveOptions, options)
-		if err != nil {
-			return outgoingPacket{bytes: encodeErrorPacket(id, err)}
-		}
-		response := map[string]interface{}{
-			"port": int(result.Port),
-			"host": result.Host,
-		}
-
-		// Asynchronously wait for the server to stop, then fulfil the "wait" promise
-		go func() {
-			request := map[string]interface{}{
-				"command": "serve-wait",
-				"serveID": serveID,
-			}
-			if err := result.Wait(); err != nil {
-				request["error"] = err.Error()
-			} else {
-				request["error"] = nil
-			}
-			service.sendRequest(request)
-
-			// Only mutate the map while inside a mutex
-			service.mutex.Lock()
-			defer service.mutex.Unlock()
-			delete(service.serveStops, serveID)
-		}()
-
-		func() {
-			// Only mutate the map while inside a mutex
-			service.mutex.Lock()
-			defer service.mutex.Unlock()
-			service.serveStops[serveID] = result.Stop
-		}()
-
-		return outgoingPacket{
-			bytes: encodePacket(packet{
-				id:    id,
-				value: response,
-			}),
-
-			// Make sure the serve doesn't finish until "stop" has been called
-			refCount: 1,
-		}
+		return service.handleServeRequest(id, options, serveObj)
 	}
 
 	rebuildID := service.nextRebuildID
@@ -454,6 +389,75 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 			value: response,
 		}),
 		refCount: refCount,
+	}
+}
+
+func (service *serviceType) handleServeRequest(id uint32, options api.BuildOptions, serveObj interface{}) outgoingPacket {
+	var serveOptions api.ServeOptions
+	serve := serveObj.(map[string]interface{})
+	serveID := serve["serveID"].(int)
+	if port, ok := serve["port"]; ok {
+		serveOptions.Port = uint16(port.(int))
+	}
+	if host, ok := serve["host"]; ok {
+		serveOptions.Host = host.(string)
+	}
+	serveOptions.OnRequest = func(args api.ServeOnRequestArgs) {
+		service.sendRequest(map[string]interface{}{
+			"command": "serve-request",
+			"serveID": serveID,
+			"args": map[string]interface{}{
+				"remoteAddress": args.RemoteAddress,
+				"method":        args.Method,
+				"path":          args.Path,
+				"status":        args.Status,
+				"timeInMS":      args.TimeInMS,
+			},
+		})
+	}
+	result, err := api.Serve(serveOptions, options)
+	if err != nil {
+		return outgoingPacket{bytes: encodeErrorPacket(id, err)}
+	}
+	response := map[string]interface{}{
+		"port": int(result.Port),
+		"host": result.Host,
+	}
+
+	// Asynchronously wait for the server to stop, then fulfil the "wait" promise
+	go func() {
+		request := map[string]interface{}{
+			"command": "serve-wait",
+			"serveID": serveID,
+		}
+		if err := result.Wait(); err != nil {
+			request["error"] = err.Error()
+		} else {
+			request["error"] = nil
+		}
+		service.sendRequest(request)
+
+		// Only mutate the map while inside a mutex
+		service.mutex.Lock()
+		defer service.mutex.Unlock()
+		delete(service.serveStops, serveID)
+	}()
+
+	func() {
+		// Only mutate the map while inside a mutex
+		service.mutex.Lock()
+		defer service.mutex.Unlock()
+		service.serveStops[serveID] = result.Stop
+	}()
+
+	return outgoingPacket{
+		bytes: encodePacket(packet{
+			id:    id,
+			value: response,
+		}),
+
+		// Make sure the serve doesn't finish until "stop" has been called
+		refCount: 1,
 	}
 }
 
