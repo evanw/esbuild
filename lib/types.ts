@@ -246,11 +246,11 @@ export interface Metadata {
           bytesInOutput: number
         }
       }
-      imports: {
+      imports?: {
         path: string
         kind: MetadataImportKind
       }[]
-      exports: string[]
+      exports?: string[]
     }
   }
 }
