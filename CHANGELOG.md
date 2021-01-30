@@ -16,6 +16,10 @@
 
     The previous change to hide the automatically-generated N-API native node extensions from Yarn 2 writes these `*.node` files to the system's temporary directory. A new one was being created on each run which is wasteful even though they are only a few kilobytes in size. With this release `*.node` files will now be reused if they are already present in the system's temporary directory, so a new one is no longer created on each run. This fix was contributed by [@kzc](https://github.com/kzc).
 
+* Fix the serve API with `outfile` ([#707](https://github.com/evanw/esbuild/issues/707))
+
+    This release fixes a bug where the serve API did not work with the `outfile` setting. Using this setting with the serve API should now work fine.
+
 ## 0.8.36
 
 * Fix an issue with writing large files to stdout using the WebAssembly executable

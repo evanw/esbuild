@@ -3,7 +3,6 @@ package api
 import (
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"mime"
 	"net"
 	"net/http"
@@ -510,7 +509,12 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
-func buildImpl(buildOpts BuildOptions) BuildResult {
+type internalBuildResult struct {
+	result  BuildResult
+	options config.Options
+}
+
+func buildImpl(buildOpts BuildOptions) internalBuildResult {
 	logOptions := logger.OutputOptions{
 		IncludeSource: true,
 		ErrorLimit:    buildOpts.ErrorLimit,
@@ -531,7 +535,7 @@ func rebuildImpl(
 	plugins []config.Plugin,
 	logOptions logger.OutputOptions,
 	log logger.Log,
-) BuildResult {
+) internalBuildResult {
 	// Convert and validate the buildOpts
 	realFS := fs.RealFS()
 	jsFeatures, cssFeatures := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
@@ -726,16 +730,20 @@ func rebuildImpl(
 	var rebuild func() BuildResult
 	if buildOpts.Incremental {
 		rebuild = func() BuildResult {
-			return rebuildImpl(buildOpts, caches, plugins, logOptions, logger.NewStderrLog(logOptions))
+			return rebuildImpl(buildOpts, caches, plugins, logOptions, logger.NewStderrLog(logOptions)).result
 		}
 	}
 
 	msgs := log.Done()
-	return BuildResult{
+	result := BuildResult{
 		Errors:      convertMessagesToPublic(logger.Error, msgs),
 		Warnings:    convertMessagesToPublic(logger.Warning, msgs),
 		OutputFiles: outputFiles,
 		Rebuild:     rebuild,
+	}
+	return internalBuildResult{
+		result:  result,
+		options: options,
 	}
 }
 
@@ -991,7 +999,7 @@ func loadPlugins(fs fs.FS, log logger.Log, plugins []Plugin) (results []config.P
 
 type apiHandler struct {
 	mutex        sync.Mutex
-	outdir       string
+	options      *config.Options
 	onRequest    func(ServeOnRequestArgs)
 	rebuild      func() BuildResult
 	currentBuild *runningBuild
@@ -1107,7 +1115,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 		// Check the output files for a match
 		for _, file := range result.OutputFiles {
-			if relPath, ok := h.fs.Rel(h.outdir, file.Path); ok {
+			if relPath, ok := h.fs.Rel(h.options.AbsOutputDir, file.Path); ok {
 				relPath = strings.ReplaceAll(relPath, "\\", "/")
 
 				// An exact match
@@ -1169,14 +1177,17 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 }
 
 func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResult, error) {
-	// The output directory isn't actually ever written to. It just needs to be
-	// very unlikely to be used as a source file so it doesn't collide.
 	realFS := fs.RealFS()
-	outdir := realFS.Join(os.TempDir(), strconv.FormatInt(rand.NewSource(time.Now().Unix()).Int63(), 36))
 	buildOptions.Incremental = true
 	buildOptions.Write = false
-	buildOptions.Outfile = ""
-	buildOptions.Outdir = outdir
+
+	// If there is no output directory, set the output directory to something so
+	// the build doesn't try to write to stdout. Make sure not to set this to a
+	// path that may contain the user's files in it since we don't want to get
+	// errors about overwriting input files.
+	if buildOptions.Outdir == "" && buildOptions.Outfile == "" {
+		buildOptions.Outdir = realFS.Join(realFS.Cwd(), "...")
+	}
 
 	// Pick the port
 	var listener net.Listener
@@ -1215,11 +1226,17 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 	}
 
 	// The first build will just build normally
-	handler := &apiHandler{
-		outdir:    outdir,
+	var handler *apiHandler
+	handler = &apiHandler{
 		onRequest: serveOptions.OnRequest,
-		rebuild:   func() BuildResult { return Build(buildOptions) },
-		fs:        realFS,
+		rebuild: func() BuildResult {
+			build := buildImpl(buildOptions)
+			if handler.options == nil {
+				handler.options = &build.options
+			}
+			return build.result
+		},
+		fs: realFS,
 	}
 
 	// Start the server

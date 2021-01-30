@@ -285,7 +285,7 @@ type OutputFile struct {
 }
 
 func Build(options BuildOptions) BuildResult {
-	return buildImpl(options)
+	return buildImpl(options).result
 }
 
 ////////////////////////////////////////////////////////////////////////////////

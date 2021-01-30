@@ -1519,6 +1519,18 @@ console.log("success");
   },
 }
 
+function fetch(host, port, path) {
+  return new Promise((resolve, reject) => {
+    http.get({ host, port, path }, res => {
+      if (res.statusCode < 200 || res.statusCode > 299)
+        return reject(new Error(`${res.statusCode} when fetching ${path}`))
+      const chunks = []
+      res.on('data', chunk => chunks.push(chunk))
+      res.on('end', () => resolve(Buffer.concat(chunks)))
+    }).on('error', reject)
+  })
+}
+
 let serveTests = {
   async basic({ esbuild, service, testDir }) {
     for (const toTest of [esbuild, service]) {
@@ -1530,26 +1542,60 @@ let serveTests = {
         onRequest = resolve;
       });
 
-      const result = await toTest.serve({ onRequest }, { entryPoints: [input], format: 'esm' })
+      const result = await toTest.serve({ onRequest }, {
+        entryPoints: [input],
+        format: 'esm',
+      })
       assert.strictEqual(result.host, '127.0.0.1');
       assert.strictEqual(typeof result.port, 'number');
 
-      const buffer = await new Promise((resolve, reject) => {
-        http.get({
-          host: result.host,
-          port: result.port,
-          path: '/in.js',
-        }, res => {
-          const chunks = []
-          res.on('data', chunk => chunks.push(chunk))
-          res.on('end', () => resolve(Buffer.concat(chunks)))
-        }).on('error', reject)
-      })
+      const buffer = await fetch(result.host, result.port, '/in.js')
       assert.strictEqual(buffer.toString(), `console.log(123);\n`);
 
       let singleRequest = await singleRequestPromise;
       assert.strictEqual(singleRequest.method, 'GET');
       assert.strictEqual(singleRequest.path, '/in.js');
+      assert.strictEqual(singleRequest.status, 200);
+      assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
+      assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+
+      result.stop();
+      await result.wait;
+    }
+  },
+
+  async outfile({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      const input = path.join(testDir, 'in.js')
+      await writeFileAsync(input, `console.log(123)`)
+
+      let onRequest;
+      let singleRequestPromise = new Promise(resolve => {
+        onRequest = resolve;
+      });
+
+      const result = await toTest.serve({ onRequest }, {
+        entryPoints: [input],
+        format: 'esm',
+        outfile: 'out.js',
+      })
+      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(typeof result.port, 'number');
+
+      const buffer = await fetch(result.host, result.port, '/out.js')
+      assert.strictEqual(buffer.toString(), `console.log(123);\n`);
+
+      try {
+        await fetch(result.host, result.port, '/in.js')
+        throw new Error('Expected a 404 error for "/in.js"')
+      } catch (err) {
+        if (err.message !== '404 when fetching /in.js')
+          throw err
+      }
+
+      let singleRequest = await singleRequestPromise;
+      assert.strictEqual(singleRequest.method, 'GET');
+      assert.strictEqual(singleRequest.path, '/out.js');
       assert.strictEqual(singleRequest.status, 200);
       assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
       assert.strictEqual(typeof singleRequest.timeInMS, 'number');
