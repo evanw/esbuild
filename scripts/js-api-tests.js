@@ -895,9 +895,7 @@ body {
       import z from './x.file'
       console.log(z)
     `)
-    await writeFileAsync(file, `
-      This is a file
-    `)
+    await writeFileAsync(file, `This is a file`)
     await esbuild.build({
       entryPoints: [entry1, entry2],
       bundle: true,
@@ -912,7 +910,7 @@ body {
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
     const fileName = require(path.join(outdir, 'entry1.js')).default
     const fileKey = makePath(path.join(outdir, fileName))
-    assert.deepStrictEqual(json.outputs[fileKey].inputs, {})
+    assert.deepStrictEqual(json.outputs[fileKey].inputs, { [makePath(file)]: { bytesInOutput: 14 } })
 
     // Make sure this key is only in the JSON metafile once
     assert.deepStrictEqual(contents.split(JSON.stringify(fileKey)).length, 2)

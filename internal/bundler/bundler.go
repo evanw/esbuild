@@ -313,7 +313,11 @@ func parseFile(args parseArgs) {
 		var jsonMetadataChunk []byte
 		if args.options.AbsMetadataFile != "" {
 			jsonMetadataChunk = []byte(fmt.Sprintf(
-				"{\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(source.Contents)))
+				"{\n      \"inputs\": {\n        %s: {\n          \"bytesInOutput\": %d\n        }\n      },\n      \"bytes\": %d\n    }",
+				js_printer.QuoteForJSON(source.PrettyPath, args.options.ASCIIOnly),
+				len(source.Contents),
+				len(source.Contents),
+			))
 		}
 
 		// Copy the file using an additional file payload to make sure we only copy
