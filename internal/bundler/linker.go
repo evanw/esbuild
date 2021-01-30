@@ -1813,16 +1813,33 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 		case matchImportAmbiguous:
 			namedImport := repr.ast.NamedImports[importRef]
 			r := js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc)
-			msg := fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias)
+			var notes []logger.MsgData
+
+			// Provide the locations of both ambiguous exports if possible
 			if result.nameLoc.Start != 0 && result.otherNameLoc.Start != 0 {
 				a := c.files[result.sourceIndex].source
 				b := c.files[result.otherSourceIndex].source
-				c.addRangeErrorWithNotes(file.source, r, msg, []logger.MsgData{
+				notes = []logger.MsgData{
 					logger.RangeData(&a, js_lexer.RangeOfIdentifier(a, result.nameLoc), "One matching export is here"),
 					logger.RangeData(&b, js_lexer.RangeOfIdentifier(b, result.otherNameLoc), "Another matching export is here"),
-				})
+				}
+			}
+
+			symbol := c.symbols.Get(importRef)
+			if symbol.ImportItemStatus == js_ast.ImportItemGenerated {
+				// This is a warning instead of an error because although it appears
+				// to be a named import, it's actually an automatically-generated
+				// named import that was originally a property access on an import
+				// star namespace object. Normally this property access would just
+				// resolve to undefined at run-time instead of failing at binding-
+				// time, so we emit a warning and rewrite the value to the literal
+				// "undefined" instead of emitting an error.
+				symbol.ImportItemStatus = js_ast.ImportItemMissing
+				msg := fmt.Sprintf("Import %q will always be undefined because there are multiple matching exports", namedImport.Alias)
+				c.log.AddRangeWarningWithNotes(&file.source, r, msg, notes)
 			} else {
-				c.addRangeError(file.source, r, msg)
+				msg := fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias)
+				c.addRangeErrorWithNotes(file.source, r, msg, notes)
 			}
 		}
 	}
@@ -1944,7 +1961,7 @@ loop:
 				// time, so we emit a warning and rewrite the value to the literal
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
-				c.log.AddRangeWarning(&source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
+				c.log.AddRangeWarning(&source, r, fmt.Sprintf("Import %q will always be undefined because there is no matching export", namedImport.Alias))
 			} else {
 				c.addRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
 			}

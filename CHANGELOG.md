@@ -4,11 +4,13 @@
 
 * Improve ambiguous import handling ([#723](https://github.com/evanw/esbuild/issues/723))
 
-    It is an error to try to import a name from a file where there are multiple matching exports due to multiple `export * from` statements from files which export that name. This release contains a few improvements to ambiguous import handling.
+    It is an error to try to import a name from a file where there are multiple matching exports due to multiple `export * from` statements from files which export that name. This release contains a few improvements to ambiguous import handling:
 
-    This release fixes a bug where named export shadowing didn't work correctly with multiple levels of re-exports. A named export closer in the re-export chain is supposed to hide a named export deeper in the re-export chain without causing an ambiguous import. The bug caused this case to be incorrectly flagged as an error even though it should have been allowed. This case is now allowed without an error.
+    1. This release fixes a bug where named export shadowing didn't work correctly with multiple levels of re-exports. A named export closer in the re-export chain is supposed to hide a named export deeper in the re-export chain without causing an ambiguous import. The bug caused this case to be incorrectly flagged as an error even though it should have been allowed. This case is now allowed without an error.
 
-    Previously the error message just said that there was an ambiguous import but didn't have any additional information. With this release, the error message also points out where the two different exports that have collided are in their original source files. Hopefully this should make it quicker to diagnose these types of issues.
+    2. Previously the error message just said that there was an ambiguous import but didn't have any additional information. With this release, the error message also points out where the two different exports that have collided are in their original source files. Hopefully this should make it quicker to diagnose these types of issues.
+
+    3. Real JavaScript environments only treat ambiguous imports as an error if they are explicitly a named import. Using the `import * as` syntax and then accessing the ambiguous import with a property access results in `undefined` instead of an error. Previously esbuild also treated this case as an error because it automatically rewrites star-import syntax to named-import syntax to improve tree shaking. With this release, this case is now treated as a warning instead of an error and the import will be automatically replaced with an `undefined` literal in the bundled code.
 
 ## 0.8.36
 

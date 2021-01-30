@@ -145,7 +145,7 @@ func TestCSSFromJSMissingStarImport(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedCompileLog: `entry.js: warning: No matching export for import "missing"
+		expectedCompileLog: `entry.js: warning: Import "missing" will always be undefined because there is no matching export
 `,
 	})
 }
