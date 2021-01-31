@@ -1578,7 +1578,7 @@ let watchTests = {
       await mkdirAsync(srcDir, { recursive: true })
       await writeFileAsync(input, `throw 1`)
 
-      let onRebuild
+      let onRebuild = () => { }
       const result = await toTest.build({
         entryPoints: [input],
         outfile,
@@ -1691,7 +1691,7 @@ let watchTests = {
       await mkdirAsync(srcDir, { recursive: true })
       await writeFileAsync(input, `throw 1`)
 
-      let onRebuild
+      let onRebuild = () => { }
       const result = await toTest.build({
         entryPoints: [input],
         outdir,
@@ -1860,7 +1860,7 @@ let transformTests = {
     await service.transform(``, { jsxFactory: void 0 })
   },
 
-  async ignoreUndefinedOptions({ service }) {
+  async throwOnBadOptions({ service }) {
     // This should throw
     try {
       await service.transform(``, { jsxFactory: ['React', 'createElement'] })
