@@ -74,6 +74,15 @@ type FS interface {
 
 	// This is used in the implementation of "Entry"
 	kind(dir string, base string) (symlink string, kind EntryKind)
+
+	// This is a set of all files used and all directories checked. The build
+	// must be invalidated if any of these watched files change.
+	WatchData() WatchData
+}
+
+type WatchData struct {
+	// These functions return true if the file system entry has been modified
+	Paths map[string]func() bool
 }
 
 type ModKey struct {

@@ -14,6 +14,7 @@ export interface BuildRequest {
   stdinContents: string | null;
   stdinResolveDir: string | null;
   incremental: boolean;
+  hasOnRebuild: boolean;
   plugins?: BuildPlugin[];
   serve?: ServeRequest;
 }
@@ -45,6 +46,7 @@ export interface BuildResponse {
   warnings: types.Message[];
   outputFiles: BuildOutputFile[];
   rebuildID?: number;
+  watchID?: number;
 }
 
 export interface BuildOutputFile {
@@ -62,6 +64,11 @@ export interface RebuildDisposeRequest {
   rebuildID: number;
 }
 
+export interface WatchStopRequest {
+  command: 'watch-stop';
+  watchID: number;
+}
+
 export interface OnRequestRequest {
   command: 'serve-request';
   serveID: number;
@@ -72,6 +79,12 @@ export interface OnWaitRequest {
   command: 'serve-wait';
   serveID: number;
   error: string | null;
+}
+
+export interface OnWatchRebuildRequest {
+  command: 'watch-rebuild';
+  watchID: number;
+  args: types.BuildResult;
 }
 
 export interface TransformRequest {

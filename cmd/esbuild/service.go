@@ -25,15 +25,18 @@ import (
 
 type responseCallback = func(interface{})
 type rebuildCallback = func(uint32) []byte
+type watchStopCallback = func()
 type serverStopCallback = func()
 
 type serviceType struct {
 	mutex           sync.Mutex
 	callbacks       map[uint32]responseCallback
 	rebuilds        map[int]rebuildCallback
+	watchStops      map[int]watchStopCallback
 	serveStops      map[int]serverStopCallback
 	nextID          uint32
 	nextRebuildID   int
+	nextWatchID     int
 	outgoingPackets chan outgoingPacket
 }
 
@@ -46,6 +49,7 @@ func runService() {
 	service := serviceType{
 		callbacks:       make(map[uint32]responseCallback),
 		rebuilds:        make(map[int]rebuildCallback),
+		watchStops:      make(map[int]watchStopCallback),
 		serveStops:      make(map[int]serverStopCallback),
 		outgoingPackets: make(chan outgoingPacket),
 	}
@@ -194,6 +198,32 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 				bytes: rebuild(p.id),
 			}
 
+		case "watch-stop":
+			watchID := request["watchID"].(int)
+			refCount := 0
+			watchStop := func() watchStopCallback {
+				// Only mutate the map while inside a mutex
+				service.mutex.Lock()
+				defer service.mutex.Unlock()
+				if watchStop, ok := service.watchStops[watchID]; ok {
+					// This watch is now considered finished. This matches the +1 reference
+					// count at the return of the serve call.
+					refCount = -1
+					return watchStop
+				}
+				return nil
+			}()
+			if watchStop != nil {
+				watchStop()
+			}
+			return outgoingPacket{
+				bytes: encodePacket(packet{
+					id:    p.id,
+					value: make(map[string]interface{}),
+				}),
+				refCount: refCount,
+			}
+
 		case "serve-stop":
 			serveID := request["serveID"].(int)
 			refCount := 0
@@ -276,6 +306,10 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 		return callback
 	}()
 
+	if callback == nil {
+		panic(fmt.Sprintf("callback nil for id %d, value %v", p.id, p.value))
+	}
+
 	callback(p.value)
 	return outgoingPacket{}
 }
@@ -293,6 +327,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	key := request["key"].(int)
 	write := request["write"].(bool)
 	incremental := request["incremental"].(bool)
+	hasOnRebuild := request["hasOnRebuild"].(bool)
 	serveObj, isServe := request["serve"].(interface{})
 	flags := decodeStringArray(request["flags"].([]interface{}))
 
@@ -339,8 +374,12 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	}
 
 	rebuildID := service.nextRebuildID
+	watchID := service.nextWatchID
 	if incremental {
 		service.nextRebuildID++
+	}
+	if options.Watch != nil {
+		service.nextWatchID++
 	}
 
 	resultToResponse := func(result api.BuildResult) map[string]interface{} {
@@ -355,7 +394,20 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		if incremental {
 			response["rebuildID"] = rebuildID
 		}
+		if options.Watch != nil {
+			response["watchID"] = watchID
+		}
 		return response
+	}
+
+	if options.Watch != nil && hasOnRebuild {
+		options.Watch.OnRebuild = func(result api.BuildResult) {
+			service.sendRequest(map[string]interface{}{
+				"command": "watch-rebuild",
+				"watchID": watchID,
+				"args":    resultToResponse(result),
+			})
+		}
 	}
 
 	options.Write = write
@@ -380,7 +432,21 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		}()
 
 		// Make sure the build doesn't finish until "dispose" has been called
-		refCount = 1
+		refCount++
+	}
+
+	if options.Watch != nil {
+		func() {
+			// Only mutate the map while inside a mutex
+			service.mutex.Lock()
+			defer service.mutex.Unlock()
+			service.watchStops[watchID] = func() {
+				result.Stop()
+			}
+		}()
+
+		// Make sure the build doesn't finish until "stop" has been called
+		refCount++
 	}
 
 	return outgoingPacket{

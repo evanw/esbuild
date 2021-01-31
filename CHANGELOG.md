@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Implement a simple cross-platform watch mode ([#21](https://github.com/evanw/esbuild/issues/21))
+
+    With this release, you can use the `--watch` flag to run esbuild in watch mode which watches the file system for changes and does an incremental build when something has changed. The watch mode implementation uses polling instead of OS-specific file system events for portability.
+
+    Note that it is still possible to implement watch mode yourself using esbuild's incremental build API and a file watcher library of your choice if you don't want to use a polling-based approach. Also note that this watch mode feature is about improving developer convenience and does not have any effect on incremental build time (i.e. watch mode is not faster than other forms of incremental builds).
+
+    The new polling system is indended to use relatively little CPU vs. a traditional polling system that scans the whole directory tree at once. The file system is still scanned regularly but each scan only checks a random subset of your files to reduce CPU usage. This means a change to a file will be picked up soon after the change is made but not necessarily instantly. With the current heuristics, large projects should be completely scanned around every 2 seconds so in the worst case it could take up to 2 seconds for a change to be noticed. However, after a change has been noticed the change's path goes on a short list of recently changed paths which are checked on every scan, so further changes to recently changed files should be noticed almost instantly.
+
 * Add `pluginData` to pass data between plugins ([#696](https://github.com/evanw/esbuild/issues/696))
 
     You can now return additional data from a plugin in the optional `pluginData` field and it will be passed to the next plugin that runs in the plugin chain. So if you return it from an `onLoad` plugin, it will be passed to the `onResolve` plugins for any imports in that file, and if you return it from an `onResolve` plugin, an arbitrary one will be passed to the `onLoad` plugin when it loads the file (it's arbitrary since the relationship is many-to-one). This is useful to pass data between different plugins without them having to coordinate directly.

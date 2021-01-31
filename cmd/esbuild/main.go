@@ -51,6 +51,7 @@ var helpText = func(colors logger.Colors) string {
   --summary             Print some helpful information at the end of a build
   --target=...          Environment target (e.g. es2017, chrome58, firefox57,
                         safari11, edge16, node10, default esnext)
+  --watch               Watch mode: rebuild on file system changes
 
 ` + colors.Bold + `Advanced options:` + colors.Default + `
   --banner=...              Text to be prepended to each output file

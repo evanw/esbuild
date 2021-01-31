@@ -55,6 +55,11 @@ export interface BuildOptions extends CommonOptions {
   entryPoints?: string[];
   stdin?: StdinOptions;
   plugins?: Plugin[];
+  watch?: boolean | WatchMode;
+}
+
+export interface WatchMode {
+  onRebuild?: (error: BuildFailure | null, result: BuildResult | null) => void;
 }
 
 export interface StdinOptions {
@@ -100,7 +105,8 @@ export interface BuildIncremental extends BuildResult {
 export interface BuildResult {
   warnings: Message[];
   outputFiles?: OutputFile[]; // Only when "write: false"
-  rebuild?: BuildInvalidate; // Only when "incremental" is true
+  rebuild?: BuildInvalidate; // Only when "incremental: true"
+  stop?: () => void; // Only when "watch: true"
 }
 
 export interface BuildFailure extends Error {

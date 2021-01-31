@@ -261,6 +261,14 @@ type BuildOptions struct {
 	Write       bool
 	Incremental bool
 	Plugins     []Plugin
+
+	Watch *WatchMode
+}
+
+type WatchMode struct {
+	SpinnerBusy string
+	SpinnerIdle []string
+	OnRebuild   func(BuildResult)
 }
 
 type StdinOptions struct {
@@ -276,7 +284,8 @@ type BuildResult struct {
 
 	OutputFiles []OutputFile
 
-	Rebuild func() BuildResult
+	Rebuild func() BuildResult // Only when "Incremental: true"
+	Stop    func()             // Only when "Watch: true"
 }
 
 type OutputFile struct {

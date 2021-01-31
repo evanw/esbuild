@@ -1569,8 +1569,187 @@ function fetch(host, port, path) {
   })
 }
 
+let watchTests = {
+  async watchEditSession({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      const srcDir = path.join(testDir, 'src')
+      const outfile = path.join(testDir, 'out.js')
+      const input = path.join(srcDir, 'in.js')
+      await mkdirAsync(srcDir, { recursive: true })
+      await writeFileAsync(input, `throw 1`)
+
+      let onRebuild
+      const result = await toTest.build({
+        entryPoints: [input],
+        outfile,
+        format: 'esm',
+        logLevel: 'silent',
+        watch: {
+          onRebuild: (...args) => onRebuild(args),
+        },
+      })
+      const rebuildUntil = (mutator, condition) => {
+        let timeout
+        return new Promise((resolve, reject) => {
+          timeout = setTimeout(() => reject(new Error('Timeout after 30 seconds')), 30 * 1000)
+          onRebuild = args => {
+            try { if (condition(...args)) clearTimeout(timeout), resolve(args) }
+            catch (e) { clearTimeout(timeout), reject(e) }
+          }
+          mutator()
+        })
+      }
+
+      try {
+        assert.strictEqual(result.outputFiles, void 0)
+        assert.strictEqual(typeof result.stop, 'function')
+        assert.strictEqual(await readFileAsync(outfile, 'utf8'), 'throw 1;\n')
+
+        // First rebuild: edit
+        {
+          const [error2, result2] = await rebuildUntil(
+            () => writeFileAsync(input, `throw 2`),
+            () => fs.readFileSync(outfile, 'utf8') === 'throw 2;\n',
+          )
+          assert.strictEqual(error2, null)
+          assert.strictEqual(result2.outputFiles, void 0)
+          assert.strictEqual(result2.stop, result.stop)
+        }
+
+        // Second rebuild: edit
+        {
+          const [error2, result2] = await rebuildUntil(
+            () => writeFileAsync(input, `throw 3`),
+            () => fs.readFileSync(outfile, 'utf8') === 'throw 3;\n',
+          )
+          assert.strictEqual(error2, null)
+          assert.strictEqual(result2.outputFiles, void 0)
+          assert.strictEqual(result2.stop, result.stop)
+        }
+
+        // Third rebuild: syntax error
+        {
+          const [error2, result2] = await rebuildUntil(
+            () => writeFileAsync(input, `throw 1 2`),
+            err => err,
+          )
+          assert.notStrictEqual(error2, null)
+          assert(error2.message.startsWith('Build failed with 1 error'))
+          assert.strictEqual(error2.errors.length, 1)
+          assert.strictEqual(error2.errors[0].text, 'Expected ";" but found "2"')
+          assert.strictEqual(result2, null)
+          assert.strictEqual(await readFileAsync(outfile, 'utf8'), 'throw 3;\n')
+        }
+
+        // Fourth rebuild: edit
+        {
+          const [error2, result2] = await rebuildUntil(
+            () => writeFileAsync(input, `throw 4`),
+            () => fs.readFileSync(outfile, 'utf8') === 'throw 4;\n',
+          )
+          assert.strictEqual(error2, null)
+          assert.strictEqual(result2.outputFiles, void 0)
+          assert.strictEqual(result2.stop, result.stop)
+        }
+
+        // Fifth rebuild: delete
+        {
+          const [error2, result2] = await rebuildUntil(
+            () => fs.promises.unlink(input),
+            err => err,
+          )
+          assert.notStrictEqual(error2, null)
+          assert(error2.message.startsWith('Build failed with 1 error'))
+          assert.strictEqual(error2.errors.length, 1)
+          assert.strictEqual(result2, null)
+          assert.strictEqual(await readFileAsync(outfile, 'utf8'), 'throw 4;\n')
+        }
+
+        // Sixth rebuild: restore
+        {
+          const [error2, result2] = await rebuildUntil(
+            () => writeFileAsync(input, `throw 5`),
+            () => fs.readFileSync(outfile, 'utf8') === 'throw 5;\n',
+          )
+          assert.strictEqual(error2, null)
+          assert.strictEqual(result2.outputFiles, void 0)
+          assert.strictEqual(result2.stop, result.stop)
+          assert.strictEqual(await readFileAsync(outfile, 'utf8'), 'throw 5;\n')
+        }
+      } finally {
+        result.stop()
+      }
+    }
+  },
+
+  async watchWriteFalse({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      const srcDir = path.join(testDir, 'src')
+      const outdir = path.join(testDir, 'out')
+      const input = path.join(srcDir, 'in.js')
+      const output = path.join(outdir, 'in.js')
+      await mkdirAsync(srcDir, { recursive: true })
+      await writeFileAsync(input, `throw 1`)
+
+      let onRebuild
+      const result = await toTest.build({
+        entryPoints: [input],
+        outdir,
+        format: 'esm',
+        logLevel: 'silent',
+        write: false,
+        watch: {
+          onRebuild: (...args) => onRebuild(args),
+        },
+      })
+      const rebuildUntil = (mutator, condition) => {
+        let timeout
+        return new Promise((resolve, reject) => {
+          timeout = setTimeout(() => reject(new Error('Timeout after 30 seconds')), 30 * 1000)
+          onRebuild = args => {
+            try { if (condition(...args)) clearTimeout(timeout), resolve(args) }
+            catch (e) { clearTimeout(timeout), reject(e) }
+          }
+          mutator()
+        })
+      }
+
+      try {
+        assert.strictEqual(result.outputFiles.length, 1)
+        assert.strictEqual(result.outputFiles[0].text, 'throw 1;\n')
+        assert.strictEqual(typeof result.stop, 'function')
+        assert.strictEqual(fs.existsSync(output), false)
+
+        // First rebuild: edit
+        {
+          const [error2, result2] = await rebuildUntil(
+            () => writeFileAsync(input, `throw 2`),
+            (err, res) => res.outputFiles[0].text === 'throw 2;\n',
+          )
+          assert.strictEqual(error2, null)
+          assert.strictEqual(result2.stop, result.stop)
+          assert.strictEqual(fs.existsSync(output), false)
+        }
+
+        // Second rebuild: edit
+        {
+          const [error2, result2] = await rebuildUntil(
+            () => writeFileAsync(input, `throw 3`),
+            (err, res) => res.outputFiles[0].text === 'throw 3;\n',
+          )
+          assert.strictEqual(error2, null)
+          assert.strictEqual(result2.stop, result.stop)
+          assert.strictEqual(fs.existsSync(output), false)
+        }
+      } finally {
+        result.stop()
+      }
+    }
+  },
+}
+
 let serveTests = {
-  async basic({ esbuild, service, testDir }) {
+  async serveBasic({ esbuild, service, testDir }) {
     for (const toTest of [esbuild, service]) {
       const input = path.join(testDir, 'in.js')
       await writeFileAsync(input, `console.log(123)`)
@@ -1602,7 +1781,7 @@ let serveTests = {
     }
   },
 
-  async outfile({ esbuild, service, testDir }) {
+  async serveOutfile({ esbuild, service, testDir }) {
     for (const toTest of [esbuild, service]) {
       const input = path.join(testDir, 'in.js')
       await writeFileAsync(input, `console.log(123)`)
@@ -2712,6 +2891,7 @@ async function main() {
   }
   const tests = [
     ...Object.entries(buildTests),
+    ...Object.entries(watchTests),
     ...Object.entries(serveTests),
     ...Object.entries(transformTests),
     ...Object.entries(syncTests),

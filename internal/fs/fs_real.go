@@ -3,12 +3,18 @@ package fs
 import (
 	"io/ioutil"
 	"os"
+	"sort"
+	"sync"
 	"syscall"
 )
 
 type realFS struct {
 	// Stores the file entries for directories we've listed before
 	entries map[string]entriesOrErr
+
+	// This stores data that will end up being returned by "WatchData()"
+	watchMutex sync.Mutex
+	watchData  map[string]privateWatchData
 
 	// When building with WebAssembly, the Go compiler doesn't correctly handle
 	// platform-specific path behavior. Hack around these bugs by compiling
@@ -22,7 +28,30 @@ type entriesOrErr struct {
 	err     error
 }
 
-func RealFS() FS {
+type watchState uint8
+
+const (
+	stateNone               watchState = iota
+	stateDirHasEntries                 // Compare "dirEntries"
+	stateDirMissing                    // Compare directory presence
+	stateFileHasModKey                 // Compare "modKey"
+	stateFileNeedModKey                // Need to transition to "stateFileHasModKey" or "stateFileUnusableModKey" before "WatchData()" returns
+	stateFileMissing                   // Compare file presence
+	stateFileUnusableModKey            // Compare "fileContents"
+)
+
+type privateWatchData struct {
+	dirEntries   []string
+	fileContents string
+	modKey       ModKey
+	state        watchState
+}
+
+type RealFSOptions struct {
+	WantWatchData bool
+}
+
+func RealFS(options RealFSOptions) FS {
 	var fp goFilepath
 	if checkIfWindows() {
 		fp.isWindows = true
@@ -57,9 +86,16 @@ func RealFS() FS {
 		}
 	}
 
+	// Only allocate memory for watch data if necessary
+	var watchData map[string]privateWatchData
+	if options.WantWatchData {
+		watchData = make(map[string]privateWatchData)
+	}
+
 	return &realFS{
-		entries: make(map[string]entriesOrErr),
-		fp:      fp,
+		entries:   make(map[string]entriesOrErr),
+		fp:        fp,
+		watchData: watchData,
 	}
 }
 
@@ -88,6 +124,21 @@ func (fs *realFS) ReadDirectory(dir string) (map[string]*Entry, error) {
 		}
 	}
 
+	// Store data for watch mode
+	if fs.watchData != nil {
+		defer fs.watchMutex.Unlock()
+		fs.watchMutex.Lock()
+		state := stateDirHasEntries
+		if err != nil {
+			state = stateDirMissing
+		}
+		sort.Strings(names)
+		fs.watchData[dir] = privateWatchData{
+			dirEntries: names,
+			state:      state,
+		}
+	}
+
 	// Update the cache unconditionally. Even if the read failed, we don't want to
 	// retry again later. The directory is inaccessible so trying again is wasted.
 	if err != nil {
@@ -112,16 +163,55 @@ func (fs *realFS) ReadFile(path string) (string, error) {
 	// so callers that check for ENOENT will successfully detect this file as
 	// missing.
 	if err == syscall.ENOTDIR {
-		return "", syscall.ENOENT
+		err = syscall.ENOENT
 	}
 
-	return string(buffer), err
+	// Allocate the string once
+	fileContents := string(buffer)
+
+	// Store data for watch mode
+	if fs.watchData != nil {
+		defer fs.watchMutex.Unlock()
+		fs.watchMutex.Lock()
+		data, ok := fs.watchData[path]
+		if err != nil {
+			data.state = stateFileMissing
+		} else if !ok {
+			data.state = stateFileNeedModKey
+		}
+		data.fileContents = fileContents
+		fs.watchData[path] = data
+	}
+
+	return fileContents, err
 }
 
 func (fs *realFS) ModKey(path string) (ModKey, error) {
 	BeforeFileOpen()
 	defer AfterFileClose()
-	return modKey(path)
+	key, err := modKey(path)
+
+	// Store data for watch mode
+	if fs.watchData != nil {
+		defer fs.watchMutex.Unlock()
+		fs.watchMutex.Lock()
+		data, ok := fs.watchData[path]
+		if !ok {
+			if err == modKeyUnusable {
+				data.state = stateFileUnusableModKey
+			} else if err != nil {
+				data.state = stateFileMissing
+			} else {
+				data.state = stateFileHasModKey
+			}
+		} else if data.state == stateFileNeedModKey {
+			data.state = stateFileHasModKey
+		}
+		data.modKey = key
+		fs.watchData[path] = data
+	}
+
+	return key, err
 }
 
 func (fs *realFS) IsAbs(p string) bool {
@@ -238,4 +328,72 @@ func (fs *realFS) kind(dir string, base string) (symlink string, kind EntryKind)
 		kind = FileEntry
 	}
 	return
+}
+
+func (fs *realFS) WatchData() WatchData {
+	paths := make(map[string]func() bool)
+
+	for path, data := range fs.watchData {
+		// Each closure below needs its own copy of these loop variables
+		path := path
+		data := data
+
+		// Each function should return true if the state has been changed
+		if data.state == stateFileNeedModKey {
+			key, err := modKey(path)
+			if err == modKeyUnusable {
+				data.state = stateFileUnusableModKey
+			} else if err != nil {
+				data.state = stateFileMissing
+			} else {
+				data.state = stateFileHasModKey
+				data.modKey = key
+			}
+		}
+
+		switch data.state {
+		case stateDirMissing:
+			paths[path] = func() bool {
+				info, err := os.Stat(path)
+				return err == nil && info.IsDir()
+			}
+
+		case stateDirHasEntries:
+			paths[path] = func() bool {
+				names, err := readdir(path)
+				if err != nil || len(names) != len(data.dirEntries) {
+					return true
+				}
+				sort.Strings(names)
+				for i, s := range names {
+					if s != data.dirEntries[i] {
+						return true
+					}
+				}
+				return false
+			}
+
+		case stateFileMissing:
+			paths[path] = func() bool {
+				info, err := os.Stat(path)
+				return err == nil && !info.IsDir()
+			}
+
+		case stateFileHasModKey:
+			paths[path] = func() bool {
+				key, err := modKey(path)
+				return err != nil || key != data.modKey
+			}
+
+		case stateFileUnusableModKey:
+			paths[path] = func() bool {
+				buffer, err := ioutil.ReadFile(path)
+				return err != nil || string(buffer) != data.fileContents
+			}
+		}
+	}
+
+	return WatchData{
+		Paths: paths,
+	}
 }

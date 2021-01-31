@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"mime"
 	"net"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/evanw/esbuild/internal/bundler"
@@ -510,8 +512,9 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 // Build API
 
 type internalBuildResult struct {
-	result  BuildResult
-	options config.Options
+	result    BuildResult
+	options   config.Options
+	watchData fs.WatchData
 }
 
 func buildImpl(buildOpts BuildOptions) internalBuildResult {
@@ -520,13 +523,16 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 		ErrorLimit:    buildOpts.ErrorLimit,
 		Color:         validateColor(buildOpts.Color),
 		LogLevel:      validateLogLevel(buildOpts.LogLevel),
+
+		// If there's a busy indicator, print a newline to avoid overwriting it
+		NewlineBeforeFirstMessage: buildOpts.Watch != nil && buildOpts.Watch.SpinnerBusy != "" && buildOpts.LogLevel == LogLevelInfo,
 	}
 	log := logger.NewStderrLog(logOptions)
-	realFS := fs.RealFS()
+	realFS := fs.RealFS(fs.RealFSOptions{})
 
 	// Do not re-evaluate plugins when rebuilding
 	plugins := loadPlugins(realFS, log, buildOpts.Plugins)
-	return rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, logOptions, log)
+	return rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, logOptions, log, false /* isRebuild */)
 }
 
 func rebuildImpl(
@@ -535,9 +541,12 @@ func rebuildImpl(
 	plugins []config.Plugin,
 	logOptions logger.OutputOptions,
 	log logger.Log,
+	isRebuild bool,
 ) internalBuildResult {
 	// Convert and validate the buildOpts
-	realFS := fs.RealFS()
+	realFS := fs.RealFS(fs.RealFSOptions{
+		WantWatchData: buildOpts.Watch != nil,
+	})
 	jsFeatures, cssFeatures := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtensions)
 	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure)
@@ -660,12 +669,14 @@ func rebuildImpl(
 	}
 
 	var outputFiles []OutputFile
+	var watchData fs.WatchData
 
 	// Stop now if there were errors
 	if !log.HasErrors() {
 		// Scan over the bundle
 		resolver := resolver.NewResolver(realFS, log, caches, options)
 		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPoints, options)
+		watchData = realFS.WatchData()
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
@@ -727,24 +738,201 @@ func rebuildImpl(
 		}
 	}
 
-	var rebuild func() BuildResult
-	if buildOpts.Incremental {
-		rebuild = func() BuildResult {
-			return rebuildImpl(buildOpts, caches, plugins, logOptions, logger.NewStderrLog(logOptions)).result
+	// End the log now, which may print a message
+	msgs := log.Done()
+
+	// Start watching, but only for the top-level build
+	var watch *watcher
+	var stop func()
+	if buildOpts.Watch != nil && !isRebuild {
+		onRebuild := buildOpts.Watch.OnRebuild
+		watch = &watcher{
+			data: watchData,
+			rebuild: func() fs.WatchData {
+				value := rebuildImpl(buildOpts, caches, plugins, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
+				if onRebuild != nil {
+					go onRebuild(value.result)
+				}
+				return value.watchData
+			},
+		}
+		mode := *buildOpts.Watch
+		mode.SpinnerIdle = append([]string{}, mode.SpinnerIdle...) // Clone in case of mutation
+		watch.start(buildOpts.LogLevel, mode)
+		stop = func() {
+			watch.stop()
 		}
 	}
 
-	msgs := log.Done()
+	var rebuild func() BuildResult
+	if buildOpts.Incremental {
+		rebuild = func() BuildResult {
+			value := rebuildImpl(buildOpts, caches, plugins, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
+			if watch != nil {
+				watch.setWatchData(value.watchData)
+			}
+			return value.result
+		}
+	}
+
 	result := BuildResult{
 		Errors:      convertMessagesToPublic(logger.Error, msgs),
 		Warnings:    convertMessagesToPublic(logger.Warning, msgs),
 		OutputFiles: outputFiles,
 		Rebuild:     rebuild,
+		Stop:        stop,
 	}
 	return internalBuildResult{
-		result:  result,
-		options: options,
+		result:    result,
+		options:   options,
+		watchData: watchData,
 	}
+}
+
+type watcher struct {
+	mutex             sync.Mutex
+	data              fs.WatchData
+	shouldStop        int32
+	rebuild           func() fs.WatchData
+	recentItems       []string
+	itemsToScan       []string
+	itemsPerIteration int
+}
+
+func (w *watcher) setWatchData(data fs.WatchData) {
+	defer w.mutex.Unlock()
+	w.mutex.Lock()
+	w.data = data
+	w.itemsToScan = w.itemsToScan[:0] // Reuse memory
+
+	// Remove any recent items that weren't a part of the latest build
+	end := 0
+	for _, path := range w.recentItems {
+		if data.Paths[path] != nil {
+			w.recentItems[end] = path
+			end++
+		}
+	}
+	w.recentItems = w.recentItems[:end]
+}
+
+// The time to wait between watch intervals
+const watchIntervalSleep = 100 * time.Millisecond
+
+// The maximum number of recently-edited items to check every interval
+const maxRecentItemCount = 16
+
+// The minimum number of non-recent items to check every interval
+const minItemCountPerIter = 64
+
+// The maximum number of intervals before a change is detected
+const maxIntervalsBeforeUpdate = 20
+
+// The interval multiple used to update the spinner (larger values are slower)
+const spinnerUpdatePeriod = 5
+
+func (w *watcher) start(logLevel LogLevel, mode WatchMode) {
+	go func() {
+		index := 0
+		delay := 0
+		for atomic.LoadInt32(&w.shouldStop) == 0 {
+			// Render the spinner animation
+			if logLevel == LogLevelInfo && len(mode.SpinnerIdle) > 0 {
+				if delay == 0 {
+					fmt.Fprintf(os.Stderr, "\r%s", mode.SpinnerIdle[index])
+					index++
+					if index == len(mode.SpinnerIdle) {
+						index = 0
+					}
+				}
+				delay++
+				if delay == spinnerUpdatePeriod {
+					delay = 0
+				}
+			}
+
+			// Sleep for the watch interval
+			time.Sleep(watchIntervalSleep)
+
+			// Rebuild if we're dirty
+			if path := w.tryToFindDirtyPath(); path != "" {
+				// Show the busy indicator
+				if logLevel == LogLevelInfo && mode.SpinnerBusy != "" {
+					fmt.Fprintf(os.Stderr, "\r%s", mode.SpinnerBusy)
+				}
+
+				// Run the build
+				w.setWatchData(w.rebuild())
+
+				// Reset the spinner animation
+				index = 0
+				delay = 0
+			}
+		}
+	}()
+}
+
+func (w *watcher) stop() {
+	atomic.StoreInt32(&w.shouldStop, 1)
+}
+
+func (w *watcher) tryToFindDirtyPath() string {
+	defer w.mutex.Unlock()
+	w.mutex.Lock()
+
+	// If we ran out of items to scan, fill the items back up in a random order
+	if len(w.itemsToScan) == 0 {
+		items := w.itemsToScan[:0] // Reuse memory
+		for path := range w.data.Paths {
+			items = append(items, path)
+		}
+		rand.Seed(time.Now().UnixNano())
+		for i := int32(len(items) - 1); i > 0; i-- { // Fisher–Yates shuffle
+			j := rand.Int31n(i + 1)
+			items[i], items[j] = items[j], items[i]
+		}
+		w.itemsToScan = items
+
+		// Determine how many items to check every iteration, rounded up
+		perIter := (len(items) + maxIntervalsBeforeUpdate - 1) / maxIntervalsBeforeUpdate
+		if perIter < minItemCountPerIter {
+			perIter = minItemCountPerIter
+		}
+		w.itemsPerIteration = perIter
+	}
+
+	// Always check all recent items every iteration
+	for i, path := range w.recentItems {
+		if w.data.Paths[path]() {
+			// Move this path to the back of the list (i.e. the "most recent" position)
+			copy(w.recentItems[i:], w.recentItems[i+1:])
+			w.recentItems[len(w.recentItems)-1] = path
+			return path
+		}
+	}
+
+	// Check a constant number of items every iteration
+	remainingCount := len(w.itemsToScan) - w.itemsPerIteration
+	if remainingCount < 0 {
+		remainingCount = 0
+	}
+	toCheck, remaining := w.itemsToScan[remainingCount:], w.itemsToScan[:remainingCount]
+	w.itemsToScan = remaining
+
+	// Check if any of the entries in this iteration have been modified
+	for _, path := range toCheck {
+		if w.data.Paths[path]() {
+			// Mark this item as recent by adding it to the back of the list
+			w.recentItems = append(w.recentItems, path)
+			if len(w.recentItems) > maxRecentItemCount {
+				// Remove items from the front of the list when we hit the limit
+				copy(w.recentItems, w.recentItems[1:])
+				w.recentItems = w.recentItems[:maxRecentItemCount]
+			}
+			return path
+		}
+	}
+	return ""
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1181,9 +1369,14 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 }
 
 func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResult, error) {
-	realFS := fs.RealFS()
+	realFS := fs.RealFS(fs.RealFSOptions{})
 	buildOptions.Incremental = true
 	buildOptions.Write = false
+
+	// Watch and serve are both different ways of rebuilding, and cannot be combined
+	if buildOptions.Watch != nil {
+		return ServeResult{}, fmt.Errorf("Cannot use \"watch\" with \"serve\"")
+	}
 
 	// If there is no output directory, set the output directory to something so
 	// the build doesn't try to write to stdout. Make sure not to set this to a

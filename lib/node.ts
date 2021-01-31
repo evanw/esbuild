@@ -194,21 +194,58 @@ export let startService: typeof types.startService = common.referenceCountedServ
   return Promise.resolve({
     build: (options: types.BuildOptions): Promise<any> => {
       return refPromise(new Promise<types.BuildResult>((resolve, reject) => {
+        let rebuild: any
+        let stop: (() => void) | undefined
+
+        // Swap out "rebuild" and/or "stop" on the result inside of "onRebuild"
+        let watch = options.watch
+        if (watch && typeof watch !== 'boolean') {
+          watch = { ...watch }
+          const onRebuild = watch.onRebuild
+          if (typeof onRebuild === 'function') {
+            watch.onRebuild = (error, result) => {
+              if (result && result.rebuild) result.rebuild = rebuild
+              if (result && result.stop) result.stop = stop
+              onRebuild(error, result)
+            }
+            options = { ...options, watch }
+          }
+        }
+
         service.buildOrServe('build', null, options, isTTY(), (err, res) => {
           if (err) {
             reject(err)
-          } else {
-            let oldRebuild = (res as types.BuildResult).rebuild
-            if (oldRebuild) {
-              let newRebuild: any = () => refPromise(oldRebuild!().then(res2 => {
-                res2.rebuild = newRebuild;
+            return
+          }
+
+          // Don't terminate while a rebuild is happening
+          let oldRebuild = (res as types.BuildResult).rebuild
+          if (oldRebuild) {
+            if (!rebuild) {
+              rebuild = () => refPromise(oldRebuild!().then(res2 => {
+                res2.rebuild = rebuild;
                 return res2;
               }));
-              newRebuild.dispose = oldRebuild.dispose;
-              (res as any).rebuild = newRebuild;
+              rebuild.dispose = oldRebuild.dispose;
             }
-            resolve(res as types.BuildResult);
+            (res as any).rebuild = rebuild;
           }
+
+          // Don't terminate until watch mode is stopped
+          let oldStop = res!.stop
+          if (oldStop) {
+            if (!stop) {
+              refPromise(new Promise<void>(resolve => {
+                stop = () => {
+                  resolve()
+                  oldStop!()
+                }
+              }))
+            }
+            res!.stop = stop
+          }
+
+          resolve(res as types.BuildResult);
         })
       }))
     },

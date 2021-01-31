@@ -41,6 +41,9 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 		case arg == "--splitting" && buildOpts != nil:
 			buildOpts.Splitting = true
 
+		case arg == "--watch" && buildOpts != nil:
+			buildOpts.Watch = &api.WatchMode{}
+
 		case arg == "--minify":
 			if buildOpts != nil {
 				buildOpts.MinifySyntax = true
@@ -559,6 +562,19 @@ func runImpl(osArgs []string) int {
 
 	switch {
 	case buildOptions != nil:
+		// These characters were chosen because they work in Windows Command Prompt
+		if buildOptions.Watch != nil {
+			buildOptions.Watch.SpinnerBusy = "··· "
+			buildOptions.Watch.SpinnerIdle = []string{
+				"▫▫▫ ",
+				"▪▫▫ ",
+				"▪▪▫ ",
+				"▪▪▪ ",
+				"▫▪▪ ",
+				"▫▫▪ ",
+			}
+		}
+
 		// Read from stdin when there are no entry points
 		if len(buildOptions.EntryPoints) == 0 {
 			if buildOptions.Stdin == nil {
@@ -587,6 +603,11 @@ func runImpl(osArgs []string) int {
 		result := api.Build(*buildOptions)
 		if len(result.Errors) > 0 {
 			return 1
+		}
+
+		// Do not exit if we're in watch mode
+		if buildOptions.Watch != nil {
+			<-make(chan bool)
 		}
 
 		// Print a summary to stderr
@@ -629,7 +650,7 @@ func printSummary(osArgs []string, outputFiles []api.OutputFile, start time.Time
 	var table logger.SummaryTable = make([]logger.SummaryTableEntry, len(outputFiles))
 
 	if len(outputFiles) > 0 {
-		realFS := fs.RealFS()
+		realFS := fs.RealFS(fs.RealFSOptions{})
 
 		for i, file := range outputFiles {
 			path, ok := realFS.Rel(realFS.Cwd(), file.Path)
