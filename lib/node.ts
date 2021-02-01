@@ -102,7 +102,7 @@ export let transform: typeof types.transform = (input, options) => {
 
 export let buildSync: typeof types.buildSync = (options: types.BuildOptions): any => {
   let result: types.BuildResult;
-  runServiceSync(service => service.buildOrServe('buildSync', null, options, isTTY(), (err, res) => {
+  runServiceSync(service => service.buildOrServe('buildSync', null, null, options, isTTY(), (err, res) => {
     if (err) throw err;
     result = res as types.BuildResult;
   }));
@@ -112,7 +112,7 @@ export let buildSync: typeof types.buildSync = (options: types.BuildOptions): an
 export let transformSync: typeof types.transformSync = (input, options) => {
   input += '';
   let result: types.TransformResult;
-  runServiceSync(service => service.transform('transformSync', input, options || {}, isTTY(), {
+  runServiceSync(service => service.transform('transformSync', null, input, options || {}, isTTY(), {
     readFile(tempFile, callback) {
       try {
         let contents = fs.readFileSync(tempFile, 'utf8');
@@ -176,97 +176,40 @@ export let startService: typeof types.startService = common.referenceCountedServ
     stdout.unref();
   }
 
-  const unref = () => {
-    if (--refCount === 0) {
-      child.unref();
-    }
-  };
-
-  const refPromise = <T>(promise: Promise<T>): Promise<T> => {
-    if (++refCount === 1) {
-      child.ref();
-    }
-    promise.then(unref, unref);
-    return promise;
+  const refs: common.Refs = {
+    ref() { if (++refCount === 1) child.ref(); },
+    unref() { if (--refCount === 0) child.unref(); },
   }
 
   // Create an asynchronous Promise-based API
   return Promise.resolve({
     build: (options: types.BuildOptions): Promise<any> => {
-      return refPromise(new Promise<types.BuildResult>((resolve, reject) => {
-        let rebuild: any
-        let stop: (() => void) | undefined
-
-        // Swap out "rebuild" and/or "stop" on the result inside of "onRebuild"
-        let watch = options.watch
-        if (watch && typeof watch !== 'boolean') {
-          watch = { ...watch }
-          const onRebuild = watch.onRebuild
-          if (typeof onRebuild === 'function') {
-            watch.onRebuild = (error, result) => {
-              if (result && result.rebuild) result.rebuild = rebuild
-              if (result && result.stop) result.stop = stop
-              onRebuild(error, result)
-            }
-            options = { ...options, watch }
-          }
-        }
-
-        service.buildOrServe('build', null, options, isTTY(), (err, res) => {
+      return new Promise<types.BuildResult>((resolve, reject) => {
+        service.buildOrServe('build', refs, null, options, isTTY(), (err, res) => {
           if (err) {
             reject(err)
-            return
+          } else {
+            resolve(res as types.BuildResult);
           }
-
-          // Don't terminate while a rebuild is happening
-          let oldRebuild = (res as types.BuildResult).rebuild
-          if (oldRebuild) {
-            if (!rebuild) {
-              rebuild = () => refPromise(oldRebuild!().then(res2 => {
-                res2.rebuild = rebuild;
-                return res2;
-              }));
-              rebuild.dispose = oldRebuild.dispose;
-            }
-            (res as any).rebuild = rebuild;
-          }
-
-          // Don't terminate until watch mode is stopped
-          let oldStop = res!.stop
-          if (oldStop) {
-            if (!stop) {
-              refPromise(new Promise<void>(resolve => {
-                stop = () => {
-                  resolve()
-                  oldStop!()
-                }
-              }))
-            }
-            res!.stop = stop
-          }
-
-          resolve(res as types.BuildResult);
         })
-      }))
+      })
     },
     serve: (serveOptions, buildOptions) => {
       if (serveOptions === null || typeof serveOptions !== 'object')
         throw new Error('The first argument must be an object')
-      return refPromise(new Promise((resolve, reject) =>
-        service.buildOrServe('serve', serveOptions, buildOptions, isTTY(), (err, res) => {
+      return new Promise((resolve, reject) =>
+        service.buildOrServe('serve', refs, serveOptions, buildOptions, isTTY(), (err, res) => {
           if (err) {
             reject(err);
           } else {
-            refPromise((res as types.ServeResult).wait)
             resolve(res as types.ServeResult);
           }
-        })
-      ))
+        }))
     },
     transform: (input, options) => {
       input += '';
-      return refPromise(new Promise((resolve, reject) =>
-        service.transform('transform', input, options || {}, isTTY(), {
+      return new Promise((resolve, reject) =>
+        service.transform('transform', refs, input, options || {}, isTTY(), {
           readFile(tempFile, callback) {
             try {
               fs.readFile(tempFile, 'utf8', (err, contents) => {
@@ -289,9 +232,11 @@ export let startService: typeof types.startService = common.referenceCountedServ
               callback(null);
             }
           },
-        }, (err, res) => err ? reject(err) : resolve(res!))));
+        }, (err, res) => err ? reject(err) : resolve(res!)));
     },
-    stop() { child.kill(); },
+    stop() {
+      child.kill();
+    },
   });
 });
 

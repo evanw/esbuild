@@ -321,9 +321,15 @@ export interface StreamFS {
   readFile(path: string, callback: (err: Error | null, contents: string | null) => void): void;
 }
 
+export interface Refs {
+  ref(): void;
+  unref(): void;
+}
+
 export interface StreamService {
   buildOrServe(
     callName: string,
+    refs: Refs | null,
     serveOptions: types.ServeOptions | null,
     options: types.BuildOptions,
     isTTY: boolean,
@@ -332,6 +338,7 @@ export interface StreamService {
 
   transform(
     callName: string,
+    refs: Refs | null,
     input: string,
     options: types.TransformOptions,
     isTTY: boolean,
@@ -415,10 +422,17 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     watchCallbacks.clear();
   };
 
-  let sendRequest = <Req, Res>(value: Req, callback: (error: string | null, response: Res | null) => void): void => {
+  let sendRequest = <Req, Res>(refs: Refs | null, value: Req, callback: (error: string | null, response: Res | null) => void): void => {
     if (isClosed) return callback('The service is no longer running', null);
     let id = nextRequestID++;
-    responseCallbacks.set(id, callback as any);
+    responseCallbacks.set(id, (error, response) => {
+      try {
+        callback(error, response as any);
+      } finally {
+        if (refs) refs.unref() // Do this after the callback so the callback can extend the lifetime if needed
+      }
+    });
+    if (refs) refs.ref()
     streamIn.writeToStdin(protocol.encodePacket({ id, isRequest: true, value: value as any }));
   };
 
@@ -514,7 +528,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
-  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number, stash: ObjectStash) => {
+  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number, stash: ObjectStash): Refs => {
     if (streamIn.isSync) throw new Error('Cannot use plugins in synchronous API calls');
 
     let onResolveCallbacks: {
@@ -580,7 +594,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       request.plugins.push(plugin);
     }
 
-    pluginCallbacks.set(buildKey, async (request) => {
+    const callback: PluginCallback = async (request) => {
       switch (request.command) {
         case 'resolve': {
           let response: protocol.OnResolveResponse = {};
@@ -668,9 +682,13 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         default:
           throw new Error(`Invalid command: ` + (request as any).command);
       }
-    });
+    }
 
-    return () => pluginCallbacks.delete(buildKey);
+    let refCount = 0;
+    return {
+      ref() { if (++refCount === 1) pluginCallbacks.set(buildKey, callback); },
+      unref() { if (--refCount === 0) pluginCallbacks.delete(buildKey) },
+    };
   };
 
   interface ServeData {
@@ -678,7 +696,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     stop: () => void
   }
 
-  let buildServeData = (options: types.ServeOptions, request: protocol.BuildRequest): ServeData => {
+  let buildServeData = (refs: Refs | null, options: types.ServeOptions, request: protocol.BuildRequest): ServeData => {
     let keys: OptionKeys = {};
     let port = getFlag(options, keys, 'port', mustBeInteger);
     let host = getFlag(options, keys, 'host', mustBeString);
@@ -703,7 +721,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     return {
       wait,
       stop() {
-        sendRequest<protocol.ServeStopRequest, null>({ command: 'serve-stop', serveID }, () => {
+        sendRequest<protocol.ServeStopRequest, null>(refs, { command: 'serve-stop', serveID }, () => {
           // We don't care about the result
         });
       },
@@ -715,9 +733,20 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     afterClose,
 
     service: {
-      buildOrServe(callName, serveOptions, options, isTTY, callback) {
+      buildOrServe(callName, callerRefs, serveOptions, options, isTTY, callback) {
+        let pluginRefs: Refs | undefined;
         const details = createObjectStash();
         const logLevelDefault = 'info';
+        const refs = {
+          ref() {
+            if (pluginRefs) pluginRefs.ref()
+            if (callerRefs) callerRefs.ref()
+          },
+          unref() {
+            if (pluginRefs) pluginRefs.unref()
+            if (callerRefs) callerRefs.unref()
+          },
+        }
         try {
           let key = nextBuildKey++;
           let writeDefault = !streamIn.isBrowser;
@@ -740,9 +769,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             incremental,
             hasOnRebuild: !!(watch && watch.onRebuild),
           };
-          let serve = serveOptions && buildServeData(serveOptions, request);
-          let pluginCleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key, details);
-          let pluginCleanupCountdown = 0;
+          let serve = serveOptions && buildServeData(refs, serveOptions, request);
+          if (plugins && plugins.length > 0) pluginRefs = handlePlugins(plugins, request, key, details);
 
           // Factor out response handling so it can be reused for rebuilds
           let rebuild: types.BuildResult['rebuild'] | undefined;
@@ -763,7 +791,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 let isDisposed = false;
                 (rebuild as any) = () => new Promise<types.BuildResult>((resolve, reject) => {
                   if (isDisposed || isClosed) throw new Error('Cannot rebuild');
-                  sendRequest<protocol.RebuildRequest, protocol.BuildResponse>({ command: 'rebuild', rebuildID: response!.rebuildID! },
+                  sendRequest<protocol.RebuildRequest, protocol.BuildResponse>(refs, { command: 'rebuild', rebuildID: response!.rebuildID! },
                     (error2, response2) => {
                       if (error2) return callback(new Error(error2), null);
                       buildResponseToResult(response2, (error3, result3) => {
@@ -772,14 +800,14 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                       });
                     });
                 });
-                pluginCleanupCountdown++;
+                refs.ref()
                 rebuild!.dispose = () => {
                   if (isDisposed) return;
                   isDisposed = true;
-                  if (pluginCleanup && --pluginCleanupCountdown === 0) pluginCleanup();
-                  sendRequest<protocol.RebuildDisposeRequest, null>({ command: 'rebuild-dispose', rebuildID: response!.rebuildID! }, () => {
+                  sendRequest<protocol.RebuildDisposeRequest, null>(refs, { command: 'rebuild-dispose', rebuildID: response!.rebuildID! }, () => {
                     // We don't care about the result
                   });
+                  refs.unref() // Do this after the callback so "sendRequest" can extend the lifetime
                 };
               }
               result.rebuild = rebuild;
@@ -789,15 +817,15 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             if (response!.watchID !== void 0) {
               if (!stop) {
                 let isStopped = false;
-                pluginCleanupCountdown++;
+                refs.ref()
                 stop = () => {
                   if (isStopped) return;
                   isStopped = true;
                   watchCallbacks.delete(response!.watchID!);
-                  if (pluginCleanup && --pluginCleanupCountdown === 0) pluginCleanup();
-                  sendRequest<protocol.WatchStopRequest, null>({ command: 'watch-stop', watchID: response!.watchID! }, () => {
+                  sendRequest<protocol.WatchStopRequest, null>(refs, { command: 'watch-stop', watchID: response!.watchID! }, () => {
                     // We don't care about the result
                   });
+                  refs.unref() // Do this after the callback so "sendRequest" can extend the lifetime
                 }
                 if (watch && watch.onRebuild) {
                   watchCallbacks.set(response!.watchID, (serviceStopError, watchResponse) => {
@@ -821,31 +849,37 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
           if (write && streamIn.isBrowser) throw new Error(`Cannot enable "write" in the browser`);
           if (incremental && streamIn.isSync) throw new Error(`Cannot use "incremental" with a synchronous build`);
-          sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
+          sendRequest<protocol.BuildRequest, protocol.BuildResponse>(refs, request, (error, response) => {
             if (error) return callback(new Error(error), null);
             if (serve) {
               let serveResponse = response as any as protocol.ServeResponse;
+              let isStopped = false
               let result: types.ServeResult = {
                 port: serveResponse.port,
                 host: serveResponse.host,
                 wait: serve.wait,
-                stop: serve.stop,
+                stop() {
+                  if (isStopped) return
+                  isStopped = true
+                  serve!.stop();
+                  refs.unref() // Do this after the callback so "stop" can extend the lifetime
+                },
               };
+              refs.ref()
               return callback(null, result);
             }
-            if (pluginCleanup && !incremental) pluginCleanup();
             return buildResponseToResult(response!, callback);
           });
         } catch (e) {
           let flags: string[] = [];
           try { pushLogFlags(flags, options, {}, isTTY, logLevelDefault) } catch { }
-          sendRequest({ command: 'error', flags, error: extractErrorMessageV8(e, streamIn, details) }, () => {
+          sendRequest(refs, { command: 'error', flags, error: extractErrorMessageV8(e, streamIn, details) }, () => {
             callback(e, null);
           });
         }
       },
 
-      transform(callName, input, options, isTTY, fs, callback) {
+      transform(callName, refs, input, options, isTTY, fs, callback) {
         const details = createObjectStash();
         const logLevelDefault = 'silent';
 
@@ -873,7 +907,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               inputFS: inputPath !== null,
               input: inputPath !== null ? inputPath : input,
             };
-            sendRequest<protocol.TransformRequest, protocol.TransformResponse>(request, (error, response) => {
+            sendRequest<protocol.TransformRequest, protocol.TransformResponse>(refs, request, (error, response) => {
               if (error) return callback(new Error(error), null);
               let errors = replaceDetailsInMessages(response!.errors, details);
               let warnings = replaceDetailsInMessages(response!.warnings, details);
@@ -912,7 +946,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           } catch (e) {
             let flags: string[] = [];
             try { pushLogFlags(flags, options, {}, isTTY, logLevelDefault) } catch { }
-            sendRequest({ command: 'error', flags, error: extractErrorMessageV8(e, streamIn, details) }, () => {
+            sendRequest(refs, { command: 'error', flags, error: extractErrorMessageV8(e, streamIn, details) }, () => {
               callback(e, null);
             });
           }
