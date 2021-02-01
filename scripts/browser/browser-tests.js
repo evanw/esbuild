@@ -251,10 +251,9 @@ async function main() {
   }
 
   for (let key in pages) {
-    promises.push(runPage(key))
+    await runPage(key)
   }
 
-  await Promise.all(promises)
   await browser.close()
   server.close()
 

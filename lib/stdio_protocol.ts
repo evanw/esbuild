@@ -55,6 +55,10 @@ export interface BuildOutputFile {
   contents: Uint8Array;
 }
 
+export interface PingRequest {
+  command: 'ping';
+}
+
 export interface RebuildRequest {
   command: 'rebuild';
   rebuildID: number;

@@ -446,6 +446,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
   };
 
   type RequestType =
+    | protocol.PingRequest
     | protocol.OnResolveRequest
     | protocol.OnLoadRequest
     | protocol.OnRequestRequest
@@ -456,6 +457,11 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     // Catch exceptions in the code below so they get passed to the caller
     try {
       switch (request.command) {
+        case 'ping': {
+          sendResponse(id, {});
+          break;
+        }
+
         case 'resolve': {
           let callback = pluginCallbacks.get(request.key);
           sendResponse(id, await callback!(request) as any);

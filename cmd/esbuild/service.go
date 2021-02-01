@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	"github.com/evanw/esbuild/internal/cli_helpers"
 	"github.com/evanw/esbuild/internal/config"
@@ -64,7 +65,9 @@ func runService() {
 			if !ok {
 				break // No more packets
 			}
-			os.Stdout.Write(packet.bytes)
+			if _, err := os.Stdout.Write(packet.bytes); err != nil {
+				os.Exit(1) // I/O error
+			}
 
 			// Only signal that this request is done when it has actually been written
 			if packet.refCount != 0 {
@@ -75,6 +78,19 @@ func runService() {
 
 	// The protocol always starts with the version
 	os.Stdout.Write(append(writeUint32(nil, uint32(len(esbuildVersion))), esbuildVersion...))
+
+	// Periodically ping the host even when we're idle. This will catch cases
+	// where the host has disappeared and will never send us anything else but
+	// we incorrectly think we are still needed. In that case we will now try
+	// to write to stdout and fail, and then know that we should exit.
+	go func() {
+		for {
+			time.Sleep(1 * time.Second)
+			service.sendRequest(map[string]interface{}{
+				"command": "ping",
+			})
+		}
+	}()
 
 	for {
 		// Read more data from stdin
