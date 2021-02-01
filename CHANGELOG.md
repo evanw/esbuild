@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.39
 
 * Fix the JavaScript watch mode API exiting early ([#730](https://github.com/evanw/esbuild/issues/730))
 
