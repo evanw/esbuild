@@ -32,6 +32,7 @@ async function tests() {
     })
     assert.deepStrictEqual(result.outputFiles.length, 1);
     assert.deepStrictEqual(result.outputFiles[0].text, '1 + 2;\n');
+    assert.deepStrictEqual(result.stop, void 0);
 
     const result2 = await result.rebuild()
     assert.deepStrictEqual(result2.outputFiles.length, 1);
@@ -44,11 +45,41 @@ async function tests() {
     result2.rebuild.dispose()
   }
 
+  async function testWatch() {
+    const result = await esbuild.build({
+      stdin: { contents: '1+2' },
+      write: false,
+      watch: true,
+    })
+
+    assert.deepStrictEqual(result.rebuild, void 0);
+    assert.deepStrictEqual(result.outputFiles.length, 1);
+    assert.deepStrictEqual(result.outputFiles[0].text, '1 + 2;\n');
+
+    result.stop()
+  }
+
+  async function testWatchAndIncremental() {
+    const result = await esbuild.build({
+      stdin: { contents: '1+2' },
+      write: false,
+      incremental: true,
+      watch: true,
+    })
+
+    assert.deepStrictEqual(result.outputFiles.length, 1);
+    assert.deepStrictEqual(result.outputFiles[0].text, '1 + 2;\n');
+
+    result.stop()
+    result.rebuild.dispose()
+  }
+
   const service = await esbuild.startService();
   try {
     await testTransform()
     await testServe()
     await testBuild()
+    await testWatch()
   } catch (error) {
     service.stop();
     throw error;

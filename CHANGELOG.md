@@ -12,6 +12,10 @@
 
     In addition to being a useful feature, this change also simplifies esbuild's internals. Previously esbuild had to maintain separate child processes if the current working directory was changed in between build API calls. Now esbuild will always reuse the same child process across all build API calls. The `stop()` call on the `startService()` API is also now a no-op (it doesn't do anything anymore) and the `startService()` API may be removed in future releases.
 
+* Fix stray `esbuild` process after `node` exits ([#643](https://github.com/evanw/esbuild/issues/643))
+
+    I discovered that using esbuild's JavaScript incremental build API could result in the child `esbuild` process not exiting when the parent `node` process exits. This was due to a reference counting issue. The bug has been fixed so this shouldn't happen anymore.
+
 ## 0.8.38
 
 * Implement a simple cross-platform watch mode ([#21](https://github.com/evanw/esbuild/issues/21))

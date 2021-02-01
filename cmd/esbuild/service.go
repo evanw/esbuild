@@ -207,7 +207,7 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 				defer service.mutex.Unlock()
 				if watchStop, ok := service.watchStops[watchID]; ok {
 					// This watch is now considered finished. This matches the +1 reference
-					// count at the return of the serve call.
+					// count at the return of the build call.
 					refCount = -1
 					return watchStop
 				}
@@ -257,7 +257,7 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 				// Only mutate the map while inside a mutex
 				service.mutex.Lock()
 				defer service.mutex.Unlock()
-				if _, ok := service.rebuilds[rebuildID]; !ok {
+				if _, ok := service.rebuilds[rebuildID]; ok {
 					// This build is now considered finished. This matches the +1 reference
 					// count at the return of the first build call for this rebuild chain.
 					refCount = -1
