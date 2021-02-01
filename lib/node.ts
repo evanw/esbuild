@@ -60,49 +60,23 @@ let isTTY = () => tty.isatty(2);
 
 export let version = ESBUILD_VERSION;
 
-export let build: typeof types.build = (options: types.BuildOptions): Promise<any> => {
-  return startService().then<types.BuildResult>(service => {
-    return service.build(options).then(result => {
-      if (result.rebuild) {
-        let old = result.rebuild.dispose;
-        result.rebuild.dispose = () => {
-          old();
-          service.stop();
-        };
-      }
-      else service.stop();
-      return result;
-    }, error => {
-      service.stop();
-      throw error;
-    });
-  });
-};
+export let build: typeof types.build = (options: types.BuildOptions): Promise<any> =>
+  startService().then<types.BuildResult>(service =>
+    service.build(options));
 
-export let serve: typeof types.serve = (serveOptions, buildOptions) => {
-  return startService().then(service => {
-    return service.serve(serveOptions, buildOptions).then(result => {
-      result.wait.then(service.stop, service.stop);
-      return result;
-    }, error => {
-      service.stop();
-      throw error;
-    });
-  });
-};
+export let serve: typeof types.serve = (serveOptions, buildOptions) =>
+  startService().then(service =>
+    service.serve(serveOptions, buildOptions));
 
 export let transform: typeof types.transform = (input, options) => {
   input += '';
-  return startService().then(service => {
-    let promise = service.transform(input, options);
-    promise.then(service.stop, service.stop);
-    return promise;
-  });
+  return startService().then(service =>
+    service.transform(input, options));
 };
 
 export let buildSync: typeof types.buildSync = (options: types.BuildOptions): any => {
   let result: types.BuildResult;
-  runServiceSync(service => service.buildOrServe('buildSync', null, null, options, isTTY(), (err, res) => {
+  runServiceSync(service => service.buildOrServe('buildSync', null, null, options, isTTY(), process.cwd(), (err, res) => {
     if (err) throw err;
     result = res as types.BuildResult;
   }));
@@ -141,13 +115,13 @@ export let transformSync: typeof types.transformSync = (input, options) => {
   return result!;
 };
 
-export let startService: typeof types.startService = common.referenceCountedService(() => process.cwd(), options => {
+export let startService: typeof types.startService = common.longLivedService(() => process.cwd(), options => {
   options = common.validateServiceOptions(options || {});
   if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
   if (options.worker) throw new Error(`The "worker" option only works in the browser`)
   let [command, args] = esbuildCommandAndArgs();
+  let defaultWD = process.cwd();
   let child = child_process.spawn(command, args.concat(`--service=${ESBUILD_VERSION}`), {
-    cwd: process.cwd(),
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'inherit'],
   });
@@ -185,7 +159,7 @@ export let startService: typeof types.startService = common.referenceCountedServ
   return Promise.resolve({
     build: (options: types.BuildOptions): Promise<any> => {
       return new Promise<types.BuildResult>((resolve, reject) => {
-        service.buildOrServe('build', refs, null, options, isTTY(), (err, res) => {
+        service.buildOrServe('build', refs, null, options, isTTY(), defaultWD, (err, res) => {
           if (err) {
             reject(err)
           } else {
@@ -198,7 +172,7 @@ export let startService: typeof types.startService = common.referenceCountedServ
       if (serveOptions === null || typeof serveOptions !== 'object')
         throw new Error('The first argument must be an object')
       return new Promise((resolve, reject) =>
-        service.buildOrServe('serve', refs, serveOptions, buildOptions, isTTY(), (err, res) => {
+        service.buildOrServe('serve', refs, serveOptions, buildOptions, isTTY(), defaultWD, (err, res) => {
           if (err) {
             reject(err);
           } else {
@@ -235,6 +209,7 @@ export let startService: typeof types.startService = common.referenceCountedServ
         }, (err, res) => err ? reject(err) : resolve(res!)));
     },
     stop() {
+      // Note: This is now never called
       child.kill();
     },
   });

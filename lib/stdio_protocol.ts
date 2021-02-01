@@ -13,6 +13,7 @@ export interface BuildRequest {
   write: boolean;
   stdinContents: string | null;
   stdinResolveDir: string | null;
+  absWorkingDir: string;
   incremental: boolean;
   hasOnRebuild: boolean;
   plugins?: BuildPlugin[];

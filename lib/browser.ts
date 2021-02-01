@@ -26,7 +26,7 @@ export const transformSync: typeof types.transformSync = () => {
   throw new Error(`The "transformSync" API only works in node`);
 };
 
-export const startService: typeof types.startService = common.referenceCountedService(() => '', async (options) => {
+export const startService: typeof types.startService = common.longLivedService(() => '', async (options) => {
   if (!options) throw new Error('Must provide an options object to "startService"');
   options = common.validateServiceOptions(options)!;
   let wasmURL = options.wasmURL;
@@ -80,7 +80,7 @@ export const startService: typeof types.startService = common.referenceCountedSe
   return {
     build: (options: types.BuildOptions): Promise<any> =>
       new Promise<types.BuildResult>((resolve, reject) =>
-        service.buildOrServe('build', null, null, options, false, (err, res) =>
+        service.buildOrServe('build', null, null, options, false, '/', (err, res) =>
           err ? reject(err) : resolve(res as types.BuildResult))),
     transform: (input, options) => {
       input += '';
@@ -100,6 +100,7 @@ export const startService: typeof types.startService = common.referenceCountedSe
       throw new Error(`The "transformSync" API only works in node`);
     },
     stop() {
+      // Note: This is now never called
       worker.terminate()
       afterClose()
     },

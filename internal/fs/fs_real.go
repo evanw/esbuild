@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sort"
@@ -49,9 +50,10 @@ type privateWatchData struct {
 
 type RealFSOptions struct {
 	WantWatchData bool
+	AbsWorkingDir string
 }
 
-func RealFS(options RealFSOptions) FS {
+func RealFS(options RealFSOptions) (FS, error) {
 	var fp goFilepath
 	if checkIfWindows() {
 		fp.isWindows = true
@@ -61,29 +63,36 @@ func RealFS(options RealFSOptions) FS {
 		fp.pathSeparator = '/'
 	}
 
-	if cwd, err := os.Getwd(); err != nil {
-		// This probably only happens in the browser
-		fp.cwd = "/"
-	} else {
-		// Resolve symlinks in the current working directory. Symlinks are resolved
-		// when input file paths are converted to absolute paths because we need to
-		// recognize an input file as unique even if it has multiple symlinks
-		// pointing to it. The build will generate relative paths from the current
-		// working directory to the absolute input file paths for error messages,
-		// so the current working directory should be processed the same way. Not
-		// doing this causes test failures with esbuild when run from inside a
-		// symlinked directory.
-		//
-		// This deliberately ignores errors due to e.g. infinite loops. If there is
-		// an error, we will just use the original working directory and likely
-		// encounter an error later anyway. And if we don't encounter an error
-		// later, then the current working directory didn't even matter and the
-		// error is unimportant.
-		if path, err := fp.evalSymlinks(cwd); err == nil {
-			fp.cwd = path
-		} else {
+	// Come up with a default working directory if one was not specified
+	fp.cwd = options.AbsWorkingDir
+	if fp.cwd == "" {
+		if cwd, err := os.Getwd(); err == nil {
 			fp.cwd = cwd
+		} else if fp.isWindows {
+			fp.cwd = "C:\\"
+		} else {
+			fp.cwd = "/"
 		}
+	} else if !fp.isAbs(fp.cwd) {
+		return nil, fmt.Errorf("The working directory %q is not an absolute path", fp.cwd)
+	}
+
+	// Resolve symlinks in the current working directory. Symlinks are resolved
+	// when input file paths are converted to absolute paths because we need to
+	// recognize an input file as unique even if it has multiple symlinks
+	// pointing to it. The build will generate relative paths from the current
+	// working directory to the absolute input file paths for error messages,
+	// so the current working directory should be processed the same way. Not
+	// doing this causes test failures with esbuild when run from inside a
+	// symlinked directory.
+	//
+	// This deliberately ignores errors due to e.g. infinite loops. If there is
+	// an error, we will just use the original working directory and likely
+	// encounter an error later anyway. And if we don't encounter an error
+	// later, then the current working directory didn't even matter and the
+	// error is unimportant.
+	if path, err := fp.evalSymlinks(fp.cwd); err == nil {
+		fp.cwd = path
 	}
 
 	// Only allocate memory for watch data if necessary
@@ -96,7 +105,7 @@ func RealFS(options RealFSOptions) FS {
 		entries:   make(map[string]entriesOrErr),
 		fp:        fp,
 		watchData: watchData,
-	}
+	}, nil
 }
 
 func (fs *realFS) ReadDirectory(dir string) (map[string]*Entry, error) {

@@ -243,6 +243,7 @@ type BuildOptions struct {
 	Metafile          string
 	Outdir            string
 	Outbase           string
+	AbsWorkingDir     string
 	Platform          Platform
 	Format            Format
 	External          []string

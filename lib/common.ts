@@ -156,6 +156,7 @@ function flagsForBuildOptions(
   plugins: types.Plugin[] | undefined,
   stdinContents: string | null,
   stdinResolveDir: string | null,
+  absWorkingDir: string | undefined,
   incremental: boolean,
   watch: types.WatchMode | null,
 } {
@@ -185,6 +186,7 @@ function flagsForBuildOptions(
   let publicPath = getFlag(options, keys, 'publicPath', mustBeString);
   let inject = getFlag(options, keys, 'inject', mustBeArray);
   let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
+  let absWorkingDir = getFlag(options, keys, 'absWorkingDir', mustBeString);
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
   let write = getFlag(options, keys, 'write', mustBeBoolean) ?? writeDefault; // Default to true if not specified
   let incremental = getFlag(options, keys, 'incremental', mustBeBoolean) === true;
@@ -273,6 +275,7 @@ function flagsForBuildOptions(
     plugins,
     stdinContents,
     stdinResolveDir,
+    absWorkingDir,
     incremental,
     watch: watchMode,
   };
@@ -333,6 +336,7 @@ export interface StreamService {
     serveOptions: types.ServeOptions | null,
     options: types.BuildOptions,
     isTTY: boolean,
+    defaultWD: string,
     callback: (err: Error | null, res: types.BuildResult | types.ServeResult | null) => void,
   ): void;
 
@@ -733,7 +737,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     afterClose,
 
     service: {
-      buildOrServe(callName, callerRefs, serveOptions, options, isTTY, callback) {
+      buildOrServe(callName, callerRefs, serveOptions, options, isTTY, defaultWD, callback) {
         let pluginRefs: Refs | undefined;
         const details = createObjectStash();
         const logLevelDefault = 'info';
@@ -756,6 +760,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             plugins,
             stdinContents,
             stdinResolveDir,
+            absWorkingDir,
             incremental,
             watch,
           } = flagsForBuildOptions(callName, options, isTTY, logLevelDefault, writeDefault);
@@ -766,6 +771,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             write,
             stdinContents,
             stdinResolveDir,
+            absWorkingDir: absWorkingDir || defaultWD,
             incremental,
             hasOnRebuild: !!(watch && watch.onRebuild),
           };
@@ -854,6 +860,9 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             if (serve) {
               let serveResponse = response as any as protocol.ServeResponse;
               let isStopped = false
+
+              // Add a ref/unref for "stop()"
+              refs.ref()
               let result: types.ServeResult = {
                 port: serveResponse.port,
                 host: serveResponse.host,
@@ -865,7 +874,15 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                   refs.unref() // Do this after the callback so "stop" can extend the lifetime
                 },
               };
+
+              // Add a ref/unref for "wait". This must be done independently of
+              // "stop()" in case the response to "stop()" comes in first before
+              // the request for "wait". Without this ref/unref, node may close
+              // the child's stdin pipe after the "stop()" but before the "wait"
+              // which will cause things to break. This caused a test failure.
               refs.ref()
+              serve.wait.then(refs.unref, refs.unref)
+
               return callback(null, result);
             }
             return buildResponseToResult(response!, callback);
@@ -1120,76 +1137,71 @@ function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types
   }
 }
 
-export function referenceCountedService(getwd: () => string, startService: typeof types.startService): typeof types.startService {
-  interface Entry {
-    promise: Promise<types.Service>;
-    refCount: number;
-  }
-
-  let entries = new Map<string, Entry>();
-
+// This function serves two purposes:
+//
+//   a) Only create one long-lived service for each unique value of "options".
+//      This is useful because creating a service is expensive and it's
+//      sometimes convenient for multiple independent libraries to create
+//      esbuild services without coordinating with each other. This pooling
+//      optimization makes this use case efficient.
+//
+//   b) Set the default working directory to the value of the current working
+//      directory at the time "startService()" was called. This means each call
+//      to "startService()" can potentially have a different default working
+//      directory.
+//
+//      TODO: This is legacy behavior that originated because "startService()"
+//      used to correspond to creating a new child process. That is no longer
+//      the case because child processes are now pooled. This behavior is
+//      being preserved for compatibility with Snowpack for now. I would like
+//      to remove this strange behavior in a future release now that we have
+//      the "absWorkingDir" API option.
+//
+export function longLivedService(getwd: () => string, startService: typeof types.startService): typeof types.startService {
+  let entries = new Map<string, Promise<types.Service>>();
   return async (options) => {
-    // Mix the current working directory into the key. Some users rely on
-    // calling "process.chdir()" before calling "startService()" to set the
-    // current working directory for that service.
     let cwd = getwd();
     let optionsJSON = JSON.stringify(options || {});
-    let key = `${optionsJSON} ${cwd}`;
+    let key = optionsJSON;
     let entry = entries.get(key);
-    let didStop = false;
-
-    let checkWasStopped = () => {
-      if (didStop) {
-        throw new Error('The service was stopped');
-      }
-    };
-
-    // Returns true if this was the last reference
-    let isLastStop = () => {
-      if (!didStop) {
-        didStop = true;
-        if (--entry!.refCount === 0) {
-          entries.delete(key);
-          return true;
-        }
-      }
-      return false;
-    };
 
     if (entry === void 0) {
       // Store the promise used to create the service so that multiple
       // concurrent calls to "startService()" will share the same promise.
-      entry = { promise: startService(JSON.parse(optionsJSON)), refCount: 0 };
+      entry = startService(JSON.parse(optionsJSON));
       entries.set(key, entry);
     }
 
-    ++entry.refCount;
-
     try {
-      let service = await entry.promise;
+      let service = await entry;
       return {
-        build: (options: any): any => {
-          checkWasStopped();
+        build: (options: any = {}): any => {
+          if (cwd) {
+            let absWorkingDir = options.absWorkingDir
+            if (!absWorkingDir) options = { ...options, absWorkingDir: cwd }
+          }
           return service.build(options);
         },
-        serve(serveOptions, buildOptions) {
-          checkWasStopped();
+        serve(serveOptions, buildOptions: any = {}) {
+          if (cwd) {
+            let absWorkingDir = buildOptions.absWorkingDir
+            if (!absWorkingDir) buildOptions = { ...buildOptions, absWorkingDir: cwd }
+          }
           return service.serve(serveOptions, buildOptions);
         },
         transform(input, options) {
-          checkWasStopped();
           return service.transform(input, options);
         },
         stop() {
-          if (isLastStop()) {
-            service.stop();
-          }
+          // This is now a no-op
         },
       };
     }
 
     catch (e) {
-      isLastStop();
+      // Remove the entry if loading fails, which allows
+      // us to try again (only happens in the browser)
+      entries.delete(key);
       throw e;
     }
   };

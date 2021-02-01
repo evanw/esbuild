@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+* Fix the JavaScript watch mode API exiting early ([#730](https://github.com/evanw/esbuild/issues/730))
+
+    The previous release contained a bug that caused the JavaScript watch mode API to exit early in some cases. This bug should now be fixed. The problem was caused by some code that shouldn't even need to exist now that you are no longer required to call `stop()` on an esbuild service created by `startService()` (it was made optional in version 0.8.32). I took the opportunity to clean up the internals of esbuild's JavaScript API implementation which ended up removing the entire section of code that contained this bug.
+
+* Add an API option for a per-build working directory ([#689](https://github.com/evanw/esbuild/issues/689))
+
+    You can now use the `absWorkingDir` API option to customize the current working directory. It will default to the value of `process.cwd()` at the time of the call to `startService()` when not specified, which matches the existing behavior. The working directory is used for a few different things including resolving relative paths given as API options to absolute paths and pretty-printing absolute paths as relative paths in log messages.
+
+    In addition to being a useful feature, this change also simplifies esbuild's internals. Previously esbuild had to maintain separate child processes if the current working directory was changed in between build API calls. Now esbuild will always reuse the same child process across all build API calls. The `stop()` call on the `startService()` API is also now a no-op (it doesn't do anything anymore) and the `startService()` API may be removed in future releases.
+
 ## 0.8.38
 
 * Implement a simple cross-platform watch mode ([#21](https://github.com/evanw/esbuild/issues/21))

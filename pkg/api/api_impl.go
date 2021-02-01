@@ -528,7 +528,15 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 		NewlineBeforeFirstMessage: buildOpts.Watch != nil && buildOpts.Watch.SpinnerBusy != "" && buildOpts.LogLevel == LogLevelInfo,
 	}
 	log := logger.NewStderrLog(logOptions)
-	realFS := fs.RealFS(fs.RealFSOptions{})
+
+	// Validate that the current working directory is an absolute path
+	realFS, err := fs.RealFS(fs.RealFSOptions{
+		AbsWorkingDir: buildOpts.AbsWorkingDir,
+	})
+	if err != nil {
+		log.AddError(nil, logger.Loc{}, err.Error())
+		return internalBuildResult{result: BuildResult{Errors: convertMessagesToPublic(logger.Error, log.Done())}}
+	}
 
 	// Do not re-evaluate plugins when rebuilding
 	plugins := loadPlugins(realFS, log, buildOpts.Plugins)
@@ -544,9 +552,14 @@ func rebuildImpl(
 	isRebuild bool,
 ) internalBuildResult {
 	// Convert and validate the buildOpts
-	realFS := fs.RealFS(fs.RealFSOptions{
+	realFS, err := fs.RealFS(fs.RealFSOptions{
+		AbsWorkingDir: buildOpts.AbsWorkingDir,
 		WantWatchData: buildOpts.Watch != nil,
 	})
+	if err != nil {
+		// This should already have been checked above
+		panic(err.Error())
+	}
 	jsFeatures, cssFeatures := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtensions)
 	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure)
@@ -1369,7 +1382,12 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 }
 
 func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResult, error) {
-	realFS := fs.RealFS(fs.RealFSOptions{})
+	realFS, err := fs.RealFS(fs.RealFSOptions{
+		AbsWorkingDir: buildOptions.AbsWorkingDir,
+	})
+	if err != nil {
+		return ServeResult{}, err
+	}
 	buildOptions.Incremental = true
 	buildOptions.Write = false
 

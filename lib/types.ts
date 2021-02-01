@@ -55,6 +55,7 @@ export interface BuildOptions extends CommonOptions {
   entryPoints?: string[];
   stdin?: StdinOptions;
   plugins?: Plugin[];
+  absWorkingDir?: string;
   watch?: boolean | WatchMode;
 }
 

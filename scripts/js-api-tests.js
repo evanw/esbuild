@@ -25,6 +25,53 @@ let buildTests = {
     }
   },
 
+  async errorIfBadWorkingDirectory({ esbuild }) {
+    try {
+      await esbuild.build({
+        absWorkingDir: 'what is this? certainly not an absolute path',
+        logLevel: 'silent',
+        write: false,
+      })
+      throw new Error('Expected build failure');
+    } catch (e) {
+      if (e.message !== 'Build failed with 1 error:\nerror: The working directory ' +
+        '"what is this? certainly not an absolute path" is not an absolute path') {
+        throw e;
+      }
+    }
+  },
+
+  async workingDirTest({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      let aDir = path.join(testDir, 'a');
+      let bDir = path.join(testDir, 'b');
+      let aFile = path.join(aDir, 'a-in.js');
+      let bFile = path.join(bDir, 'b-in.js');
+      let aOut = path.join(aDir, 'a-out.js');
+      let bOut = path.join(bDir, 'b-out.js');
+      fs.mkdirSync(aDir, { recursive: true });
+      fs.mkdirSync(bDir, { recursive: true });
+      fs.writeFileSync(aFile, 'exports.x = true');
+      fs.writeFileSync(bFile, 'exports.y = true');
+
+      await Promise.all([
+        toTest.build({
+          entryPoints: [path.basename(aFile)],
+          outfile: path.basename(aOut),
+          absWorkingDir: aDir,
+        }),
+        toTest.build({
+          entryPoints: [path.basename(bFile)],
+          outfile: path.basename(bOut),
+          absWorkingDir: bDir,
+        }),
+      ]);
+
+      assert.strictEqual(require(aOut).x, true)
+      assert.strictEqual(require(bOut).y, true)
+    }
+  },
+
   async es6_to_cjs({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')

@@ -332,6 +332,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	flags := decodeStringArray(request["flags"].([]interface{}))
 
 	options, err := cli.ParseBuildOptions(flags)
+	options.AbsWorkingDir = request["absWorkingDir"].(string)
 
 	// Normally when "write" is true and there is no output file/directory then
 	// the output is written to stdout instead. However, we're currently using
