@@ -747,7 +747,8 @@ let pluginTests = {
     const output = path.join(testDir, 'out.js')
     await esbuild.build({
       stdin: {
-        contents: `import x from "plugin"; export default x`, sourcefile: 'stdin-sourcefile',
+        contents: `import x from "plugin"; export default x`,
+        sourcefile: 'stdin-sourcefile',
       },
       bundle: true, outfile: output, format: 'cjs', plugins: [{
         name: 'name',
@@ -773,7 +774,8 @@ let pluginTests = {
     const output = path.join(testDir, 'out.js')
     await esbuild.build({
       stdin: {
-        contents: `import x from "plugin"; export default x`, sourcefile: 'stdin-sourcefile',
+        contents: `import x from "plugin"; export default x`,
+        sourcefile: 'stdin-sourcefile',
         resolveDir: testDir,
       },
       bundle: true, outfile: output, format: 'cjs', plugins: [{
@@ -800,7 +802,8 @@ let pluginTests = {
     const output = path.join(testDir, 'out.js')
     await esbuild.build({
       stdin: {
-        contents: `import x from "plugin"; export default x`, sourcefile: path.join(testDir, 'stdin-sourcefile'),
+        contents: `import x from "plugin"; export default x`,
+        sourcefile: path.join(testDir, 'stdin-sourcefile'),
         resolveDir: testDir,
       },
       bundle: true, outfile: output, format: 'cjs', plugins: [{
@@ -826,7 +829,9 @@ let pluginTests = {
   async stdinRelative({ esbuild, testDir }) {
     const output = path.join(testDir, 'out.js')
     await esbuild.build({
-      stdin: { contents: `import x from "./stdinRelative.js"; export default x` },
+      stdin: {
+        contents: `import x from "./stdinRelative.js"; export default x`,
+      },
       bundle: true, outfile: output, format: 'cjs', plugins: [{
         name: 'name',
         setup(build) {
@@ -851,7 +856,8 @@ let pluginTests = {
     const output = path.join(testDir, 'out', 'out.js')
     await esbuild.build({
       stdin: {
-        contents: `import x from "./stdinRelative.js"; export default x`, resolveDir: testDir,
+        contents: `import x from "./stdinRelative.js"; export default x`,
+        resolveDir: testDir,
       },
       bundle: true, outfile: output, format: 'cjs', plugins: [{
         name: 'name',
