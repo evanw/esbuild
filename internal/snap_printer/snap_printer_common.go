@@ -395,8 +395,11 @@ func (p *printer) stringifyCall(args []js_ast.Expr) string {
 	{
 		p.js = []byte{}
 		p.print("(")
-		for _, arg := range args {
+		for idx, arg := range args {
 			p.printExpr(arg, js_ast.LLowest, 0)
+			if idx < len(args)-1 {
+				p.print(", ")
+			}
 		}
 		p.print(")")
 	}

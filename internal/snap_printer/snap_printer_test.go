@@ -898,7 +898,7 @@ const p = require('editions').requirePackage(__dirname, require)
 `, `
 let p;
 function __get_p__() {
-  return p = p || (require("editions").requirePackage(__dirname require))
+  return p = p || (require("editions").requirePackage(__dirname, require))
 }
 `, ReplaceAll)
 
