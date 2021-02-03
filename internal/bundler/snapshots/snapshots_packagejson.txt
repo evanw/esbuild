@@ -12,6 +12,24 @@ var import_demo_pkg = __toModule(require_demo_pkg());
 console.log(import_demo_pkg.default());
 
 ================================================================================
+TestPackageJsonBrowserIndexNoExt
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/demo-pkg/no-ext-browser/index.js
+var browser = "browser";
+
+// Users/user/project/src/demo-pkg/no-ext/index.js
+var node = "node";
+
+// Users/user/project/src/demo-pkg/ext-browser/index.js
+var browser2 = "browser";
+
+// Users/user/project/src/entry.js
+console.log(browser);
+console.log(node);
+console.log(browser2);
+console.log(browser2);
+
+================================================================================
 TestPackageJsonBrowserMapAvoidMissing
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/component-indexof/index.js
@@ -169,6 +187,60 @@ var require_main_browser = __commonJS((exports, module) => {
 // Users/user/project/src/entry.js
 var import_demo_pkg = __toModule(require_main_browser());
 console.log(import_demo_pkg.default());
+
+================================================================================
+TestPackageJsonBrowserNoExt
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/demo-pkg/no-ext-browser.js
+var browser = "browser";
+
+// Users/user/project/src/demo-pkg/no-ext.js
+var node = "node";
+
+// Users/user/project/src/demo-pkg/ext-browser.js
+var browser2 = "browser";
+
+// Users/user/project/src/entry.js
+console.log(browser);
+console.log(node);
+console.log(browser2);
+console.log(browser2);
+
+================================================================================
+TestPackageJsonBrowserNodeModulesIndexNoExt
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/demo-pkg/no-ext-browser/index.js
+var browser = "browser";
+
+// Users/user/project/node_modules/demo-pkg/no-ext/index.js
+var node = "node";
+
+// Users/user/project/node_modules/demo-pkg/ext-browser/index.js
+var browser2 = "browser";
+
+// Users/user/project/src/entry.js
+console.log(browser);
+console.log(node);
+console.log(browser2);
+console.log(browser2);
+
+================================================================================
+TestPackageJsonBrowserNodeModulesNoExt
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/demo-pkg/no-ext-browser.js
+var browser = "browser";
+
+// Users/user/project/node_modules/demo-pkg/no-ext.js
+var node = "node";
+
+// Users/user/project/node_modules/demo-pkg/ext-browser.js
+var browser2 = "browser";
+
+// Users/user/project/src/entry.js
+console.log(browser);
+console.log(node);
+console.log(browser2);
+console.log(browser2);
 
 ================================================================================
 TestPackageJsonBrowserOverMainNode

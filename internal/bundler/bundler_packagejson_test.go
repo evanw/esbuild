@@ -637,6 +637,174 @@ func TestPackageJsonBrowserWithMainNode(t *testing.T) {
 	})
 }
 
+func TestPackageJsonBrowserNodeModulesNoExt(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {browser as a} from 'demo-pkg/no-ext'
+				import {node as b} from 'demo-pkg/no-ext.js'
+				import {browser as c} from 'demo-pkg/ext'
+				import {browser as d} from 'demo-pkg/ext.js'
+				console.log(a)
+				console.log(b)
+				console.log(c)
+				console.log(d)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"browser": {
+						"./no-ext": "./no-ext-browser.js",
+						"./ext.js": "./ext-browser.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/no-ext.js": `
+				export let node = 'node'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/no-ext-browser.js": `
+				export let browser = 'browser'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/ext.js": `
+				export let node = 'node'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/ext-browser.js": `
+				export let browser = 'browser'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonBrowserNodeModulesIndexNoExt(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {browser as a} from 'demo-pkg/no-ext'
+				import {node as b} from 'demo-pkg/no-ext/index.js'
+				import {browser as c} from 'demo-pkg/ext'
+				import {browser as d} from 'demo-pkg/ext/index.js'
+				console.log(a)
+				console.log(b)
+				console.log(c)
+				console.log(d)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"browser": {
+						"./no-ext": "./no-ext-browser/index.js",
+						"./ext/index.js": "./ext-browser/index.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/no-ext/index.js": `
+				export let node = 'node'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/no-ext-browser/index.js": `
+				export let browser = 'browser'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/ext/index.js": `
+				export let node = 'node'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/ext-browser/index.js": `
+				export let browser = 'browser'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonBrowserNoExt(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {browser as a} from './demo-pkg/no-ext'
+				import {node as b} from './demo-pkg/no-ext.js'
+				import {browser as c} from './demo-pkg/ext'
+				import {browser as d} from './demo-pkg/ext.js'
+				console.log(a)
+				console.log(b)
+				console.log(c)
+				console.log(d)
+			`,
+			"/Users/user/project/src/demo-pkg/package.json": `
+				{
+					"browser": {
+						"./no-ext": "./no-ext-browser.js",
+						"./ext.js": "./ext-browser.js"
+					}
+				}
+			`,
+			"/Users/user/project/src/demo-pkg/no-ext.js": `
+				export let node = 'node'
+			`,
+			"/Users/user/project/src/demo-pkg/no-ext-browser.js": `
+				export let browser = 'browser'
+			`,
+			"/Users/user/project/src/demo-pkg/ext.js": `
+				export let node = 'node'
+			`,
+			"/Users/user/project/src/demo-pkg/ext-browser.js": `
+				export let browser = 'browser'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonBrowserIndexNoExt(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {browser as a} from './demo-pkg/no-ext'
+				import {node as b} from './demo-pkg/no-ext/index.js'
+				import {browser as c} from './demo-pkg/ext'
+				import {browser as d} from './demo-pkg/ext/index.js'
+				console.log(a)
+				console.log(b)
+				console.log(c)
+				console.log(d)
+			`,
+			"/Users/user/project/src/demo-pkg/package.json": `
+				{
+					"browser": {
+						"./no-ext": "./no-ext-browser/index.js",
+						"./ext/index.js": "./ext-browser/index.js"
+					}
+				}
+			`,
+			"/Users/user/project/src/demo-pkg/no-ext/index.js": `
+				export let node = 'node'
+			`,
+			"/Users/user/project/src/demo-pkg/no-ext-browser/index.js": `
+				export let browser = 'browser'
+			`,
+			"/Users/user/project/src/demo-pkg/ext/index.js": `
+				export let node = 'node'
+			`,
+			"/Users/user/project/src/demo-pkg/ext-browser/index.js": `
+				export let browser = 'browser'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestPackageJsonDualPackageHazardImportOnly(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{

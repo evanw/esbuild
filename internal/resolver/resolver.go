@@ -391,11 +391,29 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}, IsExternal: true}
 		}
 
-		if absolute, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
-			checkPackage = false
-			result = absolute
-		} else if !checkPackage {
-			return nil
+		// Check the non-package "browser" map for the first time (1 out of 2)
+		importDirInfo := r.dirInfoCached(r.fs.Dir(absPath))
+		if importDirInfo != nil && importDirInfo.enclosingBrowserScope != nil {
+			if packageJSON := importDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserNonPackageMap != nil {
+				if remapped, ok := packageJSON.browserNonPackageMap[absPath]; ok {
+					if remapped == nil {
+						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: BrowserFalseNamespace}}}
+					} else if remappedResult, ok := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+						result = remappedResult
+						checkRelative = false
+						checkPackage = false
+					}
+				}
+			}
+		}
+
+		if checkRelative {
+			if absolute, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
+				checkPackage = false
+				result = absolute
+			} else if !checkPackage {
+				return nil
+			}
 		}
 	}
 
@@ -463,7 +481,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 		resultDir := r.fs.Dir(path.Text)
 		resultDirInfo := r.dirInfoCached(resultDir)
 
-		// Support remapping one non-module path to another via the "browser" field
+		// Check the non-package "browser" map for the second time (2 out of 2)
 		if resultDirInfo != nil && resultDirInfo.enclosingBrowserScope != nil {
 			packageJSON := resultDirInfo.enclosingBrowserScope.packageJSON
 			if packageJSON.browserNonPackageMap != nil {
@@ -530,6 +548,18 @@ type packageJSON struct {
 	// tell, the official spec is a GitHub repo hosted by a user account:
 	// https://github.com/defunctzombie/package-browser-field-spec. The npm docs
 	// say almost nothing: https://docs.npmjs.com/files/package.json.
+	//
+	// Note that the non-package "browser" map has to be checked twice to match
+	// Webpack's behavior: once before resolution and once after resolution. It
+	// leads to some unintuitive failure cases that we must emulate around missing
+	// file extensions:
+	//
+	// * Given the mapping "./no-ext": "./no-ext-browser.js" the query "./no-ext"
+	//   should match but the query "./no-ext.js" should NOT match.
+	//
+	// * Given the mapping "./ext.js": "./ext-browser.js" the query "./ext.js"
+	//   should match and the query "./ext" should ALSO match.
+	//
 	browserNonPackageMap map[string]*string
 	browserPackageMap    map[string]*string
 
@@ -1252,7 +1282,23 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 		// Skip directories that are themselves called "node_modules", since we
 		// don't ever want to search for "node_modules/node_modules"
 		if dirInfo.hasNodeModules {
-			absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(dirInfo.absPath, "node_modules", path), kind)
+			absPath := r.fs.Join(dirInfo.absPath, "node_modules", path)
+
+			// Check the non-package "browser" map for the first time (1 out of 2)
+			importDirInfo := r.dirInfoCached(r.fs.Dir(absPath))
+			if importDirInfo != nil && importDirInfo.enclosingBrowserScope != nil {
+				if packageJSON := importDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserNonPackageMap != nil {
+					if remapped, ok := packageJSON.browserNonPackageMap[absPath]; ok {
+						if remapped == nil {
+							return PathPair{Primary: logger.Path{Text: absPath, Namespace: BrowserFalseNamespace}}, true
+						} else if remappedResult, ok := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+							return remappedResult, true
+						}
+					}
+				}
+			}
+
+			absolute, ok := r.loadAsFileOrDirectory(absPath, kind)
 			if ok {
 				return absolute, true
 			}

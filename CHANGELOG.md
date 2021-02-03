@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Resolve `browser` entries in `package.json` with no file extension ([#740](https://github.com/evanw/esbuild/issues/740))
+
+    This fix changes how esbuild interprets the `browser` field in `package.json`. It will now remap imports without a file extension to `browser` map entries without a file extension, which improves compatibility with Webpack. Specifically, a `package.json` file with `"browser": {"./file": "./something.js"}` will now match an import of `./file`. Previously the `package.json` file had to contain something like `"browser": {"./file.js": "./something.js"}` instead. Note that for compatibility with the rest of the ecosystem, a remapping of `./file` will counter-intuitively _not_ match an import of `./file.js` even though it works fine in the other direction.
+
 ## 0.8.39
 
 * Fix the JavaScript watch mode API exiting early ([#730](https://github.com/evanw/esbuild/issues/730))
