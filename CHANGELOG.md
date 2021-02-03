@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* Fix TypeScript parameter decorators on class constructors ([#734](https://github.com/evanw/esbuild/issues/734))
+
+    This release fixes a TypeScript translation bug where parameter decorators on class constructors were translated incorrectly. Affected code looks like this:
+
+    ```js
+    class Example {
+      constructor(@decorator param: any) {}
+    }
+    ```
+
+    This bug has been fixed. In addition, decorators are no longer allowed on class constructors themselves because they are not allowed in TypeScript.
+
 * Resolve `browser` entries in `package.json` with no file extension ([#740](https://github.com/evanw/esbuild/issues/740))
 
     This fix changes how esbuild interprets the `browser` field in `package.json`. It will now remap imports without a file extension to `browser` map entries without a file extension, which improves compatibility with Webpack. Specifically, a `package.json` file with `"browser": {"./file": "./something.js"}` will now match an import of `./file`. Previously the `package.json` file had to contain something like `"browser": {"./file.js": "./something.js"}` instead. Note that for compatibility with the rest of the ecosystem, a remapping of `./file` will counter-intuitively _not_ match an import of `./file.js` even though it works fine in the other direction.

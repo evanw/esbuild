@@ -1183,6 +1183,10 @@ func TestTSDecorator(t *testing.T) {
 	expectParseErrorTS(t, "class Foo { @dec static *#foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
 	expectParseErrorTS(t, "class Foo { @dec static async #foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
 	expectParseErrorTS(t, "class Foo { @dec static async* #foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+
+	// Decorators aren't allowed on class constructors
+	expectParseErrorTS(t, "class Foo { @dec constructor() {} }", "<stdin>: error: TypeScript does not allow decorators on class constructors\n")
+	expectParseErrorTS(t, "class Foo { @dec public constructor() {} }", "<stdin>: error: TypeScript does not allow decorators on class constructors\n")
 }
 
 func TestTSTry(t *testing.T) {

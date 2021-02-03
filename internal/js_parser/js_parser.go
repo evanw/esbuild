@@ -4501,6 +4501,7 @@ func (p *parser) parseClass(name *js_ast.LocRef, classOpts parseClassOpts) js_as
 		}
 
 		// Parse decorators for this property
+		firstDecoratorLoc := p.lexer.Loc()
 		if opts.allowTSDecorators {
 			opts.tsDecorators = p.parseTypeScriptDecorators()
 		}
@@ -4508,6 +4509,13 @@ func (p *parser) parseClass(name *js_ast.LocRef, classOpts parseClassOpts) js_as
 		// This property may turn out to be a type in TypeScript, which should be ignored
 		if property, ok := p.parseProperty(js_ast.PropertyNormal, opts, nil); ok {
 			properties = append(properties, property)
+
+			// Forbid decorators on class constructors
+			if len(opts.tsDecorators) > 0 {
+				if key, ok := property.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(key.Value, "constructor") {
+					p.log.AddError(&p.source, firstDecoratorLoc, "TypeScript does not allow decorators on class constructors")
+				}
+			}
 		}
 	}
 

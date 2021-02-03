@@ -311,7 +311,7 @@ TestTypeScriptDecorators
 ---------- /out.js ----------
 // all.ts
 var Foo = class {
-  constructor() {
+  constructor(arg0, arg1) {
     this.mDef = 1;
   }
   method(arg0, arg1) {
@@ -356,7 +356,11 @@ __decorate([
 ], Foo, "sMethod", 1);
 Foo = __decorate([
   x.y(),
-  new y.x()
+  new y.x(),
+  __param(0, x0),
+  __param(0, y0),
+  __param(1, x1),
+  __param(1, y1)
 ], Foo);
 var all_default = Foo;
 

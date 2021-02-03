@@ -1585,10 +1585,18 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		// Merge parameter decorators with method decorators
 		if p.options.ts.Parse && prop.IsMethod {
 			if fn, ok := prop.Value.Data.(*js_ast.EFunction); ok {
+				isConstructor := false
+				if key, ok := prop.Key.Data.(*js_ast.EString); ok {
+					isConstructor = js_lexer.UTF16EqualsString(key.Value, "constructor")
+				}
 				for i, arg := range fn.Fn.Args {
 					for _, decorator := range arg.TSDecorators {
 						// Generate a call to "__param()" for this parameter decorator
-						prop.TSDecorators = append(prop.TSDecorators,
+						var decorators *[]js_ast.Expr = &prop.TSDecorators
+						if isConstructor {
+							decorators = &class.TSDecorators
+						}
+						*decorators = append(*decorators,
 							p.callRuntime(decorator.Loc, "__param", []js_ast.Expr{
 								{Loc: decorator.Loc, Data: &js_ast.ENumber{Value: float64(i)}},
 								decorator,
