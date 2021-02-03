@@ -6,6 +6,10 @@
 
     This fix changes how esbuild interprets the `browser` field in `package.json`. It will now remap imports without a file extension to `browser` map entries without a file extension, which improves compatibility with Webpack. Specifically, a `package.json` file with `"browser": {"./file": "./something.js"}` will now match an import of `./file`. Previously the `package.json` file had to contain something like `"browser": {"./file.js": "./something.js"}` instead. Note that for compatibility with the rest of the ecosystem, a remapping of `./file` will counter-intuitively _not_ match an import of `./file.js` even though it works fine in the other direction.
 
+* Warning: npm v7 bug may prevent esbuild installation
+
+    This is a warning for people reading these release notes, not a code change. I have discovered a bug in npm v7 where your `package-lock.json` file can become corrupted such that no `postinstall` scripts are run. This bug affects all packages with `postinstall` scripts, not just esbuild, and happens when running npm v7 on a `package-lock.json` file from npm v6 or earlier. It seems like deleting and regenerating your `package-lock.json` file is a valid workaround that should get esbuild working again.
+
 ## 0.8.39
 
 * Fix the JavaScript watch mode API exiting early ([#730](https://github.com/evanw/esbuild/issues/730))
