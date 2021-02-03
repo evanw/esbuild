@@ -8,6 +8,8 @@
   },
   "main": "lib/main.js",
   "types": "lib/main.d.ts",
-  "bin": "bin/esbuild",
+  "bin": {
+    "esbuild": "bin/esbuild"
+  },
   "license": "MIT"
 }
