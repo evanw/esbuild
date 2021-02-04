@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.40
 
 * Fix TypeScript parameter decorators on class constructors ([#734](https://github.com/evanw/esbuild/issues/734))
 
