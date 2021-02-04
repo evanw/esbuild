@@ -12,7 +12,7 @@ func main() {
 
 func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 	platform := api.PlatformNode
-	var external []string
+	var external = []string{"electron"}
 
 	shouldReplaceRequire := func(mdl string) bool {
 		if args.Deferred == nil {
@@ -127,10 +127,12 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		Write: args.Write,
 
 		Snapshot: &api.SnapshotOptions{
-			CreateSnapshot:       true,
-			ShouldReplaceRequire: snap_api.CreateShouldReplaceRequire(platform, external, shouldReplaceRequire, shouldRewriteModule),
-			ShouldRewriteModule:  shouldRewriteModule,
-			AbsBasedir:           args.Basedir,
+			CreateSnapshot:          true,
+			ShouldReplaceRequire:    snap_api.CreateShouldReplaceRequire(platform, external, shouldReplaceRequire, shouldRewriteModule),
+			ShouldRewriteModule:     shouldRewriteModule,
+			AbsBasedir:              args.Basedir,
+			VerifyPrint:             true,
+			PanicOnVerificationFail: false,
 		},
 
 		//
@@ -165,7 +167,6 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 
 		// https://esbuild.github.io/api/#error-limit
 		ErrorLimit: 0,
-
 
 		// additional package.json fields to try when resolving a package
 		// https://esbuild.github.io/api/#main-fields
