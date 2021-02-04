@@ -240,6 +240,31 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "\"use strict\"; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n")
 	expectParseError(t, "function f() { 'use strict'; with (x) y }", "<stdin>: error: With statements cannot be used in strict mode\n")
 	expectParseError(t, "function f() { 'use strict'; function y() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n")
+
+	importKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
+		"<stdin>: note: This file is implicitly in strict mode because of the \"import\" keyword\n"
+	exportKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
+		"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword\n"
+	expectPrinted(t, "import(x); with (y) z", "import(x);\nwith (y)\n  z;\n")
+	expectPrinted(t, "import('x'); with (y) z", "import(\"x\");\nwith (y)\n  z;\n")
+	expectPrinted(t, "with (y) z; import(x)", "with (y)\n  z;\nimport(x);\n")
+	expectPrinted(t, "with (y) z; import('x')", "with (y)\n  z;\nimport(\"x\");\n")
+	expectPrinted(t, "(import(x)); with (y) z", "import(x);\nwith (y)\n  z;\n")
+	expectPrinted(t, "(import('x')); with (y) z", "import(\"x\");\nwith (y)\n  z;\n")
+	expectPrinted(t, "with (y) z; (import(x))", "with (y)\n  z;\nimport(x);\n")
+	expectPrinted(t, "with (y) z; (import('x'))", "with (y)\n  z;\nimport(\"x\");\n")
+	expectParseError(t, "import.meta; with (y) z", importKeyword)
+	expectParseError(t, "with (y) z; import.meta", importKeyword)
+	expectParseError(t, "(import.meta); with (y) z", importKeyword)
+	expectParseError(t, "with (y) z; (import.meta)", importKeyword)
+	expectParseError(t, "import 'x'; with (y) z", importKeyword)
+	expectParseError(t, "import * as x from 'x'; with (y) z", importKeyword)
+	expectParseError(t, "import x from 'x'; with (y) z", importKeyword)
+	expectParseError(t, "import {x} from 'x'; with (y) z", importKeyword)
+	expectParseError(t, "export {}; with (y) z", exportKeyword)
+	expectParseError(t, "export let x; with (y) z", exportKeyword)
+	expectParseError(t, "export function x() {} with (y) z", exportKeyword)
+	expectParseError(t, "export class x {} with (y) z", exportKeyword)
 }
 
 func TestExponentiation(t *testing.T) {

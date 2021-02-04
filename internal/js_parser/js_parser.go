@@ -2898,7 +2898,6 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		return js_ast.Expr{}
 
 	case js_lexer.TImport:
-		p.es6ImportKeyword = p.lexer.Range()
 		p.lexer.Next()
 		return p.parseImportExpr(loc, level)
 
@@ -2954,9 +2953,11 @@ func (p *parser) willNeedBindingPattern() bool {
 	}
 }
 
+// Note: The caller has already parsed the "import" keyword
 func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 	// Parse an "import.meta" expression
 	if p.lexer.Token == js_lexer.TDot {
+		p.es6ImportKeyword = js_lexer.RangeOfIdentifier(p.source, loc)
 		p.lexer.Next()
 		if p.lexer.IsContextualKeyword("meta") {
 			r := p.lexer.Range()
@@ -5415,6 +5416,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SFor{Init: init, Test: test, Update: update, Body: body}}
 
 	case js_lexer.TImport:
+		previousImportKeyword := p.es6ImportKeyword
 		p.es6ImportKeyword = p.lexer.Range()
 		p.lexer.Next()
 		stmt := js_ast.SImport{}
@@ -5430,6 +5432,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		case js_lexer.TOpenParen, js_lexer.TDot:
 			// "import('path')"
 			// "import.meta"
+			p.es6ImportKeyword = previousImportKeyword // This wasn't an import statement after all
 			expr := p.parseSuffix(p.parseImportExpr(loc, js_ast.LLowest), js_ast.LLowest, nil, 0)
 			p.lexer.ExpectOrInsertSemicolon()
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}}

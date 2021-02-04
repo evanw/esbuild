@@ -2179,6 +2179,18 @@ var require_dummy = __commonJS((exports) => {
   var dummy = 123;
 });
 
+// es6-import-dynamic.js
+var require_es6_import_dynamic = __commonJS((exports) => {
+  Promise.resolve().then(() => __toModule(require_dummy()));
+  console.log(exports);
+});
+
+// es6-expr-import-dynamic.js
+var require_es6_expr_import_dynamic = __commonJS((exports) => {
+  Promise.resolve().then(() => __toModule(require_dummy()));
+  console.log(exports);
+});
+
 // es6-export-star.js
 var require_es6_export_star = __commonJS((exports) => {
   __exportStar(exports, __toModule(require_dummy()));
@@ -2287,16 +2299,14 @@ console.log(void 0);
 var x = require_dummy();
 console.log(void 0);
 
-// es6-import-dynamic.js
-Promise.resolve().then(() => __toModule(require_dummy()));
-console.log(void 0);
+// entry.js
+var import_es6_import_dynamic = __toModule(require_es6_import_dynamic());
 
 // es6-import-meta.js
 console.log(void 0);
 
-// es6-expr-import-dynamic.js
-Promise.resolve().then(() => __toModule(require_dummy()));
-console.log(void 0);
+// entry.js
+var import_es6_expr_import_dynamic = __toModule(require_es6_expr_import_dynamic());
 
 // es6-expr-import-meta.js
 console.log(void 0);
