@@ -2139,15 +2139,7 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 				item = spread.Value
 				isSpread = true
 			}
-			binding, initializer, log := p.convertExprToBindingAndInitializer(item, invalidLog)
-			if initializer != nil {
-				equalsRange := p.source.RangeOfOperatorBefore(initializer.Loc, "=")
-				if isSpread {
-					p.log.AddRangeError(&p.source, equalsRange, "A rest argument cannot have a default initializer")
-				} else {
-					p.markSyntaxFeature(compat.DefaultArgument, equalsRange)
-				}
-			}
+			binding, initializer, log := p.convertExprToBindingAndInitializer(item, invalidLog, isSpread)
 			invalidLog = log
 			args = append(args, js_ast.Arg{Binding: binding, Default: initializer})
 		}
@@ -2215,13 +2207,21 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 	return js_ast.Expr{}
 }
 
-func (p *parser) convertExprToBindingAndInitializer(expr js_ast.Expr, invalidLog []logger.Loc) (js_ast.Binding, *js_ast.Expr, []logger.Loc) {
+func (p *parser) convertExprToBindingAndInitializer(expr js_ast.Expr, invalidLog []logger.Loc, isSpread bool) (js_ast.Binding, *js_ast.Expr, []logger.Loc) {
 	var initializer *js_ast.Expr
 	if assign, ok := expr.Data.(*js_ast.EBinary); ok && assign.Op == js_ast.BinOpAssign {
 		initializer = &assign.Right
 		expr = assign.Left
 	}
 	binding, invalidLog := p.convertExprToBinding(expr, invalidLog)
+	if initializer != nil {
+		equalsRange := p.source.RangeOfOperatorBefore(initializer.Loc, "=")
+		if isSpread {
+			p.log.AddRangeError(&p.source, equalsRange, "A rest argument cannot have a default initializer")
+		} else {
+			p.markSyntaxFeature(compat.DefaultArgument, equalsRange)
+		}
+	}
 	return binding, initializer, invalidLog
 }
 
@@ -2245,7 +2245,7 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 					p.markSyntaxFeature(compat.NestedRestBinding, p.source.RangeOfOperatorAfter(item.Loc, "["))
 				}
 			}
-			binding, initializer, log := p.convertExprToBindingAndInitializer(item, invalidLog)
+			binding, initializer, log := p.convertExprToBindingAndInitializer(item, invalidLog, isSpread)
 			invalidLog = log
 			items = append(items, js_ast.ArrayBinding{Binding: binding, DefaultValue: initializer})
 		}
@@ -2263,7 +2263,7 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 				invalidLog = append(invalidLog, item.Key.Loc)
 				continue
 			}
-			binding, initializer, log := p.convertExprToBindingAndInitializer(*item.Value, invalidLog)
+			binding, initializer, log := p.convertExprToBindingAndInitializer(*item.Value, invalidLog, false)
 			invalidLog = log
 			if initializer == nil {
 				initializer = item.Initializer

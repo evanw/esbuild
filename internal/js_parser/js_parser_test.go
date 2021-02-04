@@ -1305,6 +1305,7 @@ func TestArrow(t *testing.T) {
 	expectPrinted(t, "1 < (() => {})", "1 < (() => {\n});\n")
 	expectParseError(t, "1 < () => {}", "<stdin>: error: Unexpected \")\"\n")
 	expectParseError(t, "(...x = y) => {}", "<stdin>: error: A rest argument cannot have a default initializer\n")
+	expectParseError(t, "([...x = y]) => {}", "<stdin>: error: A rest argument cannot have a default initializer\n")
 
 	expectParseError(t, "() => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
 	expectParseError(t, "x => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
