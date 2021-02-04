@@ -228,10 +228,10 @@ func main() {
 				exitCode = cli.Run(osArgs)
 			}
 		} else {
-			// Don't disable the GC if this is a long-running server process
+			// Don't disable the GC if this is a long-running process
 			isServe := false
 			for _, arg := range osArgs {
-				if arg == "--serve" || strings.HasPrefix(arg, "--serve=") {
+				if arg == "--serve" || arg == "--watch" || strings.HasPrefix(arg, "--serve=") {
 					isServe = true
 					break
 				}

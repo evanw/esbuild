@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Fix memory leak with watch mode when using the CLI ([#750](https://github.com/evanw/esbuild/issues/750))
+
+    This release fixes a memory leak when using `--watch` from the CLI (command-line interface). When esbuild was in this state, every incremental build resulted in more memory being consumed. This problem did not affect users of the JS API or Go API, only users of the CLI API.
+
+    The problem was that the GC (garbage collector) was disabled. Oops. This is done by default for speed when you use esbuild via the CLI, which makes sense for most CLI use cases because the process is usually short-lived and doesn't need to waste time cleaning up memory. But it does not make sense for flags that cause esbuild to be a long-running process.
+
+    Previously the only exception to this rule was the `--serve` flag. When I added watch mode, I forgot to enable GC for the `--watch` flag too. With this release, the GC is enabled for both the `--serve` and the `--watch` flags so esbuild should no longer leak memory in watch mode.
+
 * Special-case certain syntax with `--format=esm` ([#749](https://github.com/evanw/esbuild/issues/749))
 
     You can now no longer use the following syntax features with the `esm` output format:
