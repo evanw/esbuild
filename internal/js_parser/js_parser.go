@@ -66,6 +66,9 @@ type parser struct {
 	nonBMPIdentifiers        map[string]bool
 	lackOfDefineWarnings     map[string]bool
 
+	// For strict mode handling
+	hoistedRefForSloppyModeBlockFn map[js_ast.Ref]js_ast.Ref
+
 	// For lowering private methods
 	weakMapRef     js_ast.Ref
 	weakSetRef     js_ast.Ref
@@ -1117,12 +1120,55 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 }
 
 func (p *parser) hoistSymbols(scope *js_ast.Scope) {
-nextMember:
-	for _, member := range scope.Members {
-		symbol := &p.symbols[member.Ref.InnerIndex]
+	if !scope.Kind.StopsHoisting() {
+	nextMember:
+		for _, member := range scope.Members {
+			symbol := &p.symbols[member.Ref.InnerIndex]
 
-		// Check for collisions that would prevent to hoisting "var" symbols up to the enclosing function scope
-		if symbol.Kind.IsHoisted() && !scope.Kind.StopsHoisting() {
+			if !symbol.Kind.IsHoisted() {
+				continue
+			}
+
+			// Implement "Block-Level Function Declarations Web Legacy Compatibility
+			// Semantics" from Annex B of the ECMAScript standard version 6+
+			isSloppyModeBlockLevelFnStmt := false
+			originalMemberRef := member.Ref
+			if symbol.Kind == js_ast.SymbolHoistedFunction {
+				// Block-level function declarations behave like "let" in strict mode
+				if scope.StrictMode != js_ast.SloppyMode {
+					continue
+				}
+
+				// In sloppy mode, block level functions behave like "let" except with
+				// an assignment to "var", sort of. This code:
+				//
+				//   if (x) {
+				//     f();
+				//     function f() {}
+				//   }
+				//   f();
+				//
+				// behaves like this code:
+				//
+				//   if (x) {
+				//     let f2 = function() {}
+				//     var f = f2;
+				//     f2();
+				//   }
+				//   f();
+				//
+				hoistedRef := p.newSymbol(js_ast.SymbolHoisted, symbol.OriginalName)
+				scope.Generated = append(scope.Generated, hoistedRef)
+				if p.hoistedRefForSloppyModeBlockFn == nil {
+					p.hoistedRefForSloppyModeBlockFn = make(map[js_ast.Ref]js_ast.Ref)
+				}
+				p.hoistedRefForSloppyModeBlockFn[member.Ref] = hoistedRef
+				symbol = &p.symbols[hoistedRef.InnerIndex]
+				member.Ref = hoistedRef
+				isSloppyModeBlockLevelFnStmt = true
+			}
+
+			// Check for collisions that would prevent to hoisting "var" symbols up to the enclosing function scope
 			s := scope.Parent
 			for {
 				// Variable declarations hoisted past a "with" statement may actually end
@@ -1157,10 +1203,15 @@ nextMember:
 						// An identifier binding from a catch statement and a function
 						// declaration can both silently shadow another hoisted symbol
 						if symbol.Kind != js_ast.SymbolCatchIdentifier && symbol.Kind != js_ast.SymbolHoistedFunction {
-							r := js_lexer.RangeOfIdentifier(p.source, member.Loc)
-							p.log.AddRangeErrorWithNotes(&p.source, r, fmt.Sprintf("%q has already been declared", symbol.OriginalName),
-								[]logger.MsgData{logger.RangeData(&p.source, js_lexer.RangeOfIdentifier(p.source, existingMember.Loc),
-									fmt.Sprintf("%q was originally declared here", symbol.OriginalName))})
+							if !isSloppyModeBlockLevelFnStmt {
+								r := js_lexer.RangeOfIdentifier(p.source, member.Loc)
+								p.log.AddRangeErrorWithNotes(&p.source, r, fmt.Sprintf("%q has already been declared", symbol.OriginalName),
+									[]logger.MsgData{logger.RangeData(&p.source, js_lexer.RangeOfIdentifier(p.source, existingMember.Loc),
+										fmt.Sprintf("%q was originally declared here", symbol.OriginalName))})
+							} else if s == scope.Parent {
+								// Never mind about this, turns out it's not needed after all
+								delete(p.hoistedRefForSloppyModeBlockFn, originalMemberRef)
+							}
 						}
 						continue nextMember
 					}
@@ -6154,17 +6205,71 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 
 	// Visit all statements first
 	visited := make([]js_ast.Stmt, 0, len(stmts))
+	var before []js_ast.Stmt
 	var after []js_ast.Stmt
 	for _, stmt := range stmts {
-		if _, ok := stmt.Data.(*js_ast.SExportEquals); ok {
+		switch s := stmt.Data.(type) {
+		case *js_ast.SExportEquals:
 			// TypeScript "export = value;" becomes "module.exports = value;". This
 			// must happen at the end after everything is parsed because TypeScript
 			// moves this statement to the end when it generates code.
 			after = p.visitAndAppendStmt(after, stmt)
-		} else {
-			visited = p.visitAndAppendStmt(visited, stmt)
+			continue
+
+		case *js_ast.SFunction:
+			// Manually hoist block-level function declarations to preserve semantics.
+			// This is only done for function declarations that are not generators
+			// or async functions, since this is a backwards-compatibility hack from
+			// Annex B of the JavaScript standard.
+			if !p.currentScope.Kind.StopsHoisting() && p.symbols[int(s.Fn.Name.Ref.InnerIndex)].Kind == js_ast.SymbolHoistedFunction {
+				before = p.visitAndAppendStmt(before, stmt)
+				continue
+			}
 		}
+		visited = p.visitAndAppendStmt(visited, stmt)
 	}
+
+	// Transform block-level function declarations into variable declarations
+	if len(before) > 0 {
+		var letDecls []js_ast.Decl
+		var varDecls []js_ast.Decl
+		fnStmts := make(map[js_ast.Ref]int)
+		for _, stmt := range before {
+			s, ok := stmt.Data.(*js_ast.SFunction)
+			if !ok {
+				panic("Internal error")
+			}
+			index, ok := fnStmts[s.Fn.Name.Ref]
+			if !ok {
+				index = len(letDecls)
+				fnStmts[s.Fn.Name.Ref] = index
+				letDecls = append(letDecls, js_ast.Decl{Binding: js_ast.Binding{
+					Loc: s.Fn.Name.Loc, Data: &js_ast.BIdentifier{Ref: s.Fn.Name.Ref}}})
+
+				// Also write the function to the hoisted sibling symbol if applicable
+				if hoistedRef, ok := p.hoistedRefForSloppyModeBlockFn[s.Fn.Name.Ref]; ok {
+					p.recordUsage(s.Fn.Name.Ref)
+					varDecls = append(varDecls, js_ast.Decl{
+						Binding: js_ast.Binding{Loc: s.Fn.Name.Loc, Data: &js_ast.BIdentifier{Ref: hoistedRef}},
+						Value:   &js_ast.Expr{Loc: s.Fn.Name.Loc, Data: &js_ast.EIdentifier{Ref: s.Fn.Name.Ref}},
+					})
+				}
+			}
+
+			// The last function statement for a given symbol wins
+			s.Fn.Name = nil
+			letDecls[index].Value = &js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EFunction{Fn: s.Fn}}
+		}
+
+		// Reuse memory from "before"
+		before = append(before[:0], js_ast.Stmt{Loc: letDecls[0].Value.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalLet, Decls: letDecls}})
+		if len(varDecls) > 0 {
+			before = append(before, js_ast.Stmt{Loc: varDecls[0].Value.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: varDecls}})
+		}
+		visited = append(before, visited...)
+	}
+
+	// Move TypeScript "export =" statements to the end
 	visited = append(visited, after...)
 
 	// Restore the current control-flow liveness if it was changed inside the
@@ -6943,16 +7048,18 @@ func (p *parser) visitSingleStmt(stmt js_ast.Stmt, kind stmtsKind) js_ast.Stmt {
 	return stmtsToSingleStmt(stmt.Loc, stmts)
 }
 
+// One statement could potentially expand to several statements
 func stmtsToSingleStmt(loc logger.Loc, stmts []js_ast.Stmt) js_ast.Stmt {
-	// This statement could potentially expand to several statements
-	switch len(stmts) {
-	case 0:
+	if len(stmts) == 0 {
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SEmpty{}}
-	case 1:
-		return stmts[0]
-	default:
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.SBlock{Stmts: stmts}}
 	}
+	if len(stmts) == 1 {
+		// "let" and "const" must be put in a block when in a single-statement context
+		if s, ok := stmts[0].Data.(*js_ast.SLocal); !ok || s.Kind == js_ast.LocalVar {
+			return stmts[0]
+		}
+	}
+	return js_ast.Stmt{Loc: loc, Data: &js_ast.SBlock{Stmts: stmts}}
 }
 
 func (p *parser) visitForLoopInit(stmt js_ast.Stmt, isInOrOf bool) js_ast.Stmt {
@@ -11916,7 +12023,8 @@ func (p *parser) prepareForVisitPass() {
 	p.pushScopeForVisitPass(js_ast.ScopeEntry, logger.Loc{Start: locModuleScope})
 	p.moduleScope = p.currentScope
 
-	// ECMAScript modules are always interpreted as strict mode
+	// ECMAScript modules are always interpreted as strict mode. This has to be
+	// done before "hoistSymbols" because strict mode can alter hoisting (!).
 	if p.es6ImportKeyword.Len > 0 {
 		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeImport)
 	} else if p.es6ExportKeyword.Len > 0 {

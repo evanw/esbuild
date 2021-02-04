@@ -17,7 +17,7 @@
     * The `with` statement: `with (x) {}`
     * Delete of a bare identifier: `delete x`
 
-    In addition, the following syntax features are transformed when using the `esm` output format:
+    In addition, the following syntax feature is transformed when using the `esm` output format:
 
     * For-in variable initializers: `for (var x = y in {}) {}` → `x = y; for (var x in {}) {}`
 
@@ -30,6 +30,30 @@
 * Fix a minifier bug with `with` statements
 
     The minifier removes references to local variables if they are unused. However, that's not correct to do inside a `with` statement scope because what appears to be an identifier may actually be a property access, and property accesses could have arbitrary side effects if they resolve to a getter or setter method. Now all identifier expressions inside `with` statements are preserved when minifying.
+
+* Transform block-level function declarations
+
+    Block-level function declarations are now transformed into equivalent syntax that avoids block-level declarations. Strict mode and non-strict mode have subtly incompatible behavior for how block-level function declarations are interpreted. Doing this transformation prevents problems with code that was originally strict mode that is run as non-strict mode and vice versa.
+
+    Now esbuild uses the presence or absence of a strict mode scope to determine how to interpret the block-level function declaration and then converts it to the equivalent unambiguous syntax such that it works the same regardless of whether or not the current scope is in strict mode:
+
+    ```js
+    // This original code:
+    while (!y) {
+      function y() {}
+    }
+
+    // is transformed into this code in strict mode:
+    while (!y) {
+      let y2 = function() {};
+    }
+
+    // and into this code when not in strict mode:
+    while (!y) {
+      let y2 = function() {};
+      var y = y2;
+    }
+    ```
 
 ## 0.8.40
 

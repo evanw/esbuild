@@ -1860,6 +1860,160 @@
     }, { async: true }),
   )
 
+  // Function hoisting tests
+  tests.push(
+    test(['in.js', '--outfile=node.js'], {
+      'in.js': `
+        if (1) {
+          function f() {
+            return f
+          }
+          f = null
+        }
+        if (typeof f !== 'function' || f() !== null) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'], {
+      'in.js': `
+        'use strict'
+        if (1) {
+          function f() {
+            return f
+          }
+          f = null
+        }
+        if (typeof f !== 'undefined') throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'], {
+      'in.js': `
+        export {}
+        if (1) {
+          function f() {
+            return f
+          }
+          f = null
+        }
+        if (typeof f !== 'undefined') throw 'fail'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        if (1) {
+          function f() {
+            return f
+          }
+          f = null
+        }
+        if (typeof f !== 'function' || f() !== null) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        var f
+        if (1) {
+          function f() {
+            return f
+          }
+          f = null
+        }
+        if (typeof f !== 'function' || f() !== null) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        'use strict'
+        if (1) {
+          function f() {
+            return f
+          }
+        }
+        if (typeof f !== 'undefined') throw 'fail'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        export {}
+        if (1) {
+          function f() {
+            return f
+          }
+        }
+        if (typeof f !== 'undefined') throw 'fail'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        var f = 1
+        if (1) {
+          function f() {
+            return f
+          }
+          f = null
+        }
+        if (typeof f !== 'function' || f() !== null) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        'use strict'
+        var f = 1
+        if (1) {
+          function f() {
+            return f
+          }
+        }
+        if (f !== 1) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        export {}
+        var f = 1
+        if (1) {
+          function f() {
+            return f
+          }
+        }
+        if (f !== 1) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        import {f, g} from './other'
+        if (f !== void 0 || g !== 'g') throw 'fail'
+      `,
+      'other.js': `
+        'use strict'
+        var f
+        if (1) {
+          function f() {
+            return f
+          }
+        }
+        exports.f = f
+        exports.g = 'g'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        let f = 1
+        // This should not be turned into "if (1) let f" because that's a syntax error
+        if (1)
+          function f() {
+            return f
+          }
+        if (f !== 1) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        x: function f() { return 1 }
+        if (f() !== 1) throw 'fail'
+      `,
+    }),
+  )
+
   // Object rest pattern tests
   tests.push(
     // Test the correctness of side effect order for the TypeScript namespace exports

@@ -31,24 +31,26 @@ function testThrow() {
 }
 function testBreak() {
   for (; ; ) {
-    y + z();
+    let z2 = function() {
+      KEEP_ME();
+    };
+    var z = z2;
+    y + z2();
     break;
     if (x)
       var y;
-    function z() {
-      KEEP_ME();
-    }
   }
 }
 function testContinue() {
   for (; ; ) {
-    y + z();
+    let z2 = function() {
+      KEEP_ME();
+    };
+    var z = z2;
+    y + z2();
     continue;
     if (x)
       var y;
-    function z() {
-      KEEP_ME();
-    }
   }
 }
 function testStmts() {
