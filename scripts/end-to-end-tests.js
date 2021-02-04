@@ -2042,6 +2042,50 @@
         if (observed !== expected) throw observed
       `,
     }),
+    test(['in.js', '--outfile=node.js', '--keep-names'], {
+      'in.js': `
+        var f
+        if (1) function f() { return f }
+        if (typeof f !== 'function' || f.name !== 'f') throw 'fail'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js', '--keep-names'], {
+      'in.js': `
+        var f
+        if (1) function f() { return f }
+        if (typeof f !== 'function' || f.name !== 'f') throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--keep-names'], {
+      'in.ts': `
+        if (1) {
+          var a = 'a'
+          for (var b = 'b'; 0; ) ;
+          for (var c in { c: 0 }) ;
+          for (var d of ['d']) ;
+          for (var e = 'e' in {}) ;
+          function f() {}
+        }
+        const observed = JSON.stringify({ a, b, c, d, e, f: f.name })
+        const expected = JSON.stringify({ a: 'a', b: 'b', c: 'c', d: 'd', e: 'e', f: 'f' })
+        if (observed !== expected) throw observed
+      `,
+    }),
+    test(['in.ts', '--bundle', '--outfile=node.js', '--keep-names'], {
+      'in.ts': `
+        if (1) {
+          var a = 'a'
+          for (var b = 'b'; 0; ) ;
+          for (var c in { c: 0 }) ;
+          for (var d of ['d']) ;
+          for (var e = 'e' in {}) ;
+          function f() {}
+        }
+        const observed = JSON.stringify({ a, b, c, d, e, f: f.name })
+        const expected = JSON.stringify({ a: 'a', b: 'b', c: 'c', d: 'd', e: 'e', f: 'f' })
+        if (observed !== expected) throw observed
+      `,
+    }),
   )
 
   // Object rest pattern tests

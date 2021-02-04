@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+* Fix crash with block-level function declaration and `--keep-names` ([#755](https://github.com/evanw/esbuild/issues/755))
+
+    This release fixes a crash with block-level function declarations and the `--keep-names` option. The crash affected code that looks like this:
+
+    ```js
+    if (true) function f() {}
+    assert.strictEqual(f.name, 'f')
+    ```
+
 ## 0.8.41
 
 * Fix memory leak with watch mode when using the CLI ([#750](https://github.com/evanw/esbuild/issues/750))

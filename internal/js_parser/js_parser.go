@@ -6237,11 +6237,14 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 	if len(before) > 0 {
 		var letDecls []js_ast.Decl
 		var varDecls []js_ast.Decl
+		var nonFnStmts []js_ast.Stmt
 		fnStmts := make(map[js_ast.Ref]int)
 		for _, stmt := range before {
 			s, ok := stmt.Data.(*js_ast.SFunction)
 			if !ok {
-				panic("Internal error")
+				// We may get non-function statements here in certain scenarious such as when "KeepNames" is enabled
+				nonFnStmts = append(nonFnStmts, stmt)
+				continue
 			}
 			index, ok := fnStmts[s.Fn.Name.Ref]
 			if !ok {
@@ -6274,6 +6277,7 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 		if len(varDecls) > 0 {
 			before = append(before, js_ast.Stmt{Loc: varDecls[0].Value.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: varDecls}})
 		}
+		before = append(before, nonFnStmts...)
 		visited = append(before, visited...)
 	}
 
