@@ -11,6 +11,10 @@
     assert.strictEqual(f.name, 'f')
     ```
 
+* Disallow reserved words in strict mode
+
+    This change improves esbuild's compliance with the JavaScript specification. It is now an error to use the identifiers `implements`, `interface`, `let`, `package`, `private`, `protected`, `public`, `static`, and `yield` in strict mode code.
+
 ## 0.8.41
 
 * Fix memory leak with watch mode when using the CLI ([#750](https://github.com/evanw/esbuild/issues/750))

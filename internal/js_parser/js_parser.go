@@ -1081,6 +1081,11 @@ func (p *parser) canMergeSymbols(existing js_ast.SymbolKind, new js_ast.SymbolKi
 func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name string) js_ast.Ref {
 	p.checkForNonBMPCodePoint(loc, name)
 
+	// Forbid declaring a symbol with a reserved word in strict mode
+	if p.isStrictMode() && js_lexer.StrictModeReservedWords[name] {
+		p.markStrictModeFeature(reservedWord, js_lexer.RangeOfIdentifier(p.source, loc), name)
+	}
+
 	// Allocate a new symbol
 	ref := p.newSymbol(kind, name)
 
@@ -4015,7 +4020,7 @@ func (p *parser) forbidInitializers(decls []js_ast.Decl, loopType string, isVar 
 			if _, ok := decls[0].Binding.Data.(*js_ast.BIdentifier); ok {
 				// This is a weird special case. Initializers are allowed in "var"
 				// statements with identifier bindings.
-				p.markStrictModeFeature(forInVarInit, p.source.RangeOfOperatorBefore(decls[0].Value.Loc, "="))
+				p.markStrictModeFeature(forInVarInit, p.source.RangeOfOperatorBefore(decls[0].Value.Loc, "="), "")
 				return
 			}
 		}
@@ -7120,11 +7125,11 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 		if p.isStrictMode() {
 			name := p.symbols[b.Ref.InnerIndex].OriginalName
 			if name == "eval" || name == "arguments" {
-				p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, binding.Loc))
+				p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, binding.Loc), name)
 			}
 			if opts.duplicateArgCheck != nil {
 				if opts.duplicateArgCheck[name] {
-					p.markStrictModeFeature(duplicateArgName, js_lexer.RangeOfIdentifier(p.source, binding.Loc))
+					p.markStrictModeFeature(duplicateArgName, js_lexer.RangeOfIdentifier(p.source, binding.Loc), name)
 				}
 				opts.duplicateArgCheck[name] = true
 			}
@@ -7937,7 +7942,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 	case *js_ast.SWith:
-		p.markStrictModeFeature(withStatement, js_lexer.RangeOfIdentifier(p.source, stmt.Loc))
+		p.markStrictModeFeature(withStatement, js_lexer.RangeOfIdentifier(p.source, stmt.Loc), "")
 		s.Value = p.visitExpr(s.Value)
 		p.pushScopeForVisitPass(js_ast.ScopeWith, s.BodyLoc)
 		s.Body = p.visitSingleStmt(s.Body, stmtsNormal)
@@ -9239,6 +9244,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	case *js_ast.EIdentifier:
 		isDeleteTarget := e == p.deleteTarget
 		name := p.loadNameFromRef(e.Ref)
+		if p.isStrictMode() && js_lexer.StrictModeReservedWords[name] {
+			p.markStrictModeFeature(reservedWord, js_lexer.RangeOfIdentifier(p.source, expr.Loc), name)
+		}
 		result := p.findSymbol(expr.Loc, name)
 		e.MustKeepDueToWithStmt = result.isInsideWithScope
 		e.Ref = result.ref
@@ -9964,7 +9972,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					superPropLoc = e2.Target.Loc
 				}
 			case *js_ast.EIdentifier:
-				p.markStrictModeFeature(deleteBareName, js_lexer.RangeOfIdentifier(p.source, e.Value.Loc))
+				p.markStrictModeFeature(deleteBareName, js_lexer.RangeOfIdentifier(p.source, e.Value.Loc), "")
 			}
 			if !p.options.suppressWarningsAboutWeirdCode && superPropLoc.Start != 0 {
 				r := js_lexer.RangeOfIdentifier(p.source, superPropLoc)

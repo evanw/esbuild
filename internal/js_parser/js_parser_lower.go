@@ -133,9 +133,10 @@ const (
 	forInVarInit
 	evalOrArguments
 	duplicateArgName
+	reservedWord
 )
 
-func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range) {
+func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range, detail string) {
 	var text string
 	canBeTransformed := false
 	switch feature {
@@ -147,9 +148,11 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		text = "Variable initializers inside for-in loops"
 		canBeTransformed = true
 	case evalOrArguments:
-		text = "Declarations with the name \"eval\" or \"arguments\""
+		text = fmt.Sprintf("Declarations with the name %q", detail)
 	case duplicateArgName:
-		text = "Duplicate argument names"
+		text = fmt.Sprintf("%q is a duplicate argument name which", detail)
+	case reservedWord:
+		text = fmt.Sprintf("%q is a reserved word and", detail)
 	default:
 		text = "This feature"
 	}

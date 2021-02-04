@@ -220,9 +220,9 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "function f(a, a) {}", "function f(a, a) {\n}\n")
 	expectPrinted(t, "(function(a, a) {})", "(function(a, a) {\n});\n")
 	expectPrinted(t, "(a, a) => {}", "(a, a) => {\n};\n")
-	expectParseError(t, "'use strict'; function f(a, a) {}", "<stdin>: error: Duplicate argument names cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; (function(a, a) {})", "<stdin>: error: Duplicate argument names cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; ((a, a) => {})", "<stdin>: error: Duplicate argument names cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; function f(a, a) {}", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; (function(a, a) {})", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; ((a, a) => {})", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n")
 
 	expectPrinted(t, "eval++", "eval++;\n")
 	expectPrinted(t, "eval = 0", "eval = 0;\n")
@@ -244,9 +244,18 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "function f(eval) {}", "function f(eval) {\n}\n")
 	expectPrinted(t, "function f(arguments) {}", "function f(arguments) {\n}\n")
 	expectParseError(t, "'use strict'; function f(eval) {}",
-		"<stdin>: error: Declarations with the name \"eval\" or \"arguments\" cannot be used in strict mode\n")
+		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n")
 	expectParseError(t, "'use strict'; function f(arguments) {}",
-		"<stdin>: error: Declarations with the name \"eval\" or \"arguments\" cannot be used in strict mode\n")
+		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n")
+
+	expectPrinted(t, "let protected", "let protected;\n")
+	expectPrinted(t, "let protecte\\u0064", "let protected;\n")
+	expectPrinted(t, "let x = protected", "let x = protected;\n")
+	expectPrinted(t, "let x = protecte\\u0064", "let x = protected;\n")
+	expectParseError(t, "'use strict'; let protected", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; let protecte\\u0064", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; let x = protected", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; let x = protecte\\u0064", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
 
 	expectPrinted(t, "function f() { 'use strict' } with (x) y", "function f() {\n  \"use strict\";\n}\nwith (x)\n  y;\n")
 	expectPrinted(t, "with (x) y; function f() { 'use strict' } ", "with (x)\n  y;\nfunction f() {\n  \"use strict\";\n}\n")
