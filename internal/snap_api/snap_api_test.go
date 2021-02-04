@@ -243,6 +243,38 @@ __commonJS["./entry.js"] = function(exports, module, __filename, __dirname, requ
 	)
 }
 
+func TestPreventResolutionOfNativeModules(t *testing.T) {
+	snapApiSuite.expectBuild(t, built{
+		shouldRewriteModule: func(filePath string) bool {
+			return false
+		},
+		files: map[string]string{
+			ProjectBaseDir + "/node_modules/fsevents/fsevents.js": `
+const Native = require('./fsevents.node');
+const events = Native.constants;
+`,
+			ProjectBaseDir + "/entry.js": `
+exports.fsevents = require('` + ProjectBaseDir + `/node_modules/fsevents/fsevents.js')
+`,
+		},
+		entryPoints: []string{ProjectBaseDir + "/entry.js"},
+	},
+		buildResult{
+			files: map[string]string{
+				`dev/node_modules/fsevents/fsevents.js`: `
+__commonJS["./node_modules/fsevents/fsevents.js"] = function(exports2, module2, __filename, __dirname, require) {
+  var Native = require("./node_modules/fsevents/fsevents.node");
+  var events = Native.constants;
+};`,
+				`dev/entry.js`: `
+__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+  exports.fsevents = require("./node_modules/fsevents/fsevents.js");
+};`,
+			},
+		},
+	)
+}
+
 func TestDebug(t *testing.T) {
 	snapApiSuite.debugBuild(t, built{
 		files: map[string]string{
