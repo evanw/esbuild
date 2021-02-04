@@ -1067,6 +1067,23 @@ function foo() {
 `, ReplaceAll)
 }
 
+func TestCallingWithDeferredAndIndexingIntoIt(t *testing.T) {
+	expectPrinted(t, `
+const os = require('os');
+const isOlderThanMountainLion = Number(os.release().split('.')[0]) < 12;
+`, `
+let os;
+function __get_os__() {
+  return os = os || (require("os"))
+}
+
+let isOlderThanMountainLion;
+function __get_isOlderThanMountainLion__() {
+  return isOlderThanMountainLion = isOlderThanMountainLion || (Number((__get_os__()).release().split(".")[0]) < 12)
+}`,
+ReplaceAll)
+}
+
 func TestLateDeclareLazyJS(t *testing.T) {
 	expectFixture(t, "late-declare.lazy.js", ReplaceAll)
 }

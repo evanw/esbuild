@@ -314,6 +314,8 @@ func (p *printer) expressionHasRequireOrGlobalReference(expr *js_ast.Expr) bool 
 		return p.expressionHasRequireOrGlobalReference(&x.Target)
 	case *js_ast.EBinary:
 		return p.expressionHasRequireOrGlobalReference(&x.Left) || p.expressionHasRequireOrGlobalReference(&x.Right)
+	case *js_ast.EIndex:
+		return p.expressionHasRequireOrGlobalReference(&x.Target)
 	}
 
 	return false
