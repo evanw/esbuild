@@ -9120,7 +9120,14 @@ func canBeDeleted(expr js_ast.Expr) bool {
 
 func (p *parser) isValidAssignmentTarget(expr js_ast.Expr) bool {
 	switch e := expr.Data.(type) {
-	case *js_ast.EIdentifier, *js_ast.EObject, *js_ast.EArray:
+	case *js_ast.EIdentifier:
+		if p.isStrictMode() {
+			if name := p.loadNameFromRef(e.Ref); name == "eval" || name == "arguments" {
+				return false
+			}
+		}
+		return true
+	case *js_ast.EObject, *js_ast.EArray:
 		// Don't worry about recursive checking for objects and arrays. This will
 		// already be handled naturally by passing down the assign target flag.
 		return true
