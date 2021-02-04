@@ -5742,7 +5742,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.lexer.ExpectOrInsertSemicolon()
 
 		// Parse a "use strict" directive
-		if str, ok := expr.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(str.Value, "use strict") {
+		if str, ok := expr.Data.(*js_ast.EString); ok && !str.PreferTemplate && js_lexer.UTF16EqualsString(str.Value, "use strict") {
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SDirective{Value: str.Value}}
 		}
 

@@ -3372,6 +3372,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		},
 	}
 	tree := repr.ast
+	tree.Directive = "" // This is handled elsewhere
 	tree.Parts = []js_ast.Part{{Stmts: stmts}}
 	*result = compileResultJS{
 		PrintResult: js_printer.Print(tree, c.symbols, r, printOptions),
