@@ -201,7 +201,19 @@ func (r *SnapRenamer) IsModule(ref js_ast.Ref) bool {
 // TODO(thlorenz): Include more from
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects
 var VALID_GLOBALS = []string{
-	"require", "Object",
+	"require",
+
+	// Fundamental Objects
+	"Object",
+	"Function",
+	"Boolean",
+	"Symbol",
+
+	// Numbers and Dates
+	"BigInt",
+	"Math",
+	"Number",
+	"Date",
 }
 
 func (r *SnapRenamer) GlobalNeedsDefer(ref js_ast.Ref) bool {

@@ -651,14 +651,14 @@ func TestMultiDeclarationsLastReplaced(t *testing.T) {
 		`
   var p = null,
     q = null,
-    u = Date.now()
+    u = Uint8Array()
 `, `
 var p = null;
 var q = null;
 
 let u;
 function __get_u__() {
-  return u = u || (Date.now())
+  return u = u || (Uint8Array())
 }
 `, ReplaceAll)
 }
