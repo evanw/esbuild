@@ -15,6 +15,10 @@
 
     The reason is because all JavaScript engines interpret code in the `esm` output format as strict mode and these syntax features are disallowed in strict mode. Note that this new strict mode handling behavior in esbuild is only dependent on the output format. It does not depend on the presence or absence of `"use strict"` directives.
 
+* Basic `"use strict"` tracking
+
+    The JavaScript parser now tracks `"use strict"` directives and propagates strict mode status through the code. In addition, files containing the `import` and/or `export` keywords are also considered to be in strict mode. Strict mode handling is complex and esbuild currently doesn't implement all strict mode checks. But the changes in this release are a starting point. It is now an error to use a `with` statement or a `delete` statement of a bare identifier within a strict mode scope.
+
 ## 0.8.40
 
 * Fix TypeScript parameter decorators on class constructors ([#734](https://github.com/evanw/esbuild/issues/734))

@@ -195,6 +195,14 @@ func TestComments(t *testing.T) {
 	expectPrinted(t, "if(x-->y)z", "if (x-- > y)\n  z;\n")
 }
 
+func TestStrictMode(t *testing.T) {
+	expectPrinted(t, "with (x) y", "with (x)\n  y;\n")
+	expectParseError(t, "'use strict'; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n")
+
+	expectPrinted(t, "delete x", "delete x;\n")
+	expectParseError(t, "'use strict'; delete x", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n")
+}
+
 func TestExponentiation(t *testing.T) {
 	expectPrinted(t, "--x ** 2", "--x ** 2;\n")
 	expectPrinted(t, "++x ** 2", "++x ** 2;\n")

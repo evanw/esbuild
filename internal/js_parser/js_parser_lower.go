@@ -117,6 +117,10 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	return
 }
 
+func (p *parser) isStrictMode() bool {
+	return p.currentScope.StrictMode != js_ast.SloppyMode
+}
+
 func (p *parser) isStrictModeOutputFormat() bool {
 	return p.options.outputFormat == config.FormatESModule
 }
@@ -129,16 +133,34 @@ const (
 )
 
 func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range) {
-	if p.isStrictModeOutputFormat() {
-		var text string
-		switch feature {
-		case withStatement:
-			text = "With statements"
-		case deleteBareName:
-			text = "Delete of a bare identifier"
-		default:
-			text = "This feature"
+	var text string
+	switch feature {
+	case withStatement:
+		text = "With statements"
+	case deleteBareName:
+		text = "Delete of a bare identifier"
+	default:
+		text = "This feature"
+	}
+	if p.isStrictMode() {
+		var keyword string
+		var notes []logger.MsgData
+		var keywordRange logger.Range
+		switch p.currentScope.StrictMode {
+		case js_ast.ImplicitStrictModeImport:
+			keyword = "import"
+			keywordRange = p.es6ImportKeyword
+		case js_ast.ImplicitStrictModeExport:
+			keyword = "export"
+			keywordRange = p.es6ExportKeyword
 		}
+		if len(keyword) != 0 {
+			notes = []logger.MsgData{logger.RangeData(&p.source, keywordRange,
+				fmt.Sprintf("This file is implicitly in strict mode because of the %q keyword", keyword))}
+		}
+		p.log.AddRangeErrorWithNotes(&p.source, r,
+			fmt.Sprintf("%s cannot be used in strict mode", text), notes)
+	} else if p.isStrictModeOutputFormat() {
 		p.log.AddRangeError(&p.source, r,
 			fmt.Sprintf("%s cannot be used with the \"esm\" output format due to strict mode", text))
 	}

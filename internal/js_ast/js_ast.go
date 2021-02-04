@@ -1476,6 +1476,26 @@ type Scope struct {
 	// inside that scope can be renamed. We conservatively assume that the
 	// evaluated code might reference anything that it has access to.
 	ContainsDirectEval bool
+
+	StrictMode StrictModeKind
+}
+
+type StrictModeKind uint8
+
+const (
+	SloppyMode StrictModeKind = iota
+	ExplicitStrictMode
+	ImplicitStrictModeImport
+	ImplicitStrictModeExport
+)
+
+func (s *Scope) RecursiveSetStrictMode(kind StrictModeKind) {
+	if s.StrictMode == SloppyMode {
+		s.StrictMode = kind
+		for _, child := range s.Children {
+			child.RecursiveSetStrictMode(kind)
+		}
+	}
 }
 
 type SymbolMap struct {

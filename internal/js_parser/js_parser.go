@@ -101,8 +101,8 @@ type parser struct {
 	exportStarImportRecords     []uint32
 
 	// These are for handling ES6 imports and exports
-	hasES6ImportSyntax      bool
-	hasES6ExportSyntax      bool
+	es6ImportKeyword        logger.Range
+	es6ExportKeyword        logger.Range
 	importItemsForNamespace map[js_ast.Ref]map[string]js_ast.LocRef
 	isImportItem            map[js_ast.Ref]bool
 	namedImports            map[js_ast.Ref]js_ast.NamedImport
@@ -856,6 +856,7 @@ func (p *parser) pushScopeForParsePass(kind js_ast.ScopeKind, loc logger.Loc) in
 	}
 	if parent != nil {
 		parent.Children = append(parent.Children, scope)
+		scope.StrictMode = parent.StrictMode
 	}
 	p.currentScope = scope
 
@@ -2506,13 +2507,10 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		if p.lexer.Token == js_lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
-		switch e := value.Data.(type) {
-		case *js_ast.EIdentifier:
-			p.markStrictModeFeature(deleteBareName, js_lexer.RangeOfIdentifier(p.source, value.Loc))
-		case *js_ast.EIndex:
-			if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok {
+		if index, ok := value.Data.(*js_ast.EIndex); ok {
+			if private, ok := index.Index.Data.(*js_ast.EPrivateIdentifier); ok {
 				name := p.loadNameFromRef(private.Ref)
-				r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
+				r := logger.Range{Loc: index.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Deleting the private name %q is forbidden", name))
 			}
 		}
@@ -2849,7 +2847,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		return js_ast.Expr{}
 
 	case js_lexer.TImport:
-		p.hasES6ImportSyntax = true
+		p.es6ImportKeyword = p.lexer.Range()
 		p.lexer.Next()
 		return p.parseImportExpr(loc, level)
 
@@ -4693,7 +4691,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 	case js_lexer.TExport:
 		if opts.isModuleScope {
-			p.hasES6ExportSyntax = true
+			p.es6ExportKeyword = p.lexer.Range()
 		} else if !opts.isNamespaceScope {
 			p.lexer.Unexpected()
 		}
@@ -5113,7 +5111,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SWhile{Test: test, Body: body}}
 
 	case js_lexer.TWith:
-		p.markStrictModeFeature(withStatement, p.lexer.Range())
 		p.lexer.Next()
 		p.lexer.Expect(js_lexer.TOpenParen)
 		test := p.parseExpr(js_ast.LLowest)
@@ -5366,7 +5363,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SFor{Init: init, Test: test, Update: update, Body: body}}
 
 	case js_lexer.TImport:
-		p.hasES6ImportSyntax = true
+		p.es6ImportKeyword = p.lexer.Range()
 		p.lexer.Next()
 		stmt := js_ast.SImport{}
 		wasOriginallyBareImport := false
@@ -5838,6 +5835,15 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 		if p.options.ts.Parse {
 			if _, ok := stmt.Data.(*js_ast.STypeScript); ok {
 				continue
+			}
+		}
+
+		// Track "use strict" directives
+		if directive, ok := stmt.Data.(*js_ast.SDirective); ok && js_lexer.UTF16EqualsString(directive.Value, "use strict") {
+			if p.currentScope.Kind.StopsHoisting() && len(stmts) == 0 {
+				p.currentScope.StrictMode = js_ast.ExplicitStrictMode
+			} else if !p.options.suppressWarningsAboutWeirdCode {
+				p.log.AddRangeWarning(&p.source, p.source.RangeOfString(stmt.Loc), "This \"use strict\" directive has no effect here")
 			}
 		}
 
@@ -7784,6 +7790,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 	case *js_ast.SWith:
+		p.markStrictModeFeature(withStatement, js_lexer.RangeOfIdentifier(p.source, stmt.Loc))
 		s.Value = p.visitExpr(s.Value)
 		p.pushScopeForVisitPass(js_ast.ScopeWith, s.BodyLoc)
 		s.Body = p.visitSingleStmt(s.Body, stmtsNormal)
@@ -8909,7 +8916,7 @@ func (p *parser) visitExpr(expr js_ast.Expr) js_ast.Expr {
 
 func (p *parser) valueForThis(loc logger.Loc) (js_ast.Expr, bool) {
 	if p.options.mode != config.ModePassThrough && !p.fnOnlyDataVisit.isThisNested {
-		if p.hasES6ImportSyntax || p.hasES6ExportSyntax {
+		if p.es6ImportKeyword.Len > 0 || p.es6ExportKeyword.Len > 0 {
 			// In an ES6 module, "this" is supposed to be undefined. Instead of
 			// doing this at runtime using "fn.call(undefined)", we do it at
 			// compile time using expression substitution here.
@@ -9794,6 +9801,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if _, ok := e2.Target.Data.(*js_ast.ESuper); ok {
 					superPropLoc = e2.Target.Loc
 				}
+			case *js_ast.EIdentifier:
+				p.markStrictModeFeature(deleteBareName, js_lexer.RangeOfIdentifier(p.source, e.Value.Loc))
 			}
 			if !p.options.suppressWarningsAboutWeirdCode && superPropLoc.Start != 0 {
 				r := js_lexer.RangeOfIdentifier(p.source, superPropLoc)
@@ -11885,6 +11894,14 @@ func (p *parser) validateJSX(span js_ast.Span, name string) []string {
 func (p *parser) prepareForVisitPass() {
 	p.pushScopeForVisitPass(js_ast.ScopeEntry, logger.Loc{Start: locModuleScope})
 	p.moduleScope = p.currentScope
+
+	// ECMAScript modules are always interpreted as strict mode
+	if p.es6ImportKeyword.Len > 0 {
+		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeImport)
+	} else if p.es6ExportKeyword.Len > 0 {
+		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeExport)
+	}
+
 	p.hoistSymbols(p.moduleScope)
 
 	if p.options.mode != config.ModePassThrough {
@@ -11939,7 +11956,7 @@ func (p *parser) declareCommonJSSymbol(kind js_ast.SymbolKind, name string) js_a
 	// Both the "exports" argument and "var exports" are hoisted variables, so
 	// they don't collide.
 	if ok && p.symbols[member.Ref.InnerIndex].Kind == js_ast.SymbolHoisted &&
-		kind == js_ast.SymbolHoisted && !p.hasES6ImportSyntax && !p.hasES6ExportSyntax {
+		kind == js_ast.SymbolHoisted && p.es6ImportKeyword.Len == 0 && p.es6ExportKeyword.Len == 0 {
 		return member.Ref
 	}
 
@@ -12180,7 +12197,7 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 		UsesModuleRef:     p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0,
 
 		// ES6 features
-		HasES6Imports: p.hasES6ImportSyntax,
-		HasES6Exports: p.hasES6ExportSyntax,
+		HasES6Imports: p.es6ImportKeyword.Len > 0,
+		HasES6Exports: p.es6ExportKeyword.Len > 0,
 	}
 }

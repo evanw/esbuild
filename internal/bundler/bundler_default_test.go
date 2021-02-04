@@ -3044,7 +3044,11 @@ func TestAssignToImport(t *testing.T) {
 bad1.js: error: Cannot assign to import "x"
 bad10.js: error: Cannot assign to import "y z"
 bad11.js: error: Cannot assign to import "x"
+bad11.js: error: Delete of a bare identifier cannot be used in strict mode
+bad11.js: note: This file is implicitly in strict mode because of the "import" keyword
 bad12.js: error: Cannot assign to import "x"
+bad12.js: error: Delete of a bare identifier cannot be used in strict mode
+bad12.js: note: This file is implicitly in strict mode because of the "import" keyword
 bad13.js: error: Cannot assign to import "y"
 bad14.js: error: Cannot assign to import "y"
 bad15.js: error: Cannot assign to property on import "x"
