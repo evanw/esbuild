@@ -2645,6 +2645,10 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "a + b + 'c' + 'd'", "a + b + \"\";\n")
 	expectPrintedMangle(t, "'a' + 'b' + c + d", "\"\" + c + d;\n")
 	expectPrintedMangle(t, "(a + '') + (b + '')", "a + \"\" + (b + \"\");\n")
+
+	// Make sure identifiers inside "with" statements are kept
+	expectPrintedMangle(t, "with (a) []", "with (a)\n  ;\n")
+	expectPrintedMangle(t, "var a; with (b) a", "var a;\nwith (b)\n  a;\n")
 }
 
 func TestMangleInlineLocals(t *testing.T) {

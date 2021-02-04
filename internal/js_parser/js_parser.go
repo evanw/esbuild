@@ -8490,9 +8490,10 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 	}
 
 	// Generate an identifier for the first part
-	ref := p.findSymbol(loc, parts[0]).ref
+	result := p.findSymbol(loc, parts[0])
 	value := p.handleIdentifier(loc, js_ast.AssignTargetNone, false, &js_ast.EIdentifier{
-		Ref: ref,
+		Ref:                   result.ref,
+		MustKeepDueToWithStmt: result.isInsideWithScope,
 
 		// Enable tree shaking
 		CanBeRemovedIfUnused: true,
@@ -9079,6 +9080,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		isDeleteTarget := e == p.deleteTarget
 		name := p.loadNameFromRef(e.Ref)
 		result := p.findSymbol(expr.Loc, name)
+		e.MustKeepDueToWithStmt = result.isInsideWithScope
 		e.Ref = result.ref
 
 		// Handle assigning to a constant
@@ -11333,6 +11335,10 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 		return p.classCanBeRemovedIfUnused(e.Class)
 
 	case *js_ast.EIdentifier:
+		if e.MustKeepDueToWithStmt {
+			return false
+		}
+
 		// Unbound identifiers cannot be removed because they can have side effects.
 		// One possible side effect is throwing a ReferenceError if they don't exist.
 		// Another one is a getter with side effects on the global object:
@@ -11457,6 +11463,9 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		}
 
 	case *js_ast.EIdentifier:
+		if e.MustKeepDueToWithStmt {
+			break
+		}
 		if e.CanBeRemovedIfUnused || p.symbols[e.Ref.InnerIndex].Kind != js_ast.SymbolUnbound {
 			return js_ast.Expr{}
 		}
