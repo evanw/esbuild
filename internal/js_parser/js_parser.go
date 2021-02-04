@@ -10300,6 +10300,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Check for and warn about duplicate keys in object literals
 		if len(e.Properties) > 1 && !p.options.suppressWarningsAboutWeirdCode {
 			type keyKind uint8
+			type existingKey struct {
+				loc  logger.Loc
+				kind keyKind
+			}
 			const (
 				keyMissing keyKind = iota
 				keyNormal
@@ -10307,27 +10311,29 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				keySet
 				keyGetAndSet
 			)
-			keys := make(map[string]keyKind)
+			keys := make(map[string]existingKey)
 			for _, property := range e.Properties {
 				if property.Kind != js_ast.PropertySpread {
 					if str, ok := property.Key.Data.(*js_ast.EString); ok {
 						key := js_lexer.UTF16ToString(str.Value)
-						prevKind := keys[key]
-						nextKind := keyNormal
+						prevKey := keys[key]
+						nextKey := existingKey{kind: keyNormal, loc: property.Key.Loc}
 						if property.Kind == js_ast.PropertyGet {
-							nextKind = keyGet
+							nextKey.kind = keyGet
 						} else if property.Kind == js_ast.PropertySet {
-							nextKind = keySet
+							nextKey.kind = keySet
 						}
-						if prevKind != keyMissing && key != "__proto__" {
-							if (prevKind == keyGet && nextKind == keySet) || (prevKind == keySet && nextKind == keyGet) {
-								nextKind = keyGetAndSet
+						if prevKey.kind != keyMissing && key != "__proto__" {
+							if (prevKey.kind == keyGet && nextKey.kind == keySet) || (prevKey.kind == keySet && nextKey.kind == keyGet) {
+								nextKey.kind = keyGetAndSet
 							} else {
 								r := js_lexer.RangeOfIdentifier(p.source, property.Key.Loc)
-								p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Duplicate key %q in object literal", key))
+								p.log.AddRangeWarningWithNotes(&p.source, r, fmt.Sprintf("Duplicate key %q in object literal", key),
+									[]logger.MsgData{logger.RangeData(&p.source, js_lexer.RangeOfIdentifier(p.source, prevKey.loc),
+										fmt.Sprintf("The original %q is here", key))})
 							}
 						}
-						keys[key] = nextKind
+						keys[key] = nextKey
 					}
 				}
 			}

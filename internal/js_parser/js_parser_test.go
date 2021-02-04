@@ -822,11 +822,13 @@ func TestObject(t *testing.T) {
 	expectParseError(t, "({get [foo](x) {}})", "<stdin>: error: Getter property must have zero arguments\n")
 	expectParseError(t, "({set [foo](x, y) {}})", "<stdin>: error: Setter property must have exactly one argument\n")
 
-	expectParseError(t, "({x, x})", "<stdin>: warning: Duplicate key \"x\" in object literal\n")
-	expectParseError(t, "({x() {}, x() {}})", "<stdin>: warning: Duplicate key \"x\" in object literal\n")
-	expectParseError(t, "({get x() {}, get x() {}})", "<stdin>: warning: Duplicate key \"x\" in object literal\n")
-	expectParseError(t, "({get x() {}, set x(y) {}, get x() {}})", "<stdin>: warning: Duplicate key \"x\" in object literal\n")
-	expectParseError(t, "({get x() {}, set x(y) {}, set x(y) {}})", "<stdin>: warning: Duplicate key \"x\" in object literal\n")
+	duplicateWarning := "<stdin>: warning: Duplicate key \"x\" in object literal\n" +
+		"<stdin>: note: The original \"x\" is here\n"
+	expectParseError(t, "({x, x})", duplicateWarning)
+	expectParseError(t, "({x() {}, x() {}})", duplicateWarning)
+	expectParseError(t, "({get x() {}, get x() {}})", duplicateWarning)
+	expectParseError(t, "({get x() {}, set x(y) {}, get x() {}})", duplicateWarning)
+	expectParseError(t, "({get x() {}, set x(y) {}, set x(y) {}})", duplicateWarning)
 	expectParseError(t, "({get x() {}, set x(y) {}})", "")
 	expectParseError(t, "({set x(y) {}, get x() {}})", "")
 }
