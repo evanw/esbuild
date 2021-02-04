@@ -6266,7 +6266,11 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 		}
 
 		// Reuse memory from "before"
-		before = append(before[:0], js_ast.Stmt{Loc: letDecls[0].Value.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalLet, Decls: letDecls}})
+		kind := js_ast.LocalLet
+		if p.options.unsupportedJSFeatures.Has(compat.Let) {
+			kind = js_ast.LocalVar
+		}
+		before = append(before[:0], js_ast.Stmt{Loc: letDecls[0].Value.Loc, Data: &js_ast.SLocal{Kind: kind, Decls: letDecls}})
 		if len(varDecls) > 0 {
 			before = append(before, js_ast.Stmt{Loc: varDecls[0].Value.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: varDecls}})
 		}

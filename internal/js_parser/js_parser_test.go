@@ -3436,6 +3436,10 @@ func TestPrivateIdentifiers(t *testing.T) {
 }
 
 func TestES5(t *testing.T) {
+	// Do not generate "let" when emulating block-level function declarations and targeting ES5
+	expectPrintedTarget(t, 2015, "if (1) function f() {}", "if (1) {\n  let f = function() {\n  };\n  var f = f;\n}\n")
+	expectPrintedTarget(t, 5, "if (1) function f() {}", "if (1) {\n  var f = function() {\n  };\n  var f = f;\n}\n")
+
 	expectParseErrorTarget(t, 5, "function foo(x = 0) {}",
 		"<stdin>: error: Transforming default arguments to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "(function(x = 0) {})",
