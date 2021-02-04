@@ -132,6 +132,7 @@ const (
 	deleteBareName
 	forInVarInit
 	evalOrArguments
+	duplicateArgName
 )
 
 func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range) {
@@ -147,7 +148,8 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		canBeTransformed = true
 	case evalOrArguments:
 		text = "Declarations with the name \"eval\" or \"arguments\""
-		canBeTransformed = true
+	case duplicateArgName:
+		text = "Duplicate argument names"
 	default:
 		text = "This feature"
 	}

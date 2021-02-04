@@ -217,6 +217,13 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "for (var x = y in z) ;", "for (var x = y in z)\n  ;\n")
 	expectParseError(t, "'use strict'; for (var x = y in z) ;", "<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n")
 
+	expectPrinted(t, "function f(a, a) {}", "function f(a, a) {\n}\n")
+	expectPrinted(t, "(function(a, a) {})", "(function(a, a) {\n});\n")
+	expectPrinted(t, "(a, a) => {}", "(a, a) => {\n};\n")
+	expectParseError(t, "'use strict'; function f(a, a) {}", "<stdin>: error: Duplicate argument names cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; (function(a, a) {})", "<stdin>: error: Duplicate argument names cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; ((a, a) => {})", "<stdin>: error: Duplicate argument names cannot be used in strict mode\n")
+
 	expectPrinted(t, "eval++", "eval++;\n")
 	expectPrinted(t, "eval = 0", "eval = 0;\n")
 	expectPrinted(t, "eval += 0", "eval += 0;\n")

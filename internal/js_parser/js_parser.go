@@ -7081,7 +7081,7 @@ func (p *parser) visitForLoopInit(stmt js_ast.Stmt, isInOrOf bool) js_ast.Stmt {
 
 	case *js_ast.SLocal:
 		for _, d := range s.Decls {
-			p.visitBinding(d.Binding)
+			p.visitBinding(d.Binding, bindingOpts{})
 			if d.Value != nil {
 				*d.Value = p.visitExpr(*d.Value)
 			}
@@ -7103,21 +7103,32 @@ func (p *parser) recordDeclaredSymbol(ref js_ast.Ref) {
 	})
 }
 
-func (p *parser) visitBinding(binding js_ast.Binding) {
+type bindingOpts struct {
+	duplicateArgCheck map[string]bool
+}
+
+func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 	switch b := binding.Data.(type) {
 	case *js_ast.BMissing:
 
 	case *js_ast.BIdentifier:
 		p.recordDeclaredSymbol(b.Ref)
 		if p.isStrictMode() {
-			if name := p.symbols[b.Ref.InnerIndex].OriginalName; name == "eval" || name == "arguments" {
+			name := p.symbols[b.Ref.InnerIndex].OriginalName
+			if name == "eval" || name == "arguments" {
 				p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, binding.Loc))
+			}
+			if opts.duplicateArgCheck != nil {
+				if opts.duplicateArgCheck[name] {
+					p.markStrictModeFeature(duplicateArgName, js_lexer.RangeOfIdentifier(p.source, binding.Loc))
+				}
+				opts.duplicateArgCheck[name] = true
 			}
 		}
 
 	case *js_ast.BArray:
 		for _, item := range b.Items {
-			p.visitBinding(item.Binding)
+			p.visitBinding(item.Binding, opts)
 			if item.DefaultValue != nil {
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*item.DefaultValue)
 				*item.DefaultValue = p.visitExpr(*item.DefaultValue)
@@ -7135,7 +7146,7 @@ func (p *parser) visitBinding(binding js_ast.Binding) {
 			if !property.IsSpread {
 				property.Key = p.visitExpr(property.Key)
 			}
-			p.visitBinding(property.Value)
+			p.visitBinding(property.Value, opts)
 			if property.DefaultValue != nil {
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.DefaultValue)
 				*property.DefaultValue = p.visitExpr(*property.DefaultValue)
@@ -7782,7 +7793,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 	case *js_ast.SLocal:
 		for i, d := range s.Decls {
-			p.visitBinding(d.Binding)
+			p.visitBinding(d.Binding, bindingOpts{})
 			if d.Value != nil {
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*d.Value)
 				*d.Value = p.visitExpr(*d.Value)
@@ -8057,7 +8068,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		if s.Catch != nil {
 			p.pushScopeForVisitPass(js_ast.ScopeBlock, s.Catch.Loc)
 			if s.Catch.Binding != nil {
-				p.visitBinding(*s.Catch.Binding)
+				p.visitBinding(*s.Catch.Binding, bindingOpts{})
 			}
 			s.Catch.Body = p.visitStmts(s.Catch.Body, stmtsNormal)
 			p.lowerObjectRestInCatchBinding(s.Catch)
@@ -8561,9 +8572,15 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 }
 
 func (p *parser) visitArgs(args []js_ast.Arg) {
+	var duplicateArgCheck map[string]bool
+	if p.isStrictMode() {
+		duplicateArgCheck = make(map[string]bool)
+	}
 	for _, arg := range args {
 		arg.TSDecorators = p.visitTSDecorators(arg.TSDecorators)
-		p.visitBinding(arg.Binding)
+		p.visitBinding(arg.Binding, bindingOpts{
+			duplicateArgCheck: duplicateArgCheck,
+		})
 		if arg.Default != nil {
 			*arg.Default = p.visitExpr(*arg.Default)
 		}
