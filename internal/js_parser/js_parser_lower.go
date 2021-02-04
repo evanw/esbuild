@@ -117,6 +117,33 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	return
 }
 
+func (p *parser) isStrictModeOutputFormat() bool {
+	return p.options.outputFormat == config.FormatESModule
+}
+
+type strictModeFeature uint8
+
+const (
+	withStatement strictModeFeature = iota
+	deleteBareName
+)
+
+func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range) {
+	if p.isStrictModeOutputFormat() {
+		var text string
+		switch feature {
+		case withStatement:
+			text = "With statements"
+		case deleteBareName:
+			text = "Delete of a bare identifier"
+		default:
+			text = "This feature"
+		}
+		p.log.AddRangeError(&p.source, r,
+			fmt.Sprintf("%s cannot be used with the \"esm\" output format due to strict mode", text))
+	}
+}
+
 // Mark the feature if "loweredFeature" is unsupported. This is used when one
 // feature is implemented in terms of another feature.
 func (p *parser) markLoweredSyntaxFeature(feature compat.JSFeature, r logger.Range, loweredFeature compat.JSFeature) {

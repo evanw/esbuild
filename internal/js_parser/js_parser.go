@@ -2506,10 +2506,13 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		if p.lexer.Token == js_lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
-		if index, ok := value.Data.(*js_ast.EIndex); ok {
-			if private, ok := index.Index.Data.(*js_ast.EPrivateIdentifier); ok {
+		switch e := value.Data.(type) {
+		case *js_ast.EIdentifier:
+			p.markStrictModeFeature(deleteBareName, js_lexer.RangeOfIdentifier(p.source, value.Loc))
+		case *js_ast.EIndex:
+			if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok {
 				name := p.loadNameFromRef(private.Ref)
-				r := logger.Range{Loc: index.Index.Loc, Len: int32(len(name))}
+				r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Deleting the private name %q is forbidden", name))
 			}
 		}
@@ -5110,6 +5113,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SWhile{Test: test, Body: body}}
 
 	case js_lexer.TWith:
+		p.markStrictModeFeature(withStatement, p.lexer.Range())
 		p.lexer.Next()
 		p.lexer.Expect(js_lexer.TOpenParen)
 		test := p.parseExpr(js_ast.LLowest)
@@ -7881,6 +7885,20 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Body = p.visitLoopBody(s.Body)
 		p.popScope()
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
+
+		// Lower for-in variable initializers for strict-mode output formats
+		if p.isStrictModeOutputFormat() {
+			if local, ok := s.Init.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalVar && len(local.Decls) == 1 {
+				decl := &local.Decls[0]
+				if id, ok := decl.Binding.Data.(*js_ast.BIdentifier); ok && decl.Value != nil {
+					stmts = append(stmts, js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExpr{Value: js_ast.Assign(
+						js_ast.Expr{Loc: decl.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
+						*decl.Value,
+					)}})
+					decl.Value = nil
+				}
+			}
+		}
 
 	case *js_ast.SForOf:
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)

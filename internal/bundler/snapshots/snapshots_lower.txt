@@ -847,6 +847,19 @@ _sa.add(Foo);
 _sag.add(Foo);
 
 ================================================================================
+TestLowerStrictModeSyntax
+---------- /out.js ----------
+// for-in.js
+if (test) {
+  a = b;
+  for (var a in {})
+    ;
+}
+x = y;
+for (var x in {})
+  ;
+
+================================================================================
 TestTSLowerClassField2020NoBundle
 ---------- /out.js ----------
 var _foo, _bar, _s_foo, _s_bar;

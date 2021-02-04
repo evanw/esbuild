@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+* Special-case certain syntax with `--format=esm` ([#749](https://github.com/evanw/esbuild/issues/749))
+
+    You can now no longer use the following syntax features with the `esm` output format:
+
+    * The `with` statement: `with (x) {}`
+    * Delete of a bare identifier: `delete x`
+
+    In addition, the following syntax features are transformed when using the `esm` output format:
+
+    * For-in variable initializers: `for (var x = y in {}) {}` → `x = y; for (var x in {}) {}`
+
+    The reason is because all JavaScript engines interpret code in the `esm` output format as strict mode and these syntax features are disallowed in strict mode. Note that this new strict mode handling behavior in esbuild is only dependent on the output format. It does not depend on the presence or absence of `"use strict"` directives.
+
 ## 0.8.40
 
 * Fix TypeScript parameter decorators on class constructors ([#734](https://github.com/evanw/esbuild/issues/734))

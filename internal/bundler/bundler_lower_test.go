@@ -1277,3 +1277,59 @@ func TestLowerExportStarAsNameCollision(t *testing.T) {
 		},
 	})
 }
+
+func TestLowerStrictModeSyntax(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './for-in'
+			`,
+			"/for-in.js": `
+				if (test)
+					for (var a = b in {}) ;
+				for (var x = y in {}) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestLowerForbidStrictModeSyntax(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './with'
+				import './delete-1'
+				import './delete-2'
+				import './delete-3'
+			`,
+			"/with.js": `
+				with (x) y
+			`,
+			"/delete-1.js": `
+				delete x
+			`,
+			"/delete-2.js": `
+				delete (y)
+			`,
+			"/delete-3.js": `
+				delete (1 ? z : z)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `delete-1.js: error: Delete of a bare identifier cannot be used with the "esm" output format due to strict mode
+delete-2.js: error: Delete of a bare identifier cannot be used with the "esm" output format due to strict mode
+with.js: error: With statements cannot be used with the "esm" output format due to strict mode
+`,
+	})
+}
