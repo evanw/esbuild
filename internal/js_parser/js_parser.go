@@ -5840,7 +5840,19 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 
 		// Track "use strict" directives
 		if directive, ok := stmt.Data.(*js_ast.SDirective); ok && js_lexer.UTF16EqualsString(directive.Value, "use strict") {
-			if p.currentScope.Kind.StopsHoisting() && len(stmts) == 0 {
+			hasEffect := false
+			if p.currentScope.Kind.StopsHoisting() {
+				hasEffect = true
+
+				// Skip over comments when checking if "use strict" is the first statement
+				for _, stmt := range stmts {
+					if _, ok := stmt.Data.(*js_ast.SComment); !ok {
+						hasEffect = false
+						break
+					}
+				}
+			}
+			if hasEffect {
 				p.currentScope.StrictMode = js_ast.ExplicitStrictMode
 			} else if !p.options.suppressWarningsAboutWeirdCode {
 				p.log.AddRangeWarning(&p.source, p.source.RangeOfString(stmt.Loc), "This \"use strict\" directive has no effect here")

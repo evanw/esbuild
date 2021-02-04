@@ -198,7 +198,15 @@ func TestComments(t *testing.T) {
 func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "'use strict'", "\"use strict\";\n")
 	expectPrinted(t, "`use strict`", "`use strict`;\n")
+	expectPrinted(t, "//! @license comment\n 'use strict'", "//! @license comment\n\"use strict\";\n")
+	expectPrinted(t, "/*! @license comment */ 'use strict'", "/*! @license comment */\n\"use strict\";\n")
+	expectPrinted(t, "function f() { //! @license comment\n 'use strict' }", "function f() {\n  //! @license comment\n  \"use strict\";\n}\n")
+	expectPrinted(t, "function f() { /*! @license comment */ 'use strict' }", "function f() {\n  /*! @license comment */\n  \"use strict\";\n}\n")
 	expectParseError(t, "0; 'use strict'", "<stdin>: warning: This \"use strict\" directive has no effect here\n")
+	expectParseError(t, "//! @license comment\n 'use strict'", "")
+	expectParseError(t, "/*! @license comment */ 'use strict'", "")
+	expectParseError(t, "function f() { //! @license comment\n 'use strict' }", "")
+	expectParseError(t, "function f() { /*! @license comment */ 'use strict' }", "")
 
 	expectPrinted(t, "with (x) y", "with (x)\n  y;\n")
 	expectParseError(t, "'use strict'; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n")
