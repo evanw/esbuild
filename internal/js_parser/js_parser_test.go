@@ -214,6 +214,9 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "delete x", "delete x;\n")
 	expectParseError(t, "'use strict'; delete x", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n")
 
+	expectPrinted(t, "for (var x = y in z) ;", "for (var x = y in z)\n  ;\n")
+	expectParseError(t, "'use strict'; for (var x = y in z) ;", "<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n")
+
 	expectPrinted(t, "function f() { 'use strict' } with (x) y", "function f() {\n  \"use strict\";\n}\nwith (x)\n  y;\n")
 	expectPrinted(t, "with (x) y; function f() { 'use strict' } ", "with (x)\n  y;\nfunction f() {\n  \"use strict\";\n}\n")
 	expectPrinted(t, "`use strict`; with (x) y", "`use strict`;\nwith (x)\n  y;\n")

@@ -57,7 +57,7 @@ async function main() {
   }
 
   async function processFile(file) {
-    const content = fs.readFileSync(file, 'utf8');
+    let content = fs.readFileSync(file, 'utf8');
     const start = content.indexOf('/*---');
     const end = content.indexOf('---*/');
 
@@ -74,6 +74,10 @@ async function main() {
       if (yaml.features.includes('regexp-match-indices')) return
       if (yaml.features.includes('regexp-named-groups')) return
       if (yaml.features.includes('regexp-unicode-property-escapes')) return
+    }
+
+    if (yaml.flags) {
+      if (yaml.flags.includes('onlyStrict')) content = '"use strict";\n' + content
     }
 
     const result = await esbuildFile(content, { minify: false });

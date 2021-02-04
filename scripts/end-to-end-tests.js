@@ -2012,6 +2012,36 @@
         if (f() !== 1) throw 'fail'
       `,
     }),
+    test(['in.ts', '--outfile=node.js'], {
+      'in.ts': `
+        if (1) {
+          var a = 'a'
+          for (var b = 'b'; 0; ) ;
+          for (var c in { c: 0 }) ;
+          for (var d of ['d']) ;
+          for (var e = 'e' in {}) ;
+          function f() { return 'f' }
+        }
+        const observed = JSON.stringify({ a, b, c, d, e, f: f() })
+        const expected = JSON.stringify({ a: 'a', b: 'b', c: 'c', d: 'd', e: 'e', f: 'f' })
+        if (observed !== expected) throw observed
+      `,
+    }),
+    test(['in.ts', '--bundle', '--outfile=node.js'], {
+      'in.ts': `
+        if (1) {
+          var a = 'a'
+          for (var b = 'b'; 0; ) ;
+          for (var c in { c: 0 }) ;
+          for (var d of ['d']) ;
+          for (var e = 'e' in {}) ;
+          function f() { return 'f' }
+        }
+        const observed = JSON.stringify({ a, b, c, d, e, f: f() })
+        const expected = JSON.stringify({ a: 'a', b: 'b', c: 'c', d: 'd', e: 'e', f: 'f' })
+        if (observed !== expected) throw observed
+      `,
+    }),
   )
 
   // Object rest pattern tests

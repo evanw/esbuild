@@ -4014,6 +4014,7 @@ func (p *parser) forbidInitializers(decls []js_ast.Decl, loopType string, isVar 
 			if _, ok := decls[0].Binding.Data.(*js_ast.BIdentifier); ok {
 				// This is a weird special case. Initializers are allowed in "var"
 				// statements with identifier bindings.
+				p.markStrictModeFeature(forInVarInit, p.source.RangeOfOperatorBefore(decls[0].Value.Loc, "="))
 				return
 			}
 		}

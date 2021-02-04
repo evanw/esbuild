@@ -130,15 +130,20 @@ type strictModeFeature uint8
 const (
 	withStatement strictModeFeature = iota
 	deleteBareName
+	forInVarInit
 )
 
 func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range) {
 	var text string
+	canBeTransformed := false
 	switch feature {
 	case withStatement:
 		text = "With statements"
 	case deleteBareName:
 		text = "Delete of a bare identifier"
+	case forInVarInit:
+		text = "Variable initializers inside for-in loops"
+		canBeTransformed = true
 	default:
 		text = "This feature"
 	}
@@ -160,7 +165,7 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		}
 		p.log.AddRangeErrorWithNotes(&p.source, r,
 			fmt.Sprintf("%s cannot be used in strict mode", text), notes)
-	} else if p.isStrictModeOutputFormat() {
+	} else if !canBeTransformed && p.isStrictModeOutputFormat() {
 		p.log.AddRangeError(&p.source, r,
 			fmt.Sprintf("%s cannot be used with the \"esm\" output format due to strict mode", text))
 	}
