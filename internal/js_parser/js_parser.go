@@ -7105,6 +7105,11 @@ func (p *parser) visitBinding(binding js_ast.Binding) {
 
 	case *js_ast.BIdentifier:
 		p.recordDeclaredSymbol(b.Ref)
+		if p.isStrictMode() {
+			if name := p.symbols[b.Ref.InnerIndex].OriginalName; name == "eval" || name == "arguments" {
+				p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, binding.Loc))
+			}
+		}
 
 	case *js_ast.BArray:
 		for _, item := range b.Items {

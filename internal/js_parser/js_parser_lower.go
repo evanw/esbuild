@@ -131,6 +131,7 @@ const (
 	withStatement strictModeFeature = iota
 	deleteBareName
 	forInVarInit
+	evalOrArguments
 )
 
 func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range) {
@@ -143,6 +144,9 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		text = "Delete of a bare identifier"
 	case forInVarInit:
 		text = "Variable initializers inside for-in loops"
+		canBeTransformed = true
+	case evalOrArguments:
+		text = "Declarations with the name \"eval\" or \"arguments\""
 		canBeTransformed = true
 	default:
 		text = "This feature"
