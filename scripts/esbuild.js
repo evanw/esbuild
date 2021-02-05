@@ -175,6 +175,15 @@ module.exports = ${JSON.stringify(exit0Map, null, 2)};
   await goBuildPromise;
 }
 
+// Writing a file atomically is important for watch mode tests since we don't
+// want to read the file after it has been truncated but before the new contents
+// have been written.
+exports.writeFileAtomic = (where, contents) => {
+  const file = path.join(os.tmpdir(), 'esbuild-atomic-file-' + Math.random().toString(36).slice(2))
+  fs.writeFileSync(file, contents)
+  fs.renameSync(file, where)
+}
+
 exports.buildBinary = () => {
   childProcess.execFileSync('go', ['build', '-ldflags=-s -w', './cmd/esbuild'], { cwd: repoDir, stdio: 'ignore' })
   return path.join(repoDir, process.platform === 'win32' ? 'esbuild.exe' : 'esbuild')

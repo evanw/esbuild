@@ -464,13 +464,15 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
         case 'resolve': {
           let callback = pluginCallbacks.get(request.key);
-          sendResponse(id, await callback!(request) as any);
+          if (!callback) sendResponse(id, {});
+          else sendResponse(id, await callback!(request) as any);
           break;
         }
 
         case 'load': {
           let callback = pluginCallbacks.get(request.key);
-          sendResponse(id, await callback!(request) as any);
+          if (!callback) sendResponse(id, {});
+          else sendResponse(id, await callback!(request) as any);
           break;
         }
 

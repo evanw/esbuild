@@ -1,4 +1,4 @@
-const { installForTests, removeRecursiveSync } = require('./esbuild')
+const { installForTests, removeRecursiveSync, writeFileAtomic } = require('./esbuild')
 const { SourceMapConsumer } = require('source-map')
 const assert = require('assert')
 const path = require('path')
@@ -1655,7 +1655,7 @@ let watchTests = {
         // First rebuild: edit
         {
           const [error2, result2] = await rebuildUntil(
-            () => writeFileAsync(input, `throw 2`),
+            () => writeFileAtomic(input, `throw 2`),
             () => fs.readFileSync(outfile, 'utf8') === 'throw 2;\n',
           )
           assert.strictEqual(error2, null)
@@ -1666,7 +1666,7 @@ let watchTests = {
         // Second rebuild: edit
         {
           const [error2, result2] = await rebuildUntil(
-            () => writeFileAsync(input, `throw 3`),
+            () => writeFileAtomic(input, `throw 3`),
             () => fs.readFileSync(outfile, 'utf8') === 'throw 3;\n',
           )
           assert.strictEqual(error2, null)
@@ -1677,7 +1677,7 @@ let watchTests = {
         // Third rebuild: syntax error
         {
           const [error2, result2] = await rebuildUntil(
-            () => writeFileAsync(input, `throw 1 2`),
+            () => writeFileAtomic(input, `throw 1 2`),
             err => err,
           )
           assert.notStrictEqual(error2, null)
@@ -1691,7 +1691,7 @@ let watchTests = {
         // Fourth rebuild: edit
         {
           const [error2, result2] = await rebuildUntil(
-            () => writeFileAsync(input, `throw 4`),
+            () => writeFileAtomic(input, `throw 4`),
             () => fs.readFileSync(outfile, 'utf8') === 'throw 4;\n',
           )
           assert.strictEqual(error2, null)
@@ -1715,7 +1715,7 @@ let watchTests = {
         // Sixth rebuild: restore
         {
           const [error2, result2] = await rebuildUntil(
-            () => writeFileAsync(input, `throw 5`),
+            () => writeFileAtomic(input, `throw 5`),
             () => fs.readFileSync(outfile, 'utf8') === 'throw 5;\n',
           )
           assert.strictEqual(error2, null)
@@ -1770,7 +1770,7 @@ let watchTests = {
         // First rebuild: edit
         {
           const [error2, result2] = await rebuildUntil(
-            () => writeFileAsync(input, `throw 2`),
+            () => writeFileAtomic(input, `throw 2`),
             (err, res) => res.outputFiles[0].text === 'throw 2;\n',
           )
           assert.strictEqual(error2, null)
@@ -1781,7 +1781,7 @@ let watchTests = {
         // Second rebuild: edit
         {
           const [error2, result2] = await rebuildUntil(
-            () => writeFileAsync(input, `throw 3`),
+            () => writeFileAtomic(input, `throw 3`),
             (err, res) => res.outputFiles[0].text === 'throw 3;\n',
           )
           assert.strictEqual(error2, null)

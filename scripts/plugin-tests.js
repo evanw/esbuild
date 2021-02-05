@@ -1,4 +1,4 @@
-const { installForTests, removeRecursiveSync } = require('./esbuild')
+const { installForTests, removeRecursiveSync, writeFileAtomic } = require('./esbuild')
 const assert = require('assert')
 const path = require('path')
 const util = require('util')
@@ -1338,7 +1338,7 @@ let pluginTests = {
         // First rebuild: edit
         {
           const [error2, result2] = await rebuildUntil(
-            () => writeFileAsync(example, `export let x = 2`),
+            () => writeFileAtomic(example, `export let x = 2`),
             () => fs.readFileSync(outfile, 'utf8') !== code,
           )
           code = await readFileAsync(outfile, 'utf8')
