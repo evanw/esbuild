@@ -226,6 +226,7 @@ type Lexer struct {
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
 	PreserveAllCommentsBefore       bool
+	IsLegacyOctalLiteral            bool
 	CommentsToPreserveBefore        []js_ast.Comment
 	AllOriginalComments             []js_ast.Comment
 	codePoint                       rune
@@ -1666,8 +1667,8 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 	underscoreCount := 0
 	lastUnderscoreEnd := 0
 	hasDotOrExponent := first == '.'
-	isLegacyOctalLiteral := false
 	base := 0.0
+	lexer.IsLegacyOctalLiteral = false
 
 	// Assume this is a number, but potentially change to a bigint later
 	lexer.Token = TNumericLiteral
@@ -1686,7 +1687,7 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 
 		case '0', '1', '2', '3', '4', '5', '6', '7', '_':
 			base = 8
-			isLegacyOctalLiteral = true
+			lexer.IsLegacyOctalLiteral = true
 		}
 	}
 
@@ -1695,7 +1696,7 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 		isFirst := true
 		isInvalidLegacyOctalLiteral := false
 		lexer.Number = 0
-		if !isLegacyOctalLiteral {
+		if !lexer.IsLegacyOctalLiteral {
 			lexer.step()
 		}
 
@@ -1709,7 +1710,7 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 				}
 
 				// The first digit must exist
-				if isFirst || isLegacyOctalLiteral {
+				if isFirst || lexer.IsLegacyOctalLiteral {
 					lexer.SyntaxError()
 				}
 
@@ -1726,7 +1727,7 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 				lexer.Number = lexer.Number*base + float64(lexer.codePoint-'0')
 
 			case '8', '9':
-				if isLegacyOctalLiteral {
+				if lexer.IsLegacyOctalLiteral {
 					isInvalidLegacyOctalLiteral = true
 				} else if base < 10 {
 					lexer.SyntaxError()
@@ -1765,7 +1766,7 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 			text := lexer.Raw()
 
 			// Can't use a leading zero for bigint literals
-			if isBigIntegerLiteral && isLegacyOctalLiteral {
+			if isBigIntegerLiteral && lexer.IsLegacyOctalLiteral {
 				lexer.SyntaxError()
 			}
 

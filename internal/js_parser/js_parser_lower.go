@@ -134,6 +134,7 @@ const (
 	evalOrArguments
 	duplicateArgName
 	reservedWord
+	legacyOctalLiteral
 )
 
 func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range, detail string) {
@@ -153,6 +154,8 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		text = fmt.Sprintf("%q is a duplicate argument name which", detail)
 	case reservedWord:
 		text = fmt.Sprintf("%q is a reserved word and", detail)
+	case legacyOctalLiteral:
+		text = "Legacy octal literals"
 	default:
 		text = "This feature"
 	}

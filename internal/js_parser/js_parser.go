@@ -65,6 +65,7 @@ type parser struct {
 	duplicateCaseChecker     duplicateCaseChecker
 	nonBMPIdentifiers        map[string]bool
 	lackOfDefineWarnings     map[string]bool
+	legacyOctalLiterals      map[js_ast.E]logger.Range
 
 	// For strict mode handling
 	hoistedRefForSloppyModeBlockFn map[js_ast.Ref]js_ast.Ref
@@ -1464,6 +1465,15 @@ func (p *parser) keyNameForError(key js_ast.Expr) string {
 	return "property"
 }
 
+func (p *parser) checkForLegacyOctalLiteral(e js_ast.E) {
+	if p.lexer.IsLegacyOctalLiteral {
+		if p.legacyOctalLiterals == nil {
+			p.legacyOctalLiterals = make(map[js_ast.E]logger.Range)
+		}
+		p.legacyOctalLiterals[e] = p.lexer.Range()
+	}
+}
+
 type propertyOpts struct {
 	asyncRange  logger.Range
 	isAsync     bool
@@ -1485,6 +1495,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 	switch p.lexer.Token {
 	case js_lexer.TNumericLiteral:
 		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.ENumber{Value: p.lexer.Number}}
+		p.checkForLegacyOctalLiteral(key.Data)
 		p.lexer.Next()
 
 	case js_lexer.TStringLiteral:
@@ -1839,6 +1850,7 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 
 	case js_lexer.TNumericLiteral:
 		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.ENumber{Value: p.lexer.Number}}
+		p.checkForLegacyOctalLiteral(key.Data)
 		p.lexer.Next()
 
 	case js_lexer.TStringLiteral:
@@ -2525,9 +2537,10 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		return js_ast.Expr{Loc: loc, Data: &js_ast.ETemplate{Head: head, Parts: parts}}
 
 	case js_lexer.TNumericLiteral:
-		value := p.lexer.Number
+		value := js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: p.lexer.Number}}
+		p.checkForLegacyOctalLiteral(value.Data)
 		p.lexer.Next()
-		return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: value}}
+		return value
 
 	case js_lexer.TBigIntegerLiteral:
 		value := p.lexer.Identifier
@@ -9217,8 +9230,15 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	switch e := expr.Data.(type) {
 	case *js_ast.ENull, *js_ast.ESuper, *js_ast.EString,
-		*js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt,
+		*js_ast.EBoolean, *js_ast.EBigInt,
 		*js_ast.ERegExp, *js_ast.ENewTarget, *js_ast.EUndefined:
+
+	case *js_ast.ENumber:
+		if p.legacyOctalLiterals != nil && p.isStrictMode() {
+			if r, ok := p.legacyOctalLiterals[expr.Data]; ok {
+				p.markStrictModeFeature(legacyOctalLiteral, r, "")
+			}
+		}
 
 	case *js_ast.EThis:
 		if value, ok := p.valueForThis(expr.Loc); ok {

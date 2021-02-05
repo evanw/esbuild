@@ -11,9 +11,9 @@
     assert.strictEqual(f.name, 'f')
     ```
 
-* Disallow reserved words in strict mode
+* Disallow additional features in strict mode
 
-    This change improves esbuild's compliance with the JavaScript specification. It is now an error to use the identifiers `implements`, `interface`, `let`, `package`, `private`, `protected`, `public`, `static`, and `yield` in strict mode code.
+    This change improves esbuild's compliance with the JavaScript specification. It is now an error to use legacy octal numeric literals and the identifiers `implements`, `interface`, `let`, `package`, `private`, `protected`, `public`, `static`, and `yield` in strict mode code.
 
 ## 0.8.41
 

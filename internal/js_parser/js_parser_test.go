@@ -257,6 +257,13 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "'use strict'; let x = protected", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
 	expectParseError(t, "'use strict'; let x = protecte\\u0064", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
 
+	expectPrinted(t, "0123", "83;\n")
+	expectPrinted(t, "({0123: 4})", "({83: 4});\n")
+	expectPrinted(t, "let {0123: x} = y", "let {83: x} = y;\n")
+	expectParseError(t, "'use strict'; 0123", "<stdin>: error: Legacy octal literals cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; ({0123: 4})", "<stdin>: error: Legacy octal literals cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; let {0123: x} = y", "<stdin>: error: Legacy octal literals cannot be used in strict mode\n")
+
 	expectPrinted(t, "function f() { 'use strict' } with (x) y", "function f() {\n  \"use strict\";\n}\nwith (x)\n  y;\n")
 	expectPrinted(t, "with (x) y; function f() { 'use strict' } ", "with (x)\n  y;\nfunction f() {\n  \"use strict\";\n}\n")
 	expectPrinted(t, "`use strict`; with (x) y", "`use strict`;\nwith (x)\n  y;\n")
