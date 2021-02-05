@@ -23,7 +23,11 @@ let pluginTests = {
       })
       throw new Error('Expected an error to be thrown')
     } catch (e) {
-      assert.strictEqual(e.message, 'Cannot use plugins in synchronous API calls')
+      assert.strictEqual(e.message.split('\n')[0], 'Build failed with 1 error:')
+      assert.notStrictEqual(e.errors, void 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].text, 'Cannot use plugins in synchronous API calls')
+      assert.deepStrictEqual(e.warnings, [])
     }
   },
 
@@ -94,7 +98,11 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert.strictEqual(e.message, 'Plugin at index 0 is missing a name')
+      assert.strictEqual(e.message.split('\n')[0], 'Build failed with 1 error:')
+      assert.notStrictEqual(e.errors, void 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].text, 'Plugin at index 0 is missing a name')
+      assert.deepStrictEqual(e.warnings, [])
     }
   },
 
@@ -108,7 +116,11 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert.strictEqual(e.message, '[x] Plugin is missing a setup function')
+      assert.strictEqual(e.message.split('\n')[0], 'Build failed with 1 error:')
+      assert.notStrictEqual(e.errors, void 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].text, '[x] Plugin is missing a setup function')
+      assert.deepStrictEqual(e.warnings, [])
     }
   },
 
@@ -125,7 +137,11 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert.strictEqual(e.message, `Invalid option on plugin "x": "someRandomProperty"`)
+      assert.strictEqual(e.message.split('\n')[0], 'Build failed with 1 error:')
+      assert.notStrictEqual(e.errors, void 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].text, 'Invalid option on plugin "x": "someRandomProperty"')
+      assert.deepStrictEqual(e.warnings, [])
     }
   },
 
@@ -143,7 +159,11 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert.strictEqual(e.message, `Invalid option in onResolve() call for plugin "x": "whatIsThis"`)
+      assert.strictEqual(e.message.split('\n')[0], 'Build failed with 1 error:')
+      assert.notStrictEqual(e.errors, void 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].text, 'Invalid option in onResolve() call for plugin "x": "whatIsThis"')
+      assert.deepStrictEqual(e.warnings, [])
     }
 
     try {
@@ -197,7 +217,11 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert.strictEqual(e.message, `Invalid option in onLoad() call for plugin "x": "whatIsThis"`)
+      assert.strictEqual(e.message.split('\n')[0], 'Build failed with 1 error:')
+      assert.notStrictEqual(e.errors, void 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].text, 'Invalid option in onLoad() call for plugin "x": "whatIsThis"')
+      assert.deepStrictEqual(e.warnings, [])
     }
 
     try {

@@ -896,8 +896,10 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         } catch (e) {
           let flags: string[] = [];
           try { pushLogFlags(flags, options, {}, isTTY, logLevelDefault) } catch { }
-          sendRequest(refs, { command: 'error', flags, error: extractErrorMessageV8(e, streamIn, details) }, () => {
-            callback(e, null);
+          const error = extractErrorMessageV8(e, streamIn, details)
+          sendRequest(refs, { command: 'error', flags, error }, () => {
+            error.detail = details.load(error.detail);
+            callback(failureErrorWithLog('Build failed', [error], []), null);
           });
         }
       },
@@ -969,8 +971,10 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           } catch (e) {
             let flags: string[] = [];
             try { pushLogFlags(flags, options, {}, isTTY, logLevelDefault) } catch { }
-            sendRequest(refs, { command: 'error', flags, error: extractErrorMessageV8(e, streamIn, details) }, () => {
-              callback(e, null);
+            const error = extractErrorMessageV8(e, streamIn, details);
+            sendRequest(refs, { command: 'error', flags, error }, () => {
+              error.detail = details.load(error.detail);
+              callback(failureErrorWithLog('Transform failed', [error], []), null);
             });
           }
         };

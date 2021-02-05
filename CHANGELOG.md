@@ -19,6 +19,10 @@
 
     With this release, watch mode should now work with simple [on-load plugins](https://esbuild.github.io/plugins/#load-callbacks). Watch mode is implemented by tracking all file system accesses made by esbuild as it does a build. However, this doesn't catch external file system accesses such as those made by plugins. Now if an on-load plugin is used on a path in the `file` namespace, esbuild will also read the file during watch mode so that watch mode is aware of the file system access. Note that there is not yet API support for a plugin to return additional paths for watch mode to monitor.
 
+* Make JavaScript API error format more consistent ([#745](https://github.com/evanw/esbuild/issues/745))
+
+    If a JavaScript error is thrown while validating the build options, the thrown error should now have `errors` and `warnings` properties just like normal build errors. Previously these properties were only present if the build itself failed but not if build options were invalid. This consistency should make it easier to process errors from the build API call.
+
 ## 0.8.41
 
 * Fix memory leak with watch mode when using the CLI ([#750](https://github.com/evanw/esbuild/issues/750))

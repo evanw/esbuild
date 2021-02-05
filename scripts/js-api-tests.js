@@ -19,7 +19,7 @@ let buildTests = {
       await esbuild.build({ entryPoints: 'this is not an array', logLevel: 'silent' })
       throw new Error('Expected build failure');
     } catch (e) {
-      if (e.message !== '"entryPoints" must be an array') {
+      if (!e.errors || !e.errors[0] || e.errors[0].text !== '"entryPoints" must be an array') {
         throw e;
       }
     }
@@ -1913,7 +1913,7 @@ let transformTests = {
       await service.transform(``, { jsxFactory: ['React', 'createElement'] })
       throw new Error('Expected transform failure');
     } catch (e) {
-      if (e.message !== '"jsxFactory" must be a string') {
+      if (!e.errors || !e.errors[0] || e.errors[0].text !== '"jsxFactory" must be a string') {
         throw e;
       }
     }
@@ -2785,9 +2785,9 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
       throw new Error('Expected an error to be thrown');
     } catch (error) {
       assert(error instanceof Error, 'Must be an Error object');
-      assert.strictEqual(error.message, `Cannot use "incremental" with a synchronous build`);
-      assert.strictEqual(error.errors, void 0);
-      assert.strictEqual(error.warnings, void 0);
+      assert.strictEqual(error.message, `Build failed with 1 error:\nerror: Cannot use "incremental" with a synchronous build`);
+      assert.strictEqual(error.errors.length, 1);
+      assert.strictEqual(error.warnings.length, 0);
     }
   },
 
