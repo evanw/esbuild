@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.42
 
 * Fix crash with block-level function declaration and `--keep-names` ([#755](https://github.com/evanw/esbuild/issues/755))
 
