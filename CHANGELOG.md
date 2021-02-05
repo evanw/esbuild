@@ -15,6 +15,10 @@
 
     This change improves esbuild's compliance with the JavaScript specification. It is now an error to use legacy octal numeric literals and the identifiers `implements`, `interface`, `let`, `package`, `private`, `protected`, `public`, `static`, and `yield` in strict mode code.
 
+* Basic support for watch mode with plugins ([#752](https://github.com/evanw/esbuild/issues/752))
+
+    With this release, watch mode should now work with simple [on-load plugins](https://esbuild.github.io/plugins/#load-callbacks). Watch mode is implemented by tracking all file system accesses made by esbuild as it does a build. However, this doesn't catch external file system accesses such as those made by plugins. Now if an on-load plugin is used on a path in the `file` namespace, esbuild will also read the file during watch mode so that watch mode is aware of the file system access. Note that there is not yet API support for a plugin to return additional paths for watch mode to monitor.
+
 ## 0.8.41
 
 * Fix memory leak with watch mode when using the CLI ([#750](https://github.com/evanw/esbuild/issues/750))

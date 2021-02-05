@@ -599,6 +599,7 @@ func rebuildImpl(
 		InjectAbsPaths:        make([]string, len(buildOpts.Inject)),
 		Banner:                buildOpts.Banner,
 		Footer:                buildOpts.Footer,
+		WatchMode:             buildOpts.Watch != nil,
 		Plugins:               plugins,
 	}
 	for i, path := range buildOpts.Inject {

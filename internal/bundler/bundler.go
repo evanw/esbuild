@@ -183,6 +183,7 @@ func parseFile(args parseArgs) {
 			args.importSource,
 			args.importPathRange,
 			args.pluginData,
+			args.options.WatchMode,
 		)
 		if !ok {
 			if args.inject != nil {
@@ -710,6 +711,7 @@ func runOnLoadPlugins(
 	importSource *logger.Source,
 	importPathRange logger.Range,
 	pluginData interface{},
+	isWatchMode bool,
 ) (loaderPluginResult, bool) {
 	loaderArgs := config.OnLoadArgs{
 		Path:       source.KeyPath,
@@ -732,6 +734,9 @@ func runOnLoadPlugins(
 
 			// Stop now if there was an error
 			if didLogError {
+				if isWatchMode && source.KeyPath.Namespace == "file" {
+					fsCache.ReadFile(fs, source.KeyPath.Text) // Read the file for watch mode tracking
+				}
 				return loaderPluginResult{}, false
 			}
 
@@ -747,6 +752,9 @@ func runOnLoadPlugins(
 			}
 			if result.AbsResolveDir == "" && source.KeyPath.Namespace == "file" {
 				result.AbsResolveDir = fs.Dir(source.KeyPath.Text)
+			}
+			if isWatchMode && source.KeyPath.Namespace == "file" {
+				fsCache.ReadFile(fs, source.KeyPath.Text) // Read the file for watch mode tracking
 			}
 			return loaderPluginResult{
 				loader:        loader,
