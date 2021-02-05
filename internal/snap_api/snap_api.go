@@ -3,6 +3,7 @@ package snap_api
 import (
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/pkg/api"
+	"strings"
 )
 
 func IsExternalModule(platform api.Platform, external []string) api.ShouldReplaceRequirePredicate {
@@ -21,6 +22,10 @@ func IsExternalModule(platform api.Platform, external []string) api.ShouldReplac
 	}
 }
 
+func IsNative(mdl string) bool {
+	return strings.HasSuffix(mdl, ".node")
+}
+
 func CreateShouldReplaceRequire(
 	platform api.Platform,
 	external []string,
@@ -29,6 +34,6 @@ func CreateShouldReplaceRequire(
 ) api.ShouldReplaceRequirePredicate {
 	isExternal := IsExternalModule(platform, external)
 	return func(mdl string) bool {
-		return isExternal(mdl) || replaceRequire(mdl) || !rewriteModule(mdl)
+		return isExternal(mdl) || IsNative(mdl) || replaceRequire(mdl) || !rewriteModule(mdl)
 	}
 }
