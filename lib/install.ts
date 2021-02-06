@@ -73,7 +73,10 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
 
   // Also try to cache the file to speed up future installs
   try {
-    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.mkdirSync(path.dirname(cachePath), {
+      recursive: true,
+      mode: 0o700, // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+    });
     fs.copyFileSync(toPath, cachePath);
     cleanCacheLRU(cachePath);
   } catch {
@@ -107,6 +110,12 @@ function getCachePath(name: string): string {
   const common = ['esbuild', 'bin', `${name}@${version}`];
   if (process.platform === 'darwin') return path.join(home, 'Library', 'Caches', ...common);
   if (process.platform === 'win32') return path.join(home, 'AppData', 'Local', 'Cache', ...common);
+
+  // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+  const XDG_CACHE_HOME = process.env.XDG_CACHE_HOME;
+  if (process.platform === 'linux' && XDG_CACHE_HOME && path.isAbsolute(XDG_CACHE_HOME))
+    return path.join(XDG_CACHE_HOME, ...common);
+
   return path.join(home, '.cache', ...common);
 }
 

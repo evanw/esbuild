@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Support the `XDG_CACHE_HOME` environment variable ([#757](https://github.com/evanw/esbuild/issues/757))
+
+    On Linux, the install script for esbuild currently caches downloaded binary executables in `~/.cache/esbuild/bin`. This change means esbuild will now try installing to `$XDG_CACHE_HOME/esbuild/bin` instead of the `XDG_CACHE_HOME` environment variable exists. This allows you to customize the cache directory on Linux. The specification that defines `XDG_CACHE_HOME` is [here](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
+
 ## 0.8.42
 
 * Fix crash with block-level function declaration and `--keep-names` ([#755](https://github.com/evanw/esbuild/issues/755))
