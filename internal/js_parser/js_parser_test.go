@@ -2098,7 +2098,7 @@ func TestMangleDoubleNot(t *testing.T) {
 
 	expectPrintedMangle(t, "a = !!(!b && c)", "a = !!(!b && c);\n")
 	expectPrintedMangle(t, "a = !!(!b || c)", "a = !!(!b || c);\n")
-	expectPrintedMangle(t, "a = !!(!b ?? c)", "a = !b ?? c;\n")
+	expectPrintedMangle(t, "a = !!(!b ?? c)", "a = !b;\n")
 
 	expectPrintedMangle(t, "a = !!(b && !c)", "a = !!(b && !c);\n")
 	expectPrintedMangle(t, "a = !!(b || !c)", "a = !!(b || !c);\n")
@@ -2106,7 +2106,7 @@ func TestMangleDoubleNot(t *testing.T) {
 
 	expectPrintedMangle(t, "a = !!(!b && !c)", "a = !b && !c;\n")
 	expectPrintedMangle(t, "a = !!(!b || !c)", "a = !b || !c;\n")
-	expectPrintedMangle(t, "a = !!(!b ?? !c)", "a = !b ?? !c;\n")
+	expectPrintedMangle(t, "a = !!(!b ?? !c)", "a = !b;\n")
 
 	expectPrintedMangle(t, "a = !!(b, c)", "a = (b, !!c);\n")
 }
@@ -2292,6 +2292,88 @@ func TestMangleIf(t *testing.T) {
 		"x:\n  for (; x; )\n    y:\n      for (; y; )\n        if (a || b)\n          break x;\n")
 	expectPrintedMangle(t, "x: while (x) y: while (y) { if (a) continue x; if (b) continue x; }",
 		"x:\n  for (; x; )\n    y:\n      for (; y; )\n        if (a || b)\n          continue x;\n")
+}
+
+func TestMangleNullOrUndefinedWithSideEffects(t *testing.T) {
+	expectPrintedMangle(t, "x(y ?? 1)", "x(y ?? 1);\n")
+	expectPrintedMangle(t, "x(y.z ?? 1)", "x(y.z ?? 1);\n")
+	expectPrintedMangle(t, "x(y[z] ?? 1)", "x(y[z] ?? 1);\n")
+
+	expectPrintedMangle(t, "x(0 ?? 1)", "x(0);\n")
+	expectPrintedMangle(t, "x(0n ?? 1)", "x(0n);\n")
+	expectPrintedMangle(t, "x('' ?? 1)", "x(\"\");\n")
+	expectPrintedMangle(t, "x(/./ ?? 1)", "x(/./);\n")
+	expectPrintedMangle(t, "x({} ?? 1)", "x({});\n")
+	expectPrintedMangle(t, "x((() => {}) ?? 1)", "x(() => {\n});\n")
+	expectPrintedMangle(t, "x(class {} ?? 1)", "x(class {\n});\n")
+	expectPrintedMangle(t, "x(function() {} ?? 1)", "x(function() {\n});\n")
+
+	expectPrintedMangle(t, "x(null ?? 1)", "x(1);\n")
+	expectPrintedMangle(t, "x(undefined ?? 1)", "x(1);\n")
+
+	expectPrintedMangle(t, "x(void y ?? 1)", "x(void y ?? 1);\n")
+	expectPrintedMangle(t, "x(-y ?? 1)", "x(-y);\n")
+	expectPrintedMangle(t, "x(+y ?? 1)", "x(+y);\n")
+	expectPrintedMangle(t, "x(!y ?? 1)", "x(!y);\n")
+	expectPrintedMangle(t, "x(~y ?? 1)", "x(~y);\n")
+	expectPrintedMangle(t, "x(--y ?? 1)", "x(--y);\n")
+	expectPrintedMangle(t, "x(++y ?? 1)", "x(++y);\n")
+	expectPrintedMangle(t, "x(y-- ?? 1)", "x(y--);\n")
+	expectPrintedMangle(t, "x(y++ ?? 1)", "x(y++);\n")
+	expectPrintedMangle(t, "x(delete y ?? 1)", "x(delete y);\n")
+	expectPrintedMangle(t, "x(typeof y ?? 1)", "x(typeof y);\n")
+
+	expectPrintedMangle(t, "x((y, 0) ?? 1)", "x((y, 0));\n")
+	expectPrintedMangle(t, "x((y, !z) ?? 1)", "x((y, !z));\n")
+	expectPrintedMangle(t, "x((y, null) ?? 1)", "x((y, null ?? 1));\n")
+	expectPrintedMangle(t, "x((y, void z) ?? 1)", "x((y, void z ?? 1));\n")
+
+	expectPrintedMangle(t, "x((y + z) ?? 1)", "x(y + z);\n")
+	expectPrintedMangle(t, "x((y - z) ?? 1)", "x(y - z);\n")
+	expectPrintedMangle(t, "x((y * z) ?? 1)", "x(y * z);\n")
+	expectPrintedMangle(t, "x((y / z) ?? 1)", "x(y / z);\n")
+	expectPrintedMangle(t, "x((y % z) ?? 1)", "x(y % z);\n")
+	expectPrintedMangle(t, "x((y ** z) ?? 1)", "x(y ** z);\n")
+	expectPrintedMangle(t, "x((y << z) ?? 1)", "x(y << z);\n")
+	expectPrintedMangle(t, "x((y >> z) ?? 1)", "x(y >> z);\n")
+	expectPrintedMangle(t, "x((y >>> z) ?? 1)", "x(y >>> z);\n")
+	expectPrintedMangle(t, "x((y | z) ?? 1)", "x(y | z);\n")
+	expectPrintedMangle(t, "x((y & z) ?? 1)", "x(y & z);\n")
+	expectPrintedMangle(t, "x((y ^ z) ?? 1)", "x(y ^ z);\n")
+	expectPrintedMangle(t, "x((y < z) ?? 1)", "x(y < z);\n")
+	expectPrintedMangle(t, "x((y > z) ?? 1)", "x(y > z);\n")
+	expectPrintedMangle(t, "x((y <= z) ?? 1)", "x(y <= z);\n")
+	expectPrintedMangle(t, "x((y >= z) ?? 1)", "x(y >= z);\n")
+	expectPrintedMangle(t, "x((y == z) ?? 1)", "x(y == z);\n")
+	expectPrintedMangle(t, "x((y != z) ?? 1)", "x(y != z);\n")
+	expectPrintedMangle(t, "x((y === z) ?? 1)", "x(y === z);\n")
+	expectPrintedMangle(t, "x((y !== z) ?? 1)", "x(y !== z);\n")
+
+	expectPrintedMangle(t, "x((y || z) ?? 1)", "x((y || z) ?? 1);\n")
+	expectPrintedMangle(t, "x((y && z) ?? 1)", "x((y && z) ?? 1);\n")
+	expectPrintedMangle(t, "x((y ?? z) ?? 1)", "x(y ?? z ?? 1);\n")
+}
+
+func TestMangleBooleanWithSideEffects(t *testing.T) {
+	expectPrintedMangle(t, "y(x && false)", "y(x && false);\n")
+	expectPrintedMangle(t, "y(x || false)", "y(x || false);\n")
+	expectPrintedMangle(t, "y(x && true)", "y(x && true);\n")
+	expectPrintedMangle(t, "y(x || true)", "y(x || true);\n")
+
+	expectPrintedMangle(t, "if (x && false) y", "x && false;\n")
+	expectPrintedMangle(t, "if (x || false) y", "(x || false) && y;\n")
+	expectPrintedMangle(t, "if (x && true) y", "x && true && y;\n")
+	expectPrintedMangle(t, "if (x || true) y", "(x || true) && y;\n")
+
+	expectPrintedMangle(t, "y(x && false ? y : z)", "y(x && false ? y : z);\n")
+	expectPrintedMangle(t, "y(x || false ? y : z)", "y(x || false ? y : z);\n")
+	expectPrintedMangle(t, "y(x && true ? y : z)", "y(x && true ? y : z);\n")
+	expectPrintedMangle(t, "y(x || true ? y : z)", "y(x || true ? y : z);\n")
+
+	expectPrintedMangle(t, "x && false ? y : z", "x && false ? y : z;\n")
+	expectPrintedMangle(t, "x || false ? y : z", "x || false ? y : z;\n")
+	expectPrintedMangle(t, "x && true ? y : z", "x && true ? y : z;\n")
+	expectPrintedMangle(t, "x || true ? y : z", "x || true ? y : z;\n")
 }
 
 func TestMangleReturn(t *testing.T) {

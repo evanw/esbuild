@@ -630,42 +630,121 @@ func isPrimitiveToReorder(e js_ast.E) bool {
 	return false
 }
 
-func toNullOrUndefinedWithoutSideEffects(data js_ast.E) (bool, bool) {
-	switch data.(type) {
+type sideEffects uint8
+
+const (
+	couldHaveSideEffects sideEffects = iota
+	noSideEffects
+)
+
+func toNullOrUndefinedWithSideEffects(data js_ast.E) (isNullOrUndefined bool, sideEffects sideEffects, ok bool) {
+	switch e := data.(type) {
+	// Never null or undefined
 	case *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EString, *js_ast.ERegExp,
-		*js_ast.EObject, *js_ast.EArray, *js_ast.EFunction, *js_ast.EArrow, *js_ast.EClass:
-		return false, true
+		*js_ast.EFunction, *js_ast.EArrow, *js_ast.EBigInt:
+		return false, noSideEffects, true
 
+	// Never null or undefined
+	case *js_ast.EObject, *js_ast.EArray, *js_ast.EClass:
+		return false, couldHaveSideEffects, true
+
+	// Always null or undefined
 	case *js_ast.ENull, *js_ast.EUndefined:
-		return true, true
+		return true, noSideEffects, true
 
-	default:
-		return false, false
+	case *js_ast.EUnary:
+		switch e.Op {
+		case
+			// Always number or bigint
+			js_ast.UnOpPos, js_ast.UnOpNeg, js_ast.UnOpCpl,
+			js_ast.UnOpPreDec, js_ast.UnOpPreInc, js_ast.UnOpPostDec, js_ast.UnOpPostInc,
+			// Always boolean
+			js_ast.UnOpNot, js_ast.UnOpTypeof, js_ast.UnOpDelete:
+			return false, couldHaveSideEffects, true
+
+		// Always undefined
+		case js_ast.UnOpVoid:
+			return true, couldHaveSideEffects, true
+		}
+
+	case *js_ast.EBinary:
+		switch e.Op {
+		case
+			// Always string or number or bigint
+			js_ast.BinOpAdd, js_ast.BinOpAddAssign,
+			// Always number or bigint
+			js_ast.BinOpSub, js_ast.BinOpMul, js_ast.BinOpDiv, js_ast.BinOpRem, js_ast.BinOpPow,
+			js_ast.BinOpSubAssign, js_ast.BinOpMulAssign, js_ast.BinOpDivAssign, js_ast.BinOpRemAssign, js_ast.BinOpPowAssign,
+			js_ast.BinOpShl, js_ast.BinOpShr, js_ast.BinOpUShr,
+			js_ast.BinOpShlAssign, js_ast.BinOpShrAssign, js_ast.BinOpUShrAssign,
+			js_ast.BinOpBitwiseOr, js_ast.BinOpBitwiseAnd, js_ast.BinOpBitwiseXor,
+			js_ast.BinOpBitwiseOrAssign, js_ast.BinOpBitwiseAndAssign, js_ast.BinOpBitwiseXorAssign,
+			// Always boolean
+			js_ast.BinOpLt, js_ast.BinOpLe, js_ast.BinOpGt, js_ast.BinOpGe, js_ast.BinOpIn, js_ast.BinOpInstanceof,
+			js_ast.BinOpLooseEq, js_ast.BinOpLooseNe, js_ast.BinOpStrictEq, js_ast.BinOpStrictNe:
+			return false, couldHaveSideEffects, true
+
+		case js_ast.BinOpComma:
+			if isNullOrUndefined, _, ok := toNullOrUndefinedWithSideEffects(e.Right.Data); ok {
+				return isNullOrUndefined, couldHaveSideEffects, true
+			}
+		}
 	}
+
+	return false, noSideEffects, false
 }
 
-func toBooleanWithoutSideEffects(data js_ast.E) (bool, bool) {
+func toBooleanWithSideEffects(data js_ast.E) (boolean bool, sideEffects sideEffects, ok bool) {
 	switch e := data.(type) {
 	case *js_ast.ENull, *js_ast.EUndefined:
-		return false, true
+		return false, noSideEffects, true
 
 	case *js_ast.EBoolean:
-		return e.Value, true
+		return e.Value, noSideEffects, true
 
 	case *js_ast.ENumber:
-		return e.Value != 0 && !math.IsNaN(e.Value), true
+		return e.Value != 0 && !math.IsNaN(e.Value), noSideEffects, true
 
 	case *js_ast.EBigInt:
-		return e.Value != "0", true
+		return e.Value != "0", noSideEffects, true
 
 	case *js_ast.EString:
-		return len(e.Value) > 0, true
+		return len(e.Value) > 0, noSideEffects, true
 
 	case *js_ast.EFunction, *js_ast.EArrow:
-		return true, true
+		return true, noSideEffects, true
+
+	case *js_ast.EObject, *js_ast.EArray, *js_ast.EClass:
+		return true, couldHaveSideEffects, true
+
+	case *js_ast.EUnary:
+		switch e.Op {
+		case js_ast.UnOpVoid:
+			return false, couldHaveSideEffects, true
+
+		case js_ast.UnOpNot:
+			if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Value.Data); ok {
+				return !boolean, sideEffects, true
+			}
+		}
+
+	case *js_ast.EBinary:
+		switch e.Op {
+		case js_ast.BinOpLogicalOr:
+			// "anything || truthy" => "truthy"
+			if boolean, _, ok := toBooleanWithSideEffects(e.Right.Data); ok && boolean {
+				return true, couldHaveSideEffects, true
+			}
+
+		case js_ast.BinOpLogicalAnd:
+			// "anything && falsy" => "falsy"
+			if boolean, _, ok := toBooleanWithSideEffects(e.Right.Data); ok && !boolean {
+				return false, couldHaveSideEffects, true
+			}
+		}
 	}
 
-	return false, false
+	return false, couldHaveSideEffects, false
 }
 
 func toNumberWithoutSideEffects(data js_ast.E) (float64, bool) {
@@ -7966,11 +8045,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Body = p.visitLoopBody(s.Body)
 
 		if p.options.mangleSyntax {
-			// "while (a) {}" => "for (;a;) {}"
+			// A true value is implied
 			test := &s.Test
-			if boolean, ok := toBooleanWithoutSideEffects(s.Test.Data); ok && boolean {
+			if boolean, sideEffects, ok := toBooleanWithSideEffects(s.Test.Data); ok && boolean && sideEffects == noSideEffects {
 				test = nil
 			}
+
+			// "while (a) {}" => "for (;a;) {}"
 			forS := &js_ast.SFor{Test: test, Body: s.Body}
 			mangleFor(forS)
 			stmt = js_ast.Stmt{Loc: stmt.Loc, Data: forS}
@@ -7984,7 +8065,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Test = p.visitBooleanExpr(s.Test)
 
 		// Fold constants
-		boolean, ok := toBooleanWithoutSideEffects(s.Test.Data)
+		boolean, sideEffects, ok := toBooleanWithSideEffects(s.Test.Data)
 
 		// Mark the control flow as dead if the branch is never taken
 		if ok && !boolean {
@@ -8018,7 +8099,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		if p.options.mangleSyntax {
 			return p.mangleIf(stmts, stmt.Loc, s, mangleIfOpts{
-				isTestBooleanConstant: ok,
+				isTestBooleanConstant: ok && sideEffects == noSideEffects,
 				testBooleanValue:      boolean,
 			})
 		}
@@ -8034,7 +8115,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 			// A true value is implied
 			if p.options.mangleSyntax {
-				if boolean, ok := toBooleanWithoutSideEffects(s.Test.Data); ok && boolean {
+				if boolean, sideEffects, ok := toBooleanWithSideEffects(s.Test.Data); ok && boolean && sideEffects == noSideEffects {
 					s.Test = nil
 				}
 			}
@@ -9391,7 +9472,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Mark the control flow as dead if the branch is never taken
 		switch e.Op {
 		case js_ast.BinOpLogicalOr:
-			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok && boolean {
+			if boolean, _, ok := toBooleanWithSideEffects(e.Left.Data); ok && boolean {
 				// "true || dead"
 				old := p.isControlFlowDead
 				p.isControlFlowDead = true
@@ -9402,7 +9483,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpLogicalAnd:
-			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok && !boolean {
+			if boolean, _, ok := toBooleanWithSideEffects(e.Left.Data); ok && !boolean {
 				// "false && dead"
 				old := p.isControlFlowDead
 				p.isControlFlowDead = true
@@ -9413,7 +9494,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpNullishCoalescing:
-			if isNullOrUndefined, ok := toNullOrUndefinedWithoutSideEffects(e.Left.Data); ok && !isNullOrUndefined {
+			if isNullOrUndefined, _, ok := toNullOrUndefinedWithSideEffects(e.Left.Data); ok && !isNullOrUndefined {
 				// "notNullOrUndefined ?? dead"
 				old := p.isControlFlowDead
 				p.isControlFlowDead = true
@@ -9550,19 +9631,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpNullishCoalescing:
-			if isNullOrUndefined, ok := toNullOrUndefinedWithoutSideEffects(e.Left.Data); ok {
+			if isNullOrUndefined, sideEffects, ok := toNullOrUndefinedWithSideEffects(e.Left.Data); ok {
 				if !isNullOrUndefined {
 					return e.Left, exprOut{}
-				}
+				} else if sideEffects == noSideEffects {
+					// "(null ?? fn)()" => "fn()"
+					// "(null ?? this.fn)" => "this.fn"
+					// "(null ?? this.fn)()" => "(0, this.fn)()"
+					if isCallTarget && hasValueForThisInCall(e.Right) {
+						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
+					}
 
-				// "(null ?? fn)()" => "fn()"
-				// "(null ?? this.fn)" => "this.fn"
-				// "(null ?? this.fn)()" => "(0, this.fn)()"
-				if isCallTarget && hasValueForThisInCall(e.Right) {
-					return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
+					return e.Right, exprOut{}
 				}
-
-				return e.Right, exprOut{}
 			}
 
 			if p.options.mangleSyntax {
@@ -9578,10 +9659,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpLogicalOr:
-			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok {
+			if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Left.Data); ok {
 				if boolean {
 					return e.Left, exprOut{}
-				} else {
+				} else if sideEffects == noSideEffects {
 					// "(0 || fn)()" => "fn()"
 					// "(0 || this.fn)" => "this.fn"
 					// "(0 || this.fn)()" => "(0, this.fn)()"
@@ -9608,8 +9689,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpLogicalAnd:
-			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok {
-				if boolean {
+			if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Left.Data); ok {
+				if !boolean {
+					return e.Left, exprOut{}
+				} else if sideEffects == noSideEffects {
 					// "(1 && fn)()" => "fn()"
 					// "(1 && this.fn)" => "this.fn"
 					// "(1 && this.fn)()" => "(0, this.fn)()"
@@ -9617,8 +9700,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
 					}
 					return e.Right, exprOut{}
-				} else {
-					return e.Left, exprOut{}
 				}
 			}
 
@@ -10037,7 +10118,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Post-process the unary expression
 			switch e.Op {
 			case js_ast.UnOpNot:
-				if boolean, ok := toBooleanWithoutSideEffects(e.Value.Data); ok {
+				if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Value.Data); ok && sideEffects == noSideEffects {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: !boolean}}, exprOut{}
 				}
 
@@ -10172,7 +10253,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		e.Test = p.visitBooleanExpr(e.Test)
 
 		// Fold constants
-		if boolean, ok := toBooleanWithoutSideEffects(e.Test.Data); !ok {
+		if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Test.Data); !ok {
 			e.Yes = p.visitExpr(e.Yes)
 			e.No = p.visitExpr(e.No)
 		} else {
@@ -10185,7 +10266,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				e.No = p.visitExpr(e.No)
 				p.isControlFlowDead = old
 
-				if p.options.mangleSyntax {
+				if p.options.mangleSyntax && sideEffects == noSideEffects {
 					// "(1 ? fn : 2)()" => "fn()"
 					// "(1 ? this.fn : 2)" => "this.fn"
 					// "(1 ? this.fn : 2)()" => "(0, this.fn)()"
@@ -10203,7 +10284,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				p.isControlFlowDead = old
 				e.No = p.visitExpr(e.No)
 
-				if p.options.mangleSyntax {
+				if p.options.mangleSyntax && sideEffects == noSideEffects {
 					// "(0 ? 1 : fn)()" => "fn()"
 					// "(0 ? 1 : this.fn)" => "this.fn"
 					// "(0 ? 1 : this.fn)()" => "(0, this.fn)()"
