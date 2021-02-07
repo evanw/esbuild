@@ -1,6 +1,7 @@
 package js_ast
 
 import (
+	"math"
 	"sort"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -687,6 +688,24 @@ func Not(expr Expr) Expr {
 // that is undesired.
 func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 	switch e := expr.Data.(type) {
+	case *ENull, *EUndefined:
+		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: true}}, true
+
+	case *EBoolean:
+		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: !e.Value}}, true
+
+	case *ENumber:
+		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: e.Value == 0 || math.IsNaN(e.Value)}}, true
+
+	case *EBigInt:
+		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: e.Value == "0"}}, true
+
+	case *EString:
+		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: len(e.Value) == 0}}, true
+
+	case *EFunction, *EArrow, *ERegExp:
+		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: false}}, true
+
 	case *EUnary:
 		// "!!!a" => "!a"
 		if e.Op == UnOpNot && IsBooleanValue(e.Value) {

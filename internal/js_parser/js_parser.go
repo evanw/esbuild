@@ -711,7 +711,7 @@ func toBooleanWithSideEffects(data js_ast.E) (boolean bool, sideEffects sideEffe
 	case *js_ast.EString:
 		return len(e.Value) > 0, noSideEffects, true
 
-	case *js_ast.EFunction, *js_ast.EArrow:
+	case *js_ast.EFunction, *js_ast.EArrow, *js_ast.ERegExp:
 		return true, noSideEffects, true
 
 	case *js_ast.EObject, *js_ast.EArray, *js_ast.EClass:
@@ -722,6 +722,10 @@ func toBooleanWithSideEffects(data js_ast.E) (boolean bool, sideEffects sideEffe
 		case js_ast.UnOpVoid:
 			return false, couldHaveSideEffects, true
 
+		case js_ast.UnOpTypeof:
+			// Never an empty string
+			return true, couldHaveSideEffects, true
+
 		case js_ast.UnOpNot:
 			if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Value.Data); ok {
 				return !boolean, sideEffects, true
@@ -731,15 +735,21 @@ func toBooleanWithSideEffects(data js_ast.E) (boolean bool, sideEffects sideEffe
 	case *js_ast.EBinary:
 		switch e.Op {
 		case js_ast.BinOpLogicalOr:
-			// "anything || truthy" => "truthy"
+			// "anything || truthy" is truthy
 			if boolean, _, ok := toBooleanWithSideEffects(e.Right.Data); ok && boolean {
 				return true, couldHaveSideEffects, true
 			}
 
 		case js_ast.BinOpLogicalAnd:
-			// "anything && falsy" => "falsy"
+			// "anything && falsy" is falsy
 			if boolean, _, ok := toBooleanWithSideEffects(e.Right.Data); ok && !boolean {
 				return false, couldHaveSideEffects, true
+			}
+
+		case js_ast.BinOpComma:
+			// "anything, truthy/falsy" is truthy/falsy
+			if boolean, _, ok := toBooleanWithSideEffects(e.Right.Data); ok {
+				return boolean, couldHaveSideEffects, true
 			}
 		}
 	}
@@ -6609,7 +6619,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 						return p.mangleIf(result, stmt.Loc, &js_ast.SIf{
 							Test: js_ast.Not(s.Test),
 							Yes:  stmtsToSingleStmt(bodyLoc, body),
-						}, mangleIfOpts{})
+						})
 					}
 				}
 
@@ -7364,26 +7374,33 @@ func appendIfBodyPreservingScope(stmts []js_ast.Stmt, body js_ast.Stmt) []js_ast
 	return append(stmts, body)
 }
 
-type mangleIfOpts struct {
-	isTestBooleanConstant bool
-	testBooleanValue      bool
-}
-
-func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf, opts mangleIfOpts) []js_ast.Stmt {
+func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []js_ast.Stmt {
 	// Constant folding using the test expression
-	if opts.isTestBooleanConstant {
-		if opts.testBooleanValue {
-			// The test is true
+	if boolean, sideEffects, ok := toBooleanWithSideEffects(s.Test.Data); ok {
+		if boolean {
+			// The test is truthy
 			if s.No == nil || !shouldKeepStmtInDeadControlFlow(*s.No) {
 				// We can drop the "no" branch
+				if sideEffects == couldHaveSideEffects {
+					// Keep the condition if it could have side effects (but is still known to be truthy)
+					if test := p.simplifyUnusedExpr(s.Test); test.Data != nil {
+						stmts = append(stmts, js_ast.Stmt{Loc: s.Test.Loc, Data: &js_ast.SExpr{Value: test}})
+					}
+				}
 				return appendIfBodyPreservingScope(stmts, s.Yes)
 			} else {
 				// We have to keep the "no" branch
 			}
 		} else {
-			// The test is false
+			// The test is falsy
 			if !shouldKeepStmtInDeadControlFlow(s.Yes) {
 				// We can drop the "yes" branch
+				if sideEffects == couldHaveSideEffects {
+					// Keep the condition if it could have side effects (but is still known to be falsy)
+					if test := p.simplifyUnusedExpr(s.Test); test.Data != nil {
+						stmts = append(stmts, js_ast.Stmt{Loc: s.Test.Loc, Data: &js_ast.SExpr{Value: test}})
+					}
+				}
 				if s.No == nil {
 					return stmts
 				}
@@ -8041,10 +8058,12 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.popScope()
 
 	case *js_ast.SWhile:
-		s.Test = p.visitBooleanExpr(s.Test)
+		s.Test = p.visitExpr(s.Test)
 		s.Body = p.visitLoopBody(s.Body)
 
 		if p.options.mangleSyntax {
+			s.Test = p.simplifyBooleanExpr(s.Test)
+
 			// A true value is implied
 			test := &s.Test
 			if boolean, sideEffects, ok := toBooleanWithSideEffects(s.Test.Data); ok && boolean && sideEffects == noSideEffects {
@@ -8059,13 +8078,21 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 	case *js_ast.SDoWhile:
 		s.Body = p.visitLoopBody(s.Body)
-		s.Test = p.visitBooleanExpr(s.Test)
+		s.Test = p.visitExpr(s.Test)
+
+		if p.options.mangleSyntax {
+			s.Test = p.simplifyBooleanExpr(s.Test)
+		}
 
 	case *js_ast.SIf:
-		s.Test = p.visitBooleanExpr(s.Test)
+		s.Test = p.visitExpr(s.Test)
+
+		if p.options.mangleSyntax {
+			s.Test = p.simplifyBooleanExpr(s.Test)
+		}
 
 		// Fold constants
-		boolean, sideEffects, ok := toBooleanWithSideEffects(s.Test.Data)
+		boolean, _, ok := toBooleanWithSideEffects(s.Test.Data)
 
 		// Mark the control flow as dead if the branch is never taken
 		if ok && !boolean {
@@ -8098,10 +8125,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		if p.options.mangleSyntax {
-			return p.mangleIf(stmts, stmt.Loc, s, mangleIfOpts{
-				isTestBooleanConstant: ok && sideEffects == noSideEffects,
-				testBooleanValue:      boolean,
-			})
+			return p.mangleIf(stmts, stmt.Loc, s)
 		}
 
 	case *js_ast.SFor:
@@ -8111,10 +8135,12 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		if s.Test != nil {
-			*s.Test = p.visitBooleanExpr(*s.Test)
+			*s.Test = p.visitExpr(*s.Test)
 
-			// A true value is implied
 			if p.options.mangleSyntax {
+				*s.Test = p.simplifyBooleanExpr(*s.Test)
+
+				// A true value is implied
 				if boolean, sideEffects, ok := toBooleanWithSideEffects(s.Test.Data); ok && boolean && sideEffects == noSideEffects {
 					s.Test = nil
 				}
@@ -9033,21 +9059,42 @@ func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
 	return nil
 }
 
-func (p *parser) visitBooleanExpr(expr js_ast.Expr) js_ast.Expr {
-	expr = p.visitExpr(expr)
-
-	// Simplify syntax when we know it's used inside a boolean context
-	if p.options.mangleSyntax {
-		for {
+// Simplify syntax when we know it's used inside a boolean context
+func (p *parser) simplifyBooleanExpr(expr js_ast.Expr) js_ast.Expr {
+	switch e := expr.Data.(type) {
+	case *js_ast.EUnary:
+		if e.Op == js_ast.UnOpNot {
 			// "!!a" => "a"
-			if not, ok := expr.Data.(*js_ast.EUnary); ok && not.Op == js_ast.UnOpNot {
-				if not2, ok2 := not.Value.Data.(*js_ast.EUnary); ok2 && not2.Op == js_ast.UnOpNot {
-					expr = not2.Value
-					continue
+			if e2, ok2 := e.Value.Data.(*js_ast.EUnary); ok2 && e2.Op == js_ast.UnOpNot {
+				return p.simplifyBooleanExpr(e2.Value)
+			}
+
+			e.Value = p.simplifyBooleanExpr(e.Value)
+		}
+
+	case *js_ast.EBinary:
+		switch e.Op {
+		case js_ast.BinOpLogicalAnd:
+			if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Right.Data); ok {
+				if !boolean {
+					// "if (anything && falsyWithSideEffects)" => "if (anything, falsyWithSideEffects)"
+					e.Op = js_ast.BinOpComma
+				} else if sideEffects == noSideEffects {
+					// "if (anything && truthyNoSideEffects)" => "if (anything)"
+					return e.Left
 				}
 			}
 
-			break
+		case js_ast.BinOpLogicalOr:
+			if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Right.Data); ok {
+				if boolean {
+					// "if (anything || truthyWithSideEffects)" => "if (anything, truthyWithSideEffects)"
+					e.Op = js_ast.BinOpComma
+				} else if sideEffects == noSideEffects {
+					// "if (anything || falsyNoSideEffects)" => "if (anything)"
+					return e.Left
+				}
+			}
 		}
 	}
 
@@ -10118,6 +10165,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Post-process the unary expression
 			switch e.Op {
 			case js_ast.UnOpNot:
+				if p.options.mangleSyntax {
+					e.Value = p.simplifyBooleanExpr(e.Value)
+				}
+
 				if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Value.Data); ok && sideEffects == noSideEffects {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: !boolean}}, exprOut{}
 				}
@@ -10250,7 +10301,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EIf:
 		isCallTarget := e == p.callTarget
-		e.Test = p.visitBooleanExpr(e.Test)
+		e.Test = p.visitExpr(e.Test)
+
+		if p.options.mangleSyntax {
+			e.Test = p.simplifyBooleanExpr(e.Test)
+		}
 
 		// Fold constants
 		if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Test.Data); !ok {
@@ -10266,7 +10321,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				e.No = p.visitExpr(e.No)
 				p.isControlFlowDead = old
 
-				if p.options.mangleSyntax && sideEffects == noSideEffects {
+				if p.options.mangleSyntax {
+					// "(a, true) ? b : c" => "a, b"
+					if sideEffects == couldHaveSideEffects {
+						return maybeJoinWithComma(p.simplifyUnusedExpr(e.Test), e.Yes), exprOut{}
+					}
+
 					// "(1 ? fn : 2)()" => "fn()"
 					// "(1 ? this.fn : 2)" => "this.fn"
 					// "(1 ? this.fn : 2)()" => "(0, this.fn)()"
@@ -10284,7 +10344,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				p.isControlFlowDead = old
 				e.No = p.visitExpr(e.No)
 
-				if p.options.mangleSyntax && sideEffects == noSideEffects {
+				if p.options.mangleSyntax {
+					// "(a, false) ? b : c" => "a, c"
+					if sideEffects == couldHaveSideEffects {
+						return maybeJoinWithComma(p.simplifyUnusedExpr(e.Test), e.No), exprOut{}
+					}
+
 					// "(0 ? 1 : fn)()" => "fn()"
 					// "(0 ? 1 : this.fn)" => "this.fn"
 					// "(0 ? 1 : this.fn)()" => "(0, this.fn)()"

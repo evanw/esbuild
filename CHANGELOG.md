@@ -6,6 +6,18 @@
 
     On Linux, the install script for esbuild currently caches downloaded binary executables in `~/.cache/esbuild/bin`. This change means esbuild will now try installing to `$XDG_CACHE_HOME/esbuild/bin` instead of the `XDG_CACHE_HOME` environment variable exists. This allows you to customize the cache directory on Linux. The specification that defines `XDG_CACHE_HOME` is [here](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
 
+* Further improve constant folding of branches ([#765](https://github.com/evanw/esbuild/issues/765))
+
+    At a high level, this release adds the following substitutions to improve constant folding and dead code elimination:
+
+    * `if (anything && falsyWithSideEffects)` → `if (anything, falsyWithSideEffects)`
+    * `if (anything || truthyWithSideEffects)` → `if (anything, truthyWithSideEffects)`
+    * `if (anything && truthyNoSideEffects)` → `if (anything)`
+    * `if (anything || falsyNoSideEffects)` → `if (anything)`
+    * `if (anything, truthyOrFalsy)` → `anything; if (truthyOrFalsy)`
+
+    The actual substitutions are more complex since they are more comprehensive but they essentially result in this high-level behavior. Note that these substitutions are only done when minification is enabled.
+
 ## 0.8.42
 
 * Fix crash with block-level function declaration and `--keep-names` ([#755](https://github.com/evanw/esbuild/issues/755))
