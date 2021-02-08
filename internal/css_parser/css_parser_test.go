@@ -39,6 +39,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		log := logger.NewDeferLog()
 		tree := Parse(log, test.SourceForTest(contents), Options{
 			MangleSyntax:           options.MangleSyntax,
+			RemoveWhitespace:       options.RemoveWhitespace,
 			UnsupportedCSSFeatures: options.UnsupportedCSSFeatures,
 		})
 		msgs := log.Done()

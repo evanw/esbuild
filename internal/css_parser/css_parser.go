@@ -29,6 +29,7 @@ type parser struct {
 type Options struct {
 	UnsupportedCSSFeatures compat.CSSFeature
 	MangleSyntax           bool
+	RemoveWhitespace       bool
 }
 
 func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
@@ -484,48 +485,46 @@ prelude:
 	default:
 		// Otherwise, parse an unknown rule
 		p.parseBlock(css_lexer.TOpenBrace, css_lexer.TCloseBrace)
-		block := p.convertTokensWithImports(p.tokens[blockStart:p.index])
+		block, _ := p.convertTokensHelper(p.tokens[blockStart:p.index], css_lexer.TEndOfFile, convertTokensOpts{allowImports: true})
 		return &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}
 	}
 }
 
 func (p *parser) convertTokens(tokens []css_lexer.Token) []css_ast.Token {
-	result, _ := p.convertTokensHelper(tokens, css_lexer.TEndOfFile, false)
+	result, _ := p.convertTokensHelper(tokens, css_lexer.TEndOfFile, convertTokensOpts{})
 	return result
 }
 
-func (p *parser) convertTokensWithImports(tokens []css_lexer.Token) []css_ast.Token {
-	result, _ := p.convertTokensHelper(tokens, css_lexer.TEndOfFile, true)
-	return result
+type convertTokensOpts struct {
+	allowImports       bool
+	verbatimWhitespace bool
 }
 
-func (p *parser) convertTokensHelper(tokens []css_lexer.Token, close css_lexer.T, allowImports bool) ([]css_ast.Token, []css_lexer.Token) {
+func (p *parser) convertTokensHelper(tokens []css_lexer.Token, close css_lexer.T, opts convertTokensOpts) ([]css_ast.Token, []css_lexer.Token) {
 	var result []css_ast.Token
+	var nextWhitespace css_ast.WhitespaceFlags
+
 loop:
 	for len(tokens) > 0 {
 		t := tokens[0]
 		tokens = tokens[1:]
-		token := css_ast.Token{
-			Kind: t.Kind,
-			Text: t.DecodedText(p.source.Contents),
+		if t.Kind == close {
+			break loop
 		}
+		token := css_ast.Token{
+			Kind:       t.Kind,
+			Text:       t.DecodedText(p.source.Contents),
+			Whitespace: nextWhitespace,
+		}
+		nextWhitespace = 0
 
 		switch t.Kind {
 		case css_lexer.TWhitespace:
 			if last := len(result) - 1; last >= 0 {
-				result[last].HasWhitespaceAfter = true
+				result[last].Whitespace |= css_ast.WhitespaceAfter
 			}
+			nextWhitespace = css_ast.WhitespaceBefore
 			continue
-
-		case css_lexer.TComma:
-			// Assume that whitespace can always be removed before a comma
-			if last := len(result) - 1; last >= 0 {
-				result[last].HasWhitespaceAfter = false
-			}
-
-			// Assume whitespace can always be added after a comma (it will be
-			// automatically omitted by the printer if we're minifying)
-			token.HasWhitespaceAfter = true
 
 		case css_lexer.TNumber:
 			if p.options.MangleSyntax {
@@ -557,14 +556,19 @@ loop:
 				Kind:     ast.ImportURL,
 				Path:     logger.Path{Text: token.Text},
 				Range:    t.Range,
-				IsUnused: !allowImports,
+				IsUnused: !opts.allowImports,
 			})
 			token.Text = ""
 
 		case css_lexer.TFunction:
 			var nested []css_ast.Token
 			original := tokens
-			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen, allowImports)
+			nestedOpts := opts
+			if token.Text == "var" {
+				// CSS variables require verbatim whitespace for correctness
+				nestedOpts.verbatimWhitespace = true
+			}
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen, nestedOpts)
 			token.Children = &nested
 
 			// Treat a URL function call with a string just like a URL token
@@ -577,33 +581,83 @@ loop:
 					Kind:     ast.ImportURL,
 					Path:     logger.Path{Text: nested[0].Text},
 					Range:    original[0].Range,
-					IsUnused: !allowImports,
+					IsUnused: !opts.allowImports,
 				})
 			}
 
 		case css_lexer.TOpenParen:
 			var nested []css_ast.Token
-			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen, allowImports)
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen, opts)
 			token.Children = &nested
 
 		case css_lexer.TOpenBrace:
 			var nested []css_ast.Token
-			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBrace, allowImports)
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBrace, opts)
+
+			// Pretty-printing: insert leading and trailing whitespace when not minifying
+			if !opts.verbatimWhitespace && !p.options.RemoveWhitespace && len(nested) > 0 {
+				nested[0].Whitespace |= css_ast.WhitespaceBefore
+				nested[len(nested)-1].Whitespace |= css_ast.WhitespaceAfter
+			}
+
 			token.Children = &nested
 
 		case css_lexer.TOpenBracket:
 			var nested []css_ast.Token
-			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBracket, allowImports)
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBracket, opts)
 			token.Children = &nested
-
-		default:
-			if t.Kind == close {
-				break loop
-			}
 		}
 
 		result = append(result, token)
 	}
+
+	if !opts.verbatimWhitespace {
+		for i := range result {
+			token := &result[i]
+
+			// Always remove leading and trailing whitespace
+			if i == 0 {
+				token.Whitespace &= ^css_ast.WhitespaceBefore
+			}
+			if i+1 == len(result) {
+				token.Whitespace &= ^css_ast.WhitespaceAfter
+			}
+
+			switch token.Kind {
+			case css_lexer.TComma:
+				// Assume that whitespace can always be removed before a comma
+				token.Whitespace &= ^css_ast.WhitespaceBefore
+				if i > 0 {
+					result[i-1].Whitespace &= ^css_ast.WhitespaceAfter
+				}
+
+				// Assume whitespace can always be added after a comma
+				if p.options.RemoveWhitespace {
+					token.Whitespace &= ^css_ast.WhitespaceAfter
+					if i+1 < len(result) {
+						result[i+1].Whitespace &= ^css_ast.WhitespaceBefore
+					}
+				} else {
+					token.Whitespace |= css_ast.WhitespaceAfter
+					if i+1 < len(result) {
+						result[i+1].Whitespace |= css_ast.WhitespaceBefore
+					}
+				}
+			}
+		}
+	}
+
+	// Insert an explicit whitespace token if we're in verbatim mode and all
+	// tokens were whitespace. In this case there is no token to attach the
+	// whitespace before/after flags so this is the only way to represent this.
+	// This is the only case where this function generates an explicit whitespace
+	// token. It represents whitespace as flags in all other cases.
+	if opts.verbatimWhitespace && len(result) == 0 && nextWhitespace == css_ast.WhitespaceBefore {
+		result = append(result, css_ast.Token{
+			Kind: css_lexer.TWhitespace,
+		})
+	}
+
 	return result, tokens
 }
 
@@ -724,34 +778,49 @@ stop:
 		}
 	}
 
-	// Remove leading and trailing whitespace from the value
-	value := trimWhitespace(p.tokens[valueStart:p.index])
+	keyToken := p.tokens[keyStart]
+	keyText := keyToken.DecodedText(p.source.Contents)
+	value := p.tokens[valueStart:p.index]
+	verbatimWhitespace := strings.HasPrefix(keyText, "--")
 
 	// Remove trailing "!important"
 	important := false
-	if last := len(value) - 1; last >= 0 {
-		if t := value[last]; t.Kind == css_lexer.TIdent && strings.EqualFold(t.DecodedText(p.source.Contents), "important") {
-			i := len(value) - 2
-			if i >= 0 && value[i].Kind == css_lexer.TWhitespace {
-				i--
-			}
-			if i >= 0 && value[i].Kind == css_lexer.TDelimExclamation {
-				if i >= 1 && value[i-1].Kind == css_lexer.TWhitespace {
-					i--
-				}
-				value = value[:i]
-				important = true
-			}
+	i := len(value) - 1
+	if i >= 0 && value[i].Kind == css_lexer.TWhitespace {
+		i--
+	}
+	if i >= 0 && value[i].Kind == css_lexer.TIdent && strings.EqualFold(value[i].DecodedText(p.source.Contents), "important") {
+		i--
+		if i >= 0 && value[i].Kind == css_lexer.TWhitespace {
+			i--
+		}
+		if i >= 0 && value[i].Kind == css_lexer.TDelimExclamation {
+			value = value[:i]
+			important = true
 		}
 	}
 
-	keyToken := p.tokens[keyStart]
-	keyText := keyToken.DecodedText(p.source.Contents)
+	result, _ := p.convertTokensHelper(value, css_lexer.TEndOfFile, convertTokensOpts{
+		allowImports: true,
+
+		// CSS variables require verbatim whitespace for correctness
+		verbatimWhitespace: verbatimWhitespace,
+	})
+
+	// Insert or remove whitespace before the first token
+	if !verbatimWhitespace && len(result) > 0 {
+		if p.options.RemoveWhitespace {
+			result[0].Whitespace &= ^css_ast.WhitespaceBefore
+		} else {
+			result[0].Whitespace |= css_ast.WhitespaceBefore
+		}
+	}
+
 	return &css_ast.RDeclaration{
 		Key:       css_ast.KnownDeclarations[keyText],
 		KeyText:   keyText,
 		KeyRange:  keyToken.Range,
-		Value:     p.convertTokensWithImports(value),
+		Value:     result,
 		Important: important,
 	}
 }
@@ -789,14 +858,4 @@ func (p *parser) parseBlock(open css_lexer.T, close css_lexer.T) {
 			p.parseComponentValue()
 		}
 	}
-}
-
-func trimWhitespace(tokens []css_lexer.Token) []css_lexer.Token {
-	if len(tokens) > 0 && tokens[0].Kind == css_lexer.TWhitespace {
-		tokens = tokens[1:]
-	}
-	if i := len(tokens) - 1; i >= 0 && tokens[i].Kind == css_lexer.TWhitespace {
-		tokens = tokens[:i]
-	}
-	return tokens
 }

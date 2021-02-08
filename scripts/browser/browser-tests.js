@@ -12,6 +12,42 @@ const wasm = fs.readFileSync(path.join(__dirname, '..', '..', 'npm', 'esbuild-wa
 
 // This is converted to a string and run inside the browser
 async function runAllTests({ esbuild, service }) {
+  function setupForProblemCSS(prefix) {
+    // https://github.com/tailwindlabs/tailwindcss/issues/2889
+    const original = `
+      /* Variant 1 */
+      .${prefix}-v1 { --a: ; --b: ; max-width: var(--a) var(--b); }
+      .${prefix}-a { --a: 1px; }
+      .${prefix}-b { --b: 2px; }
+
+      /* Variant 2 */
+      .${prefix}-v2 { max-width: var(--a, ) var(--b, ); }
+      .${prefix}-a { --a: 1px; }
+      .${prefix}-b { --b: 2px; }
+    `
+    const style = document.createElement('style')
+    const test1a = document.createElement('div')
+    const test1b = document.createElement('div')
+    const test2a = document.createElement('div')
+    const test2b = document.createElement('div')
+    document.head.appendChild(style)
+    document.body.appendChild(test1a)
+    document.body.appendChild(test1b)
+    document.body.appendChild(test2a)
+    document.body.appendChild(test2b)
+    test1a.className = `${prefix}-v1 ${prefix}-a`
+    test1b.className = `${prefix}-v1 ${prefix}-b`
+    test2a.className = `${prefix}-v2 ${prefix}-a`
+    test2b.className = `${prefix}-v2 ${prefix}-b`
+    return [original, css => {
+      style.textContent = css
+      assertStrictEqual(getComputedStyle(test1a).maxWidth, `1px`)
+      assertStrictEqual(getComputedStyle(test1b).maxWidth, `2px`)
+      assertStrictEqual(getComputedStyle(test2a).maxWidth, `1px`)
+      assertStrictEqual(getComputedStyle(test2b).maxWidth, `2px`)
+    }]
+  }
+
   const tests = {
     async transformJS() {
       const { code } = await service.transform('1+2')
@@ -26,6 +62,23 @@ async function runAllTests({ esbuild, service }) {
     async transformCSS() {
       const { code } = await service.transform('div { color: red }', { loader: 'css' })
       assertStrictEqual(code, 'div {\n  color: red;\n}\n')
+    },
+
+    async problemCSSOriginal() {
+      const [original, runAsserts] = setupForProblemCSS('original')
+      runAsserts(original)
+    },
+
+    async problemCSSPrettyPrinted() {
+      const [original, runAsserts] = setupForProblemCSS('pretty-print')
+      const { code: prettyPrinted } = await service.transform(original, { loader: 'css' })
+      runAsserts(prettyPrinted)
+    },
+
+    async problemCSSMinified() {
+      const [original, runAsserts] = setupForProblemCSS('pretty-print')
+      const { code: minified } = await service.transform(original, { loader: 'css', minify: true })
+      runAsserts(minified)
     },
 
     async buildFib() {
@@ -206,8 +259,14 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'text/html' })
         res.end(`
           <!doctype html>
-          <meta charset="utf8">
-          ${pages[key]}
+          <html>
+            <head>
+              <meta charset="utf8">
+            </head>
+            <body>
+              ${pages[key]}
+            </body>
+          </html>
         `)
         return
       }

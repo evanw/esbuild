@@ -23,6 +23,19 @@
 
     The actual substitutions are more complex since they are more comprehensive but they essentially result in this high-level behavior. Note that these substitutions are only done when minification is enabled.
 
+* Fix an edge case with CSS variable syntax ([#760](https://github.com/evanw/esbuild/issues/760))
+
+    CSS variables are whitespace-sensitive even though other CSS syntax is mostly not whitespace sensitive. It is apparently common for this to cause problems with CSS tooling that pretty-prints and minifies CSS, including esbuild before this release. Some examples of issues with other tools include [postcss/postcss#1404](https://github.com/postcss/postcss/issues/1404) and [tailwindlabs/tailwindcss#2889](https://github.com/tailwindlabs/tailwindcss/issues/2889). The issue affects code like this:
+
+    ```css
+    div {
+      --some-var: ;
+      some-decl: var(--some-var, );
+    }
+    ```
+
+    It would be a change in semantics to minify this code to either `--some-var:;` or `var(--some-var,)` due to the whitespace significance of CSS variables, so such transformations are invalid. With this release, esbuild should now preserve whitespace in these two situations (CSS variable declarations and CSS variable references).
+
 ## 0.8.42
 
 * Fix crash with block-level function declaration and `--keep-names` ([#755](https://github.com/evanw/esbuild/issues/755))

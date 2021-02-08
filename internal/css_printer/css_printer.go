@@ -160,22 +160,18 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RQualified:
-		p.printTokens(r.Prelude)
-		if !p.RemoveWhitespace {
+		hasWhitespaceAfter := p.printTokens(r.Prelude)
+		if !hasWhitespaceAfter && !p.RemoveWhitespace {
 			p.print(" ")
 		}
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RDeclaration:
 		p.printIdent(r.KeyText, identNormal, canDiscardWhitespaceAfter)
-		if p.RemoveWhitespace {
-			p.print(":")
-		} else {
-			p.print(": ")
-		}
-		p.printTokens(r.Value)
+		p.print(":")
+		hasWhitespaceAfter := p.printTokens(r.Value)
 		if r.Important {
-			if !p.RemoveWhitespace {
+			if !hasWhitespaceAfter && !p.RemoveWhitespace && len(r.Value) > 0 {
 				p.print(" ")
 			}
 			p.print("!important")
@@ -563,9 +559,19 @@ func (p *printer) printIndent(indent int) {
 	}
 }
 
-func (p *printer) printTokens(tokens []css_ast.Token) {
+func (p *printer) printTokens(tokens []css_ast.Token) bool {
+	hasWhitespaceAfter := len(tokens) > 0 && (tokens[0].Whitespace&css_ast.WhitespaceBefore) != 0
 	for i, t := range tokens {
-		hasWhitespaceAfter := t.HasWhitespaceAfter && i+1 != len(tokens)
+		if t.Kind == css_lexer.TWhitespace {
+			hasWhitespaceAfter = true
+			continue
+		}
+		if hasWhitespaceAfter {
+			p.print(" ")
+		}
+		hasWhitespaceAfter = (t.Whitespace&css_ast.WhitespaceAfter) != 0 ||
+			(i+1 < len(tokens) && (tokens[i+1].Whitespace&css_ast.WhitespaceBefore) != 0)
+
 		whitespace := mayNeedWhitespaceAfter
 		if !hasWhitespaceAfter {
 			whitespace = canDiscardWhitespaceAfter
@@ -605,13 +611,7 @@ func (p *printer) printTokens(tokens []css_ast.Token) {
 		}
 
 		if t.Children != nil {
-			children := *t.Children
-
-			if t.Kind == css_lexer.TOpenBrace && !p.RemoveWhitespace && len(children) > 0 {
-				p.print(" ")
-			}
-
-			p.printTokens(children)
+			p.printTokens(*t.Children)
 
 			switch t.Kind {
 			case css_lexer.TFunction:
@@ -621,22 +621,15 @@ func (p *printer) printTokens(tokens []css_ast.Token) {
 				p.print(")")
 
 			case css_lexer.TOpenBrace:
-				if !p.RemoveWhitespace && len(children) > 0 {
-					p.print(" ")
-				}
 				p.print("}")
 
 			case css_lexer.TOpenBracket:
 				p.print("]")
 			}
 		}
-
-		if hasWhitespaceAfter {
-			if t.Kind == css_lexer.TComma && p.RemoveWhitespace {
-				// Assume that whitespace can always be removed after a comma
-			} else {
-				p.print(" ")
-			}
-		}
 	}
+	if hasWhitespaceAfter {
+		p.print(" ")
+	}
+	return hasWhitespaceAfter
 }

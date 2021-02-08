@@ -12,9 +12,9 @@ import (
 )
 
 var commaToken = css_ast.Token{
-	Kind:               css_lexer.TComma,
-	Text:               ",",
-	HasWhitespaceAfter: true,
+	Kind:       css_lexer.TComma,
+	Text:       ",",
+	Whitespace: css_ast.WhitespaceAfter,
 }
 
 // These names are shorter than their hex codes
@@ -345,8 +345,8 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 					// "rgba(1 2 3)" => "rgb(1, 2, 3)"
 					// "hsla(1 2% 3%)" => "rgb(1, 2%, 3%)"
 					removeAlpha = true
-					args[0].HasWhitespaceAfter = false
-					args[1].HasWhitespaceAfter = false
+					args[0].Whitespace = 0
+					args[1].Whitespace = 0
 					token.Children = &[]css_ast.Token{
 						args[0], commaToken,
 						args[1], commaToken,
@@ -365,9 +365,9 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 					// "hsl(1 2% 3% / 4%)" => "hsla(1, 2%, 3%, 0.04)"
 					if args[3].Kind == css_lexer.TDelimSlash {
 						addAlpha = true
-						args[0].HasWhitespaceAfter = false
-						args[1].HasWhitespaceAfter = false
-						args[2].HasWhitespaceAfter = false
+						args[0].Whitespace = 0
+						args[1].Whitespace = 0
+						args[2].Whitespace = 0
 						token.Children = &[]css_ast.Token{
 							args[0], commaToken,
 							args[1], commaToken,

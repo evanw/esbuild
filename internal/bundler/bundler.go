@@ -247,6 +247,7 @@ func parseFile(args parseArgs) {
 	case config.LoaderCSS:
 		ast := args.caches.CSSCache.Parse(args.log, source, css_parser.Options{
 			MangleSyntax:           args.options.MangleSyntax,
+			RemoveWhitespace:       args.options.RemoveWhitespace,
 			UnsupportedCSSFeatures: args.options.UnsupportedCSSFeatures,
 		})
 		result.file.repr = &reprCSS{ast: ast}
