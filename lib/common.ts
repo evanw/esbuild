@@ -158,6 +158,7 @@ function flagsForBuildOptions(
   stdinResolveDir: string | null,
   absWorkingDir: string | undefined,
   incremental: boolean,
+  nodePaths: string[],
   watch: types.WatchMode | null,
 } {
   let flags: string[] = [];
@@ -179,6 +180,7 @@ function flagsForBuildOptions(
   let platform = getFlag(options, keys, 'platform', mustBeString);
   let tsconfig = getFlag(options, keys, 'tsconfig', mustBeString);
   let resolveExtensions = getFlag(options, keys, 'resolveExtensions', mustBeArray);
+  let nodePathsInput = getFlag(options, keys, 'nodePaths', mustBeArray);
   let mainFields = getFlag(options, keys, 'mainFields', mustBeArray);
   let external = getFlag(options, keys, 'external', mustBeArray);
   let loader = getFlag(options, keys, 'loader', mustBeObject);
@@ -269,6 +271,14 @@ function flagsForBuildOptions(
     stdinContents = contents ? contents + '' : '';
   }
 
+  let nodePaths: string[] = [];
+  if (nodePathsInput) {
+    for (let value of nodePathsInput) {
+      value += '';
+      nodePaths.push(value);
+    }
+  }
+
   return {
     flags,
     write,
@@ -277,6 +287,7 @@ function flagsForBuildOptions(
     stdinResolveDir,
     absWorkingDir,
     incremental,
+    nodePaths,
     watch: watchMode,
   };
 }
@@ -770,6 +781,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             stdinResolveDir,
             absWorkingDir,
             incremental,
+            nodePaths,
             watch,
           } = flagsForBuildOptions(callName, options, isTTY, logLevelDefault, writeDefault);
           let request: protocol.BuildRequest = {
@@ -781,6 +793,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             stdinResolveDir,
             absWorkingDir: absWorkingDir || defaultWD,
             incremental,
+            nodePaths,
             hasOnRebuild: !!(watch && watch.onRebuild),
           };
           let serve = serveOptions && buildServeData(refs, serveOptions, request);

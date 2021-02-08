@@ -15,6 +15,7 @@ export interface BuildRequest {
   stdinResolveDir: string | null;
   absWorkingDir: string;
   incremental: boolean;
+  nodePaths: string[];
   hasOnRebuild: boolean;
   plugins?: BuildPlugin[];
   serve?: ServeRequest;

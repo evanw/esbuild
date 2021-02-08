@@ -597,6 +597,7 @@ func rebuildImpl(
 		PublicPath:            buildOpts.PublicPath,
 		KeepNames:             buildOpts.KeepNames,
 		InjectAbsPaths:        make([]string, len(buildOpts.Inject)),
+		AbsNodePaths:          make([]string, len(buildOpts.NodePaths)),
 		Banner:                buildOpts.Banner,
 		Footer:                buildOpts.Footer,
 		WatchMode:             buildOpts.Watch != nil,
@@ -604,6 +605,9 @@ func rebuildImpl(
 	}
 	for i, path := range buildOpts.Inject {
 		options.InjectAbsPaths[i] = validatePath(log, realFS, path, "inject path")
+	}
+	for i, path := range buildOpts.NodePaths {
+		options.AbsNodePaths[i] = validatePath(log, realFS, path, "node path")
 	}
 	if options.PublicPath != "" && !strings.HasSuffix(options.PublicPath, "/") && !strings.HasSuffix(options.PublicPath, "\\") {
 		options.PublicPath += "/"

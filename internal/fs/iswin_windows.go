@@ -2,6 +2,6 @@
 
 package fs
 
-func checkIfWindows() bool {
+func CheckIfWindows() bool {
 	return true
 }

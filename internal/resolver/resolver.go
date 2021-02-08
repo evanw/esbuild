@@ -1277,6 +1277,14 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 		}
 	}
 
+	// Then check the global "NODE_PATH" environment variable
+	for _, absDir := range r.options.AbsNodePaths {
+		absPath := r.fs.Join(absDir, path)
+		if absolute, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
+			return absolute, true
+		}
+	}
+
 	// Then check for the package in any enclosing "node_modules" directories
 	for {
 		// Skip directories that are themselves called "node_modules", since we
@@ -1298,8 +1306,7 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 				}
 			}
 
-			absolute, ok := r.loadAsFileOrDirectory(absPath, kind)
-			if ok {
+			if absolute, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
 				return absolute, true
 			}
 		}

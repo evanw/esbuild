@@ -56,6 +56,7 @@ export interface BuildOptions extends CommonOptions {
   stdin?: StdinOptions;
   plugins?: Plugin[];
   absWorkingDir?: string;
+  nodePaths?: string[]; // The "NODE_PATH" variable from Node.js
   watch?: boolean | WatchMode;
 }
 

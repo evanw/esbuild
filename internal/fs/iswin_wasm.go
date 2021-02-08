@@ -9,7 +9,7 @@ import (
 var checkedIfWindows bool
 var cachedIfWindows bool
 
-func checkIfWindows() bool {
+func CheckIfWindows() bool {
 	if !checkedIfWindows {
 		cachedIfWindows = false
 

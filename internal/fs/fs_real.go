@@ -55,7 +55,7 @@ type RealFSOptions struct {
 
 func RealFS(options RealFSOptions) (FS, error) {
 	var fp goFilepath
-	if checkIfWindows() {
+	if CheckIfWindows() {
 		fp.isWindows = true
 		fp.pathSeparator = '\\'
 	} else {

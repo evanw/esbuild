@@ -256,6 +256,7 @@ type BuildOptions struct {
 	Inject            []string
 	Banner            string
 	Footer            string
+	NodePaths         []string // The "NODE_PATH" variable from Node.js
 
 	EntryPoints []string
 	Stdin       *StdinOptions
