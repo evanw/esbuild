@@ -4909,6 +4909,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SEmpty{}}
 
 	case js_lexer.TExport:
+		oldExportKeyword := p.es6ExportKeyword
 		if opts.isModuleScope {
 			p.es6ExportKeyword = p.lexer.Range()
 		} else if !opts.isNamespaceScope {
@@ -5189,6 +5190,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		case js_lexer.TEquals:
 			// "export = value;"
+			p.es6ExportKeyword = oldExportKeyword // Never mind it's CommonJS syntax instead of ECMAScript module syntax
 			if p.options.ts.Parse {
 				p.lexer.Next()
 				value := p.parseExpr(js_ast.LLowest)

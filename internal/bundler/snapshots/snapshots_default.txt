@@ -2199,7 +2199,7 @@ var require_es6_export_star = __commonJS((exports) => {
 
 // es6-export-assign.ts
 var require_es6_export_assign = __commonJS((exports, module) => {
-  console.log(void 0);
+  console.log(exports);
   module.exports = 123;
 });
 
