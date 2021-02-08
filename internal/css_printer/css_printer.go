@@ -553,6 +553,16 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 	}
 }
 
+// TODO: Unify this with the numeric printing path in the JavaScript printer
+func (p *printer) printNumber(text string) {
+	// Remove the leading "0" from numbers starting with "0."
+	if p.RemoveWhitespace && len(text) > 2 && strings.HasPrefix(text, "0.") {
+		text = text[1:]
+	}
+
+	p.print(text)
+}
+
 func (p *printer) printIndent(indent int) {
 	for i := 0; i < indent; i++ {
 		p.sb.WriteString("  ")
@@ -585,8 +595,15 @@ func (p *printer) printTokens(tokens []css_ast.Token) bool {
 			p.printIdent(t.Text, identNormal, whitespace)
 			p.print("(")
 
+		case css_lexer.TNumber:
+			p.printNumber(t.Text)
+
+		case css_lexer.TPercentage:
+			p.printNumber(t.PercentValue())
+			p.print("%")
+
 		case css_lexer.TDimension:
-			p.print(t.DimensionValue())
+			p.printNumber(t.DimensionValue())
 			p.printIdent(t.DimensionUnit(), identDimensionUnit, whitespace)
 
 		case css_lexer.TAtKeyword:

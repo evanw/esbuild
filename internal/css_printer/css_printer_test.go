@@ -98,6 +98,15 @@ func TestURLQuote(t *testing.T) {
 	expectPrinted(t, "* { background: url('\"foo\"') }", "* {\n  background: url('\"foo\"');\n}\n")
 }
 
+func TestNumber(t *testing.T) {
+	expectPrinted(t, "div { opacity: 0.2 }", "div {\n  opacity: 0.2;\n}\n")
+	expectPrinted(t, "div { opacity: 0.2% }", "div {\n  opacity: 0.2%;\n}\n")
+	expectPrinted(t, "div { opacity: 0.2px }", "div {\n  opacity: 0.2px;\n}\n")
+	expectPrintedMinify(t, "div { opacity: 0.2 }", "div{opacity:.2}")
+	expectPrintedMinify(t, "div { opacity: 0.2% }", "div{opacity:.2%}")
+	expectPrintedMinify(t, "div { opacity: 0.2px }", "div{opacity:.2px}")
+}
+
 func TestImportant(t *testing.T) {
 	expectPrinted(t, "a { b: c!important }", "a {\n  b: c !important;\n}\n")
 	expectPrinted(t, "a { b: c!important; }", "a {\n  b: c !important;\n}\n")

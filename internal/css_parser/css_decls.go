@@ -11,12 +11,6 @@ import (
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
 
-var commaToken = css_ast.Token{
-	Kind:       css_lexer.TComma,
-	Text:       ",",
-	Whitespace: css_ast.WhitespaceAfter,
-}
-
 // These names are shorter than their hex codes
 var shortColorName = map[uint32]string{
 	0x000080ff: "navy",
@@ -281,6 +275,17 @@ func lowerAlphaPercentageToNumber(token css_ast.Token) css_ast.Token {
 	return token
 }
 
+func (p *parser) commaToken() css_ast.Token {
+	t := css_ast.Token{
+		Kind: css_lexer.TComma,
+		Text: ",",
+	}
+	if !p.options.RemoveWhitespace {
+		t.Whitespace = css_ast.WhitespaceAfter
+	}
+	return t
+}
+
 // Convert newer color syntax to older color syntax for older browsers
 func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 	text := token.Text
@@ -295,6 +300,7 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 					hex = expandHex(hex)
 					token.Kind = css_lexer.TFunction
 					token.Text = "rgba"
+					commaToken := p.commaToken()
 					token.Children = &[]css_ast.Token{
 						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
 						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
@@ -308,6 +314,7 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 				if hex, ok := parseHex(text); ok {
 					token.Kind = css_lexer.TFunction
 					token.Text = "rgba"
+					commaToken := p.commaToken()
 					token.Children = &[]css_ast.Token{
 						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
 						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
@@ -347,6 +354,7 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 					removeAlpha = true
 					args[0].Whitespace = 0
 					args[1].Whitespace = 0
+					commaToken := p.commaToken()
 					token.Children = &[]css_ast.Token{
 						args[0], commaToken,
 						args[1], commaToken,
@@ -368,6 +376,7 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 						args[0].Whitespace = 0
 						args[1].Whitespace = 0
 						args[2].Whitespace = 0
+						commaToken := p.commaToken()
 						token.Children = &[]css_ast.Token{
 							args[0], commaToken,
 							args[1], commaToken,
@@ -640,6 +649,7 @@ func (p *parser) mangleColor(token css_ast.Token) css_ast.Token {
 		} else {
 			token.Kind = css_lexer.TFunction
 			token.Text = "rgba"
+			commaToken := p.commaToken()
 			token.Children = &[]css_ast.Token{
 				{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
 				{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
