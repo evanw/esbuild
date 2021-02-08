@@ -2,6 +2,7 @@ TestTSImportStarAndCommonJS
 ---------- /out.js ----------
 // foo.ts
 var require_foo = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     foo: () => foo2
   });

@@ -329,6 +329,7 @@ TestPackageJsonDualPackageHazardImportAndRequireForceModuleBeforeMain
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/module.js
 var require_module = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     default: () => module_default
   });

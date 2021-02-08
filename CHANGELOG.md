@@ -40,7 +40,11 @@
 
     Previously recursive symlinks (a symlink that points to another symlink) were an unhandled case in the path resolution algorithm. Now these cases should be supported up to a depth of 256 symlinks. This means esbuild's path resolution should now work with multi-level `yarn link` scenarios.
 
-## 0.8.42
+* Fix subtle circular dependency issue ([#758](https://github.com/evanw/esbuild/issues/758))
+
+    If esbuild is used to transform TypeScript to JavaScript without bundling (i.e. each file is transformed individually), the output format is CommonJS, and the original TypeScript code contains an import cycle where at least one of the links in the cycle is an `export * as` re-export statement, there could be certain situations where evaluating the transformed code results in an import being `undefined`. This is caused by the `__esModule` marker being added after the call to `require()` for the first transformed re-export statement. The fix was to move the marker to before the first call to `require()`. The `__esModule` marker is a convention from Babel that esbuild reuses which marks a module as being originally in the ECMAScript module format instead of the CommonJS module format.
+
+* ## 0.8.42
 
 * Fix crash with block-level function declaration and `--keep-names` ([#755](https://github.com/evanw/esbuild/issues/755))
 

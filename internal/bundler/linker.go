@@ -173,7 +173,8 @@ type fileMeta struct {
 	// This is set when we need to pull in the "__export" symbol in to the part
 	// at "nsExportPartIndex". This can't be done in "createExportsForFile"
 	// because of concurrent map hazards. Instead, it must be done later.
-	needsExportSymbolFromRuntime bool
+	needsExportSymbolFromRuntime       bool
+	needsMarkAsModuleSymbolFromRuntime bool
 
 	// The index of the automatically-generated part used to represent the
 	// CommonJS wrapper. This part is empty and is only useful for tree shaking
@@ -1105,7 +1106,7 @@ func (c *linkerContext) scanImportsAndExports() {
 					//
 					// In that case the module *is* considered a CommonJS module because
 					// the namespace object must be created.
-					if record.ContainsImportStar && !otherRepr.ast.HasES6Syntax() && !otherRepr.ast.HasLazyExport {
+					if record.ContainsImportStar && !otherRepr.ast.HasES6ImportsOrExports() && !otherRepr.ast.HasLazyExport {
 						otherRepr.meta.cjsStyleExports = true
 					}
 
@@ -1318,11 +1319,17 @@ func (c *linkerContext) scanImportsAndExports() {
 		// Include the "__export" symbol from the runtime if it was used in the
 		// previous step. The previous step can't do this because it's running in
 		// parallel and can't safely mutate the "importsToBind" map of another file.
-		if repr.meta.needsExportSymbolFromRuntime {
+		if repr.meta.needsExportSymbolFromRuntime || repr.meta.needsMarkAsModuleSymbolFromRuntime {
 			runtimeRepr := c.files[runtime.SourceIndex].repr.(*reprJS)
-			exportRef := runtimeRepr.ast.ModuleScope.Members["__export"].Ref
 			exportPart := &repr.ast.Parts[repr.meta.nsExportPartIndex]
-			c.generateUseOfSymbolForInclude(exportPart, &repr.meta, 1, exportRef, runtime.SourceIndex)
+			if repr.meta.needsExportSymbolFromRuntime {
+				exportRef := runtimeRepr.ast.ModuleScope.Members["__export"].Ref
+				c.generateUseOfSymbolForInclude(exportPart, &repr.meta, 1, exportRef, runtime.SourceIndex)
+			}
+			if repr.meta.needsMarkAsModuleSymbolFromRuntime {
+				exportRef := runtimeRepr.ast.ModuleScope.Members["__markAsModule"].Ref
+				c.generateUseOfSymbolForInclude(exportPart, &repr.meta, 1, exportRef, runtime.SourceIndex)
+			}
 		}
 
 		for importRef, importToBind := range repr.meta.importsToBind {
@@ -1631,6 +1638,28 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			Ref:        repr.ast.ExportsRef,
 			IsTopLevel: true,
 		})
+	}
+
+	// If this file was originally ESM but is now in CommonJS, add a call to
+	// "__markAsModule" which sets the "__esModule" property to true. This must
+	// be done before any to "require()" or circular imports of multiple modules
+	// that have been each converted from ESM to CommonJS may not work correctly.
+	if repr.ast.HasES6Exports && (repr.meta.cjsStyleExports || (file.isEntryPoint && c.options.OutputFormat == config.FormatCommonJS)) {
+		runtimeRepr := c.files[runtime.SourceIndex].repr.(*reprJS)
+		markAsModuleRef := runtimeRepr.ast.ModuleScope.Members["__markAsModule"].Ref
+		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
+			Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: markAsModuleRef}},
+			Args:   []js_ast.Expr{{Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}}},
+		}}}})
+
+		// Make sure this file depends on the "__markAsModule" symbol
+		for _, partIndex := range runtimeRepr.ast.TopLevelSymbolToParts[markAsModuleRef] {
+			dep := partRef{sourceIndex: runtime.SourceIndex, partIndex: partIndex}
+			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, dep)
+		}
+
+		// Pull in the "__markAsModule" symbol later
+		repr.meta.needsMarkAsModuleSymbolFromRuntime = true
 	}
 
 	// "__export(exports, { foo: () => foo })"
@@ -2201,7 +2230,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 	// Is this a named import of a file without any exports?
 	otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
-	if namedImport.Alias != "*" && !otherRepr.ast.UsesCommonJSExports() && !otherRepr.ast.HasES6Syntax() && !otherRepr.ast.HasLazyExport {
+	if namedImport.Alias != "*" && !otherRepr.ast.UsesCommonJSExports() && !otherRepr.ast.HasES6ImportsOrExports() && !otherRepr.ast.HasLazyExport {
 		// Just warn about it and replace the import with "undefined"
 		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importCommonJSWithoutExports, nil
 	}

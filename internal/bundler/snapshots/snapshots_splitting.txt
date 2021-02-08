@@ -307,7 +307,7 @@ TestSplittingHybridCJSAndESMIssue617
 ---------- /out/a.js ----------
 import {
   require_a
-} from "./chunk.UM5LDUBH.js";
+} from "./chunk.3PFM4BVK.js";
 export default require_a();
 
 ---------- /out/b.js ----------
@@ -315,7 +315,7 @@ import {
   __defProp,
   __markAsModule,
   require_a
-} from "./chunk.UM5LDUBH.js";
+} from "./chunk.3PFM4BVK.js";
 
 // b.js
 var import_a = __toModule(require_a());
@@ -324,9 +324,10 @@ export {
   export_foo as foo
 };
 
----------- /out/chunk.UM5LDUBH.js ----------
+---------- /out/chunk.3PFM4BVK.js ----------
 // a.js
 var require_a = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     foo: () => foo
   });
@@ -345,13 +346,13 @@ TestSplittingHybridESMAndCJSIssue617
 ---------- /out/a.js ----------
 import {
   require_a
-} from "./chunk.YOK3FHV5.js";
+} from "./chunk.EPKGCDSI.js";
 export default require_a();
 
 ---------- /out/b.js ----------
 import {
   require_a
-} from "./chunk.YOK3FHV5.js";
+} from "./chunk.EPKGCDSI.js";
 
 // b.js
 var bar = require_a();
@@ -359,9 +360,10 @@ export {
   bar
 };
 
----------- /out/chunk.YOK3FHV5.js ----------
+---------- /out/chunk.EPKGCDSI.js ----------
 // a.js
 var require_a = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     foo: () => foo
   });

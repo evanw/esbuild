@@ -1689,7 +1689,7 @@ func (ast *AST) UsesCommonJSExports() bool {
 	return ast.UsesExportsRef || ast.UsesModuleRef
 }
 
-func (ast *AST) HasES6Syntax() bool {
+func (ast *AST) HasES6ImportsOrExports() bool {
 	return ast.HasES6Imports || ast.HasES6Exports
 }
 

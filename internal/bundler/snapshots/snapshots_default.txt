@@ -236,6 +236,7 @@ TestCommonJSFromES6
 ---------- /out.js ----------
 // foo.js
 var require_foo = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     foo: () => foo2
   });
@@ -246,6 +247,7 @@ var require_foo = __commonJS((exports) => {
 
 // bar.js
 var require_bar = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     bar: () => bar2
   });
@@ -473,6 +475,7 @@ TestExportFSNodeInCommonJSModule
 import * as fs from "fs";
 import {readFileSync} from "fs";
 var require_entry = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     fs: () => fs,
     readFileSync: () => readFileSync
@@ -486,6 +489,7 @@ TestExportFormsCommonJS
 ---------- /out.js ----------
 // commonjs.js
 var require_commonjs = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     C: () => Class,
     Class: () => Class,
@@ -509,6 +513,7 @@ var require_commonjs = __commonJS((exports) => {
 
 // c.js
 var require_c = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     default: () => c_default2
   });
@@ -519,6 +524,7 @@ var require_c = __commonJS((exports) => {
 
 // d.js
 var require_d = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     default: () => d_default
   });
@@ -530,6 +536,7 @@ var require_d = __commonJS((exports) => {
 
 // e.js
 var require_e = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     default: () => e_default
   });
@@ -539,6 +546,7 @@ var require_e = __commonJS((exports) => {
 
 // f.js
 var require_f = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     default: () => foo
   });
@@ -549,6 +557,7 @@ var require_f = __commonJS((exports) => {
 
 // g.js
 var require_g = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     default: () => g_default
   });
@@ -558,6 +567,7 @@ var require_g = __commonJS((exports) => {
 
 // h.js
 var require_h = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     default: () => foo
   });
@@ -698,6 +708,7 @@ export default class o {
 TestExportWildcardFSNodeCommonJS
 ---------- /out.js ----------
 // entry.js
+__markAsModule(exports);
 __exportStar(exports, __toModule(require("fs")));
 
 ================================================================================
@@ -732,6 +743,7 @@ TestExternalES6ConvertedToCommonJS
 // a.js
 import * as ns from "x";
 var require_a = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     ns: () => ns
   });
@@ -740,6 +752,7 @@ var require_a = __commonJS((exports) => {
 // b.js
 import * as ns2 from "x";
 var require_b = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     ns: () => ns2
   });
@@ -748,6 +761,7 @@ var require_b = __commonJS((exports) => {
 // c.js
 import * as ns3 from "x";
 var require_c = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     ns: () => ns3
   });
@@ -756,6 +770,7 @@ var require_c = __commonJS((exports) => {
 // d.js
 import {ns as ns4} from "x";
 var require_d = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     ns: () => ns4
   });
@@ -764,6 +779,7 @@ var require_d = __commonJS((exports) => {
 // e.js
 import * as x_star from "x";
 var require_e = __commonJS((exports) => {
+  __markAsModule(exports);
   __exportStar(exports, x_star);
 });
 
@@ -1418,21 +1434,21 @@ Promise.resolve().then(function(){return __toModule(require("foo"))});Promise.re
 TestMinifiedExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
 // foo/test.js
+var o = {};
+s(o, {
+  foo: () => p
+});
+var p = 123;
+
+// bar/test.js
 var t = {};
-f(t, {
-  foo: () => l
+s(t, {
+  bar: () => l
 });
 var l = 123;
 
-// bar/test.js
-var r = {};
-f(r, {
-  bar: () => m
-});
-var m = 123;
-
 // entry.js
-console.log(exports, module.exports, t, r);
+console.log(exports, module.exports, o, t);
 
 ================================================================================
 TestMinifyArguments
@@ -1698,6 +1714,7 @@ TestReExportDefaultCommonJS
 ---------- /out.js ----------
 // bar.js
 var require_bar = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     default: () => foo
   });
@@ -1716,6 +1733,7 @@ import_bar.default();
 TestReExportDefaultExternalCommonJS
 ---------- /out.js ----------
 // entry.js
+__markAsModule(exports);
 __export(exports, {
   bar: () => import_bar.default,
   foo: () => import_foo.default
@@ -1760,6 +1778,7 @@ export {default as bar} from "./bar";
 ================================================================================
 TestReExportDefaultNoBundleCommonJS
 ---------- /out.js ----------
+__markAsModule(exports);
 __export(exports, {
   bar: () => import_bar.default,
   foo: () => import_foo.default
@@ -2173,6 +2192,7 @@ var require_cjs = __commonJS((exports) => {
 
 // dummy.js
 var require_dummy = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     dummy: () => dummy
   });
@@ -2199,6 +2219,7 @@ var require_es6_expr_import_dynamic = __commonJS((exports) => {
 
 // es6-export-star.js
 var require_es6_export_star = __commonJS((exports) => {
+  __markAsModule(exports);
   __exportStar(exports, __toModule(require_dummy()));
   console.log(void 0);
 });
@@ -2401,6 +2422,7 @@ TestTopLevelReturn
 ---------- /out.js ----------
 // foo.js
 var require_foo = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     foo: () => foo2
   });

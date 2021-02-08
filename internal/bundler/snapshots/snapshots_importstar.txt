@@ -6,6 +6,7 @@ var require_foo = __commonJS((exports2) => {
 });
 
 // entry.js
+__markAsModule(exports);
 __export(exports, {
   ns: () => ns
 });
@@ -20,6 +21,7 @@ var require_foo = __commonJS((exports2) => {
 });
 
 // entry.js
+__markAsModule(exports);
 __export(exports, {
   bar: () => import_foo.bar
 });
@@ -34,6 +36,7 @@ var require_foo = __commonJS((exports2) => {
 });
 
 // entry.js
+__markAsModule(exports);
 __export(exports, {
   y: () => import_foo.x
 });
@@ -45,6 +48,7 @@ var import_foo = __toModule(require_foo());
 TestExportSelfAndImportSelfCommonJS
 ---------- /out.js ----------
 // entry.js
+__markAsModule(exports);
 __export(exports, {
   foo: () => foo
 });
@@ -56,6 +60,7 @@ TestExportSelfAndRequireSelfCommonJS
 ---------- /out.js ----------
 // entry.js
 var require_entry = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     foo: () => foo
   });
@@ -68,6 +73,7 @@ module.exports = require_entry();
 TestExportSelfAsNamespaceCommonJS
 ---------- /out.js ----------
 // entry.js
+__markAsModule(exports);
 __export(exports, {
   foo: () => foo,
   ns: () => exports
@@ -93,6 +99,7 @@ export {
 TestExportSelfCommonJS
 ---------- /out.js ----------
 // entry.js
+__markAsModule(exports);
 __export(exports, {
   foo: () => foo
 });
@@ -142,6 +149,7 @@ var someName = (() => {
 TestExportStarDefaultExportCommonJS
 ---------- /out.js ----------
 // entry.js
+__markAsModule(exports);
 __export(exports, {
   foo: () => foo
 });
@@ -248,6 +256,7 @@ var require_foo = __commonJS((exports2) => {
 });
 
 // entry.js
+__markAsModule(exports);
 __export(exports, {
   ns: () => ns
 });
@@ -324,6 +333,7 @@ TestImportStarAndCommonJS
 ---------- /out.js ----------
 // foo.js
 var require_foo = __commonJS((exports) => {
+  __markAsModule(exports);
   __export(exports, {
     foo: () => foo2
   });
@@ -744,6 +754,7 @@ export {
 ================================================================================
 TestReExportStarAsCommonJSNoBundle
 ---------- /out.js ----------
+__markAsModule(exports);
 __export(exports, {
   out: () => out
 });
@@ -761,6 +772,7 @@ export {
 TestReExportStarAsExternalCommonJS
 ---------- /out.js ----------
 // entry.js
+__markAsModule(exports);
 __export(exports, {
   out: () => out
 });
@@ -803,6 +815,7 @@ var mod = (() => {
 ================================================================================
 TestReExportStarCommonJSNoBundle
 ---------- /out.js ----------
+__markAsModule(exports);
 __exportStar(exports, __toModule(require("foo")));
 
 ================================================================================
@@ -814,6 +827,7 @@ export * from "foo";
 TestReExportStarExternalCommonJS
 ---------- /out.js ----------
 // entry.js
+__markAsModule(exports);
 __exportStar(exports, __toModule(require("foo")));
 
 ================================================================================
@@ -828,6 +842,7 @@ TestReExportStarExternalIIFE
 var mod = (() => {
   // entry.js
   var require_entry = __commonJS((exports) => {
+    __markAsModule(exports);
     __exportStar(exports, __toModule(require("foo")));
   });
   return require_entry();
@@ -838,6 +853,7 @@ TestReExportStarIIFENoBundle
 ---------- /out.js ----------
 var mod = (() => {
   var require_entry = __commonJS((exports) => {
+    __markAsModule(exports);
     __exportStar(exports, __toModule(require("foo")));
   });
   return require_entry();
