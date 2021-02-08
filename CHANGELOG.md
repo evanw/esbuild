@@ -36,6 +36,10 @@
 
     It would be a change in semantics to minify this code to either `--some-var:;` or `var(--some-var,)` due to the whitespace significance of CSS variables, so such transformations are invalid. With this release, esbuild should now preserve whitespace in these two situations (CSS variable declarations and CSS variable references).
 
+* Add support for recursive symlinks during path resolution ([#766](https://github.com/evanw/esbuild/issues/766))
+
+    Previously recursive symlinks (a symlink that points to another symlink) were an unhandled case in the path resolution algorithm. Now these cases should be supported up to a depth of 256 symlinks. This means esbuild's path resolution should now work with multi-level `yarn link` scenarios.
+
 ## 0.8.42
 
 * Fix crash with block-level function declaration and `--keep-names` ([#755](https://github.com/evanw/esbuild/issues/755))
