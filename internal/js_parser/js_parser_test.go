@@ -2773,8 +2773,14 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "x++", "x++;\n")
 	expectPrintedMangle(t, "x--", "x--;\n")
 	expectPrintedMangle(t, "void x", "x;\n")
-	expectPrintedMangle(t, "typeof x", "x;\n")
 	expectPrintedMangle(t, "delete x", "delete x;\n")
+	expectPrintedMangle(t, "typeof x", "")
+	expectPrintedMangle(t, "typeof x()", "x();\n")
+	expectPrintedMangle(t, "typeof (0, x)", "x;\n")
+	expectPrintedMangle(t, "typeof (0 || x)", "x;\n")
+	expectPrintedMangle(t, "typeof (1 && x)", "x;\n")
+	expectPrintedMangle(t, "typeof (1 ? x : 0)", "x;\n")
+	expectPrintedMangle(t, "typeof (0 ? 1 : x)", "x;\n")
 
 	// Binary operators
 	expectPrintedMangle(t, "a + b", "a + b;\n")
@@ -2794,6 +2800,15 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "a == b", "a == b;\n")
 	expectPrintedMangle(t, "a != b", "a != b;\n")
 	expectPrintedMangle(t, "a, b", "a, b;\n")
+
+	expectPrintedMangle(t, "a + '' == b", "a + \"\" == b;\n")
+	expectPrintedMangle(t, "a + '' != b", "a + \"\" != b;\n")
+	expectPrintedMangle(t, "a + '' == b + ''", "a + \"\", b + \"\";\n")
+	expectPrintedMangle(t, "a + '' != b + ''", "a + \"\", b + \"\";\n")
+	expectPrintedMangle(t, "typeof a == b + ''", "b + \"\";\n")
+	expectPrintedMangle(t, "typeof a != b + ''", "b + \"\";\n")
+	expectPrintedMangle(t, "typeof a == 'b'", "")
+	expectPrintedMangle(t, "typeof a != 'b'", "")
 
 	// Known globals can be removed
 	expectPrintedMangle(t, "Object", "")

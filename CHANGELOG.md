@@ -16,6 +16,11 @@
     * `if (anything || falsyNoSideEffects)` → `if (anything)`
     * `if (anything, truthyOrFalsy)` → `anything; if (truthyOrFalsy)`
 
+    And also these substitutions for unused expressions:
+
+    * `primitive == primitive` → `primitive, primitive`
+    * `typeof identifier` → (remove entirely)
+
     The actual substitutions are more complex since they are more comprehensive but they essentially result in this high-level behavior. Note that these substitutions are only done when minification is enabled.
 
 ## 0.8.42

@@ -779,6 +779,9 @@ func toNumberWithoutSideEffects(data js_ast.E) (float64, bool) {
 	return 0, false
 }
 
+// Returns true if the result of the "typeof" operator on this expression is
+// statically determined and this expression has no side effects (i.e. can be
+// removed without consequence).
 func typeofWithoutSideEffects(data js_ast.E) (string, bool) {
 	switch data.(type) {
 	case *js_ast.ENull:
@@ -804,6 +807,62 @@ func typeofWithoutSideEffects(data js_ast.E) (string, bool) {
 	}
 
 	return "", false
+}
+
+// Returns true if this expression is known to result in a primitive value (i.e.
+// null, undefined, boolean, number, bigint, or string), even if the expression
+// cannot be removed due to side effects.
+func isPrimitiveWithSideEffects(data js_ast.E) bool {
+	switch e := data.(type) {
+	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt, *js_ast.EString:
+		return true
+
+	case *js_ast.EUnary:
+		switch e.Op {
+		case
+			// Number or bigint
+			js_ast.UnOpPos, js_ast.UnOpNeg, js_ast.UnOpCpl,
+			js_ast.UnOpPreDec, js_ast.UnOpPreInc, js_ast.UnOpPostDec, js_ast.UnOpPostInc,
+			// Boolean
+			js_ast.UnOpNot, js_ast.UnOpDelete,
+			// Undefined
+			js_ast.UnOpVoid,
+			// String
+			js_ast.UnOpTypeof:
+			return true
+		}
+
+	case *js_ast.EBinary:
+		switch e.Op {
+		case
+			// Boolean
+			js_ast.BinOpLt, js_ast.BinOpLe, js_ast.BinOpGt, js_ast.BinOpGe, js_ast.BinOpIn,
+			js_ast.BinOpInstanceof, js_ast.BinOpLooseEq, js_ast.BinOpLooseNe, js_ast.BinOpStrictEq, js_ast.BinOpStrictNe,
+			// String, number, or bigint
+			js_ast.BinOpAdd, js_ast.BinOpAddAssign,
+			// Number or bigint
+			js_ast.BinOpSub, js_ast.BinOpMul, js_ast.BinOpDiv, js_ast.BinOpRem, js_ast.BinOpPow,
+			js_ast.BinOpSubAssign, js_ast.BinOpMulAssign, js_ast.BinOpDivAssign, js_ast.BinOpRemAssign, js_ast.BinOpPowAssign,
+			js_ast.BinOpShl, js_ast.BinOpShr, js_ast.BinOpUShr,
+			js_ast.BinOpShlAssign, js_ast.BinOpShrAssign, js_ast.BinOpUShrAssign,
+			js_ast.BinOpBitwiseOr, js_ast.BinOpBitwiseAnd, js_ast.BinOpBitwiseXor,
+			js_ast.BinOpBitwiseOrAssign, js_ast.BinOpBitwiseAndAssign, js_ast.BinOpBitwiseXorAssign:
+			return true
+
+		// These always return one of the arguments unmodified
+		case js_ast.BinOpLogicalAnd, js_ast.BinOpLogicalOr, js_ast.BinOpNullishCoalescing,
+			js_ast.BinOpLogicalAndAssign, js_ast.BinOpLogicalOrAssign, js_ast.BinOpNullishCoalescingAssign:
+			return isPrimitiveWithSideEffects(e.Left.Data) && isPrimitiveWithSideEffects(e.Right.Data)
+
+		case js_ast.BinOpComma:
+			return isPrimitiveWithSideEffects(e.Right.Data)
+		}
+
+	case *js_ast.EIf:
+		return isPrimitiveWithSideEffects(e.Yes.Data) && isPrimitiveWithSideEffects(e.No.Data)
+	}
+
+	return false
 }
 
 // Returns "equal, ok". If "ok" is false, then nothing is known about the two
@@ -11923,7 +11982,16 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		switch e.Op {
 		// These operators must not have any type conversions that can execute code
 		// such as "toString" or "valueOf". They must also never throw any exceptions.
-		case js_ast.UnOpTypeof, js_ast.UnOpVoid, js_ast.UnOpNot:
+		case js_ast.UnOpVoid, js_ast.UnOpNot:
+			return p.simplifyUnusedExpr(e.Value)
+
+		case js_ast.UnOpTypeof:
+			if _, ok := e.Value.Data.(*js_ast.EIdentifier); ok {
+				// "typeof x" must not be transformed into if "x" since doing so could
+				// cause an exception to be thrown. Instead we can just remove it since
+				// "typeof x" is special-cased in the standard to never throw.
+				return js_ast.Expr{}
+			}
 			return p.simplifyUnusedExpr(e.Value)
 		}
 
@@ -11932,17 +12000,21 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		// These operators must not have any type conversions that can execute code
 		// such as "toString" or "valueOf". They must also never throw any exceptions.
 		case js_ast.BinOpStrictEq, js_ast.BinOpStrictNe, js_ast.BinOpComma:
-			e.Op = js_ast.BinOpComma
-			e.Left = p.simplifyUnusedExpr(e.Left)
-			e.Right = p.simplifyUnusedExpr(e.Right)
-			if e.Left.Data == nil {
-				return e.Right
-			}
-			if e.Right.Data == nil {
-				return e.Left
+			return maybeJoinWithComma(p.simplifyUnusedExpr(e.Left), p.simplifyUnusedExpr(e.Right))
+
+		// We can simplify "==" and "!=" even though they can call "toString" and/or
+		// "valueOf" if we can statically determine that the types of both sides are
+		// primitives. In that case there won't be any chance for user-defined
+		// "toString" and/or "valueOf" to be called.
+		case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe:
+			if isPrimitiveWithSideEffects(e.Left.Data) && isPrimitiveWithSideEffects(e.Right.Data) {
+				return maybeJoinWithComma(p.simplifyUnusedExpr(e.Left), p.simplifyUnusedExpr(e.Right))
 			}
 
 		case js_ast.BinOpLogicalAnd, js_ast.BinOpLogicalOr, js_ast.BinOpNullishCoalescing:
+			// Preserve short-circuit behavior: the left expression is only unused if
+			// the right expression can be completely removed. Otherwise, the left
+			// expression is important for the branch.
 			e.Right = p.simplifyUnusedExpr(e.Right)
 			if e.Right.Data == nil {
 				return p.simplifyUnusedExpr(e.Left)
