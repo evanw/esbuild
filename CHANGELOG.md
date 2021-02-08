@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.43
 
 * Support the `XDG_CACHE_HOME` environment variable ([#757](https://github.com/evanw/esbuild/issues/757))
 
@@ -54,7 +54,7 @@
 
     The CLI takes the list of node paths from the value of the `NODE_PATH` environment variable, but the JS and Go APIs take the list as an array of strings instead (called `nodePaths` in JS and `NodePaths` in Go).
 
-* ## 0.8.42
+## 0.8.42
 
 * Fix crash with block-level function declaration and `--keep-names` ([#755](https://github.com/evanw/esbuild/issues/755))
 
