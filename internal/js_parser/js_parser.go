@@ -4909,7 +4909,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SEmpty{}}
 
 	case js_lexer.TExport:
-		oldExportKeyword := p.es6ExportKeyword
+		previousExportKeyword := p.es6ExportKeyword
 		if opts.isModuleScope {
 			p.es6ExportKeyword = p.lexer.Range()
 		} else if !opts.isNamespaceScope {
@@ -5190,7 +5190,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		case js_lexer.TEquals:
 			// "export = value;"
-			p.es6ExportKeyword = oldExportKeyword // Never mind it's CommonJS syntax instead of ECMAScript module syntax
+			p.es6ExportKeyword = previousExportKeyword // This wasn't an ESM export statement after all
 			if p.options.ts.Parse {
 				p.lexer.Next()
 				value := p.parseExpr(js_ast.LLowest)
@@ -5600,7 +5600,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		case js_lexer.TOpenParen, js_lexer.TDot:
 			// "import('path')"
 			// "import.meta"
-			p.es6ImportKeyword = previousImportKeyword // This wasn't an import statement after all
+			p.es6ImportKeyword = previousImportKeyword // This wasn't an ESM import statement after all
 			expr := p.parseSuffix(p.parseImportExpr(loc, js_ast.LLowest), js_ast.LLowest, nil, 0)
 			p.lexer.ExpectOrInsertSemicolon()
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}}
@@ -5689,6 +5689,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 				// Parse TypeScript import assignment statements
 				if p.lexer.Token == js_lexer.TEquals || opts.isExport || (opts.isNamespaceScope && !opts.isTypeScriptDeclare) {
+					p.es6ImportKeyword = previousImportKeyword // This wasn't an ESM import statement after all
 					return p.parseTypeScriptImportEqualsStmt(loc, opts, stmt.DefaultName.Loc, defaultName)
 				}
 			}

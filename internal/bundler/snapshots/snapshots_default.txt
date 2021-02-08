@@ -2179,6 +2179,12 @@ var require_dummy = __commonJS((exports) => {
   var dummy = 123;
 });
 
+// es6-import-assign.ts
+var require_es6_import_assign = __commonJS((exports) => {
+  var x2 = require_dummy();
+  console.log(exports);
+});
+
 // es6-import-dynamic.js
 var require_es6_import_dynamic = __commonJS((exports) => {
   Promise.resolve().then(() => __toModule(require_dummy()));
@@ -2295,11 +2301,8 @@ var import_cjs = __toModule(require_cjs());
 var import_dummy = __toModule(require_dummy());
 console.log(void 0);
 
-// es6-import-assign.ts
-var x = require_dummy();
-console.log(void 0);
-
 // entry.js
+var import_es6_import_assign = __toModule(require_es6_import_assign());
 var import_es6_import_dynamic = __toModule(require_es6_import_dynamic());
 
 // es6-import-meta.js
@@ -2365,7 +2368,7 @@ console.log(void 0);
 var import_es6_export_assign = __toModule(require_es6_export_assign());
 
 // es6-export-import-assign.ts
-var x2 = require_dummy();
+var x = require_dummy();
 console.log(void 0);
 
 // entry.js

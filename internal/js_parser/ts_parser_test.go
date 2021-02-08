@@ -1312,15 +1312,19 @@ func TestTSImport(t *testing.T) {
 
 // This is TypeScript-specific export syntax
 func TestTSExportEquals(t *testing.T) {
-	expectPrintedTS(t, "export = []", "module.exports = [];\n")
-
 	// This use of the "export" keyword should not trigger strict mode because
 	// this syntax works in CommonJS modules, not in ECMAScript modules
+	expectPrintedTS(t, "export = []", "module.exports = [];\n")
 	expectPrintedTS(t, "export = []; with ({}) ;", "with ({})\n  ;\nmodule.exports = [];\n")
 }
 
 // This is TypeScript-specific import syntax
 func TestTSImportEquals(t *testing.T) {
+	// This use of the "export" keyword should not trigger strict mode because
+	// this syntax works in CommonJS modules, not in ECMAScript modules
+	expectPrintedTS(t, "import x = require('y')", "const x = require(\"y\");\n")
+	expectPrintedTS(t, "import x = require('y'); with ({}) ;", "const x = require(\"y\");\nwith ({})\n  ;\n")
+
 	expectPrintedTS(t, "import x = require('foo'); x()", "const x = require(\"foo\");\nx();\n")
 	expectPrintedTS(t, "import x = require('foo')\nx()", "const x = require(\"foo\");\nx();\n")
 	expectPrintedTS(t, "import x = require\nx()", "const x = require;\nx();\n")
