@@ -19,7 +19,7 @@ func CanUseES6(unsupportedFeatures compat.JSFeature) bool {
 	return !unsupportedFeatures.Has(compat.Let) && !unsupportedFeatures.Has(compat.Arrow)
 }
 
-func code(isES6 bool) string {
+func code(isES6 bool, exportStarFunctions bool) string {
 	// Note: The "__rest" function has a for-of loop which requires ES6, but
 	// transforming destructuring to ES5 isn't even supported so it's ok.
 	text := `
@@ -31,7 +31,35 @@ func code(isES6 bool) string {
 		var __getOwnPropDesc = Object.getOwnPropertyDescriptor // Note: can return "undefined" due to a Safari bug
 		var __getOwnPropSymbols = Object.getOwnPropertySymbols
 		var __propIsEnum = Object.prototype.propertyIsEnumerable
-
+	`
+	if exportStarFunctions {
+		text += `
+		var __clone = function (original) {
+			if (original === null || typeof original === 'undefined') {
+				return original;
+			} else if (typeof original === 'function') {
+				var cloned = function () { return original.apply(this, arguments); };
+				// cloned.name = original.name; // TODO name is readonly and is not same as original, but it's not a part of ES standard
+				cloned.toString = function () { return original.toString(); };
+				for(var key in original) {
+					if (original.hasOwnProperty(key)) {
+						cloned[key] = original[key];
+					}
+				}
+				return cloned;
+			} else {
+				return __create(__getProtoOf(original));
+			}
+		}
+		`
+	} else {
+		text += `
+		var __clone = function (original) {
+			return __create(__getProtoOf(original));
+		}
+		`
+	}
+	text += `
 		export var __pow = Math.pow
 		export var __assign = Object.assign
 
@@ -116,7 +144,7 @@ func code(isES6 bool) string {
 			if (module && module.__esModule)
 				return module
 			return __exportStar(
-				__defProp(module != null ? __create(__getProtoOf(module)) : {}, 'default', { value: module, enumerable: true }),
+				__defProp(module != null ? __clone(module) : {}, 'default', { value: module, enumerable: true }),
 				module)
 		}
 
@@ -205,20 +233,14 @@ func code(isES6 bool) string {
 	return text
 }
 
-var ES6Source = logger.Source{
-	Index:          SourceIndex,
-	KeyPath:        logger.Path{Text: "<runtime>"},
-	PrettyPath:     "<runtime>",
-	IdentifierName: "runtime",
-	Contents:       code(true /* isES6 */),
-}
-
-var ES5Source = logger.Source{
-	Index:          SourceIndex,
-	KeyPath:        logger.Path{Text: "<runtime>"},
-	PrettyPath:     "<runtime>",
-	IdentifierName: "runtime",
-	Contents:       code(false /* isES6 */),
+func CreateESSource(isES6 bool, exportStarFunctions bool) logger.Source {
+	return logger.Source{
+		Index:          SourceIndex,
+		KeyPath:        logger.Path{Text: "<runtime>"},
+		PrettyPath:     "<runtime>",
+		IdentifierName: "runtime",
+		Contents:       code(isES6, exportStarFunctions),
+	}
 }
 
 // The TypeScript decorator transform behaves similar to the official

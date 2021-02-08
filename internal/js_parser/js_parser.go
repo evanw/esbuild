@@ -253,6 +253,8 @@ type Options struct {
 	injectedFiles []config.InjectedFile
 	jsx           config.JSXOptions
 
+	exportStarFunctions bool
+
 	// This pointer will always be different for each build but the contents
 	// shouldn't ever behave different semantically. We ignore this field for the
 	// equality comparison.
@@ -285,9 +287,10 @@ type optionsThatSupportStructuralEquality struct {
 
 func OptionsFromConfig(options *config.Options) Options {
 	return Options{
-		injectedFiles: options.InjectedFiles,
-		jsx:           options.JSX,
-		defines:       options.Defines,
+		injectedFiles:       options.InjectedFiles,
+		jsx:                 options.JSX,
+		defines:             options.Defines,
+		exportStarFunctions: options.ExportStarFunctions,
 		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
 			unsupportedJSFeatures:          options.UnsupportedJSFeatures,
 			ts:                             options.TS,
@@ -10734,7 +10737,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Warn about calling an import namespace
-		if p.options.outputFormat != config.FormatPreserve {
+		if p.options.outputFormat != config.FormatPreserve && !p.options.exportStarFunctions {
 			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && p.importItemsForNamespace[id.Ref] != nil {
 				r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
 				hint := ""
@@ -10911,7 +10914,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		e.Target = p.visitExpr(e.Target)
 
 		// Warn about constructing an import namespace
-		if p.options.outputFormat != config.FormatPreserve {
+		if p.options.outputFormat != config.FormatPreserve && !p.options.exportStarFunctions {
 			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && p.importItemsForNamespace[id.Ref] != nil {
 				r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
 				hint := ""

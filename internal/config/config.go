@@ -224,6 +224,13 @@ type Options struct {
 	SourceMap             SourceMap
 	ExcludeSourcesContent bool
 
+	// support function in following case for old typescript importing with star
+	// import * as express from "express";
+	// const app = express();
+	// As you can see, the express is imported using star & is callable function
+	// By ECMAScript standard, this is not valid, however old typescript apps can rely on that
+	ExportStarFunctions bool
+
 	Stdin *StdinInfo
 }
 

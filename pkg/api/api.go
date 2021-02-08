@@ -228,6 +228,8 @@ type BuildOptions struct {
 	Charset           Charset
 	TreeShaking       TreeShaking
 
+	ExportStarFunctions bool
+
 	JSXFactory  string
 	JSXFragment string
 
@@ -319,6 +321,8 @@ type TransformOptions struct {
 	MinifySyntax      bool
 	Charset           Charset
 	TreeShaking       TreeShaking
+
+	ExportStarFunctions bool
 
 	JSXFactory  string
 	JSXFragment string

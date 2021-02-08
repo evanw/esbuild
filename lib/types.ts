@@ -20,6 +20,8 @@ interface CommonOptions {
   charset?: Charset;
   treeShaking?: TreeShaking;
 
+  exportStarFunctions?: boolean;
+
   jsxFactory?: string;
   jsxFragment?: string;
   define?: { [key: string]: string };
