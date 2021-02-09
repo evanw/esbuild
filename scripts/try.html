@@ -110,6 +110,10 @@
       color: #D0D;
     }
 
+    .terminal-note {
+      font-weight: bold;
+    }
+
     body {
       background: #EEE;
       color: #333;
@@ -150,7 +154,6 @@
         color: #FFF;
       }
     }
-
   </style>
 </head>
 
@@ -342,31 +345,40 @@
       }
 
       function addKindToMessages(messages, kind) {
-        return messages.map(({ text, location }) => ({ text, location, kind }))
+        return messages.map(msg => ({ ...msg, kind }))
+      }
+
+      function renderMessage(indent, text, location, kind) {
+        let spaces = ' '.repeat(indent.length + 2)
+        let html = ''
+        if (kind !== 'note') html += `<span class="terminal-bold">`
+        html += indent
+        if (location) {
+          html += `${textToHTML(location.file)}:${location.line}:${location.column}: `
+        }
+        html += `<span class="terminal-${kind}">${kind}: </span>`
+        html += textToHTML(text)
+        if (kind !== 'note') html += `</span>`
+        html += `<br>`
+        if (location) {
+          let indent = renderTabs(location.lineText.slice(0, location.column)).length
+          let length = renderTabs(location.lineText.slice(0, location.column + location.length)).length - indent
+          let underline = length > 1 ? '~'.repeat(length) : '^'
+          let line = renderTabs(location.lineText)
+          html += `${spaces}<span class="terminal-subtle">${textToHTML(line.slice(0, indent))}</span>`
+          html += `<span class="terminal-underline">${line.slice(indent, indent + length)}</span>`
+          html += `<span class="terminal-subtle">${textToHTML(line.slice(indent + length))}</span>`
+          html += `<br>${spaces}<span class="terminal-underline">${' '.repeat(indent)}${underline}</span><br>`
+        }
+        return html
       }
 
       function messagesToHTML(messages) {
         return messages.sort((a, b) => {
           let al = a.location, bl = b.location
           return al && bl && (al.line - bl.line || al.column - bl.column) || (a.text < b.text) - (a.text > b.text)
-        }).map(({ text, location, kind }) => {
-          let html = ''
-          if (location) {
-            html = `<span class="terminal-bold">${textToHTML(location.file)}:${location.line}:${location.column}: </span>`
-          }
-          html += `<span class="terminal-${kind}">${kind}: </span>`
-          html += `<span class="terminal-bold">${textToHTML(text)}</span><br>`
-          if (location) {
-            let indent = renderTabs(location.lineText.slice(0, location.column)).length
-            let length = renderTabs(location.lineText.slice(0, location.column + location.length)).length - indent
-            let underline = length > 1 ? '~'.repeat(length) : '^'
-            let line = renderTabs(location.lineText)
-            html += `<span class="terminal-subtle">${textToHTML(line.slice(0, indent))}</span>`
-            html += `<span class="terminal-underline">${line.slice(indent, indent + length)}</span>`
-            html += `<span class="terminal-subtle">${textToHTML(line.slice(indent + length))}</span>`
-            html += `<br><span class="terminal-underline">${' '.repeat(indent)}${underline}</span><br>`
-          }
-          return html
+        }).map(({ text, location, kind, notes }) => {
+          return renderMessage(' &gt; ', text, location, kind) + notes.map(({ text, location }) => renderMessage('   ', text, location, 'note')) + `<br>`
         }).join('');
       }
 

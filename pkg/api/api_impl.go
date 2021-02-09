@@ -448,27 +448,35 @@ func validateOutputExtensions(log logger.Log, outExtensions map[string]string) (
 	return
 }
 
+func convertLocationToPublic(loc *logger.MsgLocation) *Location {
+	if loc != nil {
+		return &Location{
+			File:      loc.File,
+			Namespace: loc.Namespace,
+			Line:      loc.Line,
+			Column:    loc.Column,
+			Length:    loc.Length,
+			LineText:  loc.LineText,
+		}
+	}
+	return nil
+}
+
 func convertMessagesToPublic(kind logger.MsgKind, msgs []logger.Msg) []Message {
 	var filtered []Message
 	for _, msg := range msgs {
 		if msg.Kind == kind {
-			var location *Location
-			loc := msg.Data.Location
-
-			if loc != nil {
-				location = &Location{
-					File:      loc.File,
-					Namespace: loc.Namespace,
-					Line:      loc.Line,
-					Column:    loc.Column,
-					Length:    loc.Length,
-					LineText:  loc.LineText,
-				}
+			var notes []Note
+			for _, note := range msg.Notes {
+				notes = append(notes, Note{
+					Text:     note.Text,
+					Location: convertLocationToPublic(note.Location),
+				})
 			}
-
 			filtered = append(filtered, Message{
 				Text:     msg.Data.Text,
-				Location: location,
+				Location: convertLocationToPublic(msg.Data.Location),
+				Notes:    notes,
 				Detail:   msg.Data.UserDetail,
 			})
 		}
@@ -476,33 +484,41 @@ func convertMessagesToPublic(kind logger.MsgKind, msgs []logger.Msg) []Message {
 	return filtered
 }
 
+func convertLocationToInternal(loc *Location) *logger.MsgLocation {
+	if loc != nil {
+		namespace := loc.Namespace
+		if namespace == "" {
+			namespace = "file"
+		}
+		return &logger.MsgLocation{
+			File:      loc.File,
+			Namespace: namespace,
+			Line:      loc.Line,
+			Column:    loc.Column,
+			Length:    loc.Length,
+			LineText:  loc.LineText,
+		}
+	}
+	return nil
+}
+
 func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages []Message) []logger.Msg {
 	for _, message := range messages {
-		var location *logger.MsgLocation
-		loc := message.Location
-
-		if loc != nil {
-			namespace := loc.Namespace
-			if namespace == "" {
-				namespace = "file"
-			}
-			location = &logger.MsgLocation{
-				File:      loc.File,
-				Namespace: namespace,
-				Line:      loc.Line,
-				Column:    loc.Column,
-				Length:    loc.Length,
-				LineText:  loc.LineText,
-			}
+		var notes []logger.MsgData
+		for _, note := range message.Notes {
+			notes = append(notes, logger.MsgData{
+				Text:     note.Text,
+				Location: convertLocationToInternal(note.Location),
+			})
 		}
-
 		msgs = append(msgs, logger.Msg{
 			Kind: kind,
 			Data: logger.MsgData{
 				Text:       message.Text,
-				Location:   location,
+				Location:   convertLocationToInternal(message.Location),
 				UserDetail: message.Detail,
 			},
+			Notes: notes,
 		})
 	}
 	return msgs

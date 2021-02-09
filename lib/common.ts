@@ -1082,7 +1082,7 @@ function extractErrorMessageV8(e: any, streamIn: StreamIn, stash: ObjectStash | 
   } catch {
   }
 
-  return { text, location, detail: stash ? stash.store(e) : -1 }
+  return { text, location, notes: [], detail: stash ? stash.store(e) : -1 }
 }
 
 function failureErrorWithLog(text: string, errors: types.Message[], warnings: types.Message[]): types.BuildFailure {
@@ -1107,6 +1107,28 @@ function replaceDetailsInMessages(messages: types.Message[], stash: ObjectStash)
   return messages;
 }
 
+function sanitizeLocation(location: types.PartialMessage['location'], where: string): types.Message['location'] {
+  if (location == null) return null;
+
+  let keys: OptionKeys = {};
+  let file = getFlag(location, keys, 'file', mustBeString);
+  let namespace = getFlag(location, keys, 'namespace', mustBeString);
+  let line = getFlag(location, keys, 'line', mustBeInteger);
+  let column = getFlag(location, keys, 'column', mustBeInteger);
+  let length = getFlag(location, keys, 'length', mustBeInteger);
+  let lineText = getFlag(location, keys, 'lineText', mustBeString);
+  checkForInvalidFlags(location, keys, where);
+
+  return {
+    file: file || '',
+    namespace: namespace || '',
+    line: line || 0,
+    column: column || 0,
+    length: length || 0,
+    lineText: lineText || '',
+  };
+}
+
 function sanitizeMessages(messages: types.PartialMessage[], property: string, stash: ObjectStash): types.Message[] {
   let messagesClone: types.Message[] = [];
   let index = 0;
@@ -1115,33 +1137,29 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
     let keys: OptionKeys = {};
     let text = getFlag(message, keys, 'text', mustBeString);
     let location = getFlag(message, keys, 'location', mustBeObjectOrNull);
+    let notes = getFlag(message, keys, 'notes', mustBeArray);
     let detail = getFlag(message, keys, 'detail', canBeAnything);
-    checkForInvalidFlags(message, keys, `in element ${index} of "${property}"`);
+    let where = `in element ${index} of "${property}"`;
+    checkForInvalidFlags(message, keys, where);
 
-    let locationClone: types.Message['location'] = null;
-    if (location != null) {
-      let keys: OptionKeys = {};
-      let file = getFlag(location, keys, 'file', mustBeString);
-      let namespace = getFlag(location, keys, 'namespace', mustBeString);
-      let line = getFlag(location, keys, 'line', mustBeInteger);
-      let column = getFlag(location, keys, 'column', mustBeInteger);
-      let length = getFlag(location, keys, 'length', mustBeInteger);
-      let lineText = getFlag(location, keys, 'lineText', mustBeString);
-      checkForInvalidFlags(location, keys, `in element ${index} of "${property}"`);
-
-      locationClone = {
-        file: file || '',
-        namespace: namespace || '',
-        line: line || 0,
-        column: column || 0,
-        length: length || 0,
-        lineText: lineText || '',
-      };
+    let notesClone: types.Note[] = [];
+    if (notes) {
+      for (const note of notes) {
+        let noteKeys: OptionKeys = {};
+        let noteText = getFlag(note, noteKeys, 'text', mustBeString);
+        let noteLocation = getFlag(note, noteKeys, 'location', mustBeObjectOrNull);
+        checkForInvalidFlags(note, noteKeys, where);
+        notesClone.push({
+          text: noteText || '',
+          location: sanitizeLocation(noteLocation, where),
+        });
+      }
     }
 
     messagesClone.push({
       text: text || '',
-      location: locationClone,
+      location: sanitizeLocation(location, where),
+      notes: notesClone,
       detail: stash.store(detail),
     });
     index++;

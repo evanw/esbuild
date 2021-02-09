@@ -74,10 +74,16 @@ export interface StdinOptions {
 export interface Message {
   text: string;
   location: Location | null;
+  notes: Note[];
 
   // Optional user-specified data that is passed through unmodified. You can
   // use this to stash the original error, for example.
   detail: any;
+}
+
+export interface Note {
+  text: string;
+  location: Location | null;
 }
 
 export interface Location {
@@ -225,7 +231,13 @@ export interface OnLoadResult {
 export interface PartialMessage {
   text?: string;
   location?: Partial<Location> | null;
+  notes?: PartialNote[];
   detail?: any;
+}
+
+export interface PartialNote {
+  text?: string;
+  location?: Partial<Location> | null;
 }
 
 export type MetadataImportKind =

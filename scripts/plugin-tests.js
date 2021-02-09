@@ -995,11 +995,13 @@ let pluginTests = {
         text: 'Expected ";" but found "y"',
         location: {
           file: '<stdin>',
+          namespace: '',
           line: 1,
           column: 2,
           length: 1,
           lineText: 'x y',
         },
+        notes: [],
         detail: void 0,
       }])
     }
@@ -1011,11 +1013,13 @@ let pluginTests = {
       text: 'The "typeof" operator will never evaluate to "null"',
       location: {
         file: '<stdin>',
+        namespace: '',
         line: 1,
         column: 12,
         length: 6,
         lineText: 'typeof x == "null"',
       },
+      notes: [],
       detail: void 0,
     }])
   },
@@ -1034,11 +1038,13 @@ let pluginTests = {
         text: 'Expected ";" but found "y"',
         location: {
           file: '<stdin>',
+          namespace: '',
           line: 1,
           column: 2,
           length: 1,
           lineText: 'x y',
         },
+        notes: [],
         detail: void 0,
       }])
     }
@@ -1054,11 +1060,13 @@ let pluginTests = {
       text: 'The "typeof" operator will never evaluate to "null"',
       location: {
         file: '<stdin>',
+        namespace: '',
         line: 1,
         column: 12,
         length: 6,
         lineText: 'typeof x == "null"',
       },
+      notes: [],
       detail: void 0,
     }])
   },
@@ -1125,7 +1133,31 @@ let pluginTests = {
           name: 'plugin',
           setup(build) {
             build.onResolve({ filter: /.*/ }, () => {
-              return { errors: [{ text: 'some error', detail: theError }] };
+              return {
+                errors: [{
+                  text: 'some error',
+                  location: {
+                    file: 'file1',
+                    namespace: 'ns1',
+                    line: 1,
+                    column: 2,
+                    length: 3,
+                    lineText: 'some text',
+                  },
+                  notes: [{
+                    text: 'some note',
+                    location: {
+                      file: 'file2',
+                      namespace: 'ns2',
+                      line: 4,
+                      column: 5,
+                      length: 6,
+                      lineText: 'more text',
+                    },
+                  }],
+                  detail: theError,
+                }],
+              };
             })
           },
         }],
@@ -1134,8 +1166,29 @@ let pluginTests = {
     } catch (e) {
       assert.strictEqual(e.warnings.length, 0)
       assert.strictEqual(e.errors.length, 1)
-      assert.strictEqual(e.errors[0].text, '[plugin] some error')
-      assert.strictEqual(e.errors[0].detail, theError)
+      assert.deepStrictEqual(e.errors[0], {
+        text: '[plugin] some error',
+        location: {
+          file: 'ns1:file1',
+          namespace: 'ns1',
+          line: 1,
+          column: 2,
+          length: 3,
+          lineText: 'some text',
+        },
+        notes: [{
+          text: 'some note',
+          location: {
+            file: 'file2',
+            namespace: 'ns2',
+            line: 4,
+            column: 5,
+            length: 6,
+            lineText: 'more text',
+          },
+        }],
+        detail: theError,
+      })
     }
   },
 
@@ -1149,7 +1202,31 @@ let pluginTests = {
         name: 'plugin',
         setup(build) {
           build.onResolve({ filter: /.*/ }, () => {
-            return { path: 'abc', namespace: 'xyz', warnings: [{ text: 'some warning', detail: theError }] };
+            return {
+              path: 'abc', namespace: 'xyz', warnings: [{
+                text: 'some warning',
+                location: {
+                  file: 'file1',
+                  namespace: 'ns1',
+                  line: 1,
+                  column: 2,
+                  length: 3,
+                  lineText: 'some text',
+                },
+                notes: [{
+                  text: 'some note',
+                  location: {
+                    file: 'file2',
+                    namespace: 'ns2',
+                    line: 4,
+                    column: 5,
+                    length: 6,
+                    lineText: 'more text',
+                  },
+                }],
+                detail: theError,
+              }]
+            };
           })
           build.onLoad({ filter: /.*/ }, () => ({ contents: '' }))
         },
@@ -1157,7 +1234,29 @@ let pluginTests = {
     })
     assert.strictEqual(result.warnings.length, 1)
     assert.strictEqual(result.warnings[0].text, '[plugin] some warning')
-    assert.strictEqual(result.warnings[0].detail, theError)
+    assert.deepStrictEqual(result.warnings[0], {
+      text: '[plugin] some warning',
+      location: {
+        file: 'ns1:file1',
+        namespace: 'ns1',
+        line: 1,
+        column: 2,
+        length: 3,
+        lineText: 'some text',
+      },
+      notes: [{
+        text: 'some note',
+        location: {
+          file: 'file2',
+          namespace: 'ns2',
+          line: 4,
+          column: 5,
+          length: 6,
+          lineText: 'more text',
+        },
+      }],
+      detail: theError,
+    })
   },
 
   async specificDetailForOnLoadPluginReturnError({ esbuild }) {
@@ -1172,7 +1271,31 @@ let pluginTests = {
           setup(build) {
             build.onResolve({ filter: /.*/ }, () => ({ path: 'abc', namespace: 'xyz' }))
             build.onLoad({ filter: /.*/ }, () => {
-              return { errors: [{ text: 'some error', detail: theError }] };
+              return {
+                errors: [{
+                  text: 'some error',
+                  location: {
+                    file: 'file1',
+                    namespace: 'ns1',
+                    line: 1,
+                    column: 2,
+                    length: 3,
+                    lineText: 'some text',
+                  },
+                  notes: [{
+                    text: 'some note',
+                    location: {
+                      file: 'file2',
+                      namespace: 'ns2',
+                      line: 4,
+                      column: 5,
+                      length: 6,
+                      lineText: 'more text',
+                    },
+                  }],
+                  detail: theError,
+                }],
+              };
             })
           },
         }],
@@ -1181,8 +1304,29 @@ let pluginTests = {
     } catch (e) {
       assert.strictEqual(e.warnings.length, 0)
       assert.strictEqual(e.errors.length, 1)
-      assert.strictEqual(e.errors[0].text, '[plugin] some error')
-      assert.strictEqual(e.errors[0].detail, theError)
+      assert.deepStrictEqual(e.errors[0], {
+        text: '[plugin] some error',
+        location: {
+          file: 'ns1:file1',
+          namespace: 'ns1',
+          line: 1,
+          column: 2,
+          length: 3,
+          lineText: 'some text',
+        },
+        notes: [{
+          text: 'some note',
+          location: {
+            file: 'file2',
+            namespace: 'ns2',
+            line: 4,
+            column: 5,
+            length: 6,
+            lineText: 'more text',
+          },
+        }],
+        detail: theError,
+      })
     }
   },
 
@@ -1197,14 +1341,59 @@ let pluginTests = {
         setup(build) {
           build.onResolve({ filter: /.*/ }, () => ({ path: 'abc', namespace: 'xyz' }))
           build.onLoad({ filter: /.*/ }, () => {
-            return { contents: '', warnings: [{ text: 'some warning', detail: theError }] };
+            return {
+              contents: '', warnings: [{
+                text: 'some warning',
+                location: {
+                  file: 'file1',
+                  namespace: 'ns1',
+                  line: 1,
+                  column: 2,
+                  length: 3,
+                  lineText: 'some text',
+                },
+                notes: [{
+                  text: 'some note',
+                  location: {
+                    file: 'file2',
+                    namespace: 'ns2',
+                    line: 4,
+                    column: 5,
+                    length: 6,
+                    lineText: 'more text',
+                  },
+                }],
+                detail: theError,
+              }],
+            };
           })
         },
       }],
     })
     assert.strictEqual(result.warnings.length, 1)
-    assert.strictEqual(result.warnings[0].text, '[plugin] some warning')
-    assert.strictEqual(result.warnings[0].detail, theError)
+    assert.deepStrictEqual(result.warnings[0], {
+      text: '[plugin] some warning',
+      location: {
+        file: 'ns1:file1',
+        namespace: 'ns1',
+        line: 1,
+        column: 2,
+        length: 3,
+        lineText: 'some text',
+      },
+      notes: [{
+        text: 'some note',
+        location: {
+          file: 'file2',
+          namespace: 'ns2',
+          line: 4,
+          column: 5,
+          length: 6,
+          lineText: 'more text',
+        },
+      }],
+      detail: theError,
+    })
   },
 
   async pluginDataResolveToLoad({ esbuild }) {

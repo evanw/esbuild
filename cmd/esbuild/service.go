@@ -812,12 +812,37 @@ func encodeOutputFiles(outputFiles []api.OutputFile) []interface{} {
 	return values
 }
 
+func encodeLocation(loc *api.Location) interface{} {
+	if loc == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"file":      loc.File,
+		"namespace": loc.Namespace,
+		"line":      loc.Line,
+		"column":    loc.Column,
+		"length":    loc.Length,
+		"lineText":  loc.LineText,
+	}
+}
+
 func encodeMessages(msgs []api.Message) []interface{} {
 	values := make([]interface{}, len(msgs))
 	for i, msg := range msgs {
-		value := make(map[string]interface{})
+		value := map[string]interface{}{
+			"text":     msg.Text,
+			"location": encodeLocation(msg.Location),
+		}
 		values[i] = value
-		value["text"] = msg.Text
+
+		notes := make([]interface{}, len(msg.Notes))
+		for j, note := range msg.Notes {
+			notes[j] = map[string]interface{}{
+				"text":     note.Text,
+				"location": encodeLocation(note.Location),
+			}
+		}
+		value["notes"] = notes
 
 		// Send "-1" to mean "undefined"
 		detail, ok := msg.Detail.(int)
@@ -825,22 +850,27 @@ func encodeMessages(msgs []api.Message) []interface{} {
 			detail = -1
 		}
 		value["detail"] = detail
-
-		// Some messages won't have a location
-		loc := msg.Location
-		if loc == nil {
-			value["location"] = nil
-		} else {
-			value["location"] = map[string]interface{}{
-				"file":     loc.File,
-				"line":     loc.Line,
-				"column":   loc.Column,
-				"length":   loc.Length,
-				"lineText": loc.LineText,
-			}
-		}
 	}
 	return values
+}
+
+func decodeLocation(value interface{}) *api.Location {
+	if value == nil {
+		return nil
+	}
+	loc := value.(map[string]interface{})
+	namespace := loc["namespace"].(string)
+	if namespace == "" {
+		namespace = "file"
+	}
+	return &api.Location{
+		File:      loc["file"].(string),
+		Namespace: namespace,
+		Line:      loc["line"].(int),
+		Column:    loc["column"].(int),
+		Length:    loc["length"].(int),
+		LineText:  loc["lineText"].(string),
+	}
 }
 
 func decodeMessages(values []interface{}) []api.Message {
@@ -848,56 +878,53 @@ func decodeMessages(values []interface{}) []api.Message {
 	for i, value := range values {
 		obj := value.(map[string]interface{})
 		msg := api.Message{
-			Text:   obj["text"].(string),
-			Detail: obj["detail"].(int),
+			Text:     obj["text"].(string),
+			Location: decodeLocation(obj["location"]),
+			Detail:   obj["detail"].(int),
 		}
-
-		// Some messages won't have a location
-		loc := obj["location"]
-		if loc != nil {
-			loc := loc.(map[string]interface{})
-			namespace := loc["namespace"].(string)
-			if namespace == "" {
-				namespace = "file"
-			}
-			msg.Location = &api.Location{
-				File:      loc["file"].(string),
-				Namespace: namespace,
-				Line:      loc["line"].(int),
-				Column:    loc["column"].(int),
-				Length:    loc["length"].(int),
-				LineText:  loc["lineText"].(string),
-			}
+		for _, note := range obj["notes"].([]interface{}) {
+			noteObj := note.(map[string]interface{})
+			msg.Notes = append(msg.Notes, api.Note{
+				Text:     noteObj["text"].(string),
+				Location: decodeLocation(noteObj["location"]),
+			})
 		}
-
 		msgs[i] = msg
 	}
 	return msgs
 }
 
+func decodeLocationToPrivate(value interface{}) *logger.MsgLocation {
+	if value == nil {
+		return nil
+	}
+	loc := value.(map[string]interface{})
+	namespace := loc["namespace"].(string)
+	if namespace == "" {
+		namespace = "file"
+	}
+	return &logger.MsgLocation{
+		File:      loc["file"].(string),
+		Namespace: namespace,
+		Line:      loc["line"].(int),
+		Column:    loc["column"].(int),
+		Length:    loc["length"].(int),
+		LineText:  loc["lineText"].(string),
+	}
+}
+
 func decodeMessageToPrivate(obj map[string]interface{}) logger.Msg {
 	msg := logger.Msg{Data: logger.MsgData{
 		Text:       obj["text"].(string),
+		Location:   decodeLocationToPrivate(obj["location"]),
 		UserDetail: obj["detail"].(int),
 	}}
-
-	// Some messages won't have a location
-	loc := obj["location"]
-	if loc != nil {
-		loc := loc.(map[string]interface{})
-		namespace := loc["namespace"].(string)
-		if namespace == "" {
-			namespace = "file"
-		}
-		msg.Data.Location = &logger.MsgLocation{
-			File:      loc["file"].(string),
-			Namespace: namespace,
-			Line:      loc["line"].(int),
-			Column:    loc["column"].(int),
-			Length:    loc["length"].(int),
-			LineText:  loc["lineText"].(string),
-		}
+	for _, note := range obj["notes"].([]interface{}) {
+		noteObj := note.(map[string]interface{})
+		msg.Notes = append(msg.Notes, logger.MsgData{
+			Text:     noteObj["text"].(string),
+			Location: decodeLocationToPrivate(noteObj["location"]),
+		})
 	}
-
 	return msg
 }
