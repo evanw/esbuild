@@ -4181,7 +4181,6 @@ func (p *parser) forbidInitializers(decls []js_ast.Decl, loopType string, isVar 
 			if _, ok := decls[0].Binding.Data.(*js_ast.BIdentifier); ok {
 				// This is a weird special case. Initializers are allowed in "var"
 				// statements with identifier bindings.
-				p.markStrictModeFeature(forInVarInit, p.source.RangeOfOperatorBefore(decls[0].Value.Loc, "="), "")
 				return
 			}
 		}
@@ -8227,11 +8226,14 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.popScope()
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 
-		// Lower for-in variable initializers for strict-mode output formats
-		if p.isStrictModeOutputFormat() {
-			if local, ok := s.Init.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalVar && len(local.Decls) == 1 {
-				decl := &local.Decls[0]
-				if id, ok := decl.Binding.Data.(*js_ast.BIdentifier); ok && decl.Value != nil {
+		// Check for a variable initializer
+		if local, ok := s.Init.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalVar && len(local.Decls) == 1 {
+			decl := &local.Decls[0]
+			if id, ok := decl.Binding.Data.(*js_ast.BIdentifier); ok && decl.Value != nil {
+				p.markStrictModeFeature(forInVarInit, p.source.RangeOfOperatorBefore(decl.Value.Loc, "="), "")
+
+				// Lower for-in variable initializers for strict-mode output formats
+				if p.isStrictModeOutputFormat() {
 					stmts = append(stmts, js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExpr{Value: js_ast.Assign(
 						js_ast.Expr{Loc: decl.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
 						*decl.Value,

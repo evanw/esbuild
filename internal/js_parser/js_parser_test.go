@@ -208,14 +208,19 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "function f() { //! @license comment\n 'use strict' }", "")
 	expectParseError(t, "function f() { /*! @license comment */ 'use strict' }", "")
 
+	why := "<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword\n"
+
 	expectPrinted(t, "with (x) y", "with (x)\n  y;\n")
 	expectParseError(t, "'use strict'; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n")
+	expectParseError(t, "with (x) y; export {}", "<stdin>: error: With statements cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "delete x", "delete x;\n")
 	expectParseError(t, "'use strict'; delete x", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n")
+	expectParseError(t, "delete x; export {}", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "for (var x = y in z) ;", "for (var x = y in z)\n  ;\n")
 	expectParseError(t, "'use strict'; for (var x = y in z) ;", "<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n")
+	expectParseError(t, "for (var x = y in z) ; export {}", "<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "function f(a, a) {}", "function f(a, a) {\n}\n")
 	expectPrinted(t, "(function(a, a) {})", "(function(a, a) {\n});\n")
@@ -223,6 +228,9 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "'use strict'; function f(a, a) {}", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n")
 	expectParseError(t, "'use strict'; (function(a, a) {})", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n")
 	expectParseError(t, "'use strict'; ((a, a) => {})", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n")
+	expectParseError(t, "function f(a, a) {}; export {}", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n"+why)
+	expectParseError(t, "(function(a, a) {}); export {}", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n"+why)
+	expectParseError(t, "((a, a) => {}); export {}", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "eval++", "eval++;\n")
 	expectPrinted(t, "eval = 0", "eval = 0;\n")
