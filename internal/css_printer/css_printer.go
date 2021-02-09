@@ -415,6 +415,7 @@ const (
 	escapeNone escapeKind = iota
 	escapeBackslash
 	escapeHex
+	escapeBom
 )
 
 func (p *printer) printWithEscape(c rune, escape escapeKind, remainingText string, mayNeedWhitespaceAfter bool) {
@@ -430,6 +431,9 @@ func (p *printer) printWithEscape(c rune, escape escapeKind, remainingText strin
 	case escapeBackslash:
 		p.sb.WriteRune('\\')
 		p.sb.WriteRune(c)
+
+	case escapeBom:
+		p.sb.WriteString("")
 
 	case escapeHex:
 		text := fmt.Sprintf("\\%x", c)
@@ -507,9 +511,9 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 	for i, c := range text {
 		escape := escapeNone
 
-		if p.ASCIIOnly && c >= 0x80 {
-			escape = escapeHex
-		} else if c == '\r' || c == '\n' || c == '\f' || c == '\uFEFF' {
+		if c == '\uFEFF' {
+			escape = escapeBom
+		} else if (p.ASCIIOnly && c >= 0x80) || (c == '\r' || c == '\n' || c == '\f') {
 			// Use a hexadecimal escape for characters that would be invalid escapes
 			escape = escapeHex
 		} else {
