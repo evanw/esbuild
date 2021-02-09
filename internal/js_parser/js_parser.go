@@ -8232,14 +8232,12 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if id, ok := decl.Binding.Data.(*js_ast.BIdentifier); ok && decl.Value != nil {
 				p.markStrictModeFeature(forInVarInit, p.source.RangeOfOperatorBefore(decl.Value.Loc, "="), "")
 
-				// Lower for-in variable initializers for strict-mode output formats
-				if p.isStrictModeOutputFormat() {
-					stmts = append(stmts, js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExpr{Value: js_ast.Assign(
-						js_ast.Expr{Loc: decl.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
-						*decl.Value,
-					)}})
-					decl.Value = nil
-				}
+				// Lower for-in variable initializers in case the output is used in strict mode
+				stmts = append(stmts, js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExpr{Value: js_ast.Assign(
+					js_ast.Expr{Loc: decl.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
+					*decl.Value,
+				)}})
+				decl.Value = nil
 			}
 		}
 

@@ -218,7 +218,7 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "'use strict'; delete x", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n")
 	expectParseError(t, "delete x; export {}", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n"+why)
 
-	expectPrinted(t, "for (var x = y in z) ;", "for (var x = y in z)\n  ;\n")
+	expectPrinted(t, "for (var x = y in z) ;", "x = y;\nfor (var x in z)\n  ;\n")
 	expectParseError(t, "'use strict'; for (var x = y in z) ;", "<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n")
 	expectParseError(t, "for (var x = y in z) ; export {}", "<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n"+why)
 
@@ -536,7 +536,7 @@ func TestFor(t *testing.T) {
 	expectParseError(t, "for (let a, b of b) ;", "<stdin>: error: for-of loops must have a single declaration\n")
 	expectParseError(t, "for (const a, b of b) ;", "<stdin>: error: for-of loops must have a single declaration\n")
 
-	expectPrinted(t, "for (var x = 0 in y) ;", "for (var x = 0 in y)\n  ;\n") // This is a weird special-case
+	expectPrinted(t, "for (var x = 0 in y) ;", "x = 0;\nfor (var x in y)\n  ;\n") // This is a weird special-case
 	expectParseError(t, "for (let x = 0 in y) ;", "<stdin>: error: for-in loop variables cannot have an initializer\n")
 	expectParseError(t, "for (const x = 0 in y) ;", "<stdin>: error: for-in loop variables cannot have an initializer\n")
 	expectParseError(t, "for (var x = 0 of y) ;", "<stdin>: error: for-of loop variables cannot have an initializer\n")
@@ -558,8 +558,8 @@ func TestFor(t *testing.T) {
 	expectParseError(t, "for (const {x} = y of z) ;", "<stdin>: error: for-of loop variables cannot have an initializer\n")
 
 	// Make sure "in" rules are enabled
-	expectPrinted(t, "for (var x = () => a in b);", "for (var x = () => a in b)\n  ;\n")
-	expectPrinted(t, "for (var x = a + b in c);", "for (var x = a + b in c)\n  ;\n")
+	expectPrinted(t, "for (var x = () => a in b);", "x = () => a;\nfor (var x in b)\n  ;\n")
+	expectPrinted(t, "for (var x = a + b in c);", "x = a + b;\nfor (var x in c)\n  ;\n")
 
 	// Make sure "in" rules are disabled
 	expectPrinted(t, "for (var {[x in y]: z} = {};;);", "for (var {[x in y]: z} = {}; ; )\n  ;\n")
