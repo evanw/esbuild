@@ -28,6 +28,8 @@ interface CommonOptions {
   keepNames?: boolean;
   banner?: string;
   footer?: string;
+  cssBanner?: string;
+  cssFooter?: string;
 
   color?: boolean;
   logLevel?: LogLevel;

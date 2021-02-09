@@ -4100,6 +4100,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 	return func(continueData generateContinue) []OutputFile {
 		waitGroup.Wait()
 		j := js_printer.Joiner{}
+		prevOffset := lineColumnOffset{}
 		newlineBeforeComment := false
 
 		// Generate any prefix rules now
@@ -4134,8 +4135,15 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 			}
 		}
 
-		// Start the metadata
 		jMeta := js_printer.Joiner{}
+		if len(c.options.CSSBanner) > 0 {
+			prevOffset.advanceString(c.options.CSSBanner)
+			prevOffset.advanceString("\n")
+			j.AddString(c.options.CSSBanner)
+			j.AddString("\n")
+		}
+
+		// Start the metadata
 		if c.options.AbsMetadataFile != "" {
 			isFirstMeta := true
 			jMeta.AddString("{\n      \"imports\": [")
@@ -4180,6 +4188,10 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 					js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
 					len(compileResult.printedCSS)))
 			}
+		}
+
+		if len(c.options.CSSFooter) > 0 {
+			j.AddString(c.options.CSSFooter)
 		}
 
 		// Make sure the file ends with a newline

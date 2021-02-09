@@ -256,6 +256,8 @@ type BuildOptions struct {
 	Inject            []string
 	Banner            string
 	Footer            string
+	CSSBanner         string
+	CSSFooter         string
 	NodePaths         []string // The "NODE_PATH" variable from Node.js
 
 	EntryPoints []string
@@ -326,6 +328,8 @@ type TransformOptions struct {
 	TsconfigRaw string
 	Footer      string
 	Banner      string
+	CSSFooter   string
+	CSSBanner   string
 
 	Define    map[string]string
 	Pure      []string

@@ -112,6 +112,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
   let banner = getFlag(options, keys, 'banner', mustBeString);
   let footer = getFlag(options, keys, 'footer', mustBeString);
+  let cssBanner = getFlag(options, keys, 'cssBanner', mustBeString);
+  let cssFooter = getFlag(options, keys, 'cssFooter', mustBeString);
 
   if (sourcesContent !== void 0) flags.push(`--sources-content=${sourcesContent}`);
   if (target) {
@@ -142,6 +144,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
 
   if (banner) flags.push(`--banner=${banner}`);
   if (footer) flags.push(`--footer=${footer}`);
+  if (cssBanner) flags.push(`--css-banner=${cssBanner}`);
+  if (cssFooter) flags.push(`--css-footer=${cssFooter}`);
 }
 
 function flagsForBuildOptions(

@@ -600,6 +600,8 @@ func rebuildImpl(
 		AbsNodePaths:          make([]string, len(buildOpts.NodePaths)),
 		Banner:                buildOpts.Banner,
 		Footer:                buildOpts.Footer,
+		CSSBanner:             buildOpts.CSSBanner,
+		CSSFooter:             buildOpts.CSSFooter,
 		WatchMode:             buildOpts.Watch != nil,
 		Plugins:               plugins,
 	}

@@ -216,6 +216,8 @@ type Options struct {
 	InjectedFiles      []InjectedFile
 	Banner             string
 	Footer             string
+	CSSBanner          string
+	CSSFooter          string
 
 	Plugins []Plugin
 

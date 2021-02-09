@@ -362,6 +362,22 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.Footer = value
 			}
 
+		case strings.HasPrefix(arg, "--css-banner="):
+			value := arg[len("--css-banner="):]
+			if buildOpts != nil {
+				buildOpts.CSSBanner = value
+			} else {
+				transformOpts.CSSBanner = value
+			}
+
+		case strings.HasPrefix(arg, "--css-footer="):
+			value := arg[len("--css-footer="):]
+			if buildOpts != nil {
+				buildOpts.CSSFooter = value
+			} else {
+				transformOpts.CSSFooter = value
+			}
+
 		case strings.HasPrefix(arg, "--error-limit="):
 			value := arg[len("--error-limit="):]
 			limit, err := strconv.Atoi(value)
