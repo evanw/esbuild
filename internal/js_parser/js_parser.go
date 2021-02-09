@@ -6443,7 +6443,14 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 		}
 		before = append(before[:0], js_ast.Stmt{Loc: letDecls[0].Value.Loc, Data: &js_ast.SLocal{Kind: kind, Decls: letDecls}})
 		if len(varDecls) > 0 {
-			before = append(before, js_ast.Stmt{Loc: varDecls[0].Value.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: varDecls}})
+			// Potentially relocate "var" declarations to the top level
+			if assign, ok := p.maybeRelocateVarsToTopLevel(varDecls, relocateVarsNormal); ok {
+				if assign.Data != nil {
+					before = append(before, assign)
+				}
+			} else {
+				before = append(before, js_ast.Stmt{Loc: varDecls[0].Value.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: varDecls}})
+			}
 		}
 		before = append(before, nonFnStmts...)
 		visited = append(before, visited...)
@@ -8033,29 +8040,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Decls = p.lowerObjectRestInDecls(s.Decls)
 		s.Kind = p.selectLocalKind(s.Kind)
 
-		// Relocate "var" statements in nested scopes to the top-level scope when
-		// bundling. This makes it easy to pick out all top-level declarations by
-		// only looking at the array of top-level statements.
-		if p.options.mode == config.ModeBundle && s.Kind == js_ast.LocalVar && p.currentScope != p.moduleScope {
-			scope := p.currentScope
-			for !scope.Kind.StopsHoisting() {
-				scope = scope.Parent
-			}
-			if scope == p.moduleScope {
-				wrapIdentifier := func(loc logger.Loc, ref js_ast.Ref) js_ast.Expr {
-					p.relocatedTopLevelVars = append(p.relocatedTopLevelVars, js_ast.LocRef{Loc: loc, Ref: ref})
-					p.recordUsage(ref)
-					return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
-				}
-				var value js_ast.Expr
-				for _, decl := range s.Decls {
-					binding := p.convertBindingToExpr(decl.Binding, wrapIdentifier)
-					if decl.Value != nil {
-						value = maybeJoinWithComma(value, js_ast.Assign(binding, *decl.Value))
-					}
-				}
-				if value.Data != nil {
-					stmts = append(stmts, js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExpr{Value: value}})
+		// Potentially relocate "var" declarations to the top level
+		if s.Kind == js_ast.LocalVar {
+			if assign, ok := p.maybeRelocateVarsToTopLevel(s.Decls, relocateVarsNormal); ok {
+				if assign.Data != nil {
+					stmts = append(stmts, assign)
 				}
 				return stmts
 			}
@@ -8214,6 +8203,19 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Body = p.visitLoopBody(s.Body)
 		p.popScope()
 
+		// Potentially relocate "var" declarations to the top level
+		if s.Init != nil {
+			if init, ok := s.Init.Data.(*js_ast.SLocal); ok && init.Kind == js_ast.LocalVar {
+				if assign, ok := p.maybeRelocateVarsToTopLevel(init.Decls, relocateVarsNormal); ok {
+					if assign.Data != nil {
+						s.Init = &assign
+					} else {
+						s.Init = nil
+					}
+				}
+			}
+		}
+
 		if p.options.mangleSyntax {
 			mangleFor(s)
 		}
@@ -8241,12 +8243,27 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 		}
 
+		// Potentially relocate "var" declarations to the top level
+		if init, ok := s.Init.Data.(*js_ast.SLocal); ok && init.Kind == js_ast.LocalVar {
+			if replacement, ok := p.maybeRelocateVarsToTopLevel(init.Decls, relocateVarsForInOrForOf); ok {
+				s.Init = replacement
+			}
+		}
+
 	case *js_ast.SForOf:
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)
 		p.visitForLoopInit(s.Init, true)
 		s.Value = p.visitExpr(s.Value)
 		s.Body = p.visitLoopBody(s.Body)
 		p.popScope()
+
+		// Potentially relocate "var" declarations to the top level
+		if init, ok := s.Init.Data.(*js_ast.SLocal); ok && init.Kind == js_ast.LocalVar {
+			if replacement, ok := p.maybeRelocateVarsToTopLevel(init.Decls, relocateVarsForInOrForOf); ok {
+				s.Init = replacement
+			}
+		}
+
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 
 	case *js_ast.STry:
@@ -8503,6 +8520,58 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 	stmts = append(stmts, stmt)
 	return stmts
+}
+
+type relocateVarsMode uint8
+
+const (
+	relocateVarsNormal relocateVarsMode = iota
+	relocateVarsForInOrForOf
+)
+
+// If we are currently in a hoisted child of the module scope, relocate these
+// declarations to the top level and return an equivalent assignment statement.
+// Make sure to check that the declaration kind is "var" before calling this.
+// And make sure to check that the returned statement is not the zero value.
+//
+// This is done to make it easier to traverse top-level declarations in the linker
+// during bundling. Now it is sufficient to just scan the top-level statements
+// instead of having to traverse recursively into the statement tree.
+func (p *parser) maybeRelocateVarsToTopLevel(decls []js_ast.Decl, mode relocateVarsMode) (js_ast.Stmt, bool) {
+	// Only do this when bundling, and not when the scope is already top-level
+	if p.options.mode != config.ModeBundle || p.currentScope == p.moduleScope {
+		return js_ast.Stmt{}, false
+	}
+
+	// Only do this if we're not inside a function
+	scope := p.currentScope
+	for !scope.Kind.StopsHoisting() {
+		scope = scope.Parent
+	}
+	if scope != p.moduleScope {
+		return js_ast.Stmt{}, false
+	}
+
+	// Convert the declarations to assignments
+	wrapIdentifier := func(loc logger.Loc, ref js_ast.Ref) js_ast.Expr {
+		p.relocatedTopLevelVars = append(p.relocatedTopLevelVars, js_ast.LocRef{Loc: loc, Ref: ref})
+		p.recordUsage(ref)
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
+	}
+	var value js_ast.Expr
+	for _, decl := range decls {
+		binding := p.convertBindingToExpr(decl.Binding, wrapIdentifier)
+		if decl.Value != nil {
+			value = maybeJoinWithComma(value, js_ast.Assign(binding, *decl.Value))
+		} else if mode == relocateVarsForInOrForOf {
+			value = maybeJoinWithComma(value, binding)
+		}
+	}
+	if value.Data == nil {
+		// If none of the variables had any initializers, just remove the declarations
+		return js_ast.Stmt{}, true
+	}
+	return js_ast.Stmt{Loc: value.Loc, Data: &js_ast.SExpr{Value: value}}, true
 }
 
 func (p *parser) markExportedDeclsInsideNamespace(nsRef js_ast.Ref, decls []js_ast.Decl) {

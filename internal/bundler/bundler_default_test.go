@@ -3930,3 +3930,104 @@ func TestBundlingFilesOutsideOfOutbase(t *testing.T) {
 		},
 	})
 }
+
+var relocateFiles = map[string]string{
+	"/top-level.js": `
+		var a;
+		for (var b; 0;);
+		for (var { c, x: [d] } = {}; 0;);
+		for (var e of []);
+		for (var { f, x: [g] } of []);
+		for (var h in {});
+		for (var i = 1 in {});
+		for (var { j, x: [k] } in {});
+		function l() {}
+	`,
+	"/nested.js": `
+		if (true) {
+			var a;
+			for (var b; 0;);
+			for (var { c, x: [d] } = {}; 0;);
+			for (var e of []);
+			for (var { f, x: [g] } of []);
+			for (var h in {});
+			for (var i = 1 in {});
+			for (var { j, x: [k] } in {});
+			function l() {}
+		}
+	`,
+	"/let.js": `
+		if (true) {
+			let a;
+			for (let b; 0;);
+			for (let { c, x: [d] } = {}; 0;);
+			for (let e of []);
+			for (let { f, x: [g] } of []);
+			for (let h in {});
+			// for (let i = 1 in {});
+			for (let { j, x: [k] } in {});
+		}
+	`,
+	"/function.js": `
+		function x() {
+			var a;
+			for (var b; 0;);
+			for (var { c, x: [d] } = {}; 0;);
+			for (var e of []);
+			for (var { f, x: [g] } of []);
+			for (var h in {});
+			for (var i = 1 in {});
+			for (var { j, x: [k] } in {});
+			function l() {}
+		}
+		x()
+	`,
+	"/function-nested.js": `
+		function x() {
+			if (true) {
+				var a;
+				for (var b; 0;);
+				for (var { c, x: [d] } = {}; 0;);
+				for (var e of []);
+				for (var { f, x: [g] } of []);
+				for (var h in {});
+				for (var i = 1 in {});
+				for (var { j, x: [k] } in {});
+				function l() {}
+			}
+		}
+		x()
+	`,
+}
+
+var relocateEntries = []string{
+	"/top-level.js",
+	"/nested.js",
+	"/let.js",
+	"/function.js",
+	"/function-nested.js",
+}
+
+func TestVarRelocatingBundle(t *testing.T) {
+	splitting_suite.expectBundled(t, bundled{
+		files:      relocateFiles,
+		entryPaths: relocateEntries,
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			OutputFormat: config.FormatESModule,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestVarRelocatingNoBundle(t *testing.T) {
+	splitting_suite.expectBundled(t, bundled{
+		files:      relocateFiles,
+		entryPaths: relocateEntries,
+		options: config.Options{
+			Mode:         config.ModeConvertFormat,
+			OutputFormat: config.FormatESModule,
+			AbsOutputDir: "/out",
+		},
+	})
+}
