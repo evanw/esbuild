@@ -51,7 +51,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 	case *css_ast.RAtNamespace:
 		if r.Prefix != "" {
 			p.print("@namespace ")
-			p.printIdent(r.Prefix, identNormal, canDiscardWhitespaceAfter)
+			p.printIdent(r.Prefix, identNormal, canDiscardWhitespaceAfter, false)
 		} else {
 			p.print("@namespace")
 		}
@@ -72,12 +72,12 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 
 	case *css_ast.RAtKeyframes:
 		p.print("@")
-		p.printIdent(r.AtToken, identNormal, mayNeedWhitespaceAfter)
+		p.printIdent(r.AtToken, identNormal, mayNeedWhitespaceAfter, false)
 		p.print(" ")
 		if r.Name == "" {
 			p.print("\"\"")
 		} else {
-			p.printIdent(r.Name, identNormal, canDiscardWhitespaceAfter)
+			p.printIdent(r.Name, identNormal, canDiscardWhitespaceAfter, false)
 		}
 		if !p.RemoveWhitespace {
 			p.print(" ")
@@ -122,7 +122,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		if len(r.Prelude) == 0 {
 			whitespace = canDiscardWhitespaceAfter
 		}
-		p.printIdent(r.AtToken, identNormal, whitespace)
+		p.printIdent(r.AtToken, identNormal, whitespace, false)
 		if !p.RemoveWhitespace || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
@@ -138,7 +138,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		if len(r.Prelude) == 0 {
 			whitespace = canDiscardWhitespaceAfter
 		}
-		p.printIdent(r.AtToken, identNormal, whitespace)
+		p.printIdent(r.AtToken, identNormal, whitespace, false)
 		if (!p.RemoveWhitespace && r.Block != nil) || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
@@ -167,7 +167,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RDeclaration:
-		p.printIdent(r.KeyText, identNormal, canDiscardWhitespaceAfter)
+		p.printIdent(r.KeyText, identNormal, canDiscardWhitespaceAfter, false)
 		p.print(":")
 		hasWhitespaceAfter := p.printTokens(r.Value)
 		if r.Important {
@@ -271,11 +271,11 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 
 			// This deliberately does not use identHash. From the specification:
 			// "In <id-selector>, the <hash-token>'s value must be an identifier."
-			p.printIdent(s.Name, identNormal, whitespace)
+			p.printIdent(s.Name, identNormal, whitespace, false)
 
 		case *css_ast.SSClass:
 			p.print(".")
-			p.printIdent(s.Name, identNormal, whitespace)
+			p.printIdent(s.Name, identNormal, whitespace, false)
 
 		case *css_ast.SSAttribute:
 			p.print("[")
@@ -296,7 +296,7 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 				}
 
 				if printAsIdent {
-					p.printIdent(s.MatcherValue, identNormal, canDiscardWhitespaceAfter)
+					p.printIdent(s.MatcherValue, identNormal, canDiscardWhitespaceAfter, false)
 				} else {
 					p.printQuoted(s.MatcherValue)
 				}
@@ -328,7 +328,7 @@ func (p *printer) printNamespacedName(nsName css_ast.NamespacedName, whitespace 
 	if nsName.NamespacePrefix != nil {
 		switch nsName.NamespacePrefix.Kind {
 		case css_lexer.TIdent:
-			p.printIdent(nsName.NamespacePrefix.Text, identNormal, canDiscardWhitespaceAfter)
+			p.printIdent(nsName.NamespacePrefix.Text, identNormal, canDiscardWhitespaceAfter, false)
 		case css_lexer.TDelimAsterisk:
 			p.print("*")
 		default:
@@ -340,7 +340,7 @@ func (p *printer) printNamespacedName(nsName css_ast.NamespacedName, whitespace 
 
 	switch nsName.Name.Kind {
 	case css_lexer.TIdent:
-		p.printIdent(nsName.Name.Text, identNormal, whitespace)
+		p.printIdent(nsName.Name.Text, identNormal, whitespace, true)
 	case css_lexer.TDelimAsterisk:
 		p.print("*")
 	case css_lexer.TDelimAmpersand:
@@ -354,12 +354,12 @@ func (p *printer) printPseudoClassSelector(pseudo css_ast.SSPseudoClass, whitesp
 	p.print(":")
 
 	if len(pseudo.Args) > 0 {
-		p.printIdent(pseudo.Name, identNormal, canDiscardWhitespaceAfter)
+		p.printIdent(pseudo.Name, identNormal, canDiscardWhitespaceAfter, false)
 		p.print("(")
 		p.printTokens(pseudo.Args)
 		p.print(")")
 	} else {
-		p.printIdent(pseudo.Name, identNormal, whitespace)
+		p.printIdent(pseudo.Name, identNormal, whitespace, false)
 	}
 }
 
@@ -507,13 +507,13 @@ const (
 	canDiscardWhitespaceAfter
 )
 
-func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhitespace) {
+func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhitespace, isEscapeBom bool) {
 	for i, c := range text {
 		escape := escapeNone
 
-		if c == '\uFEFF' {
+		if c == '\uFEFF' && isEscapeBom {
 			escape = escapeBom
-		} else if (p.ASCIIOnly && c >= 0x80) || (c == '\r' || c == '\n' || c == '\f') {
+		} else if (p.ASCIIOnly && c >= 0x80) || (c == '\r' || c == '\n' || c == '\f' || c == '\uFEFF') {
 			// Use a hexadecimal escape for characters that would be invalid escapes
 			escape = escapeHex
 		} else {
@@ -593,10 +593,10 @@ func (p *printer) printTokens(tokens []css_ast.Token) bool {
 
 		switch t.Kind {
 		case css_lexer.TIdent:
-			p.printIdent(t.Text, identNormal, whitespace)
+			p.printIdent(t.Text, identNormal, whitespace, false)
 
 		case css_lexer.TFunction:
-			p.printIdent(t.Text, identNormal, whitespace)
+			p.printIdent(t.Text, identNormal, whitespace, false)
 			p.print("(")
 
 		case css_lexer.TNumber:
@@ -608,15 +608,15 @@ func (p *printer) printTokens(tokens []css_ast.Token) bool {
 
 		case css_lexer.TDimension:
 			p.printNumber(t.DimensionValue())
-			p.printIdent(t.DimensionUnit(), identDimensionUnit, whitespace)
+			p.printIdent(t.DimensionUnit(), identDimensionUnit, whitespace, false)
 
 		case css_lexer.TAtKeyword:
 			p.print("@")
-			p.printIdent(t.Text, identNormal, whitespace)
+			p.printIdent(t.Text, identNormal, whitespace, false)
 
 		case css_lexer.THash:
 			p.print("#")
-			p.printIdent(t.Text, identHash, whitespace)
+			p.printIdent(t.Text, identHash, whitespace, false)
 
 		case css_lexer.TString:
 			p.printQuoted(t.Text)
