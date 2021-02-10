@@ -1,14 +1,20 @@
-# esbuild
-
-_An extremely fast JavaScript bundler_
-
-[Website](https://esbuild.github.io/) | [Getting started](https://esbuild.github.io/getting-started/) | [Documentation](https://esbuild.github.io/api/) | [Plugins](https://esbuild.github.io/plugins/) | [FAQ](https://esbuild.github.io/faq/)
+<p align="center">
+  <img src="./images/wordmark.svg" alt="esbuild: An extremely fast JavaScript bundler">
+  <br>
+  <a href="https://esbuild.github.io/">Website</a> |
+  <a href="https://esbuild.github.io/getting-started/">Getting started</a> |
+  <a href="https://esbuild.github.io/api/">Documentation</a> |
+  <a href="https://esbuild.github.io/plugins/">Plugins</a> |
+  <a href="https://esbuild.github.io/faq/">FAQ</a>
+</p>
 
 ## Why?
 
 Our current build tools for the web are 10-100x slower than they could be:
 
-![](images/benchmark.png)
+<p align="center">
+  <img src="images/benchmark.svg" alt="Bar chart with benchmark results">
+</p>
 
 The main goal of the esbuild bundler project is to bring about a new era of build tool performance, and create an easy-to-use modern bundler along the way.
 
