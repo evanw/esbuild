@@ -159,6 +159,17 @@ func Tokenize(log logger.Log, source logger.Source) (tokens []Token) {
 		source: source,
 	}
 	lexer.step()
+
+	// The U+FEFF character is usually a zero-width non-breaking space. However,
+	// when it's used at the start of a text stream it is called a BOM (byte order
+	// mark) instead and indicates that the text stream is UTF-8 encoded. This is
+	// problematic for us because CSS does not treat U+FEFF as whitespace. Only
+	// " \t\r\n\f" characters are treated as whitespace. Skip over the BOM if it
+	// is present so it doesn't cause us trouble when we try to parse it.
+	if lexer.codePoint == '\uFEFF' {
+		lexer.step()
+	}
+
 	lexer.next()
 	for lexer.Token.Kind != TEndOfFile {
 		tokens = append(tokens, lexer.Token)

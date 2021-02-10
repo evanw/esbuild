@@ -136,3 +136,9 @@ func TestString(t *testing.T) {
 	test.AssertEqual(t, lexerError("''"), "")
 	test.AssertEqual(t, lexerError("\"\""), "")
 }
+
+func TestBOM(t *testing.T) {
+	// A byte order mark should not be parsed as an identifier
+	kind, _ := lexToken("\uFEFF.")
+	test.AssertEqual(t, kind, TDelimDot)
+}

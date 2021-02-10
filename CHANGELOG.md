@@ -19,6 +19,14 @@
 
     Having a logo for esbuild should make it easier to include esbuild in lists of other tools since the other tools often all have logos.
 
+* Ignore a leading byte order mark (BOM) in CSS files ([#776](https://github.com/evanw/esbuild/issues/776))
+
+    Some text editors insert a U+FEFF code point at the start of text files. This is a zero-width non-breaking space character. Using one at the start of a file is a convention which is meant to indicate that the contents of the file are UTF-8 encoded. When this is done, the character is called a [byte order mark](https://en.wikipedia.org/wiki/Byte_order_mark).
+
+    Unlike JavaScript, CSS does not treat U+FEFF as whitespace. It is treated as an identifier instead. This was causing esbuild to misinterpret files starting with a BOM as starting with an extra identifier, which could then cause the initial CSS rule in the file to be parsed incorrectly.
+
+    Now esbuild will skip over a BOM if it's present before beginning to parse CSS. This should prevent issues when working with these files.
+
 * Add message notes to the API
 
     The internal logging system has the ability to attach additional notes to messages to provide more information. These show up as additional log messages in the terminal when using the command-line interface. Here is an example of a note:
