@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+* Create a logo for esbuild ([#61](https://github.com/evanw/esbuild/issues/61))
+
+    This release introduces a logo for esbuild:
+
+    <p>
+      &nbsp; &nbsp; &nbsp;
+      <img width="100" height="100" src="https://esbuild.github.io/favicon.svg">
+    </p>
+
+    Inspirations for the logo include:
+
+    * **The fast-forward symbol** because esbuild is extremely fast and because one of esbuild's goals is to accelerate the evolution of the whole web tooling ecosystem.
+
+    * **The right-shift symbol** because esbuild's production optimizations make your code smaller and because esbuild itself contains many low-level optimizations for speed.
+
+    Having a logo for esbuild should make it easier to include esbuild in lists of other tools since the other tools often all have logos.
+
 * Add message notes to the API
 
     The internal logging system has the ability to attach additional notes to messages to provide more information. These show up as additional log messages in the terminal when using the command-line interface. Here is an example of a note:
