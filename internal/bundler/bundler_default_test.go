@@ -3905,9 +3905,11 @@ func TestCallImportNamespaceWarning(t *testing.T) {
 			AbsOutputDir: "/out",
 			OutputFormat: config.FormatESModule,
 		},
-		expectedScanLog: `js.js: warning: Cannot call "a" because it's an import namespace object, not a function
+		expectedScanLog: `js.js: warning: Calling "a" will crash at run-time because it's an import namespace object, not a function
+js.js: note: Consider changing "a" to a default import instead
 js.js: warning: Cannot construct "a" because it's an import namespace object, not a function
-ts.ts: warning: Cannot call "a" because it's an import namespace object, not a function (make sure to enable TypeScript's "esModuleInterop" setting)
+ts.ts: warning: Calling "a" will crash at run-time because it's an import namespace object, not a function (make sure to enable TypeScript's "esModuleInterop" setting)
+ts.ts: note: Consider changing "a" to a default import instead
 ts.ts: warning: Cannot construct "a" because it's an import namespace object, not a function (make sure to enable TypeScript's "esModuleInterop" setting)
 `,
 	})

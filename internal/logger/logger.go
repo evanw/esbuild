@@ -70,12 +70,13 @@ type MsgData struct {
 }
 
 type MsgLocation struct {
-	File      string
-	Namespace string
-	Line      int // 1-based
-	Column    int // 0-based, in bytes
-	Length    int // in bytes
-	LineText  string
+	File       string
+	Namespace  string
+	Line       int // 1-based
+	Column     int // 0-based, in bytes
+	Length     int // in bytes
+	LineText   string
+	Suggestion string
 }
 
 type Loc struct {
@@ -757,8 +758,12 @@ func marginWithLineText(maxMargin int, line int) string {
 	return fmt.Sprintf("    %s%s │ ", strings.Repeat(" ", maxMargin-len(number)), number)
 }
 
-func emptyMarginText(maxMargin int) string {
-	return fmt.Sprintf("    %s ╵ ", strings.Repeat(" ", maxMargin))
+func emptyMarginText(maxMargin int, isLast bool) string {
+	space := strings.Repeat(" ", maxMargin)
+	if isLast {
+		return fmt.Sprintf("    %s ╵ ", space)
+	}
+	return fmt.Sprintf("    %s │ ", space)
 }
 
 func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int) string {
@@ -817,19 +822,40 @@ func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, d
 	d := detailStruct(data, terminalInfo, maxMargin)
 
 	if terminalInfo.UseColorEscapes {
-		return fmt.Sprintf("%s%s%s: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s%s\n",
+		if d.Suggestion != "" {
+			return fmt.Sprintf("%s%s%s: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s\n%s%s%s%s%s%s%s\n",
+				textColor, textIndent, d.Path,
+				kindColor, kind.String(),
+				textResetColor, d.Message,
+				colorResetDim, d.SourceBefore, colorGreen, d.SourceMarked, colorResetDim, d.SourceAfter,
+				emptyMarginText(maxMargin, false), d.Indent, colorGreen, d.Marker, colorResetDim,
+				emptyMarginText(maxMargin, true), d.Indent, colorGreen, d.Suggestion, colorResetDim,
+				d.ContentAfter, colorReset)
+		}
+
+		return fmt.Sprintf("%s%s%s: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s%s%s\n",
 			textColor, textIndent, d.Path,
 			kindColor, kind.String(),
 			textResetColor, d.Message,
 			colorResetDim, d.SourceBefore, colorGreen, d.SourceMarked, colorResetDim, d.SourceAfter,
-			d.Indent, colorGreen, d.Marker,
-			colorResetDim, d.ContentAfter, colorReset)
+			emptyMarginText(maxMargin, true), d.Indent, colorGreen, d.Marker, colorResetDim,
+			d.ContentAfter, colorReset)
 	}
 
-	return fmt.Sprintf("%s%s: %s: %s\n%s%s%s\n%s%s%s\n",
+	if d.Suggestion != "" {
+		return fmt.Sprintf("%s%s: %s: %s\n%s%s%s\n%s%s%s\n%s%s%s%s\n",
+			textIndent, d.Path, kind.String(), d.Message,
+			d.SourceBefore, d.SourceMarked, d.SourceAfter,
+			emptyMarginText(maxMargin, false), d.Indent, d.Marker,
+			emptyMarginText(maxMargin, true), d.Indent, d.Suggestion,
+			d.ContentAfter)
+	}
+
+	return fmt.Sprintf("%s%s: %s: %s\n%s%s%s\n%s%s%s%s\n",
 		textIndent, d.Path, kind.String(), d.Message,
 		d.SourceBefore, d.SourceMarked, d.SourceAfter,
-		d.Indent, d.Marker, d.ContentAfter)
+		emptyMarginText(maxMargin, true), d.Indent, d.Marker,
+		d.ContentAfter)
 }
 
 type MsgDetail struct {
@@ -842,8 +868,9 @@ type MsgDetail struct {
 	SourceMarked string
 	SourceAfter  string
 
-	Indent string
-	Marker string
+	Indent     string
+	Marker     string
+	Suggestion string
 
 	ContentAfter string
 }
@@ -1038,8 +1065,9 @@ func detailStruct(data MsgData, terminalInfo TerminalInfo, maxMargin int) MsgDet
 		SourceMarked: lineText[markerStart:markerEnd],
 		SourceAfter:  lineText[markerEnd:],
 
-		Indent: emptyMarginText(maxMargin) + indent,
-		Marker: marker,
+		Indent:     indent,
+		Marker:     marker,
+		Suggestion: loc.Suggestion,
 
 		ContentAfter: afterFirstLine,
 	}

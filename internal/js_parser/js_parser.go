@@ -10813,9 +10813,24 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.options.ts.Parse {
 					hint = " (make sure to enable TypeScript's \"esModuleInterop\" setting)"
 				}
-				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
-					"Cannot call %q because it's an import namespace object, not a function%s",
-					p.symbols[id.Ref.InnerIndex].OriginalName, hint))
+				var notes []logger.MsgData
+				name := p.symbols[id.Ref.InnerIndex].OriginalName
+				if member, ok := p.moduleScope.Members[name]; ok && member.Ref == id.Ref {
+					if star := p.source.RangeOfOperatorBefore(member.Loc, "*"); star.Len > 0 {
+						if as := p.source.RangeOfOperatorBefore(member.Loc, "as"); as.Len > 0 && as.Loc.Start > star.Loc.Start {
+							note := logger.RangeData(&p.source,
+								logger.Range{Loc: star.Loc, Len: js_lexer.RangeOfIdentifier(p.source, member.Loc).End() - star.Loc.Start},
+								fmt.Sprintf("Consider changing %q to a default import instead", name))
+							note.Location.Suggestion = name
+							notes = []logger.MsgData{note}
+						}
+					}
+				}
+				p.log.AddRangeWarningWithNotes(&p.source, r, fmt.Sprintf(
+					"Calling %q will crash at run-time because it's an import namespace object, not a function%s",
+					p.symbols[id.Ref.InnerIndex].OriginalName, hint),
+					notes,
+				)
 			}
 		}
 
