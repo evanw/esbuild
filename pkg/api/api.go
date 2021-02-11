@@ -244,6 +244,7 @@ type BuildOptions struct {
 
 	GlobalName        string
 	Bundle            bool
+	PreserveSymlinks  bool
 	Splitting         bool
 	Outfile           string
 	Metafile          string

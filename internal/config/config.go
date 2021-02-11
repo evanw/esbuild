@@ -160,6 +160,7 @@ const (
 
 type Options struct {
 	Mode              Mode
+	PreserveSymlinks  bool
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
 	MangleSyntax      bool

@@ -616,6 +616,7 @@ func rebuildImpl(
 		AbsNodePaths:          make([]string, len(buildOpts.NodePaths)),
 		Banner:                buildOpts.Banner,
 		Footer:                buildOpts.Footer,
+		PreserveSymlinks:      buildOpts.PreserveSymlinks,
 		WatchMode:             buildOpts.Watch != nil,
 		Plugins:               plugins,
 	}

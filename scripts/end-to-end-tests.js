@@ -62,6 +62,7 @@
   // my Windows VM (Windows 10 in VirtualBox on macOS).
   if (process.platform !== 'win32') {
     tests.push(
+      // Without preserve symlinks
       test(['--bundle', 'in.js', '--outfile=node.js'], {
         'in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
         'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
@@ -85,6 +86,32 @@
         'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
         'registry/node_modules/bar/index.js': `export const bar = 123`,
         'node_modules/foo/index.js': { symlink: `TEST_DIR_ABS_PATH/registry/node_modules/foo/index.js` },
+      }),
+
+      // With preserve symlinks
+      test(['--bundle', 'src/in.js', '--outfile=node.js', '--preserve-symlinks'], {
+        'src/in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
+        'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
+        'src/node_modules/bar/index.js': `export const bar = 123`,
+        'src/node_modules/foo': { symlink: `../../registry/node_modules/foo` },
+      }),
+      test(['--bundle', 'src/in.js', '--outfile=node.js', '--preserve-symlinks'], {
+        'src/in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
+        'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
+        'src/node_modules/bar/index.js': `export const bar = 123`,
+        'src/node_modules/foo/index.js': { symlink: `../../../registry/node_modules/foo/index.js` },
+      }),
+      test(['--bundle', 'src/in.js', '--outfile=node.js', '--preserve-symlinks'], {
+        'src/in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
+        'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
+        'src/node_modules/bar/index.js': `export const bar = 123`,
+        'src/node_modules/foo': { symlink: `TEST_DIR_ABS_PATH/registry/node_modules/foo` },
+      }),
+      test(['--bundle', 'src/in.js', '--outfile=node.js', '--preserve-symlinks'], {
+        'src/in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
+        'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
+        'src/node_modules/bar/index.js': `export const bar = 123`,
+        'src/node_modules/foo/index.js': { symlink: `TEST_DIR_ABS_PATH/registry/node_modules/foo/index.js` },
       }),
 
       // This is a test for https://github.com/evanw/esbuild/issues/222

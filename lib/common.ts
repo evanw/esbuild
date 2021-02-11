@@ -173,6 +173,7 @@ function flagsForBuildOptions(
   let bundle = getFlag(options, keys, 'bundle', mustBeBoolean);
   let watch = getFlag(options, keys, 'watch', mustBeBooleanOrObject);
   let splitting = getFlag(options, keys, 'splitting', mustBeBoolean);
+  let preserveSymlinks = getFlag(options, keys, 'preserveSymlinks', mustBeBoolean);
   let metafile = getFlag(options, keys, 'metafile', mustBeString);
   let outfile = getFlag(options, keys, 'outfile', mustBeString);
   let outdir = getFlag(options, keys, 'outdir', mustBeString);
@@ -209,6 +210,7 @@ function flagsForBuildOptions(
     }
   }
   if (splitting) flags.push('--splitting');
+  if (preserveSymlinks) flags.push('--preserve-symlinks');
   if (metafile) flags.push(`--metafile=${metafile}`);
   if (outfile) flags.push(`--outfile=${outfile}`);
   if (outdir) flags.push(`--outdir=${outdir}`);

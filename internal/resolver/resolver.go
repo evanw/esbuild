@@ -336,13 +336,15 @@ func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 					result.PreserveUnusedImportsTS = dirInfo.tsConfigJSON.PreserveImportsNotUsedAsValues
 				}
 
-				if entry, ok := dirInfo.entries[base]; ok {
-					if symlink := entry.Symlink(r.fs); symlink != "" {
-						// Is this entry itself a symlink?
-						path.Text = symlink
-					} else if dirInfo.absRealPath != "" {
-						// Is there at least one parent directory with a symlink?
-						path.Text = r.fs.Join(dirInfo.absRealPath, base)
+				if !r.options.PreserveSymlinks {
+					if entry, ok := dirInfo.entries[base]; ok {
+						if symlink := entry.Symlink(r.fs); symlink != "" {
+							// Is this entry itself a symlink?
+							path.Text = symlink
+						} else if dirInfo.absRealPath != "" {
+							// Is there at least one parent directory with a symlink?
+							path.Text = r.fs.Join(dirInfo.absRealPath, base)
+						}
 					}
 				}
 			}
@@ -768,11 +770,13 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		info.enclosingBrowserScope = parentInfo.enclosingBrowserScope
 
 		// Make sure "absRealPath" is the real path of the directory (resolving any symlinks)
-		if entry, ok := parentInfo.entries[base]; ok {
-			if symlink := entry.Symlink(r.fs); symlink != "" {
-				info.absRealPath = symlink
-			} else if parentInfo.absRealPath != "" {
-				info.absRealPath = r.fs.Join(parentInfo.absRealPath, base)
+		if !r.options.PreserveSymlinks {
+			if entry, ok := parentInfo.entries[base]; ok {
+				if symlink := entry.Symlink(r.fs); symlink != "" {
+					info.absRealPath = symlink
+				} else if parentInfo.absRealPath != "" {
+					info.absRealPath = r.fs.Join(parentInfo.absRealPath, base)
+				}
 			}
 		}
 	}

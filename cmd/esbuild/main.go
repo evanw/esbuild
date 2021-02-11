@@ -71,6 +71,7 @@ var helpText = func(colors logger.Colors) string {
   --out-extension:.js=.mjs  Use a custom output extension instead of ".js"
   --outbase=...             The base path used to determine entry point output
                             paths (for multiple entry points)
+  --preserve-symlinks       Disable symlink resolution for module lookup
   --public-path=...         Set the base URL for the "file" loader
   --pure:N                  Mark the name N as a pure function for tree shaking
   --resolve-extensions=...  A comma-separated list of implicit extensions
