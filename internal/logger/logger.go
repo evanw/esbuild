@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const defaultTerminalWidth = 80
@@ -726,9 +727,18 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 		}
 	}
 
-	// Format the messages
+	// Format the message
 	text := msgString(options, terminalInfo, msg.Kind, msg.Data, maxMargin)
+
+	// Put a blank line between the message and the notes if the message has a stack trace
+	gap := ""
+	if loc := msg.Data.Location; loc != nil && strings.ContainsRune(loc.LineText, '\n') {
+		gap = "\n"
+	}
+
+	// Format the notes
 	for _, note := range msg.Notes {
+		text += gap
 		text += msgString(options, terminalInfo, Note, note, maxMargin)
 	}
 
@@ -926,10 +936,11 @@ func detailStruct(data MsgData, terminalInfo TerminalInfo, maxMargin int) MsgDet
 
 	spacesPerTab := 2
 	lineText := renderTabStops(firstLine, spacesPerTab)
-	indent := strings.Repeat(" ", len(renderTabStops(firstLine[:loc.Column], spacesPerTab)))
+	textUpToLoc := renderTabStops(firstLine[:loc.Column], spacesPerTab)
+	markerStart := len(textUpToLoc)
+	markerEnd := markerStart
+	indent := strings.Repeat(" ", estimateWidthInTerminal(textUpToLoc))
 	marker := "^"
-	markerStart := len(indent)
-	markerEnd := len(indent)
 
 	// Extend markers to cover the full range of the error
 	if loc.Length > 0 {
@@ -1005,13 +1016,13 @@ func detailStruct(data MsgData, terminalInfo TerminalInfo, maxMargin int) MsgDet
 		}
 
 		// Now we can compute the indent
-		indent = strings.Repeat(" ", markerStart)
 		lineText = slicedLine
+		indent = strings.Repeat(" ", estimateWidthInTerminal(lineText[:markerStart]))
 	}
 
 	// If marker is still multi-character after clipping, make the marker wider
 	if markerEnd-markerStart > 1 {
-		marker = strings.Repeat("~", markerEnd-markerStart)
+		marker = strings.Repeat("~", estimateWidthInTerminal(lineText[markerStart:markerEnd]))
 	}
 
 	// Put a margin before the marker indent
@@ -1032,6 +1043,19 @@ func detailStruct(data MsgData, terminalInfo TerminalInfo, maxMargin int) MsgDet
 
 		ContentAfter: afterFirstLine,
 	}
+}
+
+// Estimate the number of columns this string will take when printed
+func estimateWidthInTerminal(text string) int {
+	// For now just assume each code point is one column. This is wrong but is
+	// less wrong than assuming each code unit is one column.
+	width := 0
+	for text != "" {
+		_, size := utf8.DecodeRuneInString(text)
+		text = text[size:]
+		width++
+	}
+	return width
 }
 
 func renderTabStops(withTabs string, spacesPerTab int) string {

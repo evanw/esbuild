@@ -551,6 +551,17 @@ func extractSourceMapFromComment(
 	return logger.Path{}, nil
 }
 
+func sanetizeLocation(res resolver.Resolver, loc *logger.MsgLocation) {
+	if loc != nil {
+		if loc.Namespace == "" {
+			loc.Namespace = "file"
+		}
+		if loc.File != "" {
+			loc.File = res.PrettyPath(logger.Path{Text: loc.File, Namespace: loc.Namespace})
+		}
+	}
+}
+
 func logPluginMessages(
 	res resolver.Resolver,
 	log logger.Log,
@@ -571,20 +582,17 @@ func logPluginMessages(
 			didLogError = true
 		}
 
-		// Sanitize the location
-		if msg.Data.Location != nil {
-			clone := *msg.Data.Location
-			if clone.Namespace == "" {
-				clone.Namespace = "file"
-			}
-			if clone.File != "" {
-				clone.File = res.PrettyPath(logger.Path{Text: clone.File, Namespace: clone.Namespace})
-			} else if importSource != nil {
-				clone.File = importSource.PrettyPath
-			}
-			msg.Data.Location = &clone
-		} else {
+		// Sanitize the locations
+		if msg.Data.Location == nil {
 			msg.Data.Location = logger.LocationOrNil(importSource, importPathRange)
+		} else {
+			sanetizeLocation(res, msg.Data.Location)
+			if msg.Data.Location.File == "" && importSource != nil {
+				msg.Data.Location.File = importSource.PrettyPath
+			}
+		}
+		for _, note := range msg.Notes {
+			sanetizeLocation(res, note.Location)
 		}
 
 		log.AddMsg(msg)

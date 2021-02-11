@@ -1179,7 +1179,7 @@ let pluginTests = {
         notes: [{
           text: 'some note',
           location: {
-            file: 'file2',
+            file: 'ns2:file2',
             namespace: 'ns2',
             line: 4,
             column: 5,
@@ -1247,7 +1247,7 @@ let pluginTests = {
       notes: [{
         text: 'some note',
         location: {
-          file: 'file2',
+          file: 'ns2:file2',
           namespace: 'ns2',
           line: 4,
           column: 5,
@@ -1317,7 +1317,7 @@ let pluginTests = {
         notes: [{
           text: 'some note',
           location: {
-            file: 'file2',
+            file: 'ns2:file2',
             namespace: 'ns2',
             line: 4,
             column: 5,
@@ -1384,7 +1384,7 @@ let pluginTests = {
       notes: [{
         text: 'some note',
         location: {
-          file: 'file2',
+          file: 'ns2:file2',
           namespace: 'ns2',
           line: 4,
           column: 5,

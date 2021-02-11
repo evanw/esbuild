@@ -516,7 +516,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           throw new Error(`Invalid command: ` + (request as any)!.command);
       }
     } catch (e) {
-      sendResponse(id, { errors: [extractErrorMessageV8(e, streamIn, null)] } as any);
+      sendResponse(id, { errors: [extractErrorMessageV8(e, streamIn, null, void 0)] } as any);
     }
   };
 
@@ -557,6 +557,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let onResolveCallbacks: {
       [id: number]: {
         name: string,
+        note: types.Note | undefined,
         callback: (args: types.OnResolveArgs) =>
           (types.OnResolveResult | null | undefined | Promise<types.OnResolveResult | null | undefined>),
       },
@@ -564,6 +565,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let onLoadCallbacks: {
       [id: number]: {
         name: string,
+        note: types.Note | undefined,
         callback: (args: types.OnLoadArgs) =>
           (types.OnLoadResult | null | undefined | Promise<types.OnLoadResult | null | undefined>),
       },
@@ -592,24 +594,28 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
       setup({
         onResolve(options, callback) {
+          let registeredText = `This error came from the "onResolve" callback registered here`
+          let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onResolve');
           let keys: OptionKeys = {};
           let filter = getFlag(options, keys, 'filter', mustBeRegExp);
           let namespace = getFlag(options, keys, 'namespace', mustBeString);
           checkForInvalidFlags(options, keys, `in onResolve() call for plugin ${JSON.stringify(name)}`);
           if (filter == null) throw new Error(`[${plugin.name}] onResolve() call is missing a filter`);
           let id = nextCallbackID++;
-          onResolveCallbacks[id] = { name: name!, callback };
+          onResolveCallbacks[id] = { name: name!, callback, note: registeredNote };
           plugin.onResolve.push({ id, filter: filter.source, namespace: namespace || '' });
         },
 
         onLoad(options, callback) {
+          let registeredText = `This error came from the "onLoad" callback registered here`
+          let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onLoad');
           let keys: OptionKeys = {};
           let filter = getFlag(options, keys, 'filter', mustBeRegExp);
           let namespace = getFlag(options, keys, 'namespace', mustBeString);
           checkForInvalidFlags(options, keys, `in onLoad() call for plugin ${JSON.stringify(name)}`);
           if (filter == null) throw new Error(`[${plugin.name}] onLoad() call is missing a filter`);
           let id = nextCallbackID++;
-          onLoadCallbacks[id] = { name: name!, callback };
+          onLoadCallbacks[id] = { name: name!, callback, note: registeredNote };
           plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' });
         },
       });
@@ -620,10 +626,10 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     const callback: PluginCallback = async (request) => {
       switch (request.command) {
         case 'resolve': {
-          let response: protocol.OnResolveResponse = {};
+          let response: protocol.OnResolveResponse = {}, name, callback, note;
           for (let id of request.ids) {
             try {
-              let { name, callback } = onResolveCallbacks[id];
+              ({ name, callback, note } = onResolveCallbacks[id]);
               let result = await callback({
                 path: request.path,
                 importer: request.importer,
@@ -655,17 +661,17 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 break;
               }
             } catch (e) {
-              return { id, errors: [extractErrorMessageV8(e, streamIn, stash)] };
+              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note)] };
             }
           }
           return response;
         }
 
         case 'load': {
-          let response: protocol.OnLoadResponse = {};
+          let response: protocol.OnLoadResponse = {}, name, callback, note;
           for (let id of request.ids) {
             try {
-              let { name, callback } = onLoadCallbacks[id];
+              ({ name, callback, note } = onLoadCallbacks[id]);
               let result = await callback({
                 path: request.path,
                 namespace: request.namespace,
@@ -696,7 +702,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 break;
               }
             } catch (e) {
-              return { id, errors: [extractErrorMessageV8(e, streamIn, stash)] };
+              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note)] };
             }
           }
           return response;
@@ -911,7 +917,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         } catch (e) {
           let flags: string[] = [];
           try { pushLogFlags(flags, options, {}, isTTY, logLevelDefault) } catch { }
-          const error = extractErrorMessageV8(e, streamIn, details)
+          const error = extractErrorMessageV8(e, streamIn, details, void 0)
           sendRequest(refs, { command: 'error', flags, error }, () => {
             error.detail = details.load(error.detail);
             callback(failureErrorWithLog('Build failed', [error], []), null);
@@ -986,7 +992,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           } catch (e) {
             let flags: string[] = [];
             try { pushLogFlags(flags, options, {}, isTTY, logLevelDefault) } catch { }
-            const error = extractErrorMessageV8(e, streamIn, details);
+            const error = extractErrorMessageV8(e, streamIn, details, void 0);
             sendRequest(refs, { command: 'error', flags, error }, () => {
               error.detail = details.load(error.detail);
               callback(failureErrorWithLog('Transform failed', [error], []), null);
@@ -1029,7 +1035,19 @@ function createObjectStash(): ObjectStash {
   };
 }
 
-function extractErrorMessageV8(e: any, streamIn: StreamIn, stash: ObjectStash | null): types.Message {
+function extractCallerV8(e: Error, streamIn: StreamIn, ident: string): types.Note | undefined {
+  try {
+    let lines = (e.stack + '').split('\n', 4)
+    lines.splice(1, 1)
+    let location = parseStackLinesV8(streamIn, lines, ident)
+    if (location) {
+      return { text: e.message, location }
+    }
+  } catch {
+  }
+}
+
+function extractErrorMessageV8(e: any, streamIn: StreamIn, stash: ObjectStash | null, note: types.Note | undefined): types.Message {
   let text = 'Internal error'
   let location: types.Location | null = null
 
@@ -1040,49 +1058,55 @@ function extractErrorMessageV8(e: any, streamIn: StreamIn, stash: ObjectStash | 
 
   // Optionally attempt to extract the file from the stack trace, works in V8/node
   try {
-    let stack = e.stack + ''
-    let lines = stack.split('\n', 3)
-    let at = '    at '
-
-    // Check to see if this looks like a V8 stack trace
-    if (streamIn.readFileSync && !lines[0].startsWith(at) && lines[1].startsWith(at)) {
-      let line = lines[1].slice(at.length)
-      while (true) {
-        // Unwrap a function name
-        let match = /^\S+ \((.*)\)$/.exec(line)
-        if (match) {
-          line = match[1]
-          continue
-        }
-
-        // Unwrap an eval wrapper
-        match = /^eval at \S+ \((.*)\)(?:, \S+:\d+:\d+)?$/.exec(line)
-        if (match) {
-          line = match[1]
-          continue
-        }
-
-        // Match on the file location
-        match = /^(\S+):(\d+):(\d+)$/.exec(line)
-        if (match) {
-          let contents = streamIn.readFileSync(match[1], 'utf8')
-          let lineText = contents.split(/\r\n|\r|\n|\u2028|\u2029/)[+match[2] - 1] || ''
-          location = {
-            file: match[1],
-            namespace: 'file',
-            line: +match[2],
-            column: +match[3] - 1,
-            length: 0,
-            lineText: lineText + '\n' + lines.slice(1).join('\n'),
-          }
-        }
-        break
-      }
-    }
+    location = parseStackLinesV8(streamIn, (e.stack + '').split('\n', 3), '')
   } catch {
   }
 
-  return { text, location, notes: [], detail: stash ? stash.store(e) : -1 }
+  return { text, location, notes: note ? [note] : [], detail: stash ? stash.store(e) : -1 }
+}
+
+function parseStackLinesV8(streamIn: StreamIn, lines: string[], ident: string): types.Location | null {
+  let at = '    at '
+
+  // Check to see if this looks like a V8 stack trace
+  if (streamIn.readFileSync && !lines[0].startsWith(at) && lines[1].startsWith(at)) {
+    let line = lines[1].slice(at.length)
+    while (true) {
+      // Unwrap a function name
+      let match = /^\S+ \((.*)\)$/.exec(line)
+      if (match) {
+        line = match[1]
+        continue
+      }
+
+      // Unwrap an eval wrapper
+      match = /^eval at \S+ \((.*)\)(?:, \S+:\d+:\d+)?$/.exec(line)
+      if (match) {
+        line = match[1]
+        continue
+      }
+
+      // Match on the file location
+      match = /^(\S+):(\d+):(\d+)$/.exec(line)
+      if (match) {
+        let contents = streamIn.readFileSync(match[1], 'utf8')
+        let lineText = contents.split(/\r\n|\r|\n|\u2028|\u2029/)[+match[2] - 1] || ''
+        let column = +match[3] - 1
+        let length = lineText.slice(column, column + ident.length) === ident ? ident.length : 0
+        return {
+          file: match[1],
+          namespace: 'file',
+          line: +match[2],
+          column: protocol.encodeUTF8(lineText.slice(0, column)).length,
+          length: protocol.encodeUTF8(lineText.slice(column, column + length)).length,
+          lineText: lineText + '\n' + lines.slice(1).join('\n'),
+        }
+      }
+      break
+    }
+  }
+
+  return null;
 }
 
 function failureErrorWithLog(text: string, errors: types.Message[], warnings: types.Message[]): types.BuildFailure {
