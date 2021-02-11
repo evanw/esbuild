@@ -50,7 +50,7 @@ var index;
 ================================================================================
 TestPackageJsonBrowserMapModuleDisabled
 ---------- /Users/user/project/out.js ----------
-// (disabled):/Users/user/project/node_modules/node-pkg/index.js
+// (disabled):Users/user/project/node_modules/node-pkg/index.js
 var require_node_pkg = __commonJS(() => {
 });
 
