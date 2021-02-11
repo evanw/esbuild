@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Remove absolute paths for disabled packages from source maps ([#786](https://github.com/evanw/esbuild/issues/786))
+
+    This change is similar to the one from the previous release for disabled files, but it applies to package paths instead of relative paths. It's relevant when using packages that override dependencies with alternative packages using the `browser` field in their `package.json` file. Using relative paths instead of absolute paths fixes a determinism issue where build output was different on different systems. This fix was contributed by [@eelco](https://github.com/eelco).
+
 ## 0.8.44
 
 * Create a logo for esbuild ([#61](https://github.com/evanw/esbuild/issues/61))
