@@ -121,7 +121,7 @@ export let startService: typeof types.startService = common.longLivedService(() 
   if (options.worker) throw new Error(`The "worker" option only works in the browser`)
   let [command, args] = esbuildCommandAndArgs();
   let defaultWD = process.cwd();
-  let child = child_process.spawn(command, args.concat(`--service=${ESBUILD_VERSION}`), {
+  let child = child_process.spawn(command, args.concat(`--service=${ESBUILD_VERSION}`, '--ping'), {
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'inherit'],
   });

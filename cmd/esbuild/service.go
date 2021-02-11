@@ -46,7 +46,7 @@ type outgoingPacket struct {
 	refCount int
 }
 
-func runService() {
+func runService(sendPings bool) {
 	service := serviceType{
 		callbacks:       make(map[uint32]responseCallback),
 		rebuilds:        make(map[int]rebuildCallback),
@@ -83,14 +83,16 @@ func runService() {
 	// where the host has disappeared and will never send us anything else but
 	// we incorrectly think we are still needed. In that case we will now try
 	// to write to stdout and fail, and then know that we should exit.
-	go func() {
-		for {
-			time.Sleep(1 * time.Second)
-			service.sendRequest(map[string]interface{}{
-				"command": "ping",
-			})
-		}
-	}()
+	if sendPings {
+		go func() {
+			for {
+				time.Sleep(1 * time.Second)
+				service.sendRequest(map[string]interface{}{
+					"command": "ping",
+				})
+			}
+		}()
+	}
 
 	for {
 		// Read more data from stdin

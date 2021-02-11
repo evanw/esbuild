@@ -106,6 +106,7 @@ func main() {
 	traceFile := ""
 	cpuprofileFile := ""
 	isRunningService := false
+	sendPings := false
 
 	// Do an initial scan over the argument list
 	argsEnd := 0
@@ -146,6 +147,9 @@ func main() {
 				os.Exit(1)
 			}
 
+		case strings.HasPrefix(arg, "--ping"):
+			sendPings = true
+
 		default:
 			// Strip any arguments that were handled above
 			osArgs[argsEnd] = arg
@@ -156,7 +160,7 @@ func main() {
 
 	// Run in service mode if requested
 	if isRunningService {
-		runService()
+		runService(sendPings)
 		return
 	}
 

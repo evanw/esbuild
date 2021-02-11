@@ -62,6 +62,12 @@
 
     This should make it easier to debug crashes in plugin code.
 
+* Fix a regression with the synchronous JavaScript API ([#784](https://github.com/evanw/esbuild/issues/784))
+
+    In version 0.8.39, a change was made to avoid dangling esbuild processes when node exits abnormally. The change introduced a periodic ping between the child esbuild process and its host process. If the ping doesn't go through, the child process is able to detect that the host process is no longer there. Then it knows to exit since it's no longer being used.
+
+    This caused a problem with the synchronous JavaScript API calls which run the esbuild child process in a single-response mode. The ping message was interpreted as a second response and tripped up the message protocol. Pings are only useful for the asynchronous API calls. Running the pings during synchronous API calls was unintentional. With this release pings are no longer run for synchronous API calls so this regression should be fixed.
+
 ## 0.8.43
 
 * Support the `XDG_CACHE_HOME` environment variable ([#757](https://github.com/evanw/esbuild/issues/757))
