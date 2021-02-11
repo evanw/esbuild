@@ -27,20 +27,14 @@ var helpText = func(colors logger.Colors) string {
 ` + colors.Bold + `Simple options:` + colors.Default + `
   --bundle              Bundle all dependencies into the output files
   --define:K=V          Substitute K with V while parsing
-  --external:M          Exclude module M from the bundle
+  --external:M          Exclude module M from the bundle (can use * wildcards)
   --format=...          Output format (iife | cjs | esm, no default when not
                         bundling, otherwise default is iife when platform
                         is browser and cjs when platform is node)
-  --global-name=...     The name of the global for the IIFE format
-  --jsx-factory=...     What to use instead of React.createElement
-  --jsx-fragment=...    What to use instead of React.Fragment
   --loader:X=L          Use loader L to load file extension X, where L is
                         one of: js | jsx | ts | tsx | json | text | base64 |
                         file | dataurl | binary
-  --minify              Sets all --minify-* flags
-  --minify-whitespace   Remove whitespace
-  --minify-identifiers  Shorten identifiers
-  --minify-syntax       Use equivalent but shorter syntax
+  --minify              Minify the output (sets all --minify-* flags)
   --outdir=...          The output directory (for multiple entry points)
   --outfile=...         The output file (for one entry point)
   --platform=...        Platform target (browser | node | neutral,
@@ -59,8 +53,11 @@ var helpText = func(colors logger.Colors) string {
   --color=...               Force use of color terminal escapes (true | false)
   --error-limit=...         Maximum error count or 0 to disable (default 10)
   --footer=...              Text to be appended to each output file
+  --global-name=...         The name of the global for the IIFE format
   --inject:F                Import the file F into all input files and
                             automatically replace matching globals with imports
+  --jsx-factory=...         What to use for JSX instead of React.createElement
+  --jsx-fragment=...        What to use for JSX instead of React.Fragment
   --keep-names              Preserve "name" on functions and classes
   --log-level=...           Disable logging (info | warning | error | silent,
                             default info)
@@ -68,6 +65,9 @@ var helpText = func(colors logger.Colors) string {
                             (default "browser,module,main" when platform is
                             browser and "main,module" when platform is node)
   --metafile=...            Write metadata about the build to a JSON file
+  --minify-whitespace       Remove whitespace in output files
+  --minify-identifiers      Shorten identifiers in output files
+  --minify-syntax           Use equivalent but shorter syntax in output files
   --out-extension:.js=.mjs  Use a custom output extension instead of ".js"
   --outbase=...             The base path used to determine entry point output
                             paths (for multiple entry points)
