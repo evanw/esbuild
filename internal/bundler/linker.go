@@ -2224,7 +2224,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 	// Is this a disabled file?
 	otherSourceIndex := *record.SourceIndex
-	if c.files[otherSourceIndex].source.KeyPath.Namespace == resolver.BrowserFalseNamespace {
+	if c.files[otherSourceIndex].source.KeyPath.IsDisabled() {
 		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importDisabled, nil
 	}
 

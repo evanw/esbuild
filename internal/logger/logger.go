@@ -129,10 +129,24 @@ func (a SortableMsgs) Less(i int, j int) bool {
 type Path struct {
 	Text      string
 	Namespace string
+	Flags     PathFlags
+}
+
+type PathFlags uint8
+
+const (
+	// This corresponds to a value of "false' in the "browser" package.json field
+	PathDisabled PathFlags = 1 << iota
+)
+
+func (p Path) IsDisabled() bool {
+	return (p.Flags & PathDisabled) != 0
 }
 
 func (a Path) ComesBeforeInSortedOrder(b Path) bool {
-	return a.Namespace > b.Namespace || (a.Namespace == b.Namespace && a.Text < b.Text)
+	return a.Namespace > b.Namespace ||
+		(a.Namespace == b.Namespace && (a.Text < b.Text ||
+			(a.Text == b.Text && a.Flags < b.Flags)))
 }
 
 // This has a custom implementation instead of using "filepath.Dir/Base/Ext"

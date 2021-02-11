@@ -242,6 +242,27 @@ let buildTests = {
     assert.strictEqual(json.sourcesContent, void 0)
   },
 
+  async sourceMapWithDisabledFile({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const disabled = path.join(testDir, 'disabled.js')
+    const packageJSON = path.join(testDir, 'package.json')
+    const output = path.join(testDir, 'out.js')
+    const content = 'exports.foo = require("./disabled")'
+    await writeFileAsync(input, content)
+    await writeFileAsync(disabled, 'module.exports = 123')
+    await writeFileAsync(packageJSON, `{"browser": {"./disabled.js": false}}`)
+    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: true, bundle: true })
+    const result = require(output)
+    assert.strictEqual(result.foo, void 0)
+    const resultMap = await readFileAsync(output + '.map', 'utf8')
+    const json = JSON.parse(resultMap)
+    assert.strictEqual(json.version, 3)
+    assert.strictEqual(json.sources[0], path.basename(disabled))
+    assert.strictEqual(json.sources[1], path.basename(input))
+    assert.strictEqual(json.sourcesContent[0], '')
+    assert.strictEqual(json.sourcesContent[1], content)
+  },
+
   async resolveExtensionOrder({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js');
     const inputBare = path.join(testDir, 'module.js')

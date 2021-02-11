@@ -774,6 +774,11 @@ func runOnLoadPlugins(
 		}
 	}
 
+	// Force disabled modules to be empty
+	if source.KeyPath.IsDisabled() {
+		return loaderPluginResult{loader: config.LoaderJS}, true
+	}
+
 	// Read normal modules from disk
 	if source.KeyPath.Namespace == "file" {
 		if contents, err := fsCache.ReadFile(fs, source.KeyPath.Text); err == nil {
@@ -791,11 +796,6 @@ func runOnLoadPlugins(
 				fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(source.KeyPath), err.Error()))
 			return loaderPluginResult{}, false
 		}
-	}
-
-	// Force disabled modules to be empty
-	if source.KeyPath.Namespace == resolver.BrowserFalseNamespace {
-		return loaderPluginResult{loader: config.LoaderJS}, true
 	}
 
 	// Otherwise, fail to load the path

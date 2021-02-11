@@ -18,10 +18,6 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
-// This namespace is used when a module has been disabled by being mapped to
-// "false" using the "browser" field of "package.json".
-const BrowserFalseNamespace = "empty"
-
 var defaultMainFields = map[config.Platform][]string{
 	// Note that this means if a package specifies "main", "module", and
 	// "browser" then "browser" will win out over "module". This is the
@@ -399,7 +395,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			if packageJSON := importDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserNonPackageMap != nil {
 				if remapped, ok := packageJSON.browserNonPackageMap[absPath]; ok {
 					if remapped == nil {
-						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: BrowserFalseNamespace}}}
+						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}
 					} else if remappedResult, ok := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
 						result = remappedResult
 						checkRelative = false
@@ -452,13 +448,13 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 					if remapped == nil {
 						// "browser": {"module": false}
 						if absolute, ok := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
-							absolute.Primary = logger.Path{Text: absolute.Primary.Text, Namespace: BrowserFalseNamespace}
+							absolute.Primary = logger.Path{Text: absolute.Primary.Text, Flags: logger.PathDisabled}
 							if absolute.HasSecondary() {
-								absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Namespace: BrowserFalseNamespace}
+								absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Flags: logger.PathDisabled}
 							}
 							return &ResolveResult{PathPair: absolute}
 						} else {
-							return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Namespace: BrowserFalseNamespace}}}
+							return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Flags: logger.PathDisabled}}}
 						}
 					} else {
 						// "browser": {"module": "./some-file"}
@@ -489,7 +485,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			if packageJSON.browserNonPackageMap != nil {
 				if remapped, ok := packageJSON.browserNonPackageMap[path.Text]; ok {
 					if remapped == nil {
-						path.Namespace = BrowserFalseNamespace
+						path.Flags |= logger.PathDisabled
 					} else if remappedResult, ok := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
 						*path = remappedResult.Primary
 					} else {
@@ -522,11 +518,13 @@ func (r *resolver) PrettyPath(path logger.Path) string {
 		// These should be platform-independent so our output doesn't depend on which
 		// operating system it was run. Replace Windows backward slashes with standard
 		// forward slashes.
-		return strings.ReplaceAll(path.Text, "\\", "/")
+		path.Text = strings.ReplaceAll(path.Text, "\\", "/")
+	} else if path.Namespace != "" {
+		path.Text = fmt.Sprintf("%s:%s", path.Namespace, path.Text)
 	}
 
-	if path.Namespace != "" {
-		return fmt.Sprintf("%s:%s", path.Namespace, path.Text)
+	if path.IsDisabled() {
+		path.Text = "(disabled):" + path.Text
 	}
 
 	return path.Text
@@ -1302,7 +1300,7 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 				if packageJSON := importDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserNonPackageMap != nil {
 					if remapped, ok := packageJSON.browserNonPackageMap[absPath]; ok {
 						if remapped == nil {
-							return PathPair{Primary: logger.Path{Text: absPath, Namespace: BrowserFalseNamespace}}, true
+							return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true
 						} else if remappedResult, ok := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
 							return remappedResult, true
 						}

@@ -50,7 +50,7 @@ var index;
 ================================================================================
 TestPackageJsonBrowserMapModuleDisabled
 ---------- /Users/user/project/out.js ----------
-// empty:/Users/user/project/node_modules/node-pkg/index.js
+// (disabled):/Users/user/project/node_modules/node-pkg/index.js
 var require_node_pkg = __commonJS(() => {
 });
 
@@ -113,7 +113,7 @@ console.log(import_demo_pkg.default());
 ================================================================================
 TestPackageJsonBrowserMapNativeModuleDisabled
 ---------- /Users/user/project/out.js ----------
-// empty:fs
+// (disabled):fs
 var require_fs = __commonJS(() => {
 });
 
@@ -132,7 +132,7 @@ console.log(import_demo_pkg.default());
 ================================================================================
 TestPackageJsonBrowserMapRelativeDisabled
 ---------- /Users/user/project/out.js ----------
-// empty:/Users/user/project/node_modules/demo-pkg/util-node.js
+// (disabled):Users/user/project/node_modules/demo-pkg/util-node.js
 var require_util_node = __commonJS(() => {
 });
 

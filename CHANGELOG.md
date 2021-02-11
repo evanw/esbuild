@@ -72,6 +72,12 @@
 
     This caused a problem with the synchronous JavaScript API calls which run the esbuild child process in a single-response mode. The ping message was interpreted as a second response and tripped up the message protocol. Pings are only useful for the asynchronous API calls. Running the pings during synchronous API calls was unintentional. With this release pings are no longer run for synchronous API calls so this regression should be fixed.
 
+* Remove absolute paths for disabled files from source maps ([#785](https://github.com/evanw/esbuild/issues/785))
+
+    Files can be ignored (i.e. set to empty) using the [`browser` field in `package.json`](https://github.com/defunctzombie/package-browser-field-spec/tree/4f296871cee64e60124841c06c06511885152f19#ignore-a-module). Specifically, you can set the `browser` field to a map where the key is the module name and the value is `false`. This is a convention followed by several bundlers including esbuild.
+
+    Previously ignoring a file caused that file's path to appear as an absolute path in any generated source map. This is problematic because it means different source maps will be generated on different systems, since the absolute path contains system-specific directory information. Now esbuild will treat these paths the same way it treats other paths and will put a relative path in the source map.
+
 ## 0.8.43
 
 * Support the `XDG_CACHE_HOME` environment variable ([#757](https://github.com/evanw/esbuild/issues/757))
