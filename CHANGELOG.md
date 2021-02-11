@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.44
 
 * Create a logo for esbuild ([#61](https://github.com/evanw/esbuild/issues/61))
 
