@@ -448,9 +448,9 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 					if remapped == nil {
 						// "browser": {"module": false}
 						if absolute, ok := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
-							absolute.Primary = logger.Path{Text: absolute.Primary.Text, Flags: logger.PathDisabled}
+							absolute.Primary = logger.Path{Text: absolute.Primary.Text, Namespace: "file", Flags: logger.PathDisabled}
 							if absolute.HasSecondary() {
-								absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Flags: logger.PathDisabled}
+								absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Namespace: "file", Flags: logger.PathDisabled}
 							}
 							return &ResolveResult{PathPair: absolute}
 						} else {
