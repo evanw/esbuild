@@ -683,7 +683,10 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 			}
 		} else {
 			// If this is a regular path, search relative to the enclosing directory
-			extendsFile := r.fs.Join(fileDir, extends)
+			extendsFile := extends
+			if !r.fs.IsAbs(extends) {
+				extendsFile = r.fs.Join(fileDir, extends)
+			}
 			for _, fileToCheck := range []string{extendsFile, extendsFile + ".json"} {
 				base, err := r.parseTSConfig(fileToCheck, visited)
 				if err == nil {
@@ -1200,7 +1203,10 @@ func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, k
 		if key == path {
 			for _, originalPath := range originalPaths {
 				// Load the original path relative to the "baseUrl" from tsconfig.json
-				absoluteOriginalPath := r.fs.Join(tsConfigJSON.BaseURLForPaths, originalPath)
+				absoluteOriginalPath := originalPath
+				if !r.fs.IsAbs(originalPath) {
+					absoluteOriginalPath = r.fs.Join(tsConfigJSON.BaseURLForPaths, originalPath)
+				}
 				if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
 					return absolute, true
 				}
@@ -1250,7 +1256,10 @@ func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, k
 			originalPath = strings.Replace(originalPath, "*", matchedText, 1)
 
 			// Load the original path relative to the "baseUrl" from tsconfig.json
-			absoluteOriginalPath := r.fs.Join(tsConfigJSON.BaseURLForPaths, originalPath)
+			absoluteOriginalPath := originalPath
+			if !r.fs.IsAbs(originalPath) {
+				absoluteOriginalPath = r.fs.Join(tsConfigJSON.BaseURLForPaths, originalPath)
+			}
 			if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
 				return absolute, true
 			}

@@ -64,7 +64,10 @@ var baseurl_dot_default = {
   test3: test3_success_default,
   test4: foo_default2,
   test5: foo_default3,
-  absolute: test_default
+  absoluteIn: test_default,
+  absoluteInStar: test_default,
+  absoluteOut: test_default,
+  absoluteOutStar: test_default
 };
 
 // Users/user/project/baseurl_nested/nested/test0-success.ts
@@ -96,7 +99,10 @@ var baseurl_nested_default = {
   test3: test3_success_default2,
   test4: foo_default5,
   test5: foo_default6,
-  absolute: test_default2
+  absoluteIn: test_default2,
+  absoluteInStar: test_default2,
+  absoluteOut: test_default2,
+  absoluteOutStar: test_default2
 };
 
 // Users/user/project/entry.ts
@@ -218,6 +224,12 @@ console.log(import_util.default());
 TestTsconfigJsonExtends
 ---------- /out.js ----------
 // entry.jsx
+console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactory(derivedFragment, null));
+
+================================================================================
+TestTsconfigJsonExtendsAbsolute
+---------- /out.js ----------
+// Users/user/project/entry.jsx
 console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactory(derivedFragment, null));
 
 ================================================================================

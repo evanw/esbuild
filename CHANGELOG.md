@@ -6,6 +6,10 @@
 
     This change is similar to the one from the previous release for disabled files, but it applies to package paths instead of relative paths. It's relevant when using packages that override dependencies with alternative packages using the `browser` field in their `package.json` file. Using relative paths instead of absolute paths fixes a determinism issue where build output was different on different systems. This fix was contributed by [@eelco](https://github.com/eelco).
 
+* Handle absolute paths in `tsconfig.json` ([#792](https://github.com/evanw/esbuild/issues/792))
+
+    Some automatically-generated `tsconfig.json` paths can have absolute paths in them. This is allowed by the TypeScript compiler (specifically in the `paths` and `extends` fields). With this release, esbuild now supports absolute paths in `paths` and `extends` too.
+
 ## 0.8.44
 
 * Create a logo for esbuild ([#61](https://github.com/evanw/esbuild/issues/61))

@@ -27,7 +27,10 @@ func TestTsConfigPaths(t *testing.T) {
 				import test3 from 'test3/foo'
 				import test4 from 'test4/foo'
 				import test5 from 'test5/foo'
-				import absolute from './absolute'
+				import absoluteIn from './absolute-in'
+				import absoluteInStar from './absolute-in-star'
+				import absoluteOut from './absolute-out'
+				import absoluteOutStar from './absolute-out-star'
 				export default {
 					test0,
 					test1,
@@ -35,7 +38,10 @@ func TestTsConfigPaths(t *testing.T) {
 					test3,
 					test4,
 					test5,
-					absolute,
+					absoluteIn,
+					absoluteInStar,
+					absoluteOut,
+					absoluteOutStar,
 				}
 			`,
 			"/Users/user/project/baseurl_dot/tsconfig.json": `
@@ -49,7 +55,10 @@ func TestTsConfigPaths(t *testing.T) {
 							"t*t3/foo": ["./test3-succ*s.ts"],
 							"test4/*": ["./test4-first/*", "./test4-second/*"],
 							"test5/*": ["./test5-first/*", "./test5-second/*"],
-							"/virtual/*": ["./actual/*"],
+							"/virtual-in/test": ["./actual/test"],
+							"/virtual-in-star/*": ["./actual/*"],
+							"/virtual-out/test": ["/Users/user/project/baseurl_dot/actual/test"],
+							"/virtual-out-star/*": ["/Users/user/project/baseurl_dot/actual/*"],
 						}
 					}
 				}
@@ -72,8 +81,17 @@ func TestTsConfigPaths(t *testing.T) {
 			"/Users/user/project/baseurl_dot/test5-second/foo.ts": `
 				export default 'test5-success'
 			`,
-			"/Users/user/project/baseurl_dot/absolute.ts": `
-				export {default} from '/virtual/test'
+			"/Users/user/project/baseurl_dot/absolute-in.ts": `
+				export {default} from '/virtual-in/test'
+			`,
+			"/Users/user/project/baseurl_dot/absolute-in-star.ts": `
+				export {default} from '/virtual-in-star/test'
+			`,
+			"/Users/user/project/baseurl_dot/absolute-out.ts": `
+				export {default} from '/virtual-out/test'
+			`,
+			"/Users/user/project/baseurl_dot/absolute-out-star.ts": `
+				export {default} from '/virtual-out-star/test'
 			`,
 			"/Users/user/project/baseurl_dot/actual/test.ts": `
 				export default 'absolute-success'
@@ -87,7 +105,10 @@ func TestTsConfigPaths(t *testing.T) {
 				import test3 from 'test3/foo'
 				import test4 from 'test4/foo'
 				import test5 from 'test5/foo'
-				import absolute from './absolute'
+				import absoluteIn from './absolute-in'
+				import absoluteInStar from './absolute-in-star'
+				import absoluteOut from './absolute-out'
+				import absoluteOutStar from './absolute-out-star'
 				export default {
 					test0,
 					test1,
@@ -95,7 +116,10 @@ func TestTsConfigPaths(t *testing.T) {
 					test3,
 					test4,
 					test5,
-					absolute,
+					absoluteIn,
+					absoluteInStar,
+					absoluteOut,
+					absoluteOutStar,
 				}
 			`,
 			"/Users/user/project/baseurl_nested/tsconfig.json": `
@@ -109,7 +133,10 @@ func TestTsConfigPaths(t *testing.T) {
 							"t*t3/foo": ["./test3-succ*s.ts"],
 							"test4/*": ["./test4-first/*", "./test4-second/*"],
 							"test5/*": ["./test5-first/*", "./test5-second/*"],
-							"/virtual/*": ["./actual/*"],
+							"/virtual-in/test": ["./actual/test"],
+							"/virtual-in-star/*": ["./actual/*"],
+							"/virtual-out/test": ["/Users/user/project/baseurl_nested/nested/actual/test"],
+							"/virtual-out-star/*": ["/Users/user/project/baseurl_nested/nested/actual/*"],
 						}
 					}
 				}
@@ -132,8 +159,17 @@ func TestTsConfigPaths(t *testing.T) {
 			"/Users/user/project/baseurl_nested/nested/test5-second/foo.ts": `
 				export default 'test5-success'
 			`,
-			"/Users/user/project/baseurl_nested/absolute.ts": `
-				export {default} from '/virtual/test'
+			"/Users/user/project/baseurl_nested/absolute-in.ts": `
+				export {default} from '/virtual-in/test'
+			`,
+			"/Users/user/project/baseurl_nested/absolute-in-star.ts": `
+				export {default} from '/virtual-in/test'
+			`,
+			"/Users/user/project/baseurl_nested/absolute-out.ts": `
+				export {default} from '/virtual-out/test'
+			`,
+			"/Users/user/project/baseurl_nested/absolute-out-star.ts": `
+				export {default} from '/virtual-out-star/test'
 			`,
 			"/Users/user/project/baseurl_nested/nested/actual/test.ts": `
 				export default 'absolute-success'
@@ -581,6 +617,37 @@ func TestTsconfigJsonExtends(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTsconfigJsonExtendsAbsolute(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.jsx": `
+				console.log(<div/>, <></>)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"extends": "/Users/user/project/base.json",
+					"compilerOptions": {
+						"jsxFragmentFactory": "derivedFragment"
+					}
+				}
+			`,
+			"/Users/user/project/base.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "baseFactory",
+						"jsxFragmentFactory": "baseFragment"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.jsx"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
