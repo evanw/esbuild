@@ -635,7 +635,7 @@ func runOnResolvePlugins(
 		ResolveDir: absResolveDir,
 		PluginData: pluginData,
 	}
-	applyPath := logger.Path{Text: path}
+	applyPath := logger.Path{Text: path, Namespace: "file"}
 	if importSource != nil {
 		resolverArgs.Importer = importSource.KeyPath
 		applyPath.Namespace = importSource.KeyPath.Namespace
