@@ -361,6 +361,7 @@ func Transform(input string, options TransformOptions) TransformResult {
 type ServeOptions struct {
 	Port      uint16
 	Host      string
+	Servedir  string
 	OnRequest func(ServeOnRequestArgs)
 }
 

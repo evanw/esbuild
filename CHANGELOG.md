@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* Add the `--servedir=` flag ([#796](https://github.com/evanw/esbuild/issues/796))
+
+    The `--serve` flag starts a local web server and serves the files that would normally be written to the output directory. So for example if you had an entry point called `src/app.ts` and an output directory of `--outdir=www/js`, using esbuild with `--serve` would expose the generated output file via http://localhost:8000/app.js (but not write anything to `www/js`). This can then be used in combination with your normal development server (running concurrently on another port) by adding `<script src="http://localhost:8000/app.js"></script>` in your HTML file. So esbuild with the `--serve` flag is meant to augment your normal development server, not replace it.
+
+    This release introduces a new `--servedir=` flag which gives you the option of replacing your normal development server with esbuild. The directory you pass here will be "underlayed" below the output directory. Specifically when an incoming HTTP request comes in esbuild will first check if it matches one of the generated output files and if so, serve the output file directly from memory. Otherwise esbuild will fall back to serving content from the serve directory on the file system. In other words, server's URL structure behaves like a normal file server in a world where esbuild had written the generated output files to the file system (even though the output files actually only exist in memory).
+
+    So for example if you had an entry point called `src/app.ts` and an output directory of `--outdir=www/js`, using esbuild with `--servedir=www` would expose the entire contents of the `www` directory via http://localhost:8000/ except for the http://localhost:8000/js/app.js URL which would contain the compiled contents of `src/app.ts`. This lets you have a `www/index.html` file containing just `<script src="/js/app.js"></script>` and use one web server instead of two.
+
+    The benefit of doing things this way is that you can use the exact same HTML pages in development and production. In development you can run esbuild with `--servedir=` and esbuild will serve the generated output files directly. For production you can omit that flag and esbuild will write the generated files to the file system. In both cases you should be getting the exact same result in the browser with the exact same code in both development and production.
+
+    This will of course not support all workflows, but that's intentional. This is designed to be a quality-of-life improvement for the simple case of building a small static website with some HTML, JavaScript, and CSS. More advanced setups may prefer to avoid the `--servedir=` feature and e.g. configure a NGINX reverse proxy to esbuild's local server to integrate esbuild into a larger existing development setup.
+
+    One unintended consequence of this feature is that esbuild can now be used as a general local HTTP server via `esbuild --servedir=.`. Without any entry points, esbuild won't actually build anything and will just serve files like a normal web server. This isn't the intended use case but it could perhaps be a useful side effect of this feature.
+
 * Remove absolute paths for disabled packages from source maps ([#786](https://github.com/evanw/esbuild/issues/786))
 
     This change is similar to the one from the previous release for disabled files, but it applies to package paths instead of relative paths. It's relevant when using packages that override dependencies with alternative packages using the `browser` field in their `package.json` file. Using relative paths instead of absolute paths fixes a determinism issue where build output was different on different systems. This fix was contributed by [@eelco](https://github.com/eelco).

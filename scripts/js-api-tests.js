@@ -1935,6 +1935,191 @@ let serveTests = {
       await result.wait;
     }
   },
+
+  async serveWithFallbackDir({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      const input = path.join(testDir, 'in.js')
+      const wwwDir = path.join(testDir, 'www')
+      const index = path.join(wwwDir, 'index.html')
+      await mkdirAsync(wwwDir, { recursive: true })
+      await writeFileAsync(input, `console.log(123)`)
+      await writeFileAsync(index, `<!doctype html>`)
+
+      let onRequest;
+      let nextRequestPromise;
+
+      (function generateNewPromise() {
+        nextRequestPromise = new Promise(resolve => {
+          onRequest = args => {
+            generateNewPromise();
+            resolve(args);
+          };
+        });
+      })();
+
+      const result = await toTest.serve({
+        onRequest: args => onRequest(args),
+        servedir: wwwDir,
+      }, {
+        entryPoints: [input],
+        format: 'esm',
+      })
+      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(typeof result.port, 'number');
+
+      let promise, buffer, req;
+
+      promise = nextRequestPromise;
+      buffer = await fetch(result.host, result.port, '/in.js')
+      assert.strictEqual(buffer.toString(), `console.log(123);\n`);
+      req = await promise;
+      assert.strictEqual(req.method, 'GET');
+      assert.strictEqual(req.path, '/in.js');
+      assert.strictEqual(req.status, 200);
+      assert.strictEqual(typeof req.remoteAddress, 'string');
+      assert.strictEqual(typeof req.timeInMS, 'number');
+
+      promise = nextRequestPromise;
+      buffer = await fetch(result.host, result.port, '/')
+      assert.strictEqual(buffer.toString(), `<!doctype html>`);
+      req = await promise;
+      assert.strictEqual(req.method, 'GET');
+      assert.strictEqual(req.path, '/');
+      assert.strictEqual(req.status, 200);
+      assert.strictEqual(typeof req.remoteAddress, 'string');
+      assert.strictEqual(typeof req.timeInMS, 'number');
+
+      result.stop();
+      await result.wait;
+    }
+  },
+
+  async serveWithFallbackDirAndSiblingOutputDir({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      try {
+        const result = await toTest.serve({
+          servedir: 'www',
+        }, {
+          entryPoints: [path.join(testDir, 'in.js')],
+          outdir: 'out',
+        })
+        result.stop()
+        throw new Error('Expected an error to be thrown')
+      } catch (e) {
+        assert.strictEqual(e + '', `Error: Output directory "out" must be contained in serve directory "www"`)
+      }
+    }
+  },
+
+  async serveWithFallbackDirAndParentOutputDir({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      try {
+        const result = await toTest.serve({
+          servedir: path.join(testDir, 'www'),
+        }, {
+          entryPoints: [path.join(testDir, 'in.js')],
+          outdir: testDir,
+          absWorkingDir: testDir,
+        })
+        result.stop()
+        throw new Error('Expected an error to be thrown')
+      } catch (e) {
+        assert.strictEqual(e + '', `Error: Output directory "." must be contained in serve directory "www"`)
+      }
+    }
+  },
+
+  async serveWithFallbackDirAndOutputDir({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      const input = path.join(testDir, 'in.js')
+      const outputDir = path.join(testDir, 'www/out')
+      const wwwDir = path.join(testDir, 'www')
+      const index = path.join(wwwDir, 'index.html')
+      await mkdirAsync(wwwDir, { recursive: true })
+      await writeFileAsync(input, `console.log(123)`)
+      await writeFileAsync(index, `<!doctype html>`)
+
+      let onRequest;
+      let nextRequestPromise;
+
+      (function generateNewPromise() {
+        nextRequestPromise = new Promise(resolve => {
+          onRequest = args => {
+            generateNewPromise();
+            resolve(args);
+          };
+        });
+      })();
+
+      const result = await toTest.serve({
+        onRequest: args => onRequest(args),
+        servedir: wwwDir,
+      }, {
+        entryPoints: [input],
+        format: 'esm',
+        outdir: outputDir,
+      })
+      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(typeof result.port, 'number');
+
+      let promise, buffer, req;
+
+      promise = nextRequestPromise;
+      buffer = await fetch(result.host, result.port, '/out/in.js')
+      assert.strictEqual(buffer.toString(), `console.log(123);\n`);
+      req = await promise;
+      assert.strictEqual(req.method, 'GET');
+      assert.strictEqual(req.path, '/out/in.js');
+      assert.strictEqual(req.status, 200);
+      assert.strictEqual(typeof req.remoteAddress, 'string');
+      assert.strictEqual(typeof req.timeInMS, 'number');
+
+      promise = nextRequestPromise;
+      buffer = await fetch(result.host, result.port, '/')
+      assert.strictEqual(buffer.toString(), `<!doctype html>`);
+      req = await promise;
+      assert.strictEqual(req.method, 'GET');
+      assert.strictEqual(req.path, '/');
+      assert.strictEqual(req.status, 200);
+      assert.strictEqual(typeof req.remoteAddress, 'string');
+      assert.strictEqual(typeof req.timeInMS, 'number');
+
+      result.stop();
+      await result.wait;
+    }
+  },
+
+  async serveWithFallbackDirNoEntryPoints({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      const index = path.join(testDir, 'index.html')
+      await writeFileAsync(index, `<!doctype html>`)
+
+      let onRequest;
+      let singleRequestPromise = new Promise(resolve => {
+        onRequest = resolve;
+      });
+
+      const result = await toTest.serve({
+        onRequest,
+        servedir: testDir,
+      }, {})
+      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(typeof result.port, 'number');
+
+      const buffer = await fetch(result.host, result.port, '/')
+      assert.strictEqual(buffer.toString(), `<!doctype html>`);
+
+      let singleRequest = await singleRequestPromise;
+      assert.strictEqual(singleRequest.method, 'GET');
+      assert.strictEqual(singleRequest.path, '/');
+      assert.strictEqual(singleRequest.status, 200);
+      assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
+      assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+
+      result.stop();
+      await result.wait;
+    }
+  },
 }
 
 async function futureSyntax(service, js, targetBelow, targetAbove) {

@@ -76,6 +76,7 @@ var helpText = func(colors logger.Colors) string {
   --pure:N                  Mark the name N as a pure function for tree shaking
   --resolve-extensions=...  A comma-separated list of implicit extensions
                             (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.css,.json")
+  --servedir=...            What to serve in addition to generated output files
   --sourcefile=...          Set the source file for the source map (for stdin)
   --sourcemap=external      Do not link to the source map with a comment
   --sourcemap=inline        Emit the source map with an inline data URL
@@ -97,6 +98,12 @@ var helpText = func(colors logger.Colors) string {
 
   ` + colors.Dim + `# Provide input via stdin, get output via stdout` + colors.Default + `
   esbuild --minify --loader=ts < input.ts > output.js
+
+  ` + colors.Dim + `# Automatically rebuild when input files are changed` + colors.Default + `
+  esbuild app.ts --bundle --watch
+
+  ` + colors.Dim + `# Start a local HTTP server for everything in "public"` + colors.Default + `
+  esbuild app.ts --bundle --servedir=public --outdir=public/js
 
 `
 }

@@ -535,15 +535,10 @@ func runImpl(osArgs []string) int {
 	start := time.Now()
 	end := 0
 
-	for i, arg := range osArgs {
+	for _, arg := range osArgs {
 		// Special-case running a server
-		if arg == "--serve" {
-			arg = "--serve=0"
-		}
-		if strings.HasPrefix(arg, "--serve=") {
-			serve := arg[len("--serve="):]
-			osArgs = append(append([]string{}, osArgs[:i]...), osArgs[i+1:]...)
-			if err := serveImpl(serve, osArgs); err != nil {
+		if arg == "--serve" || strings.HasPrefix(arg, "--serve=") || strings.HasPrefix(arg, "--servedir=") {
+			if err := serveImpl(osArgs); err != nil {
 				logger.PrintErrorToStderr(osArgs, err.Error())
 				return 1
 			}
@@ -692,14 +687,29 @@ func printSummary(osArgs []string, outputFiles []api.OutputFile, start time.Time
 	logger.PrintSummary(osArgs, table, start)
 }
 
-func serveImpl(serveText string, osArgs []string) error {
+func serveImpl(osArgs []string) error {
 	host := ""
-	portText := serveText
+	portText := "0"
+	servedir := ""
+
+	// Filter out server-specific flags
+	filteredArgs := make([]string, 0, len(osArgs))
+	for _, arg := range osArgs {
+		if arg == "--serve" {
+			// Just ignore this flag
+		} else if strings.HasPrefix(arg, "--serve=") {
+			portText = arg[len("--serve="):]
+		} else if strings.HasPrefix(arg, "--servedir=") {
+			servedir = arg[len("--servedir="):]
+		} else {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
 
 	// Specifying the host is optional
-	if strings.ContainsRune(serveText, ':') {
+	if strings.ContainsRune(portText, ':') {
 		var err error
-		host, portText, err = net.SplitHostPort(serveText)
+		host, portText, err = net.SplitHostPort(portText)
 		if err != nil {
 			return err
 		}
@@ -720,16 +730,17 @@ func serveImpl(serveText string, osArgs []string) error {
 	options.ErrorLimit = 5
 	options.LogLevel = api.LogLevelInfo
 
-	if err := parseOptionsImpl(osArgs, &options, nil); err != nil {
-		logger.PrintErrorToStderr(osArgs, err.Error())
+	if err := parseOptionsImpl(filteredArgs, &options, nil); err != nil {
+		logger.PrintErrorToStderr(filteredArgs, err.Error())
 		return err
 	}
 
 	serveOptions := api.ServeOptions{
-		Port: uint16(port),
-		Host: host,
+		Port:     uint16(port),
+		Host:     host,
+		Servedir: servedir,
 		OnRequest: func(args api.ServeOnRequestArgs) {
-			logger.PrintText(os.Stderr, logger.LevelInfo, osArgs, func(colors logger.Colors) string {
+			logger.PrintText(os.Stderr, logger.LevelInfo, filteredArgs, func(colors logger.Colors) string {
 				statusColor := colors.Red
 				if args.Status >= 200 && args.Status <= 299 {
 					statusColor = colors.Green
@@ -749,7 +760,7 @@ func serveImpl(serveText string, osArgs []string) error {
 	}
 
 	// Show what actually got bound if the port was 0
-	logger.PrintText(os.Stderr, logger.LevelInfo, osArgs, func(colors logger.Colors) string {
+	logger.PrintText(os.Stderr, logger.LevelInfo, filteredArgs, func(colors logger.Colors) string {
 		return fmt.Sprintf("%s\n > %shttp://%s:%d/%s\n\n",
 			colors.Default, colors.Underline, result.Host, result.Port, colors.Default)
 	})

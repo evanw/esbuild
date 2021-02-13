@@ -488,6 +488,9 @@ func (service *serviceType) handleServeRequest(id uint32, options api.BuildOptio
 	if host, ok := serve["host"]; ok {
 		serveOptions.Host = host.(string)
 	}
+	if servedir, ok := serve["servedir"]; ok {
+		serveOptions.Servedir = servedir.(string)
+	}
 	serveOptions.OnRequest = func(args api.ServeOnRequestArgs) {
 		service.sendRequest(map[string]interface{}{
 			"command": "serve-request",

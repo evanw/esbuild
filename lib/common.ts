@@ -731,6 +731,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let keys: OptionKeys = {};
     let port = getFlag(options, keys, 'port', mustBeInteger);
     let host = getFlag(options, keys, 'host', mustBeString);
+    let servedir = getFlag(options, keys, 'servedir', mustBeString);
     let onRequest = getFlag(options, keys, 'onRequest', mustBeFunction);
     let serveID = nextServeID++;
     let onWait: ServeCallbacks['onWait'];
@@ -745,6 +746,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     checkForInvalidFlags(options, keys, `in serve() call`);
     if (port !== void 0) request.serve.port = port;
     if (host !== void 0) request.serve.host = host;
+    if (servedir !== void 0) request.serve.servedir = servedir;
     serveCallbacks.set(serveID, {
       onRequest,
       onWait: onWait!,

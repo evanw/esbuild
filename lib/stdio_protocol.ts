@@ -25,6 +25,7 @@ export interface ServeRequest {
   serveID: number;
   port?: number;
   host?: string;
+  servedir?: string;
 }
 
 export interface ServeResponse {

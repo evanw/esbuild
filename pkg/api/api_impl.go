@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/evanw/esbuild/internal/bundler"
@@ -1219,12 +1220,14 @@ func loadPlugins(fs fs.FS, log logger.Log, plugins []Plugin) (results []config.P
 // Serve API
 
 type apiHandler struct {
-	mutex        sync.Mutex
-	options      *config.Options
-	onRequest    func(ServeOnRequestArgs)
-	rebuild      func() BuildResult
-	currentBuild *runningBuild
-	fs           fs.FS
+	mutex            sync.Mutex
+	outdirPathPrefix string
+	servedir         string
+	options          *config.Options
+	onRequest        func(ServeOnRequestArgs)
+	rebuild          func() BuildResult
+	currentBuild     *runningBuild
+	fs               fs.FS
 }
 
 type runningBuild struct {
@@ -1322,11 +1325,104 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		// Check for a match with the results
-		fileContents, dirEntries, fileEntries := h.matchQueryPathToResult(queryPath, &result)
+		var kind fs.EntryKind
+		var fileContents []byte
+		dirEntries := make(map[string]bool)
+		fileEntries := make(map[string]bool)
+
+		// Check for a match with the results if we're within the output directory
+		if strings.HasPrefix(queryPath, h.outdirPathPrefix) {
+			outdirQueryPath := queryPath[len(h.outdirPathPrefix):]
+			if strings.HasPrefix(outdirQueryPath, "/") {
+				outdirQueryPath = outdirQueryPath[1:]
+			}
+			kind, fileContents = h.matchQueryPathToResult(outdirQueryPath, &result, dirEntries, fileEntries)
+		} else {
+			// Create a fake directory entry for the output path so that it appears to be a real directory
+			p := h.outdirPathPrefix
+			for p != "" {
+				var dir string
+				var base string
+				if slash := strings.IndexByte(p, '/'); slash == -1 {
+					base = p
+				} else {
+					dir = p[:slash]
+					base = p[slash+1:]
+				}
+				if dir == queryPath {
+					kind = fs.DirEntry
+					dirEntries[base] = true
+					break
+				}
+				p = dir
+			}
+		}
+
+		// Check for a file in the fallback directory
+		if h.servedir != "" && kind != fs.FileEntry {
+			contents, err := h.fs.ReadFile(h.fs.Join(h.servedir, queryPath))
+			if err == nil {
+				fileContents = []byte(contents)
+				kind = fs.FileEntry
+			} else if err != syscall.ENOENT && err != syscall.EISDIR {
+				go h.notifyRequest(time.Since(start), req, http.StatusInternalServerError)
+				res.WriteHeader(http.StatusInternalServerError)
+				res.Write([]byte(fmt.Sprintf("Internal server error: %s", err.Error())))
+				return
+			}
+		}
+
+		// Check for a directory in the fallback directory
+		var fallbackIndexName string
+		if h.servedir != "" && kind != fs.FileEntry {
+			entries, err := h.fs.ReadDirectory(h.fs.Join(h.servedir, queryPath))
+			if err == nil {
+				kind = fs.DirEntry
+				for name, entry := range entries {
+					switch entry.Kind(h.fs) {
+					case fs.DirEntry:
+						dirEntries[name] = true
+					case fs.FileEntry:
+						fileEntries[name] = true
+						if name == "index.html" {
+							fallbackIndexName = name
+						}
+					}
+				}
+			} else if err != syscall.ENOENT {
+				go h.notifyRequest(time.Since(start), req, http.StatusInternalServerError)
+				res.WriteHeader(http.StatusInternalServerError)
+				res.Write([]byte(fmt.Sprintf("Internal server error: %s", err.Error())))
+				return
+			}
+		}
+
+		// Redirect to a trailing slash for directories
+		if kind == fs.DirEntry && !strings.HasSuffix(req.URL.Path, "/") {
+			res.Header().Set("Location", req.URL.Path+"/")
+			go h.notifyRequest(time.Since(start), req, http.StatusFound)
+			res.WriteHeader(http.StatusFound)
+			res.Write(nil)
+			return
+		}
+
+		// Serve a "index.html" file if present
+		if kind == fs.DirEntry && fallbackIndexName != "" {
+			queryPath += "/" + fallbackIndexName
+			contents, err := h.fs.ReadFile(h.fs.Join(h.servedir, queryPath))
+			if err == nil {
+				fileContents = []byte(contents)
+				kind = fs.FileEntry
+			} else if err != syscall.ENOENT {
+				go h.notifyRequest(time.Since(start), req, http.StatusInternalServerError)
+				res.WriteHeader(http.StatusInternalServerError)
+				res.Write([]byte(fmt.Sprintf("Internal server error: %s", err.Error())))
+				return
+			}
+		}
 
 		// Serve a file
-		if fileContents != nil {
+		if kind == fs.FileEntry {
 			if contentType := mime.TypeByExtension(path.Ext(queryPath)); contentType != "" {
 				res.Header().Set("Content-Type", contentType)
 			}
@@ -1336,16 +1432,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		}
 
 		// Serve a directory listing
-		if dirEntries != nil || fileEntries != nil {
-			// Redirect to a trailing slash for directories
-			if !strings.HasSuffix(req.URL.Path, "/") {
-				res.Header().Set("Location", req.URL.Path+"/")
-				go h.notifyRequest(time.Since(start), req, http.StatusFound)
-				res.WriteHeader(http.StatusFound)
-				res.Write(nil)
-				return
-			}
-
+		if kind == fs.DirEntry {
 			html := respondWithDirList(queryPath, dirEntries, fileEntries)
 			res.Header().Set("Content-Type", "text/html; charset=utf-8")
 			go h.notifyRequest(time.Since(start), req, http.StatusOK)
@@ -1361,10 +1448,12 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte("404 - Not Found"))
 }
 
-func (h *apiHandler) matchQueryPathToResult(queryPath string, result *BuildResult) ([]byte, []string, []string) {
-	fileEntries := []string{}
-	dirEntries := []string{}
-	isDirEntry := make(map[string]bool)
+func (h *apiHandler) matchQueryPathToResult(
+	queryPath string,
+	result *BuildResult,
+	dirEntries map[string]bool,
+	fileEntries map[string]bool,
+) (fs.EntryKind, []byte) {
 	queryIsDir := false
 	queryDir := queryPath
 	if queryDir != "" {
@@ -1378,7 +1467,7 @@ func (h *apiHandler) matchQueryPathToResult(queryPath string, result *BuildResul
 
 			// An exact match
 			if relPath == queryPath {
-				return file.Contents, nil, nil
+				return fs.FileEntry, file.Contents
 			}
 
 			// A match inside this directory
@@ -1386,24 +1475,23 @@ func (h *apiHandler) matchQueryPathToResult(queryPath string, result *BuildResul
 				entry := relPath[len(queryDir):]
 				queryIsDir = true
 				if slash := strings.IndexByte(entry, '/'); slash == -1 {
-					fileEntries = append(fileEntries, entry)
-				} else if dir := entry[:slash]; !isDirEntry[dir] {
-					dirEntries = append(dirEntries, dir)
-					isDirEntry[dir] = true
+					fileEntries[entry] = true
+				} else if dir := entry[:slash]; !dirEntries[dir] {
+					dirEntries[dir] = true
 				}
 			}
 		}
 	}
 
-	// Otherwise it may be a directory listing instead
+	// Treat this as a directory if it's non-empty
 	if queryIsDir {
-		return nil, dirEntries, fileEntries
+		return fs.DirEntry, nil
 	}
 
-	return nil, nil, nil
+	return 0, nil
 }
 
-func respondWithDirList(queryPath string, dirEntries []string, fileEntries []string) []byte {
+func respondWithDirList(queryPath string, dirEntries map[string]bool, fileEntries map[string]bool) []byte {
 	queryPath = "/" + queryPath
 	queryDir := queryPath
 	if queryDir != "/" {
@@ -1419,6 +1507,8 @@ func respondWithDirList(queryPath string, dirEntries []string, fileEntries []str
 	html.WriteString(escapeForHTML(queryDir))
 	html.WriteString(`</h1>`)
 	html.WriteString(`<ul>`)
+
+	// Link to the parent directory
 	if queryPath != "/" {
 		parentDir := path.Dir(queryPath)
 		if parentDir != "/" {
@@ -1426,16 +1516,37 @@ func respondWithDirList(queryPath string, dirEntries []string, fileEntries []str
 		}
 		html.WriteString(fmt.Sprintf(`<li><a href="%s">../</a></li>`, escapeForAttribute(parentDir)))
 	}
-	sort.Strings(dirEntries)
-	for _, entry := range dirEntries {
+
+	// Link to child directories
+	strings := make([]string, 0, len(dirEntries)+len(fileEntries))
+	for entry := range dirEntries {
+		strings = append(strings, entry)
+	}
+	sort.Strings(strings)
+	for _, entry := range strings {
 		html.WriteString(fmt.Sprintf(`<li><a href="%s/">%s/</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
 	}
-	sort.Strings(fileEntries)
-	for _, entry := range fileEntries {
+
+	// Link to files in the directory
+	strings = strings[:0]
+	for entry := range fileEntries {
+		strings = append(strings, entry)
+	}
+	sort.Strings(strings)
+	for _, entry := range strings {
 		html.WriteString(fmt.Sprintf(`<li><a href="%s">%s</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
 	}
+
 	html.WriteString(`</ul>`)
 	return []byte(html.String())
+}
+
+// This is used to make error messages platform-independent
+func prettyPrintPath(fs fs.FS, path string) string {
+	if relPath, ok := fs.Rel(fs.Cwd(), path); ok {
+		return strings.ReplaceAll(relPath, "\\", "/")
+	}
+	return path
 }
 
 func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResult, error) {
@@ -1453,12 +1564,56 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 		return ServeResult{}, fmt.Errorf("Cannot use \"watch\" with \"serve\"")
 	}
 
+	// Validate the fallback path
+	if serveOptions.Servedir != "" {
+		if absPath, ok := realFS.Abs(serveOptions.Servedir); ok {
+			serveOptions.Servedir = absPath
+		} else {
+			return ServeResult{}, fmt.Errorf("Invalid serve path: %s", serveOptions.Servedir)
+		}
+	}
+
 	// If there is no output directory, set the output directory to something so
 	// the build doesn't try to write to stdout. Make sure not to set this to a
 	// path that may contain the user's files in it since we don't want to get
 	// errors about overwriting input files.
+	outdirPathPrefix := ""
 	if buildOptions.Outdir == "" && buildOptions.Outfile == "" {
 		buildOptions.Outdir = realFS.Join(realFS.Cwd(), "...")
+	} else if serveOptions.Servedir != "" {
+		// Compute the output directory
+		var outdir string
+		if buildOptions.Outdir != "" {
+			if absPath, ok := realFS.Abs(buildOptions.Outdir); ok {
+				outdir = absPath
+			} else {
+				return ServeResult{}, fmt.Errorf("Invalid outdir path: %s", buildOptions.Outdir)
+			}
+		} else {
+			if absPath, ok := realFS.Abs(buildOptions.Outfile); ok {
+				outdir = realFS.Dir(absPath)
+			} else {
+				return ServeResult{}, fmt.Errorf("Invalid outdir path: %s", buildOptions.Outfile)
+			}
+		}
+
+		// Make sure the output directory is contained in the fallback directory
+		relPath, ok := realFS.Rel(serveOptions.Servedir, outdir)
+		if !ok {
+			return ServeResult{}, fmt.Errorf(
+				"Cannot compute relative path from %q to %q\n", serveOptions.Servedir, outdir)
+		}
+		relPath = strings.ReplaceAll(relPath, "\\", "/") // Fix paths on Windows
+		if relPath == ".." || strings.HasPrefix(relPath, "../") {
+			return ServeResult{}, fmt.Errorf(
+				"Output directory %q must be contained in serve directory %q",
+				prettyPrintPath(realFS, outdir),
+				prettyPrintPath(realFS, serveOptions.Servedir),
+			)
+		}
+		if relPath != "." {
+			outdirPathPrefix = relPath
+		}
 	}
 
 	// Pick the port
@@ -1500,7 +1655,9 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 	// The first build will just build normally
 	var handler *apiHandler
 	handler = &apiHandler{
-		onRequest: serveOptions.OnRequest,
+		onRequest:        serveOptions.OnRequest,
+		outdirPathPrefix: outdirPathPrefix,
+		servedir:         serveOptions.Servedir,
 		rebuild: func() BuildResult {
 			build := buildImpl(buildOptions)
 			if handler.options == nil {
