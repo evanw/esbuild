@@ -1557,6 +1557,11 @@ func prettyPrintPath(fs fs.FS, path string) string {
 func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResult, error) {
 	realFS, err := fs.RealFS(fs.RealFSOptions{
 		AbsWorkingDir: buildOptions.AbsWorkingDir,
+
+		// This is a long-lived file system object so do not cache calls to
+		// ReadDirectory() (they are normally cached for the duration of a build
+		// for performance).
+		DoNotCache: true,
 	})
 	if err != nil {
 		return ServeResult{}, err

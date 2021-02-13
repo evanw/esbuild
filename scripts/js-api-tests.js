@@ -2099,26 +2099,49 @@ let serveTests = {
       await writeFileAsync(index, `<!doctype html>`)
 
       let onRequest;
-      let singleRequestPromise = new Promise(resolve => {
-        onRequest = resolve;
-      });
+      let nextRequestPromise;
+
+      (function generateNewPromise() {
+        nextRequestPromise = new Promise(resolve => {
+          onRequest = args => {
+            generateNewPromise();
+            resolve(args);
+          };
+        });
+      })();
 
       const result = await toTest.serve({
-        onRequest,
+        onRequest: args => onRequest(args),
         servedir: testDir,
-      }, {})
+      }, {
+      })
       assert.strictEqual(result.host, '127.0.0.1');
       assert.strictEqual(typeof result.port, 'number');
 
-      const buffer = await fetch(result.host, result.port, '/')
-      assert.strictEqual(buffer.toString(), `<!doctype html>`);
+      let promise, buffer, req;
 
-      let singleRequest = await singleRequestPromise;
-      assert.strictEqual(singleRequest.method, 'GET');
-      assert.strictEqual(singleRequest.path, '/');
-      assert.strictEqual(singleRequest.status, 200);
-      assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
-      assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+      promise = nextRequestPromise;
+      buffer = await fetch(result.host, result.port, '/')
+      assert.strictEqual(buffer.toString(), `<!doctype html>`);
+      req = await promise;
+      assert.strictEqual(req.method, 'GET');
+      assert.strictEqual(req.path, '/');
+      assert.strictEqual(req.status, 200);
+      assert.strictEqual(typeof req.remoteAddress, 'string');
+      assert.strictEqual(typeof req.timeInMS, 'number');
+
+      // Check that removing the file removes it from the directory listing (i.e. the
+      // "fs.FS" object in Go does not cache the result of calling "ReadDirectory")
+      await fs.promises.unlink(index)
+      promise = nextRequestPromise;
+      buffer = await fetch(result.host, result.port, '/')
+      assert.strictEqual(buffer.toString(), `<!doctype html><meta charset="utf8"><title>Directory: /</title><h1>Directory: /</h1><ul></ul>`);
+      req = await promise;
+      assert.strictEqual(req.method, 'GET');
+      assert.strictEqual(req.path, '/');
+      assert.strictEqual(req.status, 200);
+      assert.strictEqual(typeof req.remoteAddress, 'string');
+      assert.strictEqual(typeof req.timeInMS, 'number');
 
       result.stop();
       await result.wait;

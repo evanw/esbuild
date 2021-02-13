@@ -13,6 +13,9 @@ type realFS struct {
 	// Stores the file entries for directories we've listed before
 	entries map[string]entriesOrErr
 
+	// If true, do not use the "entries" cache
+	doNotCacheEntries bool
+
 	// This stores data that will end up being returned by "WatchData()"
 	watchMutex sync.Mutex
 	watchData  map[string]privateWatchData
@@ -51,6 +54,7 @@ type privateWatchData struct {
 type RealFSOptions struct {
 	WantWatchData bool
 	AbsWorkingDir string
+	DoNotCache    bool
 }
 
 func RealFS(options RealFSOptions) (FS, error) {
@@ -102,19 +106,20 @@ func RealFS(options RealFSOptions) (FS, error) {
 	}
 
 	return &realFS{
-		entries:   make(map[string]entriesOrErr),
-		fp:        fp,
-		watchData: watchData,
+		entries:           make(map[string]entriesOrErr),
+		fp:                fp,
+		watchData:         watchData,
+		doNotCacheEntries: options.DoNotCache,
 	}, nil
 }
 
 func (fs *realFS) ReadDirectory(dir string) (map[string]*Entry, error) {
-	// First, check the cache
-	cached, ok := fs.entries[dir]
-
-	// Cache hit: stop now
-	if ok {
-		return cached.entries, cached.err
+	if !fs.doNotCacheEntries {
+		// First, check the cache
+		if cached, ok := fs.entries[dir]; ok {
+			// Cache hit: stop now
+			return cached.entries, cached.err
+		}
 	}
 
 	// Cache miss: read the directory entries
@@ -153,7 +158,9 @@ func (fs *realFS) ReadDirectory(dir string) (map[string]*Entry, error) {
 	if err != nil {
 		entries = nil
 	}
-	fs.entries[dir] = entriesOrErr{entries: entries, err: err}
+	if !fs.doNotCacheEntries {
+		fs.entries[dir] = entriesOrErr{entries: entries, err: err}
+	}
 	return entries, err
 }
 
