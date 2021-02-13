@@ -605,15 +605,17 @@ func runImpl(osArgs []string) int {
 			return 1
 		}
 
-		// Run the build and stop if there were errors
+		// Run the build
 		result := api.Build(*buildOptions)
-		if len(result.Errors) > 0 {
-			return 1
-		}
 
 		// Do not exit if we're in watch mode
 		if buildOptions.Watch != nil {
 			<-make(chan bool)
+		}
+
+		// Stop if there were errors
+		if len(result.Errors) > 0 {
+			return 1
 		}
 
 		// Print a summary to stderr
