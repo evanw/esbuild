@@ -1674,11 +1674,15 @@ console.log("success");
 function fetch(host, port, path) {
   return new Promise((resolve, reject) => {
     http.get({ host, port, path }, res => {
-      if (res.statusCode < 200 || res.statusCode > 299)
-        return reject(new Error(`${res.statusCode} when fetching ${path}`))
       const chunks = []
       res.on('data', chunk => chunks.push(chunk))
-      res.on('end', () => resolve(Buffer.concat(chunks)))
+      res.on('end', () => {
+        const content = Buffer.concat(chunks)
+        if (res.statusCode < 200 || res.statusCode > 299)
+          reject(new Error(`${res.statusCode} when fetching ${path}: ${content}`))
+        else
+          resolve(content)
+      })
     }).on('error', reject)
   })
 }
@@ -1920,7 +1924,7 @@ let serveTests = {
         await fetch(result.host, result.port, '/in.js')
         throw new Error('Expected a 404 error for "/in.js"')
       } catch (err) {
-        if (err.message !== '404 when fetching /in.js')
+        if (err.message !== '404 when fetching /in.js: 404 - Not Found')
           throw err
       }
 

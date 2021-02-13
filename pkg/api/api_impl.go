@@ -1360,23 +1360,28 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 		// Check for a file in the fallback directory
 		if h.servedir != "" && kind != fs.FileEntry {
-			contents, err := h.fs.ReadFile(h.fs.Join(h.servedir, queryPath))
-			if err == nil {
-				fileContents = []byte(contents)
-				kind = fs.FileEntry
-			} else if err != syscall.ENOENT && err != syscall.EISDIR {
-				go h.notifyRequest(time.Since(start), req, http.StatusInternalServerError)
-				res.WriteHeader(http.StatusInternalServerError)
-				res.Write([]byte(fmt.Sprintf("Internal server error: %s", err.Error())))
-				return
+			absPath := h.fs.Join(h.servedir, queryPath)
+			if absDir := h.fs.Dir(absPath); absDir != absPath {
+				if entries, err := h.fs.ReadDirectory(absDir); err == nil {
+					if entry := entries[h.fs.Base(absPath)]; entry != nil && entry.Kind(h.fs) == fs.FileEntry {
+						if contents, err := h.fs.ReadFile(absPath); err == nil {
+							fileContents = []byte(contents)
+							kind = fs.FileEntry
+						} else if err != syscall.ENOENT {
+							go h.notifyRequest(time.Since(start), req, http.StatusInternalServerError)
+							res.WriteHeader(http.StatusInternalServerError)
+							res.Write([]byte(fmt.Sprintf("500 - Internal server error: %s", err.Error())))
+							return
+						}
+					}
+				}
 			}
 		}
 
 		// Check for a directory in the fallback directory
 		var fallbackIndexName string
 		if h.servedir != "" && kind != fs.FileEntry {
-			entries, err := h.fs.ReadDirectory(h.fs.Join(h.servedir, queryPath))
-			if err == nil {
+			if entries, err := h.fs.ReadDirectory(h.fs.Join(h.servedir, queryPath)); err == nil {
 				kind = fs.DirEntry
 				for name, entry := range entries {
 					switch entry.Kind(h.fs) {
@@ -1392,7 +1397,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			} else if err != syscall.ENOENT {
 				go h.notifyRequest(time.Since(start), req, http.StatusInternalServerError)
 				res.WriteHeader(http.StatusInternalServerError)
-				res.Write([]byte(fmt.Sprintf("Internal server error: %s", err.Error())))
+				res.Write([]byte(fmt.Sprintf("500 - Internal server error: %s", err.Error())))
 				return
 			}
 		}
@@ -1416,7 +1421,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			} else if err != syscall.ENOENT {
 				go h.notifyRequest(time.Since(start), req, http.StatusInternalServerError)
 				res.WriteHeader(http.StatusInternalServerError)
-				res.Write([]byte(fmt.Sprintf("Internal server error: %s", err.Error())))
+				res.Write([]byte(fmt.Sprintf("500 - Internal server error: %s", err.Error())))
 				return
 			}
 		}
