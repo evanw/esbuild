@@ -1488,6 +1488,7 @@ let pluginTests = {
         entryPoints: [input],
         outfile,
         format: 'cjs',
+        logLevel: 'silent',
         watch: {
           onRebuild: (...args) => onRebuild(args),
         },

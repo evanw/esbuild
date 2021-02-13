@@ -429,8 +429,12 @@ func PrintText(file *os.File, level LogLevel, osArgs []string, callback func(Col
 		return
 	}
 
+	PrintTextWithColor(file, options.Color, callback)
+}
+
+func PrintTextWithColor(file *os.File, useColor UseColor, callback func(Colors) string) {
 	var useColorEscapes bool
-	switch options.Color {
+	switch useColor {
 	case ColorNever:
 		useColorEscapes = false
 	case ColorAlways:

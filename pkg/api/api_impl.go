@@ -704,9 +704,9 @@ func rebuildImpl(
 	var watchData fs.WatchData
 
 	// Stop now if there were errors
+	resolver := resolver.NewResolver(realFS, log, caches, options)
 	if !log.HasErrors() {
 		// Scan over the bundle
-		resolver := resolver.NewResolver(realFS, log, caches, options)
 		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPoints, options)
 		watchData = realFS.WatchData()
 
@@ -779,7 +779,8 @@ func rebuildImpl(
 	if buildOpts.Watch != nil && !isRebuild {
 		onRebuild := buildOpts.Watch.OnRebuild
 		watch = &watcher{
-			data: watchData,
+			data:     watchData,
+			resolver: resolver,
 			rebuild: func() fs.WatchData {
 				value := rebuildImpl(buildOpts, caches, plugins, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
 				if onRebuild != nil {
@@ -789,7 +790,7 @@ func rebuildImpl(
 			},
 		}
 		mode := *buildOpts.Watch
-		watch.start(buildOpts.LogLevel, mode)
+		watch.start(buildOpts.LogLevel, buildOpts.Color, mode)
 		stop = func() {
 			watch.stop()
 		}
@@ -823,6 +824,7 @@ func rebuildImpl(
 type watcher struct {
 	mutex             sync.Mutex
 	data              fs.WatchData
+	resolver          resolver.Resolver
 	shouldStop        int32
 	rebuild           func() fs.WatchData
 	recentItems       []string
@@ -859,19 +861,41 @@ const minItemCountPerIter = 64
 // The maximum number of intervals before a change is detected
 const maxIntervalsBeforeUpdate = 20
 
-// The interval multiple used to update the spinner (larger values are slower)
-const spinnerUpdatePeriod = 5
+func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
+	useColor := validateColor(color)
 
-func (w *watcher) start(logLevel LogLevel, mode WatchMode) {
 	go func() {
+		// Note: Do not change these log messages without a breaking version change.
+		// People want to run regexes over esbuild's stderr stream to look for these
+		// messages instead of using esbuild's API.
+
+		if logLevel == LogLevelInfo {
+			logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
+				return fmt.Sprintf("%s[watch] build finished, watching for changes...%s\n", colors.Dim, colors.Default)
+			})
+		}
+
 		for atomic.LoadInt32(&w.shouldStop) == 0 {
 			// Sleep for the watch interval
 			time.Sleep(watchIntervalSleep)
 
 			// Rebuild if we're dirty
-			if path := w.tryToFindDirtyPath(); path != "" {
+			if absPath := w.tryToFindDirtyPath(); absPath != "" {
+				if logLevel == LogLevelInfo {
+					logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
+						prettyPath := w.resolver.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
+						return fmt.Sprintf("%s[watch] build started (change: %q)%s\n", colors.Dim, prettyPath, colors.Default)
+					})
+				}
+
 				// Run the build
 				w.setWatchData(w.rebuild())
+
+				if logLevel == LogLevelInfo {
+					logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
+						return fmt.Sprintf("%s[watch] build finished%s\n", colors.Dim, colors.Default)
+					})
+				}
 			}
 		}
 	}()

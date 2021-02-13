@@ -10,6 +10,14 @@
 
     Some automatically-generated `tsconfig.json` paths can have absolute paths in them. This is allowed by the TypeScript compiler (specifically in the `paths` and `extends` fields). With this release, esbuild now supports absolute paths in `paths` and `extends` too.
 
+* Change the watch mode output format ([#793](https://github.com/evanw/esbuild/issues/793))
+
+    Previously esbuild would print a "..." animation to the console while watch mode was scanning for changes. The intent of this was to a) not take up too much space in the terminal and b) show that esbuild's watch mode isn't frozen. Since the release I have gotten feedback that this isn't desirable. People want more feedback about what's happening and want to be able to run regexes over the stderr stream instead of using esbuild's actual API.
+
+    This release changes the output format for watch mode. Now esbuild will print `[watch] build started` when watch mode triggers a rebuild and `[watch] build finished` when the rebuild is complete. Any build errors will be printed in between those two log messages.
+
+    Note that this means esbuild's watch mode output is now more verbose, especially when there are frequent file changes. If you want to hide these new messages you can use `--log-level=` with a level other than `info`.
+
 ## 0.8.44
 
 * Create a logo for esbuild ([#61](https://github.com/evanw/esbuild/issues/61))
