@@ -133,6 +133,7 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Chrome: {74},
 		Edge:   {79},
 		Node:   {12, 0},
+		Safari: {14, 1},
 	},
 	ClassPrivateMethod: {
 		Chrome: {84},
@@ -148,6 +149,7 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Chrome: {74},
 		Edge:   {79},
 		Node:   {12, 0},
+		Safari: {14, 1},
 	},
 	ClassPrivateStaticMethod: {
 		Chrome: {84},
@@ -159,6 +161,7 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Edge:    {79},
 		Firefox: {75},
 		Node:    {12, 0},
+		Safari:  {14, 1},
 	},
 	Const: {
 		Chrome:  {5},
