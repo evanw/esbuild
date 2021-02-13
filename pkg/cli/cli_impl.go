@@ -565,19 +565,6 @@ func runImpl(osArgs []string) int {
 
 	switch {
 	case buildOptions != nil:
-		// These characters were chosen because they work in Windows Command Prompt
-		if buildOptions.Watch != nil {
-			buildOptions.Watch.SpinnerBusy = "··· "
-			buildOptions.Watch.SpinnerIdle = []string{
-				"▫▫▫ ",
-				"▪▫▫ ",
-				"▪▪▫ ",
-				"▪▪▪ ",
-				"▫▪▪ ",
-				"▫▫▪ ",
-			}
-		}
-
 		// Read the "NODE_PATH" from the environment. This is part of node's
 		// module resolution algorithm. Documentation for this can be found here:
 		// https://nodejs.org/api/modules.html#modules_loading_from_the_global_folders

@@ -539,9 +539,6 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 		ErrorLimit:    buildOpts.ErrorLimit,
 		Color:         validateColor(buildOpts.Color),
 		LogLevel:      validateLogLevel(buildOpts.LogLevel),
-
-		// If there's a busy indicator, print a newline to avoid overwriting it
-		NewlineBeforeFirstMessage: buildOpts.Watch != nil && buildOpts.Watch.SpinnerBusy != "" && buildOpts.LogLevel == LogLevelInfo,
 	}
 	log := logger.NewStderrLog(logOptions)
 
@@ -792,7 +789,6 @@ func rebuildImpl(
 			},
 		}
 		mode := *buildOpts.Watch
-		mode.SpinnerIdle = append([]string{}, mode.SpinnerIdle...) // Clone in case of mutation
 		watch.start(buildOpts.LogLevel, mode)
 		stop = func() {
 			watch.stop()
@@ -868,40 +864,14 @@ const spinnerUpdatePeriod = 5
 
 func (w *watcher) start(logLevel LogLevel, mode WatchMode) {
 	go func() {
-		index := 0
-		delay := 0
 		for atomic.LoadInt32(&w.shouldStop) == 0 {
-			// Render the spinner animation
-			if logLevel == LogLevelInfo && len(mode.SpinnerIdle) > 0 {
-				if delay == 0 {
-					fmt.Fprintf(os.Stderr, "\r%s", mode.SpinnerIdle[index])
-					index++
-					if index == len(mode.SpinnerIdle) {
-						index = 0
-					}
-				}
-				delay++
-				if delay == spinnerUpdatePeriod {
-					delay = 0
-				}
-			}
-
 			// Sleep for the watch interval
 			time.Sleep(watchIntervalSleep)
 
 			// Rebuild if we're dirty
 			if path := w.tryToFindDirtyPath(); path != "" {
-				// Show the busy indicator
-				if logLevel == LogLevelInfo && mode.SpinnerBusy != "" {
-					fmt.Fprintf(os.Stderr, "\r%s", mode.SpinnerBusy)
-				}
-
 				// Run the build
 				w.setWatchData(w.rebuild())
-
-				// Reset the spinner animation
-				index = 0
-				delay = 0
 			}
 		}
 	}()
