@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix minification of `.0` in CSS ([#804](https://github.com/evanw/esbuild/issues/804))
+
+    If you write `.0` instead of `0` in CSS and enabled `--minify`, esbuild would previously minify this token incorrectly (the token was deleted). This bug has been fixed and esbuild should now minify this token to `0`.
+
 ## 0.8.45
 
 * Add the `--servedir=` flag ([#796](https://github.com/evanw/esbuild/issues/796))

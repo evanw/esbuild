@@ -650,11 +650,17 @@ func (p *parser) mangleColor(token css_ast.Token) css_ast.Token {
 			token.Kind = css_lexer.TFunction
 			token.Text = "rgba"
 			commaToken := p.commaToken()
+			alpha := floatToString(float64(hexA(hex)) / 255)
+			if p.options.MangleSyntax {
+				if text, ok := mangleNumber(alpha); ok {
+					alpha = text
+				}
+			}
 			token.Children = &[]css_ast.Token{
 				{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
 				{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
 				{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexB(hex))}, commaToken,
-				{Kind: css_lexer.TNumber, Text: floatToString(float64(hexA(hex)) / 255)},
+				{Kind: css_lexer.TNumber, Text: alpha},
 			}
 		}
 	}

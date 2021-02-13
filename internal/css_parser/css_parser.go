@@ -673,6 +673,9 @@ func mangleNumber(t string) (string, bool) {
 		// Remove the decimal point if it's unnecessary
 		if dot+1 == len(t) {
 			t = t[:dot]
+			if t == "" || t == "+" || t == "-" {
+				t += "0"
+			}
 		} else {
 			// Remove a leading zero
 			if len(t) >= 3 && t[0] == '0' && t[1] == '.' && t[2] >= '0' && t[2] <= '9' {

@@ -74,6 +74,14 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedLowerMangle(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [mangle]", contents, expected, config.Options{
+		UnsupportedCSSFeatures: ^compat.CSSFeature(0),
+		MangleSyntax:           true,
+	})
+}
+
 func TestEscapes(t *testing.T) {
 	// TIdent
 	expectPrinted(t, "a { value: id\\65nt }", "a {\n  value: ident;\n}\n")
@@ -256,18 +264,46 @@ func TestString(t *testing.T) {
 
 func TestNumber(t *testing.T) {
 	for _, ext := range []string{"", "%", "px+"} {
+		expectPrinted(t, "a { width: .0"+ext+"; }", "a {\n  width: .0"+ext+";\n}\n")
+		expectPrinted(t, "a { width: .00"+ext+"; }", "a {\n  width: .00"+ext+";\n}\n")
+		expectPrinted(t, "a { width: .10"+ext+"; }", "a {\n  width: .10"+ext+";\n}\n")
 		expectPrinted(t, "a { width: 0."+ext+"; }", "a {\n  width: 0."+ext+";\n}\n")
+		expectPrinted(t, "a { width: 0.0"+ext+"; }", "a {\n  width: 0.0"+ext+";\n}\n")
 		expectPrinted(t, "a { width: 0.1"+ext+"; }", "a {\n  width: 0.1"+ext+";\n}\n")
+
+		expectPrinted(t, "a { width: +.0"+ext+"; }", "a {\n  width: +.0"+ext+";\n}\n")
+		expectPrinted(t, "a { width: +.00"+ext+"; }", "a {\n  width: +.00"+ext+";\n}\n")
+		expectPrinted(t, "a { width: +.10"+ext+"; }", "a {\n  width: +.10"+ext+";\n}\n")
 		expectPrinted(t, "a { width: +0."+ext+"; }", "a {\n  width: +0."+ext+";\n}\n")
+		expectPrinted(t, "a { width: +0.0"+ext+"; }", "a {\n  width: +0.0"+ext+";\n}\n")
 		expectPrinted(t, "a { width: +0.1"+ext+"; }", "a {\n  width: +0.1"+ext+";\n}\n")
+
+		expectPrinted(t, "a { width: -.0"+ext+"; }", "a {\n  width: -.0"+ext+";\n}\n")
+		expectPrinted(t, "a { width: -.00"+ext+"; }", "a {\n  width: -.00"+ext+";\n}\n")
+		expectPrinted(t, "a { width: -.10"+ext+"; }", "a {\n  width: -.10"+ext+";\n}\n")
 		expectPrinted(t, "a { width: -0."+ext+"; }", "a {\n  width: -0."+ext+";\n}\n")
+		expectPrinted(t, "a { width: -0.0"+ext+"; }", "a {\n  width: -0.0"+ext+";\n}\n")
 		expectPrinted(t, "a { width: -0.1"+ext+"; }", "a {\n  width: -0.1"+ext+";\n}\n")
 
+		expectPrintedMangle(t, "a { width: .0"+ext+"; }", "a {\n  width: 0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: .00"+ext+"; }", "a {\n  width: 0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: .10"+ext+"; }", "a {\n  width: .1"+ext+";\n}\n")
 		expectPrintedMangle(t, "a { width: 0."+ext+"; }", "a {\n  width: 0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: 0.0"+ext+"; }", "a {\n  width: 0"+ext+";\n}\n")
 		expectPrintedMangle(t, "a { width: 0.1"+ext+"; }", "a {\n  width: .1"+ext+";\n}\n")
+
+		expectPrintedMangle(t, "a { width: +.0"+ext+"; }", "a {\n  width: +0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: +.00"+ext+"; }", "a {\n  width: +0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: +.10"+ext+"; }", "a {\n  width: +.1"+ext+";\n}\n")
 		expectPrintedMangle(t, "a { width: +0."+ext+"; }", "a {\n  width: +0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: +0.0"+ext+"; }", "a {\n  width: +0"+ext+";\n}\n")
 		expectPrintedMangle(t, "a { width: +0.1"+ext+"; }", "a {\n  width: +.1"+ext+";\n}\n")
+
+		expectPrintedMangle(t, "a { width: -.0"+ext+"; }", "a {\n  width: -0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: -.00"+ext+"; }", "a {\n  width: -0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: -.10"+ext+"; }", "a {\n  width: -.1"+ext+";\n}\n")
 		expectPrintedMangle(t, "a { width: -0."+ext+"; }", "a {\n  width: -0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: -0.0"+ext+"; }", "a {\n  width: -0"+ext+";\n}\n")
 		expectPrintedMangle(t, "a { width: -0.1"+ext+"; }", "a {\n  width: -.1"+ext+";\n}\n")
 	}
 }
@@ -430,6 +466,9 @@ func TestColorRGBA(t *testing.T) {
 	expectPrintedMangle(t, "a { color: rgba(1% 2% 3% / 50%) }", "a {\n  color: #0305087f;\n}\n")
 	expectPrintedMangle(t, "a { color: rgba(1%, 2%, 3%, 0.5) }", "a {\n  color: #03050880;\n}\n")
 	expectPrintedMangle(t, "a { color: rgba(1%, 2%, 3%, 50%) }", "a {\n  color: #0305087f;\n}\n")
+
+	expectPrintedLowerMangle(t, "a { color: rgb(1, 2, 3, 0.4) }", "a {\n  color: rgba(1, 2, 3, .4);\n}\n")
+	expectPrintedLowerMangle(t, "a { color: rgba(1, 2, 3, 40%) }", "a {\n  color: rgba(1, 2, 3, .4);\n}\n")
 }
 
 func TestColorHSLA(t *testing.T) {
@@ -444,6 +483,9 @@ func TestColorHSLA(t *testing.T) {
 
 	expectPrintedMangle(t, "a { color: hsl(30 25% 50% / 50%) }", "a {\n  color: #9f80607f;\n}\n")
 	expectPrintedMangle(t, "a { color: hsla(30 25% 50% / 50%) }", "a {\n  color: #9f80607f;\n}\n")
+
+	expectPrintedLowerMangle(t, "a { color: hsl(1, 2%, 3%, 0.4) }", "a {\n  color: rgba(8, 8, 7, .4);\n}\n")
+	expectPrintedLowerMangle(t, "a { color: hsla(1, 2%, 3%, 40%) }", "a {\n  color: rgba(8, 8, 7, .4);\n}\n")
 }
 
 func TestLowerColor(t *testing.T) {
