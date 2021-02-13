@@ -1314,10 +1314,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		fileEntries := []string{}
 		dirEntries := []string{}
 		isDirEntry := make(map[string]bool)
-		queryPath := req.URL.Path[1:]
-		if strings.HasSuffix(queryPath, "/") {
-			queryPath = queryPath[:len(queryPath)-1]
-		}
+		queryPath := path.Clean(req.URL.Path)[1:]
 		queryDir := queryPath
 		if queryDir != "" {
 			queryDir += "/"
@@ -1365,27 +1362,10 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 		// Directory listing
 		if queryIsDir {
-			html := strings.Builder{}
-			html.WriteString(`<!DOCTYPE html>`)
-			html.WriteString(`<title>`)
-			html.WriteString(escapeForHTML(queryDir))
-			html.WriteString(`</title>`)
-			html.WriteString(`<ul>`)
-			if queryPath != "" {
-				html.WriteString(fmt.Sprintf(`<li><a href="%s">../</a></li>`, escapeForAttribute(path.Dir("/"+queryPath))))
-			}
-			sort.Strings(dirEntries)
-			for _, entry := range dirEntries {
-				html.WriteString(fmt.Sprintf(`<li><a href="/%s">%s/</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
-			}
-			sort.Strings(fileEntries)
-			for _, entry := range fileEntries {
-				html.WriteString(fmt.Sprintf(`<li><a href="/%s">%s</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
-			}
-			html.WriteString(`</ul>`)
+			html := respondWithDirList(queryPath, dirEntries, fileEntries)
 			res.Header().Set("Content-Type", "text/html; charset=utf-8")
 			go h.notifyRequest(time.Since(start), req, http.StatusOK)
-			res.Write([]byte(html.String()))
+			res.Write(html)
 			return
 		}
 	}
@@ -1395,6 +1375,36 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	go h.notifyRequest(time.Since(start), req, http.StatusNotFound)
 	res.WriteHeader(http.StatusNotFound)
 	res.Write([]byte("404 - Not Found"))
+}
+
+func respondWithDirList(queryPath string, dirEntries []string, fileEntries []string) []byte {
+	queryPath = "/" + queryPath
+	queryDir := queryPath
+	if queryDir != "/" {
+		queryDir += "/"
+	}
+	html := strings.Builder{}
+	html.WriteString(`<!DOCTYPE html>`)
+	html.WriteString(`<title>Directory: `)
+	html.WriteString(escapeForHTML(queryDir))
+	html.WriteString(`</title>`)
+	html.WriteString(`<h1>Directory: `)
+	html.WriteString(escapeForHTML(queryDir))
+	html.WriteString(`</h1>`)
+	html.WriteString(`<ul>`)
+	if queryPath != "/" {
+		html.WriteString(fmt.Sprintf(`<li><a href="%s">../</a></li>`, escapeForAttribute(path.Dir(queryPath))))
+	}
+	sort.Strings(dirEntries)
+	for _, entry := range dirEntries {
+		html.WriteString(fmt.Sprintf(`<li><a href="%s">%s/</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
+	}
+	sort.Strings(fileEntries)
+	for _, entry := range fileEntries {
+		html.WriteString(fmt.Sprintf(`<li><a href="%s">%s</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
+	}
+	html.WriteString(`</ul>`)
+	return []byte(html.String())
 }
 
 func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResult, error) {
