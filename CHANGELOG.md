@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.45
 
 * Add the `--servedir=` flag ([#796](https://github.com/evanw/esbuild/issues/796))
 
