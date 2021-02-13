@@ -1310,16 +1310,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// Handle get requests
 	if req.Method == "GET" && strings.HasPrefix(req.URL.Path, "/") {
 		res.Header().Set("Access-Control-Allow-Origin", "*")
-		queryIsDir := false
-		fileEntries := []string{}
-		dirEntries := []string{}
-		isDirEntry := make(map[string]bool)
 		queryPath := path.Clean(req.URL.Path)[1:]
-		queryDir := queryPath
-		if queryDir != "" {
-			queryDir += "/"
-		}
-		queryExt := path.Ext(queryPath)
 		result := h.build()
 
 		// Requests fail if the build had errors
@@ -1331,37 +1322,30 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		// Check the output files for a match
-		for _, file := range result.OutputFiles {
-			if relPath, ok := h.fs.Rel(h.options.AbsOutputDir, file.Path); ok {
-				relPath = strings.ReplaceAll(relPath, "\\", "/")
+		// Check for a match with the results
+		fileContents, dirEntries, fileEntries := h.matchQueryPathToResult(queryPath, &result)
 
-				// An exact match
-				if relPath == queryPath {
-					if contentType := mime.TypeByExtension(queryExt); contentType != "" {
-						res.Header().Set("Content-Type", contentType)
-					}
-					go h.notifyRequest(time.Since(start), req, http.StatusOK)
-					res.Write(file.Contents)
-					return
-				}
-
-				// A match inside this directory
-				if strings.HasPrefix(relPath, queryDir) {
-					entry := relPath[len(queryDir):]
-					queryIsDir = true
-					if slash := strings.IndexByte(entry, '/'); slash == -1 {
-						fileEntries = append(fileEntries, entry)
-					} else if dir := entry[:slash]; !isDirEntry[dir] {
-						dirEntries = append(dirEntries, dir)
-						isDirEntry[dir] = true
-					}
-				}
+		// Serve a file
+		if fileContents != nil {
+			if contentType := mime.TypeByExtension(path.Ext(queryPath)); contentType != "" {
+				res.Header().Set("Content-Type", contentType)
 			}
+			go h.notifyRequest(time.Since(start), req, http.StatusOK)
+			res.Write(fileContents)
+			return
 		}
 
-		// Directory listing
-		if queryIsDir {
+		// Serve a directory listing
+		if dirEntries != nil || fileEntries != nil {
+			// Redirect to a trailing slash for directories
+			if !strings.HasSuffix(req.URL.Path, "/") {
+				res.Header().Set("Location", req.URL.Path+"/")
+				go h.notifyRequest(time.Since(start), req, http.StatusFound)
+				res.WriteHeader(http.StatusFound)
+				res.Write(nil)
+				return
+			}
+
 			html := respondWithDirList(queryPath, dirEntries, fileEntries)
 			res.Header().Set("Content-Type", "text/html; charset=utf-8")
 			go h.notifyRequest(time.Since(start), req, http.StatusOK)
@@ -1377,6 +1361,48 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte("404 - Not Found"))
 }
 
+func (h *apiHandler) matchQueryPathToResult(queryPath string, result *BuildResult) ([]byte, []string, []string) {
+	fileEntries := []string{}
+	dirEntries := []string{}
+	isDirEntry := make(map[string]bool)
+	queryIsDir := false
+	queryDir := queryPath
+	if queryDir != "" {
+		queryDir += "/"
+	}
+
+	// Check the output files for a match
+	for _, file := range result.OutputFiles {
+		if relPath, ok := h.fs.Rel(h.options.AbsOutputDir, file.Path); ok {
+			relPath = strings.ReplaceAll(relPath, "\\", "/")
+
+			// An exact match
+			if relPath == queryPath {
+				return file.Contents, nil, nil
+			}
+
+			// A match inside this directory
+			if strings.HasPrefix(relPath, queryDir) {
+				entry := relPath[len(queryDir):]
+				queryIsDir = true
+				if slash := strings.IndexByte(entry, '/'); slash == -1 {
+					fileEntries = append(fileEntries, entry)
+				} else if dir := entry[:slash]; !isDirEntry[dir] {
+					dirEntries = append(dirEntries, dir)
+					isDirEntry[dir] = true
+				}
+			}
+		}
+	}
+
+	// Otherwise it may be a directory listing instead
+	if queryIsDir {
+		return nil, dirEntries, fileEntries
+	}
+
+	return nil, nil, nil
+}
+
 func respondWithDirList(queryPath string, dirEntries []string, fileEntries []string) []byte {
 	queryPath = "/" + queryPath
 	queryDir := queryPath
@@ -1384,7 +1410,8 @@ func respondWithDirList(queryPath string, dirEntries []string, fileEntries []str
 		queryDir += "/"
 	}
 	html := strings.Builder{}
-	html.WriteString(`<!DOCTYPE html>`)
+	html.WriteString(`<!doctype html>`)
+	html.WriteString(`<meta charset="utf8">`)
 	html.WriteString(`<title>Directory: `)
 	html.WriteString(escapeForHTML(queryDir))
 	html.WriteString(`</title>`)
@@ -1393,11 +1420,15 @@ func respondWithDirList(queryPath string, dirEntries []string, fileEntries []str
 	html.WriteString(`</h1>`)
 	html.WriteString(`<ul>`)
 	if queryPath != "/" {
-		html.WriteString(fmt.Sprintf(`<li><a href="%s">../</a></li>`, escapeForAttribute(path.Dir(queryPath))))
+		parentDir := path.Dir(queryPath)
+		if parentDir != "/" {
+			parentDir += "/"
+		}
+		html.WriteString(fmt.Sprintf(`<li><a href="%s">../</a></li>`, escapeForAttribute(parentDir)))
 	}
 	sort.Strings(dirEntries)
 	for _, entry := range dirEntries {
-		html.WriteString(fmt.Sprintf(`<li><a href="%s">%s/</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
+		html.WriteString(fmt.Sprintf(`<li><a href="%s/">%s/</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
 	}
 	sort.Strings(fileEntries)
 	for _, entry := range fileEntries {

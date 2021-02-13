@@ -731,8 +731,10 @@ func serveImpl(serveText string, osArgs []string) error {
 		OnRequest: func(args api.ServeOnRequestArgs) {
 			logger.PrintText(os.Stderr, logger.LevelInfo, osArgs, func(colors logger.Colors) string {
 				statusColor := colors.Red
-				if args.Status == 200 {
+				if args.Status >= 200 && args.Status <= 299 {
 					statusColor = colors.Green
+				} else if args.Status >= 300 && args.Status <= 399 {
+					statusColor = colors.Yellow
 				}
 				return fmt.Sprintf("%s%s - %q %s%d%s [%dms]%s\n",
 					colors.Dim, args.RemoteAddress, args.Method+" "+args.Path,
