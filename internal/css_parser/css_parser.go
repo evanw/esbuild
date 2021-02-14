@@ -153,7 +153,12 @@ type ruleContext struct {
 }
 
 func (p *parser) parseListOfRules(context ruleContext) []css_ast.R {
+	didWarnAboutCharset := false
+	didWarnAboutImport := false
+	didWarnAboutNamespace := false
 	rules := []css_ast.R{}
+	locs := []logger.Loc{}
+
 	for {
 		switch p.current().Kind {
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
@@ -164,7 +169,58 @@ func (p *parser) parseListOfRules(context ruleContext) []css_ast.R {
 			continue
 
 		case css_lexer.TAtKeyword:
-			rules = append(rules, p.parseAtRule(atRuleContext{}))
+			first := p.current().Range
+			rule := p.parseAtRule(atRuleContext{})
+
+			// Validate structure
+			if context.isTopLevel {
+				switch rule.(type) {
+				case *css_ast.RAtCharset:
+					if !didWarnAboutCharset && len(rules) > 0 {
+						p.log.AddRangeWarningWithNotes(&p.source, first, "\"@charset\" must be the first rule in the file",
+							[]logger.MsgData{logger.RangeData(&p.source, logger.Range{Loc: locs[len(locs)-1]},
+								"This rule cannot come before a \"@charset\" rule")})
+						didWarnAboutCharset = true
+					}
+
+				case *css_ast.RAtImport:
+					if !didWarnAboutImport {
+					importLoop:
+						for i, before := range rules {
+							switch before.(type) {
+							case *css_ast.RAtCharset, *css_ast.RAtImport:
+							default:
+								p.log.AddRangeWarningWithNotes(&p.source, first, "All \"@import\" rules must come first",
+									[]logger.MsgData{logger.RangeData(&p.source, logger.Range{Loc: locs[i]},
+										"This rule cannot come before an \"@import\" rule")})
+								didWarnAboutImport = true
+								break importLoop
+							}
+						}
+					}
+
+				case *css_ast.RAtNamespace:
+					if !didWarnAboutNamespace {
+					namespaceLoop:
+						for i, before := range rules {
+							switch before.(type) {
+							case *css_ast.RAtCharset, *css_ast.RAtImport, *css_ast.RAtNamespace:
+							default:
+								p.log.AddRangeWarningWithNotes(&p.source, first, "\"@namespace\" rules can only come after \"@import\" rules",
+									[]logger.MsgData{logger.RangeData(&p.source, logger.Range{Loc: locs[i]},
+										"This rule cannot come before a \"@namespace\" rule")})
+								didWarnAboutNamespace = true
+								break namespaceLoop
+							}
+						}
+					}
+				}
+			}
+
+			rules = append(rules, rule)
+			if context.isTopLevel {
+				locs = append(locs, first.Loc)
+			}
 			continue
 
 		case css_lexer.TCDO, css_lexer.TCDC:
@@ -174,6 +230,9 @@ func (p *parser) parseListOfRules(context ruleContext) []css_ast.R {
 			}
 		}
 
+		if context.isTopLevel {
+			locs = append(locs, p.current().Range.Loc)
+		}
 		if context.parseSelectors {
 			rules = append(rules, p.parseSelectorRule())
 		} else {

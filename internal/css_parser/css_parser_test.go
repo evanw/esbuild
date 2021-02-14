@@ -795,3 +795,17 @@ func TestAtKeyframes(t *testing.T) {
 	expectParseError(t, "@keyframes name { 1 ,2 {} }", "<stdin>: warning: Expected percentage but found \"1\"\n<stdin>: warning: Expected percentage but found \"2\"\n")
 	expectParseError(t, "@keyframes name { 1%,,2% {} }", "<stdin>: warning: Expected percentage but found \",\"\n")
 }
+
+func TestAtRuleValidation(t *testing.T) {
+	expectParseError(t, "a {} @charset \"UTF-8\";",
+		"<stdin>: warning: \"@charset\" must be the first rule in the file\n"+
+			"<stdin>: note: This rule cannot come before a \"@charset\" rule\n")
+
+	expectParseError(t, "a {} @import \"foo\";",
+		"<stdin>: warning: All \"@import\" rules must come first\n"+
+			"<stdin>: note: This rule cannot come before an \"@import\" rule\n")
+
+	expectParseError(t, "a {} @namespace url(foo);",
+		"<stdin>: warning: \"@namespace\" rules can only come after \"@import\" rules\n"+
+			"<stdin>: note: This rule cannot come before a \"@namespace\" rule\n")
+}
