@@ -1431,7 +1431,19 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			if contentType := mime.TypeByExtension(path.Ext(queryPath)); contentType != "" {
 				res.Header().Set("Content-Type", contentType)
 			}
-			go h.notifyRequest(time.Since(start), req, http.StatusOK)
+
+			// Handle range requests so that video playback works in Safari
+			status := http.StatusOK
+			if begin, end, ok := parseRangeHeader(req.Header.Get("Range"), len(fileContents)); ok && begin < end {
+				// Note: The content range is inclusive so subtract 1 from the end
+				res.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", begin, end-1, len(fileContents)))
+				fileContents = fileContents[begin:end]
+				status = http.StatusPartialContent
+			}
+
+			res.Header().Set("Content-Length", fmt.Sprintf("%d", len(fileContents)))
+			go h.notifyRequest(time.Since(start), req, status)
+			res.WriteHeader(status)
 			res.Write(fileContents)
 			return
 		}
@@ -1440,6 +1452,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		if kind == fs.DirEntry {
 			html := respondWithDirList(queryPath, dirEntries, fileEntries)
 			res.Header().Set("Content-Type", "text/html; charset=utf-8")
+			res.Header().Set("Content-Length", fmt.Sprintf("%d", len(html)))
 			go h.notifyRequest(time.Since(start), req, http.StatusOK)
 			res.Write(html)
 			return
@@ -1451,6 +1464,40 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	go h.notifyRequest(time.Since(start), req, http.StatusNotFound)
 	res.WriteHeader(http.StatusNotFound)
 	res.Write([]byte("404 - Not Found"))
+}
+
+// Handle enough of the range specification so that video playback works in Safari
+func parseRangeHeader(r string, contentLength int) (int, int, bool) {
+	if strings.HasPrefix(r, "bytes=") {
+		r = r[len("bytes="):]
+		if dash := strings.IndexByte(r, '-'); dash != -1 {
+			// Note: The range is inclusive so the limit is deliberately "length - 1"
+			if begin, ok := parseRangeInt(r[:dash], contentLength-1); ok {
+				if end, ok := parseRangeInt(r[dash+1:], contentLength-1); ok {
+					// Note: The range is inclusive so a range of "0-1" is two bytes long
+					return begin, end + 1, true
+				}
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+func parseRangeInt(text string, maxValue int) (int, bool) {
+	if text == "" {
+		return 0, false
+	}
+	value := 0
+	for _, c := range text {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		value = value*10 + int(c-'0')
+		if value > maxValue {
+			return 0, false
+		}
+	}
+	return value, true
 }
 
 func (h *apiHandler) matchQueryPathToResult(

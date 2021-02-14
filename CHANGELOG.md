@@ -6,6 +6,10 @@
 
     If you write `.0` instead of `0` in CSS and enabled `--minify`, esbuild would previously minify this token incorrectly (the token was deleted). This bug has been fixed and esbuild should now minify this token to `0`.
 
+* Support range requests in local HTTP server
+
+    The local HTTP server built in to esbuild now supports [range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests), which are necessary for video playback in Safari. This means you can now use `<video>` tags in your HTML pages with esbuild's local HTTP server.
+
 ## 0.8.45
 
 * Add the `--servedir=` flag ([#796](https://github.com/evanw/esbuild/issues/796))
