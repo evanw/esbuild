@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.46
 
 * Fix minification of `.0` in CSS ([#804](https://github.com/evanw/esbuild/issues/804))
 
