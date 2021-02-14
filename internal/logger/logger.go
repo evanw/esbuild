@@ -276,23 +276,32 @@ func (s *Source) RangeOfNumber(loc Loc) (r Range) {
 	return
 }
 
-func plural(prefix string, count int) string {
+func plural(prefix string, count int, shown int, someAreMissing bool) string {
+	var text string
 	if count == 1 {
-		return fmt.Sprintf("%d %s", count, prefix)
+		text = fmt.Sprintf("%d %s", count, prefix)
+	} else {
+		text = fmt.Sprintf("%d %ss", count, prefix)
 	}
-	return fmt.Sprintf("%d %ss", count, prefix)
+	if shown < count {
+		text = fmt.Sprintf("%d of %s", shown, text)
+	} else if someAreMissing && count > 1 {
+		text = "all " + text
+	}
+	return text
 }
 
-func errorAndWarningSummary(errors int, warnings int) string {
+func errorAndWarningSummary(errors int, warnings int, shownErrors int, shownWarnings int) string {
+	someAreMissing := shownWarnings < warnings || shownErrors < errors
 	switch {
 	case errors == 0:
-		return plural("warning", warnings)
+		return plural("warning", warnings, shownWarnings, someAreMissing)
 	case warnings == 0:
-		return plural("error", errors)
+		return plural("error", errors, shownErrors, someAreMissing)
 	default:
 		return fmt.Sprintf("%s and %s",
-			plural("warning", warnings),
-			plural("error", errors))
+			plural("warning", warnings, shownWarnings, someAreMissing),
+			plural("error", errors, shownErrors, someAreMissing))
 	}
 }
 
@@ -309,7 +318,14 @@ func NewStderrLog(options OutputOptions) Log {
 	terminalInfo := GetTerminalInfo(os.Stderr)
 	errors := 0
 	warnings := 0
-	errorLimitWasHit := false
+	shownErrors := 0
+	shownWarnings := 0
+	hasErrors := false
+	remainingMessagesBeforeLimit := options.MessageLimit
+	if remainingMessagesBeforeLimit == 0 {
+		remainingMessagesBeforeLimit = 0x7FFFFFFF
+	}
+	var deferredWarnings []Msg
 
 	switch options.Color {
 	case ColorNever:
@@ -324,45 +340,71 @@ func NewStderrLog(options OutputOptions) Log {
 			defer mutex.Unlock()
 			msgs = append(msgs, msg)
 
+			switch msg.Kind {
+			case Error:
+				hasErrors = true
+				if options.LogLevel <= LevelError {
+					errors++
+				}
+			case Warning:
+				if options.LogLevel <= LevelWarning {
+					warnings++
+				}
+			}
+
 			// Be silent if we're past the limit so we don't flood the terminal
-			if errorLimitWasHit {
+			if remainingMessagesBeforeLimit == 0 {
 				return
 			}
 
 			switch msg.Kind {
 			case Error:
-				errors++
 				if options.LogLevel <= LevelError {
+					shownErrors++
 					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
+					remainingMessagesBeforeLimit--
 				}
-			case Warning:
-				warnings++
-				if options.LogLevel <= LevelWarning {
-					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
-				}
-			}
 
-			// Silence further output if we reached the error limit
-			if options.ErrorLimit != 0 && errors >= options.ErrorLimit {
-				errorLimitWasHit = true
-				if options.LogLevel <= LevelError {
-					writeStringWithColor(os.Stderr, fmt.Sprintf(
-						"%s reached (disable error limit with --error-limit=0)\n", errorAndWarningSummary(errors, warnings)))
+			case Warning:
+				if options.LogLevel <= LevelWarning {
+					if remainingMessagesBeforeLimit > (options.MessageLimit+1)/2 {
+						shownWarnings++
+						writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
+						remainingMessagesBeforeLimit--
+					} else {
+						// If we have less than half of the slots left, wait for potential
+						// future errors instead of using up all of the slots with warnings.
+						// We want the log for a failed build to always have at least one
+						// error in it.
+						deferredWarnings = append(deferredWarnings, msg)
+					}
 				}
 			}
 		},
 		HasErrors: func() bool {
 			mutex.Lock()
 			defer mutex.Unlock()
-			return errors > 0
+			return hasErrors
 		},
 		Done: func() []Msg {
 			mutex.Lock()
 			defer mutex.Unlock()
 
-			// Print out a summary if the error limit wasn't hit
-			if !errorLimitWasHit && options.LogLevel <= LevelInfo && (warnings != 0 || errors != 0) {
-				writeStringWithColor(os.Stderr, fmt.Sprintf("%s\n", errorAndWarningSummary(errors, warnings)))
+			// Print the deferred warning now if there was no error after all
+			for remainingMessagesBeforeLimit > 0 && len(deferredWarnings) > 0 {
+				shownWarnings++
+				writeStringWithColor(os.Stderr, deferredWarnings[0].String(options, terminalInfo))
+				deferredWarnings = deferredWarnings[1:]
+				remainingMessagesBeforeLimit--
+			}
+
+			// Print out a summary
+			if options.MessageLimit > 0 && errors+warnings > options.MessageLimit {
+				writeStringWithColor(os.Stderr, fmt.Sprintf("%s shown (disable the message limit with --error-limit=0)\n",
+					errorAndWarningSummary(errors, warnings, shownErrors, shownWarnings)))
+			} else if options.LogLevel <= LevelInfo && (warnings != 0 || errors != 0) {
+				writeStringWithColor(os.Stderr, fmt.Sprintf("%s\n",
+					errorAndWarningSummary(errors, warnings, shownErrors, shownWarnings)))
 			}
 
 			sort.Stable(msgs)
@@ -726,7 +768,7 @@ const (
 
 type OutputOptions struct {
 	IncludeSource bool
-	ErrorLimit    int
+	MessageLimit  int
 	Color         UseColor
 	LogLevel      LogLevel
 }

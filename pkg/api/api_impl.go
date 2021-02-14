@@ -537,7 +537,7 @@ type internalBuildResult struct {
 func buildImpl(buildOpts BuildOptions) internalBuildResult {
 	logOptions := logger.OutputOptions{
 		IncludeSource: true,
-		ErrorLimit:    buildOpts.ErrorLimit,
+		MessageLimit:  buildOpts.ErrorLimit,
 		Color:         validateColor(buildOpts.Color),
 		LogLevel:      validateLogLevel(buildOpts.LogLevel),
 	}
@@ -971,7 +971,7 @@ func (w *watcher) tryToFindDirtyPath() string {
 func transformImpl(input string, transformOpts TransformOptions) TransformResult {
 	log := logger.NewStderrLog(logger.OutputOptions{
 		IncludeSource: true,
-		ErrorLimit:    transformOpts.ErrorLimit,
+		MessageLimit:  transformOpts.ErrorLimit,
 		Color:         validateColor(transformOpts.Color),
 		LogLevel:      validateLogLevel(transformOpts.LogLevel),
 	})
