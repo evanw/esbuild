@@ -21,6 +21,7 @@ func GetTerminalInfo(file *os.File) (info TerminalInfo) {
 		// Get the width of the window
 		if w, err := unix.IoctlGetWinsize(int(fd), unix.TIOCGWINSZ); err == nil {
 			info.Width = int(w.Col)
+			info.Height = int(w.Row)
 		}
 	}
 

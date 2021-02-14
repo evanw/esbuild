@@ -300,6 +300,7 @@ type TerminalInfo struct {
 	IsTTY           bool
 	UseColorEscapes bool
 	Width           int
+	Height          int
 }
 
 func NewStderrLog(options OutputOptions) Log {
@@ -539,6 +540,21 @@ func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
 		}
 
 		if len(table) > 0 {
+			info := GetTerminalInfo(os.Stderr)
+
+			// Truncate the table in case it's really long
+			maxLength := info.Height - 10
+			if info.Height == 0 {
+				maxLength = 20
+			} else if maxLength < 5 {
+				maxLength = 5
+			}
+			length := len(table)
+			sort.Sort(table)
+			if length > maxLength {
+				table = table[:maxLength]
+			}
+
 			// Compute the maximum width of the size column
 			spacingBetweenColumns := 2
 			hasSizeWarning := false
@@ -559,7 +575,7 @@ func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
 			}
 
 			margin := "  "
-			layoutWidth := GetTerminalInfo(os.Stderr).Width
+			layoutWidth := info.Width
 			if layoutWidth < 1 {
 				layoutWidth = defaultTerminalWidth
 			}
@@ -571,11 +587,9 @@ func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
 			if layoutWidth > maxPath+maxSize {
 				layoutWidth = maxPath + maxSize
 			}
-			sort.Sort(table)
 			sb.WriteString("\n")
 
-			wasSourceMap := false
-			for i, entry := range table {
+			for _, entry := range table {
 				dir, base := entry.Dir, entry.Base
 				pathWidth := layoutWidth - maxSize
 
@@ -605,13 +619,6 @@ func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
 					spacer = 0
 				}
 
-				// Print a boundary in between normal files and source map files if
-				// there was more than one normal file. This improves scannability.
-				if !wasSourceMap && entry.IsSourceMap && i > 1 {
-					sb.WriteString("\n")
-					wasSourceMap = true
-				}
-
 				// Put a warning next to the size if it's above a certain threshold
 				sizeColor := colors.Cyan
 				sizeWarning := ""
@@ -637,6 +644,15 @@ func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
 					sizeWarning,
 					colors.Default,
 				))
+			}
+
+			// Say how many remaining files are not shown
+			if length > maxLength {
+				plural := "s"
+				if length == maxLength+1 {
+					plural = ""
+				}
+				sb.WriteString(fmt.Sprintf("%s%s...and %d more output file%s...%s\n", margin, colors.Dim, length-maxLength, plural, colors.Default))
 			}
 		}
 

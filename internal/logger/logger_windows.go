@@ -44,6 +44,7 @@ func GetTerminalInfo(file *os.File) TerminalInfo {
 	return TerminalInfo{
 		IsTTY:           isTTY != 0,
 		Width:           int(info.dwSizeX) - 1,
+		Height:          int(info.dwSizeY) - 1,
 		UseColorEscapes: true,
 	}
 }
