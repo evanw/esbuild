@@ -1141,9 +1141,13 @@ func estimateWidthInTerminal(text string) int {
 	// less wrong than assuming each code unit is one column.
 	width := 0
 	for text != "" {
-		_, size := utf8.DecodeRuneInString(text)
+		c, size := utf8.DecodeRuneInString(text)
 		text = text[size:]
-		width++
+
+		// Ignore the Zero Width No-Break Space character (UTF-8 BOM)
+		if c != 0xFEFF {
+			width++
+		}
 	}
 	return width
 }
