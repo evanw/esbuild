@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Omit a warning about `require.cache` when targeting CommonJS ([#812](https://github.com/evanw/esbuild/issues/812))
+
+    The `require.cache` property allows introspecting the state of the `require` cache, generally without affecting what is imported/bundled. Previously esbuild generated a warning about an unexpected use of `require`. Now this warning is no longer generated for `require.cache` when the output format is `cjs`.
+
 ## 0.8.46
 
 * Fix minification of `.0` in CSS ([#804](https://github.com/evanw/esbuild/issues/804))
