@@ -3743,9 +3743,19 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
 			}
+			jMeta.AddString("],\n      ")
+
+			// cjsWrap
+			if c.options.OutputFormat.KeepES6ImportExportSyntax() {
+				if chunk.isEntryPoint {
+					if fileRepr := c.files[chunk.sourceIndex].repr.(*reprJS); fileRepr.meta.cjsWrap {
+						jMeta.AddString(fmt.Sprintf("\"cjsWrap\": true,\n      "))
+					}
+				}
+			}
 
 			// Print exports
-			jMeta.AddString("],\n      \"exports\": [")
+			jMeta.AddString("\"exports\": [")
 			var aliases []string
 			if c.options.OutputFormat.KeepES6ImportExportSyntax() {
 				if chunk.isEntryPoint {
