@@ -102,8 +102,8 @@ var helpText = func(colors logger.Colors) string {
   ` + colors.Dim + `# Automatically rebuild when input files are changed` + colors.Default + `
   esbuild app.ts --bundle --watch
 
-  ` + colors.Dim + `# Start a local HTTP server for everything in "public"` + colors.Default + `
-  esbuild app.ts --bundle --servedir=public --outdir=public/js
+  ` + colors.Dim + `# Start a local HTTP server for everything in "www"` + colors.Default + `
+  esbuild app.ts --bundle --servedir=www --outdir=www/js
 
 `
 }
