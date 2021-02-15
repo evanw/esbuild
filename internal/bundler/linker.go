@@ -3781,7 +3781,13 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
 			}
-			jMeta.AddString("],\n      \"inputs\": {")
+			if chunk.isEntryPoint {
+				file := c.files[chunk.sourceIndex]
+				facadeModuleID := file.source.PrettyPath
+				jMeta.AddString(fmt.Sprintf("],\n      \"facadeModuleId\": %s,\n      \"inputs\": {", js_printer.QuoteForJSON(facadeModuleID, c.options.ASCIIOnly)))
+			} else {
+				jMeta.AddString("],\n      \"inputs\": {")
+			}
 		}
 
 		// Concatenate the generated JavaScript chunks together

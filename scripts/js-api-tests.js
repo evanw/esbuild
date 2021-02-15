@@ -947,6 +947,7 @@ body {
     assert.deepStrictEqual(json.inputs[makePath(nested3)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, ['nested1', 'nested2', 'topLevel'])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].facadeModuleId, makePath(entry))
   },
 
   async metafileCSS({ esbuild, testDir }) {
