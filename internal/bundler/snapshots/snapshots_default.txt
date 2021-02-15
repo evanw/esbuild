@@ -1944,7 +1944,7 @@ var require_test = __commonJS((exports, module) => {
 console.log(require_test());
 
 ================================================================================
-TestRequireMainCommonJS
+TestRequireMainCacheCommonJS
 ---------- /out.js ----------
 // is-main.js
 var require_is_main = __commonJS((exports2, module2) => {
@@ -1954,14 +1954,16 @@ var require_is_main = __commonJS((exports2, module2) => {
 // entry.js
 console.log("is main:", require.main === module);
 console.log(require_is_main());
+console.log("cache:", require.cache);
 
 ================================================================================
-TestRequireMainIIFE
+TestRequireMainCacheIIFE
 ---------- /out.js ----------
 (() => {
   // entry.js
   var require_entry = __commonJS((exports, module) => {
     console.log("is main:", require.main === module);
+    console.log("cache:", require.cache);
   });
   require_entry();
 })();
