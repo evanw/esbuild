@@ -206,10 +206,10 @@ type parser struct {
 	// warnings about non-string import paths will be omitted inside try blocks.
 	awaitTarget js_ast.E
 
-	// These helps recognize the "require.main" and "require.cache" patterns. If
-	// this pattern is present and the output format is CommonJS, we avoid
-	// generating a warning about an unbundled use of "require".
-	cjsDotMainOrCacheTarget js_ast.E
+	// This helps recognize the "require.someProperty" pattern. If this pattern is
+	// present and the output format is CommonJS, we avoid generating a warning
+	// about an unbundled use of "require".
+	cjsDotTarget js_ast.E
 
 	// This helps recognize calls to "require.resolve()" which may become
 	// ERequireResolve expressions.
@@ -10392,9 +10392,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		// Pattern-match "require.main" and "require.cache" from node
-		if p.options.outputFormat == config.FormatCommonJS && (e.Name == "main" || e.Name == "cache") {
-			p.cjsDotMainOrCacheTarget = e.Target.Data
+		// This helps us pattern-match "require.someProperty" when targeting CommonJS
+		if p.options.outputFormat == config.FormatCommonJS {
+			p.cjsDotTarget = e.Target.Data
 		}
 
 		isCallTarget := e == p.callTarget
@@ -11156,8 +11156,11 @@ func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarg
 		}
 	}
 
-	// Warn about uses of "require" other than a direct call
-	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && e != p.cjsDotMainOrCacheTarget && p.fnOrArrowDataVisit.tryBodyCount == 0 {
+	// Warn about uses of "require" other than a direct "require()" call, a
+	// "typeof require" expression, or a "require.someProperty" access. But
+	// suppress warnings inside a try body block since presumably the try/catch
+	// is there to handle run-time failures due to indirect require calls.
+	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && e != p.cjsDotTarget && p.fnOrArrowDataVisit.tryBodyCount == 0 {
 		// "typeof require == 'function' && require"
 		if e == p.typeofRequireEqualsFnTarget {
 			// Become "false" in the browser and "require" in node

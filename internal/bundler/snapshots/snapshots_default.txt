@@ -1989,6 +1989,24 @@ var src_default = 123;
 console.log(src_default);
 
 ================================================================================
+TestRequirePropertyAccessCommonJS
+---------- /out.js ----------
+// entry.js
+console.log(Object.keys(require.cache));
+console.log(Object.keys(require.extensions));
+delete require.cache["fs"];
+delete require.extensions[".json"];
+
+================================================================================
+TestRequirePropertyAccessES6
+---------- /out.js ----------
+// entry.js
+console.log(Object.keys(require.cache));
+console.log(Object.keys(require.extensions));
+delete require.cache["fs"];
+delete require.extensions[".json"];
+
+================================================================================
 TestRequireResolve
 ---------- /out.js ----------
 // entry.js

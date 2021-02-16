@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-* Omit a warning about `require.cache` when targeting CommonJS ([#812](https://github.com/evanw/esbuild/issues/812))
+* Omit warning about `require.someProperty` when targeting CommonJS ([#812](https://github.com/evanw/esbuild/issues/812))
 
-    The `require.cache` property allows introspecting the state of the `require` cache, generally without affecting what is imported/bundled. Previously esbuild generated a warning about an unexpected use of `require`. Now this warning is no longer generated for `require.cache` when the output format is `cjs`.
+    The `require.cache` property allows introspecting the state of the `require` cache, generally without affecting what is imported/bundled.
+
+    Since esbuild's static analyzer only detects direct calls to `require`, it currently warns about uses of `require` in any situation other than a direct call since that means the value is "escaping" the analyzer. This is meant to detect and warn about indirect calls such as `['fs', 'path'].map(require)`.
+
+    However, this warning is not relevant when accessing a property off of the `require` object such as `require.cache` because a property access does not result in capturing the value of `require`. Now a warning is no longer generated for `require.someProperty` when the output format is `cjs`. This allows for the use of features such as `require.cache` and `require.extensions`.
 
 ## 0.8.46
 
