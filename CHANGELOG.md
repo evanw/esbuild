@@ -8,7 +8,7 @@
 
     Since esbuild's static analyzer only detects direct calls to `require`, it currently warns about uses of `require` in any situation other than a direct call since that means the value is "escaping" the analyzer. This is meant to detect and warn about indirect calls such as `['fs', 'path'].map(require)`.
 
-    However, this warning is not relevant when accessing a property off of the `require` object such as `require.cache` because a property access does not result in capturing the value of `require`. Now a warning is no longer generated for `require.someProperty` when the output format is `cjs`. This allows for the use of features such as `require.cache` and `require.extensions`.
+    However, this warning is not relevant when accessing a property off of the `require` object such as `require.cache` because a property access does not result in capturing the value of `require`. Now a warning is no longer generated for `require.someProperty` when the output format is `cjs`. This allows for the use of features such as `require.cache` and `require.extensions`. This fix was contributed by [@huonw](https://github.com/huonw).
 
 ## 0.8.46
 
