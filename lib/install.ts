@@ -90,14 +90,6 @@ function validateBinaryVersion(binaryPath: string): void {
   try {
     stdout = child_process.execFileSync(binaryPath, ['--version']).toString().trim();
   } catch (err) {
-    if (platformKey === 'darwin arm64 LE')
-      throw new Error(`${err && err.message || err}
-
-This install script is trying to install the x64 esbuild executable because the
-arm64 esbuild executable is not available yet. Running this executable requires
-the Rosetta 2 binary translator. Please make sure you have Rosetta 2 installed
-before installing esbuild.
-`);
     throw err;
   }
   if (stdout !== version) {
@@ -289,7 +281,7 @@ const knownWindowsPackages: Record<string, string> = {
 };
 const knownUnixlikePackages: Record<string, string> = {
   'darwin x64 LE': 'esbuild-darwin-64',
-  'darwin arm64 LE': 'esbuild-darwin-64',
+  'darwin arm64 LE': 'esbuild-darwin-arm64',
   'freebsd arm64 LE': 'esbuild-freebsd-arm64',
   'freebsd x64 LE': 'esbuild-freebsd-64',
   'linux arm LE': 'esbuild-linux-arm',
