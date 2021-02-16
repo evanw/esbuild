@@ -1185,6 +1185,51 @@ func TestRequireWithoutCallInsideTry(t *testing.T) {
 	})
 }
 
+func TestRequirePropertyAccessCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// These shouldn't warn
+				console.log(Object.keys(require.cache))
+				console.log(Object.keys(require.extensions))
+				delete require.cache['fs']
+				delete require.extensions['.json']
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestRequirePropertyAccessES6(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// These shouldn't warn
+				console.log(Object.keys(require.cache))
+				console.log(Object.keys(require.extensions))
+				delete require.cache['fs']
+				delete require.extensions['.json']
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+`,
+	})
+}
+
 // Test a workaround for code using "await import()"
 func TestAwaitImportInsideTry(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
@@ -3793,12 +3838,13 @@ func TestConstWithLetNoMangle(t *testing.T) {
 	})
 }
 
-func TestRequireMainCommonJS(t *testing.T) {
+func TestRequireMainCacheCommonJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log('is main:', require.main === module)
 				console.log(require('./is-main'))
+				console.log('cache:', require.cache);
 			`,
 			"/is-main.js": `
 				module.exports = require.main === module
@@ -3813,11 +3859,12 @@ func TestRequireMainCommonJS(t *testing.T) {
 	})
 }
 
-func TestRequireMainIIFE(t *testing.T) {
+func TestRequireMainCacheIIFE(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log('is main:', require.main === module)
+				console.log('cache:', require.cache);
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -3827,6 +3874,7 @@ func TestRequireMainIIFE(t *testing.T) {
 			OutputFormat:  config.FormatIIFE,
 		},
 		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
 `,
 	})
 }

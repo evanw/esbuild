@@ -1944,7 +1944,7 @@ var require_test = __commonJS((exports, module) => {
 console.log(require_test());
 
 ================================================================================
-TestRequireMainCommonJS
+TestRequireMainCacheCommonJS
 ---------- /out.js ----------
 // is-main.js
 var require_is_main = __commonJS((exports2, module2) => {
@@ -1954,14 +1954,16 @@ var require_is_main = __commonJS((exports2, module2) => {
 // entry.js
 console.log("is main:", require.main === module);
 console.log(require_is_main());
+console.log("cache:", require.cache);
 
 ================================================================================
-TestRequireMainIIFE
+TestRequireMainCacheIIFE
 ---------- /out.js ----------
 (() => {
   // entry.js
   var require_entry = __commonJS((exports, module) => {
     console.log("is main:", require.main === module);
+    console.log("cache:", require.cache);
   });
   require_entry();
 })();
@@ -1985,6 +1987,24 @@ var src_default = 123;
 
 // Users/user/project/src/dir/entry.js
 console.log(src_default);
+
+================================================================================
+TestRequirePropertyAccessCommonJS
+---------- /out.js ----------
+// entry.js
+console.log(Object.keys(require.cache));
+console.log(Object.keys(require.extensions));
+delete require.cache["fs"];
+delete require.extensions[".json"];
+
+================================================================================
+TestRequirePropertyAccessES6
+---------- /out.js ----------
+// entry.js
+console.log(Object.keys(require.cache));
+console.log(Object.keys(require.extensions));
+delete require.cache["fs"];
+delete require.extensions[".json"];
 
 ================================================================================
 TestRequireResolve
