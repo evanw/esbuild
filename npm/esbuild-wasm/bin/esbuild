@@ -81,4 +81,4 @@ fs.read = function () {
 };
 
 const argv = ['node', wasm_exec, esbuild_wasm].concat(process.argv.slice(2));
-wrapper(require, require.main, Object.assign(Object.create(process), { argv }), { instantiate });
+wrapper(require, require.main, Object.assign(Object.create(process), { argv }), Object.assign(Object.create(WebAssembly), { instantiate }));
