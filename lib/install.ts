@@ -86,12 +86,7 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
 }
 
 function validateBinaryVersion(binaryPath: string): void {
-  let stdout;
-  try {
-    stdout = child_process.execFileSync(binaryPath, ['--version']).toString().trim();
-  } catch (err) {
-    throw err;
-  }
+  const stdout = child_process.execFileSync(binaryPath, ['--version']).toString().trim();
   if (stdout !== version) {
     throw new Error(`Expected ${JSON.stringify(version)} but got ${JSON.stringify(stdout)}`);
   }
