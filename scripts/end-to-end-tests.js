@@ -2446,6 +2446,25 @@
     }),
   )
 
+  // Test for a Windows-specific issue where paths starting with "/" could be
+  // treated as relative paths, leading to inconvenient cross-platform failures:
+  // https://github.com/evanw/esbuild/issues/822
+  tests.push(
+    test(['in.js', '--bundle'], {
+      'in.js': `
+        import "/file.js"
+      `,
+      'file.js': `This file should not be imported on Windows`,
+    }, {
+      expectedStderr: ` > in.js: error: Could not read from file: /file.js
+    2 │         import "/file.js"
+      ╵                ~~~~~~~~~~
+
+1 error
+`,
+    }),
+  )
+
   function test(args, files, options) {
     return async () => {
       const hasBundle = args.includes('--bundle')

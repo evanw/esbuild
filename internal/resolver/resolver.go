@@ -370,8 +370,16 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
 	var result PathPair
 
-	// Return early if this is already an absolute path
-	if r.fs.IsAbs(importPath) {
+	// Return early if this is already an absolute path. In addition to asking
+	// the file system whether this is an absolute path, we also explicitly check
+	// whether it starts with a "/" and consider that an absolute path too. This
+	// is because relative paths can technically start with a "/" on Windows
+	// because it's not an absolute path on Windows. Then people might write code
+	// with imports that start with a "/" that works fine on Windows only to
+	// experience unexpected build failures later on other operating systems.
+	// Treating these paths as absolute paths on all platforms means Windows
+	// users will not be able to accidentally make use of these paths.
+	if strings.HasPrefix(importPath, "/") || r.fs.IsAbs(importPath) {
 		// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
 		if dirInfo := r.dirInfoCached(sourceDir); dirInfo != nil && dirInfo.tsConfigJSON != nil && dirInfo.tsConfigJSON.Paths != nil {
 			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJSON, importPath, kind); ok {
