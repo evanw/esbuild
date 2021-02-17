@@ -48,7 +48,11 @@ func TestMockFSBasic(t *testing.T) {
 	if err != nil {
 		t.Fatal("Expected to find /src")
 	}
-	if len(src) != 2 || src["index.js"].Kind(fs) != FileEntry || src["util.js"].Kind(fs) != FileEntry {
+	indexEntry, _ := src.Get("index.js")
+	utilEntry, _ := src.Get("util.js")
+	if len(src.data) != 2 ||
+		indexEntry == nil || indexEntry.Kind(fs) != FileEntry ||
+		utilEntry == nil || utilEntry.Kind(fs) != FileEntry {
 		t.Fatalf("Incorrect contents for /src: %v", src)
 	}
 
@@ -57,7 +61,13 @@ func TestMockFSBasic(t *testing.T) {
 	if err != nil {
 		t.Fatal("Expected to find /")
 	}
-	if len(slash) != 3 || slash["src"].Kind(fs) != DirEntry || slash["README.md"].Kind(fs) != FileEntry || slash["package.json"].Kind(fs) != FileEntry {
+	srcEntry, _ := slash.Get("src")
+	readmeEntry, _ := slash.Get("README.md")
+	packageEntry, _ := slash.Get("package.json")
+	if len(slash.data) != 3 ||
+		srcEntry == nil || srcEntry.Kind(fs) != DirEntry ||
+		readmeEntry == nil || readmeEntry.Kind(fs) != FileEntry ||
+		packageEntry == nil || packageEntry.Kind(fs) != FileEntry {
 		t.Fatalf("Incorrect contents for /: %v", slash)
 	}
 }

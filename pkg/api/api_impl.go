@@ -1363,7 +1363,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			absPath := h.fs.Join(h.servedir, queryPath)
 			if absDir := h.fs.Dir(absPath); absDir != absPath {
 				if entries, err := h.fs.ReadDirectory(absDir); err == nil {
-					if entry := entries[h.fs.Base(absPath)]; entry != nil && entry.Kind(h.fs) == fs.FileEntry {
+					if entry, _ := entries.Get(h.fs.Base(absPath)); entry != nil && entry.Kind(h.fs) == fs.FileEntry {
 						if contents, err := h.fs.ReadFile(absPath); err == nil {
 							fileContents = []byte(contents)
 							kind = fs.FileEntry
@@ -1383,7 +1383,8 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		if h.servedir != "" && kind != fs.FileEntry {
 			if entries, err := h.fs.ReadDirectory(h.fs.Join(h.servedir, queryPath)); err == nil {
 				kind = fs.DirEntry
-				for name, entry := range entries {
+				for _, name := range entries.UnorderedKeys() {
+					entry, _ := entries.Get(name)
 					switch entry.Kind(h.fs) {
 					case fs.DirEntry:
 						dirEntries[name] = true

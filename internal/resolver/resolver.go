@@ -95,7 +95,8 @@ type ResolveResult struct {
 	JSXFactory  []string // Default if empty: "React.createElement"
 	JSXFragment []string // Default if empty: "React.Fragment"
 
-	IsExternal bool
+	IsExternal    bool
+	DifferentCase *fs.DifferentCase
 
 	// If true, any ES6 imports to this file can be considered to have no side
 	// effects. This means they should be removed if unused.
@@ -273,8 +274,8 @@ func (r *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath st
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	if pair, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
-		result := &ResolveResult{PathPair: pair}
+	if pair, ok, diffCase := r.loadAsFileOrDirectory(absPath, kind); ok {
+		result := &ResolveResult{PathPair: pair, DifferentCase: diffCase}
 		r.finalizeResolve(result)
 		return result
 	}
@@ -350,7 +351,7 @@ func (r *resolver) finalizeResolve(result *ResolveResult) {
 				}
 
 				if !r.options.PreserveSymlinks {
-					if entry, ok := dirInfo.entries[base]; ok {
+					if entry, _ := dirInfo.entries.Get(base); entry != nil {
 						if symlink := entry.Symlink(r.fs); symlink != "" {
 							// Is this entry itself a symlink?
 							path.Text = symlink
@@ -368,7 +369,7 @@ func (r *resolver) finalizeResolve(result *ResolveResult) {
 func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
-	var result PathPair
+	var result ResolveResult
 
 	// Return early if this is already an absolute path. In addition to asking
 	// the file system whether this is an absolute path, we also explicitly check
@@ -382,8 +383,8 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 	if strings.HasPrefix(importPath, "/") || r.fs.IsAbs(importPath) {
 		// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
 		if dirInfo := r.dirInfoCached(sourceDir); dirInfo != nil && dirInfo.tsConfigJSON != nil && dirInfo.tsConfigJSON.Paths != nil {
-			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJSON, importPath, kind); ok {
-				return &ResolveResult{PathPair: absolute}
+			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.tsConfigJSON, importPath, kind); ok {
+				return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
 			}
 		}
 
@@ -419,8 +420,8 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 				if remapped, ok := packageJSON.browserNonPackageMap[absPath]; ok {
 					if remapped == nil {
 						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}
-					} else if remappedResult, ok := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-						result = remappedResult
+					} else if remappedResult, ok, diffCase := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+						result = ResolveResult{PathPair: remappedResult, DifferentCase: diffCase}
 						checkRelative = false
 						checkPackage = false
 					}
@@ -429,9 +430,9 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 		}
 
 		if checkRelative {
-			if absolute, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
+			if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath, kind); ok {
 				checkPackage = false
-				result = absolute
+				result = ResolveResult{PathPair: absolute, DifferentCase: diffCase}
 			} else if !checkPackage {
 				return nil
 			}
@@ -470,14 +471,14 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 				if remapped, ok := packageJSON.browserPackageMap[importPath]; ok {
 					if remapped == nil {
 						// "browser": {"module": false}
-						if absolute, ok := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
+						if absolute, ok, diffCase := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
 							absolute.Primary = logger.Path{Text: absolute.Primary.Text, Namespace: "file", Flags: logger.PathDisabled}
 							if absolute.HasSecondary() {
 								absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Namespace: "file", Flags: logger.PathDisabled}
 							}
-							return &ResolveResult{PathPair: absolute}
+							return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
 						} else {
-							return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Flags: logger.PathDisabled}}}
+							return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Flags: logger.PathDisabled}}, DifferentCase: diffCase}
 						}
 					} else {
 						// "browser": {"module": "./some-file"}
@@ -489,8 +490,8 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			}
 		}
 
-		if absolute, ok := r.resolveWithoutRemapping(sourceDirInfo, importPath, kind); ok {
-			result = absolute
+		if absolute, ok, diffCase := r.resolveWithoutRemapping(sourceDirInfo, importPath, kind); ok {
+			result = ResolveResult{PathPair: absolute, DifferentCase: diffCase}
 		} else {
 			// Note: node's "self references" are not currently supported
 			return nil
@@ -498,7 +499,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 	}
 
 	// Check the directory that contains this file
-	for _, path := range result.iter() {
+	for _, path := range result.PathPair.iter() {
 		resultDir := r.fs.Dir(path.Text)
 		resultDirInfo := r.dirInfoCached(resultDir)
 
@@ -509,7 +510,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 				if remapped, ok := packageJSON.browserNonPackageMap[path.Text]; ok {
 					if remapped == nil {
 						path.Flags |= logger.PathDisabled
-					} else if remappedResult, ok := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+					} else if remappedResult, ok, _ := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
 						*path = remappedResult.Primary
 					} else {
 						return nil
@@ -519,10 +520,10 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 		}
 	}
 
-	return &ResolveResult{PathPair: result}
+	return &result
 }
 
-func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string, kind ast.ImportKind) (PathPair, bool) {
+func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase) {
 	if IsPackagePath(importPath) {
 		return r.loadNodeModules(importPath, kind, sourceDirInfo)
 	} else {
@@ -612,7 +613,7 @@ type dirInfo struct {
 
 	// All relevant information about this directory
 	absPath        string
-	entries        map[string]*fs.Entry
+	entries        fs.DirEntries
 	hasNodeModules bool          // Is there a "node_modules" subdirectory?
 	absPathIndex   *string       // Is there an "index.js" file?
 	packageJSON    *packageJSON  // Is there a "package.json" file?
@@ -784,7 +785,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	// A "node_modules" directory isn't allowed to directly contain another "node_modules" directory
 	base := r.fs.Base(path)
 	if base != "node_modules" {
-		if entry, ok := entries["node_modules"]; ok {
+		if entry, _ := entries.Get("node_modules"); entry != nil {
 			info.hasNodeModules = entry.Kind(r.fs) == fs.DirEntry
 		}
 	}
@@ -795,7 +796,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 
 		// Make sure "absRealPath" is the real path of the directory (resolving any symlinks)
 		if !r.options.PreserveSymlinks {
-			if entry, ok := parentInfo.entries[base]; ok {
+			if entry, _ := parentInfo.entries.Get(base); entry != nil {
 				if symlink := entry.Symlink(r.fs); symlink != "" {
 					info.absRealPath = symlink
 				} else if parentInfo.absRealPath != "" {
@@ -806,7 +807,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	}
 
 	// Record if this directory has a package.json file
-	if entry, ok := entries["package.json"]; ok && entry.Kind(r.fs) == fs.FileEntry {
+	if entry, _ := entries.Get("package.json"); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 		info.packageJSON = r.parsePackageJSON(path)
 
 		// Propagate this browser scope into child directories
@@ -819,9 +820,9 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	{
 		var tsConfigPath string
 		if forceTsConfig := r.options.TsConfigOverride; forceTsConfig == "" {
-			if entry, ok := entries["tsconfig.json"]; ok && entry.Kind(r.fs) == fs.FileEntry {
+			if entry, _ := entries.Get("tsconfig.json"); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 				tsConfigPath = r.fs.Join(path, "tsconfig.json")
-			} else if entry, ok := entries["jsconfig.json"]; ok && entry.Kind(r.fs) == fs.FileEntry {
+			} else if entry, _ := entries.Get("jsconfig.json"); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 				tsConfigPath = r.fs.Join(path, "jsconfig.json")
 			}
 		} else if parentInfo == nil {
@@ -850,7 +851,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	}
 
 	// Look for an "index" file with known extensions
-	if absolute, ok := r.loadAsIndex(path, entries); ok {
+	if absolute, ok, _ := r.loadAsIndex(path, entries); ok {
 		info.absPathIndex = &absolute
 	}
 
@@ -881,14 +882,14 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 
 	toAbsPath := func(pathText string, pathRange logger.Range) *string {
 		// Is it a file?
-		if absolute, ok := r.loadAsFile(pathText, r.options.ExtensionOrder); ok {
+		if absolute, ok, _ := r.loadAsFile(pathText, r.options.ExtensionOrder); ok {
 			return &absolute
 		}
 
 		// Is it a directory?
 		if mainEntries, err := r.fs.ReadDirectory(pathText); err == nil {
 			// Look for an "index" file with known extensions
-			if absolute, ok := r.loadAsIndex(pathText, mainEntries); ok {
+			if absolute, ok, _ := r.loadAsIndex(pathText, mainEntries); ok {
 				return &absolute
 			}
 		} else if err != syscall.ENOENT {
@@ -1052,7 +1053,7 @@ func globToEscapedRegexp(glob string) (string, bool) {
 	return sb.String(), hadWildcard
 }
 
-func (r *resolver) loadAsFile(path string, extensionOrder []string) (string, bool) {
+func (r *resolver) loadAsFile(path string, extensionOrder []string) (string, bool, *fs.DifferentCase) {
 	// Read the directory entries once to minimize locking
 	dirPath := r.fs.Dir(path)
 	entries, err := r.fs.ReadDirectory(dirPath)
@@ -1062,20 +1063,20 @@ func (r *resolver) loadAsFile(path string, extensionOrder []string) (string, boo
 				fmt.Sprintf("Cannot read directory %q: %s",
 					r.PrettyPath(logger.Path{Text: dirPath, Namespace: "file"}), err.Error()))
 		}
-		return "", false
+		return "", false, nil
 	}
 
 	base := r.fs.Base(path)
 
 	// Try the plain path without any extensions
-	if entry, ok := entries[base]; ok && entry.Kind(r.fs) == fs.FileEntry {
-		return path, true
+	if entry, diffCase := entries.Get(base); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+		return path, true, diffCase
 	}
 
 	// Try the path with extensions
 	for _, ext := range extensionOrder {
-		if entry, ok := entries[base+ext]; ok && entry.Kind(r.fs) == fs.FileEntry {
-			return path + ext, true
+		if entry, diffCase := entries.Get(base + ext); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+			return path + ext, true, diffCase
 		}
 	}
 
@@ -1099,28 +1100,28 @@ func (r *resolver) loadAsFile(path string, extensionOrder []string) (string, boo
 		// Note that the official compiler code always tries ".ts" before
 		// ".tsx" even if the original extension was ".jsx".
 		for _, ext := range []string{".ts", ".tsx"} {
-			if entry, ok := entries[base[:lastDot]+ext]; ok && entry.Kind(r.fs) == fs.FileEntry {
-				return path[:len(path)-(len(base)-lastDot)] + ext, true
+			if entry, diffCase := entries.Get(base[:lastDot] + ext); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+				return path[:len(path)-(len(base)-lastDot)] + ext, true, diffCase
 			}
 		}
 	}
 
-	return "", false
+	return "", false, nil
 }
 
 // We want to minimize the number of times directory contents are listed. For
 // this reason, the directory entries are computed by the caller and then
 // passed down to us.
-func (r *resolver) loadAsIndex(path string, entries map[string]*fs.Entry) (string, bool) {
+func (r *resolver) loadAsIndex(path string, entries fs.DirEntries) (string, bool, *fs.DifferentCase) {
 	// Try the "index" file with extensions
 	for _, ext := range r.options.ExtensionOrder {
 		base := "index" + ext
-		if entry, ok := entries[base]; ok && entry.Kind(r.fs) == fs.FileEntry {
-			return r.fs.Join(path, base), true
+		if entry, diffCase := entries.Get(base); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+			return r.fs.Join(path, base), true, diffCase
 		}
 	}
 
-	return "", false
+	return "", false, nil
 }
 
 func getProperty(json js_ast.Expr, name string) (js_ast.Expr, logger.Loc, bool) {
@@ -1149,7 +1150,7 @@ func getBool(json js_ast.Expr) (bool, bool) {
 	return false, false
 }
 
-func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (PathPair, bool) {
+func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase) {
 	// Use a special import order for CSS "@import" imports
 	extensionOrder := r.options.ExtensionOrder
 	if kind == ast.ImportAt {
@@ -1157,15 +1158,15 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (Path
 	}
 
 	// Is this a file?
-	absolute, ok := r.loadAsFile(path, extensionOrder)
+	absolute, ok, diffCase := r.loadAsFile(path, extensionOrder)
 	if ok {
-		return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true
+		return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
 	}
 
 	// Is this a directory?
 	dirInfo := r.dirInfoCached(path)
 	if dirInfo == nil {
-		return PathPair{}, false
+		return PathPair{}, false, nil
 	}
 
 	// Try using the main field(s) from "package.json"
@@ -1198,29 +1199,29 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (Path
 								// This is the whole point of the path pair
 								Primary:   logger.Path{Text: absolute, Namespace: "file"},
 								Secondary: logger.Path{Text: absoluteMain, Namespace: "file"},
-							}, true
+							}, true, nil
 						} else {
-							return PathPair{Primary: logger.Path{Text: absoluteMain, Namespace: "file"}}, true
+							return PathPair{Primary: logger.Path{Text: absoluteMain, Namespace: "file"}}, true, nil
 						}
 					}
 				}
 
-				return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true
+				return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, nil
 			}
 		}
 	}
 
 	// Return the "index.js" file
 	if dirInfo.absPathIndex != nil {
-		return PathPair{Primary: logger.Path{Text: *dirInfo.absPathIndex, Namespace: "file"}}, true
+		return PathPair{Primary: logger.Path{Text: *dirInfo.absPathIndex, Namespace: "file"}}, true, nil
 	}
 
-	return PathPair{}, false
+	return PathPair{}, false, nil
 }
 
 // This closely follows the behavior of "tryLoadModuleUsingPaths()" in the
 // official TypeScript compiler
-func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, kind ast.ImportKind) (PathPair, bool) {
+func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase) {
 	// Check for exact matches first
 	for key, originalPaths := range tsConfigJSON.Paths {
 		if key == path {
@@ -1230,11 +1231,11 @@ func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, k
 				if !r.fs.IsAbs(originalPath) {
 					absoluteOriginalPath = r.fs.Join(tsConfigJSON.BaseURLForPaths, originalPath)
 				}
-				if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
-					return absolute, true
+				if absolute, ok, diffCase := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
+					return absolute, true, diffCase
 				}
 			}
-			return PathPair{}, false
+			return PathPair{}, false, nil
 		}
 	}
 
@@ -1283,30 +1284,30 @@ func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, k
 			if !r.fs.IsAbs(originalPath) {
 				absoluteOriginalPath = r.fs.Join(tsConfigJSON.BaseURLForPaths, originalPath)
 			}
-			if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
-				return absolute, true
+			if absolute, ok, diffCase := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
+				return absolute, true, diffCase
 			}
 		}
 	}
 
-	return PathPair{}, false
+	return PathPair{}, false, nil
 }
 
-func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool) {
+func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool, *fs.DifferentCase) {
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
 	if dirInfo.tsConfigJSON != nil {
 		// Try path substitutions first
 		if dirInfo.tsConfigJSON.Paths != nil {
-			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJSON, path, kind); ok {
-				return absolute, true
+			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.tsConfigJSON, path, kind); ok {
+				return absolute, true, diffCase
 			}
 		}
 
 		// Try looking up the path relative to the base URL
 		if dirInfo.tsConfigJSON.BaseURL != nil {
 			basePath := r.fs.Join(*dirInfo.tsConfigJSON.BaseURL, path)
-			if absolute, ok := r.loadAsFileOrDirectory(basePath, kind); ok {
-				return absolute, true
+			if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath, kind); ok {
+				return absolute, true, diffCase
 			}
 		}
 	}
@@ -1314,8 +1315,8 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 	// Then check the global "NODE_PATH" environment variable
 	for _, absDir := range r.options.AbsNodePaths {
 		absPath := r.fs.Join(absDir, path)
-		if absolute, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
-			return absolute, true
+		if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath, kind); ok {
+			return absolute, true, diffCase
 		}
 	}
 
@@ -1332,16 +1333,16 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 				if packageJSON := importDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserNonPackageMap != nil {
 					if remapped, ok := packageJSON.browserNonPackageMap[absPath]; ok {
 						if remapped == nil {
-							return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true
-						} else if remappedResult, ok := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-							return remappedResult, true
+							return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil
+						} else if remappedResult, ok, diffCase := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+							return remappedResult, true, diffCase
 						}
 					}
 				}
 			}
 
-			if absolute, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
-				return absolute, true
+			if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath, kind); ok {
+				return absolute, true, diffCase
 			}
 		}
 
@@ -1352,7 +1353,7 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 		}
 	}
 
-	return PathPair{}, false
+	return PathPair{}, false, nil
 }
 
 // Package paths are loaded from a "node_modules" directory. Non-package paths

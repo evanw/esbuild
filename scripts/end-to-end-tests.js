@@ -2465,6 +2465,42 @@
     }),
   )
 
+  // Test that importing a path with the wrong case works ok. This is necessary
+  // to handle case-insensitive file systems.
+  if (process.platform === 'darwin' || process.platform === 'win32') {
+    tests.push(
+      test(['in.js', '--bundle', '--outfile=node.js'], {
+        'in.js': `
+        import x from "./File1.js"
+        import y from "./file2.js"
+        if (x !== 123 || y !== 234) throw 'fail'
+      `,
+        'file1.js': `export default 123`,
+        'File2.js': `export default 234`,
+      }, {
+        expectedStderr: ` > in.js: warning: Use "file1.js" instead of "File1.js" to avoid issues with case-sensitive file systems
+    2 │         import x from "./File1.js"
+      ╵                       ~~~~~~~~~~~~
+
+ > in.js: warning: Use "File2.js" instead of "file2.js" to avoid issues with case-sensitive file systems
+    3 │         import y from "./file2.js"
+      ╵                       ~~~~~~~~~~~~
+
+2 warnings
+`,
+      }),
+      test(['in.js', '--bundle', '--outfile=node.js'], {
+        'in.js': `
+        import x from "./Dir1/file.js"
+        import y from "./dir2/file.js"
+        if (x !== 123 || y !== 234) throw 'fail'
+      `,
+        'dir1/file.js': `export default 123`,
+        'Dir2/file.js': `export default 234`,
+      }),
+    )
+  }
+
   function test(args, files, options) {
     return async () => {
       const hasBundle = args.includes('--bundle')

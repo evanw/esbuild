@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"syscall"
 )
@@ -28,7 +29,7 @@ type realFS struct {
 }
 
 type entriesOrErr struct {
-	entries map[string]*Entry
+	entries DirEntries
 	err     error
 }
 
@@ -113,7 +114,7 @@ func RealFS(options RealFSOptions) (FS, error) {
 	}, nil
 }
 
-func (fs *realFS) ReadDirectory(dir string) (map[string]*Entry, error) {
+func (fs *realFS) ReadDirectory(dir string) (DirEntries, error) {
 	if !fs.doNotCacheEntries {
 		// First, check the cache
 		if cached, ok := fs.entries[dir]; ok {
@@ -124,13 +125,13 @@ func (fs *realFS) ReadDirectory(dir string) (map[string]*Entry, error) {
 
 	// Cache miss: read the directory entries
 	names, err := readdir(dir)
-	entries := make(map[string]*Entry)
+	entries := DirEntries{dir, make(map[string]*Entry)}
 	if err == nil {
 		for _, name := range names {
 			// Call "stat" lazily for performance. The "@material-ui/icons" package
 			// contains a directory with over 11,000 entries in it and running "stat"
 			// for each entry was a big performance issue for that package.
-			entries[name] = &Entry{
+			entries.data[strings.ToLower(name)] = &Entry{
 				dir:      dir,
 				base:     name,
 				needStat: true,
@@ -156,7 +157,7 @@ func (fs *realFS) ReadDirectory(dir string) (map[string]*Entry, error) {
 	// Update the cache unconditionally. Even if the read failed, we don't want to
 	// retry again later. The directory is inaccessible so trying again is wasted.
 	if err != nil {
-		entries = nil
+		entries.data = nil
 	}
 	if !fs.doNotCacheEntries {
 		fs.entries[dir] = entriesOrErr{entries: entries, err: err}

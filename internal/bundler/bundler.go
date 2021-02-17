@@ -700,7 +700,19 @@ func runOnResolvePlugins(
 	// Resolve relative to the resolve directory by default. All paths in the
 	// "file" namespace automatically have a resolve directory. Loader plugins
 	// can also configure a custom resolve directory for files in other namespaces.
-	return res.Resolve(absResolveDir, path, kind), false
+	result := res.Resolve(absResolveDir, path, kind)
+
+	// Warn when the case used for importing differs from the actual file name
+	if result != nil && result.DifferentCase != nil {
+		diffCase := *result.DifferentCase
+		log.AddRangeWarning(importSource, importPathRange, fmt.Sprintf(
+			"Use %q instead of %q to avoid issues with case-sensitive file systems",
+			res.PrettyPath(logger.Path{Text: fs.Join(diffCase.Dir, diffCase.Actual), Namespace: "file"}),
+			res.PrettyPath(logger.Path{Text: fs.Join(diffCase.Dir, diffCase.Query), Namespace: "file"}),
+		))
+	}
+
+	return result, false
 }
 
 type loaderPluginResult struct {
@@ -1114,7 +1126,7 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 			dir := s.fs.Dir(absPath)
 			base := s.fs.Base(absPath)
 			if entries, err := s.fs.ReadDirectory(dir); err == nil {
-				if entry := entries[base]; entry != nil && entry.Kind(s.fs) == fs.FileEntry {
+				if entry, _ := entries.Get(base); entry != nil && entry.Kind(s.fs) == fs.FileEntry {
 					entryPoints[i] = "./" + path
 				}
 			}

@@ -33,6 +33,10 @@
 
     Now paths starting with a `/` are always treated as an absolute path on all platforms. This means you can no longer import files at a relative path that starts with `/` on Windows. You should be using a `./` prefix instead.
 
+* Warn when importing a path with the wrong case
+
+    Importing a path with the wrong case (e.g. `File.js` instead of `file.js`) will work on Windows and sometimes on macOS because they have case-insensitive file systems, but it will never work on Linux because it has a case-sensitive file system. To help you make your code more portable and to avoid cross-platform build failures, esbuild now issues a warning when you do this.
+
 ## 0.8.46
 
 * Fix minification of `.0` in CSS ([#804](https://github.com/evanw/esbuild/issues/804))

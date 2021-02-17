@@ -12,12 +12,12 @@ import (
 )
 
 type mockFS struct {
-	dirs  map[string]map[string]*Entry
+	dirs  map[string]DirEntries
 	files map[string]string
 }
 
 func MockFS(input map[string]string) FS {
-	dirs := make(map[string]map[string]*Entry)
+	dirs := make(map[string]DirEntries)
 	files := make(map[string]string)
 
 	for k, v := range input {
@@ -29,16 +29,17 @@ func MockFS(input map[string]string) FS {
 			kDir := path.Dir(k)
 			dir, ok := dirs[kDir]
 			if !ok {
-				dir = make(map[string]*Entry)
+				dir = DirEntries{kDir, make(map[string]*Entry)}
 				dirs[kDir] = dir
 			}
 			if kDir == k {
 				break
 			}
+			base := path.Base(k)
 			if k == original {
-				dir[path.Base(k)] = &Entry{kind: FileEntry}
+				dir.data[strings.ToLower(base)] = &Entry{kind: FileEntry, base: base}
 			} else {
-				dir[path.Base(k)] = &Entry{kind: DirEntry}
+				dir.data[strings.ToLower(base)] = &Entry{kind: DirEntry, base: base}
 			}
 			k = kDir
 		}
@@ -47,12 +48,11 @@ func MockFS(input map[string]string) FS {
 	return &mockFS{dirs, files}
 }
 
-func (fs *mockFS) ReadDirectory(path string) (map[string]*Entry, error) {
-	dir := fs.dirs[path]
-	if dir == nil {
-		return nil, syscall.ENOENT
+func (fs *mockFS) ReadDirectory(path string) (DirEntries, error) {
+	if dir, ok := fs.dirs[path]; ok {
+		return dir, nil
 	}
-	return dir, nil
+	return DirEntries{}, syscall.ENOENT
 }
 
 func (fs *mockFS) ReadFile(path string) (string, error) {

@@ -2,6 +2,7 @@ package fs
 
 import (
 	"errors"
+	"strings"
 	"sync"
 )
 
@@ -41,10 +42,47 @@ func (e *Entry) Symlink(fs FS) string {
 	return e.symlink
 }
 
+type DirEntries struct {
+	dir  string
+	data map[string]*Entry
+}
+
+type DifferentCase struct {
+	Dir    string
+	Query  string
+	Actual string
+}
+
+func (entries DirEntries) Get(query string) (*Entry, *DifferentCase) {
+	if entries.data != nil {
+		if entry := entries.data[strings.ToLower(query)]; entry != nil {
+			if entry.base != query {
+				return entry, &DifferentCase{
+					Dir:    entries.dir,
+					Query:  query,
+					Actual: entry.base,
+				}
+			}
+			return entry, nil
+		}
+	}
+	return nil, nil
+}
+
+func (entries DirEntries) UnorderedKeys() (keys []string) {
+	if entries.data != nil {
+		keys = make([]string, 0, len(entries.data))
+		for _, entry := range entries.data {
+			keys = append(keys, entry.base)
+		}
+	}
+	return
+}
+
 type FS interface {
 	// The returned map is immutable and is cached across invocations. Do not
 	// mutate it.
-	ReadDirectory(path string) (map[string]*Entry, error)
+	ReadDirectory(path string) (DirEntries, error)
 	ReadFile(path string) (string, error)
 
 	// This is a key made from the information returned by "stat". It is intended
