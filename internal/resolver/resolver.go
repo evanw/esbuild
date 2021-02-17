@@ -226,11 +226,24 @@ func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportK
 
 	result := r.resolveWithoutSymlinks(sourceDir, importPath, kind)
 	if result == nil {
-		return nil
+		// If resolution failed, try again with the URL query and/or hash removed
+		suffix := strings.IndexAny(importPath, "?#")
+		if suffix < 1 {
+			return nil
+		}
+		result = r.resolveWithoutSymlinks(sourceDir, importPath[:suffix], kind)
+		if result == nil {
+			return nil
+		}
+		result.PathPair.Primary.IgnoredSuffix = importPath[suffix:]
+		if result.PathPair.HasSecondary() {
+			result.PathPair.Secondary.IgnoredSuffix = importPath[suffix:]
+		}
 	}
 
 	// If successful, resolve symlinks using the directory info cache
-	return r.finalizeResolve(*result)
+	r.finalizeResolve(result)
+	return result
 }
 
 func (r *resolver) isExternalPattern(path string) bool {
@@ -249,7 +262,9 @@ func (r *resolver) ResolveAbs(absPath string) *ResolveResult {
 	defer r.mutex.Unlock()
 
 	// Just decorate the absolute path with information from parent directories
-	return r.finalizeResolve(ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}})
+	result := &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}}
+	r.finalizeResolve(result)
+	return result
 }
 
 func (r *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
@@ -259,7 +274,9 @@ func (r *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath st
 	defer r.mutex.Unlock()
 
 	if pair, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
-		return r.finalizeResolve(ResolveResult{PathPair: pair})
+		result := &ResolveResult{PathPair: pair}
+		r.finalizeResolve(result)
+		return result
 	}
 	return nil
 }
@@ -283,7 +300,7 @@ func IsInsideNodeModules(fs fs.FS, path string) bool {
 	}
 }
 
-func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
+func (r *resolver) finalizeResolve(result *ResolveResult) {
 	for _, path := range result.PathPair.iter() {
 		if path.Namespace == "file" {
 			if dirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); dirInfo != nil {
@@ -346,8 +363,6 @@ func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 			}
 		}
 	}
-
-	return &result
 }
 
 func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
@@ -527,7 +542,7 @@ func (r *resolver) PrettyPath(path logger.Path) string {
 		path.Text = "(disabled):" + path.Text
 	}
 
-	return path.Text
+	return path.Text + path.IgnoredSuffix
 }
 
 ////////////////////////////////////////////////////////////////////////////////

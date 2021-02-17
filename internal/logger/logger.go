@@ -129,7 +129,14 @@ func (a SortableMsgs) Less(i int, j int) bool {
 type Path struct {
 	Text      string
 	Namespace string
-	Flags     PathFlags
+
+	// This feature was added to support ancient CSS libraries that append things
+	// like "?#iefix" and "#icons" to some of their import paths as a hack for IE6.
+	// The intent is for these suffix parts to be ignored but passed through to
+	// the output. This is supported by other bundlers, so we also support this.
+	IgnoredSuffix string
+
+	Flags PathFlags
 }
 
 type PathFlags uint8
@@ -146,7 +153,8 @@ func (p Path) IsDisabled() bool {
 func (a Path) ComesBeforeInSortedOrder(b Path) bool {
 	return a.Namespace > b.Namespace ||
 		(a.Namespace == b.Namespace && (a.Text < b.Text ||
-			(a.Text == b.Text && a.Flags < b.Flags)))
+			(a.Text == b.Text && (a.Flags < b.Flags ||
+				(a.Flags == b.Flags && a.IgnoredSuffix < b.IgnoredSuffix)))))
 }
 
 // This has a custom implementation instead of using "filepath.Dir/Base/Ext"

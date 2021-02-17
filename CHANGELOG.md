@@ -10,6 +10,23 @@
 
     However, this warning is not relevant when accessing a property off of the `require` object such as `require.cache` because a property access does not result in capturing the value of `require`. Now a warning is no longer generated for `require.someProperty` when the output format is `cjs`. This allows for the use of features such as `require.cache` and `require.extensions`. This fix was contributed by [@huonw](https://github.com/huonw).
 
+* Support ignored URL parameters at the end of import paths ([#826](https://github.com/evanw/esbuild/issues/826))
+
+    If path resolution fails, ebuild will now try again with the URL query and/or fragment removed. This helps handle ancient CSS code like this that contains hacks for Internet Explorer:
+
+    ```css
+    @font-face {
+      src:
+        url("./themes/default/assets/fonts/icons.eot?#iefix") format('embedded-opentype'),
+        url("./themes/default/assets/fonts/icons.woff2") format('woff2'),
+        url("./themes/default/assets/fonts/icons.woff") format('woff'),
+        url("./themes/default/assets/fonts/icons.ttf") format('truetype'),
+        url("./themes/default/assets/fonts/icons.svg#icons") format('svg');
+    }
+    ```
+
+    Previously path resolution would fail because these files do not end with the `.eot?#iefix` or `.svg#icons` extensions. Now path resolution should succeed. The URL query and fragment are not unconditionally stripped because there is apparently [code in the wild that uses `#` as a directory name](https://github.com/medikoo/es5-ext/tree/3ddd2066b19e7c25a782869a304ae35d8188c8f1/string/%23). So esbuild will still try to resolve the full import path first and only try to reinterpret the path as a URL if that fails.
+
 ## 0.8.46
 
 * Fix minification of `.0` in CSS ([#804](https://github.com/evanw/esbuild/issues/804))

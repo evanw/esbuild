@@ -2247,6 +2247,65 @@ func TestExternalModuleExclusionRelativePath(t *testing.T) {
 	})
 }
 
+// Webpack supports this case, so we do too. Some libraries apparently have
+// these paths: https://github.com/webpack/enhanced-resolve/issues/247
+func TestImportWithHashInPath(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import foo from './file#foo.txt'
+				import bar from './file#bar.txt'
+				console.log(foo, bar)
+			`,
+			"/file#foo.txt": `foo`,
+			"/file#bar.txt": `bar`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestImportWithHashParameter(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// Each of these should have a separate identity (i.e. end up in the output file twice)
+				import foo from './file.txt#foo'
+				import bar from './file.txt#bar'
+				console.log(foo, bar)
+			`,
+			"/file.txt": `This is some text`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestImportWithQueryParameter(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// Each of these should have a separate identity (i.e. end up in the output file twice)
+				import foo from './file.txt?foo'
+				import bar from './file.txt?bar'
+				console.log(foo, bar)
+			`,
+			"/file.txt": `This is some text`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
 func TestAutoExternal(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

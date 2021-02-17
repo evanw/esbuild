@@ -304,7 +304,7 @@ func parseFile(args parseArgs) {
 		// but different contents from colliding
 		hash := hashForFileName([]byte(source.Contents))
 		additionalFileName := base + "." + hash + ext
-		publicPath := args.options.PublicPath + additionalFileName
+		publicPath := args.options.PublicPath + additionalFileName + source.KeyPath.IgnoredSuffix
 
 		// Determine the destination folder
 		targetFolder := args.options.AbsOutputDir

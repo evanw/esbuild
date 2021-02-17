@@ -401,3 +401,48 @@ func TestLoaderJSONSharedWithMultipleEntriesIssue413(t *testing.T) {
 		},
 	})
 }
+
+func TestLoaderFileWithQueryParameter(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// Each of these should have a separate identity (i.e. end up in the output file twice)
+				import foo from './file.txt?foo'
+				import bar from './file.txt?bar'
+				console.log(foo, bar)
+			`,
+			"/file.txt": `This is some text`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".txt": config.LoaderFile,
+			},
+		},
+	})
+}
+
+func TestLoaderFromExtensionWithQueryParameter(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import foo from './file.abc?query.xyz'
+				console.log(foo)
+			`,
+			"/file.abc": `This should not be base64 encoded`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".abc": config.LoaderText,
+				".xyz": config.LoaderBase64,
+			},
+		},
+	})
+}

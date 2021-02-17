@@ -1005,6 +1005,42 @@ var App = () => /* @__PURE__ */ h(p, null, " ", /* @__PURE__ */ h(Internal, null
 render(/* @__PURE__ */ h(App, null), document.getElementById("app"));
 
 ================================================================================
+TestImportWithHashInPath
+---------- /out/entry.js ----------
+// file#foo.txt
+var file_foo_default = "foo";
+
+// file#bar.txt
+var file_bar_default = "bar";
+
+// entry.js
+console.log(file_foo_default, file_bar_default);
+
+================================================================================
+TestImportWithHashParameter
+---------- /out/entry.js ----------
+// file.txt#foo
+var file_default = "This is some text";
+
+// file.txt#bar
+var file_default2 = "This is some text";
+
+// entry.js
+console.log(file_default, file_default2);
+
+================================================================================
+TestImportWithQueryParameter
+---------- /out/entry.js ----------
+// file.txt?foo
+var file_default = "This is some text";
+
+// file.txt?bar
+var file_default2 = "This is some text";
+
+// entry.js
+console.log(file_default, file_default2);
+
+================================================================================
 TestInject
 ---------- /out.js ----------
 // inject.js
@@ -1122,6 +1158,29 @@ new clsStmtKeep();
 var clsExprKeep = /* @__PURE__ */ __name(class {
 }, "keep");
 new clsExprKeep();
+
+================================================================================
+TestLoaderFileWithQueryParameter
+---------- /out/file.JAWLBT6L.txt ----------
+This is some text
+---------- /out/entry.js ----------
+// file.txt?foo
+var file_default = "file.JAWLBT6L.txt?foo";
+
+// file.txt?bar
+var file_default2 = "file.JAWLBT6L.txt?bar";
+
+// entry.js
+console.log(file_default, file_default2);
+
+================================================================================
+TestLoaderFromExtensionWithQueryParameter
+---------- /out/entry.js ----------
+// file.abc?query.xyz
+var file_default = "This should not be base64 encoded";
+
+// entry.js
+console.log(file_default);
 
 ================================================================================
 TestManyEntryPoints
