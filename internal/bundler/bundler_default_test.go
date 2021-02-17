@@ -1189,7 +1189,7 @@ func TestRequirePropertyAccessCommonJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				// These shouldn't warn
+				// These shouldn't warn since the format is CommonJS
 				console.log(Object.keys(require.cache))
 				console.log(Object.keys(require.extensions))
 				delete require.cache['fs']
@@ -1209,7 +1209,7 @@ func TestRequirePropertyAccessES6(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				// These shouldn't warn
+				// These should warn since the format is ESM
 				console.log(Object.keys(require.cache))
 				console.log(Object.keys(require.extensions))
 				delete require.cache['fs']
