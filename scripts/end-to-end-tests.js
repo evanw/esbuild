@@ -2471,32 +2471,68 @@
     tests.push(
       test(['in.js', '--bundle', '--outfile=node.js'], {
         'in.js': `
-        import x from "./File1.js"
-        import y from "./file2.js"
-        if (x !== 123 || y !== 234) throw 'fail'
-      `,
+          import x from "./File1.js"
+          import y from "./file2.js"
+          if (x !== 123 || y !== 234) throw 'fail'
+        `,
         'file1.js': `export default 123`,
         'File2.js': `export default 234`,
       }, {
         expectedStderr: ` > in.js: warning: Use "file1.js" instead of "File1.js" to avoid issues with case-sensitive file systems
-    2 │         import x from "./File1.js"
-      ╵                       ~~~~~~~~~~~~
+    2 │           import x from "./File1.js"
+      ╵                         ~~~~~~~~~~~~
 
  > in.js: warning: Use "File2.js" instead of "file2.js" to avoid issues with case-sensitive file systems
-    3 │         import y from "./file2.js"
-      ╵                       ~~~~~~~~~~~~
+    3 │           import y from "./file2.js"
+      ╵                         ~~~~~~~~~~~~
 
 2 warnings
 `,
       }),
       test(['in.js', '--bundle', '--outfile=node.js'], {
         'in.js': `
-        import x from "./Dir1/file.js"
-        import y from "./dir2/file.js"
-        if (x !== 123 || y !== 234) throw 'fail'
-      `,
+          import x from "./Dir1/file.js"
+          import y from "./dir2/file.js"
+          if (x !== 123 || y !== 234) throw 'fail'
+        `,
         'dir1/file.js': `export default 123`,
         'Dir2/file.js': `export default 234`,
+      }),
+
+      // Warn when importing something inside node_modules
+      test(['in.js', '--bundle', '--outfile=node.js'], {
+        'in.js': `
+          import x from "pkg/File1.js"
+          import y from "pkg/file2.js"
+          if (x !== 123 || y !== 234) throw 'fail'
+        `,
+        'node_modules/pkg/file1.js': `export default 123`,
+        'node_modules/pkg/File2.js': `export default 234`,
+      }, {
+        expectedStderr: ` > in.js: warning: Use "node_modules/pkg/file1.js" instead of "node_modules/pkg/File1.js" to avoid issues with case-sensitive file systems
+    2 │           import x from "pkg/File1.js"
+      ╵                         ~~~~~~~~~~~~~~
+
+ > in.js: warning: Use "node_modules/pkg/File2.js" instead of "node_modules/pkg/file2.js" to avoid issues with case-sensitive file systems
+    3 │           import y from "pkg/file2.js"
+      ╵                         ~~~~~~~~~~~~~~
+
+2 warnings
+`,
+      }),
+
+      // Don't warn when the importer is inside node_modules
+      test(['in.js', '--bundle', '--outfile=node.js'], {
+        'in.js': `
+          import {x, y} from "pkg"
+          if (x !== 123 || y !== 234) throw 'fail'
+        `,
+        'node_modules/pkg/index.js': `
+          export {default as x} from "./File1.js"
+          export {default as y} from "./file2.js"
+        `,
+        'node_modules/pkg/file1.js': `export default 123`,
+        'node_modules/pkg/File2.js': `export default 234`,
       }),
     )
   }

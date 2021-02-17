@@ -703,7 +703,7 @@ func runOnResolvePlugins(
 	result := res.Resolve(absResolveDir, path, kind)
 
 	// Warn when the case used for importing differs from the actual file name
-	if result != nil && result.DifferentCase != nil {
+	if result != nil && result.DifferentCase != nil && !resolver.IsInsideNodeModules(absResolveDir) {
 		diffCase := *result.DifferentCase
 		log.AddRangeWarning(importSource, importPathRange, fmt.Sprintf(
 			"Use %q instead of %q to avoid issues with case-sensitive file systems",
@@ -935,7 +935,7 @@ func (s *scanner) maybeParseFile(
 	}
 
 	// Don't emit warnings for code inside a "node_modules" directory
-	if resolver.IsInsideNodeModules(s.fs, path.Text) {
+	if resolver.IsInsideNodeModules(path.Text) {
 		optionsClone.SuppressWarningsAboutWeirdCode = true
 	}
 

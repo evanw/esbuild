@@ -282,7 +282,7 @@ func (r *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath st
 	return nil
 }
 
-func IsInsideNodeModules(fs fs.FS, path string) bool {
+func IsInsideNodeModules(path string) bool {
 	for {
 		// This is written in a platform-independent manner because it's run on
 		// user-specified paths which can be arbitrary non-file-system things. So
@@ -730,7 +730,7 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 		}
 
 		// Suppress warnings about missing base config files inside "node_modules"
-		if !IsInsideNodeModules(r.fs, file) {
+		if !IsInsideNodeModules(file) {
 			r.log.AddRangeWarning(&source, extendsRange,
 				fmt.Sprintf("Cannot find base config file %q", extends))
 		}
