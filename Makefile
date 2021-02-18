@@ -17,7 +17,7 @@ test-all:
 test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
 
 check-go-version:
-	@go version | grep 'go1\.15\.7' || (echo 'Please install Go version 1.15.7' && false)
+	@go version | grep 'go1\.16\.0' || (echo 'Please install Go version 1.16.0' && false)
 
 test-go:
 	go test ./internal/...
@@ -92,6 +92,7 @@ platform-all: cmd/esbuild/version.go test-all
 		platform-windows \
 		platform-windows-32 \
 		platform-darwin \
+		platform-darwin-arm64 \
 		platform-freebsd \
 		platform-freebsd-arm64 \
 		platform-linux \
@@ -119,6 +120,9 @@ platform-unixlike:
 
 platform-darwin:
 	make GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
+
+platform-darwin-arm64:
+	make GOOS=darwin GOARCH=arm64 NPMDIR=npm/esbuild-darwin-arm64 platform-unixlike
 
 platform-freebsd:
 	make GOOS=freebsd GOARCH=amd64 NPMDIR=npm/esbuild-freebsd-64 platform-unixlike
@@ -169,6 +173,7 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j4 \
 		publish-darwin \
+		publish-darwin-arm64 \
 		publish-linux \
 		publish-linux-32
 	@echo Enter one-time password:
@@ -194,6 +199,9 @@ publish-windows-32: platform-windows-32
 
 publish-darwin: platform-darwin
 	test -n "$(OTP)" && cd npm/esbuild-darwin-64 && npm publish --otp="$(OTP)"
+
+publish-darwin-arm64: platform-darwin-arm64
+	test -n "$(OTP)" && cd npm/esbuild-darwin-arm64 && npm publish --otp="$(OTP)"
 
 publish-freebsd: platform-freebsd
 	test -n "$(OTP)" && cd npm/esbuild-freebsd-64 && npm publish --otp="$(OTP)"
@@ -230,6 +238,7 @@ clean:
 	rm -f npm/esbuild-windows-32/esbuild.exe
 	rm -f npm/esbuild-windows-64/esbuild.exe
 	rm -rf npm/esbuild-darwin-64/bin
+	rm -rf npm/esbuild-darwin-arm64/bin
 	rm -rf npm/esbuild-freebsd-64/bin
 	rm -rf npm/esbuild-freebsd-amd64/bin
 	rm -rf npm/esbuild-linux-32/bin
