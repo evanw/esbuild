@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.47
 
 * Release native binaries for the Apple M1 chip ([#550](https://github.com/evanw/esbuild/issues/550))
 
