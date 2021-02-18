@@ -379,8 +379,9 @@ type Expr struct {
 type E interface{ isExpr() }
 
 type EArray struct {
-	Items        []Expr
-	IsSingleLine bool
+	Items            []Expr
+	CommaAfterSpread logger.Loc
+	IsSingleLine     bool
 }
 
 type EUnary struct {
@@ -562,8 +563,9 @@ type ENumber struct{ Value float64 }
 type EBigInt struct{ Value string }
 
 type EObject struct {
-	Properties   []Property
-	IsSingleLine bool
+	Properties       []Property
+	CommaAfterSpread logger.Loc
+	IsSingleLine     bool
 }
 
 type ESpread struct{ Value Expr }

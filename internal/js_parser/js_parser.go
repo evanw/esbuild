@@ -1523,9 +1523,6 @@ type deferredErrors struct {
 	invalidExprDefaultValue  logger.Range
 	invalidExprAfterQuestion logger.Range
 	arraySpreadFeature       logger.Range
-
-	// These are errors for destructuring patterns
-	invalidBindingCommaAfterSpread logger.Range
 }
 
 func (from *deferredErrors) mergeInto(to *deferredErrors) {
@@ -1537,9 +1534,6 @@ func (from *deferredErrors) mergeInto(to *deferredErrors) {
 	}
 	if from.arraySpreadFeature.Len > 0 {
 		to.arraySpreadFeature = from.arraySpreadFeature
-	}
-	if from.invalidBindingCommaAfterSpread.Len > 0 {
-		to.invalidBindingCommaAfterSpread = from.invalidBindingCommaAfterSpread
 	}
 }
 
@@ -1555,12 +1549,6 @@ func (p *parser) logExprErrors(errors *deferredErrors) {
 
 	if errors.arraySpreadFeature.Len > 0 {
 		p.markSyntaxFeature(compat.ArraySpread, errors.arraySpreadFeature)
-	}
-}
-
-func (p *parser) logBindingErrors(errors *deferredErrors) {
-	if errors.invalidBindingCommaAfterSpread.Len > 0 {
-		p.log.AddRangeError(&p.source, errors.invalidBindingCommaAfterSpread, "Unexpected \",\" after rest pattern")
 	}
 }
 
@@ -2209,6 +2197,7 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 	arrowArgErrors := deferredArrowArgErrors{}
 	spreadRange := logger.Range{}
 	typeColonRange := logger.Range{}
+	commaAfterSpread := logger.Loc{}
 
 	// Push a scope assuming this is an arrow function. It may not be, in which
 	// case we'll need to roll this change back. This has to be done ahead of
@@ -2269,7 +2258,7 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 		// Spread arguments must come last. If there's a spread argument followed
 		// by a comma, throw an error if we use these expressions as bindings.
 		if isSpread {
-			errors.invalidBindingCommaAfterSpread = p.lexer.Range()
+			commaAfterSpread = p.lexer.Loc()
 		}
 
 		// Eat the comma token
@@ -2313,7 +2302,9 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 		// there were no conversion errors.
 		if p.lexer.Token == js_lexer.TEqualsGreaterThan || (len(invalidLog) == 0 &&
 			p.trySkipTypeScriptArrowReturnTypeWithBacktracking()) || opts.forceArrowFn {
-			p.logBindingErrors(&errors)
+			if commaAfterSpread.Start != 0 {
+				p.log.AddRangeError(&p.source, logger.Range{Loc: commaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
+			}
 			p.logArrowArgErrors(&arrowArgErrors)
 
 			// Now that we've decided we're an arrow function, report binding pattern
@@ -2396,6 +2387,9 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BIdentifier{Ref: e.Ref}}, invalidLog
 
 	case *js_ast.EArray:
+		if e.CommaAfterSpread.Start != 0 {
+			p.log.AddRangeError(&p.source, logger.Range{Loc: e.CommaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
+		}
 		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "["))
 		items := []js_ast.ArrayBinding{}
 		isSpread := false
@@ -2418,6 +2412,9 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 		}}, invalidLog
 
 	case *js_ast.EObject:
+		if e.CommaAfterSpread.Start != 0 {
+			p.log.AddRangeError(&p.source, logger.Range{Loc: e.CommaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
+		}
 		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "{"))
 		properties := []js_ast.PropertyBinding{}
 		for _, item := range e.Properties {
@@ -2837,6 +2834,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		isSingleLine := !p.lexer.HasNewlineBefore
 		items := []js_ast.Expr{}
 		selfErrors := deferredErrors{}
+		commaAfterSpread := logger.Loc{}
 
 		// Allow "in" inside arrays
 		oldAllowIn := p.allowIn
@@ -2860,7 +2858,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 				// Commas are not allowed here when destructuring
 				if p.lexer.Token == js_lexer.TComma {
-					selfErrors.invalidBindingCommaAfterSpread = p.lexer.Range()
+					commaAfterSpread = p.lexer.Loc()
 				}
 
 			default:
@@ -2888,7 +2886,6 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		if p.willNeedBindingPattern() {
 			// Is this a binding pattern?
-			p.logBindingErrors(&selfErrors)
 		} else if errors == nil {
 			// Is this an expression?
 			p.logExprErrors(&selfErrors)
@@ -2898,8 +2895,9 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		}
 
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EArray{
-			Items:        items,
-			IsSingleLine: isSingleLine,
+			Items:            items,
+			CommaAfterSpread: commaAfterSpread,
+			IsSingleLine:     isSingleLine,
 		}}
 
 	case js_lexer.TOpenBrace:
@@ -2907,6 +2905,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		isSingleLine := !p.lexer.HasNewlineBefore
 		properties := []js_ast.Property{}
 		selfErrors := deferredErrors{}
+		commaAfterSpread := logger.Loc{}
 
 		// Allow "in" inside object literals
 		oldAllowIn := p.allowIn
@@ -2923,7 +2922,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 				// Commas are not allowed here when destructuring
 				if p.lexer.Token == js_lexer.TComma {
-					selfErrors.invalidBindingCommaAfterSpread = p.lexer.Range()
+					commaAfterSpread = p.lexer.Loc()
 				}
 			} else {
 				// This property may turn out to be a type in TypeScript, which should be ignored
@@ -2952,7 +2951,6 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		if p.willNeedBindingPattern() {
 			// Is this a binding pattern?
-			p.logBindingErrors(&selfErrors)
 		} else if errors == nil {
 			// Is this an expression?
 			p.logExprErrors(&selfErrors)
@@ -2962,8 +2960,9 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		}
 
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EObject{
-			Properties:   properties,
-			IsSingleLine: isSingleLine,
+			Properties:       properties,
+			CommaAfterSpread: commaAfterSpread,
+			IsSingleLine:     isSingleLine,
 		}}
 
 	case js_lexer.TLessThan:
@@ -10526,6 +10525,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EArray:
 		if in.assignTarget != js_ast.AssignTargetNone {
+			if e.CommaAfterSpread.Start != 0 {
+				p.log.AddRangeError(&p.source, logger.Range{Loc: e.CommaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
+			}
 			p.markSyntaxFeature(compat.Destructuring, logger.Range{Loc: expr.Loc, Len: 1})
 		}
 		hasSpread := false
@@ -10562,6 +10564,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EObject:
 		if in.assignTarget != js_ast.AssignTargetNone {
+			if e.CommaAfterSpread.Start != 0 {
+				p.log.AddRangeError(&p.source, logger.Range{Loc: e.CommaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
+			}
 			p.markSyntaxFeature(compat.Destructuring, logger.Range{Loc: expr.Loc, Len: 1})
 		}
 		hasSpread := false

@@ -16,6 +16,8 @@
 
     * It's not valid to start an initializer expression in a for-of loop with the token `let` such as `for (let.foo of bar) {}`. This is now forbidden. In addition, the code generator now respects this rule so `for ((let.foo) of bar) {}` is now printed as `for ((let).foo of bar) {}`.
 
+    * Array and object binding patterns do not allow a comma after rest elements, so code such as `[...a, b] = [c]` is invalid. This case is correctly handled by esbuild. However, it's possible to have both an array or object binding pattern and an array or object literal on the left-hand side of a destructuring assignment such as `[[...a, b].c] = [d]`. In that case it should be allowed for a comma to come after the spread element in the array or object literal expression. Previously this was incorrectly treated as an error by esbuild.
+
 ## 0.8.47
 
 * Release native binaries for the Apple M1 chip ([#550](https://github.com/evanw/esbuild/issues/550))
