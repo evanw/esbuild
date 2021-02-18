@@ -253,7 +253,9 @@ func TestStrictMode(t *testing.T) {
 
 	expectPrinted(t, "function f(a, a) {}", "function f(a, a) {\n}\n")
 	expectPrinted(t, "(function(a, a) {})", "(function(a, a) {\n});\n")
-	expectPrinted(t, "(a, a) => {}", "(a, a) => {\n};\n")
+	expectPrinted(t, "({ f: function(a, a) {} })", "({f: function(a, a) {\n}});\n")
+	expectPrinted(t, "({ f: function*(a, a) {} })", "({f: function* (a, a) {\n}});\n")
+	expectPrinted(t, "({ f: async function(a, a) {} })", "({f: async function(a, a) {\n}});\n")
 
 	expectParseError(t, "function f(a, [a]) {}", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
 	expectParseError(t, "function f([a], a) {}", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
@@ -263,8 +265,10 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "function f(a, a) {}; export {}", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
 	expectParseError(t, "(function(a, a) {}); export {}", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
 	expectParseError(t, "(function(a, [a]) {})", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
-	expectParseError(t, "((a, a) => {}); export {}", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
-	expectParseError(t, "((a, [a]) => {})", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
+	expectParseError(t, "({ f(a, a) {} })", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
+	expectParseError(t, "({ *f(a, a) {} })", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
+	expectParseError(t, "({ async f(a, a) {} })", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
+	expectParseError(t, "(a, a) => {}", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
 
 	expectParseError(t, "'use strict'; if (0) function f() {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n")
 	expectParseError(t, "'use strict'; if (0) ; else function f() {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n")

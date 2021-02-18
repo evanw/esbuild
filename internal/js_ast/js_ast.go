@@ -320,6 +320,9 @@ type Fn struct {
 	IsGenerator bool
 	HasRestArg  bool
 	HasIfScope  bool
+
+	// This is true if the function is a method
+	IsUniqueFormalParameters bool
 }
 
 type FnBody struct {
