@@ -29,6 +29,8 @@
 
         Previously esbuild did not permit this, which is incorrect. Doing this is now permitted.
 
+    * It is an error to use `arguments` in a class field initializer such as `class { x = arguments[0] }`, but it is not an error to use `arguments` in a computed class property name such as `class { [arguments[0]] = x }` or inside TypeScript decorators such as `class { @decorator(arguments[0]) x() {} }`. Previously all of these cases were an error in esbuild, which is incorrect. Using `arguments` inside computed class property names and TypeScript decorators is now allowed.
+
 ## 0.8.47
 
 * Release native binaries for the Apple M1 chip ([#550](https://github.com/evanw/esbuild/issues/550))

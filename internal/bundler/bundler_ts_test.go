@@ -521,7 +521,8 @@ func TestTypeScriptDecorators(t *testing.T) {
 				import {i} from './i'
 				import {j} from './j'
 				import k from './k'
-				console.log(all, all_computed, a, b, c, d, e, f, g, h, i, j, k)
+				import {fn} from './arguments'
+				console.log(all, all_computed, a, b, c, d, e, f, g, h, i, j, k, fn)
 			`,
 			"/all.ts": `
 				@x.y()
@@ -623,6 +624,16 @@ func TestTypeScriptDecorators(t *testing.T) {
 			"/k.ts": `
 				export default class {
 					foo(@x(() => 0) @y(() => 1) x) {}
+				}
+			`,
+			"/arguments.ts": `
+				function dec(x: any): any {}
+				export function fn(x: string): any {
+					class Foo {
+						@dec(arguments[0])
+						[arguments[0]]() {}
+					}
+					return Foo;
 				}
 			`,
 		},

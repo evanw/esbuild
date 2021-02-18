@@ -542,5 +542,20 @@ __decorate([
 ], k_default.prototype, "foo", 1);
 var k_default2 = k_default;
 
+// arguments.ts
+function dec(x2) {
+}
+function fn(x2) {
+  var _a2;
+  class Foo3 {
+    [_a2 = arguments[0]]() {
+    }
+  }
+  __decorate([
+    dec(arguments[0])
+  ], Foo3.prototype, _a2, 1);
+  return Foo3;
+}
+
 // entry.js
-console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default2, h_default, i, j, k_default2);
+console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default2, h_default, i, j, k_default2, fn);

@@ -4711,9 +4711,11 @@ func (p *parser) parseClass(name *js_ast.LocRef, classOpts parseClassOpts) js_as
 	// A scope is needed for private identifiers
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassBody, bodyLoc)
 
-	// Make it an error to use "arguments" in a class body
-	argumentsRef := p.declareSymbol(js_ast.SymbolError, bodyLoc, "arguments")
-	p.symbols[argumentsRef.InnerIndex].MustNotBeRenamed = true
+	opts := propertyOpts{
+		isClass:           true,
+		allowTSDecorators: classOpts.allowTSDecorators,
+		classHasExtends:   extends != nil,
+	}
 
 	for p.lexer.Token != js_lexer.TCloseBrace {
 		if p.lexer.Token == js_lexer.TSemicolon {
@@ -4721,16 +4723,12 @@ func (p *parser) parseClass(name *js_ast.LocRef, classOpts parseClassOpts) js_as
 			continue
 		}
 
-		opts := propertyOpts{
-			isClass:           true,
-			allowTSDecorators: classOpts.allowTSDecorators,
-			classHasExtends:   extends != nil,
-		}
-
 		// Parse decorators for this property
 		firstDecoratorLoc := p.lexer.Loc()
 		if opts.allowTSDecorators {
 			opts.tsDecorators = p.parseTypeScriptDecorators()
+		} else {
+			opts.tsDecorators = nil
 		}
 
 		// This property may turn out to be a type in TypeScript, which should be ignored
@@ -6170,6 +6168,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 	var ref js_ast.Ref
 	var declareLoc logger.Loc
 	isInsideWithScope := false
+	didForbidArguments := false
 	s := p.currentScope
 
 	for {
@@ -6178,14 +6177,17 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 			isInsideWithScope = true
 		}
 
+		// Forbid referencing "arguments" inside class bodies
+		if s.ForbidArguments && name == "arguments" && !didForbidArguments {
+			r := js_lexer.RangeOfIdentifier(p.source, loc)
+			p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot access %q here", name))
+			didForbidArguments = true
+		}
+
 		// Is the symbol a member of this scope?
 		if member, ok := s.Members[name]; ok {
 			ref = member.Ref
 			declareLoc = member.Loc
-			if p.symbols[ref.InnerIndex].Kind == js_ast.SymbolError {
-				r := js_lexer.RangeOfIdentifier(p.source, loc)
-				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot access %q here", name))
-			}
 			break
 		}
 
@@ -8827,12 +8829,19 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 				}
 			}
 		}
+
+		// Make it an error to use "arguments" in a class body
+		p.currentScope.ForbidArguments = true
+
 		if property.Value != nil {
 			*property.Value = p.visitExpr(*property.Value)
 		}
 		if property.Initializer != nil {
 			*property.Initializer = p.visitExpr(*property.Initializer)
 		}
+
+		// Restore the ability to use "arguments" in decorators and computed properties
+		p.currentScope.ForbidArguments = false
 	}
 
 	p.fnOnlyDataVisit.isThisNested = oldIsThisCaptured

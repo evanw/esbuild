@@ -1280,9 +1280,6 @@ const (
 
 	// This annotates all other symbols that don't have special behavior.
 	SymbolOther
-
-	// This symbol causes a compile error when referenced
-	SymbolError
 )
 
 func (kind SymbolKind) IsPrivate() bool {
@@ -1502,6 +1499,9 @@ type Scope struct {
 	// inside that scope can be renamed. We conservatively assume that the
 	// evaluated code might reference anything that it has access to.
 	ContainsDirectEval bool
+
+	// This is to help forbid "arguments" inside class body scopes
+	ForbidArguments bool
 
 	StrictMode StrictModeKind
 }

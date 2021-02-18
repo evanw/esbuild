@@ -1035,15 +1035,18 @@ func TestClass(t *testing.T) {
 	expectParseError(t, "(class static {})", "<stdin>: error: Expected \"{\" but found \"static\"\n")
 	expectParseError(t, "(class implements {})", "<stdin>: error: Expected \"{\" but found \"implements\"\n")
 
-	// The name "arguments" is forbidden
-	expectParseError(t, "class Foo { arguments = 1 }", "")
-	expectParseError(t, "class Foo { x = function() { arguments } }", "")
-	expectParseError(t, "class Foo { [arguments] }", "<stdin>: error: Cannot access \"arguments\" here\n")
-	expectParseError(t, "class Foo { [arguments = 1] }", "<stdin>: error: Cannot access \"arguments\" here\n")
+	// The name "arguments" is forbidden in class bodies outside of computed properties
+	expectPrinted(t, "class Foo { [arguments] }", "class Foo {\n  [arguments];\n}\n")
+	expectPrinted(t, "class Foo { [arguments] = 1 }", "class Foo {\n  [arguments] = 1;\n}\n")
+	expectPrinted(t, "class Foo { arguments = 1 }", "class Foo {\n  arguments = 1;\n}\n")
+	expectPrinted(t, "class Foo { x = class { arguments = 1 } }", "class Foo {\n  x = class {\n    arguments = 1;\n  };\n}\n")
+	expectPrinted(t, "class Foo { x = function() { arguments } }", "class Foo {\n  x = function() {\n    arguments;\n  };\n}\n")
 	expectParseError(t, "class Foo { x = arguments }", "<stdin>: error: Cannot access \"arguments\" here\n")
 	expectParseError(t, "class Foo { x = () => arguments }", "<stdin>: error: Cannot access \"arguments\" here\n")
 	expectParseError(t, "class Foo { x = typeof arguments }", "<stdin>: error: Cannot access \"arguments\" here\n")
 	expectParseError(t, "class Foo { x = 1 ? 2 : arguments }", "<stdin>: error: Cannot access \"arguments\" here\n")
+	expectParseError(t, "class Foo { x = class { [arguments] } }", "<stdin>: error: Cannot access \"arguments\" here\n")
+	expectParseError(t, "class Foo { x = class { [arguments] = 1 } }", "<stdin>: error: Cannot access \"arguments\" here\n")
 
 	// The name "constructor" is sometimes forbidden
 	expectPrinted(t, "class Foo { get ['constructor']() {} }", "class Foo {\n  get [\"constructor\"]() {\n  }\n}\n")
