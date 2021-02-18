@@ -2174,6 +2174,12 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 					lexer.LegacyOctalLoc = logger.Loc{Start: int32(start + octalStart)}
 				}
 
+			case '8', '9':
+				c = c2
+
+				// Forbid invalid octal literals in template strings
+				lexer.LegacyOctalLoc = logger.Loc{Start: int32(start + i - 2)}
+
 			case 'x':
 				if lexer.json.parse {
 					lexer.end = start + i - width2

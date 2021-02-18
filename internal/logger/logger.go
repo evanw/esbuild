@@ -288,11 +288,11 @@ func (s *Source) RangeOfLegacyOctalEscape(loc Loc) (r Range) {
 	text := s.Contents[loc.Start:]
 	r = Range{Loc: loc, Len: 0}
 
-	if len(text) > 1 && text[0] == '\\' {
-		r.Len = 1
+	if len(text) >= 2 && text[0] == '\\' {
+		r.Len = 2
 		for r.Len < 4 && int(r.Len) < len(text) {
 			c := text[r.Len]
-			if c < '0' || c > '9' {
+			if c < '0' || c > '7' {
 				break
 			}
 			r.Len++

@@ -1529,6 +1529,9 @@ func TestArrow(t *testing.T) {
 func TestTemplate(t *testing.T) {
 	expectPrinted(t, "`\\0`", "`\\0`;\n")
 	expectPrinted(t, "`${'\\00'}`", "`${\"\\0\"}`;\n")
+	expectParseError(t, "`\\7`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
+	expectParseError(t, "`\\8`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
+	expectParseError(t, "`\\9`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
 	expectParseError(t, "`\\00`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
 	expectParseError(t, "`\\00${x}`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
 	expectParseError(t, "`${x}\\00`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
