@@ -1080,6 +1080,18 @@
         if (pair[0] !== 4 || pair[1] !== 2) throw 'fail'
       `,
     }),
+    test(['entry.js', '--outfile=node.js', '--target=es6'], {
+      'entry.js': `
+        //! @license comment
+        'use strict'
+        function f(a) {
+          a **= 2
+          return [a, arguments[0]]
+        }
+        let pair = f(2)
+        if (pair[0] !== 4 || pair[1] !== 2) throw 'fail'
+      `,
+    }),
   )
 
   // Test certain minification transformations

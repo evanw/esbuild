@@ -12348,16 +12348,20 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	directive := ""
 	if p.options.mode != config.ModeBundle {
 		for i, stmt := range stmts {
-			if s, ok := stmt.Data.(*js_ast.SDirective); !ok {
-				break
-			} else if isDirectiveSupported(s) {
+			switch s := stmt.Data.(type) {
+			case *js_ast.SComment:
+				continue
+			case *js_ast.SDirective:
+				if !isDirectiveSupported(s) {
+					continue
+				}
 				directive = js_lexer.UTF16ToString(s.Value)
 
 				// Remove this directive from the statement list
 				copy(stmts[1:], stmts[:i])
 				stmts = stmts[1:]
-				break
 			}
+			break
 		}
 	}
 

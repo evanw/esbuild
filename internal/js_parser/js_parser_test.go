@@ -198,8 +198,8 @@ func TestComments(t *testing.T) {
 func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "'use strict'", "\"use strict\";\n")
 	expectPrinted(t, "`use strict`", "`use strict`;\n")
-	expectPrinted(t, "//! @license comment\n 'use strict'", "//! @license comment\n\"use strict\";\n")
-	expectPrinted(t, "/*! @license comment */ 'use strict'", "/*! @license comment */\n\"use strict\";\n")
+	expectPrinted(t, "//! @license comment\n 'use strict'", "\"use strict\";\n//! @license comment\n")
+	expectPrinted(t, "/*! @license comment */ 'use strict'", "\"use strict\";\n/*! @license comment */\n")
 	expectPrinted(t, "function f() { //! @license comment\n 'use strict' }", "function f() {\n  //! @license comment\n  \"use strict\";\n}\n")
 	expectPrinted(t, "function f() { /*! @license comment */ 'use strict' }", "function f() {\n  /*! @license comment */\n  \"use strict\";\n}\n")
 	expectParseError(t, "//! @license comment\n 'use strict'", "")
