@@ -1981,7 +1981,7 @@
         if (typeof f !== 'undefined') throw 'fail'
       `,
     }),
-    test(['in.js', '--outfile=node.js'], {
+    test(['in.js', '--outfile=node.js', '--format=esm'], {
       'in.js': `
         export {}
         if (1) {
