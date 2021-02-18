@@ -2,11 +2,13 @@
 
 ## Unreleased
 
-* Fix some JavaScript parsing edge cases ([#835](https://github.com/evanw/esbuild/issues/835))
+* Fix some parsing edge cases ([#835](https://github.com/evanw/esbuild/issues/835))
 
-    This release fixes the following edge cases, which were detected by a fuzzer:
+    This release fixes the following edge cases:
 
     * Code using `in` inside a template literal inside a for loop initializer such as ``for (let x = `${a in b ? '0' : '1'}`; false; );`` is now allowed. Previously the `in` operator was incorrectly considered to be part of a for-in loop.
+
+    * In TypeScript, it's not valid to have a newline in between the `async` and the `<` tokens inside the code `async <T>() => {}`. Previously this was incorrectly treated as an asynchronous arrow function expression.
 
 ## 0.8.47
 

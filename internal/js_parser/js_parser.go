@@ -2100,18 +2100,9 @@ func (p *parser) parseArrowBody(args []js_ast.Arg, data fnOrArrowDataParse) *js_
 	}
 }
 
-func (p *parser) isAsyncExprSuffix() bool {
-	switch p.lexer.Token {
-	case js_lexer.TFunction, js_lexer.TEqualsGreaterThan:
-		return true
-	}
-	return false
-}
-
 // This parses an expression. This assumes we've already parsed the "async"
 // keyword and are currently looking at the following token.
 func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range) js_ast.Expr {
-	// Make sure this matches the switch statement in isAsyncExprSuffix()
 	if !p.lexer.HasNewlineBefore {
 		switch p.lexer.Token {
 		// "async function() {}"
@@ -2146,17 +2137,19 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range) js_ast.Expr {
 		case js_lexer.TOpenParen:
 			p.lexer.Next()
 			return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true, asyncRange: asyncRange})
+
+			// "async<T>()"
+			// "async <T>() => {}"
+		case js_lexer.TLessThan:
+			if p.options.ts.Parse && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
+				p.lexer.Next()
+				return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true, asyncRange: asyncRange})
+			}
 		}
 	}
 
 	// "async"
 	// "async + 1"
-	// Distinguish between a call like "async<T>()" and an arrow like "async <T>() => {}"
-	if p.options.ts.Parse && p.lexer.Token == js_lexer.TLessThan && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
-		p.lexer.Next()
-		return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true, asyncRange: asyncRange})
-	}
-
 	return js_ast.Expr{Loc: asyncRange.Loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef("async")}}
 }
 

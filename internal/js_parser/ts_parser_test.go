@@ -1489,6 +1489,7 @@ func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = async <T extends X = Y>(y: T) => {}", "const x = async (y) => {\n};\n")
 	expectPrintedTS(t, "const x = async <T extends X = Y>(y, z) => {}", "const x = async (y, z) => {\n};\n")
 	expectParseErrorTS(t, "const x = async <T>(y: T)", "<stdin>: error: Unexpected \":\"\n")
+	expectParseErrorTS(t, "const x = async\n<T>() => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
 
 	expectPrintedTS(t, "const x = <{}>() => {}", "const x = () => {\n};\n")
 	expectPrintedTS(t, "const x = <{}>(y)", "const x = y;\n")

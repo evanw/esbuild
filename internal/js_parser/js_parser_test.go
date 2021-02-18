@@ -1230,6 +1230,8 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "async (...x) => {}", "async (...x) => {\n};\n")
 	expectPrinted(t, "async x => await 0", "async (x) => await 0;\n")
 	expectPrinted(t, "async () => await 0", "async () => await 0;\n")
+	expectPrinted(t, "new (async())", "new (async())();\n")
+	expectPrinted(t, "new (async().x)", "new (async()).x();\n")
 	expectParseError(t, "async x;", "<stdin>: error: Expected \"=>\" but found \";\"\n")
 	expectParseError(t, "async (...x,) => {}", "<stdin>: error: Unexpected \",\" after rest pattern\n")
 	expectParseError(t, "async => await 0", "<stdin>: error: Expected \";\" but found \"0\"\n")
