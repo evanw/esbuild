@@ -55,6 +55,21 @@
     }),
   )
 
+  // Test bogus paths with a file as a parent directory (this happens when you use "pnpx esbuild")
+  tests.push(
+    test(['entry.js', '--bundle'], {
+      'entry.js': `import "./file.js/what/is/this"`,
+      'file.js': `some file`,
+    }, {
+      expectedStderr: ` > entry.js: error: Could not resolve "./file.js/what/is/this"
+    1 │ import "./file.js/what/is/this"
+      ╵        ~~~~~~~~~~~~~~~~~~~~~~~~
+
+1 error
+`,
+    }),
+  )
+
   // Tests for symlinks
   //
   // Note: These are disabled on Windows because they fail when run with GitHub

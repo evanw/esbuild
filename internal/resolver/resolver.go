@@ -769,7 +769,14 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	// List the directories
 	entries, err := r.fs.ReadDirectory(path)
 	if err != nil {
-		if err != syscall.ENOENT {
+		// Ignore "ENOTDIR" here so that calling "ReadDirectory" on a file behaves
+		// as if there is nothing there at all instead of causing an error due to
+		// the directory actually being a file. This is a workaround for situations
+		// where people try to import from a path containing a file as a parent
+		// directory. The "pnpm" package manager generates a faulty "NODE_PATH"
+		// list which contains such paths and treating them as missing means we just
+		// ignore them during path resolution.
+		if err != syscall.ENOENT && err != syscall.ENOTDIR {
 			r.log.AddError(nil, logger.Loc{},
 				fmt.Sprintf("Cannot read directory %q: %s",
 					r.PrettyPath(logger.Path{Text: path, Namespace: "file"}), err.Error()))

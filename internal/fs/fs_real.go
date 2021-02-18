@@ -126,6 +126,12 @@ func (fs *realFS) ReadDirectory(dir string) (DirEntries, error) {
 	// Cache miss: read the directory entries
 	names, err := readdir(dir)
 	entries := DirEntries{dir, make(map[string]*Entry)}
+
+	// Unwrap to get the underlying error
+	if pathErr, ok := err.(*os.PathError); ok {
+		err = pathErr.Unwrap()
+	}
+
 	if err == nil {
 		for _, name := range names {
 			// Call "stat" lazily for performance. The "@material-ui/icons" package
