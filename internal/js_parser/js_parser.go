@@ -8977,7 +8977,7 @@ func (p *parser) visitArgs(args []js_ast.Arg, opts visitArgsOpts) {
 	// the same BindingIdentifier in a FormalParameterList is only allowed for
 	// functions which have simple parameter lists and which are not defined in
 	// strict mode code."
-	if opts.isUniqueFormalParameters || !hasSimpleArgs || p.isStrictMode() {
+	if opts.isUniqueFormalParameters || hasUseStrict || !hasSimpleArgs || p.isStrictMode() {
 		duplicateArgCheck = make(map[string]bool)
 	}
 
