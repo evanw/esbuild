@@ -5502,6 +5502,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		// "in" expressions aren't allowed here
 		p.allowIn = false
 
+		var badLetRange logger.Range
+		if p.lexer.IsContextualKeyword("let") {
+			badLetRange = p.lexer.Range()
+		}
 		decls := []js_ast.Decl{}
 		initLoc := p.lexer.Loc()
 		isVar := false
@@ -5525,6 +5529,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			var stmt js_ast.Stmt
 			expr, stmt, decls = p.parseExprOrLetStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowAll})
 			if stmt.Data != nil {
+				badLetRange = logger.Range{}
 				init = &stmt
 			} else {
 				init = &js_ast.Stmt{Loc: initLoc, Data: &js_ast.SExpr{Value: expr}}
@@ -5536,6 +5541,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		// Detect for-of loops
 		if p.lexer.IsContextualKeyword("of") || isForAwait {
+			if badLetRange.Len > 0 {
+				p.log.AddRangeError(&p.source, badLetRange, "\"let\" must be wrapped in parentheses to be used as an expression here")
+			}
 			if isForAwait && !p.lexer.IsContextualKeyword("of") {
 				if init != nil {
 					p.lexer.ExpectedString("\"of\"")

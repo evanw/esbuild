@@ -464,6 +464,7 @@ type printer struct {
 	stmtStart          int
 	exportDefaultStart int
 	arrowExprStart     int
+	forOfInitStart     int
 	prevOp             js_ast.OpCode
 	prevOpEnd          int
 	prevNumEnd         int
@@ -1904,8 +1905,19 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.EIdentifier:
+		name := p.renamer.NameForSymbol(e.Ref)
+		wrap := len(p.js) == p.forOfInitStart && name == "let"
+
+		if wrap {
+			p.print("(")
+		}
+
 		p.printSpaceBeforeIdentifier()
-		p.printSymbol(e.Ref)
+		p.printIdentifier(name)
+
+		if wrap {
+			p.print(")")
+		}
 
 	case *js_ast.EImportIdentifier:
 		// Potentially use a property access instead of an identifier
@@ -2711,6 +2723,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		}
 		p.printSpace()
 		p.print("(")
+		p.forOfInitStart = len(p.js)
 		p.printForLoopInit(s.Init)
 		p.printSpace()
 		p.printSpaceBeforeIdentifier()
@@ -3057,6 +3070,7 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 		stmtStart:          -1,
 		exportDefaultStart: -1,
 		arrowExprStart:     -1,
+		forOfInitStart:     -1,
 		prevOpEnd:          -1,
 		prevNumEnd:         -1,
 		prevRegExpEnd:      -1,

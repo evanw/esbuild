@@ -536,6 +536,15 @@ func TestFor(t *testing.T) {
 	expectParseError(t, "for (let a, b of b) ;", "<stdin>: error: for-of loops must have a single declaration\n")
 	expectParseError(t, "for (const a, b of b) ;", "<stdin>: error: for-of loops must have a single declaration\n")
 
+	// Avoid the initializer starting with "let" token
+	expectPrinted(t, "for ((let) of bar);", "for ((let) of bar)\n  ;\n")
+	expectPrinted(t, "for ((let).foo of bar);", "for ((let).foo of bar)\n  ;\n")
+	expectPrinted(t, "for ((let.foo) of bar);", "for ((let).foo of bar)\n  ;\n")
+	expectPrinted(t, "for ((let``.foo) of bar);", "for ((let)``.foo of bar)\n  ;\n")
+	expectParseError(t, "for (let.foo of bar);", "<stdin>: error: \"let\" must be wrapped in parentheses to be used as an expression here\n")
+	expectParseError(t, "for (let().foo of bar);", "<stdin>: error: \"let\" must be wrapped in parentheses to be used as an expression here\n")
+	expectParseError(t, "for (let``.foo of bar);", "<stdin>: error: \"let\" must be wrapped in parentheses to be used as an expression here\n")
+
 	expectPrinted(t, "for (var x = 0 in y) ;", "x = 0;\nfor (var x in y)\n  ;\n") // This is a weird special-case
 	expectParseError(t, "for (let x = 0 in y) ;", "<stdin>: error: for-in loop variables cannot have an initializer\n")
 	expectParseError(t, "for (const x = 0 in y) ;", "<stdin>: error: for-in loop variables cannot have an initializer\n")

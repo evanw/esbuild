@@ -14,6 +14,8 @@
 
     * Code of the form `new async () => {}` must not be allowed. Previously this was incorrectly allowed since the speculative parsing of asynchronous arrow functions did not check the precedence level.
 
+    * It's not valid to start an initializer expression in a for-of loop with the token `let` such as `for (let.foo of bar) {}`. This is now forbidden. In addition, the code generator now respects this rule so `for ((let.foo) of bar) {}` is now printed as `for ((let).foo of bar) {}`.
+
 ## 0.8.47
 
 * Release native binaries for the Apple M1 chip ([#550](https://github.com/evanw/esbuild/issues/550))
