@@ -562,6 +562,7 @@ func TestFor(t *testing.T) {
 	expectPrinted(t, "for (var x = a + b in c);", "x = a + b;\nfor (var x in c)\n  ;\n")
 
 	// Make sure "in" rules are disabled
+	expectPrinted(t, "for (var x = `${y in z}`;;);", "for (var x = `${y in z}`; ; )\n  ;\n")
 	expectPrinted(t, "for (var {[x in y]: z} = {};;);", "for (var {[x in y]: z} = {}; ; )\n  ;\n")
 	expectPrinted(t, "for (var {x = y in z} = {};;);", "for (var {x = y in z} = {}; ; )\n  ;\n")
 	expectPrinted(t, "for (var [x = y in z] = {};;);", "for (var [x = y in z] = {}; ; )\n  ;\n")

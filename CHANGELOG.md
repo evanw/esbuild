@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Fix some JavaScript parsing edge cases ([#835](https://github.com/evanw/esbuild/issues/835))
+
+    This release fixes the following edge cases, which were detected by a fuzzer:
+
+    * Code using `in` inside a template literal inside a for loop initializer such as ``for (let x = `${a in b ? '0' : '1'}`; false; );`` is now allowed. Previously the `in` operator was incorrectly considered to be part of a for-in loop.
+
 ## 0.8.47
 
 * Release native binaries for the Apple M1 chip ([#550](https://github.com/evanw/esbuild/issues/550))

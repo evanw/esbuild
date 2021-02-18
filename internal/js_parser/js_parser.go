@@ -4095,6 +4095,11 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 
 func (p *parser) parseTemplateParts(includeRaw bool) []js_ast.TemplatePart {
 	parts := []js_ast.TemplatePart{}
+
+	// Allow "in" inside template literals
+	oldAllowIn := p.allowIn
+	p.allowIn = true
+
 	for {
 		p.lexer.Next()
 		value := p.parseExpr(js_ast.LLowest)
@@ -4111,6 +4116,9 @@ func (p *parser) parseTemplateParts(includeRaw bool) []js_ast.TemplatePart {
 			break
 		}
 	}
+
+	p.allowIn = oldAllowIn
+
 	return parts
 }
 
