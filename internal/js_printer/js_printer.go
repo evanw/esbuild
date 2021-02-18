@@ -1824,7 +1824,14 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 		if e.Tag != nil {
-			p.printExpr(*e.Tag, js_ast.LPostfix, 0)
+			// Optional chains are forbidden in template tags
+			if js_ast.IsOptionalChain(*e.Tag) {
+				p.print("(")
+				p.printExpr(*e.Tag, js_ast.LLowest, 0)
+				p.print(")")
+			} else {
+				p.printExpr(*e.Tag, js_ast.LPostfix, 0)
+			}
 		}
 		p.print("`")
 		if e.Tag != nil {

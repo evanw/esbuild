@@ -668,6 +668,18 @@ func (*ERequire) isExpr()           {}
 func (*ERequireResolve) isExpr()    {}
 func (*EImport) isExpr()            {}
 
+func IsOptionalChain(value Expr) bool {
+	switch e := value.Data.(type) {
+	case *EDot:
+		return e.OptionalChain != OptionalChainNone
+	case *EIndex:
+		return e.OptionalChain != OptionalChainNone
+	case *ECall:
+		return e.OptionalChain != OptionalChainNone
+	}
+	return false
+}
+
 func Assign(a Expr, b Expr) Expr {
 	return Expr{Loc: a.Loc, Data: &EBinary{Op: BinOpAssign, Left: a, Right: b}}
 }

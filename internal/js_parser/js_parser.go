@@ -3363,6 +3363,9 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			optionalChain = js_ast.OptionalChainContinue
 
 		case js_lexer.TNoSubstitutionTemplateLiteral:
+			if oldOptionalChain != js_ast.OptionalChainNone {
+				p.log.AddRangeError(&p.source, p.lexer.Range(), "Template literals cannot have an optional chain as a tag")
+			}
 			p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
 			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()
@@ -3371,6 +3374,9 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{Tag: &tag, Head: head, HeadRaw: headRaw}}
 
 		case js_lexer.TTemplateHead:
+			if oldOptionalChain != js_ast.OptionalChainNone {
+				p.log.AddRangeError(&p.source, p.lexer.Range(), "Template literals cannot have an optional chain as a tag")
+			}
 			p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
 			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()

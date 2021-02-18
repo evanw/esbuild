@@ -1550,6 +1550,7 @@ func TestArrow(t *testing.T) {
 func TestTemplate(t *testing.T) {
 	expectPrinted(t, "`\\0`", "`\\0`;\n")
 	expectPrinted(t, "`${'\\00'}`", "`${\"\\0\"}`;\n")
+
 	expectParseError(t, "`\\7`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
 	expectParseError(t, "`\\8`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
 	expectParseError(t, "`\\9`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
@@ -1557,6 +1558,50 @@ func TestTemplate(t *testing.T) {
 	expectParseError(t, "`\\00${x}`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
 	expectParseError(t, "`${x}\\00`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
 	expectParseError(t, "`${x}\\00${y}`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
+
+	expectParseError(t, "tag`\\7`", "")
+	expectParseError(t, "tag`\\8`", "")
+	expectParseError(t, "tag`\\9`", "")
+	expectParseError(t, "tag`\\00`", "")
+	expectParseError(t, "tag`\\00${x}`", "")
+	expectParseError(t, "tag`${x}\\00`", "")
+	expectParseError(t, "tag`${x}\\00${y}`", "")
+
+	expectPrinted(t, "tag``", "tag``;\n")
+	expectPrinted(t, "(a?.b)``", "(a?.b)``;\n")
+	expectPrinted(t, "(a?.(b))``", "(a?.(b))``;\n")
+	expectPrinted(t, "(a?.[b])``", "(a?.[b])``;\n")
+	expectPrinted(t, "(a?.b.c)``", "(a?.b.c)``;\n")
+	expectPrinted(t, "(a?.(b).c)``", "(a?.(b).c)``;\n")
+	expectPrinted(t, "(a?.[b].c)``", "(a?.[b].c)``;\n")
+
+	expectParseError(t, "a?.b``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.(b)``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.[b]``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.b.c``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.(b).c``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.[b].c``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+
+	expectParseError(t, "a?.b`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.(b)`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.[b]`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.b.c`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.(b).c`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.[b].c`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+
+	expectParseError(t, "a?.b\n``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.(b)\n``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.[b]\n``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.b.c\n``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.(b).c\n``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.[b].c\n``", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+
+	expectParseError(t, "a?.b\n`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.(b)\n`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.[b]\n`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.b.c\n`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.(b).c\n`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
+	expectParseError(t, "a?.[b].c\n`${d}`", "<stdin>: error: Template literals cannot have an optional chain as a tag\n")
 
 	expectPrinted(t, "`a${1 + `b${2}c` + 3}d`", "`a${1 + `b${2}c` + 3}d`;\n")
 
