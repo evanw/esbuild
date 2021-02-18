@@ -10,6 +10,10 @@
 
     * In TypeScript, it's not valid to have a newline in between the `async` and the `<` tokens inside the code `async <T>() => {}`. Previously this was incorrectly treated as an asynchronous arrow function expression.
 
+    * Code of the form `new async()` must construct the function called `async`. Previously this was incorrectly treated as `new (async())()` instead due to the speculative parsing of asynchronous arrow functions.
+
+    * Code of the form `new async () => {}` must not be allowed. Previously this was incorrectly allowed since the speculative parsing of asynchronous arrow functions did not check the precedence level.
+
 ## 0.8.47
 
 * Release native binaries for the Apple M1 chip ([#550](https://github.com/evanw/esbuild/issues/550))

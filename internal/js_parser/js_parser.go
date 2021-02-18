@@ -2102,14 +2102,18 @@ func (p *parser) parseArrowBody(args []js_ast.Arg, data fnOrArrowDataParse) *js_
 
 // This parses an expression. This assumes we've already parsed the "async"
 // keyword and are currently looking at the following token.
-func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range) js_ast.Expr {
-	if !p.lexer.HasNewlineBefore {
-		switch p.lexer.Token {
-		// "async function() {}"
-		case js_lexer.TFunction:
-			return p.parseFnExpr(asyncRange.Loc, true /* isAsync */, asyncRange)
+func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L) js_ast.Expr {
+	// "async function() {}"
+	if !p.lexer.HasNewlineBefore && p.lexer.Token == js_lexer.TFunction {
+		return p.parseFnExpr(asyncRange.Loc, true /* isAsync */, asyncRange)
+	}
 
-			// "async => {}"
+	// Check the precedence level to avoid parsing an arrow function in
+	// "new async () => {}". This also avoids parsing "new async()" as
+	// "new (async())()" instead.
+	if !p.lexer.HasNewlineBefore && level < js_ast.LMember {
+		switch p.lexer.Token {
+		// "async => {}"
 		case js_lexer.TEqualsGreaterThan:
 			arg := js_ast.Arg{Binding: js_ast.Binding{Loc: asyncRange.Loc, Data: &js_ast.BIdentifier{Ref: p.storeNameInRef("async")}}}
 
@@ -2118,7 +2122,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range) js_ast.Expr {
 
 			return js_ast.Expr{Loc: asyncRange.Loc, Data: p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{})}
 
-			// "async x => {}"
+		// "async x => {}"
 		case js_lexer.TIdentifier:
 			p.markLoweredSyntaxFeature(compat.AsyncAwait, asyncRange, compat.Generator)
 			ref := p.storeNameInRef(p.lexer.Identifier)
@@ -2132,14 +2136,14 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range) js_ast.Expr {
 			arrow.IsAsync = true
 			return js_ast.Expr{Loc: asyncRange.Loc, Data: arrow}
 
-			// "async()"
-			// "async () => {}"
+		// "async()"
+		// "async () => {}"
 		case js_lexer.TOpenParen:
 			p.lexer.Next()
 			return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true, asyncRange: asyncRange})
 
-			// "async<T>()"
-			// "async <T>() => {}"
+		// "async<T>()"
+		// "async <T>() => {}"
 		case js_lexer.TLessThan:
 			if p.options.ts.Parse && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
 				p.lexer.Next()
@@ -2571,7 +2575,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		switch name {
 		case "async":
 			if raw == "async" {
-				return p.parseAsyncPrefixExpr(nameRange)
+				return p.parseAsyncPrefixExpr(nameRange, level)
 			}
 
 		case "await":
@@ -5060,7 +5064,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				}
 
 				defaultName := createDefaultName()
-				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), js_ast.LComma, nil, 0)
+				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange, js_ast.LComma), js_ast.LComma, nil, 0)
 				p.lexer.ExpectOrInsertSemicolon()
 				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Expr: &expr}}}
 			}
@@ -5831,7 +5835,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.lexer.Next()
 				return p.parseFnStmt(asyncRange.Loc, opts, true /* isAsync */, asyncRange)
 			}
-			expr = p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), js_ast.LLowest, nil, 0)
+			expr = p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange, js_ast.LLowest), js_ast.LLowest, nil, 0)
 		} else {
 			var stmt js_ast.Stmt
 			expr, stmt, _ = p.parseExprOrLetStmt(opts)
