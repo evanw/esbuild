@@ -67,6 +67,8 @@
 
     * Duplicate bindings in the same parameter list are not allowed if the parameter list isn't simple, such as in the code `function f(a, [a]) {}`, or if the parameter list belongs to an arrow function or a method. This rule is now enforced by esbuild's parser, so doing this is now a syntax error.
 
+    * Array and object destructuring patterns are only valid if they are not surrounded by parentheses. Previously esbuild incorrectly allowed code such as `([]) = []` and `({}) = {}`. This invalid code is now a syntax error.
+
 * Remove the local web server feature from the WebAssembly package ([#836](https://github.com/evanw/esbuild/issues/836))
 
     This feature didn't work anyway (maybe sockets don't work with Go's WebAssembly target?) and including it added around 3mb of unnecessary extra code to the WebAssembly module file. Removing this brings the size of the WebAssembly module from around 11mb down to 8.3mb.

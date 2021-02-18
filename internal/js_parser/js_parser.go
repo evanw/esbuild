@@ -2371,7 +2371,9 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 			p.log.AddRangeError(&p.source, spreadRange, "Unexpected \"...\"")
 			panic(js_lexer.LexerPanic{})
 		}
-		return js_ast.JoinAllWithComma(items)
+		value := js_ast.JoinAllWithComma(items)
+		p.markExprAsParenthesized(value)
+		return value
 	}
 
 	// Indicate that we expected an arrow function
@@ -2409,6 +2411,9 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 		if e.CommaAfterSpread.Start != 0 {
 			p.log.AddRangeError(&p.source, logger.Range{Loc: e.CommaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
 		}
+		if e.IsParenthesized {
+			p.log.AddRangeError(&p.source, p.source.RangeOfOperatorBefore(expr.Loc, "("), "Unexpected \"(\" before array pattern")
+		}
 		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "["))
 		items := []js_ast.ArrayBinding{}
 		isSpread := false
@@ -2433,6 +2438,9 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 	case *js_ast.EObject:
 		if e.CommaAfterSpread.Start != 0 {
 			p.log.AddRangeError(&p.source, logger.Range{Loc: e.CommaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
+		}
+		if e.IsParenthesized {
+			p.log.AddRangeError(&p.source, p.source.RangeOfOperatorBefore(expr.Loc, "("), "Unexpected \"(\" before object pattern")
 		}
 		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "{"))
 		properties := []js_ast.PropertyBinding{}
@@ -2557,6 +2565,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			p.allowIn = true
 
 			value := p.parseExpr(js_ast.LLowest)
+			p.markExprAsParenthesized(value)
 			p.lexer.Expect(js_lexer.TCloseParen)
 
 			p.allowIn = oldAllowIn
@@ -8637,6 +8646,15 @@ func (p *parser) maybeRelocateVarsToTopLevel(decls []js_ast.Decl, mode relocateV
 	return js_ast.Stmt{Loc: value.Loc, Data: &js_ast.SExpr{Value: value}}, true
 }
 
+func (p *parser) markExprAsParenthesized(value js_ast.Expr) {
+	switch e := value.Data.(type) {
+	case *js_ast.EArray:
+		e.IsParenthesized = true
+	case *js_ast.EObject:
+		e.IsParenthesized = true
+	}
+}
+
 func (p *parser) markExportedDeclsInsideNamespace(nsRef js_ast.Ref, decls []js_ast.Decl) {
 	for _, decl := range decls {
 		p.markExportedBindingInsideNamespace(nsRef, decl.Binding)
@@ -9563,14 +9581,17 @@ func (p *parser) isValidAssignmentTarget(expr js_ast.Expr) bool {
 			}
 		}
 		return true
-	case *js_ast.EObject, *js_ast.EArray:
-		// Don't worry about recursive checking for objects and arrays. This will
-		// already be handled naturally by passing down the assign target flag.
-		return true
 	case *js_ast.EDot:
 		return e.OptionalChain == js_ast.OptionalChainNone
 	case *js_ast.EIndex:
 		return e.OptionalChain == js_ast.OptionalChainNone
+
+	// Don't worry about recursive checking for objects and arrays. This will
+	// already be handled naturally by passing down the assign target flag.
+	case *js_ast.EObject:
+		return !e.IsParenthesized
+	case *js_ast.EArray:
+		return !e.IsParenthesized
 	}
 	return false
 }

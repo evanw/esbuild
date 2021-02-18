@@ -386,6 +386,7 @@ type EArray struct {
 	Items            []Expr
 	CommaAfterSpread logger.Loc
 	IsSingleLine     bool
+	IsParenthesized  bool
 }
 
 type EUnary struct {
@@ -570,6 +571,7 @@ type EObject struct {
 	Properties       []Property
 	CommaAfterSpread logger.Loc
 	IsSingleLine     bool
+	IsParenthesized  bool
 }
 
 type ESpread struct{ Value Expr }
