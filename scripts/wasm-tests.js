@@ -5,6 +5,21 @@ const path = require('path');
 const fs = require('fs');
 
 const tests = {
+  serveTest({ testDir, esbuildPathWASM }) {
+    try {
+      child_process.execFileSync('node', [
+        esbuildPathWASM,
+        '--servedir=.',
+      ], {
+        stdio: 'pipe',
+        cwd: testDir,
+      });
+      throw new Error('Expected an error to be thrown');
+    } catch (err) {
+      assert.strictEqual(err.stderr + '', ' > error: The "serve" API is not supported when using WebAssembly\n\n1 error\n')
+    }
+  },
+
   basicStdinTest({ testDir, esbuildPathWASM }) {
     const stdout = child_process.execFileSync('node', [
       esbuildPathWASM,

@@ -55,6 +55,10 @@
 
         The parser now enforces this rule.
 
+* Remove the local web server feature from the WebAssembly package ([#836](https://github.com/evanw/esbuild/issues/836))
+
+    This feature didn't work anyway (maybe sockets don't work with Go's WebAssembly target?) and including it added around 3mb of unnecessary extra code to the WebAssembly module file. Removing this brings the size of the WebAssembly module from around 11mb down to 8.3mb.
+
 ## 0.8.47
 
 * Release native binaries for the Apple M1 chip ([#550](https://github.com/evanw/esbuild/issues/550))
