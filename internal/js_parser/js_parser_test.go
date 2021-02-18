@@ -710,6 +710,33 @@ func TestScope(t *testing.T) {
 	expectParseError(t, "class x {} var x", errorText)
 	expectParseError(t, "class x {} let x", errorText)
 	expectParseError(t, "class x {} class x {}", errorText)
+
+	expectParseError(t, "function x() {} function x() {}", "")
+	expectParseError(t, "function x() {} function *x() {}", "")
+	expectParseError(t, "function x() {} async function x() {}", "")
+	expectParseError(t, "function *x() {} function x() {}", "")
+	expectParseError(t, "function *x() {} function *x() {}", "")
+	expectParseError(t, "async function x() {} function x() {}", "")
+	expectParseError(t, "async function x() {} async function x() {}", "")
+
+	expectParseError(t, "function f() { function x() {} function x() {} }", "")
+	expectParseError(t, "function f() { function x() {} function *x() {} }", "")
+	expectParseError(t, "function f() { function x() {} async function x() {} }", "")
+	expectParseError(t, "function f() { function *x() {} function x() {} }", "")
+	expectParseError(t, "function f() { function *x() {} function *x() {} }", "")
+	expectParseError(t, "function f() { async function x() {} function x() {} }", "")
+	expectParseError(t, "function f() { async function x() {} async function x() {} }", "")
+
+	text := "<stdin>: error: \"x\" has already been declared\n<stdin>: note: \"x\" was originally declared here\n"
+	for _, scope := range []string{"", "with (x)", "while (x)", "if (x)"} {
+		expectParseError(t, scope+"{ function x() {} function x() {} }", "")
+		expectParseError(t, scope+"{ function x() {} function *x() {} }", text)
+		expectParseError(t, scope+"{ function x() {} async function x() {} }", text)
+		expectParseError(t, scope+"{ function *x() {} function x() {} }", text)
+		expectParseError(t, scope+"{ function *x() {} function *x() {} }", text)
+		expectParseError(t, scope+"{ async function x() {} function x() {} }", text)
+		expectParseError(t, scope+"{ async function x() {} async function x() {} }", text)
+	}
 }
 
 func TestASI(t *testing.T) {

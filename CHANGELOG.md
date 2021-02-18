@@ -33,6 +33,28 @@
 
     * It is not permitted to use a function declaration inside an if statement such as `if (0) function f() {}` in strict mode. Previously this was allowed, but this is now forbidden.
 
+    * It is not permitted to re-declare a generator and/or asynchronous function declaration inside a block scope:
+
+        ```js
+        // This is allowed
+        function *a() {}
+        function *a() {}
+
+        // This is allowed
+        function f() {
+          function *b() {}
+          function *b() {}
+        }
+
+        // This is not allowed
+        {
+          function *c() {}
+          function *c() {}
+        }
+        ```
+
+        The parser now enforces this rule.
+
 ## 0.8.47
 
 * Release native binaries for the Apple M1 chip ([#550](https://github.com/evanw/esbuild/issues/550))

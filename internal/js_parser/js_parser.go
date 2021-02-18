@@ -1160,7 +1160,7 @@ const (
 	mergeBecomePrivateStaticGetSetPair
 )
 
-func (p *parser) canMergeSymbols(existing js_ast.SymbolKind, new js_ast.SymbolKind) mergeResult {
+func (p *parser) canMergeSymbols(scope *js_ast.Scope, existing js_ast.SymbolKind, new js_ast.SymbolKind) mergeResult {
 	if existing == js_ast.SymbolUnbound {
 		return mergeReplaceWithNew
 	}
@@ -1194,7 +1194,10 @@ func (p *parser) canMergeSymbols(existing js_ast.SymbolKind, new js_ast.SymbolKi
 	// "var foo; var foo;"
 	// "var foo; function foo() {}"
 	// "function foo() {} var foo;"
-	if new.IsHoistedOrFunction() && existing.IsHoistedOrFunction() {
+	// "function *foo() {} function *foo() {}" but not "{ function *foo() {} function *foo() {} }"
+	if new.IsHoistedOrFunction() && existing.IsHoistedOrFunction() &&
+		(scope.Kind == js_ast.ScopeEntry || scope.Kind == js_ast.ScopeFunctionBody ||
+			(new.IsHoisted() && existing.IsHoisted())) {
 		return mergeKeepExisting
 	}
 
@@ -1242,7 +1245,7 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 	if existing, ok := p.currentScope.Members[name]; ok {
 		symbol := &p.symbols[existing.Ref.InnerIndex]
 
-		switch p.canMergeSymbols(symbol.Kind, kind) {
+		switch p.canMergeSymbols(p.currentScope, symbol.Kind, kind) {
 		case mergeForbidden:
 			r := js_lexer.RangeOfIdentifier(p.source, loc)
 			p.log.AddRangeErrorWithNotes(&p.source, r, fmt.Sprintf("%q has already been declared", name),
