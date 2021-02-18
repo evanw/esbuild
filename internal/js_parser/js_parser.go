@@ -5998,12 +5998,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		}
 
 		p.lexer.ExpectOrInsertSemicolon()
-
-		// Parse a "use strict" directive
-		if str, ok := expr.Data.(*js_ast.EString); ok && !str.PreferTemplate && js_lexer.UTF16EqualsString(str.Value, "use strict") {
-			return js_ast.Stmt{Loc: loc, Data: &js_ast.SDirective{Value: str.Value}}
-		}
-
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}}
 	}
 }
@@ -6070,6 +6064,7 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 	stmts := []js_ast.Stmt{}
 	returnWithoutSemicolonStart := int32(-1)
 	opts.lexicalDecl = lexicalDeclAllowAll
+	isDirectivePrologue := true
 
 	for {
 		// Preserve some statement-level comments
@@ -6096,24 +6091,19 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 			}
 		}
 
-		// Track "use strict" directives
-		if directive, ok := stmt.Data.(*js_ast.SDirective); ok && js_lexer.UTF16EqualsString(directive.Value, "use strict") {
-			hasEffect := false
-			if p.currentScope.Kind.StopsHoisting() {
-				hasEffect = true
+		// Parse one or more directives at the beginning
+		if isDirectivePrologue {
+			isDirectivePrologue = false
+			if expr, ok := stmt.Data.(*js_ast.SExpr); ok {
+				if str, ok := expr.Value.Data.(*js_ast.EString); ok && !str.PreferTemplate {
+					stmt.Data = &js_ast.SDirective{Value: str.Value, LegacyOctalLoc: str.LegacyOctalLoc}
+					isDirectivePrologue = true
 
-				// Skip over comments when checking if "use strict" is the first statement
-				for _, stmt := range stmts {
-					if _, ok := stmt.Data.(*js_ast.SComment); !ok {
-						hasEffect = false
-						break
+					// Track "use strict" directives
+					if js_lexer.UTF16EqualsString(str.Value, "use strict") {
+						p.currentScope.StrictMode = js_ast.ExplicitStrictMode
 					}
 				}
-			}
-			if hasEffect {
-				p.currentScope.StrictMode = js_ast.ExplicitStrictMode
-			} else if !p.options.suppressWarningsAboutWeirdCode {
-				p.log.AddRangeWarning(&p.source, p.source.RangeOfString(stmt.Loc), "This \"use strict\" directive has no effect here")
 			}
 		}
 
@@ -6533,6 +6523,15 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 	return p.mangleStmts(visited, kind)
 }
 
+func isDirectiveSupported(s *js_ast.SDirective) bool {
+	// When minifying, strip all directives other than "use strict" since
+	// that should be the only one that is ever really used by engines in
+	// practice. We don't support "use asm" even though that's also
+	// technically used in practice because the rest of our minifier would
+	// likely cause asm.js code to fail validation anyway.
+	return js_lexer.UTF16EqualsString(s.Value, "use strict")
+}
+
 func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 	// Merge adjacent statements during mangling
 	result := make([]js_ast.Stmt, 0, len(stmts))
@@ -6615,6 +6614,11 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 		case *js_ast.SEmpty:
 			// Strip empty statements
 			continue
+
+		case *js_ast.SDirective:
+			if !isDirectiveSupported(s) {
+				continue
+			}
 
 		case *js_ast.SLocal:
 			// Merge adjacent local statements
@@ -7814,12 +7818,17 @@ func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string)
 
 func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_ast.Stmt {
 	switch s := stmt.Data.(type) {
-	case *js_ast.SDebugger, *js_ast.SEmpty, *js_ast.SDirective, *js_ast.SComment:
+	case *js_ast.SDebugger, *js_ast.SEmpty, *js_ast.SComment:
 		// These don't contain anything to traverse
 
 	case *js_ast.STypeScript:
 		// Erase TypeScript constructs from the output completely
 		return stmts
+
+	case *js_ast.SDirective:
+		if s.LegacyOctalLoc.Start > 0 {
+			p.markStrictModeFeature(legacyOctalEscape, p.source.RangeOfLegacyOctalEscape(s.LegacyOctalLoc), "")
+		}
 
 	case *js_ast.SImport:
 		p.recordDeclaredSymbol(s.NamespaceRef)
@@ -12337,10 +12346,18 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 
 	// Strip off a leading "use strict" directive when not bundling
 	directive := ""
-	if p.options.mode != config.ModeBundle && len(stmts) > 0 {
-		if s, ok := stmts[0].Data.(*js_ast.SDirective); ok {
-			directive = js_lexer.UTF16ToString(s.Value)
-			stmts = stmts[1:]
+	if p.options.mode != config.ModeBundle {
+		for i, stmt := range stmts {
+			if s, ok := stmt.Data.(*js_ast.SDirective); !ok {
+				break
+			} else if isDirectiveSupported(s) {
+				directive = js_lexer.UTF16ToString(s.Value)
+
+				// Remove this directive from the statement list
+				copy(stmts[1:], stmts[:i])
+				stmts = stmts[1:]
+				break
+			}
 		}
 	}
 

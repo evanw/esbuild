@@ -57,6 +57,8 @@
 
     * Legacy octal escape sequences are octal escape sequences other than `\0` with a single zero. These are forbidden in untagged template literals and in all strings in strict mode code. Previously esbuild didn't enforce this rule, but it is now enforced.
 
+    * Technically the directive prologue is allowed to contain multiple directives, so strict mode should still be applied even if a `"use strict";` directive is preceded by another directive. For example, `"use \000"; "use strict";` should be a syntax error because strict mode is active. This technicality has now been implemented.
+
 * Remove the local web server feature from the WebAssembly package ([#836](https://github.com/evanw/esbuild/issues/836))
 
     This feature didn't work anyway (maybe sockets don't work with Go's WebAssembly target?) and including it added around 3mb of unnecessary extra code to the WebAssembly module file. Removing this brings the size of the WebAssembly module from around 11mb down to 8.3mb.

@@ -915,7 +915,8 @@ type SComment struct {
 type SDebugger struct{}
 
 type SDirective struct {
-	Value []uint16
+	Value          []uint16
+	LegacyOctalLoc logger.Loc
 }
 
 type SExportClause struct {

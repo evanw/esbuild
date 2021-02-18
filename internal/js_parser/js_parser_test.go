@@ -202,7 +202,6 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "/*! @license comment */ 'use strict'", "/*! @license comment */\n\"use strict\";\n")
 	expectPrinted(t, "function f() { //! @license comment\n 'use strict' }", "function f() {\n  //! @license comment\n  \"use strict\";\n}\n")
 	expectPrinted(t, "function f() { /*! @license comment */ 'use strict' }", "function f() {\n  /*! @license comment */\n  \"use strict\";\n}\n")
-	expectParseError(t, "0; 'use strict'", "<stdin>: warning: This \"use strict\" directive has no effect here\n")
 	expectParseError(t, "//! @license comment\n 'use strict'", "")
 	expectParseError(t, "/*! @license comment */ 'use strict'", "")
 	expectParseError(t, "function f() { //! @license comment\n 'use strict' }", "")
@@ -210,8 +209,13 @@ func TestStrictMode(t *testing.T) {
 
 	why := "<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword\n"
 
+	expectPrinted(t, "let x = '\\00'", "let x = \"\\0\";\n")
+	expectParseError(t, "'use strict'; let x = '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "let x = '\\00'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
+
 	expectPrinted(t, "'\\00'", "\"\\0\";\n")
 	expectParseError(t, "'use strict'; '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'\\00'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
 	expectParseError(t, "'\\00'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "with (x) y", "with (x)\n  y;\n")
@@ -2849,7 +2853,10 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "true", "")
 	expectPrintedMangle(t, "123", "")
 	expectPrintedMangle(t, "123n", "")
-	expectPrintedMangle(t, "'abc'", "")
+	expectPrintedMangle(t, "'abc'", "")    // Technically a directive, not a string expression
+	expectPrintedMangle(t, "0; 'abc'", "") // Actually a string expression
+	expectPrintedMangle(t, "'abc'; 'use strict'", "\"use strict\";\n")
+	expectPrintedMangle(t, "function f() { 'abc'; 'use strict' }", "function f() {\n  \"use strict\";\n}\n")
 	expectPrintedMangle(t, "this", "")
 	expectPrintedMangle(t, "/regex/", "")
 	expectPrintedMangle(t, "(function() {})", "")
