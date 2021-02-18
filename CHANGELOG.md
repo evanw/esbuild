@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.48
 
 * Fix some parsing edge cases ([#835](https://github.com/evanw/esbuild/issues/835))
 
