@@ -4261,7 +4261,7 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 		}
 
 		// Reject forbidden names
-		if originalName == "eval" || originalName == "arguments" {
+		if isEvalOrArguments(originalName) {
 			r := js_lexer.RangeOfIdentifier(p.source, name.Loc)
 			p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot use %q as an identifier here", originalName))
 		}
@@ -7359,10 +7359,8 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 	case *js_ast.BIdentifier:
 		p.recordDeclaredSymbol(b.Ref)
 		name := p.symbols[b.Ref.InnerIndex].OriginalName
-		if p.isStrictMode() {
-			if name == "eval" || name == "arguments" {
-				p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, binding.Loc), name)
-			}
+		if isEvalOrArguments(name) {
+			p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, binding.Loc), name)
 		}
 		if opts.duplicateArgCheck != nil {
 			if opts.duplicateArgCheck[name] {
@@ -9572,11 +9570,16 @@ func canBeDeleted(expr js_ast.Expr) bool {
 	return false
 }
 
+// This function exists to tie all of these checks together in one place
+func isEvalOrArguments(name string) bool {
+	return name == "eval" || name == "arguments"
+}
+
 func (p *parser) isValidAssignmentTarget(expr js_ast.Expr) bool {
 	switch e := expr.Data.(type) {
 	case *js_ast.EIdentifier:
 		if p.isStrictMode() {
-			if name := p.loadNameFromRef(e.Ref); name == "eval" || name == "arguments" {
+			if name := p.loadNameFromRef(e.Ref); isEvalOrArguments(name) {
 				return false
 			}
 		}
@@ -11370,6 +11373,9 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 
 	if fn.Name != nil {
 		p.recordDeclaredSymbol(fn.Name.Ref)
+		if name := p.symbols[fn.Name.Ref.InnerIndex].OriginalName; isEvalOrArguments(name) {
+			p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, fn.Name.Loc), name)
+		}
 	}
 
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, scopeLoc)

@@ -292,10 +292,16 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "'use strict'; arguments += 0", "<stdin>: error: Invalid assignment target\n")
 	expectParseError(t, "'use strict'; [arguments] = 0", "<stdin>: error: Invalid assignment target\n")
 
+	expectPrinted(t, "function eval() {}", "function eval() {\n}\n")
 	expectPrinted(t, "function f(eval) {}", "function f(eval) {\n}\n")
+	expectPrinted(t, "function arguments() {}", "function arguments() {\n}\n")
 	expectPrinted(t, "function f(arguments) {}", "function f(arguments) {\n}\n")
+	expectParseError(t, "'use strict'; function eval() {}",
+		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n")
 	expectParseError(t, "'use strict'; function f(eval) {}",
 		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; function arguments() {}",
+		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n")
 	expectParseError(t, "'use strict'; function f(arguments) {}",
 		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n")
 
