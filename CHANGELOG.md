@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Release native binaries for the Apple M1 chip ([#550](https://github.com/evanw/esbuild/issues/550))
+
+    Previously installing esbuild on a M1 actually installed the x86-64 version, which required the Rosetta 2 translator. This was because Go hadn't yet released support for the M1. Now that Go 1.16.0 has been released, esbuild can support the M1 natively. It's supported by esbuild starting with this release. There are reports of the native version being 1.4x faster than the translated version. This change was contributed by [@rtsao](https://github.com/rtsao).
+
 * Omit warning about `require.someProperty` when targeting CommonJS ([#812](https://github.com/evanw/esbuild/issues/812))
 
     The `require.cache` property allows introspecting the state of the `require` cache, generally without affecting what is imported/bundled.
