@@ -7241,6 +7241,9 @@ func (p *parser) visitSingleStmt(stmt js_ast.Stmt, kind stmtsKind) js_ast.Stmt {
 	hasIfScope := ok && fn.Fn.HasIfScope
 	if hasIfScope {
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)
+		if p.isStrictMode() {
+			p.markStrictModeFeature(ifElseFunctionStmt, js_lexer.RangeOfIdentifier(p.source, stmt.Loc), "")
+		}
 	}
 
 	stmts := p.visitStmts([]js_ast.Stmt{stmt}, kind)

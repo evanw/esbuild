@@ -31,6 +31,8 @@
 
     * It is an error to use `arguments` in a class field initializer such as `class { x = arguments[0] }`, but it is not an error to use `arguments` in a computed class property name such as `class { [arguments[0]] = x }` or inside TypeScript decorators such as `class { @decorator(arguments[0]) x() {} }`. Previously all of these cases were an error in esbuild, which is incorrect. Using `arguments` inside computed class property names and TypeScript decorators is now allowed.
 
+    * It is not permitted to use a function declaration inside an if statement such as `if (0) function f() {}` in strict mode. Previously this was allowed, but this is now forbidden.
+
 ## 0.8.47
 
 * Release native binaries for the Apple M1 chip ([#550](https://github.com/evanw/esbuild/issues/550))

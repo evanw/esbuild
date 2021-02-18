@@ -228,9 +228,13 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "'use strict'; function f(a, a) {}", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n")
 	expectParseError(t, "'use strict'; (function(a, a) {})", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n")
 	expectParseError(t, "'use strict'; ((a, a) => {})", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; if (0) function f() {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; if (0) ; else function f() {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n")
 	expectParseError(t, "function f(a, a) {}; export {}", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n"+why)
 	expectParseError(t, "(function(a, a) {}); export {}", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n"+why)
 	expectParseError(t, "((a, a) => {}); export {}", "<stdin>: error: \"a\" is a duplicate argument name which cannot be used in strict mode\n"+why)
+	expectParseError(t, "if (0) function f() {} export {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+why)
+	expectParseError(t, "if (0) ; else function f() {} export {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "eval++", "eval++;\n")
 	expectPrinted(t, "eval = 0", "eval = 0;\n")
