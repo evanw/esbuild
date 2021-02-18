@@ -207,6 +207,27 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "function f() { //! @license comment\n 'use strict' }", "")
 	expectParseError(t, "function f() { /*! @license comment */ 'use strict' }", "")
 
+	nonSimple := "<stdin>: error: Cannot use a \"use strict\" directive in a function with a non-simple parameter list\n"
+	expectParseError(t, "function f() { 'use strict' }", "")
+	expectParseError(t, "function f(x) { 'use strict' }", "")
+	expectParseError(t, "function f([x]) { 'use strict' }", nonSimple)
+	expectParseError(t, "function f({x}) { 'use strict' }", nonSimple)
+	expectParseError(t, "function f(x = 1) { 'use strict' }", nonSimple)
+	expectParseError(t, "function f(x, ...y) { 'use strict' }", nonSimple)
+	expectParseError(t, "(function() { 'use strict' })", "")
+	expectParseError(t, "(function(x) { 'use strict' })", "")
+	expectParseError(t, "(function([x]) { 'use strict' })", nonSimple)
+	expectParseError(t, "(function({x}) { 'use strict' })", nonSimple)
+	expectParseError(t, "(function(x = 1) { 'use strict' })", nonSimple)
+	expectParseError(t, "(function(x, ...y) { 'use strict' })", nonSimple)
+	expectParseError(t, "() => { 'use strict' }", "")
+	expectParseError(t, "(x) => { 'use strict' }", "")
+	expectParseError(t, "([x]) => { 'use strict' }", nonSimple)
+	expectParseError(t, "({x}) => { 'use strict' }", nonSimple)
+	expectParseError(t, "(x = 1) => { 'use strict' }", nonSimple)
+	expectParseError(t, "(x, ...y) => { 'use strict' }", nonSimple)
+	expectParseError(t, "(x, ...y) => { //! @license comment\n 'use strict' }", nonSimple)
+
 	why := "<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword\n"
 
 	expectPrinted(t, "let x = '\\00'", "let x = \"\\0\";\n")

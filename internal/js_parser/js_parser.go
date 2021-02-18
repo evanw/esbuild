@@ -8889,11 +8889,48 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 	return shadowRef
 }
 
-func (p *parser) visitArgs(args []js_ast.Arg) {
+func isSimpleParameterList(args []js_ast.Arg, hasRestArg bool) bool {
+	if hasRestArg {
+		return false
+	}
+	for _, arg := range args {
+		if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok || arg.Default != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func fnBodyContainsUseStrict(body []js_ast.Stmt) (logger.Loc, bool) {
+	for _, stmt := range body {
+		switch s := stmt.Data.(type) {
+		case *js_ast.SComment:
+			continue
+		case *js_ast.SDirective:
+			if js_lexer.UTF16EqualsString(s.Value, "use strict") {
+				return stmt.Loc, true
+			}
+		default:
+			return logger.Loc{}, false
+		}
+	}
+	return logger.Loc{}, false
+}
+
+func (p *parser) visitArgs(args []js_ast.Arg, hasRestArg bool, body []js_ast.Stmt) {
 	var duplicateArgCheck map[string]bool
 	if p.isStrictMode() {
 		duplicateArgCheck = make(map[string]bool)
 	}
+
+	// Section 15.2.1 Static Semantics: Early Errors: "It is a Syntax Error if
+	// FunctionBodyContainsUseStrict of FunctionBody is true and
+	// IsSimpleParameterList of FormalParameters is false."
+	if useStrictLoc, ok := fnBodyContainsUseStrict(body); ok && !isSimpleParameterList(args, hasRestArg) {
+		p.log.AddRangeError(&p.source, p.source.RangeOfString(useStrictLoc),
+			"Cannot use a \"use strict\" directive in a function with a non-simple parameter list")
+	}
+
 	for _, arg := range args {
 		arg.TSDecorators = p.visitTSDecorators(arg.TSDecorators)
 		p.visitBinding(arg.Binding, bindingOpts{
@@ -11110,7 +11147,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, expr.Loc)
-		p.visitArgs(e.Args)
+		p.visitArgs(e.Args, e.HasRestArg, e.Body.Stmts)
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, e.Body.Loc)
 		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts, prependTempRefsOpts{kind: stmtsFnBody})
 		p.popScope()
@@ -11280,7 +11317,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 	}
 
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, scopeLoc)
-	p.visitArgs(fn.Args)
+	p.visitArgs(fn.Args, fn.HasRestArg, fn.Body.Stmts)
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, fn.Body.Loc)
 	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts, prependTempRefsOpts{fnBodyLoc: &fn.Body.Loc, kind: stmtsFnBody})
 	p.popScope()
