@@ -1768,6 +1768,9 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 		if !opts.isClass && kind == js_ast.PropertyNormal && p.lexer.Token != js_lexer.TColon &&
 			p.lexer.Token != js_lexer.TOpenParen && p.lexer.Token != js_lexer.TLessThan && !opts.isGenerator &&
 			js_lexer.Keywords[name] == js_lexer.T(0) {
+			if (p.fnOrArrowDataParse.allowAwait && name == "await") || (p.fnOrArrowDataParse.allowYield && name == "yield") {
+				p.log.AddRangeError(&p.source, nameRange, fmt.Sprintf("Cannot use %q as an identifier here", name))
+			}
 			ref := p.storeNameInRef(name)
 			value := js_ast.Expr{Loc: key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
 

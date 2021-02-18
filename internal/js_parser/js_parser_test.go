@@ -1341,6 +1341,13 @@ func TestYield(t *testing.T) {
 	expectPrinted(t, "function *foo() { (x = yield y) }", "function* foo() {\n  x = yield y;\n}\n")
 	expectParseError(t, "function foo() { (x = yield y) }", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
 	expectParseError(t, "function *foo() { (x = \\u0079ield) }", "<stdin>: error: The keyword \"yield\" cannot be escaped\n")
+
+	expectPrinted(t, "({yield} = x)", "({yield} = x);\n")
+	expectPrinted(t, "let x = {yield}", "let x = {yield};\n")
+	expectPrinted(t, "function foo() { ({yield} = x) }", "function foo() {\n  ({yield} = x);\n}\n")
+	expectPrinted(t, "function foo() { let x = {yield} }", "function foo() {\n  let x = {yield};\n}\n")
+	expectParseError(t, "function *foo() { ({yield} = x) }", "<stdin>: error: Cannot use \"yield\" as an identifier here\n")
+	expectParseError(t, "function *foo() { let x = {yield} }", "<stdin>: error: Cannot use \"yield\" as an identifier here\n")
 }
 
 func TestAsync(t *testing.T) {
@@ -1459,6 +1466,13 @@ func TestAsync(t *testing.T) {
 	expectParseError(t, "async function foo(){for await(let x;;);}", "<stdin>: error: Expected \"of\" but found \";\"\n")
 	expectPrinted(t, "async function foo(){for await(x of y);}", "async function foo() {\n  for await (x of y)\n    ;\n}\n")
 	expectPrinted(t, "async function foo(){for await(let x of y);}", "async function foo() {\n  for await (let x of y)\n    ;\n}\n")
+
+	expectPrinted(t, "function foo() { ({await} = x) }", "function foo() {\n  ({await} = x);\n}\n")
+	expectPrinted(t, "function foo() { let x = {await} }", "function foo() {\n  let x = {await};\n}\n")
+	expectParseError(t, "({await} = x)", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "let x = {await}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "async function foo() { ({await} = x) }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "async function foo() { let x = {await} }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 }
 
 func TestLabels(t *testing.T) {
