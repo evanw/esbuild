@@ -7348,17 +7348,18 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 
 	case *js_ast.BIdentifier:
 		p.recordDeclaredSymbol(b.Ref)
+		name := p.symbols[b.Ref.InnerIndex].OriginalName
 		if p.isStrictMode() {
-			name := p.symbols[b.Ref.InnerIndex].OriginalName
 			if name == "eval" || name == "arguments" {
 				p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, binding.Loc), name)
 			}
-			if opts.duplicateArgCheck != nil {
-				if opts.duplicateArgCheck[name] {
-					p.markStrictModeFeature(duplicateArgName, js_lexer.RangeOfIdentifier(p.source, binding.Loc), name)
-				}
-				opts.duplicateArgCheck[name] = true
+		}
+		if opts.duplicateArgCheck != nil {
+			if opts.duplicateArgCheck[name] {
+				p.log.AddRangeError(&p.source, js_lexer.RangeOfIdentifier(p.source, binding.Loc),
+					fmt.Sprintf("%q cannot be bound multiple times in the same parameter list", name))
 			}
+			opts.duplicateArgCheck[name] = true
 		}
 
 	case *js_ast.BArray:
@@ -8933,16 +8934,23 @@ func fnBodyContainsUseStrict(body []js_ast.Stmt) (logger.Loc, bool) {
 
 func (p *parser) visitArgs(args []js_ast.Arg, hasRestArg bool, body []js_ast.Stmt) {
 	var duplicateArgCheck map[string]bool
-	if p.isStrictMode() {
-		duplicateArgCheck = make(map[string]bool)
-	}
+	useStrictLoc, hasUseStrict := fnBodyContainsUseStrict(body)
+	hasSimpleArgs := isSimpleParameterList(args, hasRestArg)
 
 	// Section 15.2.1 Static Semantics: Early Errors: "It is a Syntax Error if
 	// FunctionBodyContainsUseStrict of FunctionBody is true and
 	// IsSimpleParameterList of FormalParameters is false."
-	if useStrictLoc, ok := fnBodyContainsUseStrict(body); ok && !isSimpleParameterList(args, hasRestArg) {
+	if hasUseStrict && !hasSimpleArgs {
 		p.log.AddRangeError(&p.source, p.source.RangeOfString(useStrictLoc),
 			"Cannot use a \"use strict\" directive in a function with a non-simple parameter list")
+	}
+
+	// Section 15.1.1 Static Semantics: Early Errors: "Multiple occurrences of
+	// the same BindingIdentifier in a FormalParameterList is only allowed for
+	// functions which have simple parameter lists and which are not defined in
+	// strict mode code."
+	if p.isStrictMode() || !hasSimpleArgs {
+		duplicateArgCheck = make(map[string]bool)
 	}
 
 	for _, arg := range args {

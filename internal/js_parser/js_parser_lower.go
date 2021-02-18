@@ -132,7 +132,6 @@ const (
 	deleteBareName
 	forInVarInit
 	evalOrArguments
-	duplicateArgName
 	reservedWord
 	legacyOctalLiteral
 	legacyOctalEscape
@@ -152,8 +151,6 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		canBeTransformed = true
 	case evalOrArguments:
 		text = fmt.Sprintf("Declarations with the name %q", detail)
-	case duplicateArgName:
-		text = fmt.Sprintf("%q is a duplicate argument name which", detail)
 	case reservedWord:
 		text = fmt.Sprintf("%q is a reserved word and", detail)
 	case legacyOctalLiteral:

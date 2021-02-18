@@ -65,6 +65,8 @@
 
     * According to the standard, all code inside a class statement or expression should be in strict mode. Previously esbuild treated code inside a class as the same strict mode status as the surrounding code, but now code in a class is always interpreted as strict mode code.
 
+    * Duplicate bindings in the same parameter list are not allowed if the parameter list isn't simple, such as in the code `function f(a, [a]) {}`. This rule is now enforced by esbuild's parser, so doing this is now a syntax error.
+
 * Remove the local web server feature from the WebAssembly package ([#836](https://github.com/evanw/esbuild/issues/836))
 
     This feature didn't work anyway (maybe sockets don't work with Go's WebAssembly target?) and including it added around 3mb of unnecessary extra code to the WebAssembly module file. Removing this brings the size of the WebAssembly module from around 11mb down to 8.3mb.
