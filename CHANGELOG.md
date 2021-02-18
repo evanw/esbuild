@@ -63,6 +63,8 @@
 
     * It is forbidden for a template literal tag to be an optional chain such as `` a?.b`c` ``. This rule is now enforced by esbuild, so code like this is now a syntax error. In addition, the code generator now avoids generating this syntax by wrapping any optional chain template literal tags in parentheses.
 
+    * According to the standard, all code inside a class statement or expression should be in strict mode. Previously esbuild treated code inside a class as the same strict mode status as the surrounding code, but now code in a class is always interpreted as strict mode code.
+
 * Remove the local web server feature from the WebAssembly package ([#836](https://github.com/evanw/esbuild/issues/836))
 
     This feature didn't work anyway (maybe sockets don't work with Go's WebAssembly target?) and including it added around 3mb of unnecessary extra code to the WebAssembly module file. Removing this brings the size of the WebAssembly module from around 11mb down to 8.3mb.

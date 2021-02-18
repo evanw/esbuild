@@ -305,12 +305,18 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "'use strict'; ({0123: 4})", "<stdin>: error: Legacy octal literals cannot be used in strict mode\n")
 	expectParseError(t, "'use strict'; let {0123: x} = y", "<stdin>: error: Legacy octal literals cannot be used in strict mode\n")
 
+	classNote := "<stdin>: note: All code inside a class is implicitly in strict mode\n"
+
 	expectPrinted(t, "function f() { 'use strict' } with (x) y", "function f() {\n  \"use strict\";\n}\nwith (x)\n  y;\n")
-	expectPrinted(t, "with (x) y; function f() { 'use strict' } ", "with (x)\n  y;\nfunction f() {\n  \"use strict\";\n}\n")
+	expectPrinted(t, "with (x) y; function f() { 'use strict' }", "with (x)\n  y;\nfunction f() {\n  \"use strict\";\n}\n")
+	expectPrinted(t, "class f {} with (x) y", "class f {\n}\nwith (x)\n  y;\n")
+	expectPrinted(t, "with (x) y; class f {}", "with (x)\n  y;\nclass f {\n}\n")
 	expectPrinted(t, "`use strict`; with (x) y", "`use strict`;\nwith (x)\n  y;\n")
 	expectParseError(t, "\"use strict\"; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n")
 	expectParseError(t, "function f() { 'use strict'; with (x) y }", "<stdin>: error: With statements cannot be used in strict mode\n")
 	expectParseError(t, "function f() { 'use strict'; function y() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n")
+	expectParseError(t, "class f { x() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
+	expectParseError(t, "class f { x() { function y() { with (x) y } } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
 
 	importKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
 		"<stdin>: note: This file is implicitly in strict mode because of the \"import\" keyword\n"

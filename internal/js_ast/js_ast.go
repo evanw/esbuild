@@ -328,6 +328,7 @@ type FnBody struct {
 }
 
 type Class struct {
+	ClassKeyword logger.Range
 	TSDecorators []Expr
 	Name         *LocRef
 	Extends      *Expr
@@ -1530,6 +1531,7 @@ const (
 	ExplicitStrictMode
 	ImplicitStrictModeImport
 	ImplicitStrictModeExport
+	ImplicitStrictModeClass
 )
 
 func (s *Scope) RecursiveSetStrictMode(kind StrictModeKind) {

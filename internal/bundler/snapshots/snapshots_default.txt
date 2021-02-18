@@ -45,8 +45,8 @@ TestArgumentsSpecialCaseNoBundle
   ({foo(n = arguments) {
     return arguments;
   }});
-  class e {
-    foo(u = arguments) {
+  class u {
+    foo(e = arguments) {
       return arguments;
     }
   }
@@ -67,18 +67,6 @@ TestArgumentsSpecialCaseNoBundle
     var arguments;
     return arguments;
   }});
-  class a {
-    foo(u = arguments) {
-      var arguments;
-      return arguments;
-    }
-  }
-  (class {
-    foo(n = arguments) {
-      var arguments;
-      return arguments;
-    }
-  });
   (n) => r;
   () => r;
   async () => r;

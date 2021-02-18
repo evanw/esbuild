@@ -1979,8 +1979,6 @@ func TestArgumentsSpecialCaseNoBundle(t *testing.T) {
 					function foo(x = arguments) { var arguments; return arguments }
 					(function(x = arguments) { var arguments; return arguments });
 					({foo(x = arguments) { var arguments; return arguments }});
-					class Foo2 { foo(x = arguments) { var arguments; return arguments } }
-					(class { foo(x = arguments) { var arguments; return arguments } });
 
 					(x => arguments);
 					(() => arguments);

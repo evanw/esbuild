@@ -166,20 +166,22 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		text = "This feature"
 	}
 	if p.isStrictMode() {
-		var keyword string
+		var why string
 		var notes []logger.MsgData
 		var keywordRange logger.Range
 		switch p.currentScope.StrictMode {
 		case js_ast.ImplicitStrictModeImport:
-			keyword = "import"
+			why = "This file is implicitly in strict mode because of the \"import\" keyword"
 			keywordRange = p.es6ImportKeyword
 		case js_ast.ImplicitStrictModeExport:
-			keyword = "export"
+			why = "This file is implicitly in strict mode because of the \"export\" keyword"
 			keywordRange = p.es6ExportKeyword
+		case js_ast.ImplicitStrictModeClass:
+			why = "All code inside a class is implicitly in strict mode"
+			keywordRange = p.enclosingClassKeyword
 		}
-		if len(keyword) != 0 {
-			notes = []logger.MsgData{logger.RangeData(&p.source, keywordRange,
-				fmt.Sprintf("This file is implicitly in strict mode because of the %q keyword", keyword))}
+		if why != "" {
+			notes = []logger.MsgData{logger.RangeData(&p.source, keywordRange, why)}
 		}
 		p.log.AddRangeErrorWithNotes(&p.source, r,
 			fmt.Sprintf("%s cannot be used in strict mode", text), notes)

@@ -107,6 +107,7 @@ type parser struct {
 	// These are for handling ES6 imports and exports
 	es6ImportKeyword        logger.Range
 	es6ExportKeyword        logger.Range
+	enclosingClassKeyword   logger.Range
 	importItemsForNamespace map[js_ast.Ref]map[string]js_ast.LocRef
 	isImportItem            map[js_ast.Ref]bool
 	namedImports            map[js_ast.Ref]js_ast.NamedImport
@@ -2793,7 +2794,8 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		return p.parseFnExpr(loc, false /* isAsync */, logger.Range{})
 
 	case js_lexer.TClass:
-		p.markSyntaxFeature(compat.Class, p.lexer.Range())
+		classKeyword := p.lexer.Range()
+		p.markSyntaxFeature(compat.Class, classKeyword)
 		p.lexer.Next()
 		var name *js_ast.LocRef
 
@@ -2810,7 +2812,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			p.skipTypeScriptTypeParameters()
 		}
 
-		class := p.parseClass(name, parseClassOpts{})
+		class := p.parseClass(classKeyword, name, parseClassOpts{})
 
 		p.popScope()
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EClass{Class: class}}
@@ -4642,8 +4644,9 @@ func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_as
 
 func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
 	var name *js_ast.LocRef
+	classKeyword := p.lexer.Range()
 	if p.lexer.Token == js_lexer.TClass {
-		p.markSyntaxFeature(compat.Class, p.lexer.Range())
+		p.markSyntaxFeature(compat.Class, classKeyword)
 		p.lexer.Next()
 	} else {
 		p.lexer.Expected(js_lexer.TClass)
@@ -4677,7 +4680,7 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 		classOpts.tsDecorators = opts.tsDecorators.values
 	}
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
-	class := p.parseClass(name, classOpts)
+	class := p.parseClass(classKeyword, name, classOpts)
 	if classOpts.isTypeScriptDeclare {
 		p.popAndDiscardScope(scopeIndex)
 	} else {
@@ -4694,7 +4697,7 @@ type parseClassOpts struct {
 
 // By the time we call this, the identifier and type parameters have already
 // been parsed. We need to start parsing from the "extends" clause.
-func (p *parser) parseClass(name *js_ast.LocRef, classOpts parseClassOpts) js_ast.Class {
+func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, classOpts parseClassOpts) js_ast.Class {
 	var extends *js_ast.Expr
 
 	if p.lexer.Token == js_lexer.TExtends {
@@ -4783,6 +4786,7 @@ func (p *parser) parseClass(name *js_ast.LocRef, classOpts parseClassOpts) js_as
 
 	p.lexer.Expect(js_lexer.TCloseBrace)
 	return js_ast.Class{
+		ClassKeyword: classKeyword,
 		TSDecorators: classOpts.tsDecorators,
 		Name:         name,
 		Extends:      extends,
@@ -8824,6 +8828,9 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 	}
 
 	p.pushScopeForVisitPass(js_ast.ScopeClassName, nameScopeLoc)
+	oldEnclosingClassKeyword := p.enclosingClassKeyword
+	p.enclosingClassKeyword = class.ClassKeyword
+	p.currentScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeClass)
 
 	// Insert a shadowing name that spans the whole class, which matches
 	// JavaScript's semantics. The class body (and extends clause) "captures" the
@@ -8885,6 +8892,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 
 	p.fnOnlyDataVisit.isThisNested = oldIsThisCaptured
 
+	p.enclosingClassKeyword = oldEnclosingClassKeyword
 	p.popScope()
 
 	// Don't generate a shadowing name if one isn't needed
