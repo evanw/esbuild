@@ -1113,19 +1113,26 @@ func TestClass(t *testing.T) {
 }
 
 func TestSuperCall(t *testing.T) {
-	expectParseError(t, "super()", "<stdin>: error: Unexpected \"(\"\n")
-	expectParseError(t, "class Foo { foo = super() }", "<stdin>: error: Unexpected \"(\"\n")
-	expectParseError(t, "class Foo { foo() { super() } }", "<stdin>: error: Unexpected \"(\"\n")
-	expectParseError(t, "class Foo extends Bar { foo = super() }", "<stdin>: error: Unexpected \"(\"\n")
-	expectParseError(t, "class Foo extends Bar { foo() { super() } }", "<stdin>: error: Unexpected \"(\"\n")
-	expectParseError(t, "class Foo extends Bar { static constructor() { super() } }", "<stdin>: error: Unexpected \"(\"\n")
-	expectParseError(t, "class Foo extends Bar { constructor() { function foo() { super() } } }", "<stdin>: error: Unexpected \"(\"\n")
+	expectParseError(t, "super", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "super()", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { foo = super() }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { foo() { super() } }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo extends Bar { foo = super() }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo extends Bar { foo() { super() } }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo extends Bar { static constructor() { super() } }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo extends Bar { constructor(x = function() { super() }) {} }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo extends Bar { constructor() { function foo() { super() } } }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo extends Bar { constructor() { super } }", "<stdin>: error: Unexpected \"super\"\n")
 	expectPrinted(t, "class Foo extends Bar { constructor() { super() } }",
 		"class Foo extends Bar {\n  constructor() {\n    super();\n  }\n}\n")
 	expectPrinted(t, "class Foo extends Bar { constructor() { () => super() } }",
 		"class Foo extends Bar {\n  constructor() {\n    () => super();\n  }\n}\n")
 	expectPrinted(t, "class Foo extends Bar { constructor() { () => { super() } } }",
 		"class Foo extends Bar {\n  constructor() {\n    () => {\n      super();\n    };\n  }\n}\n")
+	expectPrinted(t, "class Foo extends Bar { constructor(x = super()) {} }",
+		"class Foo extends Bar {\n  constructor(x = super()) {\n  }\n}\n")
+	expectPrinted(t, "class Foo extends Bar { constructor(x = () => super()) {} }",
+		"class Foo extends Bar {\n  constructor(x = () => super()) {\n  }\n}\n")
 }
 
 func TestClassFields(t *testing.T) {

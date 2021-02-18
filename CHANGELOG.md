@@ -18,6 +18,17 @@
 
     * Array and object binding patterns do not allow a comma after rest elements, so code such as `[...a, b] = [c]` is invalid. This case is correctly handled by esbuild. However, it's possible to have both an array or object binding pattern and an array or object literal on the left-hand side of a destructuring assignment such as `[[...a, b].c] = [d]`. In that case it should be allowed for a comma to come after the spread element in the array or object literal expression. Previously this was incorrectly treated as an error by esbuild.
 
+    * It's technically allowed (although perhaps not ever actually useful) to call `super()` from within a default argument initializer like this:
+
+        ```js
+        class Derived extends Base {
+          constructor(arg = super()) {
+          }
+        }
+        ```
+
+        Previously esbuild did not permit this, which is incorrect. Doing this is now permitted.
+
 ## 0.8.47
 
 * Release native binaries for the Apple M1 chip ([#550](https://github.com/evanw/esbuild/issues/550))

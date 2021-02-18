@@ -2512,6 +2512,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 	switch p.lexer.Token {
 	case js_lexer.TSuper:
+		superRange := p.lexer.Range()
 		p.lexer.Next()
 
 		switch p.lexer.Token {
@@ -2524,8 +2525,8 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			return js_ast.Expr{Loc: loc, Data: &js_ast.ESuper{}}
 		}
 
-		p.lexer.Unexpected()
-		return js_ast.Expr{}
+		p.log.AddRangeError(&p.source, superRange, "Unexpected \"super\"")
+		return js_ast.Expr{Loc: loc, Data: &js_ast.ESuper{}}
 
 	case js_lexer.TOpenParen:
 		p.lexer.Next()
@@ -4479,6 +4480,9 @@ func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_as
 	oldFnOrArrowData := p.fnOrArrowDataParse
 	p.fnOrArrowDataParse.allowAwait = false
 	p.fnOrArrowDataParse.allowYield = false
+
+	// If "super()" is allowed in the body, it's allowed in the arguments
+	p.fnOrArrowDataParse.allowSuperCall = data.allowSuperCall
 
 	for p.lexer.Token != js_lexer.TCloseParen {
 		// Skip over "this" type annotations
