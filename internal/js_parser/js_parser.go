@@ -1613,6 +1613,22 @@ func (p *parser) checkForLegacyOctalLiteral(e js_ast.E) {
 	}
 }
 
+// This assumes the caller has already checked for TStringLiteral or TNoSubstitutionTemplateLiteral
+func (p *parser) parseStringLiteral() js_ast.Expr {
+	var legacyOctalLoc logger.Loc
+	loc := p.lexer.Loc()
+	if p.lexer.LegacyOctalLoc.Start > loc.Start {
+		legacyOctalLoc = p.lexer.LegacyOctalLoc
+	}
+	value := js_ast.Expr{Loc: loc, Data: &js_ast.EString{
+		Value:          p.lexer.StringLiteral,
+		LegacyOctalLoc: legacyOctalLoc,
+		PreferTemplate: p.lexer.Token == js_lexer.TNoSubstitutionTemplateLiteral,
+	}}
+	p.lexer.Next()
+	return value
+}
+
 type propertyOpts struct {
 	asyncRange  logger.Range
 	isAsync     bool
@@ -1638,8 +1654,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 		p.lexer.Next()
 
 	case js_lexer.TStringLiteral:
-		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral}}
-		p.lexer.Next()
+		key = p.parseStringLiteral()
 
 	case js_lexer.TBigIntegerLiteral:
 		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EBigInt{Value: p.lexer.Identifier}}
@@ -1993,8 +2008,7 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 		p.lexer.Next()
 
 	case js_lexer.TStringLiteral:
-		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral}}
-		p.lexer.Next()
+		key = p.parseStringLiteral()
 
 	case js_lexer.TBigIntegerLiteral:
 		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EBigInt{Value: p.lexer.Identifier}}
@@ -2636,19 +2650,19 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		ref := p.storeNameInRef(name)
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
 
-	case js_lexer.TStringLiteral:
-		value := p.lexer.StringLiteral
-		p.lexer.Next()
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: value}}
-
-	case js_lexer.TNoSubstitutionTemplateLiteral:
-		head := p.lexer.StringLiteral
-		p.lexer.Next()
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: head, PreferTemplate: true}}
+	case js_lexer.TStringLiteral, js_lexer.TNoSubstitutionTemplateLiteral:
+		return p.parseStringLiteral()
 
 	case js_lexer.TTemplateHead:
+		var legacyOctalLoc logger.Loc
 		head := p.lexer.StringLiteral
-		parts := p.parseTemplateParts(false /* includeRaw */)
+		if p.lexer.LegacyOctalLoc.Start > loc.Start {
+			legacyOctalLoc = p.lexer.LegacyOctalLoc
+		}
+		parts, tailLegacyOctalLoc := p.parseTemplateParts(false /* includeRaw */)
+		if tailLegacyOctalLoc.Start > 0 {
+			legacyOctalLoc = tailLegacyOctalLoc
+		}
 		if p.options.unsupportedJSFeatures.Has(compat.TemplateLiteral) {
 			var value js_ast.Expr
 			if len(head) == 0 {
@@ -2680,7 +2694,11 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			}
 			return value
 		}
-		return js_ast.Expr{Loc: loc, Data: &js_ast.ETemplate{Head: head, Parts: parts}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.ETemplate{
+			Head:           head,
+			Parts:          parts,
+			LegacyOctalLoc: legacyOctalLoc,
+		}}
 
 	case js_lexer.TNumericLiteral:
 		value := js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: p.lexer.Number}}
@@ -3356,7 +3374,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
 			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()
-			parts := p.parseTemplateParts(true /* includeRaw */)
+			parts, _ := p.parseTemplateParts(true /* includeRaw */)
 			tag := left
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{Tag: &tag, Head: head, HeadRaw: headRaw, Parts: parts}}
 
@@ -4093,9 +4111,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 	}
 }
 
-func (p *parser) parseTemplateParts(includeRaw bool) []js_ast.TemplatePart {
-	parts := []js_ast.TemplatePart{}
-
+func (p *parser) parseTemplateParts(includeRaw bool) (parts []js_ast.TemplatePart, legacyOctalLoc logger.Loc) {
 	// Allow "in" inside template literals
 	oldAllowIn := p.allowIn
 	p.allowIn = true
@@ -4109,6 +4125,8 @@ func (p *parser) parseTemplateParts(includeRaw bool) []js_ast.TemplatePart {
 		tailRaw := ""
 		if includeRaw {
 			tailRaw = p.lexer.RawTemplateContents()
+		} else if p.lexer.LegacyOctalLoc.Start > tailLoc.Start {
+			legacyOctalLoc = p.lexer.LegacyOctalLoc
 		}
 		parts = append(parts, js_ast.TemplatePart{Value: value, TailLoc: tailLoc, Tail: tail, TailRaw: tailRaw})
 		if p.lexer.Token == js_lexer.TTemplateTail {
@@ -4119,7 +4137,7 @@ func (p *parser) parseTemplateParts(includeRaw bool) []js_ast.TemplatePart {
 
 	p.allowIn = oldAllowIn
 
-	return parts
+	return parts, legacyOctalLoc
 }
 
 func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts) []js_ast.Decl {
@@ -9519,9 +9537,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	}
 
 	switch e := expr.Data.(type) {
-	case *js_ast.ENull, *js_ast.ESuper, *js_ast.EString,
+	case *js_ast.ENull, *js_ast.ESuper,
 		*js_ast.EBoolean, *js_ast.EBigInt,
 		*js_ast.ERegExp, *js_ast.ENewTarget, *js_ast.EUndefined:
+
+	case *js_ast.EString:
+		if e.LegacyOctalLoc.Start > 0 {
+			if e.PreferTemplate {
+				p.log.AddRangeError(&p.source, p.source.RangeOfLegacyOctalEscape(e.LegacyOctalLoc),
+					"Legacy octal escape sequences cannot be used in template literals")
+			} else if p.isStrictMode() {
+				p.markStrictModeFeature(legacyOctalEscape, p.source.RangeOfLegacyOctalEscape(e.LegacyOctalLoc), "")
+			}
+		}
 
 	case *js_ast.ENumber:
 		if p.legacyOctalLiterals != nil && p.isStrictMode() {
@@ -9657,6 +9685,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}}, exprOut{}
 
 	case *js_ast.ETemplate:
+		if e.LegacyOctalLoc.Start > 0 {
+			p.log.AddRangeError(&p.source, p.source.RangeOfLegacyOctalEscape(e.LegacyOctalLoc),
+				"Legacy octal escape sequences cannot be used in template literals")
+		}
 		if e.Tag != nil {
 			*e.Tag = p.visitExpr(*e.Tag)
 		}

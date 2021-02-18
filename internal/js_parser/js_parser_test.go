@@ -210,6 +210,10 @@ func TestStrictMode(t *testing.T) {
 
 	why := "<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword\n"
 
+	expectPrinted(t, "'\\00'", "\"\\0\";\n")
+	expectParseError(t, "'use strict'; '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'\\00'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
+
 	expectPrinted(t, "with (x) y", "with (x)\n  y;\n")
 	expectParseError(t, "'use strict'; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n")
 	expectParseError(t, "with (x) y; export {}", "<stdin>: error: With statements cannot be used in strict mode\n"+why)
@@ -1519,6 +1523,13 @@ func TestArrow(t *testing.T) {
 }
 
 func TestTemplate(t *testing.T) {
+	expectPrinted(t, "`\\0`", "`\\0`;\n")
+	expectPrinted(t, "`${'\\00'}`", "`${\"\\0\"}`;\n")
+	expectParseError(t, "`\\00`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
+	expectParseError(t, "`\\00${x}`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
+	expectParseError(t, "`${x}\\00`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
+	expectParseError(t, "`${x}\\00${y}`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
+
 	expectPrinted(t, "`a${1 + `b${2}c` + 3}d`", "`a${1 + `b${2}c` + 3}d`;\n")
 
 	expectPrinted(t, "`a\nb`", "`a\nb`;\n")

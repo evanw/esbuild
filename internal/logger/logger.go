@@ -284,6 +284,23 @@ func (s *Source) RangeOfNumber(loc Loc) (r Range) {
 	return
 }
 
+func (s *Source) RangeOfLegacyOctalEscape(loc Loc) (r Range) {
+	text := s.Contents[loc.Start:]
+	r = Range{Loc: loc, Len: 0}
+
+	if len(text) > 1 && text[0] == '\\' {
+		r.Len = 1
+		for r.Len < 4 && int(r.Len) < len(text) {
+			c := text[r.Len]
+			if c < '0' || c > '9' {
+				break
+			}
+			r.Len++
+		}
+	}
+	return
+}
+
 func plural(prefix string, count int, shown int, someAreMissing bool) string {
 	var text string
 	if count == 1 {

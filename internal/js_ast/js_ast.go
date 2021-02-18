@@ -570,8 +570,11 @@ type EObject struct {
 
 type ESpread struct{ Value Expr }
 
+// This is used for both strings and no-substitution template literals to reduce
+// the number of cases that need to be checked for string optimization code
 type EString struct {
 	Value          []uint16
+	LegacyOctalLoc logger.Loc
 	PreferTemplate bool
 }
 
@@ -583,10 +586,11 @@ type TemplatePart struct {
 }
 
 type ETemplate struct {
-	Tag     *Expr
-	Head    []uint16
-	HeadRaw string // This is only filled out for tagged template literals
-	Parts   []TemplatePart
+	Tag            *Expr
+	Head           []uint16
+	HeadRaw        string // This is only filled out for tagged template literals
+	Parts          []TemplatePart
+	LegacyOctalLoc logger.Loc
 }
 
 type ERegExp struct{ Value string }

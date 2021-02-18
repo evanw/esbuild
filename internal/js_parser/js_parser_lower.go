@@ -135,6 +135,7 @@ const (
 	duplicateArgName
 	reservedWord
 	legacyOctalLiteral
+	legacyOctalEscape
 	ifElseFunctionStmt
 )
 
@@ -157,6 +158,8 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		text = fmt.Sprintf("%q is a reserved word and", detail)
 	case legacyOctalLiteral:
 		text = "Legacy octal literals"
+	case legacyOctalEscape:
+		text = "Legacy octal escape sequences"
 	case ifElseFunctionStmt:
 		text = "Function declarations inside if statements"
 	default:

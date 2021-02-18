@@ -55,6 +55,8 @@
 
         The parser now enforces this rule.
 
+    * Legacy octal escape sequences are octal escape sequences other than `\0` with a single zero. These are forbidden in untagged template literals and in all strings in strict mode code. Previously esbuild didn't enforce this rule, but it is now enforced.
+
 * Remove the local web server feature from the WebAssembly package ([#836](https://github.com/evanw/esbuild/issues/836))
 
     This feature didn't work anyway (maybe sockets don't work with Go's WebAssembly target?) and including it added around 3mb of unnecessary extra code to the WebAssembly module file. Removing this brings the size of the WebAssembly module from around 11mb down to 8.3mb.

@@ -222,6 +222,7 @@ type Lexer struct {
 	start                           int
 	end                             int
 	ApproximateNewlineCount         int
+	LegacyOctalLoc                  logger.Loc
 	Token                           T
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
@@ -2143,6 +2144,7 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 				continue
 
 			case '0', '1', '2', '3', '4', '5', '6', '7':
+				octalStart := i - 2
 				if lexer.json.parse {
 					lexer.end = start + i - width2
 					lexer.SyntaxError()
@@ -2166,6 +2168,11 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 					}
 				}
 				c = value
+
+				// Validate the use of octal literals other than "\0"
+				if text[octalStart:i] != "\\0" {
+					lexer.LegacyOctalLoc = logger.Loc{Start: int32(start + octalStart)}
+				}
 
 			case 'x':
 				if lexer.json.parse {
