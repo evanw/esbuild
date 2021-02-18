@@ -2151,6 +2151,7 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 				}
 
 				// 1-3 digit octal
+				isBad := false
 				value := c2 - '0'
 				c3, width3 := utf8.DecodeRuneInString(text[i:])
 				switch c3 {
@@ -2165,19 +2166,23 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 							value = temp
 							i += width4
 						}
+					case '8', '9':
+						isBad = true
 					}
+				case '8', '9':
+					isBad = true
 				}
 				c = value
 
-				// Validate the use of octal literals other than "\0"
-				if text[octalStart:i] != "\\0" {
+				// Forbid the use of octal literals other than "\0"
+				if isBad || text[octalStart:i] != "\\0" {
 					lexer.LegacyOctalLoc = logger.Loc{Start: int32(start + octalStart)}
 				}
 
 			case '8', '9':
 				c = c2
 
-				// Forbid invalid octal literals in template strings
+				// Forbid the invalid octal literals "\8" and "\9"
 				lexer.LegacyOctalLoc = logger.Loc{Start: int32(start + i - 2)}
 
 			case 'x':

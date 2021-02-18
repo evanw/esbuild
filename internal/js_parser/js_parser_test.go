@@ -230,14 +230,29 @@ func TestStrictMode(t *testing.T) {
 
 	why := "<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword\n"
 
+	expectPrinted(t, "let x = '\\0'", "let x = \"\\0\";\n")
 	expectPrinted(t, "let x = '\\00'", "let x = \"\\0\";\n")
+	expectPrinted(t, "'use strict'; let x = '\\0'", "\"use strict\";\nlet x = \"\\0\";\n")
+	expectPrinted(t, "let x = '\\0'; export {}", "let x = \"\\0\";\nexport {};\n")
 	expectParseError(t, "'use strict'; let x = '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; let x = '\\08'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; let x = '\\008'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
 	expectParseError(t, "let x = '\\00'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
+	expectParseError(t, "let x = '\\09'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
+	expectParseError(t, "let x = '\\009'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 
+	expectPrinted(t, "'\\0'", "\"\\0\";\n")
 	expectPrinted(t, "'\\00'", "\"\\0\";\n")
+	expectPrinted(t, "'use strict'; '\\0'", "\"use strict\";\n\"\\0\";\n")
 	expectParseError(t, "'use strict'; '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; '\\08'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; '\\008'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
 	expectParseError(t, "'\\00'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'\\08'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'\\008'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
 	expectParseError(t, "'\\00'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
+	expectParseError(t, "'\\09'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
+	expectParseError(t, "'\\009'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "with (x) y", "with (x)\n  y;\n")
 	expectParseError(t, "'use strict'; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n")

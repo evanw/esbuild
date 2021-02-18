@@ -2683,14 +2683,20 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 				// "`${x}y`" => "x + 'y'"
 				part := parts[0]
 				value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpAdd,
-					Left:  part.Value,
-					Right: js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: part.Tail}},
+					Op:   js_ast.BinOpAdd,
+					Left: part.Value,
+					Right: js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{
+						Value:          part.Tail,
+						LegacyOctalLoc: legacyOctalLoc,
+					}},
 				}}
 				parts = parts[1:]
 			} else {
 				// "`x${y}`" => "'x' + y"
-				value = js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: head}}
+				value = js_ast.Expr{Loc: loc, Data: &js_ast.EString{
+					Value:          head,
+					LegacyOctalLoc: legacyOctalLoc,
+				}}
 			}
 			for _, part := range parts {
 				value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
@@ -7848,7 +7854,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		return stmts
 
 	case *js_ast.SDirective:
-		if s.LegacyOctalLoc.Start > 0 {
+		if p.isStrictMode() && s.LegacyOctalLoc.Start > 0 {
 			p.markStrictModeFeature(legacyOctalEscape, p.source.RangeOfLegacyOctalEscape(s.LegacyOctalLoc), "")
 		}
 
@@ -7887,10 +7893,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			s.Items[end] = item
 			end++
 		}
-		if end == 0 {
-			// Remove empty export statements entirely
-			return stmts
-		}
+
+		// Note: do not remove empty export statements since TypeScript uses them as module markers
 		s.Items = s.Items[:end]
 
 	case *js_ast.SExportFrom:

@@ -292,7 +292,7 @@ func (s *Source) RangeOfLegacyOctalEscape(loc Loc) (r Range) {
 		r.Len = 2
 		for r.Len < 4 && int(r.Len) < len(text) {
 			c := text[r.Len]
-			if c < '0' || c > '7' {
+			if c < '0' || c > '9' {
 				break
 			}
 			r.Len++
