@@ -1740,7 +1740,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 					}
 
 				case "async":
-					if !opts.isAsync && raw == name {
+					if !opts.isAsync && raw == name && !p.lexer.HasNewlineBefore {
 						opts.isAsync = true
 						opts.asyncRange = nameRange
 						p.markLoweredSyntaxFeature(compat.AsyncAwait, nameRange, compat.Generator)

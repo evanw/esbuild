@@ -1342,6 +1342,7 @@ func TestYield(t *testing.T) {
 	expectParseError(t, "function foo() { (x = yield y) }", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
 	expectParseError(t, "function *foo() { (x = \\u0079ield) }", "<stdin>: error: The keyword \"yield\" cannot be escaped\n")
 
+	// Yield as an identifier
 	expectPrinted(t, "({yield} = x)", "({yield} = x);\n")
 	expectPrinted(t, "let x = {yield}", "let x = {yield};\n")
 	expectPrinted(t, "function foo() { ({yield} = x) }", "function foo() {\n  ({yield} = x);\n}\n")
@@ -1421,6 +1422,12 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "async function foo() { (x = await y) }", "async function foo() {\n  x = await y;\n}\n")
 	expectParseError(t, "function foo() { (x = await y) }", "<stdin>: error: Expected \")\" but found \"y\"\n")
 
+	// Newlines
+	expectPrinted(t, "(class { async \n foo() {} })", "(class {\n  async;\n  foo() {\n  }\n});\n")
+	expectPrinted(t, "(class { async \n *foo() {} })", "(class {\n  async;\n  *foo() {\n  }\n});\n")
+	expectParseError(t, "({ async \n foo() {} })", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
+	expectParseError(t, "({ async \n *foo() {} })", "<stdin>: error: Expected \"}\" but found \"*\"\n")
+
 	// Top-level await
 	expectPrinted(t, "await foo;", "await foo;\n")
 	expectPrinted(t, "for await(foo of bar);", "for await (foo of bar)\n  ;\n")
@@ -1467,6 +1474,7 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "async function foo(){for await(x of y);}", "async function foo() {\n  for await (x of y)\n    ;\n}\n")
 	expectPrinted(t, "async function foo(){for await(let x of y);}", "async function foo() {\n  for await (let x of y)\n    ;\n}\n")
 
+	// Await as an identifier
 	expectPrinted(t, "function foo() { ({await} = x) }", "function foo() {\n  ({await} = x);\n}\n")
 	expectPrinted(t, "function foo() { let x = {await} }", "function foo() {\n  let x = {await};\n}\n")
 	expectParseError(t, "({await} = x)", "<stdin>: error: Cannot use \"await\" as an identifier here\n")

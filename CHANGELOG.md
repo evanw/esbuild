@@ -71,6 +71,8 @@
 
     * It is now an error to use the shorthand property syntax `({yield})` inside a generator and `({await})` inside an asynchronous function. Previously those cases were incorrectly allowed.
 
+    * A newline in between `async` and a method name is no longer allowed. Instead, this is a syntax error inside an object literal and a class field inside a class body.
+
 * Remove the local web server feature from the WebAssembly package ([#836](https://github.com/evanw/esbuild/issues/836))
 
     This feature didn't work anyway (maybe sockets don't work with Go's WebAssembly target?) and including it added around 3mb of unnecessary extra code to the WebAssembly module file. Removing this brings the size of the WebAssembly module from around 11mb down to 8.3mb.
