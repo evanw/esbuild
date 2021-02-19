@@ -687,7 +687,7 @@ func printSummary(osArgs []string, outputFiles []api.OutputFile, start time.Time
 	logger.PrintSummary(osArgs, table, start)
 }
 
-func serveImpl(osArgs []string) error {
+func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) {
 	host := ""
 	portText := "0"
 	servedir := ""
@@ -711,17 +711,30 @@ func serveImpl(osArgs []string) error {
 		var err error
 		host, portText, err = net.SplitHostPort(portText)
 		if err != nil {
-			return err
+			return api.ServeOptions{}, nil, err
 		}
 	}
 
 	// Parse the port
 	port, err := strconv.ParseInt(portText, 10, 32)
 	if err != nil {
-		return err
+		return api.ServeOptions{}, nil, err
 	}
 	if port < 0 || port > 0xFFFF {
-		return fmt.Errorf("Invalid port number: %s", portText)
+		return api.ServeOptions{}, nil, fmt.Errorf("Invalid port number: %s", portText)
+	}
+
+	return api.ServeOptions{
+		Port:     uint16(port),
+		Host:     host,
+		Servedir: servedir,
+	}, filteredArgs, nil
+}
+
+func serveImpl(osArgs []string) error {
+	serveOptions, filteredArgs, err := parseServeOptionsImpl(osArgs)
+	if err != nil {
+		return err
 	}
 
 	options := newBuildOptions()
@@ -735,23 +748,18 @@ func serveImpl(osArgs []string) error {
 		return err
 	}
 
-	serveOptions := api.ServeOptions{
-		Port:     uint16(port),
-		Host:     host,
-		Servedir: servedir,
-		OnRequest: func(args api.ServeOnRequestArgs) {
-			logger.PrintText(os.Stderr, logger.LevelInfo, filteredArgs, func(colors logger.Colors) string {
-				statusColor := colors.Red
-				if args.Status >= 200 && args.Status <= 299 {
-					statusColor = colors.Green
-				} else if args.Status >= 300 && args.Status <= 399 {
-					statusColor = colors.Yellow
-				}
-				return fmt.Sprintf("%s%s - %q %s%d%s [%dms]%s\n",
-					colors.Dim, args.RemoteAddress, args.Method+" "+args.Path,
-					statusColor, args.Status, colors.Dim, args.TimeInMS, colors.Default)
-			})
-		},
+	serveOptions.OnRequest = func(args api.ServeOnRequestArgs) {
+		logger.PrintText(os.Stderr, logger.LevelInfo, filteredArgs, func(colors logger.Colors) string {
+			statusColor := colors.Red
+			if args.Status >= 200 && args.Status <= 299 {
+				statusColor = colors.Green
+			} else if args.Status >= 300 && args.Status <= 399 {
+				statusColor = colors.Yellow
+			}
+			return fmt.Sprintf("%s%s - %q %s%d%s [%dms]%s\n",
+				colors.Dim, args.RemoteAddress, args.Method+" "+args.Path,
+				statusColor, args.Status, colors.Dim, args.TimeInMS, colors.Default)
+		})
 	}
 
 	result, err := api.Serve(serveOptions, options)

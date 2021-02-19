@@ -69,3 +69,22 @@ func ParseTransformOptions(osArgs []string) (options api.TransformOptions, err e
 	err = parseOptionsImpl(osArgs, nil, &options)
 	return
 }
+
+// This parses an array of strings into an options object suitable for passing
+// to "api.Serve()". The remaining non-serve arguments are returned in another
+// array to then be passed to "api.ParseBuildOptions()". Use this if you need
+// to reuse the same argument parsing logic as the esbuild CLI.
+//
+// Example usage:
+//
+//     serveOptions, args, err := cli.ParseServeOptions([]string{
+//         "--serve=8000",
+//     })
+//
+//     buildOptions, err := cli.ParseBuildOptions(args)
+//
+//     result := api.Serve(serveOptions, buildOptions)
+//
+func ParseServeOptions(osArgs []string) (options api.ServeOptions, remainingArgs []string, err error) {
+	return parseServeOptionsImpl(osArgs)
+}

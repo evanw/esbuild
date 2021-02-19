@@ -55,6 +55,18 @@
 
     Restrictions on array and object destructuring patterns in the previous release introduced a regression where arrays or objects in TypeScript code could fail to parse if they were wrapped in a double layer of parentheses. This was due to the speculative parsing of arrow function arguments. The regression has been fixed.
 
+* Add the Go-specific `cli.ParseServeOptions()` API ([#834](https://github.com/evanw/esbuild/issues/834))
+
+    This API is specifically for people trying to emulate esbuild's CLI in Go. It lets you share esbuild's logic of parsing the `--serve=` and `--servedir=` flags. Use it like this:
+
+    ```go
+    serveOptions, args, err := cli.ParseServeOptions([]string{
+      "--serve=8000",
+    })
+    buildOptions, err := cli.ParseBuildOptions(args)
+    result := api.Serve(serveOptions, buildOptions)
+    ```
+
 ## 0.8.48
 
 * Fix some parsing edge cases ([#835](https://github.com/evanw/esbuild/issues/835))
