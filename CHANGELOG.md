@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.49
 
 * Work around a problem with `pnpm` and `NODE_PATH` ([#816](https://github.com/evanw/esbuild/issues/816))
 
