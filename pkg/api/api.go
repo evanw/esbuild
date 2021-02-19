@@ -362,6 +362,7 @@ type ServeOptions struct {
 	Port      uint16
 	Host      string
 	Servedir  string
+	Servespa  bool
 	OnRequest func(ServeOnRequestArgs)
 }
 

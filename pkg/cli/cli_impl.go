@@ -691,6 +691,7 @@ func serveImpl(osArgs []string) error {
 	host := ""
 	portText := "0"
 	servedir := ""
+	spa := false
 
 	// Filter out server-specific flags
 	filteredArgs := make([]string, 0, len(osArgs))
@@ -701,6 +702,8 @@ func serveImpl(osArgs []string) error {
 			portText = arg[len("--serve="):]
 		} else if strings.HasPrefix(arg, "--servedir=") {
 			servedir = arg[len("--servedir="):]
+		} else if strings.HasPrefix(arg, "--servespa") {
+			spa = true
 		} else {
 			filteredArgs = append(filteredArgs, arg)
 		}
@@ -739,6 +742,7 @@ func serveImpl(osArgs []string) error {
 		Port:     uint16(port),
 		Host:     host,
 		Servedir: servedir,
+		Servespa: spa,
 		OnRequest: func(args api.ServeOnRequestArgs) {
 			logger.PrintText(os.Stderr, logger.LevelInfo, filteredArgs, func(colors logger.Colors) string {
 				statusColor := colors.Red

@@ -27,6 +27,7 @@ type apiHandler struct {
 	mutex            sync.Mutex
 	outdirPathPrefix string
 	servedir         string
+	servespa         bool
 	options          *config.Options
 	onRequest        func(ServeOnRequestArgs)
 	rebuild          func() BuildResult
@@ -261,6 +262,16 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			go h.notifyRequest(time.Since(start), req, http.StatusOK)
 			res.Write(html)
 			return
+		}
+
+		// If serving a SPA, always fallback to index.html
+		if h.servespa {
+			if html, err := h.fs.ReadFile(h.fs.Join(h.servedir, "index.html")); err == nil {
+				res.Header().Set("Content-Type", "text/html; charset=utf-8")
+				res.Header().Set("Content-Length", fmt.Sprintf("%d", len(html)))
+				go h.notifyRequest(time.Since(start), req, http.StatusOK)
+				res.Write([]byte(html))
+			}
 		}
 	}
 
@@ -520,6 +531,7 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 		onRequest:        serveOptions.OnRequest,
 		outdirPathPrefix: outdirPathPrefix,
 		servedir:         serveOptions.Servedir,
+		servespa:         serveOptions.Servespa,
 		rebuild: func() BuildResult {
 			build := buildImpl(buildOptions)
 			if handler.options == nil {
