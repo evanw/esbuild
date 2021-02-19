@@ -43,7 +43,12 @@ exports.buildWasmLib = async (esbuildPath) => {
   // Asynchronously start building the WebAssembly module
   const npmWasmDir = path.join(repoDir, 'npm', 'esbuild-wasm')
   const goBuildPromise = new Promise((resolve, reject) => childProcess.execFile('go',
-    ['build', '-o', path.join(npmWasmDir, 'esbuild.wasm'), path.join(repoDir, 'cmd', 'esbuild')],
+    [
+      'build',
+      '-o', path.join(npmWasmDir, 'esbuild.wasm'),
+      '-ldflags=-s -w', // This removes ~0.14mb of unnecessary WebAssembly code
+      path.join(repoDir, 'cmd', 'esbuild'),
+    ],
     { cwd: repoDir, stdio: 'inherit', env: { ...process.env, GOOS: 'js', GOARCH: 'wasm' } },
     err => err ? reject(err) : resolve()))
 
