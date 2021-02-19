@@ -277,7 +277,7 @@ export interface Metadata {
         kind: MetadataImportKind
       }[]
       exports: string[]
-      facadeModuleId?: string
+      entryPoint?: string
     }
   }
 }
