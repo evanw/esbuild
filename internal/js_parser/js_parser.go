@@ -10973,6 +10973,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			storeThisArgForParentOptionalChain: e.OptionalChain == js_ast.OptionalChainStart,
 		})
 		e.Target = target
+		p.warnAboutImportNamespaceCallOrConstruct(e.Target, false /* isConstruct */)
+
 		hasSpread := false
 		for i, arg := range e.Args {
 			arg = p.visitExpr(arg)
@@ -10980,35 +10982,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				hasSpread = true
 			}
 			e.Args[i] = arg
-		}
-
-		// Warn about calling an import namespace
-		if p.options.outputFormat != config.FormatPreserve {
-			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && p.importItemsForNamespace[id.Ref] != nil {
-				r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-				hint := ""
-				if p.options.ts.Parse {
-					hint = " (make sure to enable TypeScript's \"esModuleInterop\" setting)"
-				}
-				var notes []logger.MsgData
-				name := p.symbols[id.Ref.InnerIndex].OriginalName
-				if member, ok := p.moduleScope.Members[name]; ok && member.Ref == id.Ref {
-					if star := p.source.RangeOfOperatorBefore(member.Loc, "*"); star.Len > 0 {
-						if as := p.source.RangeOfOperatorBefore(member.Loc, "as"); as.Len > 0 && as.Loc.Start > star.Loc.Start {
-							note := logger.RangeData(&p.source,
-								logger.Range{Loc: star.Loc, Len: js_lexer.RangeOfIdentifier(p.source, member.Loc).End() - star.Loc.Start},
-								fmt.Sprintf("Consider changing %q to a default import instead", name))
-							note.Location.Suggestion = name
-							notes = []logger.MsgData{note}
-						}
-					}
-				}
-				p.log.AddRangeWarningWithNotes(&p.source, r, fmt.Sprintf(
-					"Calling %q will crash at run-time because it's an import namespace object, not a function%s",
-					p.symbols[id.Ref.InnerIndex].OriginalName, hint),
-					notes,
-				)
-			}
 		}
 
 		// Recognize "require.resolve()" calls
@@ -11173,20 +11146,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.ENew:
 		e.Target = p.visitExpr(e.Target)
-
-		// Warn about constructing an import namespace
-		if p.options.outputFormat != config.FormatPreserve {
-			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && p.importItemsForNamespace[id.Ref] != nil {
-				r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-				hint := ""
-				if p.options.ts.Parse {
-					hint = " (make sure to enable TypeScript's \"esModuleInterop\" setting)"
-				}
-				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
-					"Cannot construct %q because it's an import namespace object, not a function%s",
-					p.symbols[id.Ref.InnerIndex].OriginalName, hint))
-			}
-		}
+		p.warnAboutImportNamespaceCallOrConstruct(e.Target, true /* isConstruct */)
 
 		for i, arg := range e.Args {
 			e.Args[i] = p.visitExpr(arg)
@@ -11271,6 +11231,45 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	}
 
 	return expr, exprOut{}
+}
+
+func (p *parser) warnAboutImportNamespaceCallOrConstruct(target js_ast.Expr, isConstruct bool) {
+	if p.options.outputFormat != config.FormatPreserve {
+		if id, ok := target.Data.(*js_ast.EIdentifier); ok && p.importItemsForNamespace[id.Ref] != nil {
+			r := js_lexer.RangeOfIdentifier(p.source, target.Loc)
+			hint := ""
+			if p.options.ts.Parse {
+				hint = " (make sure to enable TypeScript's \"esModuleInterop\" setting)"
+			}
+			var notes []logger.MsgData
+			name := p.symbols[id.Ref.InnerIndex].OriginalName
+			if member, ok := p.moduleScope.Members[name]; ok && member.Ref == id.Ref {
+				if star := p.source.RangeOfOperatorBefore(member.Loc, "*"); star.Len > 0 {
+					if as := p.source.RangeOfOperatorBefore(member.Loc, "as"); as.Len > 0 && as.Loc.Start > star.Loc.Start {
+						note := logger.RangeData(&p.source,
+							logger.Range{Loc: star.Loc, Len: js_lexer.RangeOfIdentifier(p.source, member.Loc).End() - star.Loc.Start},
+							fmt.Sprintf("Consider changing %q to a default import instead", name))
+						note.Location.Suggestion = name
+						notes = []logger.MsgData{note}
+					}
+				}
+			}
+			verb := "Calling"
+			noun := "function"
+			if isConstruct {
+				verb = "Constructing"
+				noun = "constructor"
+			}
+			p.log.AddRangeWarningWithNotes(&p.source, r, fmt.Sprintf(
+				"%s %q will crash at run-time because it's an import namespace object, not a %s%s",
+				verb,
+				p.symbols[id.Ref.InnerIndex].OriginalName,
+				noun,
+				hint),
+				notes,
+			)
+		}
+	}
 }
 
 func (p *parser) valueForDefine(loc logger.Loc, assignTarget js_ast.AssignTarget, isDeleteTarget bool, defineFunc config.DefineFunc) js_ast.Expr {
