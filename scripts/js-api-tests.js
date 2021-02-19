@@ -824,6 +824,7 @@ body {
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].entryPoint, makePath(entry))
   },
 
   async metafileCJSInFormatESM({ esbuild, testDir }) {
