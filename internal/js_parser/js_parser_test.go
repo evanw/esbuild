@@ -525,8 +525,8 @@ func TestDecls(t *testing.T) {
 
 	expectParseError(t, "var [...x,] = []", "<stdin>: error: Unexpected \",\" after rest pattern\n")
 	expectParseError(t, "var {...x,} = {}", "<stdin>: error: Unexpected \",\" after rest pattern\n")
-	expectParseError(t, "([...x,] = []) => {}", "<stdin>: error: Unexpected \",\" after rest pattern\n")
-	expectParseError(t, "({...x,} = {}) => {}", "<stdin>: error: Unexpected \",\" after rest pattern\n")
+	expectParseError(t, "([...x,] = []) => {}", "<stdin>: error: Invalid binding pattern\n")
+	expectParseError(t, "({...x,} = {}) => {}", "<stdin>: error: Invalid binding pattern\n")
 
 	expectPrinted(t, "[b, ...c] = d", "[b, ...c] = d;\n")
 	expectPrinted(t, "([b, ...c] = d)", "[b, ...c] = d;\n")
@@ -554,8 +554,8 @@ func TestDecls(t *testing.T) {
 	expectParseError(t, "({}) = {}", "<stdin>: error: Invalid assignment target\n")
 	expectParseError(t, "[([])] = [[]]", "<stdin>: error: Invalid assignment target\n")
 	expectParseError(t, "({x: ({})} = {x: {}})", "<stdin>: error: Invalid assignment target\n")
-	expectParseError(t, "(([]) = []) => {}", "<stdin>: error: Unexpected \"(\" before array pattern\n")
-	expectParseError(t, "(({}) = {}) => {}", "<stdin>: error: Unexpected \"(\" before object pattern\n")
+	expectParseError(t, "(([]) = []) => {}", "<stdin>: error: Invalid binding pattern\n")
+	expectParseError(t, "(({}) = {}) => {}", "<stdin>: error: Invalid binding pattern\n")
 	expectParseError(t, "function f(([]) = []) {}", "<stdin>: error: Expected identifier but found \"(\"\n")
 	expectParseError(t, "function f(({}) = {}) {}", "<stdin>: error: Expected identifier but found \"(\"\n")
 

@@ -51,6 +51,10 @@
 
     Accessing layout-related properties can trigger a layout and accessing storage-related properties can throw an exception if certain privacy settings are enabled. Both of these behaviors are considered side effects.
 
+* Fix a TypeScript parser regression ([#846](https://github.com/evanw/esbuild/issues/846))
+
+    Restrictions on array and object destructuring patterns in the previous release introduced a regression where arrays or objects in TypeScript code could fail to parse if they were wrapped in a double layer of parentheses. This was due to the speculative parsing of arrow function arguments. The regression has been fixed.
+
 ## 0.8.48
 
 * Fix some parsing edge cases ([#835](https://github.com/evanw/esbuild/issues/835))

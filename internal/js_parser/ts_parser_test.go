@@ -1080,6 +1080,15 @@ func TestTSDecl(t *testing.T) {
 	expectParseErrorTS(t, "var a!", "<stdin>: error: Expected \":\" but found end of file\n")
 	expectParseErrorTS(t, "var a! = ", "<stdin>: error: Expected \":\" but found \"=\"\n")
 	expectParseErrorTS(t, "var a!, b", "<stdin>: error: Expected \":\" but found \",\"\n")
+
+	expectPrinted(t, "a ? ({b}) => {} : c", "a ? ({b}) => {\n} : c;\n")
+	expectPrinted(t, "a ? (({b}) => {}) : c", "a ? ({b}) => {\n} : c;\n")
+	expectPrinted(t, "a ? (({b})) : c", "a ? {b} : c;\n")
+	expectParseError(t, "a ? (({b})) => {} : c", "<stdin>: error: Invalid binding pattern\n")
+	expectPrintedTS(t, "a ? ({b}) => {} : c", "a ? ({b}) => {\n} : c;\n")
+	expectPrintedTS(t, "a ? (({b}) => {}) : c", "a ? ({b}) => {\n} : c;\n")
+	expectPrintedTS(t, "a ? (({b})) : c", "a ? {b} : c;\n")
+	expectParseErrorTS(t, "a ? (({b})) => {} : c", "<stdin>: error: Invalid binding pattern\n")
 }
 
 func TestTSDeclare(t *testing.T) {

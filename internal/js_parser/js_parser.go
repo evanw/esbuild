@@ -2402,6 +2402,10 @@ func (p *parser) convertExprToBindingAndInitializer(expr js_ast.Expr, invalidLog
 	return binding, initializer, invalidLog
 }
 
+// Note: do not write to "p.log" in this function. Any errors due to conversion
+// from expression to binding should be written to "invalidLog" instead. That
+// way we can potentially keep this as an expression if it turns out it's not
+// needed as a binding after all.
 func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc) (js_ast.Binding, []logger.Loc) {
 	switch e := expr.Data.(type) {
 	case *js_ast.EMissing:
@@ -2412,10 +2416,10 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 
 	case *js_ast.EArray:
 		if e.CommaAfterSpread.Start != 0 {
-			p.log.AddRangeError(&p.source, logger.Range{Loc: e.CommaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
+			invalidLog = append(invalidLog, e.CommaAfterSpread)
 		}
 		if e.IsParenthesized {
-			p.log.AddRangeError(&p.source, p.source.RangeOfOperatorBefore(expr.Loc, "("), "Unexpected \"(\" before array pattern")
+			invalidLog = append(invalidLog, p.source.RangeOfOperatorBefore(expr.Loc, "(").Loc)
 		}
 		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "["))
 		items := []js_ast.ArrayBinding{}
@@ -2440,10 +2444,10 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 
 	case *js_ast.EObject:
 		if e.CommaAfterSpread.Start != 0 {
-			p.log.AddRangeError(&p.source, logger.Range{Loc: e.CommaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
+			invalidLog = append(invalidLog, e.CommaAfterSpread)
 		}
 		if e.IsParenthesized {
-			p.log.AddRangeError(&p.source, p.source.RangeOfOperatorBefore(expr.Loc, "("), "Unexpected \"(\" before object pattern")
+			invalidLog = append(invalidLog, p.source.RangeOfOperatorBefore(expr.Loc, "(").Loc)
 		}
 		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "{"))
 		properties := []js_ast.PropertyBinding{}
