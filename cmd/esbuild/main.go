@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
-	"runtime/pprof"
-	"runtime/trace"
 	"strings"
 	"time"
 
@@ -184,34 +182,22 @@ func main() {
 		// To view a CPU trace, use "go tool trace [file]". Note that the trace
 		// viewer doesn't work under Windows Subsystem for Linux for some reason.
 		if traceFile != "" {
-			f, err := os.Create(traceFile)
-			if err != nil {
-				logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
-					"Failed to create trace file: %s", err.Error()))
+			if done := createTraceFile(osArgs, traceFile); done == nil {
 				return
+			} else {
+				defer done()
 			}
-			defer f.Close()
-			trace.Start(f)
-			defer trace.Stop()
 		}
 
 		// To view a heap trace, use "go tool pprof [file]" and type "top". You can
 		// also drop it into https://speedscope.app and use the "left heavy" or
 		// "sandwich" view modes.
 		if heapFile != "" {
-			f, err := os.Create(heapFile)
-			if err != nil {
-				logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
-					"Failed to create heap file: %s", err.Error()))
+			if done := createHeapFile(osArgs, heapFile); done == nil {
 				return
+			} else {
+				defer done()
 			}
-			defer func() {
-				if err := pprof.WriteHeapProfile(f); err != nil {
-					logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
-						"Failed to write heap profile: %s", err.Error()))
-				}
-				f.Close()
-			}()
 		}
 
 		// To view a CPU profile, drop the file into https://speedscope.app.
@@ -219,15 +205,11 @@ func main() {
 		// Linux. The profiler has to be built for native Windows and run using the
 		// command prompt instead.
 		if cpuprofileFile != "" {
-			f, err := os.Create(cpuprofileFile)
-			if err != nil {
-				logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
-					"Failed to create cpuprofile file: %s", err.Error()))
+			if done := createCpuprofileFile(osArgs, cpuprofileFile); done == nil {
 				return
+			} else {
+				defer done()
 			}
-			defer f.Close()
-			pprof.StartCPUProfile(f)
-			defer pprof.StopCPUProfile()
 		}
 
 		if cpuprofileFile != "" {
