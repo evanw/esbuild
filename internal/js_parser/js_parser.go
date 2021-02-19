@@ -6776,6 +6776,9 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 						}
 					}
 					result = appendIfBodyPreservingScope(result, stmt)
+					if isJumpStatement(stmt.Data) {
+						isControlFlowDead = true
+					}
 					continue
 				}
 			}

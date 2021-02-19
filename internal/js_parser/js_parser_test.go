@@ -2723,6 +2723,8 @@ func TestMangleReturn(t *testing.T) {
 	expectPrintedMangle(t, "if (!!a) return b(); return c()", "return a ? b() : c();\n")
 	expectPrintedMangle(t, "if (!!!a) return b(); return c()", "return a ? c() : b();\n")
 
+	expectPrintedMangle(t, "if (a) return b; else return c; return d;\n", "return a ? b : c;\n")
+
 	// Optimize implicit return
 	expectPrintedMangle(t, "function x() { if (y) return; z(); }", "function x() {\n  y || z();\n}\n")
 	expectPrintedMangle(t, "function x() { if (y) return; else z(); w(); }", "function x() {\n  y || (z(), w());\n}\n")
