@@ -286,9 +286,10 @@ TestConstWithLet
 // entry.js
 var a = 1;
 console.log(a);
+console.log(2);
 {
   let b = 2;
-  console.log(b);
+  unknownFn(b);
 }
 for (let c = x; ; )
   console.log(c);
@@ -301,10 +302,10 @@ for (let e of x)
 TestConstWithLetNoBundle
 ---------- /out.js ----------
 const a = 1;
-console.log(a);
+console.log(a), console.log(2);
 {
   const b = 2;
-  console.log(b);
+  unknownFn(b);
 }
 for (const c = x; ; )
   console.log(c);

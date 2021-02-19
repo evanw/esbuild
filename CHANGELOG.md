@@ -6,6 +6,51 @@
 
     In version 0.8.43, esbuild added support for node's [`NODE_PATH`](https://nodejs.org/api/modules.html#modules_loading_from_the_global_folders) environment variable which contains a list of global folders to use during path resolution. However, this causes a problem when esbuild is installed with [pnpm](https://pnpm.js.org/), an alternative JavaScript package manager. Specifically pnpm adds a bogus path to `NODE_PATH` that doesn't exist but that has a file as a parent directory. Previously this caused esbuild to fail with the error `not a directory`. Now with this release, esbuild will ignore this bogus path instead of giving an error.
 
+* Add more names to the global no-side-effect list ([#842](https://github.com/evanw/esbuild/issues/842))
+
+    This release adds almost all known globals from the browser and node to the list of known globals. Membership in this list means accessing the global is assumed to have no side effects. That means tree shaking is allowed to remove unused references to these globals. For example, since `HTMLElement` is now in the known globals list, the following class will now be removed when unused:
+
+    ```js
+    class MyElement extends HTMLElement {
+    }
+    ```
+
+    In addition, membership in this list relaxes ordering constraints for the purposes of minification. It allows esbuild to reorder references to these globals past other expressions. For example, since `console.log` is now in the known globals list, the following simplification will now be performed during minification:
+
+    ```js
+    // Original
+    export default (a) => {
+      if (a) console.log(b); else console.log(c)
+    }
+
+    // Minified (previous release)
+    export default (a) => {
+      a ? console.log(b) : console.log(c);
+    };
+
+    // Minified (this release)
+    export default (a) => {
+      console.log(a ? b : c);
+    };
+    ```
+
+    This transformation is not generally safe because the `console.log` property access might evaluate code which could potentially change the value of `a`. This is only considered safe in this instance because `console.log` is now in the known globals list.
+
+    Note that membership in this list does not say anything about whether the function has side effects when called. It only says that the identifier has no side effects when referenced. So `console.log()` is still considered to have side effects even though `console.log` is now considered to be free of side effects.
+
+    The following globals are not on the list and are considered to have side effects:
+
+    * `scrollX`
+    * `scrollY`
+    * `innerWidth`
+    * `innerHeight`
+    * `pageXOffset`
+    * `pageYOffset`
+    * `localStorage`
+    * `sessionStorage`
+
+    Accessing layout-related properties can trigger a layout and accessing storage-related properties can throw an exception if certain privacy settings are enabled. Both of these behaviors are considered side effects.
+
 ## 0.8.48
 
 * Fix some parsing edge cases ([#835](https://github.com/evanw/esbuild/issues/835))
