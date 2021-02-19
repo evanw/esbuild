@@ -77,6 +77,8 @@ var helpText = func(colors logger.Colors) string {
   --resolve-extensions=...  A comma-separated list of implicit extensions
                             (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.css,.json")
   --servedir=...            What to serve in addition to generated output files
+  --servespa                Serve a Single Page Application by falling back to
+                            index.html on unknown route
   --sourcefile=...          Set the source file for the source map (for stdin)
   --sourcemap=external      Do not link to the source map with a comment
   --sourcemap=inline        Emit the source map with an inline data URL
