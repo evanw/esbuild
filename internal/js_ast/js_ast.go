@@ -1400,8 +1400,7 @@ type Symbol struct {
 	UseCountEstimate uint32
 
 	// This is for generating cross-chunk imports and exports for code splitting.
-	// It's stored as one's complement so the zero value is invalid.
-	ChunkIndex uint32
+	ChunkIndex ast.Index32
 
 	// This is used for minification. Symbols that are declared in sibling scopes
 	// can share a name. A good heuristic (from Google Closure Compiler) is to

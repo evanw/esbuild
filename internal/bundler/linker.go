@@ -791,7 +791,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 						// is fine.
 						for _, declared := range part.DeclaredSymbols {
 							if declared.IsTopLevel {
-								c.symbols.Get(declared.Ref).ChunkIndex = ^uint32(chunkIndex)
+								c.symbols.Get(declared.Ref).ChunkIndex = ast.MakeIndex32(uint32(chunkIndex))
 							}
 						}
 
@@ -857,11 +857,12 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		repr.importsFromOtherChunks = make(map[uint32]crossChunkImportItemArray)
 		for importRef := range chunkMetas[chunkIndex].imports {
 			// Ignore uses that aren't top-level symbols
-			otherChunkIndex := ^c.symbols.Get(importRef).ChunkIndex
-			if otherChunkIndex != ^uint32(0) && otherChunkIndex != uint32(chunkIndex) {
-				repr.importsFromOtherChunks[otherChunkIndex] =
-					append(repr.importsFromOtherChunks[otherChunkIndex], crossChunkImportItem{ref: importRef})
-				chunkMetas[otherChunkIndex].exports[importRef] = true
+			if otherChunkIndex := c.symbols.Get(importRef).ChunkIndex; otherChunkIndex.IsValid() {
+				if otherChunkIndex := otherChunkIndex.GetIndex(); otherChunkIndex != uint32(chunkIndex) {
+					repr.importsFromOtherChunks[otherChunkIndex] =
+						append(repr.importsFromOtherChunks[otherChunkIndex], crossChunkImportItem{ref: importRef})
+					chunkMetas[otherChunkIndex].exports[importRef] = true
+				}
 			}
 		}
 
