@@ -173,6 +173,24 @@
     )
   }
 
+  // Make sure that the "asm.js" directive is removed
+  tests.push(
+    test(['in.js', '--outfile=node.js'], {
+      'in.js': `
+        function foo() { 'use asm'; eval("/* not asm.js */") }
+        let emitWarning = process.emitWarning
+        let failed = false
+        try {
+          process.emitWarning = () => failed = true
+          foo()
+        } finally {
+          process.emitWarning = emitWarning
+        }
+        if (failed) throw 'fail'
+      `,
+    }),
+  )
+
   let simpleCyclicImportTestCase542 = {
     'in.js': `
       import {Test} from './lib';

@@ -6132,9 +6132,26 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 					stmt.Data = &js_ast.SDirective{Value: str.Value, LegacyOctalLoc: str.LegacyOctalLoc}
 					isDirectivePrologue = true
 
-					// Track "use strict" directives
 					if js_lexer.UTF16EqualsString(str.Value, "use strict") {
+						// Track "use strict" directives
 						p.currentScope.StrictMode = js_ast.ExplicitStrictMode
+					} else if js_lexer.UTF16EqualsString(str.Value, "use asm") {
+						// Deliberately remove "use asm" directives. The asm.js subset of
+						// JavaScript has complicated validation rules that are triggered
+						// by this directive. This parser is not designed with asm.js in
+						// mind and round-tripping asm.js code through esbuild will very
+						// likely cause it to no longer validate as asm.js. When this
+						// happens, V8 prints a warning and people don't like seeing the
+						// warning.
+						//
+						// We deliberately do not attempt to preserve the validity of
+						// asm.js code because it's a complicated legacy format and it's
+						// obsolete now that WebAssembly exists. By removing this directive
+						// it will just become normal JavaScript, which will work fine and
+						// won't generate a warning (but will run slower). We don't generate
+						// a warning ourselves in this case because there isn't necessarily
+						// anything easy and actionable that the user can do to fix this.
+						stmt.Data = &js_ast.SEmpty{}
 					}
 				}
 			}

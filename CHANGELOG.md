@@ -8,6 +8,17 @@
 
     However, the CommonJS `module` and `exports` variables that are arguments to the closure previously weren't considered to be used in this scenario, meaning they may be omitted as dead code for size reasons. This could cause code inside `eval` to behave incorrectly. Now use of direct `eval` automatically counts as a use of both `module` and `exports` so these variables should now always be present in this case.
 
+* Always remove all `"use asm"` directives ([#856](https://github.com/evanw/esbuild/issues/856))
+
+    The asm.js subset of JavaScript has complicated validation rules that are triggered by this directive. The parser and code generator in esbuild was not designed with asm.js in mind and round-tripping asm.js code through esbuild will very likely cause it to no longer validate as asm.js. When this happens, V8 prints a warning and people don't like seeing the warning. The warning looks like this:
+
+    ```
+    (node:58335) V8: example.js:3 Invalid asm.js: Unexpected token
+    (Use `node --trace-warnings ...` to show where the warning was created)
+    ```
+
+    I am deliberately not attempting to preserve the validity of asm.js code because it's a complicated legacy format and it's obsolete now that WebAssembly exists. By removing all `"use asm"` directives, the code will just become normal JavaScript and work fine without generating a warning.
+
 ## 0.8.49
 
 * Work around a problem with `pnpm` and `NODE_PATH` ([#816](https://github.com/evanw/esbuild/issues/816))
