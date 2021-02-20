@@ -11042,8 +11042,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 					// Pessimistically assume that a direct call to "eval" means that code could
 					// potentially access "module" or "exports".
-					p.recordUsage(p.moduleRef)
-					p.recordUsage(p.exportsRef)
+					if p.options.mode == config.ModeBundle {
+						p.recordUsage(p.moduleRef)
+						p.recordUsage(p.exportsRef)
+					}
 
 					// Mark this scope and all parent scopes as containing a direct eval.
 					// This will prevent us from renaming any symbols.
