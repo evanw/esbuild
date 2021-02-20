@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Using direct `eval` now pulls in `module` and `exports`
+
+    Use of direct `eval` forces the file to become a CommonJS module and disables dead code elimination in the entire file. The CommonJS closure is necessary to avoid name collisions with other modules, since `eval` means symbols in the file can no longer be renamed to avoid collisions.
+
+    However, the CommonJS `module` and `exports` variables that are arguments to the closure previously weren't considered to be used in this scenario, meaning they may be omitted as dead code for size reasons. This could cause code inside `eval` to behave incorrectly. Now use of direct `eval` automatically counts as a use of both `module` and `exports` so these variables should now always be present in this case.
+
 ## 0.8.49
 
 * Work around a problem with `pnpm` and `NODE_PATH` ([#816](https://github.com/evanw/esbuild/issues/816))

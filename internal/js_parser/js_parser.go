@@ -11040,6 +11040,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if symbol := p.symbols[id.Ref.InnerIndex]; symbol.OriginalName == "eval" {
 					e.IsDirectEval = true
 
+					// Pessimistically assume that a direct call to "eval" means that code could
+					// potentially access "module" or "exports".
+					p.recordUsage(p.moduleRef)
+					p.recordUsage(p.exportsRef)
+
 					// Mark this scope and all parent scopes as containing a direct eval.
 					// This will prevent us from renaming any symbols.
 					for s := p.currentScope; s != nil; s = s.Parent {

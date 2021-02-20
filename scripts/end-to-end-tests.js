@@ -368,6 +368,16 @@
         export let b = () => a
       `,
     }),
+
+    // Use "eval" to access CommonJS variables
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `if (require('./eval').foo !== 123) throw 'fail'`,
+      'eval.js': `eval('exports.foo = 123')`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `if (require('./eval').foo !== 123) throw 'fail'`,
+      'eval.js': `eval('module.exports = {foo: 123}')`,
+    }),
   )
 
   // Test internal ES6 export
