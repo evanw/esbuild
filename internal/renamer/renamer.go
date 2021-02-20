@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 )
@@ -74,7 +75,7 @@ type MinifyRenamer struct {
 	sortedBuffer  StableRefArray
 	reservedNames map[string]uint32
 	slots         [3][]symbolSlot
-	symbolToSlot  map[js_ast.Ref]uint32
+	symbolToSlot  map[js_ast.Ref]ast.Index32
 }
 
 func NewMinifyRenamer(symbols js_ast.SymbolMap, firstTopLevelSlots js_ast.SlotCounts, reservedNames map[string]uint32) *MinifyRenamer {
@@ -86,7 +87,7 @@ func NewMinifyRenamer(symbols js_ast.SymbolMap, firstTopLevelSlots js_ast.SlotCo
 			make([]symbolSlot, firstTopLevelSlots[1]),
 			make([]symbolSlot, firstTopLevelSlots[2]),
 		},
-		symbolToSlot: make(map[js_ast.Ref]uint32),
+		symbolToSlot: make(map[js_ast.Ref]ast.Index32),
 	}
 }
 
@@ -102,10 +103,10 @@ func (r *MinifyRenamer) NameForSymbol(ref js_ast.Ref) string {
 	}
 
 	// Check if it's a nested scope symbol
-	i := ^symbol.NestedScopeSlot
+	i := symbol.NestedScopeSlot
 
 	// If it's not (i.e. it's in a top-level scope), look up the slot
-	if i == ^uint32(0) {
+	if !i.IsValid() {
 		var ok bool
 		i, ok = r.symbolToSlot[ref]
 		if !ok {
@@ -118,7 +119,7 @@ func (r *MinifyRenamer) NameForSymbol(ref js_ast.Ref) string {
 		}
 	}
 
-	return r.slots[ns][i].name
+	return r.slots[ns][i.GetIndex()].name
 }
 
 func (r *MinifyRenamer) AccumulateSymbolUseCounts(symbolUses map[js_ast.Ref]js_ast.SymbolUse, stableSourceIndices []uint32) {
@@ -155,20 +156,20 @@ func (r *MinifyRenamer) AccumulateSymbolCount(ref js_ast.Ref, count uint32) {
 
 	// Check if it's a nested scope symbol
 	slots := &r.slots[ns]
-	i := ^symbol.NestedScopeSlot
+	i := symbol.NestedScopeSlot
 
 	// If it's not (i.e. it's in a top-level scope), allocate a slot for it
-	if i == ^uint32(0) {
+	if !i.IsValid() {
 		var ok bool
 		i, ok = r.symbolToSlot[ref]
 		if !ok {
-			i = uint32(len(*slots))
+			i = ast.MakeIndex32(uint32(len(*slots)))
 			*slots = append(*slots, symbolSlot{})
 			r.symbolToSlot[ref] = i
 		}
 	}
 
-	(*slots)[i].count += count
+	(*slots)[i.GetIndex()].count += count
 }
 
 func (r *MinifyRenamer) AssignNamesByFrequency(minifier *js_ast.NameMinifier) {
@@ -217,16 +218,17 @@ func (r *MinifyRenamer) AssignNamesByFrequency(minifier *js_ast.NameMinifier) {
 
 // Returns the number of nested slots
 func AssignNestedScopeSlots(moduleScope *js_ast.Scope, symbols []js_ast.Symbol) (slotCounts js_ast.SlotCounts) {
-	// Temporarily set the nested scope slots of top-level symbols to non-zero so
+	// Temporarily set the nested scope slots of top-level symbols to valid so
 	// they aren't renamed in nested scopes. This prevents us from accidentally
 	// assigning nested scope slots to variables declared using "var" in a nested
 	// scope that are actually hoisted up to the module scope to become a top-
 	// level symbol.
+	validSlot := ast.MakeIndex32(1)
 	for _, member := range moduleScope.Members {
-		symbols[member.Ref.InnerIndex].NestedScopeSlot = 1
+		symbols[member.Ref.InnerIndex].NestedScopeSlot = validSlot
 	}
 	for _, ref := range moduleScope.Generated {
-		symbols[ref.InnerIndex].NestedScopeSlot = 1
+		symbols[ref.InnerIndex].NestedScopeSlot = validSlot
 	}
 
 	// Assign nested scope slots independently for each nested scope
@@ -237,10 +239,10 @@ func AssignNestedScopeSlots(moduleScope *js_ast.Scope, symbols []js_ast.Symbol) 
 	// Then set the nested scope slots of top-level symbols back to zero. Top-
 	// level symbols are not supposed to have nested scope slots.
 	for _, member := range moduleScope.Members {
-		symbols[member.Ref.InnerIndex].NestedScopeSlot = 0
+		symbols[member.Ref.InnerIndex].NestedScopeSlot = ast.Index32{}
 	}
 	for _, ref := range moduleScope.Generated {
-		symbols[ref.InnerIndex].NestedScopeSlot = 0
+		symbols[ref.InnerIndex].NestedScopeSlot = ast.Index32{}
 	}
 	return
 }
@@ -253,20 +255,20 @@ func assignNestedScopeSlotsHelper(scope *js_ast.Scope, symbols []js_ast.Symbol, 
 	}
 	sort.Ints(sortedMembers)
 
-	// Assign slots for this scope's symbols. Only do this if the slot is 0 (i.e.
-	// not already assigned). Nested scopes have copies of symbols from parent
+	// Assign slots for this scope's symbols. Only do this if the slot is
+	// not already assigned. Nested scopes have copies of symbols from parent
 	// scopes and we want to use the slot from the parent scope, not child scopes.
 	for _, innerIndex := range sortedMembers {
 		symbol := &symbols[innerIndex]
-		if ns := symbol.SlotNamespace(); ns != js_ast.SlotMustNotBeRenamed && symbol.NestedScopeSlot == 0 {
-			symbol.NestedScopeSlot = ^slot[ns]
+		if ns := symbol.SlotNamespace(); ns != js_ast.SlotMustNotBeRenamed && !symbol.NestedScopeSlot.IsValid() {
+			symbol.NestedScopeSlot = ast.MakeIndex32(slot[ns])
 			slot[ns]++
 		}
 	}
 	for _, ref := range scope.Generated {
 		symbol := &symbols[ref.InnerIndex]
-		if ns := symbol.SlotNamespace(); ns != js_ast.SlotMustNotBeRenamed && symbol.NestedScopeSlot == 0 {
-			symbol.NestedScopeSlot = ^slot[ns]
+		if ns := symbol.SlotNamespace(); ns != js_ast.SlotMustNotBeRenamed && !symbol.NestedScopeSlot.IsValid() {
+			symbol.NestedScopeSlot = ast.MakeIndex32(slot[ns])
 			slot[ns]++
 		}
 	}
@@ -274,7 +276,7 @@ func assignNestedScopeSlotsHelper(scope *js_ast.Scope, symbols []js_ast.Symbol, 
 	// Labels are always declared in a nested scope, so we don't need to check.
 	if scope.LabelRef != js_ast.InvalidRef {
 		symbol := &symbols[scope.LabelRef.InnerIndex]
-		symbol.NestedScopeSlot = ^slot[js_ast.SlotLabel]
+		symbol.NestedScopeSlot = ast.MakeIndex32(slot[js_ast.SlotLabel])
 		slot[js_ast.SlotLabel]++
 	}
 

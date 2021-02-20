@@ -108,7 +108,7 @@ type fileMeta struct {
 	// The index of the automatically-generated part containing export statements
 	// for every export in the entry point. This also contains the call to the
 	// require wrapper for CommonJS-style entry points.
-	entryPointExportPartIndex *uint32
+	entryPointExportPartIndex ast.Index32
 
 	// This is only for TypeScript files. If an import symbol is in this map, it
 	// means the import couldn't be found and doesn't actually exist. This is not
@@ -181,7 +181,7 @@ type fileMeta struct {
 	// and code splitting. The CommonJS wrapper can't be inserted into the part
 	// because the wrapper contains other parts, which can't be represented by
 	// the current part system.
-	cjsWrapperPartIndex *uint32
+	cjsWrapperPartIndex ast.Index32
 
 	// This includes both named exports and re-exports.
 	//
@@ -505,12 +505,12 @@ func findReachableFiles(files []file, entryPoints []uint32) []uint32 {
 		if !visited[sourceIndex] {
 			visited[sourceIndex] = true
 			file := &files[sourceIndex]
-			if repr, ok := file.repr.(*reprJS); ok && repr.cssSourceIndex != nil {
-				visit(*repr.cssSourceIndex)
+			if repr, ok := file.repr.(*reprJS); ok && repr.cssSourceIndex.IsValid() {
+				visit(repr.cssSourceIndex.GetIndex())
 			}
 			for _, record := range *file.repr.importRecords() {
-				if record.SourceIndex != nil {
-					visit(*record.SourceIndex)
+				if record.SourceIndex.IsValid() {
+					visit(record.SourceIndex.GetIndex())
 				}
 			}
 
@@ -778,9 +778,9 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 						// Rewrite external dynamic imports to point to the chunk for that entry point
 						for _, importRecordIndex := range part.ImportRecordIndices {
 							record := &repr.ast.ImportRecords[importRecordIndex]
-							if record.SourceIndex != nil && c.isExternalDynamicImport(record) {
-								record.Path.Text = c.pathBetweenChunks(chunk.relDir, c.files[*record.SourceIndex].entryPointRelPath)
-								record.SourceIndex = nil
+							if record.SourceIndex.IsValid() && c.isExternalDynamicImport(record) {
+								record.Path.Text = c.pathBetweenChunks(chunk.relDir, c.files[record.SourceIndex.GetIndex()].entryPointRelPath)
+								record.SourceIndex = ast.Index32{}
 							}
 						}
 
@@ -1063,12 +1063,12 @@ func (c *linkerContext) scanImportsAndExports() {
 
 			// Inline URLs for non-CSS files into the CSS file
 			for importRecordIndex := range repr.ast.ImportRecords {
-				if record := &repr.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil {
-					otherFile := &c.files[*record.SourceIndex]
+				if record := &repr.ast.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() {
+					otherFile := &c.files[record.SourceIndex.GetIndex()]
 					if otherRepr, ok := otherFile.repr.(*reprJS); ok {
 						record.Path.Text = otherRepr.ast.URLForCSS
 						record.Path.Namespace = ""
-						record.SourceIndex = nil
+						record.SourceIndex = ast.Index32{}
 
 						// Copy the additional files to the output directory
 						file.additionalFiles = append(file.additionalFiles, otherFile.additionalFiles...)
@@ -1079,11 +1079,11 @@ func (c *linkerContext) scanImportsAndExports() {
 		case *reprJS:
 			for importRecordIndex := range repr.ast.ImportRecords {
 				record := &repr.ast.ImportRecords[importRecordIndex]
-				if record.SourceIndex == nil {
+				if !record.SourceIndex.IsValid() {
 					continue
 				}
 
-				otherFile := &c.files[*record.SourceIndex]
+				otherFile := &c.files[record.SourceIndex.GetIndex()]
 				otherRepr := otherFile.repr.(*reprJS)
 
 				switch record.Kind {
@@ -1118,7 +1118,7 @@ func (c *linkerContext) scanImportsAndExports() {
 					if c.options.CodeSplitting {
 						// Files that are imported with import() must be entry points
 						if !otherFile.isEntryPoint {
-							c.entryPoints = append(c.entryPoints, *record.SourceIndex)
+							c.entryPoints = append(c.entryPoints, record.SourceIndex.GetIndex())
 							otherFile.isEntryPoint = true
 						}
 					} else {
@@ -1176,8 +1176,8 @@ func (c *linkerContext) scanImportsAndExports() {
 		// this can include entry points (e.g. an entry point that imports a file
 		// that imports that entry point).
 		for _, record := range repr.ast.ImportRecords {
-			if record.SourceIndex != nil {
-				otherRepr := c.files[*record.SourceIndex].repr.(*reprJS)
+			if record.SourceIndex.IsValid() {
+				otherRepr := c.files[record.SourceIndex.GetIndex()].repr.(*reprJS)
 				if otherRepr.meta.cjsStyleExports {
 					otherRepr.meta.cjsWrap = true
 				}
@@ -1784,7 +1784,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}, partMeta{
 			nonLocalDependencies: append([]partRef{}, entryPointExportNonLocalDependencies...),
 		})
-		repr.meta.entryPointExportPartIndex = &partIndex
+		repr.meta.entryPointExportPartIndex = ast.MakeIndex32(partIndex)
 	}
 }
 
@@ -2087,8 +2087,8 @@ func (c *linkerContext) isCommonJSDueToExportStar(sourceIndex uint32, visited ma
 		// This file is CommonJS if the exported imports are from a file that is
 		// either CommonJS directly or transitively by itself having an export star
 		// from a CommonJS file.
-		if (record.SourceIndex == nil && (!c.files[sourceIndex].isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
-			(record.SourceIndex != nil && *record.SourceIndex != sourceIndex && c.isCommonJSDueToExportStar(*record.SourceIndex, visited)) {
+		if (!record.SourceIndex.IsValid() && (!c.files[sourceIndex].isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
+			(record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() != sourceIndex && c.isCommonJSDueToExportStar(record.SourceIndex.GetIndex(), visited)) {
 			repr.meta.cjsStyleExports = true
 			return true
 		}
@@ -2113,11 +2113,11 @@ func (c *linkerContext) addExportsForExportStar(
 
 	for _, importRecordIndex := range repr.ast.ExportStarImportRecords {
 		record := &repr.ast.ImportRecords[importRecordIndex]
-		if record.SourceIndex == nil {
+		if !record.SourceIndex.IsValid() {
 			// This will be resolved at run time instead
 			continue
 		}
-		otherSourceIndex := *record.SourceIndex
+		otherSourceIndex := record.SourceIndex.GetIndex()
 
 		// Export stars from a CommonJS module don't work because they can't be
 		// statically discovered. Just silently ignore them in this case.
@@ -2218,12 +2218,12 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 	// Is this an external file?
 	record := &repr.ast.ImportRecords[namedImport.ImportRecordIndex]
-	if record.SourceIndex == nil {
+	if !record.SourceIndex.IsValid() {
 		return importTracker{}, importExternal, nil
 	}
 
 	// Is this a disabled file?
-	otherSourceIndex := *record.SourceIndex
+	otherSourceIndex := record.SourceIndex.GetIndex()
 	if c.files[otherSourceIndex].source.KeyPath.IsDisabled() {
 		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importDisabled, nil
 	}
@@ -2311,7 +2311,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				}, partMeta{
 					nonLocalDependencies: nonLocalDependencies,
 				})
-				repr.meta.cjsWrapperPartIndex = &partIndex
+				repr.meta.cjsWrapperPartIndex = ast.MakeIndex32(partIndex)
 				repr.ast.TopLevelSymbolToParts[repr.ast.WrapperRef] = []uint32{partIndex}
 				repr.meta.importsToBind[commonJSRef] = importToBind{
 					ref:         commonJSRef,
@@ -2404,15 +2404,15 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 		isTreeShakingEnabled := config.IsTreeShakingEnabled(c.options.Mode, c.options.OutputFormat)
 
 		// If the JavaScript stub for a CSS file is included, also include the CSS file
-		if repr.cssSourceIndex != nil {
-			c.includeFile(*repr.cssSourceIndex, entryPointBit, distanceFromEntryPoint)
+		if repr.cssSourceIndex.IsValid() {
+			c.includeFile(repr.cssSourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
 		}
 
 		for partIndex, part := range repr.ast.Parts {
 			canBeRemovedIfUnused := part.CanBeRemovedIfUnused
 
 			// Don't include the entry point part if we're not the entry point
-			if repr.meta.entryPointExportPartIndex != nil && uint32(partIndex) == *repr.meta.entryPointExportPartIndex &&
+			if uint32(partIndex) == repr.meta.entryPointExportPartIndex.GetIndex() &&
 				sourceIndex != c.entryPoints[entryPointBit] {
 				continue
 			}
@@ -2424,8 +2424,8 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 					continue
 				}
 
-				if record.SourceIndex != nil {
-					otherSourceIndex := *record.SourceIndex
+				if record.SourceIndex.IsValid() {
+					otherSourceIndex := record.SourceIndex.GetIndex()
 
 					// Don't include this module for its side effects if it can be
 					// considered to have no side effects
@@ -2479,8 +2479,8 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 	case *reprCSS:
 		// Include all "@import" rules
 		for _, record := range repr.ast.ImportRecords {
-			if record.SourceIndex != nil {
-				c.includeFile(*record.SourceIndex, entryPointBit, distanceFromEntryPoint)
+			if record.SourceIndex.IsValid() {
+				c.includeFile(record.SourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
 			}
 		}
 	}
@@ -2519,7 +2519,7 @@ func (c *linkerContext) generateUseOfSymbolForInclude(
 }
 
 func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord) bool {
-	return record.Kind == ast.ImportDynamic && c.files[*record.SourceIndex].isEntryPoint
+	return record.Kind == ast.ImportDynamic && c.files[record.SourceIndex.GetIndex()].isEntryPoint
 }
 
 func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
@@ -2559,7 +2559,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		record := &repr.ast.ImportRecords[importRecordIndex]
 
 		// Don't follow external imports (this includes import() expressions)
-		if record.SourceIndex == nil || c.isExternalDynamicImport(record) {
+		if !record.SourceIndex.IsValid() || c.isExternalDynamicImport(record) {
 			// This is an external import, so it needs the "__toModule" wrapper as
 			// long as it's not a bare "require()"
 			if record.Kind != ast.ImportRequire && !c.options.OutputFormat.KeepES6ImportExportSyntax() {
@@ -2569,7 +2569,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 			continue
 		}
 
-		otherSourceIndex := *record.SourceIndex
+		otherSourceIndex := record.SourceIndex.GetIndex()
 		otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
 		if record.Kind == ast.ImportStmt && !otherRepr.meta.cjsStyleExports {
 			// Skip this since it's not a require() import
@@ -2602,8 +2602,8 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		record := &repr.ast.ImportRecords[importRecordIndex]
 
 		// Is this export star evaluated at run time?
-		if (record.SourceIndex == nil && (!file.isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
-			(record.SourceIndex != nil && *record.SourceIndex != sourceIndex && c.files[*record.SourceIndex].repr.(*reprJS).meta.cjsStyleExports) {
+		if (!record.SourceIndex.IsValid() && (!file.isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
+			(record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() != sourceIndex && c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).meta.cjsStyleExports) {
 			record.CallsRunTimeExportStarFn = true
 			repr.ast.UsesExportsRef = true
 			exportStarUses++
@@ -2830,7 +2830,7 @@ func (c *linkerContext) shouldIncludePart(repr *reprJS, part js_ast.Part) bool {
 	if len(part.Stmts) == 1 {
 		if s, ok := part.Stmts[0].Data.(*js_ast.SImport); ok {
 			record := &repr.ast.ImportRecords[s.ImportRecordIndex]
-			if record.SourceIndex != nil && !c.files[*record.SourceIndex].repr.(*reprJS).meta.cjsStyleExports {
+			if record.SourceIndex.IsValid() && !c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).meta.cjsStyleExports {
 				return false
 			}
 		}
@@ -2888,12 +2888,12 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 				// Also traverse any files imported by this part
 				for _, importRecordIndex := range part.ImportRecordIndices {
 					record := &repr.ast.ImportRecords[importRecordIndex]
-					if record.SourceIndex != nil && (record.Kind == ast.ImportStmt || isPartInThisChunk) {
+					if record.SourceIndex.IsValid() && (record.Kind == ast.ImportStmt || isPartInThisChunk) {
 						if c.isExternalDynamicImport(record) {
 							// Don't follow import() dependencies
 							continue
 						}
-						visit(*record.SourceIndex)
+						visit(record.SourceIndex.GetIndex())
 					}
 				}
 
@@ -2927,8 +2927,8 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 			if isFileInThisChunk {
 				// All imported files come first
 				for _, record := range repr.ast.ImportRecords {
-					if record.SourceIndex != nil {
-						visit(*record.SourceIndex)
+					if record.SourceIndex.IsValid() {
+						visit(record.SourceIndex.GetIndex())
 					}
 				}
 
@@ -2958,8 +2958,8 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 	// Is this an import from another module inside this bundle?
 	repr := c.files[sourceIndex].repr.(*reprJS)
 	record := &repr.ast.ImportRecords[importRecordIndex]
-	if record.SourceIndex != nil {
-		if !c.files[*record.SourceIndex].repr.(*reprJS).meta.cjsStyleExports {
+	if record.SourceIndex.IsValid() {
+		if !c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).meta.cjsStyleExports {
 			// Remove the statement entirely if this is not a CommonJS module
 			return true
 		}
@@ -3014,7 +3014,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					record := &repr.ast.ImportRecords[s.ImportRecordIndex]
 
 					// Is this export star evaluated at run time?
-					if record.SourceIndex == nil && c.options.OutputFormat.KeepES6ImportExportSyntax() {
+					if !record.SourceIndex.IsValid() && c.options.OutputFormat.KeepES6ImportExportSyntax() {
 						if record.CallsRunTimeExportStarFn {
 							// Turn this statement into "import * as ns from 'path'"
 							stmt.Data = &js_ast.SImport{
@@ -3305,13 +3305,13 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		}
 
 		// Mark if we hit the dummy part representing the CommonJS wrapper
-		if repr.meta.cjsWrapperPartIndex != nil && uint32(partIndex) == *repr.meta.cjsWrapperPartIndex {
+		if uint32(partIndex) == repr.meta.cjsWrapperPartIndex.GetIndex() {
 			needsWrapper = true
 			continue
 		}
 
 		// Emit export statements in the entry point part verbatim
-		if repr.meta.entryPointExportPartIndex != nil && uint32(partIndex) == *repr.meta.entryPointExportPartIndex {
+		if uint32(partIndex) == repr.meta.entryPointExportPartIndex.GetIndex() {
 			stmtList.entryPointTail = append(stmtList.entryPointTail, part.Stmts...)
 			continue
 		}
@@ -3534,7 +3534,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 					for _, stmt := range part.Stmts {
 						switch s := stmt.Data.(type) {
 						case *js_ast.SImport:
-							if repr.ast.ImportRecords[s.ImportRecordIndex].SourceIndex == nil {
+							if !repr.ast.ImportRecords[s.ImportRecordIndex].SourceIndex.IsValid() {
 								r.AddTopLevelSymbol(s.NamespaceRef)
 								if s.DefaultName != nil {
 									r.AddTopLevelSymbol(s.DefaultName.Ref)
@@ -3547,12 +3547,12 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 							}
 
 						case *js_ast.SExportStar:
-							if repr.ast.ImportRecords[s.ImportRecordIndex].SourceIndex == nil {
+							if !repr.ast.ImportRecords[s.ImportRecordIndex].SourceIndex.IsValid() {
 								r.AddTopLevelSymbol(s.NamespaceRef)
 							}
 
 						case *js_ast.SExportFrom:
-							if repr.ast.ImportRecords[s.ImportRecordIndex].SourceIndex == nil {
+							if !repr.ast.ImportRecords[s.ImportRecordIndex].SourceIndex.IsValid() {
 								r.AddTopLevelSymbol(s.NamespaceRef)
 								for _, item := range s.Items {
 									r.AddTopLevelSymbol(item.Name.Ref)
@@ -4078,7 +4078,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 					compileResult.hasCharset = true
 					continue
 				case *css_ast.RAtImport:
-					if record := ast.ImportRecords[r.ImportRecordIndex]; record.SourceIndex == nil {
+					if record := ast.ImportRecords[r.ImportRecordIndex]; !record.SourceIndex.IsValid() {
 						compileResult.externalImportRecords = append(compileResult.externalImportRecords, record)
 					}
 					continue
@@ -4278,7 +4278,7 @@ func (c *linkerContext) preventExportsFromBeingRenamed(sourceIndex uint32) {
 				// shouldn't consider the file a module if the only ES6 import or
 				// export is the automatically generated one.
 				record := &repr.ast.ImportRecords[s.ImportRecordIndex]
-				if record.SourceIndex != nil && *record.SourceIndex == runtime.SourceIndex {
+				if record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() == runtime.SourceIndex {
 					continue
 				}
 

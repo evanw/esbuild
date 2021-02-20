@@ -626,7 +626,7 @@ type ERequireResolve struct {
 
 type EImport struct {
 	Expr              Expr
-	ImportRecordIndex *uint32
+	ImportRecordIndex ast.Index32
 
 	// Comments inside "import()" expressions have special meaning for Webpack.
 	// Preserving comments inside these expressions makes it possible to use
@@ -1413,9 +1413,8 @@ type Symbol struct {
 	//   function y(a, b, c) { ... }
 	//
 	// The parser fills this in for symbols inside nested scopes. There are three
-	// slot namespaces: regular symbols, label symbols, and private symbols. This
-	// is stored as one's complement so the zero value is invalid.
-	NestedScopeSlot uint32
+	// slot namespaces: regular symbols, label symbols, and private symbols.
+	NestedScopeSlot ast.Index32
 
 	Kind SymbolKind
 

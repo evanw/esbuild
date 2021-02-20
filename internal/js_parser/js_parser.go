@@ -10888,7 +10888,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EImport{
 					Expr:                    arg,
-					ImportRecordIndex:       &importRecordIndex,
+					ImportRecordIndex:       ast.MakeIndex32(importRecordIndex),
 					LeadingInteriorComments: e.LeadingInteriorComments,
 				}}
 			}
@@ -11599,7 +11599,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && !p.options.preserveUnusedImportsTS {
 					// Ignore import records with a pre-filled source index. These are
 					// for injected files and we definitely do not want to trim these.
-					if record := &p.importRecords[s.ImportRecordIndex]; record.SourceIndex == nil {
+					if record := &p.importRecords[s.ImportRecordIndex]; !record.SourceIndex.IsValid() {
 						record.IsUnused = true
 						continue
 					}
@@ -12751,7 +12751,7 @@ func (p *parser) generateImportStmt(
 	declaredSymbols := make([]js_ast.DeclaredSymbol, len(imports))
 	clauseItems := make([]js_ast.ClauseItem, len(imports))
 	importRecordIndex := p.addImportRecord(ast.ImportStmt, logger.Loc{}, path)
-	p.importRecords[importRecordIndex].SourceIndex = &sourceIndex
+	p.importRecords[importRecordIndex].SourceIndex = ast.MakeIndex32(sourceIndex)
 
 	// Create per-import information
 	for i, alias := range imports {

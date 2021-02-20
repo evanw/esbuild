@@ -62,7 +62,7 @@ type ImportRecord struct {
 
 	// The resolved source index for an internal import (within the bundle) or
 	// nil for an external import (not included in the bundle)
-	SourceIndex *uint32
+	SourceIndex Index32
 
 	// Sometimes the parser creates an import record and decides it isn't needed.
 	// For example, TypeScript code may have import statements that later turn
@@ -89,4 +89,23 @@ type ImportRecord struct {
 	WasOriginallyBareImport bool
 
 	Kind ImportKind
+}
+
+// This stores a 32-bit index where the zero value is an invalid index. This is
+// a better alternative to storing the index as a pointer since that has the
+// same properties but takes up more space and costs an extra pointer traversal.
+type Index32 struct {
+	flippedBits uint32
+}
+
+func MakeIndex32(index uint32) Index32 {
+	return Index32{flippedBits: ^index}
+}
+
+func (i Index32) IsValid() bool {
+	return i.flippedBits != 0
+}
+
+func (i Index32) GetIndex() uint32 {
+	return ^i.flippedBits
 }

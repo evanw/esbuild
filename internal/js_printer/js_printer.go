@@ -1271,7 +1271,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 	p.printSpaceBeforeIdentifier()
 
 	// Preserve "import()" expressions that don't point inside the bundle
-	if record.SourceIndex == nil && record.Kind == ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
+	if !record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
 		p.print("import(")
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
@@ -1320,8 +1320,8 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 	// function for that module directly. The linker must ensure that the
 	// module's require function exists by this point. Otherwise, fall back to a
 	// bare "require()" call. Then it's up to the user to provide it.
-	if record.SourceIndex != nil {
-		p.printSymbol(p.options.WrapperRefForSource(*record.SourceIndex))
+	if record.SourceIndex.IsValid() {
+		p.printSymbol(p.options.WrapperRefForSource(record.SourceIndex.GetIndex()))
 		p.print("()")
 	} else {
 		p.print("require(")
@@ -1524,8 +1524,8 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			leadingInteriorComments = e.LeadingInteriorComments
 		}
 
-		if e.ImportRecordIndex != nil {
-			p.printRequireOrImportExpr(*e.ImportRecordIndex, leadingInteriorComments)
+		if e.ImportRecordIndex.IsValid() {
+			p.printRequireOrImportExpr(e.ImportRecordIndex.GetIndex(), leadingInteriorComments)
 		} else {
 			// Handle non-string expressions
 			p.printSpaceBeforeIdentifier()

@@ -83,7 +83,7 @@ type reprJS struct {
 	// If present, this is the CSS file that this JavaScript stub corresponds to.
 	// A JavaScript stub is automatically generated for a CSS file when it's
 	// imported from a JavaScript file.
-	cssSourceIndex *uint32
+	cssSourceIndex ast.Index32
 }
 
 func (repr *reprJS) importRecords() *[]ast.ImportRecord {
@@ -96,7 +96,7 @@ type reprCSS struct {
 	// If present, this is the JavaScript stub corresponding to this CSS file.
 	// A JavaScript stub is automatically generated for a CSS file when it's
 	// imported from a JavaScript file.
-	jsSourceIndex *uint32
+	jsSourceIndex ast.Index32
 }
 
 func (repr *reprCSS) importRecords() *[]ast.ImportRecord {
@@ -382,7 +382,7 @@ func parseFile(args parseArgs) {
 			for importRecordIndex := range records {
 				// Don't try to resolve imports that are already resolved
 				record := &records[importRecordIndex]
-				if record.SourceIndex != nil {
+				if record.SourceIndex.IsValid() {
 					continue
 				}
 
@@ -1218,7 +1218,7 @@ func (s *scanner) scanAllDependencies() {
 					// Handle a path within the bundle
 					prettyPath := s.res.PrettyPath(path)
 					sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, &result.file.source, record.Range, resolveResult.PluginData, inputKindNormal, nil)
-					record.SourceIndex = &sourceIndex
+					record.SourceIndex = ast.MakeIndex32(sourceIndex)
 				} else {
 					// If the path to the external module is relative to the source
 					// file, rewrite the path to be relative to the working directory
@@ -1268,7 +1268,7 @@ func (s *scanner) processScannedFiles() []file {
 
 				// Skip this import record if the previous resolver call failed
 				resolveResult := result.resolveResults[importRecordIndex]
-				if resolveResult == nil || record.SourceIndex == nil {
+				if resolveResult == nil || !record.SourceIndex.IsValid() {
 					continue
 				}
 
@@ -1287,7 +1287,7 @@ func (s *scanner) processScannedFiles() []file {
 						secondaryKey.Text = lowerCaseAbsPathForWindows(secondaryKey.Text)
 					}
 					if secondarySourceIndex, ok := s.visited[secondaryKey]; ok {
-						record.SourceIndex = &secondarySourceIndex
+						record.SourceIndex = ast.MakeIndex32(secondarySourceIndex)
 					}
 				}
 
@@ -1300,21 +1300,21 @@ func (s *scanner) processScannedFiles() []file {
 						j.AddString(",\n        ")
 					}
 					j.AddString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s\n        }",
-						js_printer.QuoteForJSON(s.results[*record.SourceIndex].file.source.PrettyPath, s.options.ASCIIOnly),
+						js_printer.QuoteForJSON(s.results[record.SourceIndex.GetIndex()].file.source.PrettyPath, s.options.ASCIIOnly),
 						js_printer.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
 				}
 
 				// Importing a JavaScript file from a CSS file is not allowed.
 				switch record.Kind {
 				case ast.ImportAt:
-					otherFile := &s.results[*record.SourceIndex].file
+					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					if _, ok := otherFile.repr.(*reprJS); ok {
 						s.log.AddRangeError(&result.file.source, record.Range,
 							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.source.PrettyPath))
 					}
 
 				case ast.ImportURL:
-					otherFile := &s.results[*record.SourceIndex].file
+					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					switch otherRepr := otherFile.repr.(type) {
 					case *reprCSS:
 						s.log.AddRangeError(&result.file.source, record.Range,
@@ -1332,12 +1332,12 @@ func (s *scanner) processScannedFiles() []file {
 				// JavaScript stub to ensure that JavaScript files only ever import
 				// other JavaScript files.
 				if _, ok := result.file.repr.(*reprJS); ok {
-					otherFile := &s.results[*record.SourceIndex].file
+					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					if css, ok := otherFile.repr.(*reprCSS); ok {
 						if s.options.WriteToStdout {
 							s.log.AddRangeError(&result.file.source, record.Range,
 								fmt.Sprintf("Cannot import %q into a JavaScript file without an output path configured", otherFile.source.PrettyPath))
-						} else if css.jsSourceIndex == nil {
+						} else if !css.jsSourceIndex.IsValid() {
 							stubKey := otherFile.source.KeyPath
 							if stubKey.Namespace == "file" {
 								stubKey.Text = lowerCaseAbsPathForWindows(stubKey.Text)
@@ -1352,16 +1352,16 @@ func (s *scanner) processScannedFiles() []file {
 									repr: &reprJS{
 										ast: js_parser.LazyExportAST(s.log, source,
 											js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: &js_ast.EObject{}}, ""),
-										cssSourceIndex: record.SourceIndex,
+										cssSourceIndex: ast.MakeIndex32(record.SourceIndex.GetIndex()),
 									},
 									source: source,
 								},
 								ok: true,
 							}
-							css.jsSourceIndex = &sourceIndex
+							css.jsSourceIndex = ast.MakeIndex32(sourceIndex)
 						}
 						record.SourceIndex = css.jsSourceIndex
-						if css.jsSourceIndex == nil {
+						if !css.jsSourceIndex.IsValid() {
 							continue
 						}
 					}
@@ -1370,7 +1370,7 @@ func (s *scanner) processScannedFiles() []file {
 				// Don't include this module for its side effects if it can be
 				// considered to have no side effects
 				if record.WasOriginallyBareImport && !s.options.IgnoreDCEAnnotations {
-					if otherFile := &s.results[*record.SourceIndex].file; otherFile.ignoreIfUnused {
+					if otherFile := &s.results[record.SourceIndex.GetIndex()].file; otherFile.ignoreIfUnused {
 						var notes []logger.MsgData
 						if otherFile.ignoreIfUnusedData != nil {
 							var text string
@@ -1631,8 +1631,8 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool, allReachableF
 		for _, sourceIndex := range allReachableFiles {
 			if repr, ok := b.files[sourceIndex].repr.(*reprJS); ok {
 				for importRecordIndex := range repr.ast.ImportRecords {
-					if record := &repr.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == ast.ImportDynamic {
-						isEntryPoint[*record.SourceIndex] = true
+					if record := &repr.ast.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic {
+						isEntryPoint[record.SourceIndex.GetIndex()] = true
 					}
 				}
 			}
