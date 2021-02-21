@@ -48,6 +48,13 @@ func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrinteMangleSyntax(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [minified]", contents, expected, Options{
+		MangleSyntax: true,
+	})
+}
+
 func expectPrintedASCII(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [ascii]", contents, expected, Options{
@@ -398,4 +405,20 @@ func TestASCII(t *testing.T) {
 
 	// This character should always be escaped
 	expectPrinted(t, ".\\FEFF:after { content: '\uFEFF' }", ".\\feff:after {\n  content: \"\\feff\";\n}\n")
+}
+
+func TestEmptyRule(t *testing.T) {
+	expectPrinted(t, "div {}", "div {\n}\n")
+	expectPrinted(t, ".a {}", ".a {\n}\n")
+	expectPrinted(t, ".a {}.b { color: red;}", ".a {\n}\n.b {\n  color: red;\n}\n")
+	expectPrinted(t, "@media (prefers-reduced-motion: no-preference) {\n}", "@media (prefers-reduced-motion: no-preference) {\n}\n")
+	expectPrinted(t, "@keyframes test {\n  from {}\n  to {\n  color: red;\n}\n}", "@keyframes test {\n  from {\n  }\n  to {\n    color: red;\n  }\n}\n")
+
+	expectPrintedMinify(t, "p:hover {}", "p:hover{}")
+	expectPrintedMinify(t, ".a {}\n.b {\n  color: red;\n}", ".a{}.b{color:red}")
+	expectPrintedMinify(t, "@keyframes mini {\n  from {}\n  to {\n  color: red;\n}\n}", "@keyframes mini{from{}to{color:red}}")
+
+	expectPrinteMangleSyntax(t, "a:hover {}", "")
+	expectPrinteMangleSyntax(t, ".a {}\n.b {\n  color: red;\n}", ".b {\n  color: red;\n}\n")
+	expectPrinteMangleSyntax(t, "@keyframes test {\n  from {}\n  to {\n  color: red;\n}\n}", "@keyframes test {\n  to {\n    color: red;\n  }\n}\n")
 }
