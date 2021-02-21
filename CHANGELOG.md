@@ -32,6 +32,10 @@
 
     The parser previously allowed this for regular functions but not for async or generator functions. Now with this release, this behavior is also allowed for these special kinds of functions too.
 
+* Remove empty CSS rules when minifying ([#851](https://github.com/evanw/esbuild/pull/851))
+
+    Empty rules with no content such as `div {}` are now removed when CSS is minified. This change was contributed by [@susiwen8](https://github.com/susiwen8).
+
 ## 0.8.49
 
 * Work around a problem with `pnpm` and `NODE_PATH` ([#816](https://github.com/evanw/esbuild/issues/816))

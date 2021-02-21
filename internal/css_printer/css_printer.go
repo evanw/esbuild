@@ -90,6 +90,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		}
 		indent++
 		for _, block := range r.Blocks {
+			// "@keyframes { from {} to { color: red } }" => "@keyframes { to { color: red } }"
 			if p.MangleSyntax && len(block.Rules) == 0 {
 				continue
 			}
@@ -122,9 +123,16 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.print("}")
 
 	case *css_ast.RKnownAt:
+		// "@font-face {}" => ""
+		// "@page {}" => ""
+		// "@document {}" => ""
+		// "@media {}" => ""
+		// "@scope {}" => ""
+		// "@supports {}" => ""
 		if p.MangleSyntax && len(r.Rules) == 0 {
 			return
 		}
+
 		p.print("@")
 		whitespace := mayNeedWhitespaceAfter
 		if len(r.Prelude) == 0 {
@@ -161,6 +169,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		}
 
 	case *css_ast.RSelector:
+		// "a {}" => ""
 		if p.MangleSyntax && len(r.Rules) == 0 {
 			return
 		}
@@ -172,10 +181,6 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RQualified:
-		if p.MangleSyntax && len(r.Rules) == 0 {
-			return
-		}
-
 		hasWhitespaceAfter := p.printTokens(r.Prelude)
 		if !hasWhitespaceAfter && !p.RemoveWhitespace {
 			p.print(" ")
