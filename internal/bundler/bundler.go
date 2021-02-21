@@ -340,8 +340,13 @@ func parseFile(args parseArgs) {
 		}}
 
 	default:
-		args.log.AddRangeError(args.importSource, args.importPathRange,
-			fmt.Sprintf("File could not be loaded: %s", source.PrettyPath))
+		var message string
+		if ext != "" {
+			message = fmt.Sprintf("No loader is configured for %q files: %s", ext, source.PrettyPath)
+		} else {
+			message = fmt.Sprintf("File could not be loaded: %s", source.PrettyPath)
+		}
+		args.log.AddRangeError(args.importSource, args.importPathRange, message)
 	}
 
 	// This must come before we send on the "results" channel to avoid deadlock

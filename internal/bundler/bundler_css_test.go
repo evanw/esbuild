@@ -517,7 +517,7 @@ func TestCSSAtImportExtensionOrderCollisionUnsupported(t *testing.T) {
 				".css": config.LoaderCSS,
 			},
 		},
-		expectedScanLog: `entry.css: error: File could not be loaded: test.sass
+		expectedScanLog: `entry.css: error: No loader is configured for ".sass" files: test.sass
 `,
 	})
 }
