@@ -61,7 +61,7 @@
       'entry.js': `import "./file.js/what/is/this"`,
       'file.js': `some file`,
     }, {
-      expectedStderr: ` > entry.js: error: Could not resolve "./file.js/what/is/this"
+      expectedStderr: ` > entry.js:1:7: error: Could not resolve "./file.js/what/is/this"
     1 │ import "./file.js/what/is/this"
       ╵        ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -911,7 +911,7 @@
       `,
     }, {
       async: true,
-      expectedStderr: ` > in.js: warning: Converting "require" to "esm" is currently not supported
+      expectedStderr: ` > in.js:2:25: warning: Converting "require" to "esm" is currently not supported
     2 │         const {exists} = require('fs')
       ╵                          ~~~~~~~
 
@@ -933,7 +933,7 @@
       `,
     }, {
       async: true,
-      expectedStderr: ` > in.js: warning: Converting "require" to "esm" is currently not supported
+      expectedStderr: ` > in.js:2:19: warning: Converting "require" to "esm" is currently not supported
     2 │         const fs = require('fs')
       ╵                    ~~~~~~~
 
@@ -1584,11 +1584,11 @@
         new Foo().bar()
       `,
     }, {
-      expectedStderr: ` > in.js: warning: Reading from setter-only property "#setter" will throw
+      expectedStderr: ` > in.js:23:30: warning: Reading from setter-only property "#setter" will throw
     23 │             expect(() => this.#setter, 'member.get is not a function')
        ╵                               ~~~~~~~
 
- > in.js: warning: Writing to getter-only property "#getter" will throw
+ > in.js:24:30: warning: Writing to getter-only property "#getter" will throw
     24 │             expect(() => this.#getter = 1, 'member.set is not a func...
        ╵                               ~~~~~~~
 
@@ -1709,10 +1709,10 @@
         }
       `,
     }, {
-      expectedStderr: ` > in.js: warning: This assignment will throw because "Foo" is a constant
+      expectedStderr: ` > in.js:5:26: warning: This assignment will throw because "Foo" is a constant
     5 │             static #foo = Foo = class Bar {}
       ╵                           ~~~
-   in.js: note: "Foo" was declared a constant here
+   in.js:3:16: note: "Foo" was declared a constant here
     3 │           class Foo {
       ╵                 ~~~
 
@@ -1734,10 +1734,10 @@
         }
       `,
     }, {
-      expectedStderr: ` > in.js: warning: This assignment will throw because "Foo" is a constant
+      expectedStderr: ` > in.js:4:26: warning: This assignment will throw because "Foo" is a constant
     4 │           static #foo() { Foo = class Bar{} }
       ╵                           ~~~
-   in.js: note: "Foo" was declared a constant here
+   in.js:2:14: note: "Foo" was declared a constant here
     2 │         class Foo {
       ╵               ~~~
 
@@ -2372,7 +2372,7 @@
       `,
         'src/entry.js.map/x': ``,
       }, {
-        expectedStderr: ` > src/entry.js: error: Cannot read file "src/entry.js.map": ${errorText}
+        expectedStderr: ` > src/entry.js:2:29: error: Cannot read file "src/entry.js.map": ${errorText}
     2 │         //# sourceMappingURL=entry.js.map
       ╵                              ~~~~~~~~~~~~
 
@@ -2384,7 +2384,7 @@
         'src/tsconfig.json': `{"extends": "./base.json"}`,
         'src/base.json/x': ``,
       }, {
-        expectedStderr: ` > src/tsconfig.json: error: Cannot read file "src/base.json": ${errorText}
+        expectedStderr: ` > src/tsconfig.json:1:12: error: Cannot read file "src/base.json": ${errorText}
     1 │ {"extends": "./base.json"}
       ╵             ~~~~~~~~~~~~~
 
@@ -2396,7 +2396,7 @@
         'src/tsconfig.json': `{"extends": "foo"}`,
         'node_modules/foo/tsconfig.json/x': ``,
       }, {
-        expectedStderr: ` > src/tsconfig.json: error: Cannot read file "node_modules/foo/tsconfig.json": ${errorText}
+        expectedStderr: ` > src/tsconfig.json:1:12: error: Cannot read file "node_modules/foo/tsconfig.json": ${errorText}
     1 │ {"extends": "foo"}
       ╵             ~~~~~
 
@@ -2511,7 +2511,7 @@
       `,
       'file.js': `This file should not be imported on Windows`,
     }, {
-      expectedStderr: ` > in.js: error: Could not read from file: /file.js
+      expectedStderr: ` > in.js:2:15: error: Could not read from file: /file.js
     2 │         import "/file.js"
       ╵                ~~~~~~~~~~
 
@@ -2533,11 +2533,11 @@
         'file1.js': `export default 123`,
         'File2.js': `export default 234`,
       }, {
-        expectedStderr: ` > in.js: warning: Use "file1.js" instead of "File1.js" to avoid issues with case-sensitive file systems
+        expectedStderr: ` > in.js:2:24: warning: Use "file1.js" instead of "File1.js" to avoid issues with case-sensitive file systems
     2 │           import x from "./File1.js"
       ╵                         ~~~~~~~~~~~~
 
- > in.js: warning: Use "File2.js" instead of "file2.js" to avoid issues with case-sensitive file systems
+ > in.js:3:24: warning: Use "File2.js" instead of "file2.js" to avoid issues with case-sensitive file systems
     3 │           import y from "./file2.js"
       ╵                         ~~~~~~~~~~~~
 
@@ -2564,11 +2564,11 @@
         'node_modules/pkg/file1.js': `export default 123`,
         'node_modules/pkg/File2.js': `export default 234`,
       }, {
-        expectedStderr: ` > in.js: warning: Use "node_modules/pkg/file1.js" instead of "node_modules/pkg/File1.js" to avoid issues with case-sensitive file systems
+        expectedStderr: ` > in.js:2:24: warning: Use "node_modules/pkg/file1.js" instead of "node_modules/pkg/File1.js" to avoid issues with case-sensitive file systems
     2 │           import x from "pkg/File1.js"
       ╵                         ~~~~~~~~~~~~~~
 
- > in.js: warning: Use "node_modules/pkg/File2.js" instead of "node_modules/pkg/file2.js" to avoid issues with case-sensitive file systems
+ > in.js:3:24: warning: Use "node_modules/pkg/File2.js" instead of "node_modules/pkg/file2.js" to avoid issues with case-sensitive file systems
     3 │           import y from "pkg/file2.js"
       ╵                         ~~~~~~~~~~~~~~
 

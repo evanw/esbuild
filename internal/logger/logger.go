@@ -910,8 +910,8 @@ func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, d
 
 	if terminalInfo.UseColorEscapes {
 		if d.Suggestion != "" {
-			return fmt.Sprintf("%s%s%s: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s\n%s%s%s%s%s%s%s\n",
-				textColor, textIndent, d.Path,
+			return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s\n%s%s%s%s%s%s%s\n",
+				textColor, textIndent, d.Path, d.Line, d.Column,
 				kindColor, kind.String(),
 				textResetColor, d.Message,
 				colorResetDim, d.SourceBefore, colorGreen, d.SourceMarked, colorResetDim, d.SourceAfter,
@@ -920,8 +920,8 @@ func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, d
 				d.ContentAfter, colorReset)
 		}
 
-		return fmt.Sprintf("%s%s%s: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s%s%s\n",
-			textColor, textIndent, d.Path,
+		return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s%s%s\n",
+			textColor, textIndent, d.Path, d.Line, d.Column,
 			kindColor, kind.String(),
 			textResetColor, d.Message,
 			colorResetDim, d.SourceBefore, colorGreen, d.SourceMarked, colorResetDim, d.SourceAfter,
@@ -930,16 +930,18 @@ func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, d
 	}
 
 	if d.Suggestion != "" {
-		return fmt.Sprintf("%s%s: %s: %s\n%s%s%s\n%s%s%s\n%s%s%s%s\n",
-			textIndent, d.Path, kind.String(), d.Message,
+		return fmt.Sprintf("%s%s:%d:%d: %s: %s\n%s%s%s\n%s%s%s\n%s%s%s%s\n",
+			textIndent, d.Path, d.Line, d.Column,
+			kind.String(), d.Message,
 			d.SourceBefore, d.SourceMarked, d.SourceAfter,
 			emptyMarginText(maxMargin, false), d.Indent, d.Marker,
 			emptyMarginText(maxMargin, true), d.Indent, d.Suggestion,
 			d.ContentAfter)
 	}
 
-	return fmt.Sprintf("%s%s: %s: %s\n%s%s%s\n%s%s%s%s\n",
-		textIndent, d.Path, kind.String(), d.Message,
+	return fmt.Sprintf("%s%s:%d:%d: %s: %s\n%s%s%s\n%s%s%s%s\n",
+		textIndent, d.Path, d.Line, d.Column,
+		kind.String(), d.Message,
 		d.SourceBefore, d.SourceMarked, d.SourceAfter,
 		emptyMarginText(maxMargin, true), d.Indent, d.Marker,
 		d.ContentAfter)

@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+* The stderr log format now contains line numbers after file names ([#865](https://github.com/evanw/esbuild/issues/865))
+
+    Error messages in stderr now have a line and column number after the file name.
+
+    Before:
+
+    ```
+     > src/structs/RTree.js: warning: Duplicate key "compareMinX" in object literal
+        469 │     compareMinX: function (a, b)
+            ╵     ~~~~~~~~~~~
+       src/structs/RTree.js: note: The original "compareMinX" is here
+        206 │     compareMinX: compareNodeMinX,
+            ╵     ~~~~~~~~~~~
+    ```
+
+    After:
+
+    ```
+     > src/structs/RTree.js:469:4: warning: Duplicate key "compareMinX" in object literal
+        469 │     compareMinX: function (a, b)
+            ╵     ~~~~~~~~~~~
+       src/structs/RTree.js:206:4: note: The original "compareMinX" is here
+        206 │     compareMinX: compareNodeMinX,
+            ╵     ~~~~~~~~~~~
+    ```
+
+    This should make log messages slightly easier to parse if you want to parse stderr instead of using esbuild's API. Previously you needed a multi-line regular expression to get the line number, but now that the line number is duplicated in two places you should only need a single-line regular expression.
+
+    Note that this is still the hacky way to get error information and is potentially unstable, since it will break if the log format changes. Log messages are mainly intended for humans. The straightforward and stable way to do this is still to use esbuild's API, which returns log messages as an array of objects.
+
 ## 0.8.50
 
 * Using direct `eval` now pulls in `module` and `exports`
