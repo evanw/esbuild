@@ -2997,19 +2997,23 @@ let functionScopeCases = [
   'function f() { { { var x } async function* x() {} }}',
 ];
 
-for (let kind of ['var', 'let', 'const']) {
-  for (let code of functionScopeCases) {
-    code = code.replace('var', kind)
-    transformTests['functionScope: ' + code] = async ({ service }) => {
-      let esbuildError
-      let nodeError
-      try { await service.transform(code) } catch (e) { esbuildError = e }
-      try { new Function(code)() } catch (e) { nodeError = e }
-      if (!esbuildError !== !nodeError) {
-        throw new Error(`
-          esbuild: ${esbuildError}
-          node: ${nodeError}
-        `)
+{
+  let counter = 0;
+  for (let kind of ['var', 'let', 'const']) {
+    for (let code of functionScopeCases) {
+      code = code.replace('var', kind)
+      transformTests['functionScope' + counter++] = async ({ service }) => {
+        let esbuildError
+        let nodeError
+        try { await service.transform(code) } catch (e) { esbuildError = e }
+        try { new Function(code)() } catch (e) { nodeError = e }
+        if (!esbuildError !== !nodeError) {
+          throw new Error(`
+            code: ${code}
+            esbuild: ${esbuildError}
+            node: ${nodeError}
+          `)
+        }
       }
     }
   }
