@@ -172,6 +172,17 @@ func TestDeclaration(t *testing.T) {
 	expectPrintedMinify(t, "* { unknown: x ( a + b ) }", "*{unknown:x (a + b)}")
 	expectPrintedMinify(t, "* { unknown: x ( a - b ) }", "*{unknown:x (a - b)}")
 	expectPrintedMinify(t, "* { unknown: x ( a , b ) }", "*{unknown:x (a,b)}")
+
+	// Pretty-print long lists in declarations
+	expectPrinted(t, "a { b: c, d }", "a {\n  b: c, d;\n}\n")
+	expectPrinted(t, "a { b: c, (d, e) }", "a {\n  b: c, (d, e);\n}\n")
+	expectPrinted(t, "a { b: c, d, e }", "a {\n  b:\n    c,\n    d,\n    e;\n}\n")
+	expectPrinted(t, "a { b: c, (d, e), f }", "a {\n  b:\n    c,\n    (d, e),\n    f;\n}\n")
+
+	expectPrintedMinify(t, "a { b: c, d }", "a{b:c,d}")
+	expectPrintedMinify(t, "a { b: c, (d, e) }", "a{b:c,(d,e)}")
+	expectPrintedMinify(t, "a { b: c, d, e }", "a{b:c,d,e}")
+	expectPrintedMinify(t, "a { b: c, (d, e), f }", "a{b:c,(d,e),f}")
 }
 
 func TestVerbatimWhitespace(t *testing.T) {

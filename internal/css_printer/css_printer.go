@@ -35,7 +35,7 @@ func Print(tree css_ast.AST, options Options) string {
 	return p.sb.String()
 }
 
-func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bool) {
+func (p *printer) printRule(rule css_ast.R, indent int32, omitTrailingSemicolon bool) {
 	if !p.options.RemoveWhitespace {
 		p.printIndent(indent)
 	}
@@ -142,7 +142,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		if !p.options.RemoveWhitespace || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
-		p.printTokens(r.Prelude)
+		p.printTokens(r.Prelude, printTokensOpts{})
 		if !p.options.RemoveWhitespace && len(r.Prelude) > 0 {
 			p.print(" ")
 		}
@@ -158,14 +158,14 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		if (!p.options.RemoveWhitespace && r.Block != nil) || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
-		p.printTokens(r.Prelude)
+		p.printTokens(r.Prelude, printTokensOpts{})
 		if !p.options.RemoveWhitespace && r.Block != nil && len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		if r.Block == nil {
 			p.print(";")
 		} else {
-			p.printTokens(r.Block)
+			p.printTokens(r.Block, printTokensOpts{})
 		}
 
 	case *css_ast.RSelector:
@@ -181,7 +181,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RQualified:
-		hasWhitespaceAfter := p.printTokens(r.Prelude)
+		hasWhitespaceAfter := p.printTokens(r.Prelude, printTokensOpts{})
 		if !hasWhitespaceAfter && !p.options.RemoveWhitespace {
 			p.print(" ")
 		}
@@ -190,7 +190,10 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 	case *css_ast.RDeclaration:
 		p.printIdent(r.KeyText, identNormal, canDiscardWhitespaceAfter)
 		p.print(":")
-		hasWhitespaceAfter := p.printTokens(r.Value)
+		hasWhitespaceAfter := p.printTokens(r.Value, printTokensOpts{
+			indent:        indent,
+			isDeclaration: true,
+		})
 		if r.Important {
 			if !hasWhitespaceAfter && !p.options.RemoveWhitespace && len(r.Value) > 0 {
 				p.print(" ")
@@ -202,7 +205,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		}
 
 	case *css_ast.RBadDeclaration:
-		p.printTokens(r.Tokens)
+		p.printTokens(r.Tokens, printTokensOpts{})
 		if !omitTrailingSemicolon {
 			p.print(";")
 		}
@@ -216,7 +219,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 	}
 }
 
-func (p *printer) printRuleBlock(rules []css_ast.R, indent int) {
+func (p *printer) printRuleBlock(rules []css_ast.R, indent int32) {
 	if p.options.RemoveWhitespace {
 		p.print("{")
 	} else {
@@ -234,7 +237,7 @@ func (p *printer) printRuleBlock(rules []css_ast.R, indent int) {
 	p.print("}")
 }
 
-func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, indent int) {
+func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, indent int32) {
 	for i, complex := range selectors {
 		if i > 0 {
 			if p.options.RemoveWhitespace {
@@ -377,7 +380,7 @@ func (p *printer) printPseudoClassSelector(pseudo css_ast.SSPseudoClass, whitesp
 	if len(pseudo.Args) > 0 {
 		p.printIdent(pseudo.Name, identNormal, canDiscardWhitespaceAfter)
 		p.print("(")
-		p.printTokens(pseudo.Args)
+		p.printTokens(pseudo.Args, printTokensOpts{})
 		p.print(")")
 	} else {
 		p.printIdent(pseudo.Name, identNormal, whitespace)
@@ -574,21 +577,44 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 	}
 }
 
-func (p *printer) printIndent(indent int) {
-	for i := 0; i < indent; i++ {
+func (p *printer) printIndent(indent int32) {
+	for i, n := 0, int(indent); i < n; i++ {
 		p.sb.WriteString("  ")
 	}
 }
 
-func (p *printer) printTokens(tokens []css_ast.Token) bool {
+type printTokensOpts struct {
+	indent        int32
+	isDeclaration bool
+}
+
+func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool {
 	hasWhitespaceAfter := len(tokens) > 0 && (tokens[0].Whitespace&css_ast.WhitespaceBefore) != 0
+
+	// Pretty-print long comma-separated declarations of 3 or more items
+	isMultiLineValue := false
+	if !p.options.RemoveWhitespace && opts.isDeclaration {
+		commaCount := 0
+		for _, t := range tokens {
+			if t.Kind == css_lexer.TComma {
+				commaCount++
+			}
+		}
+		isMultiLineValue = commaCount >= 2
+	}
+
 	for i, t := range tokens {
 		if t.Kind == css_lexer.TWhitespace {
 			hasWhitespaceAfter = true
 			continue
 		}
 		if hasWhitespaceAfter {
-			p.print(" ")
+			if isMultiLineValue && (i == 0 || tokens[i-1].Kind == css_lexer.TComma) {
+				p.print("\n")
+				p.printIndent(opts.indent + 1)
+			} else {
+				p.print(" ")
+			}
 		}
 		hasWhitespaceAfter = (t.Whitespace&css_ast.WhitespaceAfter) != 0 ||
 			(i+1 < len(tokens) && (tokens[i+1].Whitespace&css_ast.WhitespaceBefore) != 0)
@@ -632,7 +658,7 @@ func (p *printer) printTokens(tokens []css_ast.Token) bool {
 		}
 
 		if t.Children != nil {
-			p.printTokens(*t.Children)
+			p.printTokens(*t.Children, printTokensOpts{})
 
 			switch t.Kind {
 			case css_lexer.TFunction:
