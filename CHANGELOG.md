@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.50
 
 * Using direct `eval` now pulls in `module` and `exports`
 
