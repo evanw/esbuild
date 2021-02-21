@@ -13,7 +13,7 @@ import (
 const quoteForURL rune = -1
 
 type printer struct {
-	Options
+	options       Options
 	importRecords []ast.ImportRecord
 	sb            strings.Builder
 }
@@ -26,7 +26,7 @@ type Options struct {
 
 func Print(tree css_ast.AST, options Options) string {
 	p := printer{
-		Options:       options,
+		options:       options,
 		importRecords: tree.ImportRecords,
 	}
 	for _, rule := range tree.Rules {
@@ -36,7 +36,7 @@ func Print(tree css_ast.AST, options Options) string {
 }
 
 func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bool) {
-	if !p.RemoveWhitespace {
+	if !p.options.RemoveWhitespace {
 		p.printIndent(indent)
 	}
 
@@ -56,14 +56,14 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		} else {
 			p.print("@namespace")
 		}
-		if !p.RemoveWhitespace {
+		if !p.options.RemoveWhitespace {
 			p.print(" ")
 		}
 		p.printQuoted(r.Path)
 		p.print(";")
 
 	case *css_ast.RAtImport:
-		if p.RemoveWhitespace {
+		if p.options.RemoveWhitespace {
 			p.print("@import")
 		} else {
 			p.print("@import ")
@@ -80,10 +80,10 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		} else {
 			p.printIdent(r.Name, identNormal, canDiscardWhitespaceAfter)
 		}
-		if !p.RemoveWhitespace {
+		if !p.options.RemoveWhitespace {
 			p.print(" ")
 		}
-		if p.RemoveWhitespace {
+		if p.options.RemoveWhitespace {
 			p.print("{")
 		} else {
 			p.print("{\n")
@@ -91,16 +91,16 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		indent++
 		for _, block := range r.Blocks {
 			// "@keyframes { from {} to { color: red } }" => "@keyframes { to { color: red } }"
-			if p.MangleSyntax && len(block.Rules) == 0 {
+			if p.options.MangleSyntax && len(block.Rules) == 0 {
 				continue
 			}
 
-			if !p.RemoveWhitespace {
+			if !p.options.RemoveWhitespace {
 				p.printIndent(indent)
 			}
 			for i, sel := range block.Selectors {
 				if i > 0 {
-					if p.RemoveWhitespace {
+					if p.options.RemoveWhitespace {
 						p.print(",")
 					} else {
 						p.print(", ")
@@ -108,16 +108,16 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 				}
 				p.print(sel)
 			}
-			if !p.RemoveWhitespace {
+			if !p.options.RemoveWhitespace {
 				p.print(" ")
 			}
 			p.printRuleBlock(block.Rules, indent)
-			if !p.RemoveWhitespace {
+			if !p.options.RemoveWhitespace {
 				p.print("\n")
 			}
 		}
 		indent--
-		if !p.RemoveWhitespace {
+		if !p.options.RemoveWhitespace {
 			p.printIndent(indent)
 		}
 		p.print("}")
@@ -129,7 +129,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		// "@media {}" => ""
 		// "@scope {}" => ""
 		// "@supports {}" => ""
-		if p.MangleSyntax && len(r.Rules) == 0 {
+		if p.options.MangleSyntax && len(r.Rules) == 0 {
 			return
 		}
 
@@ -139,11 +139,11 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 			whitespace = canDiscardWhitespaceAfter
 		}
 		p.printIdent(r.AtToken, identNormal, whitespace)
-		if !p.RemoveWhitespace || len(r.Prelude) > 0 {
+		if !p.options.RemoveWhitespace || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		p.printTokens(r.Prelude)
-		if !p.RemoveWhitespace && len(r.Prelude) > 0 {
+		if !p.options.RemoveWhitespace && len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		p.printRuleBlock(r.Rules, indent)
@@ -155,11 +155,11 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 			whitespace = canDiscardWhitespaceAfter
 		}
 		p.printIdent(r.AtToken, identNormal, whitespace)
-		if (!p.RemoveWhitespace && r.Block != nil) || len(r.Prelude) > 0 {
+		if (!p.options.RemoveWhitespace && r.Block != nil) || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		p.printTokens(r.Prelude)
-		if !p.RemoveWhitespace && r.Block != nil && len(r.Prelude) > 0 {
+		if !p.options.RemoveWhitespace && r.Block != nil && len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		if r.Block == nil {
@@ -170,19 +170,19 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 
 	case *css_ast.RSelector:
 		// "a {}" => ""
-		if p.MangleSyntax && len(r.Rules) == 0 {
+		if p.options.MangleSyntax && len(r.Rules) == 0 {
 			return
 		}
 
 		p.printComplexSelectors(r.Selectors, indent)
-		if !p.RemoveWhitespace {
+		if !p.options.RemoveWhitespace {
 			p.print(" ")
 		}
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RQualified:
 		hasWhitespaceAfter := p.printTokens(r.Prelude)
-		if !hasWhitespaceAfter && !p.RemoveWhitespace {
+		if !hasWhitespaceAfter && !p.options.RemoveWhitespace {
 			p.print(" ")
 		}
 		p.printRuleBlock(r.Rules, indent)
@@ -192,7 +192,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.print(":")
 		hasWhitespaceAfter := p.printTokens(r.Value)
 		if r.Important {
-			if !hasWhitespaceAfter && !p.RemoveWhitespace && len(r.Value) > 0 {
+			if !hasWhitespaceAfter && !p.options.RemoveWhitespace && len(r.Value) > 0 {
 				p.print(" ")
 			}
 			p.print("!important")
@@ -211,24 +211,24 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		panic("Internal error")
 	}
 
-	if !p.RemoveWhitespace {
+	if !p.options.RemoveWhitespace {
 		p.print("\n")
 	}
 }
 
 func (p *printer) printRuleBlock(rules []css_ast.R, indent int) {
-	if p.RemoveWhitespace {
+	if p.options.RemoveWhitespace {
 		p.print("{")
 	} else {
 		p.print("{\n")
 	}
 
 	for i, decl := range rules {
-		omitTrailingSemicolon := p.RemoveWhitespace && i+1 == len(rules)
+		omitTrailingSemicolon := p.options.RemoveWhitespace && i+1 == len(rules)
 		p.printRule(decl, indent+1, omitTrailingSemicolon)
 	}
 
-	if !p.RemoveWhitespace {
+	if !p.options.RemoveWhitespace {
 		p.printIndent(indent)
 	}
 	p.print("}")
@@ -237,7 +237,7 @@ func (p *printer) printRuleBlock(rules []css_ast.R, indent int) {
 func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, indent int) {
 	for i, complex := range selectors {
 		if i > 0 {
-			if p.RemoveWhitespace {
+			if p.options.RemoveWhitespace {
 				p.print(",")
 			} else {
 				p.print(",\n")
@@ -257,11 +257,11 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 	}
 
 	if sel.Combinator != "" {
-		if !p.RemoveWhitespace {
+		if !p.options.RemoveWhitespace {
 			p.print(" ")
 		}
 		p.print(sel.Combinator)
-		if !p.RemoveWhitespace {
+		if !p.options.RemoveWhitespace {
 			p.print(" ")
 		}
 	} else if !isFirst {
@@ -496,7 +496,7 @@ func (p *printer) printQuotedWithQuote(text string, quote rune) {
 			}
 
 		default:
-			if p.ASCIIOnly && c >= 0x80 || c == '\uFEFF' {
+			if p.options.ASCIIOnly && c >= 0x80 || c == '\uFEFF' {
 				escape = escapeHex
 			}
 		}
@@ -528,7 +528,7 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 	for i, c := range text {
 		escape := escapeNone
 
-		if p.ASCIIOnly && c >= 0x80 {
+		if p.options.ASCIIOnly && c >= 0x80 {
 			escape = escapeHex
 		} else if c == '\r' || c == '\n' || c == '\f' || c == '\uFEFF' {
 			// Use a hexadecimal escape for characters that would be invalid escapes
