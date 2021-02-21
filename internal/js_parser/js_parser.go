@@ -1345,19 +1345,25 @@ func (p *parser) hoistSymbols(scope *js_ast.Scope) {
 
 				if existingMember, ok := s.Members[symbol.OriginalName]; ok {
 					existingSymbol := &p.symbols[existingMember.Ref.InnerIndex]
-					switch existingSymbol.Kind {
-					case js_ast.SymbolUnbound, js_ast.SymbolHoisted, js_ast.SymbolHoistedFunction:
+
+					// We can hoist the symbol from the child scope into the symbol in
+					// this scope if:
+					//
+					//   - The symbol is unbound (i.e. a global variable access)
+					//   - The symbol is also another hoisted variable
+					//   - The symbol is a function of any kind and we're in a function or module scope
+					//
+					// Is this unbound (i.e. a global access) or also hoisted?
+					if existingSymbol.Kind == js_ast.SymbolUnbound || existingSymbol.Kind == js_ast.SymbolHoisted ||
+						(existingSymbol.Kind.IsFunction() && (s.Kind == js_ast.ScopeEntry || s.Kind == js_ast.ScopeFunctionBody)) {
 						// Silently merge this symbol into the existing symbol
 						symbol.Link = existingMember.Ref
 						s.Members[symbol.OriginalName] = existingMember
 						continue nextMember
+					}
 
-					case js_ast.SymbolCatchIdentifier:
-						// Silently merge the existing symbol into this symbol
-						existingSymbol.Link = member.Ref
-						s.Members[symbol.OriginalName] = member
-
-					default:
+					// Otherwise if this isn't a catch identifier, it's a collision
+					if existingSymbol.Kind != js_ast.SymbolCatchIdentifier {
 						// An identifier binding from a catch statement and a function
 						// declaration can both silently shadow another hoisted symbol
 						if symbol.Kind != js_ast.SymbolCatchIdentifier && symbol.Kind != js_ast.SymbolHoistedFunction {
@@ -1373,6 +1379,11 @@ func (p *parser) hoistSymbols(scope *js_ast.Scope) {
 						}
 						continue nextMember
 					}
+
+					// If this is a catch identifier, silently merge the existing symbol
+					// into this symbol but continue hoisting past this catch scope
+					existingSymbol.Link = member.Ref
+					s.Members[symbol.OriginalName] = member
 				}
 
 				if s.Kind.StopsHoisting() {

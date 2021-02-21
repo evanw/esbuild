@@ -778,6 +778,46 @@ func TestScope(t *testing.T) {
 	expectParseError(t, "{let x} {function x() {}}", "")
 	expectParseError(t, "{function x() {}} {let x}", "")
 
+	expectParseError(t, "function x() {} {var x}", "")
+	expectParseError(t, "function *x() {} {var x}", "")
+	expectParseError(t, "async function x() {} {var x}", "")
+	expectParseError(t, "async function *x() {} {var x}", "")
+
+	expectParseError(t, "{var x} function x() {}", "")
+	expectParseError(t, "{var x} function *x() {}", "")
+	expectParseError(t, "{var x} async function x() {}", "")
+	expectParseError(t, "{var x} async function *x() {}", "")
+
+	expectParseError(t, "{ function x() {} {var x} }", errorText)
+	expectParseError(t, "{ function *x() {} {var x} }", errorText)
+	expectParseError(t, "{ async function x() {} {var x} }", errorText)
+	expectParseError(t, "{ async function *x() {} {var x} }", errorText)
+
+	expectParseError(t, "{ {var x} function x() {} }", errorText)
+	expectParseError(t, "{ {var x} function *x() {} }", errorText)
+	expectParseError(t, "{ {var x} async function x() {} }", errorText)
+	expectParseError(t, "{ {var x} async function *x() {} }", errorText)
+
+	expectParseError(t, "function f() { function x() {} {var x} }", "")
+	expectParseError(t, "function f() { function *x() {} {var x} }", "")
+	expectParseError(t, "function f() { async function x() {} {var x} }", "")
+	expectParseError(t, "function f() { async function *x() {} {var x} }", "")
+
+	expectParseError(t, "function f() { {var x} function x() {} }", "")
+	expectParseError(t, "function f() { {var x} function *x() {} }", "")
+	expectParseError(t, "function f() { {var x} async function x() {} }", "")
+	expectParseError(t, "function f() { {var x} async function *x() {} }", "")
+
+	expectParseError(t, "function f() { { function x() {} {var x} } }", errorText)
+	expectParseError(t, "function f() { { function *x() {} {var x} } }", errorText)
+	expectParseError(t, "function f() { { async function x() {} {var x} } }", errorText)
+	expectParseError(t, "function f() { { async function *x() {} {var x} } }", errorText)
+
+	expectParseError(t, "function f() { { {var x} function x() {} } }", errorText)
+	expectParseError(t, "function f() { { {var x} function *x() {} } }", errorText)
+	expectParseError(t, "function f() { { {var x} async function x() {} } }", errorText)
+	expectParseError(t, "function f() { { {var x} async function *x() {} } }", errorText)
+
 	expectParseError(t, "var x=1, x=2", "")
 	expectParseError(t, "let x=1, x=2", errorText)
 	expectParseError(t, "const x=1, x=2", errorText)

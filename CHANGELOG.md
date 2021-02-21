@@ -19,6 +19,19 @@
 
     I am deliberately not attempting to preserve the validity of asm.js code because it's a complicated legacy format and it's obsolete now that WebAssembly exists. By removing all `"use asm"` directives, the code will just become normal JavaScript and work fine without generating a warning.
 
+* Fix a variable hoisting edge case ([#857](https://github.com/evanw/esbuild/issues/857))
+
+    It is allowed to use a nested `var` hoisted declaration with the same name as a top-level function declaration. In that case the two symbols should merge and be treated as the same symbol:
+
+    ```js
+    async function x() {}
+    {
+      var x;
+    }
+    ```
+
+    The parser previously allowed this for regular functions but not for async or generator functions. Now with this release, this behavior is also allowed for these special kinds of functions too.
+
 ## 0.8.49
 
 * Work around a problem with `pnpm` and `NODE_PATH` ([#816](https://github.com/evanw/esbuild/issues/816))

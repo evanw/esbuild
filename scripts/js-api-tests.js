@@ -2959,6 +2959,62 @@ let transformTests = {
   asyncGenClassExprFn: ({ service }) => futureSyntax(service, '(class { async* foo() {} })', 'es2017', 'es2018'),
 }
 
+let functionScopeCases = [
+  'function x() {} { var x }',
+  'function* x() {} { var x }',
+  'async function x() {} { var x }',
+  'async function* x() {} { var x }',
+  '{ var x } function x() {}',
+  '{ var x } function* x() {}',
+  '{ var x } async function x() {}',
+  '{ var x } async function* x() {}',
+
+  '{ function x() {} { var x } }',
+  '{ function* x() {} { var x } }',
+  '{ async function x() {} { var x } }',
+  '{ async function* x() {} { var x } }',
+  '{ { var x } function x() {} }',
+  '{ { var x } function* x() {} }',
+  '{ { var x } async function x() {} }',
+  '{ { var x } async function* x() {} }',
+
+  'function f() { function x() {} { var x } }',
+  'function f() { function* x() {} { var x } }',
+  'function f() { async function x() {} { var x } }',
+  'function f() { async function* x() {} { var x } }',
+  'function f() { { var x } function x() {} }',
+  'function f() { { var x } function* x() {} }',
+  'function f() { { var x } async function x() {} }',
+  'function f() { { var x } async function* x() {} }',
+
+  'function f() { { function x() {} { var x } }}',
+  'function f() { { function* x() {} { var x } }}',
+  'function f() { { async function x() {} { var x } }}',
+  'function f() { { async function* x() {} { var x } }}',
+  'function f() { { { var x } function x() {} }}',
+  'function f() { { { var x } function* x() {} }}',
+  'function f() { { { var x } async function x() {} }}',
+  'function f() { { { var x } async function* x() {} }}',
+];
+
+for (let kind of ['var', 'let', 'const']) {
+  for (let code of functionScopeCases) {
+    code = code.replace('var', kind)
+    transformTests['functionScope: ' + code] = async ({ service }) => {
+      let esbuildError
+      let nodeError
+      try { await service.transform(code) } catch (e) { esbuildError = e }
+      try { new Function(code)() } catch (e) { nodeError = e }
+      if (!esbuildError !== !nodeError) {
+        throw new Error(`
+          esbuild: ${esbuildError}
+          node: ${nodeError}
+        `)
+      }
+    }
+  }
+}
+
 let syncTests = {
   async buildSync({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')

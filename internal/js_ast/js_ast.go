@@ -1336,6 +1336,10 @@ func (kind SymbolKind) IsHoistedOrFunction() bool {
 	return kind.IsHoisted() || kind == SymbolGeneratorOrAsyncFunction
 }
 
+func (kind SymbolKind) IsFunction() bool {
+	return kind == SymbolHoistedFunction || kind == SymbolGeneratorOrAsyncFunction
+}
+
 var InvalidRef Ref = Ref{^uint32(0), ^uint32(0)}
 
 // Files are parsed in parallel for speed. We want to allow each parser to
