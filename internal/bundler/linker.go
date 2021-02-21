@@ -4089,6 +4089,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 			ast.Rules = rules
 
 			compileResult.printedCSS = css_printer.Print(ast, css_printer.Options{
+				MangleSyntax:     c.options.MangleSyntax,
 				RemoveWhitespace: c.options.RemoveWhitespace,
 				ASCIIOnly:        c.options.ASCIIOnly,
 			})

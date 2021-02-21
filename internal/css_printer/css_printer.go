@@ -19,6 +19,7 @@ type printer struct {
 }
 
 type Options struct {
+	MangleSyntax     bool
 	RemoveWhitespace bool
 	ASCIIOnly        bool
 }
@@ -89,6 +90,10 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		}
 		indent++
 		for _, block := range r.Blocks {
+			if p.MangleSyntax && len(block.Rules) == 0 {
+				continue
+			}
+
 			if !p.RemoveWhitespace {
 				p.printIndent(indent)
 			}
@@ -117,6 +122,9 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.print("}")
 
 	case *css_ast.RKnownAt:
+		if p.MangleSyntax && len(r.Rules) == 0 {
+			return
+		}
 		p.print("@")
 		whitespace := mayNeedWhitespaceAfter
 		if len(r.Prelude) == 0 {
@@ -153,6 +161,10 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		}
 
 	case *css_ast.RSelector:
+		if p.MangleSyntax && len(r.Rules) == 0 {
+			return
+		}
+
 		p.printComplexSelectors(r.Selectors, indent)
 		if !p.RemoveWhitespace {
 			p.print(" ")
@@ -160,6 +172,10 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RQualified:
+		if p.MangleSyntax && len(r.Rules) == 0 {
+			return
+		}
+
 		hasWhitespaceAfter := p.printTokens(r.Prelude)
 		if !hasWhitespaceAfter && !p.RemoveWhitespace {
 			p.print(" ")
