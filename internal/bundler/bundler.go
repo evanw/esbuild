@@ -1057,6 +1057,8 @@ func (s *scanner) preprocessInjectedFiles() {
 		go func() { s.resultChannel <- result }()
 	}
 
+	results := make([]config.InjectedFile, len(s.options.InjectAbsPaths))
+	j := 0
 	for _, absPath := range s.options.InjectAbsPaths {
 		prettyPath := s.res.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
 		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
@@ -1074,20 +1076,22 @@ func (s *scanner) preprocessInjectedFiles() {
 			continue
 		}
 
-		i := len(injectedFiles)
-		injectedFiles = append(injectedFiles, config.InjectedFile{})
 		channel := make(chan config.InjectedFile)
 		s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, nil, inputKindNormal, channel)
 
 		// Wait for the results in parallel
+		// The results slice is large enough, it is not reallocated during the computations
 		injectWaitGroup.Add(1)
-		go func(i int, prettyPath string, resolveResult *resolver.ResolveResult) {
-			injectedFiles[i] = <-channel
+		go func(i int) {
+			results[i] = <-channel
 			injectWaitGroup.Done()
-		}(i, prettyPath, resolveResult)
+		}(j)
+		j++
 	}
 
 	injectWaitGroup.Wait()
+	injectedFiles = append(injectedFiles, results[:j]...)
+
 	s.options.InjectedFiles = injectedFiles
 }
 
