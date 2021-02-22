@@ -466,7 +466,7 @@ func newLinkerContext(
 			// when the global name is present, since that's the only way the exports
 			// can actually be observed externally.
 			if repr.ast.HasES6Exports && (options.OutputFormat == config.FormatCommonJS ||
-				(options.OutputFormat == config.FormatIIFE && len(options.GlobalName) > 0)) {
+				((options.OutputFormat == config.FormatIIFE || options.OutputFormat == config.FormatUMD) && len(options.GlobalName) > 0)) {
 				repr.ast.UsesExportsRef = true
 				repr.meta.forceIncludeExportsForEntryPoint = true
 			}
@@ -1166,6 +1166,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// resulting wrapper won't be invoked by other files.
 		if repr.meta.cjsStyleExports &&
 			(c.options.OutputFormat == config.FormatIIFE ||
+				c.options.OutputFormat == config.FormatUMD ||
 				c.options.OutputFormat == config.FormatESModule) {
 			repr.meta.cjsWrap = true
 		}
@@ -1747,6 +1748,12 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 					}}}}
 				}
 
+			case config.FormatUMD:
+				// "return require_foo();"
+				cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+				}}}}
+
 			case config.FormatCommonJS:
 				// "module.exports = require_foo();"
 				cjsWrapStmt = js_ast.AssignStmt(
@@ -1765,7 +1772,9 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
 				}}}}}
 			}
-		} else if repr.meta.forceIncludeExportsForEntryPoint && c.options.OutputFormat == config.FormatIIFE && len(c.options.GlobalName) > 0 {
+		} else if repr.meta.forceIncludeExportsForEntryPoint &&
+			(c.options.OutputFormat == config.FormatIIFE ||
+				c.options.OutputFormat == config.FormatUMD) && len(c.options.GlobalName) > 0 {
 			// "return exports;"
 			cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}}}}
 		}
@@ -3378,9 +3387,9 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		lineOffsetTables = dataForSourceMaps[partRange.sourceIndex].lineOffsetTables
 	}
 
-	// Indent the file if everything is wrapped in an IIFE
+	// Indent the file if everything is wrapped in an IIFE or UMD
 	indent := 0
-	if c.options.OutputFormat == config.FormatIIFE {
+	if c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatUMD {
 		indent++
 	}
 
@@ -3637,9 +3646,9 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 		var crossChunkPrefix []byte
 		var crossChunkSuffix []byte
 		{
-			// Indent the file if everything is wrapped in an IIFE
+			// Indent the file if everything is wrapped in an IIFE or UMD
 			indent := 0
-			if c.options.OutputFormat == config.FormatIIFE {
+			if c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatUMD {
 				indent++
 			}
 			printOptions := js_printer.Options{
@@ -3716,9 +3725,41 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			prevOffset.advanceString(text)
 			j.AddString(text)
 			newlineBeforeComment = false
+			// Optionally wrap with an UMD
+		} else if c.options.OutputFormat == config.FormatUMD {
+			var text string
+			var prefix string
+			indent = "  "
+			if len(c.options.GlobalName) > 0 {
+				prefix = generateModuleNameAssignment(c.options)
+			}
+			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+				text = "(function(root," + space + "factory)" + space + "{" + newline +
+					space + space + "if" + space + "(typeof define" + space + "===" + space + "\"function\"" + space + "&&" + space + "define.amd)" + space + "{" + newline +
+					space + space + space + space + "define(factory);" + newline +
+					space + space + "}" + space + "else if" + space + "(typeof module" + space + "===" + space + "\"object\"" + space + "&&" + space + "module.exports)" + space + "{" + newline +
+					space + space + space + space + "module.exports" + space + "=" + space + "factory();" + newline +
+					space + space + "}" + space + "else" + space + "{" + newline +
+					space + space + space + space + prefix + "factory();" + newline +
+					space + space + "}" + newline +
+					"}(typeof self" + space + "!==" + space + "\"undefined\"" + space + "?" + space + "self" + space + ":" + space + "this," + space + "function()" + space + "{" + newline
+			} else {
+				text = "(function(root," + space + "factory)" + space + "{" + newline +
+					space + space + "if" + space + "(typeof define" + space + "===" + space + "\"function\"" + space + "&&" + space + "define.amd)" + space + "{" + newline +
+					space + space + space + space + "define(factory);" + newline +
+					space + space + "}" + space + "else if" + space + "(typeof module" + space + "===" + space + "\"object\"" + space + "&&" + space + "module.exports)" + space + "{" + newline +
+					space + space + space + space + "module.exports" + space + "=" + space + "factory();" + newline +
+					space + space + "}" + space + "else" + space + "{" + newline +
+					space + space + space + space + prefix + "factory();" + newline +
+					space + space + "}" + newline +
+					"}(typeof self" + space + "!==" + space + "\"undefined\"" + space + "?" + space + "self" + space + ":" + space + "this," + space + "()" + space + "=>" + space + "{" + newline
+			}
+			prevOffset.advanceString(text)
+			j.AddString(text)
+			newlineBeforeComment = false
 		}
 
-		// Put the cross-chunk prefix inside the IIFE
+		// Put the cross-chunk prefix inside the IIFE or UMD
 		if len(crossChunkPrefix) > 0 {
 			newlineBeforeComment = true
 			prevOffset.advanceBytes(crossChunkPrefix)
@@ -3882,7 +3923,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			j.AddBytes(entryPointTail.JS)
 		}
 
-		// Put the cross-chunk suffix inside the IIFE
+		// Put the cross-chunk suffix inside the IIFE or UMD
 		if len(crossChunkSuffix) > 0 {
 			if newlineBeforeComment {
 				j.AddString(newline)
@@ -3893,6 +3934,9 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 		// Optionally wrap with an IIFE
 		if c.options.OutputFormat == config.FormatIIFE {
 			j.AddString("})();" + newline)
+			// Optionally wrap with an UMD
+		} else if c.options.OutputFormat == config.FormatUMD {
+			j.AddString("}));" + newline)
 		}
 
 		// Make sure the file ends with a newline
@@ -4040,6 +4084,44 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 			prefix = fmt.Sprintf("%s[%s]", prefix, js_printer.QuoteForJSON(name, c.options.ASCIIOnly))
 		}
 		text += fmt.Sprintf("%s%s||%s{}%s%s%s=%s", oldPrefix, space, space, join, prefix, space, space)
+	}
+
+	return text
+}
+
+func generateModuleNameAssignment(options *config.Options) string {
+	var text string
+	prefix := options.GlobalName[0]
+	space := " "
+	join := ";\n"
+
+	if options.RemoveWhitespace {
+		space = ""
+		join = ";"
+	}
+
+	if js_printer.CanQuoteIdentifier(prefix, options.UnsupportedJSFeatures, options.ASCIIOnly) {
+		if options.ASCIIOnly {
+			prefix = string(js_printer.QuoteIdentifier(nil, prefix, options.UnsupportedJSFeatures))
+		}
+		prefix = "root." + prefix
+		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
+	} else {
+		prefix = fmt.Sprintf("root[%s]", js_printer.QuoteForJSON(prefix, options.ASCIIOnly))
+		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
+	}
+
+	for _, name := range options.GlobalName[1:] {
+		oldPrefix := prefix
+		if js_printer.CanQuoteIdentifier(name, options.UnsupportedJSFeatures, options.ASCIIOnly) {
+			if options.ASCIIOnly {
+				name = string(js_printer.QuoteIdentifier(nil, name, options.UnsupportedJSFeatures))
+			}
+			prefix = fmt.Sprintf("%s.%s", prefix, name)
+		} else {
+			prefix = fmt.Sprintf("%s[%s]", prefix, js_printer.QuoteForJSON(name, options.ASCIIOnly))
+		}
+		text += fmt.Sprintf("%s%s||%s{}%s%s%s%s%s%s%s=%s", oldPrefix, space, space, join, space, space, space, space, prefix, space, space)
 	}
 
 	return text

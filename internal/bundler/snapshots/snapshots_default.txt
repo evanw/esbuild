@@ -665,6 +665,54 @@ var globalName = (() => {
 })();
 
 ================================================================================
+TestExportFormsUMD
+---------- /out.js ----------
+(function(root, factory) {
+  if (typeof define === "function" && define.amd) {
+    define(factory);
+  } else if (typeof module === "object" && module.exports) {
+    module.exports = factory();
+  } else {
+    root.moduleName = factory();
+  }
+}(typeof self !== "undefined" ? self : this, () => {
+  // entry.js
+  var entry_exports = {};
+  __export(entry_exports, {
+    C: () => Class,
+    Class: () => Class,
+    Fn: () => Fn,
+    abc: () => abc,
+    b: () => b_exports,
+    c: () => c,
+    default: () => entry_default,
+    l: () => l,
+    v: () => v
+  });
+
+  // a.js
+  var abc = void 0;
+
+  // b.js
+  var b_exports = {};
+  __export(b_exports, {
+    xyz: () => xyz
+  });
+  var xyz = null;
+
+  // entry.js
+  var entry_default = 123;
+  var v = 234;
+  var l = 234;
+  var c = 234;
+  function Fn() {
+  }
+  var Class = class {
+  };
+  return entry_exports;
+}));
+
+================================================================================
 TestExportFormsWithMinifyIdentifiersAndNoBundle
 ---------- /out/a.js ----------
 export default 123;
@@ -838,6 +886,22 @@ TestIIFE_ES5
   // entry.js
   console.log("test");
 })();
+
+================================================================================
+TestUMD_ES5
+---------- /out.js ----------
+(function(root, factory) {
+  if (typeof define === "function" && define.amd) {
+    define(factory);
+  } else if (typeof module === "object" && module.exports) {
+    module.exports = factory();
+  } else {
+    factory();
+  }
+}(typeof self !== "undefined" ? self : this, function() {
+  // entry.js
+  console.log("test");
+}));
 
 ================================================================================
 TestImportFSNodeCommonJS
