@@ -3736,6 +3736,50 @@ func TestProcessEnvNodeEnvWarningNoBundle(t *testing.T) {
 	})
 }
 
+func TestDefineImportMeta(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"import.meta": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.ENumber{Value: 1}
+			},
+		},
+		"import.meta.foo": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.ENumber{Value: 2}
+			},
+		},
+		"import.meta.foo.bar": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.ENumber{Value: 3}
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(
+					// These should be fully substituted
+					import.meta,
+					import.meta.foo,
+					import.meta.foo.bar,
+
+					// Should just substitute "import.meta.foo"
+					import.meta.foo.baz,
+
+					// This should not be substituted
+					import.meta.bar,
+				)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			Defines:       &defines,
+		},
+	})
+}
+
 func TestKeepNamesTreeShaking(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

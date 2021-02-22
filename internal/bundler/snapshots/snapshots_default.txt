@@ -339,6 +339,12 @@ console.log("in a");console.log("in b");console.log("in c");
 //! Copyright notice 2
 
 ================================================================================
+TestDefineImportMeta
+---------- /out.js ----------
+// entry.js
+console.log(1, 2, 3, 2 .baz, 1 .bar);
+
+================================================================================
 TestDirectEvalTaintingNoBundle
 ---------- /out.js ----------
 function test1() {

@@ -9032,34 +9032,41 @@ func (p *parser) visitArgs(args []js_ast.Arg, opts visitArgsOpts) {
 }
 
 func (p *parser) isDotDefineMatch(expr js_ast.Expr, parts []string) bool {
-	if len(parts) > 1 {
-		// Intermediates must be dot expressions
-		e, ok := expr.Data.(*js_ast.EDot)
-		last := len(parts) - 1
-		return ok && parts[last] == e.Name && e.OptionalChain == js_ast.OptionalChainNone && p.isDotDefineMatch(e.Target, parts[:last])
+	switch e := expr.Data.(type) {
+	case *js_ast.EDot:
+		if len(parts) > 1 {
+			// Intermediates must be dot expressions
+			last := len(parts) - 1
+			return parts[last] == e.Name && e.OptionalChain == js_ast.OptionalChainNone &&
+				p.isDotDefineMatch(e.Target, parts[:last])
+		}
+
+	case *js_ast.EImportMeta:
+		// Allow matching on "import.meta"
+		return len(parts) == 2 && parts[0] == "import" && parts[1] == "meta"
+
+	case *js_ast.EIdentifier:
+		// The last expression must be an identifier
+		if len(parts) == 1 {
+			// The name must match
+			name := p.loadNameFromRef(e.Ref)
+			if name != parts[0] {
+				return false
+			}
+
+			result := p.findSymbol(expr.Loc, name)
+
+			// We must not be in a "with" statement scope
+			if result.isInsideWithScope {
+				return false
+			}
+
+			// The last symbol must be unbound
+			return p.symbols[result.ref.InnerIndex].Kind == js_ast.SymbolUnbound
+		}
 	}
 
-	// The last expression must be an identifier
-	e, ok := expr.Data.(*js_ast.EIdentifier)
-	if !ok {
-		return false
-	}
-
-	// The name must match
-	name := p.loadNameFromRef(e.Ref)
-	if name != parts[0] {
-		return false
-	}
-
-	result := p.findSymbol(expr.Loc, name)
-
-	// We must not be in a "with" statement scope
-	if result.isInsideWithScope {
-		return false
-	}
-
-	// The last symbol must be unbound
-	return p.symbols[result.ref.InnerIndex].Kind == js_ast.SymbolUnbound
+	return false
 }
 
 func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js_ast.Expr {
@@ -9713,6 +9720,20 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EImportMeta:
+		isDeleteTarget := e == p.deleteTarget
+
+		// Check both user-specified defines and known globals
+		if defines, ok := p.options.defines.DotDefines["meta"]; ok {
+			for _, define := range defines {
+				if p.isDotDefineMatch(expr, define.Parts) {
+					// Substitute user-specified defines
+					if define.Data.DefineFunc != nil {
+						return p.valueForDefine(expr.Loc, in.assignTarget, isDeleteTarget, define.Data.DefineFunc), exprOut{}
+					}
+				}
+			}
+		}
+
 		if p.importMetaRef != js_ast.InvalidRef {
 			// Replace "import.meta" with a reference to the symbol
 			p.recordUsage(p.importMetaRef)

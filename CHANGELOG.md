@@ -32,6 +32,12 @@
 
     Note that this is still the hacky way to get error information and is potentially unstable, since it will break if the log format changes. Log messages are mainly intended for humans. The straightforward and stable way to do this is still to use esbuild's API, which returns log messages as an array of objects.
 
+* Allow `--define` with `import.meta`
+
+    The `--define` feature lets you replace specific identifiers and member expression chains with compile-time constants. However, it previously didn't work with `import.meta` because this is a special case in the grammar. The `import` keyword is not actually an identifier expression. This distinction isn't helpful though, and it's not unreasonable to want to use the `--define` feature to replace `import.meta` properties too.
+
+    With this release, it's now possible to use e.g. `--define:import.meta.foo=123` to replace specific properties accessed off of the `import.meta` object as well as to use e.g. `--define:import.meta={\"foo\":123}` to substitute the entire `import.meta` expression with something else.
+
 ## 0.8.50
 
 * Using direct `eval` now pulls in `module` and `exports`
