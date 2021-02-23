@@ -5473,6 +5473,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 	case js_lexer.TTry:
 		p.lexer.Next()
+		bodyLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TOpenBrace)
 		p.pushScopeForParsePass(js_ast.ScopeBlock, loc)
 		body := p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{})
@@ -5535,7 +5536,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			p.popScope()
 		}
 
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.STry{Body: body, Catch: catch, Finally: finally}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.STry{
+			BodyLoc: bodyLoc,
+			Body:    body,
+			Catch:   catch,
+			Finally: finally,
+		}}
 
 	case js_lexer.TFor:
 		p.pushScopeForParsePass(js_ast.ScopeBlock, loc)

@@ -1079,6 +1079,7 @@ type Finally struct {
 }
 
 type STry struct {
+	BodyLoc logger.Loc
 	Body    []Stmt
 	Catch   *Catch
 	Finally *Finally

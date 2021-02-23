@@ -1045,7 +1045,7 @@ func (p *printer) printFnArgs(args []js_ast.Arg, hasRestArg bool, isArrow bool) 
 func (p *printer) printFn(fn js_ast.Fn) {
 	p.printFnArgs(fn.Args, fn.HasRestArg, false /* isArrow */)
 	p.printSpace()
-	p.printBlock(fn.Body.Stmts)
+	p.printBlock(fn.Body.Loc, fn.Body.Stmts)
 }
 
 func (p *printer) printClass(class js_ast.Class) {
@@ -1056,6 +1056,7 @@ func (p *printer) printClass(class js_ast.Class) {
 	}
 	p.printSpace()
 
+	p.addSourceMapping(class.BodyLoc)
 	p.print("{")
 	p.printNewline()
 	p.options.Indent++
@@ -1658,7 +1659,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			}
 		}
 		if !wasPrinted {
-			p.printBlock(e.Body.Stmts)
+			p.printBlock(e.Body.Loc, e.Body.Stmts)
 		}
 		if wrap {
 			p.print(")")
@@ -2327,7 +2328,7 @@ func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags int) {
 func (p *printer) printBody(body js_ast.Stmt) {
 	if block, ok := body.Data.(*js_ast.SBlock); ok {
 		p.printSpace()
-		p.printBlock(block.Stmts)
+		p.printBlock(body.Loc, block.Stmts)
 		p.printNewline()
 	} else {
 		p.printNewline()
@@ -2337,7 +2338,8 @@ func (p *printer) printBody(body js_ast.Stmt) {
 	}
 }
 
-func (p *printer) printBlock(stmts []js_ast.Stmt) {
+func (p *printer) printBlock(loc logger.Loc, stmts []js_ast.Stmt) {
+	p.addSourceMapping(loc)
 	p.print("{")
 	p.printNewline()
 
@@ -2393,7 +2395,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 
 	if yes, ok := s.Yes.Data.(*js_ast.SBlock); ok {
 		p.printSpace()
-		p.printBlock(yes.Stmts)
+		p.printBlock(s.Yes.Loc, yes.Stmts)
 
 		if s.No != nil {
 			p.printSpace()
@@ -2436,7 +2438,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 
 		if no, ok := s.No.Data.(*js_ast.SBlock); ok {
 			p.printSpace()
-			p.printBlock(no.Stmts)
+			p.printBlock(s.No.Loc, no.Stmts)
 			p.printNewline()
 		} else if no, ok := s.No.Data.(*js_ast.SIf); ok {
 			p.printIf(no)
@@ -2689,7 +2691,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.print("do")
 		if block, ok := s.Body.Data.(*js_ast.SBlock); ok {
 			p.printSpace()
-			p.printBlock(block.Stmts)
+			p.printBlock(s.Body.Loc, block.Stmts)
 			p.printSpace()
 		} else {
 			p.printNewline()
@@ -2771,7 +2773,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("try")
 		p.printSpace()
-		p.printBlock(s.Body)
+		p.printBlock(s.BodyLoc, s.Body)
 
 		if s.Catch != nil {
 			p.printSpace()
@@ -2783,14 +2785,14 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 				p.print(")")
 			}
 			p.printSpace()
-			p.printBlock(s.Catch.Body)
+			p.printBlock(s.Catch.Loc, s.Catch.Body)
 		}
 
 		if s.Finally != nil {
 			p.printSpace()
 			p.print("finally")
 			p.printSpace()
-			p.printBlock(s.Finally.Stmts)
+			p.printBlock(s.Finally.Loc, s.Finally.Stmts)
 		}
 
 		p.printNewline()
@@ -2846,7 +2848,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			if len(c.Body) == 1 {
 				if block, ok := c.Body[0].Data.(*js_ast.SBlock); ok {
 					p.printSpace()
-					p.printBlock(block.Stmts)
+					p.printBlock(c.Body[0].Loc, block.Stmts)
 					p.printNewline()
 					continue
 				}
@@ -2945,7 +2947,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 
 	case *js_ast.SBlock:
 		p.printIndent()
-		p.printBlock(s.Stmts)
+		p.printBlock(stmt.Loc, s.Stmts)
 		p.printNewline()
 
 	case *js_ast.SDebugger:
