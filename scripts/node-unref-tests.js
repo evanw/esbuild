@@ -18,7 +18,7 @@ async function tests() {
 
   async function testServe() {
     const server = await esbuild.serve({}, {})
-    assert.strictEqual(server.host, '127.0.0.1')
+    assert.strictEqual(server.host, '0.0.0.0')
     assert.strictEqual(typeof server.port, 'number')
     server.stop()
     await server.wait
