@@ -2304,6 +2304,63 @@ func TestImportWithQueryParameter(t *testing.T) {
 	})
 }
 
+func TestImportAbsPathWithQueryParameter(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.js": `
+				// Each of these should have a separate identity (i.e. end up in the output file twice)
+				import foo from '/Users/user/project/file.txt?foo'
+				import bar from '/Users/user/project/file.txt#bar'
+				console.log(foo, bar)
+			`,
+			"/Users/user/project/file.txt": `This is some text`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestImportAbsPathAsFile(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.js": `
+				import pkg from '/Users/user/project/node_modules/pkg/index'
+				console.log(pkg)
+			`,
+			"/Users/user/project/node_modules/pkg/index.js": `
+				export default 123
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestImportAbsPathAsDir(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.js": `
+				import pkg from '/Users/user/project/node_modules/pkg'
+				console.log(pkg)
+			`,
+			"/Users/user/project/node_modules/pkg/index.js": `
+				export default 123
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
 func TestAutoExternal(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -2351,8 +2408,8 @@ func TestExternalWithWildcard(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `entry.js: error: Could not read from file: /sassets/images/test.jpg
-entry.js: error: Could not read from file: /dir/file.gif
+		expectedScanLog: `entry.js: error: Could not resolve "/sassets/images/test.jpg"
+entry.js: error: Could not resolve "/dir/file.gif"
 entry.js: error: Could not resolve "./file.ping"
 `,
 	})

@@ -2511,7 +2511,7 @@
       `,
       'file.js': `This file should not be imported on Windows`,
     }, {
-      expectedStderr: ` > in.js:2:15: error: Could not read from file: /file.js
+      expectedStderr: ` > in.js:2:15: error: Could not resolve "/file.js"
     2 │         import "/file.js"
       ╵                ~~~~~~~~~~
 

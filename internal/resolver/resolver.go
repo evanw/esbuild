@@ -396,7 +396,11 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}
 		}
 
-		return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Namespace: "file"}}}
+		// Run node's resolution rules (e.g. adding ".js")
+		if absolute, ok, diffCase := r.loadAsFileOrDirectory(importPath, kind); ok {
+			return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
+		}
+		return nil
 	}
 
 	// Check both relative and package paths for CSS URL tokens, with relative

@@ -840,6 +840,36 @@ TestIIFE_ES5
 })();
 
 ================================================================================
+TestImportAbsPathAsDir
+---------- /out/entry.js ----------
+// Users/user/project/node_modules/pkg/index.js
+var pkg_default = 123;
+
+// Users/user/project/entry.js
+console.log(pkg_default);
+
+================================================================================
+TestImportAbsPathAsFile
+---------- /out/entry.js ----------
+// Users/user/project/node_modules/pkg/index.js
+var pkg_default = 123;
+
+// Users/user/project/entry.js
+console.log(pkg_default);
+
+================================================================================
+TestImportAbsPathWithQueryParameter
+---------- /out/entry.js ----------
+// Users/user/project/file.txt?foo
+var file_default = "This is some text";
+
+// Users/user/project/file.txt#bar
+var file_default2 = "This is some text";
+
+// Users/user/project/entry.js
+console.log(file_default, file_default2);
+
+================================================================================
 TestImportFSNodeCommonJS
 ---------- /out.js ----------
 // entry.js

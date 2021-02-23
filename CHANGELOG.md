@@ -48,6 +48,14 @@
 
     In addition, you can now also specify an IPv6 address. Previously there was a parsing issue that prevented this. For example, you can pass `--serve=[::1]:8000` to serve on the loopback interface and `--serve=[::]:8000` to serve on all interfaces.
 
+* Change the import resolution rules of absolute paths ([#862](https://github.com/evanw/esbuild/issues/862))
+
+    Previously absolute paths were considered to be pre-resolved by the resolver (in contrast to relative and package paths, which need to be converted to an absolute path). This meant that absolute paths which did not actually exist caused a failure in the loader when it tried to load the path instead of in the resolver when it tried to resolve the path.
+
+    With the previous change in version 0.8.47 to support removing URL query and/or hash parameters from the path, path resolution can now be run multiple times. If path resolution fails and the path contains a `?` and/or `#`, path resolution is re-run with the URL query/hash parameters removed. It is problematic to consider absolute paths to be pre-resolved because it means that paths containing query/hash parameters make the loader try to load the wrong path, and do not run the resolver again with the parameter suffix removed.
+
+    In this release, esbuild will now validate absolute paths in the resolver. So invalid paths will now fail in the resolver and retry without the parameter suffix instead of failing in the loader, which correctly handles a parameter suffix on absolute paths. In addition, this release now handles implicit file extensions on absolute paths. This makes esbuild a more accurate copy of [node's module resolution algorithm](https://nodejs.org/api/modules.html#modules_all_together), which does this as well.
+
 ## 0.8.50
 
 * Using direct `eval` now pulls in `module` and `exports`
