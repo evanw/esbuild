@@ -42,6 +42,12 @@
 
     Using multiple injected files could cause a data race that trips Go's race detector. The data race has been fixed in this release. The fix was contributed by [@Deleplace](https://github.com/Deleplace).
 
+* Change `--serve` behavior to serve on all interfaces ([#866](https://github.com/evanw/esbuild/issues/866))
+
+    The default address for the `--serve` flag has changed from `127.0.0.1` (serve on the loopback interface) to `0.0.0.0` (serve on all interfaces). You can still manually specify either one using `--serve=127.0.0.1:8000` or `--serve=0.0.0.0:8000`. This just changes the default behavior that happens when you pass `--serve` with no host address (or when you just use the `--servedir=` flag without `--serve=`).
+
+    In addition, you can now also specify an IPv6 address. Previously there was a parsing issue that prevented this. For example, you can pass `--serve=[::1]:8000` to serve on the loopback interface and `--serve=[::]:8000` to serve on all interfaces.
+
 ## 0.8.50
 
 * Using direct `eval` now pulls in `module` and `exports`

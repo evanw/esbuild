@@ -769,8 +769,49 @@ func serveImpl(osArgs []string) error {
 
 	// Show what actually got bound if the port was 0
 	logger.PrintText(os.Stderr, logger.LevelInfo, filteredArgs, func(colors logger.Colors) string {
-		return fmt.Sprintf("%s\n > %shttp://%s/%s\n\n",
-			colors.Default, colors.Underline, net.JoinHostPort(result.Host, fmt.Sprintf("%d", result.Port)), colors.Default)
+		var hosts []string
+		sb := strings.Builder{}
+		sb.WriteString(colors.Default)
+
+		// If this is "0.0.0.0" or "::", list all relevant IP addresses
+		if ip := net.ParseIP(result.Host); ip != nil && ip.IsUnspecified() {
+			if addrs, err := net.InterfaceAddrs(); err == nil {
+				for _, addr := range addrs {
+					if addr, ok := addr.(*net.IPNet); ok && (addr.IP.To4() != nil) == (ip.To4() != nil) && !addr.IP.IsLinkLocalUnicast() {
+						hosts = append(hosts, addr.IP.String())
+					}
+				}
+			}
+		}
+
+		// Otherwise, just list the one IP address
+		if len(hosts) == 0 {
+			hosts = append(hosts, result.Host)
+		}
+
+		// Determine the host kinds
+		kinds := make([]string, len(hosts))
+		maxLen := 0
+		for i, host := range hosts {
+			kind := "Network"
+			if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+				kind = "Local"
+			}
+			kinds[i] = kind
+			if len(kind) > maxLen {
+				maxLen = len(kind)
+			}
+		}
+
+		// Pretty-print the host list
+		for i, kind := range kinds {
+			sb.WriteString(fmt.Sprintf("\n > %s:%s %shttp://%s/%s",
+				kind, strings.Repeat(" ", maxLen-len(kind)), colors.Underline,
+				net.JoinHostPort(hosts[i], fmt.Sprintf("%d", result.Port)), colors.Default))
+		}
+
+		sb.WriteString("\n\n")
+		return sb.String()
 	})
 	return result.Wait()
 }

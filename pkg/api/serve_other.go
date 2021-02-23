@@ -481,7 +481,7 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 	// Determine the host
 	var listener net.Listener
 	network := "tcp4"
-	host := "127.0.0.1"
+	host := "0.0.0.0"
 	if serveOptions.Host != "" {
 		host = serveOptions.Host
 
