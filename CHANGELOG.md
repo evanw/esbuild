@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.51
 
 * The stderr log format now contains line numbers after file names ([#865](https://github.com/evanw/esbuild/issues/865))
 
