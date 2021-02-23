@@ -1079,8 +1079,8 @@ func (s *scanner) preprocessInjectedFiles() {
 		channel := make(chan config.InjectedFile)
 		s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, nil, inputKindNormal, channel)
 
-		// Wait for the results in parallel
-		// The results slice is large enough, it is not reallocated during the computations
+		// Wait for the results in parallel. The results slice is large enough so
+		// it is not reallocated during the computations.
 		injectWaitGroup.Add(1)
 		go func(i int) {
 			results[i] = <-channel

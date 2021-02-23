@@ -38,6 +38,10 @@
 
     With this release, it's now possible to use e.g. `--define:import.meta.foo=123` to replace specific properties accessed off of the `import.meta` object as well as to use e.g. `--define:import.meta={\"foo\":123}` to substitute the entire `import.meta` expression with something else.
 
+* Fix a race condition with multiple injected files ([#871](https://github.com/evanw/esbuild/issues/871))
+
+    Using multiple injected files could cause a data race that trips Go's race detector. The data race has been fixed in this release. The fix was contributed by [@Deleplace](https://github.com/Deleplace).
+
 ## 0.8.50
 
 * Using direct `eval` now pulls in `module` and `exports`
