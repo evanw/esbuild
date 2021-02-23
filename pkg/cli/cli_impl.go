@@ -769,8 +769,8 @@ func serveImpl(osArgs []string) error {
 
 	// Show what actually got bound if the port was 0
 	logger.PrintText(os.Stderr, logger.LevelInfo, filteredArgs, func(colors logger.Colors) string {
-		return fmt.Sprintf("%s\n > %shttp://%s:%d/%s\n\n",
-			colors.Default, colors.Underline, result.Host, result.Port, colors.Default)
+		return fmt.Sprintf("%s\n > %shttp://%s/%s\n\n",
+			colors.Default, colors.Underline, net.JoinHostPort(result.Host, fmt.Sprintf("%d", result.Port)), colors.Default)
 	})
 	return result.Wait()
 }
