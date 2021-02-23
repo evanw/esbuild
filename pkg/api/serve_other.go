@@ -478,16 +478,24 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 		}
 	}
 
-	// Pick the port
+	// Determine the host
 	var listener net.Listener
+	network := "tcp4"
 	host := "127.0.0.1"
 	if serveOptions.Host != "" {
 		host = serveOptions.Host
+
+		// Only use "tcp4" if this is an IPv4 address, otherwise use "tcp"
+		if ip := net.ParseIP(host); ip == nil || ip.To4() == nil {
+			network = "tcp"
+		}
 	}
+
+	// Pick the port
 	if serveOptions.Port == 0 {
 		// Default to picking a "800X" port
 		for port := 8000; port <= 8009; port++ {
-			if result, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port)); err == nil {
+			if result, err := net.Listen(network, net.JoinHostPort(host, fmt.Sprintf("%d", port))); err == nil {
 				listener = result
 				break
 			}
@@ -495,7 +503,7 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 	}
 	if listener == nil {
 		// Otherwise pick the provided port
-		if result, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, serveOptions.Port)); err != nil {
+		if result, err := net.Listen(network, net.JoinHostPort(host, fmt.Sprintf("%d", serveOptions.Port))); err != nil {
 			return ServeResult{}, err
 		} else {
 			listener = result
