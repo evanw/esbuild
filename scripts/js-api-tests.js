@@ -1881,7 +1881,7 @@ let serveTests = {
         entryPoints: [input],
         format: 'esm',
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(result.host, '0.0.0.0');
       assert.strictEqual(typeof result.port, 'number');
 
       const buffer = await fetch(result.host, result.port, '/in.js')
@@ -1914,7 +1914,7 @@ let serveTests = {
         format: 'esm',
         outfile: 'out.js',
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(result.host, '0.0.0.0');
       assert.strictEqual(typeof result.port, 'number');
 
       const buffer = await fetch(result.host, result.port, '/out.js')
@@ -1968,7 +1968,7 @@ let serveTests = {
         entryPoints: [input],
         format: 'esm',
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(result.host, '0.0.0.0');
       assert.strictEqual(typeof result.port, 'number');
 
       let promise, buffer, req;
@@ -2063,7 +2063,7 @@ let serveTests = {
         format: 'esm',
         outdir: outputDir,
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(result.host, '0.0.0.0');
       assert.strictEqual(typeof result.port, 'number');
 
       let promise, buffer, req;
@@ -2115,7 +2115,7 @@ let serveTests = {
         servedir: testDir,
       }, {
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(result.host, '0.0.0.0');
       assert.strictEqual(typeof result.port, 'number');
 
       let promise, buffer, req;
