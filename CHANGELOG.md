@@ -56,6 +56,10 @@
 
     In this release, esbuild will now validate absolute paths in the resolver. So invalid paths will now fail in the resolver and retry without the parameter suffix instead of failing in the loader, which correctly handles a parameter suffix on absolute paths. In addition, this release now handles implicit file extensions on absolute paths. This makes esbuild a more accurate copy of [node's module resolution algorithm](https://nodejs.org/api/modules.html#modules_all_together), which does this as well.
 
+* Output files in `metafile` now have `entryPoint` ([#711](https://github.com/evanw/esbuild/issues/711))
+
+    There is now an optional `entryPoint` property on each output file in the JSON metadata file generated with the `--metafile=` flag. It is only present for output files that are the bundled results of entry point files, and contains the path name of the corresponding input entry point file. This property is not present on other kinds of output files (e.g. code splitting chunks). This feature was contributed by [@remorses](https://github.com/remorses).
+
 ## 0.8.50
 
 * Using direct `eval` now pulls in `module` and `exports`

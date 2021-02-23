@@ -4159,7 +4159,21 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
 			}
-			jMeta.AddString("],\n      \"inputs\": {")
+			if chunk.isEntryPoint {
+				file := &c.files[chunk.sourceIndex]
+
+				// Do not generate "entryPoint" for CSS files that are the result of
+				// importing CSS into JavaScript. We want this to be a 1:1 relationship
+				// and there is already an output file for the JavaScript entry point.
+				if _, ok := file.repr.(*reprCSS); ok {
+					jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {",
+						js_printer.QuoteForJSON(file.source.PrettyPath, c.options.ASCIIOnly)))
+				} else {
+					jMeta.AddString("],\n      \"inputs\": {")
+				}
+			} else {
+				jMeta.AddString("],\n      \"inputs\": {")
+			}
 		}
 		isFirstMeta := true
 

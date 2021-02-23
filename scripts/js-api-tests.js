@@ -514,7 +514,8 @@ body {
     const imported = path.join(testDir, 'imported.js')
     const text = path.join(testDir, 'text.txt')
     const css = path.join(testDir, 'example.css')
-    const output = path.join(testDir, 'out.js')
+    const outputJS = path.join(testDir, 'out.js')
+    const outputCSS = path.join(testDir, 'out.css')
     const meta = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `
       import x from "./imported"
@@ -528,7 +529,7 @@ body {
     await esbuild.build({
       entryPoints: [entry],
       bundle: true,
-      outfile: output,
+      outfile: outputJS,
       metafile: meta,
       sourcemap: true,
       loader: { '.txt': 'file' },
@@ -555,14 +556,16 @@ body {
     assert.deepStrictEqual(json.inputs[makePath(css)].imports, [])
 
     // Check outputs
-    assert.strictEqual(typeof json.outputs[makePath(output)].bytes, 'number')
-    assert.strictEqual(typeof json.outputs[makePath(output) + '.map'].bytes, 'number')
-    assert.deepStrictEqual(json.outputs[makePath(output) + '.map'].imports, [])
-    assert.deepStrictEqual(json.outputs[makePath(output) + '.map'].exports, [])
-    assert.deepStrictEqual(json.outputs[makePath(output) + '.map'].inputs, {})
+    assert.strictEqual(typeof json.outputs[makePath(outputJS)].bytes, 'number')
+    assert.strictEqual(typeof json.outputs[makePath(outputJS) + '.map'].bytes, 'number')
+    assert.strictEqual(json.outputs[makePath(outputJS)].entryPoint, makePath(entry))
+    assert.strictEqual(json.outputs[makePath(outputCSS)].entryPoint, undefined) // This is deliberately undefined
+    assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].exports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].inputs, {})
 
     // Check inputs for main output
-    const outputInputs = json.outputs[makePath(output)].inputs
+    const outputInputs = json.outputs[makePath(outputJS)].inputs
     assert.strictEqual(Object.keys(outputInputs).length, 4)
     assert.strictEqual(typeof outputInputs[makePath(entry)].bytesInOutput, 'number')
     assert.strictEqual(typeof outputInputs[makePath(imported)].bytesInOutput, 'number')
@@ -990,6 +993,7 @@ body {
       outputs: {
         [makePath(output)]: {
           bytes: 227,
+          entryPoint: makePath(entry),
           imports: [],
           inputs: {
             [makePath(entry)]: { bytesInOutput: 62 },
