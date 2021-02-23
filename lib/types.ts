@@ -277,6 +277,7 @@ export interface Metadata {
         kind: MetadataImportKind
       }[]
       exports: string[]
+      entryPoint?: string
     }
   }
 }
