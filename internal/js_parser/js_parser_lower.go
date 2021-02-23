@@ -1576,6 +1576,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			nameToKeep = "default"
 		}
 	}
+	if stmt.Data == nil {
+		classLoc = expr.Loc
+	} else {
+		classLoc = stmt.Loc
+	}
 
 	var ctor *js_ast.EFunction
 	var parameterFields []js_ast.Stmt
