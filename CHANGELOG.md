@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a concurrent map write with the `--inject:` feature ([#878](https://github.com/evanw/esbuild/issues/878))
+
+    This release fixes an issue where esbuild could potentially crash sometimes with a concurrent map write when using injected files and entry points that were neither relative nor absolute paths. This was an edge case where esbuild's low-level file subsystem was being used without being behind a mutex lock. This regression was likely introduced in version 0.8.21. The cause of the crash has been fixed.
+
 ## 0.8.51
 
 * The stderr log format now contains line numbers after file names ([#865](https://github.com/evanw/esbuild/issues/865))

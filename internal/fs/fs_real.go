@@ -12,7 +12,8 @@ import (
 
 type realFS struct {
 	// Stores the file entries for directories we've listed before
-	entries map[string]entriesOrErr
+	entriesMutex sync.Mutex
+	entries      map[string]entriesOrErr
 
 	// If true, do not use the "entries" cache
 	doNotCacheEntries bool
@@ -117,7 +118,13 @@ func RealFS(options RealFSOptions) (FS, error) {
 func (fs *realFS) ReadDirectory(dir string) (DirEntries, error) {
 	if !fs.doNotCacheEntries {
 		// First, check the cache
-		if cached, ok := fs.entries[dir]; ok {
+		cached, ok := func() (cached entriesOrErr, ok bool) {
+			fs.entriesMutex.Lock()
+			defer fs.entriesMutex.Unlock()
+			cached, ok = fs.entries[dir]
+			return
+		}()
+		if ok {
 			// Cache hit: stop now
 			return cached.entries, cached.err
 		}
@@ -166,6 +173,8 @@ func (fs *realFS) ReadDirectory(dir string) (DirEntries, error) {
 		entries.data = nil
 	}
 	if !fs.doNotCacheEntries {
+		fs.entriesMutex.Lock()
+		defer fs.entriesMutex.Unlock()
 		fs.entries[dir] = entriesOrErr{entries: entries, err: err}
 	}
 	return entries, err

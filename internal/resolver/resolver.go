@@ -126,7 +126,6 @@ type resolver struct {
 	log     logger.Log
 	caches  *cache.CacheSet
 	options config.Options
-	mutex   sync.Mutex
 
 	// A special filtered import order for CSS "@import" imports.
 	//
@@ -151,6 +150,16 @@ type resolver struct {
 	// JavaScript-related file. It's probably not perfect with plugins in the
 	// picture but it's better than some alternatives and probably pretty good.
 	atImportExtensionOrder []string
+
+	// This mutex serves two purposes. First of all, it guards access to "dirCache"
+	// which is potentially mutated during path resolution. But this mutex is also
+	// necessary for performance. The "React admin" benchmark mysteriously runs
+	// twice as fast when this mutex is locked around the whole resolve operation
+	// instead of around individual accesses to "dirCache". For some reason,
+	// reducing parallelism in the resolver helps the rest of the bundler go
+	// faster. I'm not sure why this is but please don't change this unless you
+	// do a lot of testing with various benchmarks and there aren't any regressions.
+	mutex sync.Mutex
 
 	// This cache maps a directory path to information about that directory and
 	// all parent directories
