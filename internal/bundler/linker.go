@@ -296,7 +296,7 @@ type chunkInfo struct {
 	crossChunkImports []uint32
 
 	// This is the representation-specific information
-	repr chunkRepr
+	chunkRepr chunkRepr
 }
 
 type generateContinue struct {
@@ -594,7 +594,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 		for i, chunk := range originalChunks {
 			js, jsParts, css := c.chunkFileOrder(&chunk)
 
-			switch chunk.repr.(type) {
+			switch chunk.chunkRepr.(type) {
 			case *chunkReprJS:
 				chunks[i].filesInChunkInOrder = js
 				chunks[i].partsInChunkInOrder = jsParts
@@ -617,7 +617,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 						relDir:                chunk.relDir,
 						baseNameOrEmpty:       baseNameOrEmpty,
 						filesWithPartsInChunk: make(map[uint32]bool),
-						repr:                  &chunkReprCSS{},
+						chunkRepr:             &chunkReprCSS{},
 					})
 				}
 
@@ -675,7 +675,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 			// Start generating the chunk without dependencies, but stop when
 			// dependencies are needed. This returns a callback that is called
 			// later to resume generating the chunk once dependencies are known.
-			resume := chunk.repr.generate(c, chunk)
+			resume := chunk.chunkRepr.generate(c, chunk)
 
 			// Wait for all dependencies to be resolved first
 			order.dependencies.Wait()
@@ -848,19 +848,19 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 	// Mark imported symbols as exported in the chunk from which they are declared
 	for chunkIndex := range chunks {
 		chunk := &chunks[chunkIndex]
-		repr, ok := chunk.repr.(*chunkReprJS)
+		chunkRepr, ok := chunk.chunkRepr.(*chunkReprJS)
 		if !ok {
 			continue
 		}
 
 		// Find all uses in this chunk of symbols from other chunks
-		repr.importsFromOtherChunks = make(map[uint32]crossChunkImportItemArray)
+		chunkRepr.importsFromOtherChunks = make(map[uint32]crossChunkImportItemArray)
 		for importRef := range chunkMetas[chunkIndex].imports {
 			// Ignore uses that aren't top-level symbols
 			if otherChunkIndex := c.symbols.Get(importRef).ChunkIndex; otherChunkIndex.IsValid() {
 				if otherChunkIndex := otherChunkIndex.GetIndex(); otherChunkIndex != uint32(chunkIndex) {
-					repr.importsFromOtherChunks[otherChunkIndex] =
-						append(repr.importsFromOtherChunks[otherChunkIndex], crossChunkImportItem{ref: importRef})
+					chunkRepr.importsFromOtherChunks[otherChunkIndex] =
+						append(chunkRepr.importsFromOtherChunks[otherChunkIndex], crossChunkImportItem{ref: importRef})
 					chunkMetas[otherChunkIndex].exports[importRef] = true
 				}
 			}
@@ -872,8 +872,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		if chunk.isEntryPoint {
 			for otherChunkIndex, otherChunk := range chunks {
 				if chunkIndex != otherChunkIndex && otherChunk.entryBits.hasBit(chunk.entryPointBit) {
-					imports := repr.importsFromOtherChunks[uint32(otherChunkIndex)]
-					repr.importsFromOtherChunks[uint32(otherChunkIndex)] = imports
+					imports := chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)]
+					chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)] = imports
 				}
 			}
 		}
@@ -884,12 +884,12 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 	// aliases simultaneously to avoid collisions.
 	for chunkIndex := range chunks {
 		chunk := &chunks[chunkIndex]
-		repr, ok := chunk.repr.(*chunkReprJS)
+		chunkRepr, ok := chunk.chunkRepr.(*chunkReprJS)
 		if !ok {
 			continue
 		}
 
-		repr.exportsToOtherChunks = make(map[js_ast.Ref]string)
+		chunkRepr.exportsToOtherChunks = make(map[js_ast.Ref]string)
 		switch c.options.OutputFormat {
 		case config.FormatESModule:
 			r := renamer.ExportRenamer{}
@@ -902,10 +902,10 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 					alias = r.NextRenamedName(c.symbols.Get(export.ref).OriginalName)
 				}
 				items = append(items, js_ast.ClauseItem{Name: js_ast.LocRef{Ref: export.ref}, Alias: alias})
-				repr.exportsToOtherChunks[export.ref] = alias
+				chunkRepr.exportsToOtherChunks[export.ref] = alias
 			}
 			if len(items) > 0 {
-				repr.crossChunkSuffixStmts = []js_ast.Stmt{{Data: &js_ast.SExportClause{
+				chunkRepr.crossChunkSuffixStmts = []js_ast.Stmt{{Data: &js_ast.SExportClause{
 					Items: items,
 				}}}
 			}
@@ -920,7 +920,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 	// be embedded in the generated import statements.
 	for chunkIndex := range chunks {
 		chunk := &chunks[chunkIndex]
-		repr, ok := chunk.repr.(*chunkReprJS)
+		chunkRepr, ok := chunk.chunkRepr.(*chunkReprJS)
 		if !ok {
 			continue
 		}
@@ -928,7 +928,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		var crossChunkImports []uint32
 		var crossChunkPrefixStmts []js_ast.Stmt
 
-		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, repr.importsFromOtherChunks) {
+		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, chunkRepr.importsFromOtherChunks) {
 			switch c.options.OutputFormat {
 			case config.FormatESModule:
 				var items []js_ast.ClauseItem
@@ -956,7 +956,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		}
 
 		chunk.crossChunkImports = crossChunkImports
-		repr.crossChunkPrefixStmts = crossChunkPrefixStmts
+		chunkRepr.crossChunkPrefixStmts = crossChunkPrefixStmts
 	}
 }
 
@@ -982,7 +982,7 @@ func (c *linkerContext) sortedCrossChunkImports(chunks []chunkInfo, importsFromO
 
 	for otherChunkIndex, importItems := range importsFromOtherChunks {
 		// Sort imports from a single chunk by alias for determinism
-		exportsToOtherChunks := chunks[otherChunkIndex].repr.(*chunkReprJS).exportsToOtherChunks
+		exportsToOtherChunks := chunks[otherChunkIndex].chunkRepr.(*chunkReprJS).exportsToOtherChunks
 		for i, item := range importItems {
 			importItems[i].exportAlias = exportsToOtherChunks[item.ref]
 		}
@@ -2666,14 +2666,14 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	for i, entryPoint := range c.entryPoints {
 		var relDir string
 		var baseName string
-		var repr chunkRepr
+		var chunkRepr chunkRepr
 		file := &c.files[entryPoint]
 
 		switch file.repr.(type) {
 		case *reprJS:
-			repr = &chunkReprJS{}
+			chunkRepr = &chunkReprJS{}
 		case *reprCSS:
-			repr = &chunkReprCSS{}
+			chunkRepr = &chunkReprCSS{}
 		}
 
 		if c.options.AbsOutputFile != "" {
@@ -2713,7 +2713,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			// Swap the extension for the standard one
 			ext := c.fs.Ext(baseName)
 			baseName = baseName[:len(baseName)-len(ext)]
-			switch repr.(type) {
+			switch chunkRepr.(type) {
 			case *chunkReprJS:
 				baseName += c.options.OutputExtensionJS
 			case *chunkReprCSS:
@@ -2736,7 +2736,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			relDir:                relDir,
 			baseNameOrEmpty:       baseName,
 			filesWithPartsInChunk: make(map[uint32]bool),
-			repr:                  repr,
+			chunkRepr:             chunkRepr,
 		}
 	}
 
@@ -2755,7 +2755,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 				if !ok {
 					chunk.entryBits = partMeta.entryBits
 					chunk.filesWithPartsInChunk = make(map[uint32]bool)
-					chunk.repr = &chunkReprJS{}
+					chunk.chunkRepr = &chunkReprJS{}
 					chunks[key] = chunk
 				}
 				chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
@@ -2771,7 +2771,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			if !ok {
 				chunk.entryBits = file.entryBits
 				chunk.filesWithPartsInChunk = make(map[uint32]bool)
-				chunk.repr = &chunkReprJS{}
+				chunk.chunkRepr = &chunkReprJS{}
 				chunks[key] = chunk
 			}
 			chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
@@ -3492,7 +3492,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 
 	// Make sure imports get a chance to be renamed
 	var sorted renamer.StableRefArray
-	for _, imports := range chunk.repr.(*chunkReprJS).importsFromOtherChunks {
+	for _, imports := range chunk.chunkRepr.(*chunkReprJS).importsFromOtherChunks {
 		for _, item := range imports {
 			sorted = append(sorted, renamer.StableRef{
 				StableOuterIndex: c.stableSourceIndices[item.ref.OuterIndex],
