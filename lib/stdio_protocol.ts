@@ -120,7 +120,7 @@ export interface OnResolveRequest {
   importer: string;
   namespace: string;
   resolveDir: string;
-  kind: string;
+  kind: types.ResolveKind;
   pluginData: number;
 }
 
