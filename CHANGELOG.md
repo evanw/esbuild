@@ -10,31 +10,31 @@
 
     Plugins that add `onResolve` callbacks now have access to the `kind` parameter which tells you what kind of import is being resolved. It will be one of the following values:
 
-	* `"entry-point"` in JS (`api.ResolveEntryPoint` in Go)
+    * `"entry-point"` in JS (`api.ResolveEntryPoint` in Go)
 
         An entry point provided by the user
 
-	* `"import-statement"` in JS (`api.ResolveJSImportStatement` in Go)
+    * `"import-statement"` in JS (`api.ResolveJSImportStatement` in Go)
 
         A JavaScript `import` or `export` statement
 
-	* `"require-call"` in JS (`api.ResolveJSRequireCall` in Go)
+    * `"require-call"` in JS (`api.ResolveJSRequireCall` in Go)
 
         A JavaScript call to `require(...)` with a string argument
 
-	* `"dynamic-import"` in JS (`api.ResolveJSDynamicImport` in Go)
+    * `"dynamic-import"` in JS (`api.ResolveJSDynamicImport` in Go)
 
         A JavaScript `import(...)` expression with a string argument
 
-	* `"require-resolve"` in JS (`api.ResolveJSRequireResolve` in Go)
+    * `"require-resolve"` in JS (`api.ResolveJSRequireResolve` in Go)
 
         A JavaScript call to `require.resolve(...)` with a string argument
 
-	* `"import-rule"` in JS (`api.ResolveCSSImportRule` in Go)
+    * `"import-rule"` in JS (`api.ResolveCSSImportRule` in Go)
 
         A CSS `@import` rule
 
-	* `"url-token"` in JS (`api.ResolveCSSURLToken` in Go)
+    * `"url-token"` in JS (`api.ResolveCSSURLToken` in Go)
 
         A CSS `url(...)` token
 
@@ -2628,7 +2628,7 @@ The breaking changes are as follows:
     * [mrdoob/three.js#11183](https://github.com/mrdoob/three.js/pull/11183): Comparison with -0 in Math.js
     * [mrdoob/three.js#11182](https://github.com/mrdoob/three.js/pull/11182): Operator precedence bug in WWOBJLoader2.js
 
-	However, it's not esbuild's job to find bugs in other libraries, and these warnings are problematic for people using these libraries with esbuild. The only fix is to either disable all esbuild warnings and not get warnings about your own code, or to try to get the warning fixed in the affected library. This is especially annoying if the warning is a false positive as was the case in https://github.com/firebase/firebase-js-sdk/issues/3814. So these warnings are now disabled for code inside `node_modules` directories.
+    However, it's not esbuild's job to find bugs in other libraries, and these warnings are problematic for people using these libraries with esbuild. The only fix is to either disable all esbuild warnings and not get warnings about your own code, or to try to get the warning fixed in the affected library. This is especially annoying if the warning is a false positive as was the case in https://github.com/firebase/firebase-js-sdk/issues/3814. So these warnings are now disabled for code inside `node_modules` directories.
 
 ## 0.7.3
 
