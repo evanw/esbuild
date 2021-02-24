@@ -19,8 +19,14 @@ test-prepublish: check-go-version test-all test-preact-splitting test-sucrase be
 check-go-version:
 	@go version | grep ' go1\.16 ' || (echo 'Please install Go version 1.16.0' && false)
 
+# This "ESBUILD_RACE" variable exists at the request of a user on GitHub who
+# wants to run "make test" on an unsupported version of macOS (version 10.9).
+# Go's race detector does not run correctly on that version. With this flag
+# you can run "ESBUILD_RACE= make test" to disable the race detector.
+ESBUILD_RACE ?= -race
+
 test-go:
-	go test -race ./internal/...
+	go test $(ESBUILD_RACE) ./internal/...
 
 vet-go:
 	go vet ./cmd/... ./internal/... ./pkg/...
@@ -65,7 +71,9 @@ lib-typecheck: | lib/node_modules
 	cd lib && node_modules/.bin/tsc -noEmit -p .
 
 cmd/esbuild/version.go: version.txt
-	node -e 'console.log(`package main\n\nconst esbuildVersion = "$(ESBUILD_VERSION)"`)' > cmd/esbuild/version.go
+	# Update this atomically to avoid issues with this being overwritten during use
+	node -e 'console.log(`package main\n\nconst esbuildVersion = "$(ESBUILD_VERSION)"`)' > cmd/esbuild/version.go.txt
+	mv cmd/esbuild/version.go.txt cmd/esbuild/version.go
 
 wasm-napi-exit0-darwin:
 	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
