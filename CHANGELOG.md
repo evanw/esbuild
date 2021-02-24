@@ -6,6 +6,40 @@
 
     This release fixes an issue where esbuild could potentially crash sometimes with a concurrent map write when using injected files and entry points that were neither relative nor absolute paths. This was an edge case where esbuild's low-level file subsystem was being used without being behind a mutex lock. This regression was likely introduced in version 0.8.21. The cause of the crash has been fixed.
 
+* Provide `kind` to `onResolve` plugins ([#879](https://github.com/evanw/esbuild/issues/879))
+
+    Plugins that add `onResolve` callbacks now have access to the `kind` parameter which tells you what kind of import is being resolved. It will be one of the following values:
+
+	* `"entry-point"` in JS (`api.ResolveEntryPoint` in Go)
+
+        An entry point provided by the user
+
+	* `"import-statement"` in JS (`api.ResolveJSImportStatement` in Go)
+
+        A JavaScript `import` or `export` statement
+
+	* `"require-call"` in JS (`api.ResolveJSRequireCall` in Go)
+
+        A JavaScript call to `require(...)` with a string argument
+
+	* `"dynamic-import"` in JS (`api.ResolveJSDynamicImport` in Go)
+
+        A JavaScript `import(...)` expression with a string argument
+
+	* `"require-resolve"` in JS (`api.ResolveJSRequireResolve` in Go)
+
+        A JavaScript call to `require.resolve(...)` with a string argument
+
+	* `"import-rule"` in JS (`api.ResolveCSSImportRule` in Go)
+
+        A CSS `@import` rule
+
+	* `"url-token"` in JS (`api.ResolveCSSURLToken` in Go)
+
+        A CSS `url(...)` token
+
+    These values are pretty much identical to the `kind` field in the JSON metadata file.
+
 ## 0.8.51
 
 * The stderr log format now contains line numbers after file names ([#865](https://github.com/evanw/esbuild/issues/865))

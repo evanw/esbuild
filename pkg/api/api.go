@@ -407,6 +407,7 @@ type OnResolveArgs struct {
 	Importer   string
 	Namespace  string
 	ResolveDir string
+	Kind       ResolveKind
 	PluginData interface{}
 }
 
@@ -444,3 +445,15 @@ type OnLoadResult struct {
 	Loader     Loader
 	PluginData interface{}
 }
+
+type ResolveKind uint8
+
+const (
+	ResolveEntryPoint ResolveKind = iota
+	ResolveJSImportStatement
+	ResolveJSRequireCall
+	ResolveJSDynamicImport
+	ResolveJSRequireResolve
+	ResolveCSSImportRule
+	ResolveCSSURLToken
+)

@@ -192,8 +192,22 @@ export interface OnResolveArgs {
   importer: string;
   namespace: string;
   resolveDir: string;
+  kind: ResolveKind;
   pluginData: any;
 }
+
+export type ResolveKind =
+  | 'entry-point'
+
+  // JS
+  | 'import-statement'
+  | 'require-call'
+  | 'dynamic-import'
+  | 'require-resolve'
+
+  // CSS
+  | 'import-rule'
+  | 'url-token'
 
 export interface OnResolveResult {
   pluginName?: string;

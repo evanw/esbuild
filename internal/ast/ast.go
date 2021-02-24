@@ -9,8 +9,11 @@ import "github.com/evanw/esbuild/internal/logger"
 type ImportKind uint8
 
 const (
+	// An entry point provided by the user
+	ImportEntryPoint ImportKind = iota
+
 	// An ES6 import or re-export statement
-	ImportStmt ImportKind = iota
+	ImportStmt
 
 	// A call to "require()"
 	ImportRequire
@@ -26,9 +29,6 @@ const (
 
 	// A CSS "url(...)" token
 	ImportURL
-
-	// An entry point provided by the user
-	ImportEntryPoint
 )
 
 func (kind ImportKind) StringForMetafile() string {

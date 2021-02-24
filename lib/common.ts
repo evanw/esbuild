@@ -637,6 +637,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 importer: request.importer,
                 namespace: request.namespace,
                 resolveDir: request.resolveDir,
+                kind: request.kind,
                 pluginData: stash.load(request.pluginData),
               });
 

@@ -617,6 +617,31 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 					return result, nil
 				}
 
+				var kind string
+				switch args.Kind {
+				case api.ResolveEntryPoint:
+					kind = "entry-point"
+
+				// JS
+				case api.ResolveJSImportStatement:
+					kind = "import-statement"
+				case api.ResolveJSRequireCall:
+					kind = "require-call"
+				case api.ResolveJSDynamicImport:
+					kind = "dynamic-import"
+				case api.ResolveJSRequireResolve:
+					kind = "require-resolve"
+
+				// CSS
+				case api.ResolveCSSImportRule:
+					kind = "import-rule"
+				case api.ResolveCSSURLToken:
+					kind = "url-token"
+
+				default:
+					panic("Internal error")
+				}
+
 				response := service.sendRequest(map[string]interface{}{
 					"command":    "resolve",
 					"key":        key,
@@ -625,6 +650,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 					"importer":   args.Importer,
 					"namespace":  args.Namespace,
 					"resolveDir": args.ResolveDir,
+					"kind":       kind,
 					"pluginData": args.PluginData,
 				}).(map[string]interface{})
 

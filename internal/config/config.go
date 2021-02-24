@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
@@ -321,6 +322,7 @@ type OnResolveArgs struct {
 	Path       string
 	Importer   logger.Path
 	ResolveDir string
+	Kind       ast.ImportKind
 	PluginData interface{}
 }
 

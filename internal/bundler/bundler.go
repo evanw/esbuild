@@ -638,6 +638,7 @@ func runOnResolvePlugins(
 	resolverArgs := config.OnResolveArgs{
 		Path:       path,
 		ResolveDir: absResolveDir,
+		Kind:       kind,
 		PluginData: pluginData,
 	}
 	applyPath := logger.Path{Text: path}

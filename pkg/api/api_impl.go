@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/bundler"
 	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/compat"
@@ -1117,11 +1118,32 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 		Filter:    filter,
 		Namespace: options.Namespace,
 		Callback: func(args config.OnResolveArgs) (result config.OnResolveResult) {
+			var kind ResolveKind
+			switch args.Kind {
+			case ast.ImportEntryPoint:
+				kind = ResolveEntryPoint
+			case ast.ImportStmt:
+				kind = ResolveJSImportStatement
+			case ast.ImportRequire:
+				kind = ResolveJSRequireCall
+			case ast.ImportDynamic:
+				kind = ResolveJSDynamicImport
+			case ast.ImportRequireResolve:
+				kind = ResolveJSRequireResolve
+			case ast.ImportAt:
+				kind = ResolveCSSImportRule
+			case ast.ImportURL:
+				kind = ResolveCSSURLToken
+			default:
+				panic("Internal error")
+			}
+
 			response, err := callback(OnResolveArgs{
 				Path:       args.Path,
 				Importer:   args.Importer.Text,
 				Namespace:  args.Importer.Namespace,
 				ResolveDir: args.ResolveDir,
+				Kind:       kind,
 				PluginData: args.PluginData,
 			})
 			result.PluginName = response.PluginName

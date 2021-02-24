@@ -1544,6 +1544,184 @@ let pluginTests = {
       }
     }
   },
+
+  async resolveKindEntryPoint({ esbuild }) {
+    let resolveKind = '<missing>'
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        bundle: true,
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, args => {
+              resolveKind = args.kind
+            })
+          },
+        }],
+      })
+    } catch (e) {
+    }
+    assert.strictEqual(resolveKind, 'entry-point')
+  },
+
+  async resolveKindImportStmt({ esbuild }) {
+    let resolveKind = '<missing>'
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        bundle: true,
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, args => {
+              if (args.importer === '') return { path: args.path, namespace: 'ns' }
+              else resolveKind = args.kind
+            })
+            build.onLoad({ filter: /.*/, namespace: 'ns' }, () => {
+              return { contents: `import 'test'` }
+            })
+          },
+        }],
+      })
+    } catch (e) {
+    }
+    assert.strictEqual(resolveKind, 'import-statement')
+  },
+
+  async resolveKindRequireCall({ esbuild }) {
+    let resolveKind = '<missing>'
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        bundle: true,
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, args => {
+              if (args.importer === '') return { path: args.path, namespace: 'ns' }
+              else resolveKind = args.kind
+            })
+            build.onLoad({ filter: /.*/, namespace: 'ns' }, () => {
+              return { contents: `require('test')` }
+            })
+          },
+        }],
+      })
+    } catch (e) {
+    }
+    assert.strictEqual(resolveKind, 'require-call')
+  },
+
+  async resolveKindDynamicImport({ esbuild }) {
+    let resolveKind = '<missing>'
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        bundle: true,
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, args => {
+              if (args.importer === '') return { path: args.path, namespace: 'ns' }
+              else resolveKind = args.kind
+            })
+            build.onLoad({ filter: /.*/, namespace: 'ns' }, () => {
+              return { contents: `import('test')` }
+            })
+          },
+        }],
+      })
+    } catch (e) {
+    }
+    assert.strictEqual(resolveKind, 'dynamic-import')
+  },
+
+  async resolveKindRequireResolve({ esbuild }) {
+    let resolveKind = '<missing>'
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        bundle: true,
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, args => {
+              if (args.importer === '') return { path: args.path, namespace: 'ns' }
+              else resolveKind = args.kind
+            })
+            build.onLoad({ filter: /.*/, namespace: 'ns' }, () => {
+              return { contents: `require.resolve('test')` }
+            })
+          },
+        }],
+      })
+    } catch (e) {
+    }
+    assert.strictEqual(resolveKind, 'require-resolve')
+  },
+
+  async resolveKindAtImport({ esbuild }) {
+    let resolveKind = '<missing>'
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        bundle: true,
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, args => {
+              if (args.importer === '') return { path: args.path, namespace: 'ns' }
+              else resolveKind = args.kind
+            })
+            build.onLoad({ filter: /.*/, namespace: 'ns' }, () => {
+              return { contents: `@import "test";`, loader: 'css' }
+            })
+          },
+        }],
+      })
+    } catch (e) {
+    }
+    assert.strictEqual(resolveKind, 'import-rule')
+  },
+
+  async resolveKindImportStmt({ esbuild }) {
+    let resolveKind = '<missing>'
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        bundle: true,
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, args => {
+              if (args.importer === '') return { path: args.path, namespace: 'ns' }
+              else resolveKind = args.kind
+            })
+            build.onLoad({ filter: /.*/, namespace: 'ns' }, () => {
+              return { contents: `div { background: url('test') }`, loader: 'css' }
+            })
+          },
+        }],
+      })
+    } catch (e) {
+    }
+    assert.strictEqual(resolveKind, 'url-token')
+  },
 }
 
 async function main() {
