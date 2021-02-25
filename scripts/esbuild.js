@@ -235,7 +235,7 @@ exports.installForTests = () => {
   // don't have a problem with this. This has only been a problem on the Windows
   // VM in GitHub CI. I cannot reproduce this issue myself.
   const installDir = path.join(os.tmpdir(), 'esbuild-' + Math.random().toString(36).slice(2))
-  const env = { ...process.env, ESBUILD_BIN_PATH_FOR_TESTS: esbuildPath }
+  const env = { ...process.env, ESBUILD_BINARY_PATH: esbuildPath }
   fs.mkdirSync(installDir)
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}')
   childProcess.execSync(`npm pack --silent "${npmDir}"`, { cwd: installDir, stdio: 'inherit' })

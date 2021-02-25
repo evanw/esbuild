@@ -218,12 +218,8 @@ function isYarnBerryOrNewer(): boolean {
 }
 
 function installDirectly(name: string) {
-  if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
-    fs.unlinkSync(binPath);
-    fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, binPath);
-    validateBinaryVersion(binPath);
-  } else if (process.env.ESBUILD_BIN_PATH) {
-    fs.copyFileSync(process.env.ESBUILD_BIN_PATH, binPath);
+  if (process.env.ESBUILD_BINARY_PATH) {
+    fs.copyFileSync(process.env.ESBUILD_BINARY_PATH, binPath);
     validateBinaryVersion(binPath);
   } else {
     installBinaryFromPackage(name, 'bin/esbuild', binPath)
@@ -242,9 +238,9 @@ const { status } = child_process.spawnSync(esbuild_exe, process.argv.slice(2), {
 process.exitCode = status === null ? 1 : status;
 `);
   const absToPath = path.join(__dirname, toPath);
-  if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
-    fs.copyFileSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, absToPath);
-    validateBinaryVersion(process.env.ESBUILD_BIN_PATH_FOR_TESTS);
+  if (process.env.ESBUILD_BINARY_PATH) {
+    fs.copyFileSync(process.env.ESBUILD_BINARY_PATH, absToPath);
+    validateBinaryVersion(absToPath);
   } else {
     installBinaryFromPackage(name, fromPath, absToPath)
       .catch(e => setImmediate(() => { throw e; }));
