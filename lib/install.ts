@@ -221,7 +221,10 @@ function installDirectly(name: string) {
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.unlinkSync(binPath);
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, binPath);
-    validateBinaryVersion(process.env.ESBUILD_BIN_PATH_FOR_TESTS);
+    validateBinaryVersion(binPath);
+  } else if (process.env.ESBUILD_BIN_PATH) {
+    fs.copyFileSync(process.env.ESBUILD_BIN_PATH, binPath);
+    validateBinaryVersion(binPath);
   } else {
     installBinaryFromPackage(name, 'bin/esbuild', binPath)
       .catch(e => setImmediate(() => { throw e; }));
