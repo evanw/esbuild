@@ -16,6 +16,16 @@
 
     This case previously wasn't handled because doing this is a compile error in TypeScript code. However, JavaScript does allow this so esbuild needs to be able to handle this. This edge case should now work correctly with this release.
 
+* CSS namespaces are no longer supported
+
+    [CSS namespaces](https://developer.mozilla.org/en-US/docs/Web/CSS/@namespace) are a weird feature that appears to only really be useful for styling XML. And the world has moved on from XHTML to HTML5 so pretty much no one uses CSS namespaces anymore. They are also complicated to support in a bundler because CSS namespaces are file-scoped, which means:
+
+    * Default namespaces can be different in different files, in which case some default namespaces would have to be converted to prefixed namespaces to avoid collisions.
+
+    * Prefixed namespaces from different files can use the same name, in which case some prefixed namespaces would need to be renamed to avoid collisions.
+
+    Instead of implementing all of that for an extremely obscure feature, CSS namespaces are now just explicitly not supported. The code to handle `@namespace` has been removed from esbuild. This will likely not affect anyone, especially because bundling code using CSS namespaces with esbuild didn't even work correctly in the first place.
+
 ## 0.8.52
 
 * Fix a concurrent map write with the `--inject:` feature ([#878](https://github.com/evanw/esbuild/issues/878))

@@ -694,48 +694,6 @@ func TestAtCharset(t *testing.T) {
 	expectParseError(t, "@charset \"UTF-8\"{}", "<stdin>: warning: Expected \";\" but found \"{\"\n")
 }
 
-func TestAtNamespace(t *testing.T) {
-	expectPrinted(t, "@namespace\"http://www.com\";", "@namespace \"http://www.com\";\n")
-	expectPrinted(t, "@namespace \"http://www.com\";", "@namespace \"http://www.com\";\n")
-	expectPrinted(t, "@namespace \"http://www.com\" ;", "@namespace \"http://www.com\";\n")
-	expectPrinted(t, "@namespace url();", "@namespace \"\";\n")
-	expectPrinted(t, "@namespace url(http://www.com);", "@namespace \"http://www.com\";\n")
-	expectPrinted(t, "@namespace url(http://www.com) ;", "@namespace \"http://www.com\";\n")
-	expectPrinted(t, "@namespace url(\"http://www.com\");", "@namespace \"http://www.com\";\n")
-	expectPrinted(t, "@namespace url(\"http://www.com\") ;", "@namespace \"http://www.com\";\n")
-
-	expectPrinted(t, "@namespace ns\"http://www.com\";", "@namespace ns \"http://www.com\";\n")
-	expectPrinted(t, "@namespace ns \"http://www.com\";", "@namespace ns \"http://www.com\";\n")
-	expectPrinted(t, "@namespace ns \"http://www.com\" ;", "@namespace ns \"http://www.com\";\n")
-	expectPrinted(t, "@namespace ns url();", "@namespace ns \"\";\n")
-	expectPrinted(t, "@namespace ns url(http://www.com);", "@namespace ns \"http://www.com\";\n")
-	expectPrinted(t, "@namespace ns url(http://www.com) ;", "@namespace ns \"http://www.com\";\n")
-	expectPrinted(t, "@namespace ns url(\"http://www.com\");", "@namespace ns \"http://www.com\";\n")
-	expectPrinted(t, "@namespace ns url(\"http://www.com\") ;", "@namespace ns \"http://www.com\";\n")
-
-	expectParseError(t, "@namespace;", "<stdin>: warning: Expected URL token but found \";\"\n")
-	expectParseError(t, "@namespace \"http://www.com\"", "<stdin>: warning: Expected \";\" but found end of file\n")
-	expectParseError(t, "@namespace url(\"http://www.com\";", "<stdin>: warning: Expected \")\" but found \";\"\n")
-	expectParseError(t, "@namespace noturl(\"http://www.com\");", "<stdin>: warning: Expected URL token but found \"noturl(\"\n")
-	expectParseError(t, "@namespace url(", `<stdin>: warning: Expected URL token but found bad URL token
-<stdin>: error: Expected ")" to end URL token
-<stdin>: warning: Expected ";" but found end of file
-`)
-
-	expectParseError(t, "@namespace ns;", "<stdin>: warning: Expected URL token but found \";\"\n")
-	expectParseError(t, "@namespace ns \"http://www.com\"", "<stdin>: warning: Expected \";\" but found end of file\n")
-	expectParseError(t, "@namespace ns url(\"http://www.com\";", "<stdin>: warning: Expected \")\" but found \";\"\n")
-	expectParseError(t, "@namespace ns noturl(\"http://www.com\");", "<stdin>: warning: Expected URL token but found \"noturl(\"\n")
-	expectParseError(t, "@namespace ns url(", `<stdin>: warning: Expected URL token but found bad URL token
-<stdin>: error: Expected ")" to end URL token
-<stdin>: warning: Expected ";" but found end of file
-`)
-
-	expectParseError(t, "@namespace \"http://www.com\" {}", `<stdin>: warning: Expected ";"
-<stdin>: warning: Unexpected "{"
-`)
-}
-
 func TestAtImport(t *testing.T) {
 	expectPrinted(t, "@import\"foo.css\";", "@import \"foo.css\";\n")
 	expectPrinted(t, "@import \"foo.css\";", "@import \"foo.css\";\n")
@@ -804,8 +762,4 @@ func TestAtRuleValidation(t *testing.T) {
 	expectParseError(t, "a {} @import \"foo\";",
 		"<stdin>: warning: All \"@import\" rules must come first\n"+
 			"<stdin>: note: This rule cannot come before an \"@import\" rule\n")
-
-	expectParseError(t, "a {} @namespace url(foo);",
-		"<stdin>: warning: \"@namespace\" rules can only come after \"@import\" rules\n"+
-			"<stdin>: note: This rule cannot come before a \"@namespace\" rule\n")
 }

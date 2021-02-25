@@ -155,7 +155,6 @@ type ruleContext struct {
 func (p *parser) parseListOfRules(context ruleContext) []css_ast.R {
 	didWarnAboutCharset := false
 	didWarnAboutImport := false
-	didWarnAboutNamespace := false
 	rules := []css_ast.R{}
 	locs := []logger.Loc{}
 
@@ -195,22 +194,6 @@ func (p *parser) parseListOfRules(context ruleContext) []css_ast.R {
 										"This rule cannot come before an \"@import\" rule")})
 								didWarnAboutImport = true
 								break importLoop
-							}
-						}
-					}
-
-				case *css_ast.RAtNamespace:
-					if !didWarnAboutNamespace {
-					namespaceLoop:
-						for i, before := range rules {
-							switch before.(type) {
-							case *css_ast.RAtCharset, *css_ast.RAtImport, *css_ast.RAtNamespace:
-							default:
-								p.log.AddRangeWarningWithNotes(&p.source, first, "\"@namespace\" rules can only come after \"@import\" rules",
-									[]logger.MsgData{logger.RangeData(&p.source, logger.Range{Loc: locs[i]},
-										"This rule cannot come before a \"@namespace\" rule")})
-								didWarnAboutNamespace = true
-								break namespaceLoop
 							}
 						}
 					}
@@ -349,21 +332,6 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		}
 		p.expect(css_lexer.TString)
 
-	case "namespace":
-		kind = atRuleEmpty
-		p.eat(css_lexer.TWhitespace)
-		prefix := ""
-		if p.peek(css_lexer.TIdent) {
-			prefix = p.decoded()
-			p.advance()
-			p.eat(css_lexer.TWhitespace)
-		}
-		if path, _, ok := p.expectURLOrString(); ok {
-			p.eat(css_lexer.TWhitespace)
-			p.expect(css_lexer.TSemicolon)
-			return &css_ast.RAtNamespace{Prefix: prefix, Path: path}
-		}
-
 	case "import":
 		kind = atRuleEmpty
 		p.eat(css_lexer.TWhitespace)
@@ -480,7 +448,27 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		// https://developer.mozilla.org/en-US/docs/Web/CSS/At-rule. Deprecated
 		// and Firefox-only at-rules have been removed.
 		if kind == atRuleUnknown {
-			p.log.AddRangeWarning(&p.source, atRange, fmt.Sprintf("%q is not a known rule name", "@"+atToken))
+			if atToken == "namespace" {
+				// CSS namespaces are a weird feature that appears to only really be
+				// useful for styling XML. And the world has moved on from XHTML to
+				// HTML5 so pretty much no one uses CSS namespaces anymore. They are
+				// also complicated to support in a bundler because CSS namespaces are
+				// file-scoped, which means:
+				//
+				// * Default namespaces can be different in different files, in which
+				//   case some default namespaces would have to be converted to prefixed
+				//   namespaces to avoid collisions.
+				//
+				// * Prefixed namespaces from different files can use the same name, in
+				//   which case some prefixed namespaces would need to be renamed to
+				//   avoid collisions.
+				//
+				// Instead of implementing all of that for an extremely obscure feature,
+				// CSS namespaces are just explicitly not supported.
+				p.log.AddRangeWarning(&p.source, atRange, "\"@namespace\" rules are not supported")
+			} else {
+				p.log.AddRangeWarning(&p.source, atRange, fmt.Sprintf("%q is not a known rule name", "@"+atToken))
+			}
 		}
 	}
 

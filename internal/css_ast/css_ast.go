@@ -96,11 +96,6 @@ type RAtCharset struct {
 	Encoding string
 }
 
-type RAtNamespace struct {
-	Prefix string
-	Path   string
-}
-
 type RAtImport struct {
 	ImportRecordIndex uint32
 }
@@ -151,7 +146,6 @@ type RBadDeclaration struct {
 }
 
 func (*RAtCharset) isRule()      {}
-func (*RAtNamespace) isRule()    {}
 func (*RAtImport) isRule()       {}
 func (*RAtKeyframes) isRule()    {}
 func (*RKnownAt) isRule()        {}

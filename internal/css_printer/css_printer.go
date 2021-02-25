@@ -49,19 +49,6 @@ func (p *printer) printRule(rule css_ast.R, indent int32, omitTrailingSemicolon 
 		p.printQuotedWithQuote(r.Encoding, '"')
 		p.print(";")
 
-	case *css_ast.RAtNamespace:
-		if r.Prefix != "" {
-			p.print("@namespace ")
-			p.printIdent(r.Prefix, identNormal, canDiscardWhitespaceAfter)
-		} else {
-			p.print("@namespace")
-		}
-		if !p.options.RemoveWhitespace {
-			p.print(" ")
-		}
-		p.printQuoted(r.Path)
-		p.print(";")
-
 	case *css_ast.RAtImport:
 		if p.options.RemoveWhitespace {
 			p.print("@import")
