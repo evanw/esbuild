@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.52
 
 * Fix a concurrent map write with the `--inject:` feature ([#878](https://github.com/evanw/esbuild/issues/878))
 
