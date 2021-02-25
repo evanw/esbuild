@@ -430,6 +430,10 @@ type fnOnlyDataVisit struct {
 	thisCaptureRef      *js_ast.Ref
 	argumentsCaptureRef *js_ast.Ref
 
+	// Inside a static class property initializer, "this" expressions should be
+	// replaced with the class name.
+	thisClassStaticRef *js_ast.Ref
+
 	// If we're inside an async arrow function and async functions are not
 	// supported, then we will have to convert that arrow function to a generator
 	// function. That means references to "arguments" inside the arrow function
@@ -8893,10 +8897,25 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		p.recordDeclaredSymbol(class.Name.Ref)
 	}
 
+	// Replace "this" with a reference to the class inside static field
+	// initializers either if static fields are not supported or if we are
+	// converting this class to a "var" to avoid the temporal dead zone.
+	replaceThisInStaticFieldInit := p.options.unsupportedJSFeatures.Has(compat.ClassStaticField) ||
+		(p.options.mode == config.ModeBundle && p.currentScope.Parent == nil)
+
 	p.pushScopeForVisitPass(js_ast.ScopeClassName, nameScopeLoc)
 	oldEnclosingClassKeyword := p.enclosingClassKeyword
 	p.enclosingClassKeyword = class.ClassKeyword
 	p.currentScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeClass)
+
+	classNameRef := js_ast.InvalidRef
+	if class.Name != nil {
+		classNameRef = class.Name.Ref
+	} else if replaceThisInStaticFieldInit {
+		// Generate a name if one doesn't already exist. This is necessary for
+		// handling "this" in static class property initializers.
+		classNameRef = p.newSymbol(js_ast.SymbolOther, "this")
+	}
 
 	// Insert a shadowing name that spans the whole class, which matches
 	// JavaScript's semantics. The class body (and extends clause) "captures" the
@@ -8904,19 +8923,22 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 	// symbol can be re-assigned to something else later. The captured values
 	// must be the original value of the name, not the re-assigned value.
 	shadowRef := js_ast.InvalidRef
-	if class.Name != nil {
+	if classNameRef != js_ast.InvalidRef {
 		// Use "const" for this symbol to match JavaScript run-time semantics. You
 		// are not allowed to assign to this symbol (it throws a TypeError).
-		name := p.symbols[class.Name.Ref.InnerIndex].OriginalName
+		name := p.symbols[classNameRef.InnerIndex].OriginalName
 		shadowRef = p.newSymbol(js_ast.SymbolConst, "_"+name)
 		p.recordDeclaredSymbol(shadowRef)
-		p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: shadowRef}
+		if class.Name != nil {
+			p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: shadowRef}
+		}
 	}
 
 	if class.Extends != nil {
 		*class.Extends = p.visitExpr(*class.Extends)
 	}
 
+	// Replace "this" inside the class body
 	oldIsThisCaptured := p.fnOnlyDataVisit.isThisNested
 	p.fnOnlyDataVisit.isThisNested = true
 
@@ -8946,24 +8968,47 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		p.currentScope.ForbidArguments = true
 
 		if property.Value != nil {
+			// Do not capture "this" inside property values (e.g. methods)
+			oldThis := p.fnOnlyDataVisit.thisClassStaticRef
+			p.fnOnlyDataVisit.thisClassStaticRef = nil
 			*property.Value = p.visitExpr(*property.Value)
+			p.fnOnlyDataVisit.thisClassStaticRef = oldThis
 		}
+
 		if property.Initializer != nil {
+			oldThis := p.fnOnlyDataVisit.thisClassStaticRef
+			if property.IsStatic && replaceThisInStaticFieldInit {
+				// Replace "this" with the class name inside static property initializers
+				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
+			} else {
+				// Otherwise, rely on the native "this" implementation in this initializer
+				p.fnOnlyDataVisit.thisClassStaticRef = nil
+			}
 			*property.Initializer = p.visitExpr(*property.Initializer)
+			p.fnOnlyDataVisit.thisClassStaticRef = oldThis
 		}
 
 		// Restore the ability to use "arguments" in decorators and computed properties
 		p.currentScope.ForbidArguments = false
 	}
 
+	// Restore "this" now that we're leaving the class body
 	p.fnOnlyDataVisit.isThisNested = oldIsThisCaptured
-
 	p.enclosingClassKeyword = oldEnclosingClassKeyword
 	p.popScope()
 
-	// Don't generate a shadowing name if one isn't needed
-	if shadowRef != js_ast.InvalidRef && p.symbols[shadowRef.InnerIndex].UseCountEstimate == 0 {
-		shadowRef = js_ast.InvalidRef
+	if shadowRef != js_ast.InvalidRef {
+		if p.symbols[shadowRef.InnerIndex].UseCountEstimate == 0 {
+			// Don't generate a shadowing name if one isn't needed
+			shadowRef = js_ast.InvalidRef
+		} else if class.Name == nil {
+			// If there was originally no class name but something inside needed one
+			// (e.g. there was a static property initializer that referenced "this"),
+			// store our generated name so the class expression ends up with a name.
+			class.Name = &js_ast.LocRef{Loc: nameScopeLoc, Ref: classNameRef}
+			p.currentScope.Generated = append(p.currentScope.Generated, classNameRef)
+			p.recordDeclaredSymbol(classNameRef)
+		}
 	}
 
 	return shadowRef
@@ -9543,6 +9588,12 @@ func (p *parser) visitExpr(expr js_ast.Expr) js_ast.Expr {
 }
 
 func (p *parser) valueForThis(loc logger.Loc) (js_ast.Expr, bool) {
+	// Substitute "this" if we're inside a static class property initializer
+	if p.fnOnlyDataVisit.thisClassStaticRef != nil {
+		p.recordUsage(*p.fnOnlyDataVisit.thisClassStaticRef)
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.thisClassStaticRef}}, true
+	}
+
 	if p.options.mode != config.ModePassThrough && !p.fnOnlyDataVisit.isThisNested {
 		if p.es6ImportKeyword.Len > 0 || p.es6ExportKeyword.Len > 0 {
 			// In an ES6 module, "this" is supposed to be undefined. Instead of

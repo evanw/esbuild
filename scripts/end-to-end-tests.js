@@ -1676,6 +1676,51 @@
     test(['in.js', '--outfile=node.js', '--target=es6'], {
       'in.js': `
         class Foo {
+          foo = () => this
+        }
+        let foo = new Foo()
+        if (foo.foo() !== foo) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          static foo = () => this
+        }
+        let old = Foo
+        let foo = Foo.foo
+        Foo = class Bar {}
+        if (foo() !== old) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          bar = 'works'
+          foo = () => class {
+            [this.bar]
+          }
+        }
+        let foo = new Foo().foo
+        if (!('works' in new (foo()))) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          static bar = 'works'
+          static foo = () => class {
+            [this.bar]
+          }
+        }
+        let foo = Foo.foo
+        Foo = class Bar {}
+        if (!('works' in new (foo()))) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
           static foo() { return this.#foo }
           static #foo = Foo
         }

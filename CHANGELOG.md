@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+* Handle `this` in class static field initializers ([#885](https://github.com/evanw/esbuild/issues/885))
+
+    When you use `this` in a static field initializer inside a `class` statement or expression, it references the class object itself:
+
+    ```js
+    class Foo {
+      static Bar = class extends this {
+      }
+    }
+    assert(new Foo.Bar() instanceof Foo)
+    ```
+
+    This case previously wasn't handled because doing this is a compile error in TypeScript code. However, JavaScript does allow this so esbuild needs to be able to handle this. This edge case should now work correctly with this release.
+
 ## 0.8.52
 
 * Fix a concurrent map write with the `--inject:` feature ([#878](https://github.com/evanw/esbuild/issues/878))

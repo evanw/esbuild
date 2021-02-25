@@ -299,6 +299,92 @@ let Bar = (_a = class {
 `)
 }
 
+func TestLowerClassStaticThis(t *testing.T) {
+	expectPrinted(t, "class Foo { x = this }", "class Foo {\n  x = this;\n}\n")
+	expectPrinted(t, "class Foo { static x = this }", "class Foo {\n  static x = this;\n}\n")
+	expectPrinted(t, "class Foo { static x = () => this }", "class Foo {\n  static x = () => this;\n}\n")
+	expectPrinted(t, "class Foo { static x = function() { return this } }", "class Foo {\n  static x = function() {\n    return this;\n  };\n}\n")
+	expectPrinted(t, "class Foo { static [this.x] }", "class Foo {\n  static [this.x];\n}\n")
+	expectPrinted(t, "class Foo { static x = class { y = this } }", "class Foo {\n  static x = class {\n    y = this;\n  };\n}\n")
+	expectPrinted(t, "class Foo { static x = class { [this.y] } }", "class Foo {\n  static x = class {\n    [this.y];\n  };\n}\n")
+	expectPrinted(t, "class Foo { static x = class extends this {} }", "class Foo {\n  static x = class extends this {\n  };\n}\n")
+
+	expectPrinted(t, "x = class Foo { x = this }", "x = class Foo {\n  x = this;\n};\n")
+	expectPrinted(t, "x = class Foo { static x = this }", "x = class Foo {\n  static x = this;\n};\n")
+	expectPrinted(t, "x = class Foo { static x = () => this }", "x = class Foo {\n  static x = () => this;\n};\n")
+	expectPrinted(t, "x = class Foo { static x = function() { return this } }", "x = class Foo {\n  static x = function() {\n    return this;\n  };\n};\n")
+	expectPrinted(t, "x = class Foo { static [this.x] }", "x = class Foo {\n  static [this.x];\n};\n")
+	expectPrinted(t, "x = class Foo { static x = class { y = this } }", "x = class Foo {\n  static x = class {\n    y = this;\n  };\n};\n")
+	expectPrinted(t, "x = class Foo { static x = class { [this.y] } }", "x = class Foo {\n  static x = class {\n    [this.y];\n  };\n};\n")
+	expectPrinted(t, "x = class Foo { static x = class extends this {} }", "x = class Foo {\n  static x = class extends this {\n  };\n};\n")
+
+	expectPrinted(t, "x = class { x = this }", "x = class {\n  x = this;\n};\n")
+	expectPrinted(t, "x = class { static x = this }", "x = class {\n  static x = this;\n};\n")
+	expectPrinted(t, "x = class { static x = () => this }", "x = class {\n  static x = () => this;\n};\n")
+	expectPrinted(t, "x = class { static x = function() { return this } }", "x = class {\n  static x = function() {\n    return this;\n  };\n};\n")
+	expectPrinted(t, "x = class { static [this.x] }", "x = class {\n  static [this.x];\n};\n")
+	expectPrinted(t, "x = class { static x = class { y = this } }", "x = class {\n  static x = class {\n    y = this;\n  };\n};\n")
+	expectPrinted(t, "x = class { static x = class { [this.y] } }", "x = class {\n  static x = class {\n    [this.y];\n  };\n};\n")
+	expectPrinted(t, "x = class { static x = class extends this {} }", "x = class {\n  static x = class extends this {\n  };\n};\n")
+
+	expectPrintedTarget(t, 2015, "class Foo { x = this }",
+		"class Foo {\n  constructor() {\n    __publicField(this, \"x\", this);\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { [this.x] }",
+		"var _a;\nclass Foo {\n  constructor() {\n    __publicField(this, _a);\n  }\n}\n_a = this.x;\n")
+	expectPrintedTarget(t, 2015, "class Foo { static x = this }",
+		"const _Foo = class {\n};\nlet Foo = _Foo;\n__publicField(Foo, \"x\", _Foo);\n")
+	expectPrintedTarget(t, 2015, "class Foo { static x = () => this }",
+		"const _Foo = class {\n};\nlet Foo = _Foo;\n__publicField(Foo, \"x\", () => _Foo);\n")
+	expectPrintedTarget(t, 2015, "class Foo { static x = function() { return this } }",
+		"class Foo {\n}\n__publicField(Foo, \"x\", function() {\n  return this;\n});\n")
+	expectPrintedTarget(t, 2015, "class Foo { static [this.x] }",
+		"var _a;\nclass Foo {\n}\n_a = this.x;\n__publicField(Foo, _a);\n")
+	expectPrintedTarget(t, 2015, "class Foo { static x = class { y = this } }",
+		"class Foo {\n}\n__publicField(Foo, \"x\", class {\n  constructor() {\n    __publicField(this, \"y\", this);\n  }\n});\n")
+	expectPrintedTarget(t, 2015, "class Foo { static x = class { [this.y] } }",
+		"var _a, _b;\nconst _Foo = class {\n};\nlet Foo = _Foo;\n__publicField(Foo, \"x\", (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = _Foo.y, _b));\n")
+	expectPrintedTarget(t, 2015, "class Foo { static x = class extends this {} }",
+		"const _Foo = class {\n};\nlet Foo = _Foo;\n__publicField(Foo, \"x\", class extends _Foo {\n});\n")
+
+	expectPrintedTarget(t, 2015, "x = class Foo { x = this }",
+		"x = class Foo {\n  constructor() {\n    __publicField(this, \"x\", this);\n  }\n};\n")
+	expectPrintedTarget(t, 2015, "x = class Foo { [this.x] }",
+		"var _a, _b;\nx = (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = this.x, _b);\n")
+	expectPrintedTarget(t, 2015, "x = class Foo { static x = this }",
+		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", _a), _a);\n")
+	expectPrintedTarget(t, 2015, "x = class Foo { static x = () => this }",
+		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", () => _a), _a);\n")
+	expectPrintedTarget(t, 2015, "x = class Foo { static x = function() { return this } }",
+		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", function() {\n  return this;\n}), _a);\n")
+	expectPrintedTarget(t, 2015, "x = class Foo { static [this.x] }",
+		"var _a, _b;\nx = (_b = class {\n}, _a = this.x, __publicField(_b, _a), _b);\n")
+	expectPrintedTarget(t, 2015, "x = class Foo { static x = class { y = this } }",
+		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", class {\n  constructor() {\n    __publicField(this, \"y\", this);\n  }\n}), _a);\n")
+	expectPrintedTarget(t, 2015, "x = class Foo { static x = class { [this.y] } }",
+		"var _a, _b, _c;\nx = (_c = class {\n}, __publicField(_c, \"x\", (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = _c.y, _b)), _c);\n")
+	expectPrintedTarget(t, 2015, "x = class Foo { static x = class extends this {} }",
+		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", class extends _a {\n}), _a);\n")
+
+	expectPrintedTarget(t, 2015, "x = class { x = this }",
+		"x = class {\n  constructor() {\n    __publicField(this, \"x\", this);\n  }\n};\n")
+	expectPrintedTarget(t, 2015, "x = class { [this.x] }",
+		"var _a, _b;\nx = (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = this.x, _b);\n")
+	expectPrintedTarget(t, 2015, "x = class { static x = this }",
+		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", _a), _a);\n")
+	expectPrintedTarget(t, 2015, "x = class { static x = () => this }",
+		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", () => _a), _a);\n")
+	expectPrintedTarget(t, 2015, "x = class { static x = function() { return this } }",
+		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", function() {\n  return this;\n}), _a);\n")
+	expectPrintedTarget(t, 2015, "x = class { static [this.x] }",
+		"var _a, _b;\nx = (_b = class {\n}, _a = this.x, __publicField(_b, _a), _b);\n")
+	expectPrintedTarget(t, 2015, "x = class { static x = class { y = this } }",
+		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", class {\n  constructor() {\n    __publicField(this, \"y\", this);\n  }\n}), _a);\n")
+	expectPrintedTarget(t, 2015, "x = class { static x = class { [this.y] } }",
+		"var _a, _b, _c;\nx = (_c = class {\n}, __publicField(_c, \"x\", (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = _c.y, _b)), _c);\n")
+	expectPrintedTarget(t, 2015, "x = class Foo { static x = class extends this {} }",
+		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", class extends _a {\n}), _a);\n")
+}
+
 func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2019, "a?.b.c", "a == null ? void 0 : a.b.c;\n")
 	expectPrintedTarget(t, 2019, "(a?.b).c", "(a == null ? void 0 : a.b).c;\n")
