@@ -8938,10 +8938,6 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		*class.Extends = p.visitExpr(*class.Extends)
 	}
 
-	// Replace "this" inside the class body
-	oldIsThisCaptured := p.fnOnlyDataVisit.isThisNested
-	p.fnOnlyDataVisit.isThisNested = true
-
 	// A scope is needed for private identifiers
 	p.pushScopeForVisitPass(js_ast.ScopeClassBody, class.BodyLoc)
 	defer p.popScope()
@@ -8967,33 +8963,32 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		// Make it an error to use "arguments" in a class body
 		p.currentScope.ForbidArguments = true
 
+		// The value of "this" is shadowed inside property values
+		oldIsThisCaptured := p.fnOnlyDataVisit.isThisNested
+		oldThis := p.fnOnlyDataVisit.thisClassStaticRef
+		p.fnOnlyDataVisit.isThisNested = true
+		p.fnOnlyDataVisit.thisClassStaticRef = nil
+
 		if property.Value != nil {
-			// Do not capture "this" inside property values (e.g. methods)
-			oldThis := p.fnOnlyDataVisit.thisClassStaticRef
-			p.fnOnlyDataVisit.thisClassStaticRef = nil
 			*property.Value = p.visitExpr(*property.Value)
-			p.fnOnlyDataVisit.thisClassStaticRef = oldThis
 		}
 
 		if property.Initializer != nil {
-			oldThis := p.fnOnlyDataVisit.thisClassStaticRef
 			if property.IsStatic && replaceThisInStaticFieldInit {
 				// Replace "this" with the class name inside static property initializers
 				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
-			} else {
-				// Otherwise, rely on the native "this" implementation in this initializer
-				p.fnOnlyDataVisit.thisClassStaticRef = nil
 			}
 			*property.Initializer = p.visitExpr(*property.Initializer)
-			p.fnOnlyDataVisit.thisClassStaticRef = oldThis
 		}
+
+		// Restore "this" so it will take the inherited value in property keys
+		p.fnOnlyDataVisit.thisClassStaticRef = oldThis
+		p.fnOnlyDataVisit.isThisNested = oldIsThisCaptured
 
 		// Restore the ability to use "arguments" in decorators and computed properties
 		p.currentScope.ForbidArguments = false
 	}
 
-	// Restore "this" now that we're leaving the class body
-	p.fnOnlyDataVisit.isThisNested = oldIsThisCaptured
 	p.enclosingClassKeyword = oldEnclosingClassKeyword
 	p.popScope()
 

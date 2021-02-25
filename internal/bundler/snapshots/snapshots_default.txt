@@ -2302,11 +2302,45 @@ TestThisOutsideFunction
 ---------- /out.js ----------
 // entry.js
 var require_entry = __commonJS((exports) => {
-  console.log(exports);
-  console.log((x = exports) => exports);
-  console.log({x: exports});
-  console.log(class extends exports.foo {
-  });
+  if (shouldBeExportsNotThis) {
+    console.log(exports);
+    console.log((x = exports) => exports);
+    console.log({x: exports});
+    console.log(class extends exports.foo {
+    });
+    console.log(class {
+      [exports.foo];
+    });
+    console.log(class {
+      [exports.foo]() {
+      }
+    });
+    console.log(class {
+      static [exports.foo];
+    });
+    console.log(class {
+      static [exports.foo]() {
+      }
+    });
+  }
+  if (shouldBeThisNotExports) {
+    console.log(class {
+      foo = this;
+    });
+    console.log(class {
+      foo() {
+        this;
+      }
+    });
+    console.log(class {
+      static foo = this;
+    });
+    console.log(class {
+      static foo() {
+        this;
+      }
+    });
+  }
 });
 export default require_entry();
 
