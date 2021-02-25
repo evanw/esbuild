@@ -2160,7 +2160,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 		// Generate the variable statement that will represent the class statement
 		stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
-			Kind:     p.selectLocalKind(js_ast.LocalLet),
+			Kind:     p.selectLocalKind(js_ast.LocalVar),
 			IsExport: kind == classKindExportStmt,
 			Decls: []js_ast.Decl{{
 				Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: nameRef}},
