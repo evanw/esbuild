@@ -8908,7 +8908,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		// Use "const" for this symbol to match JavaScript run-time semantics. You
 		// are not allowed to assign to this symbol (it throws a TypeError).
 		name := p.symbols[class.Name.Ref.InnerIndex].OriginalName
-		shadowRef = p.newSymbol(js_ast.SymbolConst, name)
+		shadowRef = p.newSymbol(js_ast.SymbolConst, "_"+name)
 		p.recordDeclaredSymbol(shadowRef)
 		p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: shadowRef}
 	}

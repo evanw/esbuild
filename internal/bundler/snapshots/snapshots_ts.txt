@@ -91,10 +91,10 @@ var declare_let_default = foo;
 var bar2 = 123;
 
 // keep/interface-merged.ts
-var foo3 = class {
+var _foo = class {
 };
-var foo2 = foo3;
-foo2.x = new foo3();
+var foo2 = _foo;
+foo2.x = new _foo();
 var bar3 = 123;
 
 // keep/interface-nested.ts
@@ -110,17 +110,17 @@ var type_nested_default = foo;
 var bar5 = 123;
 
 // keep/value-namespace.ts
-var foo4;
-(function(foo6) {
-  foo6.num = 0;
-})(foo4 || (foo4 = {}));
+var foo3;
+(function(foo5) {
+  foo5.num = 0;
+})(foo3 || (foo3 = {}));
 var bar6 = 123;
 
 // keep/value-namespace-merged.ts
-var foo5;
-(function(foo6) {
-  foo6.num = 0;
-})(foo5 || (foo5 = {}));
+var foo4;
+(function(foo5) {
+  foo5.num = 0;
+})(foo4 || (foo4 = {}));
 var bar7 = 123;
 
 // remove/interface.ts

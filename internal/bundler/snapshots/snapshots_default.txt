@@ -137,10 +137,10 @@ import "data:application/javascript;base64,ZXhwb3J0IGRlZmF1bHQgMTIz";
 TestAvoidTDZ
 ---------- /out.js ----------
 // entry.js
-var Foo2 = class {
+var _Foo = class {
 };
-var Foo = Foo2;
-__publicField(Foo, "foo", new Foo2());
+var Foo = _Foo;
+__publicField(Foo, "foo", new _Foo());
 var foo = Foo.foo;
 console.log(foo);
 var Bar = class {
