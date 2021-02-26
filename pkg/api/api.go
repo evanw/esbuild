@@ -265,6 +265,9 @@ type BuildOptions struct {
 	Footer            string
 	NodePaths         []string // The "NODE_PATH" variable from Node.js
 
+	ChunkNames string
+	AssetNames string
+
 	EntryPoints []string
 	Stdin       *StdinOptions
 	Write       bool

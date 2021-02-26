@@ -303,11 +303,19 @@ func parseFile(args parseArgs) {
 		// Add a hash to the file name to prevent multiple files with the same name
 		// but different contents from colliding
 		hash := hashForFileName([]byte(source.Contents))
-		additionalFileName := base + "." + hash + ext
-		publicPath := args.options.PublicPath + additionalFileName + source.KeyPath.IgnoredSuffix
+		relPath := config.TemplateToString(config.SubstituteTemplate(args.options.AssetPathTemplate, config.PathPlaceholders{
+			Name: &base,
+			Hash: &hash,
+		})) + ext
 
-		// Determine the destination folder
-		targetFolder := args.options.AbsOutputDir
+		// Determine the final path that this asset will have in the output directory
+		var publicPath string
+		if strings.HasSuffix(args.options.PublicPath, "/") && strings.HasPrefix(relPath, "./") {
+			// Avoid an unnecessary "./" in this case
+			publicPath = args.options.PublicPath + relPath[2:] + source.KeyPath.IgnoredSuffix
+		} else {
+			publicPath = args.options.PublicPath + relPath + source.KeyPath.IgnoredSuffix
+		}
 
 		// Export the resulting relative path as a string
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(publicPath)}}
@@ -334,7 +342,7 @@ func parseFile(args parseArgs) {
 		// Copy the file using an additional file payload to make sure we only copy
 		// the file if the module isn't removed due to tree shaking.
 		result.file.additionalFiles = []OutputFile{{
-			AbsPath:           args.fs.Join(targetFolder, additionalFileName),
+			AbsPath:           args.fs.Join(args.options.AbsOutputDir, relPath),
 			Contents:          []byte(source.Contents),
 			jsonMetadataChunk: jsonMetadataChunk,
 		}}
@@ -866,9 +874,7 @@ type scanner struct {
 }
 
 func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.CacheSet, entryPoints []string, options config.Options) Bundle {
-	if options.ExtensionToLoader == nil {
-		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
-	}
+	applyOptionDefaults(&options)
 
 	s := scanner{
 		log:           log,
@@ -1448,7 +1454,7 @@ type OutputFile struct {
 	IsExecutable bool
 }
 
-func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
+func applyOptionDefaults(options *config.Options) {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}
@@ -1458,6 +1464,24 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	if options.OutputExtensionCSS == "" {
 		options.OutputExtensionCSS = ".css"
 	}
+
+	// Configure default path templates
+	if len(options.ChunkPathTemplate) == 0 {
+		options.ChunkPathTemplate = []config.PathTemplate{
+			{Data: "./", Placeholder: config.NamePlaceholder},
+			{Data: ".", Placeholder: config.HashPlaceholder},
+		}
+	}
+	if len(options.AssetPathTemplate) == 0 {
+		options.AssetPathTemplate = []config.PathTemplate{
+			{Data: "./", Placeholder: config.NamePlaceholder},
+			{Data: ".", Placeholder: config.HashPlaceholder},
+		}
+	}
+}
+
+func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
+	applyOptionDefaults(&options)
 
 	// The format can't be "preserve" while bundling
 	if options.Mode == config.ModeBundle && options.OutputFormat == config.FormatPreserve {

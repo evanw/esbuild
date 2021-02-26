@@ -1190,10 +1190,10 @@ TestLoaderFileWithQueryParameter
 This is some text
 ---------- /out/entry.js ----------
 // file.txt?foo
-var file_default = "file.JAWLBT6L.txt?foo";
+var file_default = "./file.JAWLBT6L.txt?foo";
 
 // file.txt?bar
-var file_default2 = "file.JAWLBT6L.txt?bar";
+var file_default2 = "./file.JAWLBT6L.txt?bar";
 
 // entry.js
 console.log(file_default, file_default2);

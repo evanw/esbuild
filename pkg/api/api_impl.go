@@ -26,6 +26,64 @@ import (
 	"github.com/evanw/esbuild/internal/resolver"
 )
 
+func validatePathTemplate(template string) []config.PathTemplate {
+	if template == "" {
+		return nil
+	}
+	template = "./" + strings.ReplaceAll(template, "\\", "/")
+
+	parts := make([]config.PathTemplate, 0, 4)
+	search := 0
+
+	// Split by placeholders
+	for search < len(template) {
+		// Jump to the next "["
+		if found := strings.IndexByte(template[search:], '['); found == -1 {
+			break
+		} else {
+			search += found
+		}
+		head, tail := template[:search], template[search:]
+		placeholder := config.NoPlaceholder
+
+		// Check for a placeholder
+		switch {
+		case strings.HasPrefix(tail, "[name]"):
+			placeholder = config.NamePlaceholder
+			search += len("[name]")
+
+		case strings.HasPrefix(tail, "[hash]"):
+			placeholder = config.HashPlaceholder
+			search += len("[hash]")
+
+		default:
+			// Skip past the "[" so we don't find it again
+			search++
+			continue
+		}
+
+		// Add a part for everything up to and including this placeholder
+		parts = append(parts, config.PathTemplate{
+			Data:        head,
+			Placeholder: placeholder,
+		})
+
+		// Reset the search after this placeholder
+		template = template[search:]
+		search = 0
+	}
+
+	// Append any remaining data as a part without a placeholder
+	if search < len(template) {
+		parts = append(parts, config.PathTemplate{
+			Data:        template,
+			Placeholder: config.NoPlaceholder,
+		})
+	}
+
+	return parts
+}
+
 func validatePlatform(value Platform) config.Platform {
 	switch value {
 	case PlatformBrowser:
@@ -597,6 +655,8 @@ func rebuildImpl(
 		AbsOutputDir:          validatePath(log, realFS, buildOpts.Outdir, "outdir path"),
 		AbsOutputBase:         validatePath(log, realFS, buildOpts.Outbase, "outbase path"),
 		AbsMetadataFile:       validatePath(log, realFS, buildOpts.Metafile, "metafile path"),
+		ChunkPathTemplate:     validatePathTemplate(buildOpts.ChunkNames),
+		AssetPathTemplate:     validatePathTemplate(buildOpts.AssetNames),
 		OutputExtensionJS:     outJS,
 		OutputExtensionCSS:    outCSS,
 		ExtensionToLoader:     validateLoaders(log, buildOpts.Loader),

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -219,6 +220,9 @@ type Options struct {
 	Banner             string
 	Footer             string
 
+	ChunkPathTemplate []PathTemplate
+	AssetPathTemplate []PathTemplate
+
 	Plugins []Plugin
 
 	// If present, metadata about the bundle is written as JSON here
@@ -228,6 +232,98 @@ type Options struct {
 	ExcludeSourcesContent bool
 
 	Stdin *StdinInfo
+}
+
+type PathPlaceholder uint8
+
+const (
+	NoPlaceholder PathPlaceholder = iota
+
+	// The original name of the file, or the manual chunk name, or the name of
+	// the type of output file ("entry" or "chunk" or "asset")
+	NamePlaceholder
+
+	// A hash of the contents of this file, and the contents and output paths of
+	// all dependencies (except for their hash placeholders)
+	HashPlaceholder
+)
+
+type PathTemplate struct {
+	Data        string
+	Placeholder PathPlaceholder
+}
+
+type PathPlaceholders struct {
+	Name *string
+	Hash *string
+}
+
+func (placeholders PathPlaceholders) Get(placeholder PathPlaceholder) *string {
+	switch placeholder {
+	case NamePlaceholder:
+		return placeholders.Name
+	case HashPlaceholder:
+		return placeholders.Hash
+	}
+	return nil
+}
+
+func TemplateToString(template []PathTemplate) string {
+	if len(template) == 1 && template[0].Placeholder == NoPlaceholder {
+		// Avoid allocations in this case
+		return template[0].Data
+	}
+	sb := strings.Builder{}
+	for _, part := range template {
+		sb.WriteString(part.Data)
+		switch part.Placeholder {
+		case NamePlaceholder:
+			sb.WriteString("[name]")
+		case HashPlaceholder:
+			sb.WriteString("[hash]")
+		}
+	}
+	return sb.String()
+}
+
+func HasPlaceholder(template []PathTemplate, placeholder PathPlaceholder) bool {
+	for _, part := range template {
+		if part.Placeholder == placeholder {
+			return true
+		}
+	}
+	return false
+}
+
+func SubstituteTemplate(template []PathTemplate, placeholders PathPlaceholders) []PathTemplate {
+	// Don't allocate if no substitution is possible and the template is already minimal
+	shouldSubstitute := false
+	for i, part := range template {
+		if placeholders.Get(part.Placeholder) != nil || (part.Placeholder == NoPlaceholder && i+1 < len(template)) {
+			shouldSubstitute = true
+			break
+		}
+	}
+	if !shouldSubstitute {
+		return template
+	}
+
+	// Otherwise, substitute and merge as appropriate
+	result := make([]PathTemplate, 0, len(template))
+	for _, part := range template {
+		if sub := placeholders.Get(part.Placeholder); sub != nil {
+			part.Data += *sub
+			part.Placeholder = NoPlaceholder
+		}
+		if last := len(result) - 1; last >= 0 && result[last].Placeholder == NoPlaceholder {
+			last := &result[last]
+			last.Data += part.Data
+			last.Placeholder = part.Placeholder
+		} else {
+			result = append(result, part)
+		}
+	}
+	return result
 }
 
 func IsTreeShakingEnabled(mode Mode, outputFormat Format) bool {

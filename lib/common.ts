@@ -187,6 +187,8 @@ function flagsForBuildOptions(
   let loader = getFlag(options, keys, 'loader', mustBeObject);
   let outExtension = getFlag(options, keys, 'outExtension', mustBeObject);
   let publicPath = getFlag(options, keys, 'publicPath', mustBeString);
+  let chunkNames = getFlag(options, keys, 'chunkNames', mustBeString);
+  let assetNames = getFlag(options, keys, 'assetNames', mustBeString);
   let inject = getFlag(options, keys, 'inject', mustBeArray);
   let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
   let absWorkingDir = getFlag(options, keys, 'absWorkingDir', mustBeString);
@@ -227,6 +229,8 @@ function flagsForBuildOptions(
     flags.push(`--resolve-extensions=${values.join(',')}`);
   }
   if (publicPath) flags.push(`--public-path=${publicPath}`);
+  if (chunkNames) flags.push(`--chunk-names=${chunkNames}`);
+  if (assetNames) flags.push(`--asset-names=${assetNames}`);
   if (mainFields) {
     let values: string[] = [];
     for (let value of mainFields) {

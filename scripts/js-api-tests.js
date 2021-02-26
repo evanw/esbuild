@@ -384,7 +384,7 @@ let buildTests = {
     })
     assert.strictEqual(value.outputFiles, void 0)
     const result = require(output)
-    assert.strictEqual(result.value, 'data.L3XDQOAT.bin')
+    assert.strictEqual(result.value, './data.L3XDQOAT.bin')
     assert.strictEqual(result.__esModule, true)
   },
 
@@ -476,6 +476,51 @@ body {
   background: url(https://www.example.com/assets/data.L3XDQOAT.bin);
 }
 `)
+  },
+
+  async fileLoaderWithAssetPath({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const data = path.join(testDir, 'data.bin')
+    const outdir = path.join(testDir, 'out')
+    await writeFileAsync(input, `export {default as value} from ${JSON.stringify(data)}`)
+    await writeFileAsync(data, `stuff`)
+    const value = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outdir,
+      format: 'cjs',
+      loader: { '.bin': 'file' },
+      assetNames: 'assets/name=[name]/hash=[hash]',
+    })
+    assert.strictEqual(value.outputFiles, void 0)
+    const result = require(path.join(outdir, path.basename(input)))
+    assert.strictEqual(result.value, './assets/name=data/hash=L3XDQOAT.bin')
+    assert.strictEqual(result.__esModule, true)
+    const stuff = fs.readFileSync(path.join(outdir, result.value), 'utf8')
+    assert.strictEqual(stuff, 'stuff')
+  },
+
+  async fileLoaderWithAssetPathAndPublicPath({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const data = path.join(testDir, 'data.bin')
+    const outdir = path.join(testDir, 'out')
+    await writeFileAsync(input, `export {default as value} from ${JSON.stringify(data)}`)
+    await writeFileAsync(data, `stuff`)
+    const value = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outdir,
+      format: 'cjs',
+      loader: { '.bin': 'file' },
+      assetNames: 'assets/name=[name]/hash=[hash]',
+      publicPath: 'https://www.example.com',
+    })
+    assert.strictEqual(value.outputFiles, void 0)
+    const result = require(path.join(outdir, path.basename(input)))
+    assert.strictEqual(result.value, 'https://www.example.com/assets/name=data/hash=L3XDQOAT.bin')
+    assert.strictEqual(result.__esModule, true)
+    const stuff = fs.readFileSync(path.join(outdir, 'assets', 'name=data', 'hash=L3XDQOAT.bin'), 'utf8')
+    assert.strictEqual(stuff, 'stuff')
   },
 
   async fileLoaderBinaryVsText({ esbuild, testDir }) {
@@ -1167,6 +1212,64 @@ console.log("a" + common_default);
 console.log("b" + common_default);
 `)
     assert.strictEqual(Buffer.from(value.outputFiles[2].contents).toString(), `// scripts/.js-api-tests/splittingRelativeNestedDir/common.js
+var common_default = "common";
+
+export {
+  common_default
+};
+`)
+
+    assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.relative(testDir, inputA)))
+    assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.relative(testDir, inputB)))
+    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
+  },
+
+  async splittingWithChunkPath({ esbuild, testDir }) {
+    const inputA = path.join(testDir, 'a/demo.js')
+    const inputB = path.join(testDir, 'b/demo.js')
+    const inputCommon = path.join(testDir, 'common.js')
+    await mkdirAsync(path.dirname(inputA)).catch(x => x)
+    await mkdirAsync(path.dirname(inputB)).catch(x => x)
+    await writeFileAsync(inputA, `
+      import x from "../${path.basename(inputCommon)}"
+      console.log('a' + x)
+    `)
+    await writeFileAsync(inputB, `
+      import x from "../${path.basename(inputCommon)}"
+      console.log('b' + x)
+    `)
+    await writeFileAsync(inputCommon, `
+      export default 'common'
+    `)
+    const outdir = path.join(testDir, 'out')
+    const value = await esbuild.build({
+      entryPoints: [inputA, inputB],
+      bundle: true,
+      outdir,
+      format: 'esm',
+      splitting: true,
+      write: false,
+      chunkNames: 'chunks/name=[name]/hash=[hash]',
+    })
+    assert.strictEqual(value.outputFiles.length, 3)
+
+    // These should all use forward slashes, even on Windows
+    const chunk = 'chunks/name=chunk/hash=FFN36CUZ.js'
+    assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
+  common_default
+} from "../${chunk}";
+
+// scripts/.js-api-tests/splittingWithChunkPath/a/demo.js
+console.log("a" + common_default);
+`)
+    assert.strictEqual(Buffer.from(value.outputFiles[1].contents).toString(), `import {
+  common_default
+} from "../${chunk}";
+
+// scripts/.js-api-tests/splittingWithChunkPath/b/demo.js
+console.log("b" + common_default);
+`)
+    assert.strictEqual(Buffer.from(value.outputFiles[2].contents).toString(), `// scripts/.js-api-tests/splittingWithChunkPath/common.js
 var common_default = "common";
 
 export {

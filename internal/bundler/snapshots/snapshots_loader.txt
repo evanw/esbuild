@@ -51,7 +51,7 @@ TestLoaderFile
 ---------- /out/entry.js ----------
 // test.svg
 var require_test = __commonJS((exports, module) => {
-  module.exports = "test.T3K5TRK4.svg";
+  module.exports = "./test.T3K5TRK4.svg";
 });
 
 // entry.js
@@ -66,11 +66,11 @@ x
 ---------- /out.js ----------
 // x.txt
 var require_x = __commonJS((exports, module) => {
-  module.exports = "x.CH3K3DWF.txt";
+  module.exports = "./x.CH3K3DWF.txt";
 });
 
 // y.txt
-var y_default = "y.SXFQX7JJ.txt";
+var y_default = "./y.SXFQX7JJ.txt";
 
 // entry.js
 var x_url = require_x();
@@ -83,12 +83,12 @@ test
 ---------- /dist/out.js ----------
 // a/test.txt
 var require_test = __commonJS((exports, module) => {
-  module.exports = "test.VFFI7ZOM.txt";
+  module.exports = "./test.VFFI7ZOM.txt";
 });
 
 // b/test.txt
 var require_test2 = __commonJS((exports, module) => {
-  module.exports = "test.VFFI7ZOM.txt";
+  module.exports = "./test.VFFI7ZOM.txt";
 });
 
 // entry.js

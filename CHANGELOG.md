@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+* Support chunk and asset file name templates ([#733](https://github.com/evanw/esbuild/issues/733), [#888](https://github.com/evanw/esbuild/issues/888))
+
+    This release introduces the `--chunk-names=` and `--asset-names=` flags. These flags let you customize the output paths for chunks and assets within the output directory. Each output path is a template and currently supports these placeholders:
+
+    * `[name]`: The original name of the file. This will be `chunk` for chunks and will be the original file name (without the extension) for assets.
+    * `[hash]`: The content hash of the file. This is not necessarily stable across different esbuild versions but will be stable within the same esbuild version.
+
+    For example, if you want to move all chunks and assets into separate subdirectories, you could use `--chunk-names=chunks/[name]-[hash]` and `--asset-names=assets/[name]-[hash]`. Note that the path template should not include the file extension since the file extension is always automatically added to the end of the path template.
+
+    Additional name template features are planned in the future including a `[dir]` placeholder for the relative path from the `outbase` directory to the original input directory as well as an `--entry-names=` flag, but these extra features have not been implemented yet.
+
 * Handle `this` in class static field initializers ([#885](https://github.com/evanw/esbuild/issues/885))
 
     When you use `this` in a static field initializer inside a `class` statement or expression, it references the class object itself:

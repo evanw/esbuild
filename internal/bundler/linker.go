@@ -3951,13 +3951,21 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 				}
 
 				// Figure out the base name for the source map which may include the content hash
-				var sourceMapBaseName string
-				if chunk.baseNameOrEmpty == "" {
+				sourceMapBaseName := chunk.baseNameOrEmpty
+				sourceMapRelDir := chunk.relDir
+				if sourceMapBaseName == "" {
+					name := "chunk"
 					hash := hashForFileName(sourceMap)
-					sourceMapBaseName = "chunk." + hash + c.options.OutputExtensionJS + ".map"
-				} else {
-					sourceMapBaseName = chunk.baseNameOrEmpty + ".map"
+
+					relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
+						Name: &name,
+						Hash: &hash,
+					})) + c.options.OutputExtensionJS
+
+					sourceMapBaseName = path.Base(relPath)
+					sourceMapRelDir = relPath[:len(relPath)-len(sourceMapBaseName)]
 				}
+				sourceMapBaseName += ".map"
 
 				// Add a comment linking the source to its map
 				if c.options.SourceMap == config.SourceMapLinkedWithComment {
@@ -3967,7 +3975,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 				}
 
 				results = append(results, OutputFile{
-					AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relDir, sourceMapBaseName),
+					AbsPath:           c.fs.Join(c.options.AbsOutputDir, sourceMapRelDir, sourceMapBaseName),
 					Contents:          sourceMap,
 					jsonMetadataChunk: jsonMetadataChunk,
 				})
@@ -3979,8 +3987,16 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 
 		// Figure out the base name for this chunk now that the content hash is known
 		if chunk.baseNameOrEmpty == "" {
+			name := "chunk"
 			hash := hashForFileName(jsContents)
-			chunk.baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionJS
+
+			relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
+				Name: &name,
+				Hash: &hash,
+			})) + c.options.OutputExtensionJS
+
+			chunk.baseNameOrEmpty = path.Base(relPath)
+			chunk.relDir = relPath[:len(relPath)-len(chunk.baseNameOrEmpty)]
 		}
 
 		// End the metadata
@@ -4213,8 +4229,16 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 
 		// Figure out the base name for this chunk now that the content hash is known
 		if chunk.baseNameOrEmpty == "" {
+			name := "chunk"
 			hash := hashForFileName(cssContents)
-			chunk.baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionCSS
+
+			relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
+				Name: &name,
+				Hash: &hash,
+			})) + c.options.OutputExtensionCSS
+
+			chunk.baseNameOrEmpty = path.Base(relPath)
+			chunk.relDir = relPath[:len(relPath)-len(chunk.baseNameOrEmpty)]
 		}
 
 		// End the metadata

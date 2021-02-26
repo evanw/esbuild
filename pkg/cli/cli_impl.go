@@ -214,6 +214,12 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 		case strings.HasPrefix(arg, "--tsconfig-raw=") && transformOpts != nil:
 			transformOpts.TsconfigRaw = arg[len("--tsconfig-raw="):]
 
+		case strings.HasPrefix(arg, "--chunk-names=") && buildOpts != nil:
+			buildOpts.ChunkNames = arg[len("--chunk-names="):]
+
+		case strings.HasPrefix(arg, "--asset-names=") && buildOpts != nil:
+			buildOpts.AssetNames = arg[len("--asset-names="):]
+
 		case strings.HasPrefix(arg, "--define:"):
 			value := arg[len("--define:"):]
 			equals := strings.IndexByte(value, '=')
