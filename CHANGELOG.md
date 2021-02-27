@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.53
 
 * Support chunk and asset file name templates ([#733](https://github.com/evanw/esbuild/issues/733), [#888](https://github.com/evanw/esbuild/issues/888))
 
