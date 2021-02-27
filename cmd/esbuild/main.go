@@ -44,6 +44,7 @@ var helpText = func(colors logger.Colors) string {
   --target=...          Environment target (e.g. es2017, chrome58, firefox57,
                         safari11, edge16, node10, default esnext)
   --watch               Watch mode: rebuild on file system changes
+  --use-strict          Use strict: no undeclared variables
 
 ` + colors.Bold + `Advanced options:` + colors.Default + `
   --banner=...              Text to be prepended to each output file

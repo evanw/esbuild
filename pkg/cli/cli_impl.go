@@ -429,6 +429,9 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 		case !strings.HasPrefix(arg, "-") && buildOpts != nil:
 			buildOpts.EntryPoints = append(buildOpts.EntryPoints, arg)
 
+		case arg == "--use-strict" && buildOpts != nil:
+			buildOpts.UseStrict = true
+
 		default:
 			if buildOpts != nil {
 				return fmt.Errorf("Invalid build flag: %q", arg)

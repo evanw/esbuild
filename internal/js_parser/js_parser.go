@@ -292,6 +292,7 @@ type optionsThatSupportStructuralEquality struct {
 	preserveUnusedImportsTS        bool
 	useDefineForClassFields        bool
 	suppressWarningsAboutWeirdCode bool
+	useStrict                      bool
 }
 
 func OptionsFromConfig(options *config.Options) Options {
@@ -314,6 +315,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			preserveUnusedImportsTS:        options.PreserveUnusedImportsTS,
 			useDefineForClassFields:        options.UseDefineForClassFields,
 			suppressWarningsAboutWeirdCode: options.SuppressWarningsAboutWeirdCode,
+			useStrict:                      options.UseStrict,
 		},
 	}
 }
@@ -1421,6 +1423,10 @@ func (p *parser) declareBinding(kind js_ast.SymbolKind, binding js_ast.Binding, 
 
 	case *js_ast.BIdentifier:
 		name := p.loadNameFromRef(b.Ref)
+		if opts.isTypeScriptDeclare {
+			b.Ref = p.declareSymbol(kind, binding.Loc, name)
+		}
+
 		if !opts.isTypeScriptDeclare || (opts.isNamespaceScope && opts.isExport) {
 			b.Ref = p.declareSymbol(kind, binding.Loc, name)
 		}
@@ -4710,9 +4716,7 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 		}
 		p.lexer.Expect(js_lexer.TIdentifier)
 		name = &js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
-		if !opts.isTypeScriptDeclare {
-			name.Ref = p.declareSymbol(js_ast.SymbolClass, nameLoc, nameText)
-		}
+		name.Ref = p.declareSymbol(js_ast.SymbolClass, nameLoc, nameText)
 	}
 
 	// Even anonymous classes can have TypeScript type parameters
@@ -9853,6 +9857,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if data.WarnAboutLackOfDefine {
 					p.warnAboutLackOfDefine(name, js_lexer.RangeOfIdentifier(p.source, expr.Loc))
 				}
+			} else if p.currentScope.StrictMode == js_ast.ExplicitStrictMode || p.options.useStrict {
+				p.warnAboutLackOfDefine(name, js_lexer.RangeOfIdentifier(p.source, expr.Loc))
 			}
 		}
 

@@ -673,6 +673,7 @@ func rebuildImpl(
 		PreserveSymlinks:      buildOpts.PreserveSymlinks,
 		WatchMode:             buildOpts.Watch != nil,
 		Plugins:               plugins,
+		UseStrict:             buildOpts.UseStrict,
 	}
 	for i, path := range buildOpts.Inject {
 		options.InjectAbsPaths[i] = validatePath(log, realFS, path, "inject path")

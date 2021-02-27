@@ -273,6 +273,7 @@ type BuildOptions struct {
 	Write       bool
 	Incremental bool
 	Plugins     []Plugin
+	UseStrict   bool
 
 	Watch *WatchMode
 }

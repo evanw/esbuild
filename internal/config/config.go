@@ -230,6 +230,7 @@ type Options struct {
 
 	SourceMap             SourceMap
 	ExcludeSourcesContent bool
+	UseStrict             bool
 
 	Stdin *StdinInfo
 }
