@@ -251,15 +251,23 @@ var {bar} = require_bar();
 
 ================================================================================
 TestConditionalImport
----------- /out.js ----------
-// b.js
-var require_b = __commonJS((exports) => {
+---------- /out/a.js ----------
+// import.js
+var require_import = __commonJS((exports) => {
   exports.foo = 213;
 });
 
 // a.js
-x ? import("a") : y ? Promise.resolve().then(() => __toModule(require_b())) : import("c");
-x ? y ? import("a") : Promise.resolve().then(() => __toModule(require_b())) : import(c);
+x ? import("a") : y ? Promise.resolve().then(() => __toModule(require_import())) : import("c");
+
+---------- /out/b.js ----------
+// import.js
+var require_import = __commonJS((exports) => {
+  exports.foo = 213;
+});
+
+// b.js
+x ? y ? import("a") : Promise.resolve().then(() => __toModule(require_import())) : import(c);
 
 ================================================================================
 TestConditionalRequire
@@ -1028,6 +1036,14 @@ var Internal = () => /* @__PURE__ */ h(p, null, " Test 2 ");
 // app.jsx
 var App = () => /* @__PURE__ */ h(p, null, " ", /* @__PURE__ */ h(Internal, null), " T ");
 render(/* @__PURE__ */ h(App, null), document.getElementById("app"));
+
+================================================================================
+TestImportThenCatch
+---------- /out.js ----------
+// entry.js
+import(name).then(pass, fail);
+import(name).then(pass).catch(fail);
+import(name).catch(fail);
 
 ================================================================================
 TestImportWithHashInPath

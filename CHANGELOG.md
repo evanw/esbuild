@@ -27,6 +27,10 @@
 
     This case previously wasn't handled because doing this is a compile error in TypeScript code. However, JavaScript does allow this so esbuild needs to be able to handle this. This edge case should now work correctly with this release.
 
+* Do not warn about dynamic imports when `.catch()` is detected ([#893](https://github.com/evanw/esbuild/issues/893))
+
+    Previously esbuild avoids warning about unbundled `import()` expressions when using the `try { await import(_) }` pattern, since presumably the `try` block is there to handle the run-time failure of the `import()` expression failing. This release adds some new patterns that will also suppress the warning: `import(_).catch(_)`, `import(_).then(_).catch(_)`, and `import(_).then(_, _)`.
+
 * CSS namespaces are no longer supported
 
     [CSS namespaces](https://developer.mozilla.org/en-US/docs/Web/CSS/@namespace) are a weird feature that appears to only really be useful for styling XML. And the world has moved on from XHTML to HTML5 so pretty much no one uses CSS namespaces anymore. They are also complicated to support in a bundler because CSS namespaces are file-scoped, which means:

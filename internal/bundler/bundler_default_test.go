@@ -847,12 +847,12 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 		},
 		expectedScanLog: `entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
 entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
+entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
 entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
 entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
+entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
 `,
 	})
 }
@@ -983,17 +983,19 @@ func TestConditionalImport(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
-				import(x ? 'a' : y ? './b' : 'c')
-				import(x ? y ? 'a' : './b' : c)
+				import(x ? 'a' : y ? './import' : 'c')
 			`,
 			"/b.js": `
+				import(x ? y ? 'a' : './import' : c)
+			`,
+			"/import.js": `
 				exports.foo = 213
 			`,
 		},
-		entryPaths: []string{"/a.js"},
+		entryPaths: []string{"/a.js", "/b.js"},
 		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
 			ExternalModules: config.ExternalModules{
 				NodeModules: map[string]bool{
 					"a": true,
@@ -1001,7 +1003,7 @@ func TestConditionalImport(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `a.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+		expectedScanLog: `b.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
 `,
 	})
 }
@@ -1270,8 +1272,26 @@ func TestImportInsideTry(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+		expectedScanLog: `entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
 `,
+	})
+}
+
+// Test a workaround for code using "import().catch()"
+func TestImportThenCatch(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import(name).then(pass, fail)
+				import(name).then(pass).catch(fail)
+				import(name).catch(fail)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
 	})
 }
 

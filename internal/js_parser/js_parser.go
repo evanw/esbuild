@@ -207,6 +207,10 @@ type parser struct {
 	// warnings about non-string import paths will be omitted inside try blocks.
 	awaitTarget js_ast.E
 
+	// This helps recognize the "import().catch()" pattern. We also try to avoid
+	// warning about this just like the "try { await import() }" pattern.
+	thenCatchChain thenCatchChain
+
 	// This helps recognize the "require.someProperty" pattern. If this pattern is
 	// present and the output format is CommonJS, we avoid generating a warning
 	// about an unbundled use of "require".
@@ -244,6 +248,12 @@ type parser struct {
 	//     Expression , AssignmentExpression
 	//
 	afterArrowBodyLoc logger.Loc
+}
+
+type thenCatchChain struct {
+	nextTarget      js_ast.E
+	hasMultipleArgs bool
+	hasCatch        bool
 }
 
 // This is used as part of an incremental build cache key. Some of these values
@@ -10644,6 +10654,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EDot:
 		isDeleteTarget := e == p.deleteTarget
+		isCallTarget := e == p.callTarget
 
 		// Check both user-specified defines and known globals
 		if defines, ok := p.options.defines.DotDefines[e.Name]; ok {
@@ -10676,7 +10687,21 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			p.cjsDotTarget = e.Target.Data
 		}
 
-		isCallTarget := e == p.callTarget
+		// Track ".then().catch()" chains
+		if isCallTarget && p.thenCatchChain.nextTarget == e {
+			if e.Name == "catch" {
+				p.thenCatchChain = thenCatchChain{
+					nextTarget: e.Target.Data,
+					hasCatch:   true,
+				}
+			} else if e.Name == "then" {
+				p.thenCatchChain = thenCatchChain{
+					nextTarget: e.Target.Data,
+					hasCatch:   p.thenCatchChain.hasCatch || p.thenCatchChain.hasMultipleArgs,
+				}
+			}
+		}
+
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
 		})
@@ -10973,6 +10998,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EImport:
 		isAwaitTarget := e == p.awaitTarget
+		isThenCatchTarget := e == p.thenCatchChain.nextTarget && p.thenCatchChain.hasCatch
 		e.Expr = p.visitExpr(e.Expr)
 
 		return p.maybeTransposeIfExprChain(e.Expr, func(arg js_ast.Expr) js_ast.Expr {
@@ -10995,15 +11021,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			if p.options.mode == config.ModeBundle {
-				// Heuristic: omit warnings inside try/catch blocks because presumably
-				// the try/catch statement is there to handle the potential run-time
-				// error from the unbundled "await import()" call failing.
-				omitWarnings := p.fnOrArrowDataVisit.tryBodyCount != 0 && isAwaitTarget
+				// Heuristic: omit warnings when using "await import()" inside a try
+				// block because presumably the try block is there to handle the
+				// potential run-time error from the unbundled "await import()" call
+				// failing. Also support the "import().then(pass, fail)" pattern as
+				// well as the "import().catch(fail)" pattern.
+				omitWarnings := (p.fnOrArrowDataVisit.tryBodyCount != 0 && isAwaitTarget) || isThenCatchTarget
 
 				if !omitWarnings {
 					text := "This dynamic import will not be bundled because the argument is not a string literal"
 					if isAwaitTarget {
 						text += " (surround with a try/catch to silence this warning)"
+					} else {
+						text += " (use \"import().catch()\" to silence this warning)"
 					}
 					r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
 					p.log.AddRangeWarning(&p.source, r, text)
@@ -11061,6 +11091,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.ECall:
 		p.callTarget = e.Target.Data
+
+		// Track ".then().catch()" chains
+		p.thenCatchChain = thenCatchChain{
+			nextTarget:      e.Target.Data,
+			hasMultipleArgs: len(e.Args) >= 2,
+			hasCatch:        p.thenCatchChain.nextTarget == e && p.thenCatchChain.hasCatch,
+		}
 
 		// Prepare to recognize "require.resolve()" calls
 		couldBeRequireResolve := false
