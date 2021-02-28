@@ -1352,6 +1352,38 @@
       'node.js': `import foo from './out.js'; if (foo.name !== 'default') throw 'fail'`,
       'in.js': `export default (class { a() { return this.#b } #b() {} })`,
     }),
+
+    // Private fields
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'in.js': `class Foo { foo = this.#foo; #foo() {} } if (new Foo().foo.name !== '#foo') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'in.js': `class Foo { static foo = this.#foo; static #foo() {} } if (Foo.foo.name !== '#foo') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'in.js': `class Foo { #foo = function() {}; foo = this.#foo } if (new Foo().foo.name !== '#foo') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'in.js': `class Foo { static #foo = function() {}; static foo = this.#foo } if (Foo.foo.name !== '#foo') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'in.js': `class Foo { #foo = () => {}; foo = this.#foo } if (new Foo().foo.name !== '#foo') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'in.js': `class Foo { static #foo = () => {}; static foo = this.#foo } if (Foo.foo.name !== '#foo') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'in.js': `class Foo { #foo = class {}; foo = this.#foo } if (new Foo().foo.name !== '#foo') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'in.js': `class Foo { static #foo = class {}; static foo = this.#foo } if (Foo.foo.name !== '#foo') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'in.js': `class Foo { #foo = class { #bar = 123; bar = this.#bar }; foo = this.#foo } if (new Foo().foo.name !== '#foo') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'in.js': `class Foo { static #foo = class { #bar = 123; bar = this.#bar }; static foo = this.#foo } if (Foo.foo.name !== '#foo') throw 'fail'`,
+    }),
   )
 
   // Test minification of hoisted top-level symbols declared in nested scopes.

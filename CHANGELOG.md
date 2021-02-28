@@ -18,6 +18,25 @@
 
     With this release, code that does this should now work correctly.
 
+* Fix `--keep-names` for private class members
+
+    Normal class methods and class fields don't need special-casing with esbuild when the `--keep-names` option is enabled because esbuild doesn't rename property names and doesn't transform class syntax in a way that breaks method names, so the names are kept without needing to generate any additional code.
+
+    However, this is not the case for private class methods and private class fields. When esbuild transforms these for `--target=es2020` and earlier, the private class methods and private class field initializers are turned into code that uses a `WeakMap` or a `WeakSet` for access to preserve the privacy semantics. This ends up breaking the `.name` property and previously `--keep-names` didn't handle this edge case.
+
+    With this release, `--keep-names` will also preserve the names of private class methods and private class fields. That means code like this should now work with `--keep-names --target=es2020`:
+
+    ```js
+    class Foo {
+      #foo() {}
+      #bar = () => {}
+      test() {
+        assert(this.#foo.name === '#foo')
+        assert(this.#bar.name === '#bar')
+      }
+    }
+    ```
+
 ## 0.8.53
 
 * Support chunk and asset file name templates ([#733](https://github.com/evanw/esbuild/issues/733), [#888](https://github.com/evanw/esbuild/issues/888))

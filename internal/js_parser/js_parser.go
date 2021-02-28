@@ -8954,9 +8954,10 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 
 	for i, property := range class.Properties {
 		property.TSDecorators = p.visitTSDecorators(property.TSDecorators)
+		private, isPrivate := property.Key.Data.(*js_ast.EPrivateIdentifier)
 
 		// Special-case EPrivateIdentifier to allow it here
-		if private, ok := property.Key.Data.(*js_ast.EPrivateIdentifier); ok {
+		if isPrivate {
 			p.recordDeclaredSymbol(private.Ref)
 		} else {
 			key := p.visitExpr(property.Key)
@@ -8980,7 +8981,13 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		p.fnOnlyDataVisit.thisClassStaticRef = nil
 
 		if property.Value != nil {
-			*property.Value = p.visitExpr(*property.Value)
+			if isPrivate && p.isPrivateUnsupported(private) {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.Value)
+				*property.Value = p.maybeKeepExprSymbolName(p.visitExpr(*property.Value),
+					p.symbols[private.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+			} else {
+				*property.Value = p.visitExpr(*property.Value)
+			}
 		}
 
 		if property.Initializer != nil {
@@ -8988,7 +8995,13 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 				// Replace "this" with the class name inside static property initializers
 				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
 			}
-			*property.Initializer = p.visitExpr(*property.Initializer)
+			if isPrivate && p.isPrivateUnsupported(private) {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.Initializer)
+				*property.Initializer = p.maybeKeepExprSymbolName(p.visitExpr(*property.Initializer),
+					p.symbols[private.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+			} else {
+				*property.Initializer = p.visitExpr(*property.Initializer)
+			}
 		}
 
 		// Restore "this" so it will take the inherited value in property keys
