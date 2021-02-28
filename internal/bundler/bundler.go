@@ -1839,7 +1839,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		// Always do tree shaking for the runtime because we never want to
 		// include unnecessary runtime code
 		Mode:      config.ModeBundle,
-		UseStrict: true,
+		UseStrict: options.UseStrict,
 	}))
 	if log.HasErrors() {
 		msgs := "Internal error: failed to parse runtime:\n"
