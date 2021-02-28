@@ -1789,6 +1789,30 @@
 1 warning
 `,
     }),
+
+    // Issue: https://github.com/evanw/esbuild/issues/901
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class A {
+          pub = this.#priv;
+          #priv() {
+            return 'Inside #priv';
+          }
+        }
+        if (new A().pub() !== 'Inside #priv') throw 'fail';
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class A {
+          static pub = this.#priv;
+          static #priv() {
+            return 'Inside #priv';
+          }
+        }
+        if (A.pub() !== 'Inside #priv') throw 'fail';
+      `,
+    }),
   )
 
   // Async lowering tests

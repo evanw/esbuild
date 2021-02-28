@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+* Fix ordering issue with private class methods ([#901](https://github.com/evanw/esbuild/issues/901))
+
+    This release fixes an ordering issue with private class fields where private methods were not available inside class field initializers. The issue affected code such as the following when the compilation target was set to `es2020` or lower:
+
+    ```js
+    class A {
+      pub = this.#priv;
+      #priv() {
+        return 'Inside #priv';
+      }
+    }
+    assert(new A().pub() === 'Inside #priv');
+    ```
+
+    With this release, code that does this should now work correctly.
+
 ## 0.8.53
 
 * Support chunk and asset file name templates ([#733](https://github.com/evanw/esbuild/issues/733), [#888](https://github.com/evanw/esbuild/issues/888))

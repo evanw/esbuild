@@ -1585,12 +1585,14 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	var ctor *js_ast.EFunction
 	var parameterFields []js_ast.Stmt
 	var instanceMembers []js_ast.Stmt
+	var instancePrivateMethods []js_ast.Stmt
 	end := 0
 
 	// These expressions are generated after the class body, in this order
 	var computedPropertyCache js_ast.Expr
 	var privateMembers []js_ast.Expr
 	var staticMembers []js_ast.Expr
+	var staticPrivateMethods []js_ast.Expr
 	var instanceDecorators []js_ast.Expr
 	var staticDecorators []js_ast.Expr
 
@@ -1926,12 +1928,20 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					}}
 					p.recordUsage(ref)
 
+					// Make sure that adding to the map happens before any field
+					// initializers to handle cases like this:
+					//
+					//   class A {
+					//     pub = this.#priv;
+					//     #priv() {}
+					//   }
+					//
 					if prop.IsStatic {
 						// Move this property to an assignment after the class ends
-						staticMembers = append(staticMembers, expr)
+						staticPrivateMethods = append(staticPrivateMethods, expr)
 					} else {
 						// Move this property to an assignment inside the class constructor
-						instanceMembers = append(instanceMembers, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}})
+						instancePrivateMethods = append(instancePrivateMethods, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}})
 					}
 				}
 
@@ -1981,7 +1991,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	class.Properties = class.Properties[:end]
 
 	// Insert instance field initializers into the constructor
-	if len(instanceMembers) > 0 || len(parameterFields) > 0 {
+	if len(parameterFields) > 0 || len(instancePrivateMethods) > 0 || len(instanceMembers) > 0 {
 		// Create a constructor if one doesn't already exist
 		if ctor == nil {
 			ctor = &js_ast.EFunction{}
@@ -2015,6 +2025,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			}
 		}
 		stmtsTo = append(stmtsTo, parameterFields...)
+		stmtsTo = append(stmtsTo, instancePrivateMethods...)
 		stmtsTo = append(stmtsTo, instanceMembers...)
 		ctor.Fn.Body.Stmts = append(stmtsTo, stmtsFrom...)
 
@@ -2038,7 +2049,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		// before joining "expr" with any other expressions
 		var nameToJoin js_ast.Expr
 		if didCaptureClassExpr || computedPropertyCache.Data != nil ||
-			len(privateMembers) > 0 || len(staticMembers) > 0 {
+			len(privateMembers) > 0 || len(staticPrivateMethods) > 0 || len(staticMembers) > 0 {
 			nameToJoin = nameFunc()
 		}
 
@@ -2047,6 +2058,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			expr = js_ast.JoinWithComma(expr, computedPropertyCache)
 		}
 		for _, value := range privateMembers {
+			expr = js_ast.JoinWithComma(expr, value)
+		}
+		for _, value := range staticPrivateMethods {
 			expr = js_ast.JoinWithComma(expr, value)
 		}
 		for _, value := range staticMembers {
@@ -2075,6 +2089,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	hasPotentialShadowCaptureEscape := shadowRef != js_ast.InvalidRef &&
 		(computedPropertyCache.Data != nil ||
 			len(privateMembers) > 0 ||
+			len(staticPrivateMethods) > 0 ||
 			len(staticMembers) > 0 ||
 			len(instanceDecorators) > 0 ||
 			len(staticDecorators) > 0 ||
@@ -2193,6 +2208,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: computedPropertyCache}})
 	}
 	for _, expr := range privateMembers {
+		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
+	}
+	for _, expr := range staticPrivateMethods {
 		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
 	}
 	for _, expr := range staticMembers {

@@ -270,8 +270,8 @@ TestLowerPrivateClassExpr2020NoBundle
 var _field, _method, method_fn, _a, _staticField, _staticMethod, staticMethod_fn;
 export let Foo = (_a = class {
   constructor() {
-    _field.set(this, void 0);
     _method.add(this);
+    _field.set(this, void 0);
   }
   foo() {
     __privateSet(this, _field, __privateMethod(this, _method, method_fn).call(this));
@@ -279,7 +279,7 @@ export let Foo = (_a = class {
   }
 }, _field = new WeakMap(), _method = new WeakSet(), method_fn = function() {
 }, _staticField = new WeakMap(), _staticMethod = new WeakSet(), staticMethod_fn = function() {
-}, _staticField.set(_a, void 0), _staticMethod.add(_a), _a);
+}, _staticMethod.add(_a), _staticField.set(_a, void 0), _a);
 
 ================================================================================
 TestLowerPrivateFieldAssignments2015NoBundle
@@ -703,8 +703,8 @@ TestLowerPrivateMethod2019
 var _field, _method, method_fn;
 var Foo = class {
   constructor() {
-    _field.set(this, void 0);
     _method.add(this);
+    _field.set(this, void 0);
   }
   baseline() {
     var _a, _b, _c, _d, _e;
@@ -745,8 +745,8 @@ TestLowerPrivateMethod2020
 var _field, _method, method_fn;
 var Foo = class {
   constructor() {
-    _field.set(this, void 0);
     _method.add(this);
+    _field.set(this, void 0);
   }
   baseline() {
     a().foo;
@@ -1102,6 +1102,6 @@ y_set = function(x) {
 _z = new WeakSet();
 z_fn = function() {
 };
-_x.set(Foo, void 0);
 _y.add(Foo);
 _z.add(Foo);
+_x.set(Foo, void 0);
