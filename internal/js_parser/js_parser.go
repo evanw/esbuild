@@ -11248,6 +11248,15 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					for s := p.currentScope; s != nil; s = s.Parent {
 						s.ContainsDirectEval = true
 					}
+
+					// Warn when direct eval is used in a file with ES6 import statements.
+					// There is no way we can guarantee that this will work correctly.
+					// Except don't warn when this code is in a 3rd-party library because
+					// there's nothing people will be able to do about the warning.
+					if p.options.mode == config.ModeBundle && p.es6ImportKeyword.Len > 0 && !p.options.suppressWarningsAboutWeirdCode {
+						p.log.AddRangeWarning(&p.source, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc),
+							"Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)")
+					}
 				}
 			}
 		}

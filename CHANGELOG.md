@@ -57,6 +57,29 @@
 
     1. Direct `eval` is no longer guaranteed to be able to access imported symbols. This means imported symbols may be renamed or removed as dead code even though a call to direct `eval` could theoretically need to access them. If you need this to work, you'll have to store the relevant imports in a variable in a nested scope and move the call to direct `eval` into that nested scope.
 
+    2. Using direct `eval` in a file in ESM format is now a warning. This is because the semantics of direct `eval` are poorly understood (most people don't intend to use direct `eval` at all) and because the negative consequences of bundling code with direct `eval` are usually unexpected and undesired. Of the few valid use cases for direct `eval`, it is usually a good idea to rewrite your code to avoid using direct `eval` in the first place.
+
+        For example, if you write code that looks like this:
+
+        ```js
+        export function runCodeWithFeatureFlags(code) {
+          let featureFlags = {...}
+          eval(code) // "code" should be able to access "featureFlags"
+        }
+        ```
+
+        you should almost certainly write the code this way instead:
+
+        ```js
+        export function runCodeWithFeatureFlags(code) {
+          let featureFlags = {...}
+          let fn = new Function('featureFlags', code)
+          fn(featureFlags)
+        }
+        ```
+
+        This still gives `code` access to `featureFlags` but avoids all of the negative consequences of bundling code with direct `eval`.
+
 ## 0.8.53
 
 * Support chunk and asset file name templates ([#733](https://github.com/evanw/esbuild/issues/733), [#888](https://github.com/evanw/esbuild/issues/888))
