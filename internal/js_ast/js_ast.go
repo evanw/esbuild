@@ -1846,6 +1846,7 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	oldSymbol.Link = new
 	newSymbol.UseCountEstimate += oldSymbol.UseCountEstimate
 	if oldSymbol.MustNotBeRenamed {
+		newSymbol.OriginalName = oldSymbol.OriginalName
 		newSymbol.MustNotBeRenamed = true
 	}
 	return new

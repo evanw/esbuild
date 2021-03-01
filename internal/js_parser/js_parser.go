@@ -1063,6 +1063,51 @@ func (p *parser) popScope() {
 	// We cannot rename anything inside a scope containing a direct eval() call
 	if p.currentScope.ContainsDirectEval {
 		for _, member := range p.currentScope.Members {
+			// Using direct eval when bundling is not a good idea in general because
+			// esbuild must assume that it can potentially reach anything in any of
+			// the containing scopes. We try to make it work but this isn't possible
+			// in some cases.
+			//
+			// For example, symbols imported using an ESM import are a live binding
+			// to the underlying symbol in another file. This is emulated during
+			// scope hoisting by erasing the ESM import and just referencing the
+			// underlying symbol in the flattened bundle directly. However, that
+			// symbol may have a different name which could break uses of direct
+			// eval:
+			//
+			//   // Before bundling
+			//   import { foo as bar } from './foo.js'
+			//   console.log(eval('bar'))
+			//
+			//   // After bundling
+			//   let foo = 123 // The contents of "foo.js"
+			//   console.log(eval('bar'))
+			//
+			// There really isn't any way to fix this. You can't just rename "foo" to
+			// "bar" in the example above because there may be a third bundled file
+			// that also contains direct eval and imports the same symbol with a
+			// different conflicting import alias. And there is no way to store a
+			// live binding to the underlying symbol in a variable with the import's
+			// name so that direct eval can access it:
+			//
+			//   // After bundling
+			//   let foo = 123 // The contents of "foo.js"
+			//   const bar = /* cannot express a live binding to "foo" here */
+			//   console.log(eval('bar'))
+			//
+			// Technically a "with" statement could potentially make this work (with
+			// a big hit to performance), but they are deprecated and are unavailable
+			// in strict mode. This is a non-starter since all ESM code is strict mode.
+			//
+			// So while we still try to obey the requirement that all symbol names are
+			// pinned when direct eval is present, we make an exception for imported
+			// symbols. There is no guarantee that "eval" will be able to reach these
+			// symbols and they are free to be renamed or removed by tree shaking.
+			if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil &&
+				p.symbols[member.Ref.InnerIndex].Kind == js_ast.SymbolImport {
+				continue
+			}
+
 			p.symbols[member.Ref.InnerIndex].MustNotBeRenamed = true
 		}
 	}

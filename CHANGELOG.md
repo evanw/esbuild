@@ -41,6 +41,22 @@
 
     This release fixes an issue with the `--chunk-names=` feature where import paths in between two different automatically-generated code splitting chunks were relative to the output directory instead of relative to the importing chunk. This caused an import failure with the imported chunk if the chunk names setting was configured to put the chunks into a subdirectory. This bug has been fixed.
 
+* Remove the guarantee that direct `eval` can access imported symbols
+
+    Using direct `eval` when bundling is not a good idea because esbuild must assume that it can potentially reach anything in any of the containing scopes. Using direct `eval` has the following negative consequences:
+
+    * All names in all containing scopes are frozen and are not renamed during bundling, since the code in the direct `eval` could potentially access them. This prevents code in all scopes containing the call to direct `eval` from being minified or from being removed as dead code.
+
+    * The entire file is converted to CommonJS. This increases code size and decreases performance because exports are now resolved at run-time instead of at compile-time. Normally name collisions with other files are avoided by renaming conflicting symbols, but direct `eval` prevents symbol renaming so name collisions are prevented by wrapping the file in a CommonJS closure instead.
+
+    * Even with all of esbuild's special-casing of direct `eval`, referencing an ESM `import` from direct `eval` still doesn't necessarily work. ESM imports are live bindings to a symbol from another file and are represented by referencing that symbol directly in the flattened bundle. That symbol may use a different name which could break direct `eval`.
+
+    I recently realized that the last consequence of direct `eval` (the problem about not being able to reference `import` symbols) could cause subtle correctness bugs. Specifically esbuild tries to prevent the imported symbol from being renamed, but doing so could cause name collisions that make the resulting bundle crash when it's evaluated. Two files containing direct `eval` that both import the same symbol from a third file but that import it with different aliases create a system of unsatisfiable naming constraints.
+
+    So this release contains these changes to address this:
+
+    1. Direct `eval` is no longer guaranteed to be able to access imported symbols. This means imported symbols may be renamed or removed as dead code even though a call to direct `eval` could theoretically need to access them. If you need this to work, you'll have to store the relevant imports in a variable in a nested scope and move the call to direct `eval` into that nested scope.
+
 ## 0.8.53
 
 * Support chunk and asset file name templates ([#733](https://github.com/evanw/esbuild/issues/733), [#888](https://github.com/evanw/esbuild/issues/888))
