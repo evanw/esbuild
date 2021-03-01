@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.54
 
 * Fix ordering issue with private class methods ([#901](https://github.com/evanw/esbuild/issues/901))
 
