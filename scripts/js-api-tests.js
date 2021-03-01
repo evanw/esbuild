@@ -1338,9 +1338,13 @@ export {
       outExtension: { '.js': '.mjs' },
       chunkNames: 'chunks/[hash]/[name]',
     })
-    const result1 = await import(path.join(outdir, 'entry1.mjs'))
-    const result2 = await import(path.join(outdir, 'entry2.mjs'))
-    const result3 = await import(path.join(outdir, 'entry3.mjs'))
+
+    // This needs to use relative paths to avoid breaking on Windows.
+    // Importing by absolute path doesn't work on Windows in node.
+    const result1 = await import('./' + path.relative(__dirname, path.join(outdir, 'entry1.mjs')))
+    const result2 = await import('./' + path.relative(__dirname, path.join(outdir, 'entry2.mjs')))
+    const result3 = await import('./' + path.relative(__dirname, path.join(outdir, 'entry3.mjs')))
+
     assert.strictEqual(await result1.default(), 'shared1shared2');
     assert.strictEqual(await result2.default(), 'shared2shared3');
     assert.strictEqual(await result3.default(), 'shared3shared1');
