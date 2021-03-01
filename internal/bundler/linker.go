@@ -65,6 +65,10 @@ type linkerContext struct {
 	files       []file
 	hasErrors   bool
 
+	// This is the relative path for automatically-generated code splitting chunks
+	// relative to the output directory
+	generatedChunkRelDir string
+
 	// This helps avoid an infinite loop when matching imports to exports
 	cycleDetector []importTracker
 
@@ -349,6 +353,15 @@ func newLinkerContext(
 		symbols:           js_ast.NewSymbolMap(len(files)),
 		reachableFiles:    reachableFiles,
 		dataForSourceMaps: dataForSourceMaps,
+
+		// Note: This contains placeholders instead of what the placeholders are
+		// substituted with. That should be fine though because this should only
+		// ever be used for figuring out how many "../" to add to a relative path
+		// from a chunk whose final path hasn't been calculated yet to a chunk
+		// whose final path has already been calculated. That and placeholders are
+		// never substituted with something containing a "/" so substitution should
+		// never change the "../" count.
+		generatedChunkRelDir: fs.Dir(config.TemplateToString(options.ChunkPathTemplate)),
 	}
 
 	// Clone various things since we may mutate them later
@@ -2755,6 +2768,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 				if !ok {
 					chunk.entryBits = partMeta.entryBits
 					chunk.filesWithPartsInChunk = make(map[uint32]bool)
+					chunk.relDir = c.generatedChunkRelDir
 					chunk.chunkRepr = &chunkReprJS{}
 					chunks[key] = chunk
 				}
@@ -2771,6 +2785,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			if !ok {
 				chunk.entryBits = file.entryBits
 				chunk.filesWithPartsInChunk = make(map[uint32]bool)
+				chunk.relDir = c.generatedChunkRelDir
 				chunk.chunkRepr = &chunkReprJS{}
 				chunks[key] = chunk
 			}

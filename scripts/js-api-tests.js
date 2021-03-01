@@ -1282,6 +1282,70 @@ export {
     assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
   },
 
+  async splittingWithChunkPathAndCrossChunkImportsIssue899({ esbuild, testDir }) {
+    const entry1 = path.join(testDir, 'src', 'entry1.js')
+    const entry2 = path.join(testDir, 'src', 'entry2.js')
+    const entry3 = path.join(testDir, 'src', 'entry3.js')
+    const shared1 = path.join(testDir, 'src', 'shared1.js')
+    const shared2 = path.join(testDir, 'src', 'shared2.js')
+    const shared3 = path.join(testDir, 'src', 'shared3.js')
+    await mkdirAsync(path.join(testDir, 'src')).catch(x => x)
+    await writeFileAsync(entry1, `
+      import { shared1 } from './shared1';
+      import { shared2 } from './shared2';
+      export default async function() {
+        return shared1() + shared2();
+      }
+    `)
+    await writeFileAsync(entry2, `
+      import { shared2 } from './shared2';
+      import { shared3 } from './shared3';
+      export default async function() {
+        return shared2() + shared3();
+      }
+    `)
+    await writeFileAsync(entry3, `
+      import { shared3 } from './shared3';
+      import { shared1 } from './shared1';
+      export default async function() {
+        return shared3() + shared1();
+      }
+    `)
+    await writeFileAsync(shared1, `
+      import { shared2 } from './shared2';
+      export function shared1() {
+        return shared2().replace('2', '1');
+      }
+    `)
+    await writeFileAsync(shared2, `
+      import { shared3 } from './shared3'
+      export function shared2() {
+        return 'shared2';
+      }
+    `)
+    await writeFileAsync(shared3, `
+      export function shared3() {
+        return 'shared3';
+      }
+    `)
+    const outdir = path.join(testDir, 'out')
+    await esbuild.build({
+      entryPoints: [entry1, entry2, entry3],
+      bundle: true,
+      outdir,
+      format: 'esm',
+      splitting: true,
+      outExtension: { '.js': '.mjs' },
+      chunkNames: 'chunks/[hash]/[name]',
+    })
+    const result1 = await import(path.join(outdir, 'entry1.mjs'))
+    const result2 = await import(path.join(outdir, 'entry2.mjs'))
+    const result3 = await import(path.join(outdir, 'entry3.mjs'))
+    assert.strictEqual(await result1.default(), 'shared1shared2');
+    assert.strictEqual(await result2.default(), 'shared2shared3');
+    assert.strictEqual(await result3.default(), 'shared3shared1');
+  },
+
   async stdinStdoutBundle({ esbuild, testDir }) {
     const auxiliary = path.join(testDir, 'auxiliary.js')
     await writeFileAsync(auxiliary, 'export default 123')

@@ -37,6 +37,10 @@
     }
     ```
 
+* Fix cross-chunk import paths ([#899](https://github.com/evanw/esbuild/issues/899))
+
+    This release fixes an issue with the `--chunk-names=` feature where import paths in between two different automatically-generated code splitting chunks were relative to the output directory instead of relative to the importing chunk. This caused an import failure with the imported chunk if the chunk names setting was configured to put the chunks into a subdirectory. This bug has been fixed.
+
 ## 0.8.53
 
 * Support chunk and asset file name templates ([#733](https://github.com/evanw/esbuild/issues/733), [#888](https://github.com/evanw/esbuild/issues/888))
