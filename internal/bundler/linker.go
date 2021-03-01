@@ -891,6 +891,34 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 
 		chunkRepr.exportsToOtherChunks = make(map[js_ast.Ref]string)
 		switch c.options.OutputFormat {
+		case config.FormatCommonJS:
+			r := renamer.ExportRenamer{}
+			var properties []js_ast.Property
+			for _, export := range c.sortedCrossChunkExportItems(chunkMetas[chunkIndex].exports) {
+				var alias string
+				if c.options.MinifyIdentifiers {
+					alias = r.NextMinifiedName()
+				} else {
+					alias = r.NextRenamedName(c.symbols.Get(export.ref).OriginalName)
+				}
+				properties = append(properties, js_ast.Property{
+					Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(alias)}},
+					Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: export.ref}},
+				})
+				chunkRepr.exportsToOtherChunks[export.ref] = alias
+			}
+			if len(properties) > 0 {
+				chunkRepr.crossChunkSuffixStmts = []js_ast.Stmt{js_ast.AssignStmt(
+					js_ast.Expr{Data: &js_ast.EDot{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
+						Name:   "exports",
+					}},
+					js_ast.Expr{Data: &js_ast.EObject{
+						Properties: properties,
+					}},
+				)}
+			}
+
 		case config.FormatESModule:
 			r := renamer.ExportRenamer{}
 			var items []js_ast.ClauseItem
@@ -930,6 +958,44 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 
 		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, chunkRepr.importsFromOtherChunks) {
 			switch c.options.OutputFormat {
+			case config.FormatCommonJS:
+				var properties []js_ast.PropertyBinding
+				for _, item := range crossChunkImport.sortedImportItems {
+					properties = append(properties, js_ast.PropertyBinding{
+						Key: js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(item.exportAlias)}},
+						Value: js_ast.Binding{
+							Data: &js_ast.BIdentifier{
+								Ref: item.ref,
+							},
+						},
+					})
+				}
+				importRecordIndex := uint32(len(crossChunkImports))
+				crossChunkImports = append(crossChunkImports, crossChunkImport.chunkIndex)
+				if len(properties) > 0 {
+					crossChunkPrefixStmts = append(crossChunkPrefixStmts, js_ast.Stmt{Data: &js_ast.SLocal{
+						Kind: js_ast.LocalVar,
+						Decls: []js_ast.Decl{
+							{
+								Binding: js_ast.Binding{
+									Data: &js_ast.BObject{
+										Properties: properties,
+									},
+								},
+								Value: &js_ast.Expr{Data: &js_ast.ERequire{
+									ImportRecordIndex: importRecordIndex,
+								}},
+							},
+						},
+					}})
+				} else {
+					crossChunkPrefixStmts = append(crossChunkPrefixStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{
+						Data: &js_ast.ERequire{
+							ImportRecordIndex: importRecordIndex,
+						},
+					}}})
+				}
+
 			case config.FormatESModule:
 				var items []js_ast.ClauseItem
 				for _, item := range crossChunkImport.sortedImportItems {
@@ -1121,6 +1187,10 @@ func (c *linkerContext) scanImportsAndExports() {
 						if !otherFile.isEntryPoint {
 							c.entryPoints = append(c.entryPoints, record.SourceIndex.GetIndex())
 							otherFile.isEntryPoint = true
+						}
+
+						if c.options.OutputFormat == config.FormatCommonJS {
+							otherRepr.meta.cjsStyleExports = true
 						}
 					} else {
 						// If we're not splitting, then import() is just a require() that
