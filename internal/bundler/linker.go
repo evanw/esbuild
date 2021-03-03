@@ -1672,8 +1672,10 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, dep)
 		}
 
-		// Pull in the "__markAsModule" symbol later
+		// Pull in the "__markAsModule" symbol later. Also make sure the "exports"
+		// variable is marked as used because we used it above.
 		repr.meta.needsMarkAsModuleSymbolFromRuntime = true
+		repr.ast.UsesExportsRef = true
 	}
 
 	// "__export(exports, { foo: () => foo })"

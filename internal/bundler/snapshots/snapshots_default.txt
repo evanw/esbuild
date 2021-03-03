@@ -452,6 +452,17 @@ var import_bar = __toModule(require_bar());
 console.log(import_foo.foo(), import_bar.bar());
 
 ================================================================================
+TestEmptyExportClauseBundleAsCommonJSIssue910
+---------- /out.js ----------
+// types.mjs
+var require_types = __commonJS((exports2) => {
+  __markAsModule(exports2);
+});
+
+// entry.js
+console.log(require_types());
+
+================================================================================
 TestExportChain
 ---------- /out.js ----------
 // bar.js

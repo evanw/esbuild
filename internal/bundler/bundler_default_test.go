@@ -2752,6 +2752,26 @@ func TestMinifiedExportsAndModuleFormatCommonJS(t *testing.T) {
 	})
 }
 
+func TestEmptyExportClauseBundleAsCommonJSIssue910(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./types.mjs'))
+			`,
+			"/types.mjs": `
+				export {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+			Platform:      config.PlatformNode,
+		},
+	})
+}
+
 // The minifier should not remove "use strict" or join it with other expressions
 func TestUseStrictDirectiveMinifyNoBundle(t *testing.T) {
 	default_suite.expectBundled(t, bundled{

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix bug when ESM file has empty exports and is converted to CommonJS ([#910](https://github.com/evanw/esbuild/issues/910))
+
+    A file containing the contents `export {}` is still considered to be an ESM file even though it has no exports. However, if a file containing this edge case is converted to CommonJS internally during bundling (e.g. when it is the target of `require()`), esbuild failed to mark the `exports` symbol from the CommonJS wrapping closure as used even though it is actually needed. This resulted in an output file that crashed when run. The `exports` symbol is now considered used in this case, so the bug has been fixed.
+
 ## 0.8.54
 
 * Fix ordering issue with private class methods ([#901](https://github.com/evanw/esbuild/issues/901))
