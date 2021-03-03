@@ -53,16 +53,14 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		return true
 	}
 
-	shouldRejectAst := func(tree *js_ast.AST) (string, bool) {
-		if tree.UsesDirnameRef {
-			return "Forbidden use of __dirname", true
+	shouldRejectAst := func(tree *js_ast.AST, js *[]byte) (string, int32, bool) {
+		err, loc, rejected := api.RejectDirnameAccess(tree, js)
+		if rejected {
+			return err, loc, rejected
 		}
-		if tree.UsesFilenameRef {
-			return "Forbidden use of __filename", true
-		}
-		return "", false
-	}
+		return api.RejectFilenameAccess(tree, js)
 
+	}
 	// HACK: this is needed to make esbuild include the metafile with the out files in the
 	// result. I'm not sure how that works with the `{ write: false }` JS API.
 	// Additionally in that case the `Outdir` needs to be set as well.
