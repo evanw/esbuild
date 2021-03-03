@@ -4308,3 +4308,34 @@ func TestVarRelocatingNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestImportNamespaceThisValue(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import def, * as ns from 'external'
+				console.log(ns[foo](), new ns[foo]())
+			`,
+			"/b.js": `
+				import def, * as ns from 'external'
+				console.log(ns.foo(), new ns.foo())
+			`,
+			"/c.js": `
+				import def, {foo} from 'external'
+				console.log(def(), foo())
+				console.log(new def(), new foo())
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js", "/c.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			OutputFormat: config.FormatCommonJS,
+			AbsOutputDir: "/out",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"external": true,
+				},
+			},
+		},
+	})
+}

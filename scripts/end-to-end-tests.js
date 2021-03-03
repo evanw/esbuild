@@ -442,6 +442,32 @@
         test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
           'in.js': `export default 123; import * as out from './in'; if (out.default !== 123) throw 'fail'`,
         }),
+
+        // Check the value of "this"
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import {foo} from './foo'; if (foo() !== (function() { return this })()) throw 'fail'`,
+          'foo.js': `export function foo() { return this }`,
+        }),
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import foo from './foo'; if (foo() !== (function() { return this })()) throw 'fail'`,
+          'foo.js': `export default function() { return this }`,
+        }),
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import {foo} from './foo'; require('./foo'); if (foo() !== (function() { return this })()) throw 'fail'`,
+          'foo.js': `export function foo() { return this }`,
+        }),
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import foo from './foo'; require('./foo'); if (foo() !== (function() { return this })()) throw 'fail'`,
+          'foo.js': `export default function() { return this }`,
+        }),
+        test(['--bundle', '--external:./foo', '--format=cjs', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import {foo} from './foo'; if (foo() !== (function() { return this })()) throw 'fail'`,
+          'foo.js': `exports.foo = function() { return this }`,
+        }),
+        test(['--bundle', '--external:./foo', '--format=cjs', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import foo from './foo'; if (foo() !== (function() { return this })()) throw 'fail'`,
+          'foo.js': `module.exports = function() { return this }`,
+        }),
       )
     }
   }

@@ -469,6 +469,7 @@ type printer struct {
 	prevOpEnd          int
 	prevNumEnd         int
 	prevRegExpEnd      int
+	callTarget         js_ast.E
 	intToBytesBuffer   [64]byte
 
 	// For source maps
@@ -1463,6 +1464,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 		// We don't ever want to accidentally generate a direct eval expression here
+		p.callTarget = e.Target.Data
 		if !e.IsDirectEval && p.isUnboundEvalIdentifier(e.Target) {
 			if p.options.RemoveWhitespace {
 				p.print("(0,")
@@ -1935,6 +1937,14 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		if symbol.ImportItemStatus == js_ast.ImportItemMissing {
 			p.printUndefined(level)
 		} else if symbol.NamespaceAlias != nil {
+			wrap := p.callTarget == e && e.WasOriginallyIdentifier
+			if wrap {
+				if p.options.RemoveWhitespace {
+					p.print("(0,")
+				} else {
+					p.print("(0, ")
+				}
+			}
 			p.printSymbol(symbol.NamespaceAlias.NamespaceRef)
 			alias := symbol.NamespaceAlias.Alias
 			if p.canPrintIdentifier(alias) {
@@ -1944,6 +1954,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 				p.print("[")
 				p.printQuotedUTF8(alias, true /* allowBacktick */)
 				p.print("]")
+			}
+			if wrap {
+				p.print(")")
 			}
 		} else {
 			p.printSymbol(e.Ref)

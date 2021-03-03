@@ -6,6 +6,31 @@
 
     A file containing the contents `export {}` is still considered to be an ESM file even though it has no exports. However, if a file containing this edge case is converted to CommonJS internally during bundling (e.g. when it is the target of `require()`), esbuild failed to mark the `exports` symbol from the CommonJS wrapping closure as used even though it is actually needed. This resulted in an output file that crashed when run. The `exports` symbol is now considered used in this case, so the bug has been fixed.
 
+* Avoid introducing `this` for imported function calls
+
+    It is possible to import a function exported by a CommonJS module into an ESM module like this:
+
+    ```js
+    import {fn} from './cjs-file.js'
+    console.log(fn())
+    ```
+
+    When you do this, esbuild currently transforms your code into something like this:
+
+    ```js
+    var cjs_file = __toModule(require("./cjs-file.js"));
+    console.log(cjs_file.fn());
+    ```
+
+    However, doing that changes the value of `this` observed by the export `fn`. The property access `cjs_file.fn` is in the syntactic "call target" position so the value of `this` becomes the value of `cjs_file`. With this release, esbuild will now use a different syntax in this case to avoid passing `cjs_file` as `this`:
+
+    ```js
+    var cjs_file = __toModule(require("./cjs-file.js"));
+    console.log((0, cjs_file.fn)());
+    ```
+
+    This change in esbuild mirrors a similar [recent TypeScript compiler change](https://github.com/microsoft/TypeScript/pull/35877), and also makes esbuild more consistent with Babel which already does this transformation.
+
 ## 0.8.54
 
 * Fix ordering issue with private class methods ([#901](https://github.com/evanw/esbuild/issues/901))

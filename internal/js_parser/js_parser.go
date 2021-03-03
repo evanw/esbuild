@@ -9205,12 +9205,14 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 
 	// Generate an identifier for the first part
 	result := p.findSymbol(loc, parts[0])
-	value := p.handleIdentifier(loc, js_ast.AssignTargetNone, false, &js_ast.EIdentifier{
+	value := p.handleIdentifier(loc, &js_ast.EIdentifier{
 		Ref:                   result.ref,
 		MustKeepDueToWithStmt: result.isInsideWithScope,
 
 		// Enable tree shaking
 		CanBeRemovedIfUnused: true,
+	}, identifierOpts{
+		wasOriginallyIdentifier: true,
 	})
 
 	// Build up a chain of property access expressions for subsequent parts
@@ -9411,7 +9413,14 @@ func (p *parser) maybeRewritePropertyAccess(
 
 				// Track how many times we've referenced this symbol
 				p.recordUsage(item.Ref)
-				return p.handleIdentifier(nameLoc, assignTarget, isDeleteTarget, &js_ast.EIdentifier{Ref: item.Ref}), true
+				return p.handleIdentifier(nameLoc, &js_ast.EIdentifier{Ref: item.Ref}, identifierOpts{
+					assignTarget:   assignTarget,
+					isDeleteTarget: isDeleteTarget,
+
+					// If this expression is used as the target of a call expression, make
+					// sure the value of "this" is preserved.
+					wasOriginallyIdentifier: false,
+				}), true
 			}
 
 			// Rewrite "module.require()" to "require()" for Webpack compatibility.
@@ -9914,7 +9923,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		return p.handleIdentifier(expr.Loc, in.assignTarget, isDeleteTarget, e), exprOut{}
+		return p.handleIdentifier(expr.Loc, e, identifierOpts{
+			assignTarget:            in.assignTarget,
+			isDeleteTarget:          isDeleteTarget,
+			wasOriginallyIdentifier: true,
+		}), exprOut{}
 
 	case *js_ast.EPrivateIdentifier:
 		// We should never get here
@@ -11498,12 +11511,22 @@ func (p *parser) valueForDefine(loc logger.Loc, assignTarget js_ast.AssignTarget
 		SymbolForDefine: p.symbolForDefineHelper,
 	})}
 	if id, ok := expr.Data.(*js_ast.EIdentifier); ok {
-		return p.handleIdentifier(loc, assignTarget, isDeleteTarget, id)
+		return p.handleIdentifier(loc, id, identifierOpts{
+			assignTarget:            assignTarget,
+			isDeleteTarget:          isDeleteTarget,
+			wasOriginallyIdentifier: true,
+		})
 	}
 	return expr
 }
 
-func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarget, isDeleteTarget bool, e *js_ast.EIdentifier) js_ast.Expr {
+type identifierOpts struct {
+	assignTarget            js_ast.AssignTarget
+	isDeleteTarget          bool
+	wasOriginallyIdentifier bool
+}
+
+func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts identifierOpts) js_ast.Expr {
 	ref := e.Ref
 
 	// Capture the "arguments" variable if necessary
@@ -11515,7 +11538,7 @@ func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarg
 		}
 	}
 
-	if p.options.mode == config.ModeBundle && (assignTarget != js_ast.AssignTargetNone || isDeleteTarget) {
+	if p.options.mode == config.ModeBundle && (opts.assignTarget != js_ast.AssignTargetNone || opts.isDeleteTarget) {
 		if p.symbols[ref.InnerIndex].Kind == js_ast.SymbolImport {
 			// Create an error for assigning to an import namespace
 			r := js_lexer.RangeOfIdentifier(p.source, loc)
@@ -11530,7 +11553,10 @@ func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarg
 
 	// Substitute an EImportIdentifier now if this is an import item
 	if p.isImportItem[ref] {
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EImportIdentifier{Ref: ref}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EImportIdentifier{
+			Ref:                     ref,
+			WasOriginallyIdentifier: opts.wasOriginallyIdentifier,
+		}}
 	}
 
 	// Substitute a namespace export reference now if appropriate

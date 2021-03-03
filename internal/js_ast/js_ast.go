@@ -546,6 +546,11 @@ type EIdentifier struct {
 // doing this instead of opt-out.
 type EImportIdentifier struct {
 	Ref Ref
+
+	// If true, this was originally an identifier expression such as "foo". If
+	// false, this could potentially have been a member access expression such
+	// as "ns.foo" off of an imported namespace object.
+	WasOriginallyIdentifier bool
 }
 
 // This is similar to EIdentifier but it represents class-private fields and

@@ -9,7 +9,7 @@ var require_util = __commonJS((exports, module) => {
 
 // Users/user/project/src/app/entry.js
 var import_util = __toModule(require_util());
-console.log(import_util.default());
+console.log((0, import_util.default)());
 
 ================================================================================
 TestTsConfigJSX
@@ -190,7 +190,7 @@ var require_util = __commonJS((exports, module) => {
 
 // Users/user/project/src/app/entry.js
 var import_util = __toModule(require_util());
-console.log(import_util.default());
+console.log((0, import_util.default)());
 
 ================================================================================
 TestTsconfigJsonBaseUrl
@@ -204,7 +204,7 @@ var require_util = __commonJS((exports, module) => {
 
 // Users/user/project/src/app/entry.js
 var import_util = __toModule(require_util());
-console.log(import_util.default());
+console.log((0, import_util.default)());
 
 ================================================================================
 TestTsconfigJsonCommentAllowed
@@ -218,7 +218,7 @@ var require_util = __commonJS((exports, module) => {
 
 // Users/user/project/src/app/entry.js
 var import_util = __toModule(require_util());
-console.log(import_util.default());
+console.log((0, import_util.default)());
 
 ================================================================================
 TestTsconfigJsonExtends
@@ -283,7 +283,7 @@ var require_util = __commonJS((exports, module) => {
 
 // Users/user/project/src/app/entry.js
 var import_util = __toModule(require_util());
-console.log(import_util.default());
+console.log((0, import_util.default)());
 
 ================================================================================
 TestTsconfigPreserveUnusedImportClause
