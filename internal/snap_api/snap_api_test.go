@@ -275,7 +275,7 @@ __commonJS["./entry.js"] = function(exports, module, __filename, __dirname, requ
 }
 
 func TestRejectAstWhenDirnameIsUsedExcludesModuleUsingDirname(t *testing.T) {
-	// NOTE: also logs 'Forbidden use of __dirname' to stderr
+	// NOTE: also adds error message 'Forbidden use of __dirname' to log
 	snapApiSuite.expectBuild(t, built{
 		shouldRejectAst: func(tree *js_ast.AST) (string, bool) {
 			if tree.UsesDirnameRef {
@@ -294,12 +294,8 @@ exports.fsevents = require('` + ProjectBaseDir + `/node_modules/fsevents/fsevent
 		entryPoints: []string{ProjectBaseDir + "/entry.js"},
 	},
 		buildResult{
-			files: map[string]string{
-				`dev/entry.js`: `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
-  Object.defineProperty(exports, "fsevents", { get: () => require("./node_modules/fsevents/fsevents.js") });
-};`,
-			},
+			files:  map[string]string{},
+			bundle: NO_BUNDLE_GENERATED,
 		},
 	)
 }

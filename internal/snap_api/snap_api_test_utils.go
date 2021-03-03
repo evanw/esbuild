@@ -11,6 +11,8 @@ import (
 	"github.com/evanw/esbuild/internal/fs"
 )
 
+const NO_BUNDLE_GENERATED string = "<no bundle generated>"
+
 type built struct {
 	files                map[string]string
 	entryPoints          []string
@@ -131,7 +133,14 @@ func (s *suite) build(args built) buildResult {
 		},
 		FS: fs,
 	})
-	return extractBuildResult(string(result.OutputFiles[0].Contents))
+	if len(result.OutputFiles) > 0 {
+		return extractBuildResult(string(result.OutputFiles[0].Contents))
+	} else {
+		return buildResult{
+			files:  map[string]string{},
+			bundle: NO_BUNDLE_GENERATED,
+		}
+	}
 }
 
 func (s *suite) debugBuild(t *testing.T, args built) {
