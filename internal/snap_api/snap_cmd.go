@@ -167,6 +167,10 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 
 	result := processArgs(&cmdArgs)
 	json := resultToJSON(result, cmdArgs.Write)
+	if false {
+		_ = resultToFile(result)
+	}
+	// fmt.Fprintln(os.Stdout, len(json))
 	fmt.Fprintln(os.Stdout, json)
 
 	exitCode := len(result.Errors)

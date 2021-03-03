@@ -16,6 +16,7 @@ type built struct {
 	entryPoints          []string
 	shouldReplaceRequire api.ShouldReplaceRequirePredicate
 	shouldRewriteModule  api.ShouldRewriteModulePredicate
+	shouldRejectAst      api.ShouldRejectAstPredicate
 }
 
 type buildResult struct {
@@ -125,6 +126,7 @@ func (s *suite) build(args built) buildResult {
 			CreateSnapshot:       true,
 			ShouldReplaceRequire: shouldReplaceRequire,
 			ShouldRewriteModule:  args.shouldRewriteModule,
+			ShouldRejectAst:      args.shouldRejectAst,
 			AbsBasedir:           ProjectBaseDir,
 		},
 		FS: fs,

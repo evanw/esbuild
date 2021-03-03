@@ -1,6 +1,7 @@
 package snap_api
 
 import (
+	"github.com/evanw/esbuild/internal/js_ast"
 	"testing"
 )
 
@@ -110,10 +111,8 @@ func TestNotWrappingExports(t *testing.T) {
 	snapApiSuite.expectBuild(t,
 		built{
 			files: map[string]string{
-				ProjectBaseDir + "/entry.js":
-				`require('./body-parser')`,
-				ProjectBaseDir + "/body-parser.js":
-				`exports = module.exports = foo()`,
+				ProjectBaseDir + "/entry.js":       `require('./body-parser')`,
+				ProjectBaseDir + "/body-parser.js": `exports = module.exports = foo()`,
 			},
 			entryPoints: []string{ProjectBaseDir + "/entry.js"},
 		},
@@ -269,6 +268,36 @@ __commonJS["./node_modules/fsevents/fsevents.js"] = function(exports2, module2, 
 				`dev/entry.js`: `
 __commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
   exports.fsevents = require("./node_modules/fsevents/fsevents.js");
+};`,
+			},
+		},
+	)
+}
+
+func TestRejectAstWhenDirnameIsUsedExcludesModuleUsingDirname(t *testing.T) {
+	// NOTE: also logs 'Forbidden use of __dirname' to stderr
+	snapApiSuite.expectBuild(t, built{
+		shouldRejectAst: func(tree *js_ast.AST) (string, bool) {
+			if tree.UsesDirnameRef {
+				return "Forbidden use of __dirname", true
+			}
+			return "", false
+		},
+		files: map[string]string{
+			ProjectBaseDir + "/node_modules/fsevents/fsevents.js": `
+module.exports = __dirname
+`,
+			ProjectBaseDir + "/entry.js": `
+exports.fsevents = require('` + ProjectBaseDir + `/node_modules/fsevents/fsevents.js')
+`,
+		},
+		entryPoints: []string{ProjectBaseDir + "/entry.js"},
+	},
+		buildResult{
+			files: map[string]string{
+				`dev/entry.js`: `
+__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+  Object.defineProperty(exports, "fsevents", { get: () => require("./node_modules/fsevents/fsevents.js") });
 };`,
 			},
 		},

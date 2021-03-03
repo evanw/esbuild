@@ -1,9 +1,11 @@
 package main
 
 import (
+	"strings"
+
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/snap_api"
 	"github.com/evanw/esbuild/pkg/api"
-	"strings"
 )
 
 func main() {
@@ -12,7 +14,11 @@ func main() {
 
 func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 	platform := api.PlatformNode
-	var external = []string{"electron"}
+	var external = []string{
+		// should always be excluded
+		"electron",
+		"bluebird",
+	}
 
 	shouldReplaceRequire := func(mdl string) bool {
 		if args.Deferred == nil {
@@ -45,6 +51,16 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 			}
 		}
 		return true
+	}
+
+	shouldRejectAst := func(tree *js_ast.AST) (string, bool) {
+		if tree.UsesDirnameRef {
+			return "Forbidden use of __dirname", true
+		}
+		if tree.UsesFilenameRef {
+			return "Forbidden use of __filename", true
+		}
+		return "", false
 	}
 
 	// HACK: this is needed to make esbuild include the metafile with the out files in the
@@ -127,12 +143,13 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		Write: args.Write,
 
 		Snapshot: &api.SnapshotOptions{
-			CreateSnapshot:          true,
-			ShouldReplaceRequire:    snap_api.CreateShouldReplaceRequire(platform, external, shouldReplaceRequire, shouldRewriteModule),
-			ShouldRewriteModule:     shouldRewriteModule,
-			AbsBasedir:              args.Basedir,
-			VerifyPrint:             true,
-			PanicOnVerificationFail: false,
+			CreateSnapshot:       true,
+			ShouldReplaceRequire: snap_api.CreateShouldReplaceRequire(platform, external, shouldReplaceRequire, shouldRewriteModule),
+			ShouldRewriteModule:  shouldRewriteModule,
+			ShouldRejectAst:      shouldRejectAst,
+			AbsBasedir:           args.Basedir,
+			VerifyPrint:          true,
+			PanicOnError:         false,
 		},
 
 		//

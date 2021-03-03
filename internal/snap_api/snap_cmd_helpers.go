@@ -1,8 +1,9 @@
 package snap_api
 
 import (
-	"fmt"
 	"encoding/hex"
+	"fmt"
+	"io/ioutil"
 
 	"github.com/evanw/esbuild/pkg/api"
 )
@@ -37,12 +38,12 @@ func outputFilesToJSON(result api.BuildResult) string {
 	outputFiles := "["
 
 	for i, x := range result.OutputFiles {
-    contents := x.Contents
+		contents := x.Contents
 		outputFiles += fmt.Sprintf(`
     { 
       "path": "<stdout>",
       "contents": "%v"
-    }`,  hex.EncodeToString(contents))
+    }`, hex.EncodeToString(contents))
 
 		if i+1 < len(result.OutputFiles) {
 			outputFiles += ","
@@ -62,8 +63,13 @@ func resultToJSON(result api.BuildResult, write bool) string {
 	if !write {
 		json += fmt.Sprintf(`,
   "outfiles": %s`,
-    outputFilesToJSON(result))
+			outputFilesToJSON(result))
 	}
 	json += "\n}"
 	return json
+}
+
+func resultToFile(result api.BuildResult) error {
+	bundle := result.OutputFiles[0].Contents
+	return ioutil.WriteFile("/tmp/snapshot-bundle.js", bundle, 0644)
 }
