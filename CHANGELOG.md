@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.55
 
 * Align more closely with node's `default` import behavior for CommonJS ([#532](https://github.com/evanw/esbuild/issues/532))
 
@@ -22,7 +22,7 @@
 
 * Avoid introducing `this` for imported function calls
 
-    It is possible to import a function exported by a CommonJS module into an ESM module like this:
+    It is possible to import a function exported by a CommonJS file into an ESM file like this:
 
     ```js
     import {fn} from './cjs-file.js'
