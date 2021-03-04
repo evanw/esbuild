@@ -333,7 +333,23 @@ if (typeof TextEncoder !== 'undefined' && typeof TextDecoder !== 'undefined') {
 
 // For node 10.x
 else if (typeof Buffer !== 'undefined') {
-  encodeUTF8 = text => Buffer.from(text);
+  encodeUTF8 = text => {
+    let buffer: Uint8Array = Buffer.from(text);
+
+    // The test framework called "Jest" breaks node's Buffer API. Normally
+    // instances of Buffer are also instances of Uint8Array, but not when
+    // esbuild is run inside of whatever weird environment Jest uses. More
+    // info: https://github.com/facebook/jest/issues/4422.
+    if (!(buffer instanceof Uint8Array)) {
+      // Construct a new Uint8Array with the contents of the buffer to force
+      // it to be a Uint8Array instance. This is wasteful since it's slower
+      // than just using the Buffer, but this should only happen when esbuild
+      // is run inside of Jest.
+      buffer = new Uint8Array(buffer);
+    }
+
+    return buffer;
+  };
   decodeUTF8 = bytes => Buffer.from(bytes).toString();
 }
 
