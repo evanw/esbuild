@@ -11249,9 +11249,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if symbol := p.symbols[id.Ref.InnerIndex]; symbol.OriginalName == "eval" {
 					e.IsDirectEval = true
 
-					// Pessimistically assume that a direct call to "eval" means that code could
-					// potentially access "module" or "exports".
-					if p.options.mode == config.ModeBundle {
+					// Pessimistically assume that if this looks like a CommonJS module
+					// (no "import" or "export" keywords), a direct call to "eval" means
+					// that code could potentially access "module" or "exports".
+					if p.options.mode == config.ModeBundle && p.es6ImportKeyword.Len == 0 && p.es6ExportKeyword.Len == 0 {
 						p.recordUsage(p.moduleRef)
 						p.recordUsage(p.exportsRef)
 					}

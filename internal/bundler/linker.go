@@ -167,6 +167,42 @@ type fileMeta struct {
 	// this module must be added as getters to the CommonJS "exports" object.
 	cjsStyleExports bool
 
+	// WARNING: This is an interop mess. Different tools do different things and
+	// there really isn't a good solution that will always work. More information:
+	// https://github.com/evanw/esbuild/issues/532.
+	//
+	// The value of the "default" export differs between node's ESM
+	// implementation and Babel's cross-compiled ESM-to-CommonJS
+	// implementation. The default export will always be "module.exports"
+	// in node but will be "module.exports.default" with Babel if the
+	// property "module.exports.__esModule" is true (indicating a
+	// cross-compiled ESM file):
+	//
+	//   // esm-file.mjs
+	//   import defaultValue from "./import.cjs"
+	//   console.log(defaultValue)
+	//
+	//   // import.cjs (cross-compiled from "import.esm")
+	//   Object.defineProperty(exports, '__esModule', { value: true })
+	//   exports.default = 'default'
+	//
+	//   // import.mjs (original source code for "import.cjs")
+	//   export default 'default'
+	//
+	// Code that respects the "__esModule" flag will print "default" but node
+	// will print "{ default: 'default' }". There is no way to work with both.
+	// Damned if you do, damned if you don't. It would have been ideal if node
+	// behaved consistently with the rest of the ecosystem, but they decided to
+	// do their own thing instead. Arguably no approach is "more correct" than
+	// the other one.
+	//
+	// We need to behave like Babel when we cross-compile ESM to CommonJS but
+	// we need to behave like node for compatibility with existing libraries
+	// on npm. So we deliberately skip calling "__toModule" only for ESM files
+	// that we ourselves have converted to CommonJS during the build so that we
+	// at least don't break ourselves.
+	skipCallingToModule bool
+
 	// If true, the "__export(exports, { ... })" call will be force-included even
 	// if there are no parts that reference "exports". Otherwise this call will
 	// be removed due to the tree shaking pass. This is used when for entry point
@@ -436,6 +472,7 @@ func newLinkerContext(
 				resolvedExports:          resolvedExports,
 				isProbablyTypeScriptType: make(map[js_ast.Ref]bool),
 				importsToBind:            make(map[js_ast.Ref]importToBind),
+				skipCallingToModule:      repr.ast.HasES6Exports && !repr.ast.HasCommonJSFeatures(),
 			}
 
 		case *reprCSS:
@@ -2601,7 +2638,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 
 		// This is an ES6 import of a CommonJS module, so it needs the
 		// "__toModule" wrapper as long as it's not a bare "require()"
-		if record.Kind != ast.ImportRequire {
+		if record.Kind != ast.ImportRequire && !otherRepr.meta.skipCallingToModule {
 			record.WrapWithToModule = true
 			toModuleUses++
 		}

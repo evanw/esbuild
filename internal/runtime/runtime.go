@@ -111,8 +111,6 @@ func code(isES6 bool) string {
 
 		// Converts the module from CommonJS to ES6 if necessary
 		export var __toModule = module => {
-			if (module && module.__esModule)
-				return module
 			return __exportStar(
 				__markAsModule(__defProp(module != null ? __create(__getProtoOf(module)) : {}, 'default', { value: module, enumerable: true })),
 				module)

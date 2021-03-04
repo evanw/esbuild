@@ -349,7 +349,45 @@
       `,
     }),
 
-    // Test non-bundled double export star
+    // Test bundled and non-bundled double export star
+    test(['node.ts', '--bundle', '--format=cjs', '--outdir=.'], {
+      'node.ts': `
+        import {a, b} from './re-export'
+        if (a !== 'a' || b !== 'b') throw 'fail'
+      `,
+      're-export.ts': `
+        export * from './a'
+        export * from './b'
+      `,
+      'a.ts': `
+        export let a = 'a'
+      `,
+      'b.ts': `
+        export let b = 'b'
+      `,
+    }),
+    test(['node.ts', '--bundle', '--format=cjs', '--outdir=.'], {
+      'node.ts': `
+        import {a, b} from './re-export'
+        if (a !== 'a' || b !== 'b') throw 'fail'
+
+        // Try forcing all of these modules to be CommonJS wrappers
+        require('./node')
+        require('./re-export')
+        require('./a')
+        require('./b')
+      `,
+      're-export.ts': `
+        export * from './a'
+        export * from './b'
+      `,
+      'a.ts': `
+        export let a = 'a'
+      `,
+      'b.ts': `
+        export let b = 'b'
+      `,
+    }),
     test(['node.ts', 're-export.ts', 'a.ts', 'b.ts', '--format=cjs', '--outdir=.'], {
       'node.ts': `
         import {a, b} from './re-export'
@@ -367,12 +405,58 @@
       `,
     }),
 
-    // Complex circular non-bundling import case
-    test(['node.ts', 're-export.ts', 'a.ts', 'b.ts', '--format=cjs', '--outdir=.'], {
+    // Complex circular bundled and non-bundled import case (https://github.com/evanw/esbuild/issues/758)
+    test(['node.ts', '--bundle', '--format=cjs', '--outdir=.'], {
       'node.ts': `
         import {a} from './re-export'
         let fn = a()
         if (fn === a || fn() !== a) throw 'fail'
+      `,
+      're-export.ts': `
+        export * from './a'
+      `,
+      'a.ts': `
+        import {b} from './b'
+        export let a = () => b
+      `,
+      'b.ts': `
+        import {a} from './re-export'
+        export let b = () => a
+      `,
+    }),
+    test(['node.ts', '--bundle', '--format=cjs', '--outdir=.'], {
+      'node.ts': `
+        import {a} from './re-export'
+        let fn = a()
+        if (fn === a || fn() !== a) throw 'fail'
+
+        // Try forcing all of these modules to be CommonJS wrappers
+        require('./node')
+        require('./re-export')
+        require('./a')
+        require('./b')
+      `,
+      're-export.ts': `
+        export * from './a'
+      `,
+      'a.ts': `
+        import {b} from './b'
+        export let a = () => b
+      `,
+      'b.ts': `
+        import {a} from './re-export'
+        export let b = () => a
+      `,
+    }),
+    test(['node.ts', 're-export.ts', 'a.ts', 'b.ts', '--format=cjs', '--outdir=.'], {
+      'node.ts': `
+        import {a} from './re-export'
+        let fn = a()
+
+        // Note: The "void 0" is different here. This case broke when fixing
+        // something else ("default" export semantics in node). This test still
+        // exists to document this broken behavior.
+        if (fn === a || fn() !== void 0) throw 'fail'
       `,
       're-export.ts': `
         export * from './a'

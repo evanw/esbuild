@@ -10,7 +10,7 @@ var require_foo = __commonJS((exports) => {
 });
 
 // entry.js
-var ns = __toModule(require_foo());
+var ns = require_foo();
 var ns2 = require_foo();
 console.log(ns.foo, ns2.foo);
 

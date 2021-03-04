@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* Align with node's `default` import behavior for CommonJS ([#532](https://github.com/evanw/esbuild/issues/532))
+
+    _Note: This could be considered a breaking change or a bug fix depending on your point of view._
+
+    Importing a CommonJS file into an ESM file does not behave the same everywhere. Historically people compiled their ESM code into CommonJS using Babel before ESM was supported natively. More recently, node has made it possible to use ESM syntax natively but to still import CommonJS files into ESM. These behave differently in many ways but one of the most unfortunate differences is how the `default` export is handled.
+
+    When you import a normal CommonJS file, both Babel and node agree that the value of `module.exports` should be stored in the ESM import named `default`. However, if the CommonJS file used to be an ESM file but was compiled into a CommonJS file, Babel will set the ESM import named `default` to the value of the original ESM export named `default` while node will continue to set the ESM import named `default` to the value of `module.exports`. Babel detects if a CommonJS file used to be an ESM file by the presence of the `exports.__esModule = true` marker.
+
+    This is unfortunate because it means there is no general way to make code work with both ecosystems. With Babel you can access the original `default` export with `require().default` but with node you need to use `require().default.default` to access the original `default` export. Previously esbuild followed Babel's approach but starting with this release, esbuild will now follow node's approach. Now that node has native ESM support, people will be writing more and more native ESM code and will expect bundlers to follow node semantics. Using ESM via Babel is now the legacy code path that will become less and less relevant over time.
+
+    If you are authoring a library using ESM but shipping it as CommonJS, the best way to avoid this mess is to just never use `default` exports in ESM. Only use named exports with names other than `default`.
+
 * Fix bug when ESM file has empty exports and is converted to CommonJS ([#910](https://github.com/evanw/esbuild/issues/910))
 
     A file containing the contents `export {}` is still considered to be an ESM file even though it has no exports. However, if a file containing this edge case is converted to CommonJS internally during bundling (e.g. when it is the target of `require()`), esbuild failed to mark the `exports` symbol from the CommonJS wrapping closure as used even though it is actually needed. This resulted in an output file that crashed when run. The `exports` symbol is now considered used in this case, so the bug has been fixed.

@@ -340,7 +340,7 @@ var require_module = __commonJS((exports) => {
 console.log(require_module());
 
 // Users/user/project/src/test-module.js
-var import_demo_pkg = __toModule(require_module());
+var import_demo_pkg = require_module();
 console.log(import_demo_pkg.default);
 
 ================================================================================

@@ -152,7 +152,7 @@ var require_index_main = __commonJS((exports) => {
 });
 
 // Users/user/project/src/entry.js
-var import_demo_pkg = __toModule(require_index_main());
+var import_demo_pkg = require_index_main();
 
 // Users/user/project/src/require-demo-pkg.js
 require_index_main();
