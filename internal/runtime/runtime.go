@@ -111,9 +111,20 @@ func code(isES6 bool) string {
 
 		// Converts the module from CommonJS to ES6 if necessary
 		export var __toModule = module => {
-			return __exportStar(
-				__markAsModule(__defProp(module != null ? __create(__getProtoOf(module)) : {}, 'default', { value: module, enumerable: true })),
-				module)
+			return __exportStar(__markAsModule(
+				__defProp(
+					module != null ? __create(__getProtoOf(module)) : {},
+					'default',
+
+					// If this is an ESM file that has been converted to a CommonJS file
+					// using a Babel-compatible transform (i.e. "__esModule" has been set)
+					// and there is already a "default" property, then forward "default"
+					// to that property. Otherwise set "default" to "module.exports" for
+					// node compatibility.
+					module && module.__esModule && 'default' in module
+						? { get: () => module.default, enumerable: true }
+						: { value: module, enumerable: true })
+			), module)
 		}
 
 		// For TypeScript decorators

@@ -556,6 +556,26 @@
     }
   }
 
+  // Test "default" exports in ESM-to-CommonJS conversion scenarios
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `import def from './foo'; if (def !== 123) throw 'fail'`,
+      'foo.js': `exports.__esModule = true; exports.default = 123`,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `import * as ns from './foo'; if (ns.default !== 123) throw 'fail'`,
+      'foo.js': `exports.__esModule = true; exports.default = 123`,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `import def from './foo'; if (!def || def.foo !== 123) throw 'fail'`,
+      'foo.js': `exports.__esModule = true; exports.foo = 123`,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `import * as ns from './foo'; if (!ns.default || ns.default.foo !== 123) throw 'fail'`,
+      'foo.js': `exports.__esModule = true; exports.foo = 123`,
+    }),
+  )
+
   // Test external CommonJS export
   tests.push(
     test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs'], {

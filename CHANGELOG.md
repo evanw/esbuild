@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* Align with node's `default` import behavior for CommonJS ([#532](https://github.com/evanw/esbuild/issues/532))
+* Align more closely with node's `default` import behavior for CommonJS ([#532](https://github.com/evanw/esbuild/issues/532))
 
     _Note: This could be considered a breaking change or a bug fix depending on your point of view._
 
@@ -10,7 +10,9 @@
 
     When you import a normal CommonJS file, both Babel and node agree that the value of `module.exports` should be stored in the ESM import named `default`. However, if the CommonJS file used to be an ESM file but was compiled into a CommonJS file, Babel will set the ESM import named `default` to the value of the original ESM export named `default` while node will continue to set the ESM import named `default` to the value of `module.exports`. Babel detects if a CommonJS file used to be an ESM file by the presence of the `exports.__esModule = true` marker.
 
-    This is unfortunate because it means there is no general way to make code work with both ecosystems. With Babel you can access the original `default` export with `require().default` but with node you need to use `require().default.default` to access the original `default` export. Previously esbuild followed Babel's approach but starting with this release, esbuild will now follow node's approach. Now that node has native ESM support, people will be writing more and more native ESM code and will expect bundlers to follow node semantics. Using ESM via Babel is now the legacy code path that will become less and less relevant over time.
+    This is unfortunate because it means there is no general way to make code work with both ecosystems. With Babel the code `import * as someFile from './some-file'` can access the original `default` export with `someFile.default` but with node you need to use `someFile.default.default` instead. Previously esbuild followed Babel's approach but starting with this release, esbuild will now try to use a blend between the Babel and node approaches.
+
+    This is the new behavior: importing a CommonJS file will set the `default` import to `module.exports` in all cases except when `module.exports.__esModule && "default" in module.exports`, in which case it will fall through to `module.exports.default`. In other words: in cases where the default import was previously `undefined` for CommonJS files when `exports.__esModule === true`, the default import will now be `module.exports`. This should hopefully keep Babel cross-compiled ESM code mostly working but at the same time now enable some node-oriented code to start working.
 
     If you are authoring a library using ESM but shipping it as CommonJS, the best way to avoid this mess is to just never use `default` exports in ESM. Only use named exports with names other than `default`.
 

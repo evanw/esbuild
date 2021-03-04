@@ -197,10 +197,10 @@ type fileMeta struct {
 	// the other one.
 	//
 	// We need to behave like Babel when we cross-compile ESM to CommonJS but
-	// we need to behave like node for compatibility with existing libraries
-	// on npm. So we deliberately skip calling "__toModule" only for ESM files
-	// that we ourselves have converted to CommonJS during the build so that we
-	// at least don't break ourselves.
+	// we need to behave like a mix of Babel and node for compatibility with
+	// existing libraries on npm. So we deliberately skip calling "__toModule"
+	// only for ESM files that we ourselves have converted to CommonJS during
+	// the build so that we at least don't break ourselves.
 	skipCallingToModule bool
 
 	// If true, the "__export(exports, { ... })" call will be force-included even
