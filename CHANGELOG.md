@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.56
 
 * Fix a discrepancy with esbuild's `tsconfig.json` implementation ([#913](https://github.com/evanw/esbuild/issues/913))
 
