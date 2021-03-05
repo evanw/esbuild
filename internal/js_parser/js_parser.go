@@ -39,11 +39,12 @@ type parser struct {
 	allowIn                  bool
 	allowPrivateIdentifiers  bool
 	hasTopLevelReturn        bool
+	latestReturnHadSemicolon bool
+	hasImportMeta            bool
+	topLevelAwaitKeyword     logger.Range
 	fnOrArrowDataParse       fnOrArrowDataParse
 	fnOrArrowDataVisit       fnOrArrowDataVisit
 	fnOnlyDataVisit          fnOnlyDataVisit
-	latestReturnHadSemicolon bool
-	hasImportMeta            bool
 	allocatedNames           []string
 	latestArrowArgLoc        logger.Loc
 	forbidSuffixAfterAsLoc   logger.Loc
@@ -2687,6 +2688,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 					p.log.AddRangeError(&p.source, nameRange, "The keyword \"await\" cannot be escaped")
 				} else {
 					if p.fnOrArrowDataParse.isTopLevel {
+						p.topLevelAwaitKeyword = nameRange
 						p.markSyntaxFeature(compat.TopLevelAwait, nameRange)
 					}
 					if p.fnOrArrowDataParse.arrowArgErrors != nil {
@@ -13154,7 +13156,8 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 		UsesModuleRef:     p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0,
 
 		// ES6 features
-		HasES6Imports: p.es6ImportKeyword.Len > 0,
-		HasES6Exports: p.es6ExportKeyword.Len > 0,
+		ImportKeyword:        p.es6ImportKeyword,
+		ExportKeyword:        p.es6ExportKeyword,
+		TopLevelAwaitKeyword: p.topLevelAwaitKeyword,
 	}
 }

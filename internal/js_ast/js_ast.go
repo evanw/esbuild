@@ -1587,9 +1587,11 @@ type AST struct {
 	UsesExportsRef    bool
 	UsesModuleRef     bool
 
-	// This is a list of ES6 features
-	HasES6Imports bool
-	HasES6Exports bool
+	// This is a list of ES6 features. They are ranges instead of booleans so
+	// that they can be used in log messages. Check to see if "Len > 0".
+	ImportKeyword        logger.Range // Does not include TypeScript-specific syntax or "import()"
+	ExportKeyword        logger.Range // Does not include TypeScript-specific syntax
+	TopLevelAwaitKeyword logger.Range
 
 	Hashbang    string
 	Directive   string
@@ -1723,8 +1725,8 @@ func (ast *AST) UsesCommonJSExports() bool {
 	return ast.UsesExportsRef || ast.UsesModuleRef
 }
 
-func (ast *AST) HasES6ImportsOrExports() bool {
-	return ast.HasES6Imports || ast.HasES6Exports
+func (ast *AST) HasESMFeatures() bool {
+	return ast.ImportKeyword.Len > 0 || ast.ExportKeyword.Len > 0 || ast.TopLevelAwaitKeyword.Len > 0
 }
 
 type NamedImport struct {

@@ -1320,9 +1320,9 @@ func (s *scanner) processScannedFiles() []file {
 						js_printer.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
 				}
 
-				// Importing a JavaScript file from a CSS file is not allowed.
 				switch record.Kind {
 				case ast.ImportAt:
+					// Using a JavaScript file with CSS "@import" is not allowed
 					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					if _, ok := otherFile.repr.(*reprJS); ok {
 						s.log.AddRangeError(&result.file.source, record.Range,
@@ -1330,6 +1330,7 @@ func (s *scanner) processScannedFiles() []file {
 					}
 
 				case ast.ImportURL:
+					// Using a JavaScript or CSS file with CSS "url()" is not allowed
 					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					switch otherRepr := otherFile.repr.(type) {
 					case *reprCSS:
