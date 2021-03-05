@@ -1242,6 +1242,15 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (Path
 // This closely follows the behavior of "tryLoadModuleUsingPaths()" in the
 // official TypeScript compiler
 func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase) {
+	absBaseURL := tsConfigJSON.BaseURLForPaths
+
+	// The explicit base URL should take precedence over the implicit base URL
+	// if present. This matters when a tsconfig.json file overrides "baseUrl"
+	// from another extended tsconfig.json file but doesn't override "paths".
+	if tsConfigJSON.BaseURL != nil {
+		absBaseURL = *tsConfigJSON.BaseURL
+	}
+
 	// Check for exact matches first
 	for key, originalPaths := range tsConfigJSON.Paths {
 		if key == path {
@@ -1249,7 +1258,7 @@ func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, k
 				// Load the original path relative to the "baseUrl" from tsconfig.json
 				absoluteOriginalPath := originalPath
 				if !r.fs.IsAbs(originalPath) {
-					absoluteOriginalPath = r.fs.Join(tsConfigJSON.BaseURLForPaths, originalPath)
+					absoluteOriginalPath = r.fs.Join(absBaseURL, originalPath)
 				}
 				if absolute, ok, diffCase := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
 					return absolute, true, diffCase
@@ -1302,7 +1311,7 @@ func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, k
 			// Load the original path relative to the "baseUrl" from tsconfig.json
 			absoluteOriginalPath := originalPath
 			if !r.fs.IsAbs(originalPath) {
-				absoluteOriginalPath = r.fs.Join(tsConfigJSON.BaseURLForPaths, originalPath)
+				absoluteOriginalPath = r.fs.Join(absBaseURL, originalPath)
 			}
 			if absolute, ok, diffCase := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
 				return absolute, true, diffCase

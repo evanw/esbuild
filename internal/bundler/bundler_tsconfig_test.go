@@ -380,6 +380,116 @@ Users/user/project/tsconfig.json: warning: Non-relative path "http://bad" is not
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/913
+func TestTsConfigPathsOverriddenBaseURL(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import test from '#/test'
+				console.log(test)
+			`,
+			"/Users/user/project/src/test.ts": `
+				export default 123
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"extends": "./tsconfig.paths.json",
+					"compilerOptions": {
+						"baseUrl": "./src"
+					}
+				}
+			`,
+			"/Users/user/project/tsconfig.paths.json": `
+				{
+					"compilerOptions": {
+						"paths": {
+							"#/*": ["./*"]
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigPathsOverriddenBaseURLDifferentDir(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import test from '#/test'
+				console.log(test)
+			`,
+			"/Users/user/project/src/test.ts": `
+				export default 123
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"extends": "../tsconfig.paths.json",
+					"compilerOptions": {
+						"baseUrl": "./"
+					}
+				}
+			`,
+			"/Users/user/project/tsconfig.paths.json": `
+				{
+					"compilerOptions": {
+						"paths": {
+							"#/*": ["./*"]
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigPathsMissingBaseURL(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import test from '#/test'
+				console.log(test)
+			`,
+			"/Users/user/project/src/test.ts": `
+				export default 123
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"extends": "../tsconfig.paths.json",
+					"compilerOptions": {
+					}
+				}
+			`,
+			"/Users/user/project/tsconfig.paths.json": `
+				{
+					"compilerOptions": {
+						"paths": {
+							"#/*": ["./*"]
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.ts: error: Could not resolve "#/test" (mark it as external to exclude it from the bundle)
+`,
+	})
+}
+
 func TestTsConfigJSX(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{

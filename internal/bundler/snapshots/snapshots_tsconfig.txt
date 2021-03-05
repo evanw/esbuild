@@ -179,6 +179,24 @@ var extended_default = {
 console.log(simple_default, extended_default);
 
 ================================================================================
+TestTsConfigPathsOverriddenBaseURL
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/test.ts
+var test_default = 123;
+
+// Users/user/project/src/entry.ts
+console.log(test_default);
+
+================================================================================
+TestTsConfigPathsOverriddenBaseURLDifferentDir
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/test.ts
+var test_default = 123;
+
+// Users/user/project/src/entry.ts
+console.log(test_default);
+
+================================================================================
 TestTsconfigJsonAbsoluteBaseUrl
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
