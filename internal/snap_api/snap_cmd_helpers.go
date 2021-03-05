@@ -8,24 +8,43 @@ import (
 	"github.com/evanw/esbuild/pkg/api"
 )
 
-/*
- *	interface OutputFile {
- *	  path: string;
- *	  contents: Uint8Array; // "text" as bytes (we actually send a 'hex' string)
- *	  text: string; // "contents" as text  (we don't include that as it transmits data duplicated in contents)
- *	}
- *  interface BuildResult {
- *	  warnings: Message[];
- *	  outputFiles?: OutputFile[]; // Only when "write: false"
- *	  rebuild?: BuildInvalidate; // Only when "incremental" is true (not implemented for now)
- *	}
- */
-
 func warningsJSON(result api.BuildResult) string {
 	warnings := "[\n"
 	for i, x := range result.Warnings {
-		// TODO(thlorenz): include location related data (see encodeMessages in service.go)
-		warnings += fmt.Sprintf("    %q", x.Text)
+		/*
+		 * interface Location {
+		 *   file: string;
+		 *   namespace: string;
+		 *   line: number; // 1-based
+		 *   column: number; // 0-based, in bytes
+		 *   length: number; // in bytes
+		 *   lineText: string;
+		 * }
+		 * interface Message {
+		 *   text: string;
+		 *   location: Location | null;
+		 * }
+		 */
+		warnings += fmt.Sprintf(`{
+      "text": %q,
+      "location": {
+		    "file": %q,
+		    "namespace": %q,
+		    "line": %d,
+		    "column": %d,
+        "length": %d,
+        "lineText": %q
+      }
+		}`,
+			x.Text,
+			x.Location.File,
+			x.Location.Namespace,
+			x.Location.Line,
+			x.Location.Column,
+			x.Location.Length,
+			x.Location.LineText,
+		)
+
 		if i+1 < len(result.Warnings) {
 			warnings += ",\n"
 		}
@@ -55,9 +74,22 @@ func outputFilesToJSON(result api.BuildResult) string {
 
 // NOTE: esbuild itself doesn't send JSON across the wire like this. Instead it sends binary
 // data which it then decodes into an JS object.
+
+/*
+ *	interface OutputFile {
+ *	  path: string;
+ *	  contents: Uint8Array; // "text" as bytes (we actually send a 'hex' string)
+ *	  text: string; // "contents" as text  (we don't include that as it transmits data duplicated in contents)
+ *	}
+ *  interface BuildResult {
+ *	  warnings: Message[];
+ *	  outputFiles?: OutputFile[]; // Only when "write: false"
+ *	  rebuild?: BuildInvalidate; // Only when "incremental" is true (not implemented for now)
+ *	}
+ */
+
 func resultToJSON(result api.BuildResult, write bool) string {
 	json := "{\n"
-	// TODO(thlorenz): warnings need proper escaping
 	json += fmt.Sprintf(`  "warnings": %s`, warningsJSON(result))
 
 	if !write {
