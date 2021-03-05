@@ -774,6 +774,9 @@ func rebuildImpl(
 
 			// Stop now if there were errors
 			if !log.HasErrors() {
+				// Flush any deferred warnings now
+				log.AlmostDone()
+
 				if buildOpts.Write {
 					// Special-case writing to stdout
 					if options.WriteToStdout {

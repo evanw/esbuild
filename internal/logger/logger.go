@@ -21,7 +21,13 @@ const defaultTerminalWidth = 80
 type Log struct {
 	AddMsg    func(Msg)
 	HasErrors func() bool
-	Done      func() []Msg
+
+	// This is called after the build has finished but before writing to stdout.
+	// It exists to ensure that deferred warning messages end up in the terminal
+	// before the data written to stdout.
+	AlmostDone func()
+
+	Done func() []Msg
 }
 
 type LogLevel int8
@@ -351,6 +357,31 @@ func NewStderrLog(options OutputOptions) Log {
 		remainingMessagesBeforeLimit = 0x7FFFFFFF
 	}
 	var deferredWarnings []Msg
+	didFinalizeLog := false
+
+	finalizeLog := func() {
+		if didFinalizeLog {
+			return
+		}
+		didFinalizeLog = true
+
+		// Print the deferred warning now if there was no error after all
+		for remainingMessagesBeforeLimit > 0 && len(deferredWarnings) > 0 {
+			shownWarnings++
+			writeStringWithColor(os.Stderr, deferredWarnings[0].String(options, terminalInfo))
+			deferredWarnings = deferredWarnings[1:]
+			remainingMessagesBeforeLimit--
+		}
+
+		// Print out a summary
+		if options.MessageLimit > 0 && errors+warnings > options.MessageLimit {
+			writeStringWithColor(os.Stderr, fmt.Sprintf("%s shown (disable the message limit with --error-limit=0)\n",
+				errorAndWarningSummary(errors, warnings, shownErrors, shownWarnings)))
+		} else if options.LogLevel <= LevelInfo && (warnings != 0 || errors != 0) {
+			writeStringWithColor(os.Stderr, fmt.Sprintf("%s\n",
+				errorAndWarningSummary(errors, warnings, shownErrors, shownWarnings)))
+		}
+	}
 
 	switch options.Color {
 	case ColorNever:
@@ -411,27 +442,17 @@ func NewStderrLog(options OutputOptions) Log {
 			defer mutex.Unlock()
 			return hasErrors
 		},
+		AlmostDone: func() {
+			mutex.Lock()
+			defer mutex.Unlock()
+
+			finalizeLog()
+		},
 		Done: func() []Msg {
 			mutex.Lock()
 			defer mutex.Unlock()
 
-			// Print the deferred warning now if there was no error after all
-			for remainingMessagesBeforeLimit > 0 && len(deferredWarnings) > 0 {
-				shownWarnings++
-				writeStringWithColor(os.Stderr, deferredWarnings[0].String(options, terminalInfo))
-				deferredWarnings = deferredWarnings[1:]
-				remainingMessagesBeforeLimit--
-			}
-
-			// Print out a summary
-			if options.MessageLimit > 0 && errors+warnings > options.MessageLimit {
-				writeStringWithColor(os.Stderr, fmt.Sprintf("%s shown (disable the message limit with --error-limit=0)\n",
-					errorAndWarningSummary(errors, warnings, shownErrors, shownWarnings)))
-			} else if options.LogLevel <= LevelInfo && (warnings != 0 || errors != 0) {
-				writeStringWithColor(os.Stderr, fmt.Sprintf("%s\n",
-					errorAndWarningSummary(errors, warnings, shownErrors, shownWarnings)))
-			}
-
+			finalizeLog()
 			sort.Stable(msgs)
 			return msgs
 		},
@@ -758,6 +779,8 @@ func NewDeferLog() Log {
 			mutex.Lock()
 			defer mutex.Unlock()
 			return hasErrors
+		},
+		AlmostDone: func() {
 		},
 		Done: func() []Msg {
 			mutex.Lock()
