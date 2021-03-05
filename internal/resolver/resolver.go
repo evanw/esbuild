@@ -1209,11 +1209,24 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (Path
 				// use "module" or "main" based on whether the package is imported
 				// using "import" or "require".
 				if autoMain && field == "module" {
-					if absoluteMain, ok := absMainFields["main"]; ok {
-						// If both the "main" and "module" fields exist, use "main" if the path is
-						// for "require" and "module" if the path is for "import". If we're using
-						// "module", return enough information to be able to fall back to "main"
-						// later if that decision was incorrect.
+					absoluteMain, ok := absMainFields["main"]
+
+					// Some packages have a "module" field without a "main" field but
+					// still have an implicit "index.js" file. In that case, treat that
+					// as the value for "main".
+					if !ok && dirInfo.absPathIndex != nil {
+						absoluteMain = *dirInfo.absPathIndex
+						ok = true
+					}
+
+					if ok {
+						// If both the "main" and "module" fields exist, use "main" if the
+						// path is for "require" and "module" if the path is for "import".
+						// If we're using "module", return enough information to be able to
+						// fall back to "main" later if something ended up using "require()"
+						// with this same path. The goal of this code is to avoid having
+						// both the "module" file and the "main" file in the bundle at the
+						// same time.
 						if kind != ast.ImportRequire {
 							return PathPair{
 								// This is the whole point of the path pair

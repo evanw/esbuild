@@ -10,6 +10,10 @@
 
     Running esbuild within a Jest test fails because Jest causes `Buffer` instances to not be considered `Uint8Array` instances, which then breaks the code esbuild uses to communicate with its child process. More info is here: https://github.com/facebook/jest/issues/4422. This release contains a workaround that copies each `Buffer` object into a `Uint8Array` object when this invariant is broken. That should prevent esbuild from crashing when it's run from within a Jest test.
 
+* Better handling of implicit `main` fields in `package.json`
+
+    If esbuild's automatic `main` vs. `module` detection is enabled for `package.json` files, esbuild will now use `index.js` as an implicit `main` field if the `main` field is missing but `index.js` is present. This means if a `package.json` file only contains a `module` field but not a `main` field and the package is imported using both an ESM `import` statement and a CommonJS `require` call, the `index.js` file will now be picked instead of the file in the `module` field.
+
 ## 0.8.55
 
 * Align more closely with node's `default` import behavior for CommonJS ([#532](https://github.com/evanw/esbuild/issues/532))

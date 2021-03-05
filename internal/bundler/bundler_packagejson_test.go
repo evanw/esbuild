@@ -959,6 +959,75 @@ func TestPackageJsonDualPackageHazardImportAndRequireForceModuleBeforeMain(t *te
 	})
 }
 
+func TestPackageJsonDualPackageHazardImportAndRequireImplicitMain(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import './test-index'
+				import './test-module'
+			`,
+			"/Users/user/project/src/test-index.js": `
+				console.log(require('demo-pkg'))
+			`,
+			"/Users/user/project/src/test-module.js": `
+				import value from 'demo-pkg'
+				console.log(value)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"module": "./module.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				module.exports = 'index'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/module.js": `
+				export default 'module'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonDualPackageHazardImportAndRequireImplicitMainForceModuleBeforeMain(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import './test-index'
+				import './test-module'
+			`,
+			"/Users/user/project/src/test-index.js": `
+				console.log(require('demo-pkg'))
+			`,
+			"/Users/user/project/src/test-module.js": `
+				import value from 'demo-pkg'
+				console.log(value)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"module": "./module.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				module.exports = 'index'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/module.js": `
+				export default 'module'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			MainFields:    []string{"module", "main"},
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestPackageJsonDualPackageHazardImportAndRequireBrowser(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
