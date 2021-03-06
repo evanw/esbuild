@@ -25,8 +25,6 @@ interface CommonOptions {
   define?: { [key: string]: string };
   pure?: string[];
   keepNames?: boolean;
-  banner?: string;
-  footer?: string;
 
   color?: boolean;
   logLevel?: LogLevel;
@@ -53,6 +51,8 @@ export interface BuildOptions extends CommonOptions {
   chunkNames?: string;
   assetNames?: string;
   inject?: string[];
+  banner?: { [type: string]: string };
+  footer?: { [type: string]: string };
   incremental?: boolean;
   entryPoints?: string[];
   stdin?: StdinOptions;
@@ -158,6 +158,8 @@ export interface TransformOptions extends CommonOptions {
 
   sourcefile?: string;
   loader?: Loader;
+  banner?: string;
+  footer?: string;
 }
 
 export interface TransformResult {

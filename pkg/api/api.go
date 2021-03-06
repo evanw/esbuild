@@ -260,8 +260,8 @@ type BuildOptions struct {
 	OutExtensions     map[string]string
 	PublicPath        string
 	Inject            []string
-	Banner            string
-	Footer            string
+	Banner            map[string]string
+	Footer            map[string]string
 	NodePaths         []string // The "NODE_PATH" variable from Node.js
 
 	ChunkNames string

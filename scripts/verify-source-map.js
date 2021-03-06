@@ -465,7 +465,7 @@ async function main() {
           crlf,
         }),
         check('banner-footer' + suffix, testCaseES6, toSearchBundle, {
-          flags: flags.concat('--outfile=out.js', '--bundle', '--banner="/* LICENSE abc */"', '--footer="/* end of file banner */"'),
+          flags: flags.concat('--outfile=out.js', '--bundle', '--banner:js="/* LICENSE abc */"', '--footer:js="/* end of file banner */"'),
           entryPoints: ['a.js'],
           crlf,
         }),

@@ -152,8 +152,8 @@ exports.buildWasmLib = async (esbuildPath) => {
       '--format=cjs',
       '--define:ESBUILD_VERSION=' + JSON.stringify(version),
       '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmWorkerCode.umd),
-      '--banner=' + umdPrefix,
-      '--footer=' + umdSuffix,
+      '--banner:js=' + umdPrefix,
+      '--footer:js=' + umdSuffix,
       '--log-level=warning',
     ].concat(minifyFlags), { cwd: repoDir }).toString()
     fs.writeFileSync(path.join(libDir, minify ? 'browser.min.js' : 'browser.js'), browserCJS)

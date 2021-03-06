@@ -1679,7 +1679,7 @@ console.log("success");
     await esbuild.build({
       entryPoints: [input],
       outfile,
-      banner: 'const bannerDefined = true',
+      banner: { js: 'const bannerDefined = true' },
     })
     require(outfile)
   },
@@ -1691,7 +1691,7 @@ console.log("success");
     await esbuild.build({
       entryPoints: [input],
       outfile,
-      footer: 'function footer() {}',
+      footer: { js: 'function footer() {}' },
     })
     require(outfile)
   },
@@ -1705,8 +1705,8 @@ console.log("success");
     await esbuild.build({
       entryPoints: [aPath, bPath],
       outdir,
-      banner: 'const bannerDefined = true',
-      footer: 'function footer() {}',
+      banner: { js: 'const bannerDefined = true' },
+      footer: { js: 'function footer() {}' },
     })
     const a = require(path.join(outdir, path.basename(aPath)))
     const b = require(path.join(outdir, path.basename(bPath)))
@@ -1722,11 +1722,11 @@ console.log("success");
     await esbuild.build({
       entryPoints: [input],
       outfile,
-      banner: '/* banner */',
-      footer: '/* footer */',
+      banner: { css: '/* banner */' },
+      footer: { css: '/* footer */' },
     })
     const code = await readFileAsync(outfile, 'utf8')
-    assert.strictEqual(code, `div {\n  color: red;\n}\n`)
+    assert.strictEqual(code, `/* banner */\ndiv {\n  color: red;\n}\n/* footer */\n`)
   },
 
   async buildRelativeIssue693({ esbuild }) {
@@ -2576,7 +2576,7 @@ let transformTests = {
       banner: '/* banner */',
       footer: '/* footer */',
     })
-    assert.strictEqual(code, `div {\n  color: red;\n}\n`)
+    assert.strictEqual(code, `/* banner */\ndiv {\n  color: red;\n}\n/* footer */\n`)
   },
 
   async transformDirectEval({ esbuild }) {

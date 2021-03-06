@@ -503,6 +503,20 @@ func validateOutputExtensions(log logger.Log, outExtensions map[string]string) (
 	return
 }
 
+func validateBannerOrFooter(log logger.Log, name string, values map[string]string) (js string, css string) {
+	for key, value := range values {
+		switch key {
+		case "js":
+			js = value
+		case "css":
+			css = value
+		default:
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid %s file type: %q (valid: css, js)", name, key))
+		}
+	}
+	return
+}
+
 func convertLocationToPublic(loc *logger.MsgLocation) *Location {
 	if loc != nil {
 		return &Location{
@@ -685,6 +699,8 @@ func rebuildImpl(
 	}
 	jsFeatures, cssFeatures := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtensions)
+	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
+	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
 	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure)
 	options := config.Options{
 		UnsupportedJSFeatures:  jsFeatures,
@@ -723,8 +739,10 @@ func rebuildImpl(
 		KeepNames:             buildOpts.KeepNames,
 		InjectAbsPaths:        make([]string, len(buildOpts.Inject)),
 		AbsNodePaths:          make([]string, len(buildOpts.NodePaths)),
-		Banner:                buildOpts.Banner,
-		Footer:                buildOpts.Footer,
+		JSBanner:              bannerJS,
+		JSFooter:              footerJS,
+		CSSBanner:             bannerCSS,
+		CSSFooter:             footerCSS,
 		PreserveSymlinks:      buildOpts.PreserveSymlinks,
 		WatchMode:             buildOpts.Watch != nil,
 		Plugins:               plugins,
@@ -1157,8 +1175,13 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			Contents:   input,
 			SourceFile: transformOpts.Sourcefile,
 		},
-		Banner: transformOpts.Banner,
-		Footer: transformOpts.Footer,
+	}
+	if options.Stdin.Loader == config.LoaderCSS {
+		options.CSSBanner = transformOpts.Banner
+		options.CSSFooter = transformOpts.Footer
+	} else {
+		options.JSBanner = transformOpts.Banner
+		options.JSFooter = transformOpts.Footer
 	}
 	if options.SourceMap == config.SourceMapLinkedWithComment {
 		// Linked source maps don't make sense because there's no output file name
