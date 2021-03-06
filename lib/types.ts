@@ -297,18 +297,6 @@ export interface Metadata {
   }
 }
 
-export interface Service {
-  build(options: BuildOptions & { write: false }): Promise<BuildResult & { outputFiles: OutputFile[] }>;
-  build(options: BuildOptions & { incremental: true }): Promise<BuildIncremental>;
-  build(options: BuildOptions): Promise<BuildResult>;
-  serve(serveOptions: ServeOptions, buildOptions: BuildOptions): Promise<ServeResult>;
-  transform(input: string, options?: TransformOptions): Promise<TransformResult>;
-
-  // This stops the service, which kills the long-lived child process. Any
-  // pending requests will be aborted.
-  stop(): void;
-}
-
 // This function invokes the "esbuild" command-line tool for you. It returns a
 // promise that either resolves with a "BuildResult" object or rejects with a
 // "BuildFailure" object.
@@ -348,15 +336,15 @@ export declare function buildSync(options: BuildOptions): BuildResult;
 // Works in browser: no
 export declare function transformSync(input: string, options?: TransformOptions): TransformResult;
 
-// This starts "esbuild" as a long-lived child process that is then reused, so
-// you can call methods on the service many times without the overhead of
-// starting up a new child process each time.
+// This configures the browser-based version of esbuild. It is necessary to
+// call this first and wait for the returned promise to be resolved before
+// making other API calls when using esbuild in the browser.
 //
 // Works in node: yes
 // Works in browser: yes ("options" is required)
-export declare function startService(options?: ServiceOptions): Promise<Service>;
+export declare function initialize(options: InitializeOptions): Promise<void>;
 
-export interface ServiceOptions {
+export interface InitializeOptions {
   // The URL of the "esbuild.wasm" file. This must be provided when running
   // esbuild in the browser.
   wasmURL?: string
