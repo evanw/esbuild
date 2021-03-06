@@ -111,13 +111,6 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				return fmt.Errorf("Invalid tree shaking value: %q (valid: ignore-annotations)", name)
 			}
 
-		case arg == "--avoid-tdz":
-			if buildOpts != nil {
-				buildOpts.AvoidTDZ = true
-			} else {
-				transformOpts.AvoidTDZ = true
-			}
-
 		case arg == "--keep-names":
 			if buildOpts != nil {
 				buildOpts.KeepNames = true
