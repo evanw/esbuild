@@ -2624,6 +2624,63 @@
         }
       `,
     }, { async: true }),
+
+    // Identical output chunks should not be shared
+    test(['a.js', 'b.js', 'c.js', '--outdir=out', '--splitting', '--format=esm', '--bundle', '--minify'], {
+      'a.js': `
+        import {foo as common1} from './common1'
+        import {foo as common2} from './common2'
+        export let a = [common1, common2]
+      `,
+      'b.js': `
+        import {foo as common2} from './common2'
+        import {foo as common3} from './common3'
+        export let b = [common2, common3]
+      `,
+      'c.js': `
+        import {foo as common3} from './common3'
+        import {foo as common1} from './common1'
+        export let c = [common3, common1]
+      `,
+      'common1.js': `
+        export let foo = {}
+      `,
+      'common2.js': `
+        export let foo = {}
+      `,
+      'common3.js': `
+        export let foo = {}
+      `,
+      'node.js': `
+        import {a} from './out/a.js'
+        import {b} from './out/b.js'
+        import {c} from './out/c.js'
+        if (a[0] === a[1]) throw 'fail'
+        if (b[0] === b[1]) throw 'fail'
+        if (c[0] === c[1]) throw 'fail'
+      `,
+    }),
+    test(['a.js', 'b.js', 'c.js', '--outdir=out', '--splitting', '--format=esm', '--bundle', '--minify'], {
+      'a.js': `
+        export {a} from './common'
+      `,
+      'b.js': `
+        export {b} from './common'
+      `,
+      'c.js': `
+        export {a as ca, b as cb} from './common'
+      `,
+      'common.js': `
+        export let a = {}
+        export let b = {}
+      `,
+      'node.js': `
+        import {a} from './out/a.js'
+        import {b} from './out/b.js'
+        import {ca, cb} from './out/c.js'
+        if (a === b || ca === cb || a !== ca || b !== cb) throw 'fail'
+      `,
+    }),
   )
 
   // Test the binary loader

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Fix overlapping chunk names when code splitting is active ([#928](https://github.com/evanw/esbuild/issues/928))
+
+    Code splitting chunks use a content hash in their file name. This is good for caching because it means the file name is guaranteed to change if the chunk contents change, and the file name is guaranteed to stay the same if the chunk contents don't change (e.g. someone only modifies a comment). However, using a pure content hash can cause bugs if two separate chunks end up with the same contents.
+
+    A high-level example would be two identical copies of a library being accidentally collapsed into a single copy. While this results in a smaller bundle, this is incorrect because each copy might need to have its own state and so must be represented independently in the bundle.
+
+    This release fixes this issue by mixing additional information into the file name hash, which is no longer a content hash. The information includes the paths of the input files as well as the ranges of code within the file that are included in the chunk. File paths are used because they are a stable file identifier, but the relative path is used with `/` as the path separator to hopefully eliminate cross-platform differences between Unix and Windows.
+
 * Fix `--keep-names` for lowered class fields
 
     Anonymous function expressions used in class field initializers are automatically assigned a `.name` property in JavaScript:

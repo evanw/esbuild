@@ -304,7 +304,8 @@ func parseFile(args parseArgs) {
 		// but different contents from colliding
 		var hash string
 		if config.HasPlaceholder(args.options.AssetPathTemplate, config.HashPlaceholder) {
-			hash = hashForFileName([]byte(source.Contents))
+			hashBytes := sha1.Sum([]byte(source.Contents))
+			hash = hashForFileName(hashBytes)
 		}
 		relPath := config.TemplateToString(config.SubstituteTemplate(args.options.AssetPathTemplate, config.PathPlaceholders{
 			Name: &base,
@@ -855,8 +856,7 @@ func lowerCaseAbsPathForWindows(absPath string) string {
 	return strings.ToLower(absPath)
 }
 
-func hashForFileName(bytes []byte) string {
-	hashBytes := sha1.Sum(bytes)
+func hashForFileName(hashBytes [sha1.Size]byte) string {
 	return base32.StdEncoding.EncodeToString(hashBytes[:])[:8]
 }
 

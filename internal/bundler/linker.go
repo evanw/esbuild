@@ -2,7 +2,9 @@ package bundler
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"path"
 	"sort"
@@ -4011,7 +4013,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 					var hash string
 					name := "chunk"
 					if config.HasPlaceholder(c.options.ChunkPathTemplate, config.HashPlaceholder) {
-						hash = hashForFileName(sourceMap)
+						hash = c.chunkHashForFileName(chunk, sourceMap)
 					}
 
 					relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
@@ -4047,7 +4049,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			var hash string
 			name := "chunk"
 			if config.HasPlaceholder(c.options.ChunkPathTemplate, config.HashPlaceholder) {
-				hash = hashForFileName(jsContents)
+				hash = c.chunkHashForFileName(chunk, jsContents)
 			}
 
 			relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
@@ -4292,7 +4294,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 			var hash string
 			name := "chunk"
 			if config.HasPlaceholder(c.options.ChunkPathTemplate, config.HashPlaceholder) {
-				hash = hashForFileName(cssContents)
+				hash = c.chunkHashForFileName(chunk, cssContents)
 			}
 
 			relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
@@ -4585,4 +4587,57 @@ func (c *linkerContext) generateSourceMapForChunk(
 	// Finish the source map
 	j.AddString(",\n  \"names\": []\n}\n")
 	return j.Done()
+}
+
+func (c *linkerContext) chunkHashForFileName(chunk *chunkInfo, bytes []byte) string {
+	hash := sha1.New()
+
+	// Hash the data in length-prefixed form because boundary locations are
+	// important. We don't want "a" + "bc" to hash the same as "ab" + "c".
+	var lengthBytes [4]byte
+
+	// Mix the file names and part ranges of all of the files in this chunk into
+	// the hash. Objects that appear identical but that live in separate files or
+	// that live in separate parts in the same file must not be merged. This only
+	// needs to be done for JavaScript files, not CSS files.
+	for _, partRange := range chunk.partsInChunkInOrder {
+		var filePath string
+		file := &c.files[partRange.sourceIndex]
+
+		if file.source.KeyPath.Namespace == "file" {
+			// Use the pretty path as the file name since it should be platform-
+			// independent (relative paths and the "/" path separator)
+			filePath = file.source.PrettyPath
+		} else {
+			// If this isn't in the "file" namespace, just use the full path text
+			// verbatim. This could be a source of cross-platform differences if
+			// plugins are storing platform-specific information in here, but then
+			// that problem isn't caused by esbuild itself.
+			filePath = file.source.KeyPath.Text
+		}
+
+		// Include the path namespace in the hash
+		binary.LittleEndian.PutUint32(lengthBytes[:], uint32(len(file.source.KeyPath.Namespace)))
+		hash.Write(lengthBytes[:])
+		hash.Write([]byte(file.source.KeyPath.Namespace))
+
+		// Then include the file path
+		binary.LittleEndian.PutUint32(lengthBytes[:], uint32(len(filePath)))
+		hash.Write(lengthBytes[:])
+		hash.Write([]byte(filePath))
+
+		// Also write the part range. These numbers are deterministic and allocated
+		// per-file so this should be a well-behaved base for a hash.
+		binary.LittleEndian.PutUint32(lengthBytes[:], partRange.partIndexBegin)
+		hash.Write(lengthBytes[:])
+		binary.LittleEndian.PutUint32(lengthBytes[:], partRange.partIndexEnd)
+		hash.Write(lengthBytes[:])
+	}
+
+	// Then mix the contents of the chunk itself into the hash
+	hash.Write(bytes)
+
+	var hashBytes [sha1.Size]byte
+	hash.Sum(hashBytes[:0])
+	return hashForFileName(hashBytes)
 }
