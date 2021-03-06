@@ -23,6 +23,7 @@ exports.buildNativeLib = (esbuildPath) => {
     '--target=' + nodeTarget,
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
     '--platform=node',
+    '--log-level=warning',
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild/lib/main.js"
@@ -35,6 +36,7 @@ exports.buildNativeLib = (esbuildPath) => {
     '--define:WASM=false',
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
     '--platform=node',
+    '--log-level=warning',
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild/lib/main.d.ts"
@@ -104,6 +106,7 @@ exports.buildWasmLib = async (esbuildPath) => {
     '--define:WASM=true',
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
     '--platform=node',
+    '--log-level=warning',
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild-wasm/lib/main.d.ts" and "npm/esbuild-wasm/lib/browser.d.ts"
@@ -133,6 +136,7 @@ exports.buildWasmLib = async (esbuildPath) => {
         path.join(repoDir, 'lib', 'worker.ts'),
         '--target=' + target,
         '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+        '--log-level=warning',
       ].concat(minifyFlags), { cwd: repoDir }).toString().trim()
 
       wasmWorkerCode[format] = wasmExecCode + workerCode
@@ -150,6 +154,7 @@ exports.buildWasmLib = async (esbuildPath) => {
       '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmWorkerCode.umd),
       '--banner=' + umdPrefix,
       '--footer=' + umdSuffix,
+      '--log-level=warning',
     ].concat(minifyFlags), { cwd: repoDir }).toString()
     fs.writeFileSync(path.join(libDir, minify ? 'browser.min.js' : 'browser.js'), browserCJS)
 
@@ -161,6 +166,7 @@ exports.buildWasmLib = async (esbuildPath) => {
       '--format=esm',
       '--define:ESBUILD_VERSION=' + JSON.stringify(version),
       '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmWorkerCode.esm),
+      '--log-level=warning',
     ].concat(minifyFlags), { cwd: repoDir }).toString()
     fs.writeFileSync(path.join(esmDir, minify ? 'browser.min.js' : 'browser.js'), browserESM)
   }

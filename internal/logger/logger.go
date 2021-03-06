@@ -608,8 +608,8 @@ func (t SummaryTable) Less(i int, j int) bool {
 // Show a warning icon next to output files that are 1mb or larger
 const sizeWarningThreshold = 1024 * 1024
 
-func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
-	PrintText(os.Stderr, LevelInfo, osArgs, func(colors Colors) string {
+func PrintSummary(useColor UseColor, table SummaryTable, start time.Time) {
+	PrintTextWithColor(os.Stderr, useColor, func(colors Colors) string {
 		isProbablyWindowsCommandPrompt := false
 		sb := strings.Builder{}
 
@@ -631,7 +631,7 @@ func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
 			info := GetTerminalInfo(os.Stderr)
 
 			// Truncate the table in case it's really long
-			maxLength := info.Height - 10
+			maxLength := info.Height / 2
 			if info.Height == 0 {
 				maxLength = 20
 			} else if maxLength < 5 {

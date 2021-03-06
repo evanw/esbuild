@@ -10,13 +10,14 @@ const tests = {
       child_process.execFileSync('node', [
         esbuildPathWASM,
         '--servedir=.',
+        '--log-level=warning',
       ], {
         stdio: 'pipe',
         cwd: testDir,
       });
       throw new Error('Expected an error to be thrown');
     } catch (err) {
-      assert.strictEqual(err.stderr + '', ' > error: The "serve" API is not supported when using WebAssembly\n\n1 error\n')
+      assert.strictEqual(err.stderr + '', ' > error: The "serve" API is not supported when using WebAssembly\n\n')
     }
   },
 
@@ -24,6 +25,7 @@ const tests = {
     const stdout = child_process.execFileSync('node', [
       esbuildPathWASM,
       '--format=cjs',
+      '--log-level=warning',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
       cwd: testDir,
@@ -43,6 +45,7 @@ const tests = {
       '--bundle',
       '--format=cjs',
       '--outfile=' + outfile,
+      '--log-level=warning',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
       cwd: testDir,
@@ -58,6 +61,7 @@ const tests = {
     const stdout = child_process.execFileSync('node', [
       esbuildPathWASM,
       '--format=cjs',
+      '--log-level=warning',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
       cwd: testDir,
@@ -77,6 +81,7 @@ const tests = {
       '--bundle',
       '--format=cjs',
       '--outfile=' + outfile,
+      '--log-level=warning',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
       cwd: testDir,
@@ -94,6 +99,7 @@ const tests = {
     // Build with native
     const stdoutNative = child_process.execFileSync(esbuildPathNative, [
       entryPoint,
+      '--log-level=warning',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
       cwd: testDir,
@@ -103,6 +109,7 @@ const tests = {
     const stdoutWASM = child_process.execFileSync('node', [
       esbuildPathWASM,
       entryPoint,
+      '--log-level=warning',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
       cwd: testDir,
@@ -121,6 +128,7 @@ const tests = {
     const stdoutNative = child_process.execFileSync(esbuildPathNative, [
       entryPoint,
       '--outfile=' + outfileNative,
+      '--log-level=warning',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
       cwd: testDir,
@@ -133,6 +141,7 @@ const tests = {
       esbuildPathWASM,
       entryPoint,
       '--outfile=' + outfileWASM,
+      '--log-level=warning',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
       cwd: testDir,
@@ -152,6 +161,7 @@ const tests = {
       '--bundle',
       '--format=cjs',
       '--outfile=' + outfile,
+      '--log-level=warning',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
       cwd: testDir,
@@ -171,6 +181,7 @@ const tests = {
       '--bundle',
       '--format=cjs',
       '--outfile=' + outfile,
+      '--log-level=warning',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
       cwd: testDir,

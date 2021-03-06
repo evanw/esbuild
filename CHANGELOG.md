@@ -10,6 +10,10 @@
 
     These options were part of an experiment with the CLI that didn't work out. Watch mode no longer uses a spinner because it turns out people want to be able to interleave esbuild's stderr pipe with other tools and were getting tripped up by the spinner animation. These options no longer do anything and have been removed.
 
+* Remove the `--summary` flag and instead just always print a summary ([#704](https://github.com/evanw/esbuild/issues/704))
+
+    The summary can be disabled if you don't want it by passing `--log-level=warning` instead. And it can be enabled in the API by setting `logLevel: 'info'`. I'm going to try this because I believe it will improve the UX. People have this problem with esbuild when they first try it where it runs so quickly that they think it must be broken, only to later discover that it actually worked fine. While this is funny, it seems like a good indication that the UX could be improved. So I'm going to try automatically printing a summary to see how that goes. Note that the summary is not printed if incremental builds are active (this includes the watch and serve modes).
+
 ## 0.8.57
 
 * Fix overlapping chunk names when code splitting is active ([#928](https://github.com/evanw/esbuild/issues/928))

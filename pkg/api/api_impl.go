@@ -589,6 +589,7 @@ type internalBuildResult struct {
 }
 
 func buildImpl(buildOpts BuildOptions) internalBuildResult {
+	start := time.Now()
 	logOptions := logger.OutputOptions{
 		IncludeSource: true,
 		MessageLimit:  buildOpts.ErrorLimit,
@@ -608,7 +609,52 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 
 	// Do not re-evaluate plugins when rebuilding
 	plugins := loadPlugins(realFS, log, buildOpts.Plugins)
-	return rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, logOptions, log, false /* isRebuild */)
+	internalResult := rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, logOptions, log, false /* isRebuild */)
+
+	// Print a summary to stderr
+	if logOptions.LogLevel <= logger.LevelInfo && buildOpts.Watch == nil && !buildOpts.Incremental {
+		printSummary(logOptions, internalResult.result.OutputFiles, start)
+	}
+
+	return internalResult
+}
+
+func printSummary(logOptions logger.OutputOptions, outputFiles []OutputFile, start time.Time) {
+	var table logger.SummaryTable = make([]logger.SummaryTableEntry, len(outputFiles))
+
+	if len(outputFiles) > 0 {
+		if cwd, err := os.Getwd(); err == nil {
+			if realFS, err := fs.RealFS(fs.RealFSOptions{AbsWorkingDir: cwd}); err == nil {
+				for i, file := range outputFiles {
+					path, ok := realFS.Rel(realFS.Cwd(), file.Path)
+					if !ok {
+						path = file.Path
+					}
+					base := realFS.Base(path)
+					n := len(file.Contents)
+					var size string
+					if n < 1024 {
+						size = fmt.Sprintf("%db ", n)
+					} else if n < 1024*1024 {
+						size = fmt.Sprintf("%.1fkb", float64(n)/(1024))
+					} else if n < 1024*1024*1024 {
+						size = fmt.Sprintf("%.1fmb", float64(n)/(1024*1024))
+					} else {
+						size = fmt.Sprintf("%.1fgb", float64(n)/(1024*1024*1024))
+					}
+					table[i] = logger.SummaryTableEntry{
+						Dir:         path[:len(path)-len(base)],
+						Base:        base,
+						Size:        size,
+						Bytes:       n,
+						IsSourceMap: strings.HasSuffix(base, ".map"),
+					}
+				}
+			}
+		}
+	}
+
+	logger.PrintSummary(logOptions.Color, table, start)
 }
 
 func rebuildImpl(

@@ -65,7 +65,6 @@
     1 │ import "./file.js/what/is/this"
       ╵        ~~~~~~~~~~~~~~~~~~~~~~~~
 
-1 error
 `,
     }),
   )
@@ -1045,7 +1044,6 @@
     2 │         const {exists} = require('fs')
       ╵                          ~~~~~~~
 
-1 warning
 `,
     }),
     test(['in.js', '--outfile=out.js', '--format=esm'], {
@@ -1067,7 +1065,6 @@
     2 │         const fs = require('fs')
       ╵                    ~~~~~~~
 
-1 warning
 `,
     }),
     test(['in.js', '--outfile=out.js', '--format=esm'], {
@@ -1809,7 +1806,6 @@
     24 │             expect(() => this.#getter = 1, 'member.set is not a func...
        ╵                               ~~~~~~~
 
-2 warnings
 `,
     }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
@@ -1978,7 +1974,6 @@
     3 │           class Foo {
       ╵                 ~~~
 
-1 warning
 `,
     }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
@@ -2003,7 +1998,6 @@
     2 │         class Foo {
       ╵               ~~~
 
-1 warning
 `,
     }),
 
@@ -2719,7 +2713,6 @@
     2 │         //# sourceMappingURL=entry.js.map
       ╵                              ~~~~~~~~~~~~
 
-1 error
 `,
       }),
       test(['src/entry.js', '--bundle', '--outfile=node.js'], {
@@ -2731,7 +2724,6 @@
     1 │ {"extends": "./base.json"}
       ╵             ~~~~~~~~~~~~~
 
-1 error
 `,
       }),
       test(['src/entry.js', '--bundle', '--outfile=node.js'], {
@@ -2743,7 +2735,6 @@
     1 │ {"extends": "foo"}
       ╵             ~~~~~
 
-1 error
 `,
       }),
       test(['src/entry.js', '--bundle', '--outfile=node.js'], {
@@ -2766,7 +2757,6 @@
       expectedStderr: ` > error: Unexpected single quote character before flag (use \\" to ` +
         `escape double quotes): '--define:process.env.NODE_ENV="production"'
 
-1 error
 `,
     }),
   )
@@ -2858,7 +2848,6 @@
     2 │         import "/file.js"
       ╵                ~~~~~~~~~~
 
-1 error
 `,
     }),
   )
@@ -2884,7 +2873,6 @@
     3 │           import y from "./file2.js"
       ╵                         ~~~~~~~~~~~~
 
-2 warnings
 `,
       }),
       test(['in.js', '--bundle', '--outfile=node.js'], {
@@ -2915,7 +2903,6 @@
     3 │           import y from "pkg/file2.js"
       ╵                         ~~~~~~~~~~~~~~
 
-2 warnings
 `,
       }),
 
@@ -2947,7 +2934,7 @@
       // If the test doesn't specify a format, test both formats
       for (const format of formats) {
         const formatArg = `--format=${format}`
-        const modifiedArgs = !hasBundle || args.includes(formatArg) ? args : args.concat(formatArg)
+        const modifiedArgs = (!hasBundle || args.includes(formatArg) ? args : args.concat(formatArg)).concat('--log-level=warning')
         const thisTestDir = path.join(testDir, '' + testCount++)
 
         try {
@@ -3047,7 +3034,7 @@
         // Run whatever check the caller is doing
         await callback(async () => {
           const { stdout } = await execFileAsync(
-            esbuildPath, [inputFile].concat(args), { cwd: thisTestDir, stdio: 'pipe' })
+            esbuildPath, [inputFile, '--log-level=warning'].concat(args), { cwd: thisTestDir, stdio: 'pipe' })
           return stdout
         })
 

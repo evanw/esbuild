@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/evanw/esbuild/internal/cli_helpers"
 	"github.com/evanw/esbuild/internal/fs"
@@ -530,8 +529,6 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *api.TransformOptio
 }
 
 func runImpl(osArgs []string) int {
-	shouldPrintSummary := false
-	start := time.Now()
 	end := 0
 
 	for _, arg := range osArgs {
@@ -542,12 +539,6 @@ func runImpl(osArgs []string) int {
 				return 1
 			}
 			return 0
-		}
-
-		// Filter out the "--summary" flag
-		if arg == "--summary" {
-			shouldPrintSummary = true
-			continue
 		}
 
 		osArgs[end] = arg
@@ -612,11 +603,6 @@ func runImpl(osArgs []string) int {
 			return 1
 		}
 
-		// Print a summary to stderr
-		if shouldPrintSummary {
-			printSummary(osArgs, result.OutputFiles, start)
-		}
-
 	case transformOptions != nil:
 		// Read the input from stdin
 		bytes, err := ioutil.ReadAll(os.Stdin)
@@ -635,55 +621,12 @@ func runImpl(osArgs []string) int {
 		// Write the output to stdout
 		os.Stdout.Write(result.Code)
 
-		// Print a summary to stderr
-		if shouldPrintSummary {
-			printSummary(osArgs, nil, start)
-		}
-
 	case err != nil:
 		logger.PrintErrorToStderr(osArgs, err.Error())
 		return 1
 	}
 
 	return 0
-}
-
-func printSummary(osArgs []string, outputFiles []api.OutputFile, start time.Time) {
-	var table logger.SummaryTable = make([]logger.SummaryTableEntry, len(outputFiles))
-
-	if len(outputFiles) > 0 {
-		if cwd, err := os.Getwd(); err == nil {
-			if realFS, err := fs.RealFS(fs.RealFSOptions{AbsWorkingDir: cwd}); err == nil {
-				for i, file := range outputFiles {
-					path, ok := realFS.Rel(realFS.Cwd(), file.Path)
-					if !ok {
-						path = file.Path
-					}
-					base := realFS.Base(path)
-					n := len(file.Contents)
-					var size string
-					if n < 1024 {
-						size = fmt.Sprintf("%db ", n)
-					} else if n < 1024*1024 {
-						size = fmt.Sprintf("%.1fkb", float64(n)/(1024))
-					} else if n < 1024*1024*1024 {
-						size = fmt.Sprintf("%.1fmb", float64(n)/(1024*1024))
-					} else {
-						size = fmt.Sprintf("%.1fgb", float64(n)/(1024*1024*1024))
-					}
-					table[i] = logger.SummaryTableEntry{
-						Dir:         path[:len(path)-len(base)],
-						Base:        base,
-						Size:        size,
-						Bytes:       n,
-						IsSourceMap: strings.HasSuffix(base, ".map"),
-					}
-				}
-			}
-		}
-	}
-
-	logger.PrintSummary(osArgs, table, start)
 }
 
 func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) {

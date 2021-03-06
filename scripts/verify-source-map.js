@@ -286,8 +286,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
       }
     }
 
-    const files = Object.keys(testCase)
-    const args = ['--sourcemap'].concat(flags)
+    const args = ['--sourcemap', '--log-level=warning'].concat(flags)
     const isStdin = '<stdin>' in testCase
     let stdout = ''
 
