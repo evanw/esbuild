@@ -109,8 +109,6 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let define = getFlag(options, keys, 'define', mustBeObject);
   let pure = getFlag(options, keys, 'pure', mustBeArray);
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
-  let banner = getFlag(options, keys, 'banner', mustBeString);
-  let footer = getFlag(options, keys, 'footer', mustBeString);
 
   if (sourcesContent !== void 0) flags.push(`--sources-content=${sourcesContent}`);
   if (target) {
@@ -137,9 +135,6 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   }
   if (pure) for (let fn of pure) flags.push(`--pure:${fn}`);
   if (keepNames) flags.push(`--keep-names`);
-
-  if (banner) flags.push(`--banner=${banner}`);
-  if (footer) flags.push(`--footer=${footer}`);
 }
 
 function flagsForBuildOptions(
@@ -188,6 +183,8 @@ function flagsForBuildOptions(
   let chunkNames = getFlag(options, keys, 'chunkNames', mustBeString);
   let assetNames = getFlag(options, keys, 'assetNames', mustBeString);
   let inject = getFlag(options, keys, 'inject', mustBeArray);
+  let banner = getFlag(options, keys, 'banner', mustBeObject);
+  let footer = getFlag(options, keys, 'footer', mustBeObject);
   let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
   let absWorkingDir = getFlag(options, keys, 'absWorkingDir', mustBeString);
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
@@ -239,6 +236,18 @@ function flagsForBuildOptions(
     flags.push(`--main-fields=${values.join(',')}`);
   }
   if (external) for (let name of external) flags.push(`--external:${name}`);
+  if (banner) {
+    for (let type in banner) {
+      if (type.indexOf('=') >= 0) throw new Error(`Invalid banner file type: ${type}`);
+      flags.push(`--banner:${type}=${banner[type]}`);
+    }
+  }
+  if (footer) {
+    for (let type in footer) {
+      if (type.indexOf('=') >= 0) throw new Error(`Invalid footer file type: ${type}`);
+      flags.push(`--footer:${type}=${footer[type]}`);
+    }
+  }
   if (inject) for (let path of inject) flags.push(`--inject:${path}`);
   if (loader) {
     for (let ext in loader) {
@@ -311,12 +320,16 @@ function flagsForTransformOptions(
   let tsconfigRaw = getFlag(options, keys, 'tsconfigRaw', mustBeStringOrObject);
   let sourcefile = getFlag(options, keys, 'sourcefile', mustBeString);
   let loader = getFlag(options, keys, 'loader', mustBeString);
+  let banner = getFlag(options, keys, 'banner', mustBeString);
+  let footer = getFlag(options, keys, 'footer', mustBeString);
   checkForInvalidFlags(options, keys, `in ${callName}() call`);
 
   if (sourcemap) flags.push(`--sourcemap=${sourcemap === true ? 'external' : sourcemap}`);
   if (tsconfigRaw) flags.push(`--tsconfig-raw=${typeof tsconfigRaw === 'string' ? tsconfigRaw : JSON.stringify(tsconfigRaw)}`);
   if (sourcefile) flags.push(`--sourcefile=${sourcefile}`);
   if (loader) flags.push(`--loader=${loader}`);
+  if (banner) flags.push(`--banner=${banner}`);
+  if (footer) flags.push(`--footer=${footer}`);
 
   return flags;
 }

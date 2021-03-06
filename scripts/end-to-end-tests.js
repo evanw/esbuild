@@ -2763,13 +2763,13 @@
 
   // Test injecting banner and footer
   tests.push(
-    test(['in.js', '--outfile=node.js', '--banner=const bannerDefined = true;'], {
+    test(['in.js', '--outfile=node.js', '--banner:js=const bannerDefined = true;'], {
       'in.js': `if (!bannerDefined) throw 'fail'`
     }),
-    test(['in.js', '--outfile=node.js', '--footer=function footer() { }'], {
+    test(['in.js', '--outfile=node.js', '--footer:js=function footer() { }'], {
       'in.js': `footer()`
     }),
-    test(['a.js', 'b.js', '--outdir=out', '--bundle', '--format=cjs', '--banner=const bannerDefined = true;', '--footer=function footer() { }'], {
+    test(['a.js', 'b.js', '--outdir=out', '--bundle', '--format=cjs', '--banner:js=const bannerDefined = true;', '--footer:js=function footer() { }'], {
       'a.js': `
         module.exports = { banner: bannerDefined, footer };
       `,

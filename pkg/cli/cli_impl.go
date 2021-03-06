@@ -19,6 +19,8 @@ func newBuildOptions() api.BuildOptions {
 	return api.BuildOptions{
 		Loader: make(map[string]api.Loader),
 		Define: make(map[string]string),
+		Banner: make(map[string]string),
+		Footer: make(map[string]string),
 	}
 }
 
@@ -347,21 +349,27 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.JSXFragment = value
 			}
 
-		case strings.HasPrefix(arg, "--banner="):
-			value := arg[len("--banner="):]
-			if buildOpts != nil {
-				buildOpts.Banner = value
-			} else {
-				transformOpts.Banner = value
-			}
+		case strings.HasPrefix(arg, "--banner=") && transformOpts != nil:
+			transformOpts.Banner = arg[len("--banner="):]
 
-		case strings.HasPrefix(arg, "--footer="):
-			value := arg[len("--footer="):]
-			if buildOpts != nil {
-				buildOpts.Footer = value
-			} else {
-				transformOpts.Footer = value
+		case strings.HasPrefix(arg, "--footer=") && transformOpts != nil:
+			transformOpts.Footer = arg[len("--footer="):]
+
+		case strings.HasPrefix(arg, "--banner:") && buildOpts != nil:
+			value := arg[len("--banner:"):]
+			equals := strings.IndexByte(value, '=')
+			if equals == -1 {
+				return fmt.Errorf("Missing \"=\": %q", value)
 			}
+			buildOpts.Banner[value[:equals]] = value[equals+1:]
+
+		case strings.HasPrefix(arg, "--footer:") && buildOpts != nil:
+			value := arg[len("--footer:"):]
+			equals := strings.IndexByte(value, '=')
+			if equals == -1 {
+				return fmt.Errorf("Missing \"=\": %q", value)
+			}
+			buildOpts.Footer[value[:equals]] = value[equals+1:]
 
 		case strings.HasPrefix(arg, "--error-limit="):
 			value := arg[len("--error-limit="):]

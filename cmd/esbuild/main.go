@@ -45,11 +45,13 @@ var helpText = func(colors logger.Colors) string {
   --watch               Watch mode: rebuild on file system changes
 
 ` + colors.Bold + `Advanced options:` + colors.Default + `
-  --banner=...              Text to be prepended to each output file
+  --banner:T=...            Text to be prepended to each output file of type T
+                            where T is one of: css | js
   --charset=utf8            Do not escape UTF-8 code points
   --color=...               Force use of color terminal escapes (true | false)
   --error-limit=...         Maximum error count or 0 to disable (default 10)
-  --footer=...              Text to be appended to each output file
+  --footer:T=...            Text to be appended to each output file of type T
+                            where T is one of: css | js
   --global-name=...         The name of the global for the IIFE format
   --inject:F                Import the file F into all input files and
                             automatically replace matching globals with imports

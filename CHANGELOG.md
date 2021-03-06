@@ -20,6 +20,41 @@
 
     If you are using esbuild in the browser, you now need to call `esbuild.initialize({ wasmURL })` and wait for the returned promise before calling `esbuild.transform()`. It takes the same options that `esbuild.startService()` used to take. Note that the `esbuild.buildSync()` and `esbuild.transformSync()` APIs still exist when using esbuild in node. Nothing has changed about the synchronous esbuild APIs.
 
+* The banner and footer options are now language-specific ([#712](https://github.com/evanw/esbuild/issues/712))
+
+    The `--banner=` and `--footer=` options now require you to pass the file type:
+
+    * CLI:
+
+        ```
+        esbuild --banner:js=//banner --footer:js=//footer
+        esbuild --banner:css=/*banner*/ --footer:css=/*footer*/
+        ```
+
+    * JavaScript
+
+        ```js
+        esbuild.build({
+          banner: { js: '//banner', css: '/*banner*/' },
+          footer: { js: '//footer', css: '/*footer*/' },
+        })
+        ```
+
+    * Go
+
+        ```go
+        api.Build(api.BuildOptions{
+          Banner: map[string]string{"js": "//banner"},
+          Footer: map[string]string{"js": "//footer"},
+        })
+        api.Build(api.BuildOptions{
+          Banner: map[string]string{"css": "/*banner*/"},
+          Footer: map[string]string{"css": "/*footer*/"},
+        })
+        ```
+
+    This was changed because the feature was originally added in a JavaScript-specific manner, which was an oversight. CSS banners and footers must be separate from JavaScript banners and footers to avoid injecting JavaScript syntax into your CSS files.
+
 ## 0.8.57
 
 * Fix overlapping chunk names when code splitting is active ([#928](https://github.com/evanw/esbuild/issues/928))

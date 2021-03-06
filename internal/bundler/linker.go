@@ -3751,10 +3751,10 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			}
 		}
 
-		if len(c.options.Banner) > 0 {
-			prevOffset.advanceString(c.options.Banner)
+		if len(c.options.JSBanner) > 0 {
+			prevOffset.advanceString(c.options.JSBanner)
 			prevOffset.advanceString("\n")
-			j.AddString(c.options.Banner)
+			j.AddString(c.options.JSBanner)
 			j.AddString("\n")
 		}
 
@@ -3972,8 +3972,8 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			j.AddString("\n")
 		}
 
-		if len(c.options.Footer) > 0 {
-			j.AddString(c.options.Footer)
+		if len(c.options.JSFooter) > 0 {
+			j.AddString(c.options.JSFooter)
 			j.AddString("\n")
 		}
 
@@ -4188,6 +4188,11 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 		j := js_printer.Joiner{}
 		newlineBeforeComment := false
 
+		if len(c.options.CSSBanner) > 0 {
+			j.AddString(c.options.CSSBanner)
+			j.AddString("\n")
+		}
+
 		// Generate any prefix rules now
 		{
 			ast := css_ast.AST{}
@@ -4284,6 +4289,11 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 
 		// Make sure the file ends with a newline
 		if j.Length() > 0 && j.LastByte() != '\n' {
+			j.AddString("\n")
+		}
+
+		if len(c.options.CSSFooter) > 0 {
+			j.AddString(c.options.CSSFooter)
 			j.AddString("\n")
 		}
 

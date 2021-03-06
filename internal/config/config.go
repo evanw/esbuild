@@ -217,8 +217,11 @@ type Options struct {
 	InjectAbsPaths     []string
 	InjectedDefines    []InjectedDefine
 	InjectedFiles      []InjectedFile
-	Banner             string
-	Footer             string
+
+	JSBanner  string
+	JSFooter  string
+	CSSBanner string
+	CSSFooter string
 
 	ChunkPathTemplate []PathTemplate
 	AssetPathTemplate []PathTemplate
