@@ -9027,11 +9027,23 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		p.fnOnlyDataVisit.isThisNested = true
 		p.fnOnlyDataVisit.thisClassStaticRef = nil
 
+		// We need to explicitly assign the name to the property initializer if it
+		// will be transformed such that it is no longer an inline initializer.
+		nameToKeep := ""
+		if isPrivate && p.isPrivateUnsupported(private) {
+			nameToKeep = p.symbols[private.Ref.InnerIndex].OriginalName
+		} else if !property.IsMethod && !property.IsComputed &&
+			((!property.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassField)) ||
+				(property.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassStaticField))) {
+			if str, ok := property.Key.Data.(*js_ast.EString); ok {
+				nameToKeep = js_lexer.UTF16ToString(str.Value)
+			}
+		}
+
 		if property.Value != nil {
-			if isPrivate && p.isPrivateUnsupported(private) {
+			if nameToKeep != "" {
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.Value)
-				*property.Value = p.maybeKeepExprSymbolName(p.visitExpr(*property.Value),
-					p.symbols[private.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+				*property.Value = p.maybeKeepExprSymbolName(p.visitExpr(*property.Value), nameToKeep, wasAnonymousNamedExpr)
 			} else {
 				*property.Value = p.visitExpr(*property.Value)
 			}
@@ -9042,10 +9054,9 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 				// Replace "this" with the class name inside static property initializers
 				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
 			}
-			if isPrivate && p.isPrivateUnsupported(private) {
+			if nameToKeep != "" {
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.Initializer)
-				*property.Initializer = p.maybeKeepExprSymbolName(p.visitExpr(*property.Initializer),
-					p.symbols[private.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+				*property.Initializer = p.maybeKeepExprSymbolName(p.visitExpr(*property.Initializer), nameToKeep, wasAnonymousNamedExpr)
 			} else {
 				*property.Initializer = p.visitExpr(*property.Initializer)
 			}

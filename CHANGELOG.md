@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Fix `--keep-names` for lowered class fields
+
+    Anonymous function expressions used in class field initializers are automatically assigned a `.name` property in JavaScript:
+
+    ```js
+    class Example {
+      field1 = () => {}
+      static field2 = () => {}
+    }
+    assert(new Example().field1.name === 'field1')
+    assert(Example.field2.name === 'field2')
+    ```
+
+    This usually doesn't need special handling from esbuild's `--keep-names` option because esbuild doesn't modify field names, so the `.name` property will not change. However, esbuild will relocate the field initializer if the configured language target doesn't support class fields (e.g. `--target=es6`). In that case the `.name` property wasn't preserved even when `--keep-names` was specified. This bug has been fixed. Now the `.name` property should be preserved in this case as long as you enable `--keep-names`.
+
 ## 0.8.56
 
 * Fix a discrepancy with esbuild's `tsconfig.json` implementation ([#913](https://github.com/evanw/esbuild/issues/913))

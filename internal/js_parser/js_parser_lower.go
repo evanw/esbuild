@@ -1697,7 +1697,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 		// Class fields must be lowered if the environment doesn't support them
 		mustLowerField := !prop.IsMethod &&
-			(!prop.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassField) ||
+			((!prop.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassField)) ||
 				(prop.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassStaticField)))
 
 		// Be conservative and always lower static fields when we're doing TDZ-

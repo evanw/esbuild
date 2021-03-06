@@ -1405,6 +1405,26 @@
       test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
         'in.js': `(() => { let obj = {}; obj['cls'] = class {}; if (obj.cls.name !== '') throw 'fail' })()`,
       }),
+
+      // Methods
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let obj = { foo() {} }; if (obj.foo.name !== 'foo') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let obj = { foo: () => {} }; if (obj.foo.name !== 'foo') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { class Foo { foo() {} }; if (new Foo().foo.name !== 'foo') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { class Foo { static foo() {} }; if (Foo.foo.name !== 'foo') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let Foo = class { foo() {} }; if (new Foo().foo.name !== 'foo') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let Foo = class { static foo() {} }; if (Foo.foo.name !== 'foo') throw 'fail' })()`,
+      }),
     )
   }
   tests.push(
@@ -1454,7 +1474,15 @@
       'in.js': `export default (class {})`,
     }),
 
-    // Lowered classes
+    // Class fields
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { class Foo { foo = () => {} } if (new Foo().foo.name !== 'foo') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { class Foo { static foo = () => {} } if (Foo.foo.name !== 'foo') throw 'fail' })()`,
+    }),
+
+    // Private methods
     test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
       'in.js': `(() => { class foo { a() { return this.#b } #b() {} } if (foo.name !== 'foo') throw 'fail' })()`,
     }),
