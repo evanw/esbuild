@@ -74,16 +74,10 @@ async function tests() {
     result.rebuild.dispose()
   }
 
-  const service = await esbuild.startService();
-  try {
-    await testTransform()
-    await testServe()
-    await testBuild()
-    await testWatch()
-  } catch (error) {
-    service.stop();
-    throw error;
-  }
+  await testTransform()
+  await testServe()
+  await testBuild()
+  await testWatch()
 }
 
 // Called when this is the child process to run the tests.
