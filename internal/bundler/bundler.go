@@ -302,7 +302,10 @@ func parseFile(args parseArgs) {
 	case config.LoaderFile:
 		// Add a hash to the file name to prevent multiple files with the same name
 		// but different contents from colliding
-		hash := hashForFileName([]byte(source.Contents))
+		var hash string
+		if config.HasPlaceholder(args.options.AssetPathTemplate, config.HashPlaceholder) {
+			hash = hashForFileName([]byte(source.Contents))
+		}
 		relPath := config.TemplateToString(config.SubstituteTemplate(args.options.AssetPathTemplate, config.PathPlaceholders{
 			Name: &base,
 			Hash: &hash,

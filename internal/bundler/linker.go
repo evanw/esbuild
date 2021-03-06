@@ -4008,8 +4008,11 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 				sourceMapBaseName := chunk.baseNameOrEmpty
 				sourceMapRelDir := chunk.relDir
 				if sourceMapBaseName == "" {
+					var hash string
 					name := "chunk"
-					hash := hashForFileName(sourceMap)
+					if config.HasPlaceholder(c.options.ChunkPathTemplate, config.HashPlaceholder) {
+						hash = hashForFileName(sourceMap)
+					}
 
 					relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
 						Name: &name,
@@ -4041,8 +4044,11 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 
 		// Figure out the base name for this chunk now that the content hash is known
 		if chunk.baseNameOrEmpty == "" {
+			var hash string
 			name := "chunk"
-			hash := hashForFileName(jsContents)
+			if config.HasPlaceholder(c.options.ChunkPathTemplate, config.HashPlaceholder) {
+				hash = hashForFileName(jsContents)
+			}
 
 			relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
 				Name: &name,
@@ -4283,8 +4289,11 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 
 		// Figure out the base name for this chunk now that the content hash is known
 		if chunk.baseNameOrEmpty == "" {
+			var hash string
 			name := "chunk"
-			hash := hashForFileName(cssContents)
+			if config.HasPlaceholder(c.options.ChunkPathTemplate, config.HashPlaceholder) {
+				hash = hashForFileName(cssContents)
+			}
 
 			relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
 				Name: &name,
