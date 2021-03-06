@@ -654,7 +654,16 @@ func printSummary(logOptions logger.OutputOptions, outputFiles []OutputFile, sta
 		}
 	}
 
-	logger.PrintSummary(logOptions.Color, table, start)
+	// Don't print the time taken by the build if we're running under Yarn 1
+	// since Yarn 1 always prints its own copy of the time taken by each command
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, "npm_config_user_agent=") && strings.Contains(env, "yarn/1.") {
+			logger.PrintSummary(logOptions.Color, table, nil)
+			return
+		}
+	}
+
+	logger.PrintSummary(logOptions.Color, table, &start)
 }
 
 func rebuildImpl(

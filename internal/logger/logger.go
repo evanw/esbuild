@@ -608,7 +608,7 @@ func (t SummaryTable) Less(i int, j int) bool {
 // Show a warning icon next to output files that are 1mb or larger
 const sizeWarningThreshold = 1024 * 1024
 
-func PrintSummary(useColor UseColor, table SummaryTable, start time.Time) {
+func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 	PrintTextWithColor(os.Stderr, useColor, func(colors Colors) string {
 		isProbablyWindowsCommandPrompt := false
 		sb := strings.Builder{}
@@ -675,7 +675,7 @@ func PrintSummary(useColor UseColor, table SummaryTable, start time.Time) {
 			if layoutWidth > maxPath+maxSize {
 				layoutWidth = maxPath + maxSize
 			}
-			sb.WriteString("\n")
+			sb.WriteByte('\n')
 
 			for _, entry := range table {
 				dir, base := entry.Dir, entry.Base
@@ -751,12 +751,17 @@ func PrintSummary(useColor UseColor, table SummaryTable, start time.Time) {
 			lightningSymbol = ""
 		}
 
-		sb.WriteString(fmt.Sprintf("\n%s%sDone in %dms%s\n\n",
-			lightningSymbol,
-			colors.Green,
-			time.Since(start).Milliseconds(),
-			colors.Default,
-		))
+		// Printing the time taken is optional
+		if start != nil {
+			sb.WriteString(fmt.Sprintf("\n%s%sDone in %dms%s\n",
+				lightningSymbol,
+				colors.Green,
+				time.Since(*start).Milliseconds(),
+				colors.Default,
+			))
+		}
+
+		sb.WriteByte('\n')
 		return sb.String()
 	})
 }
