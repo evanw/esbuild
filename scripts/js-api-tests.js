@@ -2457,15 +2457,11 @@ async function futureSyntax(esbuild, js, targetBelow, targetAbove) {
 let transformTests = {
   async transformWithNonString({ esbuild }) {
     try {
-      // Do not "await" here. The error should be thrown outside of the promise.
-      esbuild.transform({ toString() { throw new Error('toString() error') } })
+      await esbuild.transform(Buffer.from(`1+2`))
       throw new Error('Expected an error to be thrown');
     } catch (e) {
-      assert.strictEqual(e.message, 'toString() error')
+      assert.strictEqual(e.errors[0].text, 'The input to "transform" must be a string')
     }
-
-    var { code } = await esbuild.transform(Buffer.from(`1+2`))
-    assert.strictEqual(code, `1 + 2;\n`)
   },
 
   async version({ esbuild }) {
@@ -3368,14 +3364,11 @@ let syncTests = {
 
   async transformSyncWithNonString({ esbuild }) {
     try {
-      esbuild.transformSync({ toString() { throw new Error('toString() error') } })
+      esbuild.transformSync(Buffer.from(`1+2`))
       throw new Error('Expected an error to be thrown');
     } catch (e) {
-      assert.strictEqual(e.message, 'toString() error')
+      assert.strictEqual(e.errors[0].text, 'The input to "transform" must be a string')
     }
-
-    var { code } = await esbuild.transformSync(Buffer.from(`1+2`))
-    assert.strictEqual(code, `1 + 2;\n`)
   },
 
   async transformSync100x({ esbuild }) {

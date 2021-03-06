@@ -13,10 +13,8 @@ export const serve: typeof types.serve = () => {
   throw new Error(`The "serve" API only works in node`);
 };
 
-export const transform: typeof types.transform = (input, options) => {
-  input += '';
-  return ensureServiceIsRunning().transform(input, options);
-};
+export const transform: typeof types.transform = (input, options) =>
+  ensureServiceIsRunning().transform(input, options);
 
 export const buildSync: typeof types.buildSync = () => {
   throw new Error(`The "buildSync" API only works in node`);

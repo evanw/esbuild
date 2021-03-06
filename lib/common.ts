@@ -953,6 +953,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         // that doesn't work.
         let start = (inputPath: string | null) => {
           try {
+            if (typeof input !== 'string') throw new Error('The input to "transform" must be a string');
             let flags = flagsForTransformOptions(callName, options, isTTY, logLevelDefault);
             let request: protocol.TransformRequest = {
               command: 'transform',
@@ -1006,7 +1007,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             });
           }
         };
-        if (input.length > 1024 * 1024) {
+        if (typeof input === 'string' && input.length > 1024 * 1024) {
           let next = start;
           start = () => fs.writeFile(input, next);
         }

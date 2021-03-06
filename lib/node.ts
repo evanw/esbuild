@@ -66,10 +66,8 @@ export let build: typeof types.build = (options: types.BuildOptions): Promise<an
 export let serve: typeof types.serve = (serveOptions, buildOptions) =>
   ensureServiceIsRunning().serve(serveOptions, buildOptions);
 
-export let transform: typeof types.transform = (input, options) => {
-  input += '';
-  return ensureServiceIsRunning().transform(input, options);
-};
+export let transform: typeof types.transform = (input, options) =>
+  ensureServiceIsRunning().transform(input, options);
 
 export let buildSync: typeof types.buildSync = (options: types.BuildOptions): any => {
   let result: types.BuildResult;
@@ -81,7 +79,6 @@ export let buildSync: typeof types.buildSync = (options: types.BuildOptions): an
 };
 
 export let transformSync: typeof types.transformSync = (input, options) => {
-  input += '';
   let result: types.TransformResult;
   runServiceSync(service => service.transform('transformSync', null, input, options || {}, isTTY(), {
     readFile(tempFile, callback) {
@@ -198,7 +195,6 @@ let startRunningService = (): Service => {
         }))
     },
     transform: (input, options) => {
-      input += '';
       return new Promise((resolve, reject) =>
         service.transform('transform', refs, input, options || {}, isTTY(), {
           readFile(tempFile, callback) {
