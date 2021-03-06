@@ -193,11 +193,11 @@ export interface OnResolveArgs {
   importer: string;
   namespace: string;
   resolveDir: string;
-  kind: ResolveKind;
+  kind: ImportKind;
   pluginData: any;
 }
 
-export type ResolveKind =
+export type ImportKind =
   | 'entry-point'
 
   // JS
@@ -257,17 +257,6 @@ export interface PartialNote {
   location?: Partial<Location> | null;
 }
 
-export type MetadataImportKind =
-  // JS
-  | 'import-statement'
-  | 'require-call'
-  | 'dynamic-import'
-  | 'require-resolve'
-
-  // CSS
-  | 'import-rule'
-  | 'url-token'
-
 // This is the type information for the "metafile" JSON format
 export interface Metadata {
   inputs: {
@@ -275,7 +264,7 @@ export interface Metadata {
       bytes: number
       imports: {
         path: string
-        kind: MetadataImportKind
+        kind: ImportKind
       }[]
     }
   }
@@ -289,7 +278,7 @@ export interface Metadata {
       }
       imports: {
         path: string
-        kind: MetadataImportKind
+        kind: ImportKind
       }[]
       exports: string[]
       entryPoint?: string
