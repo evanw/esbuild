@@ -36,7 +36,11 @@ let pluginTests = {
     const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, `export default 123`)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [],
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [],
     })
     const result = require(output)
     assert.strictEqual(result.default, 123)
@@ -47,7 +51,11 @@ let pluginTests = {
     const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, `export default 123`)
     esbuild.buildSync({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [],
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [],
     })
     const result = require(output)
     assert.strictEqual(result.default, 123)
@@ -58,7 +66,9 @@ let pluginTests = {
       // onResolve
       try {
         await esbuild.build({
-          entryPoints: ['invalid.js'], write: false, plugins: [{
+          entryPoints: ['invalid.js'],
+          write: false,
+          plugins: [{
             name: 'name',
             setup(build) {
               build.onResolve({ filter }, () => { })
@@ -73,7 +83,9 @@ let pluginTests = {
       // onLoad
       try {
         await esbuild.build({
-          entryPoints: ['invalid.js'], write: false, plugins: [{
+          entryPoints: ['invalid.js'],
+          write: false,
+          plugins: [{
             name: 'name',
             setup(build) {
               build.onLoad({ filter }, () => { })
@@ -277,7 +289,11 @@ let pluginTests = {
     `)
     await writeFileAsync(custom, ``)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onLoad({ filter: /\.custom$/ }, args => {
@@ -301,7 +317,11 @@ let pluginTests = {
     `)
     await writeFileAsync(custom, `example text`)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /^test$/ }, args => {
@@ -323,7 +343,11 @@ let pluginTests = {
       export default x
     `)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /^fib\((\d+)\)$/ }, args => {
@@ -352,7 +376,11 @@ let pluginTests = {
       export default x
     `)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /^fib\((\d+)\)/ }, args => {
@@ -386,7 +414,11 @@ let pluginTests = {
     `)
     let trace = []
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [
         {
           name: 'plugin1',
           setup(build) {
@@ -437,7 +469,11 @@ let pluginTests = {
     `)
     let trace = []
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [
         {
           name: 'plugin1',
           setup(build) {
@@ -483,7 +519,11 @@ let pluginTests = {
       export default x
     `)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /^http:\/\// }, args => {
@@ -515,7 +555,11 @@ let pluginTests = {
       export default exists
     `)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /^extern$/ }, () => {
@@ -536,7 +580,11 @@ let pluginTests = {
       export default exists
     `)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /^extern$/ }, () => {
@@ -563,7 +611,11 @@ let pluginTests = {
       module.exports = require('fs')
     `)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outdir, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outdir,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /^extern$/ }, () => {
@@ -598,7 +650,11 @@ let pluginTests = {
       export default 123
     `)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onLoad({ filter: /\.custom$/ }, async (args) => {
@@ -629,7 +685,11 @@ let pluginTests = {
       export default 123
     `)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onLoad({ filter: /\.custom$/ }, async (args) => {
@@ -656,7 +716,11 @@ let pluginTests = {
       export default 123
     `)
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           let contents = `export {default} from './loadme'`
@@ -685,7 +749,11 @@ let pluginTests = {
     let error
     try {
       await esbuild.build({
-        entryPoints: [input], bundle: true, outfile: output, format: 'cjs', logLevel: 'silent', plugins: [{
+        entryPoints: [input],
+        bundle: true,
+        outfile: output,
+        format: 'cjs',
+        logLevel: 'silent', plugins: [{
           name: 'name',
           setup(build) {
             let contents = `export {default} from './loadme'`
@@ -721,7 +789,11 @@ let pluginTests = {
       0x00, 0x20, 0x00, 0x20, 0x01, 0x6A, 0x0B,
     ))
     await esbuild.build({
-      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /\.wasm$/ }, args => ({
@@ -744,7 +816,11 @@ let pluginTests = {
   async virtualEntryPoints({ esbuild, testDir }) {
     const result = await esbuild.build({
       entryPoints: ['1', '2', 'a<>:"|?*b', 'a/b/c.d.e'],
-      bundle: true, write: false, outdir: testDir, format: 'esm', plugins: [{
+      bundle: true,
+      write: false,
+      outdir: testDir,
+      format: 'esm',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /.*/ }, args => {
@@ -774,7 +850,10 @@ let pluginTests = {
         contents: `import x from "plugin"; export default x`,
         sourcefile: 'stdin-sourcefile',
       },
-      bundle: true, outfile: output, format: 'cjs', plugins: [{
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /^plugin$/ }, args => {
@@ -802,7 +881,10 @@ let pluginTests = {
         sourcefile: 'stdin-sourcefile',
         resolveDir: testDir,
       },
-      bundle: true, outfile: output, format: 'cjs', plugins: [{
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /^plugin$/ }, args => {
@@ -830,7 +912,10 @@ let pluginTests = {
         sourcefile: path.join(testDir, 'stdin-sourcefile'),
         resolveDir: testDir,
       },
-      bundle: true, outfile: output, format: 'cjs', plugins: [{
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /^plugin$/ }, args => {
@@ -856,7 +941,10 @@ let pluginTests = {
       stdin: {
         contents: `import x from "./stdinRelative.js"; export default x`,
       },
-      bundle: true, outfile: output, format: 'cjs', plugins: [{
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /.*/ }, args => {
@@ -883,7 +971,10 @@ let pluginTests = {
         contents: `import x from "./stdinRelative.js"; export default x`,
         resolveDir: testDir,
       },
-      bundle: true, outfile: output, format: 'cjs', plugins: [{
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /.*/ }, args => {
@@ -929,7 +1020,10 @@ let pluginTests = {
           export default fs.readdirSync(path.dirname(url.fileURLToPath(import.meta.url)))
         `,
       },
-      bundle: true, outfile, format: 'esm', plugins: [
+      bundle: true,
+      outfile,
+      format: 'esm',
+      plugins: [
         externalPlugin(['fs', 'url', 'path'])
       ],
     })
@@ -954,7 +1048,10 @@ let pluginTests = {
       }
       let result = await esbuild.build({
         entryPoints: [problem],
-        bundle: true, write: false, format: 'cjs', plugins: [plugin],
+        bundle: true,
+        write: false,
+        format: 'cjs',
+        plugins: [plugin],
       })
       let value = new Function(result.outputFiles[0].text)()
       assert.deepStrictEqual(value, problem)
@@ -978,7 +1075,10 @@ let pluginTests = {
       }
       let result = await esbuild.build({
         entryPoints: ['entry'],
-        bundle: true, write: false, format: 'cjs', plugins: [plugin],
+        bundle: true,
+        write: false,
+        format: 'cjs',
+        plugins: [plugin],
       })
       let value = new Function(result.outputFiles[0].text)()
       assert.deepStrictEqual(value, problem)

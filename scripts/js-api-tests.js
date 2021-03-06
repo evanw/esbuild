@@ -16,7 +16,10 @@ const rootTestDir = path.join(repoDir, 'scripts', '.js-api-tests')
 let buildTests = {
   async errorIfEntryPointsNotArray({ esbuild }) {
     try {
-      await esbuild.build({ entryPoints: 'this is not an array', logLevel: 'silent' })
+      await esbuild.build({
+        entryPoints: 'this is not an array',
+        logLevel: 'silent',
+      })
       throw new Error('Expected build failure');
     } catch (e) {
       if (!e.errors || !e.errors[0] || e.errors[0].text !== '"entryPoints" must be an array') {
@@ -100,7 +103,12 @@ let buildTests = {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, 'export default 123')
-    const value = await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
+    const value = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+    })
     assert.strictEqual(value.outputFiles, void 0)
     const result = require(output)
     assert.strictEqual(result.default, 123)
@@ -112,7 +120,12 @@ let buildTests = {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'a/b/c/d/out.js')
     await writeFileAsync(input, 'export default 123')
-    await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+    })
     const result = require(output)
     assert.strictEqual(result.default, 123)
     assert.strictEqual(result.__esModule, true)
@@ -122,7 +135,11 @@ let buildTests = {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'in.mjs')
     await writeFileAsync(input, 'console.log("test")')
-    await esbuild.build({ entryPoints: [input], outdir: testDir, outExtension: { '.js': '.mjs' } })
+    await esbuild.build({
+      entryPoints: [input],
+      outdir: testDir,
+      outExtension: { '.js': '.mjs' },
+    })
     const mjs = await readFileAsync(output, 'utf8')
     assert.strictEqual(mjs, 'console.log("test");\n')
   },
@@ -131,7 +148,11 @@ let buildTests = {
     const input = path.join(testDir, 'in.css')
     const output = path.join(testDir, 'in.notcss')
     await writeFileAsync(input, 'body {}')
-    await esbuild.build({ entryPoints: [input], outdir: testDir, outExtension: { '.css': '.notcss' } })
+    await esbuild.build({
+      entryPoints: [input],
+      outdir: testDir,
+      outExtension: { '.css': '.notcss' },
+    })
     const notcss = await readFileAsync(output, 'utf8')
     assert.strictEqual(notcss, 'body {\n}\n')
   },
@@ -141,7 +162,11 @@ let buildTests = {
     const output = path.join(testDir, 'out.js')
     const content = 'exports.foo = 123'
     await writeFileAsync(input, content)
-    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: true })
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: true,
+    })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
     const outputFile = await readFileAsync(output, 'utf8')
@@ -159,7 +184,11 @@ let buildTests = {
     const output = path.join(testDir, 'out.js')
     const content = 'exports.foo = 123'
     await writeFileAsync(input, content)
-    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: 'external' })
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: 'external',
+    })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
     const outputFile = await readFileAsync(output, 'utf8')
@@ -177,7 +206,11 @@ let buildTests = {
     const output = path.join(testDir, 'out.js')
     const content = 'exports.foo = 123'
     await writeFileAsync(input, content)
-    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: 'inline' })
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: 'inline',
+    })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
     const outputFile = await readFileAsync(output, 'utf8')
@@ -193,7 +226,11 @@ let buildTests = {
     const output = path.join(testDir, 'out.js')
     const content = 'exports.foo = 123'
     await writeFileAsync(input, content)
-    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: 'both' })
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: 'both',
+    })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
     const outputFile = await readFileAsync(output, 'utf8')
@@ -211,7 +248,12 @@ let buildTests = {
     const output = path.join(testDir, 'out.js')
     const content = 'exports.foo = 123'
     await writeFileAsync(input, content)
-    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: true, sourcesContent: true })
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: true,
+      sourcesContent: true,
+    })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
     const outputFile = await readFileAsync(output, 'utf8')
@@ -229,7 +271,12 @@ let buildTests = {
     const output = path.join(testDir, 'out.js')
     const content = 'exports.foo = 123'
     await writeFileAsync(input, content)
-    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: true, sourcesContent: false })
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: true,
+      sourcesContent: false,
+    })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
     const outputFile = await readFileAsync(output, 'utf8')
@@ -251,7 +298,12 @@ let buildTests = {
     await writeFileAsync(input, content)
     await writeFileAsync(disabled, 'module.exports = 123')
     await writeFileAsync(packageJSON, `{"browser": {"./disabled.js": false}}`)
-    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: true, bundle: true })
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: true,
+      bundle: true,
+    })
     const result = require(output)
     assert.strictEqual(result.foo, void 0)
     const resultMap = await readFileAsync(output + '.map', 'utf8')
@@ -273,7 +325,12 @@ let buildTests = {
     await writeFileAsync(input, content)
     await writeFileAsync(disabled, 'module.exports = 123')
     await writeFileAsync(packageJSON, `{"browser": {"disabled": false}}`)
-    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: true, bundle: true })
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: true,
+      bundle: true,
+    })
     const result = require(output)
     assert.strictEqual(result.foo, void 0)
     const resultMap = await readFileAsync(output + '.map', 'utf8')
@@ -351,7 +408,13 @@ let buildTests = {
     await writeFileAsync(mainFieldsA, 'export let foo = "a"')
     await writeFileAsync(mainFieldsB, 'export let foo = "b"')
     await writeFileAsync(mainFieldsPackage, '{ "a": "./a.js", "b": "./b.js", "c": "./c.js" }')
-    await esbuild.build({ entryPoints: [input], outfile: output, bundle: true, format: 'cjs', mainFields: ['c', 'b', 'a'] })
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      bundle: true,
+      format: 'cjs',
+      mainFields: ['c', 'b', 'a'],
+    })
     const result = require(output)
     assert.strictEqual(result.foo, 'b')
   },
@@ -362,7 +425,12 @@ let buildTests = {
     const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, `import value from ${JSON.stringify(dependency)}; export default value`)
     await writeFileAsync(dependency, `export default 123`)
-    const value = await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
+    const value = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+    })
     assert.strictEqual(value.outputFiles, void 0)
     const result = require(output)
     assert.strictEqual(result.default, 123)
@@ -1142,7 +1210,14 @@ body {
       export default 'common'
     `)
     const outdir = path.join(testDir, 'out')
-    const value = await esbuild.build({ entryPoints: [inputA, inputB], bundle: true, outdir, format: 'esm', splitting: true, write: false })
+    const value = await esbuild.build({
+      entryPoints: [inputA, inputB],
+      bundle: true,
+      outdir,
+      format: 'esm',
+      splitting: true,
+      write: false,
+    })
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
@@ -1192,7 +1267,14 @@ export {
       export default 'common'
     `)
     const outdir = path.join(testDir, 'out')
-    const value = await esbuild.build({ entryPoints: [inputA, inputB], bundle: true, outdir, format: 'esm', splitting: true, write: false })
+    const value = await esbuild.build({
+      entryPoints: [inputA, inputB],
+      bundle: true,
+      outdir,
+      format: 'esm',
+      splitting: true,
+      write: false,
+    })
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
@@ -1448,7 +1530,13 @@ export {
     await writeFileAsync(forced, 'console.log("success")')
     await writeFileAsync(tsconfigIgnore, '{"compilerOptions": {"baseUrl": "./a", "paths": {"test": ["./ignore.js"]}}}')
     await writeFileAsync(tsconfigForced, '{"compilerOptions": {"baseUrl": "./b", "paths": {"test": ["./test-impl.js"]}}}')
-    await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, tsconfig: tsconfigForced, format: 'esm' })
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      tsconfig: tsconfigForced,
+      format: 'esm',
+    })
     const result = await readFileAsync(output, 'utf8')
     assert.strictEqual(result, `// scripts/.js-api-tests/forceTsConfig/a/b/test-impl.js
 console.log("success");
@@ -1466,7 +1554,13 @@ console.log("success");
     `)
     await writeFileAsync(cjs, 'exports.foo = 123')
     await writeFileAsync(esm, 'export var foo = 123')
-    const value = await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs', target: 'es5' })
+    const value = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      target: 'es5',
+    })
     assert.strictEqual(value.outputFiles, void 0)
     const result = require(output)
     assert.strictEqual(result.foo, 123)
@@ -1486,7 +1580,12 @@ console.log("success");
     await mkdirAsync(path.dirname(c), { recursive: true })
     await writeFileAsync(b, 'module.exports = "b"')
     await writeFileAsync(c, 'module.exports = "c"')
-    await esbuild.build({ entryPoints: [b, c], outdir, outbase, format: 'cjs' })
+    await esbuild.build({
+      entryPoints: [b, c],
+      outdir,
+      outbase,
+      format: 'cjs',
+    })
     const outB = path.join(outdir, path.relative(outbase, b))
     const outC = path.join(outdir, path.relative(outbase, c))
     assert.strictEqual(require(outB), 'b')
@@ -1563,7 +1662,12 @@ console.log("success");
 
   async errorInvalidExternalWithTwoWildcards({ esbuild }) {
     try {
-      await esbuild.build({ entryPoints: ['in.js'], external: ['a*b*c'], write: false, logLevel: 'silent' })
+      await esbuild.build({
+        entryPoints: ['in.js'],
+        external: ['a*b*c'],
+        write: false,
+        logLevel: 'silent',
+      })
       throw new Error('Expected build failure');
     } catch (e) {
       if (e.message !== 'Build failed with 1 error:\nerror: External path "a*b*c" cannot have more than one "*" wildcard') {
@@ -1576,7 +1680,11 @@ console.log("success");
     const input = path.join(testDir, 'in.js')
     const outfile = path.join(testDir, 'out.js')
     await writeFileAsync(input, `if (!bannerDefined) throw 'fail'`)
-    await service.build({ entryPoints: [input], outfile, banner: 'const bannerDefined = true' })
+    await service.build({
+      entryPoints: [input],
+      outfile,
+      banner: 'const bannerDefined = true',
+    })
     require(outfile)
   },
 
@@ -1584,7 +1692,11 @@ console.log("success");
     const input = path.join(testDir, 'in.js')
     const outfile = path.join(testDir, 'out.js')
     await writeFileAsync(input, `footer()`)
-    await service.build({ entryPoints: [input], outfile, footer: 'function footer() {}' })
+    await service.build({
+      entryPoints: [input],
+      outfile,
+      footer: 'function footer() {}',
+    })
     require(outfile)
   },
 
@@ -1594,7 +1706,12 @@ console.log("success");
     const outdir = path.join(testDir, 'out')
     await writeFileAsync(aPath, `module.exports = { banner: bannerDefined, footer };`)
     await writeFileAsync(bPath, `module.exports = { banner: bannerDefined, footer };`)
-    await service.build({ entryPoints: [aPath, bPath], outdir, banner: 'const bannerDefined = true', footer: 'function footer() {}' })
+    await service.build({
+      entryPoints: [aPath, bPath],
+      outdir,
+      banner: 'const bannerDefined = true',
+      footer: 'function footer() {}',
+    })
     const a = require(path.join(outdir, path.basename(aPath)))
     const b = require(path.join(outdir, path.basename(bPath)))
     if (!a.banner || !b.banner) throw 'fail'
@@ -1606,7 +1723,12 @@ console.log("success");
     const input = path.join(testDir, 'in.css')
     const outfile = path.join(testDir, 'out.css')
     await writeFileAsync(input, `div { color: red }`)
-    await service.build({ entryPoints: [input], outfile, banner: '/* banner */', footer: '/* footer */' })
+    await service.build({
+      entryPoints: [input],
+      outfile,
+      banner: '/* banner */',
+      footer: '/* footer */',
+    })
     const code = await readFileAsync(outfile, 'utf8')
     assert.strictEqual(code, `div {\n  color: red;\n}\n`)
   },
@@ -1629,7 +1751,12 @@ console.log("success");
       const input = path.join(testDir, 'in.js')
       const output = path.join(testDir, 'out.js')
       await writeFileAsync(input, `console.log('abc')`)
-      const result1 = await toTest.build({ entryPoints: [input], outfile: output, format: 'esm', incremental: false })
+      const result1 = await toTest.build({
+        entryPoints: [input],
+        outfile: output,
+        format: 'esm',
+        incremental: false,
+      })
       assert.strictEqual(result1.outputFiles, void 0)
       assert.strictEqual(await readFileAsync(output, 'utf8'), `console.log("abc");\n`)
       assert.strictEqual(result1.rebuild, void 0)
@@ -1643,7 +1770,12 @@ console.log("success");
 
       // Build 1
       await writeFileAsync(input, `console.log('abc')`)
-      const result1 = await toTest.build({ entryPoints: [input], outfile: output, format: 'esm', incremental: true })
+      const result1 = await toTest.build({
+        entryPoints: [input],
+        outfile: output,
+        format: 'esm',
+        incremental: true,
+      })
       assert.strictEqual(result1.outputFiles, void 0)
       assert.strictEqual(await readFileAsync(output, 'utf8'), `console.log("abc");\n`)
 
@@ -1682,8 +1814,18 @@ console.log("success");
       // Build 1
       await writeFileAsync(inputA, `console.log('a')`)
       await writeFileAsync(inputB, `console.log('b')`)
-      const resultA1 = await toTest.build({ entryPoints: [inputA], outfile: outputA, format: 'esm', incremental: true })
-      const resultB1 = await toTest.build({ entryPoints: [inputB], outfile: outputB, format: 'esm', incremental: true })
+      const resultA1 = await toTest.build({
+        entryPoints: [inputA],
+        outfile: outputA,
+        format: 'esm',
+        incremental: true,
+      })
+      const resultB1 = await toTest.build({
+        entryPoints: [inputB],
+        outfile: outputB,
+        format: 'esm',
+        incremental: true,
+      })
       assert.notStrictEqual(resultA1.rebuild, resultB1.rebuild)
       assert.strictEqual(resultA1.outputFiles, void 0)
       assert.strictEqual(resultB1.outputFiles, void 0)
@@ -1738,7 +1880,12 @@ console.log("success");
 
       // Build 1
       await writeFileAsync(input, `console.log('abc')`)
-      const result1 = await toTest.build({ entryPoints: [input], outfile: output, format: 'esm', incremental: true })
+      const result1 = await toTest.build({
+        entryPoints: [input],
+        outfile: output,
+        format: 'esm',
+        incremental: true,
+      })
       assert.strictEqual(result1.outputFiles, void 0)
       assert.strictEqual(await readFileAsync(output, 'utf8'), `console.log("abc");\n`)
 
@@ -3349,8 +3496,14 @@ let serialTests = {
           secondService = await esbuild.startService();
 
           await Promise.all([
-            firstService.build({ entryPoints: [path.basename(aFile)], outfile: path.basename(aOut) }),
-            secondService.build({ entryPoints: [path.basename(bFile)], outfile: path.basename(bOut) }),
+            firstService.build({
+              entryPoints: [path.basename(aFile)],
+              outfile: path.basename(aOut),
+            }),
+            secondService.build({
+              entryPoints: [path.basename(bFile)],
+              outfile: path.basename(bOut),
+            }),
           ]);
 
           assert.strictEqual(require(aOut).x, true)
