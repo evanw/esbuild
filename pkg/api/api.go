@@ -277,9 +277,7 @@ type BuildOptions struct {
 }
 
 type WatchMode struct {
-	SpinnerBusy string
-	SpinnerIdle []string
-	OnRebuild   func(BuildResult)
+	OnRebuild func(BuildResult)
 }
 
 type StdinOptions struct {
