@@ -1296,68 +1296,107 @@
   )
 
   // Test name preservation
+  for (let flags of [[], ['--minify', '--keep-names']]) {
+    tests.push(
+      // Arrow functions
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let fn = () => {}; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let fn; fn = () => {}; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let [fn = () => {}] = []; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let fn; [fn = () => {}] = []; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let {fn = () => {}} = {}; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let {prop: fn = () => {}} = {}; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let fn; ({fn = () => {}} = {}); if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let fn; ({prop: fn = () => {}} = {}); if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+
+      // Functions
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { function foo() {} if (foo.name !== 'foo') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let fn = function foo() {}; if (fn.name !== 'foo') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let fn = function() {}; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let fn; fn = function() {}; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let [fn = function() {}] = []; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let fn; [fn = function() {}] = []; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let {fn = function() {}} = {}; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let {prop: fn = function() {}} = {}; if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let fn; ({fn = function() {}} = {}); if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let fn; ({prop: fn = function() {}} = {}); if (fn.name !== 'fn') throw 'fail' })()`,
+      }),
+
+      // Classes
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { class foo {} if (foo.name !== 'foo') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let cls = class foo {}; if (cls.name !== 'foo') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let cls = class {}; if (cls.name !== 'cls') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let cls; cls = class {}; if (cls.name !== 'cls') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let [cls = class {}] = []; if (cls.name !== 'cls') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let cls; [cls = class {}] = []; if (cls.name !== 'cls') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let {cls = class {}} = {}; if (cls.name !== 'cls') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let {prop: cls = class {}} = {}; if (cls.name !== 'cls') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let cls; ({cls = class {}} = {}); if (cls.name !== 'cls') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let cls; ({prop: cls = class {}} = {}); if (cls.name !== 'cls') throw 'fail' })()`,
+      }),
+    )
+  }
   tests.push(
     // Arrow functions
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let fn = () => {}; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let fn; fn = () => {}; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let [fn = () => {}] = []; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let fn; [fn = () => {}] = []; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let {fn = () => {}} = {}; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let {prop: fn = () => {}} = {}; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let fn; ({fn = () => {}} = {}); if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let fn; ({prop: fn = () => {}} = {}); if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
     test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
       'in.js': `import foo from './other'; if (foo.name !== 'default') throw 'fail'`,
       'other.js': `export default () => {}`,
     }),
 
     // Functions
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { function foo() {} if (foo.name !== 'foo') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let fn = function foo() {}; if (fn.name !== 'foo') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let fn = function() {}; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let fn; fn = function() {}; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let [fn = function() {}] = []; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let fn; [fn = function() {}] = []; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let {fn = function() {}} = {}; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let {prop: fn = function() {}} = {}; if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let fn; ({fn = function() {}} = {}); if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let fn; ({prop: fn = function() {}} = {}); if (fn.name !== 'fn') throw 'fail' })()`,
-    }),
     test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
       'in.js': `import foo from './other'; if (foo.name !== 'foo') throw 'fail'`,
       'other.js': `export default function foo() {}`,
@@ -1372,36 +1411,6 @@
     }),
 
     // Classes
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { class foo {} if (foo.name !== 'foo') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let cls = class foo {}; if (cls.name !== 'foo') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let cls = class {}; if (cls.name !== 'cls') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let cls; cls = class {}; if (cls.name !== 'cls') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let [cls = class {}] = []; if (cls.name !== 'cls') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let cls; [cls = class {}] = []; if (cls.name !== 'cls') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let {cls = class {}} = {}; if (cls.name !== 'cls') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let {prop: cls = class {}} = {}; if (cls.name !== 'cls') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let cls; ({cls = class {}} = {}); if (cls.name !== 'cls') throw 'fail' })()`,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
-      'in.js': `(() => { let cls; ({prop: cls = class {}} = {}); if (cls.name !== 'cls') throw 'fail' })()`,
-    }),
     test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
       'in.js': `import foo from './other'; if (foo.name !== 'foo') throw 'fail'`,
       'other.js': `export default class foo {}`,
