@@ -772,7 +772,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       buildOrServe(callName, callerRefs, serveOptions, options, isTTY, defaultWD, callback) {
         let pluginRefs: Refs | undefined;
         const details = createObjectStash();
-        const logLevelDefault = 'info';
+        const logLevelDefault = 'warning';
         const refs = {
           ref() {
             if (pluginRefs) pluginRefs.ref()
