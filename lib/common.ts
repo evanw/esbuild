@@ -69,7 +69,7 @@ function checkForInvalidFlags(object: Object, keys: OptionKeys, where: string): 
   }
 }
 
-export function validateServiceOptions(options: types.ServiceOptions): types.ServiceOptions {
+export function validateInitializeOptions(options: types.InitializeOptions): types.InitializeOptions {
   let keys: OptionKeys = Object.create(null);
   let wasmURL = getFlag(options, keys, 'wasmURL', mustBeString);
   let worker = getFlag(options, keys, 'worker', mustBeBoolean);
@@ -1213,74 +1213,4 @@ function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types
       return text;
     },
   }
-}
-
-// This function serves two purposes:
-//
-//   a) Only create one long-lived service for each unique value of "options".
-//      This is useful because creating a service is expensive and it's
-//      sometimes convenient for multiple independent libraries to create
-//      esbuild services without coordinating with each other. This pooling
-//      optimization makes this use case efficient.
-//
-//   b) Set the default working directory to the value of the current working
-//      directory at the time "startService()" was called. This means each call
-//      to "startService()" can potentially have a different default working
-//      directory.
-//
-//      TODO: This is legacy behavior that originated because "startService()"
-//      used to correspond to creating a new child process. That is no longer
-//      the case because child processes are now pooled. This behavior is
-//      being preserved for compatibility with Snowpack for now. I would like
-//      to remove this strange behavior in a future release now that we have
-//      the "absWorkingDir" API option.
-//
-export function longLivedService(getwd: () => string, startService: typeof types.startService): typeof types.startService {
-  let entries = new Map<string, Promise<types.Service>>();
-  return async (options) => {
-    let cwd = getwd();
-    let optionsJSON = JSON.stringify(options || {});
-    let key = optionsJSON;
-    let entry = entries.get(key);
-
-    if (entry === void 0) {
-      // Store the promise used to create the service so that multiple
-      // concurrent calls to "startService()" will share the same promise.
-      entry = startService(JSON.parse(optionsJSON));
-      entries.set(key, entry);
-    }
-
-    try {
-      let service = await entry;
-      return {
-        build: (options: any = {}): any => {
-          if (cwd) {
-            let absWorkingDir = options.absWorkingDir
-            if (!absWorkingDir) options = { ...options, absWorkingDir: cwd }
-          }
-          return service.build(options);
-        },
-        serve(serveOptions, buildOptions: any = {}) {
-          if (cwd) {
-            let absWorkingDir = buildOptions.absWorkingDir
-            if (!absWorkingDir) buildOptions = { ...buildOptions, absWorkingDir: cwd }
-          }
-          return service.serve(serveOptions, buildOptions);
-        },
-        transform(input, options) {
-          return service.transform(input, options);
-        },
-        stop() {
-          // This is now a no-op
-        },
-      };
-    }
-
-    catch (e) {
-      // Remove the entry if loading fails, which allows
-      // us to try again (only happens in the browser)
-      entries.delete(key);
-      throw e;
-    }
-  };
 }

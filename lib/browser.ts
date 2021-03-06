@@ -6,16 +6,16 @@ declare let WEB_WORKER_SOURCE_CODE: string
 
 export let version = ESBUILD_VERSION;
 
-export const build: typeof types.build = () => {
-  throw new Error(`The "build" API only works in node`);
-};
+export let build: typeof types.build = (options: types.BuildOptions): Promise<any> =>
+  ensureServiceIsRunning().build(options);
 
 export const serve: typeof types.serve = () => {
   throw new Error(`The "serve" API only works in node`);
 };
 
-export const transform: typeof types.transform = () => {
-  throw new Error(`The "transform" API only works in node`);
+export const transform: typeof types.transform = (input, options) => {
+  input += '';
+  return ensureServiceIsRunning().transform(input, options);
 };
 
 export const buildSync: typeof types.buildSync = () => {
@@ -26,13 +26,36 @@ export const transformSync: typeof types.transformSync = () => {
   throw new Error(`The "transformSync" API only works in node`);
 };
 
-export const startService: typeof types.startService = common.longLivedService(() => '', async (options) => {
-  if (!options) throw new Error('Must provide an options object to "startService"');
-  options = common.validateServiceOptions(options)!;
+interface Service {
+  build: typeof types.build;
+  transform: typeof types.transform;
+}
+
+let initializePromise: Promise<void> | undefined;
+let longLivedService: Service | undefined;
+
+let ensureServiceIsRunning = (): Service => {
+  if (longLivedService) return longLivedService;
+  if (initializePromise) throw new Error('You need to wait for the promise returned from "initialize" to be resolved before calling this');
+  throw new Error('You need to call "initialize" before calling this');
+}
+
+export const initialize: typeof types.initialize = options => {
+  options = common.validateInitializeOptions(options || {});
   let wasmURL = options.wasmURL;
   let useWorker = options.worker !== false;
   if (!wasmURL) throw new Error('Must provide the "wasmURL" option');
   wasmURL += '';
+  if (initializePromise) throw new Error('Cannot call "initialize" more than once');
+  initializePromise = startRunningService(wasmURL, useWorker);
+  initializePromise.catch(() => {
+    // Let the caller try again if this fails
+    initializePromise = void 0;
+  });
+  return initializePromise;
+}
+
+const startRunningService = async (wasmURL: string, useWorker: boolean): Promise<void> => {
   let res = await fetch(wasmURL);
   if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
   let wasm = await res.arrayBuffer();
@@ -69,7 +92,7 @@ export const startService: typeof types.startService = common.longLivedService((
   worker.postMessage(wasm)
   worker.onmessage = ({ data }) => readFromStdout(data)
 
-  let { readFromStdout, afterClose, service } = common.createChannel({
+  let { readFromStdout, service } = common.createChannel({
     writeToStdin(bytes) {
       worker.postMessage(bytes)
     },
@@ -77,32 +100,17 @@ export const startService: typeof types.startService = common.longLivedService((
     isBrowser: true,
   })
 
-  return {
+  longLivedService = {
     build: (options: types.BuildOptions): Promise<any> =>
       new Promise<types.BuildResult>((resolve, reject) =>
         service.buildOrServe('build', null, null, options, false, '/', (err, res) =>
           err ? reject(err) : resolve(res as types.BuildResult))),
     transform: (input, options) => {
-      input += '';
       return new Promise((resolve, reject) =>
         service.transform('transform', null, input, options || {}, false, {
           readFile(_, callback) { callback(new Error('Internal error'), null); },
           writeFile(_, callback) { callback(null); },
         }, (err, res) => err ? reject(err) : resolve(res!)))
     },
-    serve() {
-      throw new Error(`The "serve" API only works in node`)
-    },
-    buildSync() {
-      throw new Error(`The "buildSync" API only works in node`);
-    },
-    transformSync() {
-      throw new Error(`The "transformSync" API only works in node`);
-    },
-    stop() {
-      // Note: This is now never called
-      worker.terminate()
-      afterClose()
-    },
   }
-});
+}

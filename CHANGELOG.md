@@ -14,6 +14,12 @@
 
     The summary can be disabled if you don't want it by passing `--log-level=warning` instead. And it can be enabled in the API by setting `logLevel: 'info'`. I'm going to try this because I believe it will improve the UX. People have this problem with esbuild when they first try it where it runs so quickly that they think it must be broken, only to later discover that it actually worked fine. While this is funny, it seems like a good indication that the UX could be improved. So I'm going to try automatically printing a summary to see how that goes. Note that the summary is not printed if incremental builds are active (this includes the watch and serve modes).
 
+* Remove the `esbuild.startService()` API
+
+    Due to [#656](https://github.com/evanw/esbuild/issues/656), Calling `service.stop()` no longer does anything, so there is no longer a strong reason for keeping the `esbuild.startService()` API around. The primary thing it currently does is just make the API more complicated and harder to use. You can now just call `esbuild.build()` and `esbuild.transform()` directly instead of calling `esbuild.startService().then(service => service.build())` or `esbuild.startService().then(service => service.transform())`.
+
+    If you are using esbuild in the browser, you now need to call `esbuild.initialize({ wasmURL })` and wait for the returned promise before calling `esbuild.transform()`. It takes the same options that `esbuild.startService()` used to take. Note that the `esbuild.buildSync()` and `esbuild.transformSync()` APIs still exist when using esbuild in node. Nothing has changed about the synchronous esbuild APIs.
+
 ## 0.8.57
 
 * Fix overlapping chunk names when code splitting is active ([#928](https://github.com/evanw/esbuild/issues/928))

@@ -16,13 +16,11 @@ const tests = {
     import esbuild = require('esbuild')
     esbuild.buildSync({})
     esbuild.build({})
-    esbuild.startService().then(service => service.build({}))
   `,
   emptyBuildImport: `
     import * as esbuild from 'esbuild'
     esbuild.buildSync({})
     esbuild.build({})
-    esbuild.startService().then(service => service.build({}))
   `,
   emptyTransformRequire: `
     export {}
@@ -31,8 +29,6 @@ const tests = {
     esbuild.transformSync('', {})
     esbuild.transform('')
     esbuild.transform('', {})
-    esbuild.startService().then(service => service.transform(''))
-    esbuild.startService().then(service => service.transform('', {}))
   `,
   emptyTransformImport: `
     import * as esbuild from 'esbuild'
@@ -40,14 +36,11 @@ const tests = {
     esbuild.transformSync('', {})
     esbuild.transform('')
     esbuild.transform('', {})
-    esbuild.startService().then(service => service.transform(''))
-    esbuild.startService().then(service => service.transform('', {}))
   `,
   writeFalseOutputFiles: `
     import * as esbuild from 'esbuild'
     esbuild.buildSync({ write: false }).outputFiles[0]
     esbuild.build({ write: false }).then(result => result.outputFiles[0])
-    esbuild.startService().then(service => service.build({ write: false }).then(result => result.outputFiles[0]))
   `,
   incrementalTrueRebuild: `
     import * as esbuild from 'esbuild'
@@ -59,31 +52,12 @@ const tests = {
       })
       result.rebuild.dispose()
     })
-    esbuild.startService().then(service => {
-      service.build({ incremental: true }).then(result => {
-        result.rebuild().then(result => {
-          result.rebuild().then(() => {
-            result.rebuild.dispose()
-          })
-        })
-        result.rebuild.dispose()
-      })
-    })
     async function a() {
       let result = await esbuild.build({ incremental: true })
       let result2 = await result.rebuild()
       await result2.rebuild()
       result2.rebuild.dispose()
       result.rebuild.dispose()
-    }
-    async function b() {
-      let service = await esbuild.startService()
-      let result = await service.build({ incremental: true })
-      let result2 = await result.rebuild()
-      await result2.rebuild()
-      result2.rebuild.dispose()
-      result.rebuild.dispose()
-      service.stop()
     }
   `,
   ifRebuild: `
@@ -101,20 +75,6 @@ const tests = {
         })
       }
     })
-    esbuild.startService().then(service => {
-      service.build(options).then(result => {
-        if (result.rebuild) {
-          result.rebuild().then(result => {
-            if (result.rebuild) {
-              result.rebuild().then(result => {
-                result.rebuild.dispose()
-              })
-            }
-            result.rebuild.dispose()
-          })
-        }
-      })
-    })
     async function a() {
       let result = await esbuild.build(options)
       if (result.rebuild) {
@@ -125,19 +85,6 @@ const tests = {
         }
         result.rebuild.dispose()
       }
-    }
-    async function b() {
-      let service = await esbuild.startService()
-      let result = await service.build(options)
-      if (result.rebuild) {
-        let result2 = await result.rebuild()
-        if (result2.rebuild) {
-          await result2.rebuild()
-          result2.rebuild.dispose()
-        }
-        result.rebuild.dispose()
-      }
-      service.stop()
     }
   `,
   allOptionsTransform: `
