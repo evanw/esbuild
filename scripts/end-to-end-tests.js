@@ -1323,6 +1323,12 @@
       test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
         'in.js': `(() => { let fn; ({prop: fn = () => {}} = {}); if (fn.name !== 'fn') throw 'fail' })()`,
       }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let obj = {}; obj.fn = () => {}; if (obj.fn.name !== '') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let obj = {}; obj['fn'] = () => {}; if (obj.fn.name !== '') throw 'fail' })()`,
+      }),
 
       // Functions
       test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
@@ -1355,6 +1361,12 @@
       test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
         'in.js': `(() => { let fn; ({prop: fn = function() {}} = {}); if (fn.name !== 'fn') throw 'fail' })()`,
       }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let obj = {}; obj.fn = function() {}; if (obj.fn.name !== '') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let obj = {}; obj['fn'] = function() {}; if (obj.fn.name !== '') throw 'fail' })()`,
+      }),
 
       // Classes
       test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
@@ -1386,6 +1398,12 @@
       }),
       test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
         'in.js': `(() => { let cls; ({prop: cls = class {}} = {}); if (cls.name !== 'cls') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let obj = {}; obj.cls = class {}; if (obj.cls.name !== '') throw 'fail' })()`,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `(() => { let obj = {}; obj['cls'] = class {}; if (obj.cls.name !== '') throw 'fail' })()`,
       }),
     )
   }
