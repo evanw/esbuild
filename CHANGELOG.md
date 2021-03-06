@@ -6,6 +6,10 @@
 
     This option is now always enabled and cannot be disabled, so it is being removed from the API. The existing API parameter no longer does anything so this removal has no effect the generated output.
 
+* Remove `SpinnerBusy` and `SpinnerIdle` from the Go API
+
+    These options were part of an experiment with the CLI that didn't work out. Watch mode no longer uses a spinner because it turns out people want to be able to interleave esbuild's stderr pipe with other tools and were getting tripped up by the spinner animation. These options no longer do anything and have been removed.
+
 ## 0.8.57
 
 * Fix overlapping chunk names when code splitting is active ([#928](https://github.com/evanw/esbuild/issues/928))
