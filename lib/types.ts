@@ -24,7 +24,6 @@ interface CommonOptions {
   jsxFragment?: string;
   define?: { [key: string]: string };
   pure?: string[];
-  avoidTDZ?: boolean;
   keepNames?: boolean;
   banner?: string;
   footer?: string;

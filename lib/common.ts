@@ -108,7 +108,6 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
   let define = getFlag(options, keys, 'define', mustBeObject);
   let pure = getFlag(options, keys, 'pure', mustBeArray);
-  let avoidTDZ = getFlag(options, keys, 'avoidTDZ', mustBeBoolean);
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
   let banner = getFlag(options, keys, 'banner', mustBeString);
   let footer = getFlag(options, keys, 'footer', mustBeString);
@@ -137,7 +136,6 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
     }
   }
   if (pure) for (let fn of pure) flags.push(`--pure:${fn}`);
-  if (avoidTDZ) flags.push(`--avoid-tdz`);
   if (keepNames) flags.push(`--keep-names`);
 
   if (banner) flags.push(`--banner=${banner}`);

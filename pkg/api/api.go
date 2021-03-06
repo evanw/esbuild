@@ -239,7 +239,6 @@ type BuildOptions struct {
 
 	Define    map[string]string
 	Pure      []string
-	AvoidTDZ  bool
 	KeepNames bool
 
 	GlobalName        string
@@ -339,7 +338,6 @@ type TransformOptions struct {
 
 	Define    map[string]string
 	Pure      []string
-	AvoidTDZ  bool
 	KeepNames bool
 
 	Sourcefile string
