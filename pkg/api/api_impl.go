@@ -625,8 +625,10 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 	plugins := loadPlugins(realFS, log, buildOpts.Plugins)
 	internalResult := rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, logOptions, log, false /* isRebuild */)
 
-	// Print a summary to stderr
-	if logOptions.LogLevel <= logger.LevelInfo && buildOpts.Watch == nil && !buildOpts.Incremental {
+	// Print a summary of the generated files to stderr. Except don't do
+	// this if the terminal is already being used for something else.
+	if logOptions.LogLevel <= logger.LevelInfo && len(internalResult.result.OutputFiles) > 0 &&
+		buildOpts.Watch == nil && !buildOpts.Incremental && !internalResult.options.WriteToStdout {
 		printSummary(logOptions, internalResult.result.OutputFiles, start)
 	}
 
