@@ -743,6 +743,7 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 				sb.WriteString(fmt.Sprintf("%s%s...and %d more output file%s...%s\n", margin, colors.Dim, length-maxLength, plural, colors.Default))
 			}
 		}
+		sb.WriteByte('\n')
 
 		lightningSymbol := "⚡ "
 
@@ -753,7 +754,7 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 
 		// Printing the time taken is optional
 		if start != nil {
-			sb.WriteString(fmt.Sprintf("\n%s%sDone in %dms%s\n",
+			sb.WriteString(fmt.Sprintf("%s%sDone in %dms%s\n",
 				lightningSymbol,
 				colors.Green,
 				time.Since(*start).Milliseconds(),
@@ -761,7 +762,6 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 			))
 		}
 
-		sb.WriteByte('\n')
 		return sb.String()
 	})
 }
