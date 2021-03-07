@@ -1544,6 +1544,7 @@ const (
 	ExplicitStrictMode
 	ImplicitStrictModeImport
 	ImplicitStrictModeExport
+	ImplicitStrictModeTopLevelAwait
 	ImplicitStrictModeClass
 )
 

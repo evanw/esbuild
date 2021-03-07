@@ -173,6 +173,9 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		case js_ast.ImplicitStrictModeExport:
 			why = "This file is implicitly in strict mode because of the \"export\" keyword"
 			keywordRange = p.es6ExportKeyword
+		case js_ast.ImplicitStrictModeTopLevelAwait:
+			why = "This file is implicitly in strict mode because of the top-level \"await\" keyword"
+			keywordRange = p.topLevelAwaitKeyword
 		case js_ast.ImplicitStrictModeClass:
 			why = "All code inside a class is implicitly in strict mode"
 			keywordRange = p.enclosingClassKeyword

@@ -41,6 +41,7 @@ type parser struct {
 	hasTopLevelReturn        bool
 	latestReturnHadSemicolon bool
 	hasImportMeta            bool
+	hasESModuleSyntax        bool
 	topLevelAwaitKeyword     logger.Range
 	fnOrArrowDataParse       fnOrArrowDataParse
 	fnOrArrowDataVisit       fnOrArrowDataVisit
@@ -5620,6 +5621,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			} else {
 				didGenerateError := p.markSyntaxFeature(compat.ForAwait, awaitRange)
 				if p.fnOrArrowDataParse.isTopLevel && !didGenerateError {
+					p.topLevelAwaitKeyword = awaitRange
 					p.markSyntaxFeature(compat.TopLevelAwait, awaitRange)
 				}
 			}
@@ -9680,7 +9682,7 @@ func (p *parser) valueForThis(loc logger.Loc) (js_ast.Expr, bool) {
 	}
 
 	if p.options.mode != config.ModePassThrough && !p.fnOnlyDataVisit.isThisNested {
-		if p.es6ImportKeyword.Len > 0 || p.es6ExportKeyword.Len > 0 {
+		if p.hasESModuleSyntax {
 			// In an ES6 module, "this" is supposed to be undefined. Instead of
 			// doing this at runtime using "fn.call(undefined)", we do it at
 			// compile time using expression substitution here.
@@ -11265,7 +11267,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// Pessimistically assume that if this looks like a CommonJS module
 					// (no "import" or "export" keywords), a direct call to "eval" means
 					// that code could potentially access "module" or "exports".
-					if p.options.mode == config.ModeBundle && p.es6ImportKeyword.Len == 0 && p.es6ExportKeyword.Len == 0 {
+					if p.options.mode == config.ModeBundle && !p.hasESModuleSyntax {
 						p.recordUsage(p.moduleRef)
 						p.recordUsage(p.exportsRef)
 					}
@@ -12863,6 +12865,7 @@ func (p *parser) validateJSX(span js_ast.Span, name string) []string {
 func (p *parser) prepareForVisitPass() {
 	p.pushScopeForVisitPass(js_ast.ScopeEntry, logger.Loc{Start: locModuleScope})
 	p.moduleScope = p.currentScope
+	p.hasESModuleSyntax = p.es6ImportKeyword.Len > 0 || p.es6ExportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0
 
 	// ECMAScript modules are always interpreted as strict mode. This has to be
 	// done before "hoistSymbols" because strict mode can alter hoisting (!).
@@ -12870,6 +12873,8 @@ func (p *parser) prepareForVisitPass() {
 		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeImport)
 	} else if p.es6ExportKeyword.Len > 0 {
 		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeExport)
+	} else if p.topLevelAwaitKeyword.Len > 0 {
+		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeTopLevelAwait)
 	}
 
 	p.hoistSymbols(p.moduleScope)
@@ -12926,7 +12931,7 @@ func (p *parser) declareCommonJSSymbol(kind js_ast.SymbolKind, name string) js_a
 	// Both the "exports" argument and "var exports" are hoisted variables, so
 	// they don't collide.
 	if ok && p.symbols[member.Ref.InnerIndex].Kind == js_ast.SymbolHoisted &&
-		kind == js_ast.SymbolHoisted && p.es6ImportKeyword.Len == 0 && p.es6ExportKeyword.Len == 0 {
+		kind == js_ast.SymbolHoisted && !p.hasESModuleSyntax {
 		return member.Ref
 	}
 

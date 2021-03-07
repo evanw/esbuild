@@ -359,6 +359,9 @@ func TestStrictMode(t *testing.T) {
 		"<stdin>: note: This file is implicitly in strict mode because of the \"import\" keyword\n"
 	exportKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
 		"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword\n"
+	tlaKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
+		"<stdin>: note: This file is implicitly in strict mode because of the top-level \"await\" keyword\n"
+
 	expectPrinted(t, "import(x); with (y) z", "import(x);\nwith (y)\n  z;\n")
 	expectPrinted(t, "import('x'); with (y) z", "import(\"x\");\nwith (y)\n  z;\n")
 	expectPrinted(t, "with (y) z; import(x)", "with (y)\n  z;\nimport(x);\n")
@@ -367,6 +370,7 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "(import('x')); with (y) z", "import(\"x\");\nwith (y)\n  z;\n")
 	expectPrinted(t, "with (y) z; (import(x))", "with (y)\n  z;\nimport(x);\n")
 	expectPrinted(t, "with (y) z; (import('x'))", "with (y)\n  z;\nimport(\"x\");\n")
+
 	expectParseError(t, "import.meta; with (y) z", importKeyword)
 	expectParseError(t, "with (y) z; import.meta", importKeyword)
 	expectParseError(t, "(import.meta); with (y) z", importKeyword)
@@ -375,10 +379,16 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "import * as x from 'x'; with (y) z", importKeyword)
 	expectParseError(t, "import x from 'x'; with (y) z", importKeyword)
 	expectParseError(t, "import {x} from 'x'; with (y) z", importKeyword)
+
 	expectParseError(t, "export {}; with (y) z", exportKeyword)
 	expectParseError(t, "export let x; with (y) z", exportKeyword)
 	expectParseError(t, "export function x() {} with (y) z", exportKeyword)
 	expectParseError(t, "export class x {} with (y) z", exportKeyword)
+
+	expectParseError(t, "await 0; with (y) z", tlaKeyword)
+	expectParseError(t, "with (y) z; await 0", tlaKeyword)
+	expectParseError(t, "for await (x of y); with (y) z", tlaKeyword)
+	expectParseError(t, "with (y) z; for await (x of y);", tlaKeyword)
 }
 
 func TestExponentiation(t *testing.T) {
@@ -454,10 +464,15 @@ func TestAwait(t *testing.T) {
 	expectPrinted(t, "await x--", "await x--;\n")
 	expectPrinted(t, "await x++", "await x++;\n")
 	expectPrinted(t, "await void x", "await void x;\n")
-	expectPrinted(t, "await delete x", "await delete x;\n")
 	expectPrinted(t, "await typeof x", "await typeof x;\n")
 	expectPrinted(t, "await (x * y)", "await (x * y);\n")
 	expectPrinted(t, "await (x ** y)", "await (x ** y);\n")
+
+	expectParseError(t, "await delete x",
+		`<stdin>: error: Delete of a bare identifier cannot be used in strict mode
+<stdin>: note: This file is implicitly in strict mode because of the top-level "await" keyword
+`)
+	expectPrinted(t, "async function f() { await delete x }", "async function f() {\n  await delete x;\n}\n")
 }
 
 func TestRegExp(t *testing.T) {
