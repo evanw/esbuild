@@ -95,6 +95,10 @@
 
     This is for compatibility with node which [supports this feature natively](https://nodejs.org/docs/latest/api/esm.html#esm_data_imports). Importing from a data URL is sometimes useful for injecting code to be evaluated before an external import without needing to generate a separate imported file.
 
+* Add support for node's `exports` field in `package.json` files
+
+    This feature was recently added to node. It allows you to rewrite what import paths inside your package map to as well as to prevent people from importing certain files in your package. Adding support for this to esbuild is a breaking change (i.e. code that was working fine before can easily stop working) so adding support for it has been delayed until this breaking change release.
+
 ## 0.8.56
 
 * Fix a discrepancy with esbuild's `tsconfig.json` implementation ([#913](https://github.com/evanw/esbuild/issues/913))

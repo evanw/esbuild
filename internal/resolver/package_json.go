@@ -2,7 +2,10 @@ package resolver
 
 import (
 	"fmt"
+	"net/url"
+	"path"
 	"regexp"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -14,6 +17,7 @@ import (
 )
 
 type packageJSON struct {
+	source        logger.Source
 	absMainFields map[string]string
 
 	// Present if the "browser" field is present. This field is intended to be
@@ -57,6 +61,9 @@ type packageJSON struct {
 	sideEffectsMap     map[string]bool
 	sideEffectsRegexps []*regexp.Regexp
 	ignoreIfUnusedData *IgnoreIfUnusedData
+
+	// This represents the "exports" field in this package.json file.
+	exportsMap *peMap
 }
 
 func (r *resolver) parsePackageJSON(path string) *packageJSON {
@@ -101,7 +108,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 		return nil
 	}
 
-	packageJSON := &packageJSON{}
+	packageJSON := &packageJSON{source: jsonSource}
 
 	// Read the "main" fields
 	mainFields := r.options.MainFields
@@ -223,6 +230,14 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 		}
 	}
 
+	// Read the "exports" map
+	if exportsJSON, exportsRange, ok := getProperty(json, "exports"); ok {
+		if exportsMap := parseExportsMap(jsonSource, r.log, exportsJSON); exportsMap != nil {
+			exportsMap.exportsRange = jsonSource.RangeOfString(exportsRange)
+			packageJSON.exportsMap = exportsMap
+		}
+	}
+
 	return packageJSON
 }
 
@@ -252,4 +267,431 @@ func globToEscapedRegexp(glob string) (string, bool) {
 
 	sb.WriteByte('$')
 	return sb.String(), hadWildcard
+}
+
+// Reference: https://nodejs.org/api/esm.html#esm_resolver_algorithm_specification
+type peMap struct {
+	exportsRange logger.Range
+	root         peEntry
+}
+
+type peKind uint8
+
+const (
+	peNull peKind = iota
+	peString
+	peArray
+	peObject
+	peInvalid
+)
+
+type peEntry struct {
+	strData       string
+	arrData       []peEntry
+	mapData       []peMapEntry // Can't be a "map" because order matters
+	expansionKeys expansionKeysArray
+	firstToken    logger.Range
+	kind          peKind
+}
+
+type peMapEntry struct {
+	key      string
+	keyRange logger.Range
+	value    peEntry
+}
+
+// This type is just so we can use Go's native sort function
+type expansionKeysArray []peMapEntry
+
+func (a expansionKeysArray) Len() int          { return len(a) }
+func (a expansionKeysArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a expansionKeysArray) Less(i int, j int) bool {
+	return len(a[i].key) > len(a[j].key)
+}
+
+func (entry peEntry) valueForKey(key string) (peEntry, bool) {
+	for _, item := range entry.mapData {
+		if item.key == key {
+			return item.value, true
+		}
+	}
+	return peEntry{}, false
+}
+
+func parseExportsMap(source logger.Source, log logger.Log, json js_ast.Expr) *peMap {
+	var visit func(expr js_ast.Expr) peEntry
+
+	visit = func(expr js_ast.Expr) peEntry {
+		var firstToken logger.Range
+
+		switch e := expr.Data.(type) {
+		case *js_ast.ENull:
+			return peEntry{
+				kind:       peNull,
+				firstToken: js_lexer.RangeOfIdentifier(source, expr.Loc),
+			}
+
+		case *js_ast.EString:
+			return peEntry{
+				kind:       peString,
+				firstToken: source.RangeOfString(expr.Loc),
+				strData:    js_lexer.UTF16ToString(e.Value),
+			}
+
+		case *js_ast.EArray:
+			arrData := make([]peEntry, len(e.Items))
+			for i, item := range e.Items {
+				arrData[i] = visit(item)
+			}
+			return peEntry{
+				kind:       peArray,
+				firstToken: logger.Range{Loc: expr.Loc, Len: 1},
+				arrData:    arrData,
+			}
+
+		case *js_ast.EObject:
+			mapData := make([]peMapEntry, len(e.Properties))
+			expansionKeys := make(expansionKeysArray, 0, len(e.Properties))
+			firstToken := logger.Range{Loc: expr.Loc, Len: 1}
+			isConditionalSugar := false
+
+			for i, property := range e.Properties {
+				keyStr, _ := property.Key.Data.(*js_ast.EString)
+				key := js_lexer.UTF16ToString(keyStr.Value)
+				keyRange := source.RangeOfString(property.Key.Loc)
+
+				// If exports is an Object with both a key starting with "." and a key
+				// not starting with ".", throw an Invalid Package Configuration error.
+				curIsConditionalSugar := !strings.HasPrefix(key, ".")
+				if i == 0 {
+					isConditionalSugar = curIsConditionalSugar
+				} else if isConditionalSugar != curIsConditionalSugar {
+					prevEntry := mapData[i-1]
+					log.AddRangeWarningWithNotes(&source, keyRange,
+						"This object cannot contain keys that both start with \".\" and don't start with \".\"",
+						[]logger.MsgData{logger.RangeData(&source, prevEntry.keyRange,
+							fmt.Sprintf("The previous key %q is incompatible with the current key %q", prevEntry.key, key))})
+					return peEntry{
+						kind:       peInvalid,
+						firstToken: firstToken,
+					}
+				}
+
+				entry := peMapEntry{
+					key:      key,
+					keyRange: keyRange,
+					value:    visit(*property.Value),
+				}
+
+				if strings.HasSuffix(key, "/") || strings.HasSuffix(key, "*") {
+					expansionKeys = append(expansionKeys, entry)
+				}
+
+				mapData[i] = entry
+			}
+
+			// Let expansionKeys be the list of keys of matchObj ending in "/" or "*",
+			// sorted by length descending.
+			sort.Stable(expansionKeys)
+
+			return peEntry{
+				kind:          peObject,
+				firstToken:    firstToken,
+				mapData:       mapData,
+				expansionKeys: expansionKeys,
+			}
+
+		case *js_ast.EBoolean:
+			firstToken = js_lexer.RangeOfIdentifier(source, expr.Loc)
+
+		case *js_ast.ENumber:
+			firstToken = source.RangeOfNumber(expr.Loc)
+
+		default:
+			firstToken.Loc = expr.Loc
+		}
+
+		log.AddRangeWarning(&source, firstToken, "This value must be a string, an object, an array, or null")
+		return peEntry{
+			kind:       peInvalid,
+			firstToken: firstToken,
+		}
+	}
+
+	root := visit(json)
+
+	if root.kind == peNull {
+		return nil
+	}
+
+	return &peMap{root: root}
+}
+
+func (entry peEntry) keysStartWithDot() bool {
+	return len(entry.mapData) > 0 && strings.HasPrefix(entry.mapData[0].key, ".")
+}
+
+type peStatus uint8
+
+const (
+	peStatusUndefined peStatus = iota
+	peStatusNull
+	peStatusOk
+
+	// Module specifier is an invalid URL, package name or package subpath specifier.
+	peStatusInvalidModuleSpecifier
+
+	// package.json configuration is invalid or contains an invalid configuration.
+	peStatusInvalidPackageConfiguration
+
+	// Package exports or imports define a target module for the package that is an invalid type or string target.
+	peStatusInvalidPackageTarget
+
+	// Package exports do not define or permit a target subpath in the package for the given module.
+	peStatusPackagePathNotExported
+
+	// The package or module requested does not exist.
+	peStatusModuleNotFound
+
+	// The resolved path corresponds to a directory, which is not a supported target for module imports.
+	peStatusUnsupportedDirectoryImport
+)
+
+func esmPackageExportsResolveWithPostConditions(
+	packageURL string,
+	subpath string,
+	exports peEntry,
+	conditions map[string]bool,
+) (string, peStatus, logger.Range) {
+	resolved, status, token := esmPackageExportsResolve(packageURL, subpath, exports, conditions)
+	if status != peStatusOk {
+		return resolved, status, token
+	}
+
+	// If resolved contains any percent encodings of "/" or "\" ("%2f" and "%5C"
+	// respectively), then throw an Invalid Module Specifier error.
+	resolvedPath, err := url.PathUnescape(resolved)
+	if err != nil {
+		return resolved, peStatusInvalidModuleSpecifier, token
+	}
+	if strings.Contains(resolved, "%2f") || strings.Contains(resolved, "%2F") ||
+		strings.Contains(resolved, "%5c") || strings.Contains(resolved, "%5C") {
+		return resolved, peStatusInvalidModuleSpecifier, token
+	}
+
+	// If the file at resolved is a directory, then throw an Unsupported Directory
+	// Import error.
+	if strings.HasSuffix(resolvedPath, "/") || strings.HasSuffix(resolvedPath, "\\") {
+		return resolved, peStatusUnsupportedDirectoryImport, token
+	}
+
+	// Set resolved to the real path of resolved.
+	return resolvedPath, peStatusOk, token
+}
+
+func esmPackageExportsResolve(
+	packageURL string,
+	subpath string,
+	exports peEntry,
+	conditions map[string]bool,
+) (string, peStatus, logger.Range) {
+	if exports.kind == peInvalid {
+		return "", peStatusInvalidPackageConfiguration, exports.firstToken
+	}
+	if subpath == "." {
+		mainExport := peEntry{kind: peNull}
+		if exports.kind == peString || exports.kind == peArray || (exports.kind == peObject && !exports.keysStartWithDot()) {
+			mainExport = exports
+		} else if exports.kind == peObject {
+			if dot, ok := exports.valueForKey("."); ok {
+				mainExport = dot
+			}
+		}
+		if mainExport.kind != peNull {
+			resolved, status, token := esmPackageTargetResolve(packageURL, mainExport, "", false, conditions)
+			if status != peStatusNull && status != peStatusUndefined {
+				return resolved, status, token
+			}
+		}
+	} else if exports.kind == peObject && exports.keysStartWithDot() {
+		resolved, status, token := esmPackageImportsExportsResolve(subpath, exports, packageURL, conditions)
+		if status != peStatusNull && status != peStatusUndefined {
+			return resolved, status, token
+		}
+	}
+	return "", peStatusPackagePathNotExported, exports.firstToken
+}
+
+func esmPackageImportsExportsResolve(
+	matchKey string,
+	matchObj peEntry,
+	packageURL string,
+	conditions map[string]bool,
+) (string, peStatus, logger.Range) {
+	if !strings.HasSuffix(matchKey, "*") {
+		if target, ok := matchObj.valueForKey(matchKey); ok {
+			return esmPackageTargetResolve(packageURL, target, "", false, conditions)
+		}
+	}
+
+	for _, expansion := range matchObj.expansionKeys {
+		// If expansionKey ends in "*" and matchKey starts with but is not equal to
+		// the substring of expansionKey excluding the last "*" character
+		if strings.HasSuffix(expansion.key, "*") {
+			if substr := expansion.key[:len(expansion.key)-1]; strings.HasPrefix(matchKey, substr) && matchKey != substr {
+				target := expansion.value
+				subpath := matchKey[len(expansion.key)-1:]
+				return esmPackageTargetResolve(packageURL, target, subpath, true, conditions)
+			}
+		}
+
+		if strings.HasPrefix(matchKey, expansion.key) {
+			target := expansion.value
+			subpath := matchKey[len(expansion.key):]
+			return esmPackageTargetResolve(packageURL, target, subpath, false, conditions)
+		}
+	}
+
+	return "", peStatusNull, matchObj.firstToken
+}
+
+// If path split on "/" or "\" contains any ".", ".." or "node_modules"
+// segments after the first segment, throw an Invalid Package Target error.
+func hasInvalidSegment(path string) bool {
+	slash := strings.IndexAny(path, "/\\")
+	if slash == -1 {
+		return false
+	}
+	path = path[slash+1:]
+	for path != "" {
+		slash := strings.IndexAny(path, "/\\")
+		segment := path
+		if slash != -1 {
+			segment = path[:slash]
+			path = path[slash+1:]
+		} else {
+			path = ""
+		}
+		if segment == "." || segment == ".." || segment == "node_modules" {
+			return true
+		}
+	}
+	return false
+}
+
+func esmPackageTargetResolve(
+	packageURL string,
+	target peEntry,
+	subpath string,
+	pattern bool,
+	conditions map[string]bool,
+) (string, peStatus, logger.Range) {
+	switch target.kind {
+	case peString:
+		// If pattern is false, subpath has non-zero length and target
+		// does not end with "/", throw an Invalid Module Specifier error.
+		if !pattern && subpath != "" && !strings.HasSuffix(target.strData, "/") {
+			return subpath, peStatusInvalidModuleSpecifier, target.firstToken
+		}
+
+		if !strings.HasPrefix(target.strData, "./") {
+			return target.strData, peStatusInvalidPackageTarget, target.firstToken
+		}
+
+		// If target split on "/" or "\" contains any ".", ".." or "node_modules"
+		// segments after the first segment, throw an Invalid Package Target error.
+		if hasInvalidSegment(target.strData) {
+			return target.strData, peStatusInvalidPackageTarget, target.firstToken
+		}
+
+		// Let resolvedTarget be the URL resolution of the concatenation of packageURL and target.
+		resolvedTarget := path.Join(packageURL, target.strData)
+
+		// If subpath split on "/" or "\" contains any ".", ".." or "node_modules"
+		// segments, throw an Invalid Module Specifier error.
+		if hasInvalidSegment(subpath) {
+			return subpath, peStatusInvalidModuleSpecifier, target.firstToken
+		}
+
+		if pattern {
+			// Return the URL resolution of resolvedTarget with every instance of "*" replaced with subpath.
+			return strings.ReplaceAll(resolvedTarget, "*", subpath), peStatusOk, target.firstToken
+		} else {
+			// Return the URL resolution of the concatenation of subpath and resolvedTarget.
+			return path.Join(resolvedTarget, subpath), peStatusOk, target.firstToken
+		}
+
+	case peObject:
+		for _, p := range target.mapData {
+			if p.key == "default" || conditions[p.key] {
+				targetValue := p.value
+				resolved, status, token := esmPackageTargetResolve(packageURL, targetValue, subpath, pattern, conditions)
+				if status == peStatusUndefined {
+					continue
+				}
+				return resolved, status, token
+			}
+		}
+		return "", peStatusUndefined, target.firstToken
+
+	case peArray:
+		if len(target.arrData) == 0 {
+			return "", peStatusNull, target.firstToken
+		}
+		lastException := peStatusUndefined
+		lastToken := target.firstToken
+		for _, targetValue := range target.arrData {
+			// Let resolved be the result, continuing the loop on any Invalid Package Target error.
+			resolved, status, token := esmPackageTargetResolve(packageURL, targetValue, subpath, pattern, conditions)
+			if status == peStatusInvalidPackageTarget || status == peStatusNull {
+				lastException = status
+				lastToken = token
+				continue
+			}
+			if status == peStatusUndefined {
+				continue
+			}
+			return resolved, status, token
+		}
+
+		// Return or throw the last fallback resolution null return or error.
+		return "", lastException, lastToken
+
+	case peNull:
+		return "", peStatusNull, target.firstToken
+	}
+
+	return "", peStatusInvalidPackageTarget, target.firstToken
+}
+
+func esmParsePackageName(packageSpecifier string) (packageName string, packageSubpath string, ok bool) {
+	if packageSpecifier == "" {
+		return
+	}
+
+	slash := strings.IndexByte(packageSpecifier, '/')
+	if !strings.HasPrefix(packageSpecifier, "@") {
+		if slash == -1 {
+			slash = len(packageSpecifier)
+		}
+		packageName = packageSpecifier[:slash]
+	} else {
+		if slash == -1 {
+			return
+		}
+		slash2 := strings.IndexByte(packageSpecifier[slash+1:], '/')
+		if slash2 == -1 {
+			slash2 = len(packageSpecifier[slash+1:])
+		}
+		packageName = packageSpecifier[:slash]
+	}
+
+	if strings.HasPrefix(packageName, ".") || strings.ContainsAny(packageName, "\\%") {
+		return
+	}
+
+	packageSubpath = "." + packageSpecifier[len(packageName):]
+	ok = true
+	return
 }
