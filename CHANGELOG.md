@@ -55,6 +55,10 @@
 
     This was changed because the feature was originally added in a JavaScript-specific manner, which was an oversight. CSS banners and footers must be separate from JavaScript banners and footers to avoid injecting JavaScript syntax into your CSS files.
 
+* The extensions `.mjs` and `.cjs` are no longer implicit
+
+    Previously the "resolve extensions" setting included `.mjs` and `.cjs` but this is no longer the case. This wasn't a good default because it doesn't match node's behavior and could break some packages. You now have to either explicitly specify these extensions or configure the "resolve extensions" setting yourself.
+
 ## 0.8.57
 
 * Fix overlapping chunk names when code splitting is active ([#928](https://github.com/evanw/esbuild/issues/928))
