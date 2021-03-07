@@ -5,9 +5,11 @@ import (
 	"crypto/sha1"
 	"encoding/base32"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -524,27 +526,14 @@ func extractSourceMapFromComment(
 	comment js_ast.Span,
 	absResolveDir string,
 ) (logger.Path, *string) {
-	// Data URL
+	// Support data URLs
 	if strings.HasPrefix(comment.Text, "data:") {
-		if strings.HasPrefix(comment.Text, "data:application/json;") {
-			// Scan for the base64 part to support URLs like "data:application/json;charset=utf-8;base64,"
-			if index := strings.Index(comment.Text, ";base64,"); index != -1 {
-				n := int32(index + len(";base64,"))
-				encoded := comment.Text[n:]
-				decoded, err := base64.StdEncoding.DecodeString(encoded)
-				if err != nil {
-					r := logger.Range{Loc: logger.Loc{Start: comment.Range.Loc.Start + n}, Len: comment.Range.Len - n}
-					log.AddRangeWarning(source, r, "Invalid base64 data in source map")
-					return logger.Path{}, nil
-				}
-				contents := string(decoded)
-				return logger.Path{Text: source.PrettyPath + ".sourceMappingURL"}, &contents
-			}
+		if contents, err := dataFromDataURL(comment.Text); err == nil {
+			return logger.Path{Text: source.PrettyPath, IgnoredSuffix: "#sourceMappingURL"}, &contents
+		} else {
+			log.AddRangeWarning(source, comment.Range, fmt.Sprintf("Unsupported source map comment: %s", err.Error()))
+			return logger.Path{}, nil
 		}
-
-		// Anything else is unsupported
-		log.AddRangeWarning(source, comment.Range, "Unsupported source map comment")
-		return logger.Path{}, nil
 	}
 
 	// Relative path in a file with an absolute path
@@ -566,6 +555,32 @@ func extractSourceMapFromComment(
 	// Anything else is unsupported
 	log.AddRangeWarning(source, comment.Range, "Unsupported source map comment")
 	return logger.Path{}, nil
+}
+
+func dataFromDataURL(dataURL string) (string, error) {
+	if strings.HasPrefix(dataURL, "data:") {
+		if comma := strings.IndexByte(dataURL, ','); comma != -1 {
+			b64 := ";base64,"
+
+			// Try to read base64 data
+			if pos := comma - len(b64) + 1; pos >= 0 && dataURL[pos:pos+len(b64)] == b64 {
+				bytes, err := base64.StdEncoding.DecodeString(dataURL[comma+1:])
+				if err != nil {
+					return "", fmt.Errorf("Could not decode base64 data: %s", err.Error())
+				}
+				return string(bytes), nil
+			}
+
+			// Try to read percent-escaped data
+			content, err := url.QueryUnescape(dataURL[comma+1:])
+			if err != nil {
+				return "", fmt.Errorf("Could not decode percent-escaped data: %s", err.Error())
+			}
+			return content, nil
+		}
+	}
+
+	return "", errors.New("Invalid data URL")
 }
 
 func sanetizeLocation(res resolver.Resolver, loc *logger.MsgLocation) {

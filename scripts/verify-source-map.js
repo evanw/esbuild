@@ -225,6 +225,21 @@ console.log("entry");
 `,
 }
 
+const testCasePartialMappingsPercentEscape = {
+  // The "mappings" value is "A,Q,I;A,Q,I;A,Q,I;AAMA,QAAQ,IAAI;" which contains
+  // partial mappings without original locations. This used to throw things off.
+  'entry.js': `console.log(1);
+console.log(2);
+console.log(3);
+console.log("entry");
+//# sourceMappingURL=data:,%7B%22version%22%3A3%2C%22sources%22%3A%5B%22entr` +
+    `y.js%22%5D%2C%22sourcesContent%22%3A%5B%22console.log(1)%5Cn%5Cnconsole` +
+    `.log(2)%5Cn%5Cnconsole.log(3)%5Cn%5Cnconsole.log(%5C%22entry%5C%22)%5Cn` +
+    `%22%5D%2C%22mappings%22%3A%22A%2CQ%2CI%3BA%2CQ%2CI%3BA%2CQ%2CI%3BAAMA%2` +
+    `CQAAQ%2CIAAI%3B%22%2C%22names%22%3A%5B%5D%7D
+`,
+}
+
 const toSearchPartialMappings = {
   entry: 'entry.js',
 }
@@ -441,6 +456,11 @@ async function main() {
           crlf,
         }),
         check('dummy' + suffix, testCasePartialMappings, toSearchPartialMappings, {
+          flags: flags.concat('--outfile=out.js', '--bundle'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
+        check('dummy' + suffix, testCasePartialMappingsPercentEscape, toSearchPartialMappings, {
           flags: flags.concat('--outfile=out.js', '--bundle'),
           entryPoints: ['entry.js'],
           crlf,
