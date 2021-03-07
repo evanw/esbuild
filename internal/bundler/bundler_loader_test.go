@@ -523,6 +523,22 @@ func TestLoaderDataURLTextJavaScriptCannotImport(t *testing.T) {
 	})
 }
 
+// The "+" character must not be interpreted as a " " character
+func TestLoaderDataURLTextJavaScriptPlusCharacter(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "data:text/javascript,console.log(1+2)";
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
 func TestLoaderDataURLApplicationJSON(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

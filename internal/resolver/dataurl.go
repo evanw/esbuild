@@ -68,7 +68,7 @@ func (parsed DataURL) DecodeData() (string, error) {
 	}
 
 	// Try to read percent-escaped data
-	content, err := url.QueryUnescape(parsed.data)
+	content, err := url.PathUnescape(parsed.data)
 	if err != nil {
 		return "", fmt.Errorf("Could not decode percent-escaped data: %s", err.Error())
 	}

@@ -1295,6 +1295,12 @@ console.log(123);
 console.log(234);
 
 ================================================================================
+TestLoaderDataURLTextJavaScriptPlusCharacter
+---------- /out/entry.js ----------
+// <data:text/javascript,console.log(1+2)>
+console.log(1 + 2);
+
+================================================================================
 TestLoaderDataURLUnknownMIME
 ---------- /out/entry.js ----------
 // entry.js
