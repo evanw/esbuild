@@ -74,7 +74,7 @@ var helpText = func(colors logger.Colors) string {
   --public-path=...         Set the base URL for the "file" loader
   --pure:N                  Mark the name N as a pure function for tree shaking
   --resolve-extensions=...  A comma-separated list of implicit extensions
-                            (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.css,.json")
+                            (default ".tsx,.ts,.jsx,.js,.css,.json")
   --servedir=...            What to serve in addition to generated output files
   --sourcefile=...          Set the source file for the source map (for stdin)
   --sourcemap=external      Do not link to the source map with a comment

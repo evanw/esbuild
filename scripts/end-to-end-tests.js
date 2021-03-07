@@ -152,7 +152,7 @@
       }, { cwd: 'c' }),
 
       // This is a test for https://github.com/evanw/esbuild/issues/766
-      test(['--bundle', 'impl/index.mjs', '--outfile=node.js', '--format=cjs'], {
+      test(['--bundle', 'impl/index.mjs', '--outfile=node.js', '--format=cjs', '--resolve-extensions=.mjs'], {
         'config/yarn/link/@monorepo-source/a': { symlink: `../../../../monorepo-source/packages/a` },
         'config/yarn/link/@monorepo-source/b': { symlink: `../../../../monorepo-source/packages/b` },
         'impl/node_modules/@monorepo-source/b': { symlink: `../../../config/yarn/link/@monorepo-source/b` },
