@@ -110,7 +110,7 @@ type ResolveResult struct {
 }
 
 type Resolver interface {
-	Resolve(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult
+	Resolve(sourceDir string, importPath string, kind ast.ImportKind) (result *ResolveResult, notes []logger.MsgData)
 	ResolveAbs(absPath string) *ResolveResult
 	PrettyPath(path logger.Path) string
 
@@ -198,7 +198,7 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 	}
 }
 
-func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
+func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) (*ResolveResult, []logger.MsgData) {
 	// Certain types of URLs default to being external for convenience
 	if r.isExternalPattern(importPath) ||
 
@@ -217,7 +217,7 @@ func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportK
 		return &ResolveResult{
 			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
 			IsExternal: true,
-		}
+		}, nil
 	}
 
 	if parsed, ok := ParseDataURL(importPath); ok {
@@ -226,45 +226,47 @@ func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportK
 		if parsed.DecodeMIMEType() != MIMETypeUnsupported {
 			return &ResolveResult{
 				PathPair: PathPair{Primary: logger.Path{Text: importPath, Namespace: "dataurl"}},
-			}
+			}, nil
 		}
 
 		// "background: url(data:image/png;base64,iVBORw0KGgo=);"
 		return &ResolveResult{
 			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
 			IsExternal: true,
-		}
+		}, nil
 	}
 
 	// Fail now if there is no directory to resolve in. This can happen for
 	// virtual modules (e.g. stdin) if a resolve directory is not specified.
 	if sourceDir == "" {
-		return nil
+		return nil, nil
 	}
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	result := r.resolveWithoutSymlinks(sourceDir, importPath, kind)
+	result, notes := r.resolveWithoutSymlinks(sourceDir, importPath, kind)
 	if result == nil {
 		// If resolution failed, try again with the URL query and/or hash removed
 		suffix := strings.IndexAny(importPath, "?#")
 		if suffix < 1 {
-			return nil
+			return nil, notes
 		}
-		result = r.resolveWithoutSymlinks(sourceDir, importPath[:suffix], kind)
-		if result == nil {
-			return nil
-		}
-		result.PathPair.Primary.IgnoredSuffix = importPath[suffix:]
-		if result.PathPair.HasSecondary() {
-			result.PathPair.Secondary.IgnoredSuffix = importPath[suffix:]
+		if result2, notes2 := r.resolveWithoutSymlinks(sourceDir, importPath[:suffix], kind); result2 == nil {
+			return nil, notes
+		} else {
+			result = result2
+			notes = notes2
+			result.PathPair.Primary.IgnoredSuffix = importPath[suffix:]
+			if result.PathPair.HasSecondary() {
+				result.PathPair.Secondary.IgnoredSuffix = importPath[suffix:]
+			}
 		}
 	}
 
 	// If successful, resolve symlinks using the directory info cache
 	r.finalizeResolve(result)
-	return result
+	return result, notes
 }
 
 func (r *resolver) isExternalPattern(path string) bool {
@@ -386,7 +388,7 @@ func (r *resolver) finalizeResolve(result *ResolveResult) {
 	}
 }
 
-func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
+func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, kind ast.ImportKind) (*ResolveResult, []logger.MsgData) {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
 	var result ResolveResult
@@ -404,7 +406,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 		// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
 		if dirInfo := r.dirInfoCached(sourceDir); dirInfo != nil && dirInfo.tsConfigJSON != nil && dirInfo.tsConfigJSON.Paths != nil {
 			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.tsConfigJSON, importPath, kind); ok {
-				return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
+				return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}, nil
 			}
 		}
 
@@ -413,14 +415,14 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			// been marked as an external module, mark it as *not* an absolute path.
 			// That way we preserve the literal text in the output and don't generate
 			// a relative path from the output directory to that path.
-			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}
+			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}, nil
 		}
 
 		// Run node's resolution rules (e.g. adding ".js")
 		if absolute, ok, diffCase := r.loadAsFileOrDirectory(importPath, kind); ok {
-			return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
+			return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}, nil
 		}
-		return nil
+		return nil, nil
 	}
 
 	// Check both relative and package paths for CSS URL tokens, with relative
@@ -434,7 +436,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 
 		// Check for external packages first
 		if r.options.ExternalModules.AbsPaths != nil && r.options.ExternalModules.AbsPaths[absPath] {
-			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}, IsExternal: true}
+			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}, IsExternal: true}, nil
 		}
 
 		// Check the non-package "browser" map for the first time (1 out of 2)
@@ -443,8 +445,8 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			if packageJSON := importDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserNonPackageMap != nil {
 				if remapped, ok := packageJSON.browserNonPackageMap[absPath]; ok {
 					if remapped == nil {
-						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}
-					} else if remappedResult, ok, diffCase := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}, nil
+					} else if remappedResult, ok, diffCase, _ := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
 						result = ResolveResult{PathPair: remappedResult, DifferentCase: diffCase}
 						checkRelative = false
 						checkPackage = false
@@ -458,7 +460,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 				checkPackage = false
 				result = ResolveResult{PathPair: absolute, DifferentCase: diffCase}
 			} else if !checkPackage {
-				return nil
+				return nil, nil
 			}
 		}
 	}
@@ -469,7 +471,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			query := importPath
 			for {
 				if r.options.ExternalModules.NodeModules[query] {
-					return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}
+					return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}, nil
 				}
 
 				// If the module "foo" has been marked as external, we also want to treat
@@ -485,7 +487,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 		sourceDirInfo := r.dirInfoCached(sourceDir)
 		if sourceDirInfo == nil {
 			// Bail if the directory is missing for some reason
-			return nil
+			return nil, nil
 		}
 
 		// Support remapping one package path to another via the "browser" field
@@ -495,14 +497,14 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 				if remapped, ok := packageJSON.browserPackageMap[importPath]; ok {
 					if remapped == nil {
 						// "browser": {"module": false}
-						if absolute, ok, diffCase := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
+						if absolute, ok, diffCase, _ := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
 							absolute.Primary = logger.Path{Text: absolute.Primary.Text, Namespace: "file", Flags: logger.PathDisabled}
 							if absolute.HasSecondary() {
 								absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Namespace: "file", Flags: logger.PathDisabled}
 							}
-							return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
+							return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}, nil
 						} else {
-							return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Flags: logger.PathDisabled}}, DifferentCase: diffCase}
+							return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Flags: logger.PathDisabled}}, DifferentCase: diffCase}, nil
 						}
 					} else {
 						// "browser": {"module": "./some-file"}
@@ -514,11 +516,11 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			}
 		}
 
-		if absolute, ok, diffCase := r.resolveWithoutRemapping(sourceDirInfo, importPath, kind); ok {
+		if absolute, ok, diffCase, notes := r.resolveWithoutRemapping(sourceDirInfo, importPath, kind); ok {
 			result = ResolveResult{PathPair: absolute, DifferentCase: diffCase}
 		} else {
 			// Note: node's "self references" are not currently supported
-			return nil
+			return nil, notes
 		}
 	}
 
@@ -534,24 +536,25 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 				if remapped, ok := packageJSON.browserNonPackageMap[path.Text]; ok {
 					if remapped == nil {
 						path.Flags |= logger.PathDisabled
-					} else if remappedResult, ok, _ := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+					} else if remappedResult, ok, _, _ := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
 						*path = remappedResult.Primary
 					} else {
-						return nil
+						return nil, nil
 					}
 				}
 			}
 		}
 	}
 
-	return &result
+	return &result, nil
 }
 
-func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase) {
+func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase, []logger.MsgData) {
 	if IsPackagePath(importPath) {
 		return r.loadNodeModules(importPath, kind, sourceDirInfo)
 	} else {
-		return r.loadAsFileOrDirectory(r.fs.Join(sourceDirInfo.absPath, importPath), kind)
+		pair, ok, diffCase := r.loadAsFileOrDirectory(r.fs.Join(sourceDirInfo.absPath, importPath), kind)
+		return pair, ok, diffCase, nil
 	}
 }
 
@@ -1105,13 +1108,13 @@ func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, k
 	return PathPair{}, false, nil
 }
 
-func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool, *fs.DifferentCase) {
+func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool, *fs.DifferentCase, []logger.MsgData) {
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
 	if dirInfo.tsConfigJSON != nil {
 		// Try path substitutions first
 		if dirInfo.tsConfigJSON.Paths != nil {
 			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.tsConfigJSON, path, kind); ok {
-				return absolute, true, diffCase
+				return absolute, true, diffCase, nil
 			}
 		}
 
@@ -1119,7 +1122,7 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 		if dirInfo.tsConfigJSON.BaseURL != nil {
 			basePath := r.fs.Join(*dirInfo.tsConfigJSON.BaseURL, path)
 			if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath, kind); ok {
-				return absolute, true, diffCase
+				return absolute, true, diffCase, nil
 			}
 		}
 	}
@@ -1128,9 +1131,11 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 	for _, absDir := range r.options.AbsNodePaths {
 		absPath := r.fs.Join(absDir, path)
 		if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath, kind); ok {
-			return absolute, true, diffCase
+			return absolute, true, diffCase, nil
 		}
 	}
+
+	esmPackageName, esmPackageSubpath, esmOK := esmParsePackageName(path)
 
 	// Then check for the package in any enclosing "node_modules" directories
 	for {
@@ -1139,22 +1144,93 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 		if dirInfo.hasNodeModules {
 			absPath := r.fs.Join(dirInfo.absPath, "node_modules", path)
 
+			// Check for an "exports" map in the package's package.json folder
+			if esmOK {
+				absPkgPath := r.fs.Join(dirInfo.absPath, "node_modules", esmPackageName)
+				if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil {
+					if pkgJSON := pkgDirInfo.packageJSON; pkgJSON != nil && pkgJSON.exportsMap != nil {
+						// Resolve against the path "/", then join it with the absolute
+						// directory path. This is done because ESM package resolution uses
+						// URLs while our path resolution uses file system paths. We don't
+						// want problems due to Windows paths, which are very unlike URL
+						// paths. We also want to avoid any "%" characters in the absolute
+						// directory path accidentally being interpreted as URL escapes.
+						resolvedPath, status, token := esmPackageExportsResolveWithPostConditions("/", esmPackageSubpath, pkgJSON.exportsMap.root, nil)
+						if status == peStatusOk && strings.HasPrefix(resolvedPath, "/") {
+							absResolvedPath := r.fs.Join(absPkgPath, resolvedPath[1:])
+							resolvedDirInfo := r.dirInfoCached(r.fs.Dir(absResolvedPath))
+							if resolvedDirInfo == nil {
+								status = peStatusModuleNotFound
+							} else if entry, diffCase := resolvedDirInfo.entries.Get(r.fs.Base(absResolvedPath)); entry == nil {
+								status = peStatusModuleNotFound
+							} else if kind := entry.Kind(r.fs); kind == fs.DirEntry {
+								status = peStatusUnsupportedDirectoryImport
+							} else if kind != fs.FileEntry {
+								status = peStatusModuleNotFound
+							} else {
+								return PathPair{Primary: logger.Path{Text: absResolvedPath, Namespace: "file"}}, true, diffCase, nil
+							}
+						}
+
+						var notes []logger.MsgData
+						if strings.HasPrefix(resolvedPath, "/") {
+							resolvedPath = "." + resolvedPath
+						}
+
+						// Provide additional details about the failure to help with debugging
+						switch status {
+						case peStatusInvalidModuleSpecifier:
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+								fmt.Sprintf("The module specifier %q is invalid", resolvedPath))}
+
+						case peStatusInvalidPackageConfiguration:
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+								"The package configuration has an invalid value here")}
+
+						case peStatusInvalidPackageTarget:
+							why := fmt.Sprintf("The package target %q is invalid", resolvedPath)
+							if resolvedPath == "" {
+								// "PACKAGE_TARGET_RESOLVE" is specified to throw an "Invalid
+								// Package Target" error for what is actually an invalid package
+								// configuration error
+								why = "The package configuration has an invalid value here"
+							}
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token, why)}
+
+						case peStatusPackagePathNotExported:
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+								fmt.Sprintf("The path %q is not exported by %q", esmPackageSubpath, esmPackageName))}
+
+						case peStatusModuleNotFound:
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+								fmt.Sprintf("The module %q was not found", resolvedPath))}
+
+						case peStatusUnsupportedDirectoryImport:
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+								fmt.Sprintf("Importing the directory %q is not supported", resolvedPath))}
+						}
+
+						return PathPair{}, false, nil, notes
+					}
+				}
+			}
+
 			// Check the non-package "browser" map for the first time (1 out of 2)
 			importDirInfo := r.dirInfoCached(r.fs.Dir(absPath))
 			if importDirInfo != nil && importDirInfo.enclosingBrowserScope != nil {
 				if packageJSON := importDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserNonPackageMap != nil {
 					if remapped, ok := packageJSON.browserNonPackageMap[absPath]; ok {
 						if remapped == nil {
-							return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil
-						} else if remappedResult, ok, diffCase := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-							return remappedResult, true, diffCase
+							return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil, nil
+						} else if remappedResult, ok, diffCase, notes := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+							return remappedResult, true, diffCase, notes
 						}
 					}
 				}
 			}
 
 			if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath, kind); ok {
-				return absolute, true, diffCase
+				return absolute, true, diffCase, nil
 			}
 		}
 
@@ -1165,7 +1241,7 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 		}
 	}
 
-	return PathPair{}, false, nil
+	return PathPair{}, false, nil, nil
 }
 
 // Package paths are loaded from a "node_modules" directory. Non-package paths

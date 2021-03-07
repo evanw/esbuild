@@ -421,7 +421,7 @@ func parseFile(args parseArgs) {
 				}
 
 				// Run the resolver and log an error if the path couldn't be resolved
-				resolveResult, didLogError := runOnResolvePlugins(
+				resolveResult, didLogError, notes := runOnResolvePlugins(
 					args.options.Plugins,
 					args.res,
 					args.log,
@@ -468,8 +468,8 @@ func parseFile(args parseArgs) {
 						if absResolveDir == "" && pluginName != "" {
 							hint = fmt.Sprintf(" (the plugin %q didn't set a resolve directory)", pluginName)
 						}
-						args.log.AddRangeError(&source, record.Range,
-							fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint))
+						args.log.AddRangeErrorWithNotes(&source, record.Range,
+							fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint), notes)
 					}
 					continue
 				}
@@ -637,7 +637,7 @@ func runOnResolvePlugins(
 	kind ast.ImportKind,
 	absResolveDir string,
 	pluginData interface{},
-) (*resolver.ResolveResult, bool) {
+) (*resolver.ResolveResult, bool, []logger.MsgData) {
 	resolverArgs := config.OnResolveArgs{
 		Path:       path,
 		ResolveDir: absResolveDir,
@@ -666,7 +666,7 @@ func runOnResolvePlugins(
 
 			// Stop now if there was an error
 			if didLogError {
-				return nil, true
+				return nil, true, nil
 			}
 
 			// The "file" namespace is the default for non-external paths, but not
@@ -695,21 +695,21 @@ func runOnResolvePlugins(
 					log.AddRangeError(importSource, importPathRange,
 						fmt.Sprintf("Plugin %q returned a non-absolute path: %s (set a namespace if this is not a file path)", pluginName, result.Path.Text))
 				}
-				return nil, true
+				return nil, true, nil
 			}
 
 			return &resolver.ResolveResult{
 				PathPair:   resolver.PathPair{Primary: result.Path},
 				IsExternal: result.External,
 				PluginData: result.PluginData,
-			}, false
+			}, false, nil
 		}
 	}
 
 	// Resolve relative to the resolve directory by default. All paths in the
 	// "file" namespace automatically have a resolve directory. Loader plugins
 	// can also configure a custom resolve directory for files in other namespaces.
-	result := res.Resolve(absResolveDir, path, kind)
+	result, notes := res.Resolve(absResolveDir, path, kind)
 
 	// Warn when the case used for importing differs from the actual file name
 	if result != nil && result.DifferentCase != nil && !resolver.IsInsideNodeModules(absResolveDir) {
@@ -721,7 +721,7 @@ func runOnResolvePlugins(
 		))
 	}
 
-	return result, false
+	return result, false, notes
 }
 
 type loaderPluginResult struct {
@@ -1187,7 +1187,7 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 	for i, path := range entryPoints {
 		go func(i int, path string) {
 			// Run the resolver and log an error if the path couldn't be resolved
-			resolveResult, didLogError := runOnResolvePlugins(
+			resolveResult, didLogError, notes := runOnResolvePlugins(
 				s.options.Plugins,
 				s.res,
 				s.log,
@@ -1212,7 +1212,7 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 						hint = fmt.Sprintf(" (use %q to reference the file %q)", "./"+path, s.res.PrettyPath(query.PathPair.Primary))
 					}
 				}
-				s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q%s", path, hint))
+				s.log.AddErrorWithNotes(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q%s", path, hint), notes)
 			}
 			entryPointWaitGroup.Done()
 		}(i, path)

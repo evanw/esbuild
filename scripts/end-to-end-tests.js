@@ -2787,6 +2787,109 @@
     }),
   )
 
+  // Test "exports" in package.json
+  for (const flags of [[], ['--bundle']]) {
+    tests.push(
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            ".": "./subdir/foo.js"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            ".": {
+              "default": "./subdir/foo.js"
+            }
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "default": "./subdir/foo.js"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./": "./subdir/"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./": {
+              "default": "./subdir/"
+            }
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/dir/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./dir/": "./subdir/"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/dir/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./dir/": {
+              "default": "./subdir/"
+            }
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/dirwhat'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/sub/what/dirwhat/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./di*": "./nope.js",
+            "./dir*": "./sub/*/dir*/foo.js",
+            "./long*": "./nope.js",
+            "./d*": "./nope.js"
+          }
+        }`,
+      }),
+    )
+  }
+
   // Test writing to stdout
   tests.push(
     // These should succeed
