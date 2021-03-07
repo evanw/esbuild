@@ -1085,7 +1085,7 @@ func TestRequireBadExtension(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: error: File could not be loaded: test
+		expectedScanLog: `entry.js: error: Do not know how to load path: test
 `,
 	})
 }

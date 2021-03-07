@@ -213,12 +213,25 @@ func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportK
 		// "background: url(https://example.com/images/image.png);"
 		strings.HasPrefix(importPath, "https://") ||
 
-		// "background: url(data:image/png;base64,iVBORw0KGgo=);"
-		strings.HasPrefix(importPath, "data:") ||
-
 		// "background: url(//example.com/images/image.png);"
 		strings.HasPrefix(importPath, "//") {
 
+		return &ResolveResult{
+			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal: true,
+		}
+	}
+
+	if parsed, ok := ParseDataURL(importPath); ok {
+		// "import 'data:text/javascript,console.log(123)';"
+		// "@import 'data:text/css,body{background:white}';"
+		if parsed.DecodeMIMEType() != MIMETypeUnsupported {
+			return &ResolveResult{
+				PathPair: PathPair{Primary: logger.Path{Text: importPath, Namespace: "dataurl"}},
+			}
+		}
+
+		// "background: url(data:image/png;base64,iVBORw0KGgo=);"
 		return &ResolveResult{
 			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
 			IsExternal: true,

@@ -52,7 +52,7 @@ export const startService: typeof types.startService = common.longLivedService((
 
   if (useWorker) {
     // Run esbuild off the main thread
-    let blob = new Blob([code], { type: 'application/javascript' })
+    let blob = new Blob([code], { type: 'text/javascript' })
     worker = new Worker(URL.createObjectURL(blob))
   } else {
     // Run esbuild on the main thread

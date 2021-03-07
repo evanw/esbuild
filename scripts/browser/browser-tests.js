@@ -224,25 +224,25 @@ for (let format of ['iife', 'esm']) {
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url) {
     if (req.url === '/lib/browser.js') {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' })
+      res.writeHead(200, { 'Content-Type': 'text/javascript' })
       res.end(js)
       return
     }
 
     if (req.url === '/lib/browser.min.js') {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' })
+      res.writeHead(200, { 'Content-Type': 'text/javascript' })
       res.end(jsMin)
       return
     }
 
     if (req.url === '/esm/browser.js') {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' })
+      res.writeHead(200, { 'Content-Type': 'text/javascript' })
       res.end(esm)
       return
     }
 
     if (req.url === '/esm/browser.min.js') {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' })
+      res.writeHead(200, { 'Content-Type': 'text/javascript' })
       res.end(esmMin)
       return
     }

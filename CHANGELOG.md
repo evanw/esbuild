@@ -25,6 +25,17 @@
 
     This usually doesn't need special handling from esbuild's `--keep-names` option because esbuild doesn't modify field names, so the `.name` property will not change. However, esbuild will relocate the field initializer if the configured language target doesn't support class fields (e.g. `--target=es6`). In that case the `.name` property wasn't preserved even when `--keep-names` was specified. This bug has been fixed. Now the `.name` property should be preserved in this case as long as you enable `--keep-names`.
 
+* Enable importing certain data URLs in CSS and JavaScript
+
+    You can now import data URLs of type `text/css` using a CSS `@import` rule and import data URLs of type `text/javascript` and `application/json` using a JavaScript `import` statement. For example, doing this is now possible:
+
+    ```js
+    import 'data:text/javascript,console.log("hello!");';
+    import _ from 'data:application/json,"world!"';
+    ```
+
+    This is for compatibility with node which [supports this feature natively](https://nodejs.org/docs/latest/api/esm.html#esm_data_imports). Importing from a data URL is sometimes useful for injecting code to be evaluated before an external import without needing to generate a separate imported file.
+
 ## 0.8.56
 
 * Fix a discrepancy with esbuild's `tsconfig.json` implementation ([#913](https://github.com/evanw/esbuild/issues/913))

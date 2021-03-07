@@ -5,11 +5,9 @@ import (
 	"crypto/sha1"
 	"encoding/base32"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"mime"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -293,7 +291,7 @@ func parseFile(args parseArgs) {
 	case config.LoaderDataURL:
 		mimeType := guessMimeType(ext, source.Contents)
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		url := "data:" + mimeType + ";base64," + encoded
+		url := fmt.Sprintf("data:%s;base64,%s", mimeType, encoded)
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(url)}}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		ast.URLForCSS = url
@@ -355,10 +353,10 @@ func parseFile(args parseArgs) {
 
 	default:
 		var message string
-		if ext != "" {
+		if source.KeyPath.Namespace == "file" && ext != "" {
 			message = fmt.Sprintf("No loader is configured for %q files: %s", ext, source.PrettyPath)
 		} else {
-			message = fmt.Sprintf("File could not be loaded: %s", source.PrettyPath)
+			message = fmt.Sprintf("Do not know how to load path: %s", source.PrettyPath)
 		}
 		args.log.AddRangeError(args.importSource, args.importPathRange, message)
 	}
@@ -527,8 +525,8 @@ func extractSourceMapFromComment(
 	absResolveDir string,
 ) (logger.Path, *string) {
 	// Support data URLs
-	if strings.HasPrefix(comment.Text, "data:") {
-		if contents, err := dataFromDataURL(comment.Text); err == nil {
+	if parsed, ok := resolver.ParseDataURL(comment.Text); ok {
+		if contents, err := parsed.DecodeData(); err == nil {
 			return logger.Path{Text: source.PrettyPath, IgnoredSuffix: "#sourceMappingURL"}, &contents
 		} else {
 			log.AddRangeWarning(source, comment.Range, fmt.Sprintf("Unsupported source map comment: %s", err.Error()))
@@ -555,32 +553,6 @@ func extractSourceMapFromComment(
 	// Anything else is unsupported
 	log.AddRangeWarning(source, comment.Range, "Unsupported source map comment")
 	return logger.Path{}, nil
-}
-
-func dataFromDataURL(dataURL string) (string, error) {
-	if strings.HasPrefix(dataURL, "data:") {
-		if comma := strings.IndexByte(dataURL, ','); comma != -1 {
-			b64 := ";base64,"
-
-			// Try to read base64 data
-			if pos := comma - len(b64) + 1; pos >= 0 && dataURL[pos:pos+len(b64)] == b64 {
-				bytes, err := base64.StdEncoding.DecodeString(dataURL[comma+1:])
-				if err != nil {
-					return "", fmt.Errorf("Could not decode base64 data: %s", err.Error())
-				}
-				return string(bytes), nil
-			}
-
-			// Try to read percent-escaped data
-			content, err := url.QueryUnescape(dataURL[comma+1:])
-			if err != nil {
-				return "", fmt.Errorf("Could not decode percent-escaped data: %s", err.Error())
-			}
-			return content, nil
-		}
-	}
-
-	return "", errors.New("Invalid data URL")
 }
 
 func sanetizeLocation(res resolver.Resolver, loc *logger.MsgLocation) {
@@ -843,6 +815,30 @@ func runOnLoadPlugins(
 		}
 	}
 
+	// Native support for data URLs. This is supported natively by node:
+	// https://nodejs.org/docs/latest/api/esm.html#esm_data_imports
+	if source.KeyPath.Namespace == "dataurl" {
+		if parsed, ok := resolver.ParseDataURL(source.KeyPath.Text); ok {
+			if mimeType := parsed.DecodeMIMEType(); mimeType != resolver.MIMETypeUnsupported {
+				if contents, err := parsed.DecodeData(); err != nil {
+					log.AddRangeError(importSource, importPathRange,
+						fmt.Sprintf("Could not load data URL: %s", err.Error()))
+					return loaderPluginResult{loader: config.LoaderNone}, true
+				} else {
+					source.Contents = contents
+					switch mimeType {
+					case resolver.MIMETypeTextCSS:
+						return loaderPluginResult{loader: config.LoaderCSS}, true
+					case resolver.MIMETypeTextJavaScript:
+						return loaderPluginResult{loader: config.LoaderJS}, true
+					case resolver.MIMETypeApplicationJSON:
+						return loaderPluginResult{loader: config.LoaderJSON}, true
+					}
+				}
+			}
+		}
+	}
+
 	// Otherwise, fail to load the path
 	return loaderPluginResult{loader: config.LoaderNone}, true
 }
@@ -992,6 +988,17 @@ func (s *scanner) maybeParseFile(
 	if inject != nil && optionsClone.Mode != config.ModeBundle {
 		optionsClone.Mode = config.ModeBundle
 		skipResolve = true
+	}
+
+	// Special-case pretty-printed paths for data URLs
+	if path.Namespace == "dataurl" {
+		if _, ok := resolver.ParseDataURL(path.Text); ok {
+			prettyPath = path.Text
+			if len(prettyPath) > 64 {
+				prettyPath = prettyPath[:64] + "..."
+			}
+			prettyPath = fmt.Sprintf("<%s>", prettyPath)
+		}
 	}
 
 	go parseFile(parseArgs{
@@ -1250,8 +1257,8 @@ func (s *scanner) scanAllDependencies() {
 				path := resolveResult.PathPair.Primary
 				if !resolveResult.IsExternal {
 					// Handle a path within the bundle
-					prettyPath := s.res.PrettyPath(path)
-					sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, &result.file.source, record.Range, resolveResult.PluginData, inputKindNormal, nil)
+					sourceIndex := s.maybeParseFile(*resolveResult, s.res.PrettyPath(path),
+						&result.file.source, record.Range, resolveResult.PluginData, inputKindNormal, nil)
 					record.SourceIndex = ast.MakeIndex32(sourceIndex)
 				} else {
 					// If the path to the external module is relative to the source
