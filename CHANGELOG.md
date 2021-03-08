@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.57
 
 * Fix overlapping chunk names when code splitting is active ([#928](https://github.com/evanw/esbuild/issues/928))
 
