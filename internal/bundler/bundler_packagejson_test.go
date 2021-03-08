@@ -1613,3 +1613,53 @@ func TestPackageJsonExportsOrderIndependent(t *testing.T) {
 		},
 	})
 }
+
+func TestPackageJsonExportsWildcard(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo'
+				import 'pkg1/foo2'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"./foo*": "./file*.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/file2.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "./foo" is not exported by "pkg1"
+`,
+	})
+}
+
+func TestPackageJsonExportsErrorMissingTrailingSlash(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo/bar'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{ "exports": { "./foo/": "./test" } }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo/bar" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The module specifier "./test" is invalid
+`,
+	})
+}
