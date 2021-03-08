@@ -185,3 +185,19 @@ func (p *printer) rewriteGlobals() {
 		}
 	}
 }
+
+func (p *printer) restoreGlobals() {
+	for outerIdx, outer := range p.symbols.Outer {
+		for innerIdx, ref := range outer {
+			if ref.Kind == js_ast.SymbolUnbound {
+				for _, global := range snapGlobals {
+					if ref.OriginalName == functionCallForGlobal(global) {
+						name := global
+						p.symbols.Outer[outerIdx][innerIdx].OriginalName = name
+						continue
+					}
+				}
+			}
+		}
+	}
+}

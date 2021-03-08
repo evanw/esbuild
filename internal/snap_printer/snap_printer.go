@@ -2899,6 +2899,8 @@ func Print(
 
 	if shouldRewrite {
 		p.rewriteGlobals()
+	} else {
+		p.restoreGlobals()
 	}
 
 	for _, part := range tree.Parts {
