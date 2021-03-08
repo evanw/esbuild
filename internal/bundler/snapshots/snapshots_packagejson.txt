@@ -455,6 +455,15 @@ TestPackageJsonExportsNode
 console.log("SUCCESS");
 
 ================================================================================
+TestPackageJsonExportsOrderIndependent
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg1/2/bar.js
+console.log("SUCCESS");
+
+// Users/user/project/node_modules/pkg2/1/bar.js
+console.log("SUCCESS");
+
+================================================================================
 TestPackageJsonExportsRequireOverImport
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/pkg/require.js

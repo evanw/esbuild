@@ -2887,6 +2887,34 @@
           }
         }`,
       }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/foo'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/yes.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./foo": [
+              { "unused": "./no.js" },
+              "./yes.js"
+            ]
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/foo'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/yes.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./foo": [
+              { "default": "./yes.js" },
+              "./no.js"
+            ]
+          }
+        }`,
+      }),
     )
   }
 
