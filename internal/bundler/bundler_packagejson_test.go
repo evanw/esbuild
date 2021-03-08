@@ -1380,3 +1380,192 @@ Users/user/project/node_modules/pkg2/package.json: note: Importing the directory
 `,
 	})
 }
+
+func TestPackageJsonExportsRequireOverImport(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				require('pkg')
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"import": "./import.js",
+						"require": "./require.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/import.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/require.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonExportsImportOverRequire(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"require": "./require.js",
+						"import": "./import.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/require.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/import.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonExportsDefaultOverImportAndRequire(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"default": "./default.js",
+						"import": "./import.js",
+						"require": "./require.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/require.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/import.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/default.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonExportsBrowser(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"node": "./node.js",
+						"browser": "./browser.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/node.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/browser.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			Platform:      config.PlatformBrowser,
+		},
+	})
+}
+
+func TestPackageJsonExportsNode(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"browser": "./browser.js",
+						"node": "./node.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/browser.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/node.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			Platform:      config.PlatformNode,
+		},
+	})
+}
+
+func TestPackageJsonExportsNeutral(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"node": "./node.js",
+						"browser": "./browser.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/node.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/browser.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/default.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			Platform:      config.PlatformNeutral,
+		},
+	})
+}

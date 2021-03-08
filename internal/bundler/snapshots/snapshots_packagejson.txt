@@ -425,6 +425,47 @@ var require_main = __commonJS((exports, module) => {
 console.log(require_main());
 
 ================================================================================
+TestPackageJsonExportsBrowser
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg/browser.js
+console.log("SUCCESS");
+
+================================================================================
+TestPackageJsonExportsDefaultOverImportAndRequire
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg/default.js
+console.log("SUCCESS");
+
+================================================================================
+TestPackageJsonExportsImportOverRequire
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg/import.js
+console.log("SUCCESS");
+
+================================================================================
+TestPackageJsonExportsNeutral
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg/default.js
+console.log("SUCCESS");
+
+================================================================================
+TestPackageJsonExportsNode
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg/node.js
+console.log("SUCCESS");
+
+================================================================================
+TestPackageJsonExportsRequireOverImport
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg/require.js
+var require_require = __commonJS(() => {
+  console.log("SUCCESS");
+});
+
+// Users/user/project/src/entry.js
+require_require();
+
+================================================================================
 TestPackageJsonMain
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/custom-main.js

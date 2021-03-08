@@ -125,6 +125,12 @@ type resolver struct {
 	caches  *cache.CacheSet
 	options config.Options
 
+	// These are sets that represent various conditions for the "exports" field
+	// in package.json.
+	esmConditionsDefault map[string]bool
+	esmConditionsImport  map[string]bool
+	esmConditionsRequire map[string]bool
+
 	// A special filtered import order for CSS "@import" imports.
 	//
 	// The "resolve extensions" setting determines the order of implicit
@@ -188,6 +194,21 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 		atImportExtensionOrder = append(atImportExtensionOrder, ext)
 	}
 
+	// Generate the condition sets for interpreting the "exports" field
+	esmConditionsDefault := map[string]bool{}
+	esmConditionsImport := map[string]bool{"import": true}
+	esmConditionsRequire := map[string]bool{"require": true}
+	switch options.Platform {
+	case config.PlatformBrowser:
+		esmConditionsDefault["browser"] = true
+	case config.PlatformNode:
+		esmConditionsDefault["node"] = true
+	}
+	for key := range esmConditionsDefault {
+		esmConditionsImport[key] = true
+		esmConditionsRequire[key] = true
+	}
+
 	return &resolver{
 		fs:                     fs,
 		log:                    log,
@@ -195,6 +216,9 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 		caches:                 caches,
 		dirCache:               make(map[string]*dirInfo),
 		atImportExtensionOrder: atImportExtensionOrder,
+		esmConditionsDefault:   esmConditionsDefault,
+		esmConditionsImport:    esmConditionsImport,
+		esmConditionsRequire:   esmConditionsRequire,
 	}
 }
 
@@ -1149,13 +1173,22 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 				absPkgPath := r.fs.Join(dirInfo.absPath, "node_modules", esmPackageName)
 				if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil {
 					if pkgJSON := pkgDirInfo.packageJSON; pkgJSON != nil && pkgJSON.exportsMap != nil {
+						// The condition set is determined by the kind of import
+						conditions := r.esmConditionsDefault
+						switch kind {
+						case ast.ImportStmt, ast.ImportDynamic:
+							conditions = r.esmConditionsImport
+						case ast.ImportRequire, ast.ImportRequireResolve:
+							conditions = r.esmConditionsRequire
+						}
+
 						// Resolve against the path "/", then join it with the absolute
 						// directory path. This is done because ESM package resolution uses
 						// URLs while our path resolution uses file system paths. We don't
 						// want problems due to Windows paths, which are very unlike URL
 						// paths. We also want to avoid any "%" characters in the absolute
 						// directory path accidentally being interpreted as URL escapes.
-						resolvedPath, status, token := esmPackageExportsResolveWithPostConditions("/", esmPackageSubpath, pkgJSON.exportsMap.root, nil)
+						resolvedPath, status, token := esmPackageExportsResolveWithPostConditions("/", esmPackageSubpath, pkgJSON.exportsMap.root, conditions)
 						if status == peStatusOk && strings.HasPrefix(resolvedPath, "/") {
 							absResolvedPath := r.fs.Join(absPkgPath, resolvedPath[1:])
 							resolvedDirInfo := r.dirInfoCached(r.fs.Dir(absResolvedPath))
