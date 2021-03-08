@@ -201,6 +201,7 @@ type Options struct {
 
 	ExtensionOrder  []string
 	MainFields      []string
+	Conditions      []string
 	AbsNodePaths    []string // The "NODE_PATH" variable from Node.js
 	ExternalModules ExternalModules
 

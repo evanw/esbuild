@@ -176,6 +176,7 @@ function flagsForBuildOptions(
   let resolveExtensions = getFlag(options, keys, 'resolveExtensions', mustBeArray);
   let nodePathsInput = getFlag(options, keys, 'nodePaths', mustBeArray);
   let mainFields = getFlag(options, keys, 'mainFields', mustBeArray);
+  let conditions = getFlag(options, keys, 'conditions', mustBeArray);
   let external = getFlag(options, keys, 'external', mustBeArray);
   let loader = getFlag(options, keys, 'loader', mustBeObject);
   let outExtension = getFlag(options, keys, 'outExtension', mustBeObject);
@@ -234,6 +235,15 @@ function flagsForBuildOptions(
       values.push(value);
     }
     flags.push(`--main-fields=${values.join(',')}`);
+  }
+  if (conditions) {
+    let values: string[] = [];
+    for (let value of conditions) {
+      value += '';
+      if (value.indexOf(',') >= 0) throw new Error(`Invalid condition: ${value}`);
+      values.push(value);
+    }
+    flags.push(`--conditions=${values.join(',')}`);
   }
   if (external) for (let name of external) flags.push(`--external:${name}`);
   if (banner) {

@@ -1663,3 +1663,31 @@ Users/user/project/node_modules/pkg1/package.json: note: The module specifier ".
 `,
 	})
 }
+
+func TestPackageJsonExportsCustomConditions(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"custom1": "./custom1.js",
+						"custom2": "./custom2.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/custom2.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			Conditions:    []string{"custom2"},
+		},
+	})
+}

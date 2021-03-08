@@ -254,6 +254,7 @@ type BuildOptions struct {
 	Format            Format
 	External          []string
 	MainFields        []string
+	Conditions        []string // For the "exports" field in "package.json"
 	Loader            map[string]Loader
 	ResolveExtensions []string
 	Tsconfig          string
