@@ -1081,7 +1081,25 @@ let isOlderThanMountainLion;
 function __get_isOlderThanMountainLion__() {
   return isOlderThanMountainLion = isOlderThanMountainLion || (Number((__get_os__()).release().split(".")[0]) < 12)
 }`,
-ReplaceAll)
+		ReplaceAll)
+}
+
+func TestRewritesGlobalConsoleAccessExceptWhenItIsBeingAssigned(t *testing.T) {
+	expectPrinted(t, `
+		function foo() {
+		  console.log('this console should be rewritten')
+		}
+		function assign() {
+		  // this shouldn't
+		console = function () {}
+	  }`, `
+function foo() {
+  get_console().log("this console should be rewritten");
+}
+function assign() {
+  console = function() {
+  };
+}`, ReplaceAll)
 }
 
 func TestLateDeclareLazyJS(t *testing.T) {

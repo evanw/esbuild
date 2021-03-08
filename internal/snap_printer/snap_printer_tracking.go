@@ -1,7 +1,6 @@
 package snap_printer
 
 import (
-	"github.com/evanw/esbuild/internal/js_ast"
 	"regexp"
 )
 
@@ -157,47 +156,5 @@ func (p *printer) prependTopLevelDecls() {
 		loc := idx + offset
 		prepend(p, &loc, decl)
 		offset = offset + len(decl)
-	}
-}
-
-//
-// Rewrite globals
-//
-
-// globals derived from electron-link blueprint declarations
-// See: https://github.com/atom/electron-link/blob/abeb97d8633c06ac6a762ac427b272adebd32c4f/src/blueprint.js#L6
-// Also related to: internal/resolver/resolver.go :1246 (BuiltInNodeModules)
-var snapGlobals = []string{"process", "document", "global", "window", "console"}
-
-func (p *printer) rewriteGlobals() {
-	for outerIdx, outer := range p.symbols.Outer {
-		for innerIdx, ref := range outer {
-			// Globals aren't declared anywhere and thus are unbound
-			if ref.Kind == js_ast.SymbolUnbound {
-				for _, global := range snapGlobals {
-					if ref.OriginalName == global {
-						name := functionCallForGlobal(global)
-						p.symbols.Outer[outerIdx][innerIdx].OriginalName = name
-						continue
-					}
-				}
-			}
-		}
-	}
-}
-
-func (p *printer) restoreGlobals() {
-	for outerIdx, outer := range p.symbols.Outer {
-		for innerIdx, ref := range outer {
-			if ref.Kind == js_ast.SymbolUnbound {
-				for _, global := range snapGlobals {
-					if ref.OriginalName == functionCallForGlobal(global) {
-						name := global
-						p.symbols.Outer[outerIdx][innerIdx].OriginalName = name
-						continue
-					}
-				}
-			}
-		}
 	}
 }

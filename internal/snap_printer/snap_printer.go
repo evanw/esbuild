@@ -253,7 +253,6 @@ type printer struct {
 	// For snapshot
 	//
 	shouldReplaceRequire func(string) bool
-	shouldRewrite        bool
 	topLevelVars         []TopLevelVar
 	// Keeps track of count of function entries in order to avoid rewriting code
 	// that is already wrapped in a function body.
@@ -2818,7 +2817,6 @@ func createPrinter(
 	approximateLineCount int32,
 	isWrapped bool,
 	shouldReplaceRequire func(string) bool,
-	shouldRewrite bool,
 ) *printer {
 	topLevelVars := make([]TopLevelVar, 0)
 	var uninvokedFunctionDepth int8
@@ -2852,7 +2850,6 @@ func createPrinter(
 		coverLinesWithoutMappings: options.InputSourceMap == nil,
 
 		shouldReplaceRequire: shouldReplaceRequire,
-		shouldRewrite:        shouldRewrite,
 		topLevelVars:         topLevelVars,
 
 		uninvokedFunctionDepth: uninvokedFunctionDepth,
@@ -2879,11 +2876,12 @@ func Print(
 	options PrintOptions,
 	isWrapped bool,
 	shouldReplaceRequire func(string) bool,
-	shouldRewrite bool,
 ) PrintResult {
 	var p *printer
+	var isRenaming bool = false
 	switch snapRenamer := r.(type) {
 	case *snap_renamer.SnapRenamer:
+		isRenaming = snapRenamer.IsEnabled
 		p = createPrinter(
 			symbols,
 			*snapRenamer,
@@ -2891,16 +2889,9 @@ func Print(
 			options,
 			tree.ApproximateLineCount,
 			isWrapped,
-			shouldReplaceRequire,
-			shouldRewrite)
+			shouldReplaceRequire)
 	default:
 		panic("Need to pass a snap_renamer")
-	}
-
-	if shouldRewrite {
-		p.rewriteGlobals()
-	} else {
-		p.restoreGlobals()
 	}
 
 	for _, part := range tree.Parts {
@@ -2910,7 +2901,7 @@ func Print(
 		}
 	}
 
-	if shouldRewrite {
+	if isRenaming {
 		p.updateGeneratedLineAndColumn()
 		// This has to happen before prepending top level decls as otherwise our locations are off
 		p.fixNamedBeforeReplaceds()

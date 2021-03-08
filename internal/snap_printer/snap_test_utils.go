@@ -56,7 +56,7 @@ func expectPrintedCommon(
 		}
 		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
-		r := snap_renamer.NewSnapRenamer(symbols)
+		r := snap_renamer.NewSnapRenamer(symbols, testOpts.shouldRewrite)
 
 		js := Print(
 			tree,
@@ -65,7 +65,7 @@ func expectPrintedCommon(
 			options,
 			testOpts.isWrapped,
 			testOpts.shouldReplaceRequire,
-			testOpts.shouldRewrite).JS
+		).JS
 
 		actualTrimmed := strings.TrimSpace(string(js))
 		expectedTrimmed := strings.TrimSpace(expected)
@@ -185,7 +185,7 @@ func debugFixture(t *testing.T, fixtureName string, shouldReplaceRequire func(st
 			shouldReplaceRequire: shouldReplaceRequire,
 			debug:                true,
 			snapFilePath:         "./fixtures/snap-" + fixtureName,
-			shouldRewrite: true,
+			shouldRewrite:        true,
 		},
 	)
 }
@@ -211,7 +211,7 @@ func expectFixture(t *testing.T, fixtureName string, shouldReplaceRequire func(s
 			shouldReplaceRequire: shouldReplaceRequire,
 			debug:                true,
 			snapFilePath:         "./fixtures/snap-" + fixtureName,
-			shouldRewrite: true,
+			shouldRewrite:        true,
 		},
 	)
 }

@@ -24,13 +24,3 @@ func functionDeclarationForId(id string) string {
 func functionNameForId(id string) string {
 	return fmt.Sprintf("__get_%s__", id)
 }
-
-func functionNameForGlobal(id string) string {
-	// Matches electron-link in order to use same blueprint.
-	// See: https://github.com/atom/electron-link/blob/abeb97d8633c06ac6a762ac427b272adebd32c4f/src/blueprint.js#L230-L245
-	return fmt.Sprintf("get_%s", id)
-}
-
-func functionCallForGlobal(id string) string {
-	return fmt.Sprintf("%s()", functionNameForGlobal(id))
-}

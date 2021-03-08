@@ -222,7 +222,7 @@ exports.bar = require('./bar')
 		buildResult{
 			files: map[string]string{
 				`dev/foo.js`: `
-__commonJS["./foo.js"] = function(exports2, module2, __filename, __dirname, require) {
+__commonJS["./foo.js"] = function(exports, module, __filename, __dirname, require) {
   var fs = require("fs");
 };`,
 				`dev/bar.js`: `
@@ -261,7 +261,7 @@ exports.fsevents = require('` + ProjectBaseDir + `/node_modules/fsevents/fsevent
 		buildResult{
 			files: map[string]string{
 				`dev/node_modules/fsevents/fsevents.js`: `
-__commonJS["./node_modules/fsevents/fsevents.js"] = function(exports2, module2, __filename, __dirname, require) {
+__commonJS["./node_modules/fsevents/fsevents.js"] = function(exports, module, __filename, __dirname, require) {
   var Native = require("./node_modules/fsevents/fsevents.node");
   var events = Native.constants;
 };`,

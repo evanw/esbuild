@@ -57,9 +57,9 @@ func (p *printer) printReferenceReplacementFunctionAssign(
 func (p *printer) printBindings(
 	bindings []RequireBinding,
 	print func(
-	bindingId string,
-	isDestructuring bool,
-	fnName string),
+		bindingId string,
+		isDestructuring bool,
+		fnName string),
 ) {
 	for _, b := range bindings {
 		var fnName string
@@ -87,7 +87,7 @@ func (p *printer) printBindings(
 // similar to slocal but assigning to an already declared variable
 // x = require('x')
 func (p *printer) handleEBinary(e *js_ast.EBinary) (handled bool) {
-	if !p.shouldRewrite {
+	if !p.renamer.IsEnabled {
 		return false
 	}
 	if p.uninvokedFunctionDepth > 0 {

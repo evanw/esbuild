@@ -17,6 +17,8 @@ type NamedReference struct {
 
 type SnapRenamer struct {
 	symbols             js_ast.SymbolMap
+	globalSymbols       GlobalSymbols
+	IsEnabled           bool
 	deferredIdentifiers map[js_ast.Ref]Replacement
 	wrappedRenamer      *renamer.Renamer
 	NamedReferences     map[js_ast.Ref]*NamedReference
@@ -43,9 +45,12 @@ var RewritingNameForSymbolOpts = nameForSymbolOpts{
 	isRewriting:            true,
 }
 
-func NewSnapRenamer(symbols js_ast.SymbolMap) SnapRenamer {
+func NewSnapRenamer(symbols js_ast.SymbolMap, isEnabled bool) SnapRenamer {
+	globalSymbols := getGlobalSymbols(&symbols)
 	return SnapRenamer{
 		symbols:             symbols,
+		globalSymbols:       globalSymbols,
+		IsEnabled:           isEnabled,
 		deferredIdentifiers: make(map[js_ast.Ref]Replacement),
 		NamedReferences:     make(map[js_ast.Ref]*NamedReference),
 	}
@@ -55,9 +60,12 @@ func NewSnapRenamer(symbols js_ast.SymbolMap) SnapRenamer {
 // mostly related to the code wrapping each module.
 // In order to correctly determine symbol names we store a reference here and forward
 // symbol resolves to it @see `NameForSymbol`.
-func WrapRenamer(r *renamer.Renamer, symbols js_ast.SymbolMap) SnapRenamer {
+func WrapRenamer(r *renamer.Renamer, symbols js_ast.SymbolMap, isEnabled bool) SnapRenamer {
+	globalSymbols := getGlobalSymbols(&symbols)
 	return SnapRenamer{
 		symbols:             symbols,
+		globalSymbols:       globalSymbols,
+		IsEnabled:           isEnabled,
 		deferredIdentifiers: make(map[js_ast.Ref]Replacement),
 		wrappedRenamer:      r,
 		NamedReferences:     make(map[js_ast.Ref]*NamedReference),
@@ -76,6 +84,19 @@ func (r *SnapRenamer) SnapNameForSymbol(
 	ref js_ast.Ref, opts *nameForSymbolOpts) string {
 
 	ref = r.resolveRefFromSymbols(ref)
+	symbol := *r.symbols.Get(ref)
+
+	if !r.IsEnabled {
+		return symbol.OriginalName
+	}
+
+	if opts.allowReplaceWithDeferr && symbol.Kind == js_ast.SymbolUnbound && (symbol == r.globalSymbols.process ||
+		symbol == r.globalSymbols.document ||
+		symbol == r.globalSymbols.global ||
+		symbol == r.globalSymbols.window ||
+		symbol == r.globalSymbols.console) {
+		return functionCallForGlobal(symbol.OriginalName)
+	}
 
 	if !opts.isRewriting && opts.allowReplaceWithDeferr && r.canCaptureNameLocs() && !r.HasBeenReplaced(ref) {
 		res, ok := r.NamedReferences[ref]
