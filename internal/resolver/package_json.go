@@ -592,7 +592,7 @@ func esmPackageTargetResolve(
 		// If pattern is false, subpath has non-zero length and target
 		// does not end with "/", throw an Invalid Module Specifier error.
 		if !pattern && subpath != "" && !strings.HasSuffix(target.strData, "/") {
-			return subpath, peStatusInvalidModuleSpecifier, target.firstToken
+			return target.strData, peStatusInvalidModuleSpecifier, target.firstToken
 		}
 
 		if !strings.HasPrefix(target.strData, "./") {
