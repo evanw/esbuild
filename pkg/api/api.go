@@ -246,7 +246,7 @@ type BuildOptions struct {
 	PreserveSymlinks  bool
 	Splitting         bool
 	Outfile           string
-	Metafile          string
+	Metafile          bool
 	Outdir            string
 	Outbase           string
 	AbsWorkingDir     string
@@ -293,6 +293,7 @@ type BuildResult struct {
 	Warnings []Message
 
 	OutputFiles []OutputFile
+	Metafile    string
 
 	Rebuild func() BuildResult // Only when "Incremental: true"
 	Stop    func()             // Only when "Watch: true"

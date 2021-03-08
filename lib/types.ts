@@ -36,7 +36,7 @@ export interface BuildOptions extends CommonOptions {
   splitting?: boolean;
   preserveSymlinks?: boolean;
   outfile?: string;
-  metafile?: string;
+  metafile?: boolean;
   outdir?: string;
   outbase?: string;
   platform?: Platform;
@@ -118,6 +118,7 @@ export interface BuildResult {
   outputFiles?: OutputFile[]; // Only when "write: false"
   rebuild?: BuildInvalidate; // Only when "incremental: true"
   stop?: () => void; // Only when "watch: true"
+  metafile?: Metafile; // Only when "metafile: true"
 }
 
 export interface BuildFailure extends Error {
@@ -260,8 +261,7 @@ export interface PartialNote {
   location?: Partial<Location> | null;
 }
 
-// This is the type information for the "metafile" JSON format
-export interface Metadata {
+export interface Metafile {
   inputs: {
     [path: string]: {
       bytes: number

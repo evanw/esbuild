@@ -727,7 +727,7 @@ func rebuildImpl(
 		AbsOutputFile:         validatePath(log, realFS, buildOpts.Outfile, "outfile path"),
 		AbsOutputDir:          validatePath(log, realFS, buildOpts.Outdir, "outdir path"),
 		AbsOutputBase:         validatePath(log, realFS, buildOpts.Outbase, "outbase path"),
-		AbsMetadataFile:       validatePath(log, realFS, buildOpts.Metafile, "metafile path"),
+		NeedsMetafile:         buildOpts.Metafile,
 		ChunkPathTemplate:     validatePathTemplate(buildOpts.ChunkNames),
 		AssetPathTemplate:     validatePathTemplate(buildOpts.AssetNames),
 		OutputExtensionJS:     outJS,
@@ -792,9 +792,6 @@ func rebuildImpl(
 		if options.SourceMap != config.SourceMapNone && options.SourceMap != config.SourceMapInline {
 			log.AddError(nil, logger.Loc{}, "Cannot use an external source map without an output path")
 		}
-		if options.AbsMetadataFile != "" {
-			log.AddError(nil, logger.Loc{}, "Cannot use \"metafile\" without an output path")
-		}
 		for _, loader := range options.ExtensionToLoader {
 			if loader == config.LoaderFile {
 				log.AddError(nil, logger.Loc{}, "Cannot use the \"file\" loader without an output path")
@@ -837,6 +834,7 @@ func rebuildImpl(
 	}
 
 	var outputFiles []OutputFile
+	var metafileJSON string
 	var watchData fs.WatchData
 
 	// Stop now if there were errors
@@ -849,7 +847,8 @@ func rebuildImpl(
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results := bundle.Compile(log, options)
+			results, metafile := bundle.Compile(log, options)
+			metafileJSON = metafile
 
 			// Stop now if there were errors
 			if !log.HasErrors() {
@@ -950,6 +949,7 @@ func rebuildImpl(
 		Errors:      convertMessagesToPublic(logger.Error, msgs),
 		Warnings:    convertMessagesToPublic(logger.Warning, msgs),
 		OutputFiles: outputFiles,
+		Metafile:    metafileJSON,
 		Rebuild:     rebuild,
 		Stop:        stop,
 	}
@@ -1215,7 +1215,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results = bundle.Compile(log, options)
+			results, _ = bundle.Compile(log, options)
 		}
 	}
 

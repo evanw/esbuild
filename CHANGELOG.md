@@ -59,7 +59,7 @@
 
     Previously the "resolve extensions" setting included `.mjs` and `.cjs` but this is no longer the case. This wasn't a good default because it doesn't match node's behavior and could break some packages. You now have to either explicitly specify these extensions or configure the "resolve extensions" setting yourself.
 
-* Add support for node's `exports` field in `package.json` files
+* Add support for node's `exports` field in `package.json` files ([#187](https://github.com/evanw/esbuild/issues/187))
 
     This feature was recently added to node. It allows you to rewrite what import paths inside your package map to as well as to prevent people from importing certain files in your package. Adding support for this to esbuild is a breaking change (i.e. code that was working fine before can easily stop working) so adding support for it has been delayed until this breaking change release.
 
@@ -92,6 +92,19 @@
     Note that when you use conditions, _your package may end up in the bundle multiple times!_ This is a subtle issue that can cause bugs due to duplicate copies of your code's state in addition to bloating the resulting bundle. This is commonly known as the [dual package hazard](https://nodejs.org/docs/latest/api/packages.html#packages_dual_package_hazard). The primary way of avoiding this is to put all of your code in the `require` condition and have the `import` condition just be a light wrapper that calls `require` on your package and re-exports the package using ESM syntax.
 
     There is also support for custom conditions with the `--conditions=` flag. The meaning of these is entirely up to package authors. For example, you could imagine a package that requires you to configure `--conditions=test,en-US`. Node has currently only endorsed the `development` and `production` custom conditions for recommended use.
+
+* Remove the `metafile` from `outputFiles` (#633)
+
+    Previously using `metafile` with the API is unnecessarily cumbersome because you have to extract the JSON metadata from the output file yourself instead of it just being provided to you as a return value. This is especially a bummer if you are using `write: false` because then you need to use a for loop over the output files and do string comparisons with the file paths to try to find the one corresponding to the `metafile`. Returning the metadata directly is an important UX improvement for the API. It means you can now do this:
+
+    ```js
+    const result = await esbuild.build({
+      entryPoints: ['entry.js'],
+      bundle: true,
+      metafile: true,
+    })
+    console.log(metafile.outputs)
+    ```
 
 ## 0.8.57
 

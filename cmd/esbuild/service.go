@@ -417,6 +417,9 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		if options.Watch != nil {
 			response["watchID"] = watchID
 		}
+		if options.Metafile {
+			response["metafile"] = result.Metafile
+		}
 		return response
 	}
 
