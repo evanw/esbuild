@@ -277,9 +277,9 @@
     } catch (e) {
     }
 
-    esbuild.startService({
+    esbuild.initialize({
       wasmURL: '../npm/esbuild-wasm/esbuild.wasm',
-    }).then(service => {
+    }).then(() => {
       const output = document.querySelector('#output .outer')
       let debounceTimeout = 0
       let isRunning = false
@@ -301,7 +301,7 @@
         isRunning = true
         needsRun = false
 
-        service.transform(input.value, {
+        esbuild.transform(input.value, {
           target: target.value.toLowerCase(),
           loader: loader.value.toLowerCase(),
           format: format.value === 'Preserve' ? void 0 : format.value.toLowerCase(),
