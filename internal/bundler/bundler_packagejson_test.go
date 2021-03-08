@@ -1569,3 +1569,47 @@ func TestPackageJsonExportsNeutral(t *testing.T) {
 		},
 	})
 }
+
+func TestPackageJsonExportsOrderIndependent(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo/bar.js'
+				import 'pkg2/foo/bar.js'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"./": "./1/",
+						"./foo/": "./2/"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/1/foo/bar.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg1/2/bar.js": `
+				console.log('SUCCESS')
+			`,
+			"/Users/user/project/node_modules/pkg2/package.json": `
+				{
+					"exports": {
+						"./foo/": "./1/",
+						"./": "./2/"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg2/1/bar.js": `
+				console.log('SUCCESS')
+			`,
+			"/Users/user/project/node_modules/pkg2/2/foo/bar.js": `
+				console.log('FAILURE')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
