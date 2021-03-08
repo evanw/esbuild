@@ -1046,7 +1046,7 @@ function createObjectStash(): ObjectStash {
 
 function extractCallerV8(e: Error, streamIn: StreamIn, ident: string): types.Note | undefined {
   try {
-    let lines = (e.stack + '').split('\n', 4)
+    let lines = (e.stack + '').split('\n')
     lines.splice(1, 1)
     let location = parseStackLinesV8(streamIn, lines, ident)
     if (location) {
@@ -1067,7 +1067,7 @@ function extractErrorMessageV8(e: any, streamIn: StreamIn, stash: ObjectStash | 
 
   // Optionally attempt to extract the file from the stack trace, works in V8/node
   try {
-    location = parseStackLinesV8(streamIn, (e.stack + '').split('\n', 3), '')
+    location = parseStackLinesV8(streamIn, (e.stack + '').split('\n'), '')
   } catch {
   }
 
@@ -1079,39 +1079,43 @@ function parseStackLinesV8(streamIn: StreamIn, lines: string[], ident: string): 
 
   // Check to see if this looks like a V8 stack trace
   if (streamIn.readFileSync && !lines[0].startsWith(at) && lines[1].startsWith(at)) {
-    let line = lines[1].slice(at.length)
-    while (true) {
-      // Unwrap a function name
-      let match = /^\S+ \((.*)\)$/.exec(line)
-      if (match) {
-        line = match[1]
-        continue
-      }
-
-      // Unwrap an eval wrapper
-      match = /^eval at \S+ \((.*)\)(?:, \S+:\d+:\d+)?$/.exec(line)
-      if (match) {
-        line = match[1]
-        continue
-      }
-
-      // Match on the file location
-      match = /^(\S+):(\d+):(\d+)$/.exec(line)
-      if (match) {
-        let contents = streamIn.readFileSync(match[1], 'utf8')
-        let lineText = contents.split(/\r\n|\r|\n|\u2028|\u2029/)[+match[2] - 1] || ''
-        let column = +match[3] - 1
-        let length = lineText.slice(column, column + ident.length) === ident ? ident.length : 0
-        return {
-          file: match[1],
-          namespace: 'file',
-          line: +match[2],
-          column: protocol.encodeUTF8(lineText.slice(0, column)).length,
-          length: protocol.encodeUTF8(lineText.slice(column, column + length)).length,
-          lineText: lineText + '\n' + lines.slice(1).join('\n'),
+    for (let i = 1; i < lines.length; i++) {
+      let line = lines[i]
+      if (!line.startsWith(at)) continue
+      line = line.slice(at.length)
+      while (true) {
+        // Unwrap a function name
+        let match = /^\S+ \((.*)\)$/.exec(line)
+        if (match) {
+          line = match[1]
+          continue
         }
+
+        // Unwrap an eval wrapper
+        match = /^eval at \S+ \((.*)\)(?:, \S+:\d+:\d+)?$/.exec(line)
+        if (match) {
+          line = match[1]
+          continue
+        }
+
+        // Match on the file location
+        match = /^(\S+):(\d+):(\d+)$/.exec(line)
+        if (match) {
+          let contents = streamIn.readFileSync(match[1], 'utf8')
+          let lineText = contents.split(/\r\n|\r|\n|\u2028|\u2029/)[+match[2] - 1] || ''
+          let column = +match[3] - 1
+          let length = lineText.slice(column, column + ident.length) === ident ? ident.length : 0
+          return {
+            file: match[1],
+            namespace: 'file',
+            line: +match[2],
+            column: protocol.encodeUTF8(lineText.slice(0, column)).length,
+            length: protocol.encodeUTF8(lineText.slice(column, column + length)).length,
+            lineText: lineText + '\n' + lines.slice(1).join('\n'),
+          }
+        }
+        break
       }
-      break
     }
   }
 
