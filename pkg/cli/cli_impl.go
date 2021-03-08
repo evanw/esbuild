@@ -180,6 +180,9 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 		case strings.HasPrefix(arg, "--main-fields=") && buildOpts != nil:
 			buildOpts.MainFields = strings.Split(arg[len("--main-fields="):], ",")
 
+		case strings.HasPrefix(arg, "--conditions=") && buildOpts != nil:
+			buildOpts.Conditions = strings.Split(arg[len("--conditions="):], ",")
+
 		case strings.HasPrefix(arg, "--public-path=") && buildOpts != nil:
 			buildOpts.PublicPath = arg[len("--public-path="):]
 

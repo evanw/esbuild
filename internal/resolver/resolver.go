@@ -198,6 +198,9 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 	esmConditionsDefault := map[string]bool{}
 	esmConditionsImport := map[string]bool{"import": true}
 	esmConditionsRequire := map[string]bool{"require": true}
+	for _, condition := range options.Conditions {
+		esmConditionsDefault[condition] = true
+	}
 	switch options.Platform {
 	case config.PlatformBrowser:
 		esmConditionsDefault["browser"] = true

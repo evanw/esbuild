@@ -737,6 +737,7 @@ func rebuildImpl(
 		ExternalModules:       validateExternals(log, realFS, buildOpts.External),
 		TsConfigOverride:      validatePath(log, realFS, buildOpts.Tsconfig, "tsconfig path"),
 		MainFields:            buildOpts.MainFields,
+		Conditions:            append([]string{}, buildOpts.Conditions...),
 		PublicPath:            buildOpts.PublicPath,
 		KeepNames:             buildOpts.KeepNames,
 		InjectAbsPaths:        make([]string, len(buildOpts.Inject)),
@@ -748,6 +749,9 @@ func rebuildImpl(
 		PreserveSymlinks:      buildOpts.PreserveSymlinks,
 		WatchMode:             buildOpts.Watch != nil,
 		Plugins:               plugins,
+	}
+	if options.MainFields != nil {
+		options.MainFields = append([]string{}, options.MainFields...)
 	}
 	for i, path := range buildOpts.Inject {
 		options.InjectAbsPaths[i] = validatePath(log, realFS, path, "inject path")

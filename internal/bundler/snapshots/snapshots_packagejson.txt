@@ -431,6 +431,12 @@ TestPackageJsonExportsBrowser
 console.log("SUCCESS");
 
 ================================================================================
+TestPackageJsonExportsCustomConditions
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg1/custom2.js
+console.log("SUCCESS");
+
+================================================================================
 TestPackageJsonExportsDefaultOverImportAndRequire
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/pkg/default.js
