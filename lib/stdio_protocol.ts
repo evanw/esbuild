@@ -48,6 +48,7 @@ export interface BuildResponse {
   errors: types.Message[];
   warnings: types.Message[];
   outputFiles: BuildOutputFile[];
+  metafile: string;
   rebuildID?: number;
   watchID?: number;
 }

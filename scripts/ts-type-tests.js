@@ -156,7 +156,7 @@ const tests = {
       bundle: true,
       splitting: true,
       outfile: '',
-      metafile: '',
+      metafile: true,
       outdir: '',
       outbase: '',
       platform: 'node',

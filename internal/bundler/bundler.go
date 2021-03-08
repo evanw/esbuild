@@ -50,7 +50,7 @@ type file struct {
 	// If "AbsMetadataFile" is present, this will be filled out with information
 	// about this file in JSON format. This is a partial JSON file that will be
 	// fully assembled later.
-	jsonMetadataChunk []byte
+	jsonMetadataChunk string
 
 	// The path of this entry point relative to the lowest common ancestor
 	// directory containing all entry points. Note: this must have OS-independent
@@ -330,17 +330,17 @@ func parseFile(args parseArgs) {
 		result.ok = true
 
 		// Optionally add metadata about the file
-		var jsonMetadataChunk []byte
-		if args.options.AbsMetadataFile != "" {
+		var jsonMetadataChunk string
+		if args.options.NeedsMetafile {
 			inputs := fmt.Sprintf("{\n        %s: {\n          \"bytesInOutput\": %d\n        }\n      }",
 				js_printer.QuoteForJSON(source.PrettyPath, args.options.ASCIIOnly),
 				len(source.Contents),
 			)
-			jsonMetadataChunk = []byte(fmt.Sprintf(
+			jsonMetadataChunk = fmt.Sprintf(
 				"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": %s,\n      \"bytes\": %d\n    }",
 				inputs,
 				len(source.Contents),
-			))
+			)
 		}
 
 		// Copy the file using an additional file payload to make sure we only copy
@@ -1296,13 +1296,13 @@ func (s *scanner) processScannedFiles() []file {
 			continue
 		}
 
-		j := js_printer.Joiner{}
+		sb := strings.Builder{}
 		isFirstImport := true
 
 		// Begin the metadata chunk
-		if s.options.AbsMetadataFile != "" {
-			j.AddBytes(js_printer.QuoteForJSON(result.file.source.PrettyPath, s.options.ASCIIOnly))
-			j.AddString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(result.file.source.Contents)))
+		if s.options.NeedsMetafile {
+			sb.Write(js_printer.QuoteForJSON(result.file.source.PrettyPath, s.options.ASCIIOnly))
+			sb.WriteString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(result.file.source.Contents)))
 		}
 
 		// Don't try to resolve paths if we're not bundling
@@ -1337,14 +1337,14 @@ func (s *scanner) processScannedFiles() []file {
 				}
 
 				// Generate metadata about each import
-				if s.options.AbsMetadataFile != "" {
+				if s.options.NeedsMetafile {
 					if isFirstImport {
 						isFirstImport = false
-						j.AddString("\n        ")
+						sb.WriteString("\n        ")
 					} else {
-						j.AddString(",\n        ")
+						sb.WriteString(",\n        ")
 					}
-					j.AddString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s\n        }",
+					sb.WriteString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s\n        }",
 						js_printer.QuoteForJSON(s.results[record.SourceIndex.GetIndex()].file.source.PrettyPath, s.options.ASCIIOnly),
 						js_printer.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
 				}
@@ -1436,14 +1436,14 @@ func (s *scanner) processScannedFiles() []file {
 		}
 
 		// End the metadata chunk
-		if s.options.AbsMetadataFile != "" {
+		if s.options.NeedsMetafile {
 			if !isFirstImport {
-				j.AddString("\n      ")
+				sb.WriteString("\n      ")
 			}
-			j.AddString("]\n    }")
+			sb.WriteString("]\n    }")
 		}
 
-		s.results[i].file.jsonMetadataChunk = j.Done()
+		s.results[i].file.jsonMetadataChunk = sb.String()
 	}
 
 	// The linker operates on an array of files, so construct that now. This
@@ -1479,7 +1479,7 @@ type OutputFile struct {
 	// If "AbsMetadataFile" is present, this will be filled out with information
 	// about this file in JSON format. This is a partial JSON file that will be
 	// fully assembled later.
-	jsonMetadataChunk []byte
+	jsonMetadataChunk string
 
 	IsExecutable bool
 }
@@ -1510,7 +1510,7 @@ func applyOptionDefaults(options *config.Options) {
 	}
 }
 
-func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
+func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, string) {
 	applyOptionDefaults(&options)
 
 	// The format can't be "preserve" while bundling
@@ -1556,11 +1556,9 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	}
 
 	// Also generate the metadata file if necessary
-	if options.AbsMetadataFile != "" {
-		outputFiles = append(outputFiles, OutputFile{
-			AbsPath:  options.AbsMetadataFile,
-			Contents: b.generateMetadataJSON(outputFiles, allReachableFiles, options.ASCIIOnly),
-		})
+	var metafileJSON string
+	if options.NeedsMetafile {
+		metafileJSON = b.generateMetadataJSON(outputFiles, allReachableFiles, options.ASCIIOnly)
 	}
 
 	if !options.WriteToStdout {
@@ -1615,7 +1613,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 		outputFiles = outputFiles[:end]
 	}
 
-	return outputFiles
+	return outputFiles, metafileJSON
 }
 
 // This is done in parallel with linking because linking is a mostly serial
@@ -1755,9 +1753,9 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool, allReachableF
 	return lowestAbsDir
 }
 
-func (b *Bundle) generateMetadataJSON(results []OutputFile, allReachableFiles []uint32, asciiOnly bool) []byte {
-	j := js_printer.Joiner{}
-	j.AddString("{\n  \"inputs\": {")
+func (b *Bundle) generateMetadataJSON(results []OutputFile, allReachableFiles []uint32, asciiOnly bool) string {
+	sb := strings.Builder{}
+	sb.WriteString("{\n  \"inputs\": {")
 
 	// Write inputs
 	isFirst := true
@@ -1768,15 +1766,15 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile, allReachableFiles []
 		if file := &b.files[sourceIndex]; len(file.jsonMetadataChunk) > 0 {
 			if isFirst {
 				isFirst = false
-				j.AddString("\n    ")
+				sb.WriteString("\n    ")
 			} else {
-				j.AddString(",\n    ")
+				sb.WriteString(",\n    ")
 			}
-			j.AddBytes(file.jsonMetadataChunk)
+			sb.WriteString(file.jsonMetadataChunk)
 		}
 	}
 
-	j.AddString("\n  },\n  \"outputs\": {")
+	sb.WriteString("\n  },\n  \"outputs\": {")
 
 	// Write outputs
 	isFirst = true
@@ -1790,18 +1788,18 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile, allReachableFiles []
 			}
 			if isFirst {
 				isFirst = false
-				j.AddString("\n    ")
+				sb.WriteString("\n    ")
 			} else {
-				j.AddString(",\n    ")
+				sb.WriteString(",\n    ")
 			}
 			paths[path] = true
-			j.AddString(fmt.Sprintf("%s: ", js_printer.QuoteForJSON(path, asciiOnly)))
-			j.AddBytes(result.jsonMetadataChunk)
+			sb.WriteString(fmt.Sprintf("%s: ", js_printer.QuoteForJSON(path, asciiOnly)))
+			sb.WriteString(result.jsonMetadataChunk)
 		}
 	}
 
-	j.AddString("\n  }\n}\n")
-	return j.Done()
+	sb.WriteString("\n  }\n}\n")
+	return sb.String()
 }
 
 type runtimeCacheKey struct {

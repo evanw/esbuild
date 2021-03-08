@@ -625,7 +625,6 @@ body {
     const css = path.join(testDir, 'example.css')
     const outputJS = path.join(testDir, 'out.js')
     const outputCSS = path.join(testDir, 'out.css')
-    const meta = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `
       import x from "./imported"
       const y = require("./text.txt")
@@ -635,16 +634,16 @@ body {
     await writeFileAsync(imported, 'export default 123')
     await writeFileAsync(text, 'some text')
     await writeFileAsync(css, 'body { some: css; }')
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry],
       bundle: true,
       outfile: outputJS,
-      metafile: meta,
+      metafile: true,
       sourcemap: true,
       loader: { '.txt': 'file' },
     })
 
-    const json = JSON.parse(await readFileAsync(meta))
+    const json = result.metafile
     assert.strictEqual(Object.keys(json.inputs).length, 4)
     assert.strictEqual(Object.keys(json.outputs).length, 4)
     const cwd = process.cwd()
@@ -687,7 +686,6 @@ body {
     const entry2 = path.join(testDir, 'entry2.js')
     const imported = path.join(testDir, 'imported.js')
     const outdir = path.join(testDir, 'out')
-    const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry1, `
       import x, {f1} from "./${path.basename(imported)}"
       console.log(1, x, f1())
@@ -704,16 +702,16 @@ body {
       export function f2() {}
       console.log('shared')
     `)
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry1, entry2],
       bundle: true,
       outdir,
-      metafile,
+      metafile: true,
       splitting: true,
       format: 'esm',
     })
 
-    const json = JSON.parse(await readFileAsync(metafile))
+    const json = result.metafile
     assert.strictEqual(Object.keys(json.inputs).length, 3)
     assert.strictEqual(Object.keys(json.outputs).length, 3)
     const cwd = process.cwd()
@@ -751,7 +749,6 @@ body {
     const entry2 = path.join(testDir, 'entry2.js')
     const imported = path.join(testDir, 'imported.js')
     const outdir = path.join(testDir, 'out')
-    const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry1, `
       import x, {f1} from "./${path.basename(imported)}"
       console.log(1, x, f1())
@@ -768,17 +765,17 @@ body {
       export function f2() {}
       console.log('shared')
     `)
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry1, entry2],
       bundle: true,
       outdir,
-      metafile,
+      metafile: true,
       splitting: true,
       format: 'esm',
       publicPath: 'public',
     })
 
-    const json = JSON.parse(await readFileAsync(metafile))
+    const json = result.metafile
     assert.strictEqual(Object.keys(json.inputs).length, 3)
     assert.strictEqual(Object.keys(json.outputs).length, 3)
     const cwd = process.cwd()
@@ -818,7 +815,6 @@ body {
     const import2 = path.join(importDir, 'import2.js')
     const shared = path.join(testDir, 'shared.js')
     const outdir = path.join(testDir, 'out')
-    const metafile = path.join(testDir, 'meta.json')
     const makeImportPath = (importing, imported) => JSON.stringify('./' + path.relative(path.dirname(importing), imported).split(path.sep).join('/'))
     await mkdirAsync(importDir)
     await writeFileAsync(entry, `
@@ -835,16 +831,16 @@ body {
     await writeFileAsync(shared, `
       console.log('side effect')
     `)
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry],
       bundle: true,
       outdir,
-      metafile,
+      metafile: true,
       splitting: true,
       format: 'esm',
     })
 
-    const json = JSON.parse(await readFileAsync(metafile))
+    const json = result.metafile
     assert.strictEqual(Object.keys(json.inputs).length, 4)
     assert.strictEqual(Object.keys(json.outputs).length, 4)
     const cwd = process.cwd()
@@ -903,17 +899,16 @@ body {
   async metafileCJSInFormatIIFE({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const outfile = path.join(testDir, 'out.js')
-    const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `module.exports = {}`)
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry],
       outfile,
-      metafile,
+      metafile: true,
       format: 'iife',
     })
     const cwd = process.cwd()
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
-    const json = JSON.parse(await readFileAsync(metafile))
+    const json = result.metafile
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, [])
@@ -922,17 +917,16 @@ body {
   async metafileCJSInFormatCJS({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const outfile = path.join(testDir, 'out.js')
-    const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `module.exports = {}`)
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry],
       outfile,
-      metafile,
+      metafile: true,
       format: 'cjs',
     })
     const cwd = process.cwd()
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
-    const json = JSON.parse(await readFileAsync(metafile))
+    const json = result.metafile
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, [])
@@ -942,17 +936,16 @@ body {
   async metafileCJSInFormatESM({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const outfile = path.join(testDir, 'out.js')
-    const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `module.exports = {}`)
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry],
       outfile,
-      metafile,
+      metafile: true,
       format: 'esm',
     })
     const cwd = process.cwd()
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
-    const json = JSON.parse(await readFileAsync(metafile))
+    const json = result.metafile
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, ['default'])
@@ -961,17 +954,16 @@ body {
   async metafileESMInFormatIIFE({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const outfile = path.join(testDir, 'out.js')
-    const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `export let a = 1, b = 2`)
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry],
       outfile,
-      metafile,
+      metafile: true,
       format: 'iife',
     })
     const cwd = process.cwd()
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
-    const json = JSON.parse(await readFileAsync(metafile))
+    const json = result.metafile
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, [])
@@ -980,17 +972,16 @@ body {
   async metafileESMInFormatCJS({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const outfile = path.join(testDir, 'out.js')
-    const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `export let a = 1, b = 2`)
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry],
       outfile,
-      metafile,
+      metafile: true,
       format: 'cjs',
     })
     const cwd = process.cwd()
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
-    const json = JSON.parse(await readFileAsync(metafile))
+    const json = result.metafile
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, [])
@@ -999,17 +990,16 @@ body {
   async metafileESMInFormatESM({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const outfile = path.join(testDir, 'out.js')
-    const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `export let a = 1, b = 2`)
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry],
       outfile,
-      metafile,
+      metafile: true,
       format: 'esm',
     })
     const cwd = process.cwd()
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
-    const json = JSON.parse(await readFileAsync(metafile))
+    const json = result.metafile
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, ['a', 'b'])
@@ -1021,7 +1011,6 @@ body {
     const nested2 = path.join(testDir, 'nested2.js')
     const nested3 = path.join(testDir, 'nested3.js')
     const outfile = path.join(testDir, 'out.js')
-    const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `
       export {nested1} from ${JSON.stringify(nested1)}
       export * from ${JSON.stringify(nested2)}
@@ -1039,16 +1028,16 @@ body {
     await writeFileAsync(nested3, `
       export let nested3 = 3
     `)
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry],
       bundle: true,
       outfile,
-      metafile,
+      metafile: true,
       format: 'esm',
     })
     const cwd = process.cwd()
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
-    const json = JSON.parse(await readFileAsync(metafile))
+    const json = result.metafile
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [
       { path: makePath(nested1), kind: 'import-statement' },
       { path: makePath(nested2), kind: 'import-statement' },
@@ -1068,7 +1057,6 @@ body {
     const imported = path.join(testDir, 'imported.css')
     const image = path.join(testDir, 'example.png')
     const output = path.join(testDir, 'out.css')
-    const meta = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `
       @import "./imported";
       body { background: url(https://example.com/external.png) }
@@ -1077,16 +1065,16 @@ body {
       a { background: url(./example.png) }
     `)
     await writeFileAsync(image, 'an image')
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry],
       bundle: true,
       outfile: output,
-      metafile: meta,
+      metafile: true,
       sourcemap: true,
       loader: { '.png': 'dataurl' },
     })
 
-    const json = JSON.parse(await readFileAsync(meta))
+    const json = result.metafile
     assert.strictEqual(Object.keys(json.inputs).length, 3)
     assert.strictEqual(Object.keys(json.outputs).length, 1)
     const cwd = process.cwd()
@@ -1118,7 +1106,6 @@ body {
     const entry2 = path.join(testDir, 'entry2.js')
     const file = path.join(testDir, 'x.file')
     const outdir = path.join(testDir, 'out')
-    const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry1, `
       export {default} from './x.file'
     `)
@@ -1127,16 +1114,15 @@ body {
       console.log(z)
     `)
     await writeFileAsync(file, `This is a file`)
-    await esbuild.build({
+    const result = await esbuild.build({
       entryPoints: [entry1, entry2],
       bundle: true,
       loader: { '.file': 'file' },
       outdir,
-      metafile,
+      metafile: true,
       format: 'cjs',
     })
-    const contents = await readFileAsync(metafile, 'utf8')
-    const json = JSON.parse(contents)
+    const json = result.metafile
     const cwd = process.cwd()
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
     const fileName = require(path.join(outdir, 'entry1.js')).default
@@ -1144,16 +1130,12 @@ body {
     assert.deepStrictEqual(json.outputs[fileKey].imports, [])
     assert.deepStrictEqual(json.outputs[fileKey].exports, [])
     assert.deepStrictEqual(json.outputs[fileKey].inputs, { [makePath(file)]: { bytesInOutput: 14 } })
-
-    // Make sure this key is only in the JSON metafile once
-    assert.deepStrictEqual(contents.split(JSON.stringify(fileKey)).length, 2)
   },
 
   // Test in-memory output files
   async writeFalse({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
-    const metafile = path.join(testDir, 'meta.json')
     const inputCode = 'console.log()'
     await writeFileAsync(input, inputCode)
 
@@ -1163,19 +1145,17 @@ body {
       outfile: output,
       sourcemap: true,
       format: 'esm',
-      metafile,
+      metafile: true,
       write: false,
     })
 
     assert.strictEqual(fs.existsSync(output), false)
     assert.notStrictEqual(value.outputFiles, void 0)
-    assert.strictEqual(value.outputFiles.length, 3)
+    assert.strictEqual(value.outputFiles.length, 2)
     assert.strictEqual(value.outputFiles[0].path, output + '.map')
     assert.strictEqual(value.outputFiles[0].contents.constructor, Uint8Array)
     assert.strictEqual(value.outputFiles[1].path, output)
     assert.strictEqual(value.outputFiles[1].contents.constructor, Uint8Array)
-    assert.strictEqual(value.outputFiles[2].path, metafile)
-    assert.strictEqual(value.outputFiles[2].contents.constructor, Uint8Array)
 
     const sourceMap = JSON.parse(Buffer.from(value.outputFiles[0].contents).toString())
     const js = Buffer.from(value.outputFiles[1].contents).toString()
@@ -1184,7 +1164,7 @@ body {
 
     const cwd = process.cwd()
     const makePath = file => path.relative(cwd, file).split(path.sep).join('/')
-    const meta = JSON.parse(Buffer.from(value.outputFiles[2].contents).toString())
+    const meta = value.metafile
     assert.strictEqual(meta.inputs[makePath(input)].bytes, inputCode.length)
     assert.strictEqual(meta.outputs[makePath(output)].bytes, js.length)
     assert.strictEqual(meta.outputs[makePath(output + '.map')].bytes, value.outputFiles[0].contents.length)

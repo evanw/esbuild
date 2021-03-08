@@ -229,8 +229,7 @@ type Options struct {
 
 	Plugins []Plugin
 
-	// If present, metadata about the bundle is written as JSON here
-	AbsMetadataFile string
+	NeedsMetafile bool
 
 	SourceMap             SourceMap
 	ExcludeSourcesContent bool

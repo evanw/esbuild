@@ -167,7 +167,7 @@ function flagsForBuildOptions(
   let watch = getFlag(options, keys, 'watch', mustBeBooleanOrObject);
   let splitting = getFlag(options, keys, 'splitting', mustBeBoolean);
   let preserveSymlinks = getFlag(options, keys, 'preserveSymlinks', mustBeBoolean);
-  let metafile = getFlag(options, keys, 'metafile', mustBeString);
+  let metafile = getFlag(options, keys, 'metafile', mustBeBoolean);
   let outfile = getFlag(options, keys, 'outfile', mustBeString);
   let outdir = getFlag(options, keys, 'outdir', mustBeString);
   let outbase = getFlag(options, keys, 'outbase', mustBeString);
@@ -209,7 +209,7 @@ function flagsForBuildOptions(
   }
   if (splitting) flags.push('--splitting');
   if (preserveSymlinks) flags.push('--preserve-symlinks');
-  if (metafile) flags.push(`--metafile=${metafile}`);
+  if (metafile) flags.push(`--metafile`);
   if (outfile) flags.push(`--outfile=${outfile}`);
   if (outdir) flags.push(`--outdir=${outdir}`);
   if (outbase) flags.push(`--outbase=${outbase}`);
@@ -847,6 +847,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
             let result: types.BuildResult = { warnings };
             if (response!.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
+            if (response!.metafile) result.metafile = JSON.parse(response!.metafile);
 
             // Handle incremental rebuilds
             if (response!.rebuildID !== void 0) {
