@@ -1820,6 +1820,39 @@ let pluginTests = {
     }
     assert.strictEqual(resolveKind, 'url-token')
   },
+
+  async warnIfUnusedNoWarning({ esbuild }) {
+    const build = await esbuild.build({
+      entryPoints: ['entry'],
+      bundle: true,
+      write: false,
+      logLevel: 'silent',
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => {
+            if (args.importer === '') return { path: args.path, namespace: 'entry' }
+            else return { path: args.path, namespace: 'bare-import' }
+          })
+          build.onLoad({ filter: /.*/, namespace: 'entry' }, () => {
+            return {
+              contents: `
+                import "base64"
+                import "binary"
+                import "dataurl"
+                import "json"
+                import "text"
+              `,
+            }
+          })
+          build.onLoad({ filter: /.*/, namespace: 'bare-import' }, args => {
+            return { contents: `[1, 2, 3]`, loader: args.path }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(build.warnings.length, 0)
+  },
 }
 
 async function main() {
