@@ -391,16 +391,16 @@ func parseOptionsImpl(
 			}
 			buildOpts.Footer[value[:equals]] = value[equals+1:]
 
-		case strings.HasPrefix(arg, "--error-limit="):
-			value := arg[len("--error-limit="):]
+		case strings.HasPrefix(arg, "--log-limit="):
+			value := arg[len("--log-limit="):]
 			limit, err := strconv.Atoi(value)
 			if err != nil || limit < 0 {
-				return fmt.Errorf("Invalid error limit: %q", value), nil
+				return fmt.Errorf("Invalid log limit: %q", value), nil
 			}
 			if buildOpts != nil {
-				buildOpts.ErrorLimit = limit
+				buildOpts.LogLimit = limit
 			} else {
-				transformOpts.ErrorLimit = limit
+				transformOpts.LogLimit = limit
 			}
 
 			// Make sure this stays in sync with "PrintErrorToStderr"
@@ -527,7 +527,7 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *string, *api.Trans
 			options := newBuildOptions()
 
 			// Apply defaults appropriate for the CLI
-			options.ErrorLimit = 10
+			options.LogLimit = 10
 			options.LogLevel = api.LogLevelInfo
 			options.Write = true
 
@@ -543,7 +543,7 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *string, *api.Trans
 	options := newTransformOptions()
 
 	// Apply defaults appropriate for the CLI
-	options.ErrorLimit = 10
+	options.LogLimit = 10
 	options.LogLevel = api.LogLevelInfo
 
 	err, _ := parseOptionsImpl(osArgs, nil, &options, kindInternal)
@@ -753,7 +753,7 @@ func serveImpl(osArgs []string) error {
 	options := newBuildOptions()
 
 	// Apply defaults appropriate for the CLI
-	options.ErrorLimit = 5
+	options.LogLimit = 5
 	options.LogLevel = api.LogLevelInfo
 
 	if err, _ := parseOptionsImpl(filteredArgs, &options, nil, kindInternal); err != nil {

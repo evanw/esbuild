@@ -218,9 +218,9 @@ const (
 // Build API
 
 type BuildOptions struct {
-	Color      StderrColor
-	ErrorLimit int
-	LogLevel   LogLevel
+	Color    StderrColor
+	LogLimit int
+	LogLevel LogLevel
 
 	Sourcemap      SourceMap
 	SourcesContent SourcesContent
@@ -312,9 +312,9 @@ func Build(options BuildOptions) BuildResult {
 // Transform API
 
 type TransformOptions struct {
-	Color      StderrColor
-	ErrorLimit int
-	LogLevel   LogLevel
+	Color    StderrColor
+	LogLimit int
+	LogLevel LogLevel
 
 	Sourcemap      SourceMap
 	SourcesContent SourcesContent

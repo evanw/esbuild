@@ -28,7 +28,7 @@ interface CommonOptions {
 
   color?: boolean;
   logLevel?: LogLevel;
-  errorLimit?: number;
+  logLimit?: number;
 }
 
 export interface BuildOptions extends CommonOptions {

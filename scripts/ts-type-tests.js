@@ -106,7 +106,7 @@ const tests = {
       pure: ['x'],
       color: true,
       logLevel: 'info',
-      errorLimit: 0,
+      logLimit: 0,
       tsconfigRaw: {
         compilerOptions: {
           jsxFactory: '',
@@ -152,7 +152,7 @@ const tests = {
       pure: ['x'],
       color: true,
       logLevel: 'info',
-      errorLimit: 0,
+      logLimit: 0,
       bundle: true,
       splitting: true,
       outfile: '',

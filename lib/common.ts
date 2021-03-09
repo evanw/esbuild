@@ -85,12 +85,12 @@ type CommonOptions = types.BuildOptions | types.TransformOptions;
 function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys, isTTY: boolean, logLevelDefault: types.LogLevel): void {
   let color = getFlag(options, keys, 'color', mustBeBoolean);
   let logLevel = getFlag(options, keys, 'logLevel', mustBeString);
-  let errorLimit = getFlag(options, keys, 'errorLimit', mustBeInteger);
+  let logLimit = getFlag(options, keys, 'logLimit', mustBeInteger);
 
   if (color) flags.push(`--color=${color}`);
   else if (isTTY) flags.push(`--color=true`); // This is needed to fix "execFileSync" which buffers stderr
   flags.push(`--log-level=${logLevel || logLevelDefault}`);
-  flags.push(`--error-limit=${errorLimit || 0}`);
+  flags.push(`--log-limit=${logLimit || 0}`);
 }
 
 function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKeys): void {
