@@ -2047,7 +2047,8 @@ loop:
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
 				c.log.AddRangeWarning(&source, r, fmt.Sprintf("Import %q will always be undefined because there is no matching export", namedImport.Alias))
 			} else {
-				c.addRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
+				c.addRangeError(source, r, fmt.Sprintf("No matching export in %q for import %q",
+					c.files[nextTracker.sourceIndex].source.PrettyPath, namedImport.Alias))
 			}
 
 		case importProbablyTypeScriptType:
@@ -2310,7 +2311,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 		return importTracker{}, importProbablyTypeScriptType, nil
 	}
 
-	return importTracker{}, importNoMatch, nil
+	return importTracker{sourceIndex: otherSourceIndex}, importNoMatch, nil
 }
 
 func (c *linkerContext) markPartsReachableFromEntryPoints() {

@@ -1233,8 +1233,8 @@ func TestNamespaceImportReExportMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `foo.js: error: No matching export for import "foo"
-foo.js: error: No matching export for import "foo"
+		expectedCompileLog: `foo.js: error: No matching export in "bar.js" for import "foo"
+foo.js: error: No matching export in "bar.js" for import "foo"
 `,
 	})
 }
@@ -1258,8 +1258,8 @@ func TestNamespaceImportReExportUnusedMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `foo.js: error: No matching export for import "foo"
-foo.js: error: No matching export for import "foo"
+		expectedCompileLog: `foo.js: error: No matching export in "bar.js" for import "foo"
+foo.js: error: No matching export in "bar.js" for import "foo"
 `,
 	})
 }
@@ -1693,12 +1693,12 @@ func TestImportDefaultNamespaceComboNoDefault(t *testing.T) {
 				},
 			},
 		},
-		expectedCompileLog: `entry-default-ns-prop.js: error: No matching export for import "default"
+		expectedCompileLog: `entry-default-ns-prop.js: error: No matching export in "foo.js" for import "default"
 entry-default-ns-prop.js: warning: Import "default" will always be undefined because there is no matching export
-entry-default-ns.js: error: No matching export for import "default"
-entry-default-prop.js: error: No matching export for import "default"
+entry-default-ns.js: error: No matching export in "foo.js" for import "default"
+entry-default-prop.js: error: No matching export in "foo.js" for import "default"
 entry-default-prop.js: warning: Import "default" will always be undefined because there is no matching export
-entry-default.js: error: No matching export for import "default"
+entry-default.js: error: No matching export in "foo.js" for import "default"
 entry-prop.js: warning: Import "default" will always be undefined because there is no matching export
 `,
 	})

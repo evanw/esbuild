@@ -206,8 +206,8 @@ func TestTSImportMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `entry.ts: error: No matching export for import "default"
-entry.ts: error: No matching export for import "y"
+		expectedCompileLog: `entry.ts: error: No matching export in "foo.js" for import "default"
+entry.ts: error: No matching export in "foo.js" for import "y"
 `,
 	})
 }

@@ -124,7 +124,7 @@ func TestCSSFromJSMissingImport(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedCompileLog: `entry.js: error: No matching export for import "missing"
+		expectedCompileLog: `entry.js: error: No matching export in "a.css" for import "missing"
 `,
 	})
 }
