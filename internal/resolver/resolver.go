@@ -1192,19 +1192,32 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 						// paths. We also want to avoid any "%" characters in the absolute
 						// directory path accidentally being interpreted as URL escapes.
 						resolvedPath, status, token := esmPackageExportsResolveWithPostConditions("/", esmPackageSubpath, pkgJSON.exportsMap.root, conditions)
-						if status == peStatusOk && strings.HasPrefix(resolvedPath, "/") {
+						if (status == peStatusExact || status == peStatusInexact) && strings.HasPrefix(resolvedPath, "/") {
 							absResolvedPath := r.fs.Join(absPkgPath, resolvedPath[1:])
-							resolvedDirInfo := r.dirInfoCached(r.fs.Dir(absResolvedPath))
-							if resolvedDirInfo == nil {
+
+							switch status {
+							case peStatusExact:
+								resolvedDirInfo := r.dirInfoCached(r.fs.Dir(absResolvedPath))
+								if resolvedDirInfo == nil {
+									status = peStatusModuleNotFound
+								} else if entry, diffCase := resolvedDirInfo.entries.Get(r.fs.Base(absResolvedPath)); entry == nil {
+									status = peStatusModuleNotFound
+								} else if kind := entry.Kind(r.fs); kind == fs.DirEntry {
+									status = peStatusUnsupportedDirectoryImport
+								} else if kind != fs.FileEntry {
+									status = peStatusModuleNotFound
+								} else {
+									return PathPair{Primary: logger.Path{Text: absResolvedPath, Namespace: "file"}}, true, diffCase, nil
+								}
+
+							case peStatusInexact:
+								// If this was resolved against an expansion key ending in a "/"
+								// instead of a "*", we need to try CommonJS-style implicit
+								// extension and/or directory detection.
+								if absolute, ok, diffCase := r.loadAsFileOrDirectory(absResolvedPath, kind); ok {
+									return absolute, true, diffCase, nil
+								}
 								status = peStatusModuleNotFound
-							} else if entry, diffCase := resolvedDirInfo.entries.Get(r.fs.Base(absResolvedPath)); entry == nil {
-								status = peStatusModuleNotFound
-							} else if kind := entry.Kind(r.fs); kind == fs.DirEntry {
-								status = peStatusUnsupportedDirectoryImport
-							} else if kind != fs.FileEntry {
-								status = peStatusModuleNotFound
-							} else {
-								return PathPair{Primary: logger.Path{Text: absResolvedPath, Namespace: "file"}}, true, diffCase, nil
 							}
 						}
 
@@ -1239,7 +1252,7 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 
 						case peStatusModuleNotFound:
 							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
-								fmt.Sprintf("The module %q was not found", resolvedPath))}
+								fmt.Sprintf("The module %q was not found on the file system", resolvedPath))}
 
 						case peStatusUnsupportedDirectoryImport:
 							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,

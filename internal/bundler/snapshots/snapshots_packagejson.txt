@@ -461,6 +461,12 @@ TestPackageJsonExportsNode
 console.log("SUCCESS");
 
 ================================================================================
+TestPackageJsonExportsNotExactMissingExtension
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg1/dir/bar.js
+console.log("SUCCESS");
+
+================================================================================
 TestPackageJsonExportsOrderIndependent
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/pkg1/2/bar.js

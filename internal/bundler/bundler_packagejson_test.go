@@ -1346,7 +1346,7 @@ func TestPackageJsonExportsErrorModuleNotFound(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
-Users/user/project/node_modules/pkg1/package.json: note: The module "./foo.js" was not found
+Users/user/project/node_modules/pkg1/package.json: note: The module "./foo.js" was not found on the file system
 `,
 	})
 }
@@ -1374,7 +1374,7 @@ func TestPackageJsonExportsErrorUnsupportedDirectoryImport(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
-Users/user/project/node_modules/pkg1/package.json: note: The module "./foo" was not found
+Users/user/project/node_modules/pkg1/package.json: note: The module "./foo" was not found on the file system
 Users/user/project/src/entry.js: error: Could not resolve "pkg2" (mark it as external to exclude it from the bundle)
 Users/user/project/node_modules/pkg2/package.json: note: Importing the directory "./foo" is not supported
 `,
@@ -1689,5 +1689,86 @@ func TestPackageJsonExportsCustomConditions(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 			Conditions:    []string{"custom2"},
 		},
+	})
+}
+
+func TestPackageJsonExportsNotExactMissingExtension(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo/bar'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"./foo/": "./dir/"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/dir/bar.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonExportsNotExactMissingExtensionPattern(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo/bar'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"./foo/*": "./dir/*"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/dir/bar.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo/bar" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The module "./dir/bar" was not found on the file system
+`,
+	})
+}
+
+func TestPackageJsonExportsExactMissingExtension(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo/bar'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"./foo/bar": "./dir/bar"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/dir/bar.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo/bar" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The module "./dir/bar" was not found on the file system
+`,
 	})
 }

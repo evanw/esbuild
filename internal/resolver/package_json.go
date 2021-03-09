@@ -437,7 +437,8 @@ type peStatus uint8
 const (
 	peStatusUndefined peStatus = iota
 	peStatusNull
-	peStatusOk
+	peStatusExact
+	peStatusInexact // This means we may need to try CommonJS-style extension suffixes
 
 	// Module specifier is an invalid URL, package name or package subpath specifier.
 	peStatusInvalidModuleSpecifier
@@ -465,7 +466,7 @@ func esmPackageExportsResolveWithPostConditions(
 	conditions map[string]bool,
 ) (string, peStatus, logger.Range) {
 	resolved, status, token := esmPackageExportsResolve(packageURL, subpath, exports, conditions)
-	if status != peStatusOk {
+	if status != peStatusExact && status != peStatusInexact {
 		return resolved, status, token
 	}
 
@@ -487,7 +488,7 @@ func esmPackageExportsResolveWithPostConditions(
 	}
 
 	// Set resolved to the real path of resolved.
-	return resolvedPath, peStatusOk, token
+	return resolvedPath, status, token
 }
 
 func esmPackageExportsResolve(
@@ -549,7 +550,12 @@ func esmPackageImportsExportsResolve(
 		if strings.HasPrefix(matchKey, expansion.key) {
 			target := expansion.value
 			subpath := matchKey[len(expansion.key):]
-			return esmPackageTargetResolve(packageURL, target, subpath, false, conditions)
+			result, status, token := esmPackageTargetResolve(packageURL, target, subpath, false, conditions)
+			if status == peStatusExact {
+				// Return the object { resolved, exact: false }.
+				status = peStatusInexact
+			}
+			return result, status, token
 		}
 	}
 
@@ -616,10 +622,10 @@ func esmPackageTargetResolve(
 
 		if pattern {
 			// Return the URL resolution of resolvedTarget with every instance of "*" replaced with subpath.
-			return strings.ReplaceAll(resolvedTarget, "*", subpath), peStatusOk, target.firstToken
+			return strings.ReplaceAll(resolvedTarget, "*", subpath), peStatusExact, target.firstToken
 		} else {
 			// Return the URL resolution of the concatenation of subpath and resolvedTarget.
-			return path.Join(resolvedTarget, subpath), peStatusOk, target.firstToken
+			return path.Join(resolvedTarget, subpath), peStatusExact, target.firstToken
 		}
 
 	case peObject:

@@ -2887,6 +2887,26 @@
           }
         }`,
       }),
+      test(['in.js', '--outfile=node.js', '--format=cjs'].concat(flags), {
+        'in.js': `const abc = require('pkg/dir/test'); if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/sub/test.js': `module.exports = 123`,
+        'node_modules/pkg/package.json': `{
+          "exports": {
+            "./dir/": "./sub/"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=cjs'].concat(flags), {
+        'in.js': `const abc = require('pkg/dir/test'); if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/sub/test/index.js': `module.exports = 123`,
+        'node_modules/pkg/package.json': `{
+          "exports": {
+            "./dir/": "./sub/"
+          }
+        }`,
+      }),
       test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
         'in.js': `import abc from 'pkg/foo'; if (abc !== 123) throw 'fail'`,
         'package.json': `{ "type": "module" }`,
