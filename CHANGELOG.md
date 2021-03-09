@@ -44,7 +44,7 @@
 
     If you are using esbuild in the browser, you now need to call `esbuild.initialize({ wasmURL })` and wait for the returned promise before calling `esbuild.transform()`. It takes the same options that `esbuild.startService()` used to take. Note that the `esbuild.buildSync()` and `esbuild.transformSync()` APIs still exist when using esbuild in node. Nothing has changed about the synchronous esbuild APIs.
 
-* Remove the `metafile` from `outputFiles` (#633)
+* Remove the `metafile` from `outputFiles` ([#633](https://github.com/evanw/esbuild/issues/633))
 
     Previously using `metafile` with the API is unnecessarily cumbersome because you have to extract the JSON metadata from the output file yourself instead of it just being provided to you as a return value. This is especially a bummer if you are using `write: false` because then you need to use a for loop over the output files and do string comparisons with the file paths to try to find the one corresponding to the `metafile`. Returning the metadata directly is an important UX improvement for the API. It means you can now do this:
 
