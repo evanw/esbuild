@@ -1085,7 +1085,7 @@ function parseStackLinesV8(streamIn: StreamIn, lines: string[], ident: string): 
       line = line.slice(at.length)
       while (true) {
         // Unwrap a function name
-        let match = /^\S+ \((.*)\)$/.exec(line)
+        let match = /^(?:new |async )?\S+ \((.*)\)$/.exec(line)
         if (match) {
           line = match[1]
           continue
