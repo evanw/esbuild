@@ -49,6 +49,7 @@ export interface BuildResponse {
   warnings: types.Message[];
   outputFiles: BuildOutputFile[];
   metafile: string;
+  writeToStdout?: Uint8Array;
   rebuildID?: number;
   watchID?: number;
 }
