@@ -106,6 +106,10 @@
     console.log(metafile.outputs)
     ```
 
+* Rename `--error-limit=` to `--log-limit=`
+
+    This parameter has been renamed because it now applies to both warnings and errors, not just to errors. Previously setting the error limit did not apply any limits to the number of warnings printed, which could sometimes result in a deluge of warnings that are problematic for Windows Command Prompt, which is very slow to print to and has very limited scrollback. Now the log limit applies to the total number of log messages including both errors and warnings, so no more than that number of messages will be printed. The log usually prints log messages immediately but it will now intentionally hold back warnings when approaching the limit to make room for possible future errors during a build. So if a build fails you should be guaranteed to see an error message (i.e. warnings can't use up the entire log limit and then prevent errors from being printed).
+
 ## 0.8.57
 
 * Fix overlapping chunk names when code splitting is active ([#928](https://github.com/evanw/esbuild/issues/928))

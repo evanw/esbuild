@@ -606,7 +606,7 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 	start := time.Now()
 	logOptions := logger.OutputOptions{
 		IncludeSource: true,
-		MessageLimit:  buildOpts.ErrorLimit,
+		MessageLimit:  buildOpts.LogLimit,
 		Color:         validateColor(buildOpts.Color),
 		LogLevel:      validateLogLevel(buildOpts.LogLevel),
 	}
@@ -1109,7 +1109,7 @@ func (w *watcher) tryToFindDirtyPath() string {
 func transformImpl(input string, transformOpts TransformOptions) TransformResult {
 	log := logger.NewStderrLog(logger.OutputOptions{
 		IncludeSource: true,
-		MessageLimit:  transformOpts.ErrorLimit,
+		MessageLimit:  transformOpts.LogLimit,
 		Color:         validateColor(transformOpts.Color),
 		LogLevel:      validateLogLevel(transformOpts.LogLevel),
 	})

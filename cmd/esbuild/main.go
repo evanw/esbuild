@@ -49,7 +49,7 @@ var helpText = func(colors logger.Colors) string {
                             where T is one of: css | js
   --charset=utf8            Do not escape UTF-8 code points
   --color=...               Force use of color terminal escapes (true | false)
-  --error-limit=...         Maximum error count or 0 to disable (default 10)
+  --log-limit=...           Maximum message count or 0 to disable (default 10)
   --footer:T=...            Text to be appended to each output file of type T
                             where T is one of: css | js
   --global-name=...         The name of the global for the IIFE format

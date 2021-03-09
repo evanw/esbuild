@@ -375,7 +375,7 @@ func NewStderrLog(options OutputOptions) Log {
 
 		// Print out a summary
 		if options.MessageLimit > 0 && errors+warnings > options.MessageLimit {
-			writeStringWithColor(os.Stderr, fmt.Sprintf("%s shown (disable the message limit with --error-limit=0)\n",
+			writeStringWithColor(os.Stderr, fmt.Sprintf("%s shown (disable the message limit with --log-limit=0)\n",
 				errorAndWarningSummary(errors, warnings, shownErrors, shownWarnings)))
 		} else if options.LogLevel <= LevelInfo && (warnings != 0 || errors != 0) {
 			writeStringWithColor(os.Stderr, fmt.Sprintf("%s\n",
