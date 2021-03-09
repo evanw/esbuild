@@ -289,16 +289,56 @@ exports.fsevents = require('` + ProjectBaseDir + `/node_modules/fsevents/fsevent
 		entryPoints: []string{ProjectBaseDir + "/entry.js"},
 	},
 		buildResult{
-			files:  map[string]string{
-        `dev/node_modules/fsevents/fsevents.js`: `
+			files: map[string]string{
+				`dev/node_modules/fsevents/fsevents.js`: `
 __commonJS["./node_modules/fsevents/fsevents.js"] = function(exports2, module2, __filename, __dirname, require) {
   module2.exports = __dirname;
 };`,
-        `dev/entry.js`: `
+				`dev/entry.js`: `
 __commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
   Object.defineProperty(exports, "fsevents", { get: () => require("./node_modules/fsevents/fsevents.js") });
 };`,
-    },
+			},
+		},
+	)
+}
+
+func TestReassignCoupledWithUseOfConsole(t *testing.T) {
+	snapApiSuite.expectBuild(t, built{
+		files: map[string]string{
+			ProjectBaseDir + "/fine.js": `console.log('fine')`,
+			ProjectBaseDir + "/reassigns-console.js": `
+			console = function () {}
+			console.log('reassigned')
+	`,
+			ProjectBaseDir + "/entry.js": `
+module.exports = function () {
+  require('./fine')
+  require('./reassigns-console')
+}
+`},
+		entryPoints: []string{ProjectBaseDir + "/entry.js"},
+	},
+		buildResult{
+			files: map[string]string{
+				`dev/fine.js`: `
+__commonJS["./fine.js"] = function(exports2, module2, __filename, __dirname, require) {
+  get_console().log("fine");
+};`,
+				`dev/reassigns-console.js`: `
+__commonJS["./reassigns-console.js"] = function(exports2, module2, __filename, __dirname, require) {
+  console = function() {
+  };
+  get_console().log("reassigned");
+};`,
+				`dev/entry.js`: `
+__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+  module.exports = function() {
+    require("./fine.js");
+    require("./reassigns-console.js");
+  };
+};`,
+			},
 		},
 	)
 }

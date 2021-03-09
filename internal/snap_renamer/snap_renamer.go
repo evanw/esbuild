@@ -23,6 +23,8 @@ type SnapRenamer struct {
 	wrappedRenamer      *renamer.Renamer
 	NamedReferences     map[js_ast.Ref]*NamedReference
 	CurrentPrinterIndex func() int
+	// Used when logging, i.e. fmt.Printf("[%10s]: %v\n", r.filePath, symbol)
+	filePath string
 }
 
 type nameForSymbolOpts struct {
@@ -45,11 +47,14 @@ var RewritingNameForSymbolOpts = nameForSymbolOpts{
 	isRewriting:            true,
 }
 
-func NewSnapRenamer(symbols js_ast.SymbolMap, isEnabled bool) SnapRenamer {
+func NewSnapRenamer(symbols js_ast.SymbolMap,
+	filePath string,
+	isEnabled bool) SnapRenamer {
 	globalSymbols := getGlobalSymbols(&symbols)
 	return SnapRenamer{
 		symbols:             symbols,
 		globalSymbols:       globalSymbols,
+		filePath:            filePath,
 		IsEnabled:           isEnabled,
 		deferredIdentifiers: make(map[js_ast.Ref]Replacement),
 		NamedReferences:     make(map[js_ast.Ref]*NamedReference),
@@ -60,11 +65,15 @@ func NewSnapRenamer(symbols js_ast.SymbolMap, isEnabled bool) SnapRenamer {
 // mostly related to the code wrapping each module.
 // In order to correctly determine symbol names we store a reference here and forward
 // symbol resolves to it @see `NameForSymbol`.
-func WrapRenamer(r *renamer.Renamer, symbols js_ast.SymbolMap, isEnabled bool) SnapRenamer {
+func WrapRenamer(r *renamer.Renamer,
+	symbols js_ast.SymbolMap,
+	filePath string,
+	isEnabled bool) SnapRenamer {
 	globalSymbols := getGlobalSymbols(&symbols)
 	return SnapRenamer{
 		symbols:             symbols,
 		globalSymbols:       globalSymbols,
+		filePath:            filePath,
 		IsEnabled:           isEnabled,
 		deferredIdentifiers: make(map[js_ast.Ref]Replacement),
 		wrappedRenamer:      r,
@@ -90,11 +99,11 @@ func (r *SnapRenamer) SnapNameForSymbol(
 		return symbol.OriginalName
 	}
 
-	if opts.allowReplaceWithDeferr && symbol.Kind == js_ast.SymbolUnbound && (symbol == r.globalSymbols.process ||
-		symbol == r.globalSymbols.document ||
-		symbol == r.globalSymbols.global ||
-		symbol == r.globalSymbols.window ||
-		symbol == r.globalSymbols.console) {
+	if opts.allowReplaceWithDeferr && symbol.Kind == js_ast.SymbolUnbound && (symbolsAreSame(&symbol, &r.globalSymbols.process) ||
+		symbolsAreSame(&symbol, &r.globalSymbols.document) ||
+		symbolsAreSame(&symbol, &r.globalSymbols.global) ||
+		symbolsAreSame(&symbol, &r.globalSymbols.window) ||
+		symbolsAreSame(&symbol, &r.globalSymbols.console)) {
 		return functionCallForGlobal(symbol.OriginalName)
 	}
 

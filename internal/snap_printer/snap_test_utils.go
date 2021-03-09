@@ -56,7 +56,7 @@ func expectPrintedCommon(
 		}
 		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
-		r := snap_renamer.NewSnapRenamer(symbols, testOpts.shouldRewrite)
+		r := snap_renamer.NewSnapRenamer(symbols, name, testOpts.shouldRewrite)
 
 		js := Print(
 			tree,

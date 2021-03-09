@@ -20,6 +20,10 @@ type GlobalSymbols struct {
 }
 
 func getGlobalSymbols(symbols *js_ast.SymbolMap) GlobalSymbols {
+	// TODO(thlorenz): even this is not causing any issues (verified) it still is wasteful to perform this
+	// step each time a Renamer is created. However we cannot make it static in case that esbuild
+	// will run as a service in the future. In that case multiple bundles with
+	// different symbol setups would be created in the same process .
 	globalSymbols := GlobalSymbols{}
 	for _, outer := range symbols.Outer {
 		for _, ref := range outer {
@@ -46,6 +50,14 @@ func getGlobalSymbols(symbols *js_ast.SymbolMap) GlobalSymbols {
 		}
 	}
 	return globalSymbols
+}
+
+func symbolsAreSame(sym1 *js_ast.Symbol, sym2 *js_ast.Symbol) bool {
+	// sym1 == sym2 takes considers useCount, but we just want to know if we are
+	// dealing with the same global symbol or not
+	return sym1.Link == sym2.Link &&
+		sym1.Kind == sym2.Kind &&
+		sym1.OriginalName == sym2.OriginalName
 }
 
 func functionNameForGlobal(id string) string {
