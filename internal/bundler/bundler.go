@@ -587,6 +587,9 @@ func logPluginMessages(
 		}
 
 		// Sanitize the locations
+		for _, note := range msg.Notes {
+			sanetizeLocation(res, note.Location)
+		}
 		if msg.Data.Location == nil {
 			msg.Data.Location = logger.LocationOrNil(importSource, importPathRange)
 		} else {
@@ -594,9 +597,10 @@ func logPluginMessages(
 			if msg.Data.Location.File == "" && importSource != nil {
 				msg.Data.Location.File = importSource.PrettyPath
 			}
-		}
-		for _, note := range msg.Notes {
-			sanetizeLocation(res, note.Location)
+			if importSource != nil {
+				msg.Notes = append(msg.Notes, logger.RangeData(importSource, importPathRange,
+					fmt.Sprintf("The plugin %q was triggered by this import", name)))
+			}
 		}
 
 		log.AddMsg(msg)
