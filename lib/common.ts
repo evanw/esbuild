@@ -848,6 +848,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             let result: types.BuildResult = { warnings };
             if (response!.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
             if (response!.metafile) result.metafile = JSON.parse(response!.metafile);
+            if (response!.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''));
 
             // Handle incremental rebuilds
             if (response!.rebuildID !== void 0) {
