@@ -2741,6 +2741,35 @@ let transformTests = {
     assert.strictEqual(code, `.π:after {\n  content: "π";\n}\n`)
   },
 
+  async cssMinify({ esbuild }) {
+    const { code } = await esbuild.transform(`div { color: #abcd }`, { loader: 'css', minify: true })
+    assert.strictEqual(code, `div{color:#abcd}\n`)
+  },
+
+  // Using an "es" target shouldn't affect CSS
+  async cssMinifyTargetES6({ esbuild }) {
+    const { code } = await esbuild.transform(`div { color: #abcd }`, { loader: 'css', minify: true, target: 'es6' })
+    assert.strictEqual(code, `div{color:#abcd}\n`)
+  },
+
+  // Using a "node" target shouldn't affect CSS
+  async cssMinifyTargetNode({ esbuild }) {
+    const { code } = await esbuild.transform(`div { color: #abcd }`, { loader: 'css', minify: true, target: 'node8' })
+    assert.strictEqual(code, `div{color:#abcd}\n`)
+  },
+
+  // Using an older browser target should affect CSS
+  async cssMinifyTargetChrome8({ esbuild }) {
+    const { code } = await esbuild.transform(`div { color: #abcd }`, { loader: 'css', minify: true, target: 'chrome8' })
+    assert.strictEqual(code, `div{color:rgba(170,187,204,.867)}\n`)
+  },
+
+  // Using a newer browser target shouldn't affect CSS
+  async cssMinifyTargetChrome80({ esbuild }) {
+    const { code } = await esbuild.transform(`div { color: #abcd }`, { loader: 'css', minify: true, target: 'chrome80' })
+    assert.strictEqual(code, `div{color:#abcd}\n`)
+  },
+
   async cjs_require({ esbuild }) {
     const { code } = await esbuild.transform(`const {foo} = require('path')`, {})
     assert.strictEqual(code, `const {foo} = require("path");\n`)
