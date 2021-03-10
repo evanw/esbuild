@@ -776,6 +776,14 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 
 	// List the directories
 	entries, err := r.fs.ReadDirectory(path)
+	if err == syscall.EACCES {
+		// Just pretend this directory is empty if we can't access it. This is the
+		// case on Unix for directories that only have the execute permission bit
+		// set. It means we will just pass through the empty directory and
+		// continue to check the directories above it, which is now node behaves.
+		entries = fs.MakeEmptyDirEntries(path)
+		err = nil
+	}
 	if err != nil {
 		// Ignore "ENOTDIR" here so that calling "ReadDirectory" on a file behaves
 		// as if there is nothing there at all instead of causing an error due to

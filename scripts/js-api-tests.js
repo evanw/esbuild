@@ -73,6 +73,43 @@ let buildTests = {
     assert.strictEqual(require(bOut).y, true)
   },
 
+  async pathResolverEACCS({ esbuild, testDir }) {
+    let outerDir = path.join(testDir, 'outer');
+    let innerDir = path.join(outerDir, 'inner');
+    let pkgDir = path.join(testDir, 'node_modules', 'pkg');
+    let entry = path.join(innerDir, 'entry.js');
+    let sibling = path.join(innerDir, 'sibling.js');
+    let index = path.join(pkgDir, 'index.js');
+    let outfile = path.join(innerDir, 'out.js');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.mkdirSync(innerDir, { recursive: true });
+    fs.writeFileSync(entry, `
+      import a from "./sibling.js"
+      import b from "pkg"
+      export default {a, b}
+    `);
+    fs.writeFileSync(sibling, `export default 'sibling'`);
+    fs.writeFileSync(index, `export default 'pkg'`);
+    fs.chmodSync(outerDir, 0o111);
+
+    try {
+      await esbuild.build({
+        entryPoints: [entry],
+        bundle: true,
+        outfile,
+        format: 'cjs',
+      });
+
+      const result = require(outfile);
+      assert.deepStrictEqual(result.default, { a: 'sibling', b: 'pkg' });
+    }
+
+    finally {
+      // Restore permission when the test ends so test cleanup works
+      fs.chmodSync(outerDir, 0o755);
+    }
+  },
+
   async nodePathsTest({ esbuild, testDir }) {
     let srcDir = path.join(testDir, 'src');
     let pkgDir = path.join(testDir, 'pkg');
