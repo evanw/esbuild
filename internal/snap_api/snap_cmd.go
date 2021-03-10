@@ -150,7 +150,7 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 		os.Exit(1)
 	}
 	if cmdArgs.Write && cmdArgs.Outfile == "" {
-		fmt.Fprintf(os.Stderr, "Need outfil when writing\n\n%s\n", helpText)
+		fmt.Fprintf(os.Stderr, "Need outfile when writing\n\n%s\n", helpText)
 		os.Exit(1)
 	}
 	if cmdArgs.Write && cmdArgs.Metafile == "" {
@@ -166,12 +166,14 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 	}
 
 	result := processArgs(&cmdArgs)
-	json := resultToJSON(result, cmdArgs.Write)
-	if false {
-		_ = resultToFile(result)
+	_, prettyPrint := os.LookupEnv("SNAPSHOT_PRETTY_PRINT_CONTENTS")
+	if prettyPrint {
+		// _ = resultToFile(result)
+		fmt.Printf("%s", string(result.OutputFiles[0].Contents))
+	} else {
+		json := resultToJSON(result, cmdArgs.Write)
+		fmt.Fprintln(os.Stdout, json)
 	}
-	// fmt.Fprintln(os.Stdout, len(json))
-	fmt.Fprintln(os.Stdout, json)
 
 	exitCode := len(result.Errors)
 	if cmdArgs.Write && logger.GetTerminalInfo(os.Stdin).IsTTY {
