@@ -54,7 +54,7 @@
       bundle: true,
       metafile: true,
     })
-    console.log(metafile.outputs)
+    console.log(result.metafile.outputs)
     ```
 
 * The banner and footer options are now language-specific ([#712](https://github.com/evanw/esbuild/issues/712))
