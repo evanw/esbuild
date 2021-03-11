@@ -981,7 +981,7 @@ func getBool(json js_ast.Expr) (bool, bool) {
 func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase) {
 	// Use a special import order for CSS "@import" imports
 	extensionOrder := r.options.ExtensionOrder
-	if kind == ast.ImportAt {
+	if kind == ast.ImportAt || kind == ast.ImportAtConditional {
 		extensionOrder = r.atImportExtensionOrder
 	}
 

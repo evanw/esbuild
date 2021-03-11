@@ -4130,10 +4130,15 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 }
 
 type compileResultCSS struct {
-	printedCSS            string
-	sourceIndex           uint32
-	hasCharset            bool
-	externalImportRecords []ast.ImportRecord
+	printedCSS      string
+	sourceIndex     uint32
+	hasCharset      bool
+	externalImports []externalImportCSS
+}
+
+type externalImportCSS struct {
+	record     ast.ImportRecord
+	conditions []css_ast.Token
 }
 
 func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(generateContinue) []OutputFile {
@@ -4164,7 +4169,10 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 					continue
 				case *css_ast.RAtImport:
 					if record := ast.ImportRecords[r.ImportRecordIndex]; !record.SourceIndex.IsValid() {
-						compileResult.externalImportRecords = append(compileResult.externalImportRecords, record)
+						compileResult.externalImports = append(compileResult.externalImports, externalImportCSS{
+							record:     record,
+							conditions: r.ImportConditions,
+						})
 					}
 					continue
 				}
@@ -4208,9 +4216,12 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 			// Insert all external "@import" rules at the front. In CSS, all "@import"
 			// rules must come first or the browser will just ignore them.
 			for _, compileResult := range compileResults {
-				for _, record := range compileResult.externalImportRecords {
-					ast.Rules = append(ast.Rules, &css_ast.RAtImport{ImportRecordIndex: uint32(len(ast.ImportRecords))})
-					ast.ImportRecords = append(ast.ImportRecords, record)
+				for _, external := range compileResult.externalImports {
+					ast.Rules = append(ast.Rules, &css_ast.RAtImport{
+						ImportRecordIndex: uint32(len(ast.ImportRecords)),
+						ImportConditions:  external.conditions,
+					})
+					ast.ImportRecords = append(ast.ImportRecords, external.record)
 				}
 			}
 

@@ -98,6 +98,7 @@ type RAtCharset struct {
 
 type RAtImport struct {
 	ImportRecordIndex uint32
+	ImportConditions  []Token
 }
 
 type RAtKeyframes struct {

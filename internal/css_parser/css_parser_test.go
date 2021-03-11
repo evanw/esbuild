@@ -703,6 +703,8 @@ func TestAtImport(t *testing.T) {
 	expectPrinted(t, "@import url(foo.css) ;", "@import \"foo.css\";\n")
 	expectPrinted(t, "@import url(\"foo.css\");", "@import \"foo.css\";\n")
 	expectPrinted(t, "@import url(\"foo.css\") ;", "@import \"foo.css\";\n")
+	expectPrinted(t, "@import url(\"foo.css\") print;", "@import \"foo.css\" print;\n")
+	expectPrinted(t, "@import url(\"foo.css\") screen and (orientation:landscape);", "@import \"foo.css\" screen and (orientation:landscape);\n")
 
 	expectParseError(t, "@import;", "<stdin>: warning: Expected URL token but found \";\"\n")
 	expectParseError(t, "@import ;", "<stdin>: warning: Expected URL token but found \";\"\n")
@@ -714,9 +716,7 @@ func TestAtImport(t *testing.T) {
 <stdin>: warning: Expected ";" but found end of file
 `)
 
-	expectParseError(t, "@import \"foo.css\" {}", `<stdin>: warning: Expected ";"
-<stdin>: warning: Unexpected "{"
-`)
+	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: warning: Expected \";\" but found end of file\n")
 }
 
 func TestAtKeyframes(t *testing.T) {

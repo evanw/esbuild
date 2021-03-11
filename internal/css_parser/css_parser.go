@@ -336,15 +336,34 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		kind = atRuleEmpty
 		p.eat(css_lexer.TWhitespace)
 		if path, r, ok := p.expectURLOrString(); ok {
-			p.eat(css_lexer.TWhitespace)
+			importConditionsStart := p.index
+			for p.current().Kind != css_lexer.TSemicolon && p.current().Kind != css_lexer.TEndOfFile {
+				p.parseComponentValue()
+			}
+			importConditions := p.convertTokens(p.tokens[importConditionsStart:p.index])
+			kind := ast.ImportAt
+
+			// Insert or remove whitespace before the first token
+			if len(importConditions) > 0 {
+				kind = ast.ImportAtConditional
+				if p.options.RemoveWhitespace {
+					importConditions[0].Whitespace &= ^css_ast.WhitespaceBefore
+				} else {
+					importConditions[0].Whitespace |= css_ast.WhitespaceBefore
+				}
+			}
+
 			p.expect(css_lexer.TSemicolon)
 			importRecordIndex := uint32(len(p.importRecords))
 			p.importRecords = append(p.importRecords, ast.ImportRecord{
-				Kind:  ast.ImportAt,
+				Kind:  kind,
 				Path:  logger.Path{Text: path},
 				Range: r,
 			})
-			return &css_ast.RAtImport{ImportRecordIndex: importRecordIndex}
+			return &css_ast.RAtImport{
+				ImportRecordIndex: importRecordIndex,
+				ImportConditions:  importConditions,
+			}
 		}
 
 	case "keyframes", "-webkit-keyframes", "-moz-keyframes", "-ms-keyframes", "-o-keyframes":

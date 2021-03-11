@@ -521,3 +521,45 @@ func TestCSSAtImportExtensionOrderCollisionUnsupported(t *testing.T) {
 `,
 	})
 }
+
+func TestCSSAtImportConditionsNoBundle(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `@import "./print.css" print;`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.css",
+		},
+	})
+}
+
+func TestCSSAtImportConditionsBundleExternal(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `@import "https://example.com/print.css" print;`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.css",
+		},
+	})
+}
+
+func TestCSSAtImportConditionsBundle(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `@import "./print.css" print;`,
+			"/print.css": `body { color: red }`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.css",
+		},
+		expectedScanLog: `entry.css: error: Bundling with conditional "@import" rules is not currently supported
+`,
+	})
+}

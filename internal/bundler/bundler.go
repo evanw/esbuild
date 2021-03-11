@@ -1365,12 +1365,15 @@ func (s *scanner) processScannedFiles() []file {
 				}
 
 				switch record.Kind {
-				case ast.ImportAt:
+				case ast.ImportAt, ast.ImportAtConditional:
 					// Using a JavaScript file with CSS "@import" is not allowed
 					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					if _, ok := otherFile.repr.(*reprJS); ok {
 						s.log.AddRangeError(&result.file.source, record.Range,
 							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.source.PrettyPath))
+					} else if record.Kind == ast.ImportAtConditional {
+						s.log.AddRangeError(&result.file.source, record.Range,
+							"Bundling with conditional \"@import\" rules is not currently supported")
 					}
 
 				case ast.ImportURL:

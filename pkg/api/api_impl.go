@@ -1277,7 +1277,7 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 				kind = ResolveJSDynamicImport
 			case ast.ImportRequireResolve:
 				kind = ResolveJSRequireResolve
-			case ast.ImportAt:
+			case ast.ImportAt, ast.ImportAtConditional:
 				kind = ResolveCSSImportRule
 			case ast.ImportURL:
 				kind = ResolveCSSURLToken

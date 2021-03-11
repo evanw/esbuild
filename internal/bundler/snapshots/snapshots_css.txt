@@ -37,6 +37,18 @@ TestCSSAtImport
 }
 
 ================================================================================
+TestCSSAtImportConditionsBundleExternal
+---------- /out.css ----------
+@import "https://example.com/print.css" print;
+
+/* entry.css */
+
+================================================================================
+TestCSSAtImportConditionsNoBundle
+---------- /out.css ----------
+@import "./print.css" print;
+
+================================================================================
 TestCSSAtImportExtensionOrderCollision
 ---------- /out.css ----------
 /* test.css */

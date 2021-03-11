@@ -56,6 +56,7 @@ func (p *printer) printRule(rule css_ast.R, indent int32, omitTrailingSemicolon 
 			p.print("@import ")
 		}
 		p.printQuoted(p.importRecords[r.ImportRecordIndex].Path.Text)
+		p.printTokens(r.ImportConditions, printTokensOpts{})
 		p.print(";")
 
 	case *css_ast.RAtKeyframes:

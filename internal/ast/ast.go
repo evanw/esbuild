@@ -27,6 +27,9 @@ const (
 	// A CSS "@import" rule
 	ImportAt
 
+	// A CSS "@import" rule with import conditions
+	ImportAtConditional
+
 	// A CSS "url(...)" token
 	ImportURL
 )
@@ -41,7 +44,7 @@ func (kind ImportKind) StringForMetafile() string {
 		return "dynamic-import"
 	case ImportRequireResolve:
 		return "require-resolve"
-	case ImportAt:
+	case ImportAt, ImportAtConditional:
 		return "import-rule"
 	case ImportURL:
 		return "url-token"

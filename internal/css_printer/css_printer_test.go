@@ -306,11 +306,13 @@ func TestAtImport(t *testing.T) {
 	expectPrinted(t, "@import \"foo.css\";", "@import \"foo.css\";\n")
 	expectPrinted(t, "@import url(foo.css);", "@import \"foo.css\";\n")
 	expectPrinted(t, "@import url(\"foo.css\");", "@import \"foo.css\";\n")
+	expectPrinted(t, "@import url(\"foo.css\") print;", "@import \"foo.css\" print;\n")
 
 	expectPrintedMinify(t, "@import\"foo.css\";", "@import\"foo.css\";")
 	expectPrintedMinify(t, "@import \"foo.css\";", "@import\"foo.css\";")
 	expectPrintedMinify(t, "@import url(foo.css);", "@import\"foo.css\";")
 	expectPrintedMinify(t, "@import url(\"foo.css\");", "@import\"foo.css\";")
+	expectPrintedMinify(t, "@import url(\"foo.css\") print;", "@import\"foo.css\"print;")
 }
 
 func TestAtKeyframes(t *testing.T) {
