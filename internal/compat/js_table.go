@@ -313,12 +313,9 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Safari:  {7, 1},
 	},
 	ObjectRestSpread: {
-		Chrome:  {60},
-		Edge:    {79},
 		ES:      {2018},
 		Firefox: {55},
 		IOS:     {11, 3},
-		Node:    {8, 3},
 		Safari:  {11, 1},
 	},
 	OptionalCatchBinding: {

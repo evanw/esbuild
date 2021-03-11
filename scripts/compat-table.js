@@ -177,6 +177,13 @@ for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.te
   }
 }
 
+// Work around V8-specific issues
+for (const v8 of ['chrome', 'edge', 'node']) {
+  // Always lower object rest and spread for V8-based JavaScript VMs because of
+  // a severe performance issue: https://bugs.chromium.org/p/v8/issues/detail?id=11536
+  delete versions.ObjectRestSpread[v8]
+}
+
 for (const feature in features) {
   if (!features[feature].found) {
     throw new Error(`Did not find ${feature}`)
