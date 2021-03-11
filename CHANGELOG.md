@@ -6,6 +6,10 @@
 
     Previously bundling with esbuild when a parent directory is inaccessible did not work because esbuild would try to read the directory to search for a `node_modules` folder and would then fail the build when that failed. In practice this caused issues in certain Linux environments where a directory close to the root directory was inaccessible (e.g. on Android). With this release, esbuild will treat inaccessible directories as empty to allow for the `node_modules` search to continue past the inaccessible directory and into its parent directory. This means it should now be possible to bundle with esbuild in these situations.
 
+* Avoid allocations in JavaScript API stdout processing ([#941](https://github.com/evanw/esbuild/pull/941))
+
+    This release improves the efficiency of the JavaScript API. The API runs the binary esbuild executable in a child process and then communicates with it over stdin/stdout. Previously the stdout buffer containing the remaining partial message was copied after each batch of messages due to a bug. This was unintentional and unnecessary, and has been removed. Now this part of the code no longer involves any allocations. This fix was contributed by [@jridgewell](https://github.com/jridgewell).
+
 * Support conditional `@import` syntax when not bundling ([#953](https://github.com/evanw/esbuild/issues/953))
 
     Previously conditional CSS imports such as `@import "print.css" print;` was not supported at all and was considered a syntax error. With this release, it is now supported in all cases except when bundling an internal import. Support for bundling internal CSS imports is planned but will happen in a later release.
