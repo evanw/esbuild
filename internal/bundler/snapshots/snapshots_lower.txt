@@ -915,7 +915,7 @@ Foo.s_foo = 123;
 ================================================================================
 TestTSLowerObjectRest2017NoBundle
 ---------- /out.js ----------
-var _o, _p;
+var _o, _p, _r, _s, _t, _u, _v;
 const local_const = __rest({}, []);
 let local_let = __rest({}, []);
 var local_var = __rest({}, []);
@@ -987,6 +987,12 @@ assign = __rest({}, []);
 ({obj_method(_q) {
   var x2 = __rest(_q, []);
 }});
+x = __rest(x, []);
+for (x = __rest(x, []); 0; )
+  ;
+console.log((x = __rest(_r = x, []), _r));
+console.log((_t = _s = {x}, {x} = _t, xx = __rest(_t, ["x"]), _s));
+console.log(({x: _v} = _u = {x}, xx = __rest(_v, []), _u));
 
 ================================================================================
 TestTSLowerObjectRest2018NoBundle
@@ -1042,6 +1048,12 @@ for ({...x} = {}; x; x = null) {
 ({...assign} = {});
 ({obj_method({...x2}) {
 }});
+({...x} = x);
+for ({...x} = x; 0; )
+  ;
+console.log({...x} = x);
+console.log({x, ...xx} = {x});
+console.log({x: {...xx}} = {x});
 
 ================================================================================
 TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015

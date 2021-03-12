@@ -136,6 +136,7 @@ type parser struct {
 	// The visit pass binds identifiers to declared symbols, does constant
 	// folding, substitutes compile-time variable definitions, and lowers certain
 	// syntactic constructs as appropriate.
+	stmtExprValue     js_ast.E
 	callTarget        js_ast.E
 	deleteTarget      js_ast.E
 	loopBody          js_ast.S
@@ -7435,6 +7436,7 @@ func (p *parser) visitForLoopInit(stmt js_ast.Stmt, isInOrOf bool) js_ast.Stmt {
 		if isInOrOf {
 			assignTarget = js_ast.AssignTargetReplace
 		}
+		p.stmtExprValue = s.Value.Data
 		s.Value, _ = p.visitExprInOut(s.Value, exprIn{assignTarget: assignTarget})
 
 	case *js_ast.SLocal:
@@ -8207,7 +8209,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			for _, decl := range s.Decls {
 				if decl.Value != nil {
 					target := p.convertBindingToExpr(decl.Binding, wrapIdentifier)
-					if result, ok := p.lowerObjectRestInAssign(target, *decl.Value); ok {
+					if result, ok := p.lowerObjectRestInAssign(target, *decl.Value, objRestReturnValueIsUnused); ok {
 						target = result
 					} else {
 						target = js_ast.Assign(target, *decl.Value)
@@ -8232,6 +8234,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 	case *js_ast.SExpr:
+		p.stmtExprValue = s.Value.Data
 		s.Value = p.visitExpr(s.Value)
 
 		// Trim expressions without side effects
@@ -10024,6 +10027,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EBinary:
 		isCallTarget := e == p.callTarget
+		isStmtExpr := e == p.stmtExprValue
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{assignTarget: e.Op.BinaryAssignTarget()})
 
@@ -10400,7 +10404,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// binding patterns, so only do this if we're not ourselves the target of
 			// an assignment. Example: "[a = b] = c"
 			if in.assignTarget == js_ast.AssignTargetNone {
-				if result, ok := p.lowerObjectRestInAssign(e.Left, e.Right); ok {
+				mode := objRestMustReturnInitExpr
+				if isStmtExpr {
+					mode = objRestReturnValueIsUnused
+				}
+				if result, ok := p.lowerObjectRestInAssign(e.Left, e.Right, mode); ok {
 					return result, exprOut{}
 				}
 			}

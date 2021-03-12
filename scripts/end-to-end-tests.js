@@ -190,6 +190,18 @@
     }),
   )
 
+  // Check object rest lowering
+  // https://github.com/evanw/esbuild/issues/956
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let v, o = {b: 3, c: 5}, e = ({b: v, ...o} = o);
+        console.log(JSON.stringify([o !== e, o, e, v]));
+        if (o === e || o.b !== void 0 || o.c !== 5 || e.b !== 3 || e.c !== 5 || v !== 3) throw 'fail'
+      `,
+    }),
+  )
+
   let simpleCyclicImportTestCase542 = {
     'in.js': `
       import {Test} from './lib';

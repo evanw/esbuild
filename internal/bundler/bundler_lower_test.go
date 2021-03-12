@@ -1153,6 +1153,13 @@ func TestTSLowerObjectRest2017NoBundle(t *testing.T) {
 
 				({ ...assign } = {});
 				({ obj_method({ ...x }) {} });
+
+				// Check for used return values
+				({ ...x } = x);
+				for ({ ...x } = x; 0; ) ;
+				console.log({ ...x } = x);
+				console.log({ x, ...xx } = { x });
+				console.log({ x: { ...xx } } = { x });
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -1194,6 +1201,13 @@ func TestTSLowerObjectRest2018NoBundle(t *testing.T) {
 
 				({ ...assign } = {});
 				({ obj_method({ ...x }) {} });
+
+				// Check for used return values
+				({ ...x } = x);
+				for ({ ...x } = x; 0; ) ;
+				console.log({ ...x } = x);
+				console.log({ x, ...xx } = { x });
+				console.log({ x: { ...xx } } = { x });
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},

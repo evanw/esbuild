@@ -1151,7 +1151,7 @@ func (p *parser) lowerObjectRestInForLoopInit(init js_ast.Stmt, body *js_ast.Stm
 		// "for ({...x} of y) {}"
 		if exprHasObjectRest(s.Value) {
 			ref := p.generateTempRef(tempRefNeedsDeclare, "")
-			if expr, ok := p.lowerObjectRestInAssign(s.Value, js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}); ok {
+			if expr, ok := p.lowerObjectRestInAssign(s.Value, js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, objRestReturnValueIsUnused); ok {
 				s.Value.Data = &js_ast.EIdentifier{Ref: ref}
 				bodyPrefixStmt = js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}}
 			}
@@ -1199,14 +1199,24 @@ func (p *parser) lowerObjectRestInCatchBinding(catch *js_ast.Catch) {
 	}
 }
 
-func (p *parser) lowerObjectRestInAssign(rootExpr js_ast.Expr, rootInit js_ast.Expr) (js_ast.Expr, bool) {
+type objRestMode uint8
+
+const (
+	objRestReturnValueIsUnused objRestMode = iota
+	objRestMustReturnInitExpr
+)
+
+func (p *parser) lowerObjectRestInAssign(rootExpr js_ast.Expr, rootInit js_ast.Expr, mode objRestMode) (js_ast.Expr, bool) {
 	var expr js_ast.Expr
 
 	assign := func(left js_ast.Expr, right js_ast.Expr) {
 		expr = maybeJoinWithComma(expr, js_ast.Assign(left, right))
 	}
 
-	if p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNeedsDeclare) {
+	if initWrapFunc, ok := p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNeedsDeclare, mode); ok {
+		if initWrapFunc != nil {
+			expr = initWrapFunc(expr)
+		}
 		return expr, true
 	}
 
@@ -1222,7 +1232,7 @@ func (p *parser) lowerObjectRestToDecls(rootExpr js_ast.Expr, rootInit js_ast.Ex
 		decls = append(decls, js_ast.Decl{Binding: binding, Value: &right})
 	}
 
-	if p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNoDeclare) {
+	if _, ok := p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNoDeclare, objRestReturnValueIsUnused); ok {
 		return decls, true
 	}
 
@@ -1234,16 +1244,17 @@ func (p *parser) lowerObjectRestHelper(
 	rootInit js_ast.Expr,
 	assign func(js_ast.Expr, js_ast.Expr),
 	declare generateTempRefArg,
-) bool {
+	mode objRestMode,
+) (wrapFunc func(js_ast.Expr) js_ast.Expr, ok bool) {
 	if !p.options.unsupportedJSFeatures.Has(compat.ObjectRestSpread) {
-		return false
+		return nil, false
 	}
 
 	// Check if this could possibly contain an object rest binding
 	switch rootExpr.Data.(type) {
 	case *js_ast.EArray, *js_ast.EObject:
 	default:
-		return false
+		return nil, false
 	}
 
 	// Scan for object rest bindings and initalize rest binding containment
@@ -1276,7 +1287,7 @@ func (p *parser) lowerObjectRestHelper(
 	}
 	findRestBindings(rootExpr)
 	if len(containsRestBinding) == 0 {
-		return false
+		return nil, false
 	}
 
 	// If there is at least one rest binding, lower the whole expression
@@ -1474,8 +1485,34 @@ func (p *parser) lowerObjectRestHelper(
 		assign(expr, init)
 	}
 
+	// Capture and return the value of the initializer if this is an assignment
+	// expression and the return value is used:
+	//
+	//   // Input:
+	//   console.log({...x} = x);
+	//
+	//   // Output:
+	//   var _a;
+	//   console.log((x = __rest(_a = x, []), _a));
+	//
+	// This isn't necessary if the return value is unused:
+	//
+	//   // Input:
+	//   ({...x} = x);
+	//
+	//   // Output:
+	//   x = __rest(x, []);
+	//
+	if mode == objRestMustReturnInitExpr {
+		initFunc, initWrapFunc := p.captureValueWithPossibleSideEffects(rootInit.Loc, 2, rootInit, valueCouldBeMutated)
+		rootInit = initFunc()
+		wrapFunc = func(expr js_ast.Expr) js_ast.Expr {
+			return initWrapFunc(js_ast.JoinWithComma(expr, initFunc()))
+		}
+	}
+
 	visit(rootExpr, rootInit, nil)
-	return true
+	return wrapFunc, true
 }
 
 // Save a copy of the key for the call to "__rest" later on. Certain
