@@ -562,7 +562,7 @@ flatten:
 					//
 					thisArg = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
 				} else {
-					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
+					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target, valueDefinitelyNotMutated)
 					expr = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
 						Target:  targetFunc(),
 						Name:    e.Name,
@@ -582,7 +582,7 @@ flatten:
 					// See the comment above about a similar special case for EDot
 					thisArg = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
 				} else {
-					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
+					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target, valueDefinitelyNotMutated)
 					targetWrapFunc = wrapFunc
 
 					// Capture the value of "this" if the target of the starting call
@@ -608,7 +608,7 @@ flatten:
 	// to capture it if it doesn't have any side effects (e.g. it's just a bare
 	// identifier). Skipping the capture reduces code size and matches the output
 	// of the TypeScript compiler.
-	exprFunc, exprWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, expr)
+	exprFunc, exprWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, expr, valueDefinitelyNotMutated)
 	expr = exprFunc()
 	result := exprFunc()
 
@@ -622,7 +622,7 @@ flatten:
 	for i := len(chain) - 1; i >= 0; i-- {
 		// Save a reference to the value of "this" for our parent ECall
 		if i == 0 && in.storeThisArgForParentOptionalChain && endsWithPropertyAccess {
-			parentThisArgFunc, parentThisArgWrapFunc = p.captureValueWithPossibleSideEffects(result.Loc, 2, result)
+			parentThisArgFunc, parentThisArgWrapFunc = p.captureValueWithPossibleSideEffects(result.Loc, 2, result, valueDefinitelyNotMutated)
 			result = parentThisArgFunc()
 		}
 
@@ -642,7 +642,7 @@ flatten:
 				// for "this" for the call. Example for this case: "foo.#bar?.()"
 				if i > 0 {
 					if _, ok := chain[i-1].Data.(*js_ast.ECall); ok {
-						privateThisFunc, privateThisWrapFunc = p.captureValueWithPossibleSideEffects(loc, 2, result)
+						privateThisFunc, privateThisWrapFunc = p.captureValueWithPossibleSideEffects(loc, 2, result, valueDefinitelyNotMutated)
 						result = privateThisFunc()
 					}
 				}
@@ -742,7 +742,7 @@ func (p *parser) lowerAssignmentOperator(value js_ast.Expr, callback func(js_ast
 	switch left := value.Data.(type) {
 	case *js_ast.EDot:
 		if left.OptionalChain == js_ast.OptionalChainNone {
-			referenceFunc, wrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target)
+			referenceFunc, wrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target, valueDefinitelyNotMutated)
 			return wrapFunc(callback(
 				js_ast.Expr{Loc: value.Loc, Data: &js_ast.EDot{
 					Target:  referenceFunc(),
@@ -759,8 +759,8 @@ func (p *parser) lowerAssignmentOperator(value js_ast.Expr, callback func(js_ast
 
 	case *js_ast.EIndex:
 		if left.OptionalChain == js_ast.OptionalChainNone {
-			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target)
-			indexFunc, indexWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Index)
+			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target, valueDefinitelyNotMutated)
+			indexFunc, indexWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Index, valueDefinitelyNotMutated)
 			return targetWrapFunc(indexWrapFunc(callback(
 				js_ast.Expr{Loc: value.Loc, Data: &js_ast.EIndex{
 					Target: targetFunc(),
@@ -789,7 +789,7 @@ func (p *parser) lowerAssignmentOperator(value js_ast.Expr, callback func(js_ast
 func (p *parser) lowerExponentiationAssignmentOperator(loc logger.Loc, e *js_ast.EBinary) js_ast.Expr {
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
 		// "a.#b **= c" => "__privateSet(a, #b, __pow(__privateGet(a, #b), c))"
-		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target, valueDefinitelyNotMutated)
 		return targetWrapFunc(p.lowerPrivateSet(targetFunc(), privateLoc, private,
 			p.callRuntime(loc, "__pow", []js_ast.Expr{
 				p.lowerPrivateGet(targetFunc(), privateLoc, private),
@@ -807,14 +807,14 @@ func (p *parser) lowerNullishCoalescingAssignmentOperator(loc logger.Loc, e *js_
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
 		if p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) {
 			// "a.#b ??= c" => "(_a = __privateGet(a, #b)) != null ? _a : __privateSet(a, #b, c)"
-			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target, valueDefinitelyNotMutated)
 			left := p.lowerPrivateGet(targetFunc(), privateLoc, private)
 			right := p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right)
 			return targetWrapFunc(p.lowerNullishCoalescing(loc, left, right))
 		}
 
 		// "a.#b ??= c" => "__privateGet(a, #b) ?? __privateSet(a, #b, c)"
-		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target, valueDefinitelyNotMutated)
 		return targetWrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    js_ast.BinOpNullishCoalescing,
 			Left:  p.lowerPrivateGet(targetFunc(), privateLoc, private),
@@ -841,7 +841,7 @@ func (p *parser) lowerLogicalAssignmentOperator(loc logger.Loc, e *js_ast.EBinar
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
 		// "a.#b &&= c" => "__privateGet(a, #b) && __privateSet(a, #b, c)"
 		// "a.#b ||= c" => "__privateGet(a, #b) || __privateSet(a, #b, c)"
-		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target, valueDefinitelyNotMutated)
 		return targetWrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    op,
 			Left:  p.lowerPrivateGet(targetFunc(), privateLoc, private),
@@ -863,7 +863,7 @@ func (p *parser) lowerLogicalAssignmentOperator(loc logger.Loc, e *js_ast.EBinar
 func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right js_ast.Expr) js_ast.Expr {
 	// "x ?? y" => "x != null ? x : y"
 	// "x() ?? y()" => "_a = x(), _a != null ? _a : y"
-	leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left)
+	leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left, valueDefinitelyNotMutated)
 	return wrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.EIf{
 		Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    js_ast.BinOpLooseNe,
@@ -1019,7 +1019,7 @@ func (p *parser) lowerPrivateSet(
 }
 
 func (p *parser) lowerPrivateSetUnOp(target js_ast.Expr, loc logger.Loc, private *js_ast.EPrivateIdentifier, op js_ast.OpCode, isSuffix bool) js_ast.Expr {
-	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
+	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target, valueDefinitelyNotMutated)
 	target = targetFunc()
 
 	// Load the private field and then use the unary "+" operator to force it to
@@ -1032,7 +1032,7 @@ func (p *parser) lowerPrivateSetUnOp(target js_ast.Expr, loc logger.Loc, private
 
 	if isSuffix {
 		// "target.#private++" => "__privateSet(target, #private, _a = +__privateGet(target, #private) + 1), _a"
-		valueFunc, valueWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, value)
+		valueFunc, valueWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, value, valueDefinitelyNotMutated)
 		assign := valueWrapFunc(targetWrapFunc(p.lowerPrivateSet(target, loc, private, js_ast.Expr{Loc: target.Loc, Data: &js_ast.EBinary{
 			Op:    op,
 			Left:  valueFunc(),
@@ -1051,7 +1051,7 @@ func (p *parser) lowerPrivateSetUnOp(target js_ast.Expr, loc logger.Loc, private
 
 func (p *parser) lowerPrivateSetBinOp(target js_ast.Expr, loc logger.Loc, private *js_ast.EPrivateIdentifier, op js_ast.OpCode, value js_ast.Expr) js_ast.Expr {
 	// "target.#private += 123" => "__privateSet(target, #private, __privateGet(target, #private) + 123)"
-	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
+	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target, valueDefinitelyNotMutated)
 	return targetWrapFunc(p.lowerPrivateSet(targetFunc(), loc, private, js_ast.Expr{Loc: value.Loc, Data: &js_ast.EBinary{
 		Op:    op,
 		Left:  p.lowerPrivateGet(targetFunc(), loc, private),
@@ -1618,7 +1618,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			// outside the class body.
 			classExpr := &js_ast.EClass{Class: *class}
 			class = &classExpr.Class
-			nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, js_ast.Expr{Loc: classLoc, Data: classExpr})
+			nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, js_ast.Expr{Loc: classLoc, Data: classExpr}, valueDefinitelyNotMutated)
 			expr = nameFunc()
 			didCaptureClassExpr = true
 			name := nameFunc()

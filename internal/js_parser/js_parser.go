@@ -8811,6 +8811,13 @@ func maybeJoinWithComma(a js_ast.Expr, b js_ast.Expr) js_ast.Expr {
 	return js_ast.JoinWithComma(a, b)
 }
 
+type captureValueMode uint8
+
+const (
+	valueDefinitelyNotMutated captureValueMode = iota
+	valueCouldBeMutated
+)
+
 // This is a helper function to use when you need to capture a value that may
 // have side effects so you can use it multiple times. It guarantees that the
 // side effects take place exactly once.
@@ -8834,6 +8841,7 @@ func (p *parser) captureValueWithPossibleSideEffects(
 	loc logger.Loc, // The location to use for the generated references
 	count int, // The expected number of references to generate
 	value js_ast.Expr, // The value that might have side effects
+	mode captureValueMode, // Say if "value" might be mutated and must be captured
 ) (
 	func() js_ast.Expr, // Generates reference expressions "_a"
 	func(js_ast.Expr) js_ast.Expr, // Call this on the final expression
@@ -8865,14 +8873,16 @@ func (p *parser) captureValueWithPossibleSideEffects(
 	case *js_ast.EString:
 		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: e.Value}} }
 	case *js_ast.EIdentifier:
-		valueFunc = func() js_ast.Expr {
-			// Make sure we record this usage in the usage count so that duplicating
-			// a single-use reference means it's no longer considered a single-use
-			// reference. Otherwise the single-use reference inlining code may
-			// incorrectly inline the initializer into the first reference, leaving
-			// the second reference without a definition.
-			p.recordUsage(e.Ref)
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: e.Ref}}
+		if mode == valueDefinitelyNotMutated {
+			valueFunc = func() js_ast.Expr {
+				// Make sure we record this usage in the usage count so that duplicating
+				// a single-use reference means it's no longer considered a single-use
+				// reference. Otherwise the single-use reference inlining code may
+				// incorrectly inline the initializer into the first reference, leaving
+				// the second reference without a definition.
+				p.recordUsage(e.Ref)
+				return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: e.Ref}}
+			}
 		}
 	}
 	if valueFunc != nil {
@@ -11313,7 +11323,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if !containsOptionalChain {
 			if target, loc, private := p.extractPrivateIndex(e.Target); private != nil {
 				// "foo.#bar(123)" => "__privateGet(foo, #bar).call(foo, 123)"
-				targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
+				targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target, valueDefinitelyNotMutated)
 				return targetWrapFunc(js_ast.Expr{Loc: target.Loc, Data: &js_ast.ECall{
 					Target: js_ast.Expr{Loc: target.Loc, Data: &js_ast.EDot{
 						Target:  p.lowerPrivateGet(targetFunc(), loc, private),

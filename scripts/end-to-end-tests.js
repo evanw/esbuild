@@ -1769,6 +1769,57 @@
     }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
       'in.js': `
+        let bar
+        class Foo {
+          get #foo() { bar = new Foo; return this.result }
+          set #foo(x) { this.result = x }
+          bar() {
+            bar = this
+            bar.result = 2
+            ++bar.#foo
+          }
+        }
+        let foo = new Foo()
+        foo.bar()
+        if (foo === bar || foo.result !== 3 || bar.result !== void 0) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let bar
+        class Foo {
+          get #foo() { bar = new Foo; return this.result }
+          set #foo(x) { this.result = x }
+          bar() {
+            bar = this
+            bar.result = 2
+            bar.#foo *= 3
+          }
+        }
+        let foo = new Foo()
+        foo.bar()
+        if (foo === bar || foo.result !== 6 || bar.result !== void 0) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let bar
+        class Foo {
+          get #foo() { bar = new Foo; return this.result }
+          set #foo(x) { this.result = x }
+          bar() {
+            bar = this
+            bar.result = 2
+            bar.#foo **= 3
+          }
+        }
+        let foo = new Foo()
+        foo.bar()
+        if (foo === bar || foo.result !== 8 || bar.result !== void 0) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
         function expect(fn, msg) {
           try {
             fn()
