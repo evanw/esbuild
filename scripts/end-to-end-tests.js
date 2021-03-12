@@ -196,7 +196,6 @@
     test(['in.js', '--outfile=node.js', '--target=es6'], {
       'in.js': `
         let v, o = {b: 3, c: 5}, e = ({b: v, ...o} = o);
-        console.log(JSON.stringify([o !== e, o, e, v]));
         if (o === e || o.b !== void 0 || o.c !== 5 || e.b !== 3 || e.c !== 5 || v !== 3) throw 'fail'
       `,
     }),
@@ -889,6 +888,20 @@
         if (out.foo !== 'abc' || out.default() !== 123) throw 'fail'
       `,
     }),
+    test(['in.js', '--outfile=out.cjs', '--format=cjs', '--platform=node'], {
+      'in.js': `
+        export let foo = 123
+        export let bar = 234
+      `,
+      'node.js': `
+        exports.async = async () => {
+          let out = await import('./out.cjs')
+          let keys = Object.keys(out)
+          if (keys.length !== 3 || keys[0] !== 'bar' || keys[1] !== 'default' || keys[2] !== 'foo') throw 'fail'
+          if (out.foo !== 123 || out.bar !== 234 || out.default.foo !== 123 || out.default.bar !== 234) throw 'fail'
+        }
+      `,
+    }, { async: true }),
 
     // ESM => IIFE
     test(['in.js', '--outfile=node.js', '--format=iife'], {

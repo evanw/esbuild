@@ -1820,6 +1820,62 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}
 	}
 
+	// If we are generating CommonJS for node, encode the known export names in
+	// a form that node can understand them. This relies on the specific behavior
+	// of this parser, which the node project uses to detect named exports in
+	// CommonJS files: https://github.com/guybedford/cjs-module-lexer. Think of
+	// this code as an annotation for that parser.
+	if file.isEntryPoint && c.options.Platform == config.PlatformNode &&
+		c.options.OutputFormat == config.FormatCommonJS && len(repr.meta.resolvedExports) > 0 {
+		// Add a comment since otherwise people will surely wonder what this is.
+		// This annotation means you can do this and have it work:
+		//
+		//   import { name } from './file-from-esbuild.cjs'
+		//
+		// when "file-from-esbuild.cjs" looks like this:
+		//
+		//   __export(exports, { name: () => name });
+		//   0 && (module.exports = {name});
+		//
+		// The maintainer of "cjs-module-lexer" is receptive to adding esbuild-
+		// friendly patterns to this library. However, this library has already
+		// shipped in node and using existing patterns instead of defining new
+		// patterns is maximally compatible.
+		//
+		// An alternative to doing this could be to use "Object.defineProperties"
+		// instead of "__export" but support for that would need to be added to
+		// "cjs-module-lexer" and then we would need to be ok with not supporting
+		// older versions of node that don't have that newly-added support.
+		if !c.options.RemoveWhitespace {
+			entryPointExportStmts = append(entryPointExportStmts,
+				js_ast.Stmt{Data: &js_ast.SComment{Text: `// Annotate the CommonJS export names for ESM import in node:`}},
+			)
+		}
+
+		// "{a, b}"
+		var moduleExports []js_ast.Property
+		for _, export := range repr.meta.sortedAndFilteredExportAliases {
+			moduleExports = append(moduleExports, js_ast.Property{
+				Key: js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(export)}},
+			})
+		}
+
+		// "0 && (module.exports = {a, b});"
+		expr := js_ast.Expr{Data: &js_ast.EBinary{
+			Op:   js_ast.BinOpLogicalAnd,
+			Left: js_ast.Expr{Data: &js_ast.ENumber{Value: 0}},
+			Right: js_ast.Assign(
+				js_ast.Expr{Data: &js_ast.EDot{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.ModuleRef}},
+					Name:   "exports",
+				}},
+				js_ast.Expr{Data: &js_ast.EObject{Properties: moduleExports}},
+			),
+		}}
+
+		entryPointExportStmts = append(entryPointExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: expr}})
+	}
+
 	if len(entryPointExportStmts) > 0 || cjsWrapStmt.Data != nil {
 		// Trigger evaluation of the CommonJS wrapper
 		if cjsWrapStmt.Data != nil {
