@@ -36,6 +36,10 @@
     ({x, ...y} = {x: 1, y: 2})
     ```
 
+* Basic support for CSS page margin rules ([#955](https://github.com/evanw/esbuild/issues/955))
+
+    There are 16 different special at-rules that can be nested inside the `@page` rule. They are defined in [this specification](https://www.w3.org/TR/css-page-3/#syntax-page-selector). Previously esbuild treated these as unknown rules, but with this release esbuild will now treat these as known rules. The only real difference in behavior is that esbuild will no longer warn about these rules being unknown.
+
 ## 0.9.0
 
 **This release contains backwards-incompatible changes.** Since esbuild is before version 1.0.0, these changes have been released as a new minor version to reflect this (as [recommended by npm](https://docs.npmjs.com/cli/v6/using-npm/semver/)). You should either be pinning the exact version of `esbuild` in your `package.json` file or be using a version range syntax that only accepts patch upgrades such as `^0.8.0`. See the documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
