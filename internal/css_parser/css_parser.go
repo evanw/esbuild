@@ -158,10 +158,11 @@ func (p *parser) parseListOfRules(context ruleContext) []css_ast.R {
 	rules := []css_ast.R{}
 	locs := []logger.Loc{}
 
+loop:
 	for {
 		switch p.current().Kind {
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
-			return rules
+			break loop
 
 		case css_lexer.TWhitespace:
 			p.advance()
@@ -222,6 +223,11 @@ func (p *parser) parseListOfRules(context ruleContext) []css_ast.R {
 			rules = append(rules, p.parseQualifiedRuleFrom(p.index, false /* isAlreadyInvalid */))
 		}
 	}
+
+	if p.options.MangleSyntax {
+		rules = removeEmptyRules(rules)
+	}
+	return rules
 }
 
 func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
@@ -232,6 +238,9 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
 			p.processDeclarations(list)
+			if p.options.MangleSyntax {
+				list = removeEmptyRules(list)
+			}
 			return
 
 		case css_lexer.TAtKeyword:
@@ -247,6 +256,32 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 			list = append(list, p.parseDeclaration())
 		}
 	}
+}
+
+func removeEmptyRules(rules []css_ast.R) []css_ast.R {
+	end := 0
+	for _, rule := range rules {
+		switch r := rule.(type) {
+		case *css_ast.RAtKeyframes:
+			if len(r.Blocks) == 0 {
+				continue
+			}
+
+		case *css_ast.RKnownAt:
+			if len(r.Rules) == 0 {
+				continue
+			}
+
+		case *css_ast.RSelector:
+			if len(r.Rules) == 0 {
+				continue
+			}
+		}
+
+		rules[end] = rule
+		end++
+	}
+	return rules[:end]
 }
 
 func (p *parser) parseURLOrString() (string, logger.Range, bool) {
@@ -460,10 +495,14 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 					if p.expect(css_lexer.TOpenBrace) {
 						rules := p.parseListOfDeclarations()
 						p.expect(css_lexer.TCloseBrace)
-						blocks = append(blocks, css_ast.KeyframeBlock{
-							Selectors: selectors,
-							Rules:     rules,
-						})
+
+						// "@keyframes { from {} to { color: red } }" => "@keyframes { to { color: red } }"
+						if !p.options.MangleSyntax || len(rules) > 0 {
+							blocks = append(blocks, css_ast.KeyframeBlock{
+								Selectors: selectors,
+								Rules:     rules,
+							})
+						}
 					}
 				}
 			}
