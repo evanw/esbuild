@@ -899,10 +899,11 @@
         exports.async = async () => {
           let out = await import('./out.cjs')
           let keys = Object.keys(out)
-
-          // This doesn't test for "if" because "cjs-module-lexer" currently doesn't parse it
-          if (!keys.includes('default') || !keys.includes('foo')) throw 'fail'
-          if (out.foo !== 123 || out.default.foo !== 123 || out.default.if !== 234 || out.default.default !== 345) throw 'fail'
+          if (
+            !keys.includes('default') || !keys.includes('foo') || !keys.includes('if') ||
+            out.foo !== 123 || out.if !== 234 ||
+            out.default.foo !== 123 || out.default.if !== 234 || out.default.default !== 345
+          ) throw 'fail'
         }
       `,
     }, { async: true }),

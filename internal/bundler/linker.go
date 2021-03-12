@@ -1852,7 +1852,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			)
 		}
 
-		// "{a, b, if: 0}"
+		// "{a, b, if: null}"
 		var moduleExports []js_ast.Property
 		for _, export := range repr.meta.sortedAndFilteredExportAliases {
 			if export == "default" {
@@ -1861,13 +1861,14 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				continue
 			}
 
-			// "{if: 0}"
+			// "{if: null}"
 			var value *js_ast.Expr
 			if _, ok := js_lexer.Keywords[export]; ok {
-				// Make sure keywords don't cause a syntax error. Note that this is not
-				// currently supported by the "cjs-module-lexer" library, but this appears
-				// to be a bug: https://github.com/guybedford/cjs-module-lexer/issues/47.
-				value = &js_ast.Expr{Data: &js_ast.ENumber{Value: 0}}
+				// Make sure keywords don't cause a syntax error. This has to map to
+				// "null" instead of something shorter like "0" because the library
+				// "cjs-module-lexer" only supports identifiers in this position, and
+				// it thinks "null" is an identifier.
+				value = &js_ast.Expr{Data: &js_ast.ENull{}}
 			}
 
 			moduleExports = append(moduleExports, js_ast.Property{
@@ -1876,7 +1877,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			})
 		}
 
-		// "0 && (module.exports = {a, b, if: 0});"
+		// "0 && (module.exports = {a, b, if: null});"
 		expr := js_ast.Expr{Data: &js_ast.EBinary{
 			Op:   js_ast.BinOpLogicalAnd,
 			Left: js_ast.Expr{Data: &js_ast.ENumber{Value: 0}},
