@@ -891,14 +891,18 @@
     test(['in.js', '--outfile=out.cjs', '--format=cjs', '--platform=node'], {
       'in.js': `
         export let foo = 123
-        export let bar = 234
+        let bar = 234
+        export { bar as if }
+        export default 345
       `,
       'node.js': `
         exports.async = async () => {
           let out = await import('./out.cjs')
           let keys = Object.keys(out)
-          if (keys.length !== 3 || keys[0] !== 'bar' || keys[1] !== 'default' || keys[2] !== 'foo') throw 'fail'
-          if (out.foo !== 123 || out.bar !== 234 || out.default.foo !== 123 || out.default.bar !== 234) throw 'fail'
+
+          // This doesn't test for "if" because "cjs-module-lexer" currently doesn't parse it
+          if (!keys.includes('default') || !keys.includes('foo')) throw 'fail'
+          if (out.foo !== 123 || out.default.foo !== 123 || out.default.if !== 234 || out.default.default !== 345) throw 'fail'
         }
       `,
     }, { async: true }),

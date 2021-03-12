@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix export name annotations in CommonJS output for node ([#960](https://github.com/evanw/esbuild/issues/960))
+
+    The previous release introduced a regression that caused a syntax error when building ESM files that have a default export with `--platform=node`. This is because the generated export contained the `default` keyword like this: `0 && (module.exports = {default});`. This regression has been fixed.
+
 ## 0.9.1
 
 * Fix bundling when parent directory is inaccessible ([#938](https://github.com/evanw/esbuild/issues/938))

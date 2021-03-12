@@ -1852,15 +1852,31 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			)
 		}
 
-		// "{a, b}"
+		// "{a, b, if: 0}"
 		var moduleExports []js_ast.Property
 		for _, export := range repr.meta.sortedAndFilteredExportAliases {
+			if export == "default" {
+				// In node the default export is always "module.exports" regardless of
+				// what the annotation says. So don't bother generating "default".
+				continue
+			}
+
+			// "{if: 0}"
+			var value *js_ast.Expr
+			if _, ok := js_lexer.Keywords[export]; ok {
+				// Make sure keywords don't cause a syntax error. Note that this is not
+				// currently supported by the "cjs-module-lexer" library, but this appears
+				// to be a bug: https://github.com/guybedford/cjs-module-lexer/issues/47.
+				value = &js_ast.Expr{Data: &js_ast.ENumber{Value: 0}}
+			}
+
 			moduleExports = append(moduleExports, js_ast.Property{
-				Key: js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(export)}},
+				Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(export)}},
+				Value: value,
 			})
 		}
 
-		// "0 && (module.exports = {a, b});"
+		// "0 && (module.exports = {a, b, if: 0});"
 		expr := js_ast.Expr{Data: &js_ast.EBinary{
 			Op:   js_ast.BinOpLogicalAnd,
 			Left: js_ast.Expr{Data: &js_ast.ENumber{Value: 0}},
