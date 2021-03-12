@@ -1102,6 +1102,22 @@ function assign() {
 }`, ReplaceAll)
 }
 
+func TestAliasedDestructuringRequire(t *testing.T) {
+	expectPrinted(t, `
+const { v4: uuidv4 } = require('uuid')
+var x = uuidv4()
+`, `
+let v4;
+function __get_uuidv4__() {
+  return v4 = v4 || (require("uuid").v4)
+}
+
+let x;
+function __get_x__() {
+  return x = x || ((__get_uuidv4__())())
+}`, ReplaceAll)
+}
+
 func TestLateDeclareLazyJS(t *testing.T) {
 	expectFixture(t, "late-declare.lazy.js", ReplaceAll)
 }
@@ -1110,36 +1126,3 @@ func TestDebug(t *testing.T) {
 	debugPrinted(t, `
 `, ReplaceAll)
 }
-
-/*
-# Incorrectly handled cases.
-
-Below are cases that are currently not handled 100% correctly.
-They don't all need to be addressed as in some instances they don't cause problems.
-
-## Conditionally reassignments
-
-// Below won't cause issues  since in latest Node.js `require('events')` returns a
-// function.
-```
-var EE = require('events')
-if (typeof EE !== 'function') {
-  EE = EE.EventEmitter
-}
-```
-becomes:
-```
-let EE;
-function __get_EE__() {
-  return EE = EE || require("events")
-}
-if (typeof __get_EE__() !== "function") {
-  // Overwriting the original __get_EE__ here which is invoked below resulting
-  // in recursion.
-  __get_EE__ = function() {
-     return EE = EE || __get_EE__().EventEmitter
-  };
-}
-```
-
-*/

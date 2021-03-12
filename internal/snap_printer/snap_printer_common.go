@@ -167,19 +167,36 @@ func (p *printer) extractRequireExpression(expr js_ast.Expr, propDepth int, call
 	return &RequireExpr{}, false
 }
 
-func (p *printer) extractBinding(b js_ast.B, isDestructuring bool) RequireBinding {
-	switch b := b.(type) {
+func (p *printer) extractBinding(key js_ast.E, val js_ast.B, isDestructuring bool) RequireBinding {
+	var valueName string
+	var keyName string
+	var identifier js_ast.Ref
+
+	switch v := val.(type) {
 	case *js_ast.BIdentifier:
-		identierName := p.nameForSymbol(b.Ref)
-		return RequireBinding{
-			identifier:        b.Ref,
-			identifierName:    identierName,
-			fnDeclaration:     functionDeclarationForId(identierName),
-			fnCallReplacement: functionCallForId(identierName),
-			isDestructuring:   isDestructuring,
-		}
+		identifier = v.Ref
+		valueName = p.nameForSymbol(v.Ref)
 	default:
-		panic("Expected a BIdentifier")
+		panic("Expected a BIdentifier for binding value")
+	}
+	if key != nil {
+		// const { v4: uuid } = require('uuid')
+		switch k := key.(type) {
+		case *js_ast.EString:
+			keyName = stringifyEString(k)
+		default:
+			panic("Expected a BIdentifier for binding value")
+		}
+	} else {
+		keyName = valueName
+	}
+
+	return RequireBinding{
+		identifier:        identifier,
+		identifierName:    keyName,
+		fnDeclaration:     functionDeclarationForId(valueName),
+		fnCallReplacement: functionCallForId(valueName),
+		isDestructuring:   isDestructuring,
 	}
 }
 
@@ -187,13 +204,13 @@ func (p *printer) extractBindings(binding js_ast.Binding) ([]RequireBinding, boo
 	switch b := binding.Data.(type) {
 	case *js_ast.BIdentifier:
 		// const a = ...
-		binding := p.extractBinding(b, false)
+		binding := p.extractBinding(nil, b, false)
 		return []RequireBinding{binding}, true
 	case *js_ast.BObject:
 		// const { a, b } = ...
 		bindings := make([]RequireBinding, len(b.Properties))
 		for i, prop := range b.Properties {
-			bindings[i] = p.extractBinding(prop.Value.Data, true)
+			bindings[i] = p.extractBinding(prop.Key.Data, prop.Value.Data, true)
 		}
 		return bindings, true
 	}
