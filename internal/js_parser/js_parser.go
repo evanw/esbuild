@@ -11980,7 +11980,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 
 				if s.StarNameLoc != nil {
 					p.namedImports[s.NamespaceRef] = js_ast.NamedImport{
-						Alias:             "*",
+						AliasIsStar:       true,
 						AliasLoc:          *s.StarNameLoc,
 						NamespaceRef:      js_ast.InvalidRef,
 						ImportRecordIndex: s.ImportRecordIndex,
@@ -12070,7 +12070,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 			if s.Alias != nil {
 				// "export * as ns from 'path'"
 				p.namedImports[s.NamespaceRef] = js_ast.NamedImport{
-					Alias:             "*",
+					AliasIsStar:       true,
 					AliasLoc:          s.Alias.Loc,
 					NamespaceRef:      js_ast.InvalidRef,
 					ImportRecordIndex: s.ImportRecordIndex,

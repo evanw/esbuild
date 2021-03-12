@@ -232,7 +232,8 @@ type fileMeta struct {
 	//
 	// Re-exports come from other files and are the result of resolving export
 	// star statements (i.e. "export * from 'foo'").
-	resolvedExports map[string]exportData
+	resolvedExports    map[string]exportData
+	resolvedExportStar *exportData
 
 	// Never iterate over "resolvedExports" directly. Instead, iterate over this
 	// array. Some exports in that map aren't meant to end up in generated code.
@@ -1248,10 +1249,10 @@ func (c *linkerContext) scanImportsAndExports() {
 			IsNamespaceExport:    true,
 		}, partMeta{})
 
-		// Also add a special export called "*" so import stars can bind to it.
-		// This must be done in this step because it must come after CommonJS
-		// module discovery but before matching imports with exports.
-		repr.meta.resolvedExports["*"] = exportData{
+		// Also add a special export so import stars can bind to it. This must be
+		// done in this step because it must come after CommonJS module discovery
+		// but before matching imports with exports.
+		repr.meta.resolvedExportStar = &exportData{
 			ref:         repr.ast.ExportsRef,
 			sourceIndex: sourceIndex,
 		}
@@ -1302,12 +1303,6 @@ func (c *linkerContext) scanImportsAndExports() {
 			aliases := make([]string, 0, len(repr.meta.resolvedExports))
 		nextAlias:
 			for alias, export := range repr.meta.resolvedExports {
-				// The automatically-generated namespace export is just for internal binding
-				// purposes and isn't meant to end up in generated code.
-				if alias == "*" {
-					continue
-				}
-
 				// Re-exporting multiple symbols with the same name causes an ambiguous
 				// export. These names cannot be used and should not end up in generated code.
 				otherRepr := c.files[export.sourceIndex].repr.(*reprJS)
@@ -2286,7 +2281,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 	// Is this a named import of a file without any exports?
 	otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
-	if namedImport.Alias != "*" && !otherRepr.ast.UsesCommonJSExports() && !otherRepr.ast.HasESMFeatures() && !otherRepr.ast.HasLazyExport {
+	if !namedImport.AliasIsStar && !otherRepr.ast.UsesCommonJSExports() && !otherRepr.ast.HasESMFeatures() && !otherRepr.ast.HasLazyExport {
 		// Just warn about it and replace the import with "undefined"
 		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importCommonJSWithoutExports, nil
 	}
@@ -2294,6 +2289,16 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	// Is this a CommonJS file?
 	if otherRepr.meta.cjsStyleExports {
 		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importCommonJS, nil
+	}
+
+	// Match this import star with an export star from the imported file
+	if matchingExport := otherRepr.meta.resolvedExportStar; namedImport.AliasIsStar && matchingExport != nil {
+		// Check to see if this is a re-export of another import
+		return importTracker{
+			sourceIndex: matchingExport.sourceIndex,
+			importRef:   matchingExport.ref,
+			nameLoc:     matchingExport.nameLoc,
+		}, importFound, matchingExport.potentiallyAmbiguousExportStarRefs
 	}
 
 	// Match this import up with an export from the imported file
@@ -3813,9 +3818,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 						resolvedExports := fileRepr.meta.resolvedExports
 						aliases = make([]string, 0, len(resolvedExports))
 						for alias := range resolvedExports {
-							if alias != "*" {
-								aliases = append(aliases, alias)
-							}
+							aliases = append(aliases, alias)
 						}
 					}
 				} else {
