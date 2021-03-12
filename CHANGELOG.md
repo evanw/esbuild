@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.2
 
 * Fix export name annotations in CommonJS output for node ([#960](https://github.com/evanw/esbuild/issues/960))
 
