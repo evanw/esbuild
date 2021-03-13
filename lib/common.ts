@@ -434,7 +434,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         break;
       }
       offset += 4;
-      handleIncomingPacket(stdout.slice(offset, offset + length));
+      handleIncomingPacket(stdout.subarray(offset, offset + length));
       offset += length;
     }
     if (offset > 0) {
