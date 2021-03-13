@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Avoid mutating the binary executable file in place ([#963](https://github.com/evanw/esbuild/issues/963))
+
+    This release changes the install script for the `esbuild` npm package to use the "rename a temporary file" approach instead of the "write the file directly" approach to replace the `esbuild` command stub file with the real binary executable. This should hopefully work around a problem with the [pnpm](https://pnpm.js.org/) package manager and its use of hard links.
+
 ## 0.9.2
 
 * Fix export name annotations in CommonJS output for node ([#960](https://github.com/evanw/esbuild/issues/960))

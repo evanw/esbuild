@@ -222,7 +222,13 @@ function installDirectly(name: string) {
     fs.copyFileSync(process.env.ESBUILD_BINARY_PATH, binPath);
     validateBinaryVersion(binPath);
   } else {
-    installBinaryFromPackage(name, 'bin/esbuild', binPath)
+    // Write to a temporary file, then move the file into place. This is an
+    // attempt to avoid problems with package managers like pnpm which will
+    // usually turn each file into a hard link. We don't want to mutate the
+    // hard-linked file which may be shared with other files.
+    const tempBinPath = binPath + '__';
+    installBinaryFromPackage(name, 'bin/esbuild', tempBinPath)
+      .then(() => fs.renameSync(tempBinPath, binPath))
       .catch(e => setImmediate(() => { throw e; }));
   }
 }
