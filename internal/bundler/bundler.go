@@ -52,10 +52,9 @@ type file struct {
 	// fully assembled later.
 	jsonMetadataChunk string
 
-	// The path of this entry point relative to the lowest common ancestor
-	// directory containing all entry points. Note: this must have OS-independent
-	// path separators (i.e. '/' not '\').
-	entryPointRelPath string
+	// If "isEntryPoint" is true, this is the index of the corresponding entry
+	// point chunk.
+	entryPointChunkIndex uint32
 
 	// If this file ends up being used in the bundle, these are additional files
 	// that must be written to the output directory. It's used by the "file"
@@ -1516,6 +1515,12 @@ func applyOptionDefaults(options *config.Options) {
 	}
 
 	// Configure default path templates
+	if len(options.EntryPathTemplate) == 0 {
+		options.EntryPathTemplate = []config.PathTemplate{
+			{Data: "./", Placeholder: config.DirPlaceholder},
+			{Data: "/", Placeholder: config.NamePlaceholder},
+		}
+	}
 	if len(options.ChunkPathTemplate) == 0 {
 		options.ChunkPathTemplate = []config.PathTemplate{
 			{Data: "./", Placeholder: config.NamePlaceholder},

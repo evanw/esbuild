@@ -328,13 +328,13 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf, follo
 
     if (isStdin) {
       outJs = stdout
-      recordCheck(outJs.includes(`//# sourceMappingURL=data:application/json;base64,`), `.js file contains source map`)
+      recordCheck(outJs.includes(`//# sourceMappingURL=data:application/json;base64,`), `.js file must contain source map`)
       outJsMap = Buffer.from(outJs.slice(outJs.indexOf('base64,') + 'base64,'.length).trim(), 'base64').toString()
     }
 
     else {
       outJs = await fs.readFile(path.join(tempDir, 'out.js'), 'utf8')
-      recordCheck(outJs.includes(`//# sourceMappingURL=out.js.map\n`), `.js file links to .js.map`)
+      recordCheck(outJs.includes(`//# sourceMappingURL=out.js.map\n`), `.js file must link to .js.map`)
       outJsMap = await fs.readFile(path.join(tempDir, 'out.js.map'), 'utf8')
     }
 
@@ -421,7 +421,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf, follo
       await execFileAsync(esbuildPath, [nestedEntry, '--bundle', '--outfile=' + path.join(tempDir, 'out2.js'), '--sourcemap'].concat(followUpFlags), { cwd: testDir })
 
       const out2Js = await fs.readFile(path.join(tempDir, 'out2.js'), 'utf8')
-      recordCheck(out2Js.includes(`//# sourceMappingURL=out2.js.map\n`), `.js file links to .js.map`)
+      recordCheck(out2Js.includes(`//# sourceMappingURL=out2.js.map\n`), `.js file must link to .js.map`)
       const out2JsMap = await fs.readFile(path.join(tempDir, 'out2.js.map'), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2JsMap)

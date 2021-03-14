@@ -528,17 +528,17 @@ let buildTests = {
     assert.deepStrictEqual(value.outputFiles.length, 3)
     assert.deepStrictEqual(value.outputFiles[0].path, path.join(outdir, 'a', 'in1.js'))
     assert.deepStrictEqual(value.outputFiles[1].path, path.join(outdir, 'b', 'in2.js'))
-    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk.PIM4Z7P3.js'))
+    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk.DO6KKKV6.js'))
     assert.deepStrictEqual(value.outputFiles[0].text, `import {
   foo
-} from "https://www.example.com/assets/chunk.PIM4Z7P3.js";
+} from "https://www.example.com/assets/chunk.DO6KKKV6.js";
 export {
   foo as input1
 };
 `)
     assert.deepStrictEqual(value.outputFiles[1].text, `import {
   foo
-} from "https://www.example.com/assets/chunk.PIM4Z7P3.js";
+} from "https://www.example.com/assets/chunk.DO6KKKV6.js";
 export {
   foo as input2
 };
@@ -775,7 +775,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk.KVWCN2LG.js';
+    const chunk = 'chunk.22VG3QOS.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
@@ -839,7 +839,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk.HP5LLIY3.js';
+    const chunk = 'chunk.644ZBJVW.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
@@ -905,7 +905,7 @@ body {
     const inImport1 = makeInPath(import1);
     const inImport2 = makeInPath(import2);
     const inShared = makeInPath(shared);
-    const chunk = 'chunk.FKSIHU5K.js';
+    const chunk = 'chunk.B5NUMPKN.js';
     const outEntry = makeOutPath(path.relative(testDir, entry));
     const outImport1 = makeOutPath(path.relative(testDir, import1));
     const outImport2 = makeOutPath(path.relative(testDir, import2));
@@ -943,7 +943,7 @@ body {
     assert.deepStrictEqual(json.outputs[outImport2].exports, [])
     assert.deepStrictEqual(json.outputs[outChunk].exports, [])
 
-    assert.deepStrictEqual(json.outputs[outEntry].inputs, { [inEntry]: { bytesInOutput: 70 } })
+    assert.deepStrictEqual(json.outputs[outEntry].inputs, { [inEntry]: { bytesInOutput: 72 } })
     assert.deepStrictEqual(json.outputs[outImport1].inputs, {})
     assert.deepStrictEqual(json.outputs[outImport2].inputs, {})
     assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inShared]: { bytesInOutput: 28 } })
@@ -1250,7 +1250,7 @@ body {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunk.3OGTQ2G5.js'
+    const chunk = 'chunk.RDAS5GVQ.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
 } from "./${chunk}";
@@ -1307,7 +1307,7 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunk.2GPNYGSC.js'
+    const chunk = 'chunk.L62YHXKF.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
 } from "../${chunk}";
@@ -1365,22 +1365,22 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunks/name=chunk/hash=74LFAXLW.js'
-    assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
+    const chunk = 'chunks/name=chunk/hash=R4HXUXNL.js'
+    assert.strictEqual(value.outputFiles[0].text, `import {
   common_default
 } from "../${chunk}";
 
 // scripts/.js-api-tests/splittingWithChunkPath/a/demo.js
 console.log("a" + common_default);
 `)
-    assert.strictEqual(Buffer.from(value.outputFiles[1].contents).toString(), `import {
+    assert.strictEqual(value.outputFiles[1].text, `import {
   common_default
 } from "../${chunk}";
 
 // scripts/.js-api-tests/splittingWithChunkPath/b/demo.js
 console.log("b" + common_default);
 `)
-    assert.strictEqual(Buffer.from(value.outputFiles[2].contents).toString(), `// scripts/.js-api-tests/splittingWithChunkPath/common.js
+    assert.strictEqual(value.outputFiles[2].text, `// scripts/.js-api-tests/splittingWithChunkPath/common.js
 var common_default = "common";
 
 export {
@@ -1390,6 +1390,67 @@ export {
 
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.relative(testDir, inputA)))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.relative(testDir, inputB)))
+    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
+  },
+
+  async splittingWithEntryHashes({ esbuild, testDir }) {
+    const inputA = path.join(testDir, 'a/demo.js')
+    const inputB = path.join(testDir, 'b/demo.js')
+    const inputCommon = path.join(testDir, 'common.js')
+    await mkdirAsync(path.dirname(inputA)).catch(x => x)
+    await mkdirAsync(path.dirname(inputB)).catch(x => x)
+    await writeFileAsync(inputA, `
+      import x from "../${path.basename(inputCommon)}"
+      console.log('a' + x.name)
+    `)
+    await writeFileAsync(inputB, `
+      import x from "../${path.basename(inputCommon)}"
+      console.log('b' + x.name)
+    `)
+    await writeFileAsync(inputCommon, `
+      export default { name: 'common' }
+    `)
+    const outdir = path.join(testDir, 'out')
+    const value = await esbuild.build({
+      entryPoints: [inputA, inputB],
+      bundle: true,
+      outdir,
+      format: 'esm',
+      splitting: true,
+      write: false,
+      entryNames: 'entry/name=[name]/hash=[hash]',
+      chunkNames: 'chunks/name=[name]/hash=[hash]',
+    })
+    assert.strictEqual(value.outputFiles.length, 3)
+
+    // These should all use forward slashes, even on Windows
+    const chunk = 'chunks/name=chunk/hash=UEUD4MXD.js'
+    assert.strictEqual(value.outputFiles[0].text, `import {
+  common_default
+} from "../../${chunk}";
+
+// scripts/.js-api-tests/splittingWithEntryHashes/a/demo.js
+console.log("a" + common_default.name);
+`)
+    assert.strictEqual(value.outputFiles[1].text, `import {
+  common_default
+} from "../../${chunk}";
+
+// scripts/.js-api-tests/splittingWithEntryHashes/b/demo.js
+console.log("b" + common_default.name);
+`)
+    assert.strictEqual(value.outputFiles[2].text, `// scripts/.js-api-tests/splittingWithEntryHashes/common.js
+var common_default = {name: "common"};
+
+export {
+  common_default
+};
+`)
+
+    const outputA = 'entry/name=demo/hash=LSS5JVZO.js'
+    const outputB = 'entry/name=demo/hash=ZW5IY2Q5.js'
+    assert.strictEqual(value.outputFiles[0].path, path.join(outdir, outputA))
+    assert.strictEqual(value.outputFiles[1].path, path.join(outdir, outputB))
     assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
   },
 

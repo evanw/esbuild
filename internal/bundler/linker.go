@@ -6,10 +6,13 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"hash"
+	"math/rand"
 	"path"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
@@ -68,10 +71,6 @@ type linkerContext struct {
 	files       []file
 	hasErrors   bool
 
-	// This is the relative path for automatically-generated code splitting chunks
-	// relative to the output directory
-	generatedChunkRelDir string
-
 	// This helps avoid an infinite loop when matching imports to exports
 	cycleDetector []importTracker
 
@@ -96,6 +95,13 @@ type linkerContext struct {
 	// Calling this will block until the computation is done. The resulting value
 	// is shared between threads and must be treated as immutable.
 	dataForSourceMaps func() []dataForSourceMap
+
+	// The unique key prefix is a random string that is unique to every linking
+	// operation. It is used as a prefix for the unique keys assigned to every
+	// chunk. These unique keys are used to identify each chunk before the final
+	// output paths have been computed.
+	uniqueKeyPrefix      string
+	uniqueKeyPrefixBytes []byte // This is just "uniqueKeyPrefix" in byte form
 }
 
 // This contains linker-specific metadata corresponding to a "file" struct
@@ -316,15 +322,9 @@ type partRange struct {
 }
 
 type chunkInfo struct {
-	// The path of this chunk's directory relative to the output directory. Note:
-	// this must have OS-independent path separators (i.e. '/' not '\').
-	relDir string
-
-	// The name of this chunk. This is initially empty for non-entry point chunks
-	// because the file name contains a hash of the file contents, which haven't
-	// been generated yet. Don't access this directly. Instead call "relPath()"
-	// which first checks that the base name is not empty.
-	baseNameOrEmpty string
+	// This is a random string and is used to represent the output path of this
+	// chunk before the final output path has been computed.
+	uniqueKey string
 
 	filesWithPartsInChunk map[uint32]bool
 	filesInChunkInOrder   []uint32
@@ -341,6 +341,44 @@ type chunkInfo struct {
 
 	// This is the representation-specific information
 	chunkRepr chunkRepr
+
+	// This is the final path of this chunk relative to the output directory, but
+	// without the substitution of the final hash (since it hasn't been computed).
+	finalTemplate []config.PathTemplate
+
+	// This is the final path of this chunk relative to the output directory. It
+	// is the substitution of the final hash into "finalTemplate".
+	finalRelPath string
+
+	// When this chunk is initially generated in isolation, the output pieces
+	// will contain slices of the output with the unique keys of other chunks
+	// omitted. The output hash will contain the hash of those pieces. At this
+	// point, this variable is the current value of the output hash.
+	isolatedChunkHash []byte
+
+	// Later on in the linking process, the hashes of the referenced other chunks
+	// will be mixed into the hash. This is separated into two phases like this
+	// to handle cycles in the chunk import graph.
+	outputPieces []outputPiece
+	outputHash   hash.Hash
+
+	// Other fields relating to the output file for this chunk
+	jsonMetadataChunkCallback func(finalOutputSize int) []byte
+	outputSourceMap           sourcemap.SourceMapPieces
+	isExecutable              bool
+}
+
+// This is a chunk of source code followed by a reference to another chunk. For
+// example, the file "@import 'CHUNK0001'; body { color: black; }" would be
+// represented by two pieces, one with the data "@import '" and another with the
+// data "'; body { color: black; }". The first would have the chunk index 1 and
+// the second would have an invalid chunk index.
+type outputPiece struct {
+	data []byte
+
+	// Note: This may be invalid. For example, the chunk may not contain any
+	// imports, in which case there is one piece with data and no chunk index.
+	chunkIndex ast.Index32
 }
 
 type generateContinue struct {
@@ -349,7 +387,7 @@ type generateContinue struct {
 }
 
 type chunkRepr interface {
-	generate(c *linkerContext, chunk *chunkInfo) func(generateContinue) []OutputFile
+	generate(c *linkerContext, chunks []chunkInfo, chunk *chunkInfo) func(generateContinue)
 }
 
 type chunkReprJS struct {
@@ -361,15 +399,6 @@ type chunkReprJS struct {
 }
 
 type chunkReprCSS struct {
-}
-
-// Returns the path of this chunk relative to the output directory. Note:
-// this must have OS-independent path separators (i.e. '/' not '\').
-func (chunk *chunkInfo) relPath() string {
-	if chunk.baseNameOrEmpty == "" {
-		panic("Internal error")
-	}
-	return path.Join(chunk.relDir, chunk.baseNameOrEmpty)
 }
 
 func newLinkerContext(
@@ -393,15 +422,6 @@ func newLinkerContext(
 		symbols:           js_ast.NewSymbolMap(len(files)),
 		reachableFiles:    reachableFiles,
 		dataForSourceMaps: dataForSourceMaps,
-
-		// Note: This contains placeholders instead of what the placeholders are
-		// substituted with. That should be fine though because this should only
-		// ever be used for figuring out how many "../" to add to a relative path
-		// from a chunk whose final path hasn't been calculated yet to a chunk
-		// whose final path has already been calculated. That and placeholders are
-		// never substituted with something containing a "/" so substitution should
-		// never change the "../" count.
-		generatedChunkRelDir: fs.Dir(config.TemplateToString(options.ChunkPathTemplate)),
 	}
 
 	// Clone various things since we may mutate them later
@@ -613,7 +633,24 @@ func (c *linkerContext) addPartToFile(sourceIndex uint32, part js_ast.Part, part
 	return partIndex
 }
 
+func (c *linkerContext) generateUniqueKeyPrefix() bool {
+	var data [12]byte
+	rand.Seed(time.Now().UnixNano())
+	if _, err := rand.Read(data[:]); err != nil {
+		c.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
+		return false
+	}
+
+	// This is 16 bytes and shouldn't generate escape characters when put into strings
+	c.uniqueKeyPrefix = base64.URLEncoding.EncodeToString(data[:])
+	c.uniqueKeyPrefixBytes = []byte(c.uniqueKeyPrefix)
+	return true
+}
+
 func (c *linkerContext) link() []OutputFile {
+	if !c.generateUniqueKeyPrefix() {
+		return nil
+	}
 	c.scanImportsAndExports()
 
 	// Stop now if there were errors
@@ -641,137 +678,192 @@ func (c *linkerContext) link() []OutputFile {
 }
 
 func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFile {
-	// Determine the order of files within the chunk ahead of time. This may
-	// generate additional CSS chunks from JS chunks that import CSS files.
-	{
-		originalChunks := chunks
-		for i, chunk := range originalChunks {
-			js, jsParts, css := c.chunkFileOrder(&chunk)
-
-			switch chunk.chunkRepr.(type) {
-			case *chunkReprJS:
-				chunks[i].filesInChunkInOrder = js
-				chunks[i].partsInChunkInOrder = jsParts
-
-				// If JS files include CSS files, make a sibling chunk for the CSS
-				if len(css) > 0 {
-					baseNameOrEmpty := chunk.baseNameOrEmpty
-					if baseNameOrEmpty != "" {
-						if js := c.options.OutputExtensionJS; strings.HasSuffix(baseNameOrEmpty, js) {
-							baseNameOrEmpty = baseNameOrEmpty[:len(baseNameOrEmpty)-len(js)]
-						}
-						baseNameOrEmpty += c.options.OutputExtensionCSS
-					}
-					chunks = append(chunks, chunkInfo{
-						filesInChunkInOrder:   css,
-						entryBits:             chunk.entryBits,
-						isEntryPoint:          chunk.isEntryPoint,
-						sourceIndex:           chunk.sourceIndex,
-						entryPointBit:         chunk.entryPointBit,
-						relDir:                chunk.relDir,
-						baseNameOrEmpty:       baseNameOrEmpty,
-						filesWithPartsInChunk: make(map[uint32]bool),
-						chunkRepr:             &chunkReprCSS{},
-					})
-				}
-
-			case *chunkReprCSS:
-				chunks[i].filesInChunkInOrder = css
-			}
-		}
-	}
-
-	// We want to process chunks with as much parallelism as possible. However,
-	// content hashing means chunks that import other chunks must be completed
-	// after the imported chunks are completed because the import paths contain
-	// the content hash. It's only safe to process a chunk when the dependency
-	// count reaches zero.
-	type ordering struct {
-		dependencies sync.WaitGroup
-		dependents   []uint32
-	}
-	chunkOrdering := make([]ordering, len(chunks))
-	for chunkIndex, chunk := range chunks {
-		chunkOrdering[chunkIndex].dependencies.Add(len(chunk.crossChunkImports))
-		for _, otherChunkIndex := range chunk.crossChunkImports {
-			dependents := &chunkOrdering[otherChunkIndex].dependents
-			*dependents = append(*dependents, uint32(chunkIndex))
-		}
-	}
-
-	// Check for loops in the dependency graph since they cause a deadlock
-	var check func(int, []int)
-	check = func(chunkIndex int, path []int) {
-		for _, otherChunkIndex := range path {
-			if chunkIndex == otherChunkIndex {
-				panic("Internal error: Chunk import graph contains a cycle")
-			}
-		}
-		path = append(path, chunkIndex)
-		for _, otherChunkIndex := range chunks[chunkIndex].crossChunkImports {
-			check(int(otherChunkIndex), path)
-		}
-	}
-	for i := range chunks {
-		check(i, nil)
-	}
-
-	results := make([][]OutputFile, len(chunks))
-	resultsWaitGroup := sync.WaitGroup{}
-	resultsWaitGroup.Add(len(chunks))
-
 	// Generate each chunk on a separate goroutine
+	generateWaitGroup := sync.WaitGroup{}
+	generateWaitGroup.Add(len(chunks))
 	for i := range chunks {
 		go func(i int) {
 			chunk := &chunks[i]
-			order := &chunkOrdering[i]
 
 			// Start generating the chunk without dependencies, but stop when
 			// dependencies are needed. This returns a callback that is called
 			// later to resume generating the chunk once dependencies are known.
-			resume := chunk.chunkRepr.generate(c, chunk)
-
-			// Wait for all dependencies to be resolved first
-			order.dependencies.Wait()
+			resume := chunk.chunkRepr.generate(c, chunks, chunk)
 
 			// Fill in the cross-chunk import records now that the paths are known
 			crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
 			crossChunkAbsPaths := make([]string, len(chunk.crossChunkImports))
 			for i, otherChunkIndex := range chunk.crossChunkImports {
-				relPath := chunks[otherChunkIndex].relPath()
-				crossChunkAbsPaths[i] = c.fs.Join(c.options.AbsOutputDir, relPath)
+				crossChunkAbsPaths[i] = chunks[otherChunkIndex].uniqueKey
 				crossChunkImportRecords[i] = ast.ImportRecord{
 					Kind: ast.ImportStmt,
-					Path: logger.Path{Text: c.pathBetweenChunks(chunk.relDir, relPath)},
+					Path: logger.Path{Text: chunks[otherChunkIndex].uniqueKey},
 				}
 			}
 
 			// Generate the chunk
-			results[i] = resume(generateContinue{
+			resume(generateContinue{
 				crossChunkAbsPaths:      crossChunkAbsPaths,
 				crossChunkImportRecords: crossChunkImportRecords,
 			})
 
-			// Wake up any dependents now that we're done
-			for _, chunkIndex := range order.dependents {
-				chunkOrdering[chunkIndex].dependencies.Done()
-			}
-			resultsWaitGroup.Done()
+			generateWaitGroup.Done()
 		}(i)
 	}
+	generateWaitGroup.Wait()
 
-	// Join the results in chunk order for determinism
+	// Compute the final hashes of each chunk. This can technically be done in
+	// parallel but it probably doesn't matter so much because we're not hashing
+	// that much data.
+	visited := make([]uint32, len(chunks))
+	var finalHash [sha1.Size]byte
+	for chunkIndex := range chunks {
+		chunk := &chunks[chunkIndex]
+
+		// Compute the final hash using the isolated hashes of the dependencies
+		appendIsolatedHashesForImportedChunks(chunk.outputHash, chunks, uint32(chunkIndex), visited, ^uint32(chunkIndex))
+		chunk.outputHash.Sum(finalHash[:0])
+
+		// Render the last remaining placeholder in the template
+		hash := hashForFileName(finalHash)
+		chunk.finalRelPath = config.TemplateToString(config.SubstituteTemplate(chunk.finalTemplate, config.PathPlaceholders{
+			Hash: &hash,
+		}))
+	}
+
+	// Generate the final output files by joining file pieces together
+	var resultsWaitGroup sync.WaitGroup
+	results := make([][]OutputFile, len(chunks))
+	resultsWaitGroup.Add(len(chunks))
+	for chunkIndex, chunk := range chunks {
+		go func(chunkIndex int, chunk chunkInfo) {
+			var outputFiles []OutputFile
+
+			// Each file may optionally contain additional files to be copied to the
+			// output directory. This is used by the "file" loader.
+			for _, sourceIndex := range chunk.filesInChunkInOrder {
+				outputFiles = append(outputFiles, c.files[sourceIndex].additionalFiles...)
+			}
+
+			// Path substitution for the chunk itself
+			finalRelDir := c.fs.Dir(chunk.finalRelPath)
+			outputContentsJoiner, outputSourceMapShifts := c.substituteFinalPaths(chunks, chunk.outputPieces, func(finalRelPathForImport string) string {
+				return c.pathBetweenChunks(finalRelDir, finalRelPathForImport)
+			})
+
+			// Generate the optional source map for this chunk
+			if c.options.SourceMap != config.SourceMapNone && chunk.outputSourceMap.Suffix != nil {
+				outputSourceMap := chunk.outputSourceMap.Finalize(outputSourceMapShifts)
+				finalRelPathForSourceMap := chunk.finalRelPath + ".map"
+
+				// Potentially write a trailing source map comment
+				switch c.options.SourceMap {
+				case config.SourceMapLinkedWithComment:
+					importPath := c.pathBetweenChunks(finalRelDir, finalRelPathForSourceMap)
+					if strings.HasPrefix(importPath, "./") {
+						importPath = importPath[2:]
+					}
+					outputContentsJoiner.EnsureNewlineAtEnd()
+					outputContentsJoiner.AddString("//# sourceMappingURL=")
+					outputContentsJoiner.AddString(importPath)
+					outputContentsJoiner.AddString("\n")
+
+				case config.SourceMapInline, config.SourceMapInlineAndExternal:
+					outputContentsJoiner.EnsureNewlineAtEnd()
+					outputContentsJoiner.AddString("//# sourceMappingURL=data:application/json;base64,")
+					outputContentsJoiner.AddString(base64.StdEncoding.EncodeToString(outputSourceMap))
+					outputContentsJoiner.AddString("\n")
+				}
+
+				// Potentially write the external source map file
+				switch c.options.SourceMap {
+				case config.SourceMapLinkedWithComment, config.SourceMapInlineAndExternal, config.SourceMapExternalWithoutComment:
+					outputFiles = append(outputFiles, OutputFile{
+						AbsPath:  c.fs.Join(c.options.AbsOutputDir, finalRelPathForSourceMap),
+						Contents: outputSourceMap,
+						jsonMetadataChunk: fmt.Sprintf(
+							"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(outputSourceMap)),
+					})
+				}
+			}
+
+			// Finalize the output contents
+			outputContents := outputContentsJoiner.Done()
+
+			// Path substitution for the JSON metadata
+			var jsonMetadataChunk string
+			if c.options.NeedsMetafile {
+				jsonMetadataChunkPieces := c.breakOutputIntoPieces(chunk.jsonMetadataChunkCallback(len(outputContents)), uint32(len(chunks)))
+				jsonMetadataChunkBytes, _ := c.substituteFinalPaths(chunks, jsonMetadataChunkPieces, func(finalRelPathForImport string) string {
+					return c.res.PrettyPath(logger.Path{Text: c.fs.Join(c.options.AbsOutputDir, finalRelPathForImport), Namespace: "file"})
+				})
+				jsonMetadataChunk = string(jsonMetadataChunkBytes.Done())
+			}
+
+			// Generate the output file for this chunk
+			outputFiles = append(outputFiles, OutputFile{
+				AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.finalRelPath),
+				Contents:          outputContents,
+				jsonMetadataChunk: jsonMetadataChunk,
+				IsExecutable:      chunk.isExecutable,
+			})
+
+			results[chunkIndex] = outputFiles
+			resultsWaitGroup.Done()
+		}(chunkIndex, chunk)
+	}
 	resultsWaitGroup.Wait()
-	var outputFiles []OutputFile
-	for _, group := range results {
-		outputFiles = append(outputFiles, group...)
+
+	// Merge the output files from the different goroutines together in order
+	outputFilesLen := 0
+	for _, result := range results {
+		outputFilesLen += len(result)
+	}
+	outputFiles := make([]OutputFile, 0, outputFilesLen)
+	for _, result := range results {
+		outputFiles = append(outputFiles, result...)
 	}
 	return outputFiles
+}
+
+// Given a set of output pieces (i.e. a buffer already divided into the spans
+// between import paths), substitute the final import paths in and then join
+// everything into a single byte buffer.
+func (c *linkerContext) substituteFinalPaths(
+	chunks []chunkInfo,
+	pieces []outputPiece,
+	modifyPath func(string) string,
+) (j helpers.Joiner, shifts []sourcemap.SourceMapShift) {
+	var shift sourcemap.SourceMapShift
+	shifts = make([]sourcemap.SourceMapShift, 0, len(pieces))
+	shifts = append(shifts, shift)
+
+	for _, piece := range pieces {
+		var dataOffset sourcemap.LineColumnOffset
+		j.AddBytes(piece.data)
+		dataOffset.AdvanceBytes(piece.data)
+		shift.Before.Add(dataOffset)
+		shift.After.Add(dataOffset)
+
+		if piece.chunkIndex.IsValid() {
+			chunk := chunks[piece.chunkIndex.GetIndex()]
+			importPath := modifyPath(chunk.finalRelPath)
+			j.AddString(importPath)
+			shift.Before.AdvanceString(chunk.uniqueKey)
+			shift.After.AdvanceString(importPath)
+			shifts = append(shifts, shift)
+		}
+	}
+
+	return
 }
 
 func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) string {
 	// Return an absolute path if a public path has been configured
 	if c.options.PublicPath != "" {
+		if strings.HasPrefix(toRelPath, "./") {
+			toRelPath = toRelPath[2:]
+		}
 		return c.options.PublicPath + toRelPath
 	}
 
@@ -795,8 +887,97 @@ func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) s
 	return relPath
 }
 
+// Returns the path of this file relative to "outbase", which is then ready to
+// be joined with the absolute output directory path. The directory and name
+// components are returned separately for convenience.
+//
+// This makes sure to have the directory end in a slash so that it can be
+// substituted into a path template without necessarily having a "/" after it.
+// Extra slashes should get cleaned up automatically when we join it with the
+// output directory.
+func (c *linkerContext) pathRelativeToOutbase(sourceIndex uint32, stdExt string) (relDir string, baseName string, baseExt string) {
+	file := &c.files[sourceIndex]
+	relDir = "./"
+	baseExt = stdExt
+
+	// If the output path was configured explicitly, use it verbatim
+	if c.options.AbsOutputFile != "" {
+		baseName = c.fs.Base(c.options.AbsOutputFile)
+
+		// Strip off the extension
+		ext := c.fs.Ext(baseName)
+		baseName = baseName[:len(baseName)-len(ext)]
+
+		// Use the extension from the explicit output file path. However, don't do
+		// that if this is a CSS chunk but the entry point file is not CSS. In that
+		// case use the standard extension. This happens when importing CSS into JS.
+		if _, ok := file.repr.(*reprCSS); ok || stdExt != c.options.OutputExtensionCSS {
+			baseExt = ext
+		}
+		return
+	}
+
+	// Come up with a path for virtual paths (i.e. non-file-system paths)
+	if file.source.KeyPath.Namespace != "file" {
+		baseName = baseFileNameForVirtualModulePath(file.source.KeyPath.Text)
+
+		// Swap the file extension for the standard one
+		baseName = baseName[:len(baseName)-len(path.Ext(baseName))]
+		return
+	}
+
+	// Try to get a relative path to the base directory
+	relPath, ok := c.fs.Rel(c.options.AbsOutputBase, file.source.KeyPath.Text)
+	if !ok {
+		// This can fail in some situations such as on different drives on
+		// Windows. In that case we just use the file name.
+		baseName = c.fs.Base(file.source.KeyPath.Text)
+
+		// Swap the file extension for the standard one
+		baseName = baseName[:len(baseName)-len(c.fs.Ext(baseName))]
+		return
+	}
+
+	// Now we finally have a relative path
+	relDir = c.fs.Dir(relPath) + "/"
+	baseName = c.fs.Base(relPath)
+
+	// Swap the file extension for the standard one
+	baseName = baseName[:len(baseName)-len(c.fs.Ext(baseName))]
+
+	// Use platform-independent slashes
+	relDir = strings.ReplaceAll(relDir, "\\", "/")
+
+	// Replace leading "../" so we don't try to write outside of the output
+	// directory. This normally can't happen because "AbsOutputBase" is
+	// automatically computed to contain all entry point files, but it can
+	// happen if someone sets it manually via the "outbase" API option.
+	//
+	// Note that we can't just strip any leading "../" because that could
+	// cause two separate entry point paths to collide. For example, there
+	// could be both "src/index.js" and "../src/index.js" as entry points.
+	dotDotCount := 0
+	for strings.HasPrefix(relDir[dotDotCount*3:], "../") {
+		dotDotCount++
+	}
+	if dotDotCount > 0 {
+		// The use of "_.._" here is somewhat arbitrary but it is unlikely to
+		// collide with a folder named by a human and it works on Windows
+		// (Windows doesn't like names that end with a "."). And not starting
+		// with a "." means that it will not be hidden on Unix.
+		relDir = strings.Repeat("_.._/", dotDotCount) + relDir[dotDotCount*3:]
+	}
+	return
+}
+
 func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
-	if len(chunks) < 2 {
+	jsChunks := 0
+	for _, chunk := range chunks {
+		if _, ok := chunk.chunkRepr.(*chunkReprJS); ok {
+			jsChunks++
+		}
+	}
+	if jsChunks < 2 {
 		// No need to compute cross-chunk dependencies if there can't be any
 		return
 	}
@@ -833,7 +1014,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 						for _, importRecordIndex := range part.ImportRecordIndices {
 							record := &repr.ast.ImportRecords[importRecordIndex]
 							if record.SourceIndex.IsValid() && c.isExternalDynamicImport(record) {
-								record.Path.Text = c.pathBetweenChunks(chunk.relDir, c.files[record.SourceIndex.GetIndex()].entryPointRelPath)
+								otherChunkIndex := c.files[record.SourceIndex.GetIndex()].entryPointChunkIndex
+								record.Path.Text = chunks[otherChunkIndex].uniqueKey
 								record.SourceIndex = ast.Index32{}
 							}
 						}
@@ -925,7 +1107,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		// these chunks are evaluated for their side effects too.
 		if chunk.isEntryPoint {
 			for otherChunkIndex, otherChunk := range chunks {
-				if chunkIndex != otherChunkIndex && otherChunk.entryBits.hasBit(chunk.entryPointBit) {
+				if _, ok := otherChunk.chunkRepr.(*chunkReprJS); ok && chunkIndex != otherChunkIndex && otherChunk.entryBits.hasBit(chunk.entryPointBit) {
 					imports := chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)]
 					chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)] = imports
 				}
@@ -2798,8 +2980,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 
 	// Compute entry point names
 	for i, entryPoint := range c.entryPoints {
-		var relDir string
-		var baseName string
 		var chunkRepr chunkRepr
 		file := &c.files[entryPoint]
 
@@ -2810,54 +2990,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			chunkRepr = &chunkReprCSS{}
 		}
 
-		if c.options.AbsOutputFile != "" {
-			baseName = c.fs.Base(c.options.AbsOutputFile)
-		} else {
-			source := file.source
-			if source.KeyPath.Namespace != "file" {
-				baseName = baseFileNameForVirtualModulePath(source.KeyPath.Text)
-			} else if relPath, ok := c.fs.Rel(c.options.AbsOutputBase, source.KeyPath.Text); ok {
-				relDir = c.fs.Dir(relPath)
-				baseName = c.fs.Base(relPath)
-				relDir = strings.ReplaceAll(relDir, "\\", "/")
-
-				// Replace leading "../" so we don't try to write outside of the output
-				// directory. This normally can't happen because "AbsOutputBase" is
-				// automatically computed to contain all entry point files, but it can
-				// happen if someone sets it manually via the "outbase" API option.
-				//
-				// Note that we can't just strip any leading "../" because that could
-				// cause two separate entry point paths to collide. For example, there
-				// could be both "src/index.js" and "../src/index.js" as entry points.
-				dotDotCount := 0
-				for strings.HasPrefix(relDir[dotDotCount*3:], "../") {
-					dotDotCount++
-				}
-				if dotDotCount > 0 {
-					// The use of "_.._" here is somewhat arbitrary but it is unlikely to
-					// collide with a folder named by a human and it works on Windows
-					// (Windows doesn't like names that end with a "."). And not starting
-					// with a "." means that it will not be hidden on Unix.
-					relDir = strings.Repeat("_.._/", dotDotCount) + relDir[dotDotCount*3:]
-				}
-			} else {
-				baseName = c.fs.Base(source.KeyPath.Text)
-			}
-
-			// Swap the extension for the standard one
-			ext := c.fs.Ext(baseName)
-			baseName = baseName[:len(baseName)-len(ext)]
-			switch chunkRepr.(type) {
-			case *chunkReprJS:
-				baseName += c.options.OutputExtensionJS
-			case *chunkReprCSS:
-				baseName += c.options.OutputExtensionCSS
-			}
-		}
-
-		// Always use cross-platform path separators to avoid problems with Windows
-		file.entryPointRelPath = path.Join(relDir, baseName)
-
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
 		entryBits := newBitSet(uint(len(c.entryPoints)))
@@ -2867,8 +2999,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			isEntryPoint:          true,
 			sourceIndex:           entryPoint,
 			entryPointBit:         uint(i),
-			relDir:                relDir,
-			baseNameOrEmpty:       baseName,
 			filesWithPartsInChunk: make(map[uint32]bool),
 			chunkRepr:             chunkRepr,
 		}
@@ -2889,7 +3019,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 				if !ok {
 					chunk.entryBits = partMeta.entryBits
 					chunk.filesWithPartsInChunk = make(map[uint32]bool)
-					chunk.relDir = c.generatedChunkRelDir
 					chunk.chunkRepr = &chunkReprJS{}
 					chunks[key] = chunk
 				}
@@ -2906,7 +3035,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			if !ok {
 				chunk.entryBits = file.entryBits
 				chunk.filesWithPartsInChunk = make(map[uint32]bool)
-				chunk.relDir = c.generatedChunkRelDir
 				chunk.chunkRepr = &chunkReprJS{}
 				chunks[key] = chunk
 			}
@@ -2923,9 +3051,87 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	}
 	sort.Strings(sortedKeys)
 	sortedChunks := make([]chunkInfo, len(chunks))
-	for i, key := range sortedKeys {
-		sortedChunks[i] = chunks[key]
+	for chunkIndex, key := range sortedKeys {
+		chunk := chunks[key]
+		sortedChunks[chunkIndex] = chunk
+
+		// Map from the entry point file to this chunk. We will need this later if
+		// a file contains a dynamic import to this entry point, since we'll need
+		// to look up the path for this chunk to use with the import.
+		if chunk.isEntryPoint {
+			c.files[chunk.sourceIndex].entryPointChunkIndex = uint32(chunkIndex)
+		}
 	}
+
+	// Determine the order of files within the chunk ahead of time. This may
+	// generate additional CSS chunks from JS chunks that import CSS files.
+	{
+		for chunkIndex, chunk := range sortedChunks {
+			js, jsParts, css := c.chunkFileOrder(&chunk)
+
+			switch chunk.chunkRepr.(type) {
+			case *chunkReprJS:
+				sortedChunks[chunkIndex].filesInChunkInOrder = js
+				sortedChunks[chunkIndex].partsInChunkInOrder = jsParts
+
+				// If JS files include CSS files, make a sibling chunk for the CSS
+				if len(css) > 0 {
+					sortedChunks = append(sortedChunks, chunkInfo{
+						filesInChunkInOrder:   css,
+						entryBits:             chunk.entryBits,
+						isEntryPoint:          chunk.isEntryPoint,
+						sourceIndex:           chunk.sourceIndex,
+						entryPointBit:         chunk.entryPointBit,
+						filesWithPartsInChunk: make(map[uint32]bool),
+						chunkRepr:             &chunkReprCSS{},
+					})
+				}
+
+			case *chunkReprCSS:
+				sortedChunks[chunkIndex].filesInChunkInOrder = css
+			}
+		}
+	}
+
+	// Assign general information to each chunk
+	for chunkIndex := range sortedChunks {
+		chunk := &sortedChunks[chunkIndex]
+
+		// Assign a unique key to each chunk. This key encodes the index directly so
+		// we can easily recover it later without needing to look it up in a map. The
+		// last 8 numbers of the key are the chunk index.
+		chunk.uniqueKey = fmt.Sprintf("%s%08d", c.uniqueKeyPrefix, chunkIndex)
+
+		// Determine the standard file extension
+		var stdExt string
+		switch chunk.chunkRepr.(type) {
+		case *chunkReprJS:
+			stdExt = c.options.OutputExtensionJS
+		case *chunkReprCSS:
+			stdExt = c.options.OutputExtensionCSS
+		}
+
+		// Compute the template substitutions
+		var dir, base, ext string
+		var template []config.PathTemplate
+		if chunk.isEntryPoint {
+			dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, stdExt)
+			template = c.options.EntryPathTemplate
+		} else {
+			dir = "./"
+			base = "chunk"
+			ext = stdExt
+			template = c.options.ChunkPathTemplate
+		}
+
+		// Determine the output path template
+		template = append(append(make([]config.PathTemplate, 0, len(template)), template...), config.PathTemplate{Data: ext})
+		chunk.finalTemplate = config.SubstituteTemplate(template, config.PathPlaceholders{
+			Dir:  &dir,
+			Name: &base,
+		})
+	}
+
 	return sortedChunks
 }
 
@@ -3721,15 +3927,22 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	return r
 }
 
-func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(generateContinue) []OutputFile {
-	var results []OutputFile
+func (repr *chunkReprJS) generate(c *linkerContext, chunks []chunkInfo, chunk *chunkInfo) func(generateContinue) {
 	compileResults := make([]compileResultJS, 0, len(chunk.partsInChunkInOrder))
 	runtimeMembers := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members
 	commonJSRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"].Ref)
 	toModuleRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"].Ref)
 	r := c.renameSymbolsInChunk(chunk, chunk.filesInChunkInOrder)
-	chunkAbsDir := c.fs.Join(c.options.AbsOutputDir, chunk.relDir)
 	dataForSourceMaps := c.dataForSourceMaps()
+
+	// Note: This contains placeholders instead of what the placeholders are
+	// substituted with. That should be fine though because this should only
+	// ever be used for figuring out how many "../" to add to a relative path
+	// from a chunk whose final path hasn't been calculated yet to a chunk
+	// whose final path has already been calculated. That and placeholders are
+	// never substituted with something containing a "/" so substitution should
+	// never change the "../" count.
+	chunkAbsDir := c.fs.Dir(c.fs.Join(c.options.AbsOutputDir, config.TemplateToString(chunk.finalTemplate)))
 
 	// Generate JavaScript for each file in parallel
 	waitGroup := sync.WaitGroup{}
@@ -3756,14 +3969,8 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 		)
 	}
 
-	// Each file may optionally contain additional files to be copied to the
-	// output directory. This is used by the "file" loader.
-	for _, sourceIndex := range chunk.filesInChunkInOrder {
-		results = append(results, c.files[sourceIndex].additionalFiles...)
-	}
-
 	// Wait for cross-chunk import records before continuing
-	return func(continueData generateContinue) []OutputFile {
+	return func(continueData generateContinue) {
 		// Also generate the cross-chunk binding code
 		var crossChunkPrefix []byte
 		var crossChunkSuffix []byte
@@ -3857,27 +4064,27 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 		}
 
 		// Start the metadata
-		sbMeta := strings.Builder{}
+		jMeta := helpers.Joiner{}
 		if c.options.NeedsMetafile {
 			// Print imports
 			isFirstMeta := true
-			sbMeta.WriteString("{\n      \"imports\": [")
+			jMeta.AddString("{\n      \"imports\": [")
 			for i, importAbsPath := range continueData.crossChunkAbsPaths {
 				if isFirstMeta {
 					isFirstMeta = false
 				} else {
-					sbMeta.WriteString(",")
+					jMeta.AddString(",")
 				}
-				sbMeta.WriteString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
+				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
 					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly),
 					js_printer.QuoteForJSON(continueData.crossChunkImportRecords[i].Kind.StringForMetafile(), c.options.ASCIIOnly)))
 			}
 			if !isFirstMeta {
-				sbMeta.WriteString("\n      ")
+				jMeta.AddString("\n      ")
 			}
 
 			// Print exports
-			sbMeta.WriteString("],\n      \"exports\": [")
+			jMeta.AddString("],\n      \"exports\": [")
 			var aliases []string
 			if c.options.OutputFormat.KeepES6ImportExportSyntax() {
 				if chunk.isEntryPoint {
@@ -3903,19 +4110,19 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 				if isFirstMeta {
 					isFirstMeta = false
 				} else {
-					sbMeta.WriteString(",")
+					jMeta.AddString(",")
 				}
-				sbMeta.WriteString(fmt.Sprintf("\n        %s",
+				jMeta.AddString(fmt.Sprintf("\n        %s",
 					js_printer.QuoteForJSON(alias, c.options.ASCIIOnly)))
 			}
 			if !isFirstMeta {
-				sbMeta.WriteString("\n      ")
+				jMeta.AddString("\n      ")
 			}
 			if chunk.isEntryPoint {
 				entryPoint := c.files[chunk.sourceIndex].source.PrettyPath
-				sbMeta.WriteString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {", js_printer.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
+				jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {", js_printer.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
 			} else {
-				sbMeta.WriteString("],\n      \"inputs\": {")
+				jMeta.AddString("],\n      \"inputs\": {")
 			}
 		}
 
@@ -4030,9 +4237,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 		}
 
 		// Make sure the file ends with a newline
-		if j.Length() > 0 && j.LastByte() != '\n' {
-			j.AddString("\n")
-		}
+		j.EnsureNewlineAtEnd()
 
 		// Add all unique license comments to the end of the file. These are
 		// deduplicated because some projects have thousands of files with the same
@@ -4050,117 +4255,36 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 		}
 
 		if c.options.SourceMap != config.SourceMapNone {
-			sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps)
-			var writeDataURL bool
-			var writeFile bool
-			switch c.options.SourceMap {
-			case config.SourceMapInline:
-				writeDataURL = true
-			case config.SourceMapLinkedWithComment, config.SourceMapExternalWithoutComment:
-				writeFile = true
-			case config.SourceMapInlineAndExternal:
-				writeDataURL = true
-				writeFile = true
-			}
-
-			// Write the generated source map as an inline comment
-			if writeDataURL {
-				j.AddString("//# sourceMappingURL=data:application/json;base64,")
-				j.AddString(base64.StdEncoding.EncodeToString(sourceMap))
-				j.AddString("\n")
-			}
-
-			// Write the generated source map as an external file
-			if writeFile {
-				// Optionally add metadata about the file
-				var jsonMetadataChunk string
-				if c.options.NeedsMetafile {
-					jsonMetadataChunk = fmt.Sprintf(
-						"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(sourceMap))
-				}
-
-				// Figure out the base name for the source map which may include the content hash
-				sourceMapBaseName := chunk.baseNameOrEmpty
-				sourceMapRelDir := chunk.relDir
-				if sourceMapBaseName == "" {
-					var hash string
-					name := "chunk"
-					if config.HasPlaceholder(c.options.ChunkPathTemplate, config.HashPlaceholder) {
-						hash = c.chunkHashForFileName(chunk, sourceMap)
-					}
-
-					relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
-						Name: &name,
-						Hash: &hash,
-					})) + c.options.OutputExtensionJS
-
-					sourceMapBaseName = path.Base(relPath)
-					sourceMapRelDir = relPath[:len(relPath)-len(sourceMapBaseName)]
-				}
-				sourceMapBaseName += ".map"
-
-				// Add a comment linking the source to its map
-				if c.options.SourceMap == config.SourceMapLinkedWithComment {
-					j.AddString("//# sourceMappingURL=")
-					j.AddString(sourceMapBaseName)
-					j.AddString("\n")
-				}
-
-				results = append(results, OutputFile{
-					AbsPath:           c.fs.Join(c.options.AbsOutputDir, sourceMapRelDir, sourceMapBaseName),
-					Contents:          sourceMap,
-					jsonMetadataChunk: jsonMetadataChunk,
-				})
-			}
+			chunk.outputSourceMap = c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps)
 		}
 
 		// The JavaScript contents are done now that the source map comment is in
 		jsContents := j.Done()
 
-		// Figure out the base name for this chunk now that the content hash is known
-		if chunk.baseNameOrEmpty == "" {
-			var hash string
-			name := "chunk"
-			if config.HasPlaceholder(c.options.ChunkPathTemplate, config.HashPlaceholder) {
-				hash = c.chunkHashForFileName(chunk, jsContents)
-			}
-
-			relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
-				Name: &name,
-				Hash: &hash,
-			})) + c.options.OutputExtensionJS
-
-			chunk.baseNameOrEmpty = path.Base(relPath)
-			chunk.relDir = relPath[:len(relPath)-len(chunk.baseNameOrEmpty)]
-		}
-
-		// End the metadata
-		var jsonMetadataChunk string
+		// End the metadata lazily. The final output size is not known until the
+		// final import paths are substituted into the output pieces generated below.
 		if c.options.NeedsMetafile {
-			isFirstMeta := true
-			for _, path := range metaOrder {
-				if isFirstMeta {
-					isFirstMeta = false
-				} else {
-					sbMeta.WriteString(",")
+			chunk.jsonMetadataChunkCallback = func(finalOutputSize int) []byte {
+				isFirstMeta := true
+				for _, path := range metaOrder {
+					if isFirstMeta {
+						isFirstMeta = false
+					} else {
+						jMeta.AddString(",")
+					}
+					jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+						js_printer.QuoteForJSON(path, c.options.ASCIIOnly), metaByteCount[path]))
 				}
-				sbMeta.WriteString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-					js_printer.QuoteForJSON(path, c.options.ASCIIOnly), metaByteCount[path]))
+				if !isFirstMeta {
+					jMeta.AddString("\n      ")
+				}
+				jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
+				return jMeta.Done()
 			}
-			if !isFirstMeta {
-				sbMeta.WriteString("\n      ")
-			}
-			sbMeta.WriteString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", len(jsContents)))
-			jsonMetadataChunk = sbMeta.String()
 		}
 
-		results = append(results, OutputFile{
-			AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relPath()),
-			Contents:          jsContents,
-			jsonMetadataChunk: jsonMetadataChunk,
-			IsExecutable:      isExecutable,
-		})
-		return results
+		c.generateIsolatedChunkHash(chunk, c.breakOutputIntoPieces(jsContents, uint32(len(chunks))))
+		chunk.isExecutable = isExecutable
 	}
 }
 
@@ -4213,7 +4337,7 @@ type externalImportCSS struct {
 	conditions []css_ast.Token
 }
 
-func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(generateContinue) []OutputFile {
+func (repr *chunkReprCSS) generate(c *linkerContext, chunks []chunkInfo, chunk *chunkInfo) func(generateContinue) {
 	var results []OutputFile
 	compileResults := make([]compileResultCSS, 0, len(chunk.filesInChunkInOrder))
 
@@ -4262,7 +4386,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 	}
 
 	// Wait for cross-chunk import records before continuing
-	return func(continueData generateContinue) []OutputFile {
+	return func(continueData generateContinue) {
 		waitGroup.Wait()
 		j := helpers.Joiner{}
 		newlineBeforeComment := false
@@ -4308,22 +4432,22 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 		}
 
 		// Start the metadata
-		sbMeta := strings.Builder{}
+		jMeta := helpers.Joiner{}
 		if c.options.NeedsMetafile {
 			isFirstMeta := true
-			sbMeta.WriteString("{\n      \"imports\": [")
+			jMeta.AddString("{\n      \"imports\": [")
 			for i, importAbsPath := range continueData.crossChunkAbsPaths {
 				if isFirstMeta {
 					isFirstMeta = false
 				} else {
-					sbMeta.WriteString(",")
+					jMeta.AddString(",")
 				}
-				sbMeta.WriteString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
+				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
 					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly),
 					js_printer.QuoteForJSON(continueData.crossChunkImportRecords[i].Kind.StringForMetafile(), c.options.ASCIIOnly)))
 			}
 			if !isFirstMeta {
-				sbMeta.WriteString("\n      ")
+				jMeta.AddString("\n      ")
 			}
 			if chunk.isEntryPoint {
 				file := &c.files[chunk.sourceIndex]
@@ -4332,13 +4456,13 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 				// importing CSS into JavaScript. We want this to be a 1:1 relationship
 				// and there is already an output file for the JavaScript entry point.
 				if _, ok := file.repr.(*reprCSS); ok {
-					sbMeta.WriteString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {",
+					jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {",
 						js_printer.QuoteForJSON(file.source.PrettyPath, c.options.ASCIIOnly)))
 				} else {
-					sbMeta.WriteString("],\n      \"inputs\": {")
+					jMeta.AddString("],\n      \"inputs\": {")
 				}
 			} else {
-				sbMeta.WriteString("],\n      \"inputs\": {")
+				jMeta.AddString("],\n      \"inputs\": {")
 			}
 		}
 		isFirstMeta := true
@@ -4361,18 +4485,16 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 				if isFirstMeta {
 					isFirstMeta = false
 				} else {
-					sbMeta.WriteString(",")
+					jMeta.AddString(",")
 				}
-				sbMeta.WriteString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
 					js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
 					len(compileResult.printedCSS)))
 			}
 		}
 
 		// Make sure the file ends with a newline
-		if j.Length() > 0 && j.LastByte() != '\n' {
-			j.AddString("\n")
-		}
+		j.EnsureNewlineAtEnd()
 
 		if len(c.options.CSSFooter) > 0 {
 			j.AddString(c.options.CSSFooter)
@@ -4382,40 +4504,180 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 		// The CSS contents are done now that the source map comment is in
 		cssContents := j.Done()
 
-		// Figure out the base name for this chunk now that the content hash is known
-		if chunk.baseNameOrEmpty == "" {
-			var hash string
-			name := "chunk"
-			if config.HasPlaceholder(c.options.ChunkPathTemplate, config.HashPlaceholder) {
-				hash = c.chunkHashForFileName(chunk, cssContents)
-			}
-
-			relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
-				Name: &name,
-				Hash: &hash,
-			})) + c.options.OutputExtensionCSS
-
-			chunk.baseNameOrEmpty = path.Base(relPath)
-			chunk.relDir = relPath[:len(relPath)-len(chunk.baseNameOrEmpty)]
-		}
-
-		// End the metadata
-		var jsonMetadataChunk string
+		// End the metadata lazily. The final output size is not known until the
+		// final import paths are substituted into the output pieces generated below.
 		if c.options.NeedsMetafile {
-			if !isFirstMeta {
-				sbMeta.WriteString("\n      ")
+			chunk.jsonMetadataChunkCallback = func(finalOutputSize int) []byte {
+				if !isFirstMeta {
+					jMeta.AddString("\n      ")
+				}
+				jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
+				return jMeta.Done()
 			}
-			sbMeta.WriteString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", len(cssContents)))
-			jsonMetadataChunk = sbMeta.String()
 		}
 
-		results = append(results, OutputFile{
-			AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relPath()),
-			Contents:          cssContents,
-			jsonMetadataChunk: jsonMetadataChunk,
-		})
-		return results
+		c.generateIsolatedChunkHash(chunk, c.breakOutputIntoPieces(cssContents, uint32(len(chunks))))
 	}
+}
+
+func appendIsolatedHashesForImportedChunks(
+	hash hash.Hash,
+	chunks []chunkInfo,
+	chunkIndex uint32,
+	visited []uint32,
+	visitedKey uint32,
+) {
+	// Only visit each chunk at most once. This is important because there may be
+	// cycles in the chunk import graph. If there's a cycle, we want to include
+	// the hash of every chunk involved in the cycle (along with all of their
+	// dependencies). This depth-first traversal will naturally do that.
+	if visited[chunkIndex] == visitedKey {
+		return
+	}
+	visited[chunkIndex] = visitedKey
+	chunk := &chunks[chunkIndex]
+
+	// Visit the other chunks that this chunk imports before visiting this chunk
+	for _, otherChunkIndex := range chunk.crossChunkImports {
+		appendIsolatedHashesForImportedChunks(hash, chunks, otherChunkIndex, visited, visitedKey)
+	}
+
+	// Mix in the hash for this chunk
+	hash.Write(chunk.isolatedChunkHash)
+}
+
+func (c *linkerContext) breakOutputIntoPieces(output []byte, chunkCount uint32) []outputPiece {
+	var pieces []outputPiece
+	prefix := c.uniqueKeyPrefixBytes
+	for {
+		// Scan for the next chunk path
+		boundary := bytes.Index(output, prefix)
+
+		// Try to parse the chunk index
+		var chunkIndex uint32
+		if boundary != -1 {
+			if start := boundary + len(prefix); start+8 > len(output) {
+				boundary = -1
+			} else {
+				for j := 0; j < 8; j++ {
+					c := output[start+j]
+					if c < '0' || c > '9' {
+						boundary = -1
+						break
+					}
+					chunkIndex = chunkIndex*10 + uint32(c) - '0'
+				}
+			}
+			if chunkIndex >= chunkCount {
+				boundary = -1
+			}
+		}
+
+		// If we're at the end, generate one final piece
+		if boundary == -1 {
+			pieces = append(pieces, outputPiece{
+				data: output,
+			})
+			break
+		}
+
+		// Otherwise, generate an interior piece and continue
+		pieces = append(pieces, outputPiece{
+			data:       output[:boundary],
+			chunkIndex: ast.MakeIndex32(chunkIndex),
+		})
+		output = output[boundary+len(prefix)+8:]
+	}
+	return pieces
+}
+
+func (c *linkerContext) generateIsolatedChunkHash(chunk *chunkInfo, pieces []outputPiece) {
+	hash := sha1.New()
+
+	// Mix the file names and part ranges of all of the files in this chunk into
+	// the hash. Objects that appear identical but that live in separate files or
+	// that live in separate parts in the same file must not be merged. This only
+	// needs to be done for JavaScript files, not CSS files.
+	for _, partRange := range chunk.partsInChunkInOrder {
+		var filePath string
+		file := &c.files[partRange.sourceIndex]
+
+		if file.source.KeyPath.Namespace == "file" {
+			// Use the pretty path as the file name since it should be platform-
+			// independent (relative paths and the "/" path separator)
+			filePath = file.source.PrettyPath
+		} else {
+			// If this isn't in the "file" namespace, just use the full path text
+			// verbatim. This could be a source of cross-platform differences if
+			// plugins are storing platform-specific information in here, but then
+			// that problem isn't caused by esbuild itself.
+			filePath = file.source.KeyPath.Text
+		}
+
+		// Include the path namespace in the hash
+		hashWriteLengthPrefixed(hash, []byte(file.source.KeyPath.Namespace))
+
+		// Then include the file path
+		hashWriteLengthPrefixed(hash, []byte(filePath))
+
+		// Also write the part range. These numbers are deterministic and allocated
+		// per-file so this should be a well-behaved base for a hash.
+		hashWriteUint32(hash, partRange.partIndexBegin)
+		hashWriteUint32(hash, partRange.partIndexEnd)
+	}
+
+	// Hash the output path template as part of the content hash because we want
+	// any import to be considered different if the import's output path has changed.
+	for _, part := range chunk.finalTemplate {
+		hashWriteLengthPrefixed(hash, []byte(part.Data))
+	}
+
+	// Include the generated output content in the hash. This excludes the
+	// randomly-generated import paths (the unique keys) and only includes the
+	// data in the spans between them.
+	for _, piece := range pieces {
+		hashWriteLengthPrefixed(hash, piece.data)
+	}
+
+	// Also include the source map data in the hash. The source map is named the
+	// same name as the chunk name for ease of discovery. So we want the hash to
+	// change if the source map data changes even if the chunk data doesn't change.
+	// Otherwise the output path for the source map wouldn't change and the source
+	// map wouldn't end up being updated.
+	//
+	// Note that this means the contents of all input files are included in the
+	// hash because of "sourcesContent", so changing a comment in an input file
+	// can now change the hash of the output file. This only happens when you
+	// have source maps enabled (and "sourcesContent", which is on by default).
+	//
+	// The generated positions in the mappings here are in the output content
+	// *before* the final paths have been substituted. This may seem weird.
+	// However, I think this shouldn't cause issues because a) the unique key
+	// values are all always the same length so the offsets are deterministic
+	// and b) the final paths will be folded into the final hash later.
+	hashWriteLengthPrefixed(hash, chunk.outputSourceMap.Prefix)
+	hashWriteLengthPrefixed(hash, chunk.outputSourceMap.Mappings)
+	hashWriteLengthPrefixed(hash, chunk.outputSourceMap.Suffix)
+
+	// Store the hash so far. All other chunks that import this chunk will mix
+	// this hash into their "outputHash" to ensure that the import path changes
+	// if this chunk (or any dependencies of this chunk) is changed.
+	chunk.outputPieces = pieces
+	chunk.outputHash = hash
+	chunk.isolatedChunkHash = hash.Sum(nil)
+}
+
+func hashWriteUint32(hash hash.Hash, value uint32) {
+	var lengthBytes [4]byte
+	binary.LittleEndian.PutUint32(lengthBytes[:], value)
+	hash.Write(lengthBytes[:])
+}
+
+// Hash the data in length-prefixed form because boundary locations are
+// important. We don't want "a" + "bc" to hash the same as "ab" + "c".
+func hashWriteLengthPrefixed(hash hash.Hash, bytes []byte) {
+	hashWriteUint32(hash, uint32(len(bytes)))
+	hash.Write(bytes)
 }
 
 func preventBindingsFromBeingRenamed(binding js_ast.Binding, symbols js_ast.SymbolMap) {
@@ -4513,7 +4775,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 	results []compileResultJS,
 	chunkAbsDir string,
 	dataForSourceMaps []dataForSourceMap,
-) []byte {
+) (pieces sourcemap.SourceMapPieces) {
 	j := helpers.Joiner{}
 	j.AddString("{\n  \"version\": 3")
 
@@ -4609,8 +4871,11 @@ func (c *linkerContext) generateSourceMapForChunk(
 		j.AddString("]")
 	}
 
-	// Write the mappings
 	j.AddString(",\n  \"mappings\": \"")
+	pieces.Prefix = j.Done()
+
+	// Write the mappings
+	jMappings := helpers.Joiner{}
 	prevEndState := js_printer.SourceMapState{}
 	prevColumnOffset := 0
 	for _, result := range results {
@@ -4640,7 +4905,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 		}
 
 		// Append the precomputed source map chunk
-		js_printer.AppendSourceMapChunk(&j, prevEndState, startState, chunk.Buffer)
+		js_printer.AppendSourceMapChunk(&jMappings, prevEndState, startState, chunk.Buffer)
 
 		// Generate the relative offset to start from next time
 		prevEndState = chunk.EndState
@@ -4653,62 +4918,9 @@ func (c *linkerContext) generateSourceMapForChunk(
 			prevColumnOffset += startState.GeneratedColumn
 		}
 	}
-	j.AddString("\"")
+	pieces.Mappings = jMappings.Done()
 
 	// Finish the source map
-	j.AddString(",\n  \"names\": []\n}\n")
-	return j.Done()
-}
-
-func (c *linkerContext) chunkHashForFileName(chunk *chunkInfo, bytes []byte) string {
-	hash := sha1.New()
-
-	// Hash the data in length-prefixed form because boundary locations are
-	// important. We don't want "a" + "bc" to hash the same as "ab" + "c".
-	var lengthBytes [4]byte
-
-	// Mix the file names and part ranges of all of the files in this chunk into
-	// the hash. Objects that appear identical but that live in separate files or
-	// that live in separate parts in the same file must not be merged. This only
-	// needs to be done for JavaScript files, not CSS files.
-	for _, partRange := range chunk.partsInChunkInOrder {
-		var filePath string
-		file := &c.files[partRange.sourceIndex]
-
-		if file.source.KeyPath.Namespace == "file" {
-			// Use the pretty path as the file name since it should be platform-
-			// independent (relative paths and the "/" path separator)
-			filePath = file.source.PrettyPath
-		} else {
-			// If this isn't in the "file" namespace, just use the full path text
-			// verbatim. This could be a source of cross-platform differences if
-			// plugins are storing platform-specific information in here, but then
-			// that problem isn't caused by esbuild itself.
-			filePath = file.source.KeyPath.Text
-		}
-
-		// Include the path namespace in the hash
-		binary.LittleEndian.PutUint32(lengthBytes[:], uint32(len(file.source.KeyPath.Namespace)))
-		hash.Write(lengthBytes[:])
-		hash.Write([]byte(file.source.KeyPath.Namespace))
-
-		// Then include the file path
-		binary.LittleEndian.PutUint32(lengthBytes[:], uint32(len(filePath)))
-		hash.Write(lengthBytes[:])
-		hash.Write([]byte(filePath))
-
-		// Also write the part range. These numbers are deterministic and allocated
-		// per-file so this should be a well-behaved base for a hash.
-		binary.LittleEndian.PutUint32(lengthBytes[:], partRange.partIndexBegin)
-		hash.Write(lengthBytes[:])
-		binary.LittleEndian.PutUint32(lengthBytes[:], partRange.partIndexEnd)
-		hash.Write(lengthBytes[:])
-	}
-
-	// Then mix the contents of the chunk itself into the hash
-	hash.Write(bytes)
-
-	var hashBytes [sha1.Size]byte
-	hash.Sum(hashBytes[:0])
-	return hashForFileName(hashBytes)
+	pieces.Suffix = []byte("\",\n  \"names\": []\n}\n")
+	return
 }

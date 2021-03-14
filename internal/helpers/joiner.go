@@ -45,7 +45,17 @@ func (j *Joiner) Length() uint32 {
 	return j.length
 }
 
+func (j *Joiner) EnsureNewlineAtEnd() {
+	if j.length > 0 && j.lastByte != '\n' {
+		j.AddString("\n")
+	}
+}
+
 func (j *Joiner) Done() []byte {
+	if len(j.strings) == 0 && len(j.bytes) == 1 && j.bytes[0].offset == 0 {
+		// No need to allocate if there was only a single byte array written
+		return j.bytes[0].data
+	}
 	buffer := make([]byte, j.length)
 	for _, item := range j.strings {
 		copy(buffer[item.offset:], item.data)

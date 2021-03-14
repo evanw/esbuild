@@ -181,6 +181,7 @@ function flagsForBuildOptions(
   let loader = getFlag(options, keys, 'loader', mustBeObject);
   let outExtension = getFlag(options, keys, 'outExtension', mustBeObject);
   let publicPath = getFlag(options, keys, 'publicPath', mustBeString);
+  let entryNames = getFlag(options, keys, 'entryNames', mustBeString);
   let chunkNames = getFlag(options, keys, 'chunkNames', mustBeString);
   let assetNames = getFlag(options, keys, 'assetNames', mustBeString);
   let inject = getFlag(options, keys, 'inject', mustBeArray);
@@ -225,6 +226,7 @@ function flagsForBuildOptions(
     flags.push(`--resolve-extensions=${values.join(',')}`);
   }
   if (publicPath) flags.push(`--public-path=${publicPath}`);
+  if (entryNames) flags.push(`--entry-names=${entryNames}`);
   if (chunkNames) flags.push(`--chunk-names=${chunkNames}`);
   if (assetNames) flags.push(`--asset-names=${assetNames}`);
   if (mainFields) {
