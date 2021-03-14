@@ -613,7 +613,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 		resultDir := r.fs.Dir(path.Text)
 		resultDirInfo := r.dirInfoCached(resultDir)
 
-		if resultDirInfo.packageJSON.hasNativeBindings && r.options.ExternalizeNativeModules {
+		if resultDirInfo.packageJSON != nil && resultDirInfo.packageJSON.hasNativeBindings && r.options.ExternalizeNativeModules {
 			return &ResolveResult{
 				PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
 				IsExternal: true,
