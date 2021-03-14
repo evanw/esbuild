@@ -1200,7 +1200,7 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 						// want problems due to Windows paths, which are very unlike URL
 						// paths. We also want to avoid any "%" characters in the absolute
 						// directory path accidentally being interpreted as URL escapes.
-						resolvedPath, status, token := esmPackageExportsResolveWithPostConditions("/", esmPackageSubpath, pkgJSON.exportsMap.root, conditions)
+						resolvedPath, status, debug := esmPackageExportsResolveWithPostConditions("/", esmPackageSubpath, pkgJSON.exportsMap.root, conditions)
 						if (status == peStatusExact || status == peStatusInexact) && strings.HasPrefix(resolvedPath, "/") {
 							absResolvedPath := r.fs.Join(absPkgPath, resolvedPath[1:])
 
@@ -1238,11 +1238,11 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 						// Provide additional details about the failure to help with debugging
 						switch status {
 						case peStatusInvalidModuleSpecifier:
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token,
 								fmt.Sprintf("The module specifier %q is invalid", resolvedPath))}
 
 						case peStatusInvalidPackageConfiguration:
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token,
 								"The package configuration has an invalid value here")}
 
 						case peStatusInvalidPackageTarget:
@@ -1253,18 +1253,18 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 								// configuration error
 								why = "The package configuration has an invalid value here"
 							}
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token, why)}
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token, why)}
 
 						case peStatusPackagePathNotExported:
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token,
 								fmt.Sprintf("The path %q is not exported by package %q", esmPackageSubpath, esmPackageName))}
 
 						case peStatusModuleNotFound:
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token,
 								fmt.Sprintf("The module %q was not found on the file system", resolvedPath))}
 
 						case peStatusUnsupportedDirectoryImport:
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token,
 								fmt.Sprintf("Importing the directory %q is not supported", resolvedPath))}
 
 						case peStatusUndefinedNoConditionsMatch:
@@ -1273,7 +1273,7 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 								keys = append(keys, fmt.Sprintf("%q", key))
 							}
 							sort.Strings(keys)
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token,
 								fmt.Sprintf("No conditions match for path %q in package %q (active conditions: %s)",
 									esmPackageSubpath, esmPackageName, strings.Join(keys, ", ")))}
 						}
