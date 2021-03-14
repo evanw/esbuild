@@ -3,6 +3,7 @@ package resolver
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -195,7 +196,7 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 	}
 
 	// Generate the condition sets for interpreting the "exports" field
-	esmConditionsDefault := map[string]bool{}
+	esmConditionsDefault := map[string]bool{"default": true}
 	esmConditionsImport := map[string]bool{"import": true}
 	esmConditionsRequire := map[string]bool{"require": true}
 	for _, condition := range options.Conditions {
@@ -1256,7 +1257,7 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 
 						case peStatusPackagePathNotExported:
 							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
-								fmt.Sprintf("The path %q is not exported by %q", esmPackageSubpath, esmPackageName))}
+								fmt.Sprintf("The path %q is not exported by package %q", esmPackageSubpath, esmPackageName))}
 
 						case peStatusModuleNotFound:
 							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
@@ -1265,6 +1266,16 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 						case peStatusUnsupportedDirectoryImport:
 							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
 								fmt.Sprintf("Importing the directory %q is not supported", resolvedPath))}
+
+						case peStatusUndefinedNoConditionsMatch:
+							keys := make([]string, 0, len(conditions))
+							for key := range conditions {
+								keys = append(keys, fmt.Sprintf("%q", key))
+							}
+							sort.Strings(keys)
+							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, token,
+								fmt.Sprintf("No conditions match for path %q in package %q (active conditions: %s)",
+									esmPackageSubpath, esmPackageName, strings.Join(keys, ", ")))}
 						}
 
 						return PathPair{}, false, nil, notes

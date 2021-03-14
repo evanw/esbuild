@@ -1325,7 +1325,7 @@ func TestPackageJsonExportsErrorPackagePathNotExported(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo" (mark it as external to exclude it from the bundle)
-Users/user/project/node_modules/pkg1/package.json: note: The path "./foo" is not exported by "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: The path "./foo" is not exported by package "pkg1"
 `,
 	})
 }
@@ -1638,7 +1638,7 @@ func TestPackageJsonExportsWildcard(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo" (mark it as external to exclude it from the bundle)
-Users/user/project/node_modules/pkg1/package.json: note: The path "./foo" is not exported by "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: The path "./foo" is not exported by package "pkg1"
 `,
 	})
 }
@@ -1769,6 +1769,42 @@ func TestPackageJsonExportsExactMissingExtension(t *testing.T) {
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo/bar" (mark it as external to exclude it from the bundle)
 Users/user/project/node_modules/pkg1/package.json: note: The module "./dir/bar" was not found on the file system
+`,
+	})
+}
+
+func TestPackageJsonExportsNoConditionsMatchDot(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1'
+				import 'pkg1/foo'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						".": {
+							"what": "./foo"
+						},
+						"./foo": {
+							"what": "./foo"
+						}
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/foo.js": `
+				console.log('FAILURE')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: No conditions match for path "." in package "pkg1" (active conditions: "browser", "default", "import")
+Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: No conditions match for path "./foo" in package "pkg1" (active conditions: "browser", "default", "import")
 `,
 	})
 }

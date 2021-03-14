@@ -435,7 +435,8 @@ func (entry peEntry) keysStartWithDot() bool {
 type peStatus uint8
 
 const (
-	peStatusUndefined peStatus = iota
+	peStatusUndefined                  peStatus = iota
+	peStatusUndefinedNoConditionsMatch          // A more friendly error message for when no conditions are matched
 	peStatusNull
 	peStatusExact
 	peStatusInexact // This means we may need to try CommonJS-style extension suffixes
@@ -458,6 +459,10 @@ const (
 	// The resolved path corresponds to a directory, which is not a supported target for module imports.
 	peStatusUnsupportedDirectoryImport
 )
+
+func (status peStatus) isUndefined() bool {
+	return status == peStatusUndefined || status == peStatusUndefinedNoConditionsMatch
+}
 
 func esmPackageExportsResolveWithPostConditions(
 	packageURL string,
@@ -633,12 +638,18 @@ func esmPackageTargetResolve(
 			if p.key == "default" || conditions[p.key] {
 				targetValue := p.value
 				resolved, status, token := esmPackageTargetResolve(packageURL, targetValue, subpath, pattern, conditions)
-				if status == peStatusUndefined {
+				if status.isUndefined() {
 					continue
 				}
 				return resolved, status, token
 			}
 		}
+
+		// ALGORITHM DEVIATION: Provide a friendly error message if no conditions matched
+		if !target.keysStartWithDot() {
+			return "", peStatusUndefinedNoConditionsMatch, target.firstToken
+		}
+
 		return "", peStatusUndefined, target.firstToken
 
 	case peArray:
@@ -655,7 +666,7 @@ func esmPackageTargetResolve(
 				lastToken = token
 				continue
 			}
-			if status == peStatusUndefined {
+			if status.isUndefined() {
 				continue
 			}
 			return resolved, status, token
