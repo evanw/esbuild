@@ -465,7 +465,12 @@ func (status peStatus) isUndefined() bool {
 }
 
 type peDebug struct {
+	// This is the range of the token to use for error messages
 	token logger.Range
+
+	// If the status is "peStatusUndefinedNoConditionsMatch", this is the set of
+	// conditions that didn't match. This information is used for error messages.
+	unmatchedConditions []string
 }
 
 func esmPackageExportsResolveWithPostConditions(
@@ -650,8 +655,15 @@ func esmPackageTargetResolve(
 		}
 
 		// ALGORITHM DEVIATION: Provide a friendly error message if no conditions matched
-		if !target.keysStartWithDot() {
-			return "", peStatusUndefinedNoConditionsMatch, peDebug{token: target.firstToken}
+		if len(target.mapData) > 0 && !target.keysStartWithDot() {
+			keys := make([]string, len(target.mapData))
+			for i, p := range target.mapData {
+				keys[i] = p.key
+			}
+			return "", peStatusUndefinedNoConditionsMatch, peDebug{
+				token:               target.firstToken,
+				unmatchedConditions: keys,
+			}
 		}
 
 		return "", peStatusUndefined, peDebug{token: target.firstToken}

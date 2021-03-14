@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased
+
+* Improved error message in `exports` failure case
+
+    Node's new [conditional exports feature](https://nodejs.org/docs/latest/api/packages.html#packages_conditional_exports) can be non-intuitive and hard to use. Now that esbuild supports this feature (as of version 0.9.0), you can get into a situation where it's impossible to import a package if the package's `exports` field in its `package.json` file isn't configured correctly.
+
+    Previously the error message for this looked like this:
+
+    ```
+     > entry.js:1:7: error: Could not resolve "jotai" (mark it as external to exclude it from the bundle)
+         1 │ import 'jotai'
+           ╵        ~~~~~~~
+       node_modules/jotai/package.json:16:13: note: The path "." is not exported by "jotai"
+        16 │   "exports": {
+           ╵              ^
+    ```
+
+    With this release, the error message will now provide additional information about why the package cannot be imported:
+
+    ```
+     > entry.js:1:7: error: Could not resolve "jotai" (mark it as external to exclude it from the bundle)
+         1 │ import 'jotai'
+           ╵        ~~~~~~~
+       node_modules/jotai/package.json:16:13: note: The path "." is not currently exported by package "jotai"
+        16 │   "exports": {
+           ╵              ^
+       node_modules/jotai/package.json:18:9: note: None of the conditions provided ("module", "require", "types") match any of the currently active conditions ("browser", "default", "import")
+        18 │     ".": {
+           ╵          ^
+       entry.js:1:7: note: Consider using a "require()" call to import this package
+         1 │ import 'jotai'
+           ╵        ~~~~~~~
+    ```
+
+    In this case, one solution could be import this module using `require()` since this package provides an export for the `require` condition. Another solution could be to pass `--conditions=module` to esbuild since this package provides an export for the `module` condition (the `types` condition is likely not valid JavaScript code).
+
+    This problem occurs because this package doesn't provide an import path for ESM code using the `import` condition and also doesn't provide a fallback import path using the `default` condition.
+
 ## 0.9.2
 
 * Fix export name annotations in CommonJS output for node ([#960](https://github.com/evanw/esbuild/issues/960))

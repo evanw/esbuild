@@ -1773,21 +1773,21 @@ Users/user/project/node_modules/pkg1/package.json: note: The module "./dir/bar" 
 	})
 }
 
-func TestPackageJsonExportsNoConditionsMatchDot(t *testing.T) {
+func TestPackageJsonExportsNoConditionsMatch(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import 'pkg1'
-				import 'pkg1/foo'
+				import 'pkg1/foo.js'
 			`,
 			"/Users/user/project/node_modules/pkg1/package.json": `
 				{
 					"exports": {
 						".": {
-							"what": "./foo"
+							"what": "./foo.js"
 						},
-						"./foo": {
-							"what": "./foo"
+						"./foo.js": {
+							"what": "./foo.js"
 						}
 					}
 				}
@@ -1802,9 +1802,91 @@ func TestPackageJsonExportsNoConditionsMatchDot(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
-Users/user/project/node_modules/pkg1/package.json: note: No conditions match for path "." in package "pkg1" (active conditions: "browser", "default", "import")
-Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo" (mark it as external to exclude it from the bundle)
-Users/user/project/node_modules/pkg1/package.json: note: No conditions match for path "./foo" in package "pkg1" (active conditions: "browser", "default", "import")
+Users/user/project/node_modules/pkg1/package.json: note: The path "." is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import")
+Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo.js" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "./foo.js" is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import")
+`,
+	})
+}
+
+func TestPackageJsonExportsMustUseRequire(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1'
+				import 'pkg1/foo.js'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						".": {
+							"require": "./foo.js"
+						},
+						"./foo.js": {
+							"require": "./foo.js"
+						}
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/foo.js": `
+				console.log('FAILURE')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "." is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import")
+Users/user/project/src/entry.js: note: Consider using a "require()" call to import this package
+Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo.js" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "./foo.js" is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import")
+Users/user/project/src/entry.js: note: Consider using a "require()" call to import this package
+`,
+	})
+}
+
+func TestPackageJsonExportsMustUseImport(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				require('pkg1')
+				require('pkg1/foo.js')
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						".": {
+							"import": "./foo.js"
+						},
+						"./foo.js": {
+							"import": "./foo.js"
+						}
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/foo.js": `
+				console.log('FAILURE')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "." is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("import") match any of the currently active conditions ("browser", "default", "require")
+Users/user/project/src/entry.js: note: Consider using an "import" statement to import this package
+Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo.js" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "./foo.js" is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("import") match any of the currently active conditions ("browser", "default", "require")
+Users/user/project/src/entry.js: note: Consider using an "import" statement to import this package
 `,
 	})
 }
