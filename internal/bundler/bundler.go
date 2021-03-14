@@ -1458,6 +1458,33 @@ func (s *scanner) processScannedFiles() []file {
 			if !isFirstImport {
 				sb.WriteString("\n      ")
 			}
+			sb.WriteString("]")
+
+			// Write any externals
+			sb.WriteString(",\n      \"external\": [")
+
+			hasExternalImports := false
+
+			for _, resolveResult := range result.resolveResults {
+				if resolveResult.IsExternal {
+					if hasExternalImports {
+						sb.WriteString(",")
+					}
+					hasExternalImports = true
+					sb.WriteString(fmt.Sprintf("\n        {\n          \"path\": %s,", js_printer.QuoteForJSON(resolveResult.PathPair.Primary.Text, s.options.ASCIIOnly)))
+
+					if resolveResult.External.Source != "" {
+						sb.WriteString(fmt.Sprintf("\n          \"source\": %s,", js_printer.QuoteForJSON(resolveResult.External.Source, s.options.ASCIIOnly)))
+					}
+
+					sb.WriteString(fmt.Sprintf("\n          \"kind\": %s\n        }", js_printer.QuoteForJSON(resolveResult.External.Kind.StringForMetafile(), s.options.ASCIIOnly)))
+				}
+			}
+
+			if hasExternalImports {
+				sb.WriteString("\n      ")
+			}
+
 			sb.WriteString("]\n    }")
 		}
 

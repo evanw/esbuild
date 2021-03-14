@@ -83,6 +83,42 @@ type IgnoreIfUnusedData struct {
 	IsSideEffectsArrayInJSON bool
 }
 
+type ExternalKind uint8
+
+const (
+	// Marked as external by the user (i.e. using the "External" config option)
+	UserExternal ExternalKind = iota
+
+	// Marked as external by an internal routine
+	SystemExternal
+
+	// Part of the Node built-in modules
+	NodeBuiltInExternal
+
+	// Marked as external due to the presence of native bindings
+	NativeExternal
+)
+
+func (kind ExternalKind) StringForMetafile() string {
+	switch kind {
+	case UserExternal:
+		return "user"
+	case SystemExternal:
+		return "system"
+	case NodeBuiltInExternal:
+		return "node-built-in"
+	case NativeExternal:
+		return "native-module"
+	default:
+		panic("Internal error")
+	}
+}
+
+type ExternalData struct {
+	Kind   ExternalKind
+	Source string
+}
+
 type ResolveResult struct {
 	PathPair PathPair
 
@@ -94,6 +130,7 @@ type ResolveResult struct {
 	JSXFragment []string // Default if empty: "React.Fragment"
 
 	IsExternal    bool
+	External      *ExternalData
 	DifferentCase *fs.DifferentCase
 
 	// If true, any ES6 imports to this file can be considered to have no side
@@ -244,6 +281,7 @@ func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportK
 		return &ResolveResult{
 			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
 			IsExternal: true,
+			External:   &ExternalData{Kind: SystemExternal, Source: sourceDir},
 		}, nil
 	}
 
@@ -260,6 +298,7 @@ func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportK
 		return &ResolveResult{
 			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
 			IsExternal: true,
+			External:   &ExternalData{Kind: SystemExternal, Source: sourceDir},
 		}, nil
 	}
 
@@ -442,7 +481,11 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			// been marked as an external module, mark it as *not* an absolute path.
 			// That way we preserve the literal text in the output and don't generate
 			// a relative path from the output directory to that path.
-			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}, nil
+			return &ResolveResult{
+				PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
+				IsExternal: true,
+				External:   &ExternalData{Kind: UserExternal, Source: sourceDir},
+			}, nil
 		}
 
 		// Run node's resolution rules (e.g. adding ".js")
@@ -463,7 +506,11 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 
 		// Check for external packages first
 		if r.options.ExternalModules.AbsPaths != nil && r.options.ExternalModules.AbsPaths[absPath] {
-			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}, IsExternal: true}, nil
+			return &ResolveResult{
+				PathPair:   PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}},
+				IsExternal: true,
+				External:   &ExternalData{Kind: UserExternal, Source: sourceDir},
+			}, nil
 		}
 
 		// Check the non-package "browser" map for the first time (1 out of 2)
@@ -498,7 +545,17 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			query := importPath
 			for {
 				if r.options.ExternalModules.NodeModules[query] {
-					return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}, nil
+					externalType := UserExternal
+
+					if BuiltInNodeModules[importPath] {
+						externalType = NodeBuiltInExternal
+					}
+
+					return &ResolveResult{
+						PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
+						IsExternal: true,
+						External:   &ExternalData{Kind: externalType, Source: sourceDir},
+					}, nil
 				}
 
 				// If the module "foo" has been marked as external, we also want to treat
@@ -555,6 +612,14 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 	for _, path := range result.PathPair.iter() {
 		resultDir := r.fs.Dir(path.Text)
 		resultDirInfo := r.dirInfoCached(resultDir)
+
+		if resultDirInfo.packageJSON.hasNativeBindings && r.options.ExternalizeNativeModules {
+			return &ResolveResult{
+				PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
+				IsExternal: true,
+				External:   &ExternalData{Kind: NativeExternal, Source: sourceDir},
+			}, nil
+		}
 
 		// Check the non-package "browser" map for the second time (2 out of 2)
 		if resultDirInfo != nil && resultDirInfo.enclosingBrowserScope != nil {
