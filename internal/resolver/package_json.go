@@ -64,6 +64,8 @@ type packageJSON struct {
 
 	// This represents the "exports" field in this package.json file.
 	exportsMap *peMap
+
+	hasNativeBindings bool
 }
 
 func (r *resolver) parsePackageJSON(path string) *packageJSON {
@@ -123,6 +125,38 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 				}
 				if absPath := toAbsPath(r.fs.Join(path, main), jsonSource.RangeOfString(mainJSON.Loc)); absPath != nil {
 					packageJSON.absMainFields[field] = *absPath
+				}
+			}
+		}
+	}
+
+	// Look for native module markers in "devDependencies"
+	if devDependenciesJSON, _, ok := getProperty(json, "devDependencies"); ok {
+		if devDependencies, ok := devDependenciesJSON.Data.(*js_ast.EObject); ok {
+			for _, prop := range devDependencies.Properties {
+				if dependencyName, ok := getString(prop.Key); ok {
+					if NativeModuleMarkers[dependencyName] {
+						packageJSON.hasNativeBindings = true
+
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if !packageJSON.hasNativeBindings {
+		// Look for native module markers in "dependencies"
+		if dependenciesJSON, _, ok := getProperty(json, "dependencies"); ok {
+			if dependencies, ok := dependenciesJSON.Data.(*js_ast.EObject); ok {
+				for _, prop := range dependencies.Properties {
+					if dependencyName, ok := getString(prop.Key); ok {
+						if NativeModuleMarkers[dependencyName] {
+							packageJSON.hasNativeBindings = true
+
+							break
+						}
+					}
 				}
 			}
 		}
@@ -700,4 +734,13 @@ func esmParsePackageName(packageSpecifier string) (packageName string, packageSu
 	packageSubpath = "." + packageSpecifier[len(packageName):]
 	ok = true
 	return
+}
+
+// If a module has any of these as dependencies, it likely has native bindings
+var NativeModuleMarkers = map[string]bool{
+	"bindings":       true,
+	"nan":            true,
+	"node-gyp-build": true,
+	"node-pre-gyp":   true,
+	"prebuild":       true,
 }

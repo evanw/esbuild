@@ -199,11 +199,12 @@ type Options struct {
 	UnsupportedJSFeatures  compat.JSFeature
 	UnsupportedCSSFeatures compat.CSSFeature
 
-	ExtensionOrder  []string
-	MainFields      []string
-	Conditions      []string
-	AbsNodePaths    []string // The "NODE_PATH" variable from Node.js
-	ExternalModules ExternalModules
+	ExtensionOrder           []string
+	MainFields               []string
+	Conditions               []string
+	AbsNodePaths             []string // The "NODE_PATH" variable from Node.js
+	ExternalModules          ExternalModules
+	ExternalizeNativeModules bool
 
 	AbsOutputFile      string
 	AbsOutputDir       string

@@ -241,29 +241,30 @@ type BuildOptions struct {
 	Pure      []string
 	KeepNames bool
 
-	GlobalName        string
-	Bundle            bool
-	PreserveSymlinks  bool
-	Splitting         bool
-	Outfile           string
-	Metafile          bool
-	Outdir            string
-	Outbase           string
-	AbsWorkingDir     string
-	Platform          Platform
-	Format            Format
-	External          []string
-	MainFields        []string
-	Conditions        []string // For the "exports" field in "package.json"
-	Loader            map[string]Loader
-	ResolveExtensions []string
-	Tsconfig          string
-	OutExtensions     map[string]string
-	PublicPath        string
-	Inject            []string
-	Banner            map[string]string
-	Footer            map[string]string
-	NodePaths         []string // The "NODE_PATH" variable from Node.js
+	GlobalName               string
+	Bundle                   bool
+	PreserveSymlinks         bool
+	Splitting                bool
+	Outfile                  string
+	Metafile                 bool
+	Outdir                   string
+	Outbase                  string
+	AbsWorkingDir            string
+	Platform                 Platform
+	Format                   Format
+	External                 []string
+	ExternalizeNativeModules bool
+	MainFields               []string
+	Conditions               []string // For the "exports" field in "package.json"
+	Loader                   map[string]Loader
+	ResolveExtensions        []string
+	Tsconfig                 string
+	OutExtensions            map[string]string
+	PublicPath               string
+	Inject                   []string
+	Banner                   map[string]string
+	Footer                   map[string]string
+	NodePaths                []string // The "NODE_PATH" variable from Node.js
 
 	ChunkNames string
 	AssetNames string
