@@ -48,6 +48,10 @@
 
     However, some features can have subtests that each check a different aspect of the feature. In this case the desired version is the minimum version within each individual subtest, but the maximum of those versions across all subtests (since esbuild should only use the feature if it works in all cases). Previously esbuild computed the minimum version across all subtests, but now esbuild computes the maximum version across all subtests. This means esbuild will now lower JavaScript syntax in more cases.
 
+* Mention the configured target environment in error messages ([#975](https://github.com/evanw/esbuild/issues/975))
+
+    Using newer JavaScript syntax with an older target environment (e.g. `chrome10`) can cause a build error if esbuild doesn't support transforming that syntax such that it is compatible with that target environment. Previously the error message was generic but with this release, the target environment is called outp explicitly in the error message. This is helpful if esbuild is being wrapped by some other tool since the other tool can obscure what target environment is actually being passed to esbuild.
+
 ## 0.9.2
 
 * Fix export name annotations in CommonJS output for node ([#960](https://github.com/evanw/esbuild/issues/960))

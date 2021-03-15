@@ -3292,6 +3292,16 @@ let transformTests = {
     ])
   },
 
+  async multipleEngineTargetsNotSupported({ esbuild }) {
+    try {
+      await esbuild.transform(`0n`, { target: ['chrome1', 'safari2', 'firefox3'] })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.strictEqual(e.errors[0].text,
+        'Big integer literals are not available in the configured target environment ("chrome1", "firefox3", "safari2")')
+    }
+  },
+
   // Future syntax
   forAwait: ({ esbuild }) => futureSyntax(esbuild, 'async function foo() { for await (let x of y) {} }', 'es2017', 'es2018'),
   bigInt: ({ esbuild }) => futureSyntax(esbuild, '123n', 'es2019', 'es2020'),

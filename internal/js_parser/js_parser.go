@@ -280,6 +280,7 @@ type Options struct {
 
 type optionsThatSupportStructuralEquality struct {
 	unsupportedJSFeatures compat.JSFeature
+	originalTargetEnv     string
 
 	// Byte-sized values go here (gathered together here to keep this object compact)
 	ts                             config.TSOptions
@@ -304,6 +305,7 @@ func OptionsFromConfig(options *config.Options) Options {
 		defines:       options.Defines,
 		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
 			unsupportedJSFeatures:          options.UnsupportedJSFeatures,
+			originalTargetEnv:              options.OriginalTargetEnv,
 			ts:                             options.TS,
 			mode:                           options.Mode,
 			platform:                       options.Platform,

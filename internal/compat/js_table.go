@@ -14,6 +14,26 @@ const (
 	Safari
 )
 
+func (e Engine) String() string {
+	switch e {
+	case Chrome:
+		return "chrome"
+	case Edge:
+		return "edge"
+	case ES:
+		return "es"
+	case Firefox:
+		return "firefox"
+	case IOS:
+		return "ios"
+	case Node:
+		return "node"
+	case Safari:
+		return "safari"
+	}
+	return ""
+}
+
 type JSFeature uint64
 
 const (

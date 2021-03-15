@@ -233,8 +233,9 @@ func validateEngine(value EngineName) compat.Engine {
 
 var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?$`)
 
-func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature) {
+func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, string) {
 	constraints := make(map[compat.Engine][]int)
+	targets := make([]string, 0, 1+len(engines))
 
 	switch target {
 	case ES5:
@@ -289,7 +290,23 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.J
 		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid version: %q", engine.Version))
 	}
 
-	return compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints)
+	for engine, version := range constraints {
+		var text string
+		switch len(version) {
+		case 1:
+			text = fmt.Sprintf("%s%d", engine.String(), version[0])
+		case 2:
+			text = fmt.Sprintf("%s%d.%d", engine.String(), version[0], version[1])
+		case 3:
+			text = fmt.Sprintf("%s%d.%d.%d", engine.String(), version[0], version[1], version[2])
+		}
+		targets = append(targets, fmt.Sprintf("%q", text))
+	}
+
+	sort.Strings(targets)
+	targetEnv := strings.Join(targets, ", ")
+
+	return compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints), targetEnv
 }
 
 func validateGlobalName(log logger.Log, text string) []string {
@@ -699,7 +716,7 @@ func rebuildImpl(
 		// This should already have been checked above
 		panic(err.Error())
 	}
-	jsFeatures, cssFeatures := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
+	jsFeatures, cssFeatures, targetEnv := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtensions)
 	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
 	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
@@ -707,6 +724,7 @@ func rebuildImpl(
 	options := config.Options{
 		UnsupportedJSFeatures:  jsFeatures,
 		UnsupportedCSSFeatures: cssFeatures,
+		OriginalTargetEnv:      targetEnv,
 		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
@@ -1155,11 +1173,12 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Convert and validate the transformOpts
-	jsFeatures, cssFeatures := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
+	jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
 	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure)
 	options := config.Options{
 		UnsupportedJSFeatures:   jsFeatures,
 		UnsupportedCSSFeatures:  cssFeatures,
+		OriginalTargetEnv:       targetEnv,
 		JSX:                     jsx,
 		Defines:                 defines,
 		InjectedDefines:         injectedDefines,

@@ -199,6 +199,10 @@ type Options struct {
 	UnsupportedJSFeatures  compat.JSFeature
 	UnsupportedCSSFeatures compat.CSSFeature
 
+	// This is the original information that was used to generate the
+	// unsupported feature sets above. It's used for error messages.
+	OriginalTargetEnv string
+
 	ExtensionOrder  []string
 	MainFields      []string
 	Conditions      []string

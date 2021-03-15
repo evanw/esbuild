@@ -37,6 +37,10 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	var name string
 	where := "the configured target environment"
 
+	if p.options.originalTargetEnv != "" {
+		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
+	}
+
 	switch feature {
 	case compat.DefaultArgument:
 		name = "default arguments"
