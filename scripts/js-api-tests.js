@@ -3294,11 +3294,11 @@ let transformTests = {
 
   async multipleEngineTargetsNotSupported({ esbuild }) {
     try {
-      await esbuild.transform(`0n`, { target: ['chrome1', 'safari2', 'firefox3'] })
+      await esbuild.transform(`0n`, { target: ['es5', 'chrome1', 'safari2', 'firefox3'] })
       throw new Error('Expected an error to be thrown')
     } catch (e) {
       assert.strictEqual(e.errors[0].text,
-        'Big integer literals are not available in the configured target environment ("chrome1", "firefox3", "safari2")')
+        'Big integer literals are not available in the configured target environment ("chrome1", "es5", "firefox3", "safari2")')
     }
   },
 

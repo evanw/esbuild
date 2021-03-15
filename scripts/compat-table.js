@@ -229,6 +229,13 @@ const (
 ${engines.map((x, i) => `\t${upper(x)}${i ? '' : ' Engine = iota'}`).join('\n')}
 )
 
+func (e Engine) String() string {
+\tswitch e {
+${engines.map((x, i) => `\tcase ${upper(x)}:\n\t\treturn "${x}"`).join('\n')}
+\t}
+\treturn ""
+}
+
 type JSFeature uint64
 
 const (
