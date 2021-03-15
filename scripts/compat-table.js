@@ -85,7 +85,12 @@ const engines = [
 ]
 
 function mergeVersions(target, res) {
-  const map = versions[target] || (versions[target] = {})
+  // The original data set will contain something like "chrome44: true" for a
+  // given feature. And the interpolation script will expand this to something
+  // like "chrome44: true, chrome45: true, chrome46: true, ..." so we want to
+  // take the minimum version to find the boundary.
+  const lowestVersionMap = {}
+
   for (const key in res) {
     if (res[key] === true) {
       const match = /^([a-z_]+)[0-9_]+$/.exec(key)
@@ -93,11 +98,22 @@ function mergeVersions(target, res) {
         const engine = match[1]
         if (engines.indexOf(engine) >= 0) {
           const version = parseEnvsVersions({ [key]: true })[engine][0].version
-          if (!map[engine] || compareVersions(version, map[engine]) < 0) {
-            map[engine] = version
+          if (!lowestVersionMap[engine] || compareVersions({ version }, { version: lowestVersionMap[engine] }) < 0) {
+            lowestVersionMap[engine] = version
           }
         }
       }
+    }
+  }
+
+  // The original data set can sometimes contain many subtests. We only want to
+  // support a given feature if the version is greater than the maximum version
+  // for all subtests. This is the inverse of the minimum test below.
+  const highestVersionMap = versions[target] || (versions[target] = {})
+  for (const engine in lowestVersionMap) {
+    const version = lowestVersionMap[engine]
+    if (!highestVersionMap[engine] || compareVersions({ version }, { version: highestVersionMap[engine] }) > 0) {
+      highestVersionMap[engine] = version
     }
   }
 }

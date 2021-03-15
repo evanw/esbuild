@@ -38,6 +38,12 @@
 
     This problem occurs because this package doesn't provide an import path for ESM code using the `import` condition and also doesn't provide a fallback import path using the `default` condition.
 
+* Raise certain VM versions in the JavaScript feature compatibility table
+
+    JavaScript VM feature compatibility data is derived from this dataset: https://kangax.github.io/compat-table/. The scripts that process the dataset expand the data to include all VM versions that support a given feature (e.g. `chrome44`, `chrome45`, `chrome46`, ...) so esbuild takes the minimum observed version as the first version for which the feature is supported.
+
+    However, some features can have subtests that each check a different aspect of the feature. In this case the desired version is the minimum version within each individual subtest, but the maximum of those versions across all subtests (since esbuild should only use the feature if it works in all cases). Previously esbuild computed the minimum version across all subtests, but now esbuild computes the maximum version across all subtests. This means esbuild will now lower JavaScript syntax in more cases.
+
 ## 0.9.2
 
 * Fix export name annotations in CommonJS output for node ([#960](https://github.com/evanw/esbuild/issues/960))
