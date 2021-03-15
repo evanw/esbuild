@@ -44,6 +44,22 @@ let buildTests = {
     }
   },
 
+  async errorIfGlob({ esbuild }) {
+    try {
+      await esbuild.build({
+        entryPoints: ['./src/*.js'],
+        logLevel: 'silent',
+        write: false,
+      })
+      throw new Error('Expected build failure');
+    } catch (e) {
+      if (!e.errors || !e.errors[0] || e.errors[0].text !== 'Could not resolve "./src/*.js" ' +
+        '(glob syntax must be expanded first before passing the paths to esbuild)') {
+        throw e;
+      }
+    }
+  },
+
   async workingDirTest({ esbuild, testDir }) {
     let aDir = path.join(testDir, 'a');
     let bDir = path.join(testDir, 'b');

@@ -1223,7 +1223,9 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 			} else if !didLogError {
 				hint := ""
 				if !s.fs.IsAbs(path) {
-					if query := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, path, ast.ImportEntryPoint); query != nil {
+					if strings.ContainsRune(path, '*') {
+						hint = " (glob syntax must be expanded first before passing the paths to esbuild)"
+					} else if query := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, path, ast.ImportEntryPoint); query != nil {
 						hint = fmt.Sprintf(" (use %q to reference the file %q)", "./"+path, s.res.PrettyPath(query.PathPair.Primary))
 					}
 				}
