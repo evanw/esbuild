@@ -17,6 +17,8 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 	var external = []string{
 		// should always be excluded
 		"electron",
+		// Causes numerous problems including FATAL:v8_context_snapshot_impl.cc(229)] Unknown WrapperTypeInfo
+		// when running mksnapshot
 		"bluebird",
 	}
 

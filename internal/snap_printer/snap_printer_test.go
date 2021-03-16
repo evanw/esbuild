@@ -1124,5 +1124,7 @@ func TestLateDeclareLazyJS(t *testing.T) {
 
 func TestDebug(t *testing.T) {
 	debugPrinted(t, `
+const { v4: uuidv4 } = require('uuid')
+var x = uuidv4()
 `, ReplaceAll)
 }

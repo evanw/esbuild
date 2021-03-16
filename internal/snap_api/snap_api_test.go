@@ -346,13 +346,12 @@ __commonJS["./entry.js"] = function(exports, module, __filename, __dirname, requ
 func TestDebug(t *testing.T) {
 	snapApiSuite.debugBuild(t, built{
 		files: map[string]string{
-			"/entry.js": `
-"use strict";
-var old;
-old = Promise;
+			ProjectBaseDir + "/entry.js": `
+	const a = __dirname
+	module.exports = a
 `,
 		},
-		entryPoints: []string{"/entry.js"},
+		entryPoints: []string{ProjectBaseDir + "/entry.js"},
 	},
 	)
 }
