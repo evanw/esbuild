@@ -235,8 +235,8 @@ type parser struct {
 	relocatedTopLevelVars []js_ast.LocRef
 
 	// ArrowFunction is a special case in the grammar. Although it appears to be
-	// a PrimaryExpression, it's actually an AssigmentExpression. This means if
-	// a AssigmentExpression ends up producing an ArrowFunction then nothing can
+	// a PrimaryExpression, it's actually an AssignmentExpression. This means if
+	// a AssignmentExpression ends up producing an ArrowFunction then nothing can
 	// come after it other than the comma operator, since the comma operator is
 	// the only thing above AssignmentExpression under the Expression rule:
 	//
