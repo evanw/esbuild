@@ -717,7 +717,7 @@ func esmParsePackageName(packageSpecifier string) (packageName string, packageSu
 		if slash2 == -1 {
 			slash2 = len(packageSpecifier[slash+1:])
 		}
-		packageName = packageSpecifier[:slash]
+		packageName = packageSpecifier[:slash+1+slash2]
 	}
 
 	if strings.HasPrefix(packageName, ".") || strings.ContainsAny(packageName, "\\%") {
