@@ -203,7 +203,7 @@ var jsTable = map[JSFeature]map[Engine][]int{
 	},
 	Destructuring: {
 		Chrome:  {51},
-		Edge:    {18},
+		Edge:    {14},
 		ES:      {2015},
 		Firefox: {53},
 		IOS:     {10},
