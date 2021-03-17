@@ -271,7 +271,7 @@ clean-all: clean
 	rm -fr github demo bench
 
 ################################################################################
-# These npm packages are used for benchmarks. Instal them in subdirectories
+# These npm packages are used for benchmarks. Install them in subdirectories
 # because we want to install the same package name at multiple versions
 
 require/webpack/node_modules:
