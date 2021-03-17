@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+* Fix importing a path containing a `?` character on Windows ([#989](https://github.com/evanw/esbuild/issues/989))
+
+    On Windows, the `?` character is not allowed in path names. This causes esbuild to fail to import paths containing this character. This is usually fine because people don't put `?` in their file names for this reason. However, the import paths for some ancient CSS code contains the `?` character as a hack to work around a bug in Internet Explorer:
+
+    ```css
+    @font-face {
+      src:
+        url("./icons.eot?#iefix") format('embedded-opentype'),
+        url("./icons.woff2") format('woff2'),
+        url("./icons.woff") format('woff'),
+        url("./icons.ttf") format('truetype'),
+        url("./icons.svg#icons") format('svg');
+    }
+    ```
+
+    The intent is for the bundler to ignore the `?#iefix` part. However, there may actually be a file called `icons.eot?#iefix` on the file system so esbuild checks the file system for both `icons.eot?#iefix` and `icons.eot`. This check was triggering this issue. With this release, an invalid path is considered the same as a missing file so bundling code like this should now work on Windows.
+
 ## 0.9.3
 
 * Fix path resolution with the `exports` field for scoped packages

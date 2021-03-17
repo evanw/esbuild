@@ -131,7 +131,7 @@ func (fs *realFS) ReadDirectory(dir string) (DirEntries, error) {
 	}
 
 	// Cache miss: read the directory entries
-	names, err := readdir(dir)
+	names, err := fs.readdir(dir)
 	entries := DirEntries{dir, make(map[string]*Entry)}
 
 	// Unwrap to get the underlying error
@@ -184,19 +184,7 @@ func (fs *realFS) ReadFile(path string) (string, error) {
 	BeforeFileOpen()
 	defer AfterFileClose()
 	buffer, err := ioutil.ReadFile(path)
-
-	// Unwrap to get the underlying error
-	if pathErr, ok := err.(*os.PathError); ok {
-		err = pathErr.Unwrap()
-	}
-
-	// Windows returns ENOTDIR here even though nothing we've done yet has asked
-	// for a directory. This really means ENOENT on Windows. Return ENOENT here
-	// so callers that check for ENOENT will successfully detect this file as
-	// missing.
-	if err == syscall.ENOTDIR {
-		err = syscall.ENOENT
-	}
+	err = fs.canonicalizeError(err)
 
 	// Allocate the string once
 	fileContents := string(buffer)
@@ -282,23 +270,11 @@ func (fs *realFS) Rel(base string, target string) (string, bool) {
 	return "", false
 }
 
-func readdir(dirname string) ([]string, error) {
+func (fs *realFS) readdir(dirname string) ([]string, error) {
 	BeforeFileOpen()
 	defer AfterFileClose()
 	f, err := os.Open(dirname)
-
-	// Unwrap to get the underlying error
-	if pathErr, ok := err.(*os.PathError); ok {
-		err = pathErr.Unwrap()
-	}
-
-	// Windows returns ENOTDIR here even though nothing we've done yet has asked
-	// for a directory. This really means ENOENT on Windows. Return ENOENT here
-	// so callers that check for ENOENT will successfully detect this directory
-	// as missing.
-	if err == syscall.ENOTDIR {
-		return nil, syscall.ENOENT
-	}
+	err = fs.canonicalizeError(err)
 
 	// Stop now if there was an error
 	if err != nil {
@@ -317,6 +293,34 @@ func readdir(dirname string) ([]string, error) {
 	// condition for Readdirnames() on non-Windows platforms.
 
 	return entries, err
+}
+
+func (fs *realFS) canonicalizeError(err error) error {
+	// Unwrap to get the underlying error
+	if pathErr, ok := err.(*os.PathError); ok {
+		err = pathErr.Unwrap()
+	}
+
+	// This has been copied from golang.org/x/sys/windows
+	const ERROR_INVALID_NAME syscall.Errno = 123
+
+	// Windows is much more restrictive than Unix about file names. If a file name
+	// is invalid, it will return ERROR_INVALID_NAME. Treat this as ENOENT (i.e.
+	// "the file does not exist") so that the resolver continues trying to resolve
+	// the path on this failure instead of aborting with an error.
+	if fs.fp.isWindows && err == ERROR_INVALID_NAME {
+		err = syscall.ENOENT
+	}
+
+	// Windows returns ENOTDIR here even though nothing we've done yet has asked
+	// for a directory. This really means ENOENT on Windows. Return ENOENT here
+	// so callers that check for ENOENT will successfully detect this file as
+	// missing.
+	if err == syscall.ENOTDIR {
+		err = syscall.ENOENT
+	}
+
+	return err
 }
 
 func (fs *realFS) kind(dir string, base string) (symlink string, kind EntryKind) {
@@ -401,7 +405,7 @@ func (fs *realFS) WatchData() WatchData {
 
 		case stateDirHasEntries:
 			paths[path] = func() bool {
-				names, err := readdir(path)
+				names, err := fs.readdir(path)
 				if err != nil || len(names) != len(data.dirEntries) {
 					return true
 				}
