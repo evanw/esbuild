@@ -69,6 +69,17 @@
     }),
   )
 
+  // Test resolving paths with a question mark (an invalid path on Windows)
+  tests.push(
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `
+        import x from "./file.js?ignore-me"
+        if (x !== 123) throw 'fail'
+      `,
+      'file.js': `export default 123`,
+    }),
+  )
+
   // Tests for symlinks
   //
   // Note: These are disabled on Windows because they fail when run with GitHub
