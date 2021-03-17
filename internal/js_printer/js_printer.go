@@ -662,11 +662,9 @@ func GenerateLineOffsetTables(contents string, approximateLineCount int32) []Lin
 		switch c {
 		case '\r', '\n', '\u2028', '\u2029':
 			// Handle Windows-specific "\r\n" newlines
-			if c == '\r' {
-				if i+1 < len(contents) && contents[i+1] == '\n' {
-					column++
-					continue
-				}
+			if c == '\r' && i+1 < len(contents) && contents[i+1] == '\n' {
+				column++
+				continue
 			}
 
 			lineOffsetTables = append(lineOffsetTables, LineOffsetTable{

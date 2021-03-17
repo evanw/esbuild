@@ -450,7 +450,12 @@ async function main() {
           crlf,
         }),
         check('unicode' + suffix, testCaseUnicode, toSearchUnicode, {
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          flags: flags.concat('--outfile=out.js', '--bundle', '--charset=utf8'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
+        check('unicode-globalName' + suffix, testCaseUnicode, toSearchUnicode, {
+          flags: flags.concat('--outfile=out.js', '--bundle', '--global-name=πππ', '--charset=utf8'),
           entryPoints: ['entry.js'],
           crlf,
         }),

@@ -2,6 +2,7 @@ package sourcemap
 
 import (
 	"bytes"
+	"unicode/utf8"
 )
 
 type Mapping struct {
@@ -176,4 +177,63 @@ func DecodeVLQUTF16(encoded []uint16) (int, int, bool) {
 		value = -value
 	}
 	return value, current, true
+}
+
+type LineColumnOffset struct {
+	Lines   int
+	Columns int
+}
+
+func (offset *LineColumnOffset) AdvanceBytes(bytes []byte) {
+	columns := offset.Columns
+	for len(bytes) > 0 {
+		c, width := utf8.DecodeRune(bytes)
+		bytes = bytes[width:]
+		switch c {
+		case '\r', '\n', '\u2028', '\u2029':
+			// Handle Windows-specific "\r\n" newlines
+			if c == '\r' && len(bytes) > 0 && bytes[0] == '\n' {
+				columns++
+				continue
+			}
+
+			offset.Lines++
+			columns = 0
+
+		default:
+			// Mozilla's "source-map" library counts columns using UTF-16 code units
+			if c <= 0xFFFF {
+				columns++
+			} else {
+				columns += 2
+			}
+		}
+	}
+	offset.Columns = columns
+}
+
+func (offset *LineColumnOffset) AdvanceString(text string) {
+	columns := offset.Columns
+	for i, c := range text {
+		switch c {
+		case '\r', '\n', '\u2028', '\u2029':
+			// Handle Windows-specific "\r\n" newlines
+			if c == '\r' && i+1 < len(text) && text[i+1] == '\n' {
+				columns++
+				continue
+			}
+
+			offset.Lines++
+			columns = 0
+
+		default:
+			// Mozilla's "source-map" library counts columns using UTF-16 code units
+			if c <= 0xFFFF {
+				columns++
+			} else {
+				columns += 2
+			}
+		}
+	}
+	offset.Columns = columns
 }

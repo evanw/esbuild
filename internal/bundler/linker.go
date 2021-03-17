@@ -3379,11 +3379,6 @@ type stmtList struct {
 	entryPointTail []js_ast.Stmt
 }
 
-type lineColumnOffset struct {
-	lines   int
-	columns int
-}
-
 type compileResultJS struct {
 	js_printer.PrintResult
 
@@ -3396,7 +3391,7 @@ type compileResultJS struct {
 
 	// This is the line and column offset since the previous JavaScript string
 	// or the start of the file if this is the first JavaScript string.
-	generatedOffset lineColumnOffset
+	generatedOffset sourcemap.LineColumnOffset
 }
 
 func (c *linkerContext) generateCodeForFileInChunkJS(
@@ -3795,7 +3790,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 		waitGroup.Wait()
 
 		j := js_printer.Joiner{}
-		prevOffset := lineColumnOffset{}
+		prevOffset := sourcemap.LineColumnOffset{}
 
 		// Optionally strip whitespace
 		indent := ""
@@ -3814,7 +3809,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			// Start with the hashbang if there is one
 			if repr.ast.Hashbang != "" {
 				hashbang := repr.ast.Hashbang + "\n"
-				prevOffset.advanceString(hashbang)
+				prevOffset.AdvanceString(hashbang)
 				j.AddString(hashbang)
 				newlineBeforeComment = true
 				isExecutable = true
@@ -3823,15 +3818,15 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			// Add the top-level directive if present
 			if repr.ast.Directive != "" {
 				quoted := string(js_printer.QuoteForJSON(repr.ast.Directive, c.options.ASCIIOnly)) + ";" + newline
-				prevOffset.advanceString(quoted)
+				prevOffset.AdvanceString(quoted)
 				j.AddString(quoted)
 				newlineBeforeComment = true
 			}
 		}
 
 		if len(c.options.JSBanner) > 0 {
-			prevOffset.advanceString(c.options.JSBanner)
-			prevOffset.advanceString("\n")
+			prevOffset.AdvanceString(c.options.JSBanner)
+			prevOffset.AdvanceString("\n")
 			j.AddString(c.options.JSBanner)
 			j.AddString("\n")
 		}
@@ -3848,7 +3843,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			} else {
 				text += "(()" + space + "=>" + space + "{" + newline
 			}
-			prevOffset.advanceString(text)
+			prevOffset.AdvanceString(text)
 			j.AddString(text)
 			newlineBeforeComment = false
 		}
@@ -3856,7 +3851,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 		// Put the cross-chunk prefix inside the IIFE
 		if len(crossChunkPrefix) > 0 {
 			newlineBeforeComment = true
-			prevOffset.advanceBytes(crossChunkPrefix)
+			prevOffset.AdvanceBytes(crossChunkPrefix)
 			j.AddBytes(crossChunkPrefix)
 		}
 
@@ -3953,7 +3948,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			// Add a comment with the file path before the file contents
 			if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace && prevComment != compileResult.sourceIndex && len(compileResult.JS) > 0 {
 				if newlineBeforeComment {
-					prevOffset.advanceString("\n")
+					prevOffset.AdvanceString("\n")
 					j.AddString("\n")
 				}
 
@@ -3968,14 +3963,14 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 				path = strings.ReplaceAll(path, "\u2029", "\\u2029")
 
 				text := fmt.Sprintf("%s// %s\n", indent, path)
-				prevOffset.advanceString(text)
+				prevOffset.AdvanceString(text)
 				j.AddString(text)
 				prevComment = compileResult.sourceIndex
 			}
 
 			// Don't include the runtime in source maps
 			if isRuntime {
-				prevOffset.advanceString(string(compileResult.JS))
+				prevOffset.AdvanceString(string(compileResult.JS))
 				j.AddBytes(compileResult.JS)
 			} else {
 				// Save the offset to the start of the stored JavaScript
@@ -3984,9 +3979,9 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 
 				// Ignore empty source map chunks
 				if compileResult.SourceMapChunk.ShouldIgnore {
-					prevOffset.advanceBytes(compileResult.JS)
+					prevOffset.AdvanceBytes(compileResult.JS)
 				} else {
-					prevOffset = lineColumnOffset{}
+					prevOffset = sourcemap.LineColumnOffset{}
 
 					// Include this file in the source map
 					if c.options.SourceMap != config.SourceMapNone {
@@ -4422,28 +4417,6 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 	}
 }
 
-func (offset *lineColumnOffset) advanceBytes(bytes []byte) {
-	for i, n := 0, len(bytes); i < n; i++ {
-		if bytes[i] == '\n' {
-			offset.lines++
-			offset.columns = 0
-		} else {
-			offset.columns++
-		}
-	}
-}
-
-func (offset *lineColumnOffset) advanceString(text string) {
-	for i, n := 0, len(text); i < n; i++ {
-		if text[i] == '\n' {
-			offset.lines++
-			offset.columns = 0
-		} else {
-			offset.columns++
-		}
-	}
-}
-
 func preventBindingsFromBeingRenamed(binding js_ast.Binding, symbols js_ast.SymbolMap) {
 	switch b := binding.Data.(type) {
 	case *js_ast.BMissing:
@@ -4658,10 +4631,10 @@ func (c *linkerContext) generateSourceMapForChunk(
 		// here.
 		startState := js_printer.SourceMapState{
 			SourceIndex:     sourcesIndex,
-			GeneratedLine:   offset.lines,
-			GeneratedColumn: offset.columns,
+			GeneratedLine:   offset.Lines,
+			GeneratedColumn: offset.Columns,
 		}
-		if offset.lines == 0 {
+		if offset.Lines == 0 {
 			startState.GeneratedColumn += prevColumnOffset
 		}
 
