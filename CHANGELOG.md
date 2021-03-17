@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.3
 
 * Fix path resolution with the `exports` field for scoped packages
 
