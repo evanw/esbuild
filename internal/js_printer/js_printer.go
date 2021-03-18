@@ -1226,6 +1226,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 			}
 			p.printIndent()
 		}
+		p.addSourceMapping(record.Range.Loc)
 		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
@@ -1270,6 +1271,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		p.print("()")
 	} else {
 		p.print("require(")
+		p.addSourceMapping(record.Range.Loc)
 		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 		p.print(")")
 	}

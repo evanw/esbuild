@@ -262,7 +262,30 @@ const toSearchComplex = {
   'forceUpdate': '../../node_modules/react/cjs/react.production.min.js',
 };
 
-async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
+const testCaseDynamicImport = {
+  'entry.js': `
+    const then = (x) => console.log("imported", x);
+    console.log([import("./ext/a.js").then(then), import("./ext/ab.js").then(then), import("./ext/abc.js").then(then)]);
+    console.log([import("./ext/abc.js").then(then), import("./ext/ab.js").then(then), import("./ext/a.js").then(then)]);
+  `,
+  'ext/a.js': `
+    export default 'a'
+  `,
+  'ext/ab.js': `
+    export default 'ab'
+  `,
+  'ext/abc.js': `
+    export default 'abc'
+  `,
+}
+
+const toSearchDynamicImport = {
+  './ext/a.js': 'entry.js',
+  './ext/ab.js': 'entry.js',
+  './ext/abc.js': 'entry.js',
+};
+
+async function check(kind, testCase, toSearch, { flags, entryPoints, crlf, followUpFlags = [] }) {
   let failed = 0
 
   try {
@@ -273,7 +296,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
       }
     }
 
-    const tempDir = path.join(testDir, '' + tempDirCount++)
+    const tempDir = path.join(testDir, `${kind}-${tempDirCount++}`)
     await fs.mkdir(tempDir, { recursive: true })
 
     for (const name in testCase) {
@@ -326,7 +349,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
         const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
 
         const inSource = isStdin ? '<stdin>' : toSearch[id];
-        recordCheck(source === inSource, `expected: ${inSource} observed: ${source}`)
+        recordCheck(source === inSource, `expected source: ${inSource}, observed source: ${source}`)
 
         const inJs = map.sourceContentFor(source)
         let inIndex = inJs.indexOf(`"${id}"`)
@@ -338,7 +361,21 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
 
         const expected = JSON.stringify({ source, line: inLine, column: inColumn })
         const observed = JSON.stringify({ source, line, column })
-        recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
+        recordCheck(expected === observed, `expected original position: ${expected}, observed original position: ${observed}`)
+
+        // Also check the reverse mapping
+        const positions = map.allGeneratedPositionsFor({ source, line: inLine, column: inColumn })
+        recordCheck(positions.length > 0, `expected generated positions: 1, observed generated positions: ${positions.length}`)
+        let found = false
+        for (const { line, column } of positions) {
+          if (line === outLine && column === outColumn) {
+            found = true
+            break
+          }
+        }
+        const expectedPosition = JSON.stringify({ line: outLine, column: outColumn })
+        const observedPositions = JSON.stringify(positions)
+        recordCheck(found, `expected generated position: ${expectedPosition}, observed generated positions: ${observedPositions}`)
       }
     }
 
@@ -381,7 +418,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
         order === 1 ? `import './${fileToTest}'; import './extra.js'` :
           order === 2 ? `import './extra.js'; import './${fileToTest}'` :
             `import './${fileToTest}'`)
-      await execFileAsync(esbuildPath, [nestedEntry, '--bundle', '--outfile=' + path.join(tempDir, 'out2.js'), '--sourcemap'], { cwd: testDir })
+      await execFileAsync(esbuildPath, [nestedEntry, '--bundle', '--outfile=' + path.join(tempDir, 'out2.js'), '--sourcemap'].concat(followUpFlags), { cwd: testDir })
 
       const out2Js = await fs.readFile(path.join(tempDir, 'out2.js'), 'utf8')
       recordCheck(out2Js.includes(`//# sourceMappingURL=out2.js.map\n`), `.js file links to .js.map`)
@@ -478,6 +515,18 @@ async function main() {
           flags: flags.concat('--outfile=out.js', '--bundle', '--define:process.env.NODE_ENV="production"'),
           entryPoints: ['entry.js'],
           crlf,
+        }),
+        check('dynamic-import' + suffix, testCaseDynamicImport, toSearchDynamicImport, {
+          flags: flags.concat('--outfile=out.js', '--bundle', '--external:./ext/*', '--format=esm'),
+          entryPoints: ['entry.js'],
+          crlf,
+          followUpFlags: ['--external:./ext/*', '--format=esm'],
+        }),
+        check('dynamic-require' + suffix, testCaseDynamicImport, toSearchDynamicImport, {
+          flags: flags.concat('--outfile=out.js', '--bundle', '--external:./ext/*', '--format=cjs'),
+          entryPoints: ['entry.js'],
+          crlf,
+          followUpFlags: ['--external:./ext/*', '--format=cjs'],
         }),
       )
     }
