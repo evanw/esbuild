@@ -67,7 +67,7 @@ plugin-tests: cmd/esbuild/version.go | scripts/node_modules
 ts-type-tests: | scripts/node_modules
 	node scripts/ts-type-tests.js
 
-node-unref-tests:
+node-unref-tests: | scripts/node_modules
 	node scripts/node-unref-tests.js
 
 lib-typecheck: | lib/node_modules
