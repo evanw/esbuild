@@ -17,6 +17,7 @@ import (
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_printer"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_printer"
@@ -3789,7 +3790,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 
 		waitGroup.Wait()
 
-		j := js_printer.Joiner{}
+		j := helpers.Joiner{}
 		prevOffset := sourcemap.LineColumnOffset{}
 
 		// Optionally strip whitespace
@@ -4263,7 +4264,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 	// Wait for cross-chunk import records before continuing
 	return func(continueData generateContinue) []OutputFile {
 		waitGroup.Wait()
-		j := js_printer.Joiner{}
+		j := helpers.Joiner{}
 		newlineBeforeComment := false
 
 		if len(c.options.CSSBanner) > 0 {
@@ -4513,7 +4514,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 	chunkAbsDir string,
 	dataForSourceMaps []dataForSourceMap,
 ) []byte {
-	j := js_printer.Joiner{}
+	j := helpers.Joiner{}
 	j.AddString("{\n  \"version\": 3")
 
 	// Only write out the sources for a given source index once
