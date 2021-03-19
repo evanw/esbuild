@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@types/node": "14.14.6",
+    "@unicode/unicode-13.0.0": "1.0.6",
     "fuse.js": "3.2.0",
     "js-yaml": "3.14.0",
     "react": "17.0.1",

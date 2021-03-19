@@ -105,3 +105,7 @@ jobs:
     - name: Uglify Tests
       if: matrix.os == 'ubuntu-latest'
       run: make uglify
+
+    - name: Check the unicode table generator
+      if: matrix.os == 'ubuntu-latest'
+      run: cd scripts && node gen-unicode-table.js

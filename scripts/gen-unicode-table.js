@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const version = '13.0.0';
-const idStart = require(`unicode-${version}/Binary_Property/ID_Start/code-points`);
-const idContinue = require(`unicode-${version}/Binary_Property/ID_Continue/code-points`);
+const version = '@unicode/unicode-13.0.0';
+const idStart = require(`${version}/Binary_Property/ID_Start/code-points`);
+const idContinue = require(`${version}/Binary_Property/ID_Continue/code-points`);
 
 function generateRangeTable(codePoints) {
   let lines = [];
