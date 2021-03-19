@@ -116,6 +116,7 @@ export let initialize: typeof types.initialize = options => {
   if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
   if (options.worker) throw new Error(`The "worker" option only works in the browser`)
   if (initializeWasCalled) throw new Error('Cannot call "initialize" more than once')
+  ensureServiceIsRunning()
   initializeWasCalled = true
   return Promise.resolve();
 }
@@ -130,11 +131,7 @@ let defaultWD = process.cwd();
 let longLivedService: Service | undefined;
 
 let ensureServiceIsRunning = (): Service => {
-  if (!longLivedService) longLivedService = startRunningService();
-  return longLivedService;
-}
-
-let startRunningService = (): Service => {
+  if (longLivedService) return longLivedService;
   let [command, args] = esbuildCommandAndArgs();
   let child = child_process.spawn(command, args.concat(`--service=${ESBUILD_VERSION}`, '--ping'), {
     windowsHide: true,
@@ -170,7 +167,7 @@ let startRunningService = (): Service => {
     unref() { if (--refCount === 0) child.unref(); },
   }
 
-  return {
+  longLivedService = {
     build: (options: types.BuildOptions): Promise<any> => {
       return new Promise<types.BuildResult>((resolve, reject) => {
         service.buildOrServe('build', refs, null, options, isTTY(), defaultWD, (err, res) => {
@@ -222,6 +219,7 @@ let startRunningService = (): Service => {
         }, (err, res) => err ? reject(err) : resolve(res!)));
     },
   };
+  return longLivedService;
 }
 
 let runServiceSync = (callback: (service: common.StreamService) => void): void => {
