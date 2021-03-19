@@ -46,15 +46,15 @@ var helpText = func(colors logger.Colors) string {
 
 ` + colors.Bold + `Advanced options:` + colors.Default + `
   --asset-names=...         Path template to use for "file" loader files
-                            (placeholders: "[name]", "[hash]")
+                            (default "[name]-[hash]")
   --banner:T=...            Text to be prepended to each output file of type T
                             where T is one of: css | js
   --charset=utf8            Do not escape UTF-8 code points
   --chunk-names=...         Path template to use for code splitting chunks
-                            (placeholders: "[name]", "[hash]")
+                            (default "[name]-[hash]")
   --color=...               Force use of color terminal escapes (true | false)
   --entry-names=...         Path template to use for entry point output paths
-                            (placeholders: "[dir]", "[name]", "[hash]")
+                            (default "[dir]/[name]", can also use "[hash]")
   --footer:T=...            Text to be appended to each output file of type T
                             where T is one of: css | js
   --global-name=...         The name of the global for the IIFE format
