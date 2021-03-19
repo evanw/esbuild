@@ -228,6 +228,7 @@ type Options struct {
 	CSSBanner string
 	CSSFooter string
 
+	EntryPathTemplate []PathTemplate
 	ChunkPathTemplate []PathTemplate
 	AssetPathTemplate []PathTemplate
 
@@ -246,6 +247,10 @@ type PathPlaceholder uint8
 const (
 	NoPlaceholder PathPlaceholder = iota
 
+	// The relative path from the original parent directory to the configured
+	// "outbase" directory, or to the lowest common ancestor directory
+	DirPlaceholder
+
 	// The original name of the file, or the manual chunk name, or the name of
 	// the type of output file ("entry" or "chunk" or "asset")
 	NamePlaceholder
@@ -261,12 +266,15 @@ type PathTemplate struct {
 }
 
 type PathPlaceholders struct {
+	Dir  *string
 	Name *string
 	Hash *string
 }
 
 func (placeholders PathPlaceholders) Get(placeholder PathPlaceholder) *string {
 	switch placeholder {
+	case DirPlaceholder:
+		return placeholders.Dir
 	case NamePlaceholder:
 		return placeholders.Name
 	case HashPlaceholder:
@@ -284,6 +292,8 @@ func TemplateToString(template []PathTemplate) string {
 	for _, part := range template {
 		sb.WriteString(part.Data)
 		switch part.Placeholder {
+		case DirPlaceholder:
+			sb.WriteString("[dir]")
 		case NamePlaceholder:
 			sb.WriteString("[name]")
 		case HashPlaceholder:

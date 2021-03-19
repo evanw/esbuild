@@ -228,6 +228,9 @@ func parseOptionsImpl(
 		case strings.HasPrefix(arg, "--tsconfig-raw=") && transformOpts != nil:
 			transformOpts.TsconfigRaw = arg[len("--tsconfig-raw="):]
 
+		case strings.HasPrefix(arg, "--entry-names=") && buildOpts != nil:
+			buildOpts.EntryNames = arg[len("--entry-names="):]
+
 		case strings.HasPrefix(arg, "--chunk-names=") && buildOpts != nil:
 			buildOpts.ChunkNames = arg[len("--chunk-names="):]
 

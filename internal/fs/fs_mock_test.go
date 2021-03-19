@@ -98,4 +98,11 @@ func TestMockFSRel(t *testing.T) {
 	expect("/a/b/c/d", "/a/b/x", "../../x")
 	expect("/a/b/c", "/a/b/x/y", "../x/y")
 	expect("/a/b/c/d", "/a/b/x/y", "../../x/y")
+
+	expect("a/b", "a/c", "../c")
+	expect("./a/b", "./a/c", "../c")
+	expect(".", "./a/b", "a/b")
+	expect(".", ".//a/b", "a/b")
+	expect(".", "././a/b", "a/b")
+	expect(".", "././/a/b", "a/b")
 }

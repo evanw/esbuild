@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+* Enable hashes in entry point file paths ([#518](https://github.com/evanw/esbuild/issues/518))
+
+    This release adds the new `--entry-names=` flag. It's similar to the `--chunk-names=` and `--asset-names=` flags except it sets the output paths for entry point files. The pattern defaults to `[dir]/[name]` which should be equivalent to the previous entry point output path behavior, so this should be a backward-compatible change.
+
+    This change has the following consequences:
+
+    * It is now possible for entry point output paths to contain a hash. For example, this now happens if you pass `--entry-names=[dir]/[name]-[hash]`. This means you can now use esbuild to generate output files such that all output paths have a hash in them, which means it should now be possible to serve the output files with an infinite cache lifetime so they are only downloaded once and then cached by the browser forever.
+
+    * It is now possible to prevent the generation of subdirectories inside the output directory. Previously esbuild replicated the directory structure of the input entry points relative to the `outbase` directory (which defaults to the [lowest common ancestor](https://en.wikipedia.org/wiki/Lowest_common_ancestor) directory across all entry points). This value is substituted into the newly-added `[dir]` placeholder. But you can now omit it by omitting that placeholder, like this: `--entry-names=[name]`.
+
+    * Source map names should now be equal to the corresponding output file name plus an additional `.map` extension. Previously the hashes were content hashes, so the source map had a different hash than the corresponding output file because they had different contents. Now they have the same hash so finding the source map should now be easier (just add `.map`).
+
+    * Due to the way the new hashing algorithm works, all chunks can now be generated fully in parallel instead of some chunks having to wait until their dependency chunks have been generated first. The import paths for dependency chunks are now swapped in after chunk generation in a second pass (detailed below). This could theoretically result in a speedup although I haven't done any benchmarks around this.
+
+    Implementing this feature required overhauling how hashes are calculated to prevent the chicken-and-egg hashing problem due to dynamic imports, which can cause cycles in the import graph of the resulting output files when code splitting is enabled. Since generating a hash involved first hashing all of your dependencies, you could end up in a situation where you needed to know the hash to calculate the hash (if a file was a dependency of itself).
+
+    The hashing algorithm now works in three steps (potentially subject to change in the future):
+
+    1. The initial versions of all output files are generated in parallel, with temporary paths used for any imports of other output files. Each temporary path is a randomly-generated string that is unique for each output file. An initial source map is also generated at this step if source maps are enabled.
+
+        The hash for the first step includes: the raw content of the output file excluding the temporary paths, the relative file paths of all input files present in that output file, the relative output path for the resulting output file (with `[hash]` for the hash that hasn't been computed yet), and contents of the initial source map.
+
+    2. After the initial versions of all output files have been generated, calculate the final hash and final output path for each output file. Calculating the final output path involves substituting the final hash for the `[hash]` placeholder in the entry name template.
+
+        The hash for the second step includes: the hash from the first step for this file and all of its transitive dependencies.
+
+    3. After all output files have a final output path, the import paths in each output file for importing other output files are substituted. Source map offsets also have to be adjusted because the final output path is likely a different length than the temporary path used in the first step. This is also done in parallel for each output file.
+
+        This whole algorithm roughly means the hash of a given output file should change if an only if any input file in that output file or any output file it depends on is changed. So the output path and therefore the browser's cache key should not change for a given output file in between builds if none of the relevant input files were changed.
+
 * Fix importing a path containing a `?` character on Windows ([#989](https://github.com/evanw/esbuild/issues/989))
 
     On Windows, the `?` character is not allowed in path names. This causes esbuild to fail to import paths containing this character. This is usually fine because people don't put `?` in their file names for this reason. However, the import paths for some ancient CSS code contains the `?` character as a hack to work around a bug in Internet Explorer:

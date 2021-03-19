@@ -746,6 +746,7 @@ func rebuildImpl(
 		AbsOutputDir:          validatePath(log, realFS, buildOpts.Outdir, "outdir path"),
 		AbsOutputBase:         validatePath(log, realFS, buildOpts.Outbase, "outbase path"),
 		NeedsMetafile:         buildOpts.Metafile,
+		EntryPathTemplate:     validatePathTemplate(buildOpts.EntryNames),
 		ChunkPathTemplate:     validatePathTemplate(buildOpts.ChunkNames),
 		AssetPathTemplate:     validatePathTemplate(buildOpts.AssetNames),
 		OutputExtensionJS:     outJS,
