@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.4
 
 * Enable hashes in entry point file paths ([#518](https://github.com/evanw/esbuild/issues/518))
 
