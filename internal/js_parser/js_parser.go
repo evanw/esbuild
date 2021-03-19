@@ -235,8 +235,8 @@ type parser struct {
 	relocatedTopLevelVars []js_ast.LocRef
 
 	// ArrowFunction is a special case in the grammar. Although it appears to be
-	// a PrimaryExpression, it's actually an AssigmentExpression. This means if
-	// a AssigmentExpression ends up producing an ArrowFunction then nothing can
+	// a PrimaryExpression, it's actually an AssignmentExpression. This means if
+	// a AssignmentExpression ends up producing an ArrowFunction then nothing can
 	// come after it other than the comma operator, since the comma operator is
 	// the only thing above AssignmentExpression under the Expression rule:
 	//
@@ -280,6 +280,7 @@ type Options struct {
 
 type optionsThatSupportStructuralEquality struct {
 	unsupportedJSFeatures compat.JSFeature
+	originalTargetEnv     string
 
 	// Byte-sized values go here (gathered together here to keep this object compact)
 	ts                             config.TSOptions
@@ -304,6 +305,7 @@ func OptionsFromConfig(options *config.Options) Options {
 		defines:       options.Defines,
 		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
 			unsupportedJSFeatures:          options.UnsupportedJSFeatures,
+			originalTargetEnv:              options.OriginalTargetEnv,
 			ts:                             options.TS,
 			mode:                           options.Mode,
 			platform:                       options.Platform,
@@ -11117,7 +11119,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, js_lexer.UTF16ToString(str.Value))
 				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
-				return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EImport{
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImport{
 					Expr:                    arg,
 					ImportRecordIndex:       ast.MakeIndex32(importRecordIndex),
 					LeadingInteriorComments: e.LeadingInteriorComments,
@@ -11161,33 +11163,33 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// correctly, and you need a string literal to get an import record.
 			if !p.options.outputFormat.KeepES6ImportExportSyntax() {
 				var then js_ast.Expr
-				value := p.callRuntime(arg.Loc, "__toModule", []js_ast.Expr{{Loc: arg.Loc, Data: &js_ast.ECall{
-					Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EIdentifier{Ref: p.requireRef}},
+				value := p.callRuntime(arg.Loc, "__toModule", []js_ast.Expr{{Loc: expr.Loc, Data: &js_ast.ECall{
+					Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.requireRef}},
 					Args:   []js_ast.Expr{arg},
 				}}})
-				body := js_ast.FnBody{Loc: arg.Loc, Stmts: []js_ast.Stmt{{Loc: arg.Loc, Data: &js_ast.SReturn{Value: &value}}}}
+				body := js_ast.FnBody{Loc: expr.Loc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{Value: &value}}}}
 				if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
-					then = js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
+					then = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
 				} else {
-					then = js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EArrow{Body: body, PreferExpr: true}}
+					then = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EArrow{Body: body, PreferExpr: true}}
 				}
-				return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
-					Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EDot{
-						Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
-							Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EDot{
-								Target:  js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EIdentifier{Ref: p.makePromiseRef()}},
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+					Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
+						Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+							Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
+								Target:  js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.makePromiseRef()}},
 								Name:    "resolve",
-								NameLoc: arg.Loc,
+								NameLoc: expr.Loc,
 							}},
 						}},
 						Name:    "then",
-						NameLoc: arg.Loc,
+						NameLoc: expr.Loc,
 					}},
 					Args: []js_ast.Expr{then},
 				}}
 			}
 
-			return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EImport{
+			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImport{
 				Expr:                    arg,
 				LeadingInteriorComments: e.LeadingInteriorComments,
 			}}
@@ -11363,7 +11365,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								// We don't want to spend time scanning the required files if they will
 								// never be used.
 								if p.isControlFlowDead {
-									return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ENull{}}
+									return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}}
 								}
 
 								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value))
@@ -11372,7 +11374,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 								// Create a new expression to represent the operation
 								p.ignoreUsage(p.requireRef)
-								return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}}
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}}
 							}
 
 							if !omitWarnings {
@@ -11382,7 +11384,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							}
 
 							// Otherwise just return a clone of the "require()" call
-							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
+							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
 								Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
 								Args:   []js_ast.Expr{arg},
 							}}

@@ -103,6 +103,9 @@ func splitOnSlash(path string) (string, string) {
 }
 
 func (*mockFS) Rel(base string, target string) (string, bool) {
+	base = path.Clean(base)
+	target = path.Clean(target)
+
 	// Base cases
 	if base == "" || base == "." {
 		return target, true

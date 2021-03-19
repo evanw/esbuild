@@ -17,7 +17,7 @@ test-all:
 test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
 
 check-go-version:
-	@go version | grep ' go1\.16 ' || (echo 'Please install Go version 1.16.0' && false)
+	@go version | grep ' go1\.16\.2 ' || (echo 'Please install Go version 1.16.2' && false)
 
 # This "ESBUILD_RACE" variable exists at the request of a user on GitHub who
 # wants to run "make test" on an unsupported version of macOS (version 10.9).
@@ -67,7 +67,7 @@ plugin-tests: cmd/esbuild/version.go | scripts/node_modules
 ts-type-tests: | scripts/node_modules
 	node scripts/ts-type-tests.js
 
-node-unref-tests:
+node-unref-tests: | scripts/node_modules
 	node scripts/node-unref-tests.js
 
 lib-typecheck: | lib/node_modules
@@ -271,7 +271,7 @@ clean-all: clean
 	rm -fr github demo bench
 
 ################################################################################
-# These npm packages are used for benchmarks. Instal them in subdirectories
+# These npm packages are used for benchmarks. Install them in subdirectories
 # because we want to install the same package name at multiple versions
 
 require/webpack/node_modules:

@@ -45,11 +45,16 @@ var helpText = func(colors logger.Colors) string {
   --watch               Watch mode: rebuild on file system changes
 
 ` + colors.Bold + `Advanced options:` + colors.Default + `
+  --asset-names=...         Path template to use for "file" loader files
+                            (default "[name]-[hash]")
   --banner:T=...            Text to be prepended to each output file of type T
                             where T is one of: css | js
   --charset=utf8            Do not escape UTF-8 code points
+  --chunk-names=...         Path template to use for code splitting chunks
+                            (default "[name]-[hash]")
   --color=...               Force use of color terminal escapes (true | false)
-  --log-limit=...           Maximum message count or 0 to disable (default 10)
+  --entry-names=...         Path template to use for entry point output paths
+                            (default "[dir]/[name]", can also use "[hash]")
   --footer:T=...            Text to be appended to each output file of type T
                             where T is one of: css | js
   --global-name=...         The name of the global for the IIFE format
@@ -60,6 +65,7 @@ var helpText = func(colors logger.Colors) string {
   --keep-names              Preserve "name" on functions and classes
   --log-level=...           Disable logging (info | warning | error | silent,
                             default info)
+  --log-limit=...           Maximum message count or 0 to disable (default 10)
   --main-fields=...         Override the main file order in package.json
                             (default "browser,module,main" when platform is
                             browser and "main,module" when platform is node)

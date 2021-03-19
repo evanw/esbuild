@@ -44,6 +44,22 @@ let buildTests = {
     }
   },
 
+  async errorIfGlob({ esbuild }) {
+    try {
+      await esbuild.build({
+        entryPoints: ['./src/*.js'],
+        logLevel: 'silent',
+        write: false,
+      })
+      throw new Error('Expected build failure');
+    } catch (e) {
+      if (!e.errors || !e.errors[0] || e.errors[0].text !== 'Could not resolve "./src/*.js" ' +
+        '(glob syntax must be expanded first before passing the paths to esbuild)') {
+        throw e;
+      }
+    }
+  },
+
   async workingDirTest({ esbuild, testDir }) {
     let aDir = path.join(testDir, 'a');
     let bDir = path.join(testDir, 'b');
@@ -485,7 +501,7 @@ let buildTests = {
     })
     assert.strictEqual(value.outputFiles, void 0)
     const result = require(output)
-    assert.strictEqual(result.value, './data.L3XDQOAT.bin')
+    assert.strictEqual(result.value, './data-L3XDQOAT.bin')
     assert.strictEqual(result.__esModule, true)
   },
 
@@ -512,17 +528,17 @@ let buildTests = {
     assert.deepStrictEqual(value.outputFiles.length, 3)
     assert.deepStrictEqual(value.outputFiles[0].path, path.join(outdir, 'a', 'in1.js'))
     assert.deepStrictEqual(value.outputFiles[1].path, path.join(outdir, 'b', 'in2.js'))
-    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk.PIM4Z7P3.js'))
+    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk-NDYHVWH6.js'))
     assert.deepStrictEqual(value.outputFiles[0].text, `import {
   foo
-} from "https://www.example.com/assets/chunk.PIM4Z7P3.js";
+} from "https://www.example.com/assets/chunk-NDYHVWH6.js";
 export {
   foo as input1
 };
 `)
     assert.deepStrictEqual(value.outputFiles[1].text, `import {
   foo
-} from "https://www.example.com/assets/chunk.PIM4Z7P3.js";
+} from "https://www.example.com/assets/chunk-NDYHVWH6.js";
 export {
   foo as input2
 };
@@ -554,7 +570,7 @@ export {
     })
     assert.strictEqual(value.outputFiles, void 0)
     const result = require(output)
-    assert.strictEqual(result.value, 'https://www.example.com/assets/data.L3XDQOAT.bin')
+    assert.strictEqual(result.value, 'https://www.example.com/assets/data-L3XDQOAT.bin')
     assert.strictEqual(result.__esModule, true)
   },
 
@@ -574,7 +590,7 @@ export {
     assert.strictEqual(value.outputFiles, void 0)
     assert.strictEqual(await readFileAsync(output, 'utf8'), `/* scripts/.js-api-tests/fileLoaderCSS/in.css */
 body {
-  background: url(https://www.example.com/assets/data.L3XDQOAT.bin);
+  background: url(https://www.example.com/assets/data-L3XDQOAT.bin);
 }
 `)
   },
@@ -759,7 +775,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk.KVWCN2LG.js';
+    const chunk = 'chunk-TJO5LOVU.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
@@ -823,7 +839,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk.HP5LLIY3.js';
+    const chunk = 'chunk-3OOYZXPJ.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
@@ -889,7 +905,7 @@ body {
     const inImport1 = makeInPath(import1);
     const inImport2 = makeInPath(import2);
     const inShared = makeInPath(shared);
-    const chunk = 'chunk.FKSIHU5K.js';
+    const chunk = 'chunk-HPFXYN2E.js';
     const outEntry = makeOutPath(path.relative(testDir, entry));
     const outImport1 = makeOutPath(path.relative(testDir, import1));
     const outImport2 = makeOutPath(path.relative(testDir, import2));
@@ -927,7 +943,7 @@ body {
     assert.deepStrictEqual(json.outputs[outImport2].exports, [])
     assert.deepStrictEqual(json.outputs[outChunk].exports, [])
 
-    assert.deepStrictEqual(json.outputs[outEntry].inputs, { [inEntry]: { bytesInOutput: 70 } })
+    assert.deepStrictEqual(json.outputs[outEntry].inputs, { [inEntry]: { bytesInOutput: 72 } })
     assert.deepStrictEqual(json.outputs[outImport1].inputs, {})
     assert.deepStrictEqual(json.outputs[outImport2].inputs, {})
     assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inShared]: { bytesInOutput: 28 } })
@@ -1234,7 +1250,7 @@ body {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunk.3OGTQ2G5.js'
+    const chunk = 'chunk-GQNMLRG3.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
 } from "./${chunk}";
@@ -1291,7 +1307,7 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunk.2GPNYGSC.js'
+    const chunk = 'chunk-GNYLVIR6.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
 } from "../${chunk}";
@@ -1349,22 +1365,22 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunks/name=chunk/hash=74LFAXLW.js'
-    assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
+    const chunk = 'chunks/name=chunk/hash=R4HXUXNL.js'
+    assert.strictEqual(value.outputFiles[0].text, `import {
   common_default
 } from "../${chunk}";
 
 // scripts/.js-api-tests/splittingWithChunkPath/a/demo.js
 console.log("a" + common_default);
 `)
-    assert.strictEqual(Buffer.from(value.outputFiles[1].contents).toString(), `import {
+    assert.strictEqual(value.outputFiles[1].text, `import {
   common_default
 } from "../${chunk}";
 
 // scripts/.js-api-tests/splittingWithChunkPath/b/demo.js
 console.log("b" + common_default);
 `)
-    assert.strictEqual(Buffer.from(value.outputFiles[2].contents).toString(), `// scripts/.js-api-tests/splittingWithChunkPath/common.js
+    assert.strictEqual(value.outputFiles[2].text, `// scripts/.js-api-tests/splittingWithChunkPath/common.js
 var common_default = "common";
 
 export {
@@ -1374,6 +1390,67 @@ export {
 
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.relative(testDir, inputA)))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.relative(testDir, inputB)))
+    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
+  },
+
+  async splittingWithEntryHashes({ esbuild, testDir }) {
+    const inputA = path.join(testDir, 'a/demo.js')
+    const inputB = path.join(testDir, 'b/demo.js')
+    const inputCommon = path.join(testDir, 'common.js')
+    await mkdirAsync(path.dirname(inputA)).catch(x => x)
+    await mkdirAsync(path.dirname(inputB)).catch(x => x)
+    await writeFileAsync(inputA, `
+      import x from "../${path.basename(inputCommon)}"
+      console.log('a' + x.name)
+    `)
+    await writeFileAsync(inputB, `
+      import x from "../${path.basename(inputCommon)}"
+      console.log('b' + x.name)
+    `)
+    await writeFileAsync(inputCommon, `
+      export default { name: 'common' }
+    `)
+    const outdir = path.join(testDir, 'out')
+    const value = await esbuild.build({
+      entryPoints: [inputA, inputB],
+      bundle: true,
+      outdir,
+      format: 'esm',
+      splitting: true,
+      write: false,
+      entryNames: 'entry/name=[name]/hash=[hash]',
+      chunkNames: 'chunks/name=[name]/hash=[hash]',
+    })
+    assert.strictEqual(value.outputFiles.length, 3)
+
+    // These should all use forward slashes, even on Windows
+    const chunk = 'chunks/name=chunk/hash=UEUD4MXD.js'
+    assert.strictEqual(value.outputFiles[0].text, `import {
+  common_default
+} from "../../${chunk}";
+
+// scripts/.js-api-tests/splittingWithEntryHashes/a/demo.js
+console.log("a" + common_default.name);
+`)
+    assert.strictEqual(value.outputFiles[1].text, `import {
+  common_default
+} from "../../${chunk}";
+
+// scripts/.js-api-tests/splittingWithEntryHashes/b/demo.js
+console.log("b" + common_default.name);
+`)
+    assert.strictEqual(value.outputFiles[2].text, `// scripts/.js-api-tests/splittingWithEntryHashes/common.js
+var common_default = {name: "common"};
+
+export {
+  common_default
+};
+`)
+
+    const outputA = 'entry/name=demo/hash=LSS5JVZO.js'
+    const outputB = 'entry/name=demo/hash=ZW5IY2Q5.js'
+    assert.strictEqual(value.outputFiles[0].path, path.join(outdir, outputA))
+    assert.strictEqual(value.outputFiles[1].path, path.join(outdir, outputB))
     assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
   },
 
@@ -2201,11 +2278,14 @@ let serveTests = {
       onRequest = resolve;
     });
 
-    const result = await esbuild.serve({ onRequest }, {
+    const result = await esbuild.serve({
+      host: '127.0.0.1',
+      onRequest,
+    }, {
       entryPoints: [input],
       format: 'esm',
     })
-    assert.strictEqual(result.host, '0.0.0.0');
+    assert.strictEqual(result.host, '127.0.0.1');
     assert.strictEqual(typeof result.port, 'number');
 
     const buffer = await fetch(result.host, result.port, '/in.js')
@@ -2231,12 +2311,15 @@ let serveTests = {
       onRequest = resolve;
     });
 
-    const result = await esbuild.serve({ onRequest }, {
+    const result = await esbuild.serve({
+      host: '127.0.0.1',
+      onRequest,
+    }, {
       entryPoints: [input],
       format: 'esm',
       outfile: 'out.js',
     })
-    assert.strictEqual(result.host, '0.0.0.0');
+    assert.strictEqual(result.host, '127.0.0.1');
     assert.strictEqual(typeof result.port, 'number');
 
     const buffer = await fetch(result.host, result.port, '/out.js')
@@ -2282,13 +2365,14 @@ let serveTests = {
     })();
 
     const result = await esbuild.serve({
+      host: '127.0.0.1',
       onRequest: args => onRequest(args),
       servedir: wwwDir,
     }, {
       entryPoints: [input],
       format: 'esm',
     })
-    assert.strictEqual(result.host, '0.0.0.0');
+    assert.strictEqual(result.host, '127.0.0.1');
     assert.strictEqual(typeof result.port, 'number');
 
     let promise, buffer, req;
@@ -2370,6 +2454,7 @@ let serveTests = {
     })();
 
     const result = await esbuild.serve({
+      host: '127.0.0.1',
       onRequest: args => onRequest(args),
       servedir: wwwDir,
     }, {
@@ -2377,7 +2462,7 @@ let serveTests = {
       format: 'esm',
       outdir: outputDir,
     })
-    assert.strictEqual(result.host, '0.0.0.0');
+    assert.strictEqual(result.host, '127.0.0.1');
     assert.strictEqual(typeof result.port, 'number');
 
     let promise, buffer, req;
@@ -2423,11 +2508,12 @@ let serveTests = {
     })();
 
     const result = await esbuild.serve({
+      host: '127.0.0.1',
       onRequest: args => onRequest(args),
       servedir: testDir,
     }, {
     })
-    assert.strictEqual(result.host, '0.0.0.0');
+    assert.strictEqual(result.host, '127.0.0.1');
     assert.strictEqual(typeof result.port, 'number');
 
     let promise, buffer, req;
@@ -3274,6 +3360,16 @@ let transformTests = {
       check(['es2020', 'chrome79'], `foo(a != null ? a : b);\n`),
       check(['es2019', 'chrome80'], `foo(a != null ? a : b);\n`),
     ])
+  },
+
+  async multipleEngineTargetsNotSupported({ esbuild }) {
+    try {
+      await esbuild.transform(`0n`, { target: ['es5', 'chrome1', 'safari2', 'firefox3'] })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.strictEqual(e.errors[0].text,
+        'Big integer literals are not available in the configured target environment ("chrome1", "es5", "firefox3", "safari2")')
+    }
   },
 
   // Future syntax

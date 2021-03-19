@@ -49,6 +49,7 @@ export interface BuildOptions extends CommonOptions {
   tsconfig?: string;
   outExtension?: { [ext: string]: string };
   publicPath?: string;
+  entryNames?: string;
   chunkNames?: string;
   assetNames?: string;
   inject?: string[];

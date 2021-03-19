@@ -350,6 +350,17 @@ var specialAtRules = map[string]atRuleKind{
 	"top-right-corner":    atRuleDeclarations,
 	"top-right":           atRuleDeclarations,
 
+	// These properties are very deprecated and appear to only be useful for
+	// mobile versions of internet explorer (which may no longer exist?), but
+	// they are used by the https://ant.design/ design system so we recognize
+	// them to avoid the warning.
+	//
+	//   Documentation: https://developer.mozilla.org/en-US/docs/Web/CSS/@viewport
+	//   Discussion: https://github.com/w3c/csswg-drafts/issues/4766
+	//
+	"viewport":     atRuleDeclarations,
+	"-ms-viewport": atRuleDeclarations,
+
 	"document": atRuleInheritContext,
 	"media":    atRuleInheritContext,
 	"scope":    atRuleInheritContext,

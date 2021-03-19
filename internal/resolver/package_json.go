@@ -435,7 +435,8 @@ func (entry peEntry) keysStartWithDot() bool {
 type peStatus uint8
 
 const (
-	peStatusUndefined peStatus = iota
+	peStatusUndefined                  peStatus = iota
+	peStatusUndefinedNoConditionsMatch          // A more friendly error message for when no conditions are matched
 	peStatusNull
 	peStatusExact
 	peStatusInexact // This means we may need to try CommonJS-style extension suffixes
@@ -459,36 +460,49 @@ const (
 	peStatusUnsupportedDirectoryImport
 )
 
+func (status peStatus) isUndefined() bool {
+	return status == peStatusUndefined || status == peStatusUndefinedNoConditionsMatch
+}
+
+type peDebug struct {
+	// This is the range of the token to use for error messages
+	token logger.Range
+
+	// If the status is "peStatusUndefinedNoConditionsMatch", this is the set of
+	// conditions that didn't match. This information is used for error messages.
+	unmatchedConditions []string
+}
+
 func esmPackageExportsResolveWithPostConditions(
 	packageURL string,
 	subpath string,
 	exports peEntry,
 	conditions map[string]bool,
-) (string, peStatus, logger.Range) {
-	resolved, status, token := esmPackageExportsResolve(packageURL, subpath, exports, conditions)
+) (string, peStatus, peDebug) {
+	resolved, status, debug := esmPackageExportsResolve(packageURL, subpath, exports, conditions)
 	if status != peStatusExact && status != peStatusInexact {
-		return resolved, status, token
+		return resolved, status, debug
 	}
 
 	// If resolved contains any percent encodings of "/" or "\" ("%2f" and "%5C"
 	// respectively), then throw an Invalid Module Specifier error.
 	resolvedPath, err := url.PathUnescape(resolved)
 	if err != nil {
-		return resolved, peStatusInvalidModuleSpecifier, token
+		return resolved, peStatusInvalidModuleSpecifier, debug
 	}
 	if strings.Contains(resolved, "%2f") || strings.Contains(resolved, "%2F") ||
 		strings.Contains(resolved, "%5c") || strings.Contains(resolved, "%5C") {
-		return resolved, peStatusInvalidModuleSpecifier, token
+		return resolved, peStatusInvalidModuleSpecifier, debug
 	}
 
 	// If the file at resolved is a directory, then throw an Unsupported Directory
 	// Import error.
 	if strings.HasSuffix(resolvedPath, "/") || strings.HasSuffix(resolvedPath, "\\") {
-		return resolved, peStatusUnsupportedDirectoryImport, token
+		return resolved, peStatusUnsupportedDirectoryImport, debug
 	}
 
 	// Set resolved to the real path of resolved.
-	return resolvedPath, status, token
+	return resolvedPath, status, debug
 }
 
 func esmPackageExportsResolve(
@@ -496,9 +510,9 @@ func esmPackageExportsResolve(
 	subpath string,
 	exports peEntry,
 	conditions map[string]bool,
-) (string, peStatus, logger.Range) {
+) (string, peStatus, peDebug) {
 	if exports.kind == peInvalid {
-		return "", peStatusInvalidPackageConfiguration, exports.firstToken
+		return "", peStatusInvalidPackageConfiguration, peDebug{token: exports.firstToken}
 	}
 	if subpath == "." {
 		mainExport := peEntry{kind: peNull}
@@ -510,18 +524,18 @@ func esmPackageExportsResolve(
 			}
 		}
 		if mainExport.kind != peNull {
-			resolved, status, token := esmPackageTargetResolve(packageURL, mainExport, "", false, conditions)
+			resolved, status, debug := esmPackageTargetResolve(packageURL, mainExport, "", false, conditions)
 			if status != peStatusNull && status != peStatusUndefined {
-				return resolved, status, token
+				return resolved, status, debug
 			}
 		}
 	} else if exports.kind == peObject && exports.keysStartWithDot() {
-		resolved, status, token := esmPackageImportsExportsResolve(subpath, exports, packageURL, conditions)
+		resolved, status, debug := esmPackageImportsExportsResolve(subpath, exports, packageURL, conditions)
 		if status != peStatusNull && status != peStatusUndefined {
-			return resolved, status, token
+			return resolved, status, debug
 		}
 	}
-	return "", peStatusPackagePathNotExported, exports.firstToken
+	return "", peStatusPackagePathNotExported, peDebug{token: exports.firstToken}
 }
 
 func esmPackageImportsExportsResolve(
@@ -529,7 +543,7 @@ func esmPackageImportsExportsResolve(
 	matchObj peEntry,
 	packageURL string,
 	conditions map[string]bool,
-) (string, peStatus, logger.Range) {
+) (string, peStatus, peDebug) {
 	if !strings.HasSuffix(matchKey, "*") {
 		if target, ok := matchObj.valueForKey(matchKey); ok {
 			return esmPackageTargetResolve(packageURL, target, "", false, conditions)
@@ -550,16 +564,16 @@ func esmPackageImportsExportsResolve(
 		if strings.HasPrefix(matchKey, expansion.key) {
 			target := expansion.value
 			subpath := matchKey[len(expansion.key):]
-			result, status, token := esmPackageTargetResolve(packageURL, target, subpath, false, conditions)
+			result, status, debug := esmPackageTargetResolve(packageURL, target, subpath, false, conditions)
 			if status == peStatusExact {
 				// Return the object { resolved, exact: false }.
 				status = peStatusInexact
 			}
-			return result, status, token
+			return result, status, debug
 		}
 	}
 
-	return "", peStatusNull, matchObj.firstToken
+	return "", peStatusNull, peDebug{token: matchObj.firstToken}
 }
 
 // If path split on "/" or "\" contains any ".", ".." or "node_modules"
@@ -592,23 +606,23 @@ func esmPackageTargetResolve(
 	subpath string,
 	pattern bool,
 	conditions map[string]bool,
-) (string, peStatus, logger.Range) {
+) (string, peStatus, peDebug) {
 	switch target.kind {
 	case peString:
 		// If pattern is false, subpath has non-zero length and target
 		// does not end with "/", throw an Invalid Module Specifier error.
 		if !pattern && subpath != "" && !strings.HasSuffix(target.strData, "/") {
-			return target.strData, peStatusInvalidModuleSpecifier, target.firstToken
+			return target.strData, peStatusInvalidModuleSpecifier, peDebug{token: target.firstToken}
 		}
 
 		if !strings.HasPrefix(target.strData, "./") {
-			return target.strData, peStatusInvalidPackageTarget, target.firstToken
+			return target.strData, peStatusInvalidPackageTarget, peDebug{token: target.firstToken}
 		}
 
 		// If target split on "/" or "\" contains any ".", ".." or "node_modules"
 		// segments after the first segment, throw an Invalid Package Target error.
 		if hasInvalidSegment(target.strData) {
-			return target.strData, peStatusInvalidPackageTarget, target.firstToken
+			return target.strData, peStatusInvalidPackageTarget, peDebug{token: target.firstToken}
 		}
 
 		// Let resolvedTarget be the URL resolution of the concatenation of packageURL and target.
@@ -617,58 +631,71 @@ func esmPackageTargetResolve(
 		// If subpath split on "/" or "\" contains any ".", ".." or "node_modules"
 		// segments, throw an Invalid Module Specifier error.
 		if hasInvalidSegment(subpath) {
-			return subpath, peStatusInvalidModuleSpecifier, target.firstToken
+			return subpath, peStatusInvalidModuleSpecifier, peDebug{token: target.firstToken}
 		}
 
 		if pattern {
 			// Return the URL resolution of resolvedTarget with every instance of "*" replaced with subpath.
-			return strings.ReplaceAll(resolvedTarget, "*", subpath), peStatusExact, target.firstToken
+			return strings.ReplaceAll(resolvedTarget, "*", subpath), peStatusExact, peDebug{token: target.firstToken}
 		} else {
 			// Return the URL resolution of the concatenation of subpath and resolvedTarget.
-			return path.Join(resolvedTarget, subpath), peStatusExact, target.firstToken
+			return path.Join(resolvedTarget, subpath), peStatusExact, peDebug{token: target.firstToken}
 		}
 
 	case peObject:
 		for _, p := range target.mapData {
 			if p.key == "default" || conditions[p.key] {
 				targetValue := p.value
-				resolved, status, token := esmPackageTargetResolve(packageURL, targetValue, subpath, pattern, conditions)
-				if status == peStatusUndefined {
+				resolved, status, debug := esmPackageTargetResolve(packageURL, targetValue, subpath, pattern, conditions)
+				if status.isUndefined() {
 					continue
 				}
-				return resolved, status, token
+				return resolved, status, debug
 			}
 		}
-		return "", peStatusUndefined, target.firstToken
+
+		// ALGORITHM DEVIATION: Provide a friendly error message if no conditions matched
+		if len(target.mapData) > 0 && !target.keysStartWithDot() {
+			keys := make([]string, len(target.mapData))
+			for i, p := range target.mapData {
+				keys[i] = p.key
+			}
+			return "", peStatusUndefinedNoConditionsMatch, peDebug{
+				token:               target.firstToken,
+				unmatchedConditions: keys,
+			}
+		}
+
+		return "", peStatusUndefined, peDebug{token: target.firstToken}
 
 	case peArray:
 		if len(target.arrData) == 0 {
-			return "", peStatusNull, target.firstToken
+			return "", peStatusNull, peDebug{token: target.firstToken}
 		}
 		lastException := peStatusUndefined
-		lastToken := target.firstToken
+		lastDebug := peDebug{token: target.firstToken}
 		for _, targetValue := range target.arrData {
 			// Let resolved be the result, continuing the loop on any Invalid Package Target error.
-			resolved, status, token := esmPackageTargetResolve(packageURL, targetValue, subpath, pattern, conditions)
+			resolved, status, debug := esmPackageTargetResolve(packageURL, targetValue, subpath, pattern, conditions)
 			if status == peStatusInvalidPackageTarget || status == peStatusNull {
 				lastException = status
-				lastToken = token
+				lastDebug = debug
 				continue
 			}
-			if status == peStatusUndefined {
+			if status.isUndefined() {
 				continue
 			}
-			return resolved, status, token
+			return resolved, status, debug
 		}
 
 		// Return or throw the last fallback resolution null return or error.
-		return "", lastException, lastToken
+		return "", lastException, lastDebug
 
 	case peNull:
-		return "", peStatusNull, target.firstToken
+		return "", peStatusNull, peDebug{token: target.firstToken}
 	}
 
-	return "", peStatusInvalidPackageTarget, target.firstToken
+	return "", peStatusInvalidPackageTarget, peDebug{token: target.firstToken}
 }
 
 func esmParsePackageName(packageSpecifier string) (packageName string, packageSubpath string, ok bool) {
@@ -690,7 +717,7 @@ func esmParsePackageName(packageSpecifier string) (packageName string, packageSu
 		if slash2 == -1 {
 			slash2 = len(packageSpecifier[slash+1:])
 		}
-		packageName = packageSpecifier[:slash]
+		packageName = packageSpecifier[:slash+1+slash2]
 	}
 
 	if strings.HasPrefix(packageName, ".") || strings.ContainsAny(packageName, "\\%") {

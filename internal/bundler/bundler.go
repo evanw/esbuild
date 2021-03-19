@@ -52,10 +52,9 @@ type file struct {
 	// fully assembled later.
 	jsonMetadataChunk string
 
-	// The path of this entry point relative to the lowest common ancestor
-	// directory containing all entry points. Note: this must have OS-independent
-	// path separators (i.e. '/' not '\').
-	entryPointRelPath string
+	// If "isEntryPoint" is true, this is the index of the corresponding entry
+	// point chunk.
+	entryPointChunkIndex uint32
 
 	// If this file ends up being used in the bundle, these are additional files
 	// that must be written to the output directory. It's used by the "file"
@@ -321,7 +320,9 @@ func parseFile(args parseArgs) {
 			hashBytes := sha1.Sum([]byte(source.Contents))
 			hash = hashForFileName(hashBytes)
 		}
+		dir := "./"
 		relPath := config.TemplateToString(config.SubstituteTemplate(args.options.AssetPathTemplate, config.PathPlaceholders{
+			Dir:  &dir,
 			Name: &base,
 			Hash: &hash,
 		})) + ext
@@ -436,7 +437,7 @@ func parseFile(args parseArgs) {
 				}
 
 				// Run the resolver and log an error if the path couldn't be resolved
-				resolveResult, didLogError, notes := runOnResolvePlugins(
+				resolveResult, didLogError, debug := runOnResolvePlugins(
 					args.options.Plugins,
 					args.res,
 					args.log,
@@ -484,7 +485,7 @@ func parseFile(args parseArgs) {
 							hint = fmt.Sprintf(" (the plugin %q didn't set a resolve directory)", pluginName)
 						}
 						args.log.AddRangeErrorWithNotes(&source, record.Range,
-							fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint), notes)
+							fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint), debug.Notes(&source, record.Range))
 					}
 					continue
 				}
@@ -652,7 +653,7 @@ func runOnResolvePlugins(
 	kind ast.ImportKind,
 	absResolveDir string,
 	pluginData interface{},
-) (*resolver.ResolveResult, bool, []logger.MsgData) {
+) (*resolver.ResolveResult, bool, resolver.DebugMeta) {
 	resolverArgs := config.OnResolveArgs{
 		Path:       path,
 		ResolveDir: absResolveDir,
@@ -681,7 +682,7 @@ func runOnResolvePlugins(
 
 			// Stop now if there was an error
 			if didLogError {
-				return nil, true, nil
+				return nil, true, resolver.DebugMeta{}
 			}
 
 			// The "file" namespace is the default for non-external paths, but not
@@ -710,21 +711,21 @@ func runOnResolvePlugins(
 					log.AddRangeError(importSource, importPathRange,
 						fmt.Sprintf("Plugin %q returned a non-absolute path: %s (set a namespace if this is not a file path)", pluginName, result.Path.Text))
 				}
-				return nil, true, nil
+				return nil, true, resolver.DebugMeta{}
 			}
 
 			return &resolver.ResolveResult{
 				PathPair:   resolver.PathPair{Primary: result.Path},
 				IsExternal: result.External,
 				PluginData: result.PluginData,
-			}, false, nil
+			}, false, resolver.DebugMeta{}
 		}
 	}
 
 	// Resolve relative to the resolve directory by default. All paths in the
 	// "file" namespace automatically have a resolve directory. Loader plugins
 	// can also configure a custom resolve directory for files in other namespaces.
-	result, notes := res.Resolve(absResolveDir, path, kind)
+	result, debug := res.Resolve(absResolveDir, path, kind)
 
 	// Warn when the case used for importing differs from the actual file name
 	if result != nil && result.DifferentCase != nil && !resolver.IsInsideNodeModules(absResolveDir) {
@@ -736,7 +737,7 @@ func runOnResolvePlugins(
 		))
 	}
 
-	return result, false, notes
+	return result, false, debug
 }
 
 type loaderPluginResult struct {
@@ -1202,7 +1203,7 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 	for i, path := range entryPoints {
 		go func(i int, path string) {
 			// Run the resolver and log an error if the path couldn't be resolved
-			resolveResult, didLogError, notes := runOnResolvePlugins(
+			resolveResult, didLogError, debug := runOnResolvePlugins(
 				s.options.Plugins,
 				s.res,
 				s.log,
@@ -1223,11 +1224,13 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 			} else if !didLogError {
 				hint := ""
 				if !s.fs.IsAbs(path) {
-					if query := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, path, ast.ImportEntryPoint); query != nil {
+					if strings.ContainsRune(path, '*') {
+						hint = " (glob syntax must be expanded first before passing the paths to esbuild)"
+					} else if query := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, path, ast.ImportEntryPoint); query != nil {
 						hint = fmt.Sprintf(" (use %q to reference the file %q)", "./"+path, s.res.PrettyPath(query.PathPair.Primary))
 					}
 				}
-				s.log.AddErrorWithNotes(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q%s", path, hint), notes)
+				s.log.AddErrorWithNotes(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q%s", path, hint), debug.Notes(nil, logger.Range{}))
 			}
 			entryPointWaitGroup.Done()
 		}(i, path)
@@ -1514,16 +1517,22 @@ func applyOptionDefaults(options *config.Options) {
 	}
 
 	// Configure default path templates
+	if len(options.EntryPathTemplate) == 0 {
+		options.EntryPathTemplate = []config.PathTemplate{
+			{Data: "./", Placeholder: config.DirPlaceholder},
+			{Data: "/", Placeholder: config.NamePlaceholder},
+		}
+	}
 	if len(options.ChunkPathTemplate) == 0 {
 		options.ChunkPathTemplate = []config.PathTemplate{
 			{Data: "./", Placeholder: config.NamePlaceholder},
-			{Data: ".", Placeholder: config.HashPlaceholder},
+			{Data: "-", Placeholder: config.HashPlaceholder},
 		}
 	}
 	if len(options.AssetPathTemplate) == 0 {
 		options.AssetPathTemplate = []config.PathTemplate{
 			{Data: "./", Placeholder: config.NamePlaceholder},
-			{Data: ".", Placeholder: config.HashPlaceholder},
+			{Data: "-", Placeholder: config.HashPlaceholder},
 		}
 	}
 }

@@ -265,6 +265,7 @@ type BuildOptions struct {
 	Footer            map[string]string
 	NodePaths         []string // The "NODE_PATH" variable from Node.js
 
+	EntryNames string
 	ChunkNames string
 	AssetNames string
 
