@@ -1434,9 +1434,16 @@ func (s *scanner) processScannedFiles() []file {
 					}
 				}
 
-				// Don't include this module for its side effects if it can be
-				// considered to have no side effects
-				if record.WasOriginallyBareImport && !s.options.IgnoreDCEAnnotations {
+				// Warn about this import if it's a bare import statement without any
+				// imported names (i.e. a side-effect-only import) and the module has
+				// been marked as having no side effects.
+				//
+				// Except don't do this if this file is inside "node_modules" since
+				// it's a bug in the package and the user won't be able to do anything
+				// about it. Note that this can result in esbuild silently generating
+				// broken code. If this actually happens for people, it's probably worth
+				// re-enabling the warning about code inside "node_modules".
+				if record.WasOriginallyBareImport && !s.options.IgnoreDCEAnnotations && !resolver.IsInsideNodeModules(result.file.source.KeyPath.Text) {
 					if otherFile := &s.results[record.SourceIndex.GetIndex()].file; otherFile.warnIfUnused {
 						var notes []logger.MsgData
 						if otherFile.warnIfUnusedData != nil {

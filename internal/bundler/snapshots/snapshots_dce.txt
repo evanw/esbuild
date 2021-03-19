@@ -311,6 +311,15 @@ console.log("hello");
 console.log(demo_pkg_exports);
 
 ================================================================================
+TestPackageJsonSideEffectsFalseNoWarningInNodeModulesIssue999
+---------- /out.js ----------
+// Users/user/project/node_modules/demo-pkg/index.js
+console.log("unused import");
+
+// Users/user/project/src/entry.js
+console.log("used import");
+
+================================================================================
 TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS
 ---------- /out.js ----------
 // Users/user/project/src/entry.js
