@@ -1526,13 +1526,13 @@ func applyOptionDefaults(options *config.Options) {
 	if len(options.ChunkPathTemplate) == 0 {
 		options.ChunkPathTemplate = []config.PathTemplate{
 			{Data: "./", Placeholder: config.NamePlaceholder},
-			{Data: ".", Placeholder: config.HashPlaceholder},
+			{Data: "-", Placeholder: config.HashPlaceholder},
 		}
 	}
 	if len(options.AssetPathTemplate) == 0 {
 		options.AssetPathTemplate = []config.PathTemplate{
 			{Data: "./", Placeholder: config.NamePlaceholder},
-			{Data: ".", Placeholder: config.HashPlaceholder},
+			{Data: "-", Placeholder: config.HashPlaceholder},
 		}
 	}
 }
