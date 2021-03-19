@@ -381,14 +381,10 @@ type outputPiece struct {
 	chunkIndex ast.Index32
 }
 
-type generateContinue struct {
-	crossChunkImportRecords []ast.ImportRecord
-	crossChunkAbsPaths      []string
-}
+type chunkRepr interface{ isChunk() }
 
-type chunkRepr interface {
-	generate(c *linkerContext, chunks []chunkInfo, chunk *chunkInfo) func(generateContinue)
-}
+func (*chunkReprJS) isChunk()  {}
+func (*chunkReprCSS) isChunk() {}
 
 type chunkReprJS struct {
 	// For code splitting
@@ -681,34 +677,13 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 	// Generate each chunk on a separate goroutine
 	generateWaitGroup := sync.WaitGroup{}
 	generateWaitGroup.Add(len(chunks))
-	for i := range chunks {
-		go func(i int) {
-			chunk := &chunks[i]
-
-			// Start generating the chunk without dependencies, but stop when
-			// dependencies are needed. This returns a callback that is called
-			// later to resume generating the chunk once dependencies are known.
-			resume := chunk.chunkRepr.generate(c, chunks, chunk)
-
-			// Fill in the cross-chunk import records now that the paths are known
-			crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
-			crossChunkAbsPaths := make([]string, len(chunk.crossChunkImports))
-			for i, otherChunkIndex := range chunk.crossChunkImports {
-				crossChunkAbsPaths[i] = chunks[otherChunkIndex].uniqueKey
-				crossChunkImportRecords[i] = ast.ImportRecord{
-					Kind: ast.ImportStmt,
-					Path: logger.Path{Text: chunks[otherChunkIndex].uniqueKey},
-				}
-			}
-
-			// Generate the chunk
-			resume(generateContinue{
-				crossChunkAbsPaths:      crossChunkAbsPaths,
-				crossChunkImportRecords: crossChunkImportRecords,
-			})
-
-			generateWaitGroup.Done()
-		}(i)
+	for chunkIndex := range chunks {
+		switch chunks[chunkIndex].chunkRepr.(type) {
+		case *chunkReprJS:
+			go c.generateChunkJS(chunks, chunkIndex, &generateWaitGroup)
+		case *chunkReprCSS:
+			go c.generateChunkCSS(chunks, chunkIndex, &generateWaitGroup)
+		}
 	}
 	generateWaitGroup.Wait()
 
@@ -3927,7 +3902,9 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	return r
 }
 
-func (repr *chunkReprJS) generate(c *linkerContext, chunks []chunkInfo, chunk *chunkInfo) func(generateContinue) {
+func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
+	chunk := &chunks[chunkIndex]
+	chunkRepr := chunk.chunkRepr.(*chunkReprJS)
 	compileResults := make([]compileResultJS, 0, len(chunk.partsInChunkInOrder))
 	runtimeMembers := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members
 	commonJSRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"].Ref)
@@ -3969,323 +3946,328 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunks []chunkInfo, chunk *c
 		)
 	}
 
-	// Wait for cross-chunk import records before continuing
-	return func(continueData generateContinue) {
-		// Also generate the cross-chunk binding code
-		var crossChunkPrefix []byte
-		var crossChunkSuffix []byte
-		{
-			// Indent the file if everything is wrapped in an IIFE
-			indent := 0
-			if c.options.OutputFormat == config.FormatIIFE {
-				indent++
-			}
-			printOptions := js_printer.Options{
-				Indent:           indent,
-				OutputFormat:     c.options.OutputFormat,
-				RemoveWhitespace: c.options.RemoveWhitespace,
-				MangleSyntax:     c.options.MangleSyntax,
-			}
-			crossChunkPrefix = js_printer.Print(js_ast.AST{
-				ImportRecords: continueData.crossChunkImportRecords,
-				Parts:         []js_ast.Part{{Stmts: repr.crossChunkPrefixStmts}},
-			}, c.symbols, r, printOptions).JS
-			crossChunkSuffix = js_printer.Print(js_ast.AST{
-				Parts: []js_ast.Part{{Stmts: repr.crossChunkSuffixStmts}},
-			}, c.symbols, r, printOptions).JS
-		}
-
-		waitGroup.Wait()
-
-		j := helpers.Joiner{}
-		prevOffset := sourcemap.LineColumnOffset{}
-
-		// Optionally strip whitespace
-		indent := ""
-		space := " "
-		newline := "\n"
-		if c.options.RemoveWhitespace {
-			space = ""
-			newline = ""
-		}
-		newlineBeforeComment := false
-		isExecutable := false
-
-		if chunk.isEntryPoint {
-			repr := c.files[chunk.sourceIndex].repr.(*reprJS)
-
-			// Start with the hashbang if there is one
-			if repr.ast.Hashbang != "" {
-				hashbang := repr.ast.Hashbang + "\n"
-				prevOffset.AdvanceString(hashbang)
-				j.AddString(hashbang)
-				newlineBeforeComment = true
-				isExecutable = true
-			}
-
-			// Add the top-level directive if present
-			if repr.ast.Directive != "" {
-				quoted := string(js_printer.QuoteForJSON(repr.ast.Directive, c.options.ASCIIOnly)) + ";" + newline
-				prevOffset.AdvanceString(quoted)
-				j.AddString(quoted)
-				newlineBeforeComment = true
-			}
-		}
-
-		if len(c.options.JSBanner) > 0 {
-			prevOffset.AdvanceString(c.options.JSBanner)
-			prevOffset.AdvanceString("\n")
-			j.AddString(c.options.JSBanner)
-			j.AddString("\n")
-		}
-
-		// Optionally wrap with an IIFE
+	// Also generate the cross-chunk binding code
+	var crossChunkPrefix []byte
+	var crossChunkSuffix []byte
+	{
+		// Indent the file if everything is wrapped in an IIFE
+		indent := 0
 		if c.options.OutputFormat == config.FormatIIFE {
-			var text string
-			indent = "  "
-			if len(c.options.GlobalName) > 0 {
-				text = c.generateGlobalNamePrefix()
-			}
-			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
-				text += "(function()" + space + "{" + newline
-			} else {
-				text += "(()" + space + "=>" + space + "{" + newline
-			}
-			prevOffset.AdvanceString(text)
-			j.AddString(text)
-			newlineBeforeComment = false
+			indent++
 		}
+		printOptions := js_printer.Options{
+			Indent:           indent,
+			OutputFormat:     c.options.OutputFormat,
+			RemoveWhitespace: c.options.RemoveWhitespace,
+			MangleSyntax:     c.options.MangleSyntax,
+		}
+		crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
+		for i, otherChunkIndex := range chunk.crossChunkImports {
+			crossChunkImportRecords[i] = ast.ImportRecord{
+				Kind: ast.ImportStmt,
+				Path: logger.Path{Text: chunks[otherChunkIndex].uniqueKey},
+			}
+		}
+		crossChunkPrefix = js_printer.Print(js_ast.AST{
+			ImportRecords: crossChunkImportRecords,
+			Parts:         []js_ast.Part{{Stmts: chunkRepr.crossChunkPrefixStmts}},
+		}, c.symbols, r, printOptions).JS
+		crossChunkSuffix = js_printer.Print(js_ast.AST{
+			Parts: []js_ast.Part{{Stmts: chunkRepr.crossChunkSuffixStmts}},
+		}, c.symbols, r, printOptions).JS
+	}
 
-		// Put the cross-chunk prefix inside the IIFE
-		if len(crossChunkPrefix) > 0 {
+	waitGroup.Wait()
+
+	j := helpers.Joiner{}
+	prevOffset := sourcemap.LineColumnOffset{}
+
+	// Optionally strip whitespace
+	indent := ""
+	space := " "
+	newline := "\n"
+	if c.options.RemoveWhitespace {
+		space = ""
+		newline = ""
+	}
+	newlineBeforeComment := false
+	isExecutable := false
+
+	if chunk.isEntryPoint {
+		repr := c.files[chunk.sourceIndex].repr.(*reprJS)
+
+		// Start with the hashbang if there is one
+		if repr.ast.Hashbang != "" {
+			hashbang := repr.ast.Hashbang + "\n"
+			prevOffset.AdvanceString(hashbang)
+			j.AddString(hashbang)
 			newlineBeforeComment = true
-			prevOffset.AdvanceBytes(crossChunkPrefix)
-			j.AddBytes(crossChunkPrefix)
+			isExecutable = true
 		}
 
-		// Start the metadata
-		jMeta := helpers.Joiner{}
-		if c.options.NeedsMetafile {
-			// Print imports
-			isFirstMeta := true
-			jMeta.AddString("{\n      \"imports\": [")
-			for i, importAbsPath := range continueData.crossChunkAbsPaths {
-				if isFirstMeta {
-					isFirstMeta = false
-				} else {
-					jMeta.AddString(",")
-				}
-				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
-					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly),
-					js_printer.QuoteForJSON(continueData.crossChunkImportRecords[i].Kind.StringForMetafile(), c.options.ASCIIOnly)))
-			}
-			if !isFirstMeta {
-				jMeta.AddString("\n      ")
-			}
+		// Add the top-level directive if present
+		if repr.ast.Directive != "" {
+			quoted := string(js_printer.QuoteForJSON(repr.ast.Directive, c.options.ASCIIOnly)) + ";" + newline
+			prevOffset.AdvanceString(quoted)
+			j.AddString(quoted)
+			newlineBeforeComment = true
+		}
+	}
 
-			// Print exports
-			jMeta.AddString("],\n      \"exports\": [")
-			var aliases []string
-			if c.options.OutputFormat.KeepES6ImportExportSyntax() {
-				if chunk.isEntryPoint {
-					if fileRepr := c.files[chunk.sourceIndex].repr.(*reprJS); fileRepr.meta.cjsWrap {
-						aliases = []string{"default"}
-					} else {
-						resolvedExports := fileRepr.meta.resolvedExports
-						aliases = make([]string, 0, len(resolvedExports))
-						for alias := range resolvedExports {
-							aliases = append(aliases, alias)
-						}
-					}
+	if len(c.options.JSBanner) > 0 {
+		prevOffset.AdvanceString(c.options.JSBanner)
+		prevOffset.AdvanceString("\n")
+		j.AddString(c.options.JSBanner)
+		j.AddString("\n")
+	}
+
+	// Optionally wrap with an IIFE
+	if c.options.OutputFormat == config.FormatIIFE {
+		var text string
+		indent = "  "
+		if len(c.options.GlobalName) > 0 {
+			text = c.generateGlobalNamePrefix()
+		}
+		if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+			text += "(function()" + space + "{" + newline
+		} else {
+			text += "(()" + space + "=>" + space + "{" + newline
+		}
+		prevOffset.AdvanceString(text)
+		j.AddString(text)
+		newlineBeforeComment = false
+	}
+
+	// Put the cross-chunk prefix inside the IIFE
+	if len(crossChunkPrefix) > 0 {
+		newlineBeforeComment = true
+		prevOffset.AdvanceBytes(crossChunkPrefix)
+		j.AddBytes(crossChunkPrefix)
+	}
+
+	// Start the metadata
+	jMeta := helpers.Joiner{}
+	if c.options.NeedsMetafile {
+		// Print imports
+		isFirstMeta := true
+		jMeta.AddString("{\n      \"imports\": [")
+		for _, otherChunkIndex := range chunk.crossChunkImports {
+			if isFirstMeta {
+				isFirstMeta = false
+			} else {
+				jMeta.AddString(",")
+			}
+			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
+				js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[otherChunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
+				js_printer.QuoteForJSON(ast.ImportStmt.StringForMetafile(), c.options.ASCIIOnly)))
+		}
+		if !isFirstMeta {
+			jMeta.AddString("\n      ")
+		}
+
+		// Print exports
+		jMeta.AddString("],\n      \"exports\": [")
+		var aliases []string
+		if c.options.OutputFormat.KeepES6ImportExportSyntax() {
+			if chunk.isEntryPoint {
+				if fileRepr := c.files[chunk.sourceIndex].repr.(*reprJS); fileRepr.meta.cjsWrap {
+					aliases = []string{"default"}
 				} else {
-					aliases = make([]string, 0, len(repr.exportsToOtherChunks))
-					for _, alias := range repr.exportsToOtherChunks {
+					resolvedExports := fileRepr.meta.resolvedExports
+					aliases = make([]string, 0, len(resolvedExports))
+					for alias := range resolvedExports {
 						aliases = append(aliases, alias)
 					}
 				}
+			} else {
+				aliases = make([]string, 0, len(chunkRepr.exportsToOtherChunks))
+				for _, alias := range chunkRepr.exportsToOtherChunks {
+					aliases = append(aliases, alias)
+				}
 			}
-			isFirstMeta = true
-			sort.Strings(aliases) // Sort for determinism
-			for _, alias := range aliases {
+		}
+		isFirstMeta = true
+		sort.Strings(aliases) // Sort for determinism
+		for _, alias := range aliases {
+			if isFirstMeta {
+				isFirstMeta = false
+			} else {
+				jMeta.AddString(",")
+			}
+			jMeta.AddString(fmt.Sprintf("\n        %s",
+				js_printer.QuoteForJSON(alias, c.options.ASCIIOnly)))
+		}
+		if !isFirstMeta {
+			jMeta.AddString("\n      ")
+		}
+		if chunk.isEntryPoint {
+			entryPoint := c.files[chunk.sourceIndex].source.PrettyPath
+			jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {", js_printer.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
+		} else {
+			jMeta.AddString("],\n      \"inputs\": {")
+		}
+	}
+
+	// Concatenate the generated JavaScript chunks together
+	var compileResultsForSourceMap []compileResultJS
+	var entryPointTail *js_printer.PrintResult
+	var commentList []string
+	var metaOrder []string
+	var metaByteCount map[string]int
+	commentSet := make(map[string]bool)
+	prevComment := uint32(0)
+	if c.options.NeedsMetafile {
+		metaOrder = make([]string, 0, len(compileResults))
+		metaByteCount = make(map[string]int, len(compileResults))
+	}
+	for _, compileResult := range compileResults {
+		isRuntime := compileResult.sourceIndex == runtime.SourceIndex
+		for text := range compileResult.ExtractedComments {
+			if !commentSet[text] {
+				commentSet[text] = true
+				commentList = append(commentList, text)
+			}
+		}
+
+		// If this is the entry point, it may have some extra code to stick at the
+		// end of the chunk after all modules have evaluated
+		if compileResult.entryPointTail != nil {
+			entryPointTail = compileResult.entryPointTail
+		}
+
+		// Add a comment with the file path before the file contents
+		if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace && prevComment != compileResult.sourceIndex && len(compileResult.JS) > 0 {
+			if newlineBeforeComment {
+				prevOffset.AdvanceString("\n")
+				j.AddString("\n")
+			}
+
+			path := c.files[compileResult.sourceIndex].source.PrettyPath
+
+			// Make sure newlines in the path can't cause a syntax error. This does
+			// not minimize allocations because it's expected that this case never
+			// comes up in practice.
+			path = strings.ReplaceAll(path, "\r", "\\r")
+			path = strings.ReplaceAll(path, "\n", "\\n")
+			path = strings.ReplaceAll(path, "\u2028", "\\u2028")
+			path = strings.ReplaceAll(path, "\u2029", "\\u2029")
+
+			text := fmt.Sprintf("%s// %s\n", indent, path)
+			prevOffset.AdvanceString(text)
+			j.AddString(text)
+			prevComment = compileResult.sourceIndex
+		}
+
+		// Don't include the runtime in source maps
+		if isRuntime {
+			prevOffset.AdvanceString(string(compileResult.JS))
+			j.AddBytes(compileResult.JS)
+		} else {
+			// Save the offset to the start of the stored JavaScript
+			compileResult.generatedOffset = prevOffset
+			j.AddBytes(compileResult.JS)
+
+			// Ignore empty source map chunks
+			if compileResult.SourceMapChunk.ShouldIgnore {
+				prevOffset.AdvanceBytes(compileResult.JS)
+			} else {
+				prevOffset = sourcemap.LineColumnOffset{}
+
+				// Include this file in the source map
+				if c.options.SourceMap != config.SourceMapNone {
+					compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
+				}
+			}
+
+			// Include this file in the metadata
+			if c.options.NeedsMetafile {
+				// Accumulate file sizes since a given file may be split into multiple parts
+				path := c.files[compileResult.sourceIndex].source.PrettyPath
+				if count, ok := metaByteCount[path]; ok {
+					metaByteCount[path] = count + len(compileResult.JS)
+				} else {
+					metaOrder = append(metaOrder, path)
+					metaByteCount[path] = len(compileResult.JS)
+				}
+			}
+		}
+
+		// Put a newline before the next file path comment
+		if len(compileResult.JS) > 0 {
+			newlineBeforeComment = true
+		}
+	}
+
+	// Stick the entry point tail at the end of the file. Deliberately don't
+	// include any source mapping information for this because it's automatically
+	// generated and doesn't correspond to a location in the input file.
+	if entryPointTail != nil {
+		j.AddBytes(entryPointTail.JS)
+	}
+
+	// Put the cross-chunk suffix inside the IIFE
+	if len(crossChunkSuffix) > 0 {
+		if newlineBeforeComment {
+			j.AddString(newline)
+		}
+		j.AddBytes(crossChunkSuffix)
+	}
+
+	// Optionally wrap with an IIFE
+	if c.options.OutputFormat == config.FormatIIFE {
+		j.AddString("})();" + newline)
+	}
+
+	// Make sure the file ends with a newline
+	j.EnsureNewlineAtEnd()
+
+	// Add all unique license comments to the end of the file. These are
+	// deduplicated because some projects have thousands of files with the same
+	// comment. The comment must be preserved in the output for legal reasons but
+	// at the same time we want to generate a small bundle when minifying.
+	sort.Strings(commentList)
+	for _, text := range commentList {
+		j.AddString(text)
+		j.AddString("\n")
+	}
+
+	if len(c.options.JSFooter) > 0 {
+		j.AddString(c.options.JSFooter)
+		j.AddString("\n")
+	}
+
+	if c.options.SourceMap != config.SourceMapNone {
+		chunk.outputSourceMap = c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps)
+	}
+
+	// The JavaScript contents are done now that the source map comment is in
+	jsContents := j.Done()
+
+	// End the metadata lazily. The final output size is not known until the
+	// final import paths are substituted into the output pieces generated below.
+	if c.options.NeedsMetafile {
+		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) []byte {
+			isFirstMeta := true
+			for _, path := range metaOrder {
 				if isFirstMeta {
 					isFirstMeta = false
 				} else {
 					jMeta.AddString(",")
 				}
-				jMeta.AddString(fmt.Sprintf("\n        %s",
-					js_printer.QuoteForJSON(alias, c.options.ASCIIOnly)))
+				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+					js_printer.QuoteForJSON(path, c.options.ASCIIOnly), metaByteCount[path]))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
 			}
-			if chunk.isEntryPoint {
-				entryPoint := c.files[chunk.sourceIndex].source.PrettyPath
-				jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {", js_printer.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
-			} else {
-				jMeta.AddString("],\n      \"inputs\": {")
-			}
+			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
+			return jMeta.Done()
 		}
-
-		// Concatenate the generated JavaScript chunks together
-		var compileResultsForSourceMap []compileResultJS
-		var entryPointTail *js_printer.PrintResult
-		var commentList []string
-		var metaOrder []string
-		var metaByteCount map[string]int
-		commentSet := make(map[string]bool)
-		prevComment := uint32(0)
-		if c.options.NeedsMetafile {
-			metaOrder = make([]string, 0, len(compileResults))
-			metaByteCount = make(map[string]int, len(compileResults))
-		}
-		for _, compileResult := range compileResults {
-			isRuntime := compileResult.sourceIndex == runtime.SourceIndex
-			for text := range compileResult.ExtractedComments {
-				if !commentSet[text] {
-					commentSet[text] = true
-					commentList = append(commentList, text)
-				}
-			}
-
-			// If this is the entry point, it may have some extra code to stick at the
-			// end of the chunk after all modules have evaluated
-			if compileResult.entryPointTail != nil {
-				entryPointTail = compileResult.entryPointTail
-			}
-
-			// Add a comment with the file path before the file contents
-			if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace && prevComment != compileResult.sourceIndex && len(compileResult.JS) > 0 {
-				if newlineBeforeComment {
-					prevOffset.AdvanceString("\n")
-					j.AddString("\n")
-				}
-
-				path := c.files[compileResult.sourceIndex].source.PrettyPath
-
-				// Make sure newlines in the path can't cause a syntax error. This does
-				// not minimize allocations because it's expected that this case never
-				// comes up in practice.
-				path = strings.ReplaceAll(path, "\r", "\\r")
-				path = strings.ReplaceAll(path, "\n", "\\n")
-				path = strings.ReplaceAll(path, "\u2028", "\\u2028")
-				path = strings.ReplaceAll(path, "\u2029", "\\u2029")
-
-				text := fmt.Sprintf("%s// %s\n", indent, path)
-				prevOffset.AdvanceString(text)
-				j.AddString(text)
-				prevComment = compileResult.sourceIndex
-			}
-
-			// Don't include the runtime in source maps
-			if isRuntime {
-				prevOffset.AdvanceString(string(compileResult.JS))
-				j.AddBytes(compileResult.JS)
-			} else {
-				// Save the offset to the start of the stored JavaScript
-				compileResult.generatedOffset = prevOffset
-				j.AddBytes(compileResult.JS)
-
-				// Ignore empty source map chunks
-				if compileResult.SourceMapChunk.ShouldIgnore {
-					prevOffset.AdvanceBytes(compileResult.JS)
-				} else {
-					prevOffset = sourcemap.LineColumnOffset{}
-
-					// Include this file in the source map
-					if c.options.SourceMap != config.SourceMapNone {
-						compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
-					}
-				}
-
-				// Include this file in the metadata
-				if c.options.NeedsMetafile {
-					// Accumulate file sizes since a given file may be split into multiple parts
-					path := c.files[compileResult.sourceIndex].source.PrettyPath
-					if count, ok := metaByteCount[path]; ok {
-						metaByteCount[path] = count + len(compileResult.JS)
-					} else {
-						metaOrder = append(metaOrder, path)
-						metaByteCount[path] = len(compileResult.JS)
-					}
-				}
-			}
-
-			// Put a newline before the next file path comment
-			if len(compileResult.JS) > 0 {
-				newlineBeforeComment = true
-			}
-		}
-
-		// Stick the entry point tail at the end of the file. Deliberately don't
-		// include any source mapping information for this because it's automatically
-		// generated and doesn't correspond to a location in the input file.
-		if entryPointTail != nil {
-			j.AddBytes(entryPointTail.JS)
-		}
-
-		// Put the cross-chunk suffix inside the IIFE
-		if len(crossChunkSuffix) > 0 {
-			if newlineBeforeComment {
-				j.AddString(newline)
-			}
-			j.AddBytes(crossChunkSuffix)
-		}
-
-		// Optionally wrap with an IIFE
-		if c.options.OutputFormat == config.FormatIIFE {
-			j.AddString("})();" + newline)
-		}
-
-		// Make sure the file ends with a newline
-		j.EnsureNewlineAtEnd()
-
-		// Add all unique license comments to the end of the file. These are
-		// deduplicated because some projects have thousands of files with the same
-		// comment. The comment must be preserved in the output for legal reasons but
-		// at the same time we want to generate a small bundle when minifying.
-		sort.Strings(commentList)
-		for _, text := range commentList {
-			j.AddString(text)
-			j.AddString("\n")
-		}
-
-		if len(c.options.JSFooter) > 0 {
-			j.AddString(c.options.JSFooter)
-			j.AddString("\n")
-		}
-
-		if c.options.SourceMap != config.SourceMapNone {
-			chunk.outputSourceMap = c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps)
-		}
-
-		// The JavaScript contents are done now that the source map comment is in
-		jsContents := j.Done()
-
-		// End the metadata lazily. The final output size is not known until the
-		// final import paths are substituted into the output pieces generated below.
-		if c.options.NeedsMetafile {
-			chunk.jsonMetadataChunkCallback = func(finalOutputSize int) []byte {
-				isFirstMeta := true
-				for _, path := range metaOrder {
-					if isFirstMeta {
-						isFirstMeta = false
-					} else {
-						jMeta.AddString(",")
-					}
-					jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-						js_printer.QuoteForJSON(path, c.options.ASCIIOnly), metaByteCount[path]))
-				}
-				if !isFirstMeta {
-					jMeta.AddString("\n      ")
-				}
-				jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
-				return jMeta.Done()
-			}
-		}
-
-		c.generateIsolatedChunkHash(chunk, c.breakOutputIntoPieces(jsContents, uint32(len(chunks))))
-		chunk.isExecutable = isExecutable
 	}
+
+	c.generateIsolatedChunkHash(chunk, c.breakOutputIntoPieces(jsContents, uint32(len(chunks))))
+	chunk.isExecutable = isExecutable
+	chunkWaitGroup.Done()
 }
 
 func (c *linkerContext) generateGlobalNamePrefix() string {
@@ -4337,7 +4319,8 @@ type externalImportCSS struct {
 	conditions []css_ast.Token
 }
 
-func (repr *chunkReprCSS) generate(c *linkerContext, chunks []chunkInfo, chunk *chunkInfo) func(generateContinue) {
+func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
+	chunk := &chunks[chunkIndex]
 	var results []OutputFile
 	compileResults := make([]compileResultCSS, 0, len(chunk.filesInChunkInOrder))
 
@@ -4385,139 +4368,137 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunks []chunkInfo, chunk *
 		}(sourceIndex, compileResult)
 	}
 
-	// Wait for cross-chunk import records before continuing
-	return func(continueData generateContinue) {
-		waitGroup.Wait()
-		j := helpers.Joiner{}
-		newlineBeforeComment := false
+	waitGroup.Wait()
+	j := helpers.Joiner{}
+	newlineBeforeComment := false
 
-		if len(c.options.CSSBanner) > 0 {
-			j.AddString(c.options.CSSBanner)
-			j.AddString("\n")
+	if len(c.options.CSSBanner) > 0 {
+		j.AddString(c.options.CSSBanner)
+		j.AddString("\n")
+	}
+
+	// Generate any prefix rules now
+	{
+		ast := css_ast.AST{}
+
+		// "@charset" is the only thing that comes before "@import"
+		for _, compileResult := range compileResults {
+			if compileResult.hasCharset {
+				ast.Rules = append(ast.Rules, &css_ast.RAtCharset{Encoding: "UTF-8"})
+				break
+			}
 		}
 
-		// Generate any prefix rules now
-		{
-			ast := css_ast.AST{}
-
-			// "@charset" is the only thing that comes before "@import"
-			for _, compileResult := range compileResults {
-				if compileResult.hasCharset {
-					ast.Rules = append(ast.Rules, &css_ast.RAtCharset{Encoding: "UTF-8"})
-					break
-				}
-			}
-
-			// Insert all external "@import" rules at the front. In CSS, all "@import"
-			// rules must come first or the browser will just ignore them.
-			for _, compileResult := range compileResults {
-				for _, external := range compileResult.externalImports {
-					ast.Rules = append(ast.Rules, &css_ast.RAtImport{
-						ImportRecordIndex: uint32(len(ast.ImportRecords)),
-						ImportConditions:  external.conditions,
-					})
-					ast.ImportRecords = append(ast.ImportRecords, external.record)
-				}
-			}
-
-			if len(ast.Rules) > 0 {
-				css := css_printer.Print(ast, css_printer.Options{
-					RemoveWhitespace: c.options.RemoveWhitespace,
+		// Insert all external "@import" rules at the front. In CSS, all "@import"
+		// rules must come first or the browser will just ignore them.
+		for _, compileResult := range compileResults {
+			for _, external := range compileResult.externalImports {
+				ast.Rules = append(ast.Rules, &css_ast.RAtImport{
+					ImportRecordIndex: uint32(len(ast.ImportRecords)),
+					ImportConditions:  external.conditions,
 				})
-				if len(css) > 0 {
-					j.AddString(css)
-					newlineBeforeComment = true
-				}
+				ast.ImportRecords = append(ast.ImportRecords, external.record)
 			}
 		}
 
-		// Start the metadata
-		jMeta := helpers.Joiner{}
-		if c.options.NeedsMetafile {
-			isFirstMeta := true
-			jMeta.AddString("{\n      \"imports\": [")
-			for i, importAbsPath := range continueData.crossChunkAbsPaths {
-				if isFirstMeta {
-					isFirstMeta = false
-				} else {
-					jMeta.AddString(",")
-				}
-				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
-					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly),
-					js_printer.QuoteForJSON(continueData.crossChunkImportRecords[i].Kind.StringForMetafile(), c.options.ASCIIOnly)))
+		if len(ast.Rules) > 0 {
+			css := css_printer.Print(ast, css_printer.Options{
+				RemoveWhitespace: c.options.RemoveWhitespace,
+			})
+			if len(css) > 0 {
+				j.AddString(css)
+				newlineBeforeComment = true
 			}
-			if !isFirstMeta {
-				jMeta.AddString("\n      ")
-			}
-			if chunk.isEntryPoint {
-				file := &c.files[chunk.sourceIndex]
+		}
+	}
 
-				// Do not generate "entryPoint" for CSS files that are the result of
-				// importing CSS into JavaScript. We want this to be a 1:1 relationship
-				// and there is already an output file for the JavaScript entry point.
-				if _, ok := file.repr.(*reprCSS); ok {
-					jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {",
-						js_printer.QuoteForJSON(file.source.PrettyPath, c.options.ASCIIOnly)))
-				} else {
-					jMeta.AddString("],\n      \"inputs\": {")
-				}
+	// Start the metadata
+	jMeta := helpers.Joiner{}
+	if c.options.NeedsMetafile {
+		isFirstMeta := true
+		jMeta.AddString("{\n      \"imports\": [")
+		for _, otherChunkIndex := range chunk.crossChunkImports {
+			if isFirstMeta {
+				isFirstMeta = false
+			} else {
+				jMeta.AddString(",")
+			}
+			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
+				js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[otherChunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
+				js_printer.QuoteForJSON(ast.ImportAt.StringForMetafile(), c.options.ASCIIOnly)))
+		}
+		if !isFirstMeta {
+			jMeta.AddString("\n      ")
+		}
+		if chunk.isEntryPoint {
+			file := &c.files[chunk.sourceIndex]
+
+			// Do not generate "entryPoint" for CSS files that are the result of
+			// importing CSS into JavaScript. We want this to be a 1:1 relationship
+			// and there is already an output file for the JavaScript entry point.
+			if _, ok := file.repr.(*reprCSS); ok {
+				jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {",
+					js_printer.QuoteForJSON(file.source.PrettyPath, c.options.ASCIIOnly)))
 			} else {
 				jMeta.AddString("],\n      \"inputs\": {")
 			}
+		} else {
+			jMeta.AddString("],\n      \"inputs\": {")
 		}
-		isFirstMeta := true
-
-		// Concatenate the generated CSS chunks together
-		for _, compileResult := range compileResults {
-			if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace {
-				if newlineBeforeComment {
-					j.AddString("\n")
-				}
-				j.AddString(fmt.Sprintf("/* %s */\n", c.files[compileResult.sourceIndex].source.PrettyPath))
-			}
-			if len(compileResult.printedCSS) > 0 {
-				newlineBeforeComment = true
-			}
-			j.AddString(compileResult.printedCSS)
-
-			// Include this file in the metadata
-			if c.options.NeedsMetafile {
-				if isFirstMeta {
-					isFirstMeta = false
-				} else {
-					jMeta.AddString(",")
-				}
-				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-					js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
-					len(compileResult.printedCSS)))
-			}
-		}
-
-		// Make sure the file ends with a newline
-		j.EnsureNewlineAtEnd()
-
-		if len(c.options.CSSFooter) > 0 {
-			j.AddString(c.options.CSSFooter)
-			j.AddString("\n")
-		}
-
-		// The CSS contents are done now that the source map comment is in
-		cssContents := j.Done()
-
-		// End the metadata lazily. The final output size is not known until the
-		// final import paths are substituted into the output pieces generated below.
-		if c.options.NeedsMetafile {
-			chunk.jsonMetadataChunkCallback = func(finalOutputSize int) []byte {
-				if !isFirstMeta {
-					jMeta.AddString("\n      ")
-				}
-				jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
-				return jMeta.Done()
-			}
-		}
-
-		c.generateIsolatedChunkHash(chunk, c.breakOutputIntoPieces(cssContents, uint32(len(chunks))))
 	}
+	isFirstMeta := true
+
+	// Concatenate the generated CSS chunks together
+	for _, compileResult := range compileResults {
+		if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace {
+			if newlineBeforeComment {
+				j.AddString("\n")
+			}
+			j.AddString(fmt.Sprintf("/* %s */\n", c.files[compileResult.sourceIndex].source.PrettyPath))
+		}
+		if len(compileResult.printedCSS) > 0 {
+			newlineBeforeComment = true
+		}
+		j.AddString(compileResult.printedCSS)
+
+		// Include this file in the metadata
+		if c.options.NeedsMetafile {
+			if isFirstMeta {
+				isFirstMeta = false
+			} else {
+				jMeta.AddString(",")
+			}
+			jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+				js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
+				len(compileResult.printedCSS)))
+		}
+	}
+
+	// Make sure the file ends with a newline
+	j.EnsureNewlineAtEnd()
+
+	if len(c.options.CSSFooter) > 0 {
+		j.AddString(c.options.CSSFooter)
+		j.AddString("\n")
+	}
+
+	// The CSS contents are done now that the source map comment is in
+	cssContents := j.Done()
+
+	// End the metadata lazily. The final output size is not known until the
+	// final import paths are substituted into the output pieces generated below.
+	if c.options.NeedsMetafile {
+		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) []byte {
+			if !isFirstMeta {
+				jMeta.AddString("\n      ")
+			}
+			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
+			return jMeta.Done()
+		}
+	}
+
+	c.generateIsolatedChunkHash(chunk, c.breakOutputIntoPieces(cssContents, uint32(len(chunks))))
+	chunkWaitGroup.Done()
 }
 
 func appendIsolatedHashesForImportedChunks(
