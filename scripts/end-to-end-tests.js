@@ -2669,6 +2669,53 @@
       `,
     }),
 
+    // Code splitting via sharing with name templates
+    test([
+      'a.js', 'b.js', '--outdir=out', '--splitting', '--format=esm', '--bundle',
+      '--entry-names=[name][dir]x', '--chunk-names=[name]/[hash]',
+    ], {
+      'a.js': `
+        import * as ns from './common'
+        export let a = 'a' + ns.foo
+      `,
+      'b.js': `
+        import * as ns from './common'
+        export let b = 'b' + ns.foo
+      `,
+      'common.js': `
+        export let foo = 123
+      `,
+      'node.js': `
+        import {a} from './out/a/x.js'
+        import {b} from './out/b/x.js'
+        if (a !== 'a123' || b !== 'b123') throw 'fail'
+      `,
+    }),
+
+    // Code splitting via sharing with name templates
+    test([
+      'pages/a/index.js', 'pages/b/index.js', '--outbase=.',
+      '--outdir=out', '--splitting', '--format=esm', '--bundle',
+      '--entry-names=[name][dir]y', '--chunk-names=[name]/[hash]',
+    ], {
+      'pages/a/index.js': `
+        import * as ns from '../common'
+        export let a = 'a' + ns.foo
+      `,
+      'pages/b/index.js': `
+        import * as ns from '../common'
+        export let b = 'b' + ns.foo
+      `,
+      'pages/common.js': `
+        export let foo = 123
+      `,
+      'node.js': `
+        import {a} from './out/index/pages/a/y.js'
+        import {b} from './out/index/pages/b/y.js'
+        if (a !== 'a123' || b !== 'b123') throw 'fail'
+      `,
+    }),
+
     // Code splitting via ES6 module double-imported with sync and async imports
     test(['a.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
       'a.js': `

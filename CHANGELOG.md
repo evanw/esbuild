@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix parsing of the `[dir]` placeholder ([#1013](https://github.com/evanw/esbuild/issues/1013))
+
+    The entry names feature in the previous release accidentally didn't include parsing for the `[dir]` placeholder, so the `[dir]` placeholder was passed through verbatim into the resulting output paths. This release fixes the bug, which means you can now use the `[dir]` placeholder.
+
 ## 0.9.4
 
 * Enable hashes in entry point file paths ([#518](https://github.com/evanw/esbuild/issues/518))

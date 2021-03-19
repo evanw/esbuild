@@ -872,7 +872,7 @@ func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) s
 // output directory.
 func (c *linkerContext) pathRelativeToOutbase(sourceIndex uint32, stdExt string) (relDir string, baseName string, baseExt string) {
 	file := &c.files[sourceIndex]
-	relDir = "./"
+	relDir = "/"
 	baseExt = stdExt
 
 	// If the output path was configured explicitly, use it verbatim
@@ -942,6 +942,7 @@ func (c *linkerContext) pathRelativeToOutbase(sourceIndex uint32, stdExt string)
 		// with a "." means that it will not be hidden on Unix.
 		relDir = strings.Repeat("_.._/", dotDotCount) + relDir[dotDotCount*3:]
 	}
+	relDir = "/" + relDir
 	return
 }
 
@@ -3093,7 +3094,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, stdExt)
 			template = c.options.EntryPathTemplate
 		} else {
-			dir = "./"
+			dir = "/"
 			base = "chunk"
 			ext = stdExt
 			template = c.options.ChunkPathTemplate

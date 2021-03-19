@@ -48,6 +48,10 @@ func validatePathTemplate(template string) []config.PathTemplate {
 
 		// Check for a placeholder
 		switch {
+		case strings.HasPrefix(tail, "[dir]"):
+			placeholder = config.DirPlaceholder
+			search += len("[dir]")
+
 		case strings.HasPrefix(tail, "[name]"):
 			placeholder = config.NamePlaceholder
 			search += len("[name]")

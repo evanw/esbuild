@@ -320,7 +320,7 @@ func parseFile(args parseArgs) {
 			hashBytes := sha1.Sum([]byte(source.Contents))
 			hash = hashForFileName(hashBytes)
 		}
-		dir := "./"
+		dir := "/"
 		relPath := config.TemplateToString(config.SubstituteTemplate(args.options.AssetPathTemplate, config.PathPlaceholders{
 			Dir:  &dir,
 			Name: &base,
