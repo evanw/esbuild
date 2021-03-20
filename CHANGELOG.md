@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+* Fix an edge case with the object spread transform ([#1017](https://github.com/evanw/esbuild/issues/1017))
+
+    This release fixes esbuild's object spread transform in cases where property assignment could be different than property definition. For example:
+
+    ```js
+    console.log({
+      get x() {},
+      ...{x: 1},
+    })
+    ```
+
+    This should print `{x: 1}` but transforming this through esbuild with `--target=es6` causes the resulting code to throw an error. The problem is that esbuild currently transforms this code to a call to `Object.assign` and that uses property assignment semantics, which causes the assignment to throw (since you can't assign to a getter-only property).
+
+    With this release, esbuild will now transform this into code that manually loops over the properties and copies them over one-by-one using `Object.defineProperty` instead. This uses property definition semantics which better matches the specification.
+
 * Fix a TypeScript parsing edge case with arrow function return types ([#1016](https://github.com/evanw/esbuild/issues/1016))
 
     This release fixes the following TypeScript parsing edge case:
