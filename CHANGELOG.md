@@ -27,6 +27,33 @@
 
     This was tripping up esbuild's TypeScript parser because the `>=` token was split into a `>` token and a `=` token because the `>` token is needed to close the type parameter list, but the `=` token was not being combined with the following `>` token to form a `=>` token. This is normally not an issue because there is normally a space in between the `>` and the `=>` tokens here. The issue only happened when the spaces were removed. This bug has been fixed. Now after the `>=` token is split, esbuild will expand the `=` token into the following characters if possible, which can result in a `=>`, `==`, or `===` token.
 
+* Update how optional chains are compiled to match new V8 versions ([#1019](https://github.com/evanw/esbuild/issues/1019))
+
+    An optional chain is an expression that uses the `?.` operator, which roughly avoids evaluation of the right-hand side if the left-hand side is `null` or `undefined`. So `a?.b` is basically equivalent to `a == null ? void 0 : a.b`. When the language target is set to `es2019` or below, esbuild will transform optional chain expressions into equivalent expressions that do not use the `?.` operator.
+
+    This transform is designed to match the behavior of V8 exactly, and is designed to do something similar to the equivalent transform done by the TypeScript compiler. However, V8 has recently changed its behavior in two cases:
+
+    * Forced call of an optional member expression should propagate the object to the method:
+
+        ```js
+        const o = { m() { return this; } };
+        assert((o?.m)() === o);
+        ```
+
+        V8 bug: https://bugs.chromium.org/p/v8/issues/detail?id=10024
+
+    * Optional call of `eval` must be an indirect eval:
+
+        ```js
+        globalThis.a = 'global';
+        var b = (a => eval?.('a'))('local');
+        assert(b === 'global');
+        ```
+
+        V8 bug: https://bugs.chromium.org/p/v8/issues/detail?id=10630
+
+    This release changes esbuild's transform to match V8's new behavior. The transform in the TypeScript compiler is still emulating the old behavior as of version 4.2.3, so these syntax forms should be avoided in TypeScript code for portability.
+
 ## 0.9.5
 
 * Fix parsing of the `[dir]` placeholder ([#1013](https://github.com/evanw/esbuild/issues/1013))
