@@ -212,6 +212,60 @@
     }),
   )
 
+  // Check object spread lowering
+  // https://github.com/evanw/esbuild/issues/1017
+  const objectAssignSemantics = `
+    var a, b, p, s = Symbol('s')
+
+    // Getter
+    a = { x: 1 }
+    b = { get x() {}, ...a }
+    if (b.x !== a.x) throw 'fail: 1'
+
+    // Symbol getter
+    a = {}
+    a[s] = 1
+    p = {}
+    Object.defineProperty(p, s, { get: () => {} })
+    b = { __proto__: p, ...a }
+    if (b[s] !== a[s]) throw 'fail: 2'
+
+    // Non-enumerable
+    a = {}
+    Object.defineProperty(a, 'x', { value: 1 })
+    b = { ...a }
+    if (b.x === a.x) throw 'fail: 3'
+
+    // Symbol non-enumerable
+    a = {}
+    Object.defineProperty(a, s, { value: 1 })
+    b = { ...a }
+    if (b[s] === a[s]) throw 'fail: 4'
+
+    // Prototype
+    a = Object.create({ x: 1 })
+    b = { ...a }
+    if (b.x === a.x) throw 'fail: 5'
+
+    // Symbol prototype
+    p = {}
+    p[s] = 1
+    a = Object.create(p)
+    b = { ...a }
+    if (b[s] === a[s]) throw 'fail: 6'
+  `
+  tests.push(
+    test(['in.js', '--outfile=node.js'], {
+      'in.js': objectAssignSemantics,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': objectAssignSemantics,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es5'], {
+      'in.js': objectAssignSemantics,
+    }),
+  )
+
   let simpleCyclicImportTestCase542 = {
     'in.js': `
       import {Test} from './lib';

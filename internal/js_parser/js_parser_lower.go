@@ -880,29 +880,34 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 }
 
 // Lower object spread for environments that don't support them. Non-spread
-// properties are grouped into object literals and then passed to __assign()
-// like this (__assign() is an alias for Object.assign()):
+// properties are grouped into object literals and then passed to "__assign"
+// like this:
 //
 //   "{a, b, ...c, d, e}" => "__assign(__assign(__assign({a, b}, c), {d, e})"
 //
 // If the object literal starts with a spread, then we pass an empty object
-// literal to __assign() to make sure we clone the object:
+// literal to "__assign" to make sure we clone the object:
 //
 //   "{...a, b}" => "__assign(__assign({}, a), {b})"
 //
 // It's not immediately obvious why we don't compile everything to a single
-// call to __assign(). After all, Object.assign() can take any number of
+// call to "Object.assign". After all, "Object.assign" can take any number of
 // arguments. The reason is to preserve the order of side effects. Consider
 // this code:
 //
-//   let a = {get x() { b = {y: 2}; return 1 }}
+//   let a = {
+//     get x() {
+//       b = {y: 2}
+//       return 1
+//     }
+//   }
 //   let b = {}
 //   let c = {...a, ...b}
 //
-// Converting the above code to "let c = __assign({}, a, b)" means "c" becomes
-// "{x: 1}" which is incorrect. Converting the above code instead to
-// "let c = __assign(__assign({}, a), b)" means "c" becomes "{x: 1, y: 2}"
-// which is correct.
+// Converting the above code to "let c = Object.assign({}, a, b)" means "c"
+// becomes "{x: 1}" which is incorrect. Converting the above code instead to
+// "let c = Object.assign(Object.assign({}, a), b)" means "c" becomes
+// "{x: 1, y: 2}" which is correct.
 func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Expr {
 	needsLowering := false
 
