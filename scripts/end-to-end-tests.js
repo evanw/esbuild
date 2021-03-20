@@ -65,8 +65,18 @@
     1 │ import "./file.js/what/is/this"
       ╵        ~~~~~~~~~~~~~~~~~~~~~~~~
 
-1 error
 `,
+    }),
+  )
+
+  // Test resolving paths with a question mark (an invalid path on Windows)
+  tests.push(
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `
+        import x from "./file.js?ignore-me"
+        if (x !== 123) throw 'fail'
+      `,
+      'file.js': `export default 123`,
     }),
   )
 
@@ -153,7 +163,7 @@
       }, { cwd: 'c' }),
 
       // This is a test for https://github.com/evanw/esbuild/issues/766
-      test(['--bundle', 'impl/index.mjs', '--outfile=node.js', '--format=cjs'], {
+      test(['--bundle', 'impl/index.mjs', '--outfile=node.js', '--format=cjs', '--resolve-extensions=.mjs'], {
         'config/yarn/link/@monorepo-source/a': { symlink: `../../../../monorepo-source/packages/a` },
         'config/yarn/link/@monorepo-source/b': { symlink: `../../../../monorepo-source/packages/b` },
         'impl/node_modules/@monorepo-source/b': { symlink: `../../../config/yarn/link/@monorepo-source/b` },
@@ -188,6 +198,71 @@
         }
         if (failed) throw 'fail'
       `,
+    }),
+  )
+
+  // Check object rest lowering
+  // https://github.com/evanw/esbuild/issues/956
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let v, o = {b: 3, c: 5}, e = ({b: v, ...o} = o);
+        if (o === e || o.b !== void 0 || o.c !== 5 || e.b !== 3 || e.c !== 5 || v !== 3) throw 'fail'
+      `,
+    }),
+  )
+
+  // Check object spread lowering
+  // https://github.com/evanw/esbuild/issues/1017
+  const objectAssignSemantics = `
+    var a, b, p, s = Symbol('s')
+
+    // Getter
+    a = { x: 1 }
+    b = { get x() {}, ...a }
+    if (b.x !== a.x) throw 'fail: 1'
+
+    // Symbol getter
+    a = {}
+    a[s] = 1
+    p = {}
+    Object.defineProperty(p, s, { get: () => {} })
+    b = { __proto__: p, ...a }
+    if (b[s] !== a[s]) throw 'fail: 2'
+
+    // Non-enumerable
+    a = {}
+    Object.defineProperty(a, 'x', { value: 1 })
+    b = { ...a }
+    if (b.x === a.x) throw 'fail: 3'
+
+    // Symbol non-enumerable
+    a = {}
+    Object.defineProperty(a, s, { value: 1 })
+    b = { ...a }
+    if (b[s] === a[s]) throw 'fail: 4'
+
+    // Prototype
+    a = Object.create({ x: 1 })
+    b = { ...a }
+    if (b.x === a.x) throw 'fail: 5'
+
+    // Symbol prototype
+    p = {}
+    p[s] = 1
+    a = Object.create(p)
+    b = { ...a }
+    if (b[s] === a[s]) throw 'fail: 6'
+  `
+  tests.push(
+    test(['in.js', '--outfile=node.js'], {
+      'in.js': objectAssignSemantics,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': objectAssignSemantics,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es5'], {
+      'in.js': objectAssignSemantics,
     }),
   )
 
@@ -878,6 +953,25 @@
         if (out.foo !== 'abc' || out.default() !== 123) throw 'fail'
       `,
     }),
+    test(['in.js', '--outfile=out.cjs', '--format=cjs', '--platform=node'], {
+      'in.js': `
+        export let foo = 123
+        let bar = 234
+        export { bar as if }
+        export default 345
+      `,
+      'node.js': `
+        exports.async = async () => {
+          let out = await import('./out.cjs')
+          let keys = Object.keys(out)
+          if (
+            !keys.includes('default') || !keys.includes('foo') || !keys.includes('if') ||
+            out.foo !== 123 || out.if !== 234 ||
+            out.default.foo !== 123 || out.default.if !== 234 || out.default.default !== 345
+          ) throw 'fail'
+        }
+      `,
+    }, { async: true }),
 
     // ESM => IIFE
     test(['in.js', '--outfile=node.js', '--format=iife'], {
@@ -1045,7 +1139,6 @@
     2 │         const {exists} = require('fs')
       ╵                          ~~~~~~~
 
-1 warning
 `,
     }),
     test(['in.js', '--outfile=out.js', '--format=esm'], {
@@ -1067,7 +1160,6 @@
     2 │         const fs = require('fs')
       ╵                    ~~~~~~~
 
-1 warning
 `,
     }),
     test(['in.js', '--outfile=out.js', '--format=esm'], {
@@ -1772,6 +1864,57 @@
     }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
       'in.js': `
+        let bar
+        class Foo {
+          get #foo() { bar = new Foo; return this.result }
+          set #foo(x) { this.result = x }
+          bar() {
+            bar = this
+            bar.result = 2
+            ++bar.#foo
+          }
+        }
+        let foo = new Foo()
+        foo.bar()
+        if (foo === bar || foo.result !== 3 || bar.result !== void 0) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let bar
+        class Foo {
+          get #foo() { bar = new Foo; return this.result }
+          set #foo(x) { this.result = x }
+          bar() {
+            bar = this
+            bar.result = 2
+            bar.#foo *= 3
+          }
+        }
+        let foo = new Foo()
+        foo.bar()
+        if (foo === bar || foo.result !== 6 || bar.result !== void 0) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let bar
+        class Foo {
+          get #foo() { bar = new Foo; return this.result }
+          set #foo(x) { this.result = x }
+          bar() {
+            bar = this
+            bar.result = 2
+            bar.#foo **= 3
+          }
+        }
+        let foo = new Foo()
+        foo.bar()
+        if (foo === bar || foo.result !== 8 || bar.result !== void 0) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
         function expect(fn, msg) {
           try {
             fn()
@@ -1809,7 +1952,6 @@
     24 │             expect(() => this.#getter = 1, 'member.set is not a func...
        ╵                               ~~~~~~~
 
-2 warnings
 `,
     }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
@@ -1978,7 +2120,6 @@
     3 │           class Foo {
       ╵                 ~~~
 
-1 warning
 `,
     }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
@@ -2003,7 +2144,6 @@
     2 │         class Foo {
       ╵               ~~~
 
-1 warning
 `,
     }),
 
@@ -2583,6 +2723,53 @@
       `,
     }),
 
+    // Code splitting via sharing with name templates
+    test([
+      'a.js', 'b.js', '--outdir=out', '--splitting', '--format=esm', '--bundle',
+      '--entry-names=[name][dir]x', '--chunk-names=[name]/[hash]',
+    ], {
+      'a.js': `
+        import * as ns from './common'
+        export let a = 'a' + ns.foo
+      `,
+      'b.js': `
+        import * as ns from './common'
+        export let b = 'b' + ns.foo
+      `,
+      'common.js': `
+        export let foo = 123
+      `,
+      'node.js': `
+        import {a} from './out/a/x.js'
+        import {b} from './out/b/x.js'
+        if (a !== 'a123' || b !== 'b123') throw 'fail'
+      `,
+    }),
+
+    // Code splitting via sharing with name templates
+    test([
+      'pages/a/index.js', 'pages/b/index.js', '--outbase=.',
+      '--outdir=out', '--splitting', '--format=esm', '--bundle',
+      '--entry-names=[name][dir]y', '--chunk-names=[name]/[hash]',
+    ], {
+      'pages/a/index.js': `
+        import * as ns from '../common'
+        export let a = 'a' + ns.foo
+      `,
+      'pages/b/index.js': `
+        import * as ns from '../common'
+        export let b = 'b' + ns.foo
+      `,
+      'pages/common.js': `
+        export let foo = 123
+      `,
+      'node.js': `
+        import {a} from './out/index/pages/a/y.js'
+        import {b} from './out/index/pages/b/y.js'
+        if (a !== 'a123' || b !== 'b123') throw 'fail'
+      `,
+    }),
+
     // Code splitting via ES6 module double-imported with sync and async imports
     test(['a.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
       'a.js': `
@@ -2624,6 +2811,63 @@
         }
       `,
     }, { async: true }),
+
+    // Identical output chunks should not be shared
+    test(['a.js', 'b.js', 'c.js', '--outdir=out', '--splitting', '--format=esm', '--bundle', '--minify'], {
+      'a.js': `
+        import {foo as common1} from './common1'
+        import {foo as common2} from './common2'
+        export let a = [common1, common2]
+      `,
+      'b.js': `
+        import {foo as common2} from './common2'
+        import {foo as common3} from './common3'
+        export let b = [common2, common3]
+      `,
+      'c.js': `
+        import {foo as common3} from './common3'
+        import {foo as common1} from './common1'
+        export let c = [common3, common1]
+      `,
+      'common1.js': `
+        export let foo = {}
+      `,
+      'common2.js': `
+        export let foo = {}
+      `,
+      'common3.js': `
+        export let foo = {}
+      `,
+      'node.js': `
+        import {a} from './out/a.js'
+        import {b} from './out/b.js'
+        import {c} from './out/c.js'
+        if (a[0] === a[1]) throw 'fail'
+        if (b[0] === b[1]) throw 'fail'
+        if (c[0] === c[1]) throw 'fail'
+      `,
+    }),
+    test(['a.js', 'b.js', 'c.js', '--outdir=out', '--splitting', '--format=esm', '--bundle', '--minify'], {
+      'a.js': `
+        export {a} from './common'
+      `,
+      'b.js': `
+        export {b} from './common'
+      `,
+      'c.js': `
+        export {a as ca, b as cb} from './common'
+      `,
+      'common.js': `
+        export let a = {}
+        export let b = {}
+      `,
+      'node.js': `
+        import {a} from './out/a.js'
+        import {b} from './out/b.js'
+        import {ca, cb} from './out/c.js'
+        if (a === b || ca === cb || a !== ca || b !== cb) throw 'fail'
+      `,
+    }),
   )
 
   // Test the binary loader
@@ -2662,7 +2906,6 @@
     2 │         //# sourceMappingURL=entry.js.map
       ╵                              ~~~~~~~~~~~~
 
-1 error
 `,
       }),
       test(['src/entry.js', '--bundle', '--outfile=node.js'], {
@@ -2674,7 +2917,6 @@
     1 │ {"extends": "./base.json"}
       ╵             ~~~~~~~~~~~~~
 
-1 error
 `,
       }),
       test(['src/entry.js', '--bundle', '--outfile=node.js'], {
@@ -2686,7 +2928,6 @@
     1 │ {"extends": "foo"}
       ╵             ~~~~~
 
-1 error
 `,
       }),
       test(['src/entry.js', '--bundle', '--outfile=node.js'], {
@@ -2709,20 +2950,19 @@
       expectedStderr: ` > error: Unexpected single quote character before flag (use \\" to ` +
         `escape double quotes): '--define:process.env.NODE_ENV="production"'
 
-1 error
 `,
     }),
   )
 
   // Test injecting banner and footer
   tests.push(
-    test(['in.js', '--outfile=node.js', '--banner=const bannerDefined = true;'], {
+    test(['in.js', '--outfile=node.js', '--banner:js=const bannerDefined = true;'], {
       'in.js': `if (!bannerDefined) throw 'fail'`
     }),
-    test(['in.js', '--outfile=node.js', '--footer=function footer() { }'], {
+    test(['in.js', '--outfile=node.js', '--footer:js=function footer() { }'], {
       'in.js': `footer()`
     }),
-    test(['a.js', 'b.js', '--outdir=out', '--bundle', '--format=cjs', '--banner=const bannerDefined = true;', '--footer=function footer() { }'], {
+    test(['a.js', 'b.js', '--outdir=out', '--bundle', '--format=cjs', '--banner:js=const bannerDefined = true;', '--footer:js=function footer() { }'], {
       'a.js': `
         module.exports = { banner: bannerDefined, footer };
       `,
@@ -2739,6 +2979,240 @@
       `
     }),
   )
+
+  // Test "exports" in package.json
+  for (const flags of [[], ['--bundle']]) {
+    tests.push(
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            ".": "./subdir/foo.js"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            ".": {
+              "default": "./subdir/foo.js"
+            }
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "default": "./subdir/foo.js"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./": "./subdir/"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./": {
+              "default": "./subdir/"
+            }
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/dir/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./dir/": "./subdir/"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/dir/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./dir/": {
+              "default": "./subdir/"
+            }
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from '@scope/pkg'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/@scope/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/@scope/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            ".": "./subdir/foo.js"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from '@scope/pkg'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/@scope/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/@scope/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            ".": {
+              "default": "./subdir/foo.js"
+            }
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from '@scope/pkg'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/@scope/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/@scope/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "default": "./subdir/foo.js"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from '@scope/pkg/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/@scope/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/@scope/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./": "./subdir/"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from '@scope/pkg/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/@scope/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/@scope/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./": {
+              "default": "./subdir/"
+            }
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from '@scope/pkg/dir/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/@scope/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/@scope/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./dir/": "./subdir/"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from '@scope/pkg/dir/foo.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/@scope/pkg/subdir/foo.js': `export default 123`,
+        'node_modules/@scope/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./dir/": {
+              "default": "./subdir/"
+            }
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/dirwhat'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/sub/what/dirwhat/foo.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./di*": "./nope.js",
+            "./dir*": "./sub/*/dir*/foo.js",
+            "./long*": "./nope.js",
+            "./d*": "./nope.js"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=cjs'].concat(flags), {
+        'in.js': `const abc = require('pkg/dir/test'); if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/sub/test.js': `module.exports = 123`,
+        'node_modules/pkg/package.json': `{
+          "exports": {
+            "./dir/": "./sub/"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=cjs'].concat(flags), {
+        'in.js': `const abc = require('pkg/dir/test'); if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/sub/test/index.js': `module.exports = 123`,
+        'node_modules/pkg/package.json': `{
+          "exports": {
+            "./dir/": "./sub/"
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/foo'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/yes.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./foo": [
+              { "unused": "./no.js" },
+              "./yes.js"
+            ]
+          }
+        }`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from 'pkg/foo'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{ "type": "module" }`,
+        'node_modules/pkg/yes.js': `export default 123`,
+        'node_modules/pkg/package.json': `{
+          "type": "module",
+          "exports": {
+            "./foo": [
+              { "default": "./yes.js" },
+              "./no.js"
+            ]
+          }
+        }`,
+      }),
+    )
+  }
 
   // Test writing to stdout
   tests.push(
@@ -2801,7 +3275,6 @@
     2 │         import "/file.js"
       ╵                ~~~~~~~~~~
 
-1 error
 `,
     }),
   )
@@ -2827,7 +3300,6 @@
     3 │           import y from "./file2.js"
       ╵                         ~~~~~~~~~~~~
 
-2 warnings
 `,
       }),
       test(['in.js', '--bundle', '--outfile=node.js'], {
@@ -2858,7 +3330,6 @@
     3 │           import y from "pkg/file2.js"
       ╵                         ~~~~~~~~~~~~~~
 
-2 warnings
 `,
       }),
 
@@ -2890,7 +3361,7 @@
       // If the test doesn't specify a format, test both formats
       for (const format of formats) {
         const formatArg = `--format=${format}`
-        const modifiedArgs = !hasBundle || args.includes(formatArg) ? args : args.concat(formatArg)
+        const modifiedArgs = (!hasBundle || args.includes(formatArg) ? args : args.concat(formatArg)).concat('--log-level=warning')
         const thisTestDir = path.join(testDir, '' + testCount++)
 
         try {
@@ -2990,7 +3461,7 @@
         // Run whatever check the caller is doing
         await callback(async () => {
           const { stdout } = await execFileAsync(
-            esbuildPath, [inputFile].concat(args), { cwd: thisTestDir, stdio: 'pipe' })
+            esbuildPath, [inputFile, '--log-level=warning'].concat(args), { cwd: thisTestDir, stdio: 'pipe' })
           return stdout
         })
 

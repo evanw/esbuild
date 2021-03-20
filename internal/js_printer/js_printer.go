@@ -11,6 +11,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -45,7 +46,7 @@ type SourceMapState struct {
 // After all chunks are computed, they are joined together in a second pass.
 // This rewrites the first mapping in each chunk to be relative to the end
 // state of the previous chunk.
-func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) {
+func AppendSourceMapChunk(j *helpers.Joiner, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) {
 	// Handle line breaks in between this mapping and the previous one
 	if startState.GeneratedLine != 0 {
 		j.AddBytes(bytes.Repeat([]byte{';'}, startState.GeneratedLine))
@@ -80,7 +81,7 @@ func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState Sou
 	startState.GeneratedColumn += generatedColumn
 	startState.OriginalLine += originalLine
 	startState.OriginalColumn += originalColumn
-	j.AddBytes(appendMapping(nil, j.lastByte, prevEndState, startState))
+	j.AddBytes(appendMapping(nil, j.LastByte(), prevEndState, startState))
 
 	// Then append everything after that without modification.
 	j.AddBytes(sourceMap)
@@ -108,62 +109,6 @@ func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, curre
 	buffer = append(buffer, sourcemap.EncodeVLQ(currentState.OriginalColumn-prevState.OriginalColumn)...)
 	prevState.OriginalColumn = currentState.OriginalColumn
 
-	return buffer
-}
-
-// This provides an efficient way to join lots of big string and byte slices
-// together. It avoids the cost of repeatedly reallocating as the buffer grows
-// by measuring exactly how big the buffer should be and then allocating once.
-// This is a measurable speedup.
-type Joiner struct {
-	lastByte byte
-	strings  []joinerString
-	bytes    []joinerBytes
-	length   uint32
-}
-
-type joinerString struct {
-	data   string
-	offset uint32
-}
-
-type joinerBytes struct {
-	data   []byte
-	offset uint32
-}
-
-func (j *Joiner) AddString(data string) {
-	if len(data) > 0 {
-		j.lastByte = data[len(data)-1]
-	}
-	j.strings = append(j.strings, joinerString{data, j.length})
-	j.length += uint32(len(data))
-}
-
-func (j *Joiner) AddBytes(data []byte) {
-	if len(data) > 0 {
-		j.lastByte = data[len(data)-1]
-	}
-	j.bytes = append(j.bytes, joinerBytes{data, j.length})
-	j.length += uint32(len(data))
-}
-
-func (j *Joiner) LastByte() byte {
-	return j.lastByte
-}
-
-func (j *Joiner) Length() uint32 {
-	return j.length
-}
-
-func (j *Joiner) Done() []byte {
-	buffer := make([]byte, j.length)
-	for _, item := range j.strings {
-		copy(buffer[item.offset:], item.data)
-	}
-	for _, item := range j.bytes {
-		copy(buffer[item.offset:], item.data)
-	}
 	return buffer
 }
 
@@ -662,11 +607,9 @@ func GenerateLineOffsetTables(contents string, approximateLineCount int32) []Lin
 		switch c {
 		case '\r', '\n', '\u2028', '\u2029':
 			// Handle Windows-specific "\r\n" newlines
-			if c == '\r' {
-				if i+1 < len(contents) && contents[i+1] == '\n' {
-					column++
-					continue
-				}
+			if c == '\r' && i+1 < len(contents) && contents[i+1] == '\n' {
+				column++
+				continue
 			}
 
 			lineOffsetTables = append(lineOffsetTables, LineOffsetTable{
@@ -1283,6 +1226,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 			}
 			p.printIndent()
 		}
+		p.addSourceMapping(record.Range.Loc)
 		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
@@ -1327,6 +1271,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		p.print("()")
 	} else {
 		p.print("require(")
+		p.addSourceMapping(record.Range.Loc)
 		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 		p.print(")")
 	}

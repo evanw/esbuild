@@ -48,13 +48,6 @@ func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	})
 }
 
-func expectPrintedMangle(t *testing.T, contents string, expected string) {
-	t.Helper()
-	expectPrintedCommon(t, contents+" [mangled]", contents, expected, Options{
-		MangleSyntax: true,
-	})
-}
-
 func expectPrintedASCII(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [ascii]", contents, expected, Options{
@@ -306,11 +299,13 @@ func TestAtImport(t *testing.T) {
 	expectPrinted(t, "@import \"foo.css\";", "@import \"foo.css\";\n")
 	expectPrinted(t, "@import url(foo.css);", "@import \"foo.css\";\n")
 	expectPrinted(t, "@import url(\"foo.css\");", "@import \"foo.css\";\n")
+	expectPrinted(t, "@import url(\"foo.css\") print;", "@import \"foo.css\" print;\n")
 
 	expectPrintedMinify(t, "@import\"foo.css\";", "@import\"foo.css\";")
 	expectPrintedMinify(t, "@import \"foo.css\";", "@import\"foo.css\";")
 	expectPrintedMinify(t, "@import url(foo.css);", "@import\"foo.css\";")
 	expectPrintedMinify(t, "@import url(\"foo.css\");", "@import\"foo.css\";")
+	expectPrintedMinify(t, "@import url(\"foo.css\") print;", "@import\"foo.css\"print;")
 }
 
 func TestAtKeyframes(t *testing.T) {
@@ -396,24 +391,4 @@ func TestASCII(t *testing.T) {
 
 	// This character should always be escaped
 	expectPrinted(t, ".\\FEFF:after { content: '\uFEFF' }", ".\\feff:after {\n  content: \"\\feff\";\n}\n")
-}
-
-func TestEmptyRule(t *testing.T) {
-	expectPrinted(t, "div {}", "div {\n}\n")
-	expectPrinted(t, "$invalid {}", "$invalid {\n}\n")
-	expectPrinted(t, "@media screen {}", "@media screen {\n}\n")
-	expectPrinted(t, "@keyframes test { from {} to { color: red } }", "@keyframes test {\n  from {\n  }\n  to {\n    color: red;\n  }\n}\n")
-	expectPrinted(t, "@keyframes test { from { color: red } to {} }", "@keyframes test {\n  from {\n    color: red;\n  }\n  to {\n  }\n}\n")
-
-	expectPrintedMinify(t, "div {}", "div{}")
-	expectPrintedMinify(t, "$invalid {}", "$invalid{}")
-	expectPrintedMinify(t, "@media screen {}", "@media screen{}")
-	expectPrintedMinify(t, "@keyframes test { from {} to { color: red } }", "@keyframes test{from{}to{color:red}}")
-	expectPrintedMinify(t, "@keyframes test { from { color: red } to {} }", "@keyframes test{from{color:red}to{}}")
-
-	expectPrintedMangle(t, "div {}", "")
-	expectPrintedMangle(t, "$invalid {}", "$invalid {\n}\n")
-	expectPrintedMangle(t, "@media screen {}", "")
-	expectPrintedMangle(t, "@keyframes test { from {} to { color: red } }", "@keyframes test {\n  to {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "@keyframes test { from { color: red } to {} }", "@keyframes test {\n  from {\n    color: red;\n  }\n}\n")
 }

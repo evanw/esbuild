@@ -158,10 +158,11 @@ func (p *parser) parseListOfRules(context ruleContext) []css_ast.R {
 	rules := []css_ast.R{}
 	locs := []logger.Loc{}
 
+loop:
 	for {
 		switch p.current().Kind {
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
-			return rules
+			break loop
 
 		case css_lexer.TWhitespace:
 			p.advance()
@@ -222,6 +223,11 @@ func (p *parser) parseListOfRules(context ruleContext) []css_ast.R {
 			rules = append(rules, p.parseQualifiedRuleFrom(p.index, false /* isAlreadyInvalid */))
 		}
 	}
+
+	if p.options.MangleSyntax {
+		rules = removeEmptyRules(rules)
+	}
+	return rules
 }
 
 func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
@@ -232,6 +238,9 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
 			p.processDeclarations(list)
+			if p.options.MangleSyntax {
+				list = removeEmptyRules(list)
+			}
 			return
 
 		case css_lexer.TAtKeyword:
@@ -247,6 +256,32 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 			list = append(list, p.parseDeclaration())
 		}
 	}
+}
+
+func removeEmptyRules(rules []css_ast.R) []css_ast.R {
+	end := 0
+	for _, rule := range rules {
+		switch r := rule.(type) {
+		case *css_ast.RAtKeyframes:
+			if len(r.Blocks) == 0 {
+				continue
+			}
+
+		case *css_ast.RKnownAt:
+			if len(r.Rules) == 0 {
+				continue
+			}
+
+		case *css_ast.RSelector:
+			if len(r.Rules) == 0 {
+				continue
+			}
+		}
+
+		rules[end] = rule
+		end++
+	}
+	return rules[:end]
 }
 
 func (p *parser) parseURLOrString() (string, logger.Range, bool) {
@@ -297,6 +332,35 @@ var specialAtRules = map[string]atRuleKind{
 	"font-face": atRuleDeclarations,
 	"page":      atRuleDeclarations,
 
+	// These go inside "@page": https://www.w3.org/TR/css-page-3/#syntax-page-selector
+	"bottom-center":       atRuleDeclarations,
+	"bottom-left-corner":  atRuleDeclarations,
+	"bottom-left":         atRuleDeclarations,
+	"bottom-right-corner": atRuleDeclarations,
+	"bottom-right":        atRuleDeclarations,
+	"left-bottom":         atRuleDeclarations,
+	"left-middle":         atRuleDeclarations,
+	"left-top":            atRuleDeclarations,
+	"right-bottom":        atRuleDeclarations,
+	"right-middle":        atRuleDeclarations,
+	"right-top":           atRuleDeclarations,
+	"top-center":          atRuleDeclarations,
+	"top-left-corner":     atRuleDeclarations,
+	"top-left":            atRuleDeclarations,
+	"top-right-corner":    atRuleDeclarations,
+	"top-right":           atRuleDeclarations,
+
+	// These properties are very deprecated and appear to only be useful for
+	// mobile versions of internet explorer (which may no longer exist?), but
+	// they are used by the https://ant.design/ design system so we recognize
+	// them to avoid the warning.
+	//
+	//   Documentation: https://developer.mozilla.org/en-US/docs/Web/CSS/@viewport
+	//   Discussion: https://github.com/w3c/csswg-drafts/issues/4766
+	//
+	"viewport":     atRuleDeclarations,
+	"-ms-viewport": atRuleDeclarations,
+
 	"document": atRuleInheritContext,
 	"media":    atRuleInheritContext,
 	"scope":    atRuleInheritContext,
@@ -336,15 +400,34 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		kind = atRuleEmpty
 		p.eat(css_lexer.TWhitespace)
 		if path, r, ok := p.expectURLOrString(); ok {
-			p.eat(css_lexer.TWhitespace)
+			importConditionsStart := p.index
+			for p.current().Kind != css_lexer.TSemicolon && p.current().Kind != css_lexer.TEndOfFile {
+				p.parseComponentValue()
+			}
+			importConditions := p.convertTokens(p.tokens[importConditionsStart:p.index])
+			kind := ast.ImportAt
+
+			// Insert or remove whitespace before the first token
+			if len(importConditions) > 0 {
+				kind = ast.ImportAtConditional
+				if p.options.RemoveWhitespace {
+					importConditions[0].Whitespace &= ^css_ast.WhitespaceBefore
+				} else {
+					importConditions[0].Whitespace |= css_ast.WhitespaceBefore
+				}
+			}
+
 			p.expect(css_lexer.TSemicolon)
 			importRecordIndex := uint32(len(p.importRecords))
 			p.importRecords = append(p.importRecords, ast.ImportRecord{
-				Kind:  ast.ImportAt,
+				Kind:  kind,
 				Path:  logger.Path{Text: path},
 				Range: r,
 			})
-			return &css_ast.RAtImport{ImportRecordIndex: importRecordIndex}
+			return &css_ast.RAtImport{
+				ImportRecordIndex: importRecordIndex,
+				ImportConditions:  importConditions,
+			}
 		}
 
 	case "keyframes", "-webkit-keyframes", "-moz-keyframes", "-ms-keyframes", "-o-keyframes":
@@ -423,10 +506,14 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 					if p.expect(css_lexer.TOpenBrace) {
 						rules := p.parseListOfDeclarations()
 						p.expect(css_lexer.TCloseBrace)
-						blocks = append(blocks, css_ast.KeyframeBlock{
-							Selectors: selectors,
-							Rules:     rules,
-						})
+
+						// "@keyframes { from {} to { color: red } }" => "@keyframes { to { color: red } }"
+						if !p.options.MangleSyntax || len(rules) > 0 {
+							blocks = append(blocks, css_ast.KeyframeBlock{
+								Selectors: selectors,
+								Rules:     rules,
+							})
+						}
 					}
 				}
 			}

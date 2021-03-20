@@ -124,7 +124,7 @@ func TestCSSFromJSMissingImport(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedCompileLog: `entry.js: error: No matching export for import "missing"
+		expectedCompileLog: `entry.js: error: No matching export in "a.css" for import "missing"
 `,
 	})
 }
@@ -518,6 +518,48 @@ func TestCSSAtImportExtensionOrderCollisionUnsupported(t *testing.T) {
 			},
 		},
 		expectedScanLog: `entry.css: error: No loader is configured for ".sass" files: test.sass
+`,
+	})
+}
+
+func TestCSSAtImportConditionsNoBundle(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `@import "./print.css" print;`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.css",
+		},
+	})
+}
+
+func TestCSSAtImportConditionsBundleExternal(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `@import "https://example.com/print.css" print;`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.css",
+		},
+	})
+}
+
+func TestCSSAtImportConditionsBundle(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `@import "./print.css" print;`,
+			"/print.css": `body { color: red }`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.css",
+		},
+		expectedScanLog: `entry.css: error: Bundling with conditional "@import" rules is not currently supported
 `,
 	})
 }

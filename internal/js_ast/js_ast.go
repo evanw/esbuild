@@ -1544,6 +1544,7 @@ const (
 	ExplicitStrictMode
 	ImplicitStrictModeImport
 	ImplicitStrictModeExport
+	ImplicitStrictModeTopLevelAwait
 	ImplicitStrictModeClass
 )
 
@@ -1737,6 +1738,12 @@ type NamedImport struct {
 	AliasLoc          logger.Loc
 	NamespaceRef      Ref
 	ImportRecordIndex uint32
+
+	// If true, the alias refers to the entire export namespace object of a
+	// module. This is no longer represented as an alias called "*" because of
+	// the upcoming "Arbitrary module namespace identifier names" feature:
+	// https://github.com/tc39/ecma262/pull/2154
+	AliasIsStar bool
 
 	// It's useful to flag exported imports because if they are in a TypeScript
 	// file, we can't tell if they are a type or a value.

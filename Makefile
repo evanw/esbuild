@@ -7,17 +7,17 @@ test:
 	make -j6 test-common
 
 # These tests are for development
-test-common: test-go vet-go no-filepath verify-source-map end-to-end-tests js-api-tests plugin-tests register-test
+test-common: test-go vet-go no-filepath verify-source-map end-to-end-tests js-api-tests plugin-tests register-test node-unref-tests
 
 # These tests are for release (the extra tests are not included in "test" because they are pretty slow)
 test-all:
-	make -j6 test-common ts-type-tests test-wasm-node test-wasm-browser
+	make -j6 test-common ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 # This includes tests of some 3rd-party libraries, which can be very slow
 test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
 
 check-go-version:
-	@go version | grep ' go1\.16 ' || (echo 'Please install Go version 1.16.0' && false)
+	@go version | grep ' go1\.16\.2 ' || (echo 'Please install Go version 1.16.2' && false)
 
 # This "ESBUILD_RACE" variable exists at the request of a user on GitHub who
 # wants to run "make test" on an unsupported version of macOS (version 10.9).
@@ -66,6 +66,9 @@ plugin-tests: cmd/esbuild/version.go | scripts/node_modules
 
 ts-type-tests: | scripts/node_modules
 	node scripts/ts-type-tests.js
+
+node-unref-tests: | scripts/node_modules
+	node scripts/node-unref-tests.js
 
 lib-typecheck: | lib/node_modules
 	cd lib && node_modules/.bin/tsc -noEmit -p .
@@ -268,7 +271,7 @@ clean-all: clean
 	rm -fr github demo bench
 
 ################################################################################
-# These npm packages are used for benchmarks. Instal them in subdirectories
+# These npm packages are used for benchmarks. Install them in subdirectories
 # because we want to install the same package name at multiple versions
 
 require/webpack/node_modules:
@@ -471,13 +474,13 @@ demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-w
 
 demo-three-esbuild: esbuild | demo/three
 	rm -fr demo/three/esbuild
-	time -p ./esbuild --bundle --summary --global-name=THREE --sourcemap --minify demo/three/src/Three.js --outfile=demo/three/esbuild/Three.esbuild.js
+	time -p ./esbuild --bundle --global-name=THREE --sourcemap --minify demo/three/src/Three.js --outfile=demo/three/esbuild/Three.esbuild.js
 	du -h demo/three/esbuild/Three.esbuild.js*
 	shasum demo/three/esbuild/Three.esbuild.js*
 
 demo-three-eswasm: platform-wasm | demo/three
 	rm -fr demo/three/eswasm
-	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --summary --global-name=THREE \
+	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --global-name=THREE \
 		--sourcemap --minify demo/three/src/Three.js --outfile=demo/three/eswasm/Three.eswasm.js
 	du -h demo/three/eswasm/Three.eswasm.js*
 	shasum demo/three/eswasm/Three.eswasm.js*
@@ -560,13 +563,13 @@ bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-th
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
-	time -p ./esbuild --bundle --summary --global-name=THREE --sourcemap --minify bench/three/src/entry.js --outfile=bench/three/esbuild/entry.esbuild.js
+	time -p ./esbuild --bundle --global-name=THREE --sourcemap --minify bench/three/src/entry.js --outfile=bench/three/esbuild/entry.esbuild.js
 	du -h bench/three/esbuild/entry.esbuild.js*
 	shasum bench/three/esbuild/entry.esbuild.js*
 
 bench-three-eswasm: platform-wasm | bench/three
 	rm -fr bench/three/eswasm
-	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --summary --global-name=THREE \
+	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --global-name=THREE \
 		--sourcemap --minify bench/three/src/entry.js --outfile=bench/three/eswasm/entry.eswasm.js
 	du -h bench/three/eswasm/entry.eswasm.js*
 	shasum bench/three/eswasm/entry.eswasm.js*
@@ -669,7 +672,7 @@ bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-webpack5 bench-rome
 
 bench-rome-esbuild: esbuild | bench/rome bench/rome-verify
 	rm -fr bench/rome/esbuild
-	time -p ./esbuild --bundle --summary --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node
+	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node
 	du -h bench/rome/esbuild/rome.esbuild.js*
 	shasum bench/rome/esbuild/rome.esbuild.js*
 	cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
@@ -810,7 +813,6 @@ READMIN_ESBUILD_FLAGS += --define:process.env.NODE_ENV='"production"'
 READMIN_ESBUILD_FLAGS += --loader:.js=jsx
 READMIN_ESBUILD_FLAGS += --minify
 READMIN_ESBUILD_FLAGS += --sourcemap
-READMIN_ESBUILD_FLAGS += --summary
 
 bench-readmin-esbuild: esbuild | bench/readmin
 	rm -fr bench/readmin/esbuild

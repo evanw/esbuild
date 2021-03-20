@@ -9,7 +9,7 @@ TestSplittingAssignToLocal
 import {
   foo,
   setFoo
-} from "./chunk.P3KLZXCV.js";
+} from "./chunk-QGLMJWOZ.js";
 
 // a.js
 setFoo(123);
@@ -18,12 +18,12 @@ console.log(foo);
 ---------- /out/b.js ----------
 import {
   foo
-} from "./chunk.P3KLZXCV.js";
+} from "./chunk-QGLMJWOZ.js";
 
 // b.js
 console.log(foo);
 
----------- /out/chunk.P3KLZXCV.js ----------
+---------- /out/chunk-QGLMJWOZ.js ----------
 // shared.js
 var foo;
 function setFoo(value) {
@@ -41,7 +41,7 @@ TestSplittingCircularReferenceIssue251
 import {
   p,
   q
-} from "./chunk.5U72HV2A.js";
+} from "./chunk-AFFJAGB7.js";
 export {
   p,
   q
@@ -51,13 +51,13 @@ export {
 import {
   p,
   q
-} from "./chunk.5U72HV2A.js";
+} from "./chunk-AFFJAGB7.js";
 export {
   p,
   q
 };
 
----------- /out/chunk.5U72HV2A.js ----------
+---------- /out/chunk-AFFJAGB7.js ----------
 // b.js
 var q = 6;
 
@@ -74,15 +74,15 @@ TestSplittingCrossChunkAssignmentDependencies
 ---------- /out/a.js ----------
 import {
   setValue
-} from "./chunk.SQHBWDFZ.js";
+} from "./chunk-Z5LSGHIX.js";
 
 // a.js
 setValue(123);
 
 ---------- /out/b.js ----------
-import "./chunk.SQHBWDFZ.js";
+import "./chunk-Z5LSGHIX.js";
 
----------- /out/chunk.SQHBWDFZ.js ----------
+---------- /out/chunk-Z5LSGHIX.js ----------
 // shared.js
 var observer;
 var value;
@@ -105,7 +105,7 @@ TestSplittingCrossChunkAssignmentDependenciesRecursive
 ---------- /out/a.js ----------
 import {
   setX
-} from "./chunk.F4Y6GYTO.js";
+} from "./chunk-5KRVLGZM.js";
 
 // a.js
 setX();
@@ -113,8 +113,8 @@ setX();
 ---------- /out/b.js ----------
 import {
   setZ
-} from "./chunk.OEJRSNU2.js";
-import "./chunk.F4Y6GYTO.js";
+} from "./chunk-M2WBFBDC.js";
+import "./chunk-5KRVLGZM.js";
 
 // b.js
 setZ();
@@ -123,20 +123,20 @@ setZ();
 import {
   setY2,
   setZ2
-} from "./chunk.OEJRSNU2.js";
+} from "./chunk-M2WBFBDC.js";
 import {
   setX2
-} from "./chunk.F4Y6GYTO.js";
+} from "./chunk-5KRVLGZM.js";
 
 // c.js
 setX2();
 setY2();
 setZ2();
 
----------- /out/chunk.OEJRSNU2.js ----------
+---------- /out/chunk-M2WBFBDC.js ----------
 import {
   setX
-} from "./chunk.F4Y6GYTO.js";
+} from "./chunk-5KRVLGZM.js";
 
 // y.js
 var _y;
@@ -164,7 +164,7 @@ export {
   setZ2
 };
 
----------- /out/chunk.F4Y6GYTO.js ----------
+---------- /out/chunk-5KRVLGZM.js ----------
 // x.js
 var _x;
 function setX(v) {
@@ -182,26 +182,29 @@ export {
 ================================================================================
 TestSplittingDuplicateChunkCollision
 ---------- /out/a.js ----------
-import"./chunk.WEHALL2E.js";
+import"./chunk-6UBBYZAL.js";
 
 ---------- /out/b.js ----------
-import"./chunk.WEHALL2E.js";
+import"./chunk-6UBBYZAL.js";
 
----------- /out/chunk.WEHALL2E.js ----------
+---------- /out/chunk-6UBBYZAL.js ----------
 console.log(123);
 
 ---------- /out/c.js ----------
-import"./chunk.WEHALL2E.js";
+import"./chunk-KGFAUE6M.js";
 
 ---------- /out/d.js ----------
-import"./chunk.WEHALL2E.js";
+import"./chunk-KGFAUE6M.js";
+
+---------- /out/chunk-KGFAUE6M.js ----------
+console.log(123);
 
 ================================================================================
 TestSplittingDynamicAndNotDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
 import {
   require_foo
-} from "./chunk.JGDLH2UC.js";
+} from "./chunk-HRZ2VI6F.js";
 
 // entry.js
 var import_foo = __toModule(require_foo());
@@ -210,10 +213,10 @@ import("./foo.js").then(({default: {bar: b}}) => console.log(import_foo.bar, b))
 ---------- /out/foo.js ----------
 import {
   require_foo
-} from "./chunk.JGDLH2UC.js";
+} from "./chunk-HRZ2VI6F.js";
 export default require_foo();
 
----------- /out/chunk.JGDLH2UC.js ----------
+---------- /out/chunk-HRZ2VI6F.js ----------
 // foo.js
 var require_foo = __commonJS((exports) => {
   exports.bar = 123;
@@ -228,7 +231,7 @@ TestSplittingDynamicAndNotDynamicES6IntoES6
 ---------- /out/entry.js ----------
 import {
   bar
-} from "./chunk.HCZ3ACUK.js";
+} from "./chunk-3CWABKVA.js";
 
 // entry.js
 import("./foo.js").then(({bar: b}) => console.log(bar, b));
@@ -236,12 +239,12 @@ import("./foo.js").then(({bar: b}) => console.log(bar, b));
 ---------- /out/foo.js ----------
 import {
   bar
-} from "./chunk.HCZ3ACUK.js";
+} from "./chunk-3CWABKVA.js";
 export {
   bar
 };
 
----------- /out/chunk.HCZ3ACUK.js ----------
+---------- /out/chunk-3CWABKVA.js ----------
 // foo.js
 var bar = 123;
 
@@ -307,7 +310,7 @@ TestSplittingHybridCJSAndESMIssue617
 ---------- /out/a.js ----------
 import {
   require_a
-} from "./chunk.3PFM4BVK.js";
+} from "./chunk-IXXZP4MD.js";
 export default require_a();
 
 ---------- /out/b.js ----------
@@ -315,7 +318,7 @@ import {
   __defProp,
   __markAsModule,
   require_a
-} from "./chunk.3PFM4BVK.js";
+} from "./chunk-IXXZP4MD.js";
 
 // b.js
 var import_a = __toModule(require_a());
@@ -324,7 +327,7 @@ export {
   export_foo as foo
 };
 
----------- /out/chunk.3PFM4BVK.js ----------
+---------- /out/chunk-IXXZP4MD.js ----------
 // a.js
 var require_a = __commonJS((exports) => {
   __markAsModule(exports);
@@ -346,13 +349,13 @@ TestSplittingHybridESMAndCJSIssue617
 ---------- /out/a.js ----------
 import {
   require_a
-} from "./chunk.EPKGCDSI.js";
+} from "./chunk-ZLCN2PPW.js";
 export default require_a();
 
 ---------- /out/b.js ----------
 import {
   require_a
-} from "./chunk.EPKGCDSI.js";
+} from "./chunk-ZLCN2PPW.js";
 
 // b.js
 var bar = require_a();
@@ -360,7 +363,7 @@ export {
   bar
 };
 
----------- /out/chunk.EPKGCDSI.js ----------
+---------- /out/chunk-ZLCN2PPW.js ----------
 // a.js
 var require_a = __commonJS((exports) => {
   __markAsModule(exports);
@@ -379,7 +382,7 @@ TestSplittingMinifyIdentifiersCrashIssue437
 ---------- /out/a.js ----------
 import {
   a as o
-} from "./chunk.Z3ZGMYXI.js";
+} from "./chunk-KXZOZAS3.js";
 
 // a.js
 console.log(o);
@@ -387,12 +390,12 @@ console.log(o);
 ---------- /out/b.js ----------
 import {
   a as o
-} from "./chunk.Z3ZGMYXI.js";
+} from "./chunk-KXZOZAS3.js";
 
 // b.js
 console.log(o);
 
----------- /out/chunk.Z3ZGMYXI.js ----------
+---------- /out/chunk-KXZOZAS3.js ----------
 // shared.js
 function n(o) {
 }
@@ -406,7 +409,7 @@ export {
 ================================================================================
 TestSplittingMissingLazyExport
 ---------- /out/a.js ----------
-import "./chunk.3I42H3S6.js";
+import "./chunk-7VOEXAIV.js";
 
 // empty.js
 var empty_exports = {};
@@ -420,7 +423,7 @@ function foo() {
 console.log(foo());
 
 ---------- /out/b.js ----------
-import "./chunk.3I42H3S6.js";
+import "./chunk-7VOEXAIV.js";
 
 // common.js
 function bar() {
@@ -430,14 +433,14 @@ function bar() {
 // b.js
 console.log(bar());
 
----------- /out/chunk.3I42H3S6.js ----------
+---------- /out/chunk-7VOEXAIV.js ----------
 
 ================================================================================
 TestSplittingNestedDirectories
 ---------- /Users/user/project/out/pageA/page.js ----------
 import {
   shared_default
-} from "../chunk.YR3BWXSL.js";
+} from "../chunk-BUZITMSX.js";
 
 // Users/user/project/src/pages/pageA/page.js
 console.log(shared_default);
@@ -445,12 +448,12 @@ console.log(shared_default);
 ---------- /Users/user/project/out/pageB/page.js ----------
 import {
   shared_default
-} from "../chunk.YR3BWXSL.js";
+} from "../chunk-BUZITMSX.js";
 
 // Users/user/project/src/pages/pageB/page.js
 console.log(-shared_default);
 
----------- /Users/user/project/out/chunk.YR3BWXSL.js ----------
+---------- /Users/user/project/out/chunk-BUZITMSX.js ----------
 // Users/user/project/src/pages/shared.js
 var shared_default = 123;
 
@@ -463,7 +466,7 @@ TestSplittingReExportIssue273
 ---------- /out/a.js ----------
 import {
   a
-} from "./chunk.QE4JUSKC.js";
+} from "./chunk-WZUP7CLG.js";
 export {
   a
 };
@@ -471,12 +474,12 @@ export {
 ---------- /out/b.js ----------
 import {
   a
-} from "./chunk.QE4JUSKC.js";
+} from "./chunk-WZUP7CLG.js";
 export {
   a
 };
 
----------- /out/chunk.QE4JUSKC.js ----------
+---------- /out/chunk-WZUP7CLG.js ----------
 // a.js
 var a = 1;
 
@@ -489,7 +492,7 @@ TestSplittingSharedCommonJSIntoES6
 ---------- /out/a.js ----------
 import {
   require_shared
-} from "./chunk.KMMICCE3.js";
+} from "./chunk-ZJEKWK6W.js";
 
 // a.js
 var {foo} = require_shared();
@@ -498,13 +501,13 @@ console.log(foo);
 ---------- /out/b.js ----------
 import {
   require_shared
-} from "./chunk.KMMICCE3.js";
+} from "./chunk-ZJEKWK6W.js";
 
 // b.js
 var {foo} = require_shared();
 console.log(foo);
 
----------- /out/chunk.KMMICCE3.js ----------
+---------- /out/chunk-ZJEKWK6W.js ----------
 // shared.js
 var require_shared = __commonJS((exports) => {
   exports.foo = 123;
@@ -519,7 +522,7 @@ TestSplittingSharedES6IntoES6
 ---------- /out/a.js ----------
 import {
   foo
-} from "./chunk.NAV7B6IH.js";
+} from "./chunk-6XDG7YIK.js";
 
 // a.js
 console.log(foo);
@@ -527,12 +530,12 @@ console.log(foo);
 ---------- /out/b.js ----------
 import {
   foo
-} from "./chunk.NAV7B6IH.js";
+} from "./chunk-6XDG7YIK.js";
 
 // b.js
 console.log(foo);
 
----------- /out/chunk.NAV7B6IH.js ----------
+---------- /out/chunk-6XDG7YIK.js ----------
 // shared.js
 var foo = 123;
 
@@ -543,7 +546,7 @@ export {
 ================================================================================
 TestSplittingSideEffectsWithoutDependencies
 ---------- /out/a.js ----------
-import "./chunk.SVEWJSRA.js";
+import "./chunk-K5RKT6UP.js";
 
 // shared.js
 var a = 1;
@@ -552,7 +555,7 @@ var a = 1;
 console.log(a);
 
 ---------- /out/b.js ----------
-import "./chunk.SVEWJSRA.js";
+import "./chunk-K5RKT6UP.js";
 
 // shared.js
 var b = 2;
@@ -560,7 +563,7 @@ var b = 2;
 // b.js
 console.log(b);
 
----------- /out/chunk.SVEWJSRA.js ----------
+---------- /out/chunk-K5RKT6UP.js ----------
 // shared.js
 console.log("side effect");
 

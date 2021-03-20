@@ -24,14 +24,11 @@ interface CommonOptions {
   jsxFragment?: string;
   define?: { [key: string]: string };
   pure?: string[];
-  avoidTDZ?: boolean;
   keepNames?: boolean;
-  banner?: string;
-  footer?: string;
 
   color?: boolean;
   logLevel?: LogLevel;
-  errorLimit?: number;
+  logLimit?: number;
 }
 
 export interface BuildOptions extends CommonOptions {
@@ -39,7 +36,7 @@ export interface BuildOptions extends CommonOptions {
   splitting?: boolean;
   preserveSymlinks?: boolean;
   outfile?: string;
-  metafile?: string;
+  metafile?: boolean;
   outdir?: string;
   outbase?: string;
   platform?: Platform;
@@ -47,13 +44,17 @@ export interface BuildOptions extends CommonOptions {
   loader?: { [ext: string]: Loader };
   resolveExtensions?: string[];
   mainFields?: string[];
+  conditions?: string[];
   write?: boolean;
   tsconfig?: string;
   outExtension?: { [ext: string]: string };
   publicPath?: string;
+  entryNames?: string;
   chunkNames?: string;
   assetNames?: string;
   inject?: string[];
+  banner?: { [type: string]: string };
+  footer?: { [type: string]: string };
   incremental?: boolean;
   entryPoints?: string[];
   stdin?: StdinOptions;
@@ -118,6 +119,7 @@ export interface BuildResult {
   outputFiles?: OutputFile[]; // Only when "write: false"
   rebuild?: BuildInvalidate; // Only when "incremental: true"
   stop?: () => void; // Only when "watch: true"
+  metafile?: Metafile; // Only when "metafile: true"
 }
 
 export interface BuildFailure extends Error {
@@ -159,6 +161,8 @@ export interface TransformOptions extends CommonOptions {
 
   sourcefile?: string;
   loader?: Loader;
+  banner?: string;
+  footer?: string;
 }
 
 export interface TransformResult {
@@ -178,6 +182,7 @@ export interface Plugin {
 }
 
 export interface PluginBuild {
+  initialOptions: BuildOptions;
   onResolve(options: OnResolveOptions, callback: (args: OnResolveArgs) =>
     (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): void;
   onLoad(options: OnLoadOptions, callback: (args: OnLoadArgs) =>
@@ -194,11 +199,11 @@ export interface OnResolveArgs {
   importer: string;
   namespace: string;
   resolveDir: string;
-  kind: ResolveKind;
+  kind: ImportKind;
   pluginData: any;
 }
 
-export type ResolveKind =
+export type ImportKind =
   | 'entry-point'
 
   // JS
@@ -258,25 +263,13 @@ export interface PartialNote {
   location?: Partial<Location> | null;
 }
 
-export type MetadataImportKind =
-  // JS
-  | 'import-statement'
-  | 'require-call'
-  | 'dynamic-import'
-  | 'require-resolve'
-
-  // CSS
-  | 'import-rule'
-  | 'url-token'
-
-// This is the type information for the "metafile" JSON format
-export interface Metadata {
+export interface Metafile {
   inputs: {
     [path: string]: {
       bytes: number
       imports: {
         path: string
-        kind: MetadataImportKind
+        kind: ImportKind
       }[]
     }
   }
@@ -290,24 +283,12 @@ export interface Metadata {
       }
       imports: {
         path: string
-        kind: MetadataImportKind
+        kind: ImportKind
       }[]
       exports: string[]
       entryPoint?: string
     }
   }
-}
-
-export interface Service {
-  build(options: BuildOptions & { write: false }): Promise<BuildResult & { outputFiles: OutputFile[] }>;
-  build(options: BuildOptions & { incremental: true }): Promise<BuildIncremental>;
-  build(options: BuildOptions): Promise<BuildResult>;
-  serve(serveOptions: ServeOptions, buildOptions: BuildOptions): Promise<ServeResult>;
-  transform(input: string, options?: TransformOptions): Promise<TransformResult>;
-
-  // This stops the service, which kills the long-lived child process. Any
-  // pending requests will be aborted.
-  stop(): void;
 }
 
 // This function invokes the "esbuild" command-line tool for you. It returns a
@@ -349,15 +330,15 @@ export declare function buildSync(options: BuildOptions): BuildResult;
 // Works in browser: no
 export declare function transformSync(input: string, options?: TransformOptions): TransformResult;
 
-// This starts "esbuild" as a long-lived child process that is then reused, so
-// you can call methods on the service many times without the overhead of
-// starting up a new child process each time.
+// This configures the browser-based version of esbuild. It is necessary to
+// call this first and wait for the returned promise to be resolved before
+// making other API calls when using esbuild in the browser.
 //
 // Works in node: yes
 // Works in browser: yes ("options" is required)
-export declare function startService(options?: ServiceOptions): Promise<Service>;
+export declare function initialize(options: InitializeOptions): Promise<void>;
 
-export interface ServiceOptions {
+export interface InitializeOptions {
   // The URL of the "esbuild.wasm" file. This must be provided when running
   // esbuild in the browser.
   wasmURL?: string

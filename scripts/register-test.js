@@ -12,7 +12,13 @@ fs.mkdirSync(rootTestDir)
 
 const entry = path.join(rootTestDir, 'entry.ts')
 fs.writeFileSync(entry, `
-  console.log('worked' as string)
+  console.log('in entry.ts' as string)
+  require('./other.ts')
+`)
+
+const other = path.join(rootTestDir, 'other.ts')
+fs.writeFileSync(other, `
+  console.log('in other.ts' as string)
 `)
 
 const register = path.join(rootTestDir, 'register.js')
@@ -42,7 +48,7 @@ async function main() {
   })
   await Promise.race([promise, wait])
   clearTimeout(timeout)
-  assert.strictEqual(result, `worked\n`)
+  assert.strictEqual(result, `in entry.ts\nin other.ts\n`)
 }
 
 main().then(

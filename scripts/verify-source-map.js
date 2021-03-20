@@ -225,6 +225,21 @@ console.log("entry");
 `,
 }
 
+const testCasePartialMappingsPercentEscape = {
+  // The "mappings" value is "A,Q,I;A,Q,I;A,Q,I;AAMA,QAAQ,IAAI;" which contains
+  // partial mappings without original locations. This used to throw things off.
+  'entry.js': `console.log(1);
+console.log(2);
+console.log(3);
+console.log("entry");
+//# sourceMappingURL=data:,%7B%22version%22%3A3%2C%22sources%22%3A%5B%22entr` +
+    `y.js%22%5D%2C%22sourcesContent%22%3A%5B%22console.log(1)%5Cn%5Cnconsole` +
+    `.log(2)%5Cn%5Cnconsole.log(3)%5Cn%5Cnconsole.log(%5C%22entry%5C%22)%5Cn` +
+    `%22%5D%2C%22mappings%22%3A%22A%2CQ%2CI%3BA%2CQ%2CI%3BA%2CQ%2CI%3BAAMA%2` +
+    `CQAAQ%2CIAAI%3B%22%2C%22names%22%3A%5B%5D%7D
+`,
+}
+
 const toSearchPartialMappings = {
   entry: 'entry.js',
 }
@@ -247,7 +262,30 @@ const toSearchComplex = {
   'forceUpdate': '../../node_modules/react/cjs/react.production.min.js',
 };
 
-async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
+const testCaseDynamicImport = {
+  'entry.js': `
+    const then = (x) => console.log("imported", x);
+    console.log([import("./ext/a.js").then(then), import("./ext/ab.js").then(then), import("./ext/abc.js").then(then)]);
+    console.log([import("./ext/abc.js").then(then), import("./ext/ab.js").then(then), import("./ext/a.js").then(then)]);
+  `,
+  'ext/a.js': `
+    export default 'a'
+  `,
+  'ext/ab.js': `
+    export default 'ab'
+  `,
+  'ext/abc.js': `
+    export default 'abc'
+  `,
+}
+
+const toSearchDynamicImport = {
+  './ext/a.js': 'entry.js',
+  './ext/ab.js': 'entry.js',
+  './ext/abc.js': 'entry.js',
+};
+
+async function check(kind, testCase, toSearch, { flags, entryPoints, crlf, followUpFlags = [] }) {
   let failed = 0
 
   try {
@@ -258,7 +296,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
       }
     }
 
-    const tempDir = path.join(testDir, '' + tempDirCount++)
+    const tempDir = path.join(testDir, `${kind}-${tempDirCount++}`)
     await fs.mkdir(tempDir, { recursive: true })
 
     for (const name in testCase) {
@@ -271,8 +309,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
       }
     }
 
-    const files = Object.keys(testCase)
-    const args = ['--sourcemap'].concat(flags)
+    const args = ['--sourcemap', '--log-level=warning'].concat(flags)
     const isStdin = '<stdin>' in testCase
     let stdout = ''
 
@@ -291,13 +328,13 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
 
     if (isStdin) {
       outJs = stdout
-      recordCheck(outJs.includes(`//# sourceMappingURL=data:application/json;base64,`), `.js file contains source map`)
+      recordCheck(outJs.includes(`//# sourceMappingURL=data:application/json;base64,`), `.js file must contain source map`)
       outJsMap = Buffer.from(outJs.slice(outJs.indexOf('base64,') + 'base64,'.length).trim(), 'base64').toString()
     }
 
     else {
       outJs = await fs.readFile(path.join(tempDir, 'out.js'), 'utf8')
-      recordCheck(outJs.includes(`//# sourceMappingURL=out.js.map\n`), `.js file links to .js.map`)
+      recordCheck(outJs.includes(`//# sourceMappingURL=out.js.map\n`), `.js file must link to .js.map`)
       outJsMap = await fs.readFile(path.join(tempDir, 'out.js.map'), 'utf8')
     }
 
@@ -312,7 +349,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
         const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
 
         const inSource = isStdin ? '<stdin>' : toSearch[id];
-        recordCheck(source === inSource, `expected: ${inSource} observed: ${source}`)
+        recordCheck(source === inSource, `expected source: ${inSource}, observed source: ${source}`)
 
         const inJs = map.sourceContentFor(source)
         let inIndex = inJs.indexOf(`"${id}"`)
@@ -324,7 +361,21 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
 
         const expected = JSON.stringify({ source, line: inLine, column: inColumn })
         const observed = JSON.stringify({ source, line, column })
-        recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
+        recordCheck(expected === observed, `expected original position: ${expected}, observed original position: ${observed}`)
+
+        // Also check the reverse mapping
+        const positions = map.allGeneratedPositionsFor({ source, line: inLine, column: inColumn })
+        recordCheck(positions.length > 0, `expected generated positions: 1, observed generated positions: ${positions.length}`)
+        let found = false
+        for (const { line, column } of positions) {
+          if (line === outLine && column === outColumn) {
+            found = true
+            break
+          }
+        }
+        const expectedPosition = JSON.stringify({ line: outLine, column: outColumn })
+        const observedPositions = JSON.stringify(positions)
+        recordCheck(found, `expected generated position: ${expectedPosition}, observed generated positions: ${observedPositions}`)
       }
     }
 
@@ -367,10 +418,10 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
         order === 1 ? `import './${fileToTest}'; import './extra.js'` :
           order === 2 ? `import './extra.js'; import './${fileToTest}'` :
             `import './${fileToTest}'`)
-      await execFileAsync(esbuildPath, [nestedEntry, '--bundle', '--outfile=' + path.join(tempDir, 'out2.js'), '--sourcemap'], { cwd: testDir })
+      await execFileAsync(esbuildPath, [nestedEntry, '--bundle', '--outfile=' + path.join(tempDir, 'out2.js'), '--sourcemap'].concat(followUpFlags), { cwd: testDir })
 
       const out2Js = await fs.readFile(path.join(tempDir, 'out2.js'), 'utf8')
-      recordCheck(out2Js.includes(`//# sourceMappingURL=out2.js.map\n`), `.js file links to .js.map`)
+      recordCheck(out2Js.includes(`//# sourceMappingURL=out2.js.map\n`), `.js file must link to .js.map`)
       const out2JsMap = await fs.readFile(path.join(tempDir, 'out2.js.map'), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2JsMap)
@@ -436,7 +487,12 @@ async function main() {
           crlf,
         }),
         check('unicode' + suffix, testCaseUnicode, toSearchUnicode, {
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          flags: flags.concat('--outfile=out.js', '--bundle', '--charset=utf8'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
+        check('unicode-globalName' + suffix, testCaseUnicode, toSearchUnicode, {
+          flags: flags.concat('--outfile=out.js', '--bundle', '--global-name=πππ', '--charset=utf8'),
           entryPoints: ['entry.js'],
           crlf,
         }),
@@ -445,8 +501,13 @@ async function main() {
           entryPoints: ['entry.js'],
           crlf,
         }),
+        check('dummy' + suffix, testCasePartialMappingsPercentEscape, toSearchPartialMappings, {
+          flags: flags.concat('--outfile=out.js', '--bundle'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
         check('banner-footer' + suffix, testCaseES6, toSearchBundle, {
-          flags: flags.concat('--outfile=out.js', '--bundle', '--banner="/* LICENSE abc */"', '--footer="/* end of file banner */"'),
+          flags: flags.concat('--outfile=out.js', '--bundle', '--banner:js="/* LICENSE abc */"', '--footer:js="/* end of file banner */"'),
           entryPoints: ['a.js'],
           crlf,
         }),
@@ -454,6 +515,18 @@ async function main() {
           flags: flags.concat('--outfile=out.js', '--bundle', '--define:process.env.NODE_ENV="production"'),
           entryPoints: ['entry.js'],
           crlf,
+        }),
+        check('dynamic-import' + suffix, testCaseDynamicImport, toSearchDynamicImport, {
+          flags: flags.concat('--outfile=out.js', '--bundle', '--external:./ext/*', '--format=esm'),
+          entryPoints: ['entry.js'],
+          crlf,
+          followUpFlags: ['--external:./ext/*', '--format=esm'],
+        }),
+        check('dynamic-require' + suffix, testCaseDynamicImport, toSearchDynamicImport, {
+          flags: flags.concat('--outfile=out.js', '--bundle', '--external:./ext/*', '--format=cjs'),
+          entryPoints: ['entry.js'],
+          crlf,
+          followUpFlags: ['--external:./ext/*', '--format=cjs'],
         }),
       )
     }

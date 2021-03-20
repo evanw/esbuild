@@ -375,7 +375,7 @@ func NewStderrLog(options OutputOptions) Log {
 
 		// Print out a summary
 		if options.MessageLimit > 0 && errors+warnings > options.MessageLimit {
-			writeStringWithColor(os.Stderr, fmt.Sprintf("%s shown (disable the message limit with --error-limit=0)\n",
+			writeStringWithColor(os.Stderr, fmt.Sprintf("%s shown (disable the message limit with --log-limit=0)\n",
 				errorAndWarningSummary(errors, warnings, shownErrors, shownWarnings)))
 		} else if options.LogLevel <= LevelInfo && (warnings != 0 || errors != 0) {
 			writeStringWithColor(os.Stderr, fmt.Sprintf("%s\n",
@@ -608,8 +608,8 @@ func (t SummaryTable) Less(i int, j int) bool {
 // Show a warning icon next to output files that are 1mb or larger
 const sizeWarningThreshold = 1024 * 1024
 
-func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
-	PrintText(os.Stderr, LevelInfo, osArgs, func(colors Colors) string {
+func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
+	PrintTextWithColor(os.Stderr, useColor, func(colors Colors) string {
 		isProbablyWindowsCommandPrompt := false
 		sb := strings.Builder{}
 
@@ -631,7 +631,7 @@ func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
 			info := GetTerminalInfo(os.Stderr)
 
 			// Truncate the table in case it's really long
-			maxLength := info.Height - 10
+			maxLength := info.Height / 2
 			if info.Height == 0 {
 				maxLength = 20
 			} else if maxLength < 5 {
@@ -675,7 +675,7 @@ func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
 			if layoutWidth > maxPath+maxSize {
 				layoutWidth = maxPath + maxSize
 			}
-			sb.WriteString("\n")
+			sb.WriteByte('\n')
 
 			for _, entry := range table {
 				dir, base := entry.Dir, entry.Base
@@ -743,6 +743,7 @@ func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
 				sb.WriteString(fmt.Sprintf("%s%s...and %d more output file%s...%s\n", margin, colors.Dim, length-maxLength, plural, colors.Default))
 			}
 		}
+		sb.WriteByte('\n')
 
 		lightningSymbol := "⚡ "
 
@@ -751,12 +752,16 @@ func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
 			lightningSymbol = ""
 		}
 
-		sb.WriteString(fmt.Sprintf("\n%s%sDone in %dms%s\n\n",
-			lightningSymbol,
-			colors.Green,
-			time.Since(start).Milliseconds(),
-			colors.Default,
-		))
+		// Printing the time taken is optional
+		if start != nil {
+			sb.WriteString(fmt.Sprintf("%s%sDone in %dms%s\n",
+				lightningSymbol,
+				colors.Green,
+				time.Since(*start).Milliseconds(),
+				colors.Default,
+			))
+		}
+
 		return sb.String()
 	})
 }

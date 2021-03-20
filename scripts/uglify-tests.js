@@ -26,7 +26,6 @@ async function main() {
 
   // Start the esbuild service
   const esbuild = installForTests();
-  const service = await esbuild.startService();
 
   // Find test files
   const compressDir = path.join(uglifyDir, 'test', 'compress');
@@ -35,7 +34,7 @@ async function main() {
   // Run all tests concurrently
   let passedTotal = 0;
   let failedTotal = 0;
-  const runTest = file => test_file(service, path.join(compressDir, file))
+  const runTest = file => test_file(esbuild, path.join(compressDir, file))
     .then(({ passed, failed }) => {
       passedTotal += passed;
       failedTotal += failed;
@@ -43,7 +42,6 @@ async function main() {
   await Promise.all(files.map(runTest));
 
   // Clean up test output
-  service.stop();
   childProcess.execSync(`rm -fr "${testDir}"`);
 
   console.log(`${failedTotal} failed out of ${passedTotal + failedTotal}`);
@@ -52,11 +50,11 @@ async function main() {
   }
 }
 
-async function test_file(service, file) {
+async function test_file(esbuild, file) {
   let passed = 0;
   let failed = 0;
   const tests = parse_test(file);
-  const runTest = name => test_case(service, tests[name])
+  const runTest = name => test_case(esbuild, tests[name])
     .then(() => passed++)
     .catch(e => {
       failed++;
@@ -68,7 +66,7 @@ async function test_file(service, file) {
 }
 
 // Modified from "uglify/demo/test/compress.js"
-async function test_case(service, test) {
+async function test_case(esbuild, test) {
   const sandbox = require(path.join(uglifyDir, 'test', 'sandbox'));
   const log = (format, args) => { throw new Error(tmpl(format, args)); };
 
@@ -115,7 +113,7 @@ async function test_case(service, test) {
 
   // Run esbuild as a minifier
   try {
-    var { code: output } = await service.transform(input_code, {
+    var { code: output } = await esbuild.transform(input_code, {
       minify: true,
       target: 'es5',
     });

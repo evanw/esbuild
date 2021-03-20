@@ -199,8 +199,13 @@ type Options struct {
 	UnsupportedJSFeatures  compat.JSFeature
 	UnsupportedCSSFeatures compat.CSSFeature
 
+	// This is the original information that was used to generate the
+	// unsupported feature sets above. It's used for error messages.
+	OriginalTargetEnv string
+
 	ExtensionOrder  []string
 	MainFields      []string
+	Conditions      []string
 	AbsNodePaths    []string // The "NODE_PATH" variable from Node.js
 	ExternalModules ExternalModules
 
@@ -217,16 +222,19 @@ type Options struct {
 	InjectAbsPaths     []string
 	InjectedDefines    []InjectedDefine
 	InjectedFiles      []InjectedFile
-	Banner             string
-	Footer             string
 
+	JSBanner  string
+	JSFooter  string
+	CSSBanner string
+	CSSFooter string
+
+	EntryPathTemplate []PathTemplate
 	ChunkPathTemplate []PathTemplate
 	AssetPathTemplate []PathTemplate
 
 	Plugins []Plugin
 
-	// If present, metadata about the bundle is written as JSON here
-	AbsMetadataFile string
+	NeedsMetafile bool
 
 	SourceMap             SourceMap
 	ExcludeSourcesContent bool
@@ -238,6 +246,10 @@ type PathPlaceholder uint8
 
 const (
 	NoPlaceholder PathPlaceholder = iota
+
+	// The relative path from the original parent directory to the configured
+	// "outbase" directory, or to the lowest common ancestor directory
+	DirPlaceholder
 
 	// The original name of the file, or the manual chunk name, or the name of
 	// the type of output file ("entry" or "chunk" or "asset")
@@ -254,12 +266,15 @@ type PathTemplate struct {
 }
 
 type PathPlaceholders struct {
+	Dir  *string
 	Name *string
 	Hash *string
 }
 
 func (placeholders PathPlaceholders) Get(placeholder PathPlaceholder) *string {
 	switch placeholder {
+	case DirPlaceholder:
+		return placeholders.Dir
 	case NamePlaceholder:
 		return placeholders.Name
 	case HashPlaceholder:
@@ -277,6 +292,8 @@ func TemplateToString(template []PathTemplate) string {
 	for _, part := range template {
 		sb.WriteString(part.Data)
 		switch part.Placeholder {
+		case DirPlaceholder:
+			sb.WriteString("[dir]")
 		case NamePlaceholder:
 			sb.WriteString("[name]")
 		case HashPlaceholder:

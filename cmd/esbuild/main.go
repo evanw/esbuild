@@ -40,17 +40,23 @@ var helpText = func(colors logger.Colors) string {
   --serve=...           Start a local HTTP server on this host:port for outputs
   --sourcemap           Emit a source map
   --splitting           Enable code splitting (currently only for esm)
-  --summary             Print some helpful information at the end of a build
   --target=...          Environment target (e.g. es2017, chrome58, firefox57,
                         safari11, edge16, node10, default esnext)
   --watch               Watch mode: rebuild on file system changes
 
 ` + colors.Bold + `Advanced options:` + colors.Default + `
-  --banner=...              Text to be prepended to each output file
+  --asset-names=...         Path template to use for "file" loader files
+                            (default "[name]-[hash]")
+  --banner:T=...            Text to be prepended to each output file of type T
+                            where T is one of: css | js
   --charset=utf8            Do not escape UTF-8 code points
+  --chunk-names=...         Path template to use for code splitting chunks
+                            (default "[name]-[hash]")
   --color=...               Force use of color terminal escapes (true | false)
-  --error-limit=...         Maximum error count or 0 to disable (default 10)
-  --footer=...              Text to be appended to each output file
+  --entry-names=...         Path template to use for entry point output paths
+                            (default "[dir]/[name]", can also use "[hash]")
+  --footer:T=...            Text to be appended to each output file of type T
+                            where T is one of: css | js
   --global-name=...         The name of the global for the IIFE format
   --inject:F                Import the file F into all input files and
                             automatically replace matching globals with imports
@@ -59,6 +65,7 @@ var helpText = func(colors logger.Colors) string {
   --keep-names              Preserve "name" on functions and classes
   --log-level=...           Disable logging (info | warning | error | silent,
                             default info)
+  --log-limit=...           Maximum message count or 0 to disable (default 10)
   --main-fields=...         Override the main file order in package.json
                             (default "browser,module,main" when platform is
                             browser and "main,module" when platform is node)
@@ -73,7 +80,7 @@ var helpText = func(colors logger.Colors) string {
   --public-path=...         Set the base URL for the "file" loader
   --pure:N                  Mark the name N as a pure function for tree shaking
   --resolve-extensions=...  A comma-separated list of implicit extensions
-                            (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.css,.json")
+                            (default ".tsx,.ts,.jsx,.js,.css,.json")
   --servedir=...            What to serve in addition to generated output files
   --sourcefile=...          Set the source file for the source map (for stdin)
   --sourcemap=external      Do not link to the source map with a comment

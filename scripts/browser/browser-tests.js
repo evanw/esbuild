@@ -11,7 +11,7 @@ const esmMin = fs.readFileSync(path.join(__dirname, '..', '..', 'npm', 'esbuild-
 const wasm = fs.readFileSync(path.join(__dirname, '..', '..', 'npm', 'esbuild-wasm', 'esbuild.wasm'))
 
 // This is converted to a string and run inside the browser
-async function runAllTests({ esbuild, service }) {
+async function runAllTests({ esbuild }) {
   function setupForProblemCSS(prefix) {
     // https://github.com/tailwindlabs/tailwindcss/issues/2889
     const original = `
@@ -50,17 +50,17 @@ async function runAllTests({ esbuild, service }) {
 
   const tests = {
     async transformJS() {
-      const { code } = await service.transform('1+2')
+      const { code } = await esbuild.transform('1+2')
       assertStrictEqual(code, '1 + 2;\n')
     },
 
     async transformTS() {
-      const { code } = await service.transform('1 as any + <any>2', { loader: 'ts' })
+      const { code } = await esbuild.transform('1 as any + <any>2', { loader: 'ts' })
       assertStrictEqual(code, '1 + 2;\n')
     },
 
     async transformCSS() {
-      const { code } = await service.transform('div { color: red }', { loader: 'css' })
+      const { code } = await esbuild.transform('div { color: red }', { loader: 'css' })
       assertStrictEqual(code, 'div {\n  color: red;\n}\n')
     },
 
@@ -71,13 +71,13 @@ async function runAllTests({ esbuild, service }) {
 
     async problemCSSPrettyPrinted() {
       const [original, runAsserts] = setupForProblemCSS('pretty-print')
-      const { code: prettyPrinted } = await service.transform(original, { loader: 'css' })
+      const { code: prettyPrinted } = await esbuild.transform(original, { loader: 'css' })
       runAsserts(prettyPrinted)
     },
 
     async problemCSSMinified() {
       const [original, runAsserts] = setupForProblemCSS('pretty-print')
-      const { code: minified } = await service.transform(original, { loader: 'css', minify: true })
+      const { code: minified } = await esbuild.transform(original, { loader: 'css', minify: true })
       runAsserts(minified)
     },
 
@@ -98,7 +98,7 @@ async function runAllTests({ esbuild, service }) {
           })
         },
       }
-      const result = await service.build({
+      const result = await esbuild.build({
         stdin: {
           contents: `
             import x from 'fib(10)'
@@ -117,7 +117,7 @@ async function runAllTests({ esbuild, service }) {
     },
 
     async buildRelativeIssue693() {
-      const result = await service.build({
+      const result = await esbuild.build({
         stdin: {
           contents: `const x=1`,
         },
@@ -130,15 +130,7 @@ async function runAllTests({ esbuild, service }) {
     },
 
     async serve() {
-      expectThrownError(service.serve, 'The "serve" API only works in node')
-    },
-
-    async esbuildBuild() {
-      expectThrownError(esbuild.build, 'The "build" API only works in node')
-    },
-
-    async esbuildTransform() {
-      expectThrownError(esbuild.transform, 'The "transform" API only works in node')
+      expectThrownError(esbuild.serve, 'The "serve" API only works in node')
     },
 
     async esbuildBuildSync() {
@@ -189,11 +181,11 @@ for (let format of ['iife', 'esm']) {
     for (let async of [false, true]) {
       let code = `
         window.testStart = function() {
-          esbuild.startService({
+          esbuild.initialize({
             wasmURL: '/esbuild.wasm',
             worker: ${async},
-          }).then(service => {
-            return (${runAllTests})({ esbuild, service })
+          }).then(() => {
+            return (${runAllTests})({ esbuild })
           }).then(() => {
             testDone()
           }).catch(e => {
@@ -224,25 +216,25 @@ for (let format of ['iife', 'esm']) {
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url) {
     if (req.url === '/lib/browser.js') {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' })
+      res.writeHead(200, { 'Content-Type': 'text/javascript' })
       res.end(js)
       return
     }
 
     if (req.url === '/lib/browser.min.js') {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' })
+      res.writeHead(200, { 'Content-Type': 'text/javascript' })
       res.end(jsMin)
       return
     }
 
     if (req.url === '/esm/browser.js') {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' })
+      res.writeHead(200, { 'Content-Type': 'text/javascript' })
       res.end(esm)
       return
     }
 
     if (req.url === '/esm/browser.min.js') {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' })
+      res.writeHead(200, { 'Content-Type': 'text/javascript' })
       res.end(esmMin)
       return
     }

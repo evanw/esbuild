@@ -48,6 +48,10 @@ var cssTable = map[CSSFeature]map[Engine][]int{
 func UnsupportedCSSFeatures(constraints map[Engine][]int) (unsupported CSSFeature) {
 	for feature, engines := range cssTable {
 		for engine, version := range constraints {
+			if engine == ES || engine == Node {
+				// Specifying "--target=es2020" shouldn't affect CSS
+				continue
+			}
 			if minVersion, ok := engines[engine]; !ok || isVersionLessThan(version, minVersion) {
 				unsupported |= feature
 			}

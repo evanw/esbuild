@@ -1230,15 +1230,94 @@ var clsExprKeep = /* @__PURE__ */ __name(class {
 new clsExprKeep();
 
 ================================================================================
+TestLoaderDataURLApplicationJSON
+---------- /out/entry.js ----------
+// <data:application/json,"%31%32%33">
+var json_31_32_33_default = "123";
+
+// <data:application/json;base64,eyJ3b3JrcyI6dHJ1ZX0=>
+var works = true;
+var json_base64_eyJ3b3JrcyI6dHJ1ZX0_default = {works};
+
+// <data:application/json;charset=UTF-8,%31%32%33>
+var json_charset_UTF_8_31_32_33_default = 123;
+
+// <data:application/json;charset=UTF-8;base64,eyJ3b3JrcyI6dHJ1ZX0=>
+var works2 = true;
+var json_charset_UTF_8_base64_eyJ3b3JrcyI6dHJ1ZX0_default = {works: works2};
+
+// entry.js
+console.log([
+  json_31_32_33_default,
+  json_base64_eyJ3b3JrcyI6dHJ1ZX0_default,
+  json_charset_UTF_8_31_32_33_default,
+  json_charset_UTF_8_base64_eyJ3b3JrcyI6dHJ1ZX0_default
+]);
+
+================================================================================
+TestLoaderDataURLTextCSS
+---------- /out/entry.css ----------
+/* <data:text/css,body{color:%72%65%64}> */
+body {
+  color: red;
+}
+
+/* <data:text/css;base64,Ym9keXtiYWNrZ3JvdW5kOmJsdWV9> */
+body {
+  background: blue;
+}
+
+/* <data:text/css;charset=UTF-8,body{color:%72%65%64}> */
+body {
+  color: red;
+}
+
+/* <data:text/css;charset=UTF-8;base64,Ym9keXtiYWNrZ3JvdW5kOmJsdWV9> */
+body {
+  background: blue;
+}
+
+/* entry.css */
+
+================================================================================
+TestLoaderDataURLTextJavaScript
+---------- /out/entry.js ----------
+// <data:text/javascript,console.log('%31%32%33')>
+console.log("123");
+
+// <data:text/javascript;base64,Y29uc29sZS5sb2coMjM0KQ==>
+console.log(234);
+
+// <data:text/javascript;charset=UTF-8,console.log(%31%32%33)>
+console.log(123);
+
+// <data:text/javascript;charset=UTF-8;base64,Y29uc29sZS5sb2coMjM0KQ...>
+console.log(234);
+
+================================================================================
+TestLoaderDataURLTextJavaScriptPlusCharacter
+---------- /out/entry.js ----------
+// <data:text/javascript,console.log(1+2)>
+console.log(1 + 2);
+
+================================================================================
+TestLoaderDataURLUnknownMIME
+---------- /out/entry.js ----------
+// entry.js
+import a from "data:some/thing;what,someData%31%32%33";
+import b from "data:other/thing;stuff;base64,c29tZURhdGEyMzQ=";
+console.log(a, b);
+
+================================================================================
 TestLoaderFileWithQueryParameter
----------- /out/file.JAWLBT6L.txt ----------
+---------- /out/file-JAWLBT6L.txt ----------
 This is some text
 ---------- /out/entry.js ----------
 // file.txt?foo
-var file_default = "./file.JAWLBT6L.txt?foo";
+var file_default = "./file-JAWLBT6L.txt?foo";
 
 // file.txt?bar
-var file_default2 = "./file.JAWLBT6L.txt?bar";
+var file_default2 = "./file-JAWLBT6L.txt?bar";
 
 // entry.js
 console.log(file_default, file_default2);

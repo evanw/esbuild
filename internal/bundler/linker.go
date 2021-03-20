@@ -2,12 +2,17 @@ package bundler
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
+	"hash"
+	"math/rand"
 	"path"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
@@ -15,6 +20,7 @@ import (
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_printer"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_printer"
@@ -65,10 +71,6 @@ type linkerContext struct {
 	files       []file
 	hasErrors   bool
 
-	// This is the relative path for automatically-generated code splitting chunks
-	// relative to the output directory
-	generatedChunkRelDir string
-
 	// This helps avoid an infinite loop when matching imports to exports
 	cycleDetector []importTracker
 
@@ -93,6 +95,13 @@ type linkerContext struct {
 	// Calling this will block until the computation is done. The resulting value
 	// is shared between threads and must be treated as immutable.
 	dataForSourceMaps func() []dataForSourceMap
+
+	// The unique key prefix is a random string that is unique to every linking
+	// operation. It is used as a prefix for the unique keys assigned to every
+	// chunk. These unique keys are used to identify each chunk before the final
+	// output paths have been computed.
+	uniqueKeyPrefix      string
+	uniqueKeyPrefixBytes []byte // This is just "uniqueKeyPrefix" in byte form
 }
 
 // This contains linker-specific metadata corresponding to a "file" struct
@@ -230,7 +239,8 @@ type fileMeta struct {
 	//
 	// Re-exports come from other files and are the result of resolving export
 	// star statements (i.e. "export * from 'foo'").
-	resolvedExports map[string]exportData
+	resolvedExports    map[string]exportData
+	resolvedExportStar *exportData
 
 	// Never iterate over "resolvedExports" directly. Instead, iterate over this
 	// array. Some exports in that map aren't meant to end up in generated code.
@@ -312,15 +322,9 @@ type partRange struct {
 }
 
 type chunkInfo struct {
-	// The path of this chunk's directory relative to the output directory. Note:
-	// this must have OS-independent path separators (i.e. '/' not '\').
-	relDir string
-
-	// The name of this chunk. This is initially empty for non-entry point chunks
-	// because the file name contains a hash of the file contents, which haven't
-	// been generated yet. Don't access this directly. Instead call "relPath()"
-	// which first checks that the base name is not empty.
-	baseNameOrEmpty string
+	// This is a random string and is used to represent the output path of this
+	// chunk before the final output path has been computed.
+	uniqueKey string
 
 	filesWithPartsInChunk map[uint32]bool
 	filesInChunkInOrder   []uint32
@@ -337,16 +341,50 @@ type chunkInfo struct {
 
 	// This is the representation-specific information
 	chunkRepr chunkRepr
+
+	// This is the final path of this chunk relative to the output directory, but
+	// without the substitution of the final hash (since it hasn't been computed).
+	finalTemplate []config.PathTemplate
+
+	// This is the final path of this chunk relative to the output directory. It
+	// is the substitution of the final hash into "finalTemplate".
+	finalRelPath string
+
+	// When this chunk is initially generated in isolation, the output pieces
+	// will contain slices of the output with the unique keys of other chunks
+	// omitted. The output hash will contain the hash of those pieces. At this
+	// point, this variable is the current value of the output hash.
+	isolatedChunkHash []byte
+
+	// Later on in the linking process, the hashes of the referenced other chunks
+	// will be mixed into the hash. This is separated into two phases like this
+	// to handle cycles in the chunk import graph.
+	outputPieces []outputPiece
+	outputHash   hash.Hash
+
+	// Other fields relating to the output file for this chunk
+	jsonMetadataChunkCallback func(finalOutputSize int) []byte
+	outputSourceMap           sourcemap.SourceMapPieces
+	isExecutable              bool
 }
 
-type generateContinue struct {
-	crossChunkImportRecords []ast.ImportRecord
-	crossChunkAbsPaths      []string
+// This is a chunk of source code followed by a reference to another chunk. For
+// example, the file "@import 'CHUNK0001'; body { color: black; }" would be
+// represented by two pieces, one with the data "@import '" and another with the
+// data "'; body { color: black; }". The first would have the chunk index 1 and
+// the second would have an invalid chunk index.
+type outputPiece struct {
+	data []byte
+
+	// Note: This may be invalid. For example, the chunk may not contain any
+	// imports, in which case there is one piece with data and no chunk index.
+	chunkIndex ast.Index32
 }
 
-type chunkRepr interface {
-	generate(c *linkerContext, chunk *chunkInfo) func(generateContinue) []OutputFile
-}
+type chunkRepr interface{ isChunk() }
+
+func (*chunkReprJS) isChunk()  {}
+func (*chunkReprCSS) isChunk() {}
 
 type chunkReprJS struct {
 	// For code splitting
@@ -357,15 +395,6 @@ type chunkReprJS struct {
 }
 
 type chunkReprCSS struct {
-}
-
-// Returns the path of this chunk relative to the output directory. Note:
-// this must have OS-independent path separators (i.e. '/' not '\').
-func (chunk *chunkInfo) relPath() string {
-	if chunk.baseNameOrEmpty == "" {
-		panic("Internal error")
-	}
-	return path.Join(chunk.relDir, chunk.baseNameOrEmpty)
 }
 
 func newLinkerContext(
@@ -389,15 +418,6 @@ func newLinkerContext(
 		symbols:           js_ast.NewSymbolMap(len(files)),
 		reachableFiles:    reachableFiles,
 		dataForSourceMaps: dataForSourceMaps,
-
-		// Note: This contains placeholders instead of what the placeholders are
-		// substituted with. That should be fine though because this should only
-		// ever be used for figuring out how many "../" to add to a relative path
-		// from a chunk whose final path hasn't been calculated yet to a chunk
-		// whose final path has already been calculated. That and placeholders are
-		// never substituted with something containing a "/" so substitution should
-		// never change the "../" count.
-		generatedChunkRelDir: fs.Dir(config.TemplateToString(options.ChunkPathTemplate)),
 	}
 
 	// Clone various things since we may mutate them later
@@ -609,7 +629,24 @@ func (c *linkerContext) addPartToFile(sourceIndex uint32, part js_ast.Part, part
 	return partIndex
 }
 
+func (c *linkerContext) generateUniqueKeyPrefix() bool {
+	var data [12]byte
+	rand.Seed(time.Now().UnixNano())
+	if _, err := rand.Read(data[:]); err != nil {
+		c.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
+		return false
+	}
+
+	// This is 16 bytes and shouldn't generate escape characters when put into strings
+	c.uniqueKeyPrefix = base64.URLEncoding.EncodeToString(data[:])
+	c.uniqueKeyPrefixBytes = []byte(c.uniqueKeyPrefix)
+	return true
+}
+
 func (c *linkerContext) link() []OutputFile {
+	if !c.generateUniqueKeyPrefix() {
+		return nil
+	}
 	c.scanImportsAndExports()
 
 	// Stop now if there were errors
@@ -637,137 +674,171 @@ func (c *linkerContext) link() []OutputFile {
 }
 
 func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFile {
-	// Determine the order of files within the chunk ahead of time. This may
-	// generate additional CSS chunks from JS chunks that import CSS files.
-	{
-		originalChunks := chunks
-		for i, chunk := range originalChunks {
-			js, jsParts, css := c.chunkFileOrder(&chunk)
-
-			switch chunk.chunkRepr.(type) {
-			case *chunkReprJS:
-				chunks[i].filesInChunkInOrder = js
-				chunks[i].partsInChunkInOrder = jsParts
-
-				// If JS files include CSS files, make a sibling chunk for the CSS
-				if len(css) > 0 {
-					baseNameOrEmpty := chunk.baseNameOrEmpty
-					if baseNameOrEmpty != "" {
-						if js := c.options.OutputExtensionJS; strings.HasSuffix(baseNameOrEmpty, js) {
-							baseNameOrEmpty = baseNameOrEmpty[:len(baseNameOrEmpty)-len(js)]
-						}
-						baseNameOrEmpty += c.options.OutputExtensionCSS
-					}
-					chunks = append(chunks, chunkInfo{
-						filesInChunkInOrder:   css,
-						entryBits:             chunk.entryBits,
-						isEntryPoint:          chunk.isEntryPoint,
-						sourceIndex:           chunk.sourceIndex,
-						entryPointBit:         chunk.entryPointBit,
-						relDir:                chunk.relDir,
-						baseNameOrEmpty:       baseNameOrEmpty,
-						filesWithPartsInChunk: make(map[uint32]bool),
-						chunkRepr:             &chunkReprCSS{},
-					})
-				}
-
-			case *chunkReprCSS:
-				chunks[i].filesInChunkInOrder = css
-			}
-		}
-	}
-
-	// We want to process chunks with as much parallelism as possible. However,
-	// content hashing means chunks that import other chunks must be completed
-	// after the imported chunks are completed because the import paths contain
-	// the content hash. It's only safe to process a chunk when the dependency
-	// count reaches zero.
-	type ordering struct {
-		dependencies sync.WaitGroup
-		dependents   []uint32
-	}
-	chunkOrdering := make([]ordering, len(chunks))
-	for chunkIndex, chunk := range chunks {
-		chunkOrdering[chunkIndex].dependencies.Add(len(chunk.crossChunkImports))
-		for _, otherChunkIndex := range chunk.crossChunkImports {
-			dependents := &chunkOrdering[otherChunkIndex].dependents
-			*dependents = append(*dependents, uint32(chunkIndex))
-		}
-	}
-
-	// Check for loops in the dependency graph since they cause a deadlock
-	var check func(int, []int)
-	check = func(chunkIndex int, path []int) {
-		for _, otherChunkIndex := range path {
-			if chunkIndex == otherChunkIndex {
-				panic("Internal error: Chunk import graph contains a cycle")
-			}
-		}
-		path = append(path, chunkIndex)
-		for _, otherChunkIndex := range chunks[chunkIndex].crossChunkImports {
-			check(int(otherChunkIndex), path)
-		}
-	}
-	for i := range chunks {
-		check(i, nil)
-	}
-
-	results := make([][]OutputFile, len(chunks))
-	resultsWaitGroup := sync.WaitGroup{}
-	resultsWaitGroup.Add(len(chunks))
-
 	// Generate each chunk on a separate goroutine
-	for i := range chunks {
-		go func(i int) {
-			chunk := &chunks[i]
-			order := &chunkOrdering[i]
+	generateWaitGroup := sync.WaitGroup{}
+	generateWaitGroup.Add(len(chunks))
+	for chunkIndex := range chunks {
+		switch chunks[chunkIndex].chunkRepr.(type) {
+		case *chunkReprJS:
+			go c.generateChunkJS(chunks, chunkIndex, &generateWaitGroup)
+		case *chunkReprCSS:
+			go c.generateChunkCSS(chunks, chunkIndex, &generateWaitGroup)
+		}
+	}
+	generateWaitGroup.Wait()
 
-			// Start generating the chunk without dependencies, but stop when
-			// dependencies are needed. This returns a callback that is called
-			// later to resume generating the chunk once dependencies are known.
-			resume := chunk.chunkRepr.generate(c, chunk)
+	// Compute the final hashes of each chunk. This can technically be done in
+	// parallel but it probably doesn't matter so much because we're not hashing
+	// that much data.
+	visited := make([]uint32, len(chunks))
+	var finalHash [sha1.Size]byte
+	for chunkIndex := range chunks {
+		chunk := &chunks[chunkIndex]
 
-			// Wait for all dependencies to be resolved first
-			order.dependencies.Wait()
+		// Compute the final hash using the isolated hashes of the dependencies
+		appendIsolatedHashesForImportedChunks(chunk.outputHash, chunks, uint32(chunkIndex), visited, ^uint32(chunkIndex))
+		chunk.outputHash.Sum(finalHash[:0])
 
-			// Fill in the cross-chunk import records now that the paths are known
-			crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
-			crossChunkAbsPaths := make([]string, len(chunk.crossChunkImports))
-			for i, otherChunkIndex := range chunk.crossChunkImports {
-				relPath := chunks[otherChunkIndex].relPath()
-				crossChunkAbsPaths[i] = c.fs.Join(c.options.AbsOutputDir, relPath)
-				crossChunkImportRecords[i] = ast.ImportRecord{
-					Kind: ast.ImportStmt,
-					Path: logger.Path{Text: c.pathBetweenChunks(chunk.relDir, relPath)},
-				}
+		// Render the last remaining placeholder in the template
+		hash := hashForFileName(finalHash)
+		chunk.finalRelPath = config.TemplateToString(config.SubstituteTemplate(chunk.finalTemplate, config.PathPlaceholders{
+			Hash: &hash,
+		}))
+	}
+
+	// Generate the final output files by joining file pieces together
+	var resultsWaitGroup sync.WaitGroup
+	results := make([][]OutputFile, len(chunks))
+	resultsWaitGroup.Add(len(chunks))
+	for chunkIndex, chunk := range chunks {
+		go func(chunkIndex int, chunk chunkInfo) {
+			var outputFiles []OutputFile
+
+			// Each file may optionally contain additional files to be copied to the
+			// output directory. This is used by the "file" loader.
+			for _, sourceIndex := range chunk.filesInChunkInOrder {
+				outputFiles = append(outputFiles, c.files[sourceIndex].additionalFiles...)
 			}
 
-			// Generate the chunk
-			results[i] = resume(generateContinue{
-				crossChunkAbsPaths:      crossChunkAbsPaths,
-				crossChunkImportRecords: crossChunkImportRecords,
+			// Path substitution for the chunk itself
+			finalRelDir := c.fs.Dir(chunk.finalRelPath)
+			outputContentsJoiner, outputSourceMapShifts := c.substituteFinalPaths(chunks, chunk.outputPieces, func(finalRelPathForImport string) string {
+				return c.pathBetweenChunks(finalRelDir, finalRelPathForImport)
 			})
 
-			// Wake up any dependents now that we're done
-			for _, chunkIndex := range order.dependents {
-				chunkOrdering[chunkIndex].dependencies.Done()
-			}
-			resultsWaitGroup.Done()
-		}(i)
-	}
+			// Generate the optional source map for this chunk
+			if c.options.SourceMap != config.SourceMapNone && chunk.outputSourceMap.Suffix != nil {
+				outputSourceMap := chunk.outputSourceMap.Finalize(outputSourceMapShifts)
+				finalRelPathForSourceMap := chunk.finalRelPath + ".map"
 
-	// Join the results in chunk order for determinism
+				// Potentially write a trailing source map comment
+				switch c.options.SourceMap {
+				case config.SourceMapLinkedWithComment:
+					importPath := c.pathBetweenChunks(finalRelDir, finalRelPathForSourceMap)
+					if strings.HasPrefix(importPath, "./") {
+						importPath = importPath[2:]
+					}
+					outputContentsJoiner.EnsureNewlineAtEnd()
+					outputContentsJoiner.AddString("//# sourceMappingURL=")
+					outputContentsJoiner.AddString(importPath)
+					outputContentsJoiner.AddString("\n")
+
+				case config.SourceMapInline, config.SourceMapInlineAndExternal:
+					outputContentsJoiner.EnsureNewlineAtEnd()
+					outputContentsJoiner.AddString("//# sourceMappingURL=data:application/json;base64,")
+					outputContentsJoiner.AddString(base64.StdEncoding.EncodeToString(outputSourceMap))
+					outputContentsJoiner.AddString("\n")
+				}
+
+				// Potentially write the external source map file
+				switch c.options.SourceMap {
+				case config.SourceMapLinkedWithComment, config.SourceMapInlineAndExternal, config.SourceMapExternalWithoutComment:
+					outputFiles = append(outputFiles, OutputFile{
+						AbsPath:  c.fs.Join(c.options.AbsOutputDir, finalRelPathForSourceMap),
+						Contents: outputSourceMap,
+						jsonMetadataChunk: fmt.Sprintf(
+							"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(outputSourceMap)),
+					})
+				}
+			}
+
+			// Finalize the output contents
+			outputContents := outputContentsJoiner.Done()
+
+			// Path substitution for the JSON metadata
+			var jsonMetadataChunk string
+			if c.options.NeedsMetafile {
+				jsonMetadataChunkPieces := c.breakOutputIntoPieces(chunk.jsonMetadataChunkCallback(len(outputContents)), uint32(len(chunks)))
+				jsonMetadataChunkBytes, _ := c.substituteFinalPaths(chunks, jsonMetadataChunkPieces, func(finalRelPathForImport string) string {
+					return c.res.PrettyPath(logger.Path{Text: c.fs.Join(c.options.AbsOutputDir, finalRelPathForImport), Namespace: "file"})
+				})
+				jsonMetadataChunk = string(jsonMetadataChunkBytes.Done())
+			}
+
+			// Generate the output file for this chunk
+			outputFiles = append(outputFiles, OutputFile{
+				AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.finalRelPath),
+				Contents:          outputContents,
+				jsonMetadataChunk: jsonMetadataChunk,
+				IsExecutable:      chunk.isExecutable,
+			})
+
+			results[chunkIndex] = outputFiles
+			resultsWaitGroup.Done()
+		}(chunkIndex, chunk)
+	}
 	resultsWaitGroup.Wait()
-	var outputFiles []OutputFile
-	for _, group := range results {
-		outputFiles = append(outputFiles, group...)
+
+	// Merge the output files from the different goroutines together in order
+	outputFilesLen := 0
+	for _, result := range results {
+		outputFilesLen += len(result)
+	}
+	outputFiles := make([]OutputFile, 0, outputFilesLen)
+	for _, result := range results {
+		outputFiles = append(outputFiles, result...)
 	}
 	return outputFiles
+}
+
+// Given a set of output pieces (i.e. a buffer already divided into the spans
+// between import paths), substitute the final import paths in and then join
+// everything into a single byte buffer.
+func (c *linkerContext) substituteFinalPaths(
+	chunks []chunkInfo,
+	pieces []outputPiece,
+	modifyPath func(string) string,
+) (j helpers.Joiner, shifts []sourcemap.SourceMapShift) {
+	var shift sourcemap.SourceMapShift
+	shifts = make([]sourcemap.SourceMapShift, 0, len(pieces))
+	shifts = append(shifts, shift)
+
+	for _, piece := range pieces {
+		var dataOffset sourcemap.LineColumnOffset
+		j.AddBytes(piece.data)
+		dataOffset.AdvanceBytes(piece.data)
+		shift.Before.Add(dataOffset)
+		shift.After.Add(dataOffset)
+
+		if piece.chunkIndex.IsValid() {
+			chunk := chunks[piece.chunkIndex.GetIndex()]
+			importPath := modifyPath(chunk.finalRelPath)
+			j.AddString(importPath)
+			shift.Before.AdvanceString(chunk.uniqueKey)
+			shift.After.AdvanceString(importPath)
+			shifts = append(shifts, shift)
+		}
+	}
+
+	return
 }
 
 func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) string {
 	// Return an absolute path if a public path has been configured
 	if c.options.PublicPath != "" {
+		if strings.HasPrefix(toRelPath, "./") {
+			toRelPath = toRelPath[2:]
+		}
 		return c.options.PublicPath + toRelPath
 	}
 
@@ -791,8 +862,98 @@ func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) s
 	return relPath
 }
 
+// Returns the path of this file relative to "outbase", which is then ready to
+// be joined with the absolute output directory path. The directory and name
+// components are returned separately for convenience.
+//
+// This makes sure to have the directory end in a slash so that it can be
+// substituted into a path template without necessarily having a "/" after it.
+// Extra slashes should get cleaned up automatically when we join it with the
+// output directory.
+func (c *linkerContext) pathRelativeToOutbase(sourceIndex uint32, stdExt string) (relDir string, baseName string, baseExt string) {
+	file := &c.files[sourceIndex]
+	relDir = "/"
+	baseExt = stdExt
+
+	// If the output path was configured explicitly, use it verbatim
+	if c.options.AbsOutputFile != "" {
+		baseName = c.fs.Base(c.options.AbsOutputFile)
+
+		// Strip off the extension
+		ext := c.fs.Ext(baseName)
+		baseName = baseName[:len(baseName)-len(ext)]
+
+		// Use the extension from the explicit output file path. However, don't do
+		// that if this is a CSS chunk but the entry point file is not CSS. In that
+		// case use the standard extension. This happens when importing CSS into JS.
+		if _, ok := file.repr.(*reprCSS); ok || stdExt != c.options.OutputExtensionCSS {
+			baseExt = ext
+		}
+		return
+	}
+
+	// Come up with a path for virtual paths (i.e. non-file-system paths)
+	if file.source.KeyPath.Namespace != "file" {
+		baseName = baseFileNameForVirtualModulePath(file.source.KeyPath.Text)
+
+		// Swap the file extension for the standard one
+		baseName = baseName[:len(baseName)-len(path.Ext(baseName))]
+		return
+	}
+
+	// Try to get a relative path to the base directory
+	relPath, ok := c.fs.Rel(c.options.AbsOutputBase, file.source.KeyPath.Text)
+	if !ok {
+		// This can fail in some situations such as on different drives on
+		// Windows. In that case we just use the file name.
+		baseName = c.fs.Base(file.source.KeyPath.Text)
+
+		// Swap the file extension for the standard one
+		baseName = baseName[:len(baseName)-len(c.fs.Ext(baseName))]
+		return
+	}
+
+	// Now we finally have a relative path
+	relDir = c.fs.Dir(relPath) + "/"
+	baseName = c.fs.Base(relPath)
+
+	// Swap the file extension for the standard one
+	baseName = baseName[:len(baseName)-len(c.fs.Ext(baseName))]
+
+	// Use platform-independent slashes
+	relDir = strings.ReplaceAll(relDir, "\\", "/")
+
+	// Replace leading "../" so we don't try to write outside of the output
+	// directory. This normally can't happen because "AbsOutputBase" is
+	// automatically computed to contain all entry point files, but it can
+	// happen if someone sets it manually via the "outbase" API option.
+	//
+	// Note that we can't just strip any leading "../" because that could
+	// cause two separate entry point paths to collide. For example, there
+	// could be both "src/index.js" and "../src/index.js" as entry points.
+	dotDotCount := 0
+	for strings.HasPrefix(relDir[dotDotCount*3:], "../") {
+		dotDotCount++
+	}
+	if dotDotCount > 0 {
+		// The use of "_.._" here is somewhat arbitrary but it is unlikely to
+		// collide with a folder named by a human and it works on Windows
+		// (Windows doesn't like names that end with a "."). And not starting
+		// with a "." means that it will not be hidden on Unix.
+		relDir = strings.Repeat("_.._/", dotDotCount) + relDir[dotDotCount*3:]
+	}
+	relDir = "/" + relDir
+	return
+}
+
 func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
-	if len(chunks) < 2 {
+	jsChunks := 0
+	for _, chunk := range chunks {
+		if _, ok := chunk.chunkRepr.(*chunkReprJS); ok {
+			jsChunks++
+		}
+	}
+	if jsChunks < 2 {
 		// No need to compute cross-chunk dependencies if there can't be any
 		return
 	}
@@ -829,7 +990,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 						for _, importRecordIndex := range part.ImportRecordIndices {
 							record := &repr.ast.ImportRecords[importRecordIndex]
 							if record.SourceIndex.IsValid() && c.isExternalDynamicImport(record) {
-								record.Path.Text = c.pathBetweenChunks(chunk.relDir, c.files[record.SourceIndex.GetIndex()].entryPointRelPath)
+								otherChunkIndex := c.files[record.SourceIndex.GetIndex()].entryPointChunkIndex
+								record.Path.Text = chunks[otherChunkIndex].uniqueKey
 								record.SourceIndex = ast.Index32{}
 							}
 						}
@@ -921,7 +1083,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		// these chunks are evaluated for their side effects too.
 		if chunk.isEntryPoint {
 			for otherChunkIndex, otherChunk := range chunks {
-				if chunkIndex != otherChunkIndex && otherChunk.entryBits.hasBit(chunk.entryPointBit) {
+				if _, ok := otherChunk.chunkRepr.(*chunkReprJS); ok && chunkIndex != otherChunkIndex && otherChunk.entryBits.hasBit(chunk.entryPointBit) {
 					imports := chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)]
 					chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)] = imports
 				}
@@ -1246,10 +1408,10 @@ func (c *linkerContext) scanImportsAndExports() {
 			IsNamespaceExport:    true,
 		}, partMeta{})
 
-		// Also add a special export called "*" so import stars can bind to it.
-		// This must be done in this step because it must come after CommonJS
-		// module discovery but before matching imports with exports.
-		repr.meta.resolvedExports["*"] = exportData{
+		// Also add a special export so import stars can bind to it. This must be
+		// done in this step because it must come after CommonJS module discovery
+		// but before matching imports with exports.
+		repr.meta.resolvedExportStar = &exportData{
 			ref:         repr.ast.ExportsRef,
 			sourceIndex: sourceIndex,
 		}
@@ -1300,12 +1462,6 @@ func (c *linkerContext) scanImportsAndExports() {
 			aliases := make([]string, 0, len(repr.meta.resolvedExports))
 		nextAlias:
 			for alias, export := range repr.meta.resolvedExports {
-				// The automatically-generated namespace export is just for internal binding
-				// purposes and isn't meant to end up in generated code.
-				if alias == "*" {
-					continue
-				}
-
 				// Re-exporting multiple symbols with the same name causes an ambiguous
 				// export. These names cannot be used and should not end up in generated code.
 				otherRepr := c.files[export.sourceIndex].repr.(*reprJS)
@@ -1823,6 +1979,79 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}
 	}
 
+	// If we are generating CommonJS for node, encode the known export names in
+	// a form that node can understand them. This relies on the specific behavior
+	// of this parser, which the node project uses to detect named exports in
+	// CommonJS files: https://github.com/guybedford/cjs-module-lexer. Think of
+	// this code as an annotation for that parser.
+	if file.isEntryPoint && c.options.Platform == config.PlatformNode &&
+		c.options.OutputFormat == config.FormatCommonJS && len(repr.meta.resolvedExports) > 0 {
+		// Add a comment since otherwise people will surely wonder what this is.
+		// This annotation means you can do this and have it work:
+		//
+		//   import { name } from './file-from-esbuild.cjs'
+		//
+		// when "file-from-esbuild.cjs" looks like this:
+		//
+		//   __export(exports, { name: () => name });
+		//   0 && (module.exports = {name});
+		//
+		// The maintainer of "cjs-module-lexer" is receptive to adding esbuild-
+		// friendly patterns to this library. However, this library has already
+		// shipped in node and using existing patterns instead of defining new
+		// patterns is maximally compatible.
+		//
+		// An alternative to doing this could be to use "Object.defineProperties"
+		// instead of "__export" but support for that would need to be added to
+		// "cjs-module-lexer" and then we would need to be ok with not supporting
+		// older versions of node that don't have that newly-added support.
+		if !c.options.RemoveWhitespace {
+			entryPointExportStmts = append(entryPointExportStmts,
+				js_ast.Stmt{Data: &js_ast.SComment{Text: `// Annotate the CommonJS export names for ESM import in node:`}},
+			)
+		}
+
+		// "{a, b, if: null}"
+		var moduleExports []js_ast.Property
+		for _, export := range repr.meta.sortedAndFilteredExportAliases {
+			if export == "default" {
+				// In node the default export is always "module.exports" regardless of
+				// what the annotation says. So don't bother generating "default".
+				continue
+			}
+
+			// "{if: null}"
+			var value *js_ast.Expr
+			if _, ok := js_lexer.Keywords[export]; ok {
+				// Make sure keywords don't cause a syntax error. This has to map to
+				// "null" instead of something shorter like "0" because the library
+				// "cjs-module-lexer" only supports identifiers in this position, and
+				// it thinks "null" is an identifier.
+				value = &js_ast.Expr{Data: &js_ast.ENull{}}
+			}
+
+			moduleExports = append(moduleExports, js_ast.Property{
+				Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(export)}},
+				Value: value,
+			})
+		}
+
+		// "0 && (module.exports = {a, b, if: null});"
+		expr := js_ast.Expr{Data: &js_ast.EBinary{
+			Op:   js_ast.BinOpLogicalAnd,
+			Left: js_ast.Expr{Data: &js_ast.ENumber{Value: 0}},
+			Right: js_ast.Assign(
+				js_ast.Expr{Data: &js_ast.EDot{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.ModuleRef}},
+					Name:   "exports",
+				}},
+				js_ast.Expr{Data: &js_ast.EObject{Properties: moduleExports}},
+			),
+		}}
+
+		entryPointExportStmts = append(entryPointExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: expr}})
+	}
+
 	if len(entryPointExportStmts) > 0 || cjsWrapStmt.Data != nil {
 		// Trigger evaluation of the CommonJS wrapper
 		if cjsWrapStmt.Data != nil {
@@ -2045,7 +2274,8 @@ loop:
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
 				c.log.AddRangeWarning(&source, r, fmt.Sprintf("Import %q will always be undefined because there is no matching export", namedImport.Alias))
 			} else {
-				c.addRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
+				c.addRangeError(source, r, fmt.Sprintf("No matching export in %q for import %q",
+					c.files[nextTracker.sourceIndex].source.PrettyPath, namedImport.Alias))
 			}
 
 		case importProbablyTypeScriptType:
@@ -2283,7 +2513,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 	// Is this a named import of a file without any exports?
 	otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
-	if namedImport.Alias != "*" && !otherRepr.ast.UsesCommonJSExports() && !otherRepr.ast.HasESMFeatures() && !otherRepr.ast.HasLazyExport {
+	if !namedImport.AliasIsStar && !otherRepr.ast.UsesCommonJSExports() && !otherRepr.ast.HasESMFeatures() && !otherRepr.ast.HasLazyExport {
 		// Just warn about it and replace the import with "undefined"
 		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importCommonJSWithoutExports, nil
 	}
@@ -2291,6 +2521,16 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	// Is this a CommonJS file?
 	if otherRepr.meta.cjsStyleExports {
 		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importCommonJS, nil
+	}
+
+	// Match this import star with an export star from the imported file
+	if matchingExport := otherRepr.meta.resolvedExportStar; namedImport.AliasIsStar && matchingExport != nil {
+		// Check to see if this is a re-export of another import
+		return importTracker{
+			sourceIndex: matchingExport.sourceIndex,
+			importRef:   matchingExport.ref,
+			nameLoc:     matchingExport.nameLoc,
+		}, importFound, matchingExport.potentiallyAmbiguousExportStarRefs
 	}
 
 	// Match this import up with an export from the imported file
@@ -2308,7 +2548,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 		return importTracker{}, importProbablyTypeScriptType, nil
 	}
 
-	return importTracker{}, importNoMatch, nil
+	return importTracker{sourceIndex: otherSourceIndex}, importNoMatch, nil
 }
 
 func (c *linkerContext) markPartsReachableFromEntryPoints() {
@@ -2716,8 +2956,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 
 	// Compute entry point names
 	for i, entryPoint := range c.entryPoints {
-		var relDir string
-		var baseName string
 		var chunkRepr chunkRepr
 		file := &c.files[entryPoint]
 
@@ -2728,54 +2966,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			chunkRepr = &chunkReprCSS{}
 		}
 
-		if c.options.AbsOutputFile != "" {
-			baseName = c.fs.Base(c.options.AbsOutputFile)
-		} else {
-			source := file.source
-			if source.KeyPath.Namespace != "file" {
-				baseName = baseFileNameForVirtualModulePath(source.KeyPath.Text)
-			} else if relPath, ok := c.fs.Rel(c.options.AbsOutputBase, source.KeyPath.Text); ok {
-				relDir = c.fs.Dir(relPath)
-				baseName = c.fs.Base(relPath)
-				relDir = strings.ReplaceAll(relDir, "\\", "/")
-
-				// Replace leading "../" so we don't try to write outside of the output
-				// directory. This normally can't happen because "AbsOutputBase" is
-				// automatically computed to contain all entry point files, but it can
-				// happen if someone sets it manually via the "outbase" API option.
-				//
-				// Note that we can't just strip any leading "../" because that could
-				// cause two separate entry point paths to collide. For example, there
-				// could be both "src/index.js" and "../src/index.js" as entry points.
-				dotDotCount := 0
-				for strings.HasPrefix(relDir[dotDotCount*3:], "../") {
-					dotDotCount++
-				}
-				if dotDotCount > 0 {
-					// The use of "_.._" here is somewhat arbitrary but it is unlikely to
-					// collide with a folder named by a human and it works on Windows
-					// (Windows doesn't like names that end with a "."). And not starting
-					// with a "." means that it will not be hidden on Unix.
-					relDir = strings.Repeat("_.._/", dotDotCount) + relDir[dotDotCount*3:]
-				}
-			} else {
-				baseName = c.fs.Base(source.KeyPath.Text)
-			}
-
-			// Swap the extension for the standard one
-			ext := c.fs.Ext(baseName)
-			baseName = baseName[:len(baseName)-len(ext)]
-			switch chunkRepr.(type) {
-			case *chunkReprJS:
-				baseName += c.options.OutputExtensionJS
-			case *chunkReprCSS:
-				baseName += c.options.OutputExtensionCSS
-			}
-		}
-
-		// Always use cross-platform path separators to avoid problems with Windows
-		file.entryPointRelPath = path.Join(relDir, baseName)
-
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
 		entryBits := newBitSet(uint(len(c.entryPoints)))
@@ -2785,8 +2975,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			isEntryPoint:          true,
 			sourceIndex:           entryPoint,
 			entryPointBit:         uint(i),
-			relDir:                relDir,
-			baseNameOrEmpty:       baseName,
 			filesWithPartsInChunk: make(map[uint32]bool),
 			chunkRepr:             chunkRepr,
 		}
@@ -2807,7 +2995,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 				if !ok {
 					chunk.entryBits = partMeta.entryBits
 					chunk.filesWithPartsInChunk = make(map[uint32]bool)
-					chunk.relDir = c.generatedChunkRelDir
 					chunk.chunkRepr = &chunkReprJS{}
 					chunks[key] = chunk
 				}
@@ -2824,7 +3011,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			if !ok {
 				chunk.entryBits = file.entryBits
 				chunk.filesWithPartsInChunk = make(map[uint32]bool)
-				chunk.relDir = c.generatedChunkRelDir
 				chunk.chunkRepr = &chunkReprJS{}
 				chunks[key] = chunk
 			}
@@ -2841,9 +3027,87 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	}
 	sort.Strings(sortedKeys)
 	sortedChunks := make([]chunkInfo, len(chunks))
-	for i, key := range sortedKeys {
-		sortedChunks[i] = chunks[key]
+	for chunkIndex, key := range sortedKeys {
+		chunk := chunks[key]
+		sortedChunks[chunkIndex] = chunk
+
+		// Map from the entry point file to this chunk. We will need this later if
+		// a file contains a dynamic import to this entry point, since we'll need
+		// to look up the path for this chunk to use with the import.
+		if chunk.isEntryPoint {
+			c.files[chunk.sourceIndex].entryPointChunkIndex = uint32(chunkIndex)
+		}
 	}
+
+	// Determine the order of files within the chunk ahead of time. This may
+	// generate additional CSS chunks from JS chunks that import CSS files.
+	{
+		for chunkIndex, chunk := range sortedChunks {
+			js, jsParts, css := c.chunkFileOrder(&chunk)
+
+			switch chunk.chunkRepr.(type) {
+			case *chunkReprJS:
+				sortedChunks[chunkIndex].filesInChunkInOrder = js
+				sortedChunks[chunkIndex].partsInChunkInOrder = jsParts
+
+				// If JS files include CSS files, make a sibling chunk for the CSS
+				if len(css) > 0 {
+					sortedChunks = append(sortedChunks, chunkInfo{
+						filesInChunkInOrder:   css,
+						entryBits:             chunk.entryBits,
+						isEntryPoint:          chunk.isEntryPoint,
+						sourceIndex:           chunk.sourceIndex,
+						entryPointBit:         chunk.entryPointBit,
+						filesWithPartsInChunk: make(map[uint32]bool),
+						chunkRepr:             &chunkReprCSS{},
+					})
+				}
+
+			case *chunkReprCSS:
+				sortedChunks[chunkIndex].filesInChunkInOrder = css
+			}
+		}
+	}
+
+	// Assign general information to each chunk
+	for chunkIndex := range sortedChunks {
+		chunk := &sortedChunks[chunkIndex]
+
+		// Assign a unique key to each chunk. This key encodes the index directly so
+		// we can easily recover it later without needing to look it up in a map. The
+		// last 8 numbers of the key are the chunk index.
+		chunk.uniqueKey = fmt.Sprintf("%s%08d", c.uniqueKeyPrefix, chunkIndex)
+
+		// Determine the standard file extension
+		var stdExt string
+		switch chunk.chunkRepr.(type) {
+		case *chunkReprJS:
+			stdExt = c.options.OutputExtensionJS
+		case *chunkReprCSS:
+			stdExt = c.options.OutputExtensionCSS
+		}
+
+		// Compute the template substitutions
+		var dir, base, ext string
+		var template []config.PathTemplate
+		if chunk.isEntryPoint {
+			dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, stdExt)
+			template = c.options.EntryPathTemplate
+		} else {
+			dir = "/"
+			base = "chunk"
+			ext = stdExt
+			template = c.options.ChunkPathTemplate
+		}
+
+		// Determine the output path template
+		template = append(append(make([]config.PathTemplate, 0, len(template)+1), template...), config.PathTemplate{Data: ext})
+		chunk.finalTemplate = config.SubstituteTemplate(template, config.PathPlaceholders{
+			Dir:  &dir,
+			Name: &base,
+		})
+	}
+
 	return sortedChunks
 }
 
@@ -3298,11 +3562,6 @@ type stmtList struct {
 	entryPointTail []js_ast.Stmt
 }
 
-type lineColumnOffset struct {
-	lines   int
-	columns int
-}
-
 type compileResultJS struct {
 	js_printer.PrintResult
 
@@ -3315,7 +3574,7 @@ type compileResultJS struct {
 
 	// This is the line and column offset since the previous JavaScript string
 	// or the start of the file if this is the first JavaScript string.
-	generatedOffset lineColumnOffset
+	generatedOffset sourcemap.LineColumnOffset
 }
 
 func (c *linkerContext) generateCodeForFileInChunkJS(
@@ -3644,15 +3903,24 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	return r
 }
 
-func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(generateContinue) []OutputFile {
-	var results []OutputFile
+func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
+	chunk := &chunks[chunkIndex]
+	chunkRepr := chunk.chunkRepr.(*chunkReprJS)
 	compileResults := make([]compileResultJS, 0, len(chunk.partsInChunkInOrder))
 	runtimeMembers := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members
 	commonJSRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"].Ref)
 	toModuleRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"].Ref)
 	r := c.renameSymbolsInChunk(chunk, chunk.filesInChunkInOrder)
-	chunkAbsDir := c.fs.Join(c.options.AbsOutputDir, chunk.relDir)
 	dataForSourceMaps := c.dataForSourceMaps()
+
+	// Note: This contains placeholders instead of what the placeholders are
+	// substituted with. That should be fine though because this should only
+	// ever be used for figuring out how many "../" to add to a relative path
+	// from a chunk whose final path hasn't been calculated yet to a chunk
+	// whose final path has already been calculated. That and placeholders are
+	// never substituted with something containing a "/" so substitution should
+	// never change the "../" count.
+	chunkAbsDir := c.fs.Dir(c.fs.Join(c.options.AbsOutputDir, config.TemplateToString(chunk.finalTemplate)))
 
 	// Generate JavaScript for each file in parallel
 	waitGroup := sync.WaitGroup{}
@@ -3679,383 +3947,307 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 		)
 	}
 
-	// Each file may optionally contain additional files to be copied to the
-	// output directory. This is used by the "file" loader.
-	for _, sourceIndex := range chunk.filesInChunkInOrder {
-		results = append(results, c.files[sourceIndex].additionalFiles...)
+	// Also generate the cross-chunk binding code
+	var crossChunkPrefix []byte
+	var crossChunkSuffix []byte
+	{
+		// Indent the file if everything is wrapped in an IIFE
+		indent := 0
+		if c.options.OutputFormat == config.FormatIIFE {
+			indent++
+		}
+		printOptions := js_printer.Options{
+			Indent:           indent,
+			OutputFormat:     c.options.OutputFormat,
+			RemoveWhitespace: c.options.RemoveWhitespace,
+			MangleSyntax:     c.options.MangleSyntax,
+		}
+		crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
+		for i, otherChunkIndex := range chunk.crossChunkImports {
+			crossChunkImportRecords[i] = ast.ImportRecord{
+				Kind: ast.ImportStmt,
+				Path: logger.Path{Text: chunks[otherChunkIndex].uniqueKey},
+			}
+		}
+		crossChunkPrefix = js_printer.Print(js_ast.AST{
+			ImportRecords: crossChunkImportRecords,
+			Parts:         []js_ast.Part{{Stmts: chunkRepr.crossChunkPrefixStmts}},
+		}, c.symbols, r, printOptions).JS
+		crossChunkSuffix = js_printer.Print(js_ast.AST{
+			Parts: []js_ast.Part{{Stmts: chunkRepr.crossChunkSuffixStmts}},
+		}, c.symbols, r, printOptions).JS
 	}
 
-	// Wait for cross-chunk import records before continuing
-	return func(continueData generateContinue) []OutputFile {
-		// Also generate the cross-chunk binding code
-		var crossChunkPrefix []byte
-		var crossChunkSuffix []byte
-		{
-			// Indent the file if everything is wrapped in an IIFE
-			indent := 0
-			if c.options.OutputFormat == config.FormatIIFE {
-				indent++
-			}
-			printOptions := js_printer.Options{
-				Indent:           indent,
-				OutputFormat:     c.options.OutputFormat,
-				RemoveWhitespace: c.options.RemoveWhitespace,
-				MangleSyntax:     c.options.MangleSyntax,
-			}
-			crossChunkPrefix = js_printer.Print(js_ast.AST{
-				ImportRecords: continueData.crossChunkImportRecords,
-				Parts:         []js_ast.Part{{Stmts: repr.crossChunkPrefixStmts}},
-			}, c.symbols, r, printOptions).JS
-			crossChunkSuffix = js_printer.Print(js_ast.AST{
-				Parts: []js_ast.Part{{Stmts: repr.crossChunkSuffixStmts}},
-			}, c.symbols, r, printOptions).JS
-		}
+	waitGroup.Wait()
 
-		waitGroup.Wait()
+	j := helpers.Joiner{}
+	prevOffset := sourcemap.LineColumnOffset{}
 
-		j := js_printer.Joiner{}
-		prevOffset := lineColumnOffset{}
+	// Optionally strip whitespace
+	indent := ""
+	space := " "
+	newline := "\n"
+	if c.options.RemoveWhitespace {
+		space = ""
+		newline = ""
+	}
+	newlineBeforeComment := false
+	isExecutable := false
 
-		// Optionally strip whitespace
-		indent := ""
-		space := " "
-		newline := "\n"
-		if c.options.RemoveWhitespace {
-			space = ""
-			newline = ""
-		}
-		newlineBeforeComment := false
-		isExecutable := false
+	if chunk.isEntryPoint {
+		repr := c.files[chunk.sourceIndex].repr.(*reprJS)
 
-		if chunk.isEntryPoint {
-			repr := c.files[chunk.sourceIndex].repr.(*reprJS)
-
-			// Start with the hashbang if there is one
-			if repr.ast.Hashbang != "" {
-				hashbang := repr.ast.Hashbang + "\n"
-				prevOffset.advanceString(hashbang)
-				j.AddString(hashbang)
-				newlineBeforeComment = true
-				isExecutable = true
-			}
-
-			// Add the top-level directive if present
-			if repr.ast.Directive != "" {
-				quoted := string(js_printer.QuoteForJSON(repr.ast.Directive, c.options.ASCIIOnly)) + ";" + newline
-				prevOffset.advanceString(quoted)
-				j.AddString(quoted)
-				newlineBeforeComment = true
-			}
-		}
-
-		if len(c.options.Banner) > 0 {
-			prevOffset.advanceString(c.options.Banner)
-			prevOffset.advanceString("\n")
-			j.AddString(c.options.Banner)
-			j.AddString("\n")
-		}
-
-		// Optionally wrap with an IIFE
-		if c.options.OutputFormat == config.FormatIIFE {
-			var text string
-			indent = "  "
-			if len(c.options.GlobalName) > 0 {
-				text = c.generateGlobalNamePrefix()
-			}
-			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
-				text += "(function()" + space + "{" + newline
-			} else {
-				text += "(()" + space + "=>" + space + "{" + newline
-			}
-			prevOffset.advanceString(text)
-			j.AddString(text)
-			newlineBeforeComment = false
-		}
-
-		// Put the cross-chunk prefix inside the IIFE
-		if len(crossChunkPrefix) > 0 {
+		// Start with the hashbang if there is one
+		if repr.ast.Hashbang != "" {
+			hashbang := repr.ast.Hashbang + "\n"
+			prevOffset.AdvanceString(hashbang)
+			j.AddString(hashbang)
 			newlineBeforeComment = true
-			prevOffset.advanceBytes(crossChunkPrefix)
-			j.AddBytes(crossChunkPrefix)
+			isExecutable = true
 		}
 
-		// Start the metadata
-		jMeta := js_printer.Joiner{}
-		if c.options.AbsMetadataFile != "" {
-			// Print imports
-			isFirstMeta := true
-			jMeta.AddString("{\n      \"imports\": [")
-			for i, importAbsPath := range continueData.crossChunkAbsPaths {
-				if isFirstMeta {
-					isFirstMeta = false
-				} else {
-					jMeta.AddString(",")
-				}
-				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
-					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly),
-					js_printer.QuoteForJSON(continueData.crossChunkImportRecords[i].Kind.StringForMetafile(), c.options.ASCIIOnly)))
-			}
-			if !isFirstMeta {
-				jMeta.AddString("\n      ")
-			}
+		// Add the top-level directive if present
+		if repr.ast.Directive != "" {
+			quoted := string(js_printer.QuoteForJSON(repr.ast.Directive, c.options.ASCIIOnly)) + ";" + newline
+			prevOffset.AdvanceString(quoted)
+			j.AddString(quoted)
+			newlineBeforeComment = true
+		}
+	}
 
-			// Print exports
-			jMeta.AddString("],\n      \"exports\": [")
-			var aliases []string
-			if c.options.OutputFormat.KeepES6ImportExportSyntax() {
-				if chunk.isEntryPoint {
-					if fileRepr := c.files[chunk.sourceIndex].repr.(*reprJS); fileRepr.meta.cjsWrap {
-						aliases = []string{"default"}
-					} else {
-						resolvedExports := fileRepr.meta.resolvedExports
-						aliases = make([]string, 0, len(resolvedExports))
-						for alias := range resolvedExports {
-							if alias != "*" {
-								aliases = append(aliases, alias)
-							}
-						}
-					}
+	if len(c.options.JSBanner) > 0 {
+		prevOffset.AdvanceString(c.options.JSBanner)
+		prevOffset.AdvanceString("\n")
+		j.AddString(c.options.JSBanner)
+		j.AddString("\n")
+	}
+
+	// Optionally wrap with an IIFE
+	if c.options.OutputFormat == config.FormatIIFE {
+		var text string
+		indent = "  "
+		if len(c.options.GlobalName) > 0 {
+			text = c.generateGlobalNamePrefix()
+		}
+		if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+			text += "(function()" + space + "{" + newline
+		} else {
+			text += "(()" + space + "=>" + space + "{" + newline
+		}
+		prevOffset.AdvanceString(text)
+		j.AddString(text)
+		newlineBeforeComment = false
+	}
+
+	// Put the cross-chunk prefix inside the IIFE
+	if len(crossChunkPrefix) > 0 {
+		newlineBeforeComment = true
+		prevOffset.AdvanceBytes(crossChunkPrefix)
+		j.AddBytes(crossChunkPrefix)
+	}
+
+	// Start the metadata
+	jMeta := helpers.Joiner{}
+	if c.options.NeedsMetafile {
+		// Print imports
+		isFirstMeta := true
+		jMeta.AddString("{\n      \"imports\": [")
+		for _, otherChunkIndex := range chunk.crossChunkImports {
+			if isFirstMeta {
+				isFirstMeta = false
+			} else {
+				jMeta.AddString(",")
+			}
+			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
+				js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[otherChunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
+				js_printer.QuoteForJSON(ast.ImportStmt.StringForMetafile(), c.options.ASCIIOnly)))
+		}
+		if !isFirstMeta {
+			jMeta.AddString("\n      ")
+		}
+
+		// Print exports
+		jMeta.AddString("],\n      \"exports\": [")
+		var aliases []string
+		if c.options.OutputFormat.KeepES6ImportExportSyntax() {
+			if chunk.isEntryPoint {
+				if fileRepr := c.files[chunk.sourceIndex].repr.(*reprJS); fileRepr.meta.cjsWrap {
+					aliases = []string{"default"}
 				} else {
-					aliases = make([]string, 0, len(repr.exportsToOtherChunks))
-					for _, alias := range repr.exportsToOtherChunks {
+					resolvedExports := fileRepr.meta.resolvedExports
+					aliases = make([]string, 0, len(resolvedExports))
+					for alias := range resolvedExports {
 						aliases = append(aliases, alias)
 					}
 				}
-			}
-			isFirstMeta = true
-			sort.Strings(aliases) // Sort for determinism
-			for _, alias := range aliases {
-				if isFirstMeta {
-					isFirstMeta = false
-				} else {
-					jMeta.AddString(",")
-				}
-				jMeta.AddString(fmt.Sprintf("\n        %s",
-					js_printer.QuoteForJSON(alias, c.options.ASCIIOnly)))
-			}
-			if !isFirstMeta {
-				jMeta.AddString("\n      ")
-			}
-			if chunk.isEntryPoint {
-				entryPoint := c.files[chunk.sourceIndex].source.PrettyPath
-				jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {", js_printer.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
 			} else {
-				jMeta.AddString("],\n      \"inputs\": {")
-			}
-		}
-
-		// Concatenate the generated JavaScript chunks together
-		var compileResultsForSourceMap []compileResultJS
-		var entryPointTail *js_printer.PrintResult
-		var commentList []string
-		var metaOrder []string
-		var metaByteCount map[string]int
-		commentSet := make(map[string]bool)
-		prevComment := uint32(0)
-		if c.options.AbsMetadataFile != "" {
-			metaOrder = make([]string, 0, len(compileResults))
-			metaByteCount = make(map[string]int, len(compileResults))
-		}
-		for _, compileResult := range compileResults {
-			isRuntime := compileResult.sourceIndex == runtime.SourceIndex
-			for text := range compileResult.ExtractedComments {
-				if !commentSet[text] {
-					commentSet[text] = true
-					commentList = append(commentList, text)
+				aliases = make([]string, 0, len(chunkRepr.exportsToOtherChunks))
+				for _, alias := range chunkRepr.exportsToOtherChunks {
+					aliases = append(aliases, alias)
 				}
 			}
-
-			// If this is the entry point, it may have some extra code to stick at the
-			// end of the chunk after all modules have evaluated
-			if compileResult.entryPointTail != nil {
-				entryPointTail = compileResult.entryPointTail
-			}
-
-			// Add a comment with the file path before the file contents
-			if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace && prevComment != compileResult.sourceIndex && len(compileResult.JS) > 0 {
-				if newlineBeforeComment {
-					prevOffset.advanceString("\n")
-					j.AddString("\n")
-				}
-
-				path := c.files[compileResult.sourceIndex].source.PrettyPath
-
-				// Make sure newlines in the path can't cause a syntax error. This does
-				// not minimize allocations because it's expected that this case never
-				// comes up in practice.
-				path = strings.ReplaceAll(path, "\r", "\\r")
-				path = strings.ReplaceAll(path, "\n", "\\n")
-				path = strings.ReplaceAll(path, "\u2028", "\\u2028")
-				path = strings.ReplaceAll(path, "\u2029", "\\u2029")
-
-				text := fmt.Sprintf("%s// %s\n", indent, path)
-				prevOffset.advanceString(text)
-				j.AddString(text)
-				prevComment = compileResult.sourceIndex
-			}
-
-			// Don't include the runtime in source maps
-			if isRuntime {
-				prevOffset.advanceString(string(compileResult.JS))
-				j.AddBytes(compileResult.JS)
+		}
+		isFirstMeta = true
+		sort.Strings(aliases) // Sort for determinism
+		for _, alias := range aliases {
+			if isFirstMeta {
+				isFirstMeta = false
 			} else {
-				// Save the offset to the start of the stored JavaScript
-				compileResult.generatedOffset = prevOffset
-				j.AddBytes(compileResult.JS)
-
-				// Ignore empty source map chunks
-				if compileResult.SourceMapChunk.ShouldIgnore {
-					prevOffset.advanceBytes(compileResult.JS)
-				} else {
-					prevOffset = lineColumnOffset{}
-
-					// Include this file in the source map
-					if c.options.SourceMap != config.SourceMapNone {
-						compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
-					}
-				}
-
-				// Include this file in the metadata
-				if c.options.AbsMetadataFile != "" {
-					// Accumulate file sizes since a given file may be split into multiple parts
-					path := c.files[compileResult.sourceIndex].source.PrettyPath
-					if count, ok := metaByteCount[path]; ok {
-						metaByteCount[path] = count + len(compileResult.JS)
-					} else {
-						metaOrder = append(metaOrder, path)
-						metaByteCount[path] = len(compileResult.JS)
-					}
-				}
+				jMeta.AddString(",")
 			}
+			jMeta.AddString(fmt.Sprintf("\n        %s",
+				js_printer.QuoteForJSON(alias, c.options.ASCIIOnly)))
+		}
+		if !isFirstMeta {
+			jMeta.AddString("\n      ")
+		}
+		if chunk.isEntryPoint {
+			entryPoint := c.files[chunk.sourceIndex].source.PrettyPath
+			jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {", js_printer.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
+		} else {
+			jMeta.AddString("],\n      \"inputs\": {")
+		}
+	}
 
-			// Put a newline before the next file path comment
-			if len(compileResult.JS) > 0 {
-				newlineBeforeComment = true
+	// Concatenate the generated JavaScript chunks together
+	var compileResultsForSourceMap []compileResultJS
+	var entryPointTail *js_printer.PrintResult
+	var commentList []string
+	var metaOrder []string
+	var metaByteCount map[string]int
+	commentSet := make(map[string]bool)
+	prevComment := uint32(0)
+	if c.options.NeedsMetafile {
+		metaOrder = make([]string, 0, len(compileResults))
+		metaByteCount = make(map[string]int, len(compileResults))
+	}
+	for _, compileResult := range compileResults {
+		isRuntime := compileResult.sourceIndex == runtime.SourceIndex
+		for text := range compileResult.ExtractedComments {
+			if !commentSet[text] {
+				commentSet[text] = true
+				commentList = append(commentList, text)
 			}
 		}
 
-		// Stick the entry point tail at the end of the file. Deliberately don't
-		// include any source mapping information for this because it's automatically
-		// generated and doesn't correspond to a location in the input file.
-		if entryPointTail != nil {
-			j.AddBytes(entryPointTail.JS)
+		// If this is the entry point, it may have some extra code to stick at the
+		// end of the chunk after all modules have evaluated
+		if compileResult.entryPointTail != nil {
+			entryPointTail = compileResult.entryPointTail
 		}
 
-		// Put the cross-chunk suffix inside the IIFE
-		if len(crossChunkSuffix) > 0 {
+		// Add a comment with the file path before the file contents
+		if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace && prevComment != compileResult.sourceIndex && len(compileResult.JS) > 0 {
 			if newlineBeforeComment {
-				j.AddString(newline)
-			}
-			j.AddBytes(crossChunkSuffix)
-		}
-
-		// Optionally wrap with an IIFE
-		if c.options.OutputFormat == config.FormatIIFE {
-			j.AddString("})();" + newline)
-		}
-
-		// Make sure the file ends with a newline
-		if j.Length() > 0 && j.LastByte() != '\n' {
-			j.AddString("\n")
-		}
-
-		// Add all unique license comments to the end of the file. These are
-		// deduplicated because some projects have thousands of files with the same
-		// comment. The comment must be preserved in the output for legal reasons but
-		// at the same time we want to generate a small bundle when minifying.
-		sort.Strings(commentList)
-		for _, text := range commentList {
-			j.AddString(text)
-			j.AddString("\n")
-		}
-
-		if len(c.options.Footer) > 0 {
-			j.AddString(c.options.Footer)
-			j.AddString("\n")
-		}
-
-		if c.options.SourceMap != config.SourceMapNone {
-			sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps)
-			var writeDataURL bool
-			var writeFile bool
-			switch c.options.SourceMap {
-			case config.SourceMapInline:
-				writeDataURL = true
-			case config.SourceMapLinkedWithComment, config.SourceMapExternalWithoutComment:
-				writeFile = true
-			case config.SourceMapInlineAndExternal:
-				writeDataURL = true
-				writeFile = true
-			}
-
-			// Write the generated source map as an inline comment
-			if writeDataURL {
-				j.AddString("//# sourceMappingURL=data:application/json;base64,")
-				j.AddString(base64.StdEncoding.EncodeToString(sourceMap))
+				prevOffset.AdvanceString("\n")
 				j.AddString("\n")
 			}
 
-			// Write the generated source map as an external file
-			if writeFile {
-				// Optionally add metadata about the file
-				var jsonMetadataChunk []byte
-				if c.options.AbsMetadataFile != "" {
-					jsonMetadataChunk = []byte(fmt.Sprintf(
-						"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(sourceMap)))
+			path := c.files[compileResult.sourceIndex].source.PrettyPath
+
+			// Make sure newlines in the path can't cause a syntax error. This does
+			// not minimize allocations because it's expected that this case never
+			// comes up in practice.
+			path = strings.ReplaceAll(path, "\r", "\\r")
+			path = strings.ReplaceAll(path, "\n", "\\n")
+			path = strings.ReplaceAll(path, "\u2028", "\\u2028")
+			path = strings.ReplaceAll(path, "\u2029", "\\u2029")
+
+			text := fmt.Sprintf("%s// %s\n", indent, path)
+			prevOffset.AdvanceString(text)
+			j.AddString(text)
+			prevComment = compileResult.sourceIndex
+		}
+
+		// Don't include the runtime in source maps
+		if isRuntime {
+			prevOffset.AdvanceString(string(compileResult.JS))
+			j.AddBytes(compileResult.JS)
+		} else {
+			// Save the offset to the start of the stored JavaScript
+			compileResult.generatedOffset = prevOffset
+			j.AddBytes(compileResult.JS)
+
+			// Ignore empty source map chunks
+			if compileResult.SourceMapChunk.ShouldIgnore {
+				prevOffset.AdvanceBytes(compileResult.JS)
+			} else {
+				prevOffset = sourcemap.LineColumnOffset{}
+
+				// Include this file in the source map
+				if c.options.SourceMap != config.SourceMapNone {
+					compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
 				}
+			}
 
-				// Figure out the base name for the source map which may include the content hash
-				sourceMapBaseName := chunk.baseNameOrEmpty
-				sourceMapRelDir := chunk.relDir
-				if sourceMapBaseName == "" {
-					name := "chunk"
-					hash := hashForFileName(sourceMap)
-
-					relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
-						Name: &name,
-						Hash: &hash,
-					})) + c.options.OutputExtensionJS
-
-					sourceMapBaseName = path.Base(relPath)
-					sourceMapRelDir = relPath[:len(relPath)-len(sourceMapBaseName)]
+			// Include this file in the metadata
+			if c.options.NeedsMetafile {
+				// Accumulate file sizes since a given file may be split into multiple parts
+				path := c.files[compileResult.sourceIndex].source.PrettyPath
+				if count, ok := metaByteCount[path]; ok {
+					metaByteCount[path] = count + len(compileResult.JS)
+				} else {
+					metaOrder = append(metaOrder, path)
+					metaByteCount[path] = len(compileResult.JS)
 				}
-				sourceMapBaseName += ".map"
-
-				// Add a comment linking the source to its map
-				if c.options.SourceMap == config.SourceMapLinkedWithComment {
-					j.AddString("//# sourceMappingURL=")
-					j.AddString(sourceMapBaseName)
-					j.AddString("\n")
-				}
-
-				results = append(results, OutputFile{
-					AbsPath:           c.fs.Join(c.options.AbsOutputDir, sourceMapRelDir, sourceMapBaseName),
-					Contents:          sourceMap,
-					jsonMetadataChunk: jsonMetadataChunk,
-				})
 			}
 		}
 
-		// The JavaScript contents are done now that the source map comment is in
-		jsContents := j.Done()
-
-		// Figure out the base name for this chunk now that the content hash is known
-		if chunk.baseNameOrEmpty == "" {
-			name := "chunk"
-			hash := hashForFileName(jsContents)
-
-			relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
-				Name: &name,
-				Hash: &hash,
-			})) + c.options.OutputExtensionJS
-
-			chunk.baseNameOrEmpty = path.Base(relPath)
-			chunk.relDir = relPath[:len(relPath)-len(chunk.baseNameOrEmpty)]
+		// Put a newline before the next file path comment
+		if len(compileResult.JS) > 0 {
+			newlineBeforeComment = true
 		}
+	}
 
-		// End the metadata
-		var jsonMetadataChunk []byte
-		if c.options.AbsMetadataFile != "" {
+	// Stick the entry point tail at the end of the file. Deliberately don't
+	// include any source mapping information for this because it's automatically
+	// generated and doesn't correspond to a location in the input file.
+	if entryPointTail != nil {
+		j.AddBytes(entryPointTail.JS)
+	}
+
+	// Put the cross-chunk suffix inside the IIFE
+	if len(crossChunkSuffix) > 0 {
+		if newlineBeforeComment {
+			j.AddString(newline)
+		}
+		j.AddBytes(crossChunkSuffix)
+	}
+
+	// Optionally wrap with an IIFE
+	if c.options.OutputFormat == config.FormatIIFE {
+		j.AddString("})();" + newline)
+	}
+
+	// Make sure the file ends with a newline
+	j.EnsureNewlineAtEnd()
+
+	// Add all unique license comments to the end of the file. These are
+	// deduplicated because some projects have thousands of files with the same
+	// comment. The comment must be preserved in the output for legal reasons but
+	// at the same time we want to generate a small bundle when minifying.
+	sort.Strings(commentList)
+	for _, text := range commentList {
+		j.AddString(text)
+		j.AddString("\n")
+	}
+
+	if len(c.options.JSFooter) > 0 {
+		j.AddString(c.options.JSFooter)
+		j.AddString("\n")
+	}
+
+	if c.options.SourceMap != config.SourceMapNone {
+		chunk.outputSourceMap = c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps)
+	}
+
+	// The JavaScript contents are done now that the source map comment is in
+	jsContents := j.Done()
+
+	// End the metadata lazily. The final output size is not known until the
+	// final import paths are substituted into the output pieces generated below.
+	if c.options.NeedsMetafile {
+		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) []byte {
 			isFirstMeta := true
 			for _, path := range metaOrder {
 				if isFirstMeta {
@@ -4069,18 +4261,14 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
 			}
-			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", len(jsContents)))
-			jsonMetadataChunk = jMeta.Done()
+			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
+			return jMeta.Done()
 		}
-
-		results = append(results, OutputFile{
-			AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relPath()),
-			Contents:          jsContents,
-			jsonMetadataChunk: jsonMetadataChunk,
-			IsExecutable:      isExecutable,
-		})
-		return results
 	}
+
+	c.generateIsolatedChunkHash(chunk, c.breakOutputIntoPieces(jsContents, uint32(len(chunks))))
+	chunk.isExecutable = isExecutable
+	chunkWaitGroup.Done()
 }
 
 func (c *linkerContext) generateGlobalNamePrefix() string {
@@ -4121,13 +4309,19 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 }
 
 type compileResultCSS struct {
-	printedCSS            string
-	sourceIndex           uint32
-	hasCharset            bool
-	externalImportRecords []ast.ImportRecord
+	printedCSS      string
+	sourceIndex     uint32
+	hasCharset      bool
+	externalImports []externalImportCSS
 }
 
-func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(generateContinue) []OutputFile {
+type externalImportCSS struct {
+	record     ast.ImportRecord
+	conditions []css_ast.Token
+}
+
+func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
+	chunk := &chunks[chunkIndex]
 	var results []OutputFile
 	compileResults := make([]compileResultCSS, 0, len(chunk.filesInChunkInOrder))
 
@@ -4155,7 +4349,10 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 					continue
 				case *css_ast.RAtImport:
 					if record := ast.ImportRecords[r.ImportRecordIndex]; !record.SourceIndex.IsValid() {
-						compileResult.externalImportRecords = append(compileResult.externalImportRecords, record)
+						compileResult.externalImports = append(compileResult.externalImports, externalImportCSS{
+							record:     record,
+							conditions: r.ImportConditions,
+						})
 					}
 					continue
 				}
@@ -4164,7 +4361,6 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 			ast.Rules = rules
 
 			compileResult.printedCSS = css_printer.Print(ast, css_printer.Options{
-				MangleSyntax:     c.options.MangleSyntax,
 				RemoveWhitespace: c.options.RemoveWhitespace,
 				ASCIIOnly:        c.options.ASCIIOnly,
 			})
@@ -4173,167 +4369,297 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 		}(sourceIndex, compileResult)
 	}
 
-	// Wait for cross-chunk import records before continuing
-	return func(continueData generateContinue) []OutputFile {
-		waitGroup.Wait()
-		j := js_printer.Joiner{}
-		newlineBeforeComment := false
+	waitGroup.Wait()
+	j := helpers.Joiner{}
+	newlineBeforeComment := false
 
-		// Generate any prefix rules now
-		{
-			ast := css_ast.AST{}
+	if len(c.options.CSSBanner) > 0 {
+		j.AddString(c.options.CSSBanner)
+		j.AddString("\n")
+	}
 
-			// "@charset" is the only thing that comes before "@import"
-			for _, compileResult := range compileResults {
-				if compileResult.hasCharset {
-					ast.Rules = append(ast.Rules, &css_ast.RAtCharset{Encoding: "UTF-8"})
-					break
-				}
-			}
+	// Generate any prefix rules now
+	{
+		ast := css_ast.AST{}
 
-			// Insert all external "@import" rules at the front. In CSS, all "@import"
-			// rules must come first or the browser will just ignore them.
-			for _, compileResult := range compileResults {
-				for _, record := range compileResult.externalImportRecords {
-					ast.Rules = append(ast.Rules, &css_ast.RAtImport{ImportRecordIndex: uint32(len(ast.ImportRecords))})
-					ast.ImportRecords = append(ast.ImportRecords, record)
-				}
-			}
-
-			if len(ast.Rules) > 0 {
-				css := css_printer.Print(ast, css_printer.Options{
-					RemoveWhitespace: c.options.RemoveWhitespace,
-				})
-				if len(css) > 0 {
-					j.AddString(css)
-					newlineBeforeComment = true
-				}
+		// "@charset" is the only thing that comes before "@import"
+		for _, compileResult := range compileResults {
+			if compileResult.hasCharset {
+				ast.Rules = append(ast.Rules, &css_ast.RAtCharset{Encoding: "UTF-8"})
+				break
 			}
 		}
 
-		// Start the metadata
-		jMeta := js_printer.Joiner{}
-		if c.options.AbsMetadataFile != "" {
-			isFirstMeta := true
-			jMeta.AddString("{\n      \"imports\": [")
-			for i, importAbsPath := range continueData.crossChunkAbsPaths {
-				if isFirstMeta {
-					isFirstMeta = false
-				} else {
-					jMeta.AddString(",")
-				}
-				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
-					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly),
-					js_printer.QuoteForJSON(continueData.crossChunkImportRecords[i].Kind.StringForMetafile(), c.options.ASCIIOnly)))
+		// Insert all external "@import" rules at the front. In CSS, all "@import"
+		// rules must come first or the browser will just ignore them.
+		for _, compileResult := range compileResults {
+			for _, external := range compileResult.externalImports {
+				ast.Rules = append(ast.Rules, &css_ast.RAtImport{
+					ImportRecordIndex: uint32(len(ast.ImportRecords)),
+					ImportConditions:  external.conditions,
+				})
+				ast.ImportRecords = append(ast.ImportRecords, external.record)
 			}
-			if !isFirstMeta {
-				jMeta.AddString("\n      ")
-			}
-			if chunk.isEntryPoint {
-				file := &c.files[chunk.sourceIndex]
+		}
 
-				// Do not generate "entryPoint" for CSS files that are the result of
-				// importing CSS into JavaScript. We want this to be a 1:1 relationship
-				// and there is already an output file for the JavaScript entry point.
-				if _, ok := file.repr.(*reprCSS); ok {
-					jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {",
-						js_printer.QuoteForJSON(file.source.PrettyPath, c.options.ASCIIOnly)))
-				} else {
-					jMeta.AddString("],\n      \"inputs\": {")
-				}
+		if len(ast.Rules) > 0 {
+			css := css_printer.Print(ast, css_printer.Options{
+				RemoveWhitespace: c.options.RemoveWhitespace,
+			})
+			if len(css) > 0 {
+				j.AddString(css)
+				newlineBeforeComment = true
+			}
+		}
+	}
+
+	// Start the metadata
+	jMeta := helpers.Joiner{}
+	if c.options.NeedsMetafile {
+		isFirstMeta := true
+		jMeta.AddString("{\n      \"imports\": [")
+		for _, otherChunkIndex := range chunk.crossChunkImports {
+			if isFirstMeta {
+				isFirstMeta = false
+			} else {
+				jMeta.AddString(",")
+			}
+			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
+				js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[otherChunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
+				js_printer.QuoteForJSON(ast.ImportAt.StringForMetafile(), c.options.ASCIIOnly)))
+		}
+		if !isFirstMeta {
+			jMeta.AddString("\n      ")
+		}
+		if chunk.isEntryPoint {
+			file := &c.files[chunk.sourceIndex]
+
+			// Do not generate "entryPoint" for CSS files that are the result of
+			// importing CSS into JavaScript. We want this to be a 1:1 relationship
+			// and there is already an output file for the JavaScript entry point.
+			if _, ok := file.repr.(*reprCSS); ok {
+				jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {",
+					js_printer.QuoteForJSON(file.source.PrettyPath, c.options.ASCIIOnly)))
 			} else {
 				jMeta.AddString("],\n      \"inputs\": {")
 			}
+		} else {
+			jMeta.AddString("],\n      \"inputs\": {")
 		}
-		isFirstMeta := true
+	}
+	isFirstMeta := true
 
-		// Concatenate the generated CSS chunks together
-		for _, compileResult := range compileResults {
-			if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace {
-				if newlineBeforeComment {
-					j.AddString("\n")
-				}
-				j.AddString(fmt.Sprintf("/* %s */\n", c.files[compileResult.sourceIndex].source.PrettyPath))
+	// Concatenate the generated CSS chunks together
+	for _, compileResult := range compileResults {
+		if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace {
+			if newlineBeforeComment {
+				j.AddString("\n")
 			}
-			if len(compileResult.printedCSS) > 0 {
-				newlineBeforeComment = true
+			j.AddString(fmt.Sprintf("/* %s */\n", c.files[compileResult.sourceIndex].source.PrettyPath))
+		}
+		if len(compileResult.printedCSS) > 0 {
+			newlineBeforeComment = true
+		}
+		j.AddString(compileResult.printedCSS)
+
+		// Include this file in the metadata
+		if c.options.NeedsMetafile {
+			if isFirstMeta {
+				isFirstMeta = false
+			} else {
+				jMeta.AddString(",")
 			}
-			j.AddString(compileResult.printedCSS)
-
-			// Include this file in the metadata
-			if c.options.AbsMetadataFile != "" {
-				if isFirstMeta {
-					isFirstMeta = false
-				} else {
-					jMeta.AddString(",")
-				}
-				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-					js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
-					len(compileResult.printedCSS)))
-			}
+			jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+				js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
+				len(compileResult.printedCSS)))
 		}
+	}
 
-		// Make sure the file ends with a newline
-		if j.Length() > 0 && j.LastByte() != '\n' {
-			j.AddString("\n")
-		}
+	// Make sure the file ends with a newline
+	j.EnsureNewlineAtEnd()
 
-		// The CSS contents are done now that the source map comment is in
-		cssContents := j.Done()
+	if len(c.options.CSSFooter) > 0 {
+		j.AddString(c.options.CSSFooter)
+		j.AddString("\n")
+	}
 
-		// Figure out the base name for this chunk now that the content hash is known
-		if chunk.baseNameOrEmpty == "" {
-			name := "chunk"
-			hash := hashForFileName(cssContents)
+	// The CSS contents are done now that the source map comment is in
+	cssContents := j.Done()
 
-			relPath := config.TemplateToString(config.SubstituteTemplate(c.options.ChunkPathTemplate, config.PathPlaceholders{
-				Name: &name,
-				Hash: &hash,
-			})) + c.options.OutputExtensionCSS
-
-			chunk.baseNameOrEmpty = path.Base(relPath)
-			chunk.relDir = relPath[:len(relPath)-len(chunk.baseNameOrEmpty)]
-		}
-
-		// End the metadata
-		var jsonMetadataChunk []byte
-		if c.options.AbsMetadataFile != "" {
+	// End the metadata lazily. The final output size is not known until the
+	// final import paths are substituted into the output pieces generated below.
+	if c.options.NeedsMetafile {
+		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) []byte {
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
 			}
-			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", len(cssContents)))
-			jsonMetadataChunk = jMeta.Done()
+			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
+			return jMeta.Done()
+		}
+	}
+
+	c.generateIsolatedChunkHash(chunk, c.breakOutputIntoPieces(cssContents, uint32(len(chunks))))
+	chunkWaitGroup.Done()
+}
+
+func appendIsolatedHashesForImportedChunks(
+	hash hash.Hash,
+	chunks []chunkInfo,
+	chunkIndex uint32,
+	visited []uint32,
+	visitedKey uint32,
+) {
+	// Only visit each chunk at most once. This is important because there may be
+	// cycles in the chunk import graph. If there's a cycle, we want to include
+	// the hash of every chunk involved in the cycle (along with all of their
+	// dependencies). This depth-first traversal will naturally do that.
+	if visited[chunkIndex] == visitedKey {
+		return
+	}
+	visited[chunkIndex] = visitedKey
+	chunk := &chunks[chunkIndex]
+
+	// Visit the other chunks that this chunk imports before visiting this chunk
+	for _, otherChunkIndex := range chunk.crossChunkImports {
+		appendIsolatedHashesForImportedChunks(hash, chunks, otherChunkIndex, visited, visitedKey)
+	}
+
+	// Mix in the hash for this chunk
+	hash.Write(chunk.isolatedChunkHash)
+}
+
+func (c *linkerContext) breakOutputIntoPieces(output []byte, chunkCount uint32) []outputPiece {
+	var pieces []outputPiece
+	prefix := c.uniqueKeyPrefixBytes
+	for {
+		// Scan for the next chunk path
+		boundary := bytes.Index(output, prefix)
+
+		// Try to parse the chunk index
+		var chunkIndex uint32
+		if boundary != -1 {
+			if start := boundary + len(prefix); start+8 > len(output) {
+				boundary = -1
+			} else {
+				for j := 0; j < 8; j++ {
+					c := output[start+j]
+					if c < '0' || c > '9' {
+						boundary = -1
+						break
+					}
+					chunkIndex = chunkIndex*10 + uint32(c) - '0'
+				}
+			}
+			if chunkIndex >= chunkCount {
+				boundary = -1
+			}
 		}
 
-		results = append(results, OutputFile{
-			AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relPath()),
-			Contents:          cssContents,
-			jsonMetadataChunk: jsonMetadataChunk,
+		// If we're at the end, generate one final piece
+		if boundary == -1 {
+			pieces = append(pieces, outputPiece{
+				data: output,
+			})
+			break
+		}
+
+		// Otherwise, generate an interior piece and continue
+		pieces = append(pieces, outputPiece{
+			data:       output[:boundary],
+			chunkIndex: ast.MakeIndex32(chunkIndex),
 		})
-		return results
+		output = output[boundary+len(prefix)+8:]
 	}
+	return pieces
 }
 
-func (offset *lineColumnOffset) advanceBytes(bytes []byte) {
-	for i, n := 0, len(bytes); i < n; i++ {
-		if bytes[i] == '\n' {
-			offset.lines++
-			offset.columns = 0
+func (c *linkerContext) generateIsolatedChunkHash(chunk *chunkInfo, pieces []outputPiece) {
+	hash := sha1.New()
+
+	// Mix the file names and part ranges of all of the files in this chunk into
+	// the hash. Objects that appear identical but that live in separate files or
+	// that live in separate parts in the same file must not be merged. This only
+	// needs to be done for JavaScript files, not CSS files.
+	for _, partRange := range chunk.partsInChunkInOrder {
+		var filePath string
+		file := &c.files[partRange.sourceIndex]
+
+		if file.source.KeyPath.Namespace == "file" {
+			// Use the pretty path as the file name since it should be platform-
+			// independent (relative paths and the "/" path separator)
+			filePath = file.source.PrettyPath
 		} else {
-			offset.columns++
+			// If this isn't in the "file" namespace, just use the full path text
+			// verbatim. This could be a source of cross-platform differences if
+			// plugins are storing platform-specific information in here, but then
+			// that problem isn't caused by esbuild itself.
+			filePath = file.source.KeyPath.Text
 		}
+
+		// Include the path namespace in the hash
+		hashWriteLengthPrefixed(hash, []byte(file.source.KeyPath.Namespace))
+
+		// Then include the file path
+		hashWriteLengthPrefixed(hash, []byte(filePath))
+
+		// Also write the part range. These numbers are deterministic and allocated
+		// per-file so this should be a well-behaved base for a hash.
+		hashWriteUint32(hash, partRange.partIndexBegin)
+		hashWriteUint32(hash, partRange.partIndexEnd)
 	}
+
+	// Hash the output path template as part of the content hash because we want
+	// any import to be considered different if the import's output path has changed.
+	for _, part := range chunk.finalTemplate {
+		hashWriteLengthPrefixed(hash, []byte(part.Data))
+	}
+
+	// Include the generated output content in the hash. This excludes the
+	// randomly-generated import paths (the unique keys) and only includes the
+	// data in the spans between them.
+	for _, piece := range pieces {
+		hashWriteLengthPrefixed(hash, piece.data)
+	}
+
+	// Also include the source map data in the hash. The source map is named the
+	// same name as the chunk name for ease of discovery. So we want the hash to
+	// change if the source map data changes even if the chunk data doesn't change.
+	// Otherwise the output path for the source map wouldn't change and the source
+	// map wouldn't end up being updated.
+	//
+	// Note that this means the contents of all input files are included in the
+	// hash because of "sourcesContent", so changing a comment in an input file
+	// can now change the hash of the output file. This only happens when you
+	// have source maps enabled (and "sourcesContent", which is on by default).
+	//
+	// The generated positions in the mappings here are in the output content
+	// *before* the final paths have been substituted. This may seem weird.
+	// However, I think this shouldn't cause issues because a) the unique key
+	// values are all always the same length so the offsets are deterministic
+	// and b) the final paths will be folded into the final hash later.
+	hashWriteLengthPrefixed(hash, chunk.outputSourceMap.Prefix)
+	hashWriteLengthPrefixed(hash, chunk.outputSourceMap.Mappings)
+	hashWriteLengthPrefixed(hash, chunk.outputSourceMap.Suffix)
+
+	// Store the hash so far. All other chunks that import this chunk will mix
+	// this hash into their "outputHash" to ensure that the import path changes
+	// if this chunk (or any dependencies of this chunk) is changed.
+	chunk.outputPieces = pieces
+	chunk.outputHash = hash
+	chunk.isolatedChunkHash = hash.Sum(nil)
 }
 
-func (offset *lineColumnOffset) advanceString(text string) {
-	for i, n := 0, len(text); i < n; i++ {
-		if text[i] == '\n' {
-			offset.lines++
-			offset.columns = 0
-		} else {
-			offset.columns++
-		}
-	}
+func hashWriteUint32(hash hash.Hash, value uint32) {
+	var lengthBytes [4]byte
+	binary.LittleEndian.PutUint32(lengthBytes[:], value)
+	hash.Write(lengthBytes[:])
+}
+
+// Hash the data in length-prefixed form because boundary locations are
+// important. We don't want "a" + "bc" to hash the same as "ab" + "c".
+func hashWriteLengthPrefixed(hash hash.Hash, bytes []byte) {
+	hashWriteUint32(hash, uint32(len(bytes)))
+	hash.Write(bytes)
 }
 
 func preventBindingsFromBeingRenamed(binding js_ast.Binding, symbols js_ast.SymbolMap) {
@@ -4431,8 +4757,8 @@ func (c *linkerContext) generateSourceMapForChunk(
 	results []compileResultJS,
 	chunkAbsDir string,
 	dataForSourceMaps []dataForSourceMap,
-) []byte {
-	j := js_printer.Joiner{}
+) (pieces sourcemap.SourceMapPieces) {
+	j := helpers.Joiner{}
 	j.AddString("{\n  \"version\": 3")
 
 	// Only write out the sources for a given source index once
@@ -4527,8 +4853,11 @@ func (c *linkerContext) generateSourceMapForChunk(
 		j.AddString("]")
 	}
 
-	// Write the mappings
 	j.AddString(",\n  \"mappings\": \"")
+	pieces.Prefix = j.Done()
+
+	// Write the mappings
+	jMappings := helpers.Joiner{}
 	prevEndState := js_printer.SourceMapState{}
 	prevColumnOffset := 0
 	for _, result := range results {
@@ -4550,15 +4879,15 @@ func (c *linkerContext) generateSourceMapForChunk(
 		// here.
 		startState := js_printer.SourceMapState{
 			SourceIndex:     sourcesIndex,
-			GeneratedLine:   offset.lines,
-			GeneratedColumn: offset.columns,
+			GeneratedLine:   offset.Lines,
+			GeneratedColumn: offset.Columns,
 		}
-		if offset.lines == 0 {
+		if offset.Lines == 0 {
 			startState.GeneratedColumn += prevColumnOffset
 		}
 
 		// Append the precomputed source map chunk
-		js_printer.AppendSourceMapChunk(&j, prevEndState, startState, chunk.Buffer)
+		js_printer.AppendSourceMapChunk(&jMappings, prevEndState, startState, chunk.Buffer)
 
 		// Generate the relative offset to start from next time
 		prevEndState = chunk.EndState
@@ -4571,9 +4900,9 @@ func (c *linkerContext) generateSourceMapForChunk(
 			prevColumnOffset += startState.GeneratedColumn
 		}
 	}
-	j.AddString("\"")
+	pieces.Mappings = jMappings.Done()
 
 	// Finish the source map
-	j.AddString(",\n  \"names\": []\n}\n")
-	return j.Done()
+	pieces.Suffix = []byte("\",\n  \"names\": []\n}\n")
+	return
 }

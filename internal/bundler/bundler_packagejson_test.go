@@ -1194,3 +1194,699 @@ func TestPackageJsonNeutralExplicitMainFields(t *testing.T) {
 		},
 	})
 }
+
+func TestPackageJsonExportsErrorInvalidModuleSpecifier(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1'
+				import 'pkg2'
+				import 'pkg3'
+				import 'pkg4'
+				import 'pkg5'
+				import 'pkg6'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{ "exports": { ".": "./%%" } }
+			`,
+			"/Users/user/project/node_modules/pkg2/package.json": `
+				{ "exports": { ".": "./%2f" } }
+			`,
+			"/Users/user/project/node_modules/pkg3/package.json": `
+				{ "exports": { ".": "./%2F" } }
+			`,
+			"/Users/user/project/node_modules/pkg4/package.json": `
+				{ "exports": { ".": "./%5c" } }
+			`,
+			"/Users/user/project/node_modules/pkg5/package.json": `
+				{ "exports": { ".": "./%5C" } }
+			`,
+			"/Users/user/project/node_modules/pkg6/package.json": `
+				{ "exports": { ".": "./%31.js" } }
+			`,
+			"/Users/user/project/node_modules/pkg6/1.js": `
+				console.log(1)
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The module specifier "./%%" is invalid
+Users/user/project/src/entry.js: error: Could not resolve "pkg2" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg2/package.json: note: The module specifier "./%2f" is invalid
+Users/user/project/src/entry.js: error: Could not resolve "pkg3" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg3/package.json: note: The module specifier "./%2F" is invalid
+Users/user/project/src/entry.js: error: Could not resolve "pkg4" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg4/package.json: note: The module specifier "./%5c" is invalid
+Users/user/project/src/entry.js: error: Could not resolve "pkg5" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg5/package.json: note: The module specifier "./%5C" is invalid
+`,
+	})
+}
+
+func TestPackageJsonExportsErrorInvalidPackageConfiguration(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1'
+				import 'pkg2/foo'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{ "exports": { ".": false } }
+			`,
+			"/Users/user/project/node_modules/pkg2/package.json": `
+				{ "exports": { "./foo": false } }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/node_modules/pkg1/package.json: warning: This value must be a string, an object, an array, or null
+Users/user/project/node_modules/pkg2/package.json: warning: This value must be a string, an object, an array, or null
+Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The package configuration has an invalid value here
+Users/user/project/src/entry.js: error: Could not resolve "pkg2/foo" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg2/package.json: note: The package configuration has an invalid value here
+`,
+	})
+}
+
+func TestPackageJsonExportsErrorInvalidPackageTarget(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1'
+				import 'pkg2'
+				import 'pkg3'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{ "exports": { ".": "invalid" } }
+			`,
+			"/Users/user/project/node_modules/pkg2/package.json": `
+				{ "exports": { ".": "../pkg3" } }
+			`,
+			"/Users/user/project/node_modules/pkg3/package.json": `
+				{ "exports": { ".": "./node_modules/pkg" } }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The package target "invalid" is invalid
+Users/user/project/src/entry.js: error: Could not resolve "pkg2" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg2/package.json: note: The package target "../pkg3" is invalid
+Users/user/project/src/entry.js: error: Could not resolve "pkg3" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg3/package.json: note: The package target "./node_modules/pkg" is invalid
+`,
+	})
+}
+
+func TestPackageJsonExportsErrorPackagePathNotExported(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{ "exports": { ".": {} } }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "./foo" is not exported by package "pkg1"
+`,
+	})
+}
+
+func TestPackageJsonExportsErrorModuleNotFound(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{ "exports": { ".": "./foo.js" } }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The module "./foo.js" was not found on the file system
+`,
+	})
+}
+
+func TestPackageJsonExportsErrorUnsupportedDirectoryImport(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1'
+				import 'pkg2'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{ "exports": { ".": "./foo/" } }
+			`,
+			"/Users/user/project/node_modules/pkg2/package.json": `
+				{ "exports": { ".": "./foo" } }
+			`,
+			"/Users/user/project/node_modules/pkg2/foo/bar.js": `
+				console.log(bar)
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The module "./foo" was not found on the file system
+Users/user/project/src/entry.js: error: Could not resolve "pkg2" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg2/package.json: note: Importing the directory "./foo" is not supported
+`,
+	})
+}
+
+func TestPackageJsonExportsRequireOverImport(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				require('pkg')
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"import": "./import.js",
+						"require": "./require.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/import.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/require.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonExportsImportOverRequire(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"require": "./require.js",
+						"import": "./import.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/require.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/import.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonExportsDefaultOverImportAndRequire(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"default": "./default.js",
+						"import": "./import.js",
+						"require": "./require.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/require.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/import.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/default.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonExportsBrowser(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"node": "./node.js",
+						"browser": "./browser.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/node.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/browser.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			Platform:      config.PlatformBrowser,
+		},
+	})
+}
+
+func TestPackageJsonExportsNode(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"browser": "./browser.js",
+						"node": "./node.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/browser.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/node.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			Platform:      config.PlatformNode,
+		},
+	})
+}
+
+func TestPackageJsonExportsNeutral(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"node": "./node.js",
+						"browser": "./browser.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/node.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/browser.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg/default.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			Platform:      config.PlatformNeutral,
+		},
+	})
+}
+
+func TestPackageJsonExportsOrderIndependent(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo/bar.js'
+				import 'pkg2/foo/bar.js'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"./": "./1/",
+						"./foo/": "./2/"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/1/foo/bar.js": `
+				console.log('FAILURE')
+			`,
+			"/Users/user/project/node_modules/pkg1/2/bar.js": `
+				console.log('SUCCESS')
+			`,
+			"/Users/user/project/node_modules/pkg2/package.json": `
+				{
+					"exports": {
+						"./foo/": "./1/",
+						"./": "./2/"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg2/1/bar.js": `
+				console.log('SUCCESS')
+			`,
+			"/Users/user/project/node_modules/pkg2/2/foo/bar.js": `
+				console.log('FAILURE')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonExportsWildcard(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo'
+				import 'pkg1/foo2'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"./foo*": "./file*.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/file2.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "./foo" is not exported by package "pkg1"
+`,
+	})
+}
+
+func TestPackageJsonExportsErrorMissingTrailingSlash(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo/bar'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{ "exports": { "./foo/": "./test" } }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo/bar" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The module specifier "./test" is invalid
+`,
+	})
+}
+
+func TestPackageJsonExportsCustomConditions(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"custom1": "./custom1.js",
+						"custom2": "./custom2.js",
+						"default": "./default.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/custom2.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			Conditions:    []string{"custom2"},
+		},
+	})
+}
+
+func TestPackageJsonExportsNotExactMissingExtension(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo/bar'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"./foo/": "./dir/"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/dir/bar.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonExportsNotExactMissingExtensionPattern(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo/bar'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"./foo/*": "./dir/*"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/dir/bar.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo/bar" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The module "./dir/bar" was not found on the file system
+`,
+	})
+}
+
+func TestPackageJsonExportsExactMissingExtension(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1/foo/bar'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						"./foo/bar": "./dir/bar"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/dir/bar.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo/bar" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The module "./dir/bar" was not found on the file system
+`,
+	})
+}
+
+func TestPackageJsonExportsNoConditionsMatch(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1'
+				import 'pkg1/foo.js'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						".": {
+							"what": "./foo.js"
+						},
+						"./foo.js": {
+							"what": "./foo.js"
+						}
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/foo.js": `
+				console.log('FAILURE')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "." is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import")
+Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo.js" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "./foo.js" is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import")
+`,
+	})
+}
+
+func TestPackageJsonExportsMustUseRequire(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg1'
+				import 'pkg1/foo.js'
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						".": {
+							"require": "./foo.js"
+						},
+						"./foo.js": {
+							"require": "./foo.js"
+						}
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/foo.js": `
+				console.log('FAILURE')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "." is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import")
+Users/user/project/src/entry.js: note: Consider using a "require()" call to import this package
+Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo.js" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "./foo.js" is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import")
+Users/user/project/src/entry.js: note: Consider using a "require()" call to import this package
+`,
+	})
+}
+
+func TestPackageJsonExportsMustUseImport(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				require('pkg1')
+				require('pkg1/foo.js')
+			`,
+			"/Users/user/project/node_modules/pkg1/package.json": `
+				{
+					"exports": {
+						".": {
+							"import": "./foo.js"
+						},
+						"./foo.js": {
+							"import": "./foo.js"
+						}
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg1/foo.js": `
+				console.log('FAILURE')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "." is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("import") match any of the currently active conditions ("browser", "default", "require")
+Users/user/project/src/entry.js: note: Consider using an "import" statement to import this package
+Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo.js" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg1/package.json: note: The path "./foo.js" is not currently exported by package "pkg1"
+Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("import") match any of the currently active conditions ("browser", "default", "require")
+Users/user/project/src/entry.js: note: Consider using an "import" statement to import this package
+`,
+	})
+}

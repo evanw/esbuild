@@ -41,6 +41,7 @@ type parser struct {
 	hasTopLevelReturn        bool
 	latestReturnHadSemicolon bool
 	hasImportMeta            bool
+	hasESModuleSyntax        bool
 	topLevelAwaitKeyword     logger.Range
 	fnOrArrowDataParse       fnOrArrowDataParse
 	fnOrArrowDataVisit       fnOrArrowDataVisit
@@ -135,6 +136,7 @@ type parser struct {
 	// The visit pass binds identifiers to declared symbols, does constant
 	// folding, substitutes compile-time variable definitions, and lowers certain
 	// syntactic constructs as appropriate.
+	stmtExprValue     js_ast.E
 	callTarget        js_ast.E
 	deleteTarget      js_ast.E
 	loopBody          js_ast.S
@@ -233,8 +235,8 @@ type parser struct {
 	relocatedTopLevelVars []js_ast.LocRef
 
 	// ArrowFunction is a special case in the grammar. Although it appears to be
-	// a PrimaryExpression, it's actually an AssigmentExpression. This means if
-	// a AssigmentExpression ends up producing an ArrowFunction then nothing can
+	// a PrimaryExpression, it's actually an AssignmentExpression. This means if
+	// a AssignmentExpression ends up producing an ArrowFunction then nothing can
 	// come after it other than the comma operator, since the comma operator is
 	// the only thing above AssignmentExpression under the Expression rule:
 	//
@@ -278,6 +280,7 @@ type Options struct {
 
 type optionsThatSupportStructuralEquality struct {
 	unsupportedJSFeatures compat.JSFeature
+	originalTargetEnv     string
 
 	// Byte-sized values go here (gathered together here to keep this object compact)
 	ts                             config.TSOptions
@@ -302,6 +305,7 @@ func OptionsFromConfig(options *config.Options) Options {
 		defines:       options.Defines,
 		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
 			unsupportedJSFeatures:          options.UnsupportedJSFeatures,
+			originalTargetEnv:              options.OriginalTargetEnv,
 			ts:                             options.TS,
 			mode:                           options.Mode,
 			platform:                       options.Platform,
@@ -5620,6 +5624,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			} else {
 				didGenerateError := p.markSyntaxFeature(compat.ForAwait, awaitRange)
 				if p.fnOrArrowDataParse.isTopLevel && !didGenerateError {
+					p.topLevelAwaitKeyword = awaitRange
 					p.markSyntaxFeature(compat.TopLevelAwait, awaitRange)
 				}
 			}
@@ -7433,6 +7438,7 @@ func (p *parser) visitForLoopInit(stmt js_ast.Stmt, isInOrOf bool) js_ast.Stmt {
 		if isInOrOf {
 			assignTarget = js_ast.AssignTargetReplace
 		}
+		p.stmtExprValue = s.Value.Data
 		s.Value, _ = p.visitExprInOut(s.Value, exprIn{assignTarget: assignTarget})
 
 	case *js_ast.SLocal:
@@ -8205,7 +8211,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			for _, decl := range s.Decls {
 				if decl.Value != nil {
 					target := p.convertBindingToExpr(decl.Binding, wrapIdentifier)
-					if result, ok := p.lowerObjectRestInAssign(target, *decl.Value); ok {
+					if result, ok := p.lowerObjectRestInAssign(target, *decl.Value, objRestReturnValueIsUnused); ok {
 						target = result
 					} else {
 						target = js_ast.Assign(target, *decl.Value)
@@ -8230,6 +8236,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 	case *js_ast.SExpr:
+		p.stmtExprValue = s.Value.Data
 		s.Value = p.visitExpr(s.Value)
 
 		// Trim expressions without side effects
@@ -8809,6 +8816,13 @@ func maybeJoinWithComma(a js_ast.Expr, b js_ast.Expr) js_ast.Expr {
 	return js_ast.JoinWithComma(a, b)
 }
 
+type captureValueMode uint8
+
+const (
+	valueDefinitelyNotMutated captureValueMode = iota
+	valueCouldBeMutated
+)
+
 // This is a helper function to use when you need to capture a value that may
 // have side effects so you can use it multiple times. It guarantees that the
 // side effects take place exactly once.
@@ -8832,6 +8846,7 @@ func (p *parser) captureValueWithPossibleSideEffects(
 	loc logger.Loc, // The location to use for the generated references
 	count int, // The expected number of references to generate
 	value js_ast.Expr, // The value that might have side effects
+	mode captureValueMode, // Say if "value" might be mutated and must be captured
 ) (
 	func() js_ast.Expr, // Generates reference expressions "_a"
 	func(js_ast.Expr) js_ast.Expr, // Call this on the final expression
@@ -8863,14 +8878,16 @@ func (p *parser) captureValueWithPossibleSideEffects(
 	case *js_ast.EString:
 		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: e.Value}} }
 	case *js_ast.EIdentifier:
-		valueFunc = func() js_ast.Expr {
-			// Make sure we record this usage in the usage count so that duplicating
-			// a single-use reference means it's no longer considered a single-use
-			// reference. Otherwise the single-use reference inlining code may
-			// incorrectly inline the initializer into the first reference, leaving
-			// the second reference without a definition.
-			p.recordUsage(e.Ref)
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: e.Ref}}
+		if mode == valueDefinitelyNotMutated {
+			valueFunc = func() js_ast.Expr {
+				// Make sure we record this usage in the usage count so that duplicating
+				// a single-use reference means it's no longer considered a single-use
+				// reference. Otherwise the single-use reference inlining code may
+				// incorrectly inline the initializer into the first reference, leaving
+				// the second reference without a definition.
+				p.recordUsage(e.Ref)
+				return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: e.Ref}}
+			}
 		}
 	}
 	if valueFunc != nil {
@@ -9680,7 +9697,7 @@ func (p *parser) valueForThis(loc logger.Loc) (js_ast.Expr, bool) {
 	}
 
 	if p.options.mode != config.ModePassThrough && !p.fnOnlyDataVisit.isThisNested {
-		if p.es6ImportKeyword.Len > 0 || p.es6ExportKeyword.Len > 0 {
+		if p.hasESModuleSyntax {
 			// In an ES6 module, "this" is supposed to be undefined. Instead of
 			// doing this at runtime using "fn.call(undefined)", we do it at
 			// compile time using expression substitution here.
@@ -10012,6 +10029,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EBinary:
 		isCallTarget := e == p.callTarget
+		isStmtExpr := e == p.stmtExprValue
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{assignTarget: e.Op.BinaryAssignTarget()})
 
@@ -10388,7 +10406,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// binding patterns, so only do this if we're not ourselves the target of
 			// an assignment. Example: "[a = b] = c"
 			if in.assignTarget == js_ast.AssignTargetNone {
-				if result, ok := p.lowerObjectRestInAssign(e.Left, e.Right); ok {
+				mode := objRestMustReturnInitExpr
+				if isStmtExpr {
+					mode = objRestReturnValueIsUnused
+				}
+				if result, ok := p.lowerObjectRestInAssign(e.Left, e.Right, mode); ok {
 					return result, exprOut{}
 				}
 			}
@@ -11097,7 +11119,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, js_lexer.UTF16ToString(str.Value))
 				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
-				return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EImport{
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImport{
 					Expr:                    arg,
 					ImportRecordIndex:       ast.MakeIndex32(importRecordIndex),
 					LeadingInteriorComments: e.LeadingInteriorComments,
@@ -11141,33 +11163,33 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// correctly, and you need a string literal to get an import record.
 			if !p.options.outputFormat.KeepES6ImportExportSyntax() {
 				var then js_ast.Expr
-				value := p.callRuntime(arg.Loc, "__toModule", []js_ast.Expr{{Loc: arg.Loc, Data: &js_ast.ECall{
-					Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EIdentifier{Ref: p.requireRef}},
+				value := p.callRuntime(arg.Loc, "__toModule", []js_ast.Expr{{Loc: expr.Loc, Data: &js_ast.ECall{
+					Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.requireRef}},
 					Args:   []js_ast.Expr{arg},
 				}}})
-				body := js_ast.FnBody{Loc: arg.Loc, Stmts: []js_ast.Stmt{{Loc: arg.Loc, Data: &js_ast.SReturn{Value: &value}}}}
+				body := js_ast.FnBody{Loc: expr.Loc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{Value: &value}}}}
 				if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
-					then = js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
+					then = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
 				} else {
-					then = js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EArrow{Body: body, PreferExpr: true}}
+					then = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EArrow{Body: body, PreferExpr: true}}
 				}
-				return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
-					Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EDot{
-						Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
-							Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EDot{
-								Target:  js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EIdentifier{Ref: p.makePromiseRef()}},
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+					Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
+						Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+							Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
+								Target:  js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.makePromiseRef()}},
 								Name:    "resolve",
-								NameLoc: arg.Loc,
+								NameLoc: expr.Loc,
 							}},
 						}},
 						Name:    "then",
-						NameLoc: arg.Loc,
+						NameLoc: expr.Loc,
 					}},
 					Args: []js_ast.Expr{then},
 				}}
 			}
 
-			return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EImport{
+			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImport{
 				Expr:                    arg,
 				LeadingInteriorComments: e.LeadingInteriorComments,
 			}}
@@ -11192,14 +11214,23 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		_, wasIdentifierBeforeVisit := e.Target.Data.(*js_ast.EIdentifier)
+		wasIdentifierBeforeVisit := false
+		isParenthesizedOptionalChain := false
+		switch e2 := e.Target.Data.(type) {
+		case *js_ast.EIdentifier:
+			wasIdentifierBeforeVisit = true
+		case *js_ast.EDot:
+			isParenthesizedOptionalChain = e.OptionalChain == js_ast.OptionalChainNone && e2.OptionalChain != js_ast.OptionalChainNone
+		case *js_ast.EIndex:
+			isParenthesizedOptionalChain = e.OptionalChain == js_ast.OptionalChainNone && e2.OptionalChain != js_ast.OptionalChainNone
+		}
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
 
 			// Signal to our child if this is an ECall at the start of an optional
 			// chain. If so, the child will need to stash the "this" context for us
 			// that we need for the ".call(this, ...args)".
-			storeThisArgForParentOptionalChain: e.OptionalChain == js_ast.OptionalChainStart,
+			storeThisArgForParentOptionalChain: e.OptionalChain == js_ast.OptionalChainStart || isParenthesizedOptionalChain,
 		})
 		e.Target = target
 		p.warnAboutImportNamespaceCallOrConstruct(e.Target, false /* isConstruct */)
@@ -11265,7 +11296,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// Pessimistically assume that if this looks like a CommonJS module
 					// (no "import" or "export" keywords), a direct call to "eval" means
 					// that code could potentially access "module" or "exports".
-					if p.options.mode == config.ModeBundle && p.es6ImportKeyword.Len == 0 && p.es6ExportKeyword.Len == 0 {
+					if p.options.mode == config.ModeBundle && !p.hasESModuleSyntax {
 						p.recordUsage(p.moduleRef)
 						p.recordUsage(p.exportsRef)
 					}
@@ -11300,6 +11331,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
+		// Handle parenthesized optional chains
+		if isParenthesizedOptionalChain && out.thisArgFunc != nil && out.thisArgWrapFunc != nil {
+			return p.lowerParenthesizedOptionalChain(expr.Loc, e, out), exprOut{}
+		}
+
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
 		if containsOptionalChain && !in.hasChainParent {
@@ -11311,7 +11347,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if !containsOptionalChain {
 			if target, loc, private := p.extractPrivateIndex(e.Target); private != nil {
 				// "foo.#bar(123)" => "__privateGet(foo, #bar).call(foo, 123)"
-				targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
+				targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target, valueDefinitelyNotMutated)
 				return targetWrapFunc(js_ast.Expr{Loc: target.Loc, Data: &js_ast.ECall{
 					Target: js_ast.Expr{Loc: target.Loc, Data: &js_ast.EDot{
 						Target:  p.lowerPrivateGet(targetFunc(), loc, private),
@@ -11343,7 +11379,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								// We don't want to spend time scanning the required files if they will
 								// never be used.
 								if p.isControlFlowDead {
-									return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ENull{}}
+									return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}}
 								}
 
 								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value))
@@ -11352,7 +11388,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 								// Create a new expression to represent the operation
 								p.ignoreUsage(p.requireRef)
-								return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}}
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}}
 							}
 
 							if !omitWarnings {
@@ -11362,7 +11398,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							}
 
 							// Otherwise just return a clone of the "require()" call
-							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
+							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
 								Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
 								Args:   []js_ast.Expr{arg},
 							}}
@@ -11960,7 +11996,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 
 				if s.StarNameLoc != nil {
 					p.namedImports[s.NamespaceRef] = js_ast.NamedImport{
-						Alias:             "*",
+						AliasIsStar:       true,
 						AliasLoc:          *s.StarNameLoc,
 						NamespaceRef:      js_ast.InvalidRef,
 						ImportRecordIndex: s.ImportRecordIndex,
@@ -12050,7 +12086,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 			if s.Alias != nil {
 				// "export * as ns from 'path'"
 				p.namedImports[s.NamespaceRef] = js_ast.NamedImport{
-					Alias:             "*",
+					AliasIsStar:       true,
 					AliasLoc:          s.Alias.Loc,
 					NamespaceRef:      js_ast.InvalidRef,
 					ImportRecordIndex: s.ImportRecordIndex,
@@ -12863,6 +12899,7 @@ func (p *parser) validateJSX(span js_ast.Span, name string) []string {
 func (p *parser) prepareForVisitPass() {
 	p.pushScopeForVisitPass(js_ast.ScopeEntry, logger.Loc{Start: locModuleScope})
 	p.moduleScope = p.currentScope
+	p.hasESModuleSyntax = p.es6ImportKeyword.Len > 0 || p.es6ExportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0
 
 	// ECMAScript modules are always interpreted as strict mode. This has to be
 	// done before "hoistSymbols" because strict mode can alter hoisting (!).
@@ -12870,6 +12907,8 @@ func (p *parser) prepareForVisitPass() {
 		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeImport)
 	} else if p.es6ExportKeyword.Len > 0 {
 		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeExport)
+	} else if p.topLevelAwaitKeyword.Len > 0 {
+		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeTopLevelAwait)
 	}
 
 	p.hoistSymbols(p.moduleScope)
@@ -12926,7 +12965,7 @@ func (p *parser) declareCommonJSSymbol(kind js_ast.SymbolKind, name string) js_a
 	// Both the "exports" argument and "var exports" are hoisted variables, so
 	// they don't collide.
 	if ok && p.symbols[member.Ref.InnerIndex].Kind == js_ast.SymbolHoisted &&
-		kind == js_ast.SymbolHoisted && p.es6ImportKeyword.Len == 0 && p.es6ExportKeyword.Len == 0 {
+		kind == js_ast.SymbolHoisted && !p.hasESModuleSyntax {
 		return member.Ref
 	}
 

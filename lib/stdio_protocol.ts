@@ -48,6 +48,8 @@ export interface BuildResponse {
   errors: types.Message[];
   warnings: types.Message[];
   outputFiles: BuildOutputFile[];
+  metafile: string;
+  writeToStdout?: Uint8Array;
   rebuildID?: number;
   watchID?: number;
 }
@@ -120,7 +122,7 @@ export interface OnResolveRequest {
   importer: string;
   namespace: string;
   resolveDir: string;
-  kind: types.ResolveKind;
+  kind: types.ImportKind;
   pluginData: number;
 }
 

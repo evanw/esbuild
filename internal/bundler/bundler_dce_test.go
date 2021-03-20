@@ -779,6 +779,35 @@ func TestPackageJsonSideEffectsKeepExportDefaultExpr(t *testing.T) {
 	})
 }
 
+func TestPackageJsonSideEffectsFalseNoWarningInNodeModulesIssue999(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import "demo-pkg"
+				console.log('used import')
+				`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				import "demo-pkg2"
+				console.log('unused import')
+			`,
+			"/Users/user/project/node_modules/demo-pkg2/index.js": `
+				export const foo = 123
+				console.log('hello')
+			`,
+			"/Users/user/project/node_modules/demo-pkg2/package.json": `
+				{
+					"sideEffects": false
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestJSONLoaderRemoveUnused(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{

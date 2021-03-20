@@ -437,6 +437,7 @@ func (lexer *Lexer) ExpectLessThan(isInsideJSXElement bool) {
 	case TLessThanEquals:
 		lexer.Token = TEquals
 		lexer.start++
+		lexer.maybeExpandEquals()
 
 	case TLessThanLessThan:
 		lexer.Token = TLessThan
@@ -466,6 +467,7 @@ func (lexer *Lexer) ExpectGreaterThan(isInsideJSXElement bool) {
 	case TGreaterThanEquals:
 		lexer.Token = TEquals
 		lexer.start++
+		lexer.maybeExpandEquals()
 
 	case TGreaterThanGreaterThan:
 		lexer.Token = TGreaterThan
@@ -485,6 +487,26 @@ func (lexer *Lexer) ExpectGreaterThan(isInsideJSXElement bool) {
 
 	default:
 		lexer.Expected(TGreaterThan)
+	}
+}
+
+func (lexer *Lexer) maybeExpandEquals() {
+	switch lexer.codePoint {
+	case '>':
+		// "=" + ">" = "=>"
+		lexer.Token = TEqualsGreaterThan
+		lexer.step()
+
+	case '=':
+		// "=" + "=" = "=="
+		lexer.Token = TEqualsEquals
+		lexer.step()
+
+		if lexer.Token == '=' {
+			// "=" + "==" = "==="
+			lexer.Token = TEqualsEqualsEquals
+			lexer.step()
+		}
 	}
 }
 

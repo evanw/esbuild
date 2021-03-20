@@ -14,6 +14,21 @@ declare const ESBUILD_VERSION: string;
 // package. "WASM" will be true for "esbuild-wasm" and false for "esbuild".
 declare const WASM: boolean;
 
+let worker_threads: typeof import('worker_threads') | undefined;
+
+// This optimization is opt-in for now because it could break if node has bugs
+// with "worker_threads", and node has had such bugs in the past.
+//
+// TODO: Determine under which conditions this is safe to enable, and then
+// replace this check with a check for those conditions.
+if (process.env.ESBUILD_WORKER_THREADS) {
+  // Don't crash if the "worker_threads" library isn't present
+  try {
+    worker_threads = require('worker_threads');
+  } catch {
+  }
+}
+
 let esbuildCommandAndArgs = (): [string, string[]] => {
   // This feature was added to give external code a way to modify the binary
   // path without modifying the code itself. Do not remove this because
@@ -61,22 +76,23 @@ let isTTY = () => tty.isatty(2);
 export let version = ESBUILD_VERSION;
 
 export let build: typeof types.build = (options: types.BuildOptions): Promise<any> =>
-  startService().then<types.BuildResult>(service =>
-    service.build(options));
+  ensureServiceIsRunning().build(options);
 
 export let serve: typeof types.serve = (serveOptions, buildOptions) =>
-  startService().then(service =>
-    service.serve(serveOptions, buildOptions));
+  ensureServiceIsRunning().serve(serveOptions, buildOptions);
 
-export let transform: typeof types.transform = (input, options) => {
-  input += '';
-  return startService().then(service =>
-    service.transform(input, options));
-};
+export let transform: typeof types.transform = (input, options) =>
+  ensureServiceIsRunning().transform(input, options);
 
 export let buildSync: typeof types.buildSync = (options: types.BuildOptions): any => {
+  // Try using a long-lived worker thread to avoid repeated start-up overhead
+  if (worker_threads) {
+    if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
+    return workerThreadService.buildSync(options);
+  }
+
   let result: types.BuildResult;
-  runServiceSync(service => service.buildOrServe('buildSync', null, null, options, isTTY(), process.cwd(), (err, res) => {
+  runServiceSync(service => service.buildOrServe('buildSync', null, null, options, isTTY(), defaultWD, (err, res) => {
     if (err) throw err;
     result = res as types.BuildResult;
   }));
@@ -84,7 +100,12 @@ export let buildSync: typeof types.buildSync = (options: types.BuildOptions): an
 };
 
 export let transformSync: typeof types.transformSync = (input, options) => {
-  input += '';
+  // Try using a long-lived worker thread to avoid repeated start-up overhead
+  if (worker_threads) {
+    if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
+    return workerThreadService.transformSync(input, options);
+  }
+
   let result: types.TransformResult;
   runServiceSync(service => service.transform('transformSync', null, input, options || {}, isTTY(), {
     readFile(tempFile, callback) {
@@ -115,15 +136,34 @@ export let transformSync: typeof types.transformSync = (input, options) => {
   return result!;
 };
 
-export let startService: typeof types.startService = common.longLivedService(() => process.cwd(), options => {
-  options = common.validateServiceOptions(options || {});
+let initializeWasCalled = false;
+
+export let initialize: typeof types.initialize = options => {
+  options = common.validateInitializeOptions(options || {});
   if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
   if (options.worker) throw new Error(`The "worker" option only works in the browser`)
+  if (initializeWasCalled) throw new Error('Cannot call "initialize" more than once')
+  ensureServiceIsRunning()
+  initializeWasCalled = true
+  return Promise.resolve();
+}
+
+interface Service {
+  build: typeof types.build;
+  serve: typeof types.serve;
+  transform: typeof types.transform;
+}
+
+let defaultWD = process.cwd();
+let longLivedService: Service | undefined;
+
+let ensureServiceIsRunning = (): Service => {
+  if (longLivedService) return longLivedService;
   let [command, args] = esbuildCommandAndArgs();
-  let defaultWD = process.cwd();
   let child = child_process.spawn(command, args.concat(`--service=${ESBUILD_VERSION}`, '--ping'), {
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'inherit'],
+    cwd: defaultWD,
   });
 
   let { readFromStdout, afterClose, service } = common.createChannel({
@@ -155,8 +195,7 @@ export let startService: typeof types.startService = common.longLivedService(() 
     unref() { if (--refCount === 0) child.unref(); },
   }
 
-  // Create an asynchronous Promise-based API
-  return Promise.resolve({
+  longLivedService = {
     build: (options: types.BuildOptions): Promise<any> => {
       return new Promise<types.BuildResult>((resolve, reject) => {
         service.buildOrServe('build', refs, null, options, isTTY(), defaultWD, (err, res) => {
@@ -181,7 +220,6 @@ export let startService: typeof types.startService = common.longLivedService(() 
         }))
     },
     transform: (input, options) => {
-      input += '';
       return new Promise((resolve, reject) =>
         service.transform('transform', refs, input, options || {}, isTTY(), {
           readFile(tempFile, callback) {
@@ -208,12 +246,9 @@ export let startService: typeof types.startService = common.longLivedService(() 
           },
         }, (err, res) => err ? reject(err) : resolve(res!)));
     },
-    stop() {
-      // Note: This is now never called
-      child.kill();
-    },
-  });
-});
+  };
+  return longLivedService;
+}
 
 let runServiceSync = (callback: (service: common.StreamService) => void): void => {
   let [command, args] = esbuildCommandAndArgs();
@@ -228,7 +263,7 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
   });
   callback(service);
   let stdout = child_process.execFileSync(command, args.concat(`--service=${ESBUILD_VERSION}`), {
-    cwd: process.cwd(),
+    cwd: defaultWD,
     windowsHide: true,
     input: stdin,
 
@@ -245,3 +280,165 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
 let randomFileName = () => {
   return path.join(os.tmpdir(), `esbuild-${crypto.randomBytes(32).toString('hex')}`);
 };
+
+interface MainToWorkerMessage {
+  sharedBuffer: SharedArrayBuffer;
+  id: number;
+  command: string;
+  args: any[];
+}
+
+interface WorkerThreadService {
+  buildSync(options: types.BuildOptions): types.BuildResult;
+  transformSync(input: string, options?: types.TransformOptions): types.TransformResult;
+}
+
+let workerThreadService: WorkerThreadService | null = null;
+
+let startWorkerThreadService = (worker_threads: typeof import('worker_threads')): WorkerThreadService => {
+  let { port1: mainPort, port2: workerPort } = new worker_threads.MessageChannel();
+  let worker = new worker_threads.Worker(__filename, {
+    workerData: { workerPort, defaultWD },
+    transferList: [workerPort],
+
+    // From node's documentation: https://nodejs.org/api/worker_threads.html
+    //
+    //   Take care when launching worker threads from preload scripts (scripts loaded
+    //   and run using the `-r` command line flag). Unless the `execArgv` option is
+    //   explicitly set, new Worker threads automatically inherit the command line flags
+    //   from the running process and will preload the same preload scripts as the main
+    //   thread. If the preload script unconditionally launches a worker thread, every
+    //   thread spawned will spawn another until the application crashes.
+    //
+    execArgv: [],
+  });
+  let nextID = 0;
+  let wasStopped = false;
+
+  // This forbids options which would cause structured clone errors
+  let validateBuildSyncOptions = (options: types.BuildOptions | undefined): void => {
+    if (!options) return
+    let plugins = options.plugins
+    let incremental = options.incremental
+    if (plugins && plugins.length > 0) throw new Error(`Cannot use plugins in synchronous API calls`);
+    if (incremental) throw new Error(`Cannot use "incremental" with a synchronous build`);
+  };
+
+  // MessagePort doesn't copy the properties of Error objects. We still want
+  // error objects to have extra properties such as "warnings" so implement the
+  // property copying manually.
+  let applyProperties = (object: any, properties: Record<string, any>): void => {
+    for (let key in properties) {
+      object[key] = properties[key];
+    }
+  };
+
+  let runCallSync = (command: string, args: any[]): any => {
+    if (wasStopped) throw new Error('The service was stopped');
+    let id = nextID++;
+
+    // Make a fresh shared buffer for every request. That way we can't have a
+    // race where a notification from the previous call overlaps with this call.
+    let sharedBuffer = new SharedArrayBuffer(8);
+    let sharedBufferView = new Int32Array(sharedBuffer);
+
+    // Send the message to the worker. Note that the worker could potentially
+    // complete the request before this thread returns from this call.
+    let msg: MainToWorkerMessage = { sharedBuffer, id, command, args };
+    worker.postMessage(msg);
+
+    // If the value hasn't changed (i.e. the request hasn't been completed,
+    // wait until the worker thread notifies us that the request is complete).
+    //
+    // Otherwise, if the value has changed, the request has already been
+    // completed. Don't wait in that case because the notification may never
+    // arrive if it has already been sent.
+    let status = Atomics.wait(sharedBufferView, 0, 0);
+    if (status !== 'ok' && status !== 'not-equal') throw new Error('Internal error: Atomics.wait() failed: ' + status);
+
+    let { message: { id: id2, resolve, reject, properties } } = worker_threads!.receiveMessageOnPort(mainPort)!;
+    if (id !== id2) throw new Error(`Internal error: Expected id ${id} but got id ${id2}`);
+    if (reject) {
+      applyProperties(reject, properties);
+      throw reject;
+    }
+    return resolve;
+  };
+
+  // Calling unref() on a worker will allow the thread to exit if it's the last
+  // only active handle in the event system. This means node will still exit
+  // when there are no more event handlers from the main thread. So there's no
+  // need to have a "stop()" function.
+  worker.unref();
+
+  return {
+    buildSync(options) {
+      validateBuildSyncOptions(options);
+      return runCallSync('build', [options]);
+    },
+    transformSync(input, options) {
+      return runCallSync('transform', [input, options]);
+    },
+  };
+};
+
+let startSyncServiceWorker = () => {
+  let workerPort: import('worker_threads').MessagePort = worker_threads!.workerData.workerPort;
+  let parentPort = worker_threads!.parentPort!;
+  let service = ensureServiceIsRunning();
+
+  // Take the default working directory from the main thread because we want it
+  // to be consistent. This will be the working directory that was current at
+  // the time the "esbuild" package was first imported.
+  defaultWD = worker_threads!.workerData.defaultWD;
+
+  // MessagePort doesn't copy the properties of Error objects. We still want
+  // error objects to have extra properties such as "warnings" so implement the
+  // property copying manually.
+  let extractProperties = (object: any): Record<string, any> => {
+    let properties: Record<string, any> = {};
+    if (object && typeof object === 'object') {
+      for (let key in object) {
+        properties[key] = object[key];
+      }
+    }
+    return properties;
+  };
+
+  parentPort.on('message', (msg: MainToWorkerMessage) => {
+    (async () => {
+      let { sharedBuffer, id, command, args } = msg;
+      let sharedBufferView = new Int32Array(sharedBuffer);
+
+      try {
+        if (command === 'build') {
+          workerPort.postMessage({ id, resolve: await service.build(args[0]) });
+        } else if (command === 'transform') {
+          workerPort.postMessage({ id, resolve: await service.transform(args[0], args[1]) });
+        } else {
+          throw new Error(`Invalid command: ${command}`);
+        }
+      } catch (reject) {
+        workerPort.postMessage({ id, reject, properties: extractProperties(reject) });
+      }
+
+      // The message has already been posted by this point, so it should be
+      // safe to wake the main thread. The main thread should always get the
+      // message we sent above.
+
+      // First, change the shared value. That way if the main thread attempts
+      // to wait for us after this point, the wait will fail because the shared
+      // value has changed.
+      Atomics.add(sharedBufferView, 0, 1);
+
+      // Then, wake the main thread. This handles the case where the main
+      // thread was already waiting for us before the shared value was changed.
+      Atomics.notify(sharedBufferView, 0, Infinity);
+    })();
+  });
+};
+
+// If we're in the worker thread, start the worker code
+if (worker_threads && !worker_threads.isMainThread) {
+  startSyncServiceWorker();
+}

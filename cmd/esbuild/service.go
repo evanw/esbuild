@@ -356,15 +356,9 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	// Normally when "write" is true and there is no output file/directory then
 	// the output is written to stdout instead. However, we're currently using
 	// stdout as a communication channel and writing the build output to stdout
-	// would corrupt our protocol.
-	//
-	// While we could channel this back to the host process and write it to
-	// stdout there, the public Go API we're about to call doesn't have an option
-	// for "write to stdout but don't actually write" and I don't think it should.
-	// For now let's just forbid this case because it's not even that useful.
-	if err == nil && !isServe && write && options.Outfile == "" && options.Outdir == "" {
-		err = errors.New("Either provide \"outfile\" or set \"write\" to false")
-	}
+	// would corrupt our protocol. Special-case this to channel this back to the
+	// host process and write it to stdout there.
+	writeToStdout := err == nil && !isServe && write && options.Outfile == "" && options.Outdir == ""
 
 	if err != nil {
 		return outgoingPacket{bytes: encodeErrorPacket(id, err)}
@@ -417,6 +411,12 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		if options.Watch != nil {
 			response["watchID"] = watchID
 		}
+		if options.Metafile {
+			response["metafile"] = result.Metafile
+		}
+		if writeToStdout && len(result.OutputFiles) == 1 {
+			response["writeToStdout"] = result.OutputFiles[0].Contents
+		}
 		return response
 	}
 
@@ -430,7 +430,9 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		}
 	}
 
-	options.Write = write
+	if !writeToStdout {
+		options.Write = write
+	}
 	options.Incremental = incremental
 	result := api.Build(options)
 	response := resultToResponse(result)

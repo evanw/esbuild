@@ -37,6 +37,18 @@ TestCSSAtImport
 }
 
 ================================================================================
+TestCSSAtImportConditionsBundleExternal
+---------- /out.css ----------
+@import "https://example.com/print.css" print;
+
+/* entry.css */
+
+================================================================================
+TestCSSAtImportConditionsNoBundle
+---------- /out.css ----------
+@import "./print.css" print;
+
+================================================================================
 TestCSSAtImportExtensionOrderCollision
 ---------- /out.css ----------
 /* test.css */
@@ -125,17 +137,17 @@ path {
 
 ================================================================================
 TestFileImportURLInCSS
----------- /out/example.RPS4CMHF.data ----------
+---------- /out/example-RPS4CMHF.data ----------
 This is some data.
 ---------- /out/entry.css ----------
 /* one.css */
 a {
-  background: url(./example.RPS4CMHF.data);
+  background: url(./example-RPS4CMHF.data);
 }
 
 /* two.css */
 b {
-  background: url(./example.RPS4CMHF.data);
+  background: url(./example-RPS4CMHF.data);
 }
 
 /* entry.css */

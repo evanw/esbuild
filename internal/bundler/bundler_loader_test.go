@@ -233,7 +233,7 @@ func TestLoaderJSONMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `entry.js: error: No matching export for import "missing"
+		expectedCompileLog: `entry.js: error: No matching export in "test.json" for import "missing"
 `,
 	})
 }
@@ -443,6 +443,136 @@ func TestLoaderFromExtensionWithQueryParameter(t *testing.T) {
 				".abc": config.LoaderText,
 				".xyz": config.LoaderBase64,
 			},
+		},
+	})
+}
+
+func TestLoaderDataURLTextCSS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@import "data:text/css,body{color:%72%65%64}";
+				@import "data:text/css;base64,Ym9keXtiYWNrZ3JvdW5kOmJsdWV9";
+				@import "data:text/css;charset=UTF-8,body{color:%72%65%64}";
+				@import "data:text/css;charset=UTF-8;base64,Ym9keXtiYWNrZ3JvdW5kOmJsdWV9";
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestLoaderDataURLTextCSSCannotImport(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@import "data:text/css,@import './other.css';";
+			`,
+			"/other.css": `
+				div { should-not-be-imported: true }
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `<data:text/css,@import './other.css';>: error: Could not resolve "./other.css"
+`,
+	})
+}
+
+func TestLoaderDataURLTextJavaScript(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "data:text/javascript,console.log('%31%32%33')";
+				import "data:text/javascript;base64,Y29uc29sZS5sb2coMjM0KQ==";
+				import "data:text/javascript;charset=UTF-8,console.log(%31%32%33)";
+				import "data:text/javascript;charset=UTF-8;base64,Y29uc29sZS5sb2coMjM0KQ==";
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestLoaderDataURLTextJavaScriptCannotImport(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "data:text/javascript,import './other.js'"
+			`,
+			"/other.js": `
+				shouldNotBeImported = true
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `<data:text/javascript,import './other.js'>: error: Could not resolve "./other.js"
+`,
+	})
+}
+
+// The "+" character must not be interpreted as a " " character
+func TestLoaderDataURLTextJavaScriptPlusCharacter(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "data:text/javascript,console.log(1+2)";
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestLoaderDataURLApplicationJSON(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import a from 'data:application/json,"%31%32%33"';
+				import b from 'data:application/json;base64,eyJ3b3JrcyI6dHJ1ZX0=';
+				import c from 'data:application/json;charset=UTF-8,%31%32%33';
+				import d from 'data:application/json;charset=UTF-8;base64,eyJ3b3JrcyI6dHJ1ZX0=';
+				console.log([
+					a, b, c, d,
+				])
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestLoaderDataURLUnknownMIME(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import a from 'data:some/thing;what,someData%31%32%33';
+				import b from 'data:other/thing;stuff;base64,c29tZURhdGEyMzQ=';
+				console.log(a, b)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
 		},
 	})
 }

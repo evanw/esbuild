@@ -50,7 +50,9 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 			}
 		}
 		assertEqual(t, text, "")
-		css := css_printer.Print(tree, css_printer.Options{})
+		css := css_printer.Print(tree, css_printer.Options{
+			RemoveWhitespace: options.RemoveWhitespace,
+		})
 		assertEqual(t, string(css), expected)
 	})
 }
@@ -79,6 +81,14 @@ func expectPrintedLowerMangle(t *testing.T, contents string, expected string) {
 	expectPrintedCommon(t, contents+" [mangle]", contents, expected, config.Options{
 		UnsupportedCSSFeatures: ^compat.CSSFeature(0),
 		MangleSyntax:           true,
+	})
+}
+
+func expectPrintedMangleMinify(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [mangle, minify]", contents, expected, config.Options{
+		MangleSyntax:     true,
+		RemoveWhitespace: true,
 	})
 }
 
@@ -677,6 +687,82 @@ func TestAtRule(t *testing.T) {
 	expectParseError(t, "@", "<stdin>: warning: Unexpected \"@\"\n")
 	expectParseError(t, "@;", "<stdin>: warning: Unexpected \"@\"\n")
 	expectParseError(t, "@{}", "<stdin>: warning: Unexpected \"@\"\n")
+
+	// https://www.w3.org/TR/css-page-3/#syntax-page-selector
+	expectPrinted(t, `
+		@page :first { margin: 0 }
+		@page {
+			@top-left-corner { content: 'tlc' }
+			@top-left { content: 'tl' }
+			@top-center { content: 'tc' }
+			@top-right { content: 'tr' }
+			@top-right-corner { content: 'trc' }
+			@bottom-left-corner { content: 'blc' }
+			@bottom-left { content: 'bl' }
+			@bottom-center { content: 'bc' }
+			@bottom-right { content: 'br' }
+			@bottom-right-corner { content: 'brc' }
+			@left-top { content: 'lt' }
+			@left-middle { content: 'lm' }
+			@left-bottom { content: 'lb' }
+			@right-top { content: 'rt' }
+			@right-middle { content: 'rm' }
+			@right-bottom { content: 'rb' }
+		}
+	`, `@page :first {
+  margin: 0;
+}
+@page {
+  @top-left-corner {
+    content: "tlc";
+  }
+  @top-left {
+    content: "tl";
+  }
+  @top-center {
+    content: "tc";
+  }
+  @top-right {
+    content: "tr";
+  }
+  @top-right-corner {
+    content: "trc";
+  }
+  @bottom-left-corner {
+    content: "blc";
+  }
+  @bottom-left {
+    content: "bl";
+  }
+  @bottom-center {
+    content: "bc";
+  }
+  @bottom-right {
+    content: "br";
+  }
+  @bottom-right-corner {
+    content: "brc";
+  }
+  @left-top {
+    content: "lt";
+  }
+  @left-middle {
+    content: "lm";
+  }
+  @left-bottom {
+    content: "lb";
+  }
+  @right-top {
+    content: "rt";
+  }
+  @right-middle {
+    content: "rm";
+  }
+  @right-bottom {
+    content: "rb";
+  }
+}
+`)
 }
 
 func TestAtCharset(t *testing.T) {
@@ -703,6 +789,8 @@ func TestAtImport(t *testing.T) {
 	expectPrinted(t, "@import url(foo.css) ;", "@import \"foo.css\";\n")
 	expectPrinted(t, "@import url(\"foo.css\");", "@import \"foo.css\";\n")
 	expectPrinted(t, "@import url(\"foo.css\") ;", "@import \"foo.css\";\n")
+	expectPrinted(t, "@import url(\"foo.css\") print;", "@import \"foo.css\" print;\n")
+	expectPrinted(t, "@import url(\"foo.css\") screen and (orientation:landscape);", "@import \"foo.css\" screen and (orientation:landscape);\n")
 
 	expectParseError(t, "@import;", "<stdin>: warning: Expected URL token but found \";\"\n")
 	expectParseError(t, "@import ;", "<stdin>: warning: Expected URL token but found \";\"\n")
@@ -714,9 +802,7 @@ func TestAtImport(t *testing.T) {
 <stdin>: warning: Expected ";" but found end of file
 `)
 
-	expectParseError(t, "@import \"foo.css\" {}", `<stdin>: warning: Expected ";"
-<stdin>: warning: Unexpected "{"
-`)
+	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: warning: Expected \";\" but found end of file\n")
 }
 
 func TestAtKeyframes(t *testing.T) {
@@ -762,4 +848,31 @@ func TestAtRuleValidation(t *testing.T) {
 	expectParseError(t, "a {} @import \"foo\";",
 		"<stdin>: warning: All \"@import\" rules must come first\n"+
 			"<stdin>: note: This rule cannot come before an \"@import\" rule\n")
+}
+
+func TestEmptyRule(t *testing.T) {
+	expectPrinted(t, "div {}", "div {\n}\n")
+	expectPrinted(t, "@media screen {}", "@media screen {\n}\n")
+	expectPrinted(t, "@page { @top-left {} }", "@page {\n  @top-left {\n  }\n}\n")
+	expectPrinted(t, "@keyframes test { from {} to {} }", "@keyframes test {\n  from {\n  }\n  to {\n  }\n}\n")
+
+	expectPrintedMangle(t, "div {}", "")
+	expectPrintedMangle(t, "@media screen {}", "")
+	expectPrintedMangle(t, "@page { @top-left {} }", "")
+	expectPrintedMangle(t, "@keyframes test { from {} to {} }", "")
+
+	expectPrinted(t, "$invalid {}", "$invalid {\n}\n")
+	expectPrinted(t, "@page { color: red; @top-left {} }", "@page {\n  color: red;\n  @top-left {\n  }\n}\n")
+	expectPrinted(t, "@keyframes test { from {} to { color: red } }", "@keyframes test {\n  from {\n  }\n  to {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "@keyframes test { from { color: red } to {} }", "@keyframes test {\n  from {\n    color: red;\n  }\n  to {\n  }\n}\n")
+
+	expectPrintedMangle(t, "$invalid {}", "$invalid {\n}\n")
+	expectPrintedMangle(t, "@page { color: red; @top-left {} }", "@page {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "@keyframes test { from {} to { color: red } }", "@keyframes test {\n  to {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@keyframes test { from { color: red } to {} }", "@keyframes test {\n  0% {\n    color: red;\n  }\n}\n")
+
+	expectPrintedMangleMinify(t, "$invalid {}", "$invalid{}")
+	expectPrintedMangleMinify(t, "@page { color: red; @top-left {} }", "@page{color:red}")
+	expectPrintedMangleMinify(t, "@keyframes test { from {} to { color: red } }", "@keyframes test{to{color:red}}")
+	expectPrintedMangleMinify(t, "@keyframes test { from { color: red } to {} }", "@keyframes test{0%{color:red}}")
 }

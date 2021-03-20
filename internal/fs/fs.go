@@ -47,6 +47,10 @@ type DirEntries struct {
 	data map[string]*Entry
 }
 
+func MakeEmptyDirEntries(dir string) DirEntries {
+	return DirEntries{dir, make(map[string]*Entry)}
+}
+
 type DifferentCase struct {
 	Dir    string
 	Query  string

@@ -69,7 +69,7 @@ function checkForInvalidFlags(object: Object, keys: OptionKeys, where: string): 
   }
 }
 
-export function validateServiceOptions(options: types.ServiceOptions): types.ServiceOptions {
+export function validateInitializeOptions(options: types.InitializeOptions): types.InitializeOptions {
   let keys: OptionKeys = Object.create(null);
   let wasmURL = getFlag(options, keys, 'wasmURL', mustBeString);
   let worker = getFlag(options, keys, 'worker', mustBeBoolean);
@@ -85,12 +85,12 @@ type CommonOptions = types.BuildOptions | types.TransformOptions;
 function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys, isTTY: boolean, logLevelDefault: types.LogLevel): void {
   let color = getFlag(options, keys, 'color', mustBeBoolean);
   let logLevel = getFlag(options, keys, 'logLevel', mustBeString);
-  let errorLimit = getFlag(options, keys, 'errorLimit', mustBeInteger);
+  let logLimit = getFlag(options, keys, 'logLimit', mustBeInteger);
 
   if (color) flags.push(`--color=${color}`);
   else if (isTTY) flags.push(`--color=true`); // This is needed to fix "execFileSync" which buffers stderr
   flags.push(`--log-level=${logLevel || logLevelDefault}`);
-  flags.push(`--error-limit=${errorLimit || 0}`);
+  flags.push(`--log-limit=${logLimit || 0}`);
 }
 
 function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKeys): void {
@@ -108,10 +108,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
   let define = getFlag(options, keys, 'define', mustBeObject);
   let pure = getFlag(options, keys, 'pure', mustBeArray);
-  let avoidTDZ = getFlag(options, keys, 'avoidTDZ', mustBeBoolean);
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
-  let banner = getFlag(options, keys, 'banner', mustBeString);
-  let footer = getFlag(options, keys, 'footer', mustBeString);
 
   if (sourcesContent !== void 0) flags.push(`--sources-content=${sourcesContent}`);
   if (target) {
@@ -137,11 +134,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
     }
   }
   if (pure) for (let fn of pure) flags.push(`--pure:${fn}`);
-  if (avoidTDZ) flags.push(`--avoid-tdz`);
   if (keepNames) flags.push(`--keep-names`);
-
-  if (banner) flags.push(`--banner=${banner}`);
-  if (footer) flags.push(`--footer=${footer}`);
 }
 
 function flagsForBuildOptions(
@@ -153,7 +146,6 @@ function flagsForBuildOptions(
 ): {
   flags: string[],
   write: boolean,
-  plugins: types.Plugin[] | undefined,
   stdinContents: string | null,
   stdinResolveDir: string | null,
   absWorkingDir: string | undefined,
@@ -174,7 +166,7 @@ function flagsForBuildOptions(
   let watch = getFlag(options, keys, 'watch', mustBeBooleanOrObject);
   let splitting = getFlag(options, keys, 'splitting', mustBeBoolean);
   let preserveSymlinks = getFlag(options, keys, 'preserveSymlinks', mustBeBoolean);
-  let metafile = getFlag(options, keys, 'metafile', mustBeString);
+  let metafile = getFlag(options, keys, 'metafile', mustBeBoolean);
   let outfile = getFlag(options, keys, 'outfile', mustBeString);
   let outdir = getFlag(options, keys, 'outdir', mustBeString);
   let outbase = getFlag(options, keys, 'outbase', mustBeString);
@@ -183,19 +175,23 @@ function flagsForBuildOptions(
   let resolveExtensions = getFlag(options, keys, 'resolveExtensions', mustBeArray);
   let nodePathsInput = getFlag(options, keys, 'nodePaths', mustBeArray);
   let mainFields = getFlag(options, keys, 'mainFields', mustBeArray);
+  let conditions = getFlag(options, keys, 'conditions', mustBeArray);
   let external = getFlag(options, keys, 'external', mustBeArray);
   let loader = getFlag(options, keys, 'loader', mustBeObject);
   let outExtension = getFlag(options, keys, 'outExtension', mustBeObject);
   let publicPath = getFlag(options, keys, 'publicPath', mustBeString);
+  let entryNames = getFlag(options, keys, 'entryNames', mustBeString);
   let chunkNames = getFlag(options, keys, 'chunkNames', mustBeString);
   let assetNames = getFlag(options, keys, 'assetNames', mustBeString);
   let inject = getFlag(options, keys, 'inject', mustBeArray);
+  let banner = getFlag(options, keys, 'banner', mustBeObject);
+  let footer = getFlag(options, keys, 'footer', mustBeObject);
   let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
   let absWorkingDir = getFlag(options, keys, 'absWorkingDir', mustBeString);
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
   let write = getFlag(options, keys, 'write', mustBeBoolean) ?? writeDefault; // Default to true if not specified
   let incremental = getFlag(options, keys, 'incremental', mustBeBoolean) === true;
-  let plugins = getFlag(options, keys, 'plugins', mustBeArray);
+  keys.plugins = true; // "plugins" has already been read earlier
   checkForInvalidFlags(options, keys, `in ${callName}() call`);
 
   if (sourcemap) flags.push(`--sourcemap${sourcemap === true ? '' : `=${sourcemap}`}`);
@@ -213,7 +209,7 @@ function flagsForBuildOptions(
   }
   if (splitting) flags.push('--splitting');
   if (preserveSymlinks) flags.push('--preserve-symlinks');
-  if (metafile) flags.push(`--metafile=${metafile}`);
+  if (metafile) flags.push(`--metafile`);
   if (outfile) flags.push(`--outfile=${outfile}`);
   if (outdir) flags.push(`--outdir=${outdir}`);
   if (outbase) flags.push(`--outbase=${outbase}`);
@@ -229,6 +225,7 @@ function flagsForBuildOptions(
     flags.push(`--resolve-extensions=${values.join(',')}`);
   }
   if (publicPath) flags.push(`--public-path=${publicPath}`);
+  if (entryNames) flags.push(`--entry-names=${entryNames}`);
   if (chunkNames) flags.push(`--chunk-names=${chunkNames}`);
   if (assetNames) flags.push(`--asset-names=${assetNames}`);
   if (mainFields) {
@@ -240,7 +237,28 @@ function flagsForBuildOptions(
     }
     flags.push(`--main-fields=${values.join(',')}`);
   }
+  if (conditions) {
+    let values: string[] = [];
+    for (let value of conditions) {
+      value += '';
+      if (value.indexOf(',') >= 0) throw new Error(`Invalid condition: ${value}`);
+      values.push(value);
+    }
+    flags.push(`--conditions=${values.join(',')}`);
+  }
   if (external) for (let name of external) flags.push(`--external:${name}`);
+  if (banner) {
+    for (let type in banner) {
+      if (type.indexOf('=') >= 0) throw new Error(`Invalid banner file type: ${type}`);
+      flags.push(`--banner:${type}=${banner[type]}`);
+    }
+  }
+  if (footer) {
+    for (let type in footer) {
+      if (type.indexOf('=') >= 0) throw new Error(`Invalid footer file type: ${type}`);
+      flags.push(`--footer:${type}=${footer[type]}`);
+    }
+  }
   if (inject) for (let path of inject) flags.push(`--inject:${path}`);
   if (loader) {
     for (let ext in loader) {
@@ -288,7 +306,6 @@ function flagsForBuildOptions(
   return {
     flags,
     write,
-    plugins,
     stdinContents,
     stdinResolveDir,
     absWorkingDir,
@@ -313,12 +330,16 @@ function flagsForTransformOptions(
   let tsconfigRaw = getFlag(options, keys, 'tsconfigRaw', mustBeStringOrObject);
   let sourcefile = getFlag(options, keys, 'sourcefile', mustBeString);
   let loader = getFlag(options, keys, 'loader', mustBeString);
+  let banner = getFlag(options, keys, 'banner', mustBeString);
+  let footer = getFlag(options, keys, 'footer', mustBeString);
   checkForInvalidFlags(options, keys, `in ${callName}() call`);
 
   if (sourcemap) flags.push(`--sourcemap=${sourcemap === true ? 'external' : sourcemap}`);
   if (tsconfigRaw) flags.push(`--tsconfig-raw=${typeof tsconfigRaw === 'string' ? tsconfigRaw : JSON.stringify(tsconfigRaw)}`);
   if (sourcefile) flags.push(`--sourcefile=${sourcefile}`);
   if (loader) flags.push(`--loader=${loader}`);
+  if (banner) flags.push(`--banner=${banner}`);
+  if (footer) flags.push(`--footer=${footer}`);
 
   return flags;
 }
@@ -413,11 +434,11 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         break;
       }
       offset += 4;
-      handleIncomingPacket(stdout.slice(offset, offset + length));
+      handleIncomingPacket(stdout.subarray(offset, offset + length));
       offset += length;
     }
     if (offset > 0) {
-      stdout.set(stdout.slice(offset));
+      stdout.copyWithin(0, offset, stdoutUsed);
       stdoutUsed -= offset;
     }
   };
@@ -557,7 +578,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
-  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number, stash: ObjectStash): Refs => {
+  let handlePlugins = (initialOptions: types.BuildOptions, plugins: types.Plugin[], buildKey: number, stash: ObjectStash): [protocol.BuildPlugin[], Refs] => {
     if (streamIn.isSync) throw new Error('Cannot use plugins in synchronous API calls');
 
     let onResolveCallbacks: {
@@ -578,8 +599,10 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     } = {};
     let nextCallbackID = 0;
     let i = 0;
+    let requestPlugins: protocol.BuildPlugin[] = [];
 
-    request.plugins = [];
+    // Clone the plugin array to guard against mutation during iteration
+    plugins = [...plugins];
 
     for (let item of plugins) {
       let keys: OptionKeys = {};
@@ -599,6 +622,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       i++;
 
       setup({
+        initialOptions,
+
         onResolve(options, callback) {
           let registeredText = `This error came from the "onResolve" callback registered here`
           let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onResolve');
@@ -626,7 +651,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         },
       });
 
-      request.plugins.push(plugin);
+      requestPlugins.push(plugin);
     }
 
     const callback: PluginCallback = async (request) => {
@@ -721,10 +746,10 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
 
     let refCount = 0;
-    return {
+    return [requestPlugins, {
       ref() { if (++refCount === 1) pluginCallbacks.set(buildKey, callback); },
       unref() { if (--refCount === 0) pluginCallbacks.delete(buildKey) },
-    };
+    }];
   };
 
   interface ServeData {
@@ -774,7 +799,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       buildOrServe(callName, callerRefs, serveOptions, options, isTTY, defaultWD, callback) {
         let pluginRefs: Refs | undefined;
         const details = createObjectStash();
-        const logLevelDefault = 'info';
+        const logLevelDefault = 'warning';
         const refs = {
           ref() {
             if (pluginRefs) pluginRefs.ref()
@@ -788,10 +813,21 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         try {
           let key = nextBuildKey++;
           let writeDefault = !streamIn.isBrowser;
+          let plugins: types.Plugin[] | undefined;
+          let requestPlugins: protocol.BuildPlugin[] | undefined;
+          if (typeof options === 'object') {
+            let value = options.plugins;
+            if (value !== void 0) {
+              if (!Array.isArray(value)) throw new Error(`"plugins" must be an array`);
+              plugins = value;
+            }
+          }
+          if (plugins && plugins.length > 0) {
+            [requestPlugins, pluginRefs] = handlePlugins(options, plugins, key, details);
+          }
           let {
             flags,
             write,
-            plugins,
             stdinContents,
             stdinResolveDir,
             absWorkingDir,
@@ -811,8 +847,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             nodePaths,
             hasOnRebuild: !!(watch && watch.onRebuild),
           };
+          if (requestPlugins) request.plugins = requestPlugins;
           let serve = serveOptions && buildServeData(refs, serveOptions, request);
-          if (plugins && plugins.length > 0) pluginRefs = handlePlugins(plugins, request, key, details);
 
           // Factor out response handling so it can be reused for rebuilds
           let rebuild: types.BuildResult['rebuild'] | undefined;
@@ -826,6 +862,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
             let result: types.BuildResult = { warnings };
             if (response!.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
+            if (response!.metafile) result.metafile = JSON.parse(response!.metafile);
+            if (response!.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''));
 
             // Handle incremental rebuilds
             if (response!.rebuildID !== void 0) {
@@ -955,6 +993,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         // that doesn't work.
         let start = (inputPath: string | null) => {
           try {
+            if (typeof input !== 'string') throw new Error('The input to "transform" must be a string');
             let flags = flagsForTransformOptions(callName, options, isTTY, logLevelDefault);
             let request: protocol.TransformRequest = {
               command: 'transform',
@@ -1008,7 +1047,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             });
           }
         };
-        if (input.length > 1024 * 1024) {
+        if (typeof input === 'string' && input.length > 1024 * 1024) {
           let next = start;
           start = () => fs.writeFile(input, next);
         }
@@ -1046,7 +1085,7 @@ function createObjectStash(): ObjectStash {
 
 function extractCallerV8(e: Error, streamIn: StreamIn, ident: string): types.Note | undefined {
   try {
-    let lines = (e.stack + '').split('\n', 4)
+    let lines = (e.stack + '').split('\n')
     lines.splice(1, 1)
     let location = parseStackLinesV8(streamIn, lines, ident)
     if (location) {
@@ -1067,7 +1106,7 @@ function extractErrorMessageV8(e: any, streamIn: StreamIn, stash: ObjectStash | 
 
   // Optionally attempt to extract the file from the stack trace, works in V8/node
   try {
-    location = parseStackLinesV8(streamIn, (e.stack + '').split('\n', 3), '')
+    location = parseStackLinesV8(streamIn, (e.stack + '').split('\n'), '')
   } catch {
   }
 
@@ -1079,39 +1118,48 @@ function parseStackLinesV8(streamIn: StreamIn, lines: string[], ident: string): 
 
   // Check to see if this looks like a V8 stack trace
   if (streamIn.readFileSync && !lines[0].startsWith(at) && lines[1].startsWith(at)) {
-    let line = lines[1].slice(at.length)
-    while (true) {
-      // Unwrap a function name
-      let match = /^\S+ \((.*)\)$/.exec(line)
-      if (match) {
-        line = match[1]
-        continue
-      }
-
-      // Unwrap an eval wrapper
-      match = /^eval at \S+ \((.*)\)(?:, \S+:\d+:\d+)?$/.exec(line)
-      if (match) {
-        line = match[1]
-        continue
-      }
-
-      // Match on the file location
-      match = /^(\S+):(\d+):(\d+)$/.exec(line)
-      if (match) {
-        let contents = streamIn.readFileSync(match[1], 'utf8')
-        let lineText = contents.split(/\r\n|\r|\n|\u2028|\u2029/)[+match[2] - 1] || ''
-        let column = +match[3] - 1
-        let length = lineText.slice(column, column + ident.length) === ident ? ident.length : 0
-        return {
-          file: match[1],
-          namespace: 'file',
-          line: +match[2],
-          column: protocol.encodeUTF8(lineText.slice(0, column)).length,
-          length: protocol.encodeUTF8(lineText.slice(column, column + length)).length,
-          lineText: lineText + '\n' + lines.slice(1).join('\n'),
+    for (let i = 1; i < lines.length; i++) {
+      let line = lines[i]
+      if (!line.startsWith(at)) continue
+      line = line.slice(at.length)
+      while (true) {
+        // Unwrap a function name
+        let match = /^(?:new |async )?\S+ \((.*)\)$/.exec(line)
+        if (match) {
+          line = match[1]
+          continue
         }
+
+        // Unwrap an eval wrapper
+        match = /^eval at \S+ \((.*)\)(?:, \S+:\d+:\d+)?$/.exec(line)
+        if (match) {
+          line = match[1]
+          continue
+        }
+
+        // Match on the file location
+        match = /^(\S+):(\d+):(\d+)$/.exec(line)
+        if (match) {
+          let contents
+          try {
+            contents = streamIn.readFileSync(match[1], 'utf8')
+          } catch {
+            break
+          }
+          let lineText = contents.split(/\r\n|\r|\n|\u2028|\u2029/)[+match[2] - 1] || ''
+          let column = +match[3] - 1
+          let length = lineText.slice(column, column + ident.length) === ident ? ident.length : 0
+          return {
+            file: match[1],
+            namespace: 'file',
+            line: +match[2],
+            column: protocol.encodeUTF8(lineText.slice(0, column)).length,
+            length: protocol.encodeUTF8(lineText.slice(column, column + length)).length,
+            lineText: lineText + '\n' + lines.slice(1).join('\n'),
+          }
+        }
+        break
       }
-      break
     }
   }
 
@@ -1211,74 +1259,4 @@ function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types
       return text;
     },
   }
-}
-
-// This function serves two purposes:
-//
-//   a) Only create one long-lived service for each unique value of "options".
-//      This is useful because creating a service is expensive and it's
-//      sometimes convenient for multiple independent libraries to create
-//      esbuild services without coordinating with each other. This pooling
-//      optimization makes this use case efficient.
-//
-//   b) Set the default working directory to the value of the current working
-//      directory at the time "startService()" was called. This means each call
-//      to "startService()" can potentially have a different default working
-//      directory.
-//
-//      TODO: This is legacy behavior that originated because "startService()"
-//      used to correspond to creating a new child process. That is no longer
-//      the case because child processes are now pooled. This behavior is
-//      being preserved for compatibility with Snowpack for now. I would like
-//      to remove this strange behavior in a future release now that we have
-//      the "absWorkingDir" API option.
-//
-export function longLivedService(getwd: () => string, startService: typeof types.startService): typeof types.startService {
-  let entries = new Map<string, Promise<types.Service>>();
-  return async (options) => {
-    let cwd = getwd();
-    let optionsJSON = JSON.stringify(options || {});
-    let key = optionsJSON;
-    let entry = entries.get(key);
-
-    if (entry === void 0) {
-      // Store the promise used to create the service so that multiple
-      // concurrent calls to "startService()" will share the same promise.
-      entry = startService(JSON.parse(optionsJSON));
-      entries.set(key, entry);
-    }
-
-    try {
-      let service = await entry;
-      return {
-        build: (options: any = {}): any => {
-          if (cwd) {
-            let absWorkingDir = options.absWorkingDir
-            if (!absWorkingDir) options = { ...options, absWorkingDir: cwd }
-          }
-          return service.build(options);
-        },
-        serve(serveOptions, buildOptions: any = {}) {
-          if (cwd) {
-            let absWorkingDir = buildOptions.absWorkingDir
-            if (!absWorkingDir) buildOptions = { ...buildOptions, absWorkingDir: cwd }
-          }
-          return service.serve(serveOptions, buildOptions);
-        },
-        transform(input, options) {
-          return service.transform(input, options);
-        },
-        stop() {
-          // This is now a no-op
-        },
-      };
-    }
-
-    catch (e) {
-      // Remove the entry if loading fails, which allows
-      // us to try again (only happens in the browser)
-      entries.delete(key);
-      throw e;
-    }
-  };
 }

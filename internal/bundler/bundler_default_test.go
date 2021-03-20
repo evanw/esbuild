@@ -631,8 +631,8 @@ func TestImportMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `entry.js: error: No matching export for import "default"
-entry.js: error: No matching export for import "y"
+		expectedCompileLog: `entry.js: error: No matching export in "foo.js" for import "default"
+entry.js: error: No matching export in "foo.js" for import "y"
 `,
 	})
 }
@@ -652,8 +652,8 @@ func TestImportMissingUnusedES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `entry.js: error: No matching export for import "default"
-entry.js: error: No matching export for import "y"
+		expectedCompileLog: `entry.js: error: No matching export in "foo.js" for import "default"
+entry.js: error: No matching export in "foo.js" for import "y"
 `,
 	})
 }
@@ -746,7 +746,7 @@ func TestExportMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `foo.js: error: No matching export for import "nope"
+		expectedCompileLog: `foo.js: error: No matching export in "bar.js" for import "nope"
 `,
 	})
 }
@@ -1085,7 +1085,7 @@ func TestRequireBadExtension(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: error: File could not be loaded: test
+		expectedScanLog: `entry.js: error: Do not know how to load path: test
 `,
 	})
 }

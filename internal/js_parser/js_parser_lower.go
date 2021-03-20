@@ -37,6 +37,10 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	var name string
 	where := "the configured target environment"
 
+	if p.options.originalTargetEnv != "" {
+		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
+	}
+
 	switch feature {
 	case compat.DefaultArgument:
 		name = "default arguments"
@@ -173,6 +177,9 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		case js_ast.ImplicitStrictModeExport:
 			why = "This file is implicitly in strict mode because of the \"export\" keyword"
 			keywordRange = p.es6ExportKeyword
+		case js_ast.ImplicitStrictModeTopLevelAwait:
+			why = "This file is implicitly in strict mode because of the top-level \"await\" keyword"
+			keywordRange = p.topLevelAwaitKeyword
 		case js_ast.ImplicitStrictModeClass:
 			why = "All code inside a class is implicitly in strict mode"
 			keywordRange = p.enclosingClassKeyword
@@ -559,7 +566,7 @@ flatten:
 					//
 					thisArg = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
 				} else {
-					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
+					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target, valueDefinitelyNotMutated)
 					expr = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
 						Target:  targetFunc(),
 						Name:    e.Name,
@@ -579,7 +586,7 @@ flatten:
 					// See the comment above about a similar special case for EDot
 					thisArg = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
 				} else {
-					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
+					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target, valueDefinitelyNotMutated)
 					targetWrapFunc = wrapFunc
 
 					// Capture the value of "this" if the target of the starting call
@@ -605,7 +612,7 @@ flatten:
 	// to capture it if it doesn't have any side effects (e.g. it's just a bare
 	// identifier). Skipping the capture reduces code size and matches the output
 	// of the TypeScript compiler.
-	exprFunc, exprWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, expr)
+	exprFunc, exprWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, expr, valueDefinitelyNotMutated)
 	expr = exprFunc()
 	result := exprFunc()
 
@@ -619,7 +626,7 @@ flatten:
 	for i := len(chain) - 1; i >= 0; i-- {
 		// Save a reference to the value of "this" for our parent ECall
 		if i == 0 && in.storeThisArgForParentOptionalChain && endsWithPropertyAccess {
-			parentThisArgFunc, parentThisArgWrapFunc = p.captureValueWithPossibleSideEffects(result.Loc, 2, result)
+			parentThisArgFunc, parentThisArgWrapFunc = p.captureValueWithPossibleSideEffects(result.Loc, 2, result, valueDefinitelyNotMutated)
 			result = parentThisArgFunc()
 		}
 
@@ -639,7 +646,7 @@ flatten:
 				// for "this" for the call. Example for this case: "foo.#bar?.()"
 				if i > 0 {
 					if _, ok := chain[i-1].Data.(*js_ast.ECall); ok {
-						privateThisFunc, privateThisWrapFunc = p.captureValueWithPossibleSideEffects(loc, 2, result)
+						privateThisFunc, privateThisWrapFunc = p.captureValueWithPossibleSideEffects(loc, 2, result, valueDefinitelyNotMutated)
 						result = privateThisFunc()
 					}
 				}
@@ -691,7 +698,6 @@ flatten:
 			result = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
 				Target:                 result,
 				Args:                   e.Args,
-				IsDirectEval:           e.IsDirectEval,
 				CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 			}}
 
@@ -735,11 +741,22 @@ flatten:
 	}
 }
 
+func (p *parser) lowerParenthesizedOptionalChain(loc logger.Loc, e *js_ast.ECall, childOut exprOut) js_ast.Expr {
+	return childOut.thisArgWrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+			Target:  e.Target,
+			Name:    "call",
+			NameLoc: loc,
+		}},
+		Args: append(append(make([]js_ast.Expr, 0, len(e.Args)+1), childOut.thisArgFunc()), e.Args...),
+	}})
+}
+
 func (p *parser) lowerAssignmentOperator(value js_ast.Expr, callback func(js_ast.Expr, js_ast.Expr) js_ast.Expr) js_ast.Expr {
 	switch left := value.Data.(type) {
 	case *js_ast.EDot:
 		if left.OptionalChain == js_ast.OptionalChainNone {
-			referenceFunc, wrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target)
+			referenceFunc, wrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target, valueDefinitelyNotMutated)
 			return wrapFunc(callback(
 				js_ast.Expr{Loc: value.Loc, Data: &js_ast.EDot{
 					Target:  referenceFunc(),
@@ -756,8 +773,8 @@ func (p *parser) lowerAssignmentOperator(value js_ast.Expr, callback func(js_ast
 
 	case *js_ast.EIndex:
 		if left.OptionalChain == js_ast.OptionalChainNone {
-			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target)
-			indexFunc, indexWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Index)
+			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target, valueDefinitelyNotMutated)
+			indexFunc, indexWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Index, valueDefinitelyNotMutated)
 			return targetWrapFunc(indexWrapFunc(callback(
 				js_ast.Expr{Loc: value.Loc, Data: &js_ast.EIndex{
 					Target: targetFunc(),
@@ -786,7 +803,7 @@ func (p *parser) lowerAssignmentOperator(value js_ast.Expr, callback func(js_ast
 func (p *parser) lowerExponentiationAssignmentOperator(loc logger.Loc, e *js_ast.EBinary) js_ast.Expr {
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
 		// "a.#b **= c" => "__privateSet(a, #b, __pow(__privateGet(a, #b), c))"
-		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target, valueDefinitelyNotMutated)
 		return targetWrapFunc(p.lowerPrivateSet(targetFunc(), privateLoc, private,
 			p.callRuntime(loc, "__pow", []js_ast.Expr{
 				p.lowerPrivateGet(targetFunc(), privateLoc, private),
@@ -804,14 +821,14 @@ func (p *parser) lowerNullishCoalescingAssignmentOperator(loc logger.Loc, e *js_
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
 		if p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) {
 			// "a.#b ??= c" => "(_a = __privateGet(a, #b)) != null ? _a : __privateSet(a, #b, c)"
-			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target, valueDefinitelyNotMutated)
 			left := p.lowerPrivateGet(targetFunc(), privateLoc, private)
 			right := p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right)
 			return targetWrapFunc(p.lowerNullishCoalescing(loc, left, right))
 		}
 
 		// "a.#b ??= c" => "__privateGet(a, #b) ?? __privateSet(a, #b, c)"
-		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target, valueDefinitelyNotMutated)
 		return targetWrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    js_ast.BinOpNullishCoalescing,
 			Left:  p.lowerPrivateGet(targetFunc(), privateLoc, private),
@@ -838,7 +855,7 @@ func (p *parser) lowerLogicalAssignmentOperator(loc logger.Loc, e *js_ast.EBinar
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
 		// "a.#b &&= c" => "__privateGet(a, #b) && __privateSet(a, #b, c)"
 		// "a.#b ||= c" => "__privateGet(a, #b) || __privateSet(a, #b, c)"
-		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target, valueDefinitelyNotMutated)
 		return targetWrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    op,
 			Left:  p.lowerPrivateGet(targetFunc(), privateLoc, private),
@@ -860,7 +877,7 @@ func (p *parser) lowerLogicalAssignmentOperator(loc logger.Loc, e *js_ast.EBinar
 func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right js_ast.Expr) js_ast.Expr {
 	// "x ?? y" => "x != null ? x : y"
 	// "x() ?? y()" => "_a = x(), _a != null ? _a : y"
-	leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left)
+	leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left, valueDefinitelyNotMutated)
 	return wrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.EIf{
 		Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    js_ast.BinOpLooseNe,
@@ -873,29 +890,34 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 }
 
 // Lower object spread for environments that don't support them. Non-spread
-// properties are grouped into object literals and then passed to __assign()
-// like this (__assign() is an alias for Object.assign()):
+// properties are grouped into object literals and then passed to "__assign"
+// like this:
 //
 //   "{a, b, ...c, d, e}" => "__assign(__assign(__assign({a, b}, c), {d, e})"
 //
 // If the object literal starts with a spread, then we pass an empty object
-// literal to __assign() to make sure we clone the object:
+// literal to "__assign" to make sure we clone the object:
 //
 //   "{...a, b}" => "__assign(__assign({}, a), {b})"
 //
 // It's not immediately obvious why we don't compile everything to a single
-// call to __assign(). After all, Object.assign() can take any number of
+// call to "Object.assign". After all, "Object.assign" can take any number of
 // arguments. The reason is to preserve the order of side effects. Consider
 // this code:
 //
-//   let a = {get x() { b = {y: 2}; return 1 }}
+//   let a = {
+//     get x() {
+//       b = {y: 2}
+//       return 1
+//     }
+//   }
 //   let b = {}
 //   let c = {...a, ...b}
 //
-// Converting the above code to "let c = __assign({}, a, b)" means "c" becomes
-// "{x: 1}" which is incorrect. Converting the above code instead to
-// "let c = __assign(__assign({}, a), b)" means "c" becomes "{x: 1, y: 2}"
-// which is correct.
+// Converting the above code to "let c = Object.assign({}, a, b)" means "c"
+// becomes "{x: 1}" which is incorrect. Converting the above code instead to
+// "let c = Object.assign(Object.assign({}, a), b)" means "c" becomes
+// "{x: 1, y: 2}" which is correct.
 func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Expr {
 	needsLowering := false
 
@@ -1016,7 +1038,7 @@ func (p *parser) lowerPrivateSet(
 }
 
 func (p *parser) lowerPrivateSetUnOp(target js_ast.Expr, loc logger.Loc, private *js_ast.EPrivateIdentifier, op js_ast.OpCode, isSuffix bool) js_ast.Expr {
-	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
+	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target, valueDefinitelyNotMutated)
 	target = targetFunc()
 
 	// Load the private field and then use the unary "+" operator to force it to
@@ -1029,7 +1051,7 @@ func (p *parser) lowerPrivateSetUnOp(target js_ast.Expr, loc logger.Loc, private
 
 	if isSuffix {
 		// "target.#private++" => "__privateSet(target, #private, _a = +__privateGet(target, #private) + 1), _a"
-		valueFunc, valueWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, value)
+		valueFunc, valueWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, value, valueDefinitelyNotMutated)
 		assign := valueWrapFunc(targetWrapFunc(p.lowerPrivateSet(target, loc, private, js_ast.Expr{Loc: target.Loc, Data: &js_ast.EBinary{
 			Op:    op,
 			Left:  valueFunc(),
@@ -1048,7 +1070,7 @@ func (p *parser) lowerPrivateSetUnOp(target js_ast.Expr, loc logger.Loc, private
 
 func (p *parser) lowerPrivateSetBinOp(target js_ast.Expr, loc logger.Loc, private *js_ast.EPrivateIdentifier, op js_ast.OpCode, value js_ast.Expr) js_ast.Expr {
 	// "target.#private += 123" => "__privateSet(target, #private, __privateGet(target, #private) + 123)"
-	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
+	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target, valueDefinitelyNotMutated)
 	return targetWrapFunc(p.lowerPrivateSet(targetFunc(), loc, private, js_ast.Expr{Loc: value.Loc, Data: &js_ast.EBinary{
 		Op:    op,
 		Left:  p.lowerPrivateGet(targetFunc(), loc, private),
@@ -1148,7 +1170,7 @@ func (p *parser) lowerObjectRestInForLoopInit(init js_ast.Stmt, body *js_ast.Stm
 		// "for ({...x} of y) {}"
 		if exprHasObjectRest(s.Value) {
 			ref := p.generateTempRef(tempRefNeedsDeclare, "")
-			if expr, ok := p.lowerObjectRestInAssign(s.Value, js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}); ok {
+			if expr, ok := p.lowerObjectRestInAssign(s.Value, js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, objRestReturnValueIsUnused); ok {
 				s.Value.Data = &js_ast.EIdentifier{Ref: ref}
 				bodyPrefixStmt = js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}}
 			}
@@ -1196,14 +1218,24 @@ func (p *parser) lowerObjectRestInCatchBinding(catch *js_ast.Catch) {
 	}
 }
 
-func (p *parser) lowerObjectRestInAssign(rootExpr js_ast.Expr, rootInit js_ast.Expr) (js_ast.Expr, bool) {
+type objRestMode uint8
+
+const (
+	objRestReturnValueIsUnused objRestMode = iota
+	objRestMustReturnInitExpr
+)
+
+func (p *parser) lowerObjectRestInAssign(rootExpr js_ast.Expr, rootInit js_ast.Expr, mode objRestMode) (js_ast.Expr, bool) {
 	var expr js_ast.Expr
 
 	assign := func(left js_ast.Expr, right js_ast.Expr) {
 		expr = maybeJoinWithComma(expr, js_ast.Assign(left, right))
 	}
 
-	if p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNeedsDeclare) {
+	if initWrapFunc, ok := p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNeedsDeclare, mode); ok {
+		if initWrapFunc != nil {
+			expr = initWrapFunc(expr)
+		}
 		return expr, true
 	}
 
@@ -1219,7 +1251,7 @@ func (p *parser) lowerObjectRestToDecls(rootExpr js_ast.Expr, rootInit js_ast.Ex
 		decls = append(decls, js_ast.Decl{Binding: binding, Value: &right})
 	}
 
-	if p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNoDeclare) {
+	if _, ok := p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNoDeclare, objRestReturnValueIsUnused); ok {
 		return decls, true
 	}
 
@@ -1231,16 +1263,17 @@ func (p *parser) lowerObjectRestHelper(
 	rootInit js_ast.Expr,
 	assign func(js_ast.Expr, js_ast.Expr),
 	declare generateTempRefArg,
-) bool {
+	mode objRestMode,
+) (wrapFunc func(js_ast.Expr) js_ast.Expr, ok bool) {
 	if !p.options.unsupportedJSFeatures.Has(compat.ObjectRestSpread) {
-		return false
+		return nil, false
 	}
 
 	// Check if this could possibly contain an object rest binding
 	switch rootExpr.Data.(type) {
 	case *js_ast.EArray, *js_ast.EObject:
 	default:
-		return false
+		return nil, false
 	}
 
 	// Scan for object rest bindings and initalize rest binding containment
@@ -1273,7 +1306,7 @@ func (p *parser) lowerObjectRestHelper(
 	}
 	findRestBindings(rootExpr)
 	if len(containsRestBinding) == 0 {
-		return false
+		return nil, false
 	}
 
 	// If there is at least one rest binding, lower the whole expression
@@ -1471,8 +1504,34 @@ func (p *parser) lowerObjectRestHelper(
 		assign(expr, init)
 	}
 
+	// Capture and return the value of the initializer if this is an assignment
+	// expression and the return value is used:
+	//
+	//   // Input:
+	//   console.log({...x} = x);
+	//
+	//   // Output:
+	//   var _a;
+	//   console.log((x = __rest(_a = x, []), _a));
+	//
+	// This isn't necessary if the return value is unused:
+	//
+	//   // Input:
+	//   ({...x} = x);
+	//
+	//   // Output:
+	//   x = __rest(x, []);
+	//
+	if mode == objRestMustReturnInitExpr {
+		initFunc, initWrapFunc := p.captureValueWithPossibleSideEffects(rootInit.Loc, 2, rootInit, valueCouldBeMutated)
+		rootInit = initFunc()
+		wrapFunc = func(expr js_ast.Expr) js_ast.Expr {
+			return initWrapFunc(js_ast.JoinWithComma(expr, initFunc()))
+		}
+	}
+
 	visit(rootExpr, rootInit, nil)
-	return true
+	return wrapFunc, true
 }
 
 // Save a copy of the key for the call to "__rest" later on. Certain
@@ -1615,7 +1674,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			// outside the class body.
 			classExpr := &js_ast.EClass{Class: *class}
 			class = &classExpr.Class
-			nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, js_ast.Expr{Loc: classLoc, Data: classExpr})
+			nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, js_ast.Expr{Loc: classLoc, Data: classExpr}, valueDefinitelyNotMutated)
 			expr = nameFunc()
 			didCaptureClassExpr = true
 			name := nameFunc()
