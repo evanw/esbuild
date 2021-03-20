@@ -698,7 +698,6 @@ flatten:
 			result = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
 				Target:                 result,
 				Args:                   e.Args,
-				IsDirectEval:           e.IsDirectEval,
 				CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 			}}
 

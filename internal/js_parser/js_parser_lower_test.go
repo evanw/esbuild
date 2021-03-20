@@ -487,8 +487,8 @@ func TestLowerOptionalChain(t *testing.T) {
 (_b = (_a = a[b])[c]) == null ? void 0 : _b.call(_a, d);
 `)
 
-	// Check that direct eval status is propagated through optional chaining
-	expectPrintedTarget(t, 2019, "eval?.(x)", "eval == null ? void 0 : eval(x);\n")
+	// Check that direct eval status is not propagated through optional chaining
+	expectPrintedTarget(t, 2019, "eval?.(x)", "eval == null ? void 0 : (0, eval)(x);\n")
 	expectPrintedMangleTarget(t, 2019, "(1 ? eval : 0)?.(x)", "eval == null || (0, eval)(x);\n")
 
 	// Check super property access
