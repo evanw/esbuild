@@ -55,6 +55,10 @@ jobs:
     - name: Register Test
       run: node scripts/register-test.js
 
+    - name: Register Test (ESBUILD_WORKER_THREADS)
+      if: matrix.os != 'windows-latest'
+      run: ESBUILD_WORKER_THREADS=1 node scripts/register-test.js
+
     - name: Verify Source Map
       run: node scripts/verify-source-map.js
 
