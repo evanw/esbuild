@@ -33,7 +33,36 @@ func code(isES6 bool) string {
 		var __propIsEnum = Object.prototype.propertyIsEnumerable
 
 		export var __pow = Math.pow
-		export var __assign = Object.assign
+
+		var __defNormalProp = (obj, key, value) => key in obj
+			? __defProp(obj, key, {enumerable: true, configurable: true, writable: true, value})
+			: obj[key] = value
+
+		export var __assign = (a, b) => {
+			for (var prop in b ||= {})
+				if (__hasOwnProp.call(b, prop))
+					__defNormalProp(a, prop, b[prop])
+			if (__getOwnPropSymbols)
+		`
+
+	// Avoid "of" when not using ES6
+	if isES6 {
+		text += `
+				for (var prop of __getOwnPropSymbols(b)) {
+		`
+	} else {
+		text += `
+				for (var props = __getOwnPropSymbols(b), i = 0, n = props.length, prop; i < n; i++) {
+					prop = props[i]
+		`
+	}
+
+	text += `
+					if (__propIsEnum.call(b, prop))
+						__defNormalProp(a, prop, b[prop])
+				}
+			return a
+		}
 
 		// Tells importing modules that this can be considered an ES6 module
 		var __markAsModule = target => __defProp(target, '__esModule', { value: true })
@@ -144,9 +173,8 @@ func code(isES6 bool) string {
 
 		// For class members
 		export var __publicField = (obj, key, value) => {
-			if (typeof key !== 'symbol') key += ''
-			if (key in obj) return __defProp(obj, key, {enumerable: true, configurable: true, writable: true, value})
-			return obj[key] = value
+			__defNormalProp(obj, typeof key !== 'symbol' ? key + '' : key, value)
+			return value
 		}
 		var __accessCheck = (obj, member, msg) => {
 			if (!member.has(obj)) throw TypeError('Cannot ' + msg)
