@@ -441,6 +441,20 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2020, "undefined?.[x]", "void 0;\n")
 	expectPrintedTarget(t, 2020, "undefined?.(x)", "void 0;\n")
 
+	expectPrintedTarget(t, 2019, "a?.b()", "a == null ? void 0 : a.b();\n")
+	expectPrintedTarget(t, 2019, "a?.[b]()", "a == null ? void 0 : a[b]();\n")
+	expectPrintedTarget(t, 2019, "a?.b.c()", "a == null ? void 0 : a.b.c();\n")
+	expectPrintedTarget(t, 2019, "a?.b[c]()", "a == null ? void 0 : a.b[c]();\n")
+	expectPrintedTarget(t, 2019, "a()?.b()", "var _a;\n(_a = a()) == null ? void 0 : _a.b();\n")
+	expectPrintedTarget(t, 2019, "a()?.[b]()", "var _a;\n(_a = a()) == null ? void 0 : _a[b]();\n")
+
+	expectPrintedTarget(t, 2019, "(a?.b)()", "(a == null ? void 0 : a.b).call(a);\n")
+	expectPrintedTarget(t, 2019, "(a?.[b])()", "(a == null ? void 0 : a[b]).call(a);\n")
+	expectPrintedTarget(t, 2019, "(a?.b.c)()", "var _a;\n(a == null ? void 0 : (_a = a.b).c).call(_a);\n")
+	expectPrintedTarget(t, 2019, "(a?.b[c])()", "var _a;\n(a == null ? void 0 : (_a = a.b)[c]).call(_a);\n")
+	expectPrintedTarget(t, 2019, "(a()?.b)()", "var _a;\n((_a = a()) == null ? void 0 : _a.b).call(_a);\n")
+	expectPrintedTarget(t, 2019, "(a()?.[b])()", "var _a;\n((_a = a()) == null ? void 0 : _a[b]).call(_a);\n")
+
 	// Check multiple levels of nesting
 	expectPrintedTarget(t, 2019, "a?.b?.c?.d", `var _a, _b;
 (_b = (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.c) == null ? void 0 : _b.d;
