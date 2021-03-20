@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+* Fix a TypeScript parsing edge case with arrow function return types ([#1016](https://github.com/evanw/esbuild/issues/1016))
+
+    This release fixes the following TypeScript parsing edge case:
+
+    ```ts
+    ():Array<number>=>{return [1]}
+    ```
+
+    This was tripping up esbuild's TypeScript parser because the `>=` token was split into a `>` token and a `=` token because the `>` token is needed to close the type parameter list, but the `=` token was not being combined with the following `>` token to form a `=>` token. This is normally not an issue because there is normally a space in between the `>` and the `=>` tokens here. The issue only happened when the spaces were removed. This bug has been fixed. Now after the `>=` token is split, esbuild will expand the `=` token into the following characters if possible, which can result in a `=>`, `==`, or `===` token.
+
 ## 0.9.5
 
 * Fix parsing of the `[dir]` placeholder ([#1013](https://github.com/evanw/esbuild/issues/1013))

@@ -169,6 +169,10 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x: A.B<X.Y<Z<T>>>", "let x;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y<Z<T>>>=2", "let x = 2;\n")
 
+	expectPrintedTS(t, "(): A<T>=> 0", "() => 0;\n")
+	expectPrintedTS(t, "(): A<B<T>>=> 0", "() => 0;\n")
+	expectPrintedTS(t, "(): A<B<C<T>>>=> 0", "() => 0;\n")
+
 	expectPrintedTS(t, "let foo: any\n<x>y", "let foo;\ny;\n")
 	expectPrintedTSX(t, "let foo: any\n<x>y</x>", "let foo;\n/* @__PURE__ */ React.createElement(\"x\", null, \"y\");\n")
 	expectParseErrorTS(t, "let foo: (any\n<x>y)", "<stdin>: error: Expected \")\" but found \"<\"\n")
@@ -1472,7 +1476,7 @@ func TestTSJSX(t *testing.T) {
 
 	expectPrintedTSX(t, "const x = <Foo<T>></Foo>", "const x = /* @__PURE__ */ React.createElement(Foo, null);\n")
 	expectPrintedTSX(t, "const x = <Foo<T> data-foo></Foo>", "const x = /* @__PURE__ */ React.createElement(Foo, {\n  \"data-foo\": true\n});\n")
-	expectParseErrorTSX(t, "const x = <Foo<T>=>", "<stdin>: error: Expected \">\" but found \"=\"\n")
+	expectParseErrorTSX(t, "const x = <Foo<T>=>", "<stdin>: error: Expected \">\" but found \"=>\"\n")
 
 	expectPrintedTS(t, "const x = <T>() => {}", "const x = () => {\n};\n")
 	expectPrintedTS(t, "const x = <T>(y)", "const x = y;\n")
