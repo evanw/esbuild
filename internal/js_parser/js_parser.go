@@ -11214,14 +11214,23 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		_, wasIdentifierBeforeVisit := e.Target.Data.(*js_ast.EIdentifier)
+		wasIdentifierBeforeVisit := false
+		isParenthesizedOptionalChain := false
+		switch e2 := e.Target.Data.(type) {
+		case *js_ast.EIdentifier:
+			wasIdentifierBeforeVisit = true
+		case *js_ast.EDot:
+			isParenthesizedOptionalChain = e.OptionalChain == js_ast.OptionalChainNone && e2.OptionalChain != js_ast.OptionalChainNone
+		case *js_ast.EIndex:
+			isParenthesizedOptionalChain = e.OptionalChain == js_ast.OptionalChainNone && e2.OptionalChain != js_ast.OptionalChainNone
+		}
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
 
 			// Signal to our child if this is an ECall at the start of an optional
 			// chain. If so, the child will need to stash the "this" context for us
 			// that we need for the ".call(this, ...args)".
-			storeThisArgForParentOptionalChain: e.OptionalChain == js_ast.OptionalChainStart,
+			storeThisArgForParentOptionalChain: e.OptionalChain == js_ast.OptionalChainStart || isParenthesizedOptionalChain,
 		})
 		e.Target = target
 		p.warnAboutImportNamespaceCallOrConstruct(e.Target, false /* isConstruct */)
@@ -11320,6 +11329,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if t.CallCanBeUnwrappedIfUnused {
 				e.CanBeUnwrappedIfUnused = true
 			}
+		}
+
+		// Handle parenthesized optional chains
+		if isParenthesizedOptionalChain && out.thisArgFunc != nil && out.thisArgWrapFunc != nil {
+			return p.lowerParenthesizedOptionalChain(expr.Loc, e, out), exprOut{}
 		}
 
 		// Lower optional chaining if we're the top of the chain

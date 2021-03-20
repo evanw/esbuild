@@ -35,6 +35,33 @@
 
     This approach is experimental and is currently only enabled if the `ESBUILD_WORKER_THREADS` environment variable is present. If this use case matters to you, please try it out and let me know if you find any problems with it.
 
+* Update how optional chains are compiled to match new V8 versions ([#1019](https://github.com/evanw/esbuild/issues/1019))
+
+    An optional chain is an expression that uses the `?.` operator, which roughly avoids evaluation of the right-hand side if the left-hand side is `null` or `undefined`. So `a?.b` is basically equivalent to `a == null ? void 0 : a.b`. When the language target is set to `es2019` or below, esbuild will transform optional chain expressions into equivalent expressions that do not use the `?.` operator.
+
+    This transform is designed to match the behavior of V8 exactly, and is designed to do something similar to the equivalent transform done by the TypeScript compiler. However, V8 has recently changed its behavior in two cases:
+
+    * Forced call of an optional member expression should propagate the object to the method:
+
+        ```js
+        const o = { m() { return this; } };
+        assert((o?.m)() === o);
+        ```
+
+        V8 bug: https://bugs.chromium.org/p/v8/issues/detail?id=10024
+
+    * Optional call of `eval` must be an indirect eval:
+
+        ```js
+        globalThis.a = 'global';
+        var b = (a => eval?.('a'))('local');
+        assert(b === 'global');
+        ```
+
+        V8 bug: https://bugs.chromium.org/p/v8/issues/detail?id=10630
+
+    This release changes esbuild's transform to match V8's new behavior. The transform in the TypeScript compiler is still emulating the old behavior as of version 4.2.3, so these syntax forms should be avoided in TypeScript code for portability.
+
 ## 0.9.5
 
 * Fix parsing of the `[dir]` placeholder ([#1013](https://github.com/evanw/esbuild/issues/1013))

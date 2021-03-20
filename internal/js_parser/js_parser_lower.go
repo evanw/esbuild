@@ -698,7 +698,6 @@ flatten:
 			result = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
 				Target:                 result,
 				Args:                   e.Args,
-				IsDirectEval:           e.IsDirectEval,
 				CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 			}}
 
@@ -740,6 +739,17 @@ flatten:
 		thisArgFunc:     parentThisArgFunc,
 		thisArgWrapFunc: parentThisArgWrapFunc,
 	}
+}
+
+func (p *parser) lowerParenthesizedOptionalChain(loc logger.Loc, e *js_ast.ECall, childOut exprOut) js_ast.Expr {
+	return childOut.thisArgWrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+			Target:  e.Target,
+			Name:    "call",
+			NameLoc: loc,
+		}},
+		Args: append(append(make([]js_ast.Expr, 0, len(e.Args)+1), childOut.thisArgFunc()), e.Args...),
+	}})
 }
 
 func (p *parser) lowerAssignmentOperator(value js_ast.Expr, callback func(js_ast.Expr, js_ast.Expr) js_ast.Expr) js_ast.Expr {
