@@ -5690,7 +5690,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				}
 			}
 			p.forbidInitializers(decls, "of", false)
-			p.markSyntaxFeature(compat.ForOf, p.lexer.Range())
 			p.lexer.Next()
 			value := p.parseExpr(js_ast.LComma)
 			p.lexer.Expect(js_lexer.TCloseParen)
@@ -8451,6 +8450,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
+
+		if newStmt, ok := p.lowerForOf(stmt.Loc, s); ok {
+			stmt = js_ast.Stmt{Loc: stmt.Loc, Data: &newStmt}
+		}
 
 	case *js_ast.STry:
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)

@@ -1142,6 +1142,19 @@ func (p *parser) lowerObjectRestInDecls(decls []js_ast.Decl) []js_ast.Decl {
 	return decls
 }
 
+func prependStmtToBody (stmt js_ast.Stmt, body *js_ast.Stmt) {
+	if stmt.Data != nil {
+		if block, ok := body.Data.(*js_ast.SBlock); ok {
+			// If there's already a block, insert at the front
+			stmts := make([]js_ast.Stmt, 0, 1+len(block.Stmts))
+			block.Stmts = append(append(stmts, stmt), block.Stmts...)
+		} else {
+			// Otherwise, make a block and insert at the front
+			body.Data = &js_ast.SBlock{Stmts: []js_ast.Stmt{stmt, *body}}
+		}
+	}
+}
+
 func (p *parser) lowerObjectRestInForLoopInit(init js_ast.Stmt, body *js_ast.Stmt) {
 	if !p.options.unsupportedJSFeatures.Has(compat.ObjectRestSpread) {
 		return
@@ -1174,16 +1187,74 @@ func (p *parser) lowerObjectRestInForLoopInit(init js_ast.Stmt, body *js_ast.Stm
 		}
 	}
 
-	if bodyPrefixStmt.Data != nil {
-		if block, ok := body.Data.(*js_ast.SBlock); ok {
-			// If there's already a block, insert at the front
-			stmts := make([]js_ast.Stmt, 0, 1+len(block.Stmts))
-			block.Stmts = append(append(stmts, bodyPrefixStmt), block.Stmts...)
-		} else {
-			// Otherwise, make a block and insert at the front
-			body.Data = &js_ast.SBlock{Stmts: []js_ast.Stmt{bodyPrefixStmt, *body}}
-		}
+	prependStmtToBody(bodyPrefixStmt, body)
+}
+
+func (p *parser) lowerForOf(loc logger.Loc, forOf *js_ast.SForOf) (js_ast.SFor, bool) {
+	if !p.options.unsupportedJSFeatures.Has(compat.ForOf) {
+		return js_ast.SFor{}, false
 	}
+
+	var body = forOf.Body
+	var bodyPrefixStmt js_ast.Stmt
+
+	refInc := p.generateTempRef(tempRefNoDeclare, "")
+	refArr := p.generateTempRef(tempRefNoDeclare, "")
+	p.recordUsage(refInc)
+	p.recordUsage(refArr)
+
+	init := js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{
+		Decls: []js_ast.Decl{
+			{
+				Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: refInc}},
+				Value: &js_ast.Expr{Data: &js_ast.ENumber{Value: 0}},
+			},
+			{
+				Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: refArr}},
+				Value: &forOf.Value,
+			},
+		},
+	}}
+
+	test := js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+		Op: js_ast.BinOpLt,
+		Left: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: refInc} },
+		Right: js_ast.Expr{Data: &js_ast.EDot{
+			Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: refArr}},
+			Name: "length",
+			NameLoc: loc,
+		}},
+	}}
+
+	update := js_ast.Expr {Loc: loc, Data: &js_ast.EUnary{
+		Op: js_ast.UnOpPreInc,
+		Value: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: refInc}},
+	}}
+
+	item := js_ast.Expr{Loc: body.Loc, Data: &js_ast.EIndex{
+		Target: js_ast.Expr{Loc: body.Loc, Data: &js_ast.EIdentifier{Ref: refArr}},
+		Index:  js_ast.Expr{Loc: body.Loc, Data: &js_ast.EIdentifier{Ref: refInc}},
+	}}
+
+	switch s := forOf.Init.Data.(type) {
+	case *js_ast.SExpr:
+		// "for (x of y) {}"
+		bodyPrefixStmt = js_ast.AssignStmt(s.Value, item)
+
+	case *js_ast.SLocal:
+		// "for (let x of y) {}"
+		bodyPrefixStmt = js_ast.Stmt{Loc: body.Loc, Data: &js_ast.SLocal{
+			Kind: s.Kind,
+			Decls: []js_ast.Decl{{
+				Binding: s.Decls[0].Binding,
+				Value: &item,
+			}},
+		}}
+	}
+
+	prependStmtToBody(bodyPrefixStmt, &body)
+
+	return js_ast.SFor{Init: &init, Test: &test, Update: &update, Body: body}, true
 }
 
 func (p *parser) lowerObjectRestInCatchBinding(catch *js_ast.Catch) {

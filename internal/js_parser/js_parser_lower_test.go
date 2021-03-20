@@ -517,3 +517,10 @@ func TestLowerExportStarAs(t *testing.T) {
 	expectPrintedTarget(t, 2020, "export * as ns from 'path'", "export * as ns from \"path\";\n")
 	expectPrintedTarget(t, 2019, "export * as ns from 'path'", "import * as ns from \"path\";\nexport {ns};\n")
 }
+
+func TestLowerForOf(t *testing.T) {
+	expectPrintedTarget(t, 5, "for (var a of []) {}", "for (var _a = 0, _b = []; _a < _b.length; ++_a) {\n  var a = _b[_a];\n}\n")
+	expectPrintedTarget(t, 5, "for (var x of arr) fn(x)", "for (var _a = 0, _b = arr; _a < _b.length; ++_a) {\n  var x = _b[_a];\n  fn(x);\n}\n")
+	expectPrintedTarget(t, 5, "for (a of []) {}", "for (var _a = 0, _b = []; _a < _b.length; ++_a) {\n  a = _b[_a];\n}\n")
+	expectPrintedTarget(t, 5, "for (a of arr) {fn(a)}", "for (var _a = 0, _b = arr; _a < _b.length; ++_a) {\n  a = _b[_a];\n  fn(a);\n}\n")
+}

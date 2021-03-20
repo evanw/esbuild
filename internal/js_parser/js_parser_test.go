@@ -3954,8 +3954,8 @@ func TestES5(t *testing.T) {
 		"<stdin>: error: Transforming rest arguments to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "[...x]",
 		"<stdin>: error: Transforming array spread to the configured target environment is not supported yet\n")
-	expectParseErrorTarget(t, 5, "for (var x of y) ;",
-		"<stdin>: error: Transforming for-of loops to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "for await (var x of y) ;",
+		"<stdin>: error: Transforming for-await loops to the configured target environment is not supported yet\n")
 	expectPrintedTarget(t, 5, "({ x })", "({x: x});\n")
 	expectParseErrorTarget(t, 5, "({ [x]: y })",
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
