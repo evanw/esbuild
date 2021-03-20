@@ -279,6 +279,26 @@ let pluginTests = {
     }
   },
 
+  async modifyInitialOptions({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.what')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `export default 123`)
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
+        name: 'what',
+        setup(build) {
+          build.initialOptions.loader = { '.what': 'js' }
+        },
+      }],
+    })
+    const result = require(output)
+    assert.strictEqual(result.default, 123)
+  },
+
   async basicLoader({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const custom = path.join(testDir, 'example.custom')

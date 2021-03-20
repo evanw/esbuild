@@ -394,9 +394,10 @@ type Plugin struct {
 	Setup func(PluginBuild)
 }
 
-type PluginBuild interface {
-	OnResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
-	OnLoad(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
+type PluginBuild struct {
+	InitialOptions *BuildOptions
+	OnResolve      func(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
+	OnLoad         func(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
 }
 
 type OnResolveOptions struct {

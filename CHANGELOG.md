@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+* Expose build options to plugins ([#373](https://github.com/evanw/esbuild/issues/373))
+
+    Plugins can now access build options from within the plugin using the `initialOptions` property. For example:
+
+    ```js
+    let nodeEnvPlugin = {
+      name: 'node-env',
+      setup(build) {
+        const options = build.initialOptions
+        options.define = options.define || {}
+        options.define['process.env.NODE_ENV'] =
+          options.minify ? '"production"' : '"development"'
+      },
+    }
+    ```
+
 * Fix an edge case with the object spread transform ([#1017](https://github.com/evanw/esbuild/issues/1017))
 
     This release fixes esbuild's object spread transform in cases where property assignment could be different than property definition. For example:

@@ -642,8 +642,15 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 		return internalBuildResult{result: BuildResult{Errors: convertMessagesToPublic(logger.Error, log.Done())}}
 	}
 
-	// Do not re-evaluate plugins when rebuilding
-	plugins := loadPlugins(realFS, log, buildOpts.Plugins)
+	// Do not re-evaluate plugins when rebuilding. Also make sure the working
+	// directory doesn't change, since breaking that invariant would break the
+	// validation that we just did above.
+	oldAbsWorkingDir := buildOpts.AbsWorkingDir
+	plugins := loadPlugins(&buildOpts, realFS, log)
+	if buildOpts.AbsWorkingDir != oldAbsWorkingDir {
+		panic("Mutating \"AbsWorkingDir\" is not allowed")
+	}
+
 	internalResult := rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, logOptions, log, false /* isRebuild */)
 
 	// Print a summary of the generated files to stderr. Except don't do
@@ -1385,8 +1392,11 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 	})
 }
 
-func loadPlugins(fs fs.FS, log logger.Log, plugins []Plugin) (results []config.Plugin) {
-	for i, item := range plugins {
+func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (results []config.Plugin) {
+	// Clone the plugin array to guard against mutation during iteration
+	clone := append(make([]Plugin, 0, len(initialOptions.Plugins)), initialOptions.Plugins...)
+
+	for i, item := range clone {
 		if item.Name == "" {
 			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Plugin at index %d is missing a name", i))
 			continue
@@ -1398,7 +1408,12 @@ func loadPlugins(fs fs.FS, log logger.Log, plugins []Plugin) (results []config.P
 			plugin: config.Plugin{Name: item.Name},
 		}
 
-		item.Setup(impl)
+		item.Setup(PluginBuild{
+			InitialOptions: initialOptions,
+			OnResolve:      impl.OnResolve,
+			OnLoad:         impl.OnLoad,
+		})
+
 		results = append(results, impl.plugin)
 	}
 	return

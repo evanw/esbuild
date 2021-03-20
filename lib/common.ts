@@ -146,7 +146,6 @@ function flagsForBuildOptions(
 ): {
   flags: string[],
   write: boolean,
-  plugins: types.Plugin[] | undefined,
   stdinContents: string | null,
   stdinResolveDir: string | null,
   absWorkingDir: string | undefined,
@@ -192,7 +191,7 @@ function flagsForBuildOptions(
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
   let write = getFlag(options, keys, 'write', mustBeBoolean) ?? writeDefault; // Default to true if not specified
   let incremental = getFlag(options, keys, 'incremental', mustBeBoolean) === true;
-  let plugins = getFlag(options, keys, 'plugins', mustBeArray);
+  keys.plugins = true; // "plugins" has already been read earlier
   checkForInvalidFlags(options, keys, `in ${callName}() call`);
 
   if (sourcemap) flags.push(`--sourcemap${sourcemap === true ? '' : `=${sourcemap}`}`);
@@ -307,7 +306,6 @@ function flagsForBuildOptions(
   return {
     flags,
     write,
-    plugins,
     stdinContents,
     stdinResolveDir,
     absWorkingDir,
@@ -580,7 +578,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
-  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number, stash: ObjectStash): Refs => {
+  let handlePlugins = (initialOptions: types.BuildOptions, plugins: types.Plugin[], buildKey: number, stash: ObjectStash): [protocol.BuildPlugin[], Refs] => {
     if (streamIn.isSync) throw new Error('Cannot use plugins in synchronous API calls');
 
     let onResolveCallbacks: {
@@ -601,8 +599,10 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     } = {};
     let nextCallbackID = 0;
     let i = 0;
+    let requestPlugins: protocol.BuildPlugin[] = [];
 
-    request.plugins = [];
+    // Clone the plugin array to guard against mutation during iteration
+    plugins = [...plugins];
 
     for (let item of plugins) {
       let keys: OptionKeys = {};
@@ -622,6 +622,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       i++;
 
       setup({
+        initialOptions,
+
         onResolve(options, callback) {
           let registeredText = `This error came from the "onResolve" callback registered here`
           let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onResolve');
@@ -649,7 +651,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         },
       });
 
-      request.plugins.push(plugin);
+      requestPlugins.push(plugin);
     }
 
     const callback: PluginCallback = async (request) => {
@@ -744,10 +746,10 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
 
     let refCount = 0;
-    return {
+    return [requestPlugins, {
       ref() { if (++refCount === 1) pluginCallbacks.set(buildKey, callback); },
       unref() { if (--refCount === 0) pluginCallbacks.delete(buildKey) },
-    };
+    }];
   };
 
   interface ServeData {
@@ -811,10 +813,21 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         try {
           let key = nextBuildKey++;
           let writeDefault = !streamIn.isBrowser;
+          let plugins: types.Plugin[] | undefined;
+          let requestPlugins: protocol.BuildPlugin[] | undefined;
+          if (typeof options === 'object') {
+            let value = options.plugins;
+            if (value !== void 0) {
+              if (!Array.isArray(value)) throw new Error(`"plugins" must be an array`);
+              plugins = value;
+            }
+          }
+          if (plugins && plugins.length > 0) {
+            [requestPlugins, pluginRefs] = handlePlugins(options, plugins, key, details);
+          }
           let {
             flags,
             write,
-            plugins,
             stdinContents,
             stdinResolveDir,
             absWorkingDir,
@@ -834,8 +847,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             nodePaths,
             hasOnRebuild: !!(watch && watch.onRebuild),
           };
+          if (requestPlugins) request.plugins = requestPlugins;
           let serve = serveOptions && buildServeData(refs, serveOptions, request);
-          if (plugins && plugins.length > 0) pluginRefs = handlePlugins(plugins, request, key, details);
 
           // Factor out response handling so it can be reused for rebuilds
           let rebuild: types.BuildResult['rebuild'] | undefined;

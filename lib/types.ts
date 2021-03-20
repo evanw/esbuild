@@ -182,6 +182,7 @@ export interface Plugin {
 }
 
 export interface PluginBuild {
+  initialOptions: BuildOptions;
   onResolve(options: OnResolveOptions, callback: (args: OnResolveArgs) =>
     (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): void;
   onLoad(options: OnLoadOptions, callback: (args: OnLoadArgs) =>
