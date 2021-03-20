@@ -1127,7 +1127,12 @@ function parseStackLinesV8(streamIn: StreamIn, lines: string[], ident: string): 
         // Match on the file location
         match = /^(\S+):(\d+):(\d+)$/.exec(line)
         if (match) {
-          let contents = streamIn.readFileSync(match[1], 'utf8')
+          let contents
+          try {
+            contents = streamIn.readFileSync(match[1], 'utf8')
+          } catch {
+            break
+          }
           let lineText = contents.split(/\r\n|\r|\n|\u2028|\u2029/)[+match[2] - 1] || ''
           let column = +match[3] - 1
           let length = lineText.slice(column, column + ident.length) === ident ? ident.length : 0
