@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.6
 
 * Expose build options to plugins ([#373](https://github.com/evanw/esbuild/issues/373))
 
