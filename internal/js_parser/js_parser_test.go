@@ -228,7 +228,7 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "(x, ...y) => { 'use strict' }", nonSimple)
 	expectParseError(t, "(x, ...y) => { //! @license comment\n 'use strict' }", nonSimple)
 
-	why := "<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword\n"
+	why := "<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n"
 
 	expectPrinted(t, "let x = '\\0'", "let x = \"\\0\";\n")
 	expectPrinted(t, "let x = '\\00'", "let x = \"\\0\";\n")
@@ -356,11 +356,11 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "class f { x() { function y() { with (x) y } } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
 
 	importKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
-		"<stdin>: note: This file is implicitly in strict mode because of the \"import\" keyword\n"
+		"<stdin>: note: This file is implicitly in strict mode because of the \"import\" keyword here\n"
 	exportKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
-		"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword\n"
+		"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n"
 	tlaKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
-		"<stdin>: note: This file is implicitly in strict mode because of the top-level \"await\" keyword\n"
+		"<stdin>: note: This file is implicitly in strict mode because of the \"await\" keyword here\n"
 
 	expectPrinted(t, "import(x); with (y) z", "import(x);\nwith (y)\n  z;\n")
 	expectPrinted(t, "import('x'); with (y) z", "import(\"x\");\nwith (y)\n  z;\n")
@@ -470,7 +470,7 @@ func TestAwait(t *testing.T) {
 
 	expectParseError(t, "await delete x",
 		`<stdin>: error: Delete of a bare identifier cannot be used in strict mode
-<stdin>: note: This file is implicitly in strict mode because of the top-level "await" keyword
+<stdin>: note: This file is implicitly in strict mode because of the "await" keyword here
 `)
 	expectPrinted(t, "async function f() { await delete x }", "async function f() {\n  await delete x;\n}\n")
 }

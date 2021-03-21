@@ -387,7 +387,6 @@ type scopeOrder struct {
 type fnOrArrowDataParse struct {
 	asyncRange          logger.Range
 	arrowArgErrors      *deferredArrowArgErrors
-	isOutsideFn         bool
 	allowAwait          bool
 	allowYield          bool
 	allowSuperCall      bool
@@ -408,10 +407,11 @@ type fnOrArrowDataParse struct {
 type fnOrArrowDataVisit struct {
 	superIndexRef *js_ast.Ref
 
-	isArrow        bool
-	isAsync        bool
-	isInsideLoop   bool
-	isInsideSwitch bool
+	isArrow            bool
+	isAsync            bool
+	isInsideLoop       bool
+	isInsideSwitch     bool
+	isOutsideFnOrArrow bool
 
 	// This is used to silence references to "require" inside a try/catch
 	// statement. The assumption is that the try/catch statement is there to
@@ -5939,9 +5939,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		}
 		p.latestReturnHadSemicolon = p.lexer.Token == js_lexer.TSemicolon
 		p.lexer.ExpectOrInsertSemicolon()
-		if p.fnOrArrowDataParse.isOutsideFn {
-			p.hasTopLevelReturn = true
-		}
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SReturn{Value: value}}
 
 	case js_lexer.TThrow:
@@ -8251,6 +8248,25 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Value = p.visitExpr(s.Value)
 
 	case *js_ast.SReturn:
+		// Forbid top-level return inside ECMAScript modules
+		if p.fnOrArrowDataVisit.isOutsideFnOrArrow {
+			var where logger.Range
+			if p.es6ImportKeyword.Len > 0 {
+				where = p.es6ImportKeyword
+			} else if p.es6ExportKeyword.Len > 0 {
+				where = p.es6ExportKeyword
+			} else if p.topLevelAwaitKeyword.Len > 0 {
+				where = p.topLevelAwaitKeyword
+			} else {
+				p.hasTopLevelReturn = true
+			}
+			if where.Len > 0 {
+				p.log.AddRangeErrorWithNotes(&p.source, js_lexer.RangeOfIdentifier(p.source, stmt.Loc),
+					"Top-level return cannot be used inside an ECMAScript module", []logger.MsgData{logger.RangeData(&p.source, where,
+						fmt.Sprintf("This file is considered an ECMAScript module because of the %q keyword here", p.source.TextForRange(where)))})
+			}
+		}
+
 		if s.Value != nil {
 			*s.Value = p.visitExpr(*s.Value)
 
@@ -12660,15 +12676,14 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 	}
 
 	p := &parser{
-		log:                log,
-		source:             source,
-		lexer:              lexer,
-		allowIn:            true,
-		options:            *options,
-		fnOrArrowDataParse: fnOrArrowDataParse{isOutsideFn: true},
-		runtimeImports:     make(map[string]js_ast.Ref),
-		promiseRef:         js_ast.InvalidRef,
-		afterArrowBodyLoc:  logger.Loc{Start: -1},
+		log:               log,
+		source:            source,
+		lexer:             lexer,
+		allowIn:           true,
+		options:           *options,
+		runtimeImports:    make(map[string]js_ast.Ref),
+		promiseRef:        js_ast.InvalidRef,
+		afterArrowBodyLoc: logger.Loc{Start: -1},
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,
@@ -12898,6 +12913,7 @@ func (p *parser) validateJSX(span js_ast.Span, name string) []string {
 
 func (p *parser) prepareForVisitPass() {
 	p.pushScopeForVisitPass(js_ast.ScopeEntry, logger.Loc{Start: locModuleScope})
+	p.fnOrArrowDataVisit.isOutsideFnOrArrow = true
 	p.moduleScope = p.currentScope
 	p.hasESModuleSyntax = p.es6ImportKeyword.Len > 0 || p.es6ExportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0
 

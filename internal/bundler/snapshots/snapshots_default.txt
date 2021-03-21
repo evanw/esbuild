@@ -2704,25 +2704,6 @@ for await (foo of bar)
   ;
 
 ================================================================================
-TestTopLevelReturn
----------- /out.js ----------
-// foo.js
-var require_foo = __commonJS((exports) => {
-  __markAsModule(exports);
-  __export(exports, {
-    foo: () => foo2
-  });
-  if (Math.random() < 0.5)
-    return;
-  function foo2() {
-  }
-});
-
-// entry.js
-var import_foo = __toModule(require_foo());
-(0, import_foo.foo)();
-
-================================================================================
 TestTypeofRequireBadPatterns
 ---------- /out.js ----------
 // entry.js

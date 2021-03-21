@@ -1766,25 +1766,59 @@ func TestRuntimeNameCollisionNoBundle(t *testing.T) {
 	})
 }
 
-func TestTopLevelReturn(t *testing.T) {
+func TestTopLevelReturnForbiddenImport(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				import {foo} from './foo'
-				foo()
-			`,
-			"/foo.js": `
-				// Top-level return must force CommonJS mode
-				if (Math.random() < 0.5) return
-
-				export function foo() {}
+				return
+				import 'foo'
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:          config.ModeBundle,
+			Mode:          config.ModePassThrough,
 			AbsOutputFile: "/out.js",
 		},
+		expectedScanLog: `entry.js: error: Top-level return cannot be used inside an ECMAScript module
+entry.js: note: This file is considered an ECMAScript module because of the "import" keyword here
+`,
+	})
+}
+
+func TestTopLevelReturnForbiddenExport(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				return
+				export var foo
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: Top-level return cannot be used inside an ECMAScript module
+entry.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+`,
+	})
+}
+
+func TestTopLevelReturnForbiddenTLA(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				return await foo
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: Top-level return cannot be used inside an ECMAScript module
+entry.js: note: This file is considered an ECMAScript module because of the "await" keyword here
+`,
 	})
 }
 
@@ -3269,10 +3303,10 @@ bad1.js: error: Cannot assign to import "x"
 bad10.js: error: Cannot assign to import "y z"
 bad11.js: error: Cannot assign to import "x"
 bad11.js: error: Delete of a bare identifier cannot be used in strict mode
-bad11.js: note: This file is implicitly in strict mode because of the "import" keyword
+bad11.js: note: This file is implicitly in strict mode because of the "import" keyword here
 bad12.js: error: Cannot assign to import "x"
 bad12.js: error: Delete of a bare identifier cannot be used in strict mode
-bad12.js: note: This file is implicitly in strict mode because of the "import" keyword
+bad12.js: note: This file is implicitly in strict mode because of the "import" keyword here
 bad13.js: error: Cannot assign to import "y"
 bad14.js: error: Cannot assign to import "y"
 bad15.js: error: Cannot assign to property on import "x"

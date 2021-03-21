@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Using a top-level return inside an ECMAScript module is now forbidden
+
+    The CommonJS module format is implemented as an anonymous function wrapper, so technically you can use a top-level `return` statement and it will actually work. Some packages in the wild use this to exit early from module initialization, so esbuild supports this. However, the ECMAScript module format doesn't allow top-level returns. With this release, esbuild no longer allows top-level returns in ECMAScript modules.
+
 ## 0.9.6
 
 * Expose build options to plugins ([#373](https://github.com/evanw/esbuild/issues/373))
