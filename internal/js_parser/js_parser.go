@@ -11327,7 +11327,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// There is no way we can guarantee that this will work correctly.
 					// Except don't warn when this code is in a 3rd-party library because
 					// there's nothing people will be able to do about the warning.
-					if p.options.mode == config.ModeBundle && p.es6ImportKeyword.Len > 0 && !p.options.suppressWarningsAboutWeirdCode {
+					if p.options.mode == config.ModeBundle && (p.es6ImportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0) && !p.options.suppressWarningsAboutWeirdCode {
 						p.log.AddRangeWarning(&p.source, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc),
 							"Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)")
 					}
@@ -13205,6 +13205,18 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 		nestedScopeSlotCounts = renamer.AssignNestedScopeSlots(p.moduleScope, p.symbols)
 	}
 
+	exportsKind := js_ast.ExportsNone
+	usesExportsRef := p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0
+	usesModuleRef := p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0
+
+	if p.es6ExportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0 {
+		exportsKind = js_ast.ExportsESM
+	} else if usesExportsRef || usesModuleRef || p.hasTopLevelReturn {
+		exportsKind = js_ast.ExportsCommonJS
+	} else if p.es6ImportKeyword.Len > 0 {
+		exportsKind = js_ast.ExportsESM
+	}
+
 	return js_ast.AST{
 		Parts:                   parts,
 		ModuleScope:             p.moduleScope,
@@ -13225,8 +13237,9 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 
 		// CommonJS features
 		HasTopLevelReturn: p.hasTopLevelReturn,
-		UsesExportsRef:    p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0,
-		UsesModuleRef:     p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0,
+		UsesExportsRef:    usesExportsRef,
+		UsesModuleRef:     usesModuleRef,
+		ExportsKind:       exportsKind,
 
 		// ES6 features
 		ImportKeyword:        p.es6ImportKeyword,
