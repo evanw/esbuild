@@ -338,6 +338,29 @@ let buildTests = {
     assert.strictEqual(json.sourcesContent, void 0)
   },
 
+  async sourceMapSourceRoot({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    const content = 'exports.foo = 123'
+    await writeFileAsync(input, content)
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: true,
+      sourcemapRoot: 'https://example.com/'
+    })
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    const outputFile = await readFileAsync(output, 'utf8')
+    const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile)
+    assert.strictEqual(match[1], 'out.js.map')
+    const resultMap = await readFileAsync(output + '.map', 'utf8')
+    const json = JSON.parse(resultMap)
+    assert.strictEqual(json.version, 3)
+    assert.strictEqual(json.sources[0], path.basename(input))
+    assert.strictEqual(json.sourceRoot, 'https://example.com/')
+  },
+
   async sourceMapWithDisabledFile({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const disabled = path.join(testDir, 'disabled.js')
@@ -3150,6 +3173,12 @@ let transformTests = {
     await assertSourceMap(map, 'afile.js')
     const base64 = code.slice(code.indexOf('base64,') + 'base64,'.length)
     await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), 'afile.js')
+  },
+
+  async sourceMapRoot({ esbuild }) {
+    const { code, map } = await esbuild.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js', sourcemapRoot: "https://example.com/" })
+    assert.strictEqual(code, `let x;\n`)
+    assert.strictEqual(JSON.parse(map).sourceRoot, 'https://example.com/');
   },
 
   async numericLiteralPrinting({ esbuild }) {

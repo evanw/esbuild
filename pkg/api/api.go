@@ -223,6 +223,7 @@ type BuildOptions struct {
 	LogLevel LogLevel
 
 	Sourcemap      SourceMap
+	SourcemapRoot  string
 	SourcesContent SourcesContent
 
 	Target  Target
@@ -318,6 +319,7 @@ type TransformOptions struct {
 	LogLevel LogLevel
 
 	Sourcemap      SourceMap
+	SourcemapRoot  string
 	SourcesContent SourcesContent
 
 	Target     Target
