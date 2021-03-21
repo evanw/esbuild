@@ -12930,12 +12930,19 @@ func (p *parser) prepareForVisitPass() {
 	p.hoistSymbols(p.moduleScope)
 
 	if p.options.mode != config.ModePassThrough {
-		p.exportsRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "exports")
 		p.requireRef = p.declareCommonJSSymbol(js_ast.SymbolUnbound, "require")
+	} else {
+		p.requireRef = p.newSymbol(js_ast.SymbolUnbound, "require")
+	}
+
+	// CommonJS-style exports are only enabled if this isn't using ECMAScript-
+	// style exports. You can still use "require" in ESM, just not "module" or
+	// "exports". You can also still use "import" in CommonJS.
+	if p.options.mode != config.ModePassThrough && p.es6ExportKeyword.Len == 0 && p.topLevelAwaitKeyword.Len == 0 {
+		p.exportsRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "exports")
 		p.moduleRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "module")
 	} else {
 		p.exportsRef = p.newSymbol(js_ast.SymbolHoisted, "exports")
-		p.requireRef = p.newSymbol(js_ast.SymbolUnbound, "require")
 		p.moduleRef = p.newSymbol(js_ast.SymbolHoisted, "module")
 	}
 

@@ -397,33 +397,6 @@
       'in.js': `export default 123; const out = require('./in'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
     }),
 
-    // Complex circular import case, must not crash
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `
-        import {bar} from './re-export'
-        if (bar() !== 123) throw 'fail'
-      `,
-      're-export.js': `
-        export * from './foo'
-        export * from './bar'
-      `,
-      'foo.js': `
-        export function foo() {
-          return module.exports.foo ? 123 : 234 // "module" makes this a CommonJS file
-        }
-      `,
-      'bar.js': `
-        import {getFoo} from './get'
-        export let bar = getFoo(module) // "module" makes this a CommonJS file
-      `,
-      'get.js': `
-        import {foo} from './foo'
-        export function getFoo() {
-          return foo
-        }
-      `,
-    }),
-
     // Test bundled and non-bundled double export star
     test(['node.ts', '--bundle', '--format=cjs', '--outdir=.'], {
       'node.ts': `

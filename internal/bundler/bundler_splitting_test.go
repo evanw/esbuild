@@ -504,24 +504,3 @@ func TestSplittingHybridESMAndCJSIssue617(t *testing.T) {
 		},
 	})
 }
-
-func TestSplittingHybridCJSAndESMIssue617(t *testing.T) {
-	splitting_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/a.js": `
-				export let foo
-				exports.bar = 123
-			`,
-			"/b.js": `
-				export {foo} from './a'
-			`,
-		},
-		entryPaths: []string{"/a.js", "/b.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			CodeSplitting: true,
-			OutputFormat:  config.FormatESModule,
-			AbsOutputDir:  "/out",
-		},
-	})
-}

@@ -455,8 +455,8 @@ console.log((0, import_foo.foo)(), (0, import_bar.bar)());
 TestEmptyExportClauseBundleAsCommonJSIssue910
 ---------- /out.js ----------
 // types.mjs
-var require_types = __commonJS((exports2) => {
-  __markAsModule(exports2);
+var require_types = __commonJS((exports) => {
+  __markAsModule(exports);
 });
 
 // entry.js
@@ -489,11 +489,8 @@ TestExportFSNodeInCommonJSModule
 import * as fs from "fs";
 import {readFileSync} from "fs";
 var require_entry = __commonJS((exports) => {
-  __markAsModule(exports);
-  __export(exports, {
-    fs: () => fs,
-    readFileSync: () => readFileSync
-  });
+  exports.fs = fs;
+  exports.readFileSync = readFileSync;
   exports.foo = 123;
 });
 export default require_entry();
@@ -1916,26 +1913,6 @@ var export_bar = import_foo.bar;
 export {
   export_bar as bar
 };
-
-================================================================================
-TestReExportDefaultCommonJS
----------- /out.js ----------
-// bar.js
-var require_bar = __commonJS((exports) => {
-  __markAsModule(exports);
-  __export(exports, {
-    default: () => foo
-  });
-  function foo() {
-    return exports;
-  }
-});
-
-// foo.js
-var import_bar = __toModule(require_bar());
-
-// entry.js
-(0, import_bar.default)();
 
 ================================================================================
 TestReExportDefaultExternalCommonJS
