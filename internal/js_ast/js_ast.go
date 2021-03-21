@@ -1576,6 +1576,25 @@ func (sm SymbolMap) Get(ref Ref) *Symbol {
 	return &sm.Outer[ref.OuterIndex][ref.InnerIndex]
 }
 
+type ExportsKind uint8
+
+const (
+	// This file doesn't have any kind of export, so it's impossible to say what
+	// kind of file this is. An empty file is in this category, for example.
+	ExportsNone ExportsKind = iota
+
+	// The exports are stored on "module" and/or "exports". Calling "require()"
+	// on this module returns "module.exports". All imports to this module are
+	// allowed but may return undefined.
+	ExportsCommonJS
+
+	// All export names are known explicitly. Calling "require()" on this module
+	// generates an exports object (stored in "exports") with getters for the
+	// export names. Named imports to this module are only allowed if they are
+	// in the set of export names.
+	ExportsESM
+)
+
 type AST struct {
 	ApproximateLineCount  int32
 	NestedScopeSlotCounts SlotCounts
@@ -1587,6 +1606,7 @@ type AST struct {
 	HasTopLevelReturn bool
 	UsesExportsRef    bool
 	UsesModuleRef     bool
+	ExportsKind       ExportsKind
 
 	// This is a list of ES6 features. They are ranges instead of booleans so
 	// that they can be used in log messages. Check to see if "Len > 0".
@@ -1716,18 +1736,6 @@ func (minifier *NameMinifier) NumberToMinifiedName(i int) string {
 	}
 
 	return name
-}
-
-func (ast *AST) HasCommonJSFeatures() bool {
-	return ast.UsesCommonJSExports() || ast.HasTopLevelReturn
-}
-
-func (ast *AST) UsesCommonJSExports() bool {
-	return ast.UsesExportsRef || ast.UsesModuleRef
-}
-
-func (ast *AST) HasESMFeatures() bool {
-	return ast.ImportKeyword.Len > 0 || ast.ExportKeyword.Len > 0 || ast.TopLevelAwaitKeyword.Len > 0
 }
 
 type NamedImport struct {

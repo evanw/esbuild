@@ -171,47 +171,6 @@ type fileMeta struct {
 	//
 	cjsWrap bool
 
-	// If true, all exports must be reached via property accesses off a call to
-	// the CommonJS wrapper for this module. In addition, all ES6 exports for
-	// this module must be added as getters to the CommonJS "exports" object.
-	cjsStyleExports bool
-
-	// WARNING: This is an interop mess. Different tools do different things and
-	// there really isn't a good solution that will always work. More information:
-	// https://github.com/evanw/esbuild/issues/532.
-	//
-	// The value of the "default" export differs between node's ESM
-	// implementation and Babel's cross-compiled ESM-to-CommonJS
-	// implementation. The default export will always be "module.exports"
-	// in node but will be "module.exports.default" with Babel if the
-	// property "module.exports.__esModule" is true (indicating a
-	// cross-compiled ESM file):
-	//
-	//   // esm-file.mjs
-	//   import defaultValue from "./import.cjs"
-	//   console.log(defaultValue)
-	//
-	//   // import.cjs (cross-compiled from "import.esm")
-	//   Object.defineProperty(exports, '__esModule', { value: true })
-	//   exports.default = 'default'
-	//
-	//   // import.mjs (original source code for "import.cjs")
-	//   export default 'default'
-	//
-	// Code that respects the "__esModule" flag will print "default" but node
-	// will print "{ default: 'default' }". There is no way to work with both.
-	// Damned if you do, damned if you don't. It would have been ideal if node
-	// behaved consistently with the rest of the ecosystem, but they decided to
-	// do their own thing instead. Arguably no approach is "more correct" than
-	// the other one.
-	//
-	// We need to behave like Babel when we cross-compile ESM to CommonJS but
-	// we need to behave like a mix of Babel and node for compatibility with
-	// existing libraries on npm. So we deliberately skip calling "__toModule"
-	// only for ESM files that we ourselves have converted to CommonJS during
-	// the build so that we at least don't break ourselves.
-	skipCallingToModule bool
-
 	// If true, the "__export(exports, { ... })" call will be force-included even
 	// if there are no parts that reference "exports". Otherwise this call will
 	// be removed due to the tree shaking pass. This is used when for entry point
@@ -485,14 +444,10 @@ func newLinkerContext(
 
 			// Also associate some default metadata with the file
 			repr.meta = fileMeta{
-				cjsStyleExports: repr.ast.HasCommonJSFeatures() ||
-					(options.Mode == config.ModeBundle && repr.ast.ModuleScope.ContainsDirectEval) ||
-					(repr.ast.HasLazyExport && c.options.Mode == config.ModeConvertFormat && !c.options.OutputFormat.KeepES6ImportExportSyntax()),
 				partMeta:                 make([]partMeta, len(repr.ast.Parts)),
 				resolvedExports:          resolvedExports,
 				isProbablyTypeScriptType: make(map[js_ast.Ref]bool),
 				importsToBind:            make(map[js_ast.Ref]importToBind),
-				skipCallingToModule:      repr.ast.ExportKeyword.Len > 0 && !repr.ast.HasCommonJSFeatures(),
 			}
 
 		case *reprCSS:
@@ -526,9 +481,12 @@ func newLinkerContext(
 		file.isEntryPoint = true
 
 		if repr, ok := file.repr.(*reprJS); ok {
-			// Lazy exports default to CommonJS-style for the transform API
-			if repr.ast.HasLazyExport && c.options.Mode == config.ModePassThrough {
-				repr.meta.cjsStyleExports = true
+			// Loaders default to CommonJS when they are the entry point and the output
+			// format is not ESM-compatible since that avoids generating the ESM-to-CJS
+			// machinery.
+			if repr.ast.HasLazyExport && (c.options.Mode == config.ModePassThrough ||
+				(c.options.Mode == config.ModeConvertFormat && !c.options.OutputFormat.KeepES6ImportExportSyntax())) {
+				repr.ast.ExportsKind = js_ast.ExportsCommonJS
 			}
 
 			// Entry points with ES6 exports must generate an exports object when
@@ -1319,13 +1277,13 @@ func (c *linkerContext) scanImportsAndExports() {
 					//
 					// In that case the module *is* considered a CommonJS module because
 					// the namespace object must be created.
-					if record.ContainsImportStar && !otherRepr.ast.HasESMFeatures() && !otherRepr.ast.HasLazyExport {
-						otherRepr.meta.cjsStyleExports = true
+					if record.ContainsImportStar && otherRepr.ast.ExportsKind == js_ast.ExportsNone && !otherRepr.ast.HasLazyExport {
+						otherRepr.ast.ExportsKind = js_ast.ExportsCommonJS
 					}
 
 				case ast.ImportRequire:
 					// Files that are imported with require() must be CommonJS modules
-					otherRepr.meta.cjsStyleExports = true
+					otherRepr.ast.ExportsKind = js_ast.ExportsCommonJS
 
 				case ast.ImportDynamic:
 					if c.options.CodeSplitting {
@@ -1337,7 +1295,7 @@ func (c *linkerContext) scanImportsAndExports() {
 					} else {
 						// If we're not splitting, then import() is just a require() that
 						// returns a promise, so the imported file must be a CommonJS module
-						otherRepr.meta.cjsStyleExports = true
+						otherRepr.ast.ExportsKind = js_ast.ExportsCommonJS
 					}
 				}
 			}
@@ -1368,7 +1326,7 @@ func (c *linkerContext) scanImportsAndExports() {
 
 		// Expression-style loaders defer code generation until linking. Code
 		// generation is done here because at this point we know that the
-		// "cjsStyleExports" flag has its final value and will not be changed.
+		// "ExportsKind" field has its final value and will not be changed.
 		if repr.ast.HasLazyExport {
 			c.generateCodeForLazyExport(sourceIndex)
 		}
@@ -1377,7 +1335,8 @@ func (c *linkerContext) scanImportsAndExports() {
 		// that uses CommonJS features will need to be wrapped, even though the
 		// resulting wrapper won't be invoked by other files. An exception is made
 		// for entry point files in CommonJS format (or when in pass-through mode).
-		if repr.meta.cjsStyleExports && (!file.isEntryPoint || c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatESModule) {
+		if repr.ast.ExportsKind == js_ast.ExportsCommonJS && (!file.isEntryPoint ||
+			c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatESModule) {
 			repr.meta.cjsWrap = true
 		}
 
@@ -1390,7 +1349,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		for _, record := range repr.ast.ImportRecords {
 			if record.SourceIndex.IsValid() {
 				otherRepr := c.files[record.SourceIndex.GetIndex()].repr.(*reprJS)
-				if otherRepr.meta.cjsStyleExports {
+				if otherRepr.ast.ExportsKind == js_ast.ExportsCommonJS {
 					otherRepr.meta.cjsWrap = true
 				}
 			}
@@ -1515,7 +1474,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// actual CommonJS files from being renamed. This is purely about
 		// aesthetics and is not about correctness. This is done here because by
 		// this point, we know the CommonJS status will not change further.
-		if !repr.meta.cjsWrap && !repr.meta.cjsStyleExports && (!file.isEntryPoint ||
+		if !repr.meta.cjsWrap && repr.ast.ExportsKind != js_ast.ExportsCommonJS && (!file.isEntryPoint ||
 			c.options.OutputFormat != config.FormatCommonJS) {
 			name := file.source.IdentifierName
 			c.symbols.Get(repr.ast.ExportsRef).OriginalName = name + "_exports"
@@ -1577,7 +1536,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 	}
 
 	// Use "module.exports = value" for CommonJS-style modules
-	if repr.meta.cjsStyleExports {
+	if repr.ast.ExportsKind == js_ast.ExportsCommonJS {
 		part.Stmts = []js_ast.Stmt{js_ast.AssignStmt(
 			js_ast.Expr{Loc: lazy.Value.Loc, Data: &js_ast.EDot{
 				Target:  js_ast.Expr{Loc: lazy.Value.Loc, Data: &js_ast.EIdentifier{Ref: repr.ast.ModuleRef}},
@@ -1835,7 +1794,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
 	declaredSymbols := []js_ast.DeclaredSymbol{}
 	var nsExportStmts []js_ast.Stmt
-	if !repr.meta.cjsStyleExports && (!file.isEntryPoint || c.options.OutputFormat != config.FormatCommonJS) {
+	if repr.ast.ExportsKind != js_ast.ExportsCommonJS && (!file.isEntryPoint || c.options.OutputFormat != config.FormatCommonJS) {
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
 			Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.ExportsRef}},
 			Value:   &js_ast.Expr{Data: &js_ast.EObject{}},
@@ -1850,7 +1809,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// "__markAsModule" which sets the "__esModule" property to true. This must
 	// be done before any to "require()" or circular imports of multiple modules
 	// that have been each converted from ESM to CommonJS may not work correctly.
-	if repr.ast.ExportKeyword.Len > 0 && (repr.meta.cjsStyleExports || (file.isEntryPoint && c.options.OutputFormat == config.FormatCommonJS)) {
+	if repr.ast.ExportKeyword.Len > 0 && (repr.ast.ExportsKind == js_ast.ExportsCommonJS || (file.isEntryPoint && c.options.OutputFormat == config.FormatCommonJS)) {
 		runtimeRepr := c.files[runtime.SourceIndex].repr.(*reprJS)
 		markAsModuleRef := runtimeRepr.ast.ModuleScope.Members["__markAsModule"].Ref
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
@@ -1908,7 +1867,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 			// This can be removed if nothing uses it. Except if we're a CommonJS
 			// module, in which case it's always necessary.
-			CanBeRemovedIfUnused: !repr.meta.cjsStyleExports,
+			CanBeRemovedIfUnused: repr.ast.ExportsKind != js_ast.ExportsCommonJS,
 
 			// Put the export definitions first before anything else gets evaluated
 			IsNamespaceExport: true,
@@ -2352,7 +2311,7 @@ loop:
 func (c *linkerContext) isCommonJSDueToExportStar(sourceIndex uint32, visited map[uint32]bool) bool {
 	// Terminate the traversal now if this file is CommonJS
 	repr := c.files[sourceIndex].repr.(*reprJS)
-	if repr.meta.cjsStyleExports {
+	if repr.ast.ExportsKind == js_ast.ExportsCommonJS {
 		return true
 	}
 
@@ -2371,7 +2330,7 @@ func (c *linkerContext) isCommonJSDueToExportStar(sourceIndex uint32, visited ma
 		// from a CommonJS file.
 		if (!record.SourceIndex.IsValid() && (!c.files[sourceIndex].isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
 			(record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() != sourceIndex && c.isCommonJSDueToExportStar(record.SourceIndex.GetIndex(), visited)) {
-			repr.meta.cjsStyleExports = true
+			repr.ast.ExportsKind = js_ast.ExportsCommonJS
 			return true
 		}
 	}
@@ -2409,7 +2368,7 @@ func (c *linkerContext) addExportsForExportStar(
 		// doing this we'd also have to rewrite any imports of these export star
 		// re-exports as property accesses off of a generated require() call.
 		otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
-		if otherRepr.meta.cjsStyleExports {
+		if otherRepr.ast.ExportsKind == js_ast.ExportsCommonJS {
 			// This will be resolved at run time instead
 			continue
 		}
@@ -2512,13 +2471,13 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 	// Is this a named import of a file without any exports?
 	otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
-	if !namedImport.AliasIsStar && !otherRepr.ast.UsesCommonJSExports() && !otherRepr.ast.HasESMFeatures() && !otherRepr.ast.HasLazyExport {
+	if !namedImport.AliasIsStar && otherRepr.ast.ExportsKind == js_ast.ExportsNone && !otherRepr.ast.HasLazyExport {
 		// Just warn about it and replace the import with "undefined"
 		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importCommonJSWithoutExports, nil
 	}
 
 	// Is this a CommonJS file?
-	if otherRepr.meta.cjsStyleExports {
+	if otherRepr.ast.ExportsKind == js_ast.ExportsCommonJS {
 		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importCommonJS, nil
 	}
 
@@ -2863,7 +2822,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 
 		otherSourceIndex := record.SourceIndex.GetIndex()
 		otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
-		if record.Kind == ast.ImportStmt && !otherRepr.meta.cjsStyleExports {
+		if record.Kind == ast.ImportStmt && otherRepr.ast.ExportsKind != js_ast.ExportsCommonJS {
 			// Skip this since it's not a require() import
 			continue
 		}
@@ -2877,7 +2836,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 
 		// This is an ES6 import of a CommonJS module, so it needs the
 		// "__toModule" wrapper as long as it's not a bare "require()"
-		if record.Kind != ast.ImportRequire && !otherRepr.meta.skipCallingToModule {
+		if record.Kind != ast.ImportRequire && otherRepr.ast.ExportKeyword.Len == 0 {
 			record.WrapWithToModule = true
 			toModuleUses++
 		}
@@ -2895,7 +2854,8 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 
 		// Is this export star evaluated at run time?
 		if (!record.SourceIndex.IsValid() && (!file.isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
-			(record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() != sourceIndex && c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).meta.cjsStyleExports) {
+			(record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() != sourceIndex &&
+				c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).ast.ExportsKind == js_ast.ExportsCommonJS) {
 			record.CallsRunTimeExportStarFn = true
 			repr.ast.UsesExportsRef = true
 			exportStarUses++
@@ -3148,7 +3108,7 @@ func (c *linkerContext) shouldIncludePart(repr *reprJS, part js_ast.Part) bool {
 	if len(part.Stmts) == 1 {
 		if s, ok := part.Stmts[0].Data.(*js_ast.SImport); ok {
 			record := &repr.ast.ImportRecords[s.ImportRecordIndex]
-			if record.SourceIndex.IsValid() && !c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).meta.cjsStyleExports {
+			if record.SourceIndex.IsValid() && c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).ast.ExportsKind != js_ast.ExportsCommonJS {
 				return false
 			}
 		}
@@ -3277,7 +3237,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 	repr := c.files[sourceIndex].repr.(*reprJS)
 	record := &repr.ast.ImportRecords[importRecordIndex]
 	if record.SourceIndex.IsValid() {
-		if !c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).meta.cjsStyleExports {
+		if c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).ast.ExportsKind != js_ast.ExportsCommonJS {
 			// Remove the statement entirely if this is not a CommonJS module
 			return true
 		}
@@ -3289,7 +3249,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 
 	// We don't need a call to "require()" if this is a self-import inside a
 	// CommonJS-style module, since we can just reference the exports directly.
-	if repr.meta.cjsStyleExports && js_ast.FollowSymbols(c.symbols, namespaceRef) == repr.ast.ExportsRef {
+	if repr.ast.ExportsKind == js_ast.ExportsCommonJS && js_ast.FollowSymbols(c.symbols, namespaceRef) == repr.ast.ExportsRef {
 		return true
 	}
 
