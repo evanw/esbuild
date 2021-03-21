@@ -1,8 +1,8 @@
 TestExportOtherAsNamespaceCommonJS
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports2) => {
-  exports2.foo = 123;
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
 });
 
 // entry.js
@@ -16,8 +16,8 @@ var ns = __toModule(require_foo());
 TestExportOtherCommonJS
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports2) => {
-  exports2.foo = 123;
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
 });
 
 // entry.js
@@ -31,8 +31,8 @@ var import_foo = __toModule(require_foo());
 TestExportOtherNestedCommonJS
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports2) => {
-  exports2.foo = 123;
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
 });
 
 // entry.js
@@ -251,8 +251,8 @@ console.log(internal_default, void 0);
 TestImportExportOtherAsNamespaceCommonJS
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports2) => {
-  exports2.foo = 123;
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
 });
 
 // entry.js

@@ -306,45 +306,6 @@ import("../node_modules/package/index.js");
 console.log("imported");
 
 ================================================================================
-TestSplittingHybridCJSAndESMIssue617
----------- /out/a.js ----------
-import {
-  require_a
-} from "./chunk-IXXZP4MD.js";
-export default require_a();
-
----------- /out/b.js ----------
-import {
-  __defProp,
-  __markAsModule,
-  require_a
-} from "./chunk-IXXZP4MD.js";
-
-// b.js
-var import_a = __toModule(require_a());
-var export_foo = import_a.foo;
-export {
-  export_foo as foo
-};
-
----------- /out/chunk-IXXZP4MD.js ----------
-// a.js
-var require_a = __commonJS((exports) => {
-  __markAsModule(exports);
-  __export(exports, {
-    foo: () => foo
-  });
-  var foo;
-  exports.bar = 123;
-});
-
-export {
-  __defProp,
-  require_a,
-  __markAsModule
-};
-
-================================================================================
 TestSplittingHybridESMAndCJSIssue617
 ---------- /out/a.js ----------
 import {

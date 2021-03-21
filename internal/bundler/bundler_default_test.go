@@ -363,30 +363,6 @@ func TestExportFormsCommonJS(t *testing.T) {
 	})
 }
 
-func TestReExportDefaultCommonJS(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				import {foo as entry} from './foo'
-				entry()
-			`,
-			"/foo.js": `
-				export {default as foo} from './bar'
-			`,
-			"/bar.js": `
-				export default function foo() {
-					return exports // Force this to be a CommonJS module
-				}
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-		},
-	})
-}
-
 func TestExportChain(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1632,10 +1608,10 @@ func TestExportFSNodeInCommonJSModule(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				export * as fs from 'fs'
-				export {readFileSync} from 'fs'
-
-				// Force this to be a CommonJS module
+				import * as fs from 'fs'
+				import {readFileSync} from 'fs'
+				exports.fs = fs
+				exports.readFileSync = readFileSync
 				exports.foo = 123
 			`,
 		},
