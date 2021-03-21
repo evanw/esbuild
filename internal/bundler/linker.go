@@ -1375,10 +1375,9 @@ func (c *linkerContext) scanImportsAndExports() {
 
 		// If the output format doesn't have an implicit CommonJS wrapper, any file
 		// that uses CommonJS features will need to be wrapped, even though the
-		// resulting wrapper won't be invoked by other files.
-		if repr.meta.cjsStyleExports &&
-			(c.options.OutputFormat == config.FormatIIFE ||
-				c.options.OutputFormat == config.FormatESModule) {
+		// resulting wrapper won't be invoked by other files. An exception is made
+		// for entry point files in CommonJS format (or when in pass-through mode).
+		if repr.meta.cjsStyleExports && (!file.isEntryPoint || c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatESModule) {
 			repr.meta.cjsWrap = true
 		}
 
