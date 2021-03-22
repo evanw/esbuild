@@ -2647,6 +2647,41 @@ var import_es6_ns_export_class = __toModule(require_es6_ns_export_class());
 var import_es6_ns_export_abstract_class = __toModule(require_es6_ns_export_abstract_class());
 
 ================================================================================
+TestTopLevelAwaitAllowedImportWithSplitting
+---------- /out/entry.js ----------
+// entry.js
+import("./a.js");
+import("./b.js");
+import("./c.js");
+import("./entry.js");
+await 0;
+
+---------- /out/a.js ----------
+import "./chunk-7VOEXAIV.js";
+import "./chunk-FLIOJ2XZ.js";
+
+---------- /out/b.js ----------
+import "./chunk-7VOEXAIV.js";
+import "./chunk-FLIOJ2XZ.js";
+
+---------- /out/chunk-7VOEXAIV.js ----------
+
+---------- /out/c.js ----------
+import "./chunk-FLIOJ2XZ.js";
+
+---------- /out/chunk-FLIOJ2XZ.js ----------
+// c.js
+await 0;
+
+================================================================================
+TestTopLevelAwaitESM
+---------- /out.js ----------
+// entry.js
+await foo;
+for await (foo of bar)
+  ;
+
+================================================================================
 TestTopLevelAwaitNoBundle
 ---------- /out.js ----------
 await foo;

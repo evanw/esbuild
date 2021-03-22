@@ -18,16 +18,10 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	didGenerateError = true
 
 	if !p.options.unsupportedJSFeatures.Has(feature) {
-		if feature == compat.TopLevelAwait {
-			if p.options.mode == config.ModeBundle {
-				p.log.AddRangeError(&p.source, r, "Top-level await is currently not supported when bundling")
-				return
-			}
-			if p.options.mode == config.ModeConvertFormat && !p.options.outputFormat.KeepES6ImportExportSyntax() {
-				p.log.AddRangeError(&p.source, r, fmt.Sprintf(
-					"Top-level await is currently not supported with the %q output format", p.options.outputFormat.String()))
-				return
-			}
+		if feature == compat.TopLevelAwait && !p.options.outputFormat.KeepES6ImportExportSyntax() {
+			p.log.AddRangeError(&p.source, r, fmt.Sprintf(
+				"Top-level await is currently not supported with the %q output format", p.options.outputFormat.String()))
+			return
 		}
 
 		didGenerateError = false
