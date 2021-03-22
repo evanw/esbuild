@@ -452,6 +452,33 @@
         export let b = 'b'
       `,
     }),
+    test(['entry1.js', 'entry2.js', '--splitting', '--bundle', '--format=esm', '--outdir=out'], {
+      'entry1.js': `
+        import { abc, def, xyz } from './a'
+        export default [abc, def, xyz]
+      `,
+      'entry2.js': `
+        import * as x from './b'
+        export default x
+      `,
+      'a.js': `
+        export let abc = 'abc'
+        export * from './b'
+      `,
+      'b.js': `
+        export * from './c'
+        export const def = 'def'
+      `,
+      'c.js': `
+        exports.xyz = 'xyz'
+      `,
+      'node.js': `
+        import entry1 from './out/entry1.js'
+        import entry2 from './out/entry2.js'
+        if (entry1[0] !== 'abc' || entry1[1] !== 'def' || entry1[2] !== 'xyz') throw 'fail'
+        if (entry2.def !== 'def' || entry2.xyz !== 'xyz') throw 'fail'
+      `,
+    }),
 
     // Complex circular bundled and non-bundled import case (https://github.com/evanw/esbuild/issues/758)
     test(['node.ts', '--bundle', '--format=cjs', '--outdir=.'], {
