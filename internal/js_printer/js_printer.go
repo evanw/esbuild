@@ -1216,7 +1216,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 	p.printSpaceBeforeIdentifier()
 
 	// Preserve "import()" expressions that don't point inside the bundle
-	if !record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
+	if !record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic {
 		p.print("import(")
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
