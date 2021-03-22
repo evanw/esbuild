@@ -100,13 +100,7 @@ func code(isES6 bool) string {
 		}
 
 		// Wraps a CommonJS closure and returns a require() function
-		export var __commonJS = (callback, module) => () => {
-			if (!module) {
-				module = {exports: {}}
-				callback(module.exports, module)
-			}
-			return module.exports
-		}
+		export var __commonJS = (cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports)
 
 		// Used to implement ES6 exports to CommonJS
 		export var __export = (target, all) => {
