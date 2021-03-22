@@ -22,6 +22,19 @@
 
     With this release, esbuild will now convert modules containing a run-time `export * as` statement to a special ESM-plus-dynamic-fallback mode. In this mode, named exports present at bundle time can still be imported directly by name, but any imports that don't match one of the explicit named imports present at bundle time will be converted to a property access on the fallback object instead of being a bundle error. These property accesses are then resolved at run-time and will be undefined if the export is missing.
 
+* Initial support for bundling with top-level await ([#253](https://github.com/evanw/esbuild/issues/253))
+
+    Top-level await is a feature that lets you use an `await` expression at the top level (outside of an `async` function). Here is an example:
+
+    ```js
+    let promise = fetch('https://www.example.com/data')
+    export let data = await promise.then(x => x.json())
+    ```
+
+    Top-level await only works in ECMAScript modules, and does not work in CommonJS modules. This means that you must use an `import` statement or an `import()` expression to import a module containing top-level await. You cannot use `require()` because it's synchronous while top-level await is asynchronous. There should be a descriptive error message when you try to do this.
+
+    This initial release only has limited support for top-level await. It is only supported with the `esm` output format, but not with the `iife` or `cjs` output formats. In addition, the compilation is not correct in that two modules that both contain top-level await and that are siblings in the import graph will be evaluated in serial instead of in parallel. Full support for top-level await will come in a future release.
+
 ## Unreleased
 
 * Add the ability to set `sourceRoot` in source maps ([#1028](https://github.com/evanw/esbuild/pull/1028))

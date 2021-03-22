@@ -152,10 +152,16 @@ type parseArgs struct {
 }
 
 type parseResult struct {
-	file file
-	ok   bool
-
+	file           file
 	resolveResults []*resolver.ResolveResult
+	tlaCheck       tlaCheck
+	ok             bool
+}
+
+type tlaCheck struct {
+	parent            ast.Index32
+	depth             uint32
+	importRecordIndex uint32
 }
 
 func parseFile(args parseArgs) {
@@ -1497,12 +1503,100 @@ func (s *scanner) processScannedFiles() []file {
 	// can't be constructed earlier because we generate new parse results for
 	// JavaScript stub files for CSS imports above.
 	files := make([]file, len(s.results))
-	for i, result := range s.results {
+	for sourceIndex, result := range s.results {
 		if result.ok {
-			files[i] = result.file
+			s.validateTLA(uint32(sourceIndex))
+			files[sourceIndex] = result.file
 		}
 	}
 	return files
+}
+
+func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
+	result := &s.results[sourceIndex]
+
+	if result.ok && result.tlaCheck.depth == 0 {
+		if repr, ok := result.file.repr.(*reprJS); ok {
+			result.tlaCheck.depth = 1
+			if repr.ast.TopLevelAwaitKeyword.Len > 0 {
+				result.tlaCheck.parent = ast.MakeIndex32(sourceIndex)
+			}
+
+			for importRecordIndex, record := range repr.ast.ImportRecords {
+				if record.SourceIndex.IsValid() &&
+					(record.Kind == ast.ImportRequire || record.Kind == ast.ImportStmt ||
+						(record.Kind == ast.ImportDynamic && !s.options.CodeSplitting)) {
+					parent := s.validateTLA(record.SourceIndex.GetIndex())
+					if !parent.parent.IsValid() {
+						continue
+					}
+
+					// Follow any import chains
+					if record.Kind == ast.ImportStmt && (!result.tlaCheck.parent.IsValid() || parent.depth < result.tlaCheck.depth) {
+						result.tlaCheck.depth = parent.depth + 1
+						result.tlaCheck.parent = record.SourceIndex
+						result.tlaCheck.importRecordIndex = uint32(importRecordIndex)
+						continue
+					}
+
+					// Require of a top-level await chain is forbidden. Dynamic import of
+					// a top-level await chain is also forbidden if code splitting is off.
+					if record.Kind == ast.ImportRequire || (record.Kind == ast.ImportDynamic && !s.options.CodeSplitting) {
+						var notes []logger.MsgData
+						var tlaPrettyPath string
+						otherSourceIndex := record.SourceIndex.GetIndex()
+
+						// Build up a chain of relevant notes for all of the imports
+						for {
+							parentResult := &s.results[otherSourceIndex]
+							parentRepr := parentResult.file.repr.(*reprJS)
+
+							if parentRepr.ast.TopLevelAwaitKeyword.Len > 0 {
+								tlaPrettyPath = parentResult.file.source.PrettyPath
+								notes = append(notes, logger.RangeData(&parentResult.file.source, parentRepr.ast.TopLevelAwaitKeyword,
+									fmt.Sprintf("The top-level await in %q is here", tlaPrettyPath)))
+								break
+							}
+
+							if !parentResult.tlaCheck.parent.IsValid() {
+								notes = append(notes, logger.MsgData{Text: "unexpected invalid index"})
+								break
+							}
+
+							otherSourceIndex = parentResult.tlaCheck.parent.GetIndex()
+
+							notes = append(notes, logger.RangeData(&parentResult.file.source,
+								parentRepr.ast.ImportRecords[parent.importRecordIndex].Range,
+								fmt.Sprintf("The file %q imports the file %q here",
+									parentResult.file.source.PrettyPath, s.results[otherSourceIndex].file.source.PrettyPath)))
+						}
+
+						var text string
+						what := "require call"
+						why := ""
+						importedPrettyPath := s.results[record.SourceIndex.GetIndex()].file.source.PrettyPath
+
+						if record.Kind == ast.ImportDynamic {
+							what = "dynamic import"
+							why = " (enable code splitting to allow this)"
+						}
+
+						if importedPrettyPath == tlaPrettyPath {
+							text = fmt.Sprintf("This %s is not allowed because the imported file %q contains a top-level await%s",
+								what, importedPrettyPath, why)
+						} else {
+							text = fmt.Sprintf("This %s is not allowed because the transitive dependency %q contains a top-level await%s",
+								what, tlaPrettyPath, why)
+						}
+
+						s.log.AddRangeErrorWithNotes(&result.file.source, record.Range, text, notes)
+					}
+				}
+			}
+		}
+	}
+
+	return result.tlaCheck
 }
 
 func DefaultExtensionToLoaderMap() map[string]config.Loader {

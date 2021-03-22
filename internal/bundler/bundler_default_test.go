@@ -3088,7 +3088,7 @@ func TestOutputExtensionRemappingDir(t *testing.T) {
 	})
 }
 
-func TestTopLevelAwait(t *testing.T) {
+func TestTopLevelAwaitIIFE(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3099,11 +3099,49 @@ func TestTopLevelAwait(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: error: Top-level await is currently not supported when bundling
-entry.js: error: Top-level await is currently not supported when bundling
+		expectedScanLog: `entry.js: error: Top-level await is currently not supported with the "iife" output format
+entry.js: error: Top-level await is currently not supported with the "iife" output format
 `,
+	})
+}
+
+func TestTopLevelAwaitCJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: Top-level await is currently not supported with the "cjs" output format
+entry.js: error: Top-level await is currently not supported with the "cjs" output format
+`,
+	})
+}
+
+func TestTopLevelAwaitESM(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
 	})
 }
 
@@ -3176,6 +3214,118 @@ func TestTopLevelAwaitNoBundleIIFE(t *testing.T) {
 		expectedScanLog: `entry.js: error: Top-level await is currently not supported with the "iife" output format
 entry.js: error: Top-level await is currently not supported with the "iife" output format
 `,
+	})
+}
+
+func TestTopLevelAwaitForbiddenRequire(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				require('./a')
+				require('./b')
+				require('./c')
+				require('./entry')
+				await 0
+			`,
+			"/a.js": `
+				import './b'
+			`,
+			"/b.js": `
+				import './c'
+			`,
+			"/c.js": `
+				await 0
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: This require call is not allowed because the transitive dependency "c.js" contains a top-level await
+a.js: note: The file "a.js" imports the file "b.js" here
+b.js: note: The file "b.js" imports the file "c.js" here
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This require call is not allowed because the transitive dependency "c.js" contains a top-level await
+b.js: note: The file "b.js" imports the file "c.js" here
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This require call is not allowed because the imported file "c.js" contains a top-level await
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This require call is not allowed because the imported file "entry.js" contains a top-level await
+entry.js: note: The top-level await in "entry.js" is here
+`,
+	})
+}
+
+func TestTopLevelAwaitForbiddenImportWithoutSplitting(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import('./a')
+				import('./b')
+				import('./c')
+				import('./entry')
+				await 0
+			`,
+			"/a.js": `
+				import './b'
+			`,
+			"/b.js": `
+				import './c'
+			`,
+			"/c.js": `
+				await 0
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: This dynamic import is not allowed because the transitive dependency "c.js" contains a top-level await (enable code splitting to allow this)
+a.js: note: The file "a.js" imports the file "b.js" here
+b.js: note: The file "b.js" imports the file "c.js" here
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This dynamic import is not allowed because the transitive dependency "c.js" contains a top-level await (enable code splitting to allow this)
+b.js: note: The file "b.js" imports the file "c.js" here
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This dynamic import is not allowed because the imported file "c.js" contains a top-level await (enable code splitting to allow this)
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This dynamic import is not allowed because the imported file "entry.js" contains a top-level await (enable code splitting to allow this)
+entry.js: note: The top-level await in "entry.js" is here
+`,
+	})
+}
+
+func TestTopLevelAwaitAllowedImportWithSplitting(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import('./a')
+				import('./b')
+				import('./c')
+				import('./entry')
+				await 0
+			`,
+			"/a.js": `
+				import './b'
+			`,
+			"/b.js": `
+				import './c'
+			`,
+			"/c.js": `
+				await 0
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			CodeSplitting: true,
+			AbsOutputDir:  "/out",
+		},
 	})
 }
 
