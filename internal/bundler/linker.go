@@ -3435,6 +3435,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		Indent:                       indent,
 		OutputFormat:                 c.options.OutputFormat,
 		RemoveWhitespace:             c.options.RemoveWhitespace,
+		RemoveAllComments:            c.options.RemoveAllComments,
 		MangleSyntax:                 c.options.MangleSyntax,
 		ASCIIOnly:                    c.options.ASCIIOnly,
 		ToModuleRef:                  toModuleRef,

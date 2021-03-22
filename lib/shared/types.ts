@@ -18,6 +18,7 @@ interface CommonOptions {
   minifyWhitespace?: boolean;
   minifyIdentifiers?: boolean;
   minifySyntax?: boolean;
+  removeAllComments?: boolean;
   charset?: Charset;
   treeShaking?: TreeShaking;
 

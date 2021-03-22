@@ -87,6 +87,7 @@ var helpText = func(colors logger.Colors) string {
   --sourcemap=external      Do not link to the source map with a comment
   --sourcemap=inline        Emit the source map with an inline data URL
   --sources-content=false   Omit "sourcesContent" in generated source maps
+  --remove-all-comments     Remove all comments in output files
   --tree-shaking=...        Set to "ignore-annotations" to work with packages
                             that have incorrect tree-shaking annotations
   --tsconfig=...            Use this tsconfig.json file instead of other ones

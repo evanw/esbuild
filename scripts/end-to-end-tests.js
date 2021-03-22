@@ -1870,6 +1870,18 @@
     }),
   )
 
+  // Test removeAllComments
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--remove-all-comments'], {
+      'in.js': `
+        //! @license comment
+        /** @license */
+        const a = '/* @license */';
+        if (a.indexOf('license') == -1) throw 'fail';
+      `,
+    })
+  )
+
   // Test name preservation
   for (let flags of [[], ['--minify', '--keep-names']]) {
     tests.push(

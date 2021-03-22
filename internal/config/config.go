@@ -181,6 +181,7 @@ type Options struct {
 	ModuleType        ModuleType
 	PreserveSymlinks  bool
 	RemoveWhitespace  bool
+	RemoveAllComments bool
 	MinifyIdentifiers bool
 	MangleSyntax      bool
 	CodeSplitting     bool

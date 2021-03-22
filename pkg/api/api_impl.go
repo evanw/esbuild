@@ -1241,6 +1241,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		GlobalName:              validateGlobalName(log, transformOpts.GlobalName),
 		MangleSyntax:            transformOpts.MinifySyntax,
 		RemoveWhitespace:        transformOpts.MinifyWhitespace,
+		RemoveAllComments:       transformOpts.RemoveAllComments,
 		MinifyIdentifiers:       transformOpts.MinifyIdentifiers,
 		ASCIIOnly:               validateASCIIOnly(transformOpts.Charset),
 		IgnoreDCEAnnotations:    validateIgnoreDCEAnnotations(transformOpts.TreeShaking),

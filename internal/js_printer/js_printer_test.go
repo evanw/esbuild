@@ -57,6 +57,13 @@ func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedRemoveAllComments(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, contents, expected, Options{
+		RemoveAllComments: true,
+	})
+}
+
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [mangled]", contents, expected, Options{
@@ -490,6 +497,9 @@ func TestPureComment(t *testing.T) {
 	expectPrinted(t,
 		"/*@__PURE__*/(function() {})()",
 		"/* @__PURE__ */ (function() {\n})();\n")
+	expectPrintedRemoveAllComments(t,
+		"/*@__PURE__*/(function() {})()",
+		"(function() {\n})();\n")
 
 	expectPrinted(t,
 		"new (function() {})",
@@ -500,6 +510,9 @@ func TestPureComment(t *testing.T) {
 	expectPrinted(t,
 		"/*@__PURE__*/new (function() {})()",
 		"/* @__PURE__ */ new function() {\n}();\n")
+	expectPrintedRemoveAllComments(t,
+		"/*@__PURE__*/new (function() {})()",
+		"new function() {\n}();\n")
 }
 
 func TestGenerator(t *testing.T) {
@@ -604,6 +617,10 @@ func TestImport(t *testing.T) {
 	expectPrinted(t, "import(/* comment 1 */ /* comment 2 */ 'path');", "import(\n  /* comment 1 */\n  /* comment 2 */\n  \"path\"\n);\n")
 	expectPrinted(t, "import(\n    /* multi\n     * line\n     * comment */ 'path');", "import(\n  /* multi\n   * line\n   * comment */\n  \"path\"\n);\n")
 	expectPrinted(t, "import(/* comment 1 */ 'path' /* comment 2 */);", "import(\n  /* comment 1 */\n  \"path\"\n);\n")
+	expectPrintedRemoveAllComments(t, "import(// comment 1\n // comment 2\n 'path');", "import(\"path\");\n")
+	expectPrintedRemoveAllComments(t, "import(/* comment 1 */ /* comment 2 */ 'path');", "import(\"path\");\n")
+	expectPrintedRemoveAllComments(t, "import(\n    /* multi\n     * line\n     * comment */ 'path');", "import(\"path\");\n")
+	expectPrintedRemoveAllComments(t, "import(/* comment 1 */ 'path' /* comment 2 */);", "import(\"path\");\n")
 }
 
 func TestExportDefault(t *testing.T) {
@@ -740,6 +757,13 @@ func TestMinify(t *testing.T) {
 	// Comment statements must not affect their surroundings when minified
 	expectPrintedMinify(t, "//!single\nthrow 1 + 2", "//!single\nthrow 1+2;")
 	expectPrintedMinify(t, "/*!multi-\nline*/\nthrow 1 + 2", "/*!multi-\nline*/throw 1+2;")
+}
+
+func TestRemoveAllComments(t *testing.T) {
+	expectPrinted(t, "//! license\nconst a = 1;\n", "//! license\nconst a = 1;\n")
+	expectPrinted(t, "/* @license */\nconst a = 1;\n", "/* @license */\nconst a = 1;\n")
+	expectPrintedRemoveAllComments(t, "//! license\nconst a = 1;\n", "const a = 1;\n")
+	expectPrintedRemoveAllComments(t, "/* @license */\nconst a = 1;\n", "const a = 1;\n")
 }
 
 func TestES5(t *testing.T) {

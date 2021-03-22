@@ -234,6 +234,7 @@ type BuildOptions struct {
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
 	MinifySyntax      bool
+	RemoveAllComments bool
 	Charset           Charset
 	TreeShaking       TreeShaking
 
@@ -339,6 +340,7 @@ type TransformOptions struct {
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
 	MinifySyntax      bool
+	RemoveAllComments bool
 	Charset           Charset
 	TreeShaking       TreeShaking
 

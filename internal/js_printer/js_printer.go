@@ -1253,7 +1253,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 			p.print("require(")
 			defer p.print(")")
 		}
-		if len(leadingInteriorComments) > 0 {
+		if !p.options.RemoveAllComments && len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent++
 			for _, comment := range leadingInteriorComments {
@@ -1263,7 +1263,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		}
 		p.addSourceMapping(record.Range.Loc)
 		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
-		if len(leadingInteriorComments) > 0 {
+		if !p.options.RemoveAllComments && len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent--
 			p.printIndent()
@@ -1410,7 +1410,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 	case *js_ast.ENew:
 		wrap := level >= js_ast.LCall
 
-		hasPureComment := !p.options.RemoveWhitespace && e.CanBeUnwrappedIfUnused
+		hasPureComment := !p.options.RemoveWhitespace && !p.options.RemoveAllComments && e.CanBeUnwrappedIfUnused
 		if hasPureComment && level >= js_ast.LPostfix {
 			wrap = true
 		}
@@ -1454,7 +1454,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			wrap = true
 		}
 
-		hasPureComment := !p.options.RemoveWhitespace && e.CanBeUnwrappedIfUnused
+		hasPureComment := !p.options.RemoveWhitespace && !p.options.RemoveAllComments && e.CanBeUnwrappedIfUnused
 		if hasPureComment && level >= js_ast.LPostfix {
 			wrap = true
 		}
@@ -2493,15 +2493,17 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 
 	switch s := stmt.Data.(type) {
 	case *js_ast.SComment:
-		text := s.Text
-		if p.options.ExtractComments {
-			if p.extractedComments == nil {
-				p.extractedComments = make(map[string]bool)
+		if !p.options.RemoveAllComments {
+			text := s.Text
+			if p.options.ExtractComments {
+				if p.extractedComments == nil {
+					p.extractedComments = make(map[string]bool)
+				}
+				p.extractedComments[text] = true
+				break
 			}
-			p.extractedComments[text] = true
-			break
+			p.printIndentedComment(text)
 		}
-		p.printIndentedComment(text)
 
 	case *js_ast.SFunction:
 		p.printIndent()
@@ -3040,6 +3042,7 @@ func (p *printer) shouldIgnoreSourceMap() bool {
 type Options struct {
 	OutputFormat                 config.Format
 	RemoveWhitespace             bool
+	RemoveAllComments            bool
 	MangleSyntax                 bool
 	ASCIIOnly                    bool
 	ExtractComments              bool

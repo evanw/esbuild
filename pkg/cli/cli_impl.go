@@ -92,6 +92,13 @@ func parseOptionsImpl(
 				transformOpts.MinifyIdentifiers = true
 			}
 
+		case arg == "--remove-all-comments":
+			if buildOpts != nil {
+				buildOpts.RemoveAllComments = true
+			} else {
+				transformOpts.RemoveAllComments = true
+			}
+
 		case strings.HasPrefix(arg, "--charset="):
 			var value *api.Charset
 			if buildOpts != nil {
