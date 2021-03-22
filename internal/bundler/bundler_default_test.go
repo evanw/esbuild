@@ -850,24 +850,6 @@ func TestDynamicImportWithExpressionCJS(t *testing.T) {
 	})
 }
 
-func TestDynamicImportWithExpressionCJSAndES5(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/a.js": `
-				import('foo')
-				import(foo())
-			`,
-		},
-		entryPaths: []string{"/a.js"},
-		options: config.Options{
-			Mode:                  config.ModeConvertFormat,
-			OutputFormat:          config.FormatCommonJS,
-			UnsupportedJSFeatures: es(5),
-			AbsOutputFile:         "/out.js",
-		},
-	})
-}
-
 func TestMinifiedDynamicImportWithExpressionCJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -882,25 +864,6 @@ func TestMinifiedDynamicImportWithExpressionCJS(t *testing.T) {
 			OutputFormat:     config.FormatCommonJS,
 			AbsOutputFile:    "/out.js",
 			RemoveWhitespace: true,
-		},
-	})
-}
-
-func TestMinifiedDynamicImportWithExpressionCJSAndES5(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/a.js": `
-				import('foo')
-				import(foo())
-			`,
-		},
-		entryPaths: []string{"/a.js"},
-		options: config.Options{
-			Mode:                  config.ModeConvertFormat,
-			OutputFormat:          config.FormatCommonJS,
-			UnsupportedJSFeatures: es(5),
-			AbsOutputFile:         "/out.js",
-			RemoveWhitespace:      true,
 		},
 	})
 }
