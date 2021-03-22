@@ -104,6 +104,24 @@ type linkerContext struct {
 	uniqueKeyPrefixBytes []byte // This is just "uniqueKeyPrefix" in byte form
 }
 
+type wrapKind uint8
+
+const (
+	wrapNone wrapKind = iota
+
+	// The module will be bundled CommonJS-style like this:
+	//
+	//   // foo.ts
+	//   let require_foo = __commonJS((exports, module) => {
+	//     exports.foo = 123
+	//   });
+	//
+	//   // bar.ts
+	//   let foo = flag ? require_foo() : null;
+	//
+	wrapCJS
+)
+
 // This contains linker-specific metadata corresponding to a "file" struct
 // from the initial scan phase of the bundler. It's separated out because it's
 // conceptually only used for a single linking operation and because multiple
@@ -159,17 +177,7 @@ type fileMeta struct {
 	// into two separate passes.
 	importsToBind map[js_ast.Ref]importToBind
 
-	// If true, the module must be bundled CommonJS-style like this:
-	//
-	//   // foo.ts
-	//   let require_foo = __commonJS((exports, module) => {
-	//     ...
-	//   });
-	//
-	//   // bar.ts
-	//   let foo = flag ? require_foo() : null;
-	//
-	cjsWrap bool
+	wrap wrapKind
 
 	// If true, the "__export(exports, { ... })" call will be force-included even
 	// if there are no parts that reference "exports". Otherwise this call will
@@ -986,7 +994,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 							if importToBind, ok := repr.meta.importsToBind[ref]; ok {
 								ref = importToBind.ref
 								symbol = c.symbols.Get(ref)
-							} else if repr.meta.cjsWrap && ref != repr.ast.WrapperRef {
+							} else if repr.meta.wrap == wrapCJS && ref != repr.ast.WrapperRef {
 								// The only internal symbol that wrapped CommonJS files export
 								// is the wrapper itself.
 								continue
@@ -1337,7 +1345,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// for entry point files in CommonJS format (or when in pass-through mode).
 		if repr.ast.ExportsKind == js_ast.ExportsCommonJS && (!file.isEntryPoint ||
 			c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatESModule) {
-			repr.meta.cjsWrap = true
+			repr.meta.wrap = wrapCJS
 		}
 
 		// Even if the output file is CommonJS-like, we may still need to wrap
@@ -1350,7 +1358,7 @@ func (c *linkerContext) scanImportsAndExports() {
 			if record.SourceIndex.IsValid() {
 				otherRepr := c.files[record.SourceIndex.GetIndex()].repr.(*reprJS)
 				if otherRepr.ast.ExportsKind == js_ast.ExportsCommonJS {
-					otherRepr.meta.cjsWrap = true
+					otherRepr.meta.wrap = wrapCJS
 				}
 			}
 		}
@@ -1394,7 +1402,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// symbols. In that case make sure to mark them as such so they don't
 		// get minified.
 		if (c.options.OutputFormat == config.FormatPreserve || c.options.OutputFormat == config.FormatCommonJS) &&
-			!repr.meta.cjsWrap && file.isEntryPoint {
+			repr.meta.wrap == wrapNone && file.isEntryPoint {
 			exportsRef := js_ast.FollowSymbols(c.symbols, repr.ast.ExportsRef)
 			moduleRef := js_ast.FollowSymbols(c.symbols, repr.ast.ModuleRef)
 			c.symbols.Get(exportsRef).Kind = js_ast.SymbolUnbound
@@ -1474,7 +1482,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// actual CommonJS files from being renamed. This is purely about
 		// aesthetics and is not about correctness. This is done here because by
 		// this point, we know the CommonJS status will not change further.
-		if !repr.meta.cjsWrap && repr.ast.ExportsKind != js_ast.ExportsCommonJS && (!file.isEntryPoint ||
+		if repr.meta.wrap != wrapCJS && repr.ast.ExportsKind != js_ast.ExportsCommonJS && (!file.isEntryPoint ||
 			c.options.OutputFormat != config.FormatCommonJS) {
 			name := file.source.IdentifierName
 			c.symbols.Get(repr.ast.ExportsRef).OriginalName = name + "_exports"
@@ -1637,7 +1645,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// entry point is a CommonJS-style module, since that would generate an ES6
 	// export statement that's not top-level. Instead, we will export the CommonJS
 	// exports as a default export later on.
-	needsEntryPointES6ExportPart := file.isEntryPoint && !repr.meta.cjsWrap &&
+	needsEntryPointES6ExportPart := file.isEntryPoint && repr.meta.wrap != wrapCJS &&
 		c.options.OutputFormat == config.FormatESModule && len(repr.meta.sortedAndFilteredExportAliases) > 0
 
 	// Generate a getter per export
@@ -1892,7 +1900,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// bundle right before bundle evaluation ends
 	var cjsWrapStmt js_ast.Stmt
 	if file.isEntryPoint {
-		if repr.meta.cjsWrap {
+		if repr.meta.wrap == wrapCJS {
 			switch c.options.OutputFormat {
 			case config.FormatPreserve:
 				// "require_foo();"
@@ -2539,7 +2547,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 			// below, we just append a dummy part to the end of the file with these
 			// dependencies and let the general-purpose reachablity analysis take care
 			// of it.
-			if repr.meta.cjsWrap {
+			if repr.meta.wrap == wrapCJS {
 				runtimeRepr := c.files[runtime.SourceIndex].repr.(*reprJS)
 				commonJSRef := runtimeRepr.ast.NamedExports["__commonJS"].Ref
 				commonJSParts := runtimeRepr.ast.TopLevelSymbolToParts[commonJSRef]
@@ -3151,8 +3159,8 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 
 		switch repr := file.repr.(type) {
 		case *reprJS:
-			// CommonJS files can't be split because they are all inside the wrapper
-			canFileBeSplit := !repr.meta.cjsWrap
+			// Wrapped files can't be split because they are all inside the wrapper
+			canFileBeSplit := repr.meta.wrap == wrapNone
 
 			// Make sure the generated call to "__export(exports, ...)" comes first
 			// before anything else in this file
@@ -3268,7 +3276,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 	file := &c.files[sourceIndex]
 	shouldStripExports := c.options.Mode != config.ModePassThrough || !file.isEntryPoint
 	repr := file.repr.(*reprJS)
-	shouldExtractES6StmtsForCJSWrap := repr.meta.cjsWrap
+	shouldExtractES6StmtsForWrap := repr.meta.wrap != wrapNone
 
 	for _, stmt := range partStmts {
 		switch s := stmt.Data.(type) {
@@ -3280,8 +3288,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			}
 
 			// Make sure these don't end up in a CommonJS wrapper
-			if shouldExtractES6StmtsForCJSWrap {
-				stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
+			if shouldExtractES6StmtsForWrap {
+				stmtList.es6StmtsForWrap = append(stmtList.es6StmtsForWrap, stmt)
 				continue
 			}
 
@@ -3315,8 +3323,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 							})
 
 							// Make sure these don't end up in a CommonJS wrapper
-							if shouldExtractES6StmtsForCJSWrap {
-								stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
+							if shouldExtractES6StmtsForWrap {
+								stmtList.es6StmtsForWrap = append(stmtList.es6StmtsForWrap, stmt)
 								continue
 							}
 						}
@@ -3356,8 +3364,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 				}
 
 				// Make sure these don't end up in a CommonJS wrapper
-				if shouldExtractES6StmtsForCJSWrap {
-					stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
+				if shouldExtractES6StmtsForWrap {
+					stmtList.es6StmtsForWrap = append(stmtList.es6StmtsForWrap, stmt)
 					continue
 				}
 			}
@@ -3382,8 +3390,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			}
 
 			// Make sure these don't end up in a CommonJS wrapper
-			if shouldExtractES6StmtsForCJSWrap {
-				stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
+			if shouldExtractES6StmtsForWrap {
+				stmtList.es6StmtsForWrap = append(stmtList.es6StmtsForWrap, stmt)
 				continue
 			}
 
@@ -3394,8 +3402,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			}
 
 			// Make sure these don't end up in a CommonJS wrapper
-			if shouldExtractES6StmtsForCJSWrap {
-				stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
+			if shouldExtractES6StmtsForWrap {
+				stmtList.es6StmtsForWrap = append(stmtList.es6StmtsForWrap, stmt)
 				continue
 			}
 
@@ -3515,7 +3523,7 @@ type stmtList struct {
 
 	// Order doesn't matter for these statements, but they must be outside any
 	// CommonJS wrapper since they are top-level ES6 import/export statements
-	es6StmtsForCJSWrap []js_ast.Stmt
+	es6StmtsForWrap []js_ast.Stmt
 
 	// These statements are for an entry point and come at the end of the chunk
 	entryPointTail []js_ast.Stmt
@@ -3632,7 +3640,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		}
 
 		// "var require_foo = __commonJS((exports, module) => { ... });"
-		stmts = append(stmtList.es6StmtsForCJSWrap, js_ast.Stmt{Data: &js_ast.SLocal{
+		stmts = append(stmtList.es6StmtsForWrap, js_ast.Stmt{Data: &js_ast.SLocal{
 			Decls: []js_ast.Decl{{
 				Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.WrapperRef}},
 				Value:   &value,
@@ -3795,7 +3803,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		// not completely accurate (e.g. we don't set the parent of the module
 		// scope to this new top-level scope) but it's good enough for the
 		// renaming code.
-		if repr.meta.cjsWrap {
+		if repr.meta.wrap == wrapCJS {
 			r.AddTopLevelSymbol(repr.ast.WrapperRef)
 
 			// External import statements will be hoisted outside of the CommonJS
@@ -4030,7 +4038,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		var aliases []string
 		if c.options.OutputFormat.KeepES6ImportExportSyntax() {
 			if chunk.isEntryPoint {
-				if fileRepr := c.files[chunk.sourceIndex].repr.(*reprJS); fileRepr.meta.cjsWrap {
+				if fileRepr := c.files[chunk.sourceIndex].repr.(*reprJS); fileRepr.meta.wrap == wrapCJS {
 					aliases = []string{"default"}
 				} else {
 					resolvedExports := fileRepr.meta.resolvedExports
