@@ -1593,7 +1593,22 @@ const (
 	// export names. Named imports to this module are only allowed if they are
 	// in the set of export names.
 	ExportsESM
+
+	// Some export names are known explicitly, but others fall back to a dynamic
+	// run-time object. This is necessary when using the "export * from" syntax
+	// with either a CommonJS module or an external module (i.e. a module whose
+	// export names are not known at compile-time).
+	//
+	// Calling "require()" on this module generates an exports object (stored in
+	// "exports") with getters for the export names. All named imports to this
+	// module are allowed. Direct named imports reference the corresponding export
+	// directly. Other imports go through property accesses on "exports".
+	ExportsESMWithDynamicFallback
 )
+
+func (kind ExportsKind) IsDynamic() bool {
+	return kind == ExportsCommonJS || kind == ExportsESMWithDynamicFallback
+}
 
 type AST struct {
 	ApproximateLineCount  int32

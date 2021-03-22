@@ -841,22 +841,18 @@ TestReExportStarExternalIIFE
 ---------- /out.js ----------
 var mod = (() => {
   // entry.js
-  var require_entry = __commonJS((exports) => {
-    __markAsModule(exports);
-    __exportStar(exports, __toModule(require("foo")));
-  });
-  return require_entry();
+  var entry_exports = {};
+  __exportStar(entry_exports, __toModule(require("foo")));
+  return entry_exports;
 })();
 
 ================================================================================
 TestReExportStarIIFENoBundle
 ---------- /out.js ----------
 var mod = (() => {
-  var require_entry = __commonJS((exports) => {
-    __markAsModule(exports);
-    __exportStar(exports, __toModule(require("foo")));
-  });
-  return require_entry();
+  var entry_exports = {};
+  __exportStar(entry_exports, __toModule(require("foo")));
+  return entry_exports;
 })();
 
 ================================================================================

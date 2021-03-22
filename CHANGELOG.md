@@ -14,6 +14,14 @@
 
     With this release, esbuild will no longer do this. Now `import()` expressions will be preserved in the output instead. These expressions can be handled in non-ESM code by arranging for the `import` identifier to be a function that imports ESM code. This is how node works, so it will now be possible to use `import()` with node when the output format is something other than ESM.
 
+* Run-time `export * as` statements no longer convert the file to CommonJS
+
+    Certain `export * as` statements require a bundler to evaluate them at run-time instead of at compile-time like the JavaScript specification. This is the case when re-exporting symbols from an external file and a file in CommonJS format.
+
+    Previously esbuild would handle this by converting the module containing the `export * as` statement to CommonJS too, since CommonJS exports are evaluated at run-time while ESM exports are evaluated at bundle-time. However, this is undesirable because tree shaking only works for ESM, not for CommonJS, and the CommonJS wrapper causes additional code bloat. Another upcoming problem is that top-level await cannot work within a CommonJS module because CommonJS `require()` is synchronous.
+
+    With this release, esbuild will now convert modules containing a run-time `export * as` statement to a special ESM-plus-dynamic-fallback mode. In this mode, named exports present at bundle time can still be imported directly by name, but any imports that don't match one of the explicit named imports present at bundle time will be converted to a property access on the fallback object instead of being a bundle error. These property accesses are then resolved at run-time and will be undefined if the export is missing.
+
 ## Unreleased
 
 * Add the ability to set `sourceRoot` in source maps ([#1028](https://github.com/evanw/esbuild/pull/1028))

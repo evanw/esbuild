@@ -2465,13 +2465,6 @@ var require_es6_expr_import_dynamic = __commonJS((exports) => {
   console.log(exports);
 });
 
-// es6-export-star.js
-var require_es6_export_star = __commonJS((exports) => {
-  __markAsModule(exports);
-  __exportStar(exports, require_dummy());
-  console.log(void 0);
-});
-
 // es6-export-assign.ts
 var require_es6_export_assign = __commonJS((exports, module) => {
   console.log(exports);
@@ -2626,8 +2619,10 @@ console.log(void 0);
 var import_dummy2 = require_dummy();
 console.log(void 0);
 
-// entry.js
-var import_es6_export_star = require_es6_export_star();
+// es6-export-star.js
+var es6_export_star_exports = {};
+__exportStar(es6_export_star_exports, require_dummy());
+console.log(void 0);
 
 // es6-export-star-as.js
 var ns = require_dummy();

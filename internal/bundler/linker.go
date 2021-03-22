@@ -1310,20 +1310,20 @@ func (c *linkerContext) scanImportsAndExports() {
 		}
 	}
 
-	// Step 2: Propagate CommonJS status for export star statements that are re-
-	// exports from a CommonJS module. Exports from a CommonJS module are not
-	// statically analyzable, so the export star must be evaluated at run time
-	// instead of at bundle time.
+	// Step 2: Propagate dynamic export status for export star statements that
+	// are re-exports from a module whose exports are not statically analyzable.
+	// In this case the export star must be evaluated at run time instead of at
+	// bundle time.
 	for _, sourceIndex := range c.reachableFiles {
 		if repr, ok := c.files[sourceIndex].repr.(*reprJS); ok && len(repr.ast.ExportStarImportRecords) > 0 {
 			visited := make(map[uint32]bool)
-			c.isCommonJSDueToExportStar(sourceIndex, visited)
+			c.hasDynamicExportsDueToExportStar(sourceIndex, visited)
 		}
 	}
 
 	// Step 3: Resolve "export * from" statements. This must be done after we
-	// discover all modules that can be CommonJS because export stars are ignored
-	// for CommonJS modules.
+	// discover all modules that can have dynamic exports because export stars
+	// are ignored for those modules.
 	exportStarStack := make([]uint32, 0, 32)
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
@@ -2221,6 +2221,22 @@ loop:
 						namedImport.Alias, c.files[nextTracker.sourceIndex].source.PrettyPath))
 			}
 
+		case importDynamicFallback:
+			// If it's a file with dynamic export fallback, rewrite the import to a property access
+			trackerFile := &c.files[tracker.sourceIndex]
+			namedImport := trackerFile.repr.(*reprJS).ast.NamedImports[tracker.importRef]
+			if result.kind == matchImportNormal {
+				result.kind = matchImportNormalAndNamespace
+				result.namespaceRef = nextTracker.importRef
+				result.alias = namedImport.Alias
+			} else {
+				result = matchImportResult{
+					kind:         matchImportNamespace,
+					namespaceRef: nextTracker.importRef,
+					alias:        namedImport.Alias,
+				}
+			}
+
 		case importNoMatch:
 			symbol := c.symbols.Get(tracker.importRef)
 			trackerFile := &c.files[tracker.sourceIndex]
@@ -2316,10 +2332,10 @@ loop:
 	return
 }
 
-func (c *linkerContext) isCommonJSDueToExportStar(sourceIndex uint32, visited map[uint32]bool) bool {
-	// Terminate the traversal now if this file is CommonJS
+func (c *linkerContext) hasDynamicExportsDueToExportStar(sourceIndex uint32, visited map[uint32]bool) bool {
+	// Terminate the traversal now if this file already has dynamic exports
 	repr := c.files[sourceIndex].repr.(*reprJS)
-	if repr.ast.ExportsKind == js_ast.ExportsCommonJS {
+	if repr.ast.ExportsKind == js_ast.ExportsCommonJS || repr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
 		return true
 	}
 
@@ -2333,12 +2349,12 @@ func (c *linkerContext) isCommonJSDueToExportStar(sourceIndex uint32, visited ma
 	for _, importRecordIndex := range repr.ast.ExportStarImportRecords {
 		record := &repr.ast.ImportRecords[importRecordIndex]
 
-		// This file is CommonJS if the exported imports are from a file that is
-		// either CommonJS directly or transitively by itself having an export star
-		// from a CommonJS file.
+		// This file has dynamic exports if the exported imports are from a file
+		// that either has dynamic exports directly or transitively by itself
+		// having an export star from a file with dynamic exports.
 		if (!record.SourceIndex.IsValid() && (!c.files[sourceIndex].isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
-			(record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() != sourceIndex && c.isCommonJSDueToExportStar(record.SourceIndex.GetIndex(), visited)) {
-			repr.ast.ExportsKind = js_ast.ExportsCommonJS
+			(record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() != sourceIndex && c.hasDynamicExportsDueToExportStar(record.SourceIndex.GetIndex(), visited)) {
+			repr.ast.ExportsKind = js_ast.ExportsESMWithDynamicFallback
 			return true
 		}
 	}
@@ -2377,7 +2393,7 @@ func (c *linkerContext) addExportsForExportStar(
 		// re-exports as property accesses off of a generated require() call.
 		otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
 		if otherRepr.ast.ExportsKind == js_ast.ExportsCommonJS {
-			// This will be resolved at run time instead
+			// All exports will be resolved at run time instead
 			continue
 		}
 
@@ -2446,6 +2462,9 @@ const (
 	// The imported file is CommonJS and has unknown exports
 	importCommonJS
 
+	// The import is missing but there is a dynamic fallback object
+	importDynamicFallback
+
 	// The import was treated as a CommonJS import but the file is known to have no exports
 	importCommonJSWithoutExports
 
@@ -2507,6 +2526,11 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 			importRef:   matchingExport.ref,
 			nameLoc:     matchingExport.nameLoc,
 		}, importFound, matchingExport.potentiallyAmbiguousExportStarRefs
+	}
+
+	// Is this a file with dynamic exports?
+	if otherRepr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
+		return importTracker{sourceIndex: otherSourceIndex, importRef: otherRepr.ast.ExportsRef}, importDynamicFallback, nil
 	}
 
 	// Missing re-exports in TypeScript files are indistinguishable from types
@@ -2830,23 +2854,30 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 
 		otherSourceIndex := record.SourceIndex.GetIndex()
 		otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
-		if record.Kind == ast.ImportStmt && otherRepr.ast.ExportsKind != js_ast.ExportsCommonJS {
-			// Skip this since it's not a require() import
-			continue
-		}
 
-		// This is a require() import
-		c.includeFile(otherSourceIndex, entryPointBit, distanceFromEntryPoint)
+		if record.Kind == ast.ImportRequire || record.Kind == ast.ImportDynamic ||
+			(record.Kind == ast.ImportStmt && otherRepr.ast.ExportsKind == js_ast.ExportsCommonJS) {
+			// This is a require() import
+			c.includeFile(otherSourceIndex, entryPointBit, distanceFromEntryPoint)
 
-		// Depend on the automatically-generated require wrapper symbol
-		wrapperRef := otherRepr.ast.WrapperRef
-		c.generateUseOfSymbolForInclude(part, &repr.meta, 1, wrapperRef, otherSourceIndex)
+			// Depend on the automatically-generated require wrapper symbol
+			wrapperRef := otherRepr.ast.WrapperRef
+			c.generateUseOfSymbolForInclude(part, &repr.meta, 1, wrapperRef, otherSourceIndex)
 
-		// This is an ES6 import of a CommonJS module, so it needs the
-		// "__toModule" wrapper as long as it's not a bare "require()"
-		if record.Kind != ast.ImportRequire && otherRepr.ast.ExportKeyword.Len == 0 {
-			record.WrapWithToModule = true
-			toModuleUses++
+			// This is an ES6 import of a CommonJS module, so it needs the
+			// "__toModule" wrapper as long as it's not a bare "require()"
+			if record.Kind != ast.ImportRequire && otherRepr.ast.ExportKeyword.Len == 0 {
+				record.WrapWithToModule = true
+				toModuleUses++
+			}
+		} else if record.Kind == ast.ImportStmt && otherRepr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
+			// This is an import of a module that has a dynamic export fallback
+			// object. In that case we need to depend on that object in case
+			// something ends up needing to use it later. This could potentially
+			// be omitted in some cases with more advanced analysis if this
+			// dynamic export fallback object doesn't end up being needed.
+			c.generateUseOfSymbolForInclude(part, &repr.meta, 1, otherRepr.ast.ExportsRef, otherSourceIndex)
+			c.includePart(otherSourceIndex, otherRepr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
 		}
 	}
 
@@ -2861,9 +2892,23 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		record := &repr.ast.ImportRecords[importRecordIndex]
 
 		// Is this export star evaluated at run time?
-		if (!record.SourceIndex.IsValid() && (!file.isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
-			(record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() != sourceIndex &&
-				c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).ast.ExportsKind == js_ast.ExportsCommonJS) {
+		happensAtRunTime := !record.SourceIndex.IsValid() && (!file.isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())
+		if record.SourceIndex.IsValid() {
+			otherSourceIndex := record.SourceIndex.GetIndex()
+			otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
+			if otherSourceIndex != sourceIndex && otherRepr.ast.ExportsKind.IsDynamic() {
+				happensAtRunTime = true
+			}
+			if otherRepr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
+				// This looks like "__exportStar(exports_a, exports_b)". Make sure to
+				// pull in the "exports_b" symbol into this export star. This matters
+				// in code splitting situations where the "export_b" symbol might live
+				// in a different chunk than this export star.
+				c.generateUseOfSymbolForInclude(part, &repr.meta, 1, otherRepr.ast.ExportsRef, otherSourceIndex)
+				c.includePart(otherSourceIndex, otherRepr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
+			}
+		}
+		if happensAtRunTime {
 			record.CallsRunTimeExportStarFn = true
 			repr.ast.UsesExportsRef = true
 			exportStarUses++
@@ -3330,7 +3375,17 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 						}
 					} else {
 						if record.CallsRunTimeExportStarFn {
-							// Prefix this module with "__exportStar(exports, require(path))"
+							var target js_ast.E
+							if record.SourceIndex.IsValid() {
+								if repr := c.files[record.SourceIndex.GetIndex()].repr.(*reprJS); repr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
+									// Prefix this module with "__exportStar(exports, otherExports)"
+									target = &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}
+								}
+							}
+							if target == nil {
+								// Prefix this module with "__exportStar(exports, require(path))"
+								target = &js_ast.ERequire{ImportRecordIndex: s.ImportRecordIndex}
+							}
 							exportStarRef := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members["__exportStar"].Ref
 							stmtList.prefixStmts = append(stmtList.prefixStmts, js_ast.Stmt{
 								Loc: stmt.Loc,
@@ -3338,7 +3393,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 									Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
 									Args: []js_ast.Expr{
 										{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}},
-										{Loc: record.Range.Loc, Data: &js_ast.ERequire{ImportRecordIndex: s.ImportRecordIndex}},
+										{Loc: record.Range.Loc, Data: target},
 									},
 								}}},
 							})
