@@ -180,36 +180,65 @@ let pages = {};
 for (let format of ['iife', 'esm']) {
   for (let min of [false, true]) {
     for (let async of [false, true]) {
-      let code = `
-        window.testStart = function() {
-          esbuild.initialize({
-            wasmURL: '/esbuild.wasm',
-            worker: ${async},
-          }).then(() => {
-            return (${runAllTests})({ esbuild })
-          }).then(() => {
-            testDone()
-          }).catch(e => {
-            testFail('' + (e && e.stack || e))
-            testDone()
-          })
+      // -1: No instantiate streaming
+      // 0: Instantiate streaming, verifyWasmURL false
+      // 1: Instantiate streaming, verifyWasmURL true
+      // 2: Instantiate streaming, verifyWasmURL true, return wrong content type. It should fallback to WebAssembly.instantiate
+      // The missing test cases are:
+      // - Different orign
+      for (let instantiateStreamingCase of [-1, 0,1,2]) {
+        const instantiateStreamingFallback = instantiateStreamingCase === 2;
+        const verifyWasmURL = instantiateStreamingCase > 0;
+        let code = `
+          ${instantiateStreamingCase === -1 ? "delete WebAssembly.instantiateStreaming;" : ""}
+          let didCallConsoleInfo = false;
+          let expectConsoleInfo = ${instantiateStreamingFallback};
+          let originalConsoleInfo = console.info; 
+          console.info = (...args) => {
+            // Testing that it specifically logs the correct message
+            if (args.join("").includes("https://v8.dev/blog/wasm-code-caching#stream")) {
+              didCallConsoleInfo = true;
+              // prevent noise in test logs
+              return;
+            }
+            originalConsoleInfo(...args)
+          }
+          window.testStart = function() {
+            esbuild.initialize({
+              wasmURL: "${instantiateStreamingFallback ? "/esbuild-wrong-content-type.wasm" : "/esbuild.wasm"}",
+              worker: ${async},
+              verifyWasmURL: ${verifyWasmURL},
+            }).then(() => {
+              return (${runAllTests})({ esbuild })
+            }).then(() => {
+              if (expectConsoleInfo !== didCallConsoleInfo && didCallConsoleInfo) {
+                testFail("Didn't expect to use WebAssembly.instantiateStreaming")
+              } else if (expectConsoleInfo !== didCallConsoleInfo && !didCallConsoleInfo) {
+                testFail("Expected to fallback to WebAssembly.instantiate")
+              }
+              testDone()
+            }).catch(e => {
+              testFail('' + (e && e.stack || e))
+              testDone()
+            })
+          }
+        `;
+        let page;
+        if (format === 'esm') {
+          page = `
+            <script type="module">
+              import * as esbuild from '/esm/browser${min ? '.min' : ''}.js'
+              ${code}
+            </script>
+          `;
+        } else {
+          page = `
+            <script src="/lib/browser${min ? '.min' : ''}.js"></script>
+            <script>${code}</script>
+          `;
         }
-      `;
-      let page;
-      if (format === 'esm') {
-        page = `
-          <script type="module">
-            import * as esbuild from '/esm/browser${min ? '.min' : ''}.js'
-            ${code}
-          </script>
-        `;
-      } else {
-        page = `
-          <script src="/lib/browser${min ? '.min' : ''}.js"></script>
-          <script>${code}</script>
-        `;
+        pages[format + (min ? 'Min' : '') + (async ? 'Async' : '') + (instantiateStreamingCase > -1 ? 'Streaming' : '') + (verifyWasmURL ? 'VerifyWasmURL' : '') + (instantiateStreamingFallback ? 'Fallback' : '')] = page;
       }
-      pages[format + (min ? 'Min' : '') + (async ? 'Async' : '')] = page;
     }
   }
 }
@@ -246,6 +275,12 @@ const server = http.createServer((req, res) => {
       return
     }
 
+    if (req.url === '/esbuild-wrong-content-type.wasm') {
+      res.writeHead(200, { 'Content-Type': 'application/bagel' })
+      res.end(wasm)
+      return
+    }
+
     if (req.url.startsWith('/page/')) {
       let key = req.url.slice('/page/'.length)
       if (Object.prototype.hasOwnProperty.call(pages, key)) {
@@ -266,6 +301,10 @@ const server = http.createServer((req, res) => {
     }
   } else if (req.method === "HEAD" && req.url === "/esbuild.wasm") {
     res.writeHead(200, { 'Content-Type': 'application/wasm' })
+    res.end()
+    return
+  } else if (req.method === "HEAD" && req.url === "/esbuild-wrong-content-type.wasm") {
+    res.writeHead(200, { 'Content-Type': 'application/bagel' })
     res.end()
     return
   }

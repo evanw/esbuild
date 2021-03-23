@@ -56,14 +56,17 @@ export const initialize: typeof types.initialize = options => {
 
 const startRunningService = async (wasmURL: string, useWorker: boolean, verifyWasmURL: boolean ): Promise<void> => {
   let wasm: ArrayBuffer | void;
+  let url: URL;
   // Per https://webassembly.org/docs/web/#webassemblyinstantiatestreaming, 
   // Automatically use 'instantiateStreaming' when available and:
   // - The Response is CORS-same-origin
   // - The Response represents an ok status
   // - The Response Matches the `application/wasm` MIME type
-  if ('instantiateStreaming' in WebAssembly && new URL(wasmURL, location.href).origin === location.origin) {
-    if (verifyWasmURL) {
+  if ('instantiateStreaming' in WebAssembly && (url = new URL(wasmURL, location.href), url.origin === location.origin)) {
+    // If its a relative URL, it must be made absolute since the href of the worker might be a blob
+    wasmURL = url.toString();
 
+    if (verifyWasmURL) {
       const resp = await fetch(wasmURL, {
         method: "HEAD",
         // micro-optimization: try to keep the connection open for longer to reduce the added latency for fetching the WASM
@@ -76,7 +79,7 @@ const startRunningService = async (wasmURL: string, useWorker: boolean, verifyWa
         let res = await fetch(wasmURL);
         if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
         // Log this after so they don't see two logs.
-        console.info(`Make esbuild-wasm load faster by setting the \"Content-Type\" header to \"application/wasm\" in \"${JSON.stringify(wasmURL)}\". Learn more at https://v8.dev/blog/wasm-code-caching#stream.`)
+        console.info(`Make esbuild-wasm load faster by setting the "Content-Type" header to "application/wasm" in ${JSON.stringify(wasmURL)}. Learn more at https://v8.dev/blog/wasm-code-caching#stream.`)
         wasm = await res.arrayBuffer();
       }
     }
