@@ -4,7 +4,6 @@ package api
 
 import (
 	"fmt"
-	"mime"
 	"net"
 	"net/http"
 	"path"
@@ -109,6 +108,34 @@ func errorsToString(errors []Message) string {
 		sb.WriteString(msg.String(stderrOptions, terminalOptions))
 	}
 	return sb.String()
+}
+
+var builtinTypesLower = map[string]string{
+	".css":  "text/css; charset=utf-8",
+	".gif":  "image/gif",
+	".htm":  "text/html; charset=utf-8",
+	".html": "text/html; charset=utf-8",
+	".jpeg": "image/jpeg",
+	".jpg":  "image/jpeg",
+	".js":   "text/javascript; charset=utf-8",
+	".json": "application/json",
+	".mjs":  "text/javascript; charset=utf-8",
+	".pdf":  "application/pdf",
+	".png":  "image/png",
+	".svg":  "image/svg+xml",
+	".wasm": "application/wasm",
+	".webp": "image/webp",
+	".xml":  "text/xml; charset=utf-8",
+}
+
+// This is used instead of Go's built-in "mime.TypeByExtension" function because
+// this function is broken on Windows: https://github.com/golang/go/issues/32350.
+func mimeTypeByExtension(ext string) string {
+	contentType := builtinTypesLower[ext]
+	if contentType == "" {
+		contentType = builtinTypesLower[strings.ToLower(ext)]
+	}
+	return contentType
 }
 
 func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -233,7 +260,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 		// Serve a file
 		if kind == fs.FileEntry {
-			if contentType := mime.TypeByExtension(path.Ext(queryPath)); contentType != "" {
+			if contentType := mimeTypeByExtension(path.Ext(queryPath)); contentType != "" {
 				res.Header().Set("Content-Type", contentType)
 			}
 
