@@ -3,7 +3,6 @@ package main
 import (
 	"strings"
 
-	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/snap_api"
 	"github.com/evanw/esbuild/pkg/api"
 )
@@ -55,14 +54,6 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		return true
 	}
 
-	shouldRejectAst := func(tree *js_ast.AST, js *[]byte) (string, int32, bool) {
-		err, loc, rejected := api.RejectDirnameAccess(tree, js)
-		if rejected {
-			return err, loc, rejected
-		}
-		return api.RejectFilenameAccess(tree, js)
-
-	}
 	// HACK: this is needed to make esbuild include the metafile with the out files in the
 	// result. I'm not sure how that works with the `{ write: false }` JS API.
 	// Additionally in that case the `Outdir` needs to be set as well.
@@ -146,7 +137,6 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 			CreateSnapshot:       true,
 			ShouldReplaceRequire: snap_api.CreateShouldReplaceRequire(platform, external, shouldReplaceRequire, shouldRewriteModule),
 			ShouldRewriteModule:  shouldRewriteModule,
-			ShouldRejectAst:      shouldRejectAst,
 			AbsBasedir:           args.Basedir,
 			VerifyPrint:          true,
 			PanicOnError:         false,

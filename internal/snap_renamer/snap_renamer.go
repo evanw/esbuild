@@ -1,6 +1,8 @@
 package snap_renamer
 
 import (
+	"fmt"
+
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/renamer"
 )
@@ -19,6 +21,9 @@ type SnapRenamer struct {
 	symbols             js_ast.SymbolMap
 	globalSymbols       GlobalSymbols
 	IsEnabled           bool
+	dirnameRef          js_ast.Ref
+	filenameRef         js_ast.Ref
+	isCommonJS          bool
 	deferredIdentifiers map[js_ast.Ref]Replacement
 	wrappedRenamer      *renamer.Renamer
 	NamedReferences     map[js_ast.Ref]*NamedReference
@@ -47,14 +52,26 @@ var RewritingNameForSymbolOpts = nameForSymbolOpts{
 	isRewriting:            true,
 }
 
+// If the code doesn't have a commonJS wrapper then both of the below
+// have  Ref { OuterIndex: 0, InnerIndex: 0 }, which means they arent' defined.
+func isCommonJS(dirnameRef js_ast.Ref, filenameRef js_ast.Ref) bool {
+	return dirnameRef.OuterIndex+dirnameRef.InnerIndex+
+		filenameRef.OuterIndex+filenameRef.InnerIndex > 0
+}
+
 func NewSnapRenamer(symbols js_ast.SymbolMap,
 	filePath string,
+	dirnameRef js_ast.Ref,
+	filenameRef js_ast.Ref,
 	isEnabled bool) SnapRenamer {
 	globalSymbols := getGlobalSymbols(&symbols)
 	return SnapRenamer{
 		symbols:             symbols,
 		globalSymbols:       globalSymbols,
 		filePath:            filePath,
+		dirnameRef:          dirnameRef,
+		filenameRef:         filenameRef,
+		isCommonJS:          isCommonJS(dirnameRef, filenameRef),
 		IsEnabled:           isEnabled,
 		deferredIdentifiers: make(map[js_ast.Ref]Replacement),
 		NamedReferences:     make(map[js_ast.Ref]*NamedReference),
@@ -68,12 +85,17 @@ func NewSnapRenamer(symbols js_ast.SymbolMap,
 func WrapRenamer(r *renamer.Renamer,
 	symbols js_ast.SymbolMap,
 	filePath string,
+	dirnameRef js_ast.Ref,
+	filenameRef js_ast.Ref,
 	isEnabled bool) SnapRenamer {
 	globalSymbols := getGlobalSymbols(&symbols)
 	return SnapRenamer{
 		symbols:             symbols,
 		globalSymbols:       globalSymbols,
 		filePath:            filePath,
+		dirnameRef:          dirnameRef,
+		filenameRef:         filenameRef,
+		isCommonJS:          isCommonJS(dirnameRef, filenameRef),
 		IsEnabled:           isEnabled,
 		deferredIdentifiers: make(map[js_ast.Ref]Replacement),
 		wrappedRenamer:      r,
@@ -99,6 +121,14 @@ func (r *SnapRenamer) SnapNameForSymbol(
 		return symbol.OriginalName
 	}
 
+	if r.isCommonJS && opts.allowReplaceWithDeferr {
+		// commonJS __dirname, __filename are always replaced
+		if ref == r.dirnameRef || ref == r.filenameRef {
+			return functionWrapperForAbsPath(symbol.OriginalName)
+		}
+	}
+
+	// globals: process, document, global, window, console are always be replaced
 	if opts.allowReplaceWithDeferr && symbol.Kind == js_ast.SymbolUnbound && (symbolsAreSame(&symbol, &r.globalSymbols.process) ||
 		symbolsAreSame(&symbol, &r.globalSymbols.document) ||
 		symbolsAreSame(&symbol, &r.globalSymbols.global) ||
@@ -107,6 +137,7 @@ func (r *SnapRenamer) SnapNameForSymbol(
 		return functionCallForGlobal(symbol.OriginalName)
 	}
 
+	// Below are only replaced if we are rewriting the module
 	if !opts.isRewriting && opts.allowReplaceWithDeferr && r.canCaptureNameLocs() && !r.HasBeenReplaced(ref) {
 		res, ok := r.NamedReferences[ref]
 		if !ok {
@@ -226,6 +257,15 @@ func (r *SnapRenamer) IsModule(ref js_ast.Ref) bool {
 	ref = r.resolveRefFromSymbols(ref)
 	symbol := r.symbols.Get(ref)
 	return r.isModuleSymbol(symbol)
+}
+
+// NOTE: esbuild renames __dirname/__filename to __dirname2/__filename2 in some cases and
+// I see no obvious way to retrieve that final name here. This is a workaround which is very stable
+// as I have not seen anything but that one variation inside a very large bundle.
+// Also it seems like that when those args are actually used they are renamed, otherwise not, which
+// is why we look for the __x2 version first.
+func functionWrapperForAbsPath(id string) string {
+	return fmt.Sprintf("__resolve_path(typeof %s2 !== 'undefined' ? %s2 : %s)", id, id, id)
 }
 
 // TODO(thlorenz): Include more from

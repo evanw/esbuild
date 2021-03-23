@@ -1,7 +1,7 @@
 package snap_api
 
 import (
-	"github.com/evanw/esbuild/pkg/api"
+	"github.com/evanw/esbuild/internal/snap_printer"
 	"testing"
 )
 
@@ -274,10 +274,12 @@ __commonJS["./entry.js"] = function(exports, module, __filename, __dirname, requ
 	)
 }
 
-func TestRejectAstWhenDirnameIsUsedPrintsAllModulesAndWarnsAboutDirname(t *testing.T) {
-	// NOTE: also adds error message 'Forbidden use of __dirname' to log
+// NOTE: this test documents that the need to defer fsevents isn't detected here
+// Instead while determining that the `__resolve_path` function needs to throw so
+// that the snapshot verifier ends up deferring fsevents.
+func TestWrapsDirnameAccessOnInitAndDoesNotDeferModule(t *testing.T) {
 	snapApiSuite.expectBuild(t, built{
-		shouldRejectAst: api.RejectDirnameAccess,
+		shouldReplaceRequire: snap_printer.ReplaceNone,
 		files: map[string]string{
 			ProjectBaseDir + "/node_modules/fsevents/fsevents.js": `
 module.exports = __dirname
@@ -292,11 +294,43 @@ exports.fsevents = require('` + ProjectBaseDir + `/node_modules/fsevents/fsevent
 			files: map[string]string{
 				`dev/node_modules/fsevents/fsevents.js`: `
 __commonJS["./node_modules/fsevents/fsevents.js"] = function(exports2, module2, __filename, __dirname, require) {
-  module2.exports = __dirname;
+  module2.exports = __resolve_path(typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname);
 };`,
 				`dev/entry.js`: `
 __commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
-  Object.defineProperty(exports, "fsevents", { get: () => require("./node_modules/fsevents/fsevents.js") });
+  exports.fsevents = require("./node_modules/fsevents/fsevents.js");
+};`,
+			},
+		},
+	)
+}
+
+func TestWrapsFilenameDelayedAccessAndDoesNotDeferModule(t *testing.T) {
+	snapApiSuite.expectBuild(t, built{
+		shouldReplaceRequire: snap_printer.ReplaceNone,
+		files: map[string]string{
+			ProjectBaseDir + "/node_modules/file-url.js": `
+      module.exports = function foo() {
+return  'file://' + __filename 
+}
+`,
+			ProjectBaseDir + "/entry.js": `
+exports.fileUrl = require('` + ProjectBaseDir + `/node_modules/file-url.js')
+`,
+		},
+		entryPoints: []string{ProjectBaseDir + "/entry.js"},
+	},
+		buildResult{
+			files: map[string]string{
+				`dev/node_modules/file-url.js`: `
+__commonJS["./node_modules/file-url.js"] = function(exports2, module2, __filename, __dirname, require) {
+  module2.exports = function foo() {
+    return "file://" + __resolve_path(typeof __filename2 !== 'undefined' ? __filename2 : __filename);
+  };
+};`,
+				`dev/entry.js`: `
+__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+  exports.fileUrl = require("./node_modules/file-url.js");
 };`,
 			},
 		},
