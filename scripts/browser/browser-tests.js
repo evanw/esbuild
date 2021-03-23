@@ -264,6 +264,10 @@ const server = http.createServer((req, res) => {
         return
       }
     }
+  } else if (req.method === "HEAD" && req.url === "/esbuild.wasm") {
+    res.writeHead(200, { 'Content-Type': 'application/wasm' })
+    res.end()
+    return
   }
 
   console.log(`[http] ${req.method} ${req.url}`)

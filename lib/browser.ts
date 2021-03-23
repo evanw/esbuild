@@ -42,10 +42,11 @@ export const initialize: typeof types.initialize = options => {
   options = common.validateInitializeOptions(options || {});
   let wasmURL = options.wasmURL;
   let useWorker = options.worker !== false;
+  let verifyWasmURL = options.verifyWasmURL !== false;
   if (!wasmURL) throw new Error('Must provide the "wasmURL" option');
   wasmURL += '';
   if (initializePromise) throw new Error('Cannot call "initialize" more than once');
-  initializePromise = startRunningService(wasmURL, useWorker);
+  initializePromise = startRunningService(wasmURL, useWorker, verifyWasmURL);
   initializePromise.catch(() => {
     // Let the caller try again if this fails
     initializePromise = void 0;
@@ -53,12 +54,35 @@ export const initialize: typeof types.initialize = options => {
   return initializePromise;
 }
 
-const startRunningService = async (wasmURL: string, useWorker: boolean): Promise<void> => {
-  let res = await fetch(wasmURL);
-  if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
-  let wasm = await res.arrayBuffer();
+const startRunningService = async (wasmURL: string, useWorker: boolean, verifyWasmURL: boolean ): Promise<void> => {
+  let wasm: ArrayBuffer | void;
+  if ('instantiateStreaming' in WebAssembly) {
+    if (verifyWasmURL) {
+
+      const resp = await fetch(wasmURL, {
+        method: "HEAD",
+        // micro-optimization: try to keep the connection open for longer to reduce the added latency for fetching the WASM
+        keepalive: true
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
+      } else if (!resp.headers.get("Content-Type")?.includes("application/wasm")) {
+        let res = await fetch(wasmURL);
+        if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
+        // Log this after so they don't see two logs.
+        console.info(`Make esbuild-wasm load faster by setting the \"Content-Type\" header to \"application/wasm\" in \"${JSON.stringify(wasmURL)}\". Learn more at https://v8.dev/blog/wasm-code-caching#stream.`)
+        wasm = await res.arrayBuffer();
+      }
+    }
+  } else {
+    let res = await fetch(wasmURL);
+    if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
+    wasm = await res.arrayBuffer();
+  }
+
   let code = `{` +
-    `let global={};` +
+    `let global={ESBUILD_WASM_URL: ${wasm ? '""' : JSON.stringify(wasmURL)}};` +
     `for(let o=self;o;o=Object.getPrototypeOf(o))` +
     `for(let k of Object.getOwnPropertyNames(o))` +
     `if(!(k in global))` +
@@ -87,7 +111,12 @@ const startRunningService = async (wasmURL: string, useWorker: boolean): Promise
     }
   }
 
-  worker.postMessage(wasm)
+  if (typeof wasm === 'undefined') {
+    worker.postMessage(new ArrayBuffer(0))
+  } else {
+    worker.postMessage(wasm)
+  }
+
   worker.onmessage = ({ data }) => readFromStdout(data)
 
   let { readFromStdout, service } = common.createChannel({

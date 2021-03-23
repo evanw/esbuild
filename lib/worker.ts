@@ -60,6 +60,12 @@ onmessage = ({ data: wasm }) => {
   let go = new (global as any).Go()
   go.argv = ['', `--service=${ESBUILD_VERSION}`]
 
-  WebAssembly.instantiate(wasm, go.importObject)
-    .then(({ instance }) => go.run(instance))
+  if ('instantiateStreaming' in WebAssembly && (global as any).ESBUILD_WASM_URL) {
+    WebAssembly.instantiateStreaming(fetch((global as any).ESBUILD_WASM_URL), go.importObject)
+      .then(({ instance }) => go.run(instance))
+  } else {
+    WebAssembly.instantiate(wasm, go.importObject)
+      .then(({ instance }) => go.run(instance))
+  }
+
 }

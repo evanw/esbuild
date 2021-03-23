@@ -347,6 +347,12 @@ export interface InitializeOptions {
   // to avoid blocking the UI thread. This can be disabled by setting "worker"
   // to false.
   worker?: boolean
+
+  // For supported browsers, esbuild uses WebAssembly.instantiateStreaming
+  // to speed up WASM load time. Setting this option to false skips the extra
+  // HEAD request that validates the "Content-Type" header. This option has no
+  // effect on Node or browers without WebAssembly.instantiateStreaming.
+  verifyWasmURL?: boolean
 }
 
 export let version: string;
