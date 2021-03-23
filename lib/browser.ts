@@ -56,7 +56,12 @@ export const initialize: typeof types.initialize = options => {
 
 const startRunningService = async (wasmURL: string, useWorker: boolean, verifyWasmURL: boolean ): Promise<void> => {
   let wasm: ArrayBuffer | void;
-  if ('instantiateStreaming' in WebAssembly) {
+  // Per https://webassembly.org/docs/web/#webassemblyinstantiatestreaming, 
+  // Automatically use 'instantiateStreaming' when available and:
+  // - The Response is CORS-same-origin
+  // - The Response represents an ok status
+  // - The Response Matches the `application/wasm` MIME type
+  if ('instantiateStreaming' in WebAssembly && new URL(wasmURL, location.href).origin === location.origin) {
     if (verifyWasmURL) {
 
       const resp = await fetch(wasmURL, {
