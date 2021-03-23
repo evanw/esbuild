@@ -584,7 +584,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let onResolveCallbacks: {
       [id: number]: {
         name: string,
-        note: types.Note | undefined,
+        note: () => types.Note | undefined,
         callback: (args: types.OnResolveArgs) =>
           (types.OnResolveResult | null | undefined | Promise<types.OnResolveResult | null | undefined>),
       },
@@ -592,7 +592,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let onLoadCallbacks: {
       [id: number]: {
         name: string,
-        note: types.Note | undefined,
+        note: () => types.Note | undefined,
         callback: (args: types.OnLoadArgs) =>
           (types.OnLoadResult | null | undefined | Promise<types.OnLoadResult | null | undefined>),
       },
@@ -693,7 +693,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 break;
               }
             } catch (e) {
-              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note)] };
+              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note && note())] };
             }
           }
           return response;
@@ -734,7 +734,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 break;
               }
             } catch (e) {
-              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note)] };
+              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note && note())] };
             }
           }
           return response;
@@ -1083,15 +1083,22 @@ function createObjectStash(): ObjectStash {
   };
 }
 
-function extractCallerV8(e: Error, streamIn: StreamIn, ident: string): types.Note | undefined {
-  try {
-    let lines = (e.stack + '').split('\n')
-    lines.splice(1, 1)
-    let location = parseStackLinesV8(streamIn, lines, ident)
-    if (location) {
-      return { text: e.message, location }
+function extractCallerV8(e: Error, streamIn: StreamIn, ident: string): () => types.Note | undefined {
+  let note: types.Note | undefined
+  let tried = false
+  return () => {
+    if (tried) return note
+    tried = true
+    try {
+      let lines = (e.stack + '').split('\n')
+      lines.splice(1, 1)
+      let location = parseStackLinesV8(streamIn, lines, ident)
+      if (location) {
+        note = { text: e.message, location }
+        return note
+      }
+    } catch {
     }
-  } catch {
   }
 }
 
