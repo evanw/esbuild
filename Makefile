@@ -191,7 +191,7 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@read OTP && OTP="$$OTP" make -j4 \
 		publish-android-arm64 \
 		publish-linux \
-		publish-linux-32
+		publish-linux-32 \
 		publish-linux-arm \
 		publish-linux-arm64 \
 		publish-linux-mips64le \

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.7
 
 * Add support for Android on ARM 64-bit ([#803](https://github.com/evanw/esbuild/issues/803))
 
