@@ -1566,7 +1566,7 @@ func (p *parser) storeNameInRef(name string) js_ast.Ref {
 		// length and don't have to allocate anything. This is the common case.
 		//
 		// It's stored as a negative value so we'll crash if we try to use it. That
-		// way we'll catch cases where we've forgetten to call loadNameFromRef().
+		// way we'll catch cases where we've forgotten to call loadNameFromRef().
 		// The length is the negative part because we know it's non-zero.
 		return js_ast.Ref{OuterIndex: -uint32(n.Len), InnerIndex: uint32(n.Data - c.Data)}
 	} else {
