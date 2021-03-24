@@ -94,12 +94,13 @@ type ResolveResult struct {
 	JSXFactory  []string // Default if empty: "React.createElement"
 	JSXFragment []string // Default if empty: "React.Fragment"
 
-	IsExternal    bool
 	DifferentCase *fs.DifferentCase
 
 	// If true, any ES6 imports to this file can be considered to have no side
 	// effects. This means they should be removed if unused.
 	IgnorePrimaryIfUnused *IgnoreIfUnusedData
+
+	IsExternal bool
 
 	// If true, the class field transform should use Object.defineProperty().
 	UseDefineForClassFieldsTS bool
@@ -108,6 +109,9 @@ type ResolveResult struct {
 	// behavior of the "importsNotUsedAsValues" field in "tsconfig.json" when the
 	// value is not "remove".
 	PreserveUnusedImportsTS bool
+
+	// This is the "type" field from "package.json"
+	ModuleType config.ModuleType
 }
 
 type AlternativeApproach uint8
@@ -414,6 +418,9 @@ func (r *resolver) finalizeResolve(result *ResolveResult) {
 									result.IgnorePrimaryIfUnused = info.packageJSON.ignoreIfUnusedData
 								}
 							}
+
+							// Also copy over the "type" field
+							result.ModuleType = info.packageJSON.moduleType
 							break
 						}
 					}

@@ -977,17 +977,23 @@ console.log((0, import_foo.default)(import_foo.x, import_foo.y));
 TestImportMissingNeitherES6NorCommonJS
 ---------- /out/named.js ----------
 // foo.js
-console.log("no exports here");
+var require_foo = __commonJS(() => {
+  console.log("no exports here");
+});
 
 // named.js
-console.log((void 0)(void 0, void 0));
+var import_foo = __toModule(require_foo());
+console.log((0, import_foo.default)(void 0, void 0));
 
 ---------- /out/star.js ----------
 // foo.js
-console.log("no exports here");
+var require_foo = __commonJS(() => {
+  console.log("no exports here");
+});
 
 // star.js
-console.log((void 0)(void 0, void 0));
+var ns = __toModule(require_foo());
+console.log(ns.default(void 0, void 0));
 
 ---------- /out/star-capture.js ----------
 // foo.js

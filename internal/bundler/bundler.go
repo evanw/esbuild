@@ -1023,6 +1023,15 @@ func (s *scanner) maybeParseFile(
 		optionsClone.PreserveUnusedImportsTS = true
 	}
 
+	// Set the module type preference using node's module type rules
+	if strings.HasSuffix(path.Text, ".mjs") {
+		optionsClone.ModuleType = config.ModuleESM
+	} else if strings.HasSuffix(path.Text, ".cjs") {
+		optionsClone.ModuleType = config.ModuleCommonJS
+	} else {
+		optionsClone.ModuleType = resolveResult.ModuleType
+	}
+
 	// Enable bundling for injected files so we always do tree shaking. We
 	// never want to include unnecessary code from injected files since they
 	// are essentially bundled. However, if we do this we should skip the

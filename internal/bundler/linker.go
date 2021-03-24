@@ -1278,14 +1278,16 @@ func (c *linkerContext) scanImportsAndExports() {
 					// We emit a warning in this case but try to avoid turning the module
 					// into a CommonJS module if possible. This is possible with named
 					// imports (the module stays an ECMAScript module but the imports are
-					// rewritten with undefined) but is not possible with star imports:
+					// rewritten with undefined) but is not possible with star or default
+					// imports:
 					//
 					//   import * as ns from './empty-file'
-					//   console.log(ns)
+					//   import defVal from './empty-file'
+					//   console.log(ns, defVal)
 					//
 					// In that case the module *is* considered a CommonJS module because
 					// the namespace object must be created.
-					if record.ContainsImportStar && otherRepr.ast.ExportsKind == js_ast.ExportsNone && !otherRepr.ast.HasLazyExport {
+					if (record.ContainsImportStar || record.ContainsDefaultAlias) && otherRepr.ast.ExportsKind == js_ast.ExportsNone && !otherRepr.ast.HasLazyExport {
 						otherRepr.ast.ExportsKind = js_ast.ExportsCommonJS
 					}
 
@@ -2498,7 +2500,11 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 	// Is this a named import of a file without any exports?
 	otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
-	if !namedImport.AliasIsStar && otherRepr.ast.ExportsKind == js_ast.ExportsNone && !otherRepr.ast.HasLazyExport {
+	if !namedImport.AliasIsStar && !otherRepr.ast.HasLazyExport &&
+		// CommonJS exports
+		otherRepr.ast.ExportKeyword.Len == 0 && namedImport.Alias != "default" &&
+		// ESM exports
+		!otherRepr.ast.UsesExportsRef && !otherRepr.ast.UsesModuleRef {
 		// Just warn about it and replace the import with "undefined"
 		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importCommonJSWithoutExports, nil
 	}

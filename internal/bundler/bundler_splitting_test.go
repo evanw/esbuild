@@ -272,7 +272,7 @@ func TestSplittingMissingLazyExport(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
-		expectedCompileLog: `common.js: warning: Import "missing" will always be undefined because there is no matching export
+		expectedCompileLog: `common.js: warning: Import "missing" will always be undefined because the file "empty.js" has no exports
 `,
 	})
 }

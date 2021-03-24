@@ -19,6 +19,7 @@ import (
 type packageJSON struct {
 	source        logger.Source
 	absMainFields map[string]string
+	moduleType    config.ModuleType
 
 	// Present if the "browser" field is present. This field is intended to be
 	// used by bundlers and lets you redirect the paths of certain 3rd-party
@@ -109,6 +110,24 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 	}
 
 	packageJSON := &packageJSON{source: jsonSource}
+
+	// Read the "type" field
+	if typeJSON, _, ok := getProperty(json, "type"); ok {
+		if typeValue, ok := getString(typeJSON); ok {
+			switch typeValue {
+			case "commonjs":
+				packageJSON.moduleType = config.ModuleCommonJS
+			case "module":
+				packageJSON.moduleType = config.ModuleESM
+			default:
+				r.log.AddRangeWarning(&jsonSource, jsonSource.RangeOfString(typeJSON.Loc),
+					fmt.Sprintf("%q is not a valid value for the \"type\" field (must be either \"commonjs\" or \"module\")", typeValue))
+			}
+		} else {
+			r.log.AddWarning(&jsonSource, typeJSON.Loc,
+				"The value for \"type\" must be a string")
+		}
+	}
 
 	// Read the "main" fields
 	mainFields := r.options.MainFields

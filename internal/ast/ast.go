@@ -77,6 +77,10 @@ type ImportRecord struct {
 	// CommonJS wrapper or not.
 	ContainsImportStar bool
 
+	// If this is true, the import contains an import for the alias "default",
+	// either via the "import x from" or "import {default as x} from" syntax.
+	ContainsDefaultAlias bool
+
 	// If true, this "export * from 'path'" statement is evaluated at run-time by
 	// calling the "__exportStar()" helper function
 	CallsRunTimeExportStarFn bool

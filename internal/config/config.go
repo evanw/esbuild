@@ -160,8 +160,17 @@ const (
 	ModeBundle
 )
 
+type ModuleType uint8
+
+const (
+	ModuleUnknown ModuleType = iota
+	ModuleCommonJS
+	ModuleESM
+)
+
 type Options struct {
 	Mode              Mode
+	ModuleType        ModuleType
 	PreserveSymlinks  bool
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
