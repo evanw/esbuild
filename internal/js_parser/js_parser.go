@@ -286,6 +286,7 @@ type optionsThatSupportStructuralEquality struct {
 	mode                           config.Mode
 	platform                       config.Platform
 	outputFormat                   config.Format
+	moduleType                     config.ModuleType
 	asciiOnly                      bool
 	keepNames                      bool
 	mangleSyntax                   bool
@@ -309,6 +310,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			mode:                           options.Mode,
 			platform:                       options.Platform,
 			outputFormat:                   options.OutputFormat,
+			moduleType:                     options.ModuleType,
 			asciiOnly:                      options.ASCIIOnly,
 			keepNames:                      options.KeepNames,
 			mangleSyntax:                   options.MangleSyntax,
@@ -11705,6 +11707,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 	for _, stmt := range stmts {
 		switch s := stmt.Data.(type) {
 		case *js_ast.SImport:
+			record := &p.importRecords[s.ImportRecordIndex]
 
 			// The official TypeScript compiler always removes unused imported
 			// symbols. However, we deliberately deviate from the official
@@ -11852,7 +11855,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && !p.options.preserveUnusedImportsTS {
 					// Ignore import records with a pre-filled source index. These are
 					// for injected files and we definitely do not want to trim these.
-					if record := &p.importRecords[s.ImportRecordIndex]; !record.SourceIndex.IsValid() {
+					if !record.SourceIndex.IsValid() {
 						record.IsUnused = true
 						continue
 					}
@@ -11983,7 +11986,17 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
 			if s.StarNameLoc != nil {
-				p.importRecords[s.ImportRecordIndex].ContainsImportStar = true
+				record.ContainsImportStar = true
+			}
+
+			if s.DefaultName != nil {
+				record.ContainsDefaultAlias = true
+			} else if s.Items != nil {
+				for _, item := range *s.Items {
+					if item.Alias == "default" {
+						record.ContainsDefaultAlias = true
+					}
+				}
 			}
 
 		case *js_ast.SFunction:
@@ -12886,7 +12899,8 @@ func (p *parser) prepareForVisitPass() {
 	// CommonJS-style exports are only enabled if this isn't using ECMAScript-
 	// style exports. You can still use "require" in ESM, just not "module" or
 	// "exports". You can also still use "import" in CommonJS.
-	if p.options.mode != config.ModePassThrough && p.es6ExportKeyword.Len == 0 && p.topLevelAwaitKeyword.Len == 0 {
+	if p.options.moduleType != config.ModuleESM && p.options.mode != config.ModePassThrough &&
+		p.es6ExportKeyword.Len == 0 && p.topLevelAwaitKeyword.Len == 0 {
 		p.exportsRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "exports")
 		p.moduleRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "module")
 	} else {
@@ -13161,8 +13175,27 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 		exportsKind = js_ast.ExportsESM
 	} else if usesExportsRef || usesModuleRef || p.hasTopLevelReturn {
 		exportsKind = js_ast.ExportsCommonJS
-	} else if p.es6ImportKeyword.Len > 0 {
-		exportsKind = js_ast.ExportsESM
+	} else {
+		// If this module has no exports, try to determine what kind of module it
+		// is by looking at node's "type" field in "package.json" and/or whether
+		// the file extension is ".mjs" or ".cjs".
+		switch p.options.moduleType {
+		case config.ModuleCommonJS:
+			// "type: module" or ".mjs"
+			exportsKind = js_ast.ExportsCommonJS
+
+		case config.ModuleESM:
+			// "type: commonjs" or ".cjs"
+			exportsKind = js_ast.ExportsESM
+
+		case config.ModuleUnknown:
+			// Treat unknown modules containing an import statement as ESM. Otherwise
+			// the bundler will treat this file as CommonJS if it's imported and ESM
+			// if it's not imported.
+			if p.es6ImportKeyword.Len > 0 {
+				exportsKind = js_ast.ExportsESM
+			}
+		}
 	}
 
 	return js_ast.AST{

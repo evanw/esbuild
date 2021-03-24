@@ -780,6 +780,63 @@
     }),
   )
 
+  // Test imports from modules without any imports
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from 'pkg'
+        if (ns.default === void 0) throw 'fail'
+      `,
+      'node_modules/pkg/index.js': ``,
+    }, {}),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from 'pkg/index.cjs'
+        if (ns.default === void 0) throw 'fail'
+      `,
+      'node_modules/pkg/index.cjs': ``,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from 'pkg/index.mjs'
+        if (ns.default !== void 0) throw 'fail'
+      `,
+      'node_modules/pkg/index.mjs': ``,
+    }, {
+      expectedStderr: ` > in.js:3:15: warning: Import "default" will always be undefined because there is no matching export
+    3 │         if (ns.default !== void 0) throw 'fail'
+      ╵                ~~~~~~~
+
+`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from 'pkg'
+        if (ns.default === void 0) throw 'fail'
+      `,
+      'node_modules/pkg/package.json': `{
+        "type": "commonjs"
+      }`,
+      'node_modules/pkg/index.js': ``,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from 'pkg'
+        if (ns.default !== void 0) throw 'fail'
+      `,
+      'node_modules/pkg/package.json': `{
+        "type": "module"
+      }`,
+      'node_modules/pkg/index.js': ``,
+    }, {
+      expectedStderr: ` > in.js:3:15: warning: Import "default" will always be undefined because there is no matching export
+    3 │         if (ns.default !== void 0) throw 'fail'
+      ╵                ~~~~~~~
+
+`,
+    }),
+  )
+
   // Test imports not being able to access the namespace object
   tests.push(
     test(['in.js', '--outfile=node.js', '--bundle'], {
