@@ -99,6 +99,9 @@ func code(isES6 bool) string {
 			return target
 		}
 
+		// This is for lazily-initialized ESM code
+		export var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res)
+
 		// Wraps a CommonJS closure and returns a require() function
 		export var __commonJS = (cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports)
 

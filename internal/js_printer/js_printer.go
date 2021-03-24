@@ -1211,12 +1211,33 @@ type requireCallArgs struct {
 	mustReturnPromise bool
 }
 
-func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []js_ast.Comment) {
+func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []js_ast.Comment, level js_ast.L, flags int) {
 	record := &p.importRecords[importRecordIndex]
-	p.printSpaceBeforeIdentifier()
 
-	// Preserve "import()" expressions that don't point inside the bundle
-	if !record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic {
+	if level >= js_ast.LNew || (flags&forbidCall) != 0 {
+		p.print("(")
+		defer p.print(")")
+		level = js_ast.LLowest
+	}
+
+	if !record.SourceIndex.IsValid() {
+		// External "require()"
+		if record.Kind != ast.ImportDynamic {
+			if record.WrapWithToModule {
+				p.printSymbol(p.options.ToModuleRef)
+				p.print("(")
+				defer p.print(")")
+			}
+			p.printSpaceBeforeIdentifier()
+			p.print("require(")
+			p.addSourceMapping(record.Range.Loc)
+			p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
+			p.print(")")
+			return
+		}
+
+		// External "import()"
+		p.printSpaceBeforeIdentifier()
 		p.print("import(")
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
@@ -1237,61 +1258,88 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		return
 	}
 
-	// Make sure "import()" expressions return promises
-	if record.Kind == ast.ImportDynamic {
-		if p.options.UnsupportedFeatures.Has(compat.Arrow) {
-			p.print("Promise.resolve().then(function()")
-			p.printSpace()
-			p.print("{")
-			p.printNewline()
-			p.options.Indent++
-			p.printIndent()
-			p.print("return ")
-		} else {
-			if p.options.RemoveWhitespace {
-				p.print("Promise.resolve().then(()=>")
-			} else {
-				p.print("Promise.resolve().then(() => ")
-			}
-		}
+	meta := p.options.RequireOrImportMetaForSource(record.SourceIndex.GetIndex())
+
+	// Don't need the namespace object if the result is unused anyway
+	if (flags & exprResultIsUnused) != 0 {
+		meta.ExportsRef = js_ast.InvalidRef
 	}
 
-	// Make sure CommonJS imports are converted to ES6 if necessary
+	// Internal "import()" of async ESM
+	if record.Kind == ast.ImportDynamic && meta.IsWrapperAsync {
+		p.printSymbol(meta.WrapperRef)
+		p.print("()")
+		if meta.ExportsRef != js_ast.InvalidRef {
+			p.printDotThenPrefix()
+			p.printSymbol(meta.ExportsRef)
+			p.printDotThenSuffix()
+		}
+		return
+	}
+
+	// Internal "require()" or "import()"
+	if record.Kind == ast.ImportDynamic {
+		p.print("Promise.resolve()")
+		level = p.printDotThenPrefix()
+		defer p.printDotThenSuffix()
+	}
+
+	// Make sure the comma operator is propertly wrapped
+	if meta.ExportsRef != js_ast.InvalidRef && level >= js_ast.LComma {
+		p.print("(")
+		defer p.print(")")
+	}
+
+	// Wrap this with a call to "__toModule()" if this is a CommonJS file
 	if record.WrapWithToModule {
 		p.printSymbol(p.options.ToModuleRef)
 		p.print("(")
+		defer p.print(")")
 	}
 
-	// If this import points inside the bundle, then call the "require()"
-	// function for that module directly. The linker must ensure that the
-	// module's require function exists by this point. Otherwise, fall back to a
-	// bare "require()" call. Then it's up to the user to provide it.
-	if record.SourceIndex.IsValid() {
-		p.printSymbol(p.options.WrapperRefForSource(record.SourceIndex.GetIndex()))
-		p.print("()")
+	// Call the wrapper
+	p.printSymbol(meta.WrapperRef)
+	p.print("()")
+
+	// Return the namespace object if this is an ESM file
+	if meta.ExportsRef != js_ast.InvalidRef {
+		p.print(",")
+		p.printSpace()
+		p.printSymbol(meta.ExportsRef)
+	}
+}
+
+func (p *printer) printDotThenPrefix() js_ast.L {
+	if p.options.UnsupportedFeatures.Has(compat.Arrow) {
+		p.print(".then(function()")
+		p.printSpace()
+		p.print("{")
+		p.printNewline()
+		p.options.Indent++
+		p.printIndent()
+		p.print("return")
+		p.printSpace()
+		return js_ast.LLowest
 	} else {
-		p.print("require(")
-		p.addSourceMapping(record.Range.Loc)
-		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
-		p.print(")")
+		p.print(".then(()")
+		p.printSpace()
+		p.print("=>")
+		p.printSpace()
+		return js_ast.LComma
 	}
+}
 
-	if record.WrapWithToModule {
-		p.print(")")
-	}
-
-	if record.Kind == ast.ImportDynamic {
-		if p.options.UnsupportedFeatures.Has(compat.Arrow) {
-			if !p.options.RemoveWhitespace {
-				p.print(";")
-			}
-			p.printNewline()
-			p.options.Indent--
-			p.printIndent()
-			p.print("})")
-		} else {
-			p.print(")")
+func (p *printer) printDotThenSuffix() {
+	if p.options.UnsupportedFeatures.Has(compat.Arrow) {
+		if !p.options.RemoveWhitespace {
+			p.print(";")
 		}
+		p.printNewline()
+		p.options.Indent--
+		p.printIndent()
+		p.print("})")
+	} else {
+		p.print(")")
 	}
 }
 
@@ -1299,6 +1347,7 @@ const (
 	forbidCall = 1 << iota
 	forbidIn
 	hasNonOptionalChainParent
+	exprResultIsUnused
 )
 
 func (p *printer) printUndefined(level js_ast.L) {
@@ -1439,14 +1488,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.ERequire:
-		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
-		if wrap {
-			p.print("(")
-		}
-		p.printRequireOrImportExpr(e.ImportRecordIndex, nil)
-		if wrap {
-			p.print(")")
-		}
+		p.printRequireOrImportExpr(e.ImportRecordIndex, nil, level, flags)
 
 	case *js_ast.ERequireResolve:
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
@@ -1462,41 +1504,41 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.EImport:
-		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
-		if wrap {
-			p.print("(")
-		}
-
 		var leadingInteriorComments []js_ast.Comment
 		if !p.options.RemoveWhitespace {
 			leadingInteriorComments = e.LeadingInteriorComments
 		}
 
 		if e.ImportRecordIndex.IsValid() {
-			p.printRequireOrImportExpr(e.ImportRecordIndex.GetIndex(), leadingInteriorComments)
+			p.printRequireOrImportExpr(e.ImportRecordIndex.GetIndex(), leadingInteriorComments, level, flags)
 		} else {
 			// Handle non-string expressions
-			p.printSpaceBeforeIdentifier()
-			p.print("import(")
-			if len(leadingInteriorComments) > 0 {
-				p.printNewline()
-				p.options.Indent++
-				for _, comment := range e.LeadingInteriorComments {
-					p.printIndentedComment(comment.Text)
+			if !e.ImportRecordIndex.IsValid() {
+				wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
+				if wrap {
+					p.print("(")
 				}
-				p.printIndent()
+				p.printSpaceBeforeIdentifier()
+				p.print("import(")
+				if len(leadingInteriorComments) > 0 {
+					p.printNewline()
+					p.options.Indent++
+					for _, comment := range e.LeadingInteriorComments {
+						p.printIndentedComment(comment.Text)
+					}
+					p.printIndent()
+				}
+				p.printExpr(e.Expr, js_ast.LComma, 0)
+				if len(leadingInteriorComments) > 0 {
+					p.printNewline()
+					p.options.Indent--
+					p.printIndent()
+				}
+				p.print(")")
+				if wrap {
+					p.print(")")
+				}
 			}
-			p.printExpr(e.Expr, js_ast.LComma, 0)
-			if len(leadingInteriorComments) > 0 {
-				p.printNewline()
-				p.options.Indent--
-				p.printIndent()
-			}
-			p.print(")")
-		}
-
-		if wrap {
-			p.print(")")
 		}
 
 	case *js_ast.EDot:
@@ -2248,7 +2290,7 @@ func (p *printer) printDeclStmt(isExport bool, keyword string, decls []js_ast.De
 func (p *printer) printForLoopInit(init js_ast.Stmt) {
 	switch s := init.Data.(type) {
 	case *js_ast.SExpr:
-		p.printExpr(s.Value, js_ast.LLowest, forbidIn)
+		p.printExpr(s.Value, js_ast.LLowest, forbidIn|exprResultIsUnused)
 	case *js_ast.SLocal:
 		switch s.Kind {
 		case js_ast.LocalVar:
@@ -2964,7 +3006,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 	case *js_ast.SExpr:
 		p.printIndent()
 		p.stmtStart = len(p.js)
-		p.printExpr(s.Value, js_ast.LLowest, 0)
+		p.printExpr(s.Value, js_ast.LLowest, exprResultIsUnused)
 		p.printSemicolonAfterStatement()
 
 	default:
@@ -2982,16 +3024,16 @@ func (p *printer) shouldIgnoreSourceMap() bool {
 }
 
 type Options struct {
-	OutputFormat        config.Format
-	RemoveWhitespace    bool
-	MangleSyntax        bool
-	ASCIIOnly           bool
-	ExtractComments     bool
-	AddSourceMappings   bool
-	Indent              int
-	ToModuleRef         js_ast.Ref
-	WrapperRefForSource func(uint32) js_ast.Ref
-	UnsupportedFeatures compat.JSFeature
+	OutputFormat                 config.Format
+	RemoveWhitespace             bool
+	MangleSyntax                 bool
+	ASCIIOnly                    bool
+	ExtractComments              bool
+	AddSourceMappings            bool
+	Indent                       int
+	ToModuleRef                  js_ast.Ref
+	UnsupportedFeatures          compat.JSFeature
+	RequireOrImportMetaForSource func(uint32) RequireOrImportMeta
 
 	// If we're writing out a source map, this table of line start indices lets
 	// us do binary search on to figure out what line a given AST node came from
@@ -3000,6 +3042,15 @@ type Options struct {
 	// This will be present if the input file had a source map. In that case we
 	// want to map all the way back to the original input file(s).
 	InputSourceMap *sourcemap.SourceMap
+}
+
+type RequireOrImportMeta struct {
+	// CommonJS files will return the "require_*" wrapper function and an invalid
+	// exports object reference. Lazily-initialized ESM files will return the
+	// "init_*" wrapper function and the exports object for that file.
+	WrapperRef     js_ast.Ref
+	ExportsRef     js_ast.Ref
+	IsWrapperAsync bool
 }
 
 type SourceMapChunk struct {

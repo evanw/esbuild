@@ -1395,3 +1395,29 @@ func TestTreeShakingNoBundleIIFE(t *testing.T) {
 		},
 	})
 }
+
+func TestTreeShakingInESMWrapper(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {keep1} from './lib'
+				console.log(keep1(), require('./cjs'))
+			`,
+			"/cjs.js": `
+				import {keep2} from './lib'
+				export default keep2()
+			`,
+			"/lib.js": `
+				export let keep1 = () => 'keep1'
+				export let keep2 = () => 'keep2'
+				export let REMOVE = () => 'REMOVE'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

@@ -897,15 +897,20 @@ func JoinWithLeftAssociativeOp(op OpCode, a Expr, b Expr) Expr {
 }
 
 func JoinWithComma(a Expr, b Expr) Expr {
+	if a.Data == nil {
+		return b
+	}
+	if b.Data == nil {
+		return a
+	}
 	return Expr{Loc: a.Loc, Data: &EBinary{Op: BinOpComma, Left: a, Right: b}}
 }
 
-func JoinAllWithComma(all []Expr) Expr {
-	result := all[0]
-	for _, value := range all[1:] {
+func JoinAllWithComma(all []Expr) (result Expr) {
+	for _, value := range all {
 		result = JoinWithComma(result, value)
 	}
-	return result
+	return
 }
 
 type ExprOrStmt struct {
@@ -1941,4 +1946,59 @@ func EnsureValidIdentifier(base string) string {
 		return "_"
 	}
 	return string(bytes)
+}
+
+func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, Ref) Expr) Expr {
+	loc := binding.Loc
+
+	switch b := binding.Data.(type) {
+	case *BMissing:
+		return Expr{Loc: loc, Data: &EMissing{}}
+
+	case *BIdentifier:
+		if wrapIdentifier != nil {
+			return wrapIdentifier(loc, b.Ref)
+		}
+		return Expr{Loc: loc, Data: &EIdentifier{Ref: b.Ref}}
+
+	case *BArray:
+		exprs := make([]Expr, len(b.Items))
+		for i, item := range b.Items {
+			expr := ConvertBindingToExpr(item.Binding, wrapIdentifier)
+			if b.HasSpread && i+1 == len(b.Items) {
+				expr = Expr{Loc: expr.Loc, Data: &ESpread{Value: expr}}
+			} else if item.DefaultValue != nil {
+				expr = Assign(expr, *item.DefaultValue)
+			}
+			exprs[i] = expr
+		}
+		return Expr{Loc: loc, Data: &EArray{
+			Items:        exprs,
+			IsSingleLine: b.IsSingleLine,
+		}}
+
+	case *BObject:
+		properties := make([]Property, len(b.Properties))
+		for i, property := range b.Properties {
+			value := ConvertBindingToExpr(property.Value, wrapIdentifier)
+			kind := PropertyNormal
+			if property.IsSpread {
+				kind = PropertySpread
+			}
+			properties[i] = Property{
+				Kind:        kind,
+				IsComputed:  property.IsComputed,
+				Key:         property.Key,
+				Value:       &value,
+				Initializer: property.DefaultValue,
+			}
+		}
+		return Expr{Loc: loc, Data: &EObject{
+			Properties:   properties,
+			IsSingleLine: b.IsSingleLine,
+		}}
+
+	default:
+		panic("Internal error")
+	}
 }

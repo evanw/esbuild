@@ -1868,7 +1868,7 @@ func TestThisWithES6Syntax(t *testing.T) {
 				import './es6-ns-export-namespace'
 				import './es6-ns-export-class'
 				import './es6-ns-export-abstract-class'
-				`,
+			`,
 			"/dummy.js": `export const dummy = 123`,
 			"/cjs.js":   `console.log(this)`,
 
@@ -3256,7 +3256,7 @@ entry.js: note: The top-level await in "entry.js" is here
 	})
 }
 
-func TestTopLevelAwaitForbiddenImportWithoutSplitting(t *testing.T) {
+func TestTopLevelAwaitAllowedImportWithoutSplitting(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3282,18 +3282,6 @@ func TestTopLevelAwaitForbiddenImportWithoutSplitting(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: error: This dynamic import is not allowed because the transitive dependency "c.js" contains a top-level await (enable code splitting to allow this)
-a.js: note: The file "a.js" imports the file "b.js" here
-b.js: note: The file "b.js" imports the file "c.js" here
-c.js: note: The top-level await in "c.js" is here
-entry.js: error: This dynamic import is not allowed because the transitive dependency "c.js" contains a top-level await (enable code splitting to allow this)
-b.js: note: The file "b.js" imports the file "c.js" here
-c.js: note: The top-level await in "c.js" is here
-entry.js: error: This dynamic import is not allowed because the imported file "c.js" contains a top-level await (enable code splitting to allow this)
-c.js: note: The top-level await in "c.js" is here
-entry.js: error: This dynamic import is not allowed because the imported file "entry.js" contains a top-level await (enable code splitting to allow this)
-entry.js: note: The top-level await in "entry.js" is here
-`,
 	})
 }
 

@@ -263,7 +263,7 @@ func (p *parser) lowerFunction(
 		for i, arg := range *args {
 			if bindingHasObjectRest(arg.Binding) {
 				ref := p.generateTempRef(tempRefNoDeclare, "")
-				target := p.convertBindingToExpr(arg.Binding, nil)
+				target := js_ast.ConvertBindingToExpr(arg.Binding, nil)
 				init := js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
 				p.recordUsage(ref)
 
@@ -1135,7 +1135,7 @@ func (p *parser) lowerObjectRestInDecls(decls []js_ast.Decl) []js_ast.Decl {
 			clone := append([]js_ast.Decl{}, decls[:i]...)
 			for _, decl := range decls[i:] {
 				if decl.Value != nil {
-					target := p.convertBindingToExpr(decl.Binding, nil)
+					target := js_ast.ConvertBindingToExpr(decl.Binding, nil)
 					if result, ok := p.lowerObjectRestToDecls(target, *decl.Value, clone); ok {
 						clone = result
 						continue
@@ -1224,7 +1224,7 @@ func (p *parser) lowerAssign(rootExpr js_ast.Expr, rootInit js_ast.Expr, mode ob
 
 	var expr js_ast.Expr
 	assign := func(left js_ast.Expr, right js_ast.Expr) {
-		expr = maybeJoinWithComma(expr, js_ast.Assign(left, right))
+		expr = js_ast.JoinWithComma(expr, js_ast.Assign(left, right))
 	}
 
 	if initWrapFunc, ok := p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNeedsDeclare, mode); ok {
@@ -1838,11 +1838,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 			if !needsKey {
 				// Just evaluate the key for its side effects
-				computedPropertyCache = maybeJoinWithComma(computedPropertyCache, prop.Key)
+				computedPropertyCache = js_ast.JoinWithComma(computedPropertyCache, prop.Key)
 			} else {
 				// Store the key in a temporary so we can assign to it later
 				ref := p.generateTempRef(tempRefNeedsDeclare, "")
-				computedPropertyCache = maybeJoinWithComma(computedPropertyCache,
+				computedPropertyCache = js_ast.JoinWithComma(computedPropertyCache,
 					js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key))
 				prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
 				keyExprNoSideEffects = prop.Key
