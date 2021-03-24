@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Add support for Android on ARM 64-bit ([#803](https://github.com/evanw/esbuild/issues/803))
+
+    This release includes support for Android in the official `esbuild` package. It should now be possible to install and run esbuild on Android devices through npm.
+
 * Fix incorrect MIME types on Windows ([#1030](https://github.com/evanw/esbuild/issues/1030))
 
     The web server built into esbuild uses the file extension to determine the value of the `Content-Type` header. This was previously done using the `mime.TypeByExtension()` function from Go's standard library. However, this function is apparently broken on Windows because installed programs can change MIME types in the Windows registry: [golang/go#32350](https://github.com/golang/go/issues/32350). This release fixes the problem by using a copy of Go's `mime.TypeByExtension()` function without the part that reads from the Windows registry.

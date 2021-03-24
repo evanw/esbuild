@@ -280,8 +280,9 @@ const knownWindowsPackages: Record<string, string> = {
   'win32 x64 LE': 'esbuild-windows-64',
 };
 const knownUnixlikePackages: Record<string, string> = {
-  'darwin x64 LE': 'esbuild-darwin-64',
+  'android arm64 LE': 'esbuild-android-arm64',
   'darwin arm64 LE': 'esbuild-darwin-arm64',
+  'darwin x64 LE': 'esbuild-darwin-64',
   'freebsd arm64 LE': 'esbuild-freebsd-arm64',
   'freebsd x64 LE': 'esbuild-freebsd-64',
   'linux arm LE': 'esbuild-linux-arm',

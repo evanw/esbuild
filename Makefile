@@ -102,6 +102,7 @@ platform-all: cmd/esbuild/version.go test-all
 	make -j8 \
 		platform-windows \
 		platform-windows-32 \
+		platform-android-arm64 \
 		platform-darwin \
 		platform-darwin-arm64 \
 		platform-freebsd \
@@ -128,6 +129,9 @@ platform-unixlike:
 	mkdir -p "$(NPMDIR)/bin"
 	cd "$(NPMDIR)" && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build "-ldflags=-s -w" -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
+
+platform-android-arm64:
+	make GOOS=android GOARCH=arm64 NPMDIR=npm/esbuild-android-arm64 platform-unixlike
 
 platform-darwin:
 	make GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
@@ -180,15 +184,14 @@ publish-all: cmd/esbuild/version.go test-prepublish
 		publish-windows \
 		publish-windows-32 \
 		publish-freebsd \
-		publish-freebsd-arm64
+		publish-freebsd-arm64 \
+		publish-darwin \
+		publish-darwin-arm64
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j4 \
-		publish-darwin \
-		publish-darwin-arm64 \
+		publish-android-arm64 \
 		publish-linux \
 		publish-linux-32
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j4 \
 		publish-linux-arm \
 		publish-linux-arm64 \
 		publish-linux-mips64le \
@@ -207,6 +210,9 @@ publish-windows: platform-windows
 
 publish-windows-32: platform-windows-32
 	test -n "$(OTP)" && cd npm/esbuild-windows-32 && npm publish --otp="$(OTP)"
+
+publish-android-arm64: platform-android-arm64
+	test -n "$(OTP)" && cd npm/esbuild-android-arm64 && npm publish --otp="$(OTP)"
 
 publish-darwin: platform-darwin
 	test -n "$(OTP)" && cd npm/esbuild-darwin-64 && npm publish --otp="$(OTP)"
@@ -248,6 +254,7 @@ clean:
 	rm -f esbuild
 	rm -f npm/esbuild-windows-32/esbuild.exe
 	rm -f npm/esbuild-windows-64/esbuild.exe
+	rm -rf npm/esbuild-android-arm64/bin
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-darwin-arm64/bin
 	rm -rf npm/esbuild-freebsd-64/bin
