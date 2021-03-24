@@ -362,6 +362,21 @@
       'foo.js': `let fn = (m, x) => m.exports = x; fn(module, 123)`,
       'node.js': `if (require('./out').default !== 123) throw 'fail'`,
     }),
+
+    // Deferred require shouldn't affect import
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `
+        import { foo } from './a'
+        import './b'
+        if (foo !== 123) throw 'fail'
+      `,
+      'a.js': `
+        export let foo = 123
+      `,
+      'b.js': `
+        setTimeout(() => require('./a'), 0)
+      `,
+    }),
   )
 
   // Test internal CommonJS export
@@ -375,11 +390,11 @@
       'foo.js': `module.exports = 123`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `const out = require('./foo'); if (!out.__esModule || out.foo !== 123) throw 'fail'`,
+      'in.js': `const out = require('./foo'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
       'foo.js': `export const foo = 123`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `const out = require('./foo'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
+      'in.js': `const out = require('./foo'); if (out.__esModule || out.default !== 123) throw 'fail'`,
       'foo.js': `export default 123`,
     }),
 
@@ -390,11 +405,17 @@
     test(['--bundle', 'in.js', '--outfile=node.js'], {
       'in.js': `module.exports = 123; const out = require('./in'); if (out.__esModule || out !== 123) throw 'fail'`,
     }),
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=cjs'], {
       'in.js': `export const foo = 123; const out = require('./in'); if (!out.__esModule || out.foo !== 123) throw 'fail'`,
     }),
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=cjs'], {
       'in.js': `export default 123; const out = require('./in'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'], {
+      'in.js': `export const foo = 123; const out = require('./in'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'], {
+      'in.js': `export default 123; const out = require('./in'); if (out.__esModule || out.default !== 123) throw 'fail'`,
     }),
 
     // Test bundled and non-bundled double export star
@@ -419,7 +440,7 @@
         import {a, b} from './re-export'
         if (a !== 'a' || b !== 'b') throw 'fail'
 
-        // Try forcing all of these modules to be CommonJS wrappers
+        // Try forcing all of these modules to be wrappers
         require('./node')
         require('./re-export')
         require('./a')
@@ -434,6 +455,36 @@
       `,
       'b.ts': `
         export let b = 'b'
+      `,
+    }),
+    test(['node.ts', '--bundle', '--format=cjs', '--outdir=.'], {
+      'node.ts': `
+        import {a, b, c, d} from './re-export'
+        if (a !== 'a' || b !== 'b' || c !== 'c' || d !== 'd') throw 'fail'
+
+        // Try forcing all of these modules to be wrappers
+        require('./node')
+        require('./re-export')
+        require('./a')
+        require('./b')
+      `,
+      're-export.ts': `
+        export * from './a'
+        export * from './b'
+        export * from './d'
+      `,
+      'a.ts': `
+        export let a = 'a'
+      `,
+      'b.ts': `
+        exports.b = 'b'
+      `,
+      'c.ts': `
+        exports.c = 'c'
+      `,
+      'd.ts': `
+        export * from './c'
+        export let d = 'd'
       `,
     }),
     test(['node.ts', 're-export.ts', 'a.ts', 'b.ts', '--format=cjs', '--outdir=.'], {
@@ -505,7 +556,7 @@
         let fn = a()
         if (fn === a || fn() !== a) throw 'fail'
 
-        // Try forcing all of these modules to be CommonJS wrappers
+        // Try forcing all of these modules to be wrappers
         require('./node')
         require('./re-export')
         require('./a')
@@ -3487,6 +3538,36 @@
       }),
     )
   }
+
+  // Top-level await tests
+  tests.push(
+    test(['in.js', '--outdir=out', '--format=esm', '--bundle'], {
+      'in.js': `
+        function foo() {
+          globalThis.tlaTrace.push(2)
+          return import('./a.js')
+        }
+
+        globalThis.tlaTrace = []
+        globalThis.tlaTrace.push(1)
+        const it = (await foo()).default
+        globalThis.tlaTrace.push(6)
+        if (it !== 123 || globalThis.tlaTrace.join(',') !== '1,2,3,4,5,6') throw 'fail'
+      `,
+      'a.js': `
+        globalThis.tlaTrace.push(5)
+        export { default } from './b.js'
+      `,
+      'b.js': `
+        globalThis.tlaTrace.push(3)
+        export default await Promise.resolve(123)
+        globalThis.tlaTrace.push(4)
+      `,
+      'node.js': `
+        import './out/in.js'
+      `,
+    }),
+  )
 
   // Test writing to stdout
   tests.push(

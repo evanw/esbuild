@@ -1,5 +1,58 @@
 # Changelog
 
+## Breaking Changes
+
+* Change how `require()` and `import()` of ESM works ([#667](https://github.com/evanw/esbuild/issues/667), [#706](https://github.com/evanw/esbuild/issues/706))
+
+    Previously if you call `require()` on an ESM file, or call `import()` on an ESM file with code splitting disabled, esbuild would convert the ESM file to CommonJS. For example, if you had the following input files:
+
+    ```js
+    // cjs-file.js
+    console.log(require('./esm-file.js').foo)
+
+    // esm-file.js
+    export let foo = bar()
+    ```
+
+    The previous bundling behavior would generate something like this:
+
+    ```js
+    var require_esm_file = __commonJS((exports) => {
+      __markAsModule(exports);
+      __export(exports, {
+        foo: () => foo
+      });
+      var foo = bar();
+    });
+    console.log(require_esm_file().foo);
+    ```
+
+    This behavior has been changed and esbuild now generates something like this instead:
+
+    ```js
+    var esm_file_exports = {};
+    __export(esm_file_exports, {
+      foo: () => foo
+    });
+    var foo;
+    var init_esm_file = __esm(() => {
+      foo = bar();
+    });
+    console.log((init_esm_file(), esm_file_exports).foo);
+    ```
+
+    The variables have been pulled out of the lazily-initialized closure and are accessible to the rest of the module's scope. Some benefits of this approach:
+
+    * If another file does `import {foo} from "./esm-file.js"`, it will just reference `foo` directly and will not pay the performance penalty or code size overhead of the dynamic property accesses that come with CommonJS-style exports. So this improves performance and reduces code size in some cases.
+
+    * This fixes a long-standing bug ([#706](https://github.com/evanw/esbuild/issues/706)) where entry point exports could be broken if the entry point is a target of a `require()` call and the output format was ESM. This happened because previously calling `require()` on an entry point converted it to CommonJS, which then meant it only had a single `default` export, and the exported variables were inside the CommonJS closure and inaccessible to an ESM-style `export {}` clause. Now calling `require()` on an entry point only causes it to be lazily-initialized but all exports are still in the module scope and can still be exported using a normal `export {}` clause.
+
+    * Now that this has been changed, `import()` of a module with top-level await ([#253](https://github.com/evanw/esbuild/issues/253)) is now allowed when code splitting is disabled. Previously this didn't work because `import()` with code splitting disabled was implemented by converting the module to CommonJS and using `Promise.resolve().then(() => require())`, but converting a module with top-level await to CommonJS is impossible because the CommonJS call signature must be synchronous. Now that this implemented using lazy initialization instead of CommonJS conversion, the closure wrapping the ESM file can now be `async` and the `import()` expression can be replaced by a call to the lazy initializer.
+
+    * Adding the ability for ESM files to be lazily-initialized is an important step toward additional future code splitting improvements including: manual chunk names ([#207](https://github.com/evanw/esbuild/issues/207)), correct import evaluation order ([#399](https://github.com/evanw/esbuild/issues/399)), and correct top-level await evaluation order ([#253](https://github.com/evanw/esbuild/issues/253)). These features all need to make use of deferred evaluation of ESM code.
+
+    In addition, calling `require()` on an ESM file now recursively wraps all transitive dependencies of that file instead of just wrapping that ESM file itself. This is an increase in the size of the generated code, but it is important for correctness ([#667](https://github.com/evanw/esbuild/issues/667)). Calling `require()` on a module means its evaluation order is determined at run-time, which means the evaluation order of all dependencies must also be determined at run-time. If you don't want the increase in code size, you should use an `import` statement instead of a `require()` call.
+
 ## Unreleased
 
 * Warn about mutation of private methods ([#1067](https://github.com/evanw/esbuild/pull/1067))

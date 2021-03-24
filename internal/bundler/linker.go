@@ -113,13 +113,29 @@ const (
 	//
 	//   // foo.ts
 	//   let require_foo = __commonJS((exports, module) => {
-	//     exports.foo = 123
+	//     exports.foo = 123;
 	//   });
 	//
 	//   // bar.ts
 	//   let foo = flag ? require_foo() : null;
 	//
 	wrapCJS
+
+	// The module will be bundled ESM-style like this:
+	//
+	//   // foo.ts
+	//   var foo, foo_exports = {};
+	//   __exports(foo_exports, {
+	//     foo: () => foo
+	//   });
+	//   let init_foo = __esm(() => {
+	//     foo = 123;
+	//   });
+	//
+	//   // bar.ts
+	//   let foo = flag ? (init_foo(), foo_exports) : null;
+	//
+	wrapESM
 )
 
 // This contains linker-specific metadata corresponding to a "file" struct
@@ -172,6 +188,8 @@ type fileMeta struct {
 	// into two separate passes.
 	importsToBind map[js_ast.Ref]importToBind
 
+	isAsyncOrHasAsyncDependency bool
+
 	wrap wrapKind
 
 	// If true, the "__export(exports, { ... })" call will be force-included even
@@ -188,11 +206,11 @@ type fileMeta struct {
 	needsMarkAsModuleSymbolFromRuntime bool
 
 	// The index of the automatically-generated part used to represent the
-	// CommonJS wrapper. This part is empty and is only useful for tree shaking
-	// and code splitting. The CommonJS wrapper can't be inserted into the part
+	// CommonJS or ESM wrapper. This part is empty and is only useful for tree
+	// shaking and code splitting. The wrapper can't be inserted into the part
 	// because the wrapper contains other parts, which can't be represented by
 	// the current part system.
-	cjsWrapperPartIndex ast.Index32
+	wrapperPartIndex ast.Index32
 
 	// This includes both named exports and re-exports.
 	//
@@ -450,12 +468,10 @@ func newLinkerContext(
 			}
 
 			// Also associate some default metadata with the file
-			repr.meta = fileMeta{
-				partMeta:                 make([]partMeta, len(repr.ast.Parts)),
-				resolvedExports:          resolvedExports,
-				isProbablyTypeScriptType: make(map[js_ast.Ref]bool),
-				importsToBind:            make(map[js_ast.Ref]importToBind),
-			}
+			repr.meta.partMeta = make([]partMeta, len(repr.ast.Parts))
+			repr.meta.resolvedExports = resolvedExports
+			repr.meta.isProbablyTypeScriptType = make(map[js_ast.Ref]bool)
+			repr.meta.importsToBind = make(map[js_ast.Ref]importToBind)
 
 		case *reprCSS:
 			// Clone the representation
@@ -1309,12 +1325,18 @@ func (c *linkerContext) scanImportsAndExports() {
 					// In that case the module *is* considered a CommonJS module because
 					// the namespace object must be created.
 					if (record.ContainsImportStar || record.ContainsDefaultAlias) && otherRepr.ast.ExportsKind == js_ast.ExportsNone && !otherRepr.ast.HasLazyExport {
+						otherRepr.meta.wrap = wrapCJS
 						otherRepr.ast.ExportsKind = js_ast.ExportsCommonJS
 					}
 
 				case ast.ImportRequire:
 					// Files that are imported with require() must be CommonJS modules
-					otherRepr.ast.ExportsKind = js_ast.ExportsCommonJS
+					if otherRepr.ast.ExportsKind == js_ast.ExportsESM {
+						otherRepr.meta.wrap = wrapESM
+					} else {
+						otherRepr.meta.wrap = wrapCJS
+						otherRepr.ast.ExportsKind = js_ast.ExportsCommonJS
+					}
 
 				case ast.ImportDynamic:
 					if c.options.CodeSplitting {
@@ -1326,9 +1348,23 @@ func (c *linkerContext) scanImportsAndExports() {
 					} else {
 						// If we're not splitting, then import() is just a require() that
 						// returns a promise, so the imported file must be a CommonJS module
-						otherRepr.ast.ExportsKind = js_ast.ExportsCommonJS
+						if otherRepr.ast.ExportsKind == js_ast.ExportsESM {
+							otherRepr.meta.wrap = wrapESM
+						} else {
+							otherRepr.meta.wrap = wrapCJS
+							otherRepr.ast.ExportsKind = js_ast.ExportsCommonJS
+						}
 					}
 				}
+			}
+
+			// If the output format doesn't have an implicit CommonJS wrapper, any file
+			// that uses CommonJS features will need to be wrapped, even though the
+			// resulting wrapper won't be invoked by other files. An exception is made
+			// for entry point files in CommonJS format (or when in pass-through mode).
+			if repr.ast.ExportsKind == js_ast.ExportsCommonJS && (!file.isEntryPoint ||
+				c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatESModule) {
+				repr.meta.wrap = wrapCJS
 			}
 		}
 	}
@@ -1338,37 +1374,18 @@ func (c *linkerContext) scanImportsAndExports() {
 	// In this case the export star must be evaluated at run time instead of at
 	// bundle time.
 	for _, sourceIndex := range c.reachableFiles {
-		if repr, ok := c.files[sourceIndex].repr.(*reprJS); ok && len(repr.ast.ExportStarImportRecords) > 0 {
-			visited := make(map[uint32]bool)
-			c.hasDynamicExportsDueToExportStar(sourceIndex, visited)
-		}
-	}
-
-	// Step 3: Resolve "export * from" statements. This must be done after we
-	// discover all modules that can have dynamic exports because export stars
-	// are ignored for those modules.
-	exportStarStack := make([]uint32, 0, 32)
-	for _, sourceIndex := range c.reachableFiles {
-		file := &c.files[sourceIndex]
-		repr, ok := file.repr.(*reprJS)
+		repr, ok := c.files[sourceIndex].repr.(*reprJS)
 		if !ok {
 			continue
 		}
 
-		// Expression-style loaders defer code generation until linking. Code
-		// generation is done here because at this point we know that the
-		// "ExportsKind" field has its final value and will not be changed.
-		if repr.ast.HasLazyExport {
-			c.generateCodeForLazyExport(sourceIndex)
+		if repr.meta.wrap != wrapNone {
+			c.recursivelyWrapDependencies(sourceIndex)
 		}
 
-		// If the output format doesn't have an implicit CommonJS wrapper, any file
-		// that uses CommonJS features will need to be wrapped, even though the
-		// resulting wrapper won't be invoked by other files. An exception is made
-		// for entry point files in CommonJS format (or when in pass-through mode).
-		if repr.ast.ExportsKind == js_ast.ExportsCommonJS && (!file.isEntryPoint ||
-			c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatESModule) {
-			repr.meta.wrap = wrapCJS
+		if len(repr.ast.ExportStarImportRecords) > 0 {
+			visited := make(map[uint32]bool)
+			c.hasDynamicExportsDueToExportStar(sourceIndex, visited)
 		}
 
 		// Even if the output file is CommonJS-like, we may still need to wrap
@@ -1381,9 +1398,27 @@ func (c *linkerContext) scanImportsAndExports() {
 			if record.SourceIndex.IsValid() {
 				otherRepr := c.files[record.SourceIndex.GetIndex()].repr.(*reprJS)
 				if otherRepr.ast.ExportsKind == js_ast.ExportsCommonJS {
-					otherRepr.meta.wrap = wrapCJS
+					c.recursivelyWrapDependencies(record.SourceIndex.GetIndex())
 				}
 			}
+		}
+	}
+
+	// Step 3: Resolve "export * from" statements. This must be done after we
+	// discover all modules that can have dynamic exports because export stars
+	// are ignored for those modules.
+	exportStarStack := make([]uint32, 0, 32)
+	for _, sourceIndex := range c.reachableFiles {
+		repr, ok := c.files[sourceIndex].repr.(*reprJS)
+		if !ok {
+			continue
+		}
+
+		// Expression-style loaders defer code generation until linking. Code
+		// generation is done here because at this point we know that the
+		// "ExportsKind" field has its final value and will not be changed.
+		if repr.ast.HasLazyExport {
+			c.generateCodeForLazyExport(sourceIndex)
 		}
 
 		// Propagate exports for export star statements
@@ -1521,6 +1556,11 @@ func (c *linkerContext) scanImportsAndExports() {
 				copies[i] = tempRef
 			}
 			repr.meta.cjsExportCopies = copies
+		}
+
+		// Use "init_*" for ESM wrappers instead of "require_*"
+		if repr.meta.wrap == wrapESM {
+			c.symbols.Get(repr.ast.WrapperRef).OriginalName = "init_" + file.source.IdentifierName
 		}
 
 		// If this isn't CommonJS, then rename the unused "exports" and "module"
@@ -2121,6 +2161,35 @@ loop:
 	return
 }
 
+func (c *linkerContext) recursivelyWrapDependencies(sourceIndex uint32) {
+	repr := c.files[sourceIndex].repr.(*reprJS)
+	if repr.didWrapDependencies {
+		return
+	}
+	repr.didWrapDependencies = true
+
+	// Never wrap the runtime file since it always comes first
+	if sourceIndex == runtime.SourceIndex {
+		return
+	}
+
+	// This module must be wrapped
+	if repr.meta.wrap == wrapNone {
+		if repr.ast.ExportsKind == js_ast.ExportsCommonJS {
+			repr.meta.wrap = wrapCJS
+		} else {
+			repr.meta.wrap = wrapESM
+		}
+	}
+
+	// All dependencies must also be wrapped
+	for _, record := range repr.ast.ImportRecords {
+		if record.SourceIndex.IsValid() {
+			c.recursivelyWrapDependencies(record.SourceIndex.GetIndex())
+		}
+	}
+}
+
 func (c *linkerContext) hasDynamicExportsDueToExportStar(sourceIndex uint32, visited map[uint32]bool) bool {
 	// Terminate the traversal now if this file already has dynamic exports
 	repr := c.files[sourceIndex].repr.(*reprJS)
@@ -2380,10 +2449,49 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				}, partMeta{
 					nonLocalDependencies: nonLocalDependencies,
 				})
-				repr.meta.cjsWrapperPartIndex = ast.MakeIndex32(partIndex)
+				repr.meta.wrapperPartIndex = ast.MakeIndex32(partIndex)
 				repr.ast.TopLevelSymbolToParts[repr.ast.WrapperRef] = []uint32{partIndex}
 				repr.meta.importsToBind[commonJSRef] = importToBind{
 					ref:         commonJSRef,
+					sourceIndex: runtime.SourceIndex,
+				}
+			}
+
+			// If this is a lazily-initialized ESM file, we're going to need to
+			// generate a wrapper for the ESM closure. That will end up looking
+			// something like this:
+			//
+			//   var init_foo = __esm((exports, module) => {
+			//     ...
+			//   });
+			//
+			// This depends on the "__esm" symbol and declares the "init_foo" symbol
+			// for similar reasons to the CommonJS closure above.
+			if repr.meta.wrap == wrapESM {
+				runtimeRepr := c.files[runtime.SourceIndex].repr.(*reprJS)
+				esmRef := runtimeRepr.ast.NamedExports["__esm"].Ref
+				esmParts := runtimeRepr.ast.TopLevelSymbolToParts[esmRef]
+
+				// Generate the dummy part
+				nonLocalDependencies := make([]partRef, len(esmParts))
+				for i, partIndex := range esmParts {
+					nonLocalDependencies[i] = partRef{sourceIndex: runtime.SourceIndex, partIndex: partIndex}
+				}
+				partIndex := c.addPartToFile(sourceIndex, js_ast.Part{
+					SymbolUses: map[js_ast.Ref]js_ast.SymbolUse{
+						repr.ast.WrapperRef: {CountEstimate: 1},
+						esmRef:              {CountEstimate: 1},
+					},
+					DeclaredSymbols: []js_ast.DeclaredSymbol{
+						{Ref: repr.ast.WrapperRef, IsTopLevel: true},
+					},
+				}, partMeta{
+					nonLocalDependencies: nonLocalDependencies,
+				})
+				repr.meta.wrapperPartIndex = ast.MakeIndex32(partIndex)
+				repr.ast.TopLevelSymbolToParts[repr.ast.WrapperRef] = []uint32{partIndex}
+				repr.meta.importsToBind[esmRef] = importToBind{
+					ref:         esmRef,
 					sourceIndex: runtime.SourceIndex,
 				}
 			}
@@ -2484,7 +2592,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 
 			// Include the wrapper if present
 			if repr.meta.wrap != wrapNone {
-				c.includePart(sourceIndex, repr.meta.cjsWrapperPartIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
+				c.includePart(sourceIndex, repr.meta.wrapperPartIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
 			}
 		}
 
@@ -2590,9 +2698,15 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 
 			// This is an ES6 import of a CommonJS module, so it needs the
 			// "__toModule" wrapper as long as it's not a bare "require()"
-			if record.Kind != ast.ImportRequire && otherRepr.ast.ExportKeyword.Len == 0 {
+			if record.Kind != ast.ImportRequire && otherRepr.ast.ExportsKind == js_ast.ExportsCommonJS {
 				record.WrapWithToModule = true
 				toModuleUses++
+			}
+
+			// If this is an ESM wrapper, also depend on the exports object
+			// since the final code will contain an inline reference to it
+			if otherRepr.meta.wrap == wrapESM {
+				c.includePart(otherSourceIndex, otherRepr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
 			}
 		} else if record.Kind == ast.ImportStmt && otherRepr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
 			// This is an import of a module that has a dynamic export fallback
@@ -2892,12 +3006,12 @@ func appendOrExtendPartRange(ranges []partRange, sourceIndex uint32, partIndex u
 
 func (c *linkerContext) shouldIncludePart(repr *reprJS, part js_ast.Part) bool {
 	// As an optimization, ignore parts containing a single import statement to
-	// an internal non-CommonJS file. These will be ignored anyway and it's a
+	// an internal non-wrapped file. These will be ignored anyway and it's a
 	// performance hit to spin up a goroutine only to discover this later.
 	if len(part.Stmts) == 1 {
 		if s, ok := part.Stmts[0].Data.(*js_ast.SImport); ok {
 			record := &repr.ast.ImportRecords[s.ImportRecordIndex]
-			if record.SourceIndex.IsValid() && c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).ast.ExportsKind != js_ast.ExportsCommonJS {
+			if record.SourceIndex.IsValid() && c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).meta.wrap == wrapNone {
 				return false
 			}
 		}
@@ -3017,23 +3131,29 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 func (c *linkerContext) shouldRemoveImportExportStmt(
 	sourceIndex uint32,
 	stmtList *stmtList,
-	partStmts []js_ast.Stmt,
 	loc logger.Loc,
 	namespaceRef js_ast.Ref,
 	importRecordIndex uint32,
 ) bool {
-	// Is this an import from another module inside this bundle?
 	repr := c.files[sourceIndex].repr.(*reprJS)
 	record := &repr.ast.ImportRecords[importRecordIndex]
-	if record.SourceIndex.IsValid() {
-		if c.files[record.SourceIndex.GetIndex()].repr.(*reprJS).ast.ExportsKind != js_ast.ExportsCommonJS {
-			// Remove the statement entirely if this is not a CommonJS module
-			return true
+
+	// Is this an external import?
+	if !record.SourceIndex.IsValid() {
+		// Keep the "import" statement if "import" statements are supported
+		if c.options.OutputFormat.KeepES6ImportExportSyntax() {
+			return false
 		}
-	} else if c.options.OutputFormat.KeepES6ImportExportSyntax() {
-		// If this is an external module and the output format allows ES6
-		// import/export syntax, then just keep the statement
-		return false
+
+		// Otherwise, replace this statement with a call to "require()"
+		stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
+			Loc: loc,
+			Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
+				Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
+				Value:   &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}},
+			}}},
+		})
+		return true
 	}
 
 	// We don't need a call to "require()" if this is a self-import inside a
@@ -3042,14 +3162,33 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 		return true
 	}
 
-	// Replace the statement with a call to "require()"
-	stmtList.prefixStmts = append(stmtList.prefixStmts, js_ast.Stmt{
-		Loc: loc,
-		Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
-			Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
-			Value:   &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}},
-		}}},
-	})
+	otherRepr := c.files[record.SourceIndex.GetIndex()].repr.(*reprJS)
+	switch otherRepr.meta.wrap {
+	case wrapNone:
+		// Remove the statement entirely if this module is not wrapped
+
+	case wrapCJS:
+		// Replace the statement with a call to "require()"
+		stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
+			Loc: loc,
+			Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
+				Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
+				Value:   &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}},
+			}}},
+		})
+
+	case wrapESM:
+		// Replace the statement with a call to "init()"
+		value := js_ast.Expr{Loc: loc, Data: &js_ast.ECall{Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: otherRepr.ast.WrapperRef}}}}
+		if otherRepr.meta.isAsyncOrHasAsyncDependency {
+			// This currently evaluates sibling dependencies in serial instead of in
+			// parallel, which is incorrect. This should be changed to store a promise
+			// and await all stored promises after all imports but before any code.
+			value.Data = &js_ast.EAwait{Value: value}
+		}
+		stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: value}})
+	}
+
 	return true
 }
 
@@ -3057,91 +3196,27 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 	file := &c.files[sourceIndex]
 	shouldStripExports := c.options.Mode != config.ModePassThrough || !file.isEntryPoint
 	repr := file.repr.(*reprJS)
-	shouldExtractES6StmtsForWrap := repr.meta.wrap != wrapNone
+	shouldExtractESMStmtsForWrap := repr.meta.wrap != wrapNone
 
 	for _, stmt := range partStmts {
 		switch s := stmt.Data.(type) {
 		case *js_ast.SImport:
 			// "import * as ns from 'path'"
 			// "import {foo} from 'path'"
-			if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, partStmts, stmt.Loc, s.NamespaceRef, s.ImportRecordIndex) {
+			if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, stmt.Loc, s.NamespaceRef, s.ImportRecordIndex) {
 				continue
 			}
 
-			// Make sure these don't end up in a CommonJS wrapper
-			if shouldExtractES6StmtsForWrap {
-				stmtList.es6StmtsForWrap = append(stmtList.es6StmtsForWrap, stmt)
+			// Make sure these don't end up in the wrapper closure
+			if shouldExtractESMStmtsForWrap {
+				stmtList.outsideWrapperPrefix = append(stmtList.outsideWrapperPrefix, stmt)
 				continue
 			}
 
 		case *js_ast.SExportStar:
-			if s.Alias == nil {
-				// "export * from 'path'"
-				if shouldStripExports {
-					record := &repr.ast.ImportRecords[s.ImportRecordIndex]
-
-					// Is this export star evaluated at run time?
-					if !record.SourceIndex.IsValid() && c.options.OutputFormat.KeepES6ImportExportSyntax() {
-						if record.CallsRunTimeExportStarFn {
-							// Turn this statement into "import * as ns from 'path'"
-							stmt.Data = &js_ast.SImport{
-								NamespaceRef:      s.NamespaceRef,
-								StarNameLoc:       &stmt.Loc,
-								ImportRecordIndex: s.ImportRecordIndex,
-							}
-
-							// Prefix this module with "__exportStar(exports, ns)"
-							exportStarRef := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members["__exportStar"].Ref
-							stmtList.prefixStmts = append(stmtList.prefixStmts, js_ast.Stmt{
-								Loc: stmt.Loc,
-								Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
-									Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
-									Args: []js_ast.Expr{
-										{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}},
-										{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: s.NamespaceRef}},
-									},
-								}}},
-							})
-
-							// Make sure these don't end up in a CommonJS wrapper
-							if shouldExtractES6StmtsForWrap {
-								stmtList.es6StmtsForWrap = append(stmtList.es6StmtsForWrap, stmt)
-								continue
-							}
-						}
-					} else {
-						if record.CallsRunTimeExportStarFn {
-							var target js_ast.E
-							if record.SourceIndex.IsValid() {
-								if repr := c.files[record.SourceIndex.GetIndex()].repr.(*reprJS); repr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
-									// Prefix this module with "__exportStar(exports, otherExports)"
-									target = &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}
-								}
-							}
-							if target == nil {
-								// Prefix this module with "__exportStar(exports, require(path))"
-								target = &js_ast.ERequire{ImportRecordIndex: s.ImportRecordIndex}
-							}
-							exportStarRef := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members["__exportStar"].Ref
-							stmtList.prefixStmts = append(stmtList.prefixStmts, js_ast.Stmt{
-								Loc: stmt.Loc,
-								Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
-									Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
-									Args: []js_ast.Expr{
-										{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}},
-										{Loc: record.Range.Loc, Data: target},
-									},
-								}}},
-							})
-						}
-
-						// Remove the export star statement
-						continue
-					}
-				}
-			} else {
-				// "export * as ns from 'path'"
-				if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, partStmts, stmt.Loc, s.NamespaceRef, s.ImportRecordIndex) {
+			// "export * as ns from 'path'"
+			if s.Alias != nil {
+				if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, stmt.Loc, s.NamespaceRef, s.ImportRecordIndex) {
 					continue
 				}
 
@@ -3154,16 +3229,90 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					}
 				}
 
-				// Make sure these don't end up in a CommonJS wrapper
-				if shouldExtractES6StmtsForWrap {
-					stmtList.es6StmtsForWrap = append(stmtList.es6StmtsForWrap, stmt)
+				// Make sure these don't end up in the wrapper closure
+				if shouldExtractESMStmtsForWrap {
+					stmtList.outsideWrapperPrefix = append(stmtList.outsideWrapperPrefix, stmt)
 					continue
 				}
+				break
+			}
+
+			// "export * from 'path'"
+			if !shouldStripExports {
+				break
+			}
+			record := &repr.ast.ImportRecords[s.ImportRecordIndex]
+
+			// Is this export star evaluated at run time?
+			if !record.SourceIndex.IsValid() && c.options.OutputFormat.KeepES6ImportExportSyntax() {
+				if record.CallsRunTimeExportStarFn {
+					// Turn this statement into "import * as ns from 'path'"
+					stmt.Data = &js_ast.SImport{
+						NamespaceRef:      s.NamespaceRef,
+						StarNameLoc:       &stmt.Loc,
+						ImportRecordIndex: s.ImportRecordIndex,
+					}
+
+					// Prefix this module with "__exportStar(exports, ns)"
+					exportStarRef := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members["__exportStar"].Ref
+					stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
+						Loc: stmt.Loc,
+						Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
+							Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
+							Args: []js_ast.Expr{
+								{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}},
+								{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: s.NamespaceRef}},
+							},
+						}}},
+					})
+
+					// Make sure these don't end up in the wrapper closure
+					if shouldExtractESMStmtsForWrap {
+						stmtList.outsideWrapperPrefix = append(stmtList.outsideWrapperPrefix, stmt)
+						continue
+					}
+				}
+			} else {
+				if record.SourceIndex.IsValid() {
+					if otherRepr := c.files[record.SourceIndex.GetIndex()].repr.(*reprJS); otherRepr.meta.wrap == wrapESM {
+						stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{Loc: stmt.Loc,
+							Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
+								Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: otherRepr.ast.WrapperRef}}}}}})
+					}
+				}
+
+				if record.CallsRunTimeExportStarFn {
+					var target js_ast.E
+					if record.SourceIndex.IsValid() {
+						if otherRepr := c.files[record.SourceIndex.GetIndex()].repr.(*reprJS); otherRepr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
+							// Prefix this module with "__exportStar(exports, otherExports)"
+							target = &js_ast.EIdentifier{Ref: otherRepr.ast.ExportsRef}
+						}
+					}
+					if target == nil {
+						// Prefix this module with "__exportStar(exports, require(path))"
+						target = &js_ast.ERequire{ImportRecordIndex: s.ImportRecordIndex}
+					}
+					exportStarRef := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members["__exportStar"].Ref
+					stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
+						Loc: stmt.Loc,
+						Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
+							Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
+							Args: []js_ast.Expr{
+								{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}},
+								{Loc: record.Range.Loc, Data: target},
+							},
+						}}},
+					})
+				}
+
+				// Remove the export star statement
+				continue
 			}
 
 		case *js_ast.SExportFrom:
 			// "export {foo} from 'path'"
-			if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, partStmts, stmt.Loc, s.NamespaceRef, s.ImportRecordIndex) {
+			if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, stmt.Loc, s.NamespaceRef, s.ImportRecordIndex) {
 				continue
 			}
 
@@ -3180,9 +3329,9 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 				}
 			}
 
-			// Make sure these don't end up in a CommonJS wrapper
-			if shouldExtractES6StmtsForWrap {
-				stmtList.es6StmtsForWrap = append(stmtList.es6StmtsForWrap, stmt)
+			// Make sure these don't end up in the wrapper closure
+			if shouldExtractESMStmtsForWrap {
+				stmtList.outsideWrapperPrefix = append(stmtList.outsideWrapperPrefix, stmt)
 				continue
 			}
 
@@ -3192,9 +3341,9 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 				continue
 			}
 
-			// Make sure these don't end up in a CommonJS wrapper
-			if shouldExtractES6StmtsForWrap {
-				stmtList.es6StmtsForWrap = append(stmtList.es6StmtsForWrap, stmt)
+			// Make sure these don't end up in the wrapper closure
+			if shouldExtractESMStmtsForWrap {
+				stmtList.outsideWrapperPrefix = append(stmtList.outsideWrapperPrefix, stmt)
 				continue
 			}
 
@@ -3260,7 +3409,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			}
 		}
 
-		stmtList.normalStmts = append(stmtList.normalStmts, stmt)
+		stmtList.insideWrapperSuffix = append(stmtList.insideWrapperSuffix, stmt)
 	}
 }
 
@@ -3306,15 +3455,13 @@ func mergeAdjacentLocalStmts(stmts []js_ast.Stmt) []js_ast.Stmt {
 }
 
 type stmtList struct {
-	// These statements come first, and can be inside the CommonJS wrapper
-	prefixStmts []js_ast.Stmt
+	// These statements come first, and can be inside the wrapper
+	insideWrapperPrefix []js_ast.Stmt
 
-	// These statements come last, and can be inside the CommonJS wrapper
-	normalStmts []js_ast.Stmt
+	// These statements come last, and can be inside the wrapper
+	insideWrapperSuffix []js_ast.Stmt
 
-	// Order doesn't matter for these statements, but they must be outside any
-	// CommonJS wrapper since they are top-level ES6 import/export statements
-	es6StmtsForWrap []js_ast.Stmt
+	outsideWrapperPrefix []js_ast.Stmt
 }
 
 type compileResultJS struct {
@@ -3327,6 +3474,18 @@ type compileResultJS struct {
 	generatedOffset sourcemap.LineColumnOffset
 }
 
+func (c *linkerContext) requireOrImportMetaForSource(sourceIndex uint32) (meta js_printer.RequireOrImportMeta) {
+	repr := c.files[sourceIndex].repr.(*reprJS)
+	meta.WrapperRef = repr.ast.WrapperRef
+	meta.IsWrapperAsync = repr.meta.isAsyncOrHasAsyncDependency
+	if repr.meta.wrap == wrapESM {
+		meta.ExportsRef = repr.ast.ExportsRef
+	} else {
+		meta.ExportsRef = js_ast.InvalidRef
+	}
+	return
+}
+
 func (c *linkerContext) generateCodeForFileInChunkJS(
 	r renamer.Renamer,
 	waitGroup *sync.WaitGroup,
@@ -3334,6 +3493,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	entryBits bitSet,
 	chunkAbsDir string,
 	commonJSRef js_ast.Ref,
+	esmRef js_ast.Ref,
 	toModuleRef js_ast.Ref,
 	result *compileResultJS,
 	dataForSourceMaps []dataForSourceMap,
@@ -3351,8 +3511,12 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		c.convertStmtsForChunk(partRange.sourceIndex, &stmtList, repr.ast.Parts[nsExportPartIndex].Stmts)
 
 		// Move everything to the prefix list
-		stmtList.prefixStmts = append(stmtList.prefixStmts, stmtList.normalStmts...)
-		stmtList.normalStmts = nil
+		if repr.meta.wrap == wrapESM {
+			stmtList.outsideWrapperPrefix = append(stmtList.outsideWrapperPrefix, stmtList.insideWrapperSuffix...)
+		} else {
+			stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, stmtList.insideWrapperSuffix...)
+		}
+		stmtList.insideWrapperSuffix = nil
 	}
 
 	// Add all other parts in this chunk
@@ -3368,8 +3532,8 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			continue
 		}
 
-		// Mark if we hit the dummy part representing the CommonJS wrapper
-		if uint32(partIndex) == repr.meta.cjsWrapperPartIndex.GetIndex() {
+		// Mark if we hit the dummy part representing the wrapper
+		if uint32(partIndex) == repr.meta.wrapperPartIndex.GetIndex() {
 			needsWrapper = true
 			continue
 		}
@@ -3383,46 +3547,119 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	// evaluated (well, except for cyclic import scenarios). We need to preserve
 	// these semantics even when modules imported via ES6 import statements end
 	// up being CommonJS modules.
-	stmts := stmtList.normalStmts
-	if len(stmtList.prefixStmts) > 0 {
-		stmts = append(stmtList.prefixStmts, stmts...)
+	stmts := stmtList.insideWrapperSuffix
+	if len(stmtList.insideWrapperPrefix) > 0 {
+		stmts = append(stmtList.insideWrapperPrefix, stmts...)
 	}
 	if c.options.MangleSyntax {
 		stmts = mergeAdjacentLocalStmts(stmts)
 	}
 
-	// Optionally wrap all statements in a closure for CommonJS
+	// Optionally wrap all statements in a closure
 	if needsWrapper {
-		// Only include the arguments that are actually used
-		args := []js_ast.Arg{}
-		if repr.ast.UsesExportsRef || repr.ast.UsesModuleRef {
-			args = append(args, js_ast.Arg{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.ExportsRef}}})
-			if repr.ast.UsesModuleRef {
-				args = append(args, js_ast.Arg{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.ModuleRef}}})
+		switch repr.meta.wrap {
+		case wrapCJS:
+			// Only include the arguments that are actually used
+			args := []js_ast.Arg{}
+			if repr.ast.UsesExportsRef || repr.ast.UsesModuleRef {
+				args = append(args, js_ast.Arg{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.ExportsRef}}})
+				if repr.ast.UsesModuleRef {
+					args = append(args, js_ast.Arg{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.ModuleRef}}})
+				}
 			}
-		}
 
-		// "__commonJS((exports, module) => { ... })"
-		var value js_ast.Expr
-		if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
-			value = js_ast.Expr{Data: &js_ast.ECall{
-				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
-				Args:   []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}}},
-			}}
-		} else {
-			value = js_ast.Expr{Data: &js_ast.ECall{
-				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
-				Args:   []js_ast.Expr{{Data: &js_ast.EArrow{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
-			}}
-		}
+			// "__commonJS((exports, module) => { ... })"
+			var value js_ast.Expr
+			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+				value = js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
+					Args:   []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}}},
+				}}
+			} else {
+				value = js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
+					Args:   []js_ast.Expr{{Data: &js_ast.EArrow{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
+				}}
+			}
 
-		// "var require_foo = __commonJS((exports, module) => { ... });"
-		stmts = append(stmtList.es6StmtsForWrap, js_ast.Stmt{Data: &js_ast.SLocal{
-			Decls: []js_ast.Decl{{
-				Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.WrapperRef}},
-				Value:   &value,
-			}},
-		}})
+			// "var require_foo = __commonJS((exports, module) => { ... });"
+			stmts = append(stmtList.outsideWrapperPrefix, js_ast.Stmt{Data: &js_ast.SLocal{
+				Decls: []js_ast.Decl{{
+					Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.WrapperRef}},
+					Value:   &value,
+				}},
+			}})
+
+		case wrapESM:
+			// The wrapper only needs to be "async" if there is a transitive async
+			// dependency. For correctness, we must not use "async" if the module
+			// isn't async because then calling "require()" on that module would
+			// swallow any exceptions thrown during module initialization.
+			isAsync := repr.meta.isAsyncOrHasAsyncDependency
+
+			// Hoist all top-level "var" and "function" declarations out of the closure
+			var decls []js_ast.Decl
+			end := 0
+			for _, stmt := range stmts {
+				switch s := stmt.Data.(type) {
+				case *js_ast.SLocal:
+					// Convert the declarations to assignments
+					wrapIdentifier := func(loc logger.Loc, ref js_ast.Ref) js_ast.Expr {
+						decls = append(decls, js_ast.Decl{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: ref}}})
+						return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
+					}
+					var value js_ast.Expr
+					for _, decl := range s.Decls {
+						binding := js_ast.ConvertBindingToExpr(decl.Binding, wrapIdentifier)
+						if decl.Value != nil {
+							value = js_ast.JoinWithComma(value, js_ast.Assign(binding, *decl.Value))
+						}
+					}
+					if value.Data == nil {
+						continue
+					}
+					stmt = js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExpr{Value: value}}
+
+				case *js_ast.SFunction:
+					stmtList.outsideWrapperPrefix = append(stmtList.outsideWrapperPrefix, stmt)
+					continue
+				}
+
+				stmts[end] = stmt
+				end++
+			}
+			stmts = stmts[:end]
+
+			// "__esm(() => { ... })"
+			var value js_ast.Expr
+			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+				value = js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: esmRef}},
+					Args:   []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}}},
+				}}
+			} else {
+				value = js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: esmRef}},
+					Args:   []js_ast.Expr{{Data: &js_ast.EArrow{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}},
+				}}
+			}
+
+			// "var foo, bar;"
+			if !c.options.MangleSyntax && len(decls) > 0 {
+				stmtList.outsideWrapperPrefix = append(stmtList.outsideWrapperPrefix, js_ast.Stmt{Data: &js_ast.SLocal{
+					Decls: decls,
+				}})
+				decls = nil
+			}
+
+			// "var init_foo = __esm(() => { ... });"
+			stmts = append(stmtList.outsideWrapperPrefix, js_ast.Stmt{Data: &js_ast.SLocal{
+				Decls: append(decls, js_ast.Decl{
+					Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.WrapperRef}},
+					Value:   &value,
+				}),
+			}})
+		}
 	}
 
 	// Only generate a source map if needed
@@ -3443,20 +3680,18 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 
 	// Convert the AST to JavaScript code
 	printOptions := js_printer.Options{
-		Indent:              indent,
-		OutputFormat:        c.options.OutputFormat,
-		RemoveWhitespace:    c.options.RemoveWhitespace,
-		MangleSyntax:        c.options.MangleSyntax,
-		ASCIIOnly:           c.options.ASCIIOnly,
-		ToModuleRef:         toModuleRef,
-		ExtractComments:     c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
-		UnsupportedFeatures: c.options.UnsupportedJSFeatures,
-		AddSourceMappings:   addSourceMappings,
-		InputSourceMap:      inputSourceMap,
-		LineOffsetTables:    lineOffsetTables,
-		WrapperRefForSource: func(sourceIndex uint32) js_ast.Ref {
-			return c.files[sourceIndex].repr.(*reprJS).ast.WrapperRef
-		},
+		Indent:                       indent,
+		OutputFormat:                 c.options.OutputFormat,
+		RemoveWhitespace:             c.options.RemoveWhitespace,
+		MangleSyntax:                 c.options.MangleSyntax,
+		ASCIIOnly:                    c.options.ASCIIOnly,
+		ToModuleRef:                  toModuleRef,
+		ExtractComments:              c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
+		UnsupportedFeatures:          c.options.UnsupportedJSFeatures,
+		AddSourceMappings:            addSourceMappings,
+		InputSourceMap:               inputSourceMap,
+		LineOffsetTables:             lineOffsetTables,
+		RequireOrImportMetaForSource: c.requireOrImportMetaForSource,
 	}
 	tree := repr.ast
 	tree.Directive = "" // This is handled elsewhere
@@ -3480,8 +3715,9 @@ func (c *linkerContext) generateEntryPointTailJS(
 
 	switch c.options.OutputFormat {
 	case config.FormatPreserve:
-		if repr.meta.wrap == wrapCJS {
+		if repr.meta.wrap != wrapNone {
 			// "require_foo();"
+			// "init_foo();"
 			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
 				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
 			}}}})
@@ -3500,11 +3736,19 @@ func (c *linkerContext) generateEntryPointTailJS(
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
 				}}}})
 			}
-		} else if repr.meta.forceIncludeExportsForEntryPoint && len(c.options.GlobalName) > 0 {
-			// "return exports;"
-			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SReturn{
-				Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}},
-			}})
+		} else {
+			if repr.meta.wrap == wrapESM {
+				// "init_foo();"
+				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+				}}}})
+			}
+			if repr.meta.forceIncludeExportsForEntryPoint && len(c.options.GlobalName) > 0 {
+				// "return exports;"
+				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SReturn{
+					Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}},
+				}})
+			}
 		}
 
 	case config.FormatCommonJS:
@@ -3519,6 +3763,11 @@ func (c *linkerContext) generateEntryPointTailJS(
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
 				}},
 			))
+		} else if repr.meta.wrap == wrapESM {
+			// "init_foo();"
+			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+			}}}})
 		}
 
 		// If we are generating CommonJS for node, encode the known export names in
@@ -3599,107 +3848,116 @@ func (c *linkerContext) generateEntryPointTailJS(
 			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExportDefault{Value: js_ast.ExprOrStmt{Expr: &js_ast.Expr{Data: &js_ast.ECall{
 				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
 			}}}}})
-		} else if len(repr.meta.sortedAndFilteredExportAliases) > 0 {
-			// If the output format is ES6 modules and we're an entry point, generate an
-			// ES6 export statement containing all exports. Except don't do that if this
-			// entry point is a CommonJS-style module, since that would generate an ES6
-			// export statement that's not top-level. Instead, we will export the CommonJS
-			// exports as a default export later on.
-			var items []js_ast.ClauseItem
-
-			for i, alias := range repr.meta.sortedAndFilteredExportAliases {
-				export := repr.meta.resolvedExports[alias]
-
-				// If this is an export of an import, reference the symbol that the import
-				// was eventually resolved to. We need to do this because imports have
-				// already been resolved by this point, so we can't generate a new import
-				// and have that be resolved later.
-				if importToBind, ok := c.files[export.sourceIndex].repr.(*reprJS).meta.importsToBind[export.ref]; ok {
-					export.ref = importToBind.ref
-					export.sourceIndex = importToBind.sourceIndex
-				}
-
-				// Exports of imports need EImportIdentifier in case they need to be re-
-				// written to a property access later on
-				if c.symbols.Get(export.ref).NamespaceAlias != nil {
-					// Create both a local variable and an export clause for that variable.
-					// The local variable is initialized with the initial value of the
-					// export. This isn't fully correct because it's a "dead" binding and
-					// doesn't update with the "live" value as it changes. But ES6 modules
-					// don't have any syntax for bare named getter functions so this is the
-					// best we can do.
-					//
-					// These input files:
-					//
-					//   // entry_point.js
-					//   export {foo} from './cjs-format.js'
-					//
-					//   // cjs-format.js
-					//   Object.defineProperty(exports, 'foo', {
-					//     enumerable: true,
-					//     get: () => Math.random(),
-					//   })
-					//
-					// Become this output file:
-					//
-					//   // cjs-format.js
-					//   var require_cjs_format = __commonJS((exports) => {
-					//     Object.defineProperty(exports, "foo", {
-					//       enumerable: true,
-					//       get: () => Math.random()
-					//     });
-					//   });
-					//
-					//   // entry_point.js
-					//   var cjs_format = __toModule(require_cjs_format());
-					//   var export_foo = cjs_format.foo;
-					//   export {
-					//     export_foo as foo
-					//   };
-					//
-					tempRef := repr.meta.cjsExportCopies[i]
-					stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SLocal{
-						Decls: []js_ast.Decl{{
-							Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: tempRef}},
-							Value:   &js_ast.Expr{Data: &js_ast.EImportIdentifier{Ref: export.ref}},
-						}},
-					}})
-					items = append(items, js_ast.ClauseItem{
-						Name:  js_ast.LocRef{Ref: tempRef},
-						Alias: alias,
-					})
-				} else {
-					// Local identifiers can be exported using an export clause. This is done
-					// this way instead of leaving the "export" keyword on the local declaration
-					// itself both because it lets the local identifier be minified and because
-					// it works transparently for re-exports across files.
-					//
-					// These input files:
-					//
-					//   // entry_point.js
-					//   export * from './esm-format.js'
-					//
-					//   // esm-format.js
-					//   export let foo = 123
-					//
-					// Become this output file:
-					//
-					//   // esm-format.js
-					//   let foo = 123;
-					//
-					//   // entry_point.js
-					//   export {
-					//     foo
-					//   };
-					//
-					items = append(items, js_ast.ClauseItem{
-						Name:  js_ast.LocRef{Ref: export.ref},
-						Alias: alias,
-					})
-				}
+		} else {
+			if repr.meta.wrap == wrapESM {
+				// "init_foo();"
+				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+				}}}})
 			}
 
-			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExportClause{Items: items}})
+			if len(repr.meta.sortedAndFilteredExportAliases) > 0 {
+				// If the output format is ES6 modules and we're an entry point, generate an
+				// ES6 export statement containing all exports. Except don't do that if this
+				// entry point is a CommonJS-style module, since that would generate an ES6
+				// export statement that's not top-level. Instead, we will export the CommonJS
+				// exports as a default export later on.
+				var items []js_ast.ClauseItem
+
+				for i, alias := range repr.meta.sortedAndFilteredExportAliases {
+					export := repr.meta.resolvedExports[alias]
+
+					// If this is an export of an import, reference the symbol that the import
+					// was eventually resolved to. We need to do this because imports have
+					// already been resolved by this point, so we can't generate a new import
+					// and have that be resolved later.
+					if importToBind, ok := c.files[export.sourceIndex].repr.(*reprJS).meta.importsToBind[export.ref]; ok {
+						export.ref = importToBind.ref
+						export.sourceIndex = importToBind.sourceIndex
+					}
+
+					// Exports of imports need EImportIdentifier in case they need to be re-
+					// written to a property access later on
+					if c.symbols.Get(export.ref).NamespaceAlias != nil {
+						// Create both a local variable and an export clause for that variable.
+						// The local variable is initialized with the initial value of the
+						// export. This isn't fully correct because it's a "dead" binding and
+						// doesn't update with the "live" value as it changes. But ES6 modules
+						// don't have any syntax for bare named getter functions so this is the
+						// best we can do.
+						//
+						// These input files:
+						//
+						//   // entry_point.js
+						//   export {foo} from './cjs-format.js'
+						//
+						//   // cjs-format.js
+						//   Object.defineProperty(exports, 'foo', {
+						//     enumerable: true,
+						//     get: () => Math.random(),
+						//   })
+						//
+						// Become this output file:
+						//
+						//   // cjs-format.js
+						//   var require_cjs_format = __commonJS((exports) => {
+						//     Object.defineProperty(exports, "foo", {
+						//       enumerable: true,
+						//       get: () => Math.random()
+						//     });
+						//   });
+						//
+						//   // entry_point.js
+						//   var cjs_format = __toModule(require_cjs_format());
+						//   var export_foo = cjs_format.foo;
+						//   export {
+						//     export_foo as foo
+						//   };
+						//
+						tempRef := repr.meta.cjsExportCopies[i]
+						stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SLocal{
+							Decls: []js_ast.Decl{{
+								Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: tempRef}},
+								Value:   &js_ast.Expr{Data: &js_ast.EImportIdentifier{Ref: export.ref}},
+							}},
+						}})
+						items = append(items, js_ast.ClauseItem{
+							Name:  js_ast.LocRef{Ref: tempRef},
+							Alias: alias,
+						})
+					} else {
+						// Local identifiers can be exported using an export clause. This is done
+						// this way instead of leaving the "export" keyword on the local declaration
+						// itself both because it lets the local identifier be minified and because
+						// it works transparently for re-exports across files.
+						//
+						// These input files:
+						//
+						//   // entry_point.js
+						//   export * from './esm-format.js'
+						//
+						//   // esm-format.js
+						//   export let foo = 123
+						//
+						// Become this output file:
+						//
+						//   // esm-format.js
+						//   let foo = 123;
+						//
+						//   // entry_point.js
+						//   export {
+						//     foo
+						//   };
+						//
+						items = append(items, js_ast.ClauseItem{
+							Name:  js_ast.LocRef{Ref: export.ref},
+							Alias: alias,
+						})
+					}
+				}
+
+				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExportClause{Items: items}})
+			}
 		}
 	}
 
@@ -3718,17 +3976,15 @@ func (c *linkerContext) generateEntryPointTailJS(
 
 	// Convert the AST to JavaScript code
 	printOptions := js_printer.Options{
-		Indent:              indent,
-		OutputFormat:        c.options.OutputFormat,
-		RemoveWhitespace:    c.options.RemoveWhitespace,
-		MangleSyntax:        c.options.MangleSyntax,
-		ASCIIOnly:           c.options.ASCIIOnly,
-		ToModuleRef:         toModuleRef,
-		ExtractComments:     c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
-		UnsupportedFeatures: c.options.UnsupportedJSFeatures,
-		WrapperRefForSource: func(sourceIndex uint32) js_ast.Ref {
-			return c.files[sourceIndex].repr.(*reprJS).ast.WrapperRef
-		},
+		Indent:                       indent,
+		OutputFormat:                 c.options.OutputFormat,
+		RemoveWhitespace:             c.options.RemoveWhitespace,
+		MangleSyntax:                 c.options.MangleSyntax,
+		ASCIIOnly:                    c.options.ASCIIOnly,
+		ToModuleRef:                  toModuleRef,
+		ExtractComments:              c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
+		UnsupportedFeatures:          c.options.UnsupportedJSFeatures,
+		RequireOrImportMetaForSource: c.requireOrImportMetaForSource,
 	}
 	result.PrintResult = js_printer.Print(tree, c.symbols, r, printOptions)
 	return
@@ -3825,7 +4081,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		//
 		//   // foo.js
 		//   var require_foo = __commonJS((exports, module) => {
-		//     ...
+		//     exports.foo = 123;
 		//   });
 		//
 		// The symbol "require_foo" is stored in "file.ast.WrapperRef". We want
@@ -3880,6 +4136,24 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 			continue
 		}
 
+		// Modules wrapped in an ESM closure look like this:
+		//
+		//   // foo.js
+		//   var foo, foo_exports = {};
+		//   __exports(foo_exports, {
+		//     foo: () => foo
+		//   });
+		//   let init_foo = __esm(() => {
+		//     foo = 123;
+		//   });
+		//
+		// The symbol "init_foo" is stored in "file.ast.WrapperRef". We need to
+		// minify everything inside the closure without introducing a new scope
+		// since all top-level variables will be hoisted outside of the closure.
+		if repr.meta.wrap == wrapESM {
+			r.AddTopLevelSymbol(repr.ast.WrapperRef)
+		}
+
 		// Rename each top-level symbol declaration in this chunk
 		for partIndex, part := range repr.ast.Parts {
 			if repr.meta.partMeta[partIndex].isLive() {
@@ -3908,6 +4182,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	compileResults := make([]compileResultJS, 0, len(chunk.partsInChunkInOrder))
 	runtimeMembers := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members
 	commonJSRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"].Ref)
+	esmRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__esm"].Ref)
 	toModuleRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"].Ref)
 	r := c.renameSymbolsInChunk(chunk, chunk.filesInChunkInOrder)
 	dataForSourceMaps := c.dataForSourceMaps()
@@ -3940,6 +4215,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			chunk.entryBits,
 			chunkAbsDir,
 			commonJSRef,
+			esmRef,
 			toModuleRef,
 			compileResult,
 			dataForSourceMaps,

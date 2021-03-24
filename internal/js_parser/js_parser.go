@@ -2549,61 +2549,6 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 	}
 }
 
-func (p *parser) convertBindingToExpr(binding js_ast.Binding, wrapIdentifier func(logger.Loc, js_ast.Ref) js_ast.Expr) js_ast.Expr {
-	loc := binding.Loc
-
-	switch b := binding.Data.(type) {
-	case *js_ast.BMissing:
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EMissing{}}
-
-	case *js_ast.BIdentifier:
-		if wrapIdentifier != nil {
-			return wrapIdentifier(loc, b.Ref)
-		}
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: b.Ref}}
-
-	case *js_ast.BArray:
-		exprs := make([]js_ast.Expr, len(b.Items))
-		for i, item := range b.Items {
-			expr := p.convertBindingToExpr(item.Binding, wrapIdentifier)
-			if b.HasSpread && i+1 == len(b.Items) {
-				expr = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ESpread{Value: expr}}
-			} else if item.DefaultValue != nil {
-				expr = js_ast.Assign(expr, *item.DefaultValue)
-			}
-			exprs[i] = expr
-		}
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EArray{
-			Items:        exprs,
-			IsSingleLine: b.IsSingleLine,
-		}}
-
-	case *js_ast.BObject:
-		properties := make([]js_ast.Property, len(b.Properties))
-		for i, property := range b.Properties {
-			value := p.convertBindingToExpr(property.Value, wrapIdentifier)
-			kind := js_ast.PropertyNormal
-			if property.IsSpread {
-				kind = js_ast.PropertySpread
-			}
-			properties[i] = js_ast.Property{
-				Kind:        kind,
-				IsComputed:  property.IsComputed,
-				Key:         property.Key,
-				Value:       &value,
-				Initializer: property.DefaultValue,
-			}
-		}
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EObject{
-			Properties:   properties,
-			IsSingleLine: b.IsSingleLine,
-		}}
-
-	default:
-		panic("Internal error")
-	}
-}
-
 type exprFlag uint8
 
 const (
@@ -8201,7 +8146,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 			for _, decl := range s.Decls {
 				if decl.Value != nil {
-					target := p.convertBindingToExpr(decl.Binding, wrapIdentifier)
+					target := js_ast.ConvertBindingToExpr(decl.Binding, wrapIdentifier)
 					if result, ok := p.lowerAssign(target, *decl.Value, objRestReturnValueIsUnused); ok {
 						target = result
 					} else {
@@ -8756,11 +8701,11 @@ func (p *parser) maybeRelocateVarsToTopLevel(decls []js_ast.Decl, mode relocateV
 	}
 	var value js_ast.Expr
 	for _, decl := range decls {
-		binding := p.convertBindingToExpr(decl.Binding, wrapIdentifier)
+		binding := js_ast.ConvertBindingToExpr(decl.Binding, wrapIdentifier)
 		if decl.Value != nil {
-			value = maybeJoinWithComma(value, js_ast.Assign(binding, *decl.Value))
+			value = js_ast.JoinWithComma(value, js_ast.Assign(binding, *decl.Value))
 		} else if mode == relocateVarsForInOrForOf {
-			value = maybeJoinWithComma(value, binding)
+			value = js_ast.JoinWithComma(value, binding)
 		}
 	}
 	if value.Data == nil {
@@ -8814,16 +8759,6 @@ func (p *parser) maybeTransposeIfExprChain(expr js_ast.Expr, visit func(js_ast.E
 		return expr
 	}
 	return visit(expr)
-}
-
-func maybeJoinWithComma(a js_ast.Expr, b js_ast.Expr) js_ast.Expr {
-	if a.Data == nil {
-		return b
-	}
-	if b.Data == nil {
-		return a
-	}
-	return js_ast.JoinWithComma(a, b)
 }
 
 type captureValueMode uint8
@@ -10878,7 +10813,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.options.mangleSyntax {
 					// "(a, true) ? b : c" => "a, b"
 					if sideEffects == couldHaveSideEffects {
-						return maybeJoinWithComma(p.simplifyUnusedExpr(e.Test), e.Yes), exprOut{}
+						return js_ast.JoinWithComma(p.simplifyUnusedExpr(e.Test), e.Yes), exprOut{}
 					}
 
 					// "(1 ? fn : 2)()" => "fn()"
@@ -10901,7 +10836,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.options.mangleSyntax {
 					// "(a, false) ? b : c" => "a, c"
 					if sideEffects == couldHaveSideEffects {
-						return maybeJoinWithComma(p.simplifyUnusedExpr(e.Test), e.No), exprOut{}
+						return js_ast.JoinWithComma(p.simplifyUnusedExpr(e.Test), e.No), exprOut{}
 					}
 
 					// "(0 ? 1 : fn)()" => "fn()"
@@ -12463,7 +12398,7 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		// array items with side effects. Apply this simplification recursively.
 		var result js_ast.Expr
 		for _, item := range e.Items {
-			result = maybeJoinWithComma(result, p.simplifyUnusedExpr(item))
+			result = js_ast.JoinWithComma(result, p.simplifyUnusedExpr(item))
 		}
 		return result
 
@@ -12503,13 +12438,13 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		for _, property := range e.Properties {
 			if property.IsComputed {
 				// Make sure "ToString" is still evaluated on the key
-				result = maybeJoinWithComma(result, js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EBinary{
+				result = js_ast.JoinWithComma(result, js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EBinary{
 					Op:    js_ast.BinOpAdd,
 					Left:  property.Key,
 					Right: js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EString{}},
 				}})
 			}
-			result = maybeJoinWithComma(result, p.simplifyUnusedExpr(*property.Value))
+			result = js_ast.JoinWithComma(result, p.simplifyUnusedExpr(*property.Value))
 		}
 		return result
 
@@ -12554,7 +12489,7 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		// These operators must not have any type conversions that can execute code
 		// such as "toString" or "valueOf". They must also never throw any exceptions.
 		case js_ast.BinOpStrictEq, js_ast.BinOpStrictNe, js_ast.BinOpComma:
-			return maybeJoinWithComma(p.simplifyUnusedExpr(e.Left), p.simplifyUnusedExpr(e.Right))
+			return js_ast.JoinWithComma(p.simplifyUnusedExpr(e.Left), p.simplifyUnusedExpr(e.Right))
 
 		// We can simplify "==" and "!=" even though they can call "toString" and/or
 		// "valueOf" if we can statically determine that the types of both sides are
@@ -12562,7 +12497,7 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		// "toString" and/or "valueOf" to be called.
 		case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe:
 			if isPrimitiveWithSideEffects(e.Left.Data) && isPrimitiveWithSideEffects(e.Right.Data) {
-				return maybeJoinWithComma(p.simplifyUnusedExpr(e.Left), p.simplifyUnusedExpr(e.Right))
+				return js_ast.JoinWithComma(p.simplifyUnusedExpr(e.Left), p.simplifyUnusedExpr(e.Right))
 			}
 
 		case js_ast.BinOpLogicalAnd, js_ast.BinOpLogicalOr, js_ast.BinOpNullishCoalescing:
@@ -12586,7 +12521,7 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		if e.CanBeUnwrappedIfUnused {
 			expr = js_ast.Expr{}
 			for _, arg := range e.Args {
-				expr = maybeJoinWithComma(expr, p.simplifyUnusedExpr(arg))
+				expr = js_ast.JoinWithComma(expr, p.simplifyUnusedExpr(arg))
 			}
 		}
 
@@ -12596,7 +12531,7 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		if e.CanBeUnwrappedIfUnused {
 			expr = js_ast.Expr{}
 			for _, arg := range e.Args {
-				expr = maybeJoinWithComma(expr, p.simplifyUnusedExpr(arg))
+				expr = js_ast.JoinWithComma(expr, p.simplifyUnusedExpr(arg))
 			}
 		}
 	}

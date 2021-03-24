@@ -91,6 +91,8 @@ type reprJS struct {
 	// A JavaScript stub is automatically generated for a CSS file when it's
 	// imported from a JavaScript file.
 	cssSourceIndex ast.Index32
+
+	didWrapDependencies bool
 }
 
 func (repr *reprJS) importRecords() *[]ast.ImportRecord {
@@ -1535,8 +1537,8 @@ func (s *scanner) processScannedFiles() []file {
 	// can't be constructed earlier because we generate new parse results for
 	// JavaScript stub files for CSS imports above.
 	files := make([]file, len(s.results))
-	for sourceIndex, result := range s.results {
-		if result.ok {
+	for sourceIndex := range s.results {
+		if result := &s.results[sourceIndex]; result.ok {
 			s.validateTLA(uint32(sourceIndex))
 			files[sourceIndex] = result.file
 		}
@@ -1555,9 +1557,7 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 			}
 
 			for importRecordIndex, record := range repr.ast.ImportRecords {
-				if record.SourceIndex.IsValid() &&
-					(record.Kind == ast.ImportRequire || record.Kind == ast.ImportStmt ||
-						(record.Kind == ast.ImportDynamic && !s.options.CodeSplitting)) {
+				if record.SourceIndex.IsValid() && (record.Kind == ast.ImportRequire || record.Kind == ast.ImportStmt) {
 					parent := s.validateTLA(record.SourceIndex.GetIndex())
 					if !parent.parent.IsValid() {
 						continue
@@ -1571,9 +1571,8 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 						continue
 					}
 
-					// Require of a top-level await chain is forbidden. Dynamic import of
-					// a top-level await chain is also forbidden if code splitting is off.
-					if record.Kind == ast.ImportRequire || (record.Kind == ast.ImportDynamic && !s.options.CodeSplitting) {
+					// Require of a top-level await chain is forbidden
+					if record.Kind == ast.ImportRequire {
 						var notes []logger.MsgData
 						var tlaPrettyPath string
 						otherSourceIndex := record.SourceIndex.GetIndex()
@@ -1604,26 +1603,26 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 						}
 
 						var text string
-						what := "require call"
-						why := ""
 						importedPrettyPath := s.results[record.SourceIndex.GetIndex()].file.source.PrettyPath
 
-						if record.Kind == ast.ImportDynamic {
-							what = "dynamic import"
-							why = " (enable code splitting to allow this)"
-						}
-
 						if importedPrettyPath == tlaPrettyPath {
-							text = fmt.Sprintf("This %s is not allowed because the imported file %q contains a top-level await%s",
-								what, importedPrettyPath, why)
+							text = fmt.Sprintf("This require call is not allowed because the imported file %q contains a top-level await",
+								importedPrettyPath)
 						} else {
-							text = fmt.Sprintf("This %s is not allowed because the transitive dependency %q contains a top-level await%s",
-								what, tlaPrettyPath, why)
+							text = fmt.Sprintf("This require call is not allowed because the transitive dependency %q contains a top-level await",
+								tlaPrettyPath)
 						}
 
 						s.log.AddRangeErrorWithNotes(&result.file.source, record.Range, text, notes)
 					}
 				}
+			}
+
+			// Make sure that if we wrap this module in a closure, the closure is also
+			// async. This happens when you call "import()" on this module and code
+			// splitting is off.
+			if result.tlaCheck.parent.IsValid() {
+				repr.meta.isAsyncOrHasAsyncDependency = true
 			}
 		}
 	}
