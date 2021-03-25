@@ -469,3 +469,23 @@ const (
 	ResolveCSSImportRule
 	ResolveCSSURLToken
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// FormatMessages API
+
+type MessageKind uint8
+
+const (
+	ErrorMessage MessageKind = iota
+	WarningMessage
+)
+
+type FormatMessagesOptions struct {
+	TerminalWidth int
+	Kind          MessageKind
+	Color         bool
+}
+
+func FormatMessages(msgs []Message, opts FormatMessagesOptions) []string {
+	return formatMsgsImpl(msgs, opts)
+}

@@ -831,7 +831,7 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	}
 
 	// Format the message
-	text := msgString(options, terminalInfo, msg.Kind, msg.Data, maxMargin)
+	text := msgString(options.IncludeSource, terminalInfo, msg.Kind, msg.Data, maxMargin)
 
 	// Put a blank line between the message and the notes if the message has a stack trace
 	gap := ""
@@ -842,7 +842,7 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	// Format the notes
 	for _, note := range msg.Notes {
 		text += gap
-		text += msgString(options, terminalInfo, Note, note, maxMargin)
+		text += msgString(options.IncludeSource, terminalInfo, Note, note, maxMargin)
 	}
 
 	// Add extra spacing between messages if source code is present
@@ -868,7 +868,7 @@ func emptyMarginText(maxMargin int, isLast bool) string {
 	return fmt.Sprintf("    %s │ ", space)
 }
 
-func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int) string {
+func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int) string {
 	var colors Colors
 	if terminalInfo.UseColorEscapes {
 		colors = terminalColors
@@ -879,7 +879,7 @@ func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, d
 	messageColor := colors.Bold
 	textIndent := ""
 
-	if options.IncludeSource {
+	if includeSource {
 		textIndent = " > "
 	}
 
@@ -894,7 +894,7 @@ func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, d
 		prefixColor = colors.Reset
 		kindColor = colors.Bold
 		messageColor = ""
-		if options.IncludeSource {
+		if includeSource {
 			textIndent = "   "
 		}
 
@@ -909,7 +909,7 @@ func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, d
 			colors.Reset)
 	}
 
-	if !options.IncludeSource {
+	if !includeSource {
 		return fmt.Sprintf("%s%s%s: %s%s: %s%s%s\n%s",
 			prefixColor, textIndent, data.Location.File,
 			kindColor, kind.String(),

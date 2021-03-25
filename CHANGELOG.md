@@ -6,6 +6,29 @@
 
     Previously the build results returned to the watch mode `onRebuild` callback was missing the `metafile` property when the `metafile: true` option was present. This bug has been fixed.
 
+* Add a `formatMessages` API ([#1058](https://github.com/evanw/esbuild/issues/1058))
+
+    This API lets you print log messages to the terminal using the same log format that esbuild itself uses. This can be used to filter esbuild's warnings while still making the output look the same. Here's an example of calling this API:
+
+    ```js
+    import esbuild from 'esbuild'
+
+    const formatted = await esbuild.formatMessages([{
+      text: '"test" has already been declared',
+      location: { file: 'file.js', line: 2, column: 4, length: 4, lineText: 'let test = "second"' },
+      notes: [{
+        text: '"test" was originally declared here',
+        location: { file: 'file.js', line: 1, column: 4, length: 4, lineText: 'let test = "first"' },
+      }],
+    }], {
+      kind: 'error',
+      color: true,
+      terminalWidth: 100,
+    })
+
+    process.stdout.write(formatted.join(''))
+```
+
 ## 0.10.0
 
 **This release contains backwards-incompatible changes.** Since esbuild is before version 1.0.0, these changes have been released as a new minor version to reflect this (as [recommended by npm](https://docs.npmjs.com/cli/v6/using-npm/semver/)). You should either be pinning the exact version of `esbuild` in your `package.json` file or be using a version range syntax that only accepts patch upgrades such as `~0.9.0`. See the documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

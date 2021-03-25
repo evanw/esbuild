@@ -16,6 +16,9 @@ export const serve: typeof types.serve = () => {
 export const transform: typeof types.transform = (input, options) =>
   ensureServiceIsRunning().transform(input, options);
 
+export const formatMessages: typeof types.formatMessages = (messages, options) =>
+  ensureServiceIsRunning().formatMessages(messages, options);
+
 export const buildSync: typeof types.buildSync = () => {
   throw new Error(`The "buildSync" API only works in node`);
 };
@@ -24,9 +27,14 @@ export const transformSync: typeof types.transformSync = () => {
   throw new Error(`The "transformSync" API only works in node`);
 };
 
+export const formatMessagesSync: typeof types.formatMessagesSync = () => {
+  throw new Error(`The "formatMessagesSync" API only works in node`);
+};
+
 interface Service {
   build: typeof types.build;
   transform: typeof types.transform;
+  formatMessages: typeof types.formatMessages;
 }
 
 let initializePromise: Promise<void> | undefined;
@@ -103,12 +111,15 @@ const startRunningService = async (wasmURL: string, useWorker: boolean): Promise
       new Promise<types.BuildResult>((resolve, reject) =>
         service.buildOrServe('build', null, null, options, false, '/', (err, res) =>
           err ? reject(err) : resolve(res as types.BuildResult))),
-    transform: (input, options) => {
-      return new Promise((resolve, reject) =>
+    transform: (input, options) =>
+      new Promise((resolve, reject) =>
         service.transform('transform', null, input, options || {}, false, {
           readFile(_, callback) { callback(new Error('Internal error'), null); },
           writeFile(_, callback) { callback(null); },
-        }, (err, res) => err ? reject(err) : resolve(res!)))
-    },
+        }, (err, res) => err ? reject(err) : resolve(res!))),
+    formatMessages: (messages, options) =>
+      new Promise((resolve, reject) =>
+        service.formatMessages('formatMessages', null, messages, options, (err, res) =>
+          err ? reject(err) : resolve(res!))),
   }
 }

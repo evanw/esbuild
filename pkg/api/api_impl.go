@@ -1438,3 +1438,27 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (result
 	}
 	return
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// FormatMessages API
+
+func formatMsgsImpl(msgs []Message, opts FormatMessagesOptions) []string {
+	kind := logger.Error
+	if opts.Kind == WarningMessage {
+		kind = logger.Warning
+	}
+	logMsgs := convertMessagesToInternal(nil, kind, msgs)
+	strings := make([]string, len(logMsgs))
+	for i, msg := range logMsgs {
+		strings[i] = msg.String(
+			logger.OutputOptions{
+				IncludeSource: true,
+			},
+			logger.TerminalInfo{
+				UseColorEscapes: opts.Color,
+				Width:           opts.TerminalWidth,
+			},
+		)
+	}
+	return strings
+}

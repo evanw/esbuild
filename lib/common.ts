@@ -389,6 +389,14 @@ export interface StreamService {
     fs: StreamFS,
     callback: (err: Error | null, res: types.TransformResult | null) => void,
   ): void;
+
+  formatMessages(
+    callName: string,
+    refs: Refs | null,
+    messages: types.PartialMessage[],
+    options: types.FormatMessagesOptions,
+    callback: (err: Error | null, res: string[] | null) => void,
+  ): void;
 }
 
 // This can't use any promises in the main execution flow because it must work
@@ -1066,6 +1074,29 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         }
         start(null);
       },
+
+      formatMessages(callName, refs, messages, options, callback) {
+        let result = sanitizeMessages(messages, 'messages', null);
+        if (!options) throw new Error(`Missing second argument in ${callName}() call`);
+        let keys: OptionKeys = {};
+        let kind = getFlag(options, keys, 'kind', mustBeString);
+        let color = getFlag(options, keys, 'color', mustBeBoolean);
+        let terminalWidth = getFlag(options, keys, 'terminalWidth', mustBeInteger);
+        checkForInvalidFlags(options, keys, `in ${callName}() call`);
+        if (kind === void 0) throw new Error(`Missing "kind" in ${callName}() call`);
+        if (kind !== 'error' && kind !== 'warning') throw new Error(`Expected "kind" to be "error" or "warning" in ${callName}() call`);
+        let request: protocol.FormatMsgsRequest = {
+          command: 'format-msgs',
+          messages: result,
+          isWarning: kind === 'warning',
+        }
+        if (color !== void 0) request.color = color;
+        if (terminalWidth !== void 0) request.terminalWidth = terminalWidth;
+        sendRequest<protocol.FormatMsgsRequest, protocol.FormatMsgsResponse>(refs, request, (error, response) => {
+          if (error) return callback(new Error(error), null);
+          callback(null, response!.messages);
+        });
+      },
     },
   };
 }
@@ -1233,7 +1264,7 @@ function sanitizeLocation(location: types.PartialMessage['location'], where: str
   };
 }
 
-function sanitizeMessages(messages: types.PartialMessage[], property: string, stash: ObjectStash): types.Message[] {
+function sanitizeMessages(messages: types.PartialMessage[], property: string, stash: ObjectStash | null): types.Message[] {
   let messagesClone: types.Message[] = [];
   let index = 0;
 
@@ -1264,7 +1295,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
       text: text || '',
       location: sanitizeLocation(location, where),
       notes: notesClone,
-      detail: stash.store(detail),
+      detail: stash ? stash.store(detail) : -1,
     });
     index++;
   }

@@ -114,6 +114,18 @@ export interface TransformResponse {
   mapFS: boolean;
 }
 
+export interface FormatMsgsRequest {
+  command: 'format-msgs';
+  messages: types.Message[];
+  isWarning: boolean;
+  color?: boolean;
+  terminalWidth?: number;
+}
+
+export interface FormatMsgsResponse {
+  messages: string[];
+}
+
 export interface OnResolveRequest {
   command: 'resolve';
   key: number;

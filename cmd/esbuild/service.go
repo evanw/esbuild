@@ -304,6 +304,11 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 				}),
 			}
 
+		case "format-msgs":
+			return outgoingPacket{
+				bytes: service.handleFormatMessagesRequest(p.id, request),
+			}
+
 		default:
 			return outgoingPacket{
 				bytes: encodePacket(packet{
@@ -836,6 +841,40 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 			"map":   string(result.Map),
 		},
 	})
+}
+
+func (service *serviceType) handleFormatMessagesRequest(id uint32, request map[string]interface{}) []byte {
+	msgs := decodeMessages(request["messages"].([]interface{}))
+
+	options := api.FormatMessagesOptions{
+		Kind: api.ErrorMessage,
+	}
+	if request["isWarning"].(bool) {
+		options.Kind = api.WarningMessage
+	}
+	if value, ok := request["color"].(bool); ok {
+		options.Color = value
+	}
+	if value, ok := request["terminalWidth"].(int); ok {
+		options.TerminalWidth = value
+	}
+
+	result := api.FormatMessages(msgs, options)
+
+	return encodePacket(packet{
+		id: id,
+		value: map[string]interface{}{
+			"messages": encodeStringArray(result),
+		},
+	})
+}
+
+func encodeStringArray(strings []string) []interface{} {
+	values := make([]interface{}, len(strings))
+	for i, value := range strings {
+		values[i] = value
+	}
+	return values
 }
 
 func decodeStringArray(values []interface{}) []string {

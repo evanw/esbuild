@@ -299,12 +299,18 @@ export interface Metafile {
   }
 }
 
+export interface FormatMessagesOptions {
+  kind: 'error' | 'warning';
+  color?: boolean;
+  terminalWidth?: number;
+}
+
 // This function invokes the "esbuild" command-line tool for you. It returns a
 // promise that either resolves with a "BuildResult" object or rejects with a
 // "BuildFailure" object.
 //
 // Works in node: yes
-// Works in browser: no
+// Works in browser: yes
 export declare function build(options: BuildOptions & { write: false }): Promise<BuildResult & { outputFiles: OutputFile[] }>;
 export declare function build(options: BuildOptions & { incremental: true }): Promise<BuildIncremental>;
 export declare function build(options: BuildOptions): Promise<BuildResult>;
@@ -322,8 +328,16 @@ export declare function serve(serveOptions: ServeOptions, buildOptions: BuildOpt
 // "TransformResult" object or rejected with a "TransformFailure" object.
 //
 // Works in node: yes
-// Works in browser: no
+// Works in browser: yes
 export declare function transform(input: string, options?: TransformOptions): Promise<TransformResult>;
+
+// Converts log messages to formatted message strings suitable for printing in
+// the terminal. This allows you to reuse the built-in behavior of esbuild's
+// log message formatter. This is a batch-oriented API for efficiency.
+//
+// Works in node: yes
+// Works in browser: yes
+export declare function formatMessages(messages: PartialMessage[], options: FormatMessagesOptions): Promise<string[]>;
 
 // A synchronous version of "build".
 //
@@ -337,6 +351,12 @@ export declare function buildSync(options: BuildOptions): BuildResult;
 // Works in node: yes
 // Works in browser: no
 export declare function transformSync(input: string, options?: TransformOptions): TransformResult;
+
+// A synchronous version of "formatMessages".
+//
+// Works in node: yes
+// Works in browser: no
+export declare function formatMessagesSync(messages: PartialMessage[], options: FormatMessagesOptions): string[];
 
 // This configures the browser-based version of esbuild. It is necessary to
 // call this first and wait for the returned promise to be resolved before

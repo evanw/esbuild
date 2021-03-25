@@ -3418,6 +3418,20 @@ let transformTests = {
   asyncGenClassExprFn: ({ esbuild }) => futureSyntax(esbuild, '(class { async* foo() {} })', 'es2017', 'es2018'),
 }
 
+let formatTests = {
+  async formatMessages({ esbuild }) {
+    const messages = await esbuild.formatMessages([
+      { text: 'This is an error' },
+      { text: 'Another error', location: { file: 'file.js' } },
+    ], {
+      kind: 'error',
+    })
+    assert.strictEqual(messages.length, 2)
+    assert.strictEqual(messages[0], ` > error: This is an error\n\n`)
+    assert.strictEqual(messages[1], ` > file.js:0:0: error: Another error\n    0 │ \n      ╵ ^\n\n`)
+  },
+}
+
 let functionScopeCases = [
   'function x() {} { var x }',
   'function* x() {} { var x }',
@@ -3597,6 +3611,18 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
       assert.strictEqual(error.warnings.length, 0);
     }
   },
+
+  async formatMessagesSync({ esbuild }) {
+    const messages = esbuild.formatMessagesSync([
+      { text: 'This is an error' },
+      { text: 'Another error', location: { file: 'file.js' } },
+    ], {
+      kind: 'error',
+    })
+    assert.strictEqual(messages.length, 2)
+    assert.strictEqual(messages[0], ` > error: This is an error\n\n`)
+    assert.strictEqual(messages[1], ` > file.js:0:0: error: Another error\n    0 │ \n      ╵ ^\n\n`)
+  },
 }
 
 async function assertSourceMap(jsSourceMap, source) {
@@ -3639,6 +3665,7 @@ async function main() {
     ...Object.entries(watchTests),
     ...Object.entries(serveTests),
     ...Object.entries(transformTests),
+    ...Object.entries(formatTests),
     ...Object.entries(syncTests),
   ]
   let allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
