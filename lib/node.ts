@@ -341,12 +341,19 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
   let wasStopped = false;
 
   // This forbids options which would cause structured clone errors
+  let fakeBuildError = (text: string) => {
+    let error: any = new Error(`Build failed with 1 error:\nerror: ${text}`);
+    let errors: types.Message[] = [{ text, location: null, notes: [], detail: void 0 }];
+    error.errors = errors;
+    error.warnings = [];
+    return error;
+  };
   let validateBuildSyncOptions = (options: types.BuildOptions | undefined): void => {
     if (!options) return
     let plugins = options.plugins
     let incremental = options.incremental
-    if (plugins && plugins.length > 0) throw new Error(`Cannot use plugins in synchronous API calls`);
-    if (incremental) throw new Error(`Cannot use "incremental" with a synchronous build`);
+    if (plugins && plugins.length > 0) throw fakeBuildError(`Cannot use plugins in synchronous API calls`);
+    if (incremental) throw fakeBuildError(`Cannot use "incremental" with a synchronous build`);
   };
 
   // MessagePort doesn't copy the properties of Error objects. We still want
