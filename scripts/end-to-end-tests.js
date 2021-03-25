@@ -2825,13 +2825,13 @@
     // Code splitting via CommonJS module double-imported with sync and async imports
     test(['a.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
       'a.js': `
-        import * as ns1 from './b'
+        import * as ns1 from './b.cjs'
         export default async function () {
-          const ns2 = await import('./b')
+          const ns2 = await import('./b.cjs')
           return [ns1.foo, -ns2.default.foo]
         }
       `,
-      'b.js': `
+      'b.cjs': `
         exports.foo = 123
       `,
       'node.js': `
