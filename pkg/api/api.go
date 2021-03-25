@@ -159,12 +159,13 @@ type Engine struct {
 }
 
 type Location struct {
-	File      string
-	Namespace string
-	Line      int // 1-based
-	Column    int // 0-based, in bytes
-	Length    int // in bytes
-	LineText  string
+	File       string
+	Namespace  string
+	Line       int // 1-based
+	Column     int // 0-based, in bytes
+	Length     int // in bytes
+	LineText   string
+	Suggestion string
 }
 
 type Message struct {

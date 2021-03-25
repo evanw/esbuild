@@ -1176,6 +1176,7 @@ function parseStackLinesV8(streamIn: StreamIn, lines: string[], ident: string): 
             column: protocol.encodeUTF8(lineText.slice(0, column)).length,
             length: protocol.encodeUTF8(lineText.slice(column, column + length)).length,
             lineText: lineText + '\n' + lines.slice(1).join('\n'),
+            suggestion: '',
           }
         }
         break
@@ -1218,6 +1219,7 @@ function sanitizeLocation(location: types.PartialMessage['location'], where: str
   let column = getFlag(location, keys, 'column', mustBeInteger);
   let length = getFlag(location, keys, 'length', mustBeInteger);
   let lineText = getFlag(location, keys, 'lineText', mustBeString);
+  let suggestion = getFlag(location, keys, 'suggestion', mustBeString);
   checkForInvalidFlags(location, keys, where);
 
   return {
@@ -1227,6 +1229,7 @@ function sanitizeLocation(location: types.PartialMessage['location'], where: str
     column: column || 0,
     length: length || 0,
     lineText: lineText || '',
+    suggestion: suggestion || '',
   };
 }
 

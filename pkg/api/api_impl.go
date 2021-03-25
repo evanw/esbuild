@@ -541,12 +541,13 @@ func validateBannerOrFooter(log logger.Log, name string, values map[string]strin
 func convertLocationToPublic(loc *logger.MsgLocation) *Location {
 	if loc != nil {
 		return &Location{
-			File:      loc.File,
-			Namespace: loc.Namespace,
-			Line:      loc.Line,
-			Column:    loc.Column,
-			Length:    loc.Length,
-			LineText:  loc.LineText,
+			File:       loc.File,
+			Namespace:  loc.Namespace,
+			Line:       loc.Line,
+			Column:     loc.Column,
+			Length:     loc.Length,
+			LineText:   loc.LineText,
+			Suggestion: loc.Suggestion,
 		}
 	}
 	return nil
@@ -581,12 +582,13 @@ func convertLocationToInternal(loc *Location) *logger.MsgLocation {
 			namespace = "file"
 		}
 		return &logger.MsgLocation{
-			File:      loc.File,
-			Namespace: namespace,
-			Line:      loc.Line,
-			Column:    loc.Column,
-			Length:    loc.Length,
-			LineText:  loc.LineText,
+			File:       loc.File,
+			Namespace:  namespace,
+			Line:       loc.Line,
+			Column:     loc.Column,
+			Length:     loc.Length,
+			LineText:   loc.LineText,
+			Suggestion: loc.Suggestion,
 		}
 	}
 	return nil

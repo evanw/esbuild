@@ -862,12 +862,13 @@ func encodeLocation(loc *api.Location) interface{} {
 		return nil
 	}
 	return map[string]interface{}{
-		"file":      loc.File,
-		"namespace": loc.Namespace,
-		"line":      loc.Line,
-		"column":    loc.Column,
-		"length":    loc.Length,
-		"lineText":  loc.LineText,
+		"file":       loc.File,
+		"namespace":  loc.Namespace,
+		"line":       loc.Line,
+		"column":     loc.Column,
+		"length":     loc.Length,
+		"lineText":   loc.LineText,
+		"suggestion": loc.Suggestion,
 	}
 }
 
@@ -909,12 +910,13 @@ func decodeLocation(value interface{}) *api.Location {
 		namespace = "file"
 	}
 	return &api.Location{
-		File:      loc["file"].(string),
-		Namespace: namespace,
-		Line:      loc["line"].(int),
-		Column:    loc["column"].(int),
-		Length:    loc["length"].(int),
-		LineText:  loc["lineText"].(string),
+		File:       loc["file"].(string),
+		Namespace:  namespace,
+		Line:       loc["line"].(int),
+		Column:     loc["column"].(int),
+		Length:     loc["length"].(int),
+		LineText:   loc["lineText"].(string),
+		Suggestion: loc["suggestion"].(string),
 	}
 }
 
@@ -949,12 +951,13 @@ func decodeLocationToPrivate(value interface{}) *logger.MsgLocation {
 		namespace = "file"
 	}
 	return &logger.MsgLocation{
-		File:      loc["file"].(string),
-		Namespace: namespace,
-		Line:      loc["line"].(int),
-		Column:    loc["column"].(int),
-		Length:    loc["length"].(int),
-		LineText:  loc["lineText"].(string),
+		File:       loc["file"].(string),
+		Namespace:  namespace,
+		Line:       loc["line"].(int),
+		Column:     loc["column"].(int),
+		Length:     loc["length"].(int),
+		LineText:   loc["lineText"].(string),
+		Suggestion: loc["suggestion"].(string),
 	}
 }
 

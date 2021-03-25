@@ -98,6 +98,7 @@ export interface Location {
   column: number; // 0-based, in bytes
   length: number; // in bytes
   lineText: string;
+  suggestion: string;
 }
 
 export interface OutputFile {
