@@ -352,7 +352,7 @@ else if (typeof Buffer !== 'undefined') {
 
     return buffer;
   };
-  decodeUTF8 = bytes => Buffer.from(bytes).toString();
+  decodeUTF8 = bytes => Buffer.from(bytes.buffer).toString();
 }
 
 else {
