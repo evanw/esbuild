@@ -358,7 +358,10 @@ else if (typeof Buffer !== 'undefined') {
 
     return buffer;
   };
-  decodeUTF8 = bytes => Buffer.from(bytes).toString();
+  decodeUTF8 = bytes => {
+    let { buffer, byteOffset, byteLength } = bytes;
+    return Buffer.from(buffer, byteOffset, byteLength).toString();
+  }
 }
 
 else {
