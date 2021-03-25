@@ -426,6 +426,9 @@ type OnResolveResult struct {
 	External   bool
 	Namespace  string
 	PluginData interface{}
+
+	WatchFiles []string
+	WatchDirs  []string
 }
 
 type OnLoadOptions struct {
@@ -449,6 +452,9 @@ type OnLoadResult struct {
 	ResolveDir string
 	Loader     Loader
 	PluginData interface{}
+
+	WatchFiles []string
+	WatchDirs  []string
 }
 
 type ResolveKind uint8

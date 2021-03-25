@@ -1327,6 +1327,8 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 				PluginData: args.PluginData,
 			})
 			result.PluginName = response.PluginName
+			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")
+			result.AbsWatchDirs = impl.validatePathsArray(response.WatchDirs, "watch directory")
 
 			if err != nil {
 				result.ThrownError = err
@@ -1367,6 +1369,8 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 				PluginData: args.PluginData,
 			})
 			result.PluginName = response.PluginName
+			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")
+			result.AbsWatchDirs = impl.validatePathsArray(response.WatchDirs, "watch directory")
 
 			if err != nil {
 				result.ThrownError = err
@@ -1392,6 +1396,18 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 			return
 		},
 	})
+}
+
+func (impl *pluginImpl) validatePathsArray(pathsIn []string, name string) (pathsOut []string) {
+	if len(pathsIn) > 0 {
+		pathKind := fmt.Sprintf("%s path for plugin %q", name, impl.plugin.Name)
+		for _, relPath := range pathsIn {
+			if absPath := validatePath(impl.log, impl.fs, relPath, pathKind); absPath != "" {
+				pathsOut = append(pathsOut, absPath)
+			}
+		}
+	}
+	return
 }
 
 func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (results []config.Plugin) {

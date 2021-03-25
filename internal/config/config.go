@@ -449,6 +449,9 @@ type OnResolveResult struct {
 
 	Msgs        []logger.Msg
 	ThrownError error
+
+	AbsWatchFiles []string
+	AbsWatchDirs  []string
 }
 
 type OnLoad struct {
@@ -473,4 +476,7 @@ type OnLoadResult struct {
 
 	Msgs        []logger.Msg
 	ThrownError error
+
+	AbsWatchFiles []string
+	AbsWatchDirs  []string
 }

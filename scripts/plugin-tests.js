@@ -1593,76 +1593,6 @@ let pluginTests = {
     assert.strictEqual(result.outputFiles[0].text, 'import("import");\n')
   },
 
-  async pluginWithWatchMode({ esbuild, testDir }) {
-    const srcDir = path.join(testDir, 'src')
-    const outfile = path.join(testDir, 'out.js')
-    const input = path.join(srcDir, 'in.js')
-    const example = path.join(srcDir, 'example.js')
-    await mkdirAsync(srcDir, { recursive: true })
-    await writeFileAsync(input, `import {x} from "./example.js"; exports.x = x`)
-    await writeFileAsync(example, `export let x = 1`)
-
-    let onRebuild = () => { }
-    const result = await esbuild.build({
-      entryPoints: [input],
-      outfile,
-      format: 'cjs',
-      logLevel: 'silent',
-      watch: {
-        onRebuild: (...args) => onRebuild(args),
-      },
-      bundle: true,
-      plugins: [
-        {
-          name: 'some-plugin',
-          setup(build) {
-            build.onLoad({ filter: /example\.js$/ }, async (args) => {
-              const contents = await fs.promises.readFile(args.path, 'utf8')
-              return { contents }
-            })
-          },
-        },
-      ],
-    })
-    const rebuildUntil = (mutator, condition) => {
-      let timeout
-      return new Promise((resolve, reject) => {
-        timeout = setTimeout(() => reject(new Error('Timeout after 30 seconds')), 30 * 1000)
-        onRebuild = args => {
-          try { if (condition(...args)) clearTimeout(timeout), resolve(args) }
-          catch (e) { clearTimeout(timeout), reject(e) }
-        }
-        mutator()
-      })
-    }
-
-    try {
-      let code = await readFileAsync(outfile, 'utf8')
-      let exports = {}
-      new Function('exports', code)(exports)
-      assert.strictEqual(result.outputFiles, void 0)
-      assert.strictEqual(typeof result.stop, 'function')
-      assert.strictEqual(exports.x, 1)
-
-      // First rebuild: edit
-      {
-        const [error2, result2] = await rebuildUntil(
-          () => writeFileAtomic(example, `export let x = 2`),
-          () => fs.readFileSync(outfile, 'utf8') !== code,
-        )
-        code = await readFileAsync(outfile, 'utf8')
-        exports = {}
-        new Function('exports', code)(exports)
-        assert.strictEqual(error2, null)
-        assert.strictEqual(result2.outputFiles, void 0)
-        assert.strictEqual(result2.stop, result.stop)
-        assert.strictEqual(exports.x, 2)
-      }
-    } finally {
-      result.stop()
-    }
-  },
-
   async resolveKindEntryPoint({ esbuild }) {
     let resolveKind = '<missing>'
     try {
@@ -1875,6 +1805,227 @@ let pluginTests = {
   },
 }
 
+// These tests have to run synchronously
+let syncTests = {
+  async pluginWithWatchMode({ esbuild, testDir }) {
+    const srcDir = path.join(testDir, 'src')
+    const outfile = path.join(testDir, 'out.js')
+    const input = path.join(srcDir, 'in.js')
+    const example = path.join(srcDir, 'example.js')
+    await mkdirAsync(srcDir, { recursive: true })
+    await writeFileAsync(input, `import {x} from "./example.js"; exports.x = x`)
+    await writeFileAsync(example, `export let x = 1`)
+
+    let onRebuild = () => { }
+    const result = await esbuild.build({
+      entryPoints: [input],
+      outfile,
+      format: 'cjs',
+      logLevel: 'silent',
+      watch: {
+        onRebuild: (...args) => onRebuild(args),
+      },
+      bundle: true,
+      plugins: [
+        {
+          name: 'some-plugin',
+          setup(build) {
+            build.onLoad({ filter: /example\.js$/ }, async (args) => {
+              const contents = await fs.promises.readFile(args.path, 'utf8')
+              return { contents }
+            })
+          },
+        },
+      ],
+    })
+    const rebuildUntil = (mutator, condition) => {
+      let timeout
+      return new Promise((resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error('Timeout after 30 seconds')), 30 * 1000)
+        onRebuild = args => {
+          try { if (condition(...args)) clearTimeout(timeout), resolve(args) }
+          catch (e) { clearTimeout(timeout), reject(e) }
+        }
+        mutator()
+      })
+    }
+
+    try {
+      let code = await readFileAsync(outfile, 'utf8')
+      let exports = {}
+      new Function('exports', code)(exports)
+      assert.strictEqual(result.outputFiles, void 0)
+      assert.strictEqual(typeof result.stop, 'function')
+      assert.strictEqual(exports.x, 1)
+
+      // First rebuild: edit
+      {
+        const [error2, result2] = await rebuildUntil(
+          () => setTimeout(() => writeFileAtomic(example, `export let x = 2`), 250),
+          () => fs.readFileSync(outfile, 'utf8') !== code,
+        )
+        code = await readFileAsync(outfile, 'utf8')
+        exports = {}
+        new Function('exports', code)(exports)
+        assert.strictEqual(error2, null)
+        assert.strictEqual(result2.outputFiles, void 0)
+        assert.strictEqual(result2.stop, result.stop)
+        assert.strictEqual(exports.x, 2)
+      }
+    } finally {
+      result.stop()
+    }
+  },
+
+  async pluginWithWatchFiles({ esbuild, testDir }) {
+    const srcDir = path.join(testDir, 'src')
+    const otherDir = path.join(testDir, 'other')
+    const outfile = path.join(testDir, 'out.js')
+    const input = path.join(srcDir, 'in.js')
+    const example = path.join(otherDir, 'example.js')
+    await mkdirAsync(srcDir, { recursive: true })
+    await mkdirAsync(otherDir, { recursive: true })
+    await writeFileAsync(input, `import {x} from "<virtual>"; exports.x = x`)
+    await writeFileAsync(example, `export let x = 1`)
+
+    let onRebuild = () => { }
+    const result = await esbuild.build({
+      entryPoints: [input],
+      outfile,
+      format: 'cjs',
+      logLevel: 'silent',
+      watch: {
+        onRebuild: (...args) => onRebuild(args),
+      },
+      bundle: true,
+      plugins: [
+        {
+          name: 'some-plugin',
+          setup(build) {
+            build.onResolve({ filter: /^<virtual>$/ }, args => {
+              return { path: args.path, namespace: 'ns' }
+            })
+            build.onLoad({ filter: /^<virtual>$/, namespace: 'ns' }, async (args) => {
+              const contents = await fs.promises.readFile(example, 'utf8')
+              return { contents, watchFiles: [example] }
+            })
+          },
+        },
+      ],
+    })
+    const rebuildUntil = (mutator, condition) => {
+      let timeout
+      return new Promise((resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error('Timeout after 30 seconds')), 30 * 1000)
+        onRebuild = args => {
+          try { if (condition(...args)) clearTimeout(timeout), resolve(args) }
+          catch (e) { clearTimeout(timeout), reject(e) }
+        }
+        mutator()
+      })
+    }
+
+    try {
+      let code = await readFileAsync(outfile, 'utf8')
+      let exports = {}
+      new Function('exports', code)(exports)
+      assert.strictEqual(result.outputFiles, void 0)
+      assert.strictEqual(typeof result.stop, 'function')
+      assert.strictEqual(exports.x, 1)
+
+      // First rebuild: edit
+      {
+        const [error2, result2] = await rebuildUntil(
+          () => setTimeout(() => writeFileAtomic(example, `export let x = 2`), 250),
+          () => fs.readFileSync(outfile, 'utf8') !== code,
+        )
+        code = await readFileAsync(outfile, 'utf8')
+        exports = {}
+        new Function('exports', code)(exports)
+        assert.strictEqual(error2, null)
+        assert.strictEqual(result2.outputFiles, void 0)
+        assert.strictEqual(result2.stop, result.stop)
+        assert.strictEqual(exports.x, 2)
+      }
+    } finally {
+      result.stop()
+    }
+  },
+
+  async pluginWithWatchDir({ esbuild, testDir }) {
+    const srcDir = path.join(testDir, 'src')
+    const otherDir = path.join(testDir, 'other')
+    const outfile = path.join(testDir, 'out.js')
+    const input = path.join(srcDir, 'in.js')
+    await mkdirAsync(srcDir, { recursive: true })
+    await mkdirAsync(otherDir, { recursive: true })
+    await writeFileAsync(input, `import {x} from "<virtual>"; exports.x = x`)
+
+    let onRebuild = () => { }
+    const result = await esbuild.build({
+      entryPoints: [input],
+      outfile,
+      format: 'cjs',
+      logLevel: 'silent',
+      watch: {
+        onRebuild: (...args) => onRebuild(args),
+      },
+      bundle: true,
+      plugins: [
+        {
+          name: 'some-plugin',
+          setup(build) {
+            build.onResolve({ filter: /^<virtual>$/ }, args => {
+              return { path: args.path, namespace: 'ns' }
+            })
+            build.onLoad({ filter: /^<virtual>$/, namespace: 'ns' }, async () => {
+              const entries = await fs.promises.readdir(otherDir, 'utf8')
+              return { contents: `export let x = ${entries.length}`, watchDirs: [otherDir] }
+            })
+          },
+        },
+      ],
+    })
+    const rebuildUntil = (mutator, condition) => {
+      let timeout
+      return new Promise((resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error('Timeout after 30 seconds')), 30 * 1000)
+        onRebuild = args => {
+          try { if (condition(...args)) clearTimeout(timeout), resolve(args) }
+          catch (e) { clearTimeout(timeout), reject(e) }
+        }
+        mutator()
+      })
+    }
+
+    try {
+      let code = await readFileAsync(outfile, 'utf8')
+      let exports = {}
+      new Function('exports', code)(exports)
+      assert.strictEqual(result.outputFiles, void 0)
+      assert.strictEqual(typeof result.stop, 'function')
+      assert.strictEqual(exports.x, 0)
+
+      // First rebuild: edit
+      {
+        const [error2, result2] = await rebuildUntil(
+          () => setTimeout(() => writeFileAtomic(path.join(otherDir, 'file.txt'), `...`), 250),
+          () => fs.readFileSync(outfile, 'utf8') !== code,
+        )
+        code = await readFileAsync(outfile, 'utf8')
+        exports = {}
+        new Function('exports', code)(exports)
+        assert.strictEqual(error2, null)
+        assert.strictEqual(result2.outputFiles, void 0)
+        assert.strictEqual(result2.stop, result.stop)
+        assert.strictEqual(exports.x, 1)
+      }
+    } finally {
+      result.stop()
+    }
+  },
+}
+
 async function main() {
   const esbuild = installForTests()
 
@@ -1903,7 +2054,13 @@ async function main() {
     }
   }
   const tests = Object.entries(pluginTests)
-  const allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
+  let allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
+
+  for (let test of Object.entries(syncTests)) {
+    if (!await runTest(test)) {
+      allTestsPassed = false
+    }
+  }
 
   if (!allTestsPassed) {
     console.error(`❌ plugin tests failed`)

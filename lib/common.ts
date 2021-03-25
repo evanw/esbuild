@@ -682,6 +682,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
                 let errors = getFlag(result, keys, 'errors', mustBeArray);
                 let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+                let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
+                let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
                 checkForInvalidFlags(result, keys, `from onResolve() callback in plugin ${JSON.stringify(name)}`);
 
                 response.id = id;
@@ -692,6 +694,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (pluginData != null) response.pluginData = stash.store(pluginData);
                 if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash);
                 if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash);
+                if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
+                if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
                 break;
               }
             } catch (e) {
@@ -722,6 +726,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 let loader = getFlag(result, keys, 'loader', mustBeString);
                 let errors = getFlag(result, keys, 'errors', mustBeArray);
                 let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+                let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
+                let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
                 checkForInvalidFlags(result, keys, `from onLoad() callback in plugin ${JSON.stringify(name)}`);
 
                 response.id = id;
@@ -733,6 +739,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (loader != null) response.loader = loader;
                 if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash);
                 if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash);
+                if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
+                if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
                 break;
               }
             } catch (e) {
@@ -1256,6 +1264,15 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
   }
 
   return messagesClone;
+}
+
+function sanitizeStringArray(values: any[], property: string): string[] {
+  const result: string[] = [];
+  for (const value of values) {
+    if (typeof value !== 'string') throw new Error(`${JSON.stringify(property)} must be an array of strings`);
+    result.push(value);
+  }
+  return result;
 }
 
 function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types.OutputFile {

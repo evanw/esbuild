@@ -442,6 +442,7 @@ func parseFile(args parseArgs) {
 					args.res,
 					args.log,
 					args.fs,
+					&args.caches.FSCache,
 					&source,
 					record.Range,
 					record.Path.Text,
@@ -647,6 +648,7 @@ func runOnResolvePlugins(
 	res resolver.Resolver,
 	log logger.Log,
 	fs fs.FS,
+	fsCache *cache.FSCache,
 	importSource *logger.Source,
 	importPathRange logger.Range,
 	path string,
@@ -679,6 +681,14 @@ func runOnResolvePlugins(
 				pluginName = plugin.Name
 			}
 			didLogError := logPluginMessages(res, log, pluginName, result.Msgs, result.ThrownError, importSource, importPathRange)
+
+			// Plugins can also provide additional file system paths to watch
+			for _, file := range result.AbsWatchFiles {
+				fsCache.ReadFile(fs, file)
+			}
+			for _, dir := range result.AbsWatchDirs {
+				fs.ReadDirectory(dir)
+			}
 
 			// Stop now if there was an error
 			if didLogError {
@@ -777,6 +787,14 @@ func runOnLoadPlugins(
 				pluginName = plugin.Name
 			}
 			didLogError := logPluginMessages(res, log, pluginName, result.Msgs, result.ThrownError, importSource, importPathRange)
+
+			// Plugins can also provide additional file system paths to watch
+			for _, file := range result.AbsWatchFiles {
+				fsCache.ReadFile(fs, file)
+			}
+			for _, dir := range result.AbsWatchDirs {
+				fs.ReadDirectory(dir)
+			}
 
 			// Stop now if there was an error
 			if didLogError {
@@ -1208,6 +1226,7 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 				s.res,
 				s.log,
 				s.fs,
+				&s.caches.FSCache,
 				nil,
 				logger.Range{},
 				path,

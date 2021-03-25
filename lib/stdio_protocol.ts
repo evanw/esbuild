@@ -137,6 +137,9 @@ export interface OnResolveResponse {
   external?: boolean;
   namespace?: string;
   pluginData?: number;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
 }
 
 export interface OnLoadRequest {
@@ -159,6 +162,9 @@ export interface OnLoadResponse {
   resolveDir?: string;
   loader?: string;
   pluginData?: number;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

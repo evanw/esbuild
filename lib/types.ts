@@ -227,6 +227,9 @@ export interface OnResolveResult {
   external?: boolean;
   namespace?: string;
   pluginData?: any;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
 }
 
 export interface OnLoadOptions {
@@ -250,6 +253,9 @@ export interface OnLoadResult {
   resolveDir?: string;
   loader?: Loader;
   pluginData?: any;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
 }
 
 export interface PartialMessage {
