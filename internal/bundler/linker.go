@@ -4841,6 +4841,11 @@ func (c *linkerContext) generateSourceMapForChunk(
 	}
 	j.AddString("]")
 
+	if c.options.SourceRoot != "" {
+		j.AddString(",\n  \"sourceRoot\": ")
+		j.AddBytes(js_printer.QuoteForJSON(c.options.SourceRoot, c.options.ASCIIOnly))
+	}
+
 	// Write the sourcesContent
 	if !c.options.ExcludeSourcesContent {
 		j.AddString(",\n  \"sourcesContent\": [")

@@ -94,6 +94,7 @@ function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys,
 }
 
 function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKeys): void {
+  let sourceRoot = getFlag(options, keys, 'sourceRoot', mustBeString);
   let sourcesContent = getFlag(options, keys, 'sourcesContent', mustBeBoolean);
   let target = getFlag(options, keys, 'target', mustBeStringOrArray);
   let format = getFlag(options, keys, 'format', mustBeString);
@@ -110,6 +111,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let pure = getFlag(options, keys, 'pure', mustBeArray);
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
 
+  if (sourceRoot !== void 0) flags.push(`--source-root=${sourceRoot}`);
   if (sourcesContent !== void 0) flags.push(`--sources-content=${sourcesContent}`);
   if (target) {
     if (Array.isArray(target)) flags.push(`--target=${Array.from(target).map(validateTarget).join(',')}`)
