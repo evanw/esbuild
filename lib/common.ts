@@ -863,6 +863,11 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           // Factor out response handling so it can be reused for rebuilds
           let rebuild: types.BuildResult['rebuild'] | undefined;
           let stop: types.BuildResult['stop'] | undefined;
+          let copyResponseToResult = (response: protocol.BuildResponse, result: types.BuildResult) => {
+            if (response.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
+            if (response.metafile) result.metafile = JSON.parse(response!.metafile);
+            if (response.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''));
+          };
           let buildResponseToResult = (
             response: protocol.BuildResponse | null,
             callback: (error: Error | null, result: types.BuildResult | null) => void,
@@ -871,9 +876,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             let warnings = replaceDetailsInMessages(response!.warnings, details);
             if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
             let result: types.BuildResult = { warnings };
-            if (response!.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
-            if (response!.metafile) result.metafile = JSON.parse(response!.metafile);
-            if (response!.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''));
+            copyResponseToResult(response!, result);
 
             // Handle incremental rebuilds
             if (response!.rebuildID !== void 0) {
@@ -924,7 +927,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                     let warnings = replaceDetailsInMessages(watchResponse.warnings, details);
                     if (errors.length > 0) return watch!.onRebuild!(failureErrorWithLog('Build failed', errors, warnings), null);
                     let result: types.BuildResult = { warnings };
-                    if (watchResponse.outputFiles) result.outputFiles = watchResponse.outputFiles.map(convertOutputFiles);
+                    copyResponseToResult(watchResponse, result);
                     if (watchResponse.rebuildID !== void 0) result.rebuild = rebuild;
                     result.stop = stop;
                     watch!.onRebuild!(null, result);
