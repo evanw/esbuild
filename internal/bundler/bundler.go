@@ -6,7 +6,6 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"fmt"
-	"mime"
 	"net/http"
 	"sort"
 	"strings"
@@ -22,6 +21,7 @@ import (
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_parser"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
@@ -522,7 +522,7 @@ func isASCIIOnly(text string) bool {
 }
 
 func guessMimeType(extension string, contents string) string {
-	mimeType := mime.TypeByExtension(extension)
+	mimeType := helpers.MimeTypeByExtension(extension)
 	if mimeType == "" {
 		mimeType = http.DetectContentType([]byte(contents))
 	}
