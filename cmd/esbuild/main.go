@@ -13,16 +13,16 @@ import (
 
 var helpText = func(colors logger.Colors) string {
 	return `
-` + colors.Bold + `Usage:` + colors.Default + `
+` + colors.Bold + `Usage:` + colors.Reset + `
   esbuild [options] [entry points]
 
-` + colors.Bold + `Documentation:` + colors.Default + `
-  ` + colors.Underline + `https://esbuild.github.io/` + colors.Default + `
+` + colors.Bold + `Documentation:` + colors.Reset + `
+  ` + colors.Underline + `https://esbuild.github.io/` + colors.Reset + `
 
-` + colors.Bold + `Repository:` + colors.Default + `
-  ` + colors.Underline + `https://github.com/evanw/esbuild` + colors.Default + `
+` + colors.Bold + `Repository:` + colors.Reset + `
+  ` + colors.Underline + `https://github.com/evanw/esbuild` + colors.Reset + `
 
-` + colors.Bold + `Simple options:` + colors.Default + `
+` + colors.Bold + `Simple options:` + colors.Reset + `
   --bundle              Bundle all dependencies into the output files
   --define:K=V          Substitute K with V while parsing
   --external:M          Exclude module M from the bundle (can use * wildcards)
@@ -44,7 +44,7 @@ var helpText = func(colors logger.Colors) string {
                         safari11, edge16, node10, default esnext)
   --watch               Watch mode: rebuild on file system changes
 
-` + colors.Bold + `Advanced options:` + colors.Default + `
+` + colors.Bold + `Advanced options:` + colors.Reset + `
   --asset-names=...         Path template to use for "file" loader files
                             (default "[name]-[hash]")
   --banner:T=...            Text to be prepended to each output file of type T
@@ -92,23 +92,23 @@ var helpText = func(colors logger.Colors) string {
   --tsconfig=...            Use this tsconfig.json file instead of other ones
   --version                 Print the current version (` + esbuildVersion + `) and exit
 
-` + colors.Bold + `Examples:` + colors.Default + `
-  ` + colors.Dim + `# Produces dist/entry_point.js and dist/entry_point.js.map` + colors.Default + `
+` + colors.Bold + `Examples:` + colors.Reset + `
+  ` + colors.Dim + `# Produces dist/entry_point.js and dist/entry_point.js.map` + colors.Reset + `
   esbuild --bundle entry_point.js --outdir=dist --minify --sourcemap
 
-  ` + colors.Dim + `# Allow JSX syntax in .js files` + colors.Default + `
+  ` + colors.Dim + `# Allow JSX syntax in .js files` + colors.Reset + `
   esbuild --bundle entry_point.js --outfile=out.js --loader:.js=jsx
 
-  ` + colors.Dim + `# Substitute the identifier RELEASE for the literal true` + colors.Default + `
+  ` + colors.Dim + `# Substitute the identifier RELEASE for the literal true` + colors.Reset + `
   esbuild example.js --outfile=out.js --define:RELEASE=true
 
-  ` + colors.Dim + `# Provide input via stdin, get output via stdout` + colors.Default + `
+  ` + colors.Dim + `# Provide input via stdin, get output via stdout` + colors.Reset + `
   esbuild --minify --loader=ts < input.ts > output.js
 
-  ` + colors.Dim + `# Automatically rebuild when input files are changed` + colors.Default + `
+  ` + colors.Dim + `# Automatically rebuild when input files are changed` + colors.Reset + `
   esbuild app.ts --bundle --watch
 
-  ` + colors.Dim + `# Start a local HTTP server for everything in "www"` + colors.Default + `
+  ` + colors.Dim + `# Start a local HTTP server for everything in "www"` + colors.Reset + `
   esbuild app.ts --bundle --servedir=www --outdir=www/js
 
 `

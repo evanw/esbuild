@@ -1041,7 +1041,7 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 
 		if logLevel == LogLevelInfo {
 			logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
-				return fmt.Sprintf("%s[watch] build finished, watching for changes...%s\n", colors.Dim, colors.Default)
+				return fmt.Sprintf("%s[watch] build finished, watching for changes...%s\n", colors.Dim, colors.Reset)
 			})
 		}
 
@@ -1054,7 +1054,7 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 				if logLevel == LogLevelInfo {
 					logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
 						prettyPath := w.resolver.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
-						return fmt.Sprintf("%s[watch] build started (change: %q)%s\n", colors.Dim, prettyPath, colors.Default)
+						return fmt.Sprintf("%s[watch] build started (change: %q)%s\n", colors.Dim, prettyPath, colors.Reset)
 					})
 				}
 
@@ -1063,7 +1063,7 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 
 				if logLevel == LogLevelInfo {
 					logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
-						return fmt.Sprintf("%s[watch] build finished%s\n", colors.Dim, colors.Default)
+						return fmt.Sprintf("%s[watch] build finished%s\n", colors.Dim, colors.Reset)
 					})
 				}
 			}

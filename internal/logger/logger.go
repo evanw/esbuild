@@ -495,9 +495,10 @@ func PrintMessageToStderr(osArgs []string, msg Msg) {
 }
 
 type Colors struct {
-	Default string
-	Bold    string
-	Dim     string
+	Reset     string
+	Bold      string
+	Dim       string
+	Underline string
 
 	Red   string
 	Green string
@@ -506,8 +507,21 @@ type Colors struct {
 	Cyan    string
 	Magenta string
 	Yellow  string
+}
 
-	Underline string
+var terminalColors = Colors{
+	Reset:     "\033[0m",
+	Bold:      "\033[1m",
+	Dim:       "\033[37m",
+	Underline: "\033[4m",
+
+	Red:   "\033[31m",
+	Green: "\033[32m",
+	Blue:  "\033[34m",
+
+	Cyan:    "\033[36m",
+	Magenta: "\033[35m",
+	Yellow:  "\033[33m",
 }
 
 func PrintText(file *os.File, level LogLevel, osArgs []string, callback func(Colors) string) {
@@ -534,19 +548,7 @@ func PrintTextWithColor(file *os.File, useColor UseColor, callback func(Colors) 
 
 	var colors Colors
 	if useColorEscapes {
-		colors.Default = colorReset
-		colors.Bold = colorResetBold
-		colors.Dim = colorResetDim
-
-		colors.Red = colorRed
-		colors.Green = colorGreen
-		colors.Blue = colorBlue
-
-		colors.Cyan = colorCyan
-		colors.Magenta = colorMagenta
-		colors.Yellow = colorYellow
-
-		colors.Underline = colorResetUnderline
+		colors = terminalColors
 	}
 	writeStringWithColor(file, callback(colors))
 }
@@ -725,12 +727,12 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 					dir,
 					colors.Bold,
 					base,
-					colors.Default,
+					colors.Reset,
 					strings.Repeat(" ", spacer),
 					sizeColor,
 					entry.Size,
 					sizeWarning,
-					colors.Default,
+					colors.Reset,
 				))
 			}
 
@@ -740,7 +742,7 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 				if length == maxLength+1 {
 					plural = ""
 				}
-				sb.WriteString(fmt.Sprintf("%s%s...and %d more output file%s...%s\n", margin, colors.Dim, length-maxLength, plural, colors.Default))
+				sb.WriteString(fmt.Sprintf("%s%s...and %d more output file%s...%s\n", margin, colors.Dim, length-maxLength, plural, colors.Reset))
 			}
 		}
 		sb.WriteByte('\n')
@@ -758,7 +760,7 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 				lightningSymbol,
 				colors.Green,
 				time.Since(*start).Milliseconds(),
-				colors.Default,
+				colors.Reset,
 			))
 		}
 
@@ -795,21 +797,6 @@ func NewDeferLog() Log {
 		},
 	}
 }
-
-const colorReset = "\033[0m"
-
-const colorRed = "\033[31m"
-const colorGreen = "\033[32m"
-const colorBlue = "\033[34m"
-
-const colorCyan = "\033[36m"
-const colorMagenta = "\033[35m"
-const colorYellow = "\033[33m"
-
-const colorResetDim = "\033[0;37m"
-const colorBold = "\033[1m"
-const colorResetBold = "\033[0;1m"
-const colorResetUnderline = "\033[0;4m"
 
 type UseColor uint8
 
@@ -882,9 +869,14 @@ func emptyMarginText(maxMargin int, isLast bool) string {
 }
 
 func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int) string {
+	var colors Colors
+	if terminalInfo.UseColorEscapes {
+		colors = terminalColors
+	}
+
 	var kindColor string
-	textColor := colorBold
-	textResetColor := colorResetBold
+	prefixColor := colors.Bold
+	messageColor := colors.Bold
 	textIndent := ""
 
 	if options.IncludeSource {
@@ -893,15 +885,15 @@ func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, d
 
 	switch kind {
 	case Error:
-		kindColor = colorRed
+		kindColor = colors.Red
 
 	case Warning:
-		kindColor = colorMagenta
+		kindColor = colors.Magenta
 
 	case Note:
-		textColor = colorReset
-		kindColor = colorResetBold
-		textResetColor = colorReset
+		prefixColor = colors.Reset
+		kindColor = colors.Bold
+		messageColor = ""
 		if options.IncludeSource {
 			textIndent = "   "
 		}
@@ -911,68 +903,38 @@ func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, d
 	}
 
 	if data.Location == nil {
-		if terminalInfo.UseColorEscapes {
-			return fmt.Sprintf("%s%s%s%s: %s%s%s\n",
-				textColor, textIndent, kindColor, kind.String(),
-				textResetColor, data.Text,
-				colorReset)
-		}
-
-		return fmt.Sprintf("%s%s: %s\n", textIndent, kind.String(), data.Text)
+		return fmt.Sprintf("%s%s%s%s: %s%s%s\n%s",
+			prefixColor, textIndent, kindColor, kind.String(),
+			colors.Reset, messageColor, data.Text,
+			colors.Reset)
 	}
 
 	if !options.IncludeSource {
-		if terminalInfo.UseColorEscapes {
-			return fmt.Sprintf("%s%s%s: %s%s: %s%s%s\n",
-				textColor, textIndent, data.Location.File,
-				kindColor, kind.String(),
-				textResetColor, data.Text,
-				colorReset)
-		}
-
-		return fmt.Sprintf("%s%s: %s: %s\n",
-			textIndent, data.Location.File, kind.String(), data.Text)
+		return fmt.Sprintf("%s%s%s: %s%s: %s%s%s\n%s",
+			prefixColor, textIndent, data.Location.File,
+			kindColor, kind.String(),
+			colors.Reset, messageColor, data.Text,
+			colors.Reset)
 	}
 
 	d := detailStruct(data, terminalInfo, maxMargin)
 
-	if terminalInfo.UseColorEscapes {
-		if d.Suggestion != "" {
-			return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s\n%s%s%s%s%s%s%s\n",
-				textColor, textIndent, d.Path, d.Line, d.Column,
-				kindColor, kind.String(),
-				textResetColor, d.Message,
-				colorResetDim, d.SourceBefore, colorGreen, d.SourceMarked, colorResetDim, d.SourceAfter,
-				emptyMarginText(maxMargin, false), d.Indent, colorGreen, d.Marker, colorResetDim,
-				emptyMarginText(maxMargin, true), d.Indent, colorGreen, d.Suggestion, colorResetDim,
-				d.ContentAfter, colorReset)
-		}
-
-		return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s%s%s\n",
-			textColor, textIndent, d.Path, d.Line, d.Column,
-			kindColor, kind.String(),
-			textResetColor, d.Message,
-			colorResetDim, d.SourceBefore, colorGreen, d.SourceMarked, colorResetDim, d.SourceAfter,
-			emptyMarginText(maxMargin, true), d.Indent, colorGreen, d.Marker, colorResetDim,
-			d.ContentAfter, colorReset)
-	}
+	callout := d.Marker
+	calloutPrefix := ""
 
 	if d.Suggestion != "" {
-		return fmt.Sprintf("%s%s:%d:%d: %s: %s\n%s%s%s\n%s%s%s\n%s%s%s%s\n",
-			textIndent, d.Path, d.Line, d.Column,
-			kind.String(), d.Message,
-			d.SourceBefore, d.SourceMarked, d.SourceAfter,
-			emptyMarginText(maxMargin, false), d.Indent, d.Marker,
-			emptyMarginText(maxMargin, true), d.Indent, d.Suggestion,
-			d.ContentAfter)
+		callout = d.Suggestion
+		calloutPrefix = fmt.Sprintf("%s%s%s%s%s\n",
+			emptyMarginText(maxMargin, false), d.Indent, colors.Green, d.Marker, colors.Dim)
 	}
 
-	return fmt.Sprintf("%s%s:%d:%d: %s: %s\n%s%s%s\n%s%s%s%s\n",
-		textIndent, d.Path, d.Line, d.Column,
-		kind.String(), d.Message,
-		d.SourceBefore, d.SourceMarked, d.SourceAfter,
-		emptyMarginText(maxMargin, true), d.Indent, d.Marker,
-		d.ContentAfter)
+	return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s%s\n%s%s%s%s%s%s%s\n%s%s%s%s%s%s%s\n%s",
+		prefixColor, textIndent, d.Path, d.Line, d.Column,
+		kindColor, kind.String(),
+		colors.Reset, messageColor, d.Message,
+		colors.Reset, colors.Dim, d.SourceBefore, colors.Green, d.SourceMarked, colors.Dim, d.SourceAfter,
+		calloutPrefix, emptyMarginText(maxMargin, true), d.Indent, colors.Green, callout, colors.Dim, d.ContentAfter,
+		colors.Reset)
 }
 
 type MsgDetail struct {
