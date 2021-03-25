@@ -347,7 +347,7 @@ let buildTests = {
       entryPoints: [input],
       outfile: output,
       sourcemap: true,
-      sourcemapRoot: 'https://example.com/'
+      sourceRoot: 'https://example.com/'
     })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
@@ -3176,7 +3176,7 @@ let transformTests = {
   },
 
   async sourceMapRoot({ esbuild }) {
-    const { code, map } = await esbuild.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js', sourcemapRoot: "https://example.com/" })
+    const { code, map } = await esbuild.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js', sourceRoot: "https://example.com/" })
     assert.strictEqual(code, `let x;\n`)
     assert.strictEqual(JSON.parse(map).sourceRoot, 'https://example.com/');
   },

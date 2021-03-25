@@ -85,7 +85,7 @@ var helpText = func(colors logger.Colors) string {
   --sourcefile=...          Set the source file for the source map (for stdin)
   --sourcemap=external      Do not link to the source map with a comment
   --sourcemap=inline        Emit the source map with an inline data URL
-  --sourcemap-root=...      The root path from which source files are looked up
+  --source-root=...         The root path from which source files are looked up
 	                          in a source map.
   --sources-content=false   Omit "sourcesContent" in generated source maps
   --tree-shaking=...        Set to "ignore-annotations" to work with packages

@@ -159,12 +159,12 @@ func parseOptionsImpl(
 			}
 			hasBareSourceMapFlag = false
 
-		case strings.HasPrefix(arg, "--sourcemap-root="):
-			sourceRoot := arg[len("--sourcemap-root="):]
+		case strings.HasPrefix(arg, "--source-root="):
+			sourceRoot := arg[len("--source-root="):]
 			if buildOpts != nil {
-				buildOpts.SourcemapRoot = sourceRoot
+				buildOpts.SourceRoot = sourceRoot
 			} else {
-				transformOpts.SourcemapRoot = sourceRoot
+				transformOpts.SourceRoot = sourceRoot
 			}
 
 		case strings.HasPrefix(arg, "--sources-content="):

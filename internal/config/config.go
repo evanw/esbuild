@@ -237,7 +237,7 @@ type Options struct {
 	NeedsMetafile bool
 
 	SourceMap             SourceMap
-	SourceMapRoot         string
+	SourceRoot            string
 	ExcludeSourcesContent bool
 
 	Stdin *StdinInfo
