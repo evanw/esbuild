@@ -260,9 +260,13 @@ type exportData struct {
 // linking operations may be happening in parallel with different metadata for
 // the same part in the same file.
 type partMeta struct {
-	// This holds all entry points that can reach this part. It will be used to
-	// assign this part to a chunk.
-	entryBits bitSet
+	// This part is considered live if any entry point can reach this part. In
+	// addition, we want to avoid visiting a given part twice during the depth-
+	// first live code detection traversal for a single entry point. This index
+	// solves both of these problems at once. This part is live if this index
+	// is valid, and this part should not be re-visited if this index equals
+	// the index of the current entry point being visted.
+	lastEntryBit ast.Index32
 
 	// If present, this is a circular doubly-linked list of all other parts in
 	// this file that need to be in the same chunk as this part to avoid cross-
@@ -275,6 +279,10 @@ type partMeta struct {
 
 	// These are dependencies that come from other files via import statements.
 	nonLocalDependencies []partRef
+}
+
+func (pm *partMeta) isLive() bool {
+	return pm.lastEntryBit.IsValid()
 }
 
 type partRef struct {
@@ -583,9 +591,6 @@ func (c *linkerContext) addPartToFile(sourceIndex uint32, part js_ast.Part, part
 	if part.SymbolUses == nil {
 		part.SymbolUses = make(map[js_ast.Ref]js_ast.SymbolUse)
 	}
-	if partMeta.entryBits.entries == nil {
-		partMeta.entryBits = newBitSet(uint(len(c.entryPoints)))
-	}
 	repr := c.files[sourceIndex].repr.(*reprJS)
 	partIndex := uint32(len(repr.ast.Parts))
 	partMeta.prevSibling = partIndex
@@ -621,7 +626,6 @@ func (c *linkerContext) link() []OutputFile {
 	}
 
 	c.markPartsReachableFromEntryPoints()
-	c.handleCrossChunkAssignments()
 
 	if c.options.Mode == config.ModePassThrough {
 		for _, entryPoint := range c.entryPoints {
@@ -937,7 +941,6 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 	waitGroup.Add(len(chunks))
 	for chunkIndex, chunk := range chunks {
 		go func(chunkIndex int, chunk chunkInfo) {
-			chunkKey := string(chunk.entryBits.entries)
 			imports := make(map[js_ast.Ref]bool)
 			chunkMetas[chunkIndex] = chunkMeta{imports: imports, exports: make(map[js_ast.Ref]bool)}
 
@@ -947,7 +950,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 				switch repr := c.files[sourceIndex].repr.(type) {
 				case *reprJS:
 					for partIndex, partMeta := range repr.meta.partMeta {
-						if string(partMeta.entryBits.entries) != chunkKey {
+						if !partMeta.isLive() {
 							continue
 						}
 						part := &repr.ast.Parts[partIndex]
@@ -2356,7 +2359,6 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 		case *reprJS:
 			for partIndex := range repr.meta.partMeta {
 				partMeta := &repr.meta.partMeta[partIndex]
-				partMeta.entryBits = newBitSet(bitCount)
 				partMeta.prevSibling = uint32(partIndex)
 				partMeta.nextSibling = uint32(partIndex)
 			}
@@ -2411,63 +2413,6 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	// Each entry point marks all files reachable from itself
 	for i, entryPoint := range c.entryPoints {
 		c.includeFile(entryPoint, uint(i), 0)
-	}
-}
-
-// Code splitting may cause an assignment to a local variable to end up in a
-// separate chunk from the variable. This is bad because that will generate
-// an assignment to an import, which will fail. Make sure these parts end up
-// in the same chunk in these cases.
-func (c *linkerContext) handleCrossChunkAssignments() {
-	if len(c.entryPoints) < 2 {
-		// No need to do this if there cannot be cross-chunk assignments
-		return
-	}
-	neverReachedEntryBits := newBitSet(uint(len(c.entryPoints)))
-
-	for _, sourceIndex := range c.reachableFiles {
-		file := &c.files[sourceIndex]
-		repr, ok := file.repr.(*reprJS)
-		if !ok {
-			continue
-		}
-
-		for partIndex, part := range repr.ast.Parts {
-			// Ignore this part if it's dead code
-			if repr.meta.partMeta[partIndex].entryBits.equals(neverReachedEntryBits) {
-				continue
-			}
-
-			// If this part assigns to a local variable, make sure the parts for the
-			// variable's declaration are in the same chunk as this part
-			for ref, use := range part.SymbolUses {
-				if use.IsAssigned {
-					if otherParts, ok := repr.ast.TopLevelSymbolToParts[ref]; ok {
-						for _, otherPartIndex := range otherParts {
-							partMetaA := &repr.meta.partMeta[partIndex]
-							partMetaB := &repr.meta.partMeta[otherPartIndex]
-
-							// Make sure both sibling subsets have the same entry points
-							for entryPointBit := range c.entryPoints {
-								hasA := partMetaA.entryBits.hasBit(uint(entryPointBit))
-								hasB := partMetaB.entryBits.hasBit(uint(entryPointBit))
-								if hasA && !hasB {
-									c.includePart(sourceIndex, otherPartIndex, uint(entryPointBit), file.distanceFromEntryPoint)
-								} else if hasB && !hasA {
-									c.includePart(sourceIndex, uint32(partIndex), uint(entryPointBit), file.distanceFromEntryPoint)
-								}
-							}
-
-							// Perform the merge
-							repr.meta.partMeta[partMetaA.nextSibling].prevSibling = partMetaB.prevSibling
-							repr.meta.partMeta[partMetaB.prevSibling].nextSibling = partMetaA.nextSibling
-							partMetaA.nextSibling = otherPartIndex
-							partMetaB.prevSibling = uint32(partIndex)
-						}
-					}
-				}
-			}
-		}
 	}
 }
 
@@ -2615,10 +2560,10 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	partMeta := &repr.meta.partMeta[partIndex]
 
 	// Don't mark this part more than once
-	if partMeta.entryBits.hasBit(entryPointBit) {
+	if partMeta.lastEntryBit == ast.MakeIndex32(uint32(entryPointBit)) {
 		return
 	}
-	partMeta.entryBits.setBit(entryPointBit)
+	partMeta.lastEntryBit = ast.MakeIndex32(uint32(entryPointBit))
 
 	part := &repr.ast.Parts[partIndex]
 
@@ -2799,39 +2744,24 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	// Figure out which files are in which chunk
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
-		switch repr := file.repr.(type) {
-		case *reprJS:
-			for _, partMeta := range repr.meta.partMeta {
-				key := string(partMeta.entryBits.entries)
-				if key == neverReachedKey {
-					// Ignore this part if it was never reached
-					continue
-				}
-				chunk, ok := chunks[key]
-				if !ok {
-					chunk.entryBits = partMeta.entryBits
-					chunk.filesWithPartsInChunk = make(map[uint32]bool)
-					chunk.chunkRepr = &chunkReprJS{}
-					chunks[key] = chunk
-				}
-				chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
-			}
-
-		case *reprCSS:
-			key := string(file.entryBits.entries)
-			if key == neverReachedKey {
-				// Ignore this file if it was never reached
-				continue
-			}
-			chunk, ok := chunks[key]
-			if !ok {
-				chunk.entryBits = file.entryBits
-				chunk.filesWithPartsInChunk = make(map[uint32]bool)
-				chunk.chunkRepr = &chunkReprJS{}
-				chunks[key] = chunk
-			}
-			chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
+		key := string(file.entryBits.entries)
+		if key == neverReachedKey {
+			// Ignore this file if it was never reached
+			continue
 		}
+		chunk, ok := chunks[key]
+		if !ok {
+			chunk.entryBits = file.entryBits
+			chunk.filesWithPartsInChunk = make(map[uint32]bool)
+			switch file.repr.(type) {
+			case *reprJS:
+				chunk.chunkRepr = &chunkReprJS{}
+			case *reprCSS:
+				chunk.chunkRepr = &chunkReprCSS{}
+			}
+			chunks[key] = chunk
+		}
+		chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
 	}
 
 	// Sort the chunks for determinism. This mostly doesn't matter because each
@@ -3013,12 +2943,12 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 
 			// Make sure the generated call to "__export(exports, ...)" comes first
 			// before anything else in this file
-			if canFileBeSplit && chunk.entryBits.equals(repr.meta.partMeta[repr.meta.nsExportPartIndex].entryBits) {
+			if canFileBeSplit && isFileInThisChunk && repr.meta.partMeta[repr.meta.nsExportPartIndex].isLive() {
 				jsParts = appendOrExtendPartRange(jsParts, sourceIndex, repr.meta.nsExportPartIndex)
 			}
 
 			for partIndex, part := range repr.ast.Parts {
-				isPartInThisChunk := chunk.entryBits.equals(repr.meta.partMeta[partIndex].entryBits)
+				isPartInThisChunk := isFileInThisChunk && repr.meta.partMeta[partIndex].isLive()
 
 				// Also traverse any files imported by this part
 				for _, importRecordIndex := range part.ImportRecordIndices {
@@ -3415,7 +3345,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	// Make sure the generated call to "__export(exports, ...)" comes first
 	// before anything else.
 	if nsExportPartIndex >= partRange.partIndexBegin && nsExportPartIndex < partRange.partIndexEnd &&
-		entryBits.equals(repr.meta.partMeta[nsExportPartIndex].entryBits) {
+		repr.meta.partMeta[nsExportPartIndex].isLive() {
 		c.convertStmtsForChunk(partRange.sourceIndex, &stmtList, repr.ast.Parts[nsExportPartIndex].Stmts)
 
 		// Move everything to the prefix list
@@ -3426,7 +3356,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	// Add all other parts in this chunk
 	for partIndex := partRange.partIndexBegin; partIndex < partRange.partIndexEnd; partIndex++ {
 		part := repr.ast.Parts[partIndex]
-		if !entryBits.equals(repr.meta.partMeta[partIndex].entryBits) {
+		if !repr.meta.partMeta[partIndex].isLive() {
 			// Skip the part if it's not in this chunk
 			continue
 		}
@@ -3840,7 +3770,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 			}
 
 			for partIndex, part := range repr.ast.Parts {
-				if !chunk.entryBits.equals(repr.meta.partMeta[partIndex].entryBits) {
+				if !repr.meta.partMeta[partIndex].isLive() {
 					// Skip the part if it's not in this chunk
 					continue
 				}
@@ -3950,7 +3880,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 
 		// Rename each top-level symbol declaration in this chunk
 		for partIndex, part := range repr.ast.Parts {
-			if chunk.entryBits.equals(repr.meta.partMeta[partIndex].entryBits) {
+			if repr.meta.partMeta[partIndex].isLive() {
 				for _, declared := range part.DeclaredSymbols {
 					if declared.IsTopLevel {
 						r.AddTopLevelSymbol(declared.Ref)
