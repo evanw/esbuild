@@ -27,7 +27,7 @@
     })
 
     process.stdout.write(formatted.join(''))
-```
+    ```
 
 ## 0.10.0
 
