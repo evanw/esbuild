@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.1
 
 * Expose `metafile` to `onRebuild` in watch mode ([#1057](https://github.com/evanw/esbuild/issues/1057))
 
