@@ -2751,6 +2751,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 				if importToBind, ok := targetRepr.meta.importsToBind[targetRef]; ok {
 					targetSourceIndex = importToBind.sourceIndex
 					targetRef = importToBind.ref
+					targetRepr = c.files[targetSourceIndex].repr.(*reprJS)
 				}
 
 				// Pull in all declarations of this symbol
