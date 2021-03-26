@@ -203,20 +203,20 @@ new c();
 TestCharFreqIgnoreComments
 ---------- /out/a.js ----------
 // a.js
-function e(t, n, r, u) {
+function o(e, t, n, r) {
   return "the argument names must be the same";
 }
 export {
-  e as default
+  o as default
 };
 
 ---------- /out/b.js ----------
 // b.js
-function e(t, n, r, u) {
+function o(e, t, n, r) {
   return "the argument names must be the same";
 }
 export {
-  e as default
+  o as default
 };
 
 ================================================================================

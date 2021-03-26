@@ -136,11 +136,6 @@ type fileMeta struct {
 	// ES6 star imports and CommonJS-style modules.
 	nsExportPartIndex uint32
 
-	// The index of the automatically-generated part containing export statements
-	// for every export in the entry point. This also contains the call to the
-	// require wrapper for CommonJS-style entry points.
-	entryPointExportPartIndex ast.Index32
-
 	// This is only for TypeScript files. If an import symbol is in this map, it
 	// means the import couldn't be found and doesn't actually exist. This is not
 	// an error in TypeScript because the import is probably just a type.
@@ -214,6 +209,11 @@ type fileMeta struct {
 	// This array excludes these exports and is also sorted, which avoids non-
 	// determinism due to random map iteration order.
 	sortedAndFilteredExportAliases []string
+
+	// If this is an entry point, this array holds a reference to one free
+	// temporary symbol for each entry in "sortedAndFilteredExportAliases".
+	// These may be needed to store copies of CommonJS re-exports in ESM.
+	cjsExportCopies []js_ast.Ref
 }
 
 type importToBind struct {
@@ -1018,6 +1018,38 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 					}
 				}
 			}
+
+			// Include the exports if this is an entry point chunk
+			if chunk.isEntryPoint {
+				repr := c.files[chunk.sourceIndex].repr.(*reprJS)
+
+				if repr.meta.wrap != wrapCJS {
+					for _, alias := range repr.meta.sortedAndFilteredExportAliases {
+						export := repr.meta.resolvedExports[alias]
+						targetSourceIndex := export.sourceIndex
+						targetRef := export.ref
+
+						// If this is an import, then target what the import points to
+						if importToBind, ok := c.files[targetSourceIndex].repr.(*reprJS).meta.importsToBind[targetRef]; ok {
+							targetSourceIndex = importToBind.sourceIndex
+							targetRef = importToBind.ref
+						}
+
+						imports[targetRef] = true
+					}
+				}
+
+				// Ensure "exports" is included if the current output format needs it
+				if repr.meta.forceIncludeExportsForEntryPoint {
+					imports[repr.ast.ExportsRef] = true
+				}
+
+				// Include the wrapper if present
+				if repr.meta.wrap != wrapNone {
+					imports[repr.ast.WrapperRef] = true
+				}
+			}
+
 			waitGroup.Done()
 		}(chunkIndex, chunk)
 	}
@@ -1479,6 +1511,29 @@ func (c *linkerContext) scanImportsAndExports() {
 			continue
 		}
 
+		// Pre-generate symbols for re-exports CommonJS symbols in case they
+		// are necessary later. This is done now because the symbols map cannot be
+		// mutated later due to parallelism.
+		if file.isEntryPoint && c.options.OutputFormat == config.FormatESModule {
+			copies := make([]js_ast.Ref, len(repr.meta.sortedAndFilteredExportAliases))
+			for i, alias := range repr.meta.sortedAndFilteredExportAliases {
+				symbols := &c.symbols.Outer[sourceIndex]
+				tempRef := js_ast.Ref{
+					OuterIndex: sourceIndex,
+					InnerIndex: uint32(len(*symbols)),
+				}
+				*symbols = append(*symbols, js_ast.Symbol{
+					Kind:         js_ast.SymbolOther,
+					OriginalName: "export_" + alias,
+					Link:         js_ast.InvalidRef,
+				})
+				generated := &repr.ast.ModuleScope.Generated
+				*generated = append(*generated, tempRef)
+				copies[i] = tempRef
+			}
+			repr.meta.cjsExportCopies = copies
+		}
+
 		// If this isn't CommonJS, then rename the unused "exports" and "module"
 		// variables to avoid them causing the identically-named variables in
 		// actual CommonJS files from being renamed. This is purely about
@@ -1637,25 +1692,13 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// for other files within this method or you will create a data race.
 	////////////////////////////////////////////////////////////////////////////////
 
-	var entryPointES6ExportItems []js_ast.ClauseItem
-	var entryPointExportStmts []js_ast.Stmt
 	file := &c.files[sourceIndex]
 	repr := file.repr.(*reprJS)
-
-	// If the output format is ES6 modules and we're an entry point, generate an
-	// ES6 export statement containing all exports. Except don't do that if this
-	// entry point is a CommonJS-style module, since that would generate an ES6
-	// export statement that's not top-level. Instead, we will export the CommonJS
-	// exports as a default export later on.
-	needsEntryPointES6ExportPart := file.isEntryPoint && repr.meta.wrap != wrapCJS &&
-		c.options.OutputFormat == config.FormatESModule && len(repr.meta.sortedAndFilteredExportAliases) > 0
 
 	// Generate a getter per export
 	properties := []js_ast.Property{}
 	nsExportNonLocalDependencies := []partRef{}
-	entryPointExportNonLocalDependencies := []partRef{}
 	nsExportSymbolUses := make(map[js_ast.Ref]js_ast.SymbolUse)
-	entryPointExportSymbolUses := make(map[js_ast.Ref]js_ast.SymbolUse)
 	for _, alias := range repr.meta.sortedAndFilteredExportAliases {
 		export := repr.meta.resolvedExports[alias]
 
@@ -1673,103 +1716,8 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		var value js_ast.Expr
 		if c.symbols.Get(export.ref).NamespaceAlias != nil {
 			value = js_ast.Expr{Data: &js_ast.EImportIdentifier{Ref: export.ref}}
-
-			// Imported identifiers must be assigned to a local variable to be
-			// exported using an ES6 export clause. The import needs to be an
-			// EImportIdentifier in case it's imported from a CommonJS module.
-			if needsEntryPointES6ExportPart {
-				// Generate a temporary variable
-				inner := &c.symbols.Outer[sourceIndex]
-				tempRef := js_ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(len(*inner))}
-				*inner = append(*inner, js_ast.Symbol{
-					Kind:         js_ast.SymbolOther,
-					OriginalName: "export_" + alias,
-					Link:         js_ast.InvalidRef,
-				})
-
-				// Stick it on the module scope so it gets renamed and minified
-				generated := &repr.ast.ModuleScope.Generated
-				*generated = append(*generated, tempRef)
-
-				// Create both a local variable and an export clause for that variable.
-				// The local variable is initialized with the initial value of the
-				// export. This isn't fully correct because it's a "dead" binding and
-				// doesn't update with the "live" value as it changes. But ES6 modules
-				// don't have any syntax for bare named getter functions so this is the
-				// best we can do.
-				//
-				// These input files:
-				//
-				//   // entry_point.js
-				//   export {foo} from './cjs-format.js'
-				//
-				//   // cjs-format.js
-				//   Object.defineProperty(exports, 'foo', {
-				//     enumerable: true,
-				//     get: () => Math.random(),
-				//   })
-				//
-				// Become this output file:
-				//
-				//   // cjs-format.js
-				//   var require_cjs_format = __commonJS((exports) => {
-				//     Object.defineProperty(exports, "foo", {
-				//       enumerable: true,
-				//       get: () => Math.random()
-				//     });
-				//   });
-				//
-				//   // entry_point.js
-				//   var cjs_format = __toModule(require_cjs_format());
-				//   var export_foo = cjs_format.foo;
-				//   export {
-				//     export_foo as foo
-				//   };
-				//
-				entryPointExportStmts = append(entryPointExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{
-					Decls: []js_ast.Decl{{
-						Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: tempRef}},
-						Value:   &js_ast.Expr{Data: &js_ast.EImportIdentifier{Ref: export.ref}},
-					}},
-				}})
-				entryPointES6ExportItems = append(entryPointES6ExportItems, js_ast.ClauseItem{
-					Name:  js_ast.LocRef{Ref: tempRef},
-					Alias: alias,
-				})
-				entryPointExportSymbolUses[tempRef] = js_ast.SymbolUse{CountEstimate: 2}
-			}
 		} else {
 			value = js_ast.Expr{Data: &js_ast.EIdentifier{Ref: export.ref}}
-
-			if needsEntryPointES6ExportPart {
-				// Local identifiers can be exported using an export clause. This is done
-				// this way instead of leaving the "export" keyword on the local declaration
-				// itself both because it lets the local identifier be minified and because
-				// it works transparently for re-exports across files.
-				//
-				// These input files:
-				//
-				//   // entry_point.js
-				//   export * from './esm-format.js'
-				//
-				//   // esm-format.js
-				//   export let foo = 123
-				//
-				// Become this output file:
-				//
-				//   // esm-format.js
-				//   let foo = 123;
-				//
-				//   // entry_point.js
-				//   export {
-				//     foo
-				//   };
-				//
-				entryPointES6ExportItems = append(entryPointES6ExportItems, js_ast.ClauseItem{
-					Name:  js_ast.LocRef{Ref: export.ref},
-					Alias: alias,
-				})
-			}
 		}
 
 		// Add a getter property
@@ -1785,9 +1733,6 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			Value: &getter,
 		})
 		nsExportSymbolUses[export.ref] = js_ast.SymbolUse{CountEstimate: 1}
-		if file.isEntryPoint {
-			entryPointExportSymbolUses[export.ref] = js_ast.SymbolUse{CountEstimate: 1}
-		}
 
 		// Make sure the part that declares the export is included
 		for _, partIndex := range c.files[export.sourceIndex].repr.(*reprJS).ast.TopLevelSymbolToParts[export.ref] {
@@ -1795,9 +1740,6 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			// file if it came in through an export star
 			dep := partRef{sourceIndex: export.sourceIndex, partIndex: partIndex}
 			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, dep)
-			if file.isEntryPoint {
-				entryPointExportNonLocalDependencies = append(entryPointExportNonLocalDependencies, dep)
-			}
 		}
 	}
 
@@ -1891,150 +1833,6 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		if exportRef != js_ast.InvalidRef {
 			repr.meta.needsExportSymbolFromRuntime = true
 		}
-	}
-
-	if len(entryPointES6ExportItems) > 0 {
-		entryPointExportStmts = append(entryPointExportStmts,
-			js_ast.Stmt{Data: &js_ast.SExportClause{Items: entryPointES6ExportItems}})
-	}
-
-	// If we're an entry point, call the require function at the end of the
-	// bundle right before bundle evaluation ends
-	var cjsWrapStmt js_ast.Stmt
-	if file.isEntryPoint {
-		if repr.meta.wrap == wrapCJS {
-			switch c.options.OutputFormat {
-			case config.FormatPreserve:
-				// "require_foo();"
-				cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
-					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
-				}}}}
-
-			case config.FormatIIFE:
-				if len(c.options.GlobalName) > 0 {
-					// "return require_foo();"
-					cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.ECall{
-						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
-					}}}}
-				} else {
-					// "require_foo();"
-					cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
-						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
-					}}}}
-				}
-
-			case config.FormatCommonJS:
-				// "module.exports = require_foo();"
-				cjsWrapStmt = js_ast.AssignStmt(
-					js_ast.Expr{Data: &js_ast.EDot{
-						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
-						Name:   "exports",
-					}},
-					js_ast.Expr{Data: &js_ast.ECall{
-						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
-					}},
-				)
-
-			case config.FormatESModule:
-				// "export default require_foo();"
-				cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SExportDefault{Value: js_ast.ExprOrStmt{Expr: &js_ast.Expr{Data: &js_ast.ECall{
-					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
-				}}}}}
-			}
-		} else if repr.meta.forceIncludeExportsForEntryPoint && c.options.OutputFormat == config.FormatIIFE && len(c.options.GlobalName) > 0 {
-			// "return exports;"
-			cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}}}}
-		}
-	}
-
-	// If we are generating CommonJS for node, encode the known export names in
-	// a form that node can understand them. This relies on the specific behavior
-	// of this parser, which the node project uses to detect named exports in
-	// CommonJS files: https://github.com/guybedford/cjs-module-lexer. Think of
-	// this code as an annotation for that parser.
-	if file.isEntryPoint && c.options.Platform == config.PlatformNode &&
-		c.options.OutputFormat == config.FormatCommonJS && len(repr.meta.resolvedExports) > 0 {
-		// Add a comment since otherwise people will surely wonder what this is.
-		// This annotation means you can do this and have it work:
-		//
-		//   import { name } from './file-from-esbuild.cjs'
-		//
-		// when "file-from-esbuild.cjs" looks like this:
-		//
-		//   __export(exports, { name: () => name });
-		//   0 && (module.exports = {name});
-		//
-		// The maintainer of "cjs-module-lexer" is receptive to adding esbuild-
-		// friendly patterns to this library. However, this library has already
-		// shipped in node and using existing patterns instead of defining new
-		// patterns is maximally compatible.
-		//
-		// An alternative to doing this could be to use "Object.defineProperties"
-		// instead of "__export" but support for that would need to be added to
-		// "cjs-module-lexer" and then we would need to be ok with not supporting
-		// older versions of node that don't have that newly-added support.
-		if !c.options.RemoveWhitespace {
-			entryPointExportStmts = append(entryPointExportStmts,
-				js_ast.Stmt{Data: &js_ast.SComment{Text: `// Annotate the CommonJS export names for ESM import in node:`}},
-			)
-		}
-
-		// "{a, b, if: null}"
-		var moduleExports []js_ast.Property
-		for _, export := range repr.meta.sortedAndFilteredExportAliases {
-			if export == "default" {
-				// In node the default export is always "module.exports" regardless of
-				// what the annotation says. So don't bother generating "default".
-				continue
-			}
-
-			// "{if: null}"
-			var value *js_ast.Expr
-			if _, ok := js_lexer.Keywords[export]; ok {
-				// Make sure keywords don't cause a syntax error. This has to map to
-				// "null" instead of something shorter like "0" because the library
-				// "cjs-module-lexer" only supports identifiers in this position, and
-				// it thinks "null" is an identifier.
-				value = &js_ast.Expr{Data: &js_ast.ENull{}}
-			}
-
-			moduleExports = append(moduleExports, js_ast.Property{
-				Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(export)}},
-				Value: value,
-			})
-		}
-
-		// "0 && (module.exports = {a, b, if: null});"
-		expr := js_ast.Expr{Data: &js_ast.EBinary{
-			Op:   js_ast.BinOpLogicalAnd,
-			Left: js_ast.Expr{Data: &js_ast.ENumber{Value: 0}},
-			Right: js_ast.Assign(
-				js_ast.Expr{Data: &js_ast.EDot{
-					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.ModuleRef}},
-					Name:   "exports",
-				}},
-				js_ast.Expr{Data: &js_ast.EObject{Properties: moduleExports}},
-			),
-		}}
-
-		entryPointExportStmts = append(entryPointExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: expr}})
-	}
-
-	if len(entryPointExportStmts) > 0 || cjsWrapStmt.Data != nil {
-		// Trigger evaluation of the CommonJS wrapper
-		if cjsWrapStmt.Data != nil {
-			entryPointExportSymbolUses[repr.ast.WrapperRef] = js_ast.SymbolUse{CountEstimate: 1}
-			entryPointExportStmts = append(entryPointExportStmts, cjsWrapStmt)
-		}
-
-		// Add a part for this export clause
-		partIndex := c.addPartToFile(sourceIndex, js_ast.Part{
-			Stmts:      entryPointExportStmts,
-			SymbolUses: entryPointExportSymbolUses,
-		}, partMeta{
-			nonLocalDependencies: append([]partRef{}, entryPointExportNonLocalDependencies...),
-		})
-		repr.meta.entryPointExportPartIndex = ast.MakeIndex32(partIndex)
 	}
 }
 
@@ -2700,12 +2498,6 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 		for partIndex, part := range repr.ast.Parts {
 			canBeRemovedIfUnused := part.CanBeRemovedIfUnused
 
-			// Don't include the entry point part if we're not the entry point
-			if uint32(partIndex) == repr.meta.entryPointExportPartIndex.GetIndex() &&
-				sourceIndex != c.entryPoints[entryPointBit] {
-				continue
-			}
-
 			// Also include any statement-level imports
 			for _, importRecordIndex := range part.ImportRecordIndices {
 				record := &repr.ast.ImportRecords[importRecordIndex]
@@ -2763,6 +2555,11 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 			// Ensure "exports" is included if the current output format needs it
 			if repr.meta.forceIncludeExportsForEntryPoint {
 				c.includePart(sourceIndex, repr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
+			}
+
+			// Include the wrapper if present
+			if repr.meta.wrap != wrapNone {
+				c.includePart(sourceIndex, repr.meta.cjsWrapperPartIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
 			}
 		}
 
@@ -3586,18 +3383,10 @@ type stmtList struct {
 	// Order doesn't matter for these statements, but they must be outside any
 	// CommonJS wrapper since they are top-level ES6 import/export statements
 	es6StmtsForWrap []js_ast.Stmt
-
-	// These statements are for an entry point and come at the end of the chunk
-	entryPointTail []js_ast.Stmt
 }
 
 type compileResultJS struct {
 	js_printer.PrintResult
-
-	// If this is an entry point, this is optional code to stick on the end of
-	// the chunk. This is used to for example trigger the lazily-evaluated
-	// CommonJS wrapper for the entry point.
-	entryPointTail *js_printer.PrintResult
 
 	sourceIndex uint32
 
@@ -3650,12 +3439,6 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		// Mark if we hit the dummy part representing the CommonJS wrapper
 		if uint32(partIndex) == repr.meta.cjsWrapperPartIndex.GetIndex() {
 			needsWrapper = true
-			continue
-		}
-
-		// Emit export statements in the entry point part verbatim
-		if uint32(partIndex) == repr.meta.entryPointExportPartIndex.GetIndex() {
-			stmtList.entryPointTail = append(stmtList.entryPointTail, part.Stmts...)
 			continue
 		}
 
@@ -3751,17 +3534,272 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		sourceIndex: partRange.sourceIndex,
 	}
 
-	// Write this separately as the entry point tail so it can be split off
-	// from the main entry point code. This is sometimes required to deal with
-	// CommonJS import cycles.
-	if len(stmtList.entryPointTail) > 0 {
-		tree := repr.ast
-		tree.Parts = []js_ast.Part{{Stmts: stmtList.entryPointTail}}
-		entryPointTail := js_printer.Print(tree, c.symbols, r, printOptions)
-		result.entryPointTail = &entryPointTail
+	waitGroup.Done()
+}
+
+func (c *linkerContext) generateEntryPointTailJS(
+	r renamer.Renamer,
+	toModuleRef js_ast.Ref,
+	sourceIndex uint32,
+) (result compileResultJS) {
+	file := &c.files[sourceIndex]
+	repr := file.repr.(*reprJS)
+	var stmts []js_ast.Stmt
+
+	switch c.options.OutputFormat {
+	case config.FormatPreserve:
+		if repr.meta.wrap == wrapCJS {
+			// "require_foo();"
+			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+			}}}})
+		}
+
+	case config.FormatIIFE:
+		if repr.meta.wrap == wrapCJS {
+			if len(c.options.GlobalName) > 0 {
+				// "return require_foo();"
+				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+				}}}})
+			} else {
+				// "require_foo();"
+				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+				}}}})
+			}
+		} else if repr.meta.forceIncludeExportsForEntryPoint && len(c.options.GlobalName) > 0 {
+			// "return exports;"
+			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SReturn{
+				Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}},
+			}})
+		}
+
+	case config.FormatCommonJS:
+		if repr.meta.wrap == wrapCJS {
+			// "module.exports = require_foo();"
+			stmts = append(stmts, js_ast.AssignStmt(
+				js_ast.Expr{Data: &js_ast.EDot{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
+					Name:   "exports",
+				}},
+				js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+				}},
+			))
+		}
+
+		// If we are generating CommonJS for node, encode the known export names in
+		// a form that node can understand them. This relies on the specific behavior
+		// of this parser, which the node project uses to detect named exports in
+		// CommonJS files: https://github.com/guybedford/cjs-module-lexer. Think of
+		// this code as an annotation for that parser.
+		if c.options.Platform == config.PlatformNode && len(repr.meta.sortedAndFilteredExportAliases) > 0 {
+			// Add a comment since otherwise people will surely wonder what this is.
+			// This annotation means you can do this and have it work:
+			//
+			//   import { name } from './file-from-esbuild.cjs'
+			//
+			// when "file-from-esbuild.cjs" looks like this:
+			//
+			//   __export(exports, { name: () => name });
+			//   0 && (module.exports = {name});
+			//
+			// The maintainer of "cjs-module-lexer" is receptive to adding esbuild-
+			// friendly patterns to this library. However, this library has already
+			// shipped in node and using existing patterns instead of defining new
+			// patterns is maximally compatible.
+			//
+			// An alternative to doing this could be to use "Object.defineProperties"
+			// instead of "__export" but support for that would need to be added to
+			// "cjs-module-lexer" and then we would need to be ok with not supporting
+			// older versions of node that don't have that newly-added support.
+			if !c.options.RemoveWhitespace {
+				stmts = append(stmts,
+					js_ast.Stmt{Data: &js_ast.SComment{Text: `// Annotate the CommonJS export names for ESM import in node:`}},
+				)
+			}
+
+			// "{a, b, if: null}"
+			var moduleExports []js_ast.Property
+			for _, export := range repr.meta.sortedAndFilteredExportAliases {
+				if export == "default" {
+					// In node the default export is always "module.exports" regardless of
+					// what the annotation says. So don't bother generating "default".
+					continue
+				}
+
+				// "{if: null}"
+				var value *js_ast.Expr
+				if _, ok := js_lexer.Keywords[export]; ok {
+					// Make sure keywords don't cause a syntax error. This has to map to
+					// "null" instead of something shorter like "0" because the library
+					// "cjs-module-lexer" only supports identifiers in this position, and
+					// it thinks "null" is an identifier.
+					value = &js_ast.Expr{Data: &js_ast.ENull{}}
+				}
+
+				moduleExports = append(moduleExports, js_ast.Property{
+					Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(export)}},
+					Value: value,
+				})
+			}
+
+			// "0 && (module.exports = {a, b, if: null});"
+			expr := js_ast.Expr{Data: &js_ast.EBinary{
+				Op:   js_ast.BinOpLogicalAnd,
+				Left: js_ast.Expr{Data: &js_ast.ENumber{Value: 0}},
+				Right: js_ast.Assign(
+					js_ast.Expr{Data: &js_ast.EDot{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.ModuleRef}},
+						Name:   "exports",
+					}},
+					js_ast.Expr{Data: &js_ast.EObject{Properties: moduleExports}},
+				),
+			}}
+
+			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: expr}})
+		}
+
+	case config.FormatESModule:
+		if repr.meta.wrap == wrapCJS {
+			// "export default require_foo();"
+			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExportDefault{Value: js_ast.ExprOrStmt{Expr: &js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+			}}}}})
+		} else if len(repr.meta.sortedAndFilteredExportAliases) > 0 {
+			// If the output format is ES6 modules and we're an entry point, generate an
+			// ES6 export statement containing all exports. Except don't do that if this
+			// entry point is a CommonJS-style module, since that would generate an ES6
+			// export statement that's not top-level. Instead, we will export the CommonJS
+			// exports as a default export later on.
+			var items []js_ast.ClauseItem
+
+			for i, alias := range repr.meta.sortedAndFilteredExportAliases {
+				export := repr.meta.resolvedExports[alias]
+
+				// If this is an export of an import, reference the symbol that the import
+				// was eventually resolved to. We need to do this because imports have
+				// already been resolved by this point, so we can't generate a new import
+				// and have that be resolved later.
+				if importToBind, ok := c.files[export.sourceIndex].repr.(*reprJS).meta.importsToBind[export.ref]; ok {
+					export.ref = importToBind.ref
+					export.sourceIndex = importToBind.sourceIndex
+				}
+
+				// Exports of imports need EImportIdentifier in case they need to be re-
+				// written to a property access later on
+				if c.symbols.Get(export.ref).NamespaceAlias != nil {
+					// Create both a local variable and an export clause for that variable.
+					// The local variable is initialized with the initial value of the
+					// export. This isn't fully correct because it's a "dead" binding and
+					// doesn't update with the "live" value as it changes. But ES6 modules
+					// don't have any syntax for bare named getter functions so this is the
+					// best we can do.
+					//
+					// These input files:
+					//
+					//   // entry_point.js
+					//   export {foo} from './cjs-format.js'
+					//
+					//   // cjs-format.js
+					//   Object.defineProperty(exports, 'foo', {
+					//     enumerable: true,
+					//     get: () => Math.random(),
+					//   })
+					//
+					// Become this output file:
+					//
+					//   // cjs-format.js
+					//   var require_cjs_format = __commonJS((exports) => {
+					//     Object.defineProperty(exports, "foo", {
+					//       enumerable: true,
+					//       get: () => Math.random()
+					//     });
+					//   });
+					//
+					//   // entry_point.js
+					//   var cjs_format = __toModule(require_cjs_format());
+					//   var export_foo = cjs_format.foo;
+					//   export {
+					//     export_foo as foo
+					//   };
+					//
+					tempRef := repr.meta.cjsExportCopies[i]
+					stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SLocal{
+						Decls: []js_ast.Decl{{
+							Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: tempRef}},
+							Value:   &js_ast.Expr{Data: &js_ast.EImportIdentifier{Ref: export.ref}},
+						}},
+					}})
+					items = append(items, js_ast.ClauseItem{
+						Name:  js_ast.LocRef{Ref: tempRef},
+						Alias: alias,
+					})
+				} else {
+					// Local identifiers can be exported using an export clause. This is done
+					// this way instead of leaving the "export" keyword on the local declaration
+					// itself both because it lets the local identifier be minified and because
+					// it works transparently for re-exports across files.
+					//
+					// These input files:
+					//
+					//   // entry_point.js
+					//   export * from './esm-format.js'
+					//
+					//   // esm-format.js
+					//   export let foo = 123
+					//
+					// Become this output file:
+					//
+					//   // esm-format.js
+					//   let foo = 123;
+					//
+					//   // entry_point.js
+					//   export {
+					//     foo
+					//   };
+					//
+					items = append(items, js_ast.ClauseItem{
+						Name:  js_ast.LocRef{Ref: export.ref},
+						Alias: alias,
+					})
+				}
+			}
+
+			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExportClause{Items: items}})
+		}
 	}
 
-	waitGroup.Done()
+	if len(stmts) == 0 {
+		return
+	}
+
+	tree := repr.ast
+	tree.Parts = []js_ast.Part{{Stmts: stmts}}
+
+	// Indent the file if everything is wrapped in an IIFE
+	indent := 0
+	if c.options.OutputFormat == config.FormatIIFE {
+		indent++
+	}
+
+	// Convert the AST to JavaScript code
+	printOptions := js_printer.Options{
+		Indent:              indent,
+		OutputFormat:        c.options.OutputFormat,
+		RemoveWhitespace:    c.options.RemoveWhitespace,
+		MangleSyntax:        c.options.MangleSyntax,
+		ASCIIOnly:           c.options.ASCIIOnly,
+		ToModuleRef:         toModuleRef,
+		ExtractComments:     c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
+		UnsupportedFeatures: c.options.UnsupportedJSFeatures,
+		WrapperRefForSource: func(sourceIndex uint32) js_ast.Ref {
+			return c.files[sourceIndex].repr.(*reprJS).ast.WrapperRef
+		},
+	}
+	result.PrintResult = js_printer.Print(tree, c.symbols, r, printOptions)
+	return
 }
 
 func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []uint32) renamer.Renamer {
@@ -4007,6 +4045,16 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		}, c.symbols, r, printOptions).JS
 	}
 
+	// Generate the exports for the entry point, if there are any
+	var entryPointTail compileResultJS
+	if chunk.isEntryPoint {
+		entryPointTail = c.generateEntryPointTailJS(
+			r,
+			toModuleRef,
+			chunk.sourceIndex,
+		)
+	}
+
 	waitGroup.Wait()
 
 	j := helpers.Joiner{}
@@ -4140,7 +4188,6 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 
 	// Concatenate the generated JavaScript chunks together
 	var compileResultsForSourceMap []compileResultJS
-	var entryPointTail *js_printer.PrintResult
 	var commentList []string
 	var metaOrder []string
 	var metaByteCount map[string]int
@@ -4157,12 +4204,6 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 				commentSet[text] = true
 				commentList = append(commentList, text)
 			}
-		}
-
-		// If this is the entry point, it may have some extra code to stick at the
-		// end of the chunk after all modules have evaluated
-		if compileResult.entryPointTail != nil {
-			entryPointTail = compileResult.entryPointTail
 		}
 
 		// Add a comment with the file path before the file contents
@@ -4231,9 +4272,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	// Stick the entry point tail at the end of the file. Deliberately don't
 	// include any source mapping information for this because it's automatically
 	// generated and doesn't correspond to a location in the input file.
-	if entryPointTail != nil {
-		j.AddBytes(entryPointTail.JS)
-	}
+	j.AddBytes(entryPointTail.JS)
 
 	// Put the cross-chunk suffix inside the IIFE
 	if len(crossChunkSuffix) > 0 {

@@ -204,7 +204,7 @@ TestSplittingDynamicAndNotDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
 import {
   require_foo
-} from "./chunk-HRZ2VI6F.js";
+} from "./chunk-PVG7CBAN.js";
 
 // entry.js
 var import_foo = __toModule(require_foo());
@@ -213,10 +213,10 @@ import("./foo.js").then(({default: {bar: b}}) => console.log(import_foo.bar, b))
 ---------- /out/foo.js ----------
 import {
   require_foo
-} from "./chunk-HRZ2VI6F.js";
+} from "./chunk-PVG7CBAN.js";
 export default require_foo();
 
----------- /out/chunk-HRZ2VI6F.js ----------
+---------- /out/chunk-PVG7CBAN.js ----------
 // foo.js
 var require_foo = __commonJS((exports) => {
   exports.bar = 123;
@@ -310,13 +310,13 @@ TestSplittingHybridESMAndCJSIssue617
 ---------- /out/a.js ----------
 import {
   require_a
-} from "./chunk-ZLCN2PPW.js";
+} from "./chunk-G6UP3R5O.js";
 export default require_a();
 
 ---------- /out/b.js ----------
 import {
   require_a
-} from "./chunk-ZLCN2PPW.js";
+} from "./chunk-G6UP3R5O.js";
 
 // b.js
 var bar = require_a();
@@ -324,7 +324,7 @@ export {
   bar
 };
 
----------- /out/chunk-ZLCN2PPW.js ----------
+---------- /out/chunk-G6UP3R5O.js ----------
 // a.js
 var require_a = __commonJS((exports) => {
   __markAsModule(exports);
