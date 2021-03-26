@@ -84,6 +84,9 @@ export let serve: typeof types.serve = (serveOptions, buildOptions) =>
 export let transform: typeof types.transform = (input, options) =>
   ensureServiceIsRunning().transform(input, options);
 
+export let formatMessages: typeof types.formatMessages = (messages, options) =>
+  ensureServiceIsRunning().formatMessages(messages, options);
+
 export let buildSync: typeof types.buildSync = (options: types.BuildOptions): any => {
   // Try using a long-lived worker thread to avoid repeated start-up overhead
   if (worker_threads) {
@@ -136,6 +139,21 @@ export let transformSync: typeof types.transformSync = (input, options) => {
   return result!;
 };
 
+export let formatMessagesSync: typeof types.formatMessagesSync = (messages, options) => {
+  // Try using a long-lived worker thread to avoid repeated start-up overhead
+  if (worker_threads) {
+    if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
+    return workerThreadService.formatMessagesSync(messages, options);
+  }
+
+  let result: string[];
+  runServiceSync(service => service.formatMessages('formatMessagesSync', null, messages, options, (err, res) => {
+    if (err) throw err;
+    result = res!;
+  }));
+  return result!;
+};
+
 let initializeWasCalled = false;
 
 export let initialize: typeof types.initialize = options => {
@@ -152,6 +170,7 @@ interface Service {
   build: typeof types.build;
   serve: typeof types.serve;
   transform: typeof types.transform;
+  formatMessages: typeof types.formatMessages;
 }
 
 let defaultWD = process.cwd();
@@ -246,6 +265,11 @@ let ensureServiceIsRunning = (): Service => {
           },
         }, (err, res) => err ? reject(err) : resolve(res!)));
     },
+    formatMessages: (messages, options) => {
+      return new Promise((resolve, reject) =>
+        service.formatMessages('formatMessages', refs, messages, options, (err, res) =>
+          err ? reject(err) : resolve(res!)));
+    },
   };
   return longLivedService;
 }
@@ -290,7 +314,8 @@ interface MainToWorkerMessage {
 
 interface WorkerThreadService {
   buildSync(options: types.BuildOptions): types.BuildResult;
-  transformSync(input: string, options?: types.TransformOptions): types.TransformResult;
+  transformSync: typeof types.transformSync;
+  formatMessagesSync: typeof types.formatMessagesSync;
 }
 
 let workerThreadService: WorkerThreadService | null = null;
@@ -316,12 +341,19 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
   let wasStopped = false;
 
   // This forbids options which would cause structured clone errors
+  let fakeBuildError = (text: string) => {
+    let error: any = new Error(`Build failed with 1 error:\nerror: ${text}`);
+    let errors: types.Message[] = [{ text, location: null, notes: [], detail: void 0 }];
+    error.errors = errors;
+    error.warnings = [];
+    return error;
+  };
   let validateBuildSyncOptions = (options: types.BuildOptions | undefined): void => {
     if (!options) return
     let plugins = options.plugins
     let incremental = options.incremental
-    if (plugins && plugins.length > 0) throw new Error(`Cannot use plugins in synchronous API calls`);
-    if (incremental) throw new Error(`Cannot use "incremental" with a synchronous build`);
+    if (plugins && plugins.length > 0) throw fakeBuildError(`Cannot use plugins in synchronous API calls`);
+    if (incremental) throw fakeBuildError(`Cannot use "incremental" with a synchronous build`);
   };
 
   // MessagePort doesn't copy the properties of Error objects. We still want
@@ -379,6 +411,9 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
     transformSync(input, options) {
       return runCallSync('transform', [input, options]);
     },
+    formatMessagesSync(messages, options) {
+      return runCallSync('formatMessages', [messages, options]);
+    },
   };
 };
 
@@ -415,6 +450,8 @@ let startSyncServiceWorker = () => {
           workerPort.postMessage({ id, resolve: await service.build(args[0]) });
         } else if (command === 'transform') {
           workerPort.postMessage({ id, resolve: await service.transform(args[0], args[1]) });
+        } else if (command === 'formatMessages') {
+          workerPort.postMessage({ id, resolve: await service.formatMessages(args[0], args[1]) });
         } else {
           throw new Error(`Invalid command: ${command}`);
         }

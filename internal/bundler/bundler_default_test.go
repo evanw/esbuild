@@ -363,30 +363,6 @@ func TestExportFormsCommonJS(t *testing.T) {
 	})
 }
 
-func TestReExportDefaultCommonJS(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				import {foo as entry} from './foo'
-				entry()
-			`,
-			"/foo.js": `
-				export {default as foo} from './bar'
-			`,
-			"/bar.js": `
-				export default function foo() {
-					return exports // Force this to be a CommonJS module
-				}
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-		},
-	})
-}
-
 func TestExportChain(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -717,10 +693,8 @@ func TestImportMissingNeitherES6NorCommonJS(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedCompileLog: `named.js: warning: Import "default" will always be undefined because the file "foo.js" has no exports
-named.js: warning: Import "x" will always be undefined because the file "foo.js" has no exports
+		expectedCompileLog: `named.js: warning: Import "x" will always be undefined because the file "foo.js" has no exports
 named.js: warning: Import "y" will always be undefined because the file "foo.js" has no exports
-star.js: warning: Import "default" will always be undefined because the file "foo.js" has no exports
 star.js: warning: Import "x" will always be undefined because the file "foo.js" has no exports
 star.js: warning: Import "y" will always be undefined because the file "foo.js" has no exports
 `,
@@ -874,24 +848,6 @@ func TestDynamicImportWithExpressionCJS(t *testing.T) {
 	})
 }
 
-func TestDynamicImportWithExpressionCJSAndES5(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/a.js": `
-				import('foo')
-				import(foo())
-			`,
-		},
-		entryPaths: []string{"/a.js"},
-		options: config.Options{
-			Mode:                  config.ModeConvertFormat,
-			OutputFormat:          config.FormatCommonJS,
-			UnsupportedJSFeatures: es(5),
-			AbsOutputFile:         "/out.js",
-		},
-	})
-}
-
 func TestMinifiedDynamicImportWithExpressionCJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -906,25 +862,6 @@ func TestMinifiedDynamicImportWithExpressionCJS(t *testing.T) {
 			OutputFormat:     config.FormatCommonJS,
 			AbsOutputFile:    "/out.js",
 			RemoveWhitespace: true,
-		},
-	})
-}
-
-func TestMinifiedDynamicImportWithExpressionCJSAndES5(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/a.js": `
-				import('foo')
-				import(foo())
-			`,
-		},
-		entryPaths: []string{"/a.js"},
-		options: config.Options{
-			Mode:                  config.ModeConvertFormat,
-			OutputFormat:          config.FormatCommonJS,
-			UnsupportedJSFeatures: es(5),
-			AbsOutputFile:         "/out.js",
-			RemoveWhitespace:      true,
 		},
 	})
 }
@@ -1632,10 +1569,10 @@ func TestExportFSNodeInCommonJSModule(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				export * as fs from 'fs'
-				export {readFileSync} from 'fs'
-
-				// Force this to be a CommonJS module
+				import * as fs from 'fs'
+				import {readFileSync} from 'fs'
+				exports.fs = fs
+				exports.readFileSync = readFileSync
 				exports.foo = 123
 			`,
 		},
@@ -1766,25 +1703,59 @@ func TestRuntimeNameCollisionNoBundle(t *testing.T) {
 	})
 }
 
-func TestTopLevelReturn(t *testing.T) {
+func TestTopLevelReturnForbiddenImport(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				import {foo} from './foo'
-				foo()
-			`,
-			"/foo.js": `
-				// Top-level return must force CommonJS mode
-				if (Math.random() < 0.5) return
-
-				export function foo() {}
+				return
+				import 'foo'
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:          config.ModeBundle,
+			Mode:          config.ModePassThrough,
 			AbsOutputFile: "/out.js",
 		},
+		expectedScanLog: `entry.js: error: Top-level return cannot be used inside an ECMAScript module
+entry.js: note: This file is considered an ECMAScript module because of the "import" keyword here
+`,
+	})
+}
+
+func TestTopLevelReturnForbiddenExport(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				return
+				export var foo
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: Top-level return cannot be used inside an ECMAScript module
+entry.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+`,
+	})
+}
+
+func TestTopLevelReturnForbiddenTLA(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				return await foo
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: Top-level return cannot be used inside an ECMAScript module
+entry.js: note: This file is considered an ECMAScript module because of the "await" keyword here
+`,
 	})
 }
 
@@ -3115,7 +3086,7 @@ func TestOutputExtensionRemappingDir(t *testing.T) {
 	})
 }
 
-func TestTopLevelAwait(t *testing.T) {
+func TestTopLevelAwaitIIFE(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3126,11 +3097,49 @@ func TestTopLevelAwait(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: error: Top-level await is currently not supported when bundling
-entry.js: error: Top-level await is currently not supported when bundling
+		expectedScanLog: `entry.js: error: Top-level await is currently not supported with the "iife" output format
+entry.js: error: Top-level await is currently not supported with the "iife" output format
 `,
+	})
+}
+
+func TestTopLevelAwaitCJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: Top-level await is currently not supported with the "cjs" output format
+entry.js: error: Top-level await is currently not supported with the "cjs" output format
+`,
+	})
+}
+
+func TestTopLevelAwaitESM(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
 	})
 }
 
@@ -3206,6 +3215,118 @@ entry.js: error: Top-level await is currently not supported with the "iife" outp
 	})
 }
 
+func TestTopLevelAwaitForbiddenRequire(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				require('./a')
+				require('./b')
+				require('./c')
+				require('./entry')
+				await 0
+			`,
+			"/a.js": `
+				import './b'
+			`,
+			"/b.js": `
+				import './c'
+			`,
+			"/c.js": `
+				await 0
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: This require call is not allowed because the transitive dependency "c.js" contains a top-level await
+a.js: note: The file "a.js" imports the file "b.js" here
+b.js: note: The file "b.js" imports the file "c.js" here
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This require call is not allowed because the transitive dependency "c.js" contains a top-level await
+b.js: note: The file "b.js" imports the file "c.js" here
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This require call is not allowed because the imported file "c.js" contains a top-level await
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This require call is not allowed because the imported file "entry.js" contains a top-level await
+entry.js: note: The top-level await in "entry.js" is here
+`,
+	})
+}
+
+func TestTopLevelAwaitForbiddenImportWithoutSplitting(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import('./a')
+				import('./b')
+				import('./c')
+				import('./entry')
+				await 0
+			`,
+			"/a.js": `
+				import './b'
+			`,
+			"/b.js": `
+				import './c'
+			`,
+			"/c.js": `
+				await 0
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: This dynamic import is not allowed because the transitive dependency "c.js" contains a top-level await (enable code splitting to allow this)
+a.js: note: The file "a.js" imports the file "b.js" here
+b.js: note: The file "b.js" imports the file "c.js" here
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This dynamic import is not allowed because the transitive dependency "c.js" contains a top-level await (enable code splitting to allow this)
+b.js: note: The file "b.js" imports the file "c.js" here
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This dynamic import is not allowed because the imported file "c.js" contains a top-level await (enable code splitting to allow this)
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This dynamic import is not allowed because the imported file "entry.js" contains a top-level await (enable code splitting to allow this)
+entry.js: note: The top-level await in "entry.js" is here
+`,
+	})
+}
+
+func TestTopLevelAwaitAllowedImportWithSplitting(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import('./a')
+				import('./b')
+				import('./c')
+				import('./entry')
+				await 0
+			`,
+			"/a.js": `
+				import './b'
+			`,
+			"/b.js": `
+				import './c'
+			`,
+			"/c.js": `
+				await 0
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			CodeSplitting: true,
+			AbsOutputDir:  "/out",
+		},
+	})
+}
+
 func TestAssignToImport(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3269,10 +3390,10 @@ bad1.js: error: Cannot assign to import "x"
 bad10.js: error: Cannot assign to import "y z"
 bad11.js: error: Cannot assign to import "x"
 bad11.js: error: Delete of a bare identifier cannot be used in strict mode
-bad11.js: note: This file is implicitly in strict mode because of the "import" keyword
+bad11.js: note: This file is implicitly in strict mode because of the "import" keyword here
 bad12.js: error: Cannot assign to import "x"
 bad12.js: error: Delete of a bare identifier cannot be used in strict mode
-bad12.js: note: This file is implicitly in strict mode because of the "import" keyword
+bad12.js: note: This file is implicitly in strict mode because of the "import" keyword here
 bad13.js: error: Cannot assign to import "y"
 bad14.js: error: Cannot assign to import "y"
 bad15.js: error: Cannot assign to property on import "x"

@@ -94,6 +94,7 @@ function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys,
 }
 
 function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKeys): void {
+  let sourceRoot = getFlag(options, keys, 'sourceRoot', mustBeString);
   let sourcesContent = getFlag(options, keys, 'sourcesContent', mustBeBoolean);
   let target = getFlag(options, keys, 'target', mustBeStringOrArray);
   let format = getFlag(options, keys, 'format', mustBeString);
@@ -110,6 +111,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let pure = getFlag(options, keys, 'pure', mustBeArray);
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
 
+  if (sourceRoot !== void 0) flags.push(`--source-root=${sourceRoot}`);
   if (sourcesContent !== void 0) flags.push(`--sources-content=${sourcesContent}`);
   if (target) {
     if (Array.isArray(target)) flags.push(`--target=${Array.from(target).map(validateTarget).join(',')}`)
@@ -387,6 +389,14 @@ export interface StreamService {
     fs: StreamFS,
     callback: (err: Error | null, res: types.TransformResult | null) => void,
   ): void;
+
+  formatMessages(
+    callName: string,
+    refs: Refs | null,
+    messages: types.PartialMessage[],
+    options: types.FormatMessagesOptions,
+    callback: (err: Error | null, res: string[] | null) => void,
+  ): void;
 }
 
 // This can't use any promises in the main execution flow because it must work
@@ -584,7 +594,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let onResolveCallbacks: {
       [id: number]: {
         name: string,
-        note: types.Note | undefined,
+        note: () => types.Note | undefined,
         callback: (args: types.OnResolveArgs) =>
           (types.OnResolveResult | null | undefined | Promise<types.OnResolveResult | null | undefined>),
       },
@@ -592,7 +602,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let onLoadCallbacks: {
       [id: number]: {
         name: string,
-        note: types.Note | undefined,
+        note: () => types.Note | undefined,
         callback: (args: types.OnLoadArgs) =>
           (types.OnLoadResult | null | undefined | Promise<types.OnLoadResult | null | undefined>),
       },
@@ -680,6 +690,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
                 let errors = getFlag(result, keys, 'errors', mustBeArray);
                 let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+                let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
+                let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
                 checkForInvalidFlags(result, keys, `from onResolve() callback in plugin ${JSON.stringify(name)}`);
 
                 response.id = id;
@@ -690,10 +702,12 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (pluginData != null) response.pluginData = stash.store(pluginData);
                 if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash);
                 if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash);
+                if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
+                if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
                 break;
               }
             } catch (e) {
-              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note)] };
+              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note && note())] };
             }
           }
           return response;
@@ -720,6 +734,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 let loader = getFlag(result, keys, 'loader', mustBeString);
                 let errors = getFlag(result, keys, 'errors', mustBeArray);
                 let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+                let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
+                let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
                 checkForInvalidFlags(result, keys, `from onLoad() callback in plugin ${JSON.stringify(name)}`);
 
                 response.id = id;
@@ -731,10 +747,12 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (loader != null) response.loader = loader;
                 if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash);
                 if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash);
+                if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
+                if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
                 break;
               }
             } catch (e) {
-              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note)] };
+              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note && note())] };
             }
           }
           return response;
@@ -853,6 +871,11 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           // Factor out response handling so it can be reused for rebuilds
           let rebuild: types.BuildResult['rebuild'] | undefined;
           let stop: types.BuildResult['stop'] | undefined;
+          let copyResponseToResult = (response: protocol.BuildResponse, result: types.BuildResult) => {
+            if (response.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
+            if (response.metafile) result.metafile = JSON.parse(response!.metafile);
+            if (response.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''));
+          };
           let buildResponseToResult = (
             response: protocol.BuildResponse | null,
             callback: (error: Error | null, result: types.BuildResult | null) => void,
@@ -861,9 +884,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             let warnings = replaceDetailsInMessages(response!.warnings, details);
             if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
             let result: types.BuildResult = { warnings };
-            if (response!.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
-            if (response!.metafile) result.metafile = JSON.parse(response!.metafile);
-            if (response!.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''));
+            copyResponseToResult(response!, result);
 
             // Handle incremental rebuilds
             if (response!.rebuildID !== void 0) {
@@ -914,7 +935,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                     let warnings = replaceDetailsInMessages(watchResponse.warnings, details);
                     if (errors.length > 0) return watch!.onRebuild!(failureErrorWithLog('Build failed', errors, warnings), null);
                     let result: types.BuildResult = { warnings };
-                    if (watchResponse.outputFiles) result.outputFiles = watchResponse.outputFiles.map(convertOutputFiles);
+                    copyResponseToResult(watchResponse, result);
                     if (watchResponse.rebuildID !== void 0) result.rebuild = rebuild;
                     result.stop = stop;
                     watch!.onRebuild!(null, result);
@@ -1053,6 +1074,29 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         }
         start(null);
       },
+
+      formatMessages(callName, refs, messages, options, callback) {
+        let result = sanitizeMessages(messages, 'messages', null);
+        if (!options) throw new Error(`Missing second argument in ${callName}() call`);
+        let keys: OptionKeys = {};
+        let kind = getFlag(options, keys, 'kind', mustBeString);
+        let color = getFlag(options, keys, 'color', mustBeBoolean);
+        let terminalWidth = getFlag(options, keys, 'terminalWidth', mustBeInteger);
+        checkForInvalidFlags(options, keys, `in ${callName}() call`);
+        if (kind === void 0) throw new Error(`Missing "kind" in ${callName}() call`);
+        if (kind !== 'error' && kind !== 'warning') throw new Error(`Expected "kind" to be "error" or "warning" in ${callName}() call`);
+        let request: protocol.FormatMsgsRequest = {
+          command: 'format-msgs',
+          messages: result,
+          isWarning: kind === 'warning',
+        }
+        if (color !== void 0) request.color = color;
+        if (terminalWidth !== void 0) request.terminalWidth = terminalWidth;
+        sendRequest<protocol.FormatMsgsRequest, protocol.FormatMsgsResponse>(refs, request, (error, response) => {
+          if (error) return callback(new Error(error), null);
+          callback(null, response!.messages);
+        });
+      },
     },
   };
 }
@@ -1083,15 +1127,22 @@ function createObjectStash(): ObjectStash {
   };
 }
 
-function extractCallerV8(e: Error, streamIn: StreamIn, ident: string): types.Note | undefined {
-  try {
-    let lines = (e.stack + '').split('\n')
-    lines.splice(1, 1)
-    let location = parseStackLinesV8(streamIn, lines, ident)
-    if (location) {
-      return { text: e.message, location }
+function extractCallerV8(e: Error, streamIn: StreamIn, ident: string): () => types.Note | undefined {
+  let note: types.Note | undefined
+  let tried = false
+  return () => {
+    if (tried) return note
+    tried = true
+    try {
+      let lines = (e.stack + '').split('\n')
+      lines.splice(1, 1)
+      let location = parseStackLinesV8(streamIn, lines, ident)
+      if (location) {
+        note = { text: e.message, location }
+        return note
+      }
+    } catch {
     }
-  } catch {
   }
 }
 
@@ -1156,6 +1207,7 @@ function parseStackLinesV8(streamIn: StreamIn, lines: string[], ident: string): 
             column: protocol.encodeUTF8(lineText.slice(0, column)).length,
             length: protocol.encodeUTF8(lineText.slice(column, column + length)).length,
             lineText: lineText + '\n' + lines.slice(1).join('\n'),
+            suggestion: '',
           }
         }
         break
@@ -1198,6 +1250,7 @@ function sanitizeLocation(location: types.PartialMessage['location'], where: str
   let column = getFlag(location, keys, 'column', mustBeInteger);
   let length = getFlag(location, keys, 'length', mustBeInteger);
   let lineText = getFlag(location, keys, 'lineText', mustBeString);
+  let suggestion = getFlag(location, keys, 'suggestion', mustBeString);
   checkForInvalidFlags(location, keys, where);
 
   return {
@@ -1207,10 +1260,11 @@ function sanitizeLocation(location: types.PartialMessage['location'], where: str
     column: column || 0,
     length: length || 0,
     lineText: lineText || '',
+    suggestion: suggestion || '',
   };
 }
 
-function sanitizeMessages(messages: types.PartialMessage[], property: string, stash: ObjectStash): types.Message[] {
+function sanitizeMessages(messages: types.PartialMessage[], property: string, stash: ObjectStash | null): types.Message[] {
   let messagesClone: types.Message[] = [];
   let index = 0;
 
@@ -1241,12 +1295,21 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
       text: text || '',
       location: sanitizeLocation(location, where),
       notes: notesClone,
-      detail: stash.store(detail),
+      detail: stash ? stash.store(detail) : -1,
     });
     index++;
   }
 
   return messagesClone;
+}
+
+function sanitizeStringArray(values: any[], property: string): string[] {
+  const result: string[] = [];
+  for (const value of values) {
+    if (typeof value !== 'string') throw new Error(`${JSON.stringify(property)} must be an array of strings`);
+    result.push(value);
+  }
+  return result;
 }
 
 function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types.OutputFile {

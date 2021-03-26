@@ -338,6 +338,29 @@ let buildTests = {
     assert.strictEqual(json.sourcesContent, void 0)
   },
 
+  async sourceMapSourceRoot({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    const content = 'exports.foo = 123'
+    await writeFileAsync(input, content)
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: true,
+      sourceRoot: 'https://example.com/'
+    })
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    const outputFile = await readFileAsync(output, 'utf8')
+    const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile)
+    assert.strictEqual(match[1], 'out.js.map')
+    const resultMap = await readFileAsync(output + '.map', 'utf8')
+    const json = JSON.parse(resultMap)
+    assert.strictEqual(json.version, 3)
+    assert.strictEqual(json.sources[0], path.basename(input))
+    assert.strictEqual(json.sourceRoot, 'https://example.com/')
+  },
+
   async sourceMapWithDisabledFile({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const disabled = path.join(testDir, 'disabled.js')
@@ -3152,6 +3175,12 @@ let transformTests = {
     await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), 'afile.js')
   },
 
+  async sourceMapRoot({ esbuild }) {
+    const { code, map } = await esbuild.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js', sourceRoot: "https://example.com/" })
+    assert.strictEqual(code, `let x;\n`)
+    assert.strictEqual(JSON.parse(map).sourceRoot, 'https://example.com/');
+  },
+
   async numericLiteralPrinting({ esbuild }) {
     async function checkLiteral(text) {
       const { code } = await esbuild.transform(`return ${text}`, { minify: true })
@@ -3389,6 +3418,20 @@ let transformTests = {
   asyncGenClassExprFn: ({ esbuild }) => futureSyntax(esbuild, '(class { async* foo() {} })', 'es2017', 'es2018'),
 }
 
+let formatTests = {
+  async formatMessages({ esbuild }) {
+    const messages = await esbuild.formatMessages([
+      { text: 'This is an error' },
+      { text: 'Another error', location: { file: 'file.js' } },
+    ], {
+      kind: 'error',
+    })
+    assert.strictEqual(messages.length, 2)
+    assert.strictEqual(messages[0], ` > error: This is an error\n\n`)
+    assert.strictEqual(messages[1], ` > file.js:0:0: error: Another error\n    0 │ \n      ╵ ^\n\n`)
+  },
+}
+
 let functionScopeCases = [
   'function x() {} { var x }',
   'function* x() {} { var x }',
@@ -3568,6 +3611,18 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
       assert.strictEqual(error.warnings.length, 0);
     }
   },
+
+  async formatMessagesSync({ esbuild }) {
+    const messages = esbuild.formatMessagesSync([
+      { text: 'This is an error' },
+      { text: 'Another error', location: { file: 'file.js' } },
+    ], {
+      kind: 'error',
+    })
+    assert.strictEqual(messages.length, 2)
+    assert.strictEqual(messages[0], ` > error: This is an error\n\n`)
+    assert.strictEqual(messages[1], ` > file.js:0:0: error: Another error\n    0 │ \n      ╵ ^\n\n`)
+  },
 }
 
 async function assertSourceMap(jsSourceMap, source) {
@@ -3610,6 +3665,7 @@ async function main() {
     ...Object.entries(watchTests),
     ...Object.entries(serveTests),
     ...Object.entries(transformTests),
+    ...Object.entries(formatTests),
     ...Object.entries(syncTests),
   ]
   let allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)

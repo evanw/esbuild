@@ -1,11 +1,11 @@
 {
-  "name": "esbuild-freebsd-arm64",
+  "name": "esbuild-android-arm64",
   "version": "0.10.0",
-  "description": "The FreeBSD ARM 64-bit binary for esbuild, a JavaScript bundler.",
+  "description": "The Android ARM 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
   "os": [
-    "freebsd"
+    "android"
   ],
   "cpu": [
     "arm64"

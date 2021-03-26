@@ -114,6 +114,18 @@ export interface TransformResponse {
   mapFS: boolean;
 }
 
+export interface FormatMsgsRequest {
+  command: 'format-msgs';
+  messages: types.Message[];
+  isWarning: boolean;
+  color?: boolean;
+  terminalWidth?: number;
+}
+
+export interface FormatMsgsResponse {
+  messages: string[];
+}
+
 export interface OnResolveRequest {
   command: 'resolve';
   key: number;
@@ -137,6 +149,9 @@ export interface OnResolveResponse {
   external?: boolean;
   namespace?: string;
   pluginData?: number;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
 }
 
 export interface OnLoadRequest {
@@ -159,6 +174,9 @@ export interface OnLoadResponse {
   resolveDir?: string;
   loader?: string;
   pluginData?: number;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,7 +370,10 @@ else if (typeof Buffer !== 'undefined') {
 
     return buffer;
   };
-  decodeUTF8 = bytes => Buffer.from(bytes).toString();
+  decodeUTF8 = bytes => {
+    let { buffer, byteOffset, byteLength } = bytes;
+    return Buffer.from(buffer, byteOffset, byteLength).toString();
+  }
 }
 
 else {

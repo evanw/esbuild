@@ -541,12 +541,13 @@ func validateBannerOrFooter(log logger.Log, name string, values map[string]strin
 func convertLocationToPublic(loc *logger.MsgLocation) *Location {
 	if loc != nil {
 		return &Location{
-			File:      loc.File,
-			Namespace: loc.Namespace,
-			Line:      loc.Line,
-			Column:    loc.Column,
-			Length:    loc.Length,
-			LineText:  loc.LineText,
+			File:       loc.File,
+			Namespace:  loc.Namespace,
+			Line:       loc.Line,
+			Column:     loc.Column,
+			Length:     loc.Length,
+			LineText:   loc.LineText,
+			Suggestion: loc.Suggestion,
 		}
 	}
 	return nil
@@ -581,12 +582,13 @@ func convertLocationToInternal(loc *Location) *logger.MsgLocation {
 			namespace = "file"
 		}
 		return &logger.MsgLocation{
-			File:      loc.File,
-			Namespace: namespace,
-			Line:      loc.Line,
-			Column:    loc.Column,
-			Length:    loc.Length,
-			LineText:  loc.LineText,
+			File:       loc.File,
+			Namespace:  namespace,
+			Line:       loc.Line,
+			Column:     loc.Column,
+			Length:     loc.Length,
+			LineText:   loc.LineText,
+			Suggestion: loc.Suggestion,
 		}
 	}
 	return nil
@@ -744,6 +746,7 @@ func rebuildImpl(
 		InjectedDefines:       injectedDefines,
 		Platform:              validatePlatform(buildOpts.Platform),
 		SourceMap:             validateSourceMap(buildOpts.Sourcemap),
+		SourceRoot:            buildOpts.SourceRoot,
 		ExcludeSourcesContent: buildOpts.SourcesContent == SourcesContentExclude,
 		MangleSyntax:          buildOpts.MinifySyntax,
 		RemoveWhitespace:      buildOpts.MinifyWhitespace,
@@ -1040,7 +1043,7 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 
 		if logLevel == LogLevelInfo {
 			logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
-				return fmt.Sprintf("%s[watch] build finished, watching for changes...%s\n", colors.Dim, colors.Default)
+				return fmt.Sprintf("%s[watch] build finished, watching for changes...%s\n", colors.Dim, colors.Reset)
 			})
 		}
 
@@ -1053,7 +1056,7 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 				if logLevel == LogLevelInfo {
 					logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
 						prettyPath := w.resolver.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
-						return fmt.Sprintf("%s[watch] build started (change: %q)%s\n", colors.Dim, prettyPath, colors.Default)
+						return fmt.Sprintf("%s[watch] build started (change: %q)%s\n", colors.Dim, prettyPath, colors.Reset)
 					})
 				}
 
@@ -1062,7 +1065,7 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 
 				if logLevel == LogLevelInfo {
 					logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
-						return fmt.Sprintf("%s[watch] build finished%s\n", colors.Dim, colors.Default)
+						return fmt.Sprintf("%s[watch] build finished%s\n", colors.Dim, colors.Reset)
 					})
 				}
 			}
@@ -1195,6 +1198,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		Defines:                 defines,
 		InjectedDefines:         injectedDefines,
 		SourceMap:               validateSourceMap(transformOpts.Sourcemap),
+		SourceRoot:              transformOpts.SourceRoot,
 		ExcludeSourcesContent:   transformOpts.SourcesContent == SourcesContentExclude,
 		OutputFormat:            validateFormat(transformOpts.Format),
 		GlobalName:              validateGlobalName(log, transformOpts.GlobalName),
@@ -1325,6 +1329,8 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 				PluginData: args.PluginData,
 			})
 			result.PluginName = response.PluginName
+			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")
+			result.AbsWatchDirs = impl.validatePathsArray(response.WatchDirs, "watch directory")
 
 			if err != nil {
 				result.ThrownError = err
@@ -1365,6 +1371,8 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 				PluginData: args.PluginData,
 			})
 			result.PluginName = response.PluginName
+			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")
+			result.AbsWatchDirs = impl.validatePathsArray(response.WatchDirs, "watch directory")
 
 			if err != nil {
 				result.ThrownError = err
@@ -1392,6 +1400,18 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 	})
 }
 
+func (impl *pluginImpl) validatePathsArray(pathsIn []string, name string) (pathsOut []string) {
+	if len(pathsIn) > 0 {
+		pathKind := fmt.Sprintf("%s path for plugin %q", name, impl.plugin.Name)
+		for _, relPath := range pathsIn {
+			if absPath := validatePath(impl.log, impl.fs, relPath, pathKind); absPath != "" {
+				pathsOut = append(pathsOut, absPath)
+			}
+		}
+	}
+	return
+}
+
 func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (results []config.Plugin) {
 	// Clone the plugin array to guard against mutation during iteration
 	clone := append(make([]Plugin, 0, len(initialOptions.Plugins)), initialOptions.Plugins...)
@@ -1417,4 +1437,28 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (result
 		results = append(results, impl.plugin)
 	}
 	return
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FormatMessages API
+
+func formatMsgsImpl(msgs []Message, opts FormatMessagesOptions) []string {
+	kind := logger.Error
+	if opts.Kind == WarningMessage {
+		kind = logger.Warning
+	}
+	logMsgs := convertMessagesToInternal(nil, kind, msgs)
+	strings := make([]string, len(logMsgs))
+	for i, msg := range logMsgs {
+		strings[i] = msg.String(
+			logger.OutputOptions{
+				IncludeSource: true,
+			},
+			logger.TerminalInfo{
+				UseColorEscapes: opts.Color,
+				Width:           opts.TerminalWidth,
+			},
+		)
+	}
+	return strings
 }

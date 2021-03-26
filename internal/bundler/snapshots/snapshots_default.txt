@@ -203,20 +203,20 @@ new c();
 TestCharFreqIgnoreComments
 ---------- /out/a.js ----------
 // a.js
-function e(t, n, r, u) {
+function o(e, t, n, r) {
   return "the argument names must be the same";
 }
 export {
-  e as default
+  o as default
 };
 
 ---------- /out/b.js ----------
 // b.js
-function e(t, n, r, u) {
+function o(e, t, n, r) {
   return "the argument names must be the same";
 }
 export {
-  e as default
+  o as default
 };
 
 ================================================================================
@@ -402,18 +402,8 @@ console.log(import__.x);
 ================================================================================
 TestDynamicImportWithExpressionCJS
 ---------- /out.js ----------
-Promise.resolve().then(() => __toModule(require("foo")));
-Promise.resolve().then(() => __toModule(require(foo())));
-
-================================================================================
-TestDynamicImportWithExpressionCJSAndES5
----------- /out.js ----------
-Promise.resolve().then(function() {
-  return __toModule(require("foo"));
-});
-Promise.resolve().then(function() {
-  return __toModule(require(foo()));
-});
+import("foo");
+import(foo());
 
 ================================================================================
 TestDynamicImportWithTemplateIIFE
@@ -455,8 +445,8 @@ console.log((0, import_foo.foo)(), (0, import_bar.bar)());
 TestEmptyExportClauseBundleAsCommonJSIssue910
 ---------- /out.js ----------
 // types.mjs
-var require_types = __commonJS((exports2) => {
-  __markAsModule(exports2);
+var require_types = __commonJS((exports) => {
+  __markAsModule(exports);
 });
 
 // entry.js
@@ -489,11 +479,8 @@ TestExportFSNodeInCommonJSModule
 import * as fs from "fs";
 import {readFileSync} from "fs";
 var require_entry = __commonJS((exports) => {
-  __markAsModule(exports);
-  __export(exports, {
-    fs: () => fs,
-    readFileSync: () => readFileSync
-  });
+  exports.fs = fs;
+  exports.readFileSync = readFileSync;
   exports.foo = 123;
 });
 export default require_entry();
@@ -990,17 +977,23 @@ console.log((0, import_foo.default)(import_foo.x, import_foo.y));
 TestImportMissingNeitherES6NorCommonJS
 ---------- /out/named.js ----------
 // foo.js
-console.log("no exports here");
+var require_foo = __commonJS(() => {
+  console.log("no exports here");
+});
 
 // named.js
-console.log((void 0)(void 0, void 0));
+var import_foo = __toModule(require_foo());
+console.log((0, import_foo.default)(void 0, void 0));
 
 ---------- /out/star.js ----------
 // foo.js
-console.log("no exports here");
+var require_foo = __commonJS(() => {
+  console.log("no exports here");
+});
 
 // star.js
-console.log((void 0)(void 0, void 0));
+var ns = __toModule(require_foo());
+console.log(ns.default(void 0, void 0));
 
 ---------- /out/star-capture.js ----------
 // foo.js
@@ -1631,12 +1624,7 @@ TestMinifiedBundleEndingWithImportantSemicolon
 ================================================================================
 TestMinifiedDynamicImportWithExpressionCJS
 ---------- /out.js ----------
-Promise.resolve().then(()=>__toModule(require("foo")));Promise.resolve().then(()=>__toModule(require(foo())));
-
-================================================================================
-TestMinifiedDynamicImportWithExpressionCJSAndES5
----------- /out.js ----------
-Promise.resolve().then(function(){return __toModule(require("foo"))});Promise.resolve().then(function(){return __toModule(require(foo()))});
+import("foo");import(foo());
 
 ================================================================================
 TestMinifiedExportsAndModuleFormatCommonJS
@@ -1916,26 +1904,6 @@ var export_bar = import_foo.bar;
 export {
   export_bar as bar
 };
-
-================================================================================
-TestReExportDefaultCommonJS
----------- /out.js ----------
-// bar.js
-var require_bar = __commonJS((exports) => {
-  __markAsModule(exports);
-  __export(exports, {
-    default: () => foo
-  });
-  function foo() {
-    return exports;
-  }
-});
-
-// foo.js
-var import_bar = __toModule(require_bar());
-
-// entry.js
-(0, import_bar.default)();
 
 ================================================================================
 TestReExportDefaultExternalCommonJS
@@ -2503,13 +2471,6 @@ var require_es6_expr_import_dynamic = __commonJS((exports) => {
   console.log(exports);
 });
 
-// es6-export-star.js
-var require_es6_export_star = __commonJS((exports) => {
-  __markAsModule(exports);
-  __exportStar(exports, require_dummy());
-  console.log(void 0);
-});
-
 // es6-export-assign.ts
 var require_es6_export_assign = __commonJS((exports, module) => {
   console.log(exports);
@@ -2664,8 +2625,10 @@ console.log(void 0);
 var import_dummy2 = require_dummy();
 console.log(void 0);
 
-// entry.js
-var import_es6_export_star = require_es6_export_star();
+// es6-export-star.js
+var es6_export_star_exports = {};
+__exportStar(es6_export_star_exports, require_dummy());
+console.log(void 0);
 
 // es6-export-star-as.js
 var ns = require_dummy();
@@ -2690,6 +2653,41 @@ var import_es6_ns_export_class = __toModule(require_es6_ns_export_class());
 var import_es6_ns_export_abstract_class = __toModule(require_es6_ns_export_abstract_class());
 
 ================================================================================
+TestTopLevelAwaitAllowedImportWithSplitting
+---------- /out/entry.js ----------
+// entry.js
+import("./a.js");
+import("./b.js");
+import("./c.js");
+import("./entry.js");
+await 0;
+
+---------- /out/a.js ----------
+import "./chunk-7VOEXAIV.js";
+import "./chunk-FLIOJ2XZ.js";
+
+---------- /out/b.js ----------
+import "./chunk-7VOEXAIV.js";
+import "./chunk-FLIOJ2XZ.js";
+
+---------- /out/chunk-7VOEXAIV.js ----------
+
+---------- /out/c.js ----------
+import "./chunk-FLIOJ2XZ.js";
+
+---------- /out/chunk-FLIOJ2XZ.js ----------
+// c.js
+await 0;
+
+================================================================================
+TestTopLevelAwaitESM
+---------- /out.js ----------
+// entry.js
+await foo;
+for await (foo of bar)
+  ;
+
+================================================================================
 TestTopLevelAwaitNoBundle
 ---------- /out.js ----------
 await foo;
@@ -2702,25 +2700,6 @@ TestTopLevelAwaitNoBundleES6
 await foo;
 for await (foo of bar)
   ;
-
-================================================================================
-TestTopLevelReturn
----------- /out.js ----------
-// foo.js
-var require_foo = __commonJS((exports) => {
-  __markAsModule(exports);
-  __export(exports, {
-    foo: () => foo2
-  });
-  if (Math.random() < 0.5)
-    return;
-  function foo2() {
-  }
-});
-
-// entry.js
-var import_foo = __toModule(require_foo());
-(0, import_foo.foo)();
 
 ================================================================================
 TestTypeofRequireBadPatterns

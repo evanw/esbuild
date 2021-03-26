@@ -68,6 +68,10 @@ jobs:
     - name: JS API Tests
       run: node scripts/js-api-tests.js
 
+    - name: JS API Tests (ESBUILD_WORKER_THREADS)
+      if: matrix.os != 'windows-latest'
+      run: ESBUILD_WORKER_THREADS=1 node scripts/js-api-tests.js
+
     - name: NodeJS Unref Tests
       run: node scripts/node-unref-tests.js
 

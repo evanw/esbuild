@@ -6,7 +6,6 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"fmt"
-	"mime"
 	"net/http"
 	"sort"
 	"strings"
@@ -22,6 +21,7 @@ import (
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_parser"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
@@ -152,10 +152,16 @@ type parseArgs struct {
 }
 
 type parseResult struct {
-	file file
-	ok   bool
-
+	file           file
 	resolveResults []*resolver.ResolveResult
+	tlaCheck       tlaCheck
+	ok             bool
+}
+
+type tlaCheck struct {
+	parent            ast.Index32
+	depth             uint32
+	importRecordIndex uint32
 }
 
 func parseFile(args parseArgs) {
@@ -442,6 +448,7 @@ func parseFile(args parseArgs) {
 					args.res,
 					args.log,
 					args.fs,
+					&args.caches.FSCache,
 					&source,
 					record.Range,
 					record.Path.Text,
@@ -522,7 +529,7 @@ func isASCIIOnly(text string) bool {
 }
 
 func guessMimeType(extension string, contents string) string {
-	mimeType := mime.TypeByExtension(extension)
+	mimeType := helpers.MimeTypeByExtension(extension)
 	if mimeType == "" {
 		mimeType = http.DetectContentType([]byte(contents))
 	}
@@ -647,6 +654,7 @@ func runOnResolvePlugins(
 	res resolver.Resolver,
 	log logger.Log,
 	fs fs.FS,
+	fsCache *cache.FSCache,
 	importSource *logger.Source,
 	importPathRange logger.Range,
 	path string,
@@ -679,6 +687,14 @@ func runOnResolvePlugins(
 				pluginName = plugin.Name
 			}
 			didLogError := logPluginMessages(res, log, pluginName, result.Msgs, result.ThrownError, importSource, importPathRange)
+
+			// Plugins can also provide additional file system paths to watch
+			for _, file := range result.AbsWatchFiles {
+				fsCache.ReadFile(fs, file)
+			}
+			for _, dir := range result.AbsWatchDirs {
+				fs.ReadDirectory(dir)
+			}
 
 			// Stop now if there was an error
 			if didLogError {
@@ -777,6 +793,14 @@ func runOnLoadPlugins(
 				pluginName = plugin.Name
 			}
 			didLogError := logPluginMessages(res, log, pluginName, result.Msgs, result.ThrownError, importSource, importPathRange)
+
+			// Plugins can also provide additional file system paths to watch
+			for _, file := range result.AbsWatchFiles {
+				fsCache.ReadFile(fs, file)
+			}
+			for _, dir := range result.AbsWatchDirs {
+				fs.ReadDirectory(dir)
+			}
 
 			// Stop now if there was an error
 			if didLogError {
@@ -999,6 +1023,15 @@ func (s *scanner) maybeParseFile(
 		optionsClone.PreserveUnusedImportsTS = true
 	}
 
+	// Set the module type preference using node's module type rules
+	if strings.HasSuffix(path.Text, ".mjs") {
+		optionsClone.ModuleType = config.ModuleESM
+	} else if strings.HasSuffix(path.Text, ".cjs") {
+		optionsClone.ModuleType = config.ModuleCommonJS
+	} else {
+		optionsClone.ModuleType = resolveResult.ModuleType
+	}
+
 	// Enable bundling for injected files so we always do tree shaking. We
 	// never want to include unnecessary code from injected files since they
 	// are essentially bundled. However, if we do this we should skip the
@@ -1208,6 +1241,7 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 				s.res,
 				s.log,
 				s.fs,
+				&s.caches.FSCache,
 				nil,
 				logger.Range{},
 				path,
@@ -1478,12 +1512,100 @@ func (s *scanner) processScannedFiles() []file {
 	// can't be constructed earlier because we generate new parse results for
 	// JavaScript stub files for CSS imports above.
 	files := make([]file, len(s.results))
-	for i, result := range s.results {
+	for sourceIndex, result := range s.results {
 		if result.ok {
-			files[i] = result.file
+			s.validateTLA(uint32(sourceIndex))
+			files[sourceIndex] = result.file
 		}
 	}
 	return files
+}
+
+func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
+	result := &s.results[sourceIndex]
+
+	if result.ok && result.tlaCheck.depth == 0 {
+		if repr, ok := result.file.repr.(*reprJS); ok {
+			result.tlaCheck.depth = 1
+			if repr.ast.TopLevelAwaitKeyword.Len > 0 {
+				result.tlaCheck.parent = ast.MakeIndex32(sourceIndex)
+			}
+
+			for importRecordIndex, record := range repr.ast.ImportRecords {
+				if record.SourceIndex.IsValid() &&
+					(record.Kind == ast.ImportRequire || record.Kind == ast.ImportStmt ||
+						(record.Kind == ast.ImportDynamic && !s.options.CodeSplitting)) {
+					parent := s.validateTLA(record.SourceIndex.GetIndex())
+					if !parent.parent.IsValid() {
+						continue
+					}
+
+					// Follow any import chains
+					if record.Kind == ast.ImportStmt && (!result.tlaCheck.parent.IsValid() || parent.depth < result.tlaCheck.depth) {
+						result.tlaCheck.depth = parent.depth + 1
+						result.tlaCheck.parent = record.SourceIndex
+						result.tlaCheck.importRecordIndex = uint32(importRecordIndex)
+						continue
+					}
+
+					// Require of a top-level await chain is forbidden. Dynamic import of
+					// a top-level await chain is also forbidden if code splitting is off.
+					if record.Kind == ast.ImportRequire || (record.Kind == ast.ImportDynamic && !s.options.CodeSplitting) {
+						var notes []logger.MsgData
+						var tlaPrettyPath string
+						otherSourceIndex := record.SourceIndex.GetIndex()
+
+						// Build up a chain of relevant notes for all of the imports
+						for {
+							parentResult := &s.results[otherSourceIndex]
+							parentRepr := parentResult.file.repr.(*reprJS)
+
+							if parentRepr.ast.TopLevelAwaitKeyword.Len > 0 {
+								tlaPrettyPath = parentResult.file.source.PrettyPath
+								notes = append(notes, logger.RangeData(&parentResult.file.source, parentRepr.ast.TopLevelAwaitKeyword,
+									fmt.Sprintf("The top-level await in %q is here", tlaPrettyPath)))
+								break
+							}
+
+							if !parentResult.tlaCheck.parent.IsValid() {
+								notes = append(notes, logger.MsgData{Text: "unexpected invalid index"})
+								break
+							}
+
+							otherSourceIndex = parentResult.tlaCheck.parent.GetIndex()
+
+							notes = append(notes, logger.RangeData(&parentResult.file.source,
+								parentRepr.ast.ImportRecords[parent.importRecordIndex].Range,
+								fmt.Sprintf("The file %q imports the file %q here",
+									parentResult.file.source.PrettyPath, s.results[otherSourceIndex].file.source.PrettyPath)))
+						}
+
+						var text string
+						what := "require call"
+						why := ""
+						importedPrettyPath := s.results[record.SourceIndex.GetIndex()].file.source.PrettyPath
+
+						if record.Kind == ast.ImportDynamic {
+							what = "dynamic import"
+							why = " (enable code splitting to allow this)"
+						}
+
+						if importedPrettyPath == tlaPrettyPath {
+							text = fmt.Sprintf("This %s is not allowed because the imported file %q contains a top-level await%s",
+								what, importedPrettyPath, why)
+						} else {
+							text = fmt.Sprintf("This %s is not allowed because the transitive dependency %q contains a top-level await%s",
+								what, tlaPrettyPath, why)
+						}
+
+						s.log.AddRangeErrorWithNotes(&result.file.source, record.Range, text, notes)
+					}
+				}
+			}
+		}
+	}
+
+	return result.tlaCheck
 }
 
 func DefaultExtensionToLoaderMap() map[string]config.Loader {

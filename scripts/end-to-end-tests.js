@@ -397,33 +397,6 @@
       'in.js': `export default 123; const out = require('./in'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
     }),
 
-    // Complex circular import case, must not crash
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `
-        import {bar} from './re-export'
-        if (bar() !== 123) throw 'fail'
-      `,
-      're-export.js': `
-        export * from './foo'
-        export * from './bar'
-      `,
-      'foo.js': `
-        export function foo() {
-          return module.exports.foo ? 123 : 234 // "module" makes this a CommonJS file
-        }
-      `,
-      'bar.js': `
-        import {getFoo} from './get'
-        export let bar = getFoo(module) // "module" makes this a CommonJS file
-      `,
-      'get.js': `
-        import {foo} from './foo'
-        export function getFoo() {
-          return foo
-        }
-      `,
-    }),
-
     // Test bundled and non-bundled double export star
     test(['node.ts', '--bundle', '--format=cjs', '--outdir=.'], {
       'node.ts': `
@@ -477,6 +450,33 @@
       `,
       'b.ts': `
         export let b = 'b'
+      `,
+    }),
+    test(['entry1.js', 'entry2.js', '--splitting', '--bundle', '--format=esm', '--outdir=out'], {
+      'entry1.js': `
+        import { abc, def, xyz } from './a'
+        export default [abc, def, xyz]
+      `,
+      'entry2.js': `
+        import * as x from './b'
+        export default x
+      `,
+      'a.js': `
+        export let abc = 'abc'
+        export * from './b'
+      `,
+      'b.js': `
+        export * from './c'
+        export const def = 'def'
+      `,
+      'c.js': `
+        exports.xyz = 'xyz'
+      `,
+      'node.js': `
+        import entry1 from './out/entry1.js'
+        import entry2 from './out/entry2.js'
+        if (entry1[0] !== 'abc' || entry1[1] !== 'def' || entry1[2] !== 'xyz') throw 'fail'
+        if (entry2.def !== 'def' || entry2.xyz !== 'xyz') throw 'fail'
       `,
     }),
 
@@ -777,6 +777,63 @@
       'entry.js': `export {bar} from './foo'`,
       'foo.js': `exports.bar = 123`,
       'node.js': `import {bar} from './out.js'; if (bar !== 123) throw 'fail'`,
+    }),
+  )
+
+  // Test imports from modules without any imports
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from 'pkg'
+        if (ns.default === void 0) throw 'fail'
+      `,
+      'node_modules/pkg/index.js': ``,
+    }, {}),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from 'pkg/index.cjs'
+        if (ns.default === void 0) throw 'fail'
+      `,
+      'node_modules/pkg/index.cjs': ``,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from 'pkg/index.mjs'
+        if (ns.default !== void 0) throw 'fail'
+      `,
+      'node_modules/pkg/index.mjs': ``,
+    }, {
+      expectedStderr: ` > in.js:3:15: warning: Import "default" will always be undefined because there is no matching export
+    3 │         if (ns.default !== void 0) throw 'fail'
+      ╵                ~~~~~~~
+
+`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from 'pkg'
+        if (ns.default === void 0) throw 'fail'
+      `,
+      'node_modules/pkg/package.json': `{
+        "type": "commonjs"
+      }`,
+      'node_modules/pkg/index.js': ``,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from 'pkg'
+        if (ns.default !== void 0) throw 'fail'
+      `,
+      'node_modules/pkg/package.json': `{
+        "type": "module"
+      }`,
+      'node_modules/pkg/index.js': ``,
+    }, {
+      expectedStderr: ` > in.js:3:15: warning: Import "default" will always be undefined because there is no matching export
+    3 │         if (ns.default !== void 0) throw 'fail'
+      ╵                ~~~~~~~
+
+`,
     }),
   )
 
@@ -1178,32 +1235,6 @@
       'node.js': `
         import out from './out.js'
         if (out.foo !== 123) throw 'fail'
-      `,
-    }),
-  )
-
-  // Tests for "eval" scope issues
-  tests.push(
-    test(['in.js', '--bundle', '--outfile=node.js', '--minify-syntax', '--minify-identifiers'], {
-      'in.js': `
-        import a from './a'
-        import b, {Button} from './b'
-        import c from './c'
-        if (a[0] !== a[1]) throw 'fail'
-        if (b !== Button) throw 'fail'
-        if (!(new c instanceof c)) throw 'fail'
-      `,
-      'a.js': `
-        class Button {}
-        export default [Button, eval('Button')]
-      `,
-      'b.js': `
-        export class Button {}
-        export default eval('Button')
-      `,
-      'c.js': `
-        class Button {}
-        export default eval('Button')
       `,
     }),
   )
@@ -2794,13 +2825,13 @@
     // Code splitting via CommonJS module double-imported with sync and async imports
     test(['a.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
       'a.js': `
-        import * as ns1 from './b'
+        import * as ns1 from './b.cjs'
         export default async function () {
-          const ns2 = await import('./b')
+          const ns2 = await import('./b.cjs')
           return [ns1.foo, -ns2.default.foo]
         }
       `,
-      'b.js': `
+      'b.cjs': `
         exports.foo = 123
       `,
       'node.js': `

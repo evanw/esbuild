@@ -159,6 +159,14 @@ func parseOptionsImpl(
 			}
 			hasBareSourceMapFlag = false
 
+		case strings.HasPrefix(arg, "--source-root="):
+			sourceRoot := arg[len("--source-root="):]
+			if buildOpts != nil {
+				buildOpts.SourceRoot = sourceRoot
+			} else {
+				transformOpts.SourceRoot = sourceRoot
+			}
+
 		case strings.HasPrefix(arg, "--sources-content="):
 			value := arg[len("--sources-content="):]
 			var sourcesContent api.SourcesContent
@@ -774,7 +782,7 @@ func serveImpl(osArgs []string) error {
 			}
 			return fmt.Sprintf("%s%s - %q %s%d%s [%dms]%s\n",
 				colors.Dim, args.RemoteAddress, args.Method+" "+args.Path,
-				statusColor, args.Status, colors.Dim, args.TimeInMS, colors.Default)
+				statusColor, args.Status, colors.Dim, args.TimeInMS, colors.Reset)
 		})
 	}
 
@@ -787,7 +795,7 @@ func serveImpl(osArgs []string) error {
 	logger.PrintText(os.Stderr, logger.LevelInfo, filteredArgs, func(colors logger.Colors) string {
 		var hosts []string
 		sb := strings.Builder{}
-		sb.WriteString(colors.Default)
+		sb.WriteString(colors.Reset)
 
 		// If this is "0.0.0.0" or "::", list all relevant IP addresses
 		if ip := net.ParseIP(result.Host); ip != nil && ip.IsUnspecified() {
@@ -823,7 +831,7 @@ func serveImpl(osArgs []string) error {
 		for i, kind := range kinds {
 			sb.WriteString(fmt.Sprintf("\n > %s:%s %shttp://%s/%s",
 				kind, strings.Repeat(" ", maxLen-len(kind)), colors.Underline,
-				net.JoinHostPort(hosts[i], fmt.Sprintf("%d", result.Port)), colors.Default))
+				net.JoinHostPort(hosts[i], fmt.Sprintf("%d", result.Port)), colors.Reset))
 		}
 
 		sb.WriteString("\n\n")

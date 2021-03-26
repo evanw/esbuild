@@ -4,7 +4,6 @@ package api
 
 import (
 	"fmt"
-	"mime"
 	"net"
 	"net/http"
 	"path"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -233,7 +233,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 		// Serve a file
 		if kind == fs.FileEntry {
-			if contentType := mime.TypeByExtension(path.Ext(queryPath)); contentType != "" {
+			if contentType := helpers.MimeTypeByExtension(path.Ext(queryPath)); contentType != "" {
 				res.Header().Set("Content-Type", contentType)
 			}
 

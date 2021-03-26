@@ -304,6 +304,11 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 				}),
 			}
 
+		case "format-msgs":
+			return outgoingPacket{
+				bytes: service.handleFormatMessagesRequest(p.id, request),
+			}
+
 		default:
 			return outgoingPacket{
 				bytes: encodePacket(packet{
@@ -689,6 +694,12 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				if value, ok := response["warnings"]; ok {
 					result.Warnings = decodeMessages(value.([]interface{}))
 				}
+				if value, ok := response["watchFiles"]; ok {
+					result.WatchFiles = decodeStringArray(value.([]interface{}))
+				}
+				if value, ok := response["watchDirs"]; ok {
+					result.WatchDirs = decodeStringArray(value.([]interface{}))
+				}
 
 				return result, nil
 			})
@@ -746,6 +757,12 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				}
 				if value, ok := response["warnings"]; ok {
 					result.Warnings = decodeMessages(value.([]interface{}))
+				}
+				if value, ok := response["watchFiles"]; ok {
+					result.WatchFiles = decodeStringArray(value.([]interface{}))
+				}
+				if value, ok := response["watchDirs"]; ok {
+					result.WatchDirs = decodeStringArray(value.([]interface{}))
 				}
 				if value, ok := response["loader"]; ok {
 					loader, err := cli_helpers.ParseLoader(value.(string))
@@ -826,6 +843,40 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 	})
 }
 
+func (service *serviceType) handleFormatMessagesRequest(id uint32, request map[string]interface{}) []byte {
+	msgs := decodeMessages(request["messages"].([]interface{}))
+
+	options := api.FormatMessagesOptions{
+		Kind: api.ErrorMessage,
+	}
+	if request["isWarning"].(bool) {
+		options.Kind = api.WarningMessage
+	}
+	if value, ok := request["color"].(bool); ok {
+		options.Color = value
+	}
+	if value, ok := request["terminalWidth"].(int); ok {
+		options.TerminalWidth = value
+	}
+
+	result := api.FormatMessages(msgs, options)
+
+	return encodePacket(packet{
+		id: id,
+		value: map[string]interface{}{
+			"messages": encodeStringArray(result),
+		},
+	})
+}
+
+func encodeStringArray(strings []string) []interface{} {
+	values := make([]interface{}, len(strings))
+	for i, value := range strings {
+		values[i] = value
+	}
+	return values
+}
+
 func decodeStringArray(values []interface{}) []string {
 	strings := make([]string, len(values))
 	for i, value := range values {
@@ -850,12 +901,13 @@ func encodeLocation(loc *api.Location) interface{} {
 		return nil
 	}
 	return map[string]interface{}{
-		"file":      loc.File,
-		"namespace": loc.Namespace,
-		"line":      loc.Line,
-		"column":    loc.Column,
-		"length":    loc.Length,
-		"lineText":  loc.LineText,
+		"file":       loc.File,
+		"namespace":  loc.Namespace,
+		"line":       loc.Line,
+		"column":     loc.Column,
+		"length":     loc.Length,
+		"lineText":   loc.LineText,
+		"suggestion": loc.Suggestion,
 	}
 }
 
@@ -897,12 +949,13 @@ func decodeLocation(value interface{}) *api.Location {
 		namespace = "file"
 	}
 	return &api.Location{
-		File:      loc["file"].(string),
-		Namespace: namespace,
-		Line:      loc["line"].(int),
-		Column:    loc["column"].(int),
-		Length:    loc["length"].(int),
-		LineText:  loc["lineText"].(string),
+		File:       loc["file"].(string),
+		Namespace:  namespace,
+		Line:       loc["line"].(int),
+		Column:     loc["column"].(int),
+		Length:     loc["length"].(int),
+		LineText:   loc["lineText"].(string),
+		Suggestion: loc["suggestion"].(string),
 	}
 }
 
@@ -937,12 +990,13 @@ func decodeLocationToPrivate(value interface{}) *logger.MsgLocation {
 		namespace = "file"
 	}
 	return &logger.MsgLocation{
-		File:      loc["file"].(string),
-		Namespace: namespace,
-		Line:      loc["line"].(int),
-		Column:    loc["column"].(int),
-		Length:    loc["length"].(int),
-		LineText:  loc["lineText"].(string),
+		File:       loc["file"].(string),
+		Namespace:  namespace,
+		Line:       loc["line"].(int),
+		Column:     loc["column"].(int),
+		Length:     loc["length"].(int),
+		LineText:   loc["lineText"].(string),
+		Suggestion: loc["suggestion"].(string),
 	}
 }
 

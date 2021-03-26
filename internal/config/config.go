@@ -160,8 +160,17 @@ const (
 	ModeBundle
 )
 
+type ModuleType uint8
+
+const (
+	ModuleUnknown ModuleType = iota
+	ModuleCommonJS
+	ModuleESM
+)
+
 type Options struct {
 	Mode              Mode
+	ModuleType        ModuleType
 	PreserveSymlinks  bool
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
@@ -237,6 +246,7 @@ type Options struct {
 	NeedsMetafile bool
 
 	SourceMap             SourceMap
+	SourceRoot            string
 	ExcludeSourcesContent bool
 
 	Stdin *StdinInfo
@@ -448,6 +458,9 @@ type OnResolveResult struct {
 
 	Msgs        []logger.Msg
 	ThrownError error
+
+	AbsWatchFiles []string
+	AbsWatchDirs  []string
 }
 
 type OnLoad struct {
@@ -472,4 +485,7 @@ type OnLoadResult struct {
 
 	Msgs        []logger.Msg
 	ThrownError error
+
+	AbsWatchFiles []string
+	AbsWatchDirs  []string
 }

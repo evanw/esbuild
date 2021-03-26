@@ -57,7 +57,6 @@ type parser struct {
 	requireRef               js_ast.Ref
 	moduleRef                js_ast.Ref
 	importMetaRef            js_ast.Ref
-	promiseRef               js_ast.Ref
 	findSymbolHelper         func(loc logger.Loc, name string) js_ast.Ref
 	symbolForDefineHelper    func(int) js_ast.Ref
 	injectedDefineSymbols    []js_ast.Ref
@@ -287,6 +286,7 @@ type optionsThatSupportStructuralEquality struct {
 	mode                           config.Mode
 	platform                       config.Platform
 	outputFormat                   config.Format
+	moduleType                     config.ModuleType
 	asciiOnly                      bool
 	keepNames                      bool
 	mangleSyntax                   bool
@@ -310,6 +310,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			mode:                           options.Mode,
 			platform:                       options.Platform,
 			outputFormat:                   options.OutputFormat,
+			moduleType:                     options.ModuleType,
 			asciiOnly:                      options.ASCIIOnly,
 			keepNames:                      options.KeepNames,
 			mangleSyntax:                   options.MangleSyntax,
@@ -387,7 +388,6 @@ type scopeOrder struct {
 type fnOrArrowDataParse struct {
 	asyncRange          logger.Range
 	arrowArgErrors      *deferredArrowArgErrors
-	isOutsideFn         bool
 	allowAwait          bool
 	allowYield          bool
 	allowSuperCall      bool
@@ -408,10 +408,11 @@ type fnOrArrowDataParse struct {
 type fnOrArrowDataVisit struct {
 	superIndexRef *js_ast.Ref
 
-	isArrow        bool
-	isAsync        bool
-	isInsideLoop   bool
-	isInsideSwitch bool
+	isArrow            bool
+	isAsync            bool
+	isInsideLoop       bool
+	isInsideSwitch     bool
+	isOutsideFnOrArrow bool
 
 	// This is used to silence references to "require" inside a try/catch
 	// statement. The assumption is that the try/catch statement is there to
@@ -1540,13 +1541,6 @@ func (p *parser) callRuntime(loc logger.Loc, name string, args []js_ast.Expr) js
 	}}
 }
 
-func (p *parser) makePromiseRef() js_ast.Ref {
-	if p.promiseRef == js_ast.InvalidRef {
-		p.promiseRef = p.newSymbol(js_ast.SymbolUnbound, "Promise")
-	}
-	return p.promiseRef
-}
-
 // The name is temporarily stored in the ref until the scope traversal pass
 // happens, at which point a symbol will be generated and the ref will point
 // to the symbol instead.
@@ -1566,7 +1560,7 @@ func (p *parser) storeNameInRef(name string) js_ast.Ref {
 		// length and don't have to allocate anything. This is the common case.
 		//
 		// It's stored as a negative value so we'll crash if we try to use it. That
-		// way we'll catch cases where we've forgetten to call loadNameFromRef().
+		// way we'll catch cases where we've forgotten to call loadNameFromRef().
 		// The length is the negative part because we know it's non-zero.
 		return js_ast.Ref{OuterIndex: -uint32(n.Len), InnerIndex: uint32(n.Data - c.Data)}
 	} else {
@@ -5939,9 +5933,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		}
 		p.latestReturnHadSemicolon = p.lexer.Token == js_lexer.TSemicolon
 		p.lexer.ExpectOrInsertSemicolon()
-		if p.fnOrArrowDataParse.isOutsideFn {
-			p.hasTopLevelReturn = true
-		}
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SReturn{Value: value}}
 
 	case js_lexer.TThrow:
@@ -8251,6 +8242,25 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Value = p.visitExpr(s.Value)
 
 	case *js_ast.SReturn:
+		// Forbid top-level return inside ECMAScript modules
+		if p.fnOrArrowDataVisit.isOutsideFnOrArrow {
+			var where logger.Range
+			if p.es6ImportKeyword.Len > 0 {
+				where = p.es6ImportKeyword
+			} else if p.es6ExportKeyword.Len > 0 {
+				where = p.es6ExportKeyword
+			} else if p.topLevelAwaitKeyword.Len > 0 {
+				where = p.topLevelAwaitKeyword
+			} else {
+				p.hasTopLevelReturn = true
+			}
+			if where.Len > 0 {
+				p.log.AddRangeErrorWithNotes(&p.source, js_lexer.RangeOfIdentifier(p.source, stmt.Loc),
+					"Top-level return cannot be used inside an ECMAScript module", []logger.MsgData{logger.RangeData(&p.source, where,
+						fmt.Sprintf("This file is considered an ECMAScript module because of the %q keyword here", p.source.TextForRange(where)))})
+			}
+		}
+
 		if s.Value != nil {
 			*s.Value = p.visitExpr(*s.Value)
 
@@ -11146,49 +11156,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 			}
 
-			// We need to convert this into a call to "require()" if ES6 syntax is
-			// not supported in the current output format. The full conversion:
-			//
-			//   Before:
-			//     import(foo)
-			//
-			//   After:
-			//     Promise.resolve().then(() => require(foo))
-			//
-			// This is normally done by the printer since we don't know during the
-			// parsing stage whether this module is external or not. However, it's
-			// guaranteed to be external if the argument isn't a string. We handle
-			// this case here instead of in the printer because both the printer
-			// and the linker currently need an import record to handle this case
-			// correctly, and you need a string literal to get an import record.
-			if !p.options.outputFormat.KeepES6ImportExportSyntax() {
-				var then js_ast.Expr
-				value := p.callRuntime(arg.Loc, "__toModule", []js_ast.Expr{{Loc: expr.Loc, Data: &js_ast.ECall{
-					Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.requireRef}},
-					Args:   []js_ast.Expr{arg},
-				}}})
-				body := js_ast.FnBody{Loc: expr.Loc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{Value: &value}}}}
-				if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
-					then = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
-				} else {
-					then = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EArrow{Body: body, PreferExpr: true}}
-				}
-				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-					Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
-						Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-							Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
-								Target:  js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.makePromiseRef()}},
-								Name:    "resolve",
-								NameLoc: expr.Loc,
-							}},
-						}},
-						Name:    "then",
-						NameLoc: expr.Loc,
-					}},
-					Args: []js_ast.Expr{then},
-				}}
-			}
-
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImport{
 				Expr:                    arg,
 				LeadingInteriorComments: e.LeadingInteriorComments,
@@ -11311,7 +11278,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// There is no way we can guarantee that this will work correctly.
 					// Except don't warn when this code is in a 3rd-party library because
 					// there's nothing people will be able to do about the warning.
-					if p.options.mode == config.ModeBundle && p.es6ImportKeyword.Len > 0 && !p.options.suppressWarningsAboutWeirdCode {
+					if p.options.mode == config.ModeBundle && (p.es6ImportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0) && !p.options.suppressWarningsAboutWeirdCode {
 						p.log.AddRangeWarning(&p.source, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc),
 							"Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)")
 					}
@@ -11740,6 +11707,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 	for _, stmt := range stmts {
 		switch s := stmt.Data.(type) {
 		case *js_ast.SImport:
+			record := &p.importRecords[s.ImportRecordIndex]
 
 			// The official TypeScript compiler always removes unused imported
 			// symbols. However, we deliberately deviate from the official
@@ -11887,7 +11855,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && !p.options.preserveUnusedImportsTS {
 					// Ignore import records with a pre-filled source index. These are
 					// for injected files and we definitely do not want to trim these.
-					if record := &p.importRecords[s.ImportRecordIndex]; !record.SourceIndex.IsValid() {
+					if !record.SourceIndex.IsValid() {
 						record.IsUnused = true
 						continue
 					}
@@ -12018,7 +11986,17 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
 			if s.StarNameLoc != nil {
-				p.importRecords[s.ImportRecordIndex].ContainsImportStar = true
+				record.ContainsImportStar = true
+			}
+
+			if s.DefaultName != nil {
+				record.ContainsDefaultAlias = true
+			} else if s.Items != nil {
+				for _, item := range *s.Items {
+					if item.Alias == "default" {
+						record.ContainsDefaultAlias = true
+					}
+				}
 			}
 
 		case *js_ast.SFunction:
@@ -12660,15 +12638,13 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 	}
 
 	p := &parser{
-		log:                log,
-		source:             source,
-		lexer:              lexer,
-		allowIn:            true,
-		options:            *options,
-		fnOrArrowDataParse: fnOrArrowDataParse{isOutsideFn: true},
-		runtimeImports:     make(map[string]js_ast.Ref),
-		promiseRef:         js_ast.InvalidRef,
-		afterArrowBodyLoc:  logger.Loc{Start: -1},
+		log:               log,
+		source:            source,
+		lexer:             lexer,
+		allowIn:           true,
+		options:           *options,
+		runtimeImports:    make(map[string]js_ast.Ref),
+		afterArrowBodyLoc: logger.Loc{Start: -1},
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,
@@ -12898,6 +12874,7 @@ func (p *parser) validateJSX(span js_ast.Span, name string) []string {
 
 func (p *parser) prepareForVisitPass() {
 	p.pushScopeForVisitPass(js_ast.ScopeEntry, logger.Loc{Start: locModuleScope})
+	p.fnOrArrowDataVisit.isOutsideFnOrArrow = true
 	p.moduleScope = p.currentScope
 	p.hasESModuleSyntax = p.es6ImportKeyword.Len > 0 || p.es6ExportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0
 
@@ -12914,12 +12891,20 @@ func (p *parser) prepareForVisitPass() {
 	p.hoistSymbols(p.moduleScope)
 
 	if p.options.mode != config.ModePassThrough {
-		p.exportsRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "exports")
 		p.requireRef = p.declareCommonJSSymbol(js_ast.SymbolUnbound, "require")
+	} else {
+		p.requireRef = p.newSymbol(js_ast.SymbolUnbound, "require")
+	}
+
+	// CommonJS-style exports are only enabled if this isn't using ECMAScript-
+	// style exports. You can still use "require" in ESM, just not "module" or
+	// "exports". You can also still use "import" in CommonJS.
+	if p.options.moduleType != config.ModuleESM && p.options.mode != config.ModePassThrough &&
+		p.es6ExportKeyword.Len == 0 && p.topLevelAwaitKeyword.Len == 0 {
+		p.exportsRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "exports")
 		p.moduleRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "module")
 	} else {
 		p.exportsRef = p.newSymbol(js_ast.SymbolHoisted, "exports")
-		p.requireRef = p.newSymbol(js_ast.SymbolUnbound, "require")
 		p.moduleRef = p.newSymbol(js_ast.SymbolHoisted, "module")
 	}
 
@@ -13182,6 +13167,37 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 		nestedScopeSlotCounts = renamer.AssignNestedScopeSlots(p.moduleScope, p.symbols)
 	}
 
+	exportsKind := js_ast.ExportsNone
+	usesExportsRef := p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0
+	usesModuleRef := p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0
+
+	if p.es6ExportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0 {
+		exportsKind = js_ast.ExportsESM
+	} else if usesExportsRef || usesModuleRef || p.hasTopLevelReturn {
+		exportsKind = js_ast.ExportsCommonJS
+	} else {
+		// If this module has no exports, try to determine what kind of module it
+		// is by looking at node's "type" field in "package.json" and/or whether
+		// the file extension is ".mjs" or ".cjs".
+		switch p.options.moduleType {
+		case config.ModuleCommonJS:
+			// "type: module" or ".mjs"
+			exportsKind = js_ast.ExportsCommonJS
+
+		case config.ModuleESM:
+			// "type: commonjs" or ".cjs"
+			exportsKind = js_ast.ExportsESM
+
+		case config.ModuleUnknown:
+			// Treat unknown modules containing an import statement as ESM. Otherwise
+			// the bundler will treat this file as CommonJS if it's imported and ESM
+			// if it's not imported.
+			if p.es6ImportKeyword.Len > 0 {
+				exportsKind = js_ast.ExportsESM
+			}
+		}
+	}
+
 	return js_ast.AST{
 		Parts:                   parts,
 		ModuleScope:             p.moduleScope,
@@ -13202,8 +13218,9 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 
 		// CommonJS features
 		HasTopLevelReturn: p.hasTopLevelReturn,
-		UsesExportsRef:    p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0,
-		UsesModuleRef:     p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0,
+		UsesExportsRef:    usesExportsRef,
+		UsesModuleRef:     usesModuleRef,
+		ExportsKind:       exportsKind,
 
 		// ES6 features
 		ImportKeyword:        p.es6ImportKeyword,

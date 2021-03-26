@@ -159,12 +159,13 @@ type Engine struct {
 }
 
 type Location struct {
-	File      string
-	Namespace string
-	Line      int // 1-based
-	Column    int // 0-based, in bytes
-	Length    int // in bytes
-	LineText  string
+	File       string
+	Namespace  string
+	Line       int // 1-based
+	Column     int // 0-based, in bytes
+	Length     int // in bytes
+	LineText   string
+	Suggestion string
 }
 
 type Message struct {
@@ -223,6 +224,7 @@ type BuildOptions struct {
 	LogLevel LogLevel
 
 	Sourcemap      SourceMap
+	SourceRoot     string
 	SourcesContent SourcesContent
 
 	Target  Target
@@ -318,6 +320,7 @@ type TransformOptions struct {
 	LogLevel LogLevel
 
 	Sourcemap      SourceMap
+	SourceRoot     string
 	SourcesContent SourcesContent
 
 	Target     Target
@@ -424,6 +427,9 @@ type OnResolveResult struct {
 	External   bool
 	Namespace  string
 	PluginData interface{}
+
+	WatchFiles []string
+	WatchDirs  []string
 }
 
 type OnLoadOptions struct {
@@ -447,6 +453,9 @@ type OnLoadResult struct {
 	ResolveDir string
 	Loader     Loader
 	PluginData interface{}
+
+	WatchFiles []string
+	WatchDirs  []string
 }
 
 type ResolveKind uint8
@@ -460,3 +469,23 @@ const (
 	ResolveCSSImportRule
 	ResolveCSSURLToken
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// FormatMessages API
+
+type MessageKind uint8
+
+const (
+	ErrorMessage MessageKind = iota
+	WarningMessage
+)
+
+type FormatMessagesOptions struct {
+	TerminalWidth int
+	Kind          MessageKind
+	Color         bool
+}
+
+func FormatMessages(msgs []Message, opts FormatMessagesOptions) []string {
+	return formatMsgsImpl(msgs, opts)
+}
