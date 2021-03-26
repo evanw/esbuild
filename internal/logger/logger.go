@@ -721,10 +721,11 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 					}
 				}
 
-				sb.WriteString(fmt.Sprintf("%s%s%s%s%s%s%s%s%s%s%s\n",
+				sb.WriteString(fmt.Sprintf("%s%s%s%s%s%s%s%s%s%s%s%s\n",
 					margin,
 					colors.Dim,
 					dir,
+					colors.Reset,
 					colors.Bold,
 					base,
 					colors.Reset,
