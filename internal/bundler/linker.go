@@ -2712,32 +2712,34 @@ func baseFileNameForVirtualModulePath(path string) string {
 }
 
 func (c *linkerContext) computeChunks() []chunkInfo {
-	chunks := make(map[string]chunkInfo)
+	jsChunks := make(map[string]chunkInfo)
+	cssChunks := make(map[string]chunkInfo)
 	neverReachedKey := string(newBitSet(uint(len(c.entryPoints))).entries)
 
 	// Compute entry point names
 	for i, entryPoint := range c.entryPoints {
-		var chunkRepr chunkRepr
 		file := &c.files[entryPoint]
-
-		switch file.repr.(type) {
-		case *reprJS:
-			chunkRepr = &chunkReprJS{}
-		case *reprCSS:
-			chunkRepr = &chunkReprCSS{}
-		}
 
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
 		entryBits := newBitSet(uint(len(c.entryPoints)))
 		entryBits.setBit(uint(i))
-		chunks[string(entryBits.entries)] = chunkInfo{
+		info := chunkInfo{
 			entryBits:             entryBits,
 			isEntryPoint:          true,
 			sourceIndex:           entryPoint,
 			entryPointBit:         uint(i),
 			filesWithPartsInChunk: make(map[uint32]bool),
-			chunkRepr:             chunkRepr,
+		}
+
+		switch file.repr.(type) {
+		case *reprJS:
+			info.chunkRepr = &chunkReprJS{}
+			jsChunks[string(entryBits.entries)] = info
+
+		case *reprCSS:
+			info.chunkRepr = &chunkReprCSS{}
+			cssChunks[string(entryBits.entries)] = info
 		}
 	}
 
@@ -2749,17 +2751,33 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			// Ignore this file if it was never reached
 			continue
 		}
-		chunk, ok := chunks[key]
-		if !ok {
-			chunk.entryBits = file.entryBits
-			chunk.filesWithPartsInChunk = make(map[uint32]bool)
-			switch file.repr.(type) {
-			case *reprJS:
+		var chunk chunkInfo
+		var ok bool
+		switch file.repr.(type) {
+		case *reprJS:
+			chunk, ok = jsChunks[key]
+			if !ok {
+				chunk.entryBits = file.entryBits
+				chunk.filesWithPartsInChunk = make(map[uint32]bool)
 				chunk.chunkRepr = &chunkReprJS{}
-			case *reprCSS:
-				chunk.chunkRepr = &chunkReprCSS{}
+				jsChunks[key] = chunk
 			}
-			chunks[key] = chunk
+		case *reprCSS:
+			chunk, ok = cssChunks[key]
+			if !ok {
+				chunk.entryBits = file.entryBits
+				chunk.filesWithPartsInChunk = make(map[uint32]bool)
+				chunk.chunkRepr = &chunkReprCSS{}
+
+				// Check whether this is the CSS file to go with a JS entry point
+				if jsChunk, ok := jsChunks[key]; ok && jsChunk.isEntryPoint {
+					chunk.isEntryPoint = true
+					chunk.sourceIndex = jsChunk.sourceIndex
+					chunk.entryPointBit = jsChunk.entryPointBit
+				}
+
+				cssChunks[key] = chunk
+			}
 		}
 		chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
 	}
@@ -2767,19 +2785,28 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	// Sort the chunks for determinism. This mostly doesn't matter because each
 	// chunk is a separate file, but it matters for error messages in tests since
 	// tests stop on the first output mismatch.
-	sortedKeys := make([]string, 0, len(chunks))
-	for key := range chunks {
+	sortedChunks := make([]chunkInfo, 0, len(jsChunks)+len(cssChunks))
+	sortedKeys := make([]string, 0, len(jsChunks)+len(cssChunks))
+	for key := range jsChunks {
 		sortedKeys = append(sortedKeys, key)
 	}
 	sort.Strings(sortedKeys)
-	sortedChunks := make([]chunkInfo, len(chunks))
-	for chunkIndex, key := range sortedKeys {
-		chunk := chunks[key]
-		sortedChunks[chunkIndex] = chunk
+	for _, key := range sortedKeys {
+		sortedChunks = append(sortedChunks, jsChunks[key])
+	}
+	sortedKeys = sortedKeys[:0]
+	for key := range cssChunks {
+		sortedKeys = append(sortedKeys, key)
+	}
+	sort.Strings(sortedKeys)
+	for _, key := range sortedKeys {
+		sortedChunks = append(sortedChunks, cssChunks[key])
+	}
 
-		// Map from the entry point file to this chunk. We will need this later if
-		// a file contains a dynamic import to this entry point, since we'll need
-		// to look up the path for this chunk to use with the import.
+	// Map from the entry point file to this chunk. We will need this later if
+	// a file contains a dynamic import to this entry point, since we'll need
+	// to look up the path for this chunk to use with the import.
+	for chunkIndex, chunk := range sortedChunks {
 		if chunk.isEntryPoint {
 			c.files[chunk.sourceIndex].entryPointChunkIndex = uint32(chunkIndex)
 		}
