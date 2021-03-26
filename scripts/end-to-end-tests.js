@@ -2201,6 +2201,163 @@
         if (A.pub() !== 'Inside #priv') throw 'fail';
       `,
     }),
+
+    // Issue: https://github.com/evanw/esbuild/issues/1066
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Test {
+          #x = 2;
+          #y = [];
+          z = 2;
+
+          get x() { return this.#x; }
+          get y() { return this.#y; }
+
+          world() {
+            return [1,[2,3],4];
+          }
+
+          hello() {
+            [this.#x,this.#y,this.z] = this.world();
+          }
+        }
+
+        var t = new Test();
+        t.hello();
+        if (t.x !== 1 || t.y[0] !== 2 || t.y[1] !== 3 || t.z !== 4) throw 'fail';
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          #a
+          #b
+          #c
+          foo() {
+            [this.#a, this.#b, this.#c] = {
+              [Symbol.iterator]() {
+                let value = 0
+                return {
+                  next() {
+                    return { value: ++value, done: false }
+                  }
+                }
+              }
+            }
+            return [this.#a, this.#b, this.#c].join(' ')
+          }
+        }
+        if (new Foo().foo() !== '1 2 3') throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          #a
+          #b
+          #c
+          #d
+          #e
+          #f
+          foo() {
+            [
+              {x: this.#a},
+              [[, this.#b, ,]],
+              {y: this.#c = 3},
+              {x: this.x, y: this.y, ...this.#d},
+              [, , ...this.#e],
+              [{x: [{y: [this.#f]}]}],
+            ] = [
+              {x: 1},
+              [[1, 2, 3]],
+              {},
+              {x: 2, y: 3, z: 4, w: 5},
+              [4, 5, 6, 7, 8],
+              [{x: [{y: [9]}]}],
+            ]
+            return JSON.stringify([
+              this.#a,
+              this.#b,
+              this.#c,
+              this.#d,
+              this.#e,
+              this.#f,
+            ])
+          }
+        }
+        if (new Foo().foo() !== '[1,2,3,{"z":4,"w":5},[6,7,8],9]') throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          values = []
+          set #a(a) { this.values.push(a) }
+          set #b(b) { this.values.push(b) }
+          set #c(c) { this.values.push(c) }
+          set #d(d) { this.values.push(d) }
+          set #e(e) { this.values.push(e) }
+          set #f(f) { this.values.push(f) }
+          foo() {
+            [
+              {x: this.#a},
+              [[, this.#b, ,]],
+              {y: this.#c = 3},
+              {x: this.x, y: this.y, ...this.#d},
+              [, , ...this.#e],
+              [{x: [{y: [this.#f]}]}],
+            ] = [
+              {x: 1},
+              [[1, 2, 3]],
+              {},
+              {x: 2, y: 3, z: 4, w: 5},
+              [4, 5, 6, 7, 8],
+              [{x: [{y: [9]}]}],
+            ]
+            return JSON.stringify(this.values)
+          }
+        }
+        if (new Foo().foo() !== '[1,2,3,{"z":4,"w":5},[6,7,8],9]') throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          #a
+          #b
+          #c
+          #d
+          #e
+          #f
+          foo() {
+            for ([
+              {x: this.#a},
+              [[, this.#b, ,]],
+              {y: this.#c = 3},
+              {x: this.x, y: this.y, ...this.#d},
+              [, , ...this.#e],
+              [{x: [{y: [this.#f]}]}],
+            ] of [[
+              {x: 1},
+              [[1, 2, 3]],
+              {},
+              {x: 2, y: 3, z: 4, w: 5},
+              [4, 5, 6, 7, 8],
+              [{x: [{y: [9]}]}],
+            ]]) ;
+            return JSON.stringify([
+              this.#a,
+              this.#b,
+              this.#c,
+              this.#d,
+              this.#e,
+              this.#f,
+            ])
+          }
+        }
+        if (new Foo().foo() !== '[1,2,3,{"z":4,"w":5},[6,7,8],9]') throw 'fail'
+      `,
+    }),
   )
 
   // Async lowering tests
