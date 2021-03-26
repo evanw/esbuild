@@ -1024,32 +1024,32 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 
 			// Include the exports if this is an entry point chunk
 			if chunk.isEntryPoint {
-				repr := c.files[chunk.sourceIndex].repr.(*reprJS)
+				if repr, ok := c.files[chunk.sourceIndex].repr.(*reprJS); ok {
+					if repr.meta.wrap != wrapCJS {
+						for _, alias := range repr.meta.sortedAndFilteredExportAliases {
+							export := repr.meta.resolvedExports[alias]
+							targetSourceIndex := export.sourceIndex
+							targetRef := export.ref
 
-				if repr.meta.wrap != wrapCJS {
-					for _, alias := range repr.meta.sortedAndFilteredExportAliases {
-						export := repr.meta.resolvedExports[alias]
-						targetSourceIndex := export.sourceIndex
-						targetRef := export.ref
+							// If this is an import, then target what the import points to
+							if importToBind, ok := c.files[targetSourceIndex].repr.(*reprJS).meta.importsToBind[targetRef]; ok {
+								targetSourceIndex = importToBind.sourceIndex
+								targetRef = importToBind.ref
+							}
 
-						// If this is an import, then target what the import points to
-						if importToBind, ok := c.files[targetSourceIndex].repr.(*reprJS).meta.importsToBind[targetRef]; ok {
-							targetSourceIndex = importToBind.sourceIndex
-							targetRef = importToBind.ref
+							imports[targetRef] = true
 						}
-
-						imports[targetRef] = true
 					}
-				}
 
-				// Ensure "exports" is included if the current output format needs it
-				if repr.meta.forceIncludeExportsForEntryPoint {
-					imports[repr.ast.ExportsRef] = true
-				}
+					// Ensure "exports" is included if the current output format needs it
+					if repr.meta.forceIncludeExportsForEntryPoint {
+						imports[repr.ast.ExportsRef] = true
+					}
 
-				// Include the wrapper if present
-				if repr.meta.wrap != wrapNone {
-					imports[repr.ast.WrapperRef] = true
+					// Include the wrapper if present
+					if repr.meta.wrap != wrapNone {
+						imports[repr.ast.WrapperRef] = true
+					}
 				}
 			}
 

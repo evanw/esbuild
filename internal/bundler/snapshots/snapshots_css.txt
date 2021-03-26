@@ -14,6 +14,52 @@ a {
 }
 
 ================================================================================
+TestCSSAndJavaScriptCodeSplittingIssue1064
+---------- /out/a.js ----------
+import {
+  shared_default
+} from "./chunk-HEZGRGFZ.js";
+
+// a.js
+console.log(shared_default() + 1);
+
+---------- /out/b.js ----------
+import {
+  shared_default
+} from "./chunk-HEZGRGFZ.js";
+
+// b.js
+console.log(shared_default() + 2);
+
+---------- /out/chunk-HEZGRGFZ.js ----------
+// shared.js
+function shared_default() {
+  return 3;
+}
+
+export {
+  shared_default
+};
+
+---------- /out/c.css ----------
+/* c.css */
+body {
+  color: red;
+}
+
+---------- /out/d.css ----------
+/* d.css */
+body {
+  color: blue;
+}
+
+---------- /out/chunk-BJBIO5W2.css ----------
+/* shared.css */
+body {
+  background: black;
+}
+
+================================================================================
 TestCSSAtImport
 ---------- /out.css ----------
 /* shared.css */

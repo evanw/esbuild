@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a crash that was introduced in the previous release ([#1064](https://github.com/evanw/esbuild/issues/1064))
+
+    This crash happens when code splitting is active and there is a CSS entry point as well as two or more JavaScript entry points. There is a known issue where CSS bundling does not work when code splitting is active (code splitting is still a work in progress, see [#608](https://github.com/evanw/esbuild/issues/608)) so doing this will likely not work as expected. But esbuild obviously shouldn't crash. This release fixes the crash, although esbuild still does not yet generate the correct CSS output in this case.
+
 ## 0.10.1
 
 * Expose `metafile` to `onRebuild` in watch mode ([#1057](https://github.com/evanw/esbuild/issues/1057))
