@@ -804,12 +804,9 @@ func (c *linkerContext) substituteFinalPaths(
 }
 
 func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) string {
-	// Return an absolute path if a public path has been configured
+	// Join with the public path if it has been configured
 	if c.options.PublicPath != "" {
-		if strings.HasPrefix(toRelPath, "./") {
-			toRelPath = toRelPath[2:]
-		}
-		return c.options.PublicPath + toRelPath
+		return joinWithPublicPath(c.options.PublicPath, toRelPath)
 	}
 
 	// Otherwise, return a relative path

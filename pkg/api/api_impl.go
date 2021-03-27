@@ -792,9 +792,6 @@ func rebuildImpl(
 	for i, path := range buildOpts.NodePaths {
 		options.AbsNodePaths[i] = validatePath(log, realFS, path, "node path")
 	}
-	if options.PublicPath != "" && !strings.HasSuffix(options.PublicPath, "/") && !strings.HasSuffix(options.PublicPath, "\\") {
-		options.PublicPath += "/"
-	}
 	entryPoints := append([]string{}, buildOpts.EntryPoints...)
 	entryPointCount := len(entryPoints)
 	if buildOpts.Stdin != nil {

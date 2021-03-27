@@ -334,13 +334,7 @@ func parseFile(args parseArgs) {
 		})) + ext
 
 		// Determine the final path that this asset will have in the output directory
-		var publicPath string
-		if strings.HasSuffix(args.options.PublicPath, "/") && strings.HasPrefix(relPath, "./") {
-			// Avoid an unnecessary "./" in this case
-			publicPath = args.options.PublicPath + relPath[2:] + source.KeyPath.IgnoredSuffix
-		} else {
-			publicPath = args.options.PublicPath + relPath + source.KeyPath.IgnoredSuffix
-		}
+		publicPath := joinWithPublicPath(args.options.PublicPath, relPath+source.KeyPath.IgnoredSuffix)
 
 		// Export the resulting relative path as a string
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(publicPath)}}
@@ -517,6 +511,35 @@ func parseFile(args parseArgs) {
 	}
 
 	args.results <- result
+}
+
+func joinWithPublicPath(publicPath string, relPath string) string {
+	if strings.HasPrefix(relPath, "./") {
+		relPath = relPath[2:]
+
+		// Strip any amount of further no-op slashes (i.e. ".///././/x/y" => "x/y")
+		for {
+			if strings.HasPrefix(relPath, "/") {
+				relPath = relPath[1:]
+			} else if strings.HasPrefix(relPath, "./") {
+				relPath = relPath[2:]
+			} else {
+				break
+			}
+		}
+	}
+
+	// Use a relative path if there is no public path
+	if publicPath == "" {
+		publicPath = "."
+	}
+
+	// Join with a slash
+	slash := "/"
+	if strings.HasSuffix(publicPath, "/") {
+		slash = ""
+	}
+	return fmt.Sprintf("%s%s%s", publicPath, slash, relPath)
 }
 
 func isASCIIOnly(text string) bool {
