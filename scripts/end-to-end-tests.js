@@ -2053,12 +2053,20 @@
         new Foo().bar()
       `,
     }, {
-      expectedStderr: ` > in.js:23:30: warning: Reading from setter-only property "#setter" will throw
+      expectedStderr: ` > in.js:22:29: warning: Writing to readonly method "#method" will throw
+    22 │             expect(() => obj.#method = 1, 'Cannot write to private f...
+       ╵                              ~~~~~~~
+
+ > in.js:23:30: warning: Reading from setter-only property "#setter" will throw
     23 │             expect(() => this.#setter, 'member.get is not a function')
        ╵                               ~~~~~~~
 
  > in.js:24:30: warning: Writing to getter-only property "#getter" will throw
     24 │             expect(() => this.#getter = 1, 'member.set is not a func...
+       ╵                               ~~~~~~~
+
+ > in.js:25:30: warning: Writing to readonly method "#method" will throw
+    25 │             expect(() => this.#method = 1, 'member.set is not a func...
        ╵                               ~~~~~~~
 
 `,

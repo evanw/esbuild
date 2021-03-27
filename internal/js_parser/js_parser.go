@@ -10552,7 +10552,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q must be declared in an enclosing class", name))
 			} else if !p.options.suppressWarningsAboutWeirdCode {
-				if in.assignTarget != js_ast.AssignTargetNone && (kind == js_ast.SymbolPrivateGet || kind == js_ast.SymbolPrivateStaticGet) {
+				if in.assignTarget != js_ast.AssignTargetNone && (kind == js_ast.SymbolPrivateMethod || kind == js_ast.SymbolPrivateStaticMethod) {
+					r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
+					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Writing to readonly method %q will throw", name))
+				} else if in.assignTarget != js_ast.AssignTargetNone && (kind == js_ast.SymbolPrivateGet || kind == js_ast.SymbolPrivateStaticGet) {
 					r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
 					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Writing to getter-only property %q will throw", name))
 				} else if in.assignTarget != js_ast.AssignTargetReplace && (kind == js_ast.SymbolPrivateSet || kind == js_ast.SymbolPrivateStaticSet) {

@@ -3900,6 +3900,12 @@ func TestPrivateIdentifiers(t *testing.T) {
 	expectParseError(t, "class Foo { set #x(x) { this.#x += 1 } }",
 		"<stdin>: warning: Reading from setter-only property \"#x\" will throw\n")
 
+	// Writing to method warnings
+	expectParseError(t, "class Foo { #x() { this.#x = 1 } }",
+		"<stdin>: warning: Writing to readonly method \"#x\" will throw\n")
+	expectParseError(t, "class Foo { #x() { this.#x += 1 } }",
+		"<stdin>: warning: Writing to readonly method \"#x\" will throw\n")
+
 	expectPrinted(t, `class Foo {
 	#if
 	#im() { return this.#im(this.#if) }
