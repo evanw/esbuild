@@ -95,25 +95,6 @@
       white-space: nowrap;
     }
 
-    .terminal-error {
-      font-weight: bold;
-      color: #D00;
-    }
-
-    .terminal-underline {
-      font-weight: bold;
-      color: #0D0;
-    }
-
-    .terminal-warning {
-      font-weight: bold;
-      color: #D0D;
-    }
-
-    .terminal-note {
-      font-weight: bold;
-    }
-
     body {
       background: #EEE;
       color: #333;
@@ -125,13 +106,28 @@
       border: 1px solid #CCC;
     }
 
-    .terminal-subtle {
-      color: #777;
+    .terminal-1 {
+      font-weight: bold;
     }
 
-    .terminal-bold {
-      font-weight: bold;
-      color: #000;
+    .terminal-37 {
+      color: #999;
+    }
+
+    .terminal-4 {
+      text-decoration: underline;
+    }
+
+    .terminal-31 {
+      color: #D00;
+    }
+
+    .terminal-32 {
+      color: #0D0;
+    }
+
+    .terminal-35 {
+      color: #D0D;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -146,12 +142,8 @@
         border: 1px solid #555;
       }
 
-      .terminal-subtle {
-        color: #999;
-      }
-
-      .terminal-bold {
-        color: #FFF;
+      .terminal-37 {
+        color: #777;
       }
     }
   </style>
@@ -290,7 +282,7 @@
         debounceTimeout = setTimeout(runIfIdle, 50)
       }
 
-      runIfIdle = () => {
+      runIfIdle = async () => {
         clearTimeout(debounceTimeout)
 
         if (isRunning) {
@@ -301,85 +293,63 @@
         isRunning = true
         needsRun = false
 
-        esbuild.transform(input.value, {
-          target: target.value.toLowerCase(),
-          loader: loader.value.toLowerCase(),
-          format: format.value === 'Preserve' ? void 0 : format.value.toLowerCase(),
-          minifySyntax: minifySyntax.checked,
-          minifyIdentifiers: minifyIdents.checked,
-          minifyWhitespace: minifySpaces.checked,
-          charset: ascii.checked ? 'ascii' : 'utf8',
-          keepNames: keepNames.checked,
-        }).then(({ code, warnings }) => {
-          let html = messagesToHTML(addKindToMessages(warnings, 'warning'))
-          code = textToHTML(code);
-          if (minifySpaces.checked) code = `<span class="minified">${code}</span>`;
-          output.innerHTML = (html && html + '<hr>') + code;
-        }, error => {
-          let { errors, warnings } = error
-          if (errors && warnings) output.innerHTML = messagesToHTML(
-            addKindToMessages(errors, 'error').concat(addKindToMessages(warnings, 'warning')));
-          else output.textContent = (error && error.message) || (error + '')
-        }).then(() => {
-          isRunning = false
-          if (needsRun) runIfIdle()
-        })
+        const inputValue = input.value
+        var code, warnings, errors
+        try {
+          ({ code, warnings } = await esbuild.transform(inputValue, {
+            target: target.value.toLowerCase(),
+            loader: loader.value.toLowerCase(),
+            format: format.value === 'Preserve' ? void 0 : format.value.toLowerCase(),
+            minifySyntax: minifySyntax.checked,
+            minifyIdentifiers: minifyIdents.checked,
+            minifyWhitespace: minifySpaces.checked,
+            charset: ascii.checked ? 'ascii' : 'utf8',
+            keepNames: keepNames.checked,
+          }))
+        } catch (error) {
+          ({ errors, warnings } = error)
+          if (!errors) {
+            output.textContent = (error && error.message) || (error + '')
+            isRunning = false
+            if (needsRun) runIfIdle()
+            return
+          }
+        }
+        if (warnings) warnings = await esbuild.formatMessages(warnings, { kind: 'warning', color: true })
+        if (errors) errors = await esbuild.formatMessages(errors, { kind: 'error', color: true })
+        const html = (errors || []).concat(warnings || []).map(messageToHTML).join('')
+        if (code) code = textToHTML(code)
+        if (code && minifySpaces.checked) code = `<span class="minified">${code}</span>`
+        output.innerHTML = (html && html + '<hr>' || '') + (code || '')
 
         try {
-          sessionStorage.setItem('input', input.value)
+          sessionStorage.setItem('input', inputValue)
         } catch (e) {
         }
+
+        isRunning = false
+        if (needsRun) runIfIdle()
       }
 
       function textToHTML(text) {
         return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       }
 
-      function renderTabs(text) {
-        let result = ''
-        for (let c of text) {
-          if (c === '\t') result += ' '.repeat(8 - result.length % 8)
-          else result += c
-        }
-        return result
-      }
-
-      function addKindToMessages(messages, kind) {
-        return messages.map(msg => ({ ...msg, kind }))
-      }
-
-      function renderMessage(indent, text, location, kind) {
-        let spaces = ' '.repeat(indent.length + 2)
-        let html = ''
-        if (kind !== 'note') html += `<span class="terminal-bold">`
-        html += indent
-        if (location) {
-          html += `${textToHTML(location.file)}:${location.line}:${location.column}: `
-        }
-        html += `<span class="terminal-${kind}">${kind}: </span>`
-        html += textToHTML(text)
-        if (kind !== 'note') html += `</span>`
-        html += `<br>`
-        if (location) {
-          let indent = renderTabs(location.lineText.slice(0, location.column)).length
-          let length = renderTabs(location.lineText.slice(0, location.column + location.length)).length - indent
-          let underline = length > 1 ? '~'.repeat(length) : '^'
-          let line = renderTabs(location.lineText)
-          html += `${spaces}<span class="terminal-subtle">${textToHTML(line.slice(0, indent))}</span>`
-          html += `<span class="terminal-underline">${line.slice(indent, indent + length)}</span>`
-          html += `<span class="terminal-subtle">${textToHTML(line.slice(indent + length))}</span>`
-          html += `<br>${spaces}<span class="terminal-underline">${' '.repeat(indent)}${underline}</span><br>`
-        }
-        return html
-      }
-
-      function messagesToHTML(messages) {
-        return messages.sort((a, b) => {
-          let al = a.location, bl = b.location
-          return al && bl && (al.line - bl.line || al.column - bl.column) || (a.text < b.text) - (a.text > b.text)
-        }).map(({ text, location, kind, notes }) => {
-          return renderMessage(' &gt; ', text, location, kind) + notes.map(({ text, location }) => renderMessage('   ', text, location, 'note')) + `<br>`
-        }).join('');
+      function messageToHTML(text) {
+        let reset = ''
+        text = textToHTML(text)
+        text = text.replace(/\033\[([^m]+)m/g, (_, value) => {
+          if (value === '0') {
+            value = reset
+            reset = ''
+          } else {
+            reset += '</span>'
+            value = `<span class="terminal-${value}">`
+          }
+          return value
+        })
+        text += reset
+        return text
       }
 
       runIfIdle()
