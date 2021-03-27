@@ -3902,9 +3902,9 @@ func TestPrivateIdentifiers(t *testing.T) {
 
 	// Writing to method warnings
 	expectParseError(t, "class Foo { #x() { this.#x = 1 } }",
-		"<stdin>: warning: Writing to readonly method \"#x\" will throw\n")
+		"<stdin>: warning: Writing to read-only method \"#x\" will throw\n")
 	expectParseError(t, "class Foo { #x() { this.#x += 1 } }",
-		"<stdin>: warning: Writing to readonly method \"#x\" will throw\n")
+		"<stdin>: warning: Writing to read-only method \"#x\" will throw\n")
 
 	expectPrinted(t, `class Foo {
 	#if

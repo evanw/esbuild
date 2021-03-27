@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Warn about mutation of private methods ([#1067](https://github.com/evanw/esbuild/pull/1067))
+
+    Mutating a private method in JavaScript is not allowed, and will throw at run-time:
+
+    ```js
+    class Foo {
+      #method() {}
+      mutate() {
+        this.#method = () => {}
+      }
+    }
+    ```
+
+    This is the case both when esbuild passes the syntax through untransformed and when esbuild transforms the syntax into the equivalent code that uses a `WeakSet` to emulate private methods in older browsers. However, it's clear from this code that doing this will always throw, so this code is almost surely a mistake. With this release, esbuild will now warn when you do this. This change was contributed by [@jridgewell](https://github.com/jridgewell).
+
 ## 0.10.2
 
 * Fix a crash that was introduced in the previous release ([#1064](https://github.com/evanw/esbuild/issues/1064))
