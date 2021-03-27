@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.2
 
 * Fix a crash that was introduced in the previous release ([#1064](https://github.com/evanw/esbuild/issues/1064))
 
