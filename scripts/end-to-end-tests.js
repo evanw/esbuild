@@ -631,6 +631,84 @@
     }
   }
 
+  // Check that duplicate top-level exports don't collide in the presence of "eval"
+  tests.push(
+    test(['--bundle', '--format=esm', 'in.js', '--outfile=node.js'], {
+      'in.js': `
+        import a from './a'
+        import b from './b'
+        if (a !== 'runner1.js' || b !== 'runner2.js') throw 'fail'
+      `,
+      'a.js': `
+        import { run } from './runner1'
+        export default run()
+      `,
+      'runner1.js': `
+        let data = eval('"runner1" + ".js"')
+        export function run() { return data }
+      `,
+      'b.js': `
+        import { run } from './runner2'
+        export default run()
+      `,
+      'runner2.js': `
+        let data = eval('"runner2" + ".js"')
+        export function run() { return data }
+      `,
+    }, {
+      expectedStderr: ` > runner2.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
+    2 │         let data = eval('"runner2" + ".js"')
+      ╵                    ~~~~
+
+ > runner1.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
+    2 │         let data = eval('"runner1" + ".js"')
+      ╵                    ~~~~
+
+`,
+    }),
+    test(['--bundle', '--format=esm', '--splitting', 'in.js', 'in2.js', '--outdir=out'], {
+      'in.js': `
+        import a from './a'
+        import b from './b'
+        export default [a, b]
+      `,
+      'a.js': `
+        import { run } from './runner1'
+        export default run()
+      `,
+      'runner1.js': `
+        let data = eval('"runner1" + ".js"')
+        export function run() { return data }
+      `,
+      'b.js': `
+        import { run } from './runner2'
+        export default run()
+      `,
+      'runner2.js': `
+        let data = eval('"runner2" + ".js"')
+        export function run() { return data }
+      `,
+      'in2.js': `
+        import { run } from './runner2'
+        export default run()
+      `,
+      'node.js': `
+        import ab from './out/in.js'
+        if (ab[0] !== 'runner1.js' || ab[1] !== 'runner2.js') throw 'fail'
+      `,
+    }, {
+      expectedStderr: ` > runner2.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
+    2 │         let data = eval('"runner2" + ".js"')
+      ╵                    ~~~~
+
+ > runner1.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
+    2 │         let data = eval('"runner1" + ".js"')
+      ╵                    ~~~~
+
+`,
+    }),
+  )
+
   // Test "default" exports in ESM-to-CommonJS conversion scenarios
   tests.push(
     test(['in.js', '--outfile=node.js', '--format=cjs'], {

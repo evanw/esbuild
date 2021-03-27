@@ -1106,11 +1106,11 @@ func (p *parser) popScope() {
 			// in strict mode. This is a non-starter since all ESM code is strict mode.
 			//
 			// So while we still try to obey the requirement that all symbol names are
-			// pinned when direct eval is present, we make an exception for imported
-			// symbols. There is no guarantee that "eval" will be able to reach these
-			// symbols and they are free to be renamed or removed by tree shaking.
-			if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil &&
-				p.symbols[member.Ref.InnerIndex].Kind == js_ast.SymbolImport {
+			// pinned when direct eval is present, we make an exception for top-level
+			// symbols in an ESM file when bundling is enabled. We make no guarantee
+			// that "eval" will be able to reach these symbols and we allow them to be
+			// renamed or removed by tree shaking.
+			if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil && p.hasESModuleSyntax {
 				continue
 			}
 
@@ -11274,11 +11274,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						s.ContainsDirectEval = true
 					}
 
-					// Warn when direct eval is used in a file with ES6 import statements.
-					// There is no way we can guarantee that this will work correctly.
-					// Except don't warn when this code is in a 3rd-party library because
-					// there's nothing people will be able to do about the warning.
-					if p.options.mode == config.ModeBundle && (p.es6ImportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0) && !p.options.suppressWarningsAboutWeirdCode {
+					// Warn when direct eval is used in an ESM file. There is no way we
+					// can guarantee that this will work correctly for top-level imported
+					// and exported symbols due to scope hoisting. Except don't warn when
+					// this code is in a 3rd-party library because there's nothing people
+					// will be able to do about the warning.
+					if p.options.mode == config.ModeBundle && p.hasESModuleSyntax && !p.options.suppressWarningsAboutWeirdCode {
 						p.log.AddRangeWarning(&p.source, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc),
 							"Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)")
 					}
