@@ -798,7 +798,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk-TJO5LOVU.js';
+    const chunk = 'chunk-5AJVCCBH.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
@@ -813,11 +813,11 @@ body {
 
     assert.deepStrictEqual(json.outputs[outEntry1].exports, ['x'])
     assert.deepStrictEqual(json.outputs[outEntry2].exports, ['y'])
-    assert.deepStrictEqual(json.outputs[outChunk].exports, ['imported_default'])
+    assert.deepStrictEqual(json.outputs[outChunk].exports, ['f1', 'f2', 'imported_default'])
 
-    assert.deepStrictEqual(json.outputs[outEntry1].inputs, { [inImported]: { bytesInOutput: 18 }, [inEntry1]: { bytesInOutput: 40 } })
-    assert.deepStrictEqual(json.outputs[outEntry2].inputs, { [inImported]: { bytesInOutput: 18 }, [inEntry2]: { bytesInOutput: 48 } })
-    assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inImported]: { bytesInOutput: 51 } })
+    assert.deepStrictEqual(json.outputs[outEntry1].inputs, { [inEntry1]: { bytesInOutput: 40 } })
+    assert.deepStrictEqual(json.outputs[outEntry2].inputs, { [inEntry2]: { bytesInOutput: 48 } })
+    assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inImported]: { bytesInOutput: 87 } })
   },
 
   async metafileSplittingPublicPath({ esbuild, testDir }) {
@@ -862,7 +862,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk-3OOYZXPJ.js';
+    const chunk = 'chunk-XVVIELI6.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
@@ -877,11 +877,11 @@ body {
 
     assert.deepStrictEqual(json.outputs[outEntry1].exports, ['x'])
     assert.deepStrictEqual(json.outputs[outEntry2].exports, ['y'])
-    assert.deepStrictEqual(json.outputs[outChunk].exports, ['imported_default'])
+    assert.deepStrictEqual(json.outputs[outChunk].exports, ['f1', 'f2', 'imported_default'])
 
-    assert.deepStrictEqual(json.outputs[outEntry1].inputs, { [inImported]: { bytesInOutput: 18 }, [inEntry1]: { bytesInOutput: 40 } })
-    assert.deepStrictEqual(json.outputs[outEntry2].inputs, { [inImported]: { bytesInOutput: 18 }, [inEntry2]: { bytesInOutput: 48 } })
-    assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inImported]: { bytesInOutput: 51 } })
+    assert.deepStrictEqual(json.outputs[outEntry1].inputs, { [inEntry1]: { bytesInOutput: 40 } })
+    assert.deepStrictEqual(json.outputs[outEntry2].inputs, { [inEntry2]: { bytesInOutput: 48 } })
+    assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inImported]: { bytesInOutput: 87 } })
   },
 
   async metafileSplittingDoubleDynamicImport({ esbuild, testDir }) {

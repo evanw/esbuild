@@ -8202,7 +8202,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			for _, decl := range s.Decls {
 				if decl.Value != nil {
 					target := p.convertBindingToExpr(decl.Binding, wrapIdentifier)
-					if result, ok := p.lowerObjectRestInAssign(target, *decl.Value, objRestReturnValueIsUnused); ok {
+					if result, ok := p.lowerAssign(target, *decl.Value, objRestReturnValueIsUnused); ok {
 						target = result
 					} else {
 						target = js_ast.Assign(target, *decl.Value)
@@ -10411,16 +10411,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				return p.lowerPrivateSet(target, loc, private, e.Right), exprOut{}
 			}
 
-			// Lower object rest patterns for browsers that don't support them. Note
-			// that assignment expressions are used to represent initializers in
-			// binding patterns, so only do this if we're not ourselves the target of
-			// an assignment. Example: "[a = b] = c"
+			// Lower assignment destructuring patterns for browsers that don't
+			// support them. Note that assignment expressions are used to represent
+			// initializers in binding patterns, so only do this if we're not
+			// ourselves the target of an assignment. Example: "[a = b] = c"
 			if in.assignTarget == js_ast.AssignTargetNone {
 				mode := objRestMustReturnInitExpr
 				if isStmtExpr {
 					mode = objRestReturnValueIsUnused
 				}
-				if result, ok := p.lowerObjectRestInAssign(e.Left, e.Right, mode); ok {
+				if result, ok := p.lowerAssign(e.Left, e.Right, mode); ok {
 					return result, exprOut{}
 				}
 			}

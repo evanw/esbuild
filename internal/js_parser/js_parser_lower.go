@@ -1164,7 +1164,7 @@ func (p *parser) lowerObjectRestInForLoopInit(init js_ast.Stmt, body *js_ast.Stm
 		// "for ({...x} of y) {}"
 		if exprHasObjectRest(s.Value) {
 			ref := p.generateTempRef(tempRefNeedsDeclare, "")
-			if expr, ok := p.lowerObjectRestInAssign(s.Value, js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, objRestReturnValueIsUnused); ok {
+			if expr, ok := p.lowerAssign(s.Value, js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, objRestReturnValueIsUnused); ok {
 				s.Value.Data = &js_ast.EIdentifier{Ref: ref}
 				bodyPrefixStmt = js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}}
 			}
@@ -1219,9 +1219,10 @@ const (
 	objRestMustReturnInitExpr
 )
 
-func (p *parser) lowerObjectRestInAssign(rootExpr js_ast.Expr, rootInit js_ast.Expr, mode objRestMode) (js_ast.Expr, bool) {
-	var expr js_ast.Expr
+func (p *parser) lowerAssign(rootExpr js_ast.Expr, rootInit js_ast.Expr, mode objRestMode) (js_ast.Expr, bool) {
+	rootExpr, didLower := p.lowerPrivateInAssign(rootExpr)
 
+	var expr js_ast.Expr
 	assign := func(left js_ast.Expr, right js_ast.Expr) {
 		expr = maybeJoinWithComma(expr, js_ast.Assign(left, right))
 	}
@@ -1233,7 +1234,73 @@ func (p *parser) lowerObjectRestInAssign(rootExpr js_ast.Expr, rootInit js_ast.E
 		return expr, true
 	}
 
+	if didLower {
+		return js_ast.Assign(rootExpr, rootInit), true
+	}
+
 	return js_ast.Expr{}, false
+}
+
+func (p *parser) lowerPrivateInAssign(expr js_ast.Expr) (js_ast.Expr, bool) {
+	didLower := false
+
+	switch e := expr.Data.(type) {
+	case *js_ast.ESpread:
+		if value, ok := p.lowerPrivateInAssign(e.Value); ok {
+			e.Value = value
+			didLower = true
+		}
+
+	case *js_ast.EIndex:
+		// "[a.#b] = [c]" => "[__privateAssign(a, #b)._] = [c]"
+		if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
+			var target js_ast.Expr
+
+			switch p.symbols[private.Ref.InnerIndex].Kind {
+			case js_ast.SymbolPrivateSet, js_ast.SymbolPrivateStaticSet,
+				js_ast.SymbolPrivateGetSetPair, js_ast.SymbolPrivateStaticGetSetPair:
+				// "this.#setter" => "__privateAssign(this, #setter, setter_set)"
+				fnRef := p.privateSetters[private.Ref]
+				p.recordUsage(fnRef)
+				target = p.callRuntime(expr.Loc, "__privateAssign", []js_ast.Expr{
+					e.Target,
+					{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: private.Ref}},
+					{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: fnRef}},
+				})
+
+			default:
+				// "this.#field" => "__privateAssign(this, #field)"
+				target = p.callRuntime(expr.Loc, "__privateAssign", []js_ast.Expr{
+					e.Target,
+					{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: private.Ref}},
+				})
+			}
+
+			// "__privateAssign(this, #field)" => "__privateAssign(this, #field)._"
+			expr.Data = &js_ast.EDot{Target: target, Name: "_", NameLoc: expr.Loc}
+			didLower = true
+		}
+
+	case *js_ast.EArray:
+		for i, item := range e.Items {
+			if item, ok := p.lowerPrivateInAssign(item); ok {
+				e.Items[i] = item
+				didLower = true
+			}
+		}
+
+	case *js_ast.EObject:
+		for _, property := range e.Properties {
+			if property.Value != nil {
+				if value, ok := p.lowerPrivateInAssign(*property.Value); ok {
+					*property.Value = value
+					didLower = true
+				}
+			}
+		}
+	}
+
+	return expr, didLower
 }
 
 func (p *parser) lowerObjectRestToDecls(rootExpr js_ast.Expr, rootInit js_ast.Expr, decls []js_ast.Decl) ([]js_ast.Decl, bool) {

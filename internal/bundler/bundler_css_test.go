@@ -563,3 +563,45 @@ func TestCSSAtImportConditionsBundle(t *testing.T) {
 `,
 	})
 }
+
+// This test mainly just makes sure that this scenario doesn't crash
+func TestCSSAndJavaScriptCodeSplittingIssue1064(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import shared from './shared.js'
+				console.log(shared() + 1)
+			`,
+			"/b.js": `
+				import shared from './shared.js'
+				console.log(shared() + 2)
+			`,
+			"/c.css": `
+				@import "./shared.css";
+				body { color: red }
+			`,
+			"/d.css": `
+				@import "./shared.css";
+				body { color: blue }
+			`,
+			"/shared.js": `
+				export default function() { return 3 }
+			`,
+			"/shared.css": `
+				body { background: black }
+			`,
+		},
+		entryPaths: []string{
+			"/a.js",
+			"/b.js",
+			"/c.css",
+			"/d.css",
+		},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			CodeSplitting: true,
+			AbsOutputDir:  "/out",
+		},
+	})
+}

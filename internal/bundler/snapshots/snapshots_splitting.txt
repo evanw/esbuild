@@ -203,8 +203,9 @@ console.log(123);
 TestSplittingDynamicAndNotDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
 import {
+  __toModule,
   require_foo
-} from "./chunk-PVG7CBAN.js";
+} from "./chunk-OSATKDXK.js";
 
 // entry.js
 var import_foo = __toModule(require_foo());
@@ -213,17 +214,18 @@ import("./foo.js").then(({default: {bar: b}}) => console.log(import_foo.bar, b))
 ---------- /out/foo.js ----------
 import {
   require_foo
-} from "./chunk-PVG7CBAN.js";
+} from "./chunk-OSATKDXK.js";
 export default require_foo();
 
----------- /out/chunk-PVG7CBAN.js ----------
+---------- /out/chunk-OSATKDXK.js ----------
 // foo.js
 var require_foo = __commonJS((exports) => {
   exports.bar = 123;
 });
 
 export {
-  require_foo
+  require_foo,
+  __toModule
 };
 
 ================================================================================
@@ -356,6 +358,9 @@ import {
 // b.js
 console.log(o);
 
+---------- /out/c.js ----------
+import "./chunk-KXZOZAS3.js";
+
 ---------- /out/chunk-KXZOZAS3.js ----------
 // shared.js
 function n(o) {
@@ -365,13 +370,25 @@ export {
   n as a
 };
 
----------- /out/c.js ----------
-
 ================================================================================
 TestSplittingMissingLazyExport
 ---------- /out/a.js ----------
-import "./chunk-7VOEXAIV.js";
+import {
+  foo
+} from "./chunk-2SB6B7DS.js";
 
+// a.js
+console.log(foo());
+
+---------- /out/b.js ----------
+import {
+  bar
+} from "./chunk-2SB6B7DS.js";
+
+// b.js
+console.log(bar());
+
+---------- /out/chunk-2SB6B7DS.js ----------
 // empty.js
 var empty_exports = {};
 
@@ -379,22 +396,14 @@ var empty_exports = {};
 function foo() {
   return [empty_exports, void 0];
 }
-
-// a.js
-console.log(foo());
-
----------- /out/b.js ----------
-import "./chunk-7VOEXAIV.js";
-
-// common.js
 function bar() {
   return [void 0];
 }
 
-// b.js
-console.log(bar());
-
----------- /out/chunk-7VOEXAIV.js ----------
+export {
+  foo,
+  bar
+};
 
 ================================================================================
 TestSplittingNestedDirectories
@@ -507,26 +516,31 @@ export {
 ================================================================================
 TestSplittingSideEffectsWithoutDependencies
 ---------- /out/a.js ----------
-import "./chunk-K5RKT6UP.js";
-
-// shared.js
-var a = 1;
+import {
+  a
+} from "./chunk-V5KMYH5L.js";
 
 // a.js
 console.log(a);
 
 ---------- /out/b.js ----------
-import "./chunk-K5RKT6UP.js";
-
-// shared.js
-var b = 2;
+import {
+  b
+} from "./chunk-V5KMYH5L.js";
 
 // b.js
 console.log(b);
 
----------- /out/chunk-K5RKT6UP.js ----------
+---------- /out/chunk-V5KMYH5L.js ----------
 // shared.js
+var a = 1;
+var b = 2;
 console.log("side effect");
+
+export {
+  a,
+  b
+};
 
 ================================================================================
 TestVarRelocatingBundle
