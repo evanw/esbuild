@@ -353,8 +353,11 @@ usage();
 
 ================================================================================
 TestTSLocalMinifiedConstEnumMerging
----------- /entry.js ----------
+---------- /valid-use.js ----------
 var Foo;(function(B){B[B.BAR=1]="BAR",B[B.BAZ=2]="BAZ"})(Foo||(Foo={})),function(B){B[B.BOO=3]="BOO"}(Foo||(Foo={})),console.log(1,2,3);
+
+---------- /premature-use.js ----------
+var Foo;(function(B){B[B.BAR=1]="BAR",B[B.BAZ=2]="BAZ"})(Foo||(Foo={})),console.log(1,2,Foo.BOO),function(B){B[B.BOO=3]="BOO"}(Foo||(Foo={}));
 
 ================================================================================
 TestTSMinifiedBundleCommonJS

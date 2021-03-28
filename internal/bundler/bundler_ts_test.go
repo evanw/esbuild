@@ -212,19 +212,26 @@ func TestTSLocalConstEnumMergingWithoutWarnings(t *testing.T) {
 func TestTSLocalMinifiedConstEnumMerging(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.ts": `
+			"/valid-use.ts": `
 				const enum Foo {BAR=1, BAZ=2};
 				const enum Foo {BOO=3};
 				console.log(Foo.BAR, Foo.BAZ, Foo.BOO);
 			`,
+			"/premature-use.ts": `
+				const enum Foo {BAR=1, BAZ=2};
+				console.log(Foo.BAR, Foo.BAZ, Foo.BOO);
+				const enum Foo {BOO=3};
+			`,
 		},
-		entryPaths: []string{"/entry.ts"},
+		entryPaths: []string{"/valid-use.ts", "/premature-use.ts"},
 		options: config.Options{
 			RemoveWhitespace: true,
 			MinifyIdentifiers: true,
 			MangleSyntax: true,
 			AbsOutputDir: "/",
 		},
+		expectedScanLog: `premature-use.ts: warning: Unknown member BOO on enum Foo
+`,
 	})
 }
 
