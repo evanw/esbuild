@@ -268,15 +268,6 @@ type partMeta struct {
 	// the index of the current entry point being visted.
 	lastEntryBit ast.Index32
 
-	// If present, this is a circular doubly-linked list of all other parts in
-	// this file that need to be in the same chunk as this part to avoid cross-
-	// chunk assignments, which are not allowed in ES6 modules.
-	//
-	// This used to be an array but that was generating lots of allocations.
-	// Changing this to a circular doubly-linked list was a substantial speedup.
-	prevSibling uint32
-	nextSibling uint32
-
 	// These are dependencies that come from other files via import statements.
 	nonLocalDependencies []partRef
 }
@@ -593,8 +584,6 @@ func (c *linkerContext) addPartToFile(sourceIndex uint32, part js_ast.Part, part
 	}
 	repr := c.files[sourceIndex].repr.(*reprJS)
 	partIndex := uint32(len(repr.ast.Parts))
-	partMeta.prevSibling = partIndex
-	partMeta.nextSibling = partIndex
 	repr.ast.Parts = append(repr.ast.Parts, part)
 	repr.meta.partMeta = append(repr.meta.partMeta, partMeta)
 	return partIndex
@@ -2354,12 +2343,6 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 
 		switch repr := file.repr.(type) {
 		case *reprJS:
-			for partIndex := range repr.meta.partMeta {
-				partMeta := &repr.meta.partMeta[partIndex]
-				partMeta.prevSibling = uint32(partIndex)
-				partMeta.nextSibling = uint32(partIndex)
-			}
-
 			// If this is a CommonJS file, we're going to need to generate a wrapper
 			// for the CommonJS closure. That will end up looking something like this:
 			//
@@ -2575,11 +2558,6 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	// Also include any non-local dependencies
 	for _, nonLocalDependency := range partMeta.nonLocalDependencies {
 		c.includePart(nonLocalDependency.sourceIndex, nonLocalDependency.partIndex, entryPointBit, distanceFromEntryPoint)
-	}
-
-	// Also include any cross-chunk assignment siblings
-	for i := partMeta.nextSibling; i != partIndex; i = repr.meta.partMeta[i].nextSibling {
-		c.includePart(sourceIndex, i, entryPointBit, distanceFromEntryPoint)
 	}
 
 	// Also include any require() imports
