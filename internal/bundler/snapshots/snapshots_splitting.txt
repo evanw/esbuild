@@ -209,9 +209,9 @@ import {
 
 // entry.js
 var import_foo = __toModule(require_foo());
-import("./foo.js").then(({default: {bar: b}}) => console.log(import_foo.bar, b));
+import("./foo-42KSISCA.js").then(({default: {bar: b}}) => console.log(import_foo.bar, b));
 
----------- /out/foo.js ----------
+---------- /out/foo-42KSISCA.js ----------
 import {
   require_foo
 } from "./chunk-EIGPJKCZ.js";
@@ -236,9 +236,9 @@ import {
 } from "./chunk-3CWABKVA.js";
 
 // entry.js
-import("./foo.js").then(({bar: b}) => console.log(bar, b));
+import("./foo-H5N7CGKD.js").then(({bar: b}) => console.log(bar, b));
 
----------- /out/foo.js ----------
+---------- /out/foo-H5N7CGKD.js ----------
 import {
   bar
 } from "./chunk-3CWABKVA.js";
@@ -258,9 +258,9 @@ export {
 TestSplittingDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
 // entry.js
-import("./foo.js").then(({default: {bar}}) => console.log(bar));
+import("./foo-3I42H3S6.js").then(({default: {bar}}) => console.log(bar));
 
----------- /out/foo.js ----------
+---------- /out/foo-3I42H3S6.js ----------
 // foo.js
 var require_foo = __commonJS((exports) => {
   exports.bar = 123;
@@ -271,9 +271,9 @@ export default require_foo();
 TestSplittingDynamicES6IntoES6
 ---------- /out/entry.js ----------
 // entry.js
-import("./foo.js").then(({bar}) => console.log(bar));
+import("./foo-3I42H3S6.js").then(({bar}) => console.log(bar));
 
----------- /out/foo.js ----------
+---------- /out/foo-3I42H3S6.js ----------
 // foo.js
 var bar = 123;
 export {
@@ -295,15 +295,15 @@ export {
 
 ================================================================================
 TestSplittingDynamicImportOutsideSourceTreeIssue264
----------- /out/src/entry1.js ----------
+---------- /out/entry1.js ----------
 // Users/user/project/src/entry1.js
-import("../node_modules/package/index.js");
+import("./package-3I42H3S6.js");
 
----------- /out/src/entry2.js ----------
+---------- /out/entry2.js ----------
 // Users/user/project/src/entry2.js
-import("../node_modules/package/index.js");
+import("./package-3I42H3S6.js");
 
----------- /out/node_modules/package/index.js ----------
+---------- /out/package-3I42H3S6.js ----------
 // Users/user/project/node_modules/package/index.js
 console.log("imported");
 
@@ -440,9 +440,9 @@ export {
 TestSplittingPublicPathEntryName
 ---------- /out/a.js ----------
 // a.js
-import("/www/b.js");
+import("/www/b-3I42H3S6.js");
 
----------- /out/b.js ----------
+---------- /out/b-3I42H3S6.js ----------
 // b.js
 console.log("b");
 

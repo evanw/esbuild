@@ -32,6 +32,14 @@ import (
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
+type entryPointKind uint8
+
+const (
+	entryPointNone entryPointKind = iota
+	entryPointUserSpecified
+	entryPointDynamicImport
+)
+
 type file struct {
 	source     logger.Source
 	repr       fileRepr
@@ -52,8 +60,8 @@ type file struct {
 	// fully assembled later.
 	jsonMetadataChunk string
 
-	// If "isEntryPoint" is true, this is the index of the corresponding entry
-	// point chunk.
+	// If "entryPointKind" is not "entryPointNone", this is the index of the
+	// corresponding entry point chunk.
 	entryPointChunkIndex uint32
 
 	// If this file ends up being used in the bundle, these are additional files
@@ -61,7 +69,11 @@ type file struct {
 	// loader.
 	additionalFiles []OutputFile
 
-	isEntryPoint bool
+	// This file is an entry point if and only if this is not "entryPointNone".
+	// Note that dynamically-imported files are allowed to also be specified by
+	// the user as top-level entry points, so some dynamically-imported files
+	// may be "entryPointUserSpecified" instead of "entryPointDynamicImport".
+	entryPointKind entryPointKind
 
 	// If true, this file was listed as not having side effects by a package.json
 	// file in one of our containing directories with a "sideEffects" field, or
@@ -77,6 +89,10 @@ type file struct {
 
 	// This is optional additional information about "ignoreIfUnused" for errors
 	warnIfUnusedData *resolver.IgnoreIfUnusedData
+}
+
+func (f *file) isEntryPoint() bool {
+	return f.entryPointKind != entryPointNone
 }
 
 type fileRepr interface {
@@ -1861,27 +1877,9 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 }
 
 func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool, allReachableFiles []uint32) string {
-	isEntryPoint := make(map[uint32]bool)
-	for _, entryPoint := range b.entryPoints {
-		isEntryPoint[entryPoint] = true
-	}
-
-	// If code splitting is enabled, also treat dynamic imports as entry points
-	if codeSplitting {
-		for _, sourceIndex := range allReachableFiles {
-			if repr, ok := b.files[sourceIndex].repr.(*reprJS); ok {
-				for importRecordIndex := range repr.ast.ImportRecords {
-					if record := &repr.ast.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic {
-						isEntryPoint[record.SourceIndex.GetIndex()] = true
-					}
-				}
-			}
-		}
-	}
-
 	// Ignore any paths for virtual modules (that don't exist on the file system)
-	absPaths := make([]string, 0, len(isEntryPoint))
-	for entryPoint := range isEntryPoint {
+	absPaths := make([]string, 0, len(b.entryPoints))
+	for _, entryPoint := range b.entryPoints {
 		keyPath := b.files[entryPoint].source.KeyPath
 		if keyPath.Namespace == "file" {
 			absPaths = append(absPaths, keyPath.Text)

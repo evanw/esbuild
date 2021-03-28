@@ -2667,23 +2667,23 @@ var import_es6_ns_export_abstract_class = __toModule(require_es6_ns_export_abstr
 TestTopLevelAwaitAllowedImportWithSplitting
 ---------- /out/entry.js ----------
 // entry.js
-import("./a.js");
-import("./b.js");
-import("./c.js");
+import("./a-QJXNRG2U.js");
+import("./b-QJXNRG2U.js");
+import("./c-7Y4CCLAO.js");
 import("./entry.js");
 await 0;
 
----------- /out/a.js ----------
+---------- /out/a-QJXNRG2U.js ----------
 import "./chunk-7VOEXAIV.js";
 import "./chunk-FLIOJ2XZ.js";
 
----------- /out/b.js ----------
+---------- /out/b-QJXNRG2U.js ----------
 import "./chunk-7VOEXAIV.js";
 import "./chunk-FLIOJ2XZ.js";
 
 ---------- /out/chunk-7VOEXAIV.js ----------
 
----------- /out/c.js ----------
+---------- /out/c-7Y4CCLAO.js ----------
 import "./chunk-FLIOJ2XZ.js";
 
 ---------- /out/chunk-FLIOJ2XZ.js ----------
