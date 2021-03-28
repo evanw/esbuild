@@ -160,143 +160,139 @@ func (p *parser) skipTypeScriptReturnType() {
 }
 
 func (p *parser) skipTypeScriptType(level js_ast.L) {
-	p.skipTypeScriptTypePrefix()
-	p.skipTypeScriptTypeSuffix(level)
-}
-
-func (p *parser) skipTypeScriptTypePrefix() {
-	switch p.lexer.Token {
-	case js_lexer.TNumericLiteral, js_lexer.TBigIntegerLiteral, js_lexer.TStringLiteral,
-		js_lexer.TNoSubstitutionTemplateLiteral, js_lexer.TThis, js_lexer.TTrue, js_lexer.TFalse,
-		js_lexer.TNull, js_lexer.TVoid, js_lexer.TConst:
-		p.lexer.Next()
-
-	case js_lexer.TMinus:
-		// "-123"
-		// "-123n"
-		p.lexer.Next()
-		if p.lexer.Token == js_lexer.TBigIntegerLiteral {
+	for {
+		switch p.lexer.Token {
+		case js_lexer.TNumericLiteral, js_lexer.TBigIntegerLiteral, js_lexer.TStringLiteral,
+			js_lexer.TNoSubstitutionTemplateLiteral, js_lexer.TThis, js_lexer.TTrue, js_lexer.TFalse,
+			js_lexer.TNull, js_lexer.TVoid, js_lexer.TConst:
 			p.lexer.Next()
-		} else {
-			p.lexer.Expect(js_lexer.TNumericLiteral)
-		}
 
-	case js_lexer.TAmpersand:
-	case js_lexer.TBar:
-		// Support things like "type Foo = | A | B" and "type Foo = & A & B"
-		p.lexer.Next()
-		p.skipTypeScriptTypePrefix()
-
-	case js_lexer.TImport:
-		// "import('fs')"
-		p.lexer.Next()
-		p.lexer.Expect(js_lexer.TOpenParen)
-		p.lexer.Expect(js_lexer.TStringLiteral)
-		p.lexer.Expect(js_lexer.TCloseParen)
-
-	case js_lexer.TNew:
-		// "new () => Foo"
-		// "new <T>() => Foo<T>"
-		p.lexer.Next()
-		p.skipTypeScriptTypeParameters()
-		p.skipTypeScriptParenOrFnType()
-
-	case js_lexer.TLessThan:
-		// "<T>() => Foo<T>"
-		p.skipTypeScriptTypeParameters()
-		p.skipTypeScriptParenOrFnType()
-
-	case js_lexer.TOpenParen:
-		// "(number | string)"
-		p.skipTypeScriptParenOrFnType()
-
-	case js_lexer.TIdentifier:
-		switch p.lexer.Identifier {
-		case "keyof", "readonly", "infer":
+		case js_lexer.TMinus:
+			// "-123"
+			// "-123n"
 			p.lexer.Next()
-			p.skipTypeScriptType(js_ast.LPrefix)
-
-		case "unique":
-			p.lexer.Next()
-			if p.lexer.IsContextualKeyword("symbol") {
+			if p.lexer.Token == js_lexer.TBigIntegerLiteral {
 				p.lexer.Next()
+			} else {
+				p.lexer.Expect(js_lexer.TNumericLiteral)
 			}
 
-		// This was added in TypeScript 4.2
-		case "abstract":
+		case js_lexer.TAmpersand:
+		case js_lexer.TBar:
+			// Support things like "type Foo = | A | B" and "type Foo = & A & B"
 			p.lexer.Next()
-			if p.lexer.Token == js_lexer.TNew {
-				p.skipTypeScriptTypePrefix()
-			}
+			continue
 
-		default:
+		case js_lexer.TImport:
+			// "import('fs')"
 			p.lexer.Next()
-		}
+			p.lexer.Expect(js_lexer.TOpenParen)
+			p.lexer.Expect(js_lexer.TStringLiteral)
+			p.lexer.Expect(js_lexer.TCloseParen)
 
-	case js_lexer.TTypeof:
-		p.lexer.Next()
-		if p.lexer.Token == js_lexer.TImport {
-			// "typeof import('fs')"
-			p.skipTypeScriptTypePrefix()
-		} else {
-			// "typeof x"
-			// "typeof x.y"
-			for {
-				if !p.lexer.IsIdentifierOrKeyword() {
-					p.lexer.Expected(js_lexer.TIdentifier)
+		case js_lexer.TNew:
+			// "new () => Foo"
+			// "new <T>() => Foo<T>"
+			p.lexer.Next()
+			p.skipTypeScriptTypeParameters()
+			p.skipTypeScriptParenOrFnType()
+
+		case js_lexer.TLessThan:
+			// "<T>() => Foo<T>"
+			p.skipTypeScriptTypeParameters()
+			p.skipTypeScriptParenOrFnType()
+
+		case js_lexer.TOpenParen:
+			// "(number | string)"
+			p.skipTypeScriptParenOrFnType()
+
+		case js_lexer.TIdentifier:
+			switch p.lexer.Identifier {
+			case "keyof", "readonly", "infer":
+				p.lexer.Next()
+				p.skipTypeScriptType(js_ast.LPrefix)
+
+			case "unique":
+				p.lexer.Next()
+				if p.lexer.IsContextualKeyword("symbol") {
+					p.lexer.Next()
 				}
+
+			// This was added in TypeScript 4.2
+			case "abstract":
 				p.lexer.Next()
-				if p.lexer.Token != js_lexer.TDot {
+				if p.lexer.Token == js_lexer.TNew {
+					continue
+				}
+
+			default:
+				p.lexer.Next()
+			}
+
+		case js_lexer.TTypeof:
+			p.lexer.Next()
+			if p.lexer.Token == js_lexer.TImport {
+				// "typeof import('fs')"
+				continue
+			} else {
+				// "typeof x"
+				// "typeof x.y"
+				for {
+					if !p.lexer.IsIdentifierOrKeyword() {
+						p.lexer.Expected(js_lexer.TIdentifier)
+					}
+					p.lexer.Next()
+					if p.lexer.Token != js_lexer.TDot {
+						break
+					}
+					p.lexer.Next()
+				}
+			}
+
+		case js_lexer.TOpenBracket:
+			// "[number, string]"
+			// "[first: number, second: string]"
+			p.lexer.Next()
+			for p.lexer.Token != js_lexer.TCloseBracket {
+				if p.lexer.Token == js_lexer.TDotDotDot {
+					p.lexer.Next()
+				}
+				p.skipTypeScriptType(js_ast.LLowest)
+				if p.lexer.Token == js_lexer.TQuestion {
+					p.lexer.Next()
+				}
+				if p.lexer.Token == js_lexer.TColon {
+					p.lexer.Next()
+					p.skipTypeScriptType(js_ast.LLowest)
+				}
+				if p.lexer.Token != js_lexer.TComma {
 					break
 				}
 				p.lexer.Next()
 			}
-		}
+			p.lexer.Expect(js_lexer.TCloseBracket)
 
-	case js_lexer.TOpenBracket:
-		// "[number, string]"
-		// "[first: number, second: string]"
-		p.lexer.Next()
-		for p.lexer.Token != js_lexer.TCloseBracket {
-			if p.lexer.Token == js_lexer.TDotDotDot {
-				p.lexer.Next()
-			}
-			p.skipTypeScriptType(js_ast.LLowest)
-			if p.lexer.Token == js_lexer.TQuestion {
-				p.lexer.Next()
-			}
-			if p.lexer.Token == js_lexer.TColon {
+		case js_lexer.TOpenBrace:
+			p.skipTypeScriptObjectType()
+
+		case js_lexer.TTemplateHead:
+			// "`${'a' | 'b'}-${'c' | 'd'}`"
+			for {
 				p.lexer.Next()
 				p.skipTypeScriptType(js_ast.LLowest)
+				p.lexer.RescanCloseBraceAsTemplateToken()
+				if p.lexer.Token == js_lexer.TTemplateTail {
+					p.lexer.Next()
+					break
+				}
 			}
-			if p.lexer.Token != js_lexer.TComma {
-				break
-			}
-			p.lexer.Next()
+
+		default:
+			p.lexer.Unexpected()
 		}
-		p.lexer.Expect(js_lexer.TCloseBracket)
-
-	case js_lexer.TOpenBrace:
-		p.skipTypeScriptObjectType()
-
-	case js_lexer.TTemplateHead:
-		// "`${'a' | 'b'}-${'c' | 'd'}`"
-		for {
-			p.lexer.Next()
-			p.skipTypeScriptType(js_ast.LLowest)
-			p.lexer.RescanCloseBraceAsTemplateToken()
-			if p.lexer.Token == js_lexer.TTemplateTail {
-				p.lexer.Next()
-				break
-			}
-		}
-
-	default:
-		p.lexer.Unexpected()
+		break
 	}
-}
 
-func (p *parser) skipTypeScriptTypeSuffix(level js_ast.L) {
 	for {
 		switch p.lexer.Token {
 		case js_lexer.TBar:
