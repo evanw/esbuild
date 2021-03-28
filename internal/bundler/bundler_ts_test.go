@@ -229,10 +229,10 @@ func TestTSLocalMinifiedConstEnumMerging(t *testing.T) {
 		},
 		entryPaths: []string{"/valid-use.ts", "/premature-use.ts"},
 		options: config.Options{
-			RemoveWhitespace: true,
+			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
-			MangleSyntax: true,
-			AbsOutputDir: "/",
+			MangleSyntax:      true,
+			AbsOutputDir:      "/",
 		},
 		expectedScanLog: `premature-use.ts: warning: Unknown member ZOO on enum Foo
 premature-use.ts: warning: Unknown member BOO on enum Foo
