@@ -9,6 +9,7 @@ import * as types from "./types";
 export interface BuildRequest {
   command: 'build';
   key: number;
+  entries: [string, string][]; // Use an array instead of a map to preserve order
   flags: string[];
   write: boolean;
   stdinContents: string | null;

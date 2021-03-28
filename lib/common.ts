@@ -35,6 +35,9 @@ let mustBeArray = <T>(value: T[] | undefined): string | null =>
 let mustBeObject = (value: Object | undefined): string | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? null : 'an object';
 
+let mustBeArrayOrRecord = <T extends string>(value: T[] | Record<T, T> | undefined): string | null =>
+  typeof value === 'object' && value !== null ? null : 'an array or an object';
+
 let mustBeObjectOrNull = (value: Object | null | undefined): string | null =>
   typeof value === 'object' && !Array.isArray(value) ? null : 'an object or null';
 
@@ -146,6 +149,7 @@ function flagsForBuildOptions(
   logLevelDefault: types.LogLevel,
   writeDefault: boolean,
 ): {
+  entries: [string, string][],
   flags: string[],
   write: boolean,
   stdinContents: string | null,
@@ -156,6 +160,7 @@ function flagsForBuildOptions(
   watch: types.WatchMode | null,
 } {
   let flags: string[] = [];
+  let entries: [string, string][] = [];
   let keys: OptionKeys = Object.create(null);
   let stdinContents: string | null = null;
   let stdinResolveDir: string | null = null;
@@ -188,7 +193,7 @@ function flagsForBuildOptions(
   let inject = getFlag(options, keys, 'inject', mustBeArray);
   let banner = getFlag(options, keys, 'banner', mustBeObject);
   let footer = getFlag(options, keys, 'footer', mustBeObject);
-  let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
+  let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArrayOrRecord);
   let absWorkingDir = getFlag(options, keys, 'absWorkingDir', mustBeString);
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
   let write = getFlag(options, keys, 'write', mustBeBoolean) ?? writeDefault; // Default to true if not specified
@@ -276,10 +281,14 @@ function flagsForBuildOptions(
   }
 
   if (entryPoints) {
-    for (let entryPoint of entryPoints) {
-      entryPoint += '';
-      if (entryPoint.startsWith('-')) throw new Error(`Invalid entry point: ${entryPoint}`);
-      flags.push(entryPoint);
+    if (Array.isArray(entryPoints)) {
+      for (let entryPoint of entryPoints) {
+        entries.push(['', entryPoint + '']);
+      }
+    } else {
+      for (let [key, value] of Object.entries(entryPoints)) {
+        entries.push([key + '', value + '']);
+      }
     }
   }
 
@@ -306,6 +315,7 @@ function flagsForBuildOptions(
   }
 
   return {
+    entries,
     flags,
     write,
     stdinContents,
@@ -844,6 +854,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             [requestPlugins, pluginRefs] = handlePlugins(options, plugins, key, details);
           }
           let {
+            entries,
             flags,
             write,
             stdinContents,
@@ -856,6 +867,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           let request: protocol.BuildRequest = {
             command: 'build',
             key,
+            entries,
             flags,
             write,
             stdinContents,

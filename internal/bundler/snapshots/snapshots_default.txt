@@ -400,6 +400,12 @@ var import__ = __toModule(require_index());
 console.log(import__.x);
 
 ================================================================================
+TestDuplicateEntryPoint
+---------- /out.js/entry.js ----------
+// entry.js
+console.log(123);
+
+================================================================================
 TestDynamicImportWithExpressionCJS
 ---------- /out.js ----------
 import("foo");

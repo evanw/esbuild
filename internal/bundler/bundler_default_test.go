@@ -2779,7 +2779,7 @@ func TestNoOverwriteInputFileError(t *testing.T) {
 	})
 }
 
-func TestDuplicateEntryPointError(t *testing.T) {
+func TestDuplicateEntryPoint(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2791,8 +2791,6 @@ func TestDuplicateEntryPointError(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out.js",
 		},
-		expectedScanLog: `error: Duplicate entry point "entry.js"
-`,
 	})
 }
 

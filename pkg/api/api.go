@@ -271,13 +271,20 @@ type BuildOptions struct {
 	ChunkNames string
 	AssetNames string
 
-	EntryPoints []string
+	EntryPoints         []string
+	EntryPointsAdvanced []EntryPoint
+
 	Stdin       *StdinOptions
 	Write       bool
 	Incremental bool
 	Plugins     []Plugin
 
 	Watch *WatchMode
+}
+
+type EntryPoint struct {
+	InputPath  string
+	OutputPath string
 }
 
 type WatchMode struct {

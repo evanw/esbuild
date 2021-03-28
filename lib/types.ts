@@ -57,7 +57,7 @@ export interface BuildOptions extends CommonOptions {
   banner?: { [type: string]: string };
   footer?: { [type: string]: string };
   incremental?: boolean;
-  entryPoints?: string[];
+  entryPoints?: string[] | Record<string, string>;
   stdin?: StdinOptions;
   plugins?: Plugin[];
   absWorkingDir?: string;

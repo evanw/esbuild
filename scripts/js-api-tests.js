@@ -22,7 +22,7 @@ let buildTests = {
       })
       throw new Error('Expected build failure');
     } catch (e) {
-      if (!e.errors || !e.errors[0] || e.errors[0].text !== '"entryPoints" must be an array') {
+      if (!e.errors || !e.errors[0] || e.errors[0].text !== '"entryPoints" must be an array or an object') {
         throw e;
       }
     }
@@ -2144,6 +2144,48 @@ console.log("success");
     })
     assert.strictEqual(outputFiles.length, 1)
     new Function(outputFiles[0].text)()
+  },
+
+  async customEntryPointOutputPathsRel({ esbuild, testDir }) {
+    const input1 = path.join(testDir, 'in1.js')
+    const input2 = path.join(testDir, 'in2.js')
+    const output1 = 'out/1.cjs'
+    const output2 = 'out/2.mjs'
+    await writeFileAsync(input1, `console.log('in1')`)
+    await writeFileAsync(input2, `console.log('in2')`)
+    var { outputFiles } = await esbuild.build({
+      entryPoints: {
+        [output1]: input1,
+        [output2]: input2,
+      },
+      entryNames: 'entry/[dir]/[hash]-[name]',
+      outdir: testDir,
+      write: false,
+    })
+    assert.strictEqual(outputFiles.length, 2)
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', '5DNZWSYZ-1.cjs'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'ONX3RUSG-2.mjs'))
+  },
+
+  async customEntryPointOutputPathsAbs({ esbuild, testDir }) {
+    const input1 = path.join(testDir, 'in1.js')
+    const input2 = path.join(testDir, 'in2.js')
+    const output1 = path.join(testDir, 'out/1')
+    const output2 = path.join(testDir, 'out/2')
+    await writeFileAsync(input1, `console.log('in1')`)
+    await writeFileAsync(input2, `console.log('in2')`)
+    var { outputFiles } = await esbuild.build({
+      entryPoints: {
+        [output1]: input1,
+        [output2]: input2,
+      },
+      entryNames: 'entry/[dir]/[hash]-[name]',
+      outdir: testDir,
+      write: false,
+    })
+    assert.strictEqual(outputFiles.length, 2)
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', 'NNGUQQ6B-1.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'UP345ZY4-2.js'))
   },
 }
 
