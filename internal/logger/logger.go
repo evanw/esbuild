@@ -509,7 +509,7 @@ type Colors struct {
 	Yellow  string
 }
 
-var terminalColors = Colors{
+var TerminalColors = Colors{
 	Reset:     "\033[0m",
 	Bold:      "\033[1m",
 	Dim:       "\033[37m",
@@ -548,7 +548,7 @@ func PrintTextWithColor(file *os.File, useColor UseColor, callback func(Colors) 
 
 	var colors Colors
 	if useColorEscapes {
-		colors = terminalColors
+		colors = TerminalColors
 	}
 	writeStringWithColor(file, callback(colors))
 }
@@ -872,7 +872,7 @@ func emptyMarginText(maxMargin int, isLast bool) string {
 func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int) string {
 	var colors Colors
 	if terminalInfo.UseColorEscapes {
-		colors = terminalColors
+		colors = TerminalColors
 	}
 
 	var kindColor string

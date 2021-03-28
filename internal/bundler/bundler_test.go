@@ -37,7 +37,8 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 		stringA := fmt.Sprintf("%v", a)
 		stringB := fmt.Sprintf("%v", b)
 		if strings.Contains(stringA, "\n") {
-			t.Fatal(test.Diff(stringB, stringA))
+			color := !fs.CheckIfWindows()
+			t.Fatal(test.Diff(stringB, stringA, color))
 		} else {
 			t.Fatalf("%s != %s", a, b)
 		}
