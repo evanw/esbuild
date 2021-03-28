@@ -463,6 +463,7 @@ func parseFile(args parseArgs) {
 					&args.caches.FSCache,
 					&source,
 					record.Range,
+					source.KeyPath.Namespace,
 					record.Path.Text,
 					record.Kind,
 					absResolveDir,
@@ -698,6 +699,7 @@ func runOnResolvePlugins(
 	fsCache *cache.FSCache,
 	importSource *logger.Source,
 	importPathRange logger.Range,
+	importNamespace string,
 	path string,
 	kind ast.ImportKind,
 	absResolveDir string,
@@ -709,10 +711,14 @@ func runOnResolvePlugins(
 		Kind:       kind,
 		PluginData: pluginData,
 	}
-	applyPath := logger.Path{Text: path}
+	applyPath := logger.Path{
+		Text:      path,
+		Namespace: importNamespace,
+	}
 	if importSource != nil {
 		resolverArgs.Importer = importSource.KeyPath
-		applyPath.Namespace = importSource.KeyPath.Namespace
+	} else {
+		resolverArgs.Importer.Namespace = importNamespace
 	}
 
 	// Apply resolver plugins in order until one succeeds
@@ -975,6 +981,7 @@ type scanner struct {
 type EntryPoint struct {
 	InputPath  string
 	OutputPath string
+	IsFile     bool
 }
 
 func ScanBundle(
@@ -1263,27 +1270,34 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []entryMeta {
 		})
 	}
 
-	// Entry point paths without a leading "./" are interpreted as package
-	// paths. This happens because they go through general path resolution
-	// like all other import paths so that plugins can run on them. Requiring
-	// a leading "./" for a relative path simplifies writing plugins because
-	// entry points aren't a special case.
-	//
-	// However, requiring a leading "./" also breaks backward compatibility
-	// and makes working with the CLI more difficult. So attempt to insert
-	// "./" automatically when needed. We don't want to unconditionally insert
-	// a leading "./" because the path may not be a file system path. For
-	// example, it may be a URL. So only insert a leading "./" when the path
-	// is an exact match for an existing file.
+	// Check each entry point ahead of time to see if it's a real file
 	entryPointAbsResolveDir := s.fs.Cwd()
-	for i, entryPoint := range entryPoints {
-		if !s.fs.IsAbs(entryPoint.InputPath) && resolver.IsPackagePath(entryPoint.InputPath) {
-			absPath := s.fs.Join(entryPointAbsResolveDir, entryPoint.InputPath)
-			dir := s.fs.Dir(absPath)
-			base := s.fs.Base(absPath)
-			if entries, err := s.fs.ReadDirectory(dir); err == nil {
-				if entry, _ := entries.Get(base); entry != nil && entry.Kind(s.fs) == fs.FileEntry {
-					entryPoints[i].InputPath = "./" + entryPoint.InputPath
+	for i := range entryPoints {
+		entryPoint := &entryPoints[i]
+		absPath := entryPoint.InputPath
+		if !s.fs.IsAbs(absPath) {
+			absPath = s.fs.Join(entryPointAbsResolveDir, absPath)
+		}
+		dir := s.fs.Dir(absPath)
+		base := s.fs.Base(absPath)
+		if entries, err := s.fs.ReadDirectory(dir); err == nil {
+			if entry, _ := entries.Get(base); entry != nil && entry.Kind(s.fs) == fs.FileEntry {
+				entryPoint.IsFile = true
+
+				// Entry point paths without a leading "./" are interpreted as package
+				// paths. This happens because they go through general path resolution
+				// like all other import paths so that plugins can run on them. Requiring
+				// a leading "./" for a relative path simplifies writing plugins because
+				// entry points aren't a special case.
+				//
+				// However, requiring a leading "./" also breaks backward compatibility
+				// and makes working with the CLI more difficult. So attempt to insert
+				// "./" automatically when needed. We don't want to unconditionally insert
+				// a leading "./" because the path may not be a file system path. For
+				// example, it may be a URL. So only insert a leading "./" when the path
+				// is an exact match for an existing file.
+				if !s.fs.IsAbs(entryPoint.InputPath) && resolver.IsPackagePath(entryPoint.InputPath) {
+					entryPoint.InputPath = "./" + entryPoint.InputPath
 				}
 			}
 		}
@@ -1297,6 +1311,11 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []entryMeta {
 	entryPointWaitGroup.Add(len(entryPoints))
 	for i, entryPoint := range entryPoints {
 		go func(i int, entryPoint EntryPoint) {
+			namespace := ""
+			if entryPoint.IsFile {
+				namespace = "file"
+			}
+
 			// Run the resolver and log an error if the path couldn't be resolved
 			resolveResult, didLogError, debug := runOnResolvePlugins(
 				s.options.Plugins,
@@ -1306,6 +1325,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []entryMeta {
 				&s.caches.FSCache,
 				nil,
 				logger.Range{},
+				namespace,
 				entryPoint.InputPath,
 				ast.ImportEntryPoint,
 				entryPointAbsResolveDir,

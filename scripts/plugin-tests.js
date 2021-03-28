@@ -863,6 +863,25 @@ let pluginTests = {
     assert.strictEqual(result.outputFiles[3].text, `// virtual-ns:input a/b/c.d.e\nconsole.log("input a/b/c.d.e");\n`)
   },
 
+  async entryPointFileNamespace({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    let worked = false
+    await writeFileAsync(input, 'stuff')
+    await esbuild.build({
+      entryPoints: [input],
+      write: false,
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /.*/, namespace: 'file' }, () => {
+            worked = true
+          })
+        },
+      }],
+    })
+    assert(worked)
+  },
+
   async stdinImporter({ esbuild, testDir }) {
     const output = path.join(testDir, 'out.js')
     await esbuild.build({
