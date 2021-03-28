@@ -587,14 +587,6 @@ func (t SummaryTable) Less(i int, j int) bool {
 		return false
 	}
 
-	// Sort subdirectories first
-	if strings.HasPrefix(ti.Dir, tj.Dir) {
-		return true
-	}
-	if strings.HasPrefix(tj.Dir, ti.Dir) {
-		return false
-	}
-
 	// Sort alphabetically by directory first
 	if ti.Dir < tj.Dir {
 		return true
