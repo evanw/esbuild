@@ -1684,7 +1684,31 @@ console.log("success");
     assert.strictEqual(contents.indexOf('const'), -1)
   },
 
-  async outbase({ esbuild, testDir }) {
+  async outbaseRelPath({ esbuild, testDir }) {
+    const outbase = path.join(testDir, 'pages')
+    const b = path.join(outbase, 'a', 'b', 'index.js')
+    const c = path.join(outbase, 'a', 'c', 'index.js')
+    const outdir = path.join(testDir, 'outdir')
+    await mkdirAsync(path.dirname(b), { recursive: true })
+    await mkdirAsync(path.dirname(c), { recursive: true })
+    await writeFileAsync(b, 'module.exports = "b"')
+    await writeFileAsync(c, 'module.exports = "c"')
+    await esbuild.build({
+      entryPoints: [
+        path.relative(process.cwd(), b),
+        path.relative(process.cwd(), c),
+      ],
+      outdir,
+      outbase,
+      format: 'cjs',
+    })
+    const outB = path.join(outdir, path.relative(outbase, b))
+    const outC = path.join(outdir, path.relative(outbase, c))
+    assert.strictEqual(require(outB), 'b')
+    assert.strictEqual(require(outC), 'c')
+  },
+
+  async outbaseAbsPath({ esbuild, testDir }) {
     const outbase = path.join(testDir, 'pages')
     const b = path.join(outbase, 'a', 'b', 'index.js')
     const c = path.join(outbase, 'a', 'c', 'index.js')
