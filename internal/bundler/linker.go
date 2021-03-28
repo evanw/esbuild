@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"hash"
 	"math/rand"
-	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -501,7 +500,7 @@ func newLinkerContext(
 	// Mark all entry points so we don't add them again for import() expressions
 	for _, sourceIndex := range entryPoints {
 		file := &c.files[sourceIndex]
-		file.isEntryPoint = true
+		file.entryPointKind = entryPointUserSpecified
 
 		if repr, ok := file.repr.(*reprJS); ok {
 			// Loaders default to CommonJS when they are the entry point and the output
@@ -842,7 +841,7 @@ func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) s
 // substituted into a path template without necessarily having a "/" after it.
 // Extra slashes should get cleaned up automatically when we join it with the
 // output directory.
-func (c *linkerContext) pathRelativeToOutbase(sourceIndex uint32, stdExt string) (relDir string, baseName string, baseExt string) {
+func (c *linkerContext) pathRelativeToOutbase(sourceIndex uint32, stdExt string, avoidIndex bool) (relDir string, baseName string, baseExt string) {
 	file := &c.files[sourceIndex]
 	relDir = "/"
 	baseExt = stdExt
@@ -866,19 +865,34 @@ func (c *linkerContext) pathRelativeToOutbase(sourceIndex uint32, stdExt string)
 
 	// Come up with a path for virtual paths (i.e. non-file-system paths)
 	if file.source.KeyPath.Namespace != "file" {
-		baseName = baseFileNameForVirtualModulePath(file.source.KeyPath.Text)
-
-		// Swap the file extension for the standard one
-		baseName = baseName[:len(baseName)-len(path.Ext(baseName))]
+		dir, base, _ := logger.PlatformIndependentPathDirBaseExt(file.source.KeyPath.Text)
+		if avoidIndex && base == "index" {
+			_, base, _ = logger.PlatformIndependentPathDirBaseExt(dir)
+		}
+		baseName = baseFileNameForVirtualModulePath(base)
 		return
 	}
 
+	// Heuristic: If the file is named something like "index.js", then use
+	// the name of the parent directory instead. This helps avoid the
+	// situation where many chunks are named "index" because of people
+	// dynamically-importing npm packages that make use of node's implicit
+	// "index" file name feature.
+	absPath := file.source.KeyPath.Text
+	if avoidIndex {
+		base := c.fs.Base(absPath)
+		base = base[:len(base)-len(c.fs.Ext(base))]
+		if base == "index" {
+			absPath = c.fs.Dir(absPath)
+		}
+	}
+
 	// Try to get a relative path to the base directory
-	relPath, ok := c.fs.Rel(c.options.AbsOutputBase, file.source.KeyPath.Text)
+	relPath, ok := c.fs.Rel(c.options.AbsOutputBase, absPath)
 	if !ok {
 		// This can fail in some situations such as on different drives on
 		// Windows. In that case we just use the file name.
-		baseName = c.fs.Base(file.source.KeyPath.Text)
+		baseName = c.fs.Base(absPath)
 
 		// Swap the file extension for the standard one
 		baseName = baseName[:len(baseName)-len(c.fs.Ext(baseName))]
@@ -1341,9 +1355,9 @@ func (c *linkerContext) scanImportsAndExports() {
 				case ast.ImportDynamic:
 					if c.options.CodeSplitting {
 						// Files that are imported with import() must be entry points
-						if !otherFile.isEntryPoint {
+						if otherFile.entryPointKind == entryPointNone {
 							c.entryPoints = append(c.entryPoints, record.SourceIndex.GetIndex())
-							otherFile.isEntryPoint = true
+							otherFile.entryPointKind = entryPointDynamicImport
 						}
 					} else {
 						// If we're not splitting, then import() is just a require() that
@@ -1362,7 +1376,7 @@ func (c *linkerContext) scanImportsAndExports() {
 			// that uses CommonJS features will need to be wrapped, even though the
 			// resulting wrapper won't be invoked by other files. An exception is made
 			// for entry point files in CommonJS format (or when in pass-through mode).
-			if repr.ast.ExportsKind == js_ast.ExportsCommonJS && (!file.isEntryPoint ||
+			if repr.ast.ExportsKind == js_ast.ExportsCommonJS && (!file.isEntryPoint() ||
 				c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatESModule) {
 				repr.meta.wrap = wrapCJS
 			}
@@ -1460,7 +1474,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// symbols. In that case make sure to mark them as such so they don't
 		// get minified.
 		if (c.options.OutputFormat == config.FormatPreserve || c.options.OutputFormat == config.FormatCommonJS) &&
-			repr.meta.wrap == wrapNone && file.isEntryPoint {
+			repr.meta.wrap == wrapNone && file.isEntryPoint() {
 			exportsRef := js_ast.FollowSymbols(c.symbols, repr.ast.ExportsRef)
 			moduleRef := js_ast.FollowSymbols(c.symbols, repr.ast.ModuleRef)
 			c.symbols.Get(exportsRef).Kind = js_ast.SymbolUnbound
@@ -1538,7 +1552,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// Pre-generate symbols for re-exports CommonJS symbols in case they
 		// are necessary later. This is done now because the symbols map cannot be
 		// mutated later due to parallelism.
-		if file.isEntryPoint && c.options.OutputFormat == config.FormatESModule {
+		if file.isEntryPoint() && c.options.OutputFormat == config.FormatESModule {
 			copies := make([]js_ast.Ref, len(repr.meta.sortedAndFilteredExportAliases))
 			for i, alias := range repr.meta.sortedAndFilteredExportAliases {
 				symbols := &c.symbols.Outer[sourceIndex]
@@ -1568,7 +1582,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// actual CommonJS files from being renamed. This is purely about
 		// aesthetics and is not about correctness. This is done here because by
 		// this point, we know the CommonJS status will not change further.
-		if repr.meta.wrap != wrapCJS && repr.ast.ExportsKind != js_ast.ExportsCommonJS && (!file.isEntryPoint ||
+		if repr.meta.wrap != wrapCJS && repr.ast.ExportsKind != js_ast.ExportsCommonJS && (!file.isEntryPoint() ||
 			c.options.OutputFormat != config.FormatCommonJS) {
 			name := file.source.IdentifierName
 			c.symbols.Get(repr.ast.ExportsRef).OriginalName = name + "_exports"
@@ -1701,7 +1715,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		clone := *object
 		clone.Properties = append(make([]js_ast.Property, 0, len(clone.Properties)), clone.Properties...)
 		for i, property := range clone.Properties {
-			if str, ok := property.Key.Data.(*js_ast.EString); ok && (!file.isEntryPoint || js_lexer.IsIdentifierUTF16(str.Value)) {
+			if str, ok := property.Key.Data.(*js_ast.EString); ok && (!file.isEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value)) {
 				name := js_lexer.UTF16ToString(str.Value)
 				export := generateExport(name, name, *property.Value, nil)
 				prevExports = append(prevExports, export)
@@ -1775,7 +1789,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
 	declaredSymbols := []js_ast.DeclaredSymbol{}
 	var nsExportStmts []js_ast.Stmt
-	if repr.ast.ExportsKind != js_ast.ExportsCommonJS && (!file.isEntryPoint || c.options.OutputFormat != config.FormatCommonJS) {
+	if repr.ast.ExportsKind != js_ast.ExportsCommonJS && (!file.isEntryPoint() || c.options.OutputFormat != config.FormatCommonJS) {
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
 			Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.ExportsRef}},
 			Value:   &js_ast.Expr{Data: &js_ast.EObject{}},
@@ -1790,7 +1804,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// "__markAsModule" which sets the "__esModule" property to true. This must
 	// be done before any to "require()" or circular imports of multiple modules
 	// that have been each converted from ESM to CommonJS may not work correctly.
-	if repr.ast.ExportKeyword.Len > 0 && (repr.ast.ExportsKind == js_ast.ExportsCommonJS || (file.isEntryPoint && c.options.OutputFormat == config.FormatCommonJS)) {
+	if repr.ast.ExportKeyword.Len > 0 && (repr.ast.ExportsKind == js_ast.ExportsCommonJS || (file.isEntryPoint() && c.options.OutputFormat == config.FormatCommonJS)) {
 		runtimeRepr := c.files[runtime.SourceIndex].repr.(*reprJS)
 		markAsModuleRef := runtimeRepr.ast.ModuleScope.Members["__markAsModule"].Ref
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
@@ -2210,7 +2224,7 @@ func (c *linkerContext) hasDynamicExportsDueToExportStar(sourceIndex uint32, vis
 		// This file has dynamic exports if the exported imports are from a file
 		// that either has dynamic exports directly or transitively by itself
 		// having an export star from a file with dynamic exports.
-		if (!record.SourceIndex.IsValid() && (!c.files[sourceIndex].isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
+		if (!record.SourceIndex.IsValid() && (!c.files[sourceIndex].isEntryPoint() || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
 			(record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() != sourceIndex && c.hasDynamicExportsDueToExportStar(record.SourceIndex.GetIndex(), visited)) {
 			repr.ast.ExportsKind = js_ast.ExportsESMWithDynamicFallback
 			return true
@@ -2559,13 +2573,13 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 			// Include all parts in this file with side effects, or just include
 			// everything if tree-shaking is disabled. Note that we still want to
 			// perform tree-shaking on the runtime even if tree-shaking is disabled.
-			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !isTreeShakingEnabled && file.isEntryPoint) {
+			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !isTreeShakingEnabled && file.isEntryPoint()) {
 				c.includePart(sourceIndex, uint32(partIndex), entryPointBit, distanceFromEntryPoint)
 			}
 		}
 
 		// If this is an entry point, include all exports
-		if file.isEntryPoint {
+		if file.isEntryPoint() {
 			for _, alias := range repr.meta.sortedAndFilteredExportAliases {
 				export := repr.meta.resolvedExports[alias]
 				targetSourceIndex := export.sourceIndex
@@ -2639,7 +2653,7 @@ func (c *linkerContext) generateUseOfSymbolForInclude(
 }
 
 func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord) bool {
-	return record.Kind == ast.ImportDynamic && c.files[record.SourceIndex.GetIndex()].isEntryPoint
+	return record.Kind == ast.ImportDynamic && c.files[record.SourceIndex.GetIndex()].isEntryPoint()
 }
 
 func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
@@ -2730,7 +2744,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		record := &repr.ast.ImportRecords[importRecordIndex]
 
 		// Is this export star evaluated at run time?
-		happensAtRunTime := !record.SourceIndex.IsValid() && (!file.isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())
+		happensAtRunTime := !record.SourceIndex.IsValid() && (!file.isEntryPoint() || !c.options.OutputFormat.KeepES6ImportExportSyntax())
 		if record.SourceIndex.IsValid() {
 			otherSourceIndex := record.SourceIndex.GetIndex()
 			otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
@@ -2756,12 +2770,10 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 }
 
 func baseFileNameForVirtualModulePath(path string) string {
-	_, base, ext := logger.PlatformIndependentPathDirBaseExt(path)
-
 	// Convert it to a safe file name. See: https://stackoverflow.com/a/31976060
 	sb := strings.Builder{}
 	needsGap := false
-	for _, c := range base + ext {
+	for _, c := range path {
 		switch c {
 		case 0, '/':
 			// These characters are forbidden on Unix and Windows
@@ -2953,8 +2965,13 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		var dir, base, ext string
 		var template []config.PathTemplate
 		if chunk.isEntryPoint {
-			dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, stdExt)
-			template = c.options.EntryPathTemplate
+			if c.files[chunk.sourceIndex].entryPointKind == entryPointUserSpecified {
+				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, stdExt, false /* avoidIndex */)
+				template = c.options.EntryPathTemplate
+			} else {
+				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, stdExt, true /* avoidIndex */)
+				template = c.options.ChunkPathTemplate
+			}
 		} else {
 			dir = "/"
 			base = "chunk"
@@ -3194,7 +3211,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 
 func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtList, partStmts []js_ast.Stmt) {
 	file := &c.files[sourceIndex]
-	shouldStripExports := c.options.Mode != config.ModePassThrough || !file.isEntryPoint
+	shouldStripExports := c.options.Mode != config.ModePassThrough || !file.isEntryPoint()
 	repr := file.repr.(*reprJS)
 	shouldExtractESMStmtsForWrap := repr.meta.wrap != wrapNone
 
