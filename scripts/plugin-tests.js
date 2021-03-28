@@ -853,10 +853,10 @@ let pluginTests = {
       }],
     })
     assert.strictEqual(result.outputFiles.length, 4)
-    assert.strictEqual(result.outputFiles[0].path, path.join(testDir, 'input 1.js'))
-    assert.strictEqual(result.outputFiles[1].path, path.join(testDir, 'input 2.js'))
-    assert.strictEqual(result.outputFiles[2].path, path.join(testDir, 'input a_b.js'))
-    assert.strictEqual(result.outputFiles[3].path, path.join(testDir, 'c.d.js'))
+    assert.strictEqual(result.outputFiles[0].path, path.join(testDir, '1.js'))
+    assert.strictEqual(result.outputFiles[1].path, path.join(testDir, '2.js'))
+    assert.strictEqual(result.outputFiles[2].path, path.join(testDir, 'a_b.js'))
+    assert.strictEqual(result.outputFiles[3].path, path.join(testDir, 'a/b/c.d'))
     assert.strictEqual(result.outputFiles[0].text, `// virtual-ns:input 1\nconsole.log("input 1");\n`)
     assert.strictEqual(result.outputFiles[1].text, `// virtual-ns:input 2\nconsole.log("input 2");\n`)
     assert.strictEqual(result.outputFiles[2].text, `// virtual-ns:input a<>:"|?*b\nconsole.log('input a<>:"|?*b');\n`)
@@ -1822,6 +1822,27 @@ let pluginTests = {
       }],
     })
     assert.strictEqual(build.warnings.length, 0)
+  },
+
+  async onResolvePreserveOriginalEntryPointNameIssue945({ esbuild, testDir }) {
+    const build = await esbuild.build({
+      entryPoints: ['first'],
+      write: false,
+      logLevel: 'silent',
+      outdir: testDir,
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, () => {
+            return { path: 'second', namespace: 'what' }
+          })
+          build.onLoad({ filter: /.*/ }, () => {
+            return { contents: `` }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(build.outputFiles[0].path, path.join(testDir, 'first.js'))
   },
 }
 
