@@ -357,7 +357,7 @@ TestTSLocalMinifiedConstEnumMerging
 var Foo;(function(B){B[B.BAR=1]="BAR",B[B.BAZ=2]="BAZ"})(Foo||(Foo={})),function(B){B[B.BOO=3]="BOO"}(Foo||(Foo={})),console.log(1,2,3);
 
 ---------- /premature-use.js ----------
-var Foo;(function(B){B[B.BAR=1]="BAR",B[B.BAZ=2]="BAZ"})(Foo||(Foo={})),console.log(1,2,Foo.BOO),function(B){B[B.BOO=3]="BOO"}(Foo||(Foo={}));
+var Foo;(function(n){n[n.BAR=1]="BAR",n[n.BAZ=2]="BAZ"})(Foo||(Foo={}));function falsePositiveWarningInsideFunction(){console.log(1,2,Foo.ZOO)}console.log(1,2,Foo.BOO),function(n){n[n.BOO=3]="BOO",n[n.ZOO=4]="ZOO"}(Foo||(Foo={})),falsePositiveWarningInsideFunction();
 
 ================================================================================
 TestTSMinifiedBundleCommonJS

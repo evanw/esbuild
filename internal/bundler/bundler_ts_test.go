@@ -219,8 +219,12 @@ func TestTSLocalMinifiedConstEnumMerging(t *testing.T) {
 			`,
 			"/premature-use.ts": `
 				const enum Foo {BAR=1, BAZ=2};
+				function falsePositiveWarningInsideFunction() {
+					console.log(Foo.BAR, Foo.BAZ, Foo.ZOO);
+				}
 				console.log(Foo.BAR, Foo.BAZ, Foo.BOO);
-				const enum Foo {BOO=3};
+				const enum Foo {BOO=3, ZOO=4};
+				falsePositiveWarningInsideFunction();
 			`,
 		},
 		entryPaths: []string{"/valid-use.ts", "/premature-use.ts"},
@@ -230,7 +234,8 @@ func TestTSLocalMinifiedConstEnumMerging(t *testing.T) {
 			MangleSyntax: true,
 			AbsOutputDir: "/",
 		},
-		expectedScanLog: `premature-use.ts: warning: Unknown member BOO on enum Foo
+		expectedScanLog: `premature-use.ts: warning: Unknown member ZOO on enum Foo
+premature-use.ts: warning: Unknown member BOO on enum Foo
 `,
 	})
 }
