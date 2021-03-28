@@ -1244,7 +1244,7 @@ func (p *parser) canMergeSymbols(scope *js_ast.Scope, existing js_ast.SymbolKind
 	// "enum Foo {} enum Foo {}"
 	// "namespace Foo { ... } enum Foo {}"
 	if new == js_ast.SymbolTSEnum && (existing == js_ast.SymbolTSEnum || existing == js_ast.SymbolTSNamespace) {
-		return mergeReplaceWithNew
+		return mergeKeepExisting
 	}
 
 	// "namespace Foo { ... } namespace Foo { ... }"
@@ -8582,15 +8582,22 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// Values without initializers are initialized to one more than the
 		// previous value if the previous value is numeric. Otherwise values
 		// without initializers are initialized to undefined.
+		// This also holds for multiple enum declarations that are merged into one.
 		nextNumericValue := float64(0)
 		hasNumericValue := true
 		valueExprs := []js_ast.Expr{}
 
 		// Track values so they can be used by constant folding. We need to follow
 		// links here in case the enum was merged with a preceding namespace.
-		valuesSoFar := make(map[string]js_ast.E)
-		p.knownEnumValues[s.Name.Ref] = valuesSoFar
-		p.knownEnumValues[s.Arg] = valuesSoFar
+		var valuesSoFar map[string]js_ast.E
+		// Handle enum merging
+		if valuesFromPreviousEnumDeclaration, ok := p.knownEnumValues[s.Name.Ref]; ok {
+			valuesSoFar = valuesFromPreviousEnumDeclaration
+		} else {
+			valuesSoFar = make(map[string]js_ast.E)
+			p.knownEnumValues[s.Name.Ref] = valuesSoFar
+			p.knownEnumValues[s.Arg] = valuesSoFar
+		}
 
 		// We normally don't fold numeric constants because they might increase code
 		// size, but it's important to fold numeric constants inside enums since

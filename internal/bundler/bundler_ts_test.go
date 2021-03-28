@@ -192,6 +192,42 @@ func TestTSLocalConstEnumWithUnknownPropertyAccess(t *testing.T) {
 	})
 }
 
+func TestTSLocalConstEnumMergingWithoutWarnings(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				const enum Foo {BAR=1, BAZ=2};
+				const enum Foo {BOO=3};
+				console.log(Foo.BAR, Foo.BAZ, Foo.BOO);
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTSLocalMinifiedConstEnumMerging(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				const enum Foo {BAR=1, BAZ=2};
+				const enum Foo {BOO=3};
+				console.log(Foo.BAR, Foo.BAZ, Foo.BOO);
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			RemoveWhitespace: true,
+			MinifyIdentifiers: true,
+			MangleSyntax: true,
+			AbsOutputDir: "/",
+		},
+	})
+}
+
 func TestTSInlinableLocalConstEnum(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{

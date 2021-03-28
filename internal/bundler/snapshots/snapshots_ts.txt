@@ -330,6 +330,12 @@ var NS;
 NS.usage();
 
 ================================================================================
+TestTSLocalConstEnumMergingWithoutWarnings
+---------- /out.js ----------
+// entry.ts
+console.log(1, 2, 3);
+
+================================================================================
 TestTSLocalConstEnumWithUnknownPropertyAccess
 ---------- /out.js ----------
 // common.ts
@@ -344,6 +350,11 @@ var usage = bar(1, 2, 3, "stringsWorkToo", Foo.E);
 
 // entry.ts
 usage();
+
+================================================================================
+TestTSLocalMinifiedConstEnumMerging
+---------- /entry.js ----------
+var Foo;(function(B){B[B.BAR=1]="BAR",B[B.BAZ=2]="BAZ"})(Foo||(Foo={})),function(B){B[B.BOO=3]="BOO"}(Foo||(Foo={})),console.log(1,2,3);
 
 ================================================================================
 TestTSMinifiedBundleCommonJS
