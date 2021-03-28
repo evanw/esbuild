@@ -352,11 +352,22 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	incremental := request["incremental"].(bool)
 	hasOnRebuild := request["hasOnRebuild"].(bool)
 	serveObj, isServe := request["serve"].(interface{})
+	entries := request["entries"].([]interface{})
 	flags := decodeStringArray(request["flags"].([]interface{}))
 
 	options, err := cli.ParseBuildOptions(flags)
 	options.AbsWorkingDir = request["absWorkingDir"].(string)
 	options.NodePaths = decodeStringArray(request["nodePaths"].([]interface{}))
+
+	for _, entry := range entries {
+		entry := entry.([]interface{})
+		key := entry[0].(string)
+		value := entry[1].(string)
+		options.EntryPointsAdvanced = append(options.EntryPointsAdvanced, api.EntryPoint{
+			OutputPath: key,
+			InputPath:  value,
+		})
+	}
 
 	// Normally when "write" is true and there is no output file/directory then
 	// the output is written to stdout instead. However, we're currently using

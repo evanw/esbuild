@@ -458,7 +458,14 @@ func parseOptionsImpl(
 			return fmt.Errorf("Unexpected single quote character before flag (use \\\" to escape double quotes): %s", arg), nil
 
 		case !strings.HasPrefix(arg, "-") && buildOpts != nil:
-			buildOpts.EntryPoints = append(buildOpts.EntryPoints, arg)
+			if equals := strings.IndexByte(arg, '='); equals != -1 {
+				buildOpts.EntryPointsAdvanced = append(buildOpts.EntryPointsAdvanced, api.EntryPoint{
+					OutputPath: arg[:equals],
+					InputPath:  arg[equals+1:],
+				})
+			} else {
+				buildOpts.EntryPoints = append(buildOpts.EntryPoints, arg)
+			}
 
 		default:
 			if buildOpts != nil {
@@ -606,7 +613,7 @@ func runImpl(osArgs []string) int {
 		}
 
 		// Read from stdin when there are no entry points
-		if len(buildOptions.EntryPoints) == 0 {
+		if len(buildOptions.EntryPoints)+len(buildOptions.EntryPointsAdvanced) == 0 {
 			if buildOptions.Stdin == nil {
 				buildOptions.Stdin = &api.StdinOptions{}
 			}

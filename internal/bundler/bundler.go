@@ -147,7 +147,7 @@ type Bundle struct {
 	fs          fs.FS
 	res         resolver.Resolver
 	files       []file
-	entryPoints []uint32
+	entryPoints []entryMeta
 }
 
 type parseArgs struct {
@@ -972,7 +972,19 @@ type scanner struct {
 	remaining     int
 }
 
-func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.CacheSet, entryPoints []string, options config.Options) Bundle {
+type EntryPoint struct {
+	InputPath  string
+	OutputPath string
+}
+
+func ScanBundle(
+	log logger.Log,
+	fs fs.FS,
+	res resolver.Resolver,
+	caches *cache.CacheSet,
+	entryPoints []EntryPoint,
+	options config.Options,
+) Bundle {
 	applyOptionDefaults(&options)
 
 	s := scanner{
@@ -995,7 +1007,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 	}()
 
 	s.preprocessInjectedFiles()
-	entryPointIndices := s.addEntryPoints(entryPoints)
+	entryPointMeta := s.addEntryPoints(entryPoints)
 	s.scanAllDependencies()
 	files := s.processScannedFiles()
 
@@ -1003,7 +1015,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 		fs:          fs,
 		res:         res,
 		files:       files,
-		entryPoints: entryPointIndices,
+		entryPoints: entryPointMeta,
 	}
 }
 
@@ -1221,9 +1233,14 @@ func (s *scanner) preprocessInjectedFiles() {
 	s.options.InjectedFiles = injectedFiles
 }
 
-func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
+type entryMeta struct {
+	outputPath  string
+	sourceIndex uint32
+}
+
+func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []entryMeta {
 	// Reserve a slot for each entry point
-	entryPointIndices := make([]uint32, 0, len(entryPoints)+1)
+	entryPointIndices := make([]entryMeta, 0, len(entryPoints)+1)
 
 	// Treat stdin as an extra entry point
 	if stdin := s.options.Stdin; stdin != nil {
@@ -1239,7 +1256,10 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 		}
 		resolveResult := resolver.ResolveResult{PathPair: resolver.PathPair{Primary: stdinPath}}
 		sourceIndex := s.maybeParseFile(resolveResult, s.res.PrettyPath(stdinPath), nil, logger.Range{}, nil, inputKindStdin, nil)
-		entryPointIndices = append(entryPointIndices, sourceIndex)
+		entryPointIndices = append(entryPointIndices, entryMeta{
+			outputPath:  "stdin",
+			sourceIndex: sourceIndex,
+		})
 	}
 
 	// Entry point paths without a leading "./" are interpreted as package
@@ -1255,14 +1275,14 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 	// example, it may be a URL. So only insert a leading "./" when the path
 	// is an exact match for an existing file.
 	entryPointAbsResolveDir := s.fs.Cwd()
-	for i, path := range entryPoints {
-		if !s.fs.IsAbs(path) && resolver.IsPackagePath(path) {
-			absPath := s.fs.Join(entryPointAbsResolveDir, path)
+	for i, entryPoint := range entryPoints {
+		if !s.fs.IsAbs(entryPoint.InputPath) && resolver.IsPackagePath(entryPoint.InputPath) {
+			absPath := s.fs.Join(entryPointAbsResolveDir, entryPoint.InputPath)
 			dir := s.fs.Dir(absPath)
 			base := s.fs.Base(absPath)
 			if entries, err := s.fs.ReadDirectory(dir); err == nil {
 				if entry, _ := entries.Get(base); entry != nil && entry.Kind(s.fs) == fs.FileEntry {
-					entryPoints[i] = "./" + path
+					entryPoints[i].InputPath = "./" + entryPoint.InputPath
 				}
 			}
 		}
@@ -1274,8 +1294,8 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 	entryPointResolveResults := make([]*resolver.ResolveResult, len(entryPoints))
 	entryPointWaitGroup := sync.WaitGroup{}
 	entryPointWaitGroup.Add(len(entryPoints))
-	for i, path := range entryPoints {
-		go func(i int, path string) {
+	for i, entryPoint := range entryPoints {
+		go func(i int, entryPoint EntryPoint) {
 			// Run the resolver and log an error if the path couldn't be resolved
 			resolveResult, didLogError, debug := runOnResolvePlugins(
 				s.options.Plugins,
@@ -1285,45 +1305,42 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 				&s.caches.FSCache,
 				nil,
 				logger.Range{},
-				path,
+				entryPoint.InputPath,
 				ast.ImportEntryPoint,
 				entryPointAbsResolveDir,
 				nil,
 			)
 			if resolveResult != nil {
 				if resolveResult.IsExternal {
-					s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("The entry point %q cannot be marked as external", path))
+					s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("The entry point %q cannot be marked as external", entryPoint.InputPath))
 				} else {
 					entryPointResolveResults[i] = resolveResult
 				}
 			} else if !didLogError {
 				hint := ""
-				if !s.fs.IsAbs(path) {
-					if strings.ContainsRune(path, '*') {
+				if !s.fs.IsAbs(entryPoint.InputPath) {
+					if strings.ContainsRune(entryPoint.InputPath, '*') {
 						hint = " (glob syntax must be expanded first before passing the paths to esbuild)"
-					} else if query := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, path, ast.ImportEntryPoint); query != nil {
-						hint = fmt.Sprintf(" (use %q to reference the file %q)", "./"+path, s.res.PrettyPath(query.PathPair.Primary))
+					} else if query := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, entryPoint.InputPath, ast.ImportEntryPoint); query != nil {
+						hint = fmt.Sprintf(" (use %q to reference the file %q)", "./"+entryPoint.InputPath, s.res.PrettyPath(query.PathPair.Primary))
 					}
 				}
-				s.log.AddErrorWithNotes(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q%s", path, hint), debug.Notes(nil, logger.Range{}))
+				s.log.AddErrorWithNotes(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q%s", entryPoint.InputPath, hint), debug.Notes(nil, logger.Range{}))
 			}
 			entryPointWaitGroup.Done()
-		}(i, path)
+		}(i, entryPoint)
 	}
 	entryPointWaitGroup.Wait()
 
 	// Parse all entry points that were resolved successfully
-	duplicateEntryPoints := make(map[uint32]bool)
-	for _, resolveResult := range entryPointResolveResults {
+	for i, resolveResult := range entryPointResolveResults {
 		if resolveResult != nil {
 			prettyPath := s.res.PrettyPath(resolveResult.PathPair.Primary)
 			sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, resolveResult.PluginData, inputKindEntryPoint, nil)
-			if duplicateEntryPoints[sourceIndex] {
-				s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate entry point %q", prettyPath))
-				continue
-			}
-			duplicateEntryPoints[sourceIndex] = true
-			entryPointIndices = append(entryPointIndices, sourceIndex)
+			entryPointIndices = append(entryPointIndices, entryMeta{
+				outputPath:  entryPoints[i].OutputPath,
+				sourceIndex: sourceIndex,
+			})
 		}
 	}
 
@@ -1732,8 +1749,8 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, 
 		resultGroups = make([][]OutputFile, len(b.entryPoints))
 		for i, entryPoint := range b.entryPoints {
 			waitGroup.Add(1)
-			go func(i int, entryPoint uint32) {
-				entryPoints := []uint32{entryPoint}
+			go func(i int, entryPoint entryMeta) {
+				entryPoints := []entryMeta{entryPoint}
 				reachableFiles := findReachableFiles(b.files, entryPoints)
 				c := newLinkerContext(&options, log, b.fs, b.res, b.files, entryPoints, reachableFiles, dataForSourceMaps)
 				resultGroups[i] = c.link()
@@ -1810,6 +1827,45 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, 
 	return outputFiles, metafileJSON
 }
 
+// Find all files reachable from all entry points. This order should be
+// deterministic given that the entry point order is deterministic, since the
+// returned order is the postorder of the graph traversal and import record
+// order within a given file is deterministic.
+func findReachableFiles(files []file, entryPoints []entryMeta) []uint32 {
+	visited := make(map[uint32]bool)
+	var order []uint32
+	var visit func(uint32)
+
+	// Include this file and all files it imports
+	visit = func(sourceIndex uint32) {
+		if !visited[sourceIndex] {
+			visited[sourceIndex] = true
+			file := &files[sourceIndex]
+			if repr, ok := file.repr.(*reprJS); ok && repr.cssSourceIndex.IsValid() {
+				visit(repr.cssSourceIndex.GetIndex())
+			}
+			for _, record := range *file.repr.importRecords() {
+				if record.SourceIndex.IsValid() {
+					visit(record.SourceIndex.GetIndex())
+				}
+			}
+
+			// Each file must come after its dependencies
+			order = append(order, sourceIndex)
+		}
+	}
+
+	// The runtime is always included in case it's needed
+	visit(runtime.SourceIndex)
+
+	// Include all files reachable from any entry point
+	for _, entryPoint := range entryPoints {
+		visit(entryPoint.sourceIndex)
+	}
+
+	return order
+}
+
 // This is done in parallel with linking because linking is a mostly serial
 // phase and there are extra resources for parallelism. This could also be done
 // during parsing but that would slow down parsing and delay the start of the
@@ -1880,7 +1936,7 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool, allReachableF
 	// Ignore any paths for virtual modules (that don't exist on the file system)
 	absPaths := make([]string, 0, len(b.entryPoints))
 	for _, entryPoint := range b.entryPoints {
-		keyPath := b.files[entryPoint].source.KeyPath
+		keyPath := b.files[entryPoint.sourceIndex].source.KeyPath
 		if keyPath.Namespace == "file" {
 			absPaths = append(absPaths, keyPath.Text)
 		}

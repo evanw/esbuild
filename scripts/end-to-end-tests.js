@@ -183,6 +183,13 @@
     )
   }
 
+  // Test custom output paths
+  tests.push(
+    test(['node=entry.js', '--outdir=.'], {
+      'entry.js': ``,
+    }),
+  )
+
   // Make sure that the "asm.js" directive is removed
   tests.push(
     test(['in.js', '--outfile=node.js'], {

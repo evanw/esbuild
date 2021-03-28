@@ -61,6 +61,43 @@
 
     In addition, dynamic imports no longer affect the automatically-computed default value of `outbase`. By default `outbase` is computed to be the [lowest common ancestor](https://en.wikipedia.org/wiki/Lowest_common_ancestor) directory of all entry points. Previously dynamic imports were considered entry points in this calculation so adding a dynamic entry point could unexpectedly affect entry point output file paths. This issue has now been fixed.
 
+* Allow custom output paths for individual entry points
+
+    By default, esbuild will automatically generate an output path for each entry point by computing the relative path from the `outbase` directory to the entry point path, and then joining that relative path to the `outdir` directory. The output path can be customized using `outpath`, but that only works for a single file. Sometimes you may need custom output paths while using multiple entry points. You can now do this by passing the entry points as a map instead of an array:
+
+    * CLI
+        ```
+        esbuild out1=in1.js out2=in2.js --outdir=out
+        ```
+
+    * JS
+        ```js
+        esbuild.build({
+          entryPoints: {
+            out1: 'in1.js',
+            out2: 'in2.js',
+          },
+          outdir: 'out',
+        })
+        ```
+
+    * Go
+
+        ```go
+        api.Build(api.BuildOptions{
+          EntryPointsAdvanced: []api.EntryPoint{{
+            OutputPath: "out1",
+            InputPath: "in1.js",
+          }, {
+            OutputPath: "out2",
+            InputPath: "in2.js",
+          }},
+          Outdir: "out",
+        })
+        ```
+
+    This will cause esbuild to generate the files `out/out1.js` and `out/out2.js` inside the output directory. These custom output paths are used as input for the `--entry-names=` path template setting, so you can use something like `--entry-names=[dir]/[name]-[hash]` to add an automatically-computed hash to each entry point while still using the custom output path.
+
 ## Unreleased
 
 * Warn about mutation of private methods ([#1067](https://github.com/evanw/esbuild/pull/1067))

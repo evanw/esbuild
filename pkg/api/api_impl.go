@@ -792,7 +792,13 @@ func rebuildImpl(
 	for i, path := range buildOpts.NodePaths {
 		options.AbsNodePaths[i] = validatePath(log, realFS, path, "node path")
 	}
-	entryPoints := append([]string{}, buildOpts.EntryPoints...)
+	entryPoints := make([]bundler.EntryPoint, 0, len(buildOpts.EntryPoints)+len(buildOpts.EntryPointsAdvanced))
+	for _, ep := range buildOpts.EntryPoints {
+		entryPoints = append(entryPoints, bundler.EntryPoint{InputPath: ep})
+	}
+	for _, ep := range buildOpts.EntryPointsAdvanced {
+		entryPoints = append(entryPoints, bundler.EntryPoint{InputPath: ep.InputPath, OutputPath: ep.OutputPath})
+	}
 	entryPointCount := len(entryPoints)
 	if buildOpts.Stdin != nil {
 		entryPointCount++

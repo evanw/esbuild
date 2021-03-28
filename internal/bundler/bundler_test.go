@@ -94,7 +94,11 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 		log := logger.NewDeferLog()
 		caches := cache.MakeCacheSet()
 		resolver := resolver.NewResolver(fs, log, caches, args.options)
-		bundle := ScanBundle(log, fs, resolver, caches, args.entryPaths, args.options)
+		entryPoints := make([]EntryPoint, 0, len(args.entryPaths))
+		for _, path := range args.entryPaths {
+			entryPoints = append(entryPoints, EntryPoint{InputPath: path})
+		}
+		bundle := ScanBundle(log, fs, resolver, caches, entryPoints, args.options)
 		msgs := log.Done()
 		assertLog(t, msgs, args.expectedScanLog)
 

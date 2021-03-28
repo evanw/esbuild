@@ -66,7 +66,7 @@ type linkerContext struct {
 	fs          fs.FS
 	res         resolver.Resolver
 	symbols     js_ast.SymbolMap
-	entryPoints []uint32
+	entryPoints []entryMeta
 	files       []file
 	hasErrors   bool
 
@@ -386,7 +386,7 @@ func newLinkerContext(
 	fs fs.FS,
 	res resolver.Resolver,
 	files []file,
-	entryPoints []uint32,
+	entryPoints []entryMeta,
 	reachableFiles []uint32,
 	dataForSourceMaps func() []dataForSourceMap,
 ) linkerContext {
@@ -396,7 +396,7 @@ func newLinkerContext(
 		log:               log,
 		fs:                fs,
 		res:               res,
-		entryPoints:       append([]uint32{}, entryPoints...),
+		entryPoints:       append([]entryMeta{}, entryPoints...),
 		files:             make([]file, len(files)),
 		symbols:           js_ast.NewSymbolMap(len(files)),
 		reachableFiles:    reachableFiles,
@@ -498,8 +498,8 @@ func newLinkerContext(
 	}
 
 	// Mark all entry points so we don't add them again for import() expressions
-	for _, sourceIndex := range entryPoints {
-		file := &c.files[sourceIndex]
+	for _, entryPoint := range entryPoints {
+		file := &c.files[entryPoint.sourceIndex]
 		file.entryPointKind = entryPointUserSpecified
 
 		if repr, ok := file.repr.(*reprJS); ok {
@@ -539,45 +539,6 @@ func newLinkerContext(
 	}
 
 	return c
-}
-
-// Find all files reachable from all entry points. This order should be
-// deterministic given that the entry point order is deterministic, since the
-// returned order is the postorder of the graph traversal and import record
-// order within a given file is deterministic.
-func findReachableFiles(files []file, entryPoints []uint32) []uint32 {
-	visited := make(map[uint32]bool)
-	var order []uint32
-	var visit func(uint32)
-
-	// Include this file and all files it imports
-	visit = func(sourceIndex uint32) {
-		if !visited[sourceIndex] {
-			visited[sourceIndex] = true
-			file := &files[sourceIndex]
-			if repr, ok := file.repr.(*reprJS); ok && repr.cssSourceIndex.IsValid() {
-				visit(repr.cssSourceIndex.GetIndex())
-			}
-			for _, record := range *file.repr.importRecords() {
-				if record.SourceIndex.IsValid() {
-					visit(record.SourceIndex.GetIndex())
-				}
-			}
-
-			// Each file must come after its dependencies
-			order = append(order, sourceIndex)
-		}
-	}
-
-	// The runtime is always included in case it's needed
-	visit(runtime.SourceIndex)
-
-	// Include all files reachable from any entry point
-	for _, entryPoint := range entryPoints {
-		visit(entryPoint)
-	}
-
-	return order
 }
 
 func (c *linkerContext) addRangeError(source logger.Source, r logger.Range, text string) {
@@ -633,7 +594,7 @@ func (c *linkerContext) link() []OutputFile {
 
 	if c.options.Mode == config.ModePassThrough {
 		for _, entryPoint := range c.entryPoints {
-			c.preventExportsFromBeingRenamed(entryPoint)
+			c.preventExportsFromBeingRenamed(entryPoint.sourceIndex)
 		}
 	}
 
@@ -841,7 +802,12 @@ func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) s
 // substituted into a path template without necessarily having a "/" after it.
 // Extra slashes should get cleaned up automatically when we join it with the
 // output directory.
-func (c *linkerContext) pathRelativeToOutbase(sourceIndex uint32, stdExt string, avoidIndex bool) (relDir string, baseName string, baseExt string) {
+func (c *linkerContext) pathRelativeToOutbase(
+	sourceIndex uint32,
+	entryPointBit uint,
+	stdExt string,
+	avoidIndex bool,
+) (relDir string, baseName string, baseExt string) {
 	file := &c.files[sourceIndex]
 	relDir = "/"
 	baseExt = stdExt
@@ -863,27 +829,36 @@ func (c *linkerContext) pathRelativeToOutbase(sourceIndex uint32, stdExt string,
 		return
 	}
 
-	// Come up with a path for virtual paths (i.e. non-file-system paths)
-	if file.source.KeyPath.Namespace != "file" {
-		dir, base, _ := logger.PlatformIndependentPathDirBaseExt(file.source.KeyPath.Text)
+	absPath := file.source.KeyPath.Text
+	isCustomOutputPath := false
+
+	if outPath := c.entryPoints[entryPointBit].outputPath; outPath != "" {
+		// Use the configured output path if present
+		absPath = outPath
+		if !c.fs.IsAbs(outPath) {
+			absPath = c.fs.Join(c.options.AbsOutputBase, outPath)
+		}
+		isCustomOutputPath = true
+	} else if file.source.KeyPath.Namespace != "file" {
+		// Come up with a path for virtual paths (i.e. non-file-system paths)
+		dir, base, _ := logger.PlatformIndependentPathDirBaseExt(absPath)
 		if avoidIndex && base == "index" {
 			_, base, _ = logger.PlatformIndependentPathDirBaseExt(dir)
 		}
 		baseName = baseFileNameForVirtualModulePath(base)
 		return
-	}
-
-	// Heuristic: If the file is named something like "index.js", then use
-	// the name of the parent directory instead. This helps avoid the
-	// situation where many chunks are named "index" because of people
-	// dynamically-importing npm packages that make use of node's implicit
-	// "index" file name feature.
-	absPath := file.source.KeyPath.Text
-	if avoidIndex {
-		base := c.fs.Base(absPath)
-		base = base[:len(base)-len(c.fs.Ext(base))]
-		if base == "index" {
-			absPath = c.fs.Dir(absPath)
+	} else {
+		// Heuristic: If the file is named something like "index.js", then use
+		// the name of the parent directory instead. This helps avoid the
+		// situation where many chunks are named "index" because of people
+		// dynamically-importing npm packages that make use of node's implicit
+		// "index" file name feature.
+		if avoidIndex {
+			base := c.fs.Base(absPath)
+			base = base[:len(base)-len(c.fs.Ext(base))]
+			if base == "index" {
+				absPath = c.fs.Dir(absPath)
+			}
 		}
 	}
 
@@ -893,42 +868,45 @@ func (c *linkerContext) pathRelativeToOutbase(sourceIndex uint32, stdExt string,
 		// This can fail in some situations such as on different drives on
 		// Windows. In that case we just use the file name.
 		baseName = c.fs.Base(absPath)
+	} else {
+		// Now we finally have a relative path
+		relDir = c.fs.Dir(relPath) + "/"
+		baseName = c.fs.Base(relPath)
 
-		// Swap the file extension for the standard one
-		baseName = baseName[:len(baseName)-len(c.fs.Ext(baseName))]
-		return
+		// Use platform-independent slashes
+		relDir = strings.ReplaceAll(relDir, "\\", "/")
+
+		// Replace leading "../" so we don't try to write outside of the output
+		// directory. This normally can't happen because "AbsOutputBase" is
+		// automatically computed to contain all entry point files, but it can
+		// happen if someone sets it manually via the "outbase" API option.
+		//
+		// Note that we can't just strip any leading "../" because that could
+		// cause two separate entry point paths to collide. For example, there
+		// could be both "src/index.js" and "../src/index.js" as entry points.
+		dotDotCount := 0
+		for strings.HasPrefix(relDir[dotDotCount*3:], "../") {
+			dotDotCount++
+		}
+		if dotDotCount > 0 {
+			// The use of "_.._" here is somewhat arbitrary but it is unlikely to
+			// collide with a folder named by a human and it works on Windows
+			// (Windows doesn't like names that end with a "."). And not starting
+			// with a "." means that it will not be hidden on Unix.
+			relDir = strings.Repeat("_.._/", dotDotCount) + relDir[dotDotCount*3:]
+		}
+		relDir = "/" + relDir
 	}
 
-	// Now we finally have a relative path
-	relDir = c.fs.Dir(relPath) + "/"
-	baseName = c.fs.Base(relPath)
+	// Strip the file extension
+	ext := c.fs.Ext(baseName)
+	baseName = baseName[:len(baseName)-len(ext)]
 
-	// Swap the file extension for the standard one
-	baseName = baseName[:len(baseName)-len(c.fs.Ext(baseName))]
-
-	// Use platform-independent slashes
-	relDir = strings.ReplaceAll(relDir, "\\", "/")
-
-	// Replace leading "../" so we don't try to write outside of the output
-	// directory. This normally can't happen because "AbsOutputBase" is
-	// automatically computed to contain all entry point files, but it can
-	// happen if someone sets it manually via the "outbase" API option.
-	//
-	// Note that we can't just strip any leading "../" because that could
-	// cause two separate entry point paths to collide. For example, there
-	// could be both "src/index.js" and "../src/index.js" as entry points.
-	dotDotCount := 0
-	for strings.HasPrefix(relDir[dotDotCount*3:], "../") {
-		dotDotCount++
+	// Only use this file extension if this is a custom output path. Otherwise
+	// use the standard one for this file type.
+	if isCustomOutputPath && ext != "" {
+		baseExt = ext
 	}
-	if dotDotCount > 0 {
-		// The use of "_.._" here is somewhat arbitrary but it is unlikely to
-		// collide with a folder named by a human and it works on Windows
-		// (Windows doesn't like names that end with a "."). And not starting
-		// with a "." means that it will not be hidden on Unix.
-		relDir = strings.Repeat("_.._/", dotDotCount) + relDir[dotDotCount*3:]
-	}
-	relDir = "/" + relDir
 	return
 }
 
@@ -1356,7 +1334,9 @@ func (c *linkerContext) scanImportsAndExports() {
 					if c.options.CodeSplitting {
 						// Files that are imported with import() must be entry points
 						if otherFile.entryPointKind == entryPointNone {
-							c.entryPoints = append(c.entryPoints, record.SourceIndex.GetIndex())
+							c.entryPoints = append(c.entryPoints, entryMeta{
+								sourceIndex: record.SourceIndex.GetIndex(),
+							})
 							otherFile.entryPointKind = entryPointDynamicImport
 						}
 					} else {
@@ -2514,7 +2494,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 
 	// Each entry point marks all files reachable from itself
 	for i, entryPoint := range c.entryPoints {
-		c.includeFile(entryPoint, uint(i), 0)
+		c.includeFile(entryPoint.sourceIndex, uint(i), 0)
 	}
 }
 
@@ -2817,9 +2797,9 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	cssChunks := make(map[string]chunkInfo)
 	neverReachedKey := string(newBitSet(uint(len(c.entryPoints))).entries)
 
-	// Compute entry point names
+	// Create chunks for entry points
 	for i, entryPoint := range c.entryPoints {
-		file := &c.files[entryPoint]
+		file := &c.files[entryPoint.sourceIndex]
 
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
@@ -2828,7 +2808,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		info := chunkInfo{
 			entryBits:             entryBits,
 			isEntryPoint:          true,
-			sourceIndex:           entryPoint,
+			sourceIndex:           entryPoint.sourceIndex,
 			entryPointBit:         uint(i),
 			filesWithPartsInChunk: make(map[uint32]bool),
 		}
@@ -2966,10 +2946,10 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		var template []config.PathTemplate
 		if chunk.isEntryPoint {
 			if c.files[chunk.sourceIndex].entryPointKind == entryPointUserSpecified {
-				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, stdExt, false /* avoidIndex */)
+				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, chunk.entryPointBit, stdExt, false /* avoidIndex */)
 				template = c.options.EntryPathTemplate
 			} else {
-				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, stdExt, true /* avoidIndex */)
+				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, chunk.entryPointBit, stdExt, true /* avoidIndex */)
 				template = c.options.ChunkPathTemplate
 			}
 		} else {
