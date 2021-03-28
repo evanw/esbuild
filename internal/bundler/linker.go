@@ -845,7 +845,7 @@ func (c *linkerContext) pathRelativeToOutbase(
 		if avoidIndex && base == "index" {
 			_, base, _ = logger.PlatformIndependentPathDirBaseExt(dir)
 		}
-		baseName = baseFileNameForVirtualModulePath(base)
+		baseName = sanitizeFilePathForVirtualModulePath(base)
 		return
 	} else {
 		// Heuristic: If the file is named something like "index.js", then use
@@ -2749,16 +2749,16 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	c.includePartsForRuntimeSymbol(part, &repr.meta, exportStarUses, "__exportStar", entryPointBit, distanceFromEntryPoint)
 }
 
-func baseFileNameForVirtualModulePath(path string) string {
-	// Convert it to a safe file name. See: https://stackoverflow.com/a/31976060
+func sanitizeFilePathForVirtualModulePath(path string) string {
+	// Convert it to a safe file path. See: https://stackoverflow.com/a/31976060
 	sb := strings.Builder{}
 	needsGap := false
 	for _, c := range path {
 		switch c {
-		case 0, '/':
+		case 0:
 			// These characters are forbidden on Unix and Windows
 
-		case '<', '>', ':', '"', '\\', '|', '?', '*':
+		case '<', '>', ':', '"', '|', '?', '*':
 			// These characters are forbidden on Windows
 
 		default:
