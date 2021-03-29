@@ -856,7 +856,7 @@ let pluginTests = {
     assert.strictEqual(result.outputFiles[0].path, path.join(testDir, '1.js'))
     assert.strictEqual(result.outputFiles[1].path, path.join(testDir, '2.js'))
     assert.strictEqual(result.outputFiles[2].path, path.join(testDir, 'a_b.js'))
-    assert.strictEqual(result.outputFiles[3].path, path.join(testDir, 'a/b/c.d'))
+    assert.strictEqual(result.outputFiles[3].path, path.join(testDir, 'a/b/c.d.js'))
     assert.strictEqual(result.outputFiles[0].text, `// virtual-ns:input 1\nconsole.log("input 1");\n`)
     assert.strictEqual(result.outputFiles[1].text, `// virtual-ns:input 2\nconsole.log("input 2");\n`)
     assert.strictEqual(result.outputFiles[2].text, `// virtual-ns:input a<>:"|?*b\nconsole.log('input a<>:"|?*b');\n`)

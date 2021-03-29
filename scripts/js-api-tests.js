@@ -2146,6 +2146,40 @@ console.log("success");
     new Function(outputFiles[0].text)()
   },
 
+  async automaticEntryPointOutputPathsWithDot({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.file.ts')
+    const css = path.join(testDir, 'file.css')
+    await writeFileAsync(input, `import './file.css'; console.log('test')`)
+    await writeFileAsync(css, `body { color: red }`)
+    var { outputFiles } = await esbuild.build({
+      entryPoints: [input],
+      outdir: testDir,
+      bundle: true,
+      write: false,
+    })
+    assert.strictEqual(outputFiles.length, 2)
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'in.file.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'in.file.css'))
+  },
+
+  async customEntryPointOutputPathsWithDot({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.file.ts')
+    const css = path.join(testDir, 'file.css')
+    await writeFileAsync(input, `import './file.css'; console.log('test')`)
+    await writeFileAsync(css, `body { color: red }`)
+    var { outputFiles } = await esbuild.build({
+      entryPoints: {
+        'out.test': input,
+      },
+      outdir: testDir,
+      bundle: true,
+      write: false,
+    })
+    assert.strictEqual(outputFiles.length, 2)
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'out.test.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'out.test.css'))
+  },
+
   async customEntryPointOutputPathsRel({ esbuild, testDir }) {
     const input1 = path.join(testDir, 'in1.js')
     const input2 = path.join(testDir, 'in2.js')
@@ -2163,8 +2197,8 @@ console.log("success");
       write: false,
     })
     assert.strictEqual(outputFiles.length, 2)
-    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', '5DNZWSYZ-1.cjs'))
-    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'ONX3RUSG-2.mjs'))
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', '55DD6UTG-1.cjs.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'PBNYN6W7-2.mjs.js'))
   },
 
   async customEntryPointOutputPathsAbs({ esbuild, testDir }) {

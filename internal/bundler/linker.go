@@ -835,8 +835,8 @@ func (c *linkerContext) pathRelativeToOutbase(
 	if outPath := c.entryPoints[entryPointBit].outputPath; outPath != "" {
 		// Use the configured output path if present
 		absPath = outPath
-		if !c.fs.IsAbs(outPath) {
-			absPath = c.fs.Join(c.options.AbsOutputBase, outPath)
+		if !c.fs.IsAbs(absPath) {
+			absPath = c.fs.Join(c.options.AbsOutputBase, absPath)
 		}
 		isCustomOutputPath = true
 	} else if file.source.KeyPath.Namespace != "file" {
@@ -898,14 +898,10 @@ func (c *linkerContext) pathRelativeToOutbase(
 		relDir = "/" + relDir
 	}
 
-	// Strip the file extension
-	ext := c.fs.Ext(baseName)
-	baseName = baseName[:len(baseName)-len(ext)]
-
-	// Only use this file extension if this is a custom output path. Otherwise
-	// use the standard one for this file type.
-	if isCustomOutputPath && ext != "" {
-		baseExt = ext
+	// Strip the file extension if the output path is an input file
+	if !isCustomOutputPath {
+		ext := c.fs.Ext(baseName)
+		baseName = baseName[:len(baseName)-len(ext)]
 	}
 	return
 }
