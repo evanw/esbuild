@@ -257,6 +257,10 @@ type PathPlaceholder uint8
 const (
 	NoPlaceholder PathPlaceholder = iota
 
+	// This is either "js" or "css" depending on the file type. This is useful
+	// for putting the CSS corresponding to a JS entry point in a different place.
+	TypePlaceholder
+
 	// The relative path from the original parent directory to the configured
 	// "outbase" directory, or to the lowest common ancestor directory
 	DirPlaceholder
@@ -276,6 +280,7 @@ type PathTemplate struct {
 }
 
 type PathPlaceholders struct {
+	Type *string
 	Dir  *string
 	Name *string
 	Hash *string
@@ -283,6 +288,8 @@ type PathPlaceholders struct {
 
 func (placeholders PathPlaceholders) Get(placeholder PathPlaceholder) *string {
 	switch placeholder {
+	case TypePlaceholder:
+		return placeholders.Type
 	case DirPlaceholder:
 		return placeholders.Dir
 	case NamePlaceholder:
@@ -302,6 +309,8 @@ func TemplateToString(template []PathTemplate) string {
 	for _, part := range template {
 		sb.WriteString(part.Data)
 		switch part.Placeholder {
+		case TypePlaceholder:
+			sb.WriteString("[type]")
 		case DirPlaceholder:
 			sb.WriteString("[dir]")
 		case NamePlaceholder:
@@ -351,6 +360,67 @@ func SubstituteTemplate(template []PathTemplate, placeholders PathPlaceholders) 
 		}
 	}
 	return result
+}
+
+func ParsePathTemplate(template string) []PathTemplate {
+	parts := make([]PathTemplate, 0, strings.Count(template, "[")+1)
+	search := 0
+
+	// Split by placeholders
+	for search < len(template) {
+		// Jump to the next "["
+		if found := strings.IndexByte(template[search:], '['); found == -1 {
+			break
+		} else {
+			search += found
+		}
+		head, tail := template[:search], template[search:]
+		placeholder := NoPlaceholder
+
+		// Check for a placeholder
+		switch {
+		case strings.HasPrefix(tail, "[type]"):
+			placeholder = TypePlaceholder
+			search += len("[type]")
+
+		case strings.HasPrefix(tail, "[dir]"):
+			placeholder = DirPlaceholder
+			search += len("[dir]")
+
+		case strings.HasPrefix(tail, "[name]"):
+			placeholder = NamePlaceholder
+			search += len("[name]")
+
+		case strings.HasPrefix(tail, "[hash]"):
+			placeholder = HashPlaceholder
+			search += len("[hash]")
+
+		default:
+			// Skip past the "[" so we don't find it again
+			search++
+			continue
+		}
+
+		// Add a part for everything up to and including this placeholder
+		parts = append(parts, PathTemplate{
+			Data:        head,
+			Placeholder: placeholder,
+		})
+
+		// Reset the search after this placeholder
+		template = template[search:]
+		search = 0
+	}
+
+	// Append any remaining data as a part without a placeholder
+	if search < len(template) {
+		parts = append(parts, PathTemplate{
+			Data:        template,
+			Placeholder: NoPlaceholder,
+		})
+	}
+
+	return parts
 }
 
 func IsTreeShakingEnabled(mode Mode, outputFormat Format) bool {

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add the `[type]` path template placeholder
+
+    The `[type]` path template placeholder is now available. It takes the value of either `js` or `css` and is useful with `--entry-names=` and `--chunk-names=`. It's useful to put JS output files in a separate directory from the corresponding CSS output files that are automatically generated when you import CSS files into JS files.
+
 ## 0.11.0
 
 **This release contains backwards-incompatible changes.** Since esbuild is before version 1.0.0, these changes have been released as a new minor version to reflect this (as [recommended by npm](https://docs.npmjs.com/cli/v6/using-npm/semver/)). You should either be pinning the exact version of `esbuild` in your `package.json` file or be using a version range syntax that only accepts patch upgrades such as `~0.10.0`. See the documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

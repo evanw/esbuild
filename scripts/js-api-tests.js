@@ -1545,6 +1545,26 @@ export {
     assert.strictEqual(await result3.default(), 'shared3shared1');
   },
 
+  async entryNamesWithAllOptions({ esbuild, testDir }) {
+    const srcDir = path.join(testDir, 'src')
+    const input = path.join(srcDir, 'in.file.ts')
+    const css = path.join(srcDir, 'file.css')
+    await mkdirAsync(srcDir, { recursive: true })
+    await writeFileAsync(input, `import './file.css'; console.log('test')`)
+    await writeFileAsync(css, `body { color: red }`)
+    var { outputFiles } = await esbuild.build({
+      entryPoints: [input],
+      entryNames: `[type]/[dir]/[name]/[hash]`,
+      outdir: testDir,
+      outbase: testDir,
+      bundle: true,
+      write: false,
+    })
+    assert.strictEqual(outputFiles.length, 2)
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'js', 'src', 'in.file', 'G55CUXUG.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'css', 'src', 'in.file', 'QGCF2IGK.css'))
+  },
+
   async stdinStdoutBundle({ esbuild, testDir }) {
     const auxiliary = path.join(testDir, 'auxiliary.js')
     await writeFileAsync(auxiliary, 'export default 123')
