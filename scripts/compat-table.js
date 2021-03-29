@@ -164,11 +164,16 @@ mergeVersions('ExportStarAs', {
 mergeVersions('ImportMeta', {
   chrome64: true,
   edge79: true,
-  es2020: true,
   firefox62: true,
   ios12: true,
   node10_4: true, // From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import.meta
   safari11_1: true,
+})
+
+// Manually copied from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/await
+mergeVersions('TopLevelAwait', {
+  chrome89: true,
+  node14_8: true,
 })
 
 for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests]) {

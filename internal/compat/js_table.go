@@ -374,7 +374,10 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Node:    {4},
 		Safari:  {9},
 	},
-	TopLevelAwait: {},
+	TopLevelAwait: {
+		Chrome: {89},
+		Node:   {14, 8},
+	},
 	UnicodeEscapes: {
 		Chrome:  {44},
 		Edge:    {12},
