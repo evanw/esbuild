@@ -2930,14 +2930,11 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 
 		// Determine the standard file extension
 		var stdExt string
-		var fileType string
 		switch chunk.chunkRepr.(type) {
 		case *chunkReprJS:
 			stdExt = c.options.OutputExtensionJS
-			fileType = "js"
 		case *chunkReprCSS:
 			stdExt = c.options.OutputExtensionCSS
-			fileType = "css"
 		}
 
 		// Compute the template substitutions
@@ -2961,7 +2958,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		// Determine the output path template
 		template = append(append(make([]config.PathTemplate, 0, len(template)+1), template...), config.PathTemplate{Data: ext})
 		chunk.finalTemplate = config.SubstituteTemplate(template, config.PathPlaceholders{
-			Type: &fileType,
 			Dir:  &dir,
 			Name: &base,
 		})
