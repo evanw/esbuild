@@ -521,6 +521,7 @@ func TestTokens(t *testing.T) {
 	}{
 		{"", TEndOfFile},
 		{"\x00", TSyntaxError},
+		{"...", TDotDotDot},
 
 		// "#!/usr/bin/env node"
 		{"#!", THashbang},
