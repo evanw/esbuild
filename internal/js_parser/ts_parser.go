@@ -148,6 +148,39 @@ type skipTypeOpts struct {
 	isReturnType bool
 }
 
+type tsTypeIdentifierKind uint8
+
+const (
+	tsTypeIdentifierNormal tsTypeIdentifierKind = iota
+	tsTypeIdentifierUnique
+	tsTypeIdentifierAbstract
+	tsTypeIdentifierAsserts
+	tsTypeIdentifierPrefix
+	tsTypeIdentifierPrimitive
+)
+
+// Use a map to improve lookup speed
+var tsTypeIdentifierMap = map[string]tsTypeIdentifierKind{
+	"unique":   tsTypeIdentifierUnique,
+	"abstract": tsTypeIdentifierAbstract,
+	"asserts":  tsTypeIdentifierAsserts,
+
+	"keyof":    tsTypeIdentifierPrefix,
+	"readonly": tsTypeIdentifierPrefix,
+	"infer":    tsTypeIdentifierPrefix,
+
+	"any":       tsTypeIdentifierPrimitive,
+	"never":     tsTypeIdentifierPrimitive,
+	"unknown":   tsTypeIdentifierPrimitive,
+	"undefined": tsTypeIdentifierPrimitive,
+	"object":    tsTypeIdentifierPrimitive,
+	"number":    tsTypeIdentifierPrimitive,
+	"string":    tsTypeIdentifierPrimitive,
+	"boolean":   tsTypeIdentifierPrimitive,
+	"bigint":    tsTypeIdentifierPrimitive,
+	"symbol":    tsTypeIdentifierPrimitive,
+}
+
 func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 	for {
 		switch p.lexer.Token {
@@ -206,66 +239,56 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 			p.skipTypeScriptParenOrFnType()
 
 		case js_lexer.TIdentifier:
-			switch p.lexer.Identifier {
-			case "keyof", "readonly", "infer":
+			kind := tsTypeIdentifierMap[p.lexer.Identifier]
+
+			if kind == tsTypeIdentifierPrefix {
 				p.lexer.Next()
 				p.skipTypeScriptType(js_ast.LPrefix)
+				break
+			}
 
-			case "unique":
+			checkTypeParameters := true
+
+			if kind == tsTypeIdentifierUnique {
 				p.lexer.Next()
+
+				// "let foo: unique symbol"
 				if p.lexer.IsContextualKeyword("symbol") {
 					p.lexer.Next()
+					break
 				}
-
-			// This was added in TypeScript 4.2
-			case "abstract":
+			} else if kind == tsTypeIdentifierAbstract {
 				p.lexer.Next()
+
+				// "let foo: abstract new () => {}" added in TypeScript 4.2
 				if p.lexer.Token == js_lexer.TNew {
 					continue
 				}
-
-				// "let foo: abstract \n <number>foo" must not become a single type
-				if !p.lexer.HasNewlineBefore {
-					p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
-				}
-
-			case "any", "never", "unknown", "undefined", "object", "number", "string", "boolean", "bigint", "symbol":
-				p.lexer.Next()
-
-			case "asserts":
+			} else if kind == tsTypeIdentifierAsserts {
 				p.lexer.Next()
 
 				// "function assert(x: boolean): asserts x"
+				// "function assert(x: boolean): asserts x is boolean"
 				if opts.isReturnType && !p.lexer.HasNewlineBefore && (p.lexer.Token == js_lexer.TIdentifier || p.lexer.Token == js_lexer.TThis) {
 					p.lexer.Next()
-
-					// "function assert(x: any): asserts x is boolean"
-					if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
-						p.lexer.Next()
-						p.skipTypeScriptType(js_ast.LLowest)
-					}
-					return
 				}
-
-				// "let foo: asserts \n <number>foo" must not become a single type
-				if !p.lexer.HasNewlineBefore {
-					p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
-				}
-
-			default:
+			} else if kind == tsTypeIdentifierPrimitive {
 				p.lexer.Next()
+				checkTypeParameters = false
+			} else {
+				p.lexer.Next()
+			}
 
-				// "function check(x: any): x is boolean"
-				if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
-					p.lexer.Next()
-					p.skipTypeScriptType(js_ast.LLowest)
-					return
-				}
+			// "function assert(x: any): x is boolean"
+			if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
+				p.lexer.Next()
+				p.skipTypeScriptType(js_ast.LLowest)
+				return
+			}
 
-				// "let foo: any \n <number>foo" must not become a single type
-				if !p.lexer.HasNewlineBefore {
-					p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
-				}
+			// "let foo: any \n <number>foo" must not become a single type
+			if checkTypeParameters && !p.lexer.HasNewlineBefore {
+				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
 			}
 
 		case js_lexer.TTypeof:
