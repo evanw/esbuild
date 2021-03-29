@@ -1237,8 +1237,27 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		}
 
 		// External "import()"
-		p.printSpaceBeforeIdentifier()
-		p.print("import(")
+		if !p.options.UnsupportedFeatures.Has(compat.DynamicImport) {
+			p.printSpaceBeforeIdentifier()
+			p.print("import(")
+			defer p.print(")")
+		} else {
+			p.printSpaceBeforeIdentifier()
+			p.print("Promise.resolve()")
+			p.printDotThenPrefix()
+			defer p.printDotThenSuffix()
+
+			// Wrap this with a call to "__toModule()" if this is a CommonJS file
+			if record.WrapWithToModule {
+				p.printSymbol(p.options.ToModuleRef)
+				p.print("(")
+				defer p.print(")")
+			}
+
+			p.printSpaceBeforeIdentifier()
+			p.print("require(")
+			defer p.print(")")
+		}
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent++
@@ -1254,7 +1273,6 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 			p.options.Indent--
 			p.printIndent()
 		}
-		p.print(")")
 		return
 	}
 

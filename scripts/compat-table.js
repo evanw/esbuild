@@ -128,6 +128,7 @@ mergeVersions('Class', { es2015: true })
 mergeVersions('Const', { es2015: true })
 mergeVersions('DefaultArgument', { es2015: true })
 mergeVersions('Destructuring', { es2015: true })
+mergeVersions('DynamicImport', { es2015: true })
 mergeVersions('ForOf', { es2015: true })
 mergeVersions('Generator', { es2015: true })
 mergeVersions('Let', { es2015: true })
@@ -174,6 +175,16 @@ mergeVersions('ImportMeta', {
 mergeVersions('TopLevelAwait', {
   chrome89: true,
   node14_8: true,
+})
+
+// Manually copied from https://caniuse.com/es6-module-dynamic-import
+mergeVersions('DynamicImport', {
+  chrome63: true,
+  edge79: true,
+  firefox67: true,
+  ios11: true,
+  node13_2: true, // From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import
+  safari11_1: true,
 })
 
 for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests]) {

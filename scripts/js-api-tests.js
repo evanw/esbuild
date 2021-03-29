@@ -3498,6 +3498,52 @@ let transformTests = {
     assert.strictEqual(code2, `foo;\n`)
   },
 
+  async dynamicImportString({ esbuild }) {
+    const { code: code1 } = await esbuild.transform(`import('foo')`, { target: 'chrome63' })
+    assert.strictEqual(code1, `import("foo");\n`)
+  },
+
+  async dynamicImportStringES6({ esbuild }) {
+    const fromPromiseResolve = text => text.slice(text.indexOf('Promise.resolve'))
+    const { code: code2 } = await esbuild.transform(`import('foo')`, { target: 'chrome62' })
+    assert.strictEqual(fromPromiseResolve(code2), `Promise.resolve().then(() => __toModule(require("foo")));\n`)
+  },
+
+  async dynamicImportStringES5({ esbuild }) {
+    const fromPromiseResolve = text => text.slice(text.indexOf('Promise.resolve'))
+    const { code: code3 } = await esbuild.transform(`import('foo')`, { target: 'chrome48' })
+    assert.strictEqual(fromPromiseResolve(code3), `Promise.resolve().then(function() {\n  return __toModule(require("foo"));\n});\n`)
+  },
+
+  async dynamicImportStringES5Minify({ esbuild }) {
+    const fromPromiseResolve = text => text.slice(text.indexOf('Promise.resolve'))
+    const { code: code4 } = await esbuild.transform(`import('foo')`, { target: 'chrome48', minifyWhitespace: true })
+    assert.strictEqual(fromPromiseResolve(code4), `Promise.resolve().then(function(){return __toModule(require("foo"))});\n`)
+  },
+
+  async dynamicImportExpression({ esbuild }) {
+    const { code: code1 } = await esbuild.transform(`import(foo)`, { target: 'chrome63' })
+    assert.strictEqual(code1, `import(foo);\n`)
+  },
+
+  async dynamicImportExpressionES6({ esbuild }) {
+    const fromPromiseResolve = text => text.slice(text.indexOf('Promise.resolve'))
+    const { code: code2 } = await esbuild.transform(`import(foo)`, { target: 'chrome62' })
+    assert.strictEqual(fromPromiseResolve(code2), `Promise.resolve().then(() => __toModule(require(foo)));\n`)
+  },
+
+  async dynamicImportExpressionES5({ esbuild }) {
+    const fromPromiseResolve = text => text.slice(text.indexOf('Promise.resolve'))
+    const { code: code3 } = await esbuild.transform(`import(foo)`, { target: 'chrome48' })
+    assert.strictEqual(fromPromiseResolve(code3), `Promise.resolve().then(function() {\n  return __toModule(require(foo));\n});\n`)
+  },
+
+  async dynamicImportExpressionES5Minify({ esbuild }) {
+    const fromPromiseResolve = text => text.slice(text.indexOf('Promise.resolve'))
+    const { code: code4 } = await esbuild.transform(`import(foo)`, { target: 'chrome48', minifyWhitespace: true })
+    assert.strictEqual(fromPromiseResolve(code4), `Promise.resolve().then(function(){return __toModule(require(foo))});\n`)
+  },
+
   async multipleEngineTargets({ esbuild }) {
     const check = async (target, expected) =>
       assert.strictEqual((await esbuild.transform(`foo(a ?? b)`, { target })).code, expected)

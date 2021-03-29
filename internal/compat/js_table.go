@@ -54,6 +54,7 @@ const (
 	Const
 	DefaultArgument
 	Destructuring
+	DynamicImport
 	ExponentOperator
 	ExportStarAs
 	ForAwait
@@ -209,6 +210,15 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		IOS:     {10},
 		Node:    {6, 5},
 		Safari:  {10},
+	},
+	DynamicImport: {
+		Chrome:  {63},
+		Edge:    {79},
+		ES:      {2015},
+		Firefox: {67},
+		IOS:     {11},
+		Node:    {13, 2},
+		Safari:  {11, 1},
 	},
 	ExponentOperator: {
 		Chrome:  {52},

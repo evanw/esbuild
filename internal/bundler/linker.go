@@ -2670,7 +2670,8 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		if !record.SourceIndex.IsValid() || c.isExternalDynamicImport(record) {
 			// This is an external import, so it needs the "__toModule" wrapper as
 			// long as it's not a bare "require()"
-			if record.Kind != ast.ImportRequire && !c.options.OutputFormat.KeepES6ImportExportSyntax() {
+			if record.Kind != ast.ImportRequire && (!c.options.OutputFormat.KeepES6ImportExportSyntax() ||
+				(record.Kind == ast.ImportDynamic && c.options.UnsupportedJSFeatures.Has(compat.DynamicImport))) {
 				record.WrapWithToModule = true
 				toModuleUses++
 			}

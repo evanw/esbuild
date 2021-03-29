@@ -57,6 +57,7 @@ type parser struct {
 	requireRef               js_ast.Ref
 	moduleRef                js_ast.Ref
 	importMetaRef            js_ast.Ref
+	promiseRef               js_ast.Ref
 	findSymbolHelper         func(loc logger.Loc, name string) js_ast.Ref
 	symbolForDefineHelper    func(int) js_ast.Ref
 	injectedDefineSymbols    []js_ast.Ref
@@ -1539,6 +1540,13 @@ func (p *parser) callRuntime(loc logger.Loc, name string, args []js_ast.Expr) js
 		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
 		Args:   args,
 	}}
+}
+
+func (p *parser) makePromiseRef() js_ast.Ref {
+	if p.promiseRef == js_ast.InvalidRef {
+		p.promiseRef = p.newSymbol(js_ast.SymbolUnbound, "Promise")
+	}
+	return p.promiseRef
 }
 
 // The name is temporarily stored in the ref until the scope traversal pass
@@ -11092,6 +11100,49 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 			}
 
+			// We need to convert this into a call to "require()" if ES6 syntax is
+			// not supported in the current output format. The full conversion:
+			//
+			//   Before:
+			//     import(foo)
+			//
+			//   After:
+			//     Promise.resolve().then(() => require(foo))
+			//
+			// This is normally done by the printer since we don't know during the
+			// parsing stage whether this module is external or not. However, it's
+			// guaranteed to be external if the argument isn't a string. We handle
+			// this case here instead of in the printer because both the printer
+			// and the linker currently need an import record to handle this case
+			// correctly, and you need a string literal to get an import record.
+			if p.options.unsupportedJSFeatures.Has(compat.DynamicImport) {
+				var then js_ast.Expr
+				value := p.callRuntime(arg.Loc, "__toModule", []js_ast.Expr{{Loc: expr.Loc, Data: &js_ast.ECall{
+					Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.requireRef}},
+					Args:   []js_ast.Expr{arg},
+				}}})
+				body := js_ast.FnBody{Loc: expr.Loc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{Value: &value}}}}
+				if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
+					then = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
+				} else {
+					then = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EArrow{Body: body, PreferExpr: true}}
+				}
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+					Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
+						Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+							Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
+								Target:  js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.makePromiseRef()}},
+								Name:    "resolve",
+								NameLoc: expr.Loc,
+							}},
+						}},
+						Name:    "then",
+						NameLoc: expr.Loc,
+					}},
+					Args: []js_ast.Expr{then},
+				}}
+			}
+
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImport{
 				Expr:                    arg,
 				LeadingInteriorComments: e.LeadingInteriorComments,
@@ -12581,6 +12632,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		allowIn:           true,
 		options:           *options,
 		runtimeImports:    make(map[string]js_ast.Ref),
+		promiseRef:        js_ast.InvalidRef,
 		afterArrowBodyLoc: logger.Loc{Start: -1},
 
 		// For lowering private methods
