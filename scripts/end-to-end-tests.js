@@ -1375,6 +1375,16 @@
     }),
   )
 
+  // This shouldn't cause a syntax error
+  // https://github.com/evanw/esbuild/issues/1082
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--minify', '--bundle'], {
+      'in.js': `
+        return import('./in.js')
+      `,
+    })
+  )
+
   // Tests for "arguments" scope issues
   tests.push(
     test(['in.js', '--outfile=node.js', '--minify'], {

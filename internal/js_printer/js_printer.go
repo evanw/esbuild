@@ -1279,6 +1279,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 
 	// Internal "require()" or "import()"
 	if record.Kind == ast.ImportDynamic {
+		p.printSpaceBeforeIdentifier()
 		p.print("Promise.resolve()")
 		level = p.printDotThenPrefix()
 		defer p.printDotThenSuffix()
