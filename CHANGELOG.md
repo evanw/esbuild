@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.1
 
 * Fix a missing space before internal `import()` when minifying ([#1082](https://github.com/evanw/esbuild/issues/1082))
 
