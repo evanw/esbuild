@@ -197,6 +197,30 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "type Foo = Array<<T>(x: T) => T>\n x", "x;\n")
 	expectPrintedTSX(t, "<Foo<<T>(x: T) => T>/>", "/* @__PURE__ */ React.createElement(Foo, null);\n")
 
+	// Certain built-in types do not accept type parameters
+	expectPrintedTS(t, "x as 1 < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as 1n < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as -1 < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as -1n < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as '' < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as `` < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as any < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as bigint < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as false < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as never < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as null < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as number < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as object < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as string < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as symbol < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as this < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as true < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as undefined < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as unique symbol < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as unknown < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as void < 1", "x < 1;\n")
+	expectParseErrorTS(t, "x as Foo < 1", "<stdin>: error: Expected \">\" but found end of file\n")
+
 	// TypeScript 4.1
 	expectPrintedTS(t, "let foo: `${'a' | 'b'}-${'c' | 'd'}` = 'a-c'", "let foo = \"a-c\";\n")
 
@@ -1269,6 +1293,11 @@ func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "async (a): void => {}", "async (a) => {\n};\n")
 	expectParseErrorTS(t, "async x: void => {}", "<stdin>: error: Expected \"=>\" but found \":\"\n")
 
+	expectPrintedTS(t, "function foo(x: boolean): asserts x", "")
+	expectPrintedTS(t, "function foo(x: boolean): asserts<T>", "")
+	expectPrintedTS(t, "function foo(x: boolean): asserts\nx", "x;\n")
+	expectPrintedTS(t, "function foo(x: boolean): asserts<T>\nx", "x;\n")
+	expectParseErrorTS(t, "function foo(x: boolean): asserts<T> x", "<stdin>: error: Expected \";\" but found \"x\"\n")
 	expectPrintedTS(t, "(x: boolean): asserts x => {}", "(x) => {\n};\n")
 	expectPrintedTS(t, "(x: boolean): asserts this is object => {}", "(x) => {\n};\n")
 	expectPrintedTS(t, "(x: T): asserts x is NonNullable<T> => {}", "(x) => {\n};\n")
@@ -1492,6 +1521,7 @@ func TestTSJSX(t *testing.T) {
 
 	expectPrintedTS(t, "const x = async <T>() => {}", "const x = async () => {\n};\n")
 	expectPrintedTS(t, "const x = async <T>(y)", "const x = async(y);\n")
+	expectPrintedTS(t, "const x = async\n<T>(y)", "const x = async(y);\n")
 	expectPrintedTS(t, "const x = async <T>(y, z)", "const x = async(y, z);\n")
 	expectPrintedTS(t, "const x = async <T>(y: T) => {}", "const x = async (y) => {\n};\n")
 	expectPrintedTS(t, "const x = async <T>(y, z) => {}", "const x = async (y, z) => {\n};\n")
@@ -1503,6 +1533,7 @@ func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = async <T extends X = Y>(y, z) => {}", "const x = async (y, z) => {\n};\n")
 	expectParseErrorTS(t, "const x = async <T>(y: T)", "<stdin>: error: Unexpected \":\"\n")
 	expectParseErrorTS(t, "const x = async\n<T>() => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
+	expectParseErrorTS(t, "const x = async\n<T>(x) => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
 
 	expectPrintedTS(t, "const x = <{}>() => {}", "const x = () => {\n};\n")
 	expectPrintedTS(t, "const x = <{}>(y)", "const x = y;\n")

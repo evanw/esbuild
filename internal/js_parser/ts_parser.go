@@ -137,35 +137,34 @@ func (p *parser) skipTypeScriptParenOrFnType() {
 }
 
 func (p *parser) skipTypeScriptReturnType() {
-	// Skip over "function assert(x: boolean): asserts x"
-	if p.lexer.IsContextualKeyword("asserts") {
-		p.lexer.Next()
-
-		// "function assert(x: boolean): asserts" is also valid
-		if p.lexer.Token != js_lexer.TIdentifier && p.lexer.Token != js_lexer.TThis {
-			return
-		}
-		p.lexer.Next()
-
-		// Continue on to the "is" check below to handle something like
-		// "function assert(x: any): asserts x is boolean"
-	} else {
-		p.skipTypeScriptType(js_ast.LLowest)
-	}
-
-	if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
-		p.lexer.Next()
-		p.skipTypeScriptType(js_ast.LLowest)
-	}
+	p.skipTypeScriptTypeWithOpts(js_ast.LLowest, skipTypeOpts{isReturnType: true})
 }
 
 func (p *parser) skipTypeScriptType(level js_ast.L) {
+	p.skipTypeScriptTypeWithOpts(level, skipTypeOpts{})
+}
+
+type skipTypeOpts struct {
+	isReturnType bool
+}
+
+func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 	for {
 		switch p.lexer.Token {
 		case js_lexer.TNumericLiteral, js_lexer.TBigIntegerLiteral, js_lexer.TStringLiteral,
-			js_lexer.TNoSubstitutionTemplateLiteral, js_lexer.TThis, js_lexer.TTrue, js_lexer.TFalse,
+			js_lexer.TNoSubstitutionTemplateLiteral, js_lexer.TTrue, js_lexer.TFalse,
 			js_lexer.TNull, js_lexer.TVoid, js_lexer.TConst:
 			p.lexer.Next()
+
+		case js_lexer.TThis:
+			p.lexer.Next()
+
+			// "function check(): this is boolean"
+			if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
+				p.lexer.Next()
+				p.skipTypeScriptType(js_ast.LLowest)
+				return
+			}
 
 		case js_lexer.TMinus:
 			// "-123"
@@ -225,8 +224,48 @@ func (p *parser) skipTypeScriptType(level js_ast.L) {
 					continue
 				}
 
+				// "let foo: abstract \n <number>foo" must not become a single type
+				if !p.lexer.HasNewlineBefore {
+					p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+				}
+
+			case "any", "never", "unknown", "undefined", "object", "number", "string", "boolean", "bigint", "symbol":
+				p.lexer.Next()
+
+			case "asserts":
+				p.lexer.Next()
+
+				// "function assert(x: boolean): asserts x"
+				if opts.isReturnType && !p.lexer.HasNewlineBefore && (p.lexer.Token == js_lexer.TIdentifier || p.lexer.Token == js_lexer.TThis) {
+					p.lexer.Next()
+
+					// "function assert(x: any): asserts x is boolean"
+					if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
+						p.lexer.Next()
+						p.skipTypeScriptType(js_ast.LLowest)
+					}
+					return
+				}
+
+				// "let foo: asserts \n <number>foo" must not become a single type
+				if !p.lexer.HasNewlineBefore {
+					p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+				}
+
 			default:
 				p.lexer.Next()
+
+				// "function check(x: any): x is boolean"
+				if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
+					p.lexer.Next()
+					p.skipTypeScriptType(js_ast.LLowest)
+					return
+				}
+
+				// "let foo: any \n <number>foo" must not become a single type
+				if !p.lexer.HasNewlineBefore {
+					p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+				}
 			}
 
 		case js_lexer.TTypeof:
@@ -326,6 +365,7 @@ func (p *parser) skipTypeScriptType(level js_ast.L) {
 				p.lexer.Expect(js_lexer.TIdentifier)
 			}
 			p.lexer.Next()
+			p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
 
 		case js_lexer.TOpenBracket:
 			// "{ ['x']: string \n ['y']: string }" must not become a single type
@@ -337,22 +377,6 @@ func (p *parser) skipTypeScriptType(level js_ast.L) {
 				p.skipTypeScriptType(js_ast.LLowest)
 			}
 			p.lexer.Expect(js_lexer.TCloseBracket)
-
-		case js_lexer.TLessThan, js_lexer.TLessThanEquals,
-			js_lexer.TLessThanLessThan, js_lexer.TLessThanLessThanEquals:
-			// "let foo: any \n <number>foo" must not become a single type
-			if p.lexer.HasNewlineBefore {
-				return
-			}
-			p.lexer.ExpectLessThan(false /* isInsideJSXElement */)
-			for {
-				p.skipTypeScriptType(js_ast.LLowest)
-				if p.lexer.Token != js_lexer.TComma {
-					break
-				}
-				p.lexer.Next()
-			}
-			p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
 
 		case js_lexer.TExtends:
 			// "{ x: number \n extends: boolean }" must not become a single type
@@ -507,11 +531,14 @@ func (p *parser) skipTypeScriptTypeParameters() {
 }
 
 func (p *parser) skipTypeScriptTypeArguments(isInsideJSXElement bool) bool {
-	if p.lexer.Token != js_lexer.TLessThan {
+	switch p.lexer.Token {
+	case js_lexer.TLessThan, js_lexer.TLessThanEquals,
+		js_lexer.TLessThanLessThan, js_lexer.TLessThanLessThanEquals:
+	default:
 		return false
 	}
 
-	p.lexer.Next()
+	p.lexer.ExpectLessThan(false /* isInsideJSXElement */)
 
 	for {
 		p.skipTypeScriptType(js_ast.LLowest)
