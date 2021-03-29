@@ -1382,7 +1382,97 @@
       'in.js': `
         return import('./in.js')
       `,
-    })
+    }),
+  )
+
+  // This shouldn't crash
+  // https://github.com/evanw/esbuild/issues/1080
+  tests.push(
+    // Various CommonJS cases
+    test(['in.js', '--outfile=node.js', '--bundle', '--log-level=error'], {
+      'in.js': `import "pkg"; return`,
+      'node_modules/pkg/package.json': `{ "sideEffects": false }`,
+      'node_modules/pkg/index.js': `module.exports = null; throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:foo={"x":0}', '--bundle'], {
+      'in.js': `if (foo.x !== 0) throw 'fail'; return`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:foo.bar={"x":0}', '--bundle'], {
+      'in.js': `if (foo.bar.x !== 0) throw 'fail'; return`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:module={"x":0}', '--bundle'], {
+      'in.js': `if (module.x !== void 0) throw 'fail'; return`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:module.foo={"x":0}', '--bundle'], {
+      'in.js': `if (module.foo !== void 0) throw 'fail'; return`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:exports={"x":0}', '--bundle'], {
+      'in.js': `if (exports.x !== void 0) throw 'fail'; return`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:exports.foo={"x":0}', '--bundle'], {
+      'in.js': `if (exports.foo !== void 0) throw 'fail'; return`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:foo=["x"]', '--bundle'], {
+      'in.js': `if (foo[0] !== 'x') throw 'fail'; return`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:foo.bar=["x"]', '--bundle'], {
+      'in.js': `if (foo.bar[0] !== 'x') throw 'fail'; return`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:module=["x"]', '--bundle'], {
+      'in.js': `if (module[0] !== void 0) throw 'fail'; return`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:module.foo=["x"]', '--bundle'], {
+      'in.js': `if (module.foo !== void 0) throw 'fail'; return`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:exports=["x"]', '--bundle'], {
+      'in.js': `if (exports[0] !== void 0) throw 'fail'; return`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:exports.foo=["x"]', '--bundle'], {
+      'in.js': `if (exports.foo !== void 0) throw 'fail'; return`,
+    }),
+
+    // Various ESM cases
+    test(['in.js', '--outfile=node.js', '--bundle', '--log-level=error'], {
+      'in.js': `import "pkg"`,
+      'node_modules/pkg/package.json': `{ "sideEffects": false }`,
+      'node_modules/pkg/index.js': `module.exports = null; throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:foo={"x":0}', '--bundle'], {
+      'in.js': `if (foo.x !== 0) throw 'fail'; export {}`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:foo.bar={"x":0}', '--bundle'], {
+      'in.js': `if (foo.bar.x !== 0) throw 'fail'; export {}`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:module={"x":0}', '--bundle'], {
+      'in.js': `if (module.x !== 0) throw 'fail'; export {}`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:module.foo={"x":0}', '--bundle'], {
+      'in.js': `if (module.foo.x !== 0) throw 'fail'; export {}`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:exports={"x":0}', '--bundle'], {
+      'in.js': `if (exports.x !== 0) throw 'fail'; export {}`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:exports.foo={"x":0}', '--bundle'], {
+      'in.js': `if (exports.foo.x !== 0) throw 'fail'; export {}`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:foo=["x"]', '--bundle'], {
+      'in.js': `if (foo[0] !== 'x') throw 'fail'; export {}`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:foo.bar=["x"]', '--bundle'], {
+      'in.js': `if (foo.bar[0] !== 'x') throw 'fail'; export {}`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:module=["x"]', '--bundle'], {
+      'in.js': `if (module[0] !== 'x') throw 'fail'; export {}`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:module.foo=["x"]', '--bundle'], {
+      'in.js': `if (module.foo[0] !== 'x') throw 'fail'; export {}`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:exports=["x"]', '--bundle'], {
+      'in.js': `if (exports[0] !== 'x') throw 'fail'; export {}`,
+    }),
+    test(['in.js', '--outfile=node.js', '--define:exports.foo=["x"]', '--bundle'], {
+      'in.js': `if (exports.foo[0] !== 'x') throw 'fail'; export {}`,
+    }),
   )
 
   // Tests for "arguments" scope issues
@@ -3733,7 +3823,8 @@
       // If the test doesn't specify a format, test both formats
       for (const format of formats) {
         const formatArg = `--format=${format}`
-        const modifiedArgs = (!hasBundle || args.includes(formatArg) ? args : args.concat(formatArg)).concat('--log-level=warning')
+        const logLevelArgs = args.some(arg => arg.startsWith('--log-level=')) ? [] : ['--log-level=warning']
+        const modifiedArgs = (!hasBundle || args.includes(formatArg) ? args : args.concat(formatArg)).concat(logLevelArgs)
         const thisTestDir = path.join(testDir, '' + testCount++)
 
         try {

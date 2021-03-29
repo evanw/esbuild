@@ -2750,6 +2750,12 @@ for await (foo of bar)
   ;
 
 ================================================================================
+TestTopLevelReturnAllowedImport
+---------- /out.js ----------
+return;
+import "foo";
+
+================================================================================
 TestTypeofRequireBadPatterns
 ---------- /out.js ----------
 // entry.js

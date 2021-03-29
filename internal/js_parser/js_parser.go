@@ -8187,12 +8187,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Value = p.visitExpr(s.Value)
 
 	case *js_ast.SReturn:
-		// Forbid top-level return inside ECMAScript modules
+		// Forbid top-level return inside modules with ECMAScript-style exports
 		if p.fnOrArrowDataVisit.isOutsideFnOrArrow {
 			var where logger.Range
-			if p.es6ImportKeyword.Len > 0 {
-				where = p.es6ImportKeyword
-			} else if p.es6ExportKeyword.Len > 0 {
+			if p.es6ExportKeyword.Len > 0 {
 				where = p.es6ExportKeyword
 			} else if p.topLevelAwaitKeyword.Len > 0 {
 				where = p.topLevelAwaitKeyword

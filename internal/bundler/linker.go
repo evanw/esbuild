@@ -54,10 +54,13 @@ func (bs bitSet) copyFrom(other bitSet) {
 	copy(bs.entries, other.entries)
 }
 
-func (bs *bitSet) bitwiseOrWith(other bitSet) {
-	for i := range bs.entries {
-		bs.entries[i] |= other.entries[i]
+func (bs *bitSet) isAllZeros() bool {
+	for _, v := range bs.entries {
+		if v != 0 {
+			return false
+		}
 	}
+	return true
 }
 
 type linkerContext struct {
@@ -2791,7 +2794,6 @@ func sanitizeFilePathForVirtualModulePath(path string) string {
 func (c *linkerContext) computeChunks() []chunkInfo {
 	jsChunks := make(map[string]chunkInfo)
 	cssChunks := make(map[string]chunkInfo)
-	neverReachedKey := string(newBitSet(uint(len(c.entryPoints))).entries)
 
 	// Create chunks for entry points
 	for i, entryPoint := range c.entryPoints {
@@ -2823,11 +2825,11 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	// Figure out which files are in which chunk
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
-		key := string(file.entryBits.entries)
-		if key == neverReachedKey {
-			// Ignore this file if it was never reached
+		if file.entryBits.isAllZeros() {
+			// Ignore this file if it's not included in the bundle
 			continue
 		}
+		key := string(file.entryBits.entries)
 		var chunk chunkInfo
 		var ok bool
 		switch file.repr.(type) {
@@ -3155,7 +3157,8 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 		return true
 	}
 
-	otherRepr := c.files[record.SourceIndex.GetIndex()].repr.(*reprJS)
+	otherFile := &c.files[record.SourceIndex.GetIndex()]
+	otherRepr := otherFile.repr.(*reprJS)
 	switch otherRepr.meta.wrap {
 	case wrapNone:
 		// Remove the statement entirely if this module is not wrapped
@@ -3171,6 +3174,13 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 		})
 
 	case wrapESM:
+		// Ignore this file if it's not included in the bundle. This can happen for
+		// wrapped ESM files but not for wrapped CommonJS files because we allow
+		// tree shaking inside wrapped ESM files.
+		if otherFile.entryBits.isAllZeros() {
+			break
+		}
+
 		// Replace the statement with a call to "init()"
 		value := js_ast.Expr{Loc: loc, Data: &js_ast.ECall{Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: otherRepr.ast.WrapperRef}}}}
 		if otherRepr.meta.isAsyncOrHasAsyncDependency {
