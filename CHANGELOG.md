@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.2
 
 * Fix missing symbol dependency for wrapped ESM files ([#1086](https://github.com/evanw/esbuild/issues/1086))
 

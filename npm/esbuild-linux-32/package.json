@@ -1,6 +1,6 @@
 {
   "name": "esbuild-linux-32",
-  "version": "0.11.1",
+  "version": "0.11.2",
   "description": "The Linux 32-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
