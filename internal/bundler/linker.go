@@ -3853,15 +3853,26 @@ func (c *linkerContext) generateEntryPointTailJS(
 	case config.FormatESModule:
 		if repr.meta.wrap == wrapCJS {
 			// "export default require_foo();"
-			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExportDefault{Value: js_ast.ExprOrStmt{Expr: &js_ast.Expr{Data: &js_ast.ECall{
-				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
-			}}}}})
+			stmts = append(stmts, js_ast.Stmt{
+				Data: &js_ast.SExportDefault{Value: js_ast.ExprOrStmt{Expr: &js_ast.Expr{
+					Data: &js_ast.ECall{Target: js_ast.Expr{
+						Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}}}}}}})
 		} else {
 			if repr.meta.wrap == wrapESM {
-				// "init_foo();"
-				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
-					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
-				}}}})
+				if repr.meta.isAsyncOrHasAsyncDependency {
+					// "await init_foo();"
+					stmts = append(stmts, js_ast.Stmt{
+						Data: &js_ast.SExpr{Value: js_ast.Expr{
+							Data: &js_ast.EAwait{Value: js_ast.Expr{
+								Data: &js_ast.ECall{Target: js_ast.Expr{
+									Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}}}}}}}})
+				} else {
+					// "init_foo();"
+					stmts = append(stmts, js_ast.Stmt{
+						Data: &js_ast.SExpr{
+							Value: js_ast.Expr{Data: &js_ast.ECall{Target: js_ast.Expr{
+								Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}}}}}})
+				}
 			}
 
 			if len(repr.meta.sortedAndFilteredExportAliases) > 0 {

@@ -689,6 +689,13 @@
     }
 
     tests.push(
+      // Make sure entry points where a dependency has top-level await are awaited
+      test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm'].concat(minify), {
+        'in.js': `import './foo'; import('./in.js'); throw 'fail'`,
+        'foo.js': `throw await 'stop'`,
+        'node.js': `export let async = async () => { try { await import('./out.js') } catch (e) { if (e === 'stop') return } throw 'fail' }`,
+      }, { async: true }),
+
       // Self export
       test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'].concat(minify), {
         'in.js': `export default 123; export let async = async () => { const out = await import('./in'); if (out.default !== 123) throw 'fail' }`,

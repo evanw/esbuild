@@ -2726,7 +2726,7 @@ var init_entry = __esm(async () => {
   init_entry();
   await 0;
 });
-init_entry();
+await init_entry();
 
 ================================================================================
 TestTopLevelAwaitESM
