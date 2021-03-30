@@ -718,8 +718,7 @@
     test(['--bundle', '--format=esm', 'in.js', '--outfile=node.js'], {
       'in.js': `
         import a from './a'
-        import b from './b'
-        if (a !== 'runner1.js' || b !== 'runner2.js') throw 'fail'
+        if (a !== 'runner1.js') throw 'fail'
       `,
       'a.js': `
         import { run } from './runner1'
@@ -728,6 +727,10 @@
       'runner1.js': `
         let data = eval('"runner1" + ".js"')
         export function run() { return data }
+
+        // Do this here instead of in "in.js" so that log order is deterministic
+        import b from './b'
+        if (b !== 'runner2.js') throw 'fail'
       `,
       'b.js': `
         import { run } from './runner2'
@@ -738,12 +741,12 @@
         export function run() { return data }
       `,
     }, {
-      expectedStderr: ` > runner2.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
-    2 │         let data = eval('"runner2" + ".js"')
+      expectedStderr: ` > runner1.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
+    2 │         let data = eval('"runner1" + ".js"')
       ╵                    ~~~~
 
- > runner1.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
-    2 │         let data = eval('"runner1" + ".js"')
+ > runner2.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
+    2 │         let data = eval('"runner2" + ".js"')
       ╵                    ~~~~
 
 `,
