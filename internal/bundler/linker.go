@@ -2745,6 +2745,9 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 			}
 		}
 		if happensAtRunTime {
+			// Depend on this file's "exports" object for the first argument to "__exportStar"
+			c.generateUseOfSymbolForInclude(part, &repr.meta, 1, repr.ast.ExportsRef, sourceIndex)
+			c.includePart(sourceIndex, repr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
 			record.CallsRunTimeExportStarFn = true
 			repr.ast.UsesExportsRef = true
 			exportStarUses++
