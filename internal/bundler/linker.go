@@ -951,7 +951,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 						// Rewrite external dynamic imports to point to the chunk for that entry point
 						for _, importRecordIndex := range part.ImportRecordIndices {
 							record := &repr.ast.ImportRecords[importRecordIndex]
-							if record.SourceIndex.IsValid() && c.isExternalDynamicImport(record) {
+							if record.SourceIndex.IsValid() && c.isExternalDynamicImport(record, sourceIndex) {
 								otherChunkIndex := c.files[record.SourceIndex.GetIndex()].entryPointChunkIndex
 								record.Path.Text = chunks[otherChunkIndex].uniqueKey
 								record.SourceIndex = ast.Index32{}
@@ -2631,8 +2631,8 @@ func (c *linkerContext) generateUseOfSymbolForInclude(
 	}
 }
 
-func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord) bool {
-	return record.Kind == ast.ImportDynamic && c.files[record.SourceIndex.GetIndex()].isEntryPoint()
+func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord, sourceIndex uint32) bool {
+	return record.Kind == ast.ImportDynamic && c.files[record.SourceIndex.GetIndex()].isEntryPoint() && record.SourceIndex.GetIndex() != sourceIndex
 }
 
 func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
@@ -2667,7 +2667,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		record := &repr.ast.ImportRecords[importRecordIndex]
 
 		// Don't follow external imports (this includes import() expressions)
-		if !record.SourceIndex.IsValid() || c.isExternalDynamicImport(record) {
+		if !record.SourceIndex.IsValid() || c.isExternalDynamicImport(record, sourceIndex) {
 			// This is an external import, so it needs the "__toModule" wrapper as
 			// long as it's not a bare "require()"
 			if record.Kind != ast.ImportRequire && (!c.options.OutputFormat.KeepES6ImportExportSyntax() ||
@@ -2682,8 +2682,8 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
 
 		if record.Kind == ast.ImportRequire || record.Kind == ast.ImportDynamic ||
-			(record.Kind == ast.ImportStmt && otherRepr.ast.ExportsKind == js_ast.ExportsCommonJS) {
-			// This is a require() import
+			(record.Kind == ast.ImportStmt && otherRepr.meta.wrap != wrapNone) {
+			// This is a dynamically-evaluated import (i.e. not statically-evaluated)
 			c.includeFile(otherSourceIndex, entryPointBit, distanceFromEntryPoint)
 
 			// Depend on the automatically-generated require wrapper symbol
@@ -2698,8 +2698,12 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 			}
 
 			// If this is an ESM wrapper, also depend on the exports object
-			// since the final code will contain an inline reference to it
-			if otherRepr.meta.wrap == wrapESM {
+			// since the final code will contain an inline reference to it.
+			// This must be done for "require()" and "import()" expressions
+			// but does not need to be done for "import" statements since
+			// those just cause us to reference the exports directly.
+			if otherRepr.meta.wrap == wrapESM && record.Kind != ast.ImportStmt {
+				c.generateUseOfSymbolForInclude(part, &repr.meta, 1, otherRepr.ast.ExportsRef, otherSourceIndex)
 				c.includePart(otherSourceIndex, otherRepr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
 			}
 		} else if record.Kind == ast.ImportStmt && otherRepr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
@@ -3066,7 +3070,7 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 				for _, importRecordIndex := range part.ImportRecordIndices {
 					record := &repr.ast.ImportRecords[importRecordIndex]
 					if record.SourceIndex.IsValid() && (record.Kind == ast.ImportStmt || isPartInThisChunk) {
-						if c.isExternalDynamicImport(record) {
+						if c.isExternalDynamicImport(record, sourceIndex) {
 							// Don't follow import() dependencies
 							continue
 						}

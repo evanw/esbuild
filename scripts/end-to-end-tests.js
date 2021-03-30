@@ -687,6 +687,23 @@
         }),
       )
     }
+
+    tests.push(
+      // Self export
+      test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'].concat(minify), {
+        'in.js': `export default 123; export let async = async () => { const out = await import('./in'); if (out.default !== 123) throw 'fail' }`,
+      }, { async: true }),
+      test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'].concat(minify), {
+        'in.js': `export default 123; import * as out from './in'; export let async = async () => { await import('./in'); if (out.default !== 123) throw 'fail' }`,
+      }, { async: true }),
+
+      // Inject
+      test(['--bundle', 'node.ts', 'node2.ts', '--outdir=.', '--format=esm', '--inject:foo.js', '--splitting'].concat(minify), {
+        'node.ts': `if (foo.bar !== 123) throw 'fail'`,
+        'node2.ts': `throw [foo.bar, require('./node2.ts')] // Force this file to be lazily initialized so foo.js is lazily initialized`,
+        'foo.js': `export let foo = {bar: 123}`,
+      }),
+    )
   }
 
   // Check that duplicate top-level exports don't collide in the presence of "eval"

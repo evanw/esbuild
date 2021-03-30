@@ -2676,7 +2676,7 @@ TestTopLevelAwaitAllowedImportWithSplitting
 import("./a-QJXNRG2U.js");
 import("./b-QJXNRG2U.js");
 import("./c-7Y4CCLAO.js");
-import("./entry.js");
+require_entry();
 await 0;
 
 ---------- /out/a-QJXNRG2U.js ----------
@@ -2718,6 +2718,7 @@ var init_a = __esm(async () => {
 });
 
 // entry.js
+var entry_exports = {};
 var init_entry = __esm(async () => {
   init_a();
   init_b();

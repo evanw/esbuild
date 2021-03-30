@@ -313,7 +313,7 @@ TestSplittingHybridESMAndCJSIssue617
 import {
   foo,
   init_a
-} from "./chunk-XLWYRQ3W.js";
+} from "./chunk-IEX6U7D5.js";
 init_a();
 export {
   foo
@@ -321,8 +321,9 @@ export {
 
 ---------- /out/b.js ----------
 import {
+  a_exports,
   init_a
-} from "./chunk-XLWYRQ3W.js";
+} from "./chunk-IEX6U7D5.js";
 
 // b.js
 var bar = (init_a(), a_exports);
@@ -330,7 +331,7 @@ export {
   bar
 };
 
----------- /out/chunk-XLWYRQ3W.js ----------
+---------- /out/chunk-IEX6U7D5.js ----------
 // a.js
 var a_exports = {};
 __export(a_exports, {
@@ -342,6 +343,7 @@ var init_a = __esm(() => {
 
 export {
   foo,
+  a_exports,
   init_a
 };
 
