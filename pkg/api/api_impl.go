@@ -396,13 +396,15 @@ func validateJSX(log logger.Log, text string, name string) []string {
 	return parts
 }
 
-func validateDefines(log logger.Log, defines map[string]string, pureFns []string) (*config.ProcessedDefines, []config.InjectedDefine) {
-	if len(defines) == 0 && len(pureFns) == 0 {
-		return nil, nil
-	}
-
+func validateDefines(
+	log logger.Log,
+	defines map[string]string,
+	pureFns []string,
+	platform Platform,
+	minify bool,
+) (*config.ProcessedDefines, []config.InjectedDefine) {
 	rawDefines := make(map[string]config.DefineData)
-	valueToInject := make(map[string]config.InjectedDefine)
+	var valueToInject map[string]config.InjectedDefine
 	var definesToInject []string
 
 	for key, value := range defines {
@@ -422,12 +424,6 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 					DefineFunc: func(args config.DefineArgs) js_ast.E {
 						return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, name)}
 					},
-				}
-
-				// Try to be helpful for common mistakes
-				if key == "process.env.NODE_ENV" {
-					log.AddWarning(nil, logger.Loc{}, fmt.Sprintf(
-						"%q is defined as an identifier instead of a string (surround %q with double quotes to get a string)", key, value))
 				}
 				continue
 			}
@@ -456,6 +452,9 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 		// These values are extracted into a shared symbol reference
 		case *js_ast.EArray, *js_ast.EObject:
 			definesToInject = append(definesToInject, key)
+			if valueToInject == nil {
+				valueToInject = make(map[string]config.InjectedDefine)
+			}
 			valueToInject[key] = config.InjectedDefine{Source: source, Data: e, Name: key}
 			continue
 		}
@@ -465,14 +464,43 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 
 	// Sort injected defines for determinism, since the imports will be injected
 	// into every file in the order that we return them from this function
-	injectedDefines := make([]config.InjectedDefine, len(definesToInject))
-	sort.Strings(definesToInject)
-	for i, key := range definesToInject {
-		index := i // Capture this for the closure below
-		injectedDefines[i] = valueToInject[key]
-		rawDefines[key] = config.DefineData{DefineFunc: func(args config.DefineArgs) js_ast.E {
-			return &js_ast.EIdentifier{Ref: args.SymbolForDefine(index)}
-		}}
+	var injectedDefines []config.InjectedDefine
+	if len(definesToInject) > 0 {
+		injectedDefines = make([]config.InjectedDefine, len(definesToInject))
+		sort.Strings(definesToInject)
+		for i, key := range definesToInject {
+			index := i // Capture this for the closure below
+			injectedDefines[i] = valueToInject[key]
+			rawDefines[key] = config.DefineData{DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EIdentifier{Ref: args.SymbolForDefine(index)}
+			}}
+		}
+	}
+
+	// If we're bundling for the browser, add a special-cased define for
+	// "process.env.NODE_ENV" that is "development" when not minifying and
+	// "production" when minifying. This is a convention from the React world
+	// that must be handled to avoid all React code crashing instantly. This
+	// is only done if it's not already defined so that you can override it if
+	// necessary.
+	if platform == PlatformBrowser {
+		if _, process := rawDefines["process"]; !process {
+			if _, processEnv := rawDefines["process.env"]; !processEnv {
+				if _, processEnvNodeEnv := rawDefines["process.env.NODE_ENV"]; !processEnvNodeEnv {
+					var value []uint16
+					if minify {
+						value = js_lexer.StringToUTF16("production")
+					} else {
+						value = js_lexer.StringToUTF16("development")
+					}
+					rawDefines["process.env.NODE_ENV"] = config.DefineData{
+						DefineFunc: func(args config.DefineArgs) js_ast.E {
+							return &js_ast.EString{Value: value}
+						},
+					}
+				}
+			}
+		}
 	}
 
 	for _, key := range pureFns {
@@ -733,7 +761,8 @@ func rebuildImpl(
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtensions)
 	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
 	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
-	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure)
+	minify := buildOpts.MinifyWhitespace && buildOpts.MinifyIdentifiers && buildOpts.MinifySyntax
+	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, buildOpts.Platform, minify)
 	options := config.Options{
 		UnsupportedJSFeatures:  jsFeatures,
 		UnsupportedCSSFeatures: cssFeatures,
@@ -1192,7 +1221,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Convert and validate the transformOpts
 	jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
-	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure)
+	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, PlatformNeutral, false /* minify */)
 	options := config.Options{
 		UnsupportedJSFeatures:   jsFeatures,
 		UnsupportedCSSFeatures:  cssFeatures,

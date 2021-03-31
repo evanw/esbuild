@@ -829,9 +829,6 @@ type DefineData struct {
 	// example, a bare call to "Object()" can be removed because it does not
 	// have any observable side effects.
 	CallCanBeUnwrappedIfUnused bool
-
-	// Set to true to warn users that this should be defined if it's not already.
-	WarnAboutLackOfDefine bool
 }
 
 func mergeDefineData(old DefineData, new DefineData) DefineData {
@@ -841,9 +838,6 @@ func mergeDefineData(old DefineData, new DefineData) DefineData {
 	if old.CallCanBeUnwrappedIfUnused {
 		new.CallCanBeUnwrappedIfUnused = true
 	}
-
-	// Don't warn if the user defined this
-	new.WarnAboutLackOfDefine = false
 	return new
 }
 
@@ -903,12 +897,6 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 	result.IdentifierDefines["Infinity"] = DefineData{
 		DefineFunc: func(DefineArgs) js_ast.E { return &js_ast.ENumber{Value: math.Inf(1)} },
 	}
-
-	// Warn about use of this without a define
-	result.DotDefines["NODE_ENV"] = []DotDefine{{
-		Parts: []string{"process", "env", "NODE_ENV"},
-		Data:  DefineData{WarnAboutLackOfDefine: true},
-	}}
 
 	// Then copy the user-specified defines in afterwards, which will overwrite
 	// any known globals above.

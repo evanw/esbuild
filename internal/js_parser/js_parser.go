@@ -66,7 +66,6 @@ type parser struct {
 	runtimeImports           map[string]js_ast.Ref
 	duplicateCaseChecker     duplicateCaseChecker
 	nonBMPIdentifiers        map[string]bool
-	lackOfDefineWarnings     map[string]bool
 	legacyOctalLiterals      map[js_ast.E]logger.Range
 
 	// For strict mode handling
@@ -9323,19 +9322,6 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 	return false
 }
 
-func (p *parser) warnAboutLackOfDefine(name string, r logger.Range) {
-	if p.options.mode == config.ModeBundle && p.options.platform == config.PlatformBrowser {
-		if p.lackOfDefineWarnings == nil {
-			p.lackOfDefineWarnings = make(map[string]bool)
-		}
-		if !p.lackOfDefineWarnings[name] {
-			p.lackOfDefineWarnings[name] = true
-			p.log.AddRangeWarning(&p.source, r,
-				fmt.Sprintf("Define %q when bundling for the browser", name))
-		}
-	}
-}
-
 // EDot nodes represent a property access. This function may return an
 // expression to replace the property access with. It assumes that the
 // target of the EDot expression has already been visited.
@@ -9897,9 +9883,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 				if data.CallCanBeUnwrappedIfUnused && !p.options.ignoreDCEAnnotations {
 					e.CallCanBeUnwrappedIfUnused = true
-				}
-				if data.WarnAboutLackOfDefine {
-					p.warnAboutLackOfDefine(name, js_lexer.RangeOfIdentifier(p.source, expr.Loc))
 				}
 			}
 		}
@@ -10731,11 +10714,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}
 					if define.Data.CallCanBeUnwrappedIfUnused && !p.options.ignoreDCEAnnotations {
 						e.CallCanBeUnwrappedIfUnused = true
-					}
-					if define.Data.WarnAboutLackOfDefine {
-						r := js_lexer.RangeOfIdentifier(p.source, e.NameLoc)
-						r = logger.Range{Loc: expr.Loc, Len: r.End() - expr.Loc.Start}
-						p.warnAboutLackOfDefine(strings.Join(define.Parts, "."), r)
 					}
 					break
 				}

@@ -816,7 +816,6 @@ bench-readmin: bench-readmin-esbuild
 
 READMIN_ESBUILD_FLAGS += --bundle
 READMIN_ESBUILD_FLAGS += --define:global=window
-READMIN_ESBUILD_FLAGS += --define:process.env.NODE_ENV='"production"'
 READMIN_ESBUILD_FLAGS += --loader:.js=jsx
 READMIN_ESBUILD_FLAGS += --minify
 READMIN_ESBUILD_FLAGS += --sourcemap

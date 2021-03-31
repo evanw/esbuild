@@ -3224,15 +3224,6 @@ let transformTests = {
     assert.strictEqual(code, `var define_process_env_NODE_ENV_default = [1, 2, 3];\nconsole.log(define_process_env_NODE_ENV_default);\n`)
   },
 
-  async defineWarning({ esbuild }) {
-    const define = { 'process.env.NODE_ENV': 'production' }
-    const { code, warnings } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })
-    assert.strictEqual(code, `console.log(production);\n`)
-    assert.strictEqual(warnings.length, 1)
-    assert.strictEqual(warnings[0].text,
-      `"process.env.NODE_ENV" is defined as an identifier instead of a string (surround "production" with double quotes to get a string)`)
-  },
-
   async json({ esbuild }) {
     const { code } = await esbuild.transform(`{ "x": "y" }`, { loader: 'json' })
     assert.strictEqual(code, `module.exports = {x: "y"};\n`)

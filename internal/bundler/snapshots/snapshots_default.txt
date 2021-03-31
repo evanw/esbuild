@@ -1885,29 +1885,6 @@ TestOutputExtensionRemappingFile
 console.log("test");
 
 ================================================================================
-TestProcessEnvNodeEnvWarning
----------- /out.js ----------
-// entry.js
-console.log(process.env.NODE_ENV, process.env.NODE_ENV);
-
-================================================================================
-TestProcessEnvNodeEnvWarningDefine
----------- /out.js ----------
-// entry.js
-console.log(null);
-
-================================================================================
-TestProcessEnvNodeEnvWarningNoBundle
----------- /out.js ----------
-console.log(process.env.NODE_ENV);
-
-================================================================================
-TestProcessEnvNodeEnvWarningNode
----------- /out.js ----------
-// entry.js
-console.log(process.env.NODE_ENV);
-
-================================================================================
 TestReExportCommonJSAsES6
 ---------- /out.js ----------
 // foo.js
