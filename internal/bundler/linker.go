@@ -140,7 +140,7 @@ const (
 // conceptually only used for a single linking operation and because multiple
 // linking operations may be happening in parallel with different metadata for
 // the same file.
-type fileMeta struct {
+type jsMeta struct {
 	partMeta []partMeta
 
 	// This is the index to the automatically-generated part containing code that
@@ -2611,7 +2611,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 }
 
 func (c *linkerContext) includePartsForRuntimeSymbol(
-	part *js_ast.Part, fileMeta *fileMeta, useCount uint32,
+	part *js_ast.Part, jsMeta *jsMeta, useCount uint32,
 	name string, entryPointBit uint, distanceFromEntryPoint uint32,
 ) {
 	if useCount > 0 {
@@ -2619,7 +2619,7 @@ func (c *linkerContext) includePartsForRuntimeSymbol(
 		ref := runtimeRepr.ast.NamedExports[name].Ref
 
 		// Depend on the symbol from the runtime
-		c.generateUseOfSymbolForInclude(part, fileMeta, useCount, ref, runtime.SourceIndex)
+		c.generateUseOfSymbolForInclude(part, jsMeta, useCount, ref, runtime.SourceIndex)
 
 		// Since this part was included, also include the parts from the runtime
 		// that declare this symbol
@@ -2630,13 +2630,13 @@ func (c *linkerContext) includePartsForRuntimeSymbol(
 }
 
 func (c *linkerContext) generateUseOfSymbolForInclude(
-	part *js_ast.Part, fileMeta *fileMeta, useCount uint32,
+	part *js_ast.Part, jsMeta *jsMeta, useCount uint32,
 	ref js_ast.Ref, otherSourceIndex uint32,
 ) {
 	use := part.SymbolUses[ref]
 	use.CountEstimate += useCount
 	part.SymbolUses[ref] = use
-	fileMeta.importsToBind[ref] = importToBind{
+	jsMeta.importsToBind[ref] = importToBind{
 		sourceIndex: otherSourceIndex,
 		ref:         ref,
 	}

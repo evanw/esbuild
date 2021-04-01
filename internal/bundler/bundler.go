@@ -101,7 +101,7 @@ type fileRepr interface {
 
 type reprJS struct {
 	ast  js_ast.AST
-	meta fileMeta
+	meta jsMeta
 
 	// If present, this is the CSS file that this JavaScript stub corresponds to.
 	// A JavaScript stub is automatically generated for a CSS file when it's
