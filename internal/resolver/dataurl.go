@@ -62,7 +62,7 @@ func (parsed DataURL) DecodeData() (string, error) {
 	if parsed.isBase64 {
 		bytes, err := base64.StdEncoding.DecodeString(parsed.data)
 		if err != nil {
-			return "", fmt.Errorf("Could not decode base64 data: %s", err.Error())
+			return "", fmt.Errorf("could not decode base64 data: %s", err.Error())
 		}
 		return string(bytes), nil
 	}
@@ -70,7 +70,7 @@ func (parsed DataURL) DecodeData() (string, error) {
 	// Try to read percent-escaped data
 	content, err := url.PathUnescape(parsed.data)
 	if err != nil {
-		return "", fmt.Errorf("Could not decode percent-escaped data: %s", err.Error())
+		return "", fmt.Errorf("could not decode percent-escaped data: %s", err.Error())
 	}
 	return content, nil
 }

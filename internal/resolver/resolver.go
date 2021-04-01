@@ -682,8 +682,8 @@ func (r *resolver) dirInfoCached(path string) *dirInfo {
 	return info
 }
 
-var parseErrorImportCycle = errors.New("(import cycle)")
-var parseErrorAlreadyLogged = errors.New("(error already logged)")
+var errParseErrorImportCycle = errors.New("(import cycle)")
+var errParseErrorAlreadyLogged = errors.New("(error already logged)")
 
 // This may return "parseErrorAlreadyLogged" in which case there was a syntax
 // error, but it's already been reported. No further errors should be logged.
@@ -693,7 +693,7 @@ var parseErrorAlreadyLogged = errors.New("(error already logged)")
 func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfigJSON, error) {
 	// Don't infinite loop if a series of "extends" links forms a cycle
 	if visited[file] {
-		return nil, parseErrorImportCycle
+		return nil, errParseErrorImportCycle
 	}
 	visited[file] = true
 
@@ -729,10 +729,10 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 							return base
 						} else if err == syscall.ENOENT {
 							continue
-						} else if err == parseErrorImportCycle {
+						} else if err == errParseErrorImportCycle {
 							r.log.AddRangeWarning(&source, extendsRange,
 								fmt.Sprintf("Base config file %q forms cycle", extends))
-						} else if err != parseErrorAlreadyLogged {
+						} else if err != errParseErrorAlreadyLogged {
 							r.log.AddRangeError(&source, extendsRange,
 								fmt.Sprintf("Cannot read file %q: %s",
 									r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
@@ -760,10 +760,10 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 					return base
 				} else if err == syscall.ENOENT {
 					continue
-				} else if err == parseErrorImportCycle {
+				} else if err == errParseErrorImportCycle {
 					r.log.AddRangeWarning(&source, extendsRange,
 						fmt.Sprintf("Base config file %q forms cycle", extends))
-				} else if err != parseErrorAlreadyLogged {
+				} else if err != errParseErrorAlreadyLogged {
 					r.log.AddRangeError(&source, extendsRange,
 						fmt.Sprintf("Cannot read file %q: %s",
 							r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
@@ -782,7 +782,7 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 	})
 
 	if result == nil {
-		return nil, parseErrorAlreadyLogged
+		return nil, errParseErrorAlreadyLogged
 	}
 
 	if result.BaseURL != nil && !r.fs.IsAbs(*result.BaseURL) {
@@ -894,7 +894,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 				if err == syscall.ENOENT {
 					r.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Cannot find tsconfig file %q",
 						r.PrettyPath(logger.Path{Text: tsConfigPath, Namespace: "file"})))
-				} else if err != parseErrorAlreadyLogged {
+				} else if err != errParseErrorAlreadyLogged {
 					r.log.AddError(nil, logger.Loc{},
 						fmt.Sprintf("Cannot read file %q: %s",
 							r.PrettyPath(logger.Path{Text: tsConfigPath, Namespace: "file"}), err.Error()))

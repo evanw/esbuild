@@ -50,10 +50,6 @@ func (bs bitSet) equals(other bitSet) bool {
 	return bytes.Equal(bs.entries, other.entries)
 }
 
-func (bs bitSet) copyFrom(other bitSet) {
-	copy(bs.entries, other.entries)
-}
-
 func (bs *bitSet) isAllZeros() bool {
 	for _, v := range bs.entries {
 		if v != 0 {
@@ -673,9 +669,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 				switch c.options.SourceMap {
 				case config.SourceMapLinkedWithComment:
 					importPath := c.pathBetweenChunks(finalRelDir, finalRelPathForSourceMap)
-					if strings.HasPrefix(importPath, "./") {
-						importPath = importPath[2:]
-					}
+					importPath = strings.TrimPrefix(importPath, "./")
 					outputContentsJoiner.EnsureNewlineAtEnd()
 					outputContentsJoiner.AddString("//# sourceMappingURL=")
 					outputContentsJoiner.AddString(importPath)
@@ -1021,12 +1015,10 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 					if repr.meta.wrap != wrapCJS {
 						for _, alias := range repr.meta.sortedAndFilteredExportAliases {
 							export := repr.meta.resolvedExports[alias]
-							targetSourceIndex := export.sourceIndex
 							targetRef := export.ref
 
 							// If this is an import, then target what the import points to
-							if importToBind, ok := c.files[targetSourceIndex].repr.(*reprJS).meta.importsToBind[targetRef]; ok {
-								targetSourceIndex = importToBind.sourceIndex
+							if importToBind, ok := c.files[export.sourceIndex].repr.(*reprJS).meta.importsToBind[targetRef]; ok {
 								targetRef = importToBind.ref
 							}
 
@@ -1878,6 +1870,8 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 		importRef := js_ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(innerIndex)}
 		result := c.matchImportWithExport(importTracker{sourceIndex: sourceIndex, importRef: importRef})
 		switch result.kind {
+		case matchImportIgnore:
+
 		case matchImportNormal:
 			repr.meta.importsToBind[importRef] = importToBind{
 				sourceIndex: result.sourceIndex,
@@ -4620,16 +4614,11 @@ type externalImportCSS struct {
 
 func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
 	chunk := &chunks[chunkIndex]
-	var results []OutputFile
 	compileResults := make([]compileResultCSS, 0, len(chunk.filesInChunkInOrder))
 
 	// Generate CSS for each file in parallel
 	waitGroup := sync.WaitGroup{}
 	for _, sourceIndex := range chunk.filesInChunkInOrder {
-		// Each file may optionally contain additional files to be copied to the
-		// output directory. This is used by the "file" loader.
-		results = append(results, c.files[sourceIndex].additionalFiles...)
-
 		// Create a goroutine for this file
 		compileResults = append(compileResults, compileResultCSS{})
 		compileResult := &compileResults[len(compileResults)-1]
