@@ -11521,17 +11521,10 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 		}
 	}
 
-	if p.options.mode == config.ModeBundle && (opts.assignTarget != js_ast.AssignTargetNone || opts.isDeleteTarget) {
-		if p.symbols[ref.InnerIndex].Kind == js_ast.SymbolImport {
-			// Create an error for assigning to an import namespace
-			r := js_lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to import %q", p.symbols[ref.InnerIndex].OriginalName))
-		} else {
-			// Remember that this part assigns to this symbol for code splitting
-			use := p.symbolUses[ref]
-			use.IsAssigned = true
-			p.symbolUses[ref] = use
-		}
+	if p.options.mode == config.ModeBundle && (opts.assignTarget != js_ast.AssignTargetNone || opts.isDeleteTarget) && p.symbols[ref.InnerIndex].Kind == js_ast.SymbolImport {
+		// Create an error for assigning to an import namespace
+		r := js_lexer.RangeOfIdentifier(p.source, loc)
+		p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to import %q", p.symbols[ref.InnerIndex].OriginalName))
 	}
 
 	// Substitute an EImportIdentifier now if this is an import item

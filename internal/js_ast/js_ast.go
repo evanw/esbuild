@@ -1831,7 +1831,6 @@ type DeclaredSymbol struct {
 
 type SymbolUse struct {
 	CountEstimate uint32
-	IsAssigned    bool
 }
 
 // Returns the canonical ref that represents the ref for the provided symbol.
