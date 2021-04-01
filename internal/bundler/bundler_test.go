@@ -178,7 +178,12 @@ func (s *suite) compareSnapshot(t *testing.T, testName string, generated string)
 		if expected, ok := s.expectedSnapshots[testName]; ok {
 			assertEqual(t, generated, expected)
 		} else {
-			t.Fatalf("No snapshot saved for %s\n%s", testName, generated)
+			t.Fatalf("No snapshot saved for %s\n%s%s%s",
+				testName,
+				logger.TerminalColors.Green,
+				generated,
+				logger.TerminalColors.Reset,
+			)
 		}
 	}
 }
