@@ -67,7 +67,6 @@ type linkerContext struct {
 	symbols     js_ast.SymbolMap
 	entryPoints []entryMeta
 	files       []file
-	hasErrors   bool
 
 	// This helps avoid an infinite loop when matching imports to exports
 	cycleDetector []importTracker
@@ -379,6 +378,32 @@ type chunkReprJS struct {
 type chunkReprCSS struct {
 }
 
+// Returns a log where "log.HasErrors()" only returns true if any errors have
+// been logged since this call. This is useful when there have already been
+// errors logged by other linkers that share the same log.
+func wrappedLog(log logger.Log) logger.Log {
+	var mutex sync.Mutex
+	var hasErrors bool
+	addMsg := log.AddMsg
+
+	log.AddMsg = func(msg logger.Msg) {
+		if msg.Kind == logger.Error {
+			mutex.Lock()
+			defer mutex.Unlock()
+			hasErrors = true
+		}
+		addMsg(msg)
+	}
+
+	log.HasErrors = func() bool {
+		mutex.Lock()
+		defer mutex.Unlock()
+		return hasErrors
+	}
+
+	return log
+}
+
 func newLinkerContext(
 	options *config.Options,
 	log logger.Log,
@@ -389,6 +414,8 @@ func newLinkerContext(
 	reachableFiles []uint32,
 	dataForSourceMaps func() []dataForSourceMap,
 ) linkerContext {
+	log = wrappedLog(log)
+
 	// Clone information about symbols and files so we don't mutate the input data
 	c := linkerContext{
 		options:           options,
@@ -540,16 +567,6 @@ func newLinkerContext(
 	return c
 }
 
-func (c *linkerContext) addRangeError(source logger.Source, r logger.Range, text string) {
-	c.log.AddRangeError(&source, r, text)
-	c.hasErrors = true
-}
-
-func (c *linkerContext) addRangeErrorWithNotes(source logger.Source, r logger.Range, text string, notes []logger.MsgData) {
-	c.log.AddRangeErrorWithNotes(&source, r, text, notes)
-	c.hasErrors = true
-}
-
 func (c *linkerContext) addPartToFile(sourceIndex uint32, part js_ast.Part, partMeta partMeta) uint32 {
 	if part.LocalDependencies == nil {
 		part.LocalDependencies = make(map[uint32]bool)
@@ -585,7 +602,7 @@ func (c *linkerContext) link() []OutputFile {
 	c.scanImportsAndExports()
 
 	// Stop now if there were errors
-	if c.hasErrors {
+	if c.log.HasErrors() {
 		return []OutputFile{}
 	}
 
@@ -1897,7 +1914,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 		case matchImportCycle:
 			namedImport := repr.ast.NamedImports[importRef]
-			c.addRangeError(file.source, js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc),
+			c.log.AddRangeError(&file.source, js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc),
 				fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
 
 		case matchImportProbablyTypeScriptType:
@@ -1932,7 +1949,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				c.log.AddRangeWarningWithNotes(&file.source, r, msg, notes)
 			} else {
 				msg := fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias)
-				c.addRangeErrorWithNotes(file.source, r, msg, notes)
+				c.log.AddRangeErrorWithNotes(&file.source, r, msg, notes)
 			}
 		}
 	}
@@ -2072,7 +2089,7 @@ loop:
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
 				c.log.AddRangeWarning(&source, r, fmt.Sprintf("Import %q will always be undefined because there is no matching export", namedImport.Alias))
 			} else {
-				c.addRangeError(source, r, fmt.Sprintf("No matching export in %q for import %q",
+				c.log.AddRangeError(&source, r, fmt.Sprintf("No matching export in %q for import %q",
 					c.files[nextTracker.sourceIndex].source.PrettyPath, namedImport.Alias))
 			}
 
