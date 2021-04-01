@@ -1,0 +1,412 @@
+<!--
+This is a debugger for some of esbuild's internals. To use:
+1. Set "debugVerboseMetafile = true"
+2. Serve the esbuild repo over localhost
+3. Visit this page with "#metafile=path/to/metafile.json"
+-->
+<html>
+
+<head>
+  <meta charset="utf8">
+  <title>Graph debugger</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+
+    canvas {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas></canvas>
+  <script type="module">
+
+    const paddingX = 10
+    const paddingY = 10
+
+    class InputFile {
+      constructor(source, data) {
+        this.source = source
+        this.data = data
+        this.x = 0
+        this.y = 0
+        this.w = 0
+        this.h = 0
+        this.measure()
+      }
+
+      measure() {
+        this.w = 0
+        this.h = 0
+
+        // Title
+        c.font = titleFont
+        this.w = Math.max(this.w, c.measureText(this.source).width)
+        this.h += titleLineHeight
+
+        // Parts
+        c.font = codeFont
+        for (const part of this.data.parts) {
+          part.lines = part.code.split('\n')
+          part.y = this.h
+          for (const line of part.lines) {
+            this.w = Math.max(this.w, c.measureText(line).width)
+            this.h += codeLineHeight
+          }
+          if (part.nsExportPartIndex) {
+            this.w = Math.max(this.w, c.measureText('// nsExportPartIndex').width)
+          }
+          if (part.wrapperPartIndex) {
+            this.w = Math.max(this.w, c.measureText('// wrapperPartIndex').width)
+          }
+          part.h = this.h - part.y
+        }
+
+        this.w += paddingX * 2
+        this.h += paddingY * 2
+      }
+
+      render() {
+        // Background
+        c.clearRect(this.x, this.y, this.w, this.h)
+
+        // Title
+        c.font = titleFont
+        c.textBaseline = 'middle'
+        c.fillStyle = '#000'
+        c.fillText(this.source, this.x + paddingX, this.y + paddingY + titleLineHeight / 2)
+
+        // Lines
+        c.font = codeFont
+        c.textBaseline = 'middle'
+        for (const part of this.data.parts) {
+          c.fillStyle = part.isLive ? '#000' : 'rgba(0,0,0,0.3)'
+          for (let i = 0; i < part.lines.length; i++) {
+            c.fillText(part.lines[i], this.x + paddingX, this.y + paddingY + part.y + i * codeLineHeight + codeLineHeight / 2)
+          }
+          if (part.nsExportPartIndex) {
+            c.fillText('// nsExportPartIndex', this.x + paddingX, this.y + paddingY + part.y + codeLineHeight / 2)
+          }
+          if (part.wrapperPartIndex) {
+            c.fillText('// wrapperPartIndex', this.x + paddingX, this.y + paddingY + part.y + codeLineHeight / 2)
+          }
+        }
+
+        // Border
+        c.strokeStyle = 'rgba(0,0,0,0.2)'
+        c.strokeRect(this.x, this.y, this.w, this.h)
+      }
+
+      renderHover() {
+        if (this.hoveredPart === -1) {
+          c.fillStyle = 'rgba(127,191,255,0.2)'
+          c.fillRect(this.x, this.y + paddingY, this.w, titleLineHeight)
+          c.fillStyle = 'rgb(127,191,255)'
+          c.fillRect(this.x, this.y + paddingY, 4, titleLineHeight)
+
+          c.strokeStyle = '#000'
+          c.fillStyle = '#000'
+          for (const part of this.data.parts) {
+            if (part.canBeRemovedIfUnused) continue
+            drawArrow(
+              this.x, this.y + paddingY + titleLineHeight / 2, -1,
+              this.x, this.y + paddingY + part.y + codeLineHeight / 2, -1,
+            )
+          }
+        } else if (this.hoveredPart !== null) {
+          const part = this.data.parts[this.hoveredPart]
+          c.fillStyle = 'rgba(127,191,255,0.2)'
+          c.fillRect(this.x, this.y + paddingY + part.y, this.w, part.h)
+          c.fillStyle = 'rgb(127,191,255)'
+          c.fillRect(this.x, this.y + paddingY + part.y, 4, part.h)
+
+          c.strokeStyle = '#000'
+          c.fillStyle = '#000'
+          drawArrow(
+            this.x, this.y + paddingY + part.y + codeLineHeight / 2, -1,
+            this.x, this.y + paddingY + titleLineHeight / 2, -1,
+          )
+
+          for (const dep of part.localDependencies) {
+            const otherPart = this.data.parts[dep.partIndex]
+            drawArrow(
+              this.x, this.y + paddingY + part.y + codeLineHeight / 2, -1,
+              this.x, this.y + paddingY + otherPart.y + codeLineHeight / 2, -1,
+            )
+          }
+
+          for (const dep of part.nonLocalDependencies) {
+            if (dep.source === this.source) {
+              const otherPart = this.data.parts[dep.partIndex]
+              drawArrow(
+                this.x, this.y + paddingY + part.y + codeLineHeight / 2, -1,
+                this.x, this.y + paddingY + otherPart.y + codeLineHeight / 2, -1,
+              )
+              continue
+            }
+
+            const otherFile = inputFiles.find(file => file.source === dep.source)
+            if (!otherFile) continue
+            const otherPart = otherFile.data.parts[dep.partIndex]
+            drawArrow(
+              this.x + this.w, this.y + paddingY + part.y + codeLineHeight / 2, 1,
+              otherFile.x, otherFile.y + paddingY + otherPart.y + codeLineHeight / 2, -1,
+            )
+          }
+
+          for (const record of part.importRecords) {
+            const otherFile = inputFiles.find(file => file.source === record.source)
+            if (!otherFile) continue
+            drawArrow(
+              this.x + this.w, this.y + paddingY + part.y + codeLineHeight / 2, 1,
+              otherFile.x, otherFile.y + paddingY + titleLineHeight / 2, -1,
+            )
+          }
+
+          let lines = []
+          lines.push(`isLive: ${part.isLive}`)
+          if (part.declaredSymbols.length > 0) {
+            lines.push(`declaredSymbols:`)
+            for (const declSym of part.declaredSymbols) {
+              lines.push(`    ${declSym.name}`)
+            }
+          }
+          if (part.symbolUses.length > 0) {
+            lines.push(`symbolUses:`)
+            for (const use of part.symbolUses) {
+              lines.push(`    ${use.name} ${use.countEstimate}x`)
+            }
+          }
+          if (part.importRecords.length > 0) {
+            lines.push(`importRecords:`)
+            for (const record of part.importRecords) {
+              lines.push(`    ${record.source}`)
+            }
+          }
+
+          c.font = normalFont
+          c.textBaseline = 'middle'
+          c.fillStyle = '#000'
+          for (let i = 0; i < lines.length; i++) {
+            c.fillText(lines[i], this.x + 10, this.y + this.h + 10 + i * normalLineHeight + normalLineHeight / 2)
+          }
+        }
+      }
+
+      hoveredPart = null
+
+      onHover(mouseX, mouseY) {
+        this.hoveredPart = null
+
+        if (mouseX !== null && mouseY !== null &&
+          mouseX >= this.x && mouseX < this.x + this.w &&
+          mouseY >= this.y && mouseY < this.y + this.h) {
+          let y = mouseY - this.y - paddingY
+
+          if (y >= 0 && y < titleLineHeight) {
+            this.hoveredPart = -1
+            return true
+          }
+
+          for (let i = 0; i < this.data.parts.length; i++) {
+            const part = this.data.parts[i]
+            if (y >= part.y && y < part.y + part.h) {
+              this.hoveredPart = i
+              return true
+            }
+          }
+        }
+      }
+
+      onMouseMove(mouseX, mouseY) {
+        if (mouseX >= this.x && mouseX < this.x + this.w &&
+          mouseY >= this.y && mouseY < this.y + this.h) {
+          document.body.style.cursor = 'move'
+          return true
+        }
+      }
+
+      oldX = 0
+      oldY = 0
+
+      onMouseDown(mouseX, mouseY) {
+        if (mouseX >= this.x && mouseX < this.x + this.w &&
+          mouseY >= this.y && mouseY < this.y + this.h) {
+          this.oldX = mouseX
+          this.oldY = mouseY
+          document.body.style.cursor = 'move'
+          return true
+        }
+      }
+
+      onMouseDrag(mouseX, mouseY) {
+        this.x += mouseX - this.oldX
+        this.y += mouseY - this.oldY
+        this.oldX = mouseX
+        this.oldY = mouseY
+        document.body.style.cursor = 'move'
+      }
+
+      onMouseUp(e) {
+      }
+    }
+
+    function drawArrow(ax, ay, adx, bx, by, bdx) {
+      let dx = bx - ax
+      let dy = by - ay
+      let d = Math.sqrt(dx * dx + dy * dy)
+      let scale = d / 2
+      c.beginPath()
+      c.moveTo(ax, ay)
+      c.bezierCurveTo(
+        ax + adx * (10 + scale), ay,
+        bx + bdx * 10 + bdx * scale, by,
+        bx + bdx * 10, by,
+      )
+      c.stroke()
+      c.beginPath()
+      c.moveTo(bx, by)
+      c.lineTo(bx + bdx * 10, by - 5)
+      c.lineTo(bx + bdx * 10, by + 5)
+      c.fill()
+    }
+
+    const canvas = document.querySelector('canvas')
+    const c = canvas.getContext('2d')
+    const titleFont = '20px sans-serif'
+    const titleLineHeight = 30
+    const codeFont = '12px monospace'
+    const codeLineHeight = 18
+    const normalFont = '14px sans-serif'
+    const normalLineHeight = 18
+    let width = 0, height = 0
+    let scrollX = 0, scrollY = 0
+
+    if (!location.hash.startsWith('#metafile=')) throw new Error('Expected "#metafile=" in URL')
+    const metafile = await fetch(location.hash.slice('#metafile='.length)).then(r => r.json())
+    const outputSource = Object.keys(metafile.outputs)[0]
+    const output = metafile.outputs[outputSource]
+    const inputFiles = Object.entries(output.inputs).map(([source, data]) => new InputFile(source, data)).reverse()
+
+    for (let i = 0; i < inputFiles.length; i++) {
+      const file = inputFiles[i]
+      file.y = 100
+      if (i === 0) {
+        file.x = 100
+      } else {
+        const prevFile = inputFiles[i - 1]
+        file.x = prevFile.x + prevFile.w + 100
+      }
+    }
+
+    function render() {
+      width = innerWidth
+      height = innerHeight
+      const ratio = devicePixelRatio
+      canvas.width = Math.round(width * ratio)
+      canvas.height = Math.round(height * ratio)
+      c.scale(ratio, ratio)
+
+      // Title
+      c.font = titleFont
+      c.textBaseline = 'top'
+      c.fillStyle = '#000'
+      c.fillText(outputSource, 10, 10)
+
+      // Content
+      c.translate(-scrollX, -scrollY)
+
+      // Inputs
+      for (let i = inputFiles.length - 1; i >= 0; i--) inputFiles[i].render()
+      for (let i = inputFiles.length - 1; i >= 0; i--) inputFiles[i].renderHover()
+    }
+
+    addEventListener('wheel', e => {
+      e.preventDefault()
+      if (e.ctrlKey) return
+      scrollX += e.deltaX
+      scrollY += e.deltaY
+    }, { passive: false })
+
+    let draggingFile = null
+    let isDragging = false
+
+    onmousemove = e => {
+      let mouseX = e.pageX + scrollX
+      let mouseY = e.pageY + scrollY
+      document.body.style.cursor = 'default'
+      if (isDragging) {
+        if (draggingFile) {
+          draggingFile.onMouseDrag(mouseX, mouseY)
+        }
+      } else {
+        for (const file of inputFiles) {
+          if (file.onMouseMove(mouseX, mouseY)) {
+            break
+          }
+        }
+        onhover(mouseX, mouseY)
+      }
+    }
+
+    onmousedown = e => {
+      let mouseX = e.pageX + scrollX
+      let mouseY = e.pageY + scrollY
+      if (!isDragging) {
+        isDragging = true
+        for (const file of inputFiles) {
+          if (file.onMouseDown(mouseX, mouseY)) {
+            draggingFile = file
+            break
+          }
+        }
+      }
+      onhover(mouseX, mouseY)
+    }
+
+    onmouseup = e => {
+      let mouseX = e.pageX + scrollX
+      let mouseY = e.pageY + scrollY
+      if (isDragging) {
+        if (draggingFile) {
+          draggingFile.onMouseUp(mouseX, mouseY)
+          draggingFile = null
+        }
+        isDragging = false
+      }
+      onhover(mouseX, mouseY)
+    }
+
+    function onhover(mouseX, mouseY) {
+      for (const file of inputFiles) {
+        if (file.onHover(mouseX, mouseY)) {
+          mouseX = null
+          mouseY = null
+        }
+      }
+    }
+
+    onblur = () => {
+      draggingFile = null
+      isDragging = false
+    }
+
+    function tick() {
+      requestAnimationFrame(tick)
+      render()
+    }
+
+    tick()
+
+  </script>
+</body>
+
+</html>

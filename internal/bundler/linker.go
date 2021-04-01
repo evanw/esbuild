@@ -4430,12 +4430,12 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	// Concatenate the generated JavaScript chunks together
 	var compileResultsForSourceMap []compileResultJS
 	var commentList []string
-	var metaOrder []string
+	var metaOrder []uint32
 	var metaByteCount map[string]int
 	commentSet := make(map[string]bool)
 	prevComment := uint32(0)
 	if c.options.NeedsMetafile {
-		metaOrder = make([]string, 0, len(compileResults))
+		metaOrder = make([]uint32, 0, len(compileResults))
 		metaByteCount = make(map[string]int, len(compileResults))
 	}
 	for _, compileResult := range compileResults {
@@ -4498,7 +4498,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 				if count, ok := metaByteCount[path]; ok {
 					metaByteCount[path] = count + len(compileResult.JS)
 				} else {
-					metaOrder = append(metaOrder, path)
+					metaOrder = append(metaOrder, compileResult.sourceIndex)
 					metaByteCount[path] = len(compileResult.JS)
 				}
 			}
@@ -4558,14 +4558,16 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	if c.options.NeedsMetafile {
 		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) []byte {
 			isFirstMeta := true
-			for _, path := range metaOrder {
+			for _, sourceIndex := range metaOrder {
 				if isFirstMeta {
 					isFirstMeta = false
 				} else {
 					jMeta.AddString(",")
 				}
-				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-					js_printer.QuoteForJSON(path, c.options.ASCIIOnly), metaByteCount[path]))
+				path := c.files[sourceIndex].source.PrettyPath
+				extra := c.generateExtraDataForFileJS(sourceIndex)
+				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        %s}",
+					js_printer.QuoteForJSON(path, c.options.ASCIIOnly), metaByteCount[path], extra))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
