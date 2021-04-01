@@ -183,7 +183,7 @@ type jsMeta struct {
 	//
 	// This array holds the deferred imports to bind so the pass can be split
 	// into two separate passes.
-	importsToBind map[js_ast.Ref]importToBind
+	importsToBind map[js_ast.Ref]importData
 
 	isAsyncOrHasAsyncDependency bool
 
@@ -231,7 +231,7 @@ type jsMeta struct {
 	cjsExportCopies []js_ast.Ref
 }
 
-type importToBind struct {
+type importData struct {
 	sourceIndex uint32
 	nameLoc     logger.Loc // Optional, goes with sourceIndex, ignore if zero
 	ref         js_ast.Ref
@@ -261,7 +261,7 @@ type exportData struct {
 	// In this case "entry.js" should have two exports "x" and "y", neither of
 	// which are ambiguous. To handle this case, ambiguity resolution must be
 	// deferred until import resolution time. That is done using this array.
-	potentiallyAmbiguousExportStarRefs []importToBind
+	potentiallyAmbiguousExportStarRefs []importData
 
 	// This is the file that the named export above came from. This will be
 	// different from the file that contains this object if this is a re-export.
@@ -496,7 +496,7 @@ func newLinkerContext(
 			repr.meta.partMeta = make([]partMeta, len(repr.ast.Parts))
 			repr.meta.resolvedExports = resolvedExports
 			repr.meta.isProbablyTypeScriptType = make(map[js_ast.Ref]bool)
-			repr.meta.importsToBind = make(map[js_ast.Ref]importToBind)
+			repr.meta.importsToBind = make(map[js_ast.Ref]importData)
 
 		case *reprCSS:
 			// Clone the representation
@@ -998,8 +998,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 
 							// If this is imported from another file, follow the import
 							// reference and reference the symbol in that file instead
-							if importToBind, ok := repr.meta.importsToBind[ref]; ok {
-								ref = importToBind.ref
+							if importData, ok := repr.meta.importsToBind[ref]; ok {
+								ref = importData.ref
 								symbol = c.symbols.Get(ref)
 							} else if repr.meta.wrap == wrapCJS && ref != repr.ast.WrapperRef {
 								// The only internal symbol that wrapped CommonJS files export
@@ -1035,8 +1035,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 							targetRef := export.ref
 
 							// If this is an import, then target what the import points to
-							if importToBind, ok := c.files[export.sourceIndex].repr.(*reprJS).meta.importsToBind[targetRef]; ok {
-								targetRef = importToBind.ref
+							if importData, ok := c.files[export.sourceIndex].repr.(*reprJS).meta.importsToBind[targetRef]; ok {
+								targetRef = importData.ref
 							}
 
 							imports[targetRef] = true
@@ -1593,23 +1593,23 @@ func (c *linkerContext) scanImportsAndExports() {
 			}
 		}
 
-		for importRef, importToBind := range repr.meta.importsToBind {
-			resolvedRepr := c.files[importToBind.sourceIndex].repr.(*reprJS)
-			partsDeclaringSymbol := resolvedRepr.ast.TopLevelSymbolToParts[importToBind.ref]
+		for importRef, importData := range repr.meta.importsToBind {
+			resolvedRepr := c.files[importData.sourceIndex].repr.(*reprJS)
+			partsDeclaringSymbol := resolvedRepr.ast.TopLevelSymbolToParts[importData.ref]
 
 			for _, partIndex := range repr.ast.NamedImports[importRef].LocalPartsWithUses {
 				partMeta := &repr.meta.partMeta[partIndex]
 
 				for _, resolvedPartIndex := range partsDeclaringSymbol {
 					partMeta.nonLocalDependencies = append(partMeta.nonLocalDependencies, nonLocalDependency{
-						sourceIndex: importToBind.sourceIndex,
+						sourceIndex: importData.sourceIndex,
 						partIndex:   resolvedPartIndex,
 					})
 				}
 			}
 
 			// Merge these symbols so they will share the same name
-			js_ast.MergeSymbols(c.symbols, importRef, importToBind.ref)
+			js_ast.MergeSymbols(c.symbols, importRef, importData.ref)
 		}
 	}
 }
@@ -1737,9 +1737,9 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		// was eventually resolved to. We need to do this because imports have
 		// already been resolved by this point, so we can't generate a new import
 		// and have that be resolved later.
-		if importToBind, ok := c.files[export.sourceIndex].repr.(*reprJS).meta.importsToBind[export.ref]; ok {
-			export.ref = importToBind.ref
-			export.sourceIndex = importToBind.sourceIndex
+		if importData, ok := c.files[export.sourceIndex].repr.(*reprJS).meta.importsToBind[export.ref]; ok {
+			export.ref = importData.ref
+			export.sourceIndex = importData.sourceIndex
 		}
 
 		// Exports of imports need EImportIdentifier in case they need to be re-
@@ -1897,7 +1897,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 		case matchImportIgnore:
 
 		case matchImportNormal:
-			repr.meta.importsToBind[importRef] = importToBind{
+			repr.meta.importsToBind[importRef] = importData{
 				sourceIndex: result.sourceIndex,
 				ref:         result.ref,
 			}
@@ -1909,7 +1909,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 			}
 
 		case matchImportNormalAndNamespace:
-			repr.meta.importsToBind[importRef] = importToBind{
+			repr.meta.importsToBind[importRef] = importData{
 				sourceIndex: result.sourceIndex,
 				ref:         result.ref,
 			}
@@ -2292,14 +2292,14 @@ func (c *linkerContext) addExportsForExportStar(
 
 				// Make sure the symbol is marked as imported so that code splitting
 				// imports it correctly if it ends up being shared with another chunk
-				repr.meta.importsToBind[name.Ref] = importToBind{
+				repr.meta.importsToBind[name.Ref] = importData{
 					ref:         name.Ref,
 					sourceIndex: otherSourceIndex,
 				}
 			} else if existing.sourceIndex != otherSourceIndex {
 				// Two different re-exports colliding makes it potentially ambiguous
 				existing.potentiallyAmbiguousExportStarRefs =
-					append(existing.potentiallyAmbiguousExportStarRefs, importToBind{
+					append(existing.potentiallyAmbiguousExportStarRefs, importData{
 						sourceIndex: otherSourceIndex,
 						ref:         name.Ref,
 						nameLoc:     name.AliasLoc,
@@ -2348,7 +2348,7 @@ const (
 	importProbablyTypeScriptType
 )
 
-func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTracker, importStatus, []importToBind) {
+func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTracker, importStatus, []importData) {
 	file := &c.files[tracker.sourceIndex]
 	repr := file.repr.(*reprJS)
 	namedImport := repr.ast.NamedImports[tracker.importRef]
@@ -2465,7 +2465,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				})
 				repr.meta.wrapperPartIndex = ast.MakeIndex32(partIndex)
 				repr.ast.TopLevelSymbolToParts[repr.ast.WrapperRef] = []uint32{partIndex}
-				repr.meta.importsToBind[commonJSRef] = importToBind{
+				repr.meta.importsToBind[commonJSRef] = importData{
 					ref:         commonJSRef,
 					sourceIndex: runtime.SourceIndex,
 				}
@@ -2507,7 +2507,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				})
 				repr.meta.wrapperPartIndex = ast.MakeIndex32(partIndex)
 				repr.ast.TopLevelSymbolToParts[repr.ast.WrapperRef] = []uint32{partIndex}
-				repr.meta.importsToBind[esmRef] = importToBind{
+				repr.meta.importsToBind[esmRef] = importData{
 					ref:         esmRef,
 					sourceIndex: runtime.SourceIndex,
 				}
@@ -2590,9 +2590,9 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 
 				// If this is an import, then target what the import points to
 				targetRepr := c.files[targetSourceIndex].repr.(*reprJS)
-				if importToBind, ok := targetRepr.meta.importsToBind[targetRef]; ok {
-					targetSourceIndex = importToBind.sourceIndex
-					targetRef = importToBind.ref
+				if importData, ok := targetRepr.meta.importsToBind[targetRef]; ok {
+					targetSourceIndex = importData.sourceIndex
+					targetRef = importData.ref
 					targetRepr = c.files[targetSourceIndex].repr.(*reprJS)
 				}
 
@@ -2649,7 +2649,7 @@ func (c *linkerContext) generateUseOfSymbolForInclude(
 	use := part.SymbolUses[ref]
 	use.CountEstimate += useCount
 	part.SymbolUses[ref] = use
-	jsMeta.importsToBind[ref] = importToBind{
+	jsMeta.importsToBind[ref] = importData{
 		sourceIndex: otherSourceIndex,
 		ref:         ref,
 	}
@@ -3917,9 +3917,9 @@ func (c *linkerContext) generateEntryPointTailJS(
 					// was eventually resolved to. We need to do this because imports have
 					// already been resolved by this point, so we can't generate a new import
 					// and have that be resolved later.
-					if importToBind, ok := c.files[export.sourceIndex].repr.(*reprJS).meta.importsToBind[export.ref]; ok {
-						export.ref = importToBind.ref
-						export.sourceIndex = importToBind.sourceIndex
+					if importData, ok := c.files[export.sourceIndex].repr.(*reprJS).meta.importsToBind[export.ref]; ok {
+						export.ref = importData.ref
+						export.sourceIndex = importData.sourceIndex
 					}
 
 					// Exports of imports need EImportIdentifier in case they need to be re-
