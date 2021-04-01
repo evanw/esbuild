@@ -117,6 +117,8 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// Handle get requests
 	if req.Method == "GET" && strings.HasPrefix(req.URL.Path, "/") {
 		res.Header().Set("Access-Control-Allow-Origin", "*")
+		res.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
+		res.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 		queryPath := path.Clean(req.URL.Path)[1:]
 		result := h.build()
 
