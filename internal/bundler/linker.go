@@ -284,14 +284,14 @@ type partMeta struct {
 	lastEntryBit ast.Index32
 
 	// These are dependencies that come from other files via import statements.
-	nonLocalDependencies []partRef
+	nonLocalDependencies []nonLocalDependency
 }
 
 func (pm *partMeta) isLive() bool {
 	return pm.lastEntryBit.IsValid()
 }
 
-type partRef struct {
+type nonLocalDependency struct {
 	sourceIndex uint32
 	partIndex   uint32
 }
@@ -1601,7 +1601,7 @@ func (c *linkerContext) scanImportsAndExports() {
 				partMeta := &repr.meta.partMeta[partIndex]
 
 				for _, resolvedPartIndex := range partsDeclaringSymbol {
-					partMeta.nonLocalDependencies = append(partMeta.nonLocalDependencies, partRef{
+					partMeta.nonLocalDependencies = append(partMeta.nonLocalDependencies, nonLocalDependency{
 						sourceIndex: importToBind.sourceIndex,
 						partIndex:   resolvedPartIndex,
 					})
@@ -1728,7 +1728,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 	// Generate a getter per export
 	properties := []js_ast.Property{}
-	nsExportNonLocalDependencies := []partRef{}
+	nsExportNonLocalDependencies := []nonLocalDependency{}
 	nsExportSymbolUses := make(map[js_ast.Ref]js_ast.SymbolUse)
 	for _, alias := range repr.meta.sortedAndFilteredExportAliases {
 		export := repr.meta.resolvedExports[alias]
@@ -1769,8 +1769,10 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		for _, partIndex := range c.files[export.sourceIndex].repr.(*reprJS).ast.TopLevelSymbolToParts[export.ref] {
 			// Use a non-local dependency since this is likely from a different
 			// file if it came in through an export star
-			dep := partRef{sourceIndex: export.sourceIndex, partIndex: partIndex}
-			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, dep)
+			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, nonLocalDependency{
+				sourceIndex: export.sourceIndex,
+				partIndex:   partIndex,
+			})
 		}
 	}
 
@@ -1792,7 +1794,8 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// "__markAsModule" which sets the "__esModule" property to true. This must
 	// be done before any to "require()" or circular imports of multiple modules
 	// that have been each converted from ESM to CommonJS may not work correctly.
-	if repr.ast.ExportKeyword.Len > 0 && (repr.ast.ExportsKind == js_ast.ExportsCommonJS || (file.isEntryPoint() && c.options.OutputFormat == config.FormatCommonJS)) {
+	if repr.ast.ExportKeyword.Len > 0 && (repr.ast.ExportsKind == js_ast.ExportsCommonJS ||
+		(file.isEntryPoint() && c.options.OutputFormat == config.FormatCommonJS)) {
 		runtimeRepr := c.files[runtime.SourceIndex].repr.(*reprJS)
 		markAsModuleRef := runtimeRepr.ast.ModuleScope.Members["__markAsModule"].Ref
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
@@ -1802,8 +1805,10 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 		// Make sure this file depends on the "__markAsModule" symbol
 		for _, partIndex := range runtimeRepr.ast.TopLevelSymbolToParts[markAsModuleRef] {
-			dep := partRef{sourceIndex: runtime.SourceIndex, partIndex: partIndex}
-			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, dep)
+			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, nonLocalDependency{
+				sourceIndex: runtime.SourceIndex,
+				partIndex:   partIndex,
+			})
 		}
 
 		// Pull in the "__markAsModule" symbol later. Also make sure the "exports"
@@ -1829,8 +1834,10 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 		// Make sure this file depends on the "__export" symbol
 		for _, partIndex := range runtimeRepr.ast.TopLevelSymbolToParts[exportRef] {
-			dep := partRef{sourceIndex: runtime.SourceIndex, partIndex: partIndex}
-			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, dep)
+			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, nonLocalDependency{
+				sourceIndex: runtime.SourceIndex,
+				partIndex:   partIndex,
+			})
 		}
 
 		// Make sure the CommonJS closure, if there is one, includes "exports"
@@ -2436,9 +2443,12 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				commonJSParts := runtimeRepr.ast.TopLevelSymbolToParts[commonJSRef]
 
 				// Generate the dummy part
-				nonLocalDependencies := make([]partRef, len(commonJSParts))
+				nonLocalDependencies := make([]nonLocalDependency, len(commonJSParts))
 				for i, partIndex := range commonJSParts {
-					nonLocalDependencies[i] = partRef{sourceIndex: runtime.SourceIndex, partIndex: partIndex}
+					nonLocalDependencies[i] = nonLocalDependency{
+						sourceIndex: runtime.SourceIndex,
+						partIndex:   partIndex,
+					}
 				}
 				partIndex := c.addPartToFile(sourceIndex, js_ast.Part{
 					SymbolUses: map[js_ast.Ref]js_ast.SymbolUse{
@@ -2477,9 +2487,12 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				esmParts := runtimeRepr.ast.TopLevelSymbolToParts[esmRef]
 
 				// Generate the dummy part
-				nonLocalDependencies := make([]partRef, len(esmParts))
+				nonLocalDependencies := make([]nonLocalDependency, len(esmParts))
 				for i, partIndex := range esmParts {
-					nonLocalDependencies[i] = partRef{sourceIndex: runtime.SourceIndex, partIndex: partIndex}
+					nonLocalDependencies[i] = nonLocalDependency{
+						sourceIndex: runtime.SourceIndex,
+						partIndex:   partIndex,
+					}
 				}
 				partIndex := c.addPartToFile(sourceIndex, js_ast.Part{
 					SymbolUses: map[js_ast.Ref]js_ast.SymbolUse{
