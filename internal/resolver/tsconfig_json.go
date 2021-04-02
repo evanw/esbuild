@@ -12,6 +12,8 @@ import (
 )
 
 type TSConfigJSON struct {
+	AbsPath string
+
 	// The absolute path of "compilerOptions.baseUrl"
 	BaseURL *string
 
@@ -59,6 +61,7 @@ func ParseTSConfigJSON(
 	}
 
 	var result TSConfigJSON
+	result.AbsPath = source.KeyPath.Text
 
 	// Parse "extends"
 	if extends != nil {

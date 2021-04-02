@@ -71,10 +71,16 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 	packageJSONPath := r.fs.Join(path, "package.json")
 	contents, err := r.caches.FSCache.ReadFile(r.fs, packageJSONPath)
 	if err != nil {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("Failed to read %q: %s", packageJSONPath, err.Error()))
+		}
 		r.log.AddError(nil, logger.Loc{},
 			fmt.Sprintf("Cannot read file %q: %s",
 				r.PrettyPath(logger.Path{Text: packageJSONPath, Namespace: "file"}), err.Error()))
 		return nil
+	}
+	if r.debugLogs != nil {
+		r.debugLogs.addNote(fmt.Sprintf("The file %q exists", packageJSONPath))
 	}
 
 	keyPath := logger.Path{Text: packageJSONPath, Namespace: "file"}
@@ -101,10 +107,15 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 			if absolute, ok, _ := r.loadAsIndex(pathText, mainEntries); ok {
 				return &absolute
 			}
-		} else if err != syscall.ENOENT {
-			r.log.AddRangeError(&jsonSource, pathRange,
-				fmt.Sprintf("Cannot read directory %q: %s",
-					r.PrettyPath(logger.Path{Text: pathText, Namespace: "file"}), err.Error()))
+		} else {
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("Failed to read directory %q: %s", pathText, err.Error()))
+			}
+			if err != syscall.ENOENT {
+				r.log.AddRangeError(&jsonSource, pathRange,
+					fmt.Sprintf("Cannot read directory %q: %s",
+						r.PrettyPath(logger.Path{Text: pathText, Namespace: "file"}), err.Error()))
+			}
 		}
 		return nil
 	}

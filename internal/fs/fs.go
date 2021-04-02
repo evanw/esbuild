@@ -51,6 +51,10 @@ func MakeEmptyDirEntries(dir string) DirEntries {
 	return DirEntries{dir, make(map[string]*Entry)}
 }
 
+func (entries DirEntries) Len() int {
+	return len(entries.data)
+}
+
 type DifferentCase struct {
 	Dir    string
 	Query  string
