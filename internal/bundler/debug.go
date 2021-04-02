@@ -107,28 +107,15 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 		}
 		sb.WriteByte(']')
 
-		// localDependencies
-		sb.WriteString(`,"localDependencies":[`)
-		isFirst = true
-		for otherPartIndex := range part.LocalDependencies {
-			if isFirst {
-				isFirst = false
-			} else {
-				sb.WriteByte(',')
-			}
-			sb.WriteString(fmt.Sprintf(`{"partIndex":%d}`, otherPartIndex))
-		}
-		sb.WriteByte(']')
-
-		// nonLocalDependencies
-		sb.WriteString(`,"nonLocalDependencies":[`)
-		for i, dep := range partMeta.nonLocalDependencies {
+		// dependencies
+		sb.WriteString(`,"dependencies":[`)
+		for i, dep := range part.Dependencies {
 			if i > 0 {
 				sb.WriteByte(',')
 			}
 			sb.WriteString(fmt.Sprintf(`{"source":%s,"partIndex":%d}`,
-				js_printer.QuoteForJSON(c.files[dep.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
-				dep.partIndex,
+				js_printer.QuoteForJSON(c.files[dep.SourceIndex].source.PrettyPath, c.options.ASCIIOnly),
+				dep.PartIndex,
 			))
 		}
 		sb.WriteByte(']')

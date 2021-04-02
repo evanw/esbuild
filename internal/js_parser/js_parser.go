@@ -12788,7 +12788,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	p.popScope()
 
 	parts = append(append(before, parts...), after...)
-	result = p.toAST(source, parts, hashbang, directive)
+	result = p.toAST(parts, hashbang, directive)
 	result.SourceMapComment = p.lexer.SourceMappingURL
 	return
 }
@@ -12813,7 +12813,7 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 	}
 	p.symbolUses = nil
 
-	ast := p.toAST(source, []js_ast.Part{part}, "", "")
+	ast := p.toAST([]js_ast.Part{part}, "", "")
 	ast.HasLazyExport = true
 	return ast
 }
@@ -13015,7 +13015,7 @@ func (p *parser) generateImportStmt(
 	})
 }
 
-func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang string, directive string) js_ast.AST {
+func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) js_ast.AST {
 	// Insert an import statement for any runtime imports we generated
 	if len(p.runtimeImports) > 0 && !p.options.omitRuntimeForTests {
 		// Sort the imports for determinism
@@ -13098,11 +13098,18 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 		}
 
 		// Each part tracks the other parts it depends on within this file
-		for partIndex, part := range parts {
-			localDependencies := make(map[uint32]bool)
+		localDependencies := make(map[uint32]uint32)
+		for partIndex := range parts {
+			part := &parts[partIndex]
 			for ref := range part.SymbolUses {
-				for _, otherPart := range p.topLevelSymbolToParts[ref] {
-					localDependencies[otherPart] = true
+				for _, otherPartIndex := range p.topLevelSymbolToParts[ref] {
+					if oldPartIndex, ok := localDependencies[otherPartIndex]; !ok || oldPartIndex != uint32(partIndex) {
+						localDependencies[otherPartIndex] = uint32(partIndex)
+						part.Dependencies = append(part.Dependencies, js_ast.Dependency{
+							SourceIndex: p.source.Index,
+							PartIndex:   otherPartIndex,
+						})
+					}
 				}
 
 				// Also map from imports to parts that use them
@@ -13111,7 +13118,6 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 					p.namedImports[ref] = namedImport
 				}
 			}
-			parts[partIndex].LocalDependencies = localDependencies
 		}
 	}
 

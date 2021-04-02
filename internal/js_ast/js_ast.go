@@ -1806,7 +1806,7 @@ type Part struct {
 
 	// The indices of the other parts in this file that are needed if this part
 	// is needed.
-	LocalDependencies map[uint32]bool
+	Dependencies []Dependency
 
 	// If true, this part can be removed if none of the declared symbols are
 	// used. If the file containing this part is imported, then all parts that
@@ -1822,6 +1822,11 @@ type Part struct {
 	// aren't needed. This enables tree shaking for these parts even if global
 	// tree shaking isn't enabled.
 	ForceTreeShaking bool
+}
+
+type Dependency struct {
+	SourceIndex uint32
+	PartIndex   uint32
 }
 
 type DeclaredSymbol struct {

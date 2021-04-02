@@ -162,15 +162,7 @@ This is a debugger for some of esbuild's internals. To use:
             this.x, this.y + paddingY + titleLineHeight / 2, -1,
           )
 
-          for (const dep of part.localDependencies) {
-            const otherPart = this.data.parts[dep.partIndex]
-            drawArrow(
-              this.x, this.y + paddingY + part.y + codeLineHeight / 2, -1,
-              this.x, this.y + paddingY + otherPart.y + codeLineHeight / 2, -1,
-            )
-          }
-
-          for (const dep of part.nonLocalDependencies) {
+          for (const dep of part.dependencies) {
             if (dep.source === this.source) {
               const otherPart = this.data.parts[dep.partIndex]
               drawArrow(
