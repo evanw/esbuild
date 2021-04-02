@@ -1407,13 +1407,13 @@ func (p *parser) lowerObjectRestHelper(
 			p.recordUsage(ref)
 		}
 
-		// Call "__rest" to clone the initializer without the keys for previous
+		// Call "__objRest" to clone the initializer without the keys for previous
 		// properties, then assign the result to the binding for the rest pattern
 		keysToExclude := make([]js_ast.Expr, len(capturedKeys))
 		for i, capturedKey := range capturedKeys {
 			keysToExclude[i] = capturedKey()
 		}
-		assign(binding, p.callRuntime(binding.Loc, "__rest", []js_ast.Expr{init,
+		assign(binding, p.callRuntime(binding.Loc, "__objRest", []js_ast.Expr{init,
 			{Loc: binding.Loc, Data: &js_ast.EArray{Items: keysToExclude, IsSingleLine: isSingleLine}}}))
 	}
 
@@ -1573,7 +1573,7 @@ func (p *parser) lowerObjectRestHelper(
 	//
 	//   // Output:
 	//   var _a;
-	//   console.log((x = __rest(_a = x, []), _a));
+	//   console.log((x = __objRest(_a = x, []), _a));
 	//
 	// This isn't necessary if the return value is unused:
 	//
@@ -1581,7 +1581,7 @@ func (p *parser) lowerObjectRestHelper(
 	//   ({...x} = x);
 	//
 	//   // Output:
-	//   x = __rest(x, []);
+	//   x = __objRest(x, []);
 	//
 	if mode == objRestMustReturnInitExpr {
 		initFunc, initWrapFunc := p.captureValueWithPossibleSideEffects(rootInit.Loc, 2, rootInit, valueCouldBeMutated)
@@ -1595,7 +1595,7 @@ func (p *parser) lowerObjectRestHelper(
 	return wrapFunc, true
 }
 
-// Save a copy of the key for the call to "__rest" later on. Certain
+// Save a copy of the key for the call to "__objRest" later on. Certain
 // expressions can be converted to keys more efficiently than others.
 func (p *parser) captureKeyForObjectRest(originalKey js_ast.Expr) (finalKey js_ast.Expr, capturedKey func() js_ast.Expr) {
 	loc := originalKey.Loc

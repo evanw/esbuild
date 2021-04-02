@@ -62,7 +62,7 @@ func code(isES6 bool) string {
 	//   __spreadArrays
 	//   __values
 	//
-	// Note: The "__rest" function has a for-of loop which requires ES6, but
+	// Note: The "__objRest" function has a for-of loop which requires ES6, but
 	// transforming destructuring to ES5 isn't even supported so it's ok.
 	text := `
 		var __create = Object.create
@@ -114,7 +114,7 @@ func code(isES6 bool) string {
 
 		// For object rest patterns
 		export var __restKey = key => typeof key === 'symbol' ? key : key + ''
-		export var __rest = (source, exclude) => {
+		export var __objRest = (source, exclude) => {
 			var target = {}
 			for (var prop in source)
 				if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
