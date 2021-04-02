@@ -80,7 +80,7 @@ func code(isES6 bool) string {
 			? __defProp(obj, key, {enumerable: true, configurable: true, writable: true, value})
 			: obj[key] = value
 
-		export var __assign = (a, b) => {
+		export var __objSpread = (a, b) => {
 			for (var prop in b ||= {})
 				if (__hasOwnProp.call(b, prop))
 					__defNormalProp(a, prop, b[prop])

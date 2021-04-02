@@ -884,15 +884,15 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 }
 
 // Lower object spread for environments that don't support them. Non-spread
-// properties are grouped into object literals and then passed to "__assign"
+// properties are grouped into object literals and then passed to "__objSpread"
 // like this:
 //
-//   "{a, b, ...c, d, e}" => "__assign(__assign(__assign({a, b}, c), {d, e})"
+//   "{a, b, ...c, d, e}" => "__objSpread(__objSpread(__objSpread({a, b}, c), {d, e})"
 //
 // If the object literal starts with a spread, then we pass an empty object
-// literal to "__assign" to make sure we clone the object:
+// literal to "__objSpread" to make sure we clone the object:
 //
-//   "{...a, b}" => "__assign(__assign({}, a), {b})"
+//   "{...a, b}" => "__objSpread(__objSpread({}, a), {b})"
 //
 // It's not immediately obvious why we don't compile everything to a single
 // call to "Object.assign". After all, "Object.assign" can take any number of
@@ -939,14 +939,14 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 
 		if len(properties) > 0 || result.Data == nil {
 			if result.Data == nil {
-				// "{a, ...b}" => "__assign({a}, b)"
+				// "{a, ...b}" => "__objSpread({a}, b)"
 				result = js_ast.Expr{Loc: loc, Data: &js_ast.EObject{
 					Properties:   properties,
 					IsSingleLine: e.IsSingleLine,
 				}}
 			} else {
-				// "{...a, b, ...c}" => "__assign(__assign(__assign({}, a), {b}), c)"
-				result = p.callRuntime(loc, "__assign",
+				// "{...a, b, ...c}" => "__objSpread(__objSpread(__objSpread({}, a), {b}), c)"
+				result = p.callRuntime(loc, "__objSpread",
 					[]js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
 						Properties:   properties,
 						IsSingleLine: e.IsSingleLine,
@@ -955,13 +955,13 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 			properties = []js_ast.Property{}
 		}
 
-		// "{a, ...b}" => "__assign({a}, b)"
-		result = p.callRuntime(loc, "__assign", []js_ast.Expr{result, *property.Value})
+		// "{a, ...b}" => "__objSpread({a}, b)"
+		result = p.callRuntime(loc, "__objSpread", []js_ast.Expr{result, *property.Value})
 	}
 
 	if len(properties) > 0 {
-		// "{...a, b}" => "__assign(__assign({}, a), {b})"
-		result = p.callRuntime(loc, "__assign", []js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
+		// "{...a, b}" => "__objSpread(__objSpread({}, a), {b})"
+		result = p.callRuntime(loc, "__objSpread", []js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
 			Properties:   properties,
 			IsSingleLine: e.IsSingleLine,
 		}}})
