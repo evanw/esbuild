@@ -3197,6 +3197,20 @@
         if (JSON.stringify(obj) !== JSON.stringify(ns)) throw 'fail'
       `,
     }),
+
+    // Test the initializer being overwritten
+    test(['in.ts', '--outfile=node.js', '--target=es6'], {
+      'in.ts': `
+        var z = {x: {z: 'z'}, y: 'y'}, {x: z, ...y} = z
+        if (y.y !== 'y' || z.z !== 'z') throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--target=es6'], {
+      'in.ts': `
+        var z = {x: {x: 'x'}, y: 'y'}, {[(z = {z: 'z'}, 'x')]: x, ...y} = z
+        if (x.x !== 'x' || y.y !== 'y' || z.z !== 'z') throw 'fail'
+      `,
+    }),
   )
 
   // Code splitting tests

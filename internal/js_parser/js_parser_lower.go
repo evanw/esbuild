@@ -1374,13 +1374,6 @@ func (p *parser) lowerObjectRestHelper(
 	var visit func(js_ast.Expr, js_ast.Expr, []func() js_ast.Expr)
 
 	captureIntoRef := func(expr js_ast.Expr) js_ast.Ref {
-		if id, ok := expr.Data.(*js_ast.EIdentifier); ok {
-			return id.Ref
-		}
-
-		// If the initializer isn't already a bare identifier that we can
-		// reference, store the initializer first so we can reference it later.
-		// The initializer may have side effects so we must evaluate it once.
 		ref := p.generateTempRef(declare, "")
 		assign(js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, expr)
 		p.recordUsage(ref)
