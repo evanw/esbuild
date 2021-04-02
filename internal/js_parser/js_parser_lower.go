@@ -884,15 +884,15 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 }
 
 // Lower object spread for environments that don't support them. Non-spread
-// properties are grouped into object literals and then passed to "__assign"
+// properties are grouped into object literals and then passed to "__objSpread"
 // like this:
 //
-//   "{a, b, ...c, d, e}" => "__assign(__assign(__assign({a, b}, c), {d, e})"
+//   "{a, b, ...c, d, e}" => "__objSpread(__objSpread(__objSpread({a, b}, c), {d, e})"
 //
 // If the object literal starts with a spread, then we pass an empty object
-// literal to "__assign" to make sure we clone the object:
+// literal to "__objSpread" to make sure we clone the object:
 //
-//   "{...a, b}" => "__assign(__assign({}, a), {b})"
+//   "{...a, b}" => "__objSpread(__objSpread({}, a), {b})"
 //
 // It's not immediately obvious why we don't compile everything to a single
 // call to "Object.assign". After all, "Object.assign" can take any number of
@@ -939,14 +939,14 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 
 		if len(properties) > 0 || result.Data == nil {
 			if result.Data == nil {
-				// "{a, ...b}" => "__assign({a}, b)"
+				// "{a, ...b}" => "__objSpread({a}, b)"
 				result = js_ast.Expr{Loc: loc, Data: &js_ast.EObject{
 					Properties:   properties,
 					IsSingleLine: e.IsSingleLine,
 				}}
 			} else {
-				// "{...a, b, ...c}" => "__assign(__assign(__assign({}, a), {b}), c)"
-				result = p.callRuntime(loc, "__assign",
+				// "{...a, b, ...c}" => "__objSpread(__objSpread(__objSpread({}, a), {b}), c)"
+				result = p.callRuntime(loc, "__objSpread",
 					[]js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
 						Properties:   properties,
 						IsSingleLine: e.IsSingleLine,
@@ -955,13 +955,13 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 			properties = []js_ast.Property{}
 		}
 
-		// "{a, ...b}" => "__assign({a}, b)"
-		result = p.callRuntime(loc, "__assign", []js_ast.Expr{result, *property.Value})
+		// "{a, ...b}" => "__objSpread({a}, b)"
+		result = p.callRuntime(loc, "__objSpread", []js_ast.Expr{result, *property.Value})
 	}
 
 	if len(properties) > 0 {
-		// "{...a, b}" => "__assign(__assign({}, a), {b})"
-		result = p.callRuntime(loc, "__assign", []js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
+		// "{...a, b}" => "__objSpread(__objSpread({}, a), {b})"
+		result = p.callRuntime(loc, "__objSpread", []js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
 			Properties:   properties,
 			IsSingleLine: e.IsSingleLine,
 		}}})
@@ -1407,13 +1407,13 @@ func (p *parser) lowerObjectRestHelper(
 			p.recordUsage(ref)
 		}
 
-		// Call "__rest" to clone the initializer without the keys for previous
+		// Call "__objRest" to clone the initializer without the keys for previous
 		// properties, then assign the result to the binding for the rest pattern
 		keysToExclude := make([]js_ast.Expr, len(capturedKeys))
 		for i, capturedKey := range capturedKeys {
 			keysToExclude[i] = capturedKey()
 		}
-		assign(binding, p.callRuntime(binding.Loc, "__rest", []js_ast.Expr{init,
+		assign(binding, p.callRuntime(binding.Loc, "__objRest", []js_ast.Expr{init,
 			{Loc: binding.Loc, Data: &js_ast.EArray{Items: keysToExclude, IsSingleLine: isSingleLine}}}))
 	}
 
@@ -1573,7 +1573,7 @@ func (p *parser) lowerObjectRestHelper(
 	//
 	//   // Output:
 	//   var _a;
-	//   console.log((x = __rest(_a = x, []), _a));
+	//   console.log((x = __objRest(_a = x, []), _a));
 	//
 	// This isn't necessary if the return value is unused:
 	//
@@ -1581,7 +1581,7 @@ func (p *parser) lowerObjectRestHelper(
 	//   ({...x} = x);
 	//
 	//   // Output:
-	//   x = __rest(x, []);
+	//   x = __objRest(x, []);
 	//
 	if mode == objRestMustReturnInitExpr {
 		initFunc, initWrapFunc := p.captureValueWithPossibleSideEffects(rootInit.Loc, 2, rootInit, valueCouldBeMutated)
@@ -1595,7 +1595,7 @@ func (p *parser) lowerObjectRestHelper(
 	return wrapFunc, true
 }
 
-// Save a copy of the key for the call to "__rest" later on. Certain
+// Save a copy of the key for the call to "__objRest" later on. Certain
 // expressions can be converted to keys more efficiently than others.
 func (p *parser) captureKeyForObjectRest(originalKey js_ast.Expr) (finalKey js_ast.Expr, capturedKey func() js_ast.Expr) {
 	loc := originalKey.Loc
@@ -1789,13 +1789,13 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				}
 				for i, arg := range fn.Fn.Args {
 					for _, decorator := range arg.TSDecorators {
-						// Generate a call to "__param()" for this parameter decorator
+						// Generate a call to "__decorateParam()" for this parameter decorator
 						var decorators *[]js_ast.Expr = &prop.TSDecorators
 						if isConstructor {
 							decorators = &class.TSDecorators
 						}
 						*decorators = append(*decorators,
-							p.callRuntime(decorator.Loc, "__param", []js_ast.Expr{
+							p.callRuntime(decorator.Loc, "__decorateParam", []js_ast.Expr{
 								{Loc: decorator.Loc, Data: &js_ast.ENumber{Value: float64(i)}},
 								decorator,
 							}),
@@ -1859,7 +1859,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 		// Handle decorators
 		if p.options.ts.Parse {
-			// Generate a single call to "__decorate()" for this property
+			// Generate a single call to "__decorateClass()" for this property
 			if len(prop.TSDecorators) > 0 {
 				loc := prop.Key.Loc
 
@@ -1876,7 +1876,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					panic("Internal error")
 				}
 
-				// This code tells "__decorate()" if the descriptor should be undefined
+				// This code tells "__decorateClass()" if the descriptor should be undefined
 				descriptorKind := float64(1)
 				if !prop.IsMethod {
 					descriptorKind = 2
@@ -1890,7 +1890,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: nameFunc(), Name: "prototype", NameLoc: loc}}
 				}
 
-				decorator := p.callRuntime(loc, "__decorate", []js_ast.Expr{
+				decorator := p.callRuntime(loc, "__decorateClass", []js_ast.Expr{
 					{Loc: loc, Data: &js_ast.EArray{Items: prop.TSDecorators}},
 					target,
 					descriptorKey,
@@ -2345,7 +2345,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	if len(class.TSDecorators) > 0 {
 		stmts = append(stmts, js_ast.AssignStmt(
 			js_ast.Expr{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
-			p.callRuntime(classLoc, "__decorate", []js_ast.Expr{
+			p.callRuntime(classLoc, "__decorateClass", []js_ast.Expr{
 				{Loc: classLoc, Data: &js_ast.EArray{Items: class.TSDecorators}},
 				{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
 			}),

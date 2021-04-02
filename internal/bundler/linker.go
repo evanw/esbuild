@@ -2765,7 +2765,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	c.includePartsForRuntimeSymbol(part, &repr.meta, toModuleUses, "__toModule", entryPointBit, distanceFromEntryPoint)
 
 	// If there's an ES6 export star statement of a non-ES6 module, then we're
-	// going to need the "__exportStar" symbol from the runtime
+	// going to need the "__reExport" symbol from the runtime
 	exportStarUses := uint32(0)
 	for _, importRecordIndex := range repr.ast.ExportStarImportRecords {
 		record := &repr.ast.ImportRecords[importRecordIndex]
@@ -2779,7 +2779,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 				happensAtRunTime = true
 			}
 			if otherRepr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
-				// This looks like "__exportStar(exports_a, exports_b)". Make sure to
+				// This looks like "__reExport(exports_a, exports_b)". Make sure to
 				// pull in the "exports_b" symbol into this export star. This matters
 				// in code splitting situations where the "export_b" symbol might live
 				// in a different chunk than this export star.
@@ -2788,7 +2788,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 			}
 		}
 		if happensAtRunTime {
-			// Depend on this file's "exports" object for the first argument to "__exportStar"
+			// Depend on this file's "exports" object for the first argument to "__reExport"
 			c.generateUseOfSymbolForInclude(part, &repr.meta, 1, repr.ast.ExportsRef, sourceIndex)
 			c.includePart(sourceIndex, repr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
 			record.CallsRunTimeExportStarFn = true
@@ -2796,7 +2796,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 			exportStarUses++
 		}
 	}
-	c.includePartsForRuntimeSymbol(part, &repr.meta, exportStarUses, "__exportStar", entryPointBit, distanceFromEntryPoint)
+	c.includePartsForRuntimeSymbol(part, &repr.meta, exportStarUses, "__reExport", entryPointBit, distanceFromEntryPoint)
 }
 
 func sanitizeFilePathForVirtualModulePath(path string) string {
@@ -3307,8 +3307,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 						ImportRecordIndex: s.ImportRecordIndex,
 					}
 
-					// Prefix this module with "__exportStar(exports, ns)"
-					exportStarRef := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members["__exportStar"].Ref
+					// Prefix this module with "__reExport(exports, ns)"
+					exportStarRef := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members["__reExport"].Ref
 					stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
 						Loc: stmt.Loc,
 						Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
@@ -3339,15 +3339,15 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					var target js_ast.E
 					if record.SourceIndex.IsValid() {
 						if otherRepr := c.files[record.SourceIndex.GetIndex()].repr.(*reprJS); otherRepr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
-							// Prefix this module with "__exportStar(exports, otherExports)"
+							// Prefix this module with "__reExport(exports, otherExports)"
 							target = &js_ast.EIdentifier{Ref: otherRepr.ast.ExportsRef}
 						}
 					}
 					if target == nil {
-						// Prefix this module with "__exportStar(exports, require(path))"
+						// Prefix this module with "__reExport(exports, require(path))"
 						target = &js_ast.ERequire{ImportRecordIndex: s.ImportRecordIndex}
 					}
-					exportStarRef := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members["__exportStar"].Ref
+					exportStarRef := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members["__reExport"].Ref
 					stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
 						Loc: stmt.Loc,
 						Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{

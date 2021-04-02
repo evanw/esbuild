@@ -222,28 +222,28 @@ export {ns2 as sn};
 TestLowerObjectSpreadNoBundle
 ---------- /out.js ----------
 let tests = [
-  __assign(__assign({}, a), b),
-  __assign({a, b}, c),
-  __assign(__assign({}, a), {b, c}),
-  __assign(__assign({a}, b), {c}),
-  __assign(__assign(__assign(__assign(__assign(__assign({a, b}, c), d), {e, f}), g), h), {i, j})
+  __objSpread(__objSpread({}, a), b),
+  __objSpread({a, b}, c),
+  __objSpread(__objSpread({}, a), {b, c}),
+  __objSpread(__objSpread({a}, b), {c}),
+  __objSpread(__objSpread(__objSpread(__objSpread(__objSpread(__objSpread({a, b}, c), d), {e, f}), g), h), {i, j})
 ];
 let jsx = [
-  /* @__PURE__ */ React.createElement("div", __assign(__assign({}, a), b)),
-  /* @__PURE__ */ React.createElement("div", __assign({
+  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread({}, a), b)),
+  /* @__PURE__ */ React.createElement("div", __objSpread({
     a: true,
     b: true
   }, c)),
-  /* @__PURE__ */ React.createElement("div", __assign(__assign({}, a), {
+  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread({}, a), {
     b: true,
     c: true
   })),
-  /* @__PURE__ */ React.createElement("div", __assign(__assign({
+  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread({
     a: true
   }, b), {
     c: true
   })),
-  /* @__PURE__ */ React.createElement("div", __assign(__assign(__assign(__assign(__assign(__assign({
+  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread(__objSpread(__objSpread(__objSpread(__objSpread({
     a: true,
     b: true
   }, c), d), {
@@ -916,83 +916,83 @@ Foo.s_foo = 123;
 TestTSLowerObjectRest2017NoBundle
 ---------- /out.js ----------
 var _o, _p, _r, _s, _t, _u, _v;
-const local_const = __rest({}, []);
-let local_let = __rest({}, []);
-var local_var = __rest({}, []);
+const local_const = __objRest({}, []);
+let local_let = __objRest({}, []);
+var local_var = __objRest({}, []);
 let arrow_fn = (_a) => {
-  var x2 = __rest(_a, []);
+  var x2 = __objRest(_a, []);
 };
 let fn_expr = function(_b = default_value) {
-  var x2 = __rest(_b, []);
+  var x2 = __objRest(_b, []);
 };
 let class_expr = class {
   method(x2, ..._c) {
-    var [y, _d] = _c, z = __rest(_d, []);
+    var [y, _d] = _c, z = __objRest(_d, []);
   }
 };
 function fn_stmt(_e, _f) {
-  var {a = b()} = _e, x2 = __rest(_e, ["a"]);
-  var {c = d()} = _f, y = __rest(_f, ["c"]);
+  var {a = b()} = _e, x2 = __objRest(_e, ["a"]);
+  var {c = d()} = _f, y = __objRest(_f, ["c"]);
 }
 class class_stmt {
   method(_g) {
-    var x2 = __rest(_g, []);
+    var x2 = __objRest(_g, []);
   }
 }
 var ns;
 (function(ns2) {
-  ns2.x = __rest({}, []);
+  ns2.x = __objRest({}, []);
 })(ns || (ns = {}));
 try {
 } catch (_h) {
-  let catch_clause = __rest(_h, []);
+  let catch_clause = __objRest(_h, []);
 }
 for (const _i in {abc}) {
-  const for_in_const = __rest(_i, []);
+  const for_in_const = __objRest(_i, []);
 }
 for (let _j in {abc}) {
-  let for_in_let = __rest(_j, []);
+  let for_in_let = __objRest(_j, []);
 }
 for (var _k in {abc}) {
-  var for_in_var = __rest(_k, []);
+  var for_in_var = __objRest(_k, []);
   ;
 }
 for (const _l of [{}]) {
-  const for_of_const = __rest(_l, []);
+  const for_of_const = __objRest(_l, []);
   ;
 }
 for (let _m of [{}]) {
-  let for_of_let = __rest(_m, []);
+  let for_of_let = __objRest(_m, []);
   x();
 }
 for (var _n of [{}]) {
-  var for_of_var = __rest(_n, []);
+  var for_of_var = __objRest(_n, []);
   x();
 }
-for (const for_const = __rest({}, []); x; x = null) {
+for (const for_const = __objRest({}, []); x; x = null) {
 }
-for (let for_let = __rest({}, []); x; x = null) {
+for (let for_let = __objRest({}, []); x; x = null) {
 }
-for (var for_var = __rest({}, []); x; x = null) {
+for (var for_var = __objRest({}, []); x; x = null) {
 }
 for (_o in {abc}) {
-  x = __rest(_o, []);
+  x = __objRest(_o, []);
 }
 for (_p of [{}]) {
-  x = __rest(_p, []);
+  x = __objRest(_p, []);
 }
-for (x = __rest({}, []); x; x = null) {
+for (x = __objRest({}, []); x; x = null) {
 }
-assign = __rest({}, []);
+assign = __objRest({}, []);
 ({obj_method(_q) {
-  var x2 = __rest(_q, []);
+  var x2 = __objRest(_q, []);
 }});
-x = __rest(x, []);
-for (x = __rest(x, []); 0; )
+x = __objRest(x, []);
+for (x = __objRest(x, []); 0; )
   ;
-console.log((x = __rest(_r = x, []), _r));
-console.log((_t = _s = {x}, {x} = _t, xx = __rest(_t, ["x"]), _s));
-console.log(({x: _v} = _u = {x}, xx = __rest(_v, []), _u));
+console.log((x = __objRest(_r = x, []), _r));
+console.log((_t = _s = {x}, {x} = _t, xx = __objRest(_t, ["x"]), _s));
+console.log(({x: _v} = _u = {x}, xx = __objRest(_v, []), _u));
 
 ================================================================================
 TestTSLowerObjectRest2018NoBundle
