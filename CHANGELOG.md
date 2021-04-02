@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.3
 
 * Auto-define `process.env.NODE_ENV` when platform is set to `browser`
 

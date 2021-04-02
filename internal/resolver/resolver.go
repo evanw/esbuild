@@ -502,10 +502,8 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 					result.PreserveUnusedImportsTS = dirInfo.tsConfigJSON.PreserveImportsNotUsedAsValues
 
 					if r.debugLogs != nil {
-						if result.JSXFactory != nil {
-							r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
-								dirInfo.tsConfigJSON.AbsPath))
-						}
+						r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
+							dirInfo.tsConfigJSON.AbsPath))
 						if result.JSXFactory != nil {
 							r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
 								strings.Join(result.JSXFactory, "."),
