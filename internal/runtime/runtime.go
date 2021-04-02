@@ -152,7 +152,7 @@ func code(isES6 bool) string {
 			for (var name in all)
 				__defProp(target, name, { get: all[name], enumerable: true })
 		}
-		export var __exportStar = (target, module, desc) => {
+		export var __reExport = (target, module, desc) => {
 			if (module && typeof module === 'object' || typeof module === 'function')
 	`
 
@@ -179,7 +179,7 @@ func code(isES6 bool) string {
 
 		// Converts the module from CommonJS to ES6 if necessary
 		export var __toModule = module => {
-			return __exportStar(__markAsModule(
+			return __reExport(__markAsModule(
 				__defProp(
 					module != null ? __create(__getProtoOf(module)) : {},
 					'default',
