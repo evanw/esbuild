@@ -29,6 +29,24 @@ This is a debugger for some of esbuild's internals. To use:
   <canvas></canvas>
   <script type="module">
 
+    const lightColors = {
+      bg: '#fff',
+      fg: '#000',
+      accent: '#7BF',
+    }
+
+    const darkColors = {
+      bg: '#222',
+      fg: '#ddd',
+      accent: '#FB0',
+    }
+
+    const prefersColorSchemeDark = matchMedia("(prefers-color-scheme: dark)")
+
+    function lightOrDarkColors() {
+      return prefersColorSchemeDark.matches ? darkColors : lightColors
+    }
+
     const paddingX = 10
     const paddingY = 10
 
@@ -75,20 +93,23 @@ This is a debugger for some of esbuild's internals. To use:
       }
 
       render() {
+        const colors = lightOrDarkColors()
+
         // Background
         c.clearRect(this.x, this.y, this.w, this.h)
 
         // Title
         c.font = titleFont
         c.textBaseline = 'middle'
-        c.fillStyle = '#000'
+        c.fillStyle = colors.fg
         c.fillText(this.source, this.x + paddingX, this.y + paddingY + titleLineHeight / 2)
 
         // Lines
         c.font = codeFont
         c.textBaseline = 'middle'
+        c.fillStyle = colors.fg
         for (const part of this.data.parts) {
-          c.fillStyle = part.isLive ? '#000' : 'rgba(0,0,0,0.3)'
+          c.globalAlpha = part.isLive ? 1 : 0.2
           for (let i = 0; i < part.lines.length; i++) {
             c.fillText(part.lines[i], this.x + paddingX, this.y + paddingY + part.y + i * codeLineHeight + codeLineHeight / 2)
           }
@@ -101,19 +122,24 @@ This is a debugger for some of esbuild's internals. To use:
         }
 
         // Border
-        c.strokeStyle = 'rgba(0,0,0,0.2)'
+        c.globalAlpha = 0.2
+        c.strokeStyle = colors.fg
         c.strokeRect(this.x, this.y, this.w, this.h)
+        c.globalAlpha = 1
       }
 
       renderHover() {
+        const colors = lightOrDarkColors()
+
         if (this.hoveredPart === -1) {
-          c.fillStyle = 'rgba(127,191,255,0.2)'
+          c.fillStyle = colors.accent
+          c.globalAlpha = 0.2
           c.fillRect(this.x, this.y + paddingY, this.w, titleLineHeight)
-          c.fillStyle = 'rgb(127,191,255)'
+          c.globalAlpha = 1
           c.fillRect(this.x, this.y + paddingY, 4, titleLineHeight)
 
-          c.strokeStyle = '#000'
-          c.fillStyle = '#000'
+          c.strokeStyle = colors.fg
+          c.fillStyle = colors.fg
           for (const part of this.data.parts) {
             if (part.canBeRemovedIfUnused) continue
             drawArrow(
@@ -123,13 +149,14 @@ This is a debugger for some of esbuild's internals. To use:
           }
         } else if (this.hoveredPart !== null) {
           const part = this.data.parts[this.hoveredPart]
-          c.fillStyle = 'rgba(127,191,255,0.2)'
+          c.fillStyle = colors.accent
+          c.globalAlpha = 0.2
           c.fillRect(this.x, this.y + paddingY + part.y, this.w, part.h)
-          c.fillStyle = 'rgb(127,191,255)'
+          c.globalAlpha = 1
           c.fillRect(this.x, this.y + paddingY + part.y, 4, part.h)
 
-          c.strokeStyle = '#000'
-          c.fillStyle = '#000'
+          c.strokeStyle = colors.fg
+          c.fillStyle = colors.fg
           drawArrow(
             this.x, this.y + paddingY + part.y + codeLineHeight / 2, -1,
             this.x, this.y + paddingY + titleLineHeight / 2, -1,
@@ -194,7 +221,7 @@ This is a debugger for some of esbuild's internals. To use:
 
           c.font = normalFont
           c.textBaseline = 'middle'
-          c.fillStyle = '#000'
+          c.fillStyle = colors.fg
           for (let i = 0; i < lines.length; i++) {
             c.fillText(lines[i], this.x + 10, this.y + this.h + 10 + i * normalLineHeight + normalLineHeight / 2)
           }
@@ -308,17 +335,20 @@ This is a debugger for some of esbuild's internals. To use:
     }
 
     function render() {
+      const colors = lightOrDarkColors()
+
       width = innerWidth
       height = innerHeight
       const ratio = devicePixelRatio
       canvas.width = Math.round(width * ratio)
       canvas.height = Math.round(height * ratio)
+      canvas.style.background = colors.bg
       c.scale(ratio, ratio)
 
       // Title
       c.font = titleFont
       c.textBaseline = 'top'
-      c.fillStyle = '#000'
+      c.fillStyle = colors.fg
       c.fillText(outputSource, 10, 10)
 
       // Content
