@@ -1502,6 +1502,45 @@
     }),
   )
 
+  // Check for "sideEffects: false" wrapper handling
+  // https://github.com/evanw/esbuild/issues/1088
+  for (const pkgJSON of [`{}`, `{"sideEffects": false}`]) {
+    for (const entry of [
+      `export let async = async () => { if (require("pkg").foo() !== 123) throw 'fail' }`,
+      `export let async = () => import("pkg").then(x => { if (x.foo() !== 123) throw 'fail' })`,
+    ]) {
+      for (const index of [`export {foo} from "./foo.js"`, `import {foo} from "./foo.js"; export {foo}`]) {
+        for (const foo of [`export let foo = () => 123`, `exports.foo = () => 123`]) {
+          tests.push(test(['in.js', '--outfile=node.js', '--bundle'], {
+            'in.js': entry,
+            'node_modules/pkg/package.json': pkgJSON,
+            'node_modules/pkg/index.js': index,
+            'node_modules/pkg/foo.js': foo,
+          }, { async: true }))
+        }
+      }
+    }
+    for (const entry of [
+      `export let async = async () => { try { require("pkg") } catch (e) { return } throw 'fail' }`,
+      `export let async = () => import("pkg").then(x => { throw 'fail' }, () => {})`,
+    ]) {
+      tests.push(test(['in.js', '--outfile=node.js', '--bundle'], {
+        'in.js': entry,
+        'node_modules/pkg/package.json': pkgJSON,
+        'node_modules/pkg/index.js': `
+          export {foo} from './b.js'
+        `,
+        'node_modules/pkg/b.js': `
+          export {foo} from './c.js'
+          throw 'stop'
+        `,
+        'node_modules/pkg/c.js': `
+          export let foo = () => 123
+        `,
+      }, { async: true }))
+    }
+  }
+
   // Tests for "arguments" scope issues
   tests.push(
     test(['in.js', '--outfile=node.js', '--minify'], {

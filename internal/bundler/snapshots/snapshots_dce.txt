@@ -233,6 +233,87 @@ TestPackageJsonSideEffectsArrayRemove
 console.log("unused import");
 
 ================================================================================
+TestPackageJsonSideEffectsFalseAllFork
+---------- /out.js ----------
+// Users/user/project/node_modules/c/index.js
+var foo;
+var init_c = __esm(() => {
+  foo = "foo";
+});
+
+// Users/user/project/node_modules/b/index.js
+var init_b = __esm(() => {
+  init_c();
+});
+
+// Users/user/project/node_modules/a/index.js
+var a_exports = {};
+__export(a_exports, {
+  foo: () => foo
+});
+var init_a = __esm(() => {
+  init_b();
+});
+
+// Users/user/project/src/entry.js
+Promise.resolve().then(() => (init_a(), a_exports)).then((x) => assert(x.foo === "foo"));
+
+================================================================================
+TestPackageJsonSideEffectsFalseIntermediateFilesChainAll
+---------- /out.js ----------
+// Users/user/project/node_modules/d/index.js
+var foo = 123;
+
+// Users/user/project/node_modules/b/index.js
+throw "keep this";
+
+// Users/user/project/src/entry.js
+console.log(foo);
+
+================================================================================
+TestPackageJsonSideEffectsFalseIntermediateFilesChainOne
+---------- /out.js ----------
+// Users/user/project/node_modules/d/index.js
+var foo = 123;
+
+// Users/user/project/node_modules/b/index.js
+throw "keep this";
+
+// Users/user/project/src/entry.js
+console.log(foo);
+
+================================================================================
+TestPackageJsonSideEffectsFalseIntermediateFilesDiamond
+---------- /out.js ----------
+// Users/user/project/node_modules/d/index.js
+var foo = 123;
+
+// Users/user/project/node_modules/b1/index.js
+throw "keep this 1";
+
+// Users/user/project/node_modules/b2/index.js
+throw "keep this 2";
+
+// Users/user/project/src/entry.js
+console.log(foo);
+
+================================================================================
+TestPackageJsonSideEffectsFalseIntermediateFilesUnused
+---------- /out.js ----------
+
+================================================================================
+TestPackageJsonSideEffectsFalseIntermediateFilesUsed
+---------- /out.js ----------
+// Users/user/project/node_modules/demo-pkg/foo.js
+var foo = 123;
+
+// Users/user/project/node_modules/demo-pkg/index.js
+throw "keep this";
+
+// Users/user/project/src/entry.js
+console.log(foo);
+
+================================================================================
 TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js
@@ -321,6 +402,37 @@ console.log("unused import");
 
 // Users/user/project/src/entry.js
 console.log("used import");
+
+================================================================================
+TestPackageJsonSideEffectsFalseOneFork
+---------- /out.js ----------
+// Users/user/project/node_modules/c/index.js
+var foo;
+var init_c = __esm(() => {
+  foo = "foo";
+});
+
+// Users/user/project/node_modules/d/index.js
+var init_d = __esm(() => {
+});
+
+// Users/user/project/node_modules/b/index.js
+var init_b = __esm(() => {
+  init_c();
+  init_d();
+});
+
+// Users/user/project/node_modules/a/index.js
+var a_exports = {};
+__export(a_exports, {
+  foo: () => foo
+});
+var init_a = __esm(() => {
+  init_b();
+});
+
+// Users/user/project/src/entry.js
+Promise.resolve().then(() => (init_a(), a_exports)).then((x) => assert(x.foo === "foo"));
 
 ================================================================================
 TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS
