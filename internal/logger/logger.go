@@ -19,6 +19,8 @@ import (
 const defaultTerminalWidth = 80
 
 type Log struct {
+	Debug bool
+
 	AddMsg    func(Msg)
 	HasErrors func() bool
 
@@ -34,6 +36,7 @@ type LogLevel int8
 
 const (
 	LevelNone LogLevel = iota
+	LevelDebug
 	LevelInfo
 	LevelWarning
 	LevelError
@@ -46,6 +49,7 @@ const (
 	Error MsgKind = iota
 	Warning
 	Note
+	Debug
 )
 
 func (kind MsgKind) String() string {
@@ -56,6 +60,8 @@ func (kind MsgKind) String() string {
 		return "warning"
 	case Note:
 		return "note"
+	case Debug:
+		return "debug"
 	default:
 		panic("Internal error")
 	}
@@ -391,6 +397,7 @@ func NewStderrLog(options OutputOptions) Log {
 	}
 
 	return Log{
+		Debug: options.LogLevel == LevelDebug,
 		AddMsg: func(msg Msg) {
 			mutex.Lock()
 			defer mutex.Unlock()
@@ -414,6 +421,11 @@ func NewStderrLog(options OutputOptions) Log {
 			}
 
 			switch msg.Kind {
+			case Debug:
+				if options.LogLevel <= LevelDebug {
+					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
+				}
+
 			case Error:
 				if options.LogLevel <= LevelError {
 					shownErrors++
@@ -877,6 +889,9 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 	}
 
 	switch kind {
+	case Debug:
+		kindColor = colors.Blue
+
 	case Error:
 		kindColor = colors.Red
 
@@ -1205,6 +1220,21 @@ func (log Log) AddWarning(source *Source, loc Loc, text string) {
 	log.AddMsg(Msg{
 		Kind: Warning,
 		Data: RangeData(source, Range{Loc: loc}, text),
+	})
+}
+
+func (log Log) AddDebug(source *Source, loc Loc, text string) {
+	log.AddMsg(Msg{
+		Kind: Debug,
+		Data: RangeData(source, Range{Loc: loc}, text),
+	})
+}
+
+func (log Log) AddDebugWithNotes(source *Source, loc Loc, text string, notes []MsgData) {
+	log.AddMsg(Msg{
+		Kind:  Debug,
+		Data:  RangeData(source, Range{Loc: loc}, text),
+		Notes: notes,
 	})
 }
 

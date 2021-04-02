@@ -148,6 +148,8 @@ func validateColor(value StderrColor) logger.UseColor {
 
 func validateLogLevel(value LogLevel) logger.LogLevel {
 	switch value {
+	case LogLevelDebug:
+		return logger.LevelDebug
 	case LogLevelInfo:
 		return logger.LevelInfo
 	case LogLevelWarning:
@@ -1069,11 +1071,13 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 	useColor := validateColor(color)
 
 	go func() {
+		shouldLog := logLevel == LogLevelInfo || logLevel == LogLevelDebug
+
 		// Note: Do not change these log messages without a breaking version change.
 		// People want to run regexes over esbuild's stderr stream to look for these
 		// messages instead of using esbuild's API.
 
-		if logLevel == LogLevelInfo {
+		if shouldLog {
 			logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
 				return fmt.Sprintf("%s[watch] build finished, watching for changes...%s\n", colors.Dim, colors.Reset)
 			})
@@ -1085,7 +1089,7 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 
 			// Rebuild if we're dirty
 			if absPath := w.tryToFindDirtyPath(); absPath != "" {
-				if logLevel == LogLevelInfo {
+				if shouldLog {
 					logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
 						prettyPath := w.resolver.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
 						return fmt.Sprintf("%s[watch] build started (change: %q)%s\n", colors.Dim, prettyPath, colors.Reset)
@@ -1095,7 +1099,7 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 				// Run the build
 				w.setWatchData(w.rebuild())
 
-				if logLevel == LogLevelInfo {
+				if shouldLog {
 					logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
 						return fmt.Sprintf("%s[watch] build finished%s\n", colors.Dim, colors.Reset)
 					})
