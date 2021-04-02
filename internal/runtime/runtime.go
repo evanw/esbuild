@@ -199,7 +199,7 @@ func code(isES6 bool) string {
 		// - kind === undefined: class
 		// - kind === 1: method, parameter
 		// - kind === 2: field
-		export var __decorate = (decorators, target, key, kind) => {
+		export var __decorateClass = (decorators, target, key, kind) => {
 			var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc(target, key) : target
 			for (var i = decorators.length - 1, decorator; i >= 0; i--)
 				if (decorator = decorators[i])
@@ -301,12 +301,12 @@ var ES5Source = logger.Source{
 // The TypeScript decorator transform behaves similar to the official
 // TypeScript compiler.
 //
-// One difference is that the "__decorate" function doesn't contain a reference
+// One difference is that the "__decorateClass" function doesn't contain a reference
 // to the non-existent "Reflect.decorate" function. This function was never
 // standardized and checking for it is wasted code (as well as a potentially
 // dangerous cause of unintentional behavior changes in the future).
 //
-// Another difference is that the "__decorate" function doesn't take in an
+// Another difference is that the "__decorateClass" function doesn't take in an
 // optional property descriptor like it does in the official TypeScript
 // compiler's support code. This appears to be a dead code path in the official
 // support code that is only there for legacy reasons.
@@ -318,7 +318,7 @@ var ES5Source = logger.Source{
 //   // TypeScript                      // JavaScript
 //   @dec                               let C = class {
 //   class C {                          };
-//   }                                  C = __decorate([
+//   }                                  C = __decorateClass([
 //                                        dec
 //                                      ], C);
 //
@@ -328,7 +328,7 @@ var ES5Source = logger.Source{
 //   class C {                          class C {
 //     @dec                               foo() {}
 //     foo() {}                         }
-//   }                                  __decorate([
+//   }                                  __decorateClass([
 //                                        dec
 //                                      ], C.prototype, 'foo', 1);
 //
@@ -338,7 +338,7 @@ var ES5Source = logger.Source{
 //   class C {                          class C {
 //     foo(@dec bar) {}                   foo(bar) {}
 //   }                                  }
-//                                      __decorate([
+//                                      __decorateClass([
 //                                        __param(0, dec)
 //                                      ], C.prototype, 'foo', 1);
 //
@@ -350,6 +350,6 @@ var ES5Source = logger.Source{
 //     foo = 123                            this.foo = 123
 //   }                                    }
 //                                      }
-//                                      __decorate([
+//                                      __decorateClass([
 //                                        dec
 //                                      ], C.prototype, 'foo', 2);

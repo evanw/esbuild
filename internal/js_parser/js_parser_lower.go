@@ -1859,7 +1859,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 		// Handle decorators
 		if p.options.ts.Parse {
-			// Generate a single call to "__decorate()" for this property
+			// Generate a single call to "__decorateClass()" for this property
 			if len(prop.TSDecorators) > 0 {
 				loc := prop.Key.Loc
 
@@ -1876,7 +1876,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					panic("Internal error")
 				}
 
-				// This code tells "__decorate()" if the descriptor should be undefined
+				// This code tells "__decorateClass()" if the descriptor should be undefined
 				descriptorKind := float64(1)
 				if !prop.IsMethod {
 					descriptorKind = 2
@@ -1890,7 +1890,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: nameFunc(), Name: "prototype", NameLoc: loc}}
 				}
 
-				decorator := p.callRuntime(loc, "__decorate", []js_ast.Expr{
+				decorator := p.callRuntime(loc, "__decorateClass", []js_ast.Expr{
 					{Loc: loc, Data: &js_ast.EArray{Items: prop.TSDecorators}},
 					target,
 					descriptorKey,
@@ -2345,7 +2345,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	if len(class.TSDecorators) > 0 {
 		stmts = append(stmts, js_ast.AssignStmt(
 			js_ast.Expr{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
-			p.callRuntime(classLoc, "__decorate", []js_ast.Expr{
+			p.callRuntime(classLoc, "__decorateClass", []js_ast.Expr{
 				{Loc: classLoc, Data: &js_ast.EArray{Items: class.TSDecorators}},
 				{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
 			}),
