@@ -563,7 +563,7 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 	// users will not be able to accidentally make use of these paths.
 	if strings.HasPrefix(importPath, "/") || r.fs.IsAbs(importPath) {
 		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("The import %q is being treated as an absolute paths", importPath))
+			r.debugLogs.addNote(fmt.Sprintf("The import %q is being treated as an absolute path", importPath))
 		}
 
 		// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
