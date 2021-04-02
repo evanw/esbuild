@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -992,6 +993,11 @@ func ScanBundle(
 	entryPoints []EntryPoint,
 	options config.Options,
 ) Bundle {
+	start := time.Now()
+	if log.Debug {
+		log.AddDebug(nil, logger.Loc{}, "Started scan phase")
+	}
+
 	applyOptionDefaults(&options)
 
 	s := scanner{
@@ -1017,6 +1023,10 @@ func ScanBundle(
 	entryPointMeta := s.addEntryPoints(entryPoints)
 	s.scanAllDependencies()
 	files := s.processScannedFiles()
+
+	if log.Debug {
+		log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Ended scan phase (%dms)", time.Since(start).Milliseconds()))
+	}
 
 	return Bundle{
 		fs:          fs,
@@ -1869,6 +1879,11 @@ func applyOptionDefaults(options *config.Options) {
 }
 
 func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, string) {
+	start := time.Now()
+	if log.Debug {
+		log.AddDebug(nil, logger.Loc{}, "Started compile phase")
+	}
+
 	applyOptionDefaults(&options)
 
 	// The format can't be "preserve" while bundling
@@ -1966,6 +1981,10 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, 
 			log.AddError(nil, logger.Loc{}, "Two output files share the same path but have different contents: "+outputPath)
 		}
 		outputFiles = outputFiles[:end]
+	}
+
+	if log.Debug {
+		log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Ended compile phase (%dms)", time.Since(start).Milliseconds()))
 	}
 
 	return outputFiles, metafileJSON
