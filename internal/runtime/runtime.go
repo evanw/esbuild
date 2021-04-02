@@ -252,9 +252,7 @@ func code(isES6 bool) string {
 						reject(e)
 					}
 				}
-				var step = result => {
-					return result.done ? resolve(result.value) : Promise.resolve(result.value).then(fulfilled, rejected)
-				}
+				var step = x => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected)
 				step((generator = generator.apply(__this, __arguments)).next())
 			})
 		}
