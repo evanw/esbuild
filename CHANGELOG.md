@@ -10,6 +10,12 @@
 
     To avoid these problems, esbuild will now use different names for its helper functions.
 
+* Fix a chunk hashing issue ([#1099](https://github.com/evanw/esbuild/issues/1099))
+
+    Previously the chunk hashing algorithm skipped hashing entry point chunks when the `--entry-names=` setting doesn't contain `[hash]`, since the hash wasn't used in the file name. However, this is no longer correct with the change in version 0.11.0 that made dynamic entry point chunks use `--chunk-names=` instead of `--entry-names=` since `--chunk-names=` can still contain `[hash]`.
+
+    With this release, chunk contents will now always be hashed regardless of the chunk type. This makes esbuild somewhat slower than before in the common case, but it fixes this correctness issue.
+
 ## 0.11.3
 
 * Auto-define `process.env.NODE_ENV` when platform is set to `browser`

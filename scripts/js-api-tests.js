@@ -930,8 +930,8 @@ body {
     const inShared = makeInPath(shared);
     const chunk = 'chunk-HPFXYN2E.js';
     const outEntry = makeOutPath(path.relative(testDir, entry));
-    const outImport1 = makeOutPath('import1-5CIBHJEX.js');
-    const outImport2 = makeOutPath('import2-5CIBHJEX.js');
+    const outImport1 = makeOutPath('import1-7LFMXWCG.js');
+    const outImport2 = makeOutPath('import2-BCITUCVB.js');
     const outChunk = makeOutPath(chunk);
 
     assert.deepStrictEqual(json.inputs[inEntry], {
@@ -955,6 +955,13 @@ body {
       ]
     })
     assert.deepStrictEqual(json.inputs[inShared], { bytes: 38, imports: [] })
+
+    assert.deepStrictEqual(Object.keys(json.outputs), [
+      outEntry,
+      outImport1,
+      outImport2,
+      outChunk,
+    ])
 
     assert.deepStrictEqual(json.outputs[outEntry].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
     assert.deepStrictEqual(json.outputs[outImport1].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])

@@ -4914,14 +4914,6 @@ func (c *linkerContext) breakOutputIntoPieces(output []byte, chunkCount uint32) 
 func (c *linkerContext) generateIsolatedChunkHash(chunk *chunkInfo, pieces []outputPiece) {
 	chunk.outputPieces = pieces
 
-	// Attempt to determine when a hash is not needed, and then bail early without
-	// computing the hash. This is to improve performance in the common one-file case.
-	if chunk.isEntryPoint && !config.HasPlaceholder(c.options.EntryPathTemplate, config.HashPlaceholder) {
-		chunk.outputHash = sha1.New()
-		chunk.isolatedChunkHash = []byte{}
-		return
-	}
-
 	hash := sha1.New()
 
 	// Mix the file names and part ranges of all of the files in this chunk into

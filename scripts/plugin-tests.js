@@ -1863,6 +1863,40 @@ let pluginTests = {
     })
     assert.strictEqual(build.outputFiles[0].path, path.join(testDir, 'first.js'))
   },
+
+  async dynamicImportDuplicateChunkIssue1099({ esbuild, testDir }) {
+    const outdir = path.join(testDir, 'out')
+    await mkdirAsync(path.join(testDir, 'hi'), { recursive: true })
+    await writeFileAsync(path.join(testDir, 'index.js'), `import x from 'manifest'; console.log(x.name(), x.hi())`)
+    await writeFileAsync(path.join(testDir, 'name.js'), `import x from 'manifest'; console.log(x.index(), x.hi())`)
+    await writeFileAsync(path.join(testDir, 'hi', 'name.js'), `import x from 'manifest'; console.log(x.index(), x.name())`)
+    await esbuild.build({
+      entryPoints: [path.join(testDir, 'index.js')],
+      outdir,
+      bundle: true,
+      splitting: true,
+      format: 'esm',
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /^manifest$/ }, () => {
+            return { path: 'manifest', namespace: 'Manifest' }
+          })
+          build.onLoad({ namespace: 'Manifest', filter: /.*/ }, () => {
+            return {
+              resolveDir: testDir,
+              contents: `
+                export const index = () => import('./index')
+                export const name = () => import('./name')
+                export const hi = () => import('./hi/name')
+                export default {index, name, hi}
+              `,
+            }
+          })
+        },
+      }],
+    })
+  },
 }
 
 // These tests have to run synchronously
