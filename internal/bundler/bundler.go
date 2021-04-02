@@ -604,7 +604,10 @@ func extractSourceMapFromComment(
 	if absResolveDir != "" {
 		absPath := fs.Join(absResolveDir, comment.Text)
 		path := logger.Path{Text: absPath, Namespace: "file"}
-		contents, err := fsCache.ReadFile(fs, absPath)
+		contents, err, originalError := fsCache.ReadFile(fs, absPath)
+		if log.Debug && originalError != nil {
+			log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Failed to read file %q: %s", absPath, originalError.Error()))
+		}
 		if err != nil {
 			if err == syscall.ENOENT {
 				// Don't report a warning because this is likely unactionable
@@ -890,20 +893,25 @@ func runOnLoadPlugins(
 
 	// Read normal modules from disk
 	if source.KeyPath.Namespace == "file" {
-		if contents, err := fsCache.ReadFile(fs, source.KeyPath.Text); err == nil {
+		if contents, err, originalError := fsCache.ReadFile(fs, source.KeyPath.Text); err == nil {
 			source.Contents = contents
 			return loaderPluginResult{
 				loader:        config.LoaderDefault,
 				absResolveDir: fs.Dir(source.KeyPath.Text),
 			}, true
-		} else if err == syscall.ENOENT {
-			log.AddRangeError(importSource, importPathRange,
-				fmt.Sprintf("Could not read from file: %s", source.KeyPath.Text))
-			return loaderPluginResult{}, false
 		} else {
-			log.AddRangeError(importSource, importPathRange,
-				fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(source.KeyPath), err.Error()))
-			return loaderPluginResult{}, false
+			if log.Debug && originalError != nil {
+				log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Failed to read file %q: %s", source.KeyPath.Text, originalError.Error()))
+			}
+			if err == syscall.ENOENT {
+				log.AddRangeError(importSource, importPathRange,
+					fmt.Sprintf("Could not read from file: %s", source.KeyPath.Text))
+				return loaderPluginResult{}, false
+			} else {
+				log.AddRangeError(importSource, importPathRange,
+					fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(source.KeyPath), err.Error()))
+				return loaderPluginResult{}, false
+			}
 		}
 	}
 
@@ -995,7 +1003,7 @@ func ScanBundle(
 ) Bundle {
 	start := time.Now()
 	if log.Debug {
-		log.AddDebug(nil, logger.Loc{}, "Started scan phase")
+		log.AddDebug(nil, logger.Loc{}, "Started the scan phase")
 	}
 
 	applyOptionDefaults(&options)
@@ -1025,7 +1033,7 @@ func ScanBundle(
 	files := s.processScannedFiles()
 
 	if log.Debug {
-		log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Ended scan phase (%dms)", time.Since(start).Milliseconds()))
+		log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Ended the scan phase (%dms)", time.Since(start).Milliseconds()))
 	}
 
 	return Bundle{
@@ -1290,7 +1298,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []entryMeta {
 		}
 		dir := s.fs.Dir(absPath)
 		base := s.fs.Base(absPath)
-		if entries, err := s.fs.ReadDirectory(dir); err == nil {
+		if entries, err, originalError := s.fs.ReadDirectory(dir); err == nil {
 			if entry, _ := entries.Get(base); entry != nil && entry.Kind(s.fs) == fs.FileEntry {
 				entryPoint.IsFile = true
 
@@ -1310,6 +1318,8 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []entryMeta {
 					entryPoint.InputPath = "./" + entryPoint.InputPath
 				}
 			}
+		} else if s.log.Debug && originalError != nil {
+			s.log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Failed to read directory %q: %s", absPath, originalError.Error()))
 		}
 	}
 
@@ -1881,7 +1891,7 @@ func applyOptionDefaults(options *config.Options) {
 func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, string) {
 	start := time.Now()
 	if log.Debug {
-		log.AddDebug(nil, logger.Loc{}, "Started compile phase")
+		log.AddDebug(nil, logger.Loc{}, "Started the compile phase")
 	}
 
 	applyOptionDefaults(&options)
@@ -1984,7 +1994,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, 
 	}
 
 	if log.Debug {
-		log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Ended compile phase (%dms)", time.Since(start).Milliseconds()))
+		log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Ended the compile phase (%dms)", time.Since(start).Milliseconds()))
 	}
 
 	return outputFiles, metafileJSON

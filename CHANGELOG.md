@@ -18,6 +18,44 @@
 
     The fix is to track all re-exports in the import chain from the original file to the file containing the final symbol and then retain all of those statements if the import ends up being used.
 
+* Add a very verbose `debug` log level
+
+    This log level is an experiment. Enabling it logs a lot of information (currently only about path resolution). The idea is that if you are having an obscure issue, the debug log level might contain some useful information. Unlike normal logs which are meant to mainly provide actionable information, these debug logs are intentionally mostly noise and are designed to be searched through instead.
+
+    Here is an example of debug-level log output:
+
+    ```
+     > debug: Resolving import "react" in directory "src" of type "import-statement"
+       note: Read 26 entries for directory "src"
+       note: Searching for "react" in "node_modules" directories starting from "src"
+       note: Attempting to load "src/react" as a file
+       note: Failed to find file "src/react"
+       note: Failed to find file "src/react.tsx"
+       note: Failed to find file "src/react.ts"
+       note: Failed to find file "src/react.js"
+       note: Failed to find file "src/react.css"
+       note: Failed to find file "src/react.svg"
+       note: Attempting to load "src/react" as a directory
+       note: Failed to read directory "src/react"
+       note: Parsed package name "react" and package subpath "."
+       note: Checking for a package in the directory "node_modules/react"
+       note: Read 7 entries for directory "node_modules/react"
+       note: Read 393 entries for directory "node_modules"
+       note: Attempting to load "node_modules/react" as a file
+       note: Failed to find file "node_modules/react"
+       note: Failed to find file "node_modules/react.tsx"
+       note: Failed to find file "node_modules/react.ts"
+       note: Failed to find file "node_modules/react.js"
+       note: Failed to find file "node_modules/react.css"
+       note: Failed to find file "node_modules/react.svg"
+       note: Attempting to load "node_modules/react" as a directory
+       note: Read 7 entries for directory "node_modules/react"
+       note: Resolved to "node_modules/react/index.js" using the "main" field in "node_modules/react/package.json"
+       note: Read 7 entries for directory "node_modules/react"
+       note: Read 7 entries for directory "node_modules/react"
+       note: Primary path is "node_modules/react/index.js" in namespace "file"
+    ```
+
 ## 0.11.2
 
 * Fix missing symbol dependency for wrapped ESM files ([#1086](https://github.com/evanw/esbuild/issues/1086))

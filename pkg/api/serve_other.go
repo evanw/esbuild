@@ -166,9 +166,9 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		if h.servedir != "" && kind != fs.FileEntry {
 			absPath := h.fs.Join(h.servedir, queryPath)
 			if absDir := h.fs.Dir(absPath); absDir != absPath {
-				if entries, err := h.fs.ReadDirectory(absDir); err == nil {
+				if entries, err, _ := h.fs.ReadDirectory(absDir); err == nil {
 					if entry, _ := entries.Get(h.fs.Base(absPath)); entry != nil && entry.Kind(h.fs) == fs.FileEntry {
-						if contents, err := h.fs.ReadFile(absPath); err == nil {
+						if contents, err, _ := h.fs.ReadFile(absPath); err == nil {
 							fileContents = []byte(contents)
 							kind = fs.FileEntry
 						} else if err != syscall.ENOENT {
@@ -185,7 +185,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		// Check for a directory in the fallback directory
 		var fallbackIndexName string
 		if h.servedir != "" && kind != fs.FileEntry {
-			if entries, err := h.fs.ReadDirectory(h.fs.Join(h.servedir, queryPath)); err == nil {
+			if entries, err, _ := h.fs.ReadDirectory(h.fs.Join(h.servedir, queryPath)); err == nil {
 				kind = fs.DirEntry
 				for _, name := range entries.UnorderedKeys() {
 					entry, _ := entries.Get(name)
@@ -219,7 +219,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		// Serve a "index.html" file if present
 		if kind == fs.DirEntry && fallbackIndexName != "" {
 			queryPath += "/" + fallbackIndexName
-			contents, err := h.fs.ReadFile(h.fs.Join(h.servedir, queryPath))
+			contents, err, _ := h.fs.ReadFile(h.fs.Join(h.servedir, queryPath))
 			if err == nil {
 				fileContents = []byte(contents)
 				kind = fs.FileEntry

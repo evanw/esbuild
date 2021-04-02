@@ -48,19 +48,18 @@ func MockFS(input map[string]string) FS {
 	return &mockFS{dirs, files}
 }
 
-func (fs *mockFS) ReadDirectory(path string) (DirEntries, error) {
+func (fs *mockFS) ReadDirectory(path string) (DirEntries, error, error) {
 	if dir, ok := fs.dirs[path]; ok {
-		return dir, nil
+		return dir, nil, nil
 	}
-	return DirEntries{}, syscall.ENOENT
+	return DirEntries{}, syscall.ENOENT, syscall.ENOENT
 }
 
-func (fs *mockFS) ReadFile(path string) (string, error) {
-	contents, ok := fs.files[path]
-	if !ok {
-		return "", syscall.ENOENT
+func (fs *mockFS) ReadFile(path string) (string, error, error) {
+	if contents, ok := fs.files[path]; ok {
+		return contents, nil, nil
 	}
-	return contents, nil
+	return "", syscall.ENOENT, syscall.ENOENT
 }
 
 func (fs *mockFS) ModKey(path string) (ModKey, error) {

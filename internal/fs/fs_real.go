@@ -30,8 +30,9 @@ type realFS struct {
 }
 
 type entriesOrErr struct {
-	entries DirEntries
-	err     error
+	entries        DirEntries
+	canonicalError error
+	originalError  error
 }
 
 type watchState uint8
@@ -115,7 +116,7 @@ func RealFS(options RealFSOptions) (FS, error) {
 	}, nil
 }
 
-func (fs *realFS) ReadDirectory(dir string) (DirEntries, error) {
+func (fs *realFS) ReadDirectory(dir string) (entries DirEntries, canonicalError error, originalError error) {
 	if !fs.doNotCacheEntries {
 		// First, check the cache
 		cached, ok := func() (cached entriesOrErr, ok bool) {
@@ -126,20 +127,20 @@ func (fs *realFS) ReadDirectory(dir string) (DirEntries, error) {
 		}()
 		if ok {
 			// Cache hit: stop now
-			return cached.entries, cached.err
+			return cached.entries, cached.canonicalError, cached.originalError
 		}
 	}
 
 	// Cache miss: read the directory entries
-	names, err := fs.readdir(dir)
-	entries := DirEntries{dir, make(map[string]*Entry)}
+	names, canonicalError, originalError := fs.readdir(dir)
+	entries = DirEntries{dir, make(map[string]*Entry)}
 
 	// Unwrap to get the underlying error
-	if pathErr, ok := err.(*os.PathError); ok {
-		err = pathErr.Unwrap()
+	if pathErr, ok := canonicalError.(*os.PathError); ok {
+		canonicalError = pathErr.Unwrap()
 	}
 
-	if err == nil {
+	if canonicalError == nil {
 		for _, name := range names {
 			// Call "stat" lazily for performance. The "@material-ui/icons" package
 			// contains a directory with over 11,000 entries in it and running "stat"
@@ -157,7 +158,7 @@ func (fs *realFS) ReadDirectory(dir string) (DirEntries, error) {
 		defer fs.watchMutex.Unlock()
 		fs.watchMutex.Lock()
 		state := stateDirHasEntries
-		if err != nil {
+		if canonicalError != nil {
 			state = stateDirMissing
 		}
 		sort.Strings(names)
@@ -169,22 +170,26 @@ func (fs *realFS) ReadDirectory(dir string) (DirEntries, error) {
 
 	// Update the cache unconditionally. Even if the read failed, we don't want to
 	// retry again later. The directory is inaccessible so trying again is wasted.
-	if err != nil {
+	if canonicalError != nil {
 		entries.data = nil
 	}
 	if !fs.doNotCacheEntries {
 		fs.entriesMutex.Lock()
 		defer fs.entriesMutex.Unlock()
-		fs.entries[dir] = entriesOrErr{entries: entries, err: err}
+		fs.entries[dir] = entriesOrErr{
+			entries:        entries,
+			canonicalError: canonicalError,
+			originalError:  originalError,
+		}
 	}
-	return entries, err
+	return entries, canonicalError, originalError
 }
 
-func (fs *realFS) ReadFile(path string) (string, error) {
+func (fs *realFS) ReadFile(path string) (contents string, canonicalError error, originalError error) {
 	BeforeFileOpen()
 	defer AfterFileClose()
-	buffer, err := ioutil.ReadFile(path)
-	err = fs.canonicalizeError(err)
+	buffer, originalError := ioutil.ReadFile(path)
+	canonicalError = fs.canonicalizeError(originalError)
 
 	// Allocate the string once
 	fileContents := string(buffer)
@@ -194,7 +199,7 @@ func (fs *realFS) ReadFile(path string) (string, error) {
 		defer fs.watchMutex.Unlock()
 		fs.watchMutex.Lock()
 		data, ok := fs.watchData[path]
-		if err != nil {
+		if canonicalError != nil {
 			data.state = stateFileMissing
 		} else if !ok {
 			data.state = stateFileNeedModKey
@@ -203,7 +208,7 @@ func (fs *realFS) ReadFile(path string) (string, error) {
 		fs.watchData[path] = data
 	}
 
-	return fileContents, err
+	return fileContents, canonicalError, originalError
 }
 
 func (fs *realFS) ModKey(path string) (ModKey, error) {
@@ -270,15 +275,15 @@ func (fs *realFS) Rel(base string, target string) (string, bool) {
 	return "", false
 }
 
-func (fs *realFS) readdir(dirname string) ([]string, error) {
+func (fs *realFS) readdir(dirname string) (entries []string, canonicalError error, originalError error) {
 	BeforeFileOpen()
 	defer AfterFileClose()
-	f, err := os.Open(dirname)
-	err = fs.canonicalizeError(err)
+	f, originalError := os.Open(dirname)
+	canonicalError = fs.canonicalizeError(originalError)
 
 	// Stop now if there was an error
-	if err != nil {
-		return nil, err
+	if canonicalError != nil {
+		return nil, canonicalError, originalError
 	}
 
 	defer f.Close()
@@ -292,7 +297,7 @@ func (fs *realFS) readdir(dirname string) ([]string, error) {
 	// Don't convert ENOTDIR to ENOENT here. ENOTDIR is a legitimate error
 	// condition for Readdirnames() on non-Windows platforms.
 
-	return entries, err
+	return entries, canonicalError, originalError
 }
 
 func (fs *realFS) canonicalizeError(err error) error {
@@ -405,7 +410,7 @@ func (fs *realFS) WatchData() WatchData {
 
 		case stateDirHasEntries:
 			paths[path] = func() bool {
-				names, err := fs.readdir(path)
+				names, err, _ := fs.readdir(path)
 				if err != nil || len(names) != len(data.dirEntries) {
 					return true
 				}

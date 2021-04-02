@@ -69,11 +69,11 @@ type packageJSON struct {
 
 func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 	packageJSONPath := r.fs.Join(path, "package.json")
-	contents, err := r.caches.FSCache.ReadFile(r.fs, packageJSONPath)
+	contents, err, originalError := r.caches.FSCache.ReadFile(r.fs, packageJSONPath)
+	if r.debugLogs != nil && originalError != nil {
+		r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", packageJSONPath, originalError.Error()))
+	}
 	if err != nil {
-		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("Failed to read %q: %s", packageJSONPath, err.Error()))
-		}
 		r.log.AddError(nil, logger.Loc{},
 			fmt.Sprintf("Cannot read file %q: %s",
 				r.PrettyPath(logger.Path{Text: packageJSONPath, Namespace: "file"}), err.Error()))
@@ -102,14 +102,14 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 		}
 
 		// Is it a directory?
-		if mainEntries, err := r.fs.ReadDirectory(pathText); err == nil {
+		if mainEntries, err, originalError := r.fs.ReadDirectory(pathText); err == nil {
 			// Look for an "index" file with known extensions
 			if absolute, ok, _ := r.loadAsIndex(pathText, mainEntries); ok {
 				return &absolute
 			}
 		} else {
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Failed to read directory %q: %s", pathText, err.Error()))
+			if r.debugLogs != nil && originalError != nil {
+				r.debugLogs.addNote(fmt.Sprintf("Failed to read directory %q: %s", pathText, originalError.Error()))
 			}
 			if err != syscall.ENOENT {
 				r.log.AddRangeError(&jsonSource, pathRange,

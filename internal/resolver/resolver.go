@@ -850,11 +850,11 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 	}
 	visited[file] = true
 
-	contents, err := r.caches.FSCache.ReadFile(r.fs, file)
+	contents, err, originalError := r.caches.FSCache.ReadFile(r.fs, file)
+	if r.debugLogs != nil && originalError != nil {
+		r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", file, originalError.Error()))
+	}
 	if err != nil {
-		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("Failed to read %q: %s", file, err.Error()))
-		}
 		return nil, err
 	}
 	if r.debugLogs != nil {
@@ -969,7 +969,7 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	}
 
 	// List the directories
-	entries, err := r.fs.ReadDirectory(path)
+	entries, err, originalError := r.fs.ReadDirectory(path)
 	if err == syscall.EACCES {
 		// Just pretend this directory is empty if we can't access it. This is the
 		// case on Unix for directories that only have the execute permission bit
@@ -978,10 +978,10 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 		entries = fs.MakeEmptyDirEntries(path)
 		err = nil
 	}
+	if r.debugLogs != nil && originalError != nil {
+		r.debugLogs.addNote(fmt.Sprintf("Failed to read directory %q: %s", path, originalError.Error()))
+	}
 	if err != nil {
-		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("Failed to read directory %q: %s", path, err.Error()))
-		}
 		// Ignore "ENOTDIR" here so that calling "ReadDirectory" on a file behaves
 		// as if there is nothing there at all instead of causing an error due to
 		// the directory actually being a file. This is a workaround for situations
@@ -1092,11 +1092,11 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 
 	// Read the directory entries once to minimize locking
 	dirPath := r.fs.Dir(path)
-	entries, err := r.fs.ReadDirectory(dirPath)
+	entries, err, originalError := r.fs.ReadDirectory(dirPath)
+	if r.debugLogs != nil && originalError != nil {
+		r.debugLogs.addNote(fmt.Sprintf("Failed to read directory %q: %s", dirPath, originalError.Error()))
+	}
 	if err != nil {
-		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("Failed to read directory %q: %s", dirPath, err.Error()))
-		}
 		if err != syscall.ENOENT {
 			r.log.AddError(nil, logger.Loc{},
 				fmt.Sprintf("Cannot read directory %q: %s",
@@ -1454,7 +1454,7 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 		if dirInfo.hasNodeModules {
 			absPath := r.fs.Join(dirInfo.absPath, "node_modules", path)
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Checking inside \"node_modules\" directory %q", absPath))
+				r.debugLogs.addNote(fmt.Sprintf("Checking for a package in the directory %q", absPath))
 			}
 
 			// Check for an "exports" map in the package's package.json starting from ,dirInfo.absPath%q
