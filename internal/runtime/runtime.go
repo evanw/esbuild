@@ -20,6 +20,48 @@ func CanUseES6(unsupportedFeatures compat.JSFeature) bool {
 }
 
 func code(isES6 bool) string {
+	// Note: These helper functions used to be named similar things to the helper
+	// functions from the TypeScript compiler. However, people sometimes use these
+	// two projects in combination and TypeScript's implementation of these helpers
+	// causes name collisions. Some examples:
+	//
+	// * The "tslib" library will overwrite esbuild's helper functions if the bundled
+	//   code is run in the global scope: https://github.com/evanw/esbuild/issues/1102
+	//
+	// * Running the TypeScript compiler on esbuild's output to convert ES6 to ES5
+	//   will also overwrite esbuild's helper functions because TypeScript doesn't
+	//   change the names of its helper functions to avoid name collisions:
+	//   https://github.com/microsoft/TypeScript/issues/43296
+	//
+	// These can both be considered bugs in TypeScript. However, they are unlikely
+	// to be fixed and it's simplest to just avoid using the same names to avoid
+	// these bugs. Forbidden names (from "tslib"):
+	//
+	//   __assign
+	//   __asyncDelegator
+	//   __asyncGenerator
+	//   __asyncValues
+	//   __await
+	//   __awaiter
+	//   __classPrivateFieldGet
+	//   __classPrivateFieldSet
+	//   __createBinding
+	//   __decorate
+	//   __exportStar
+	//   __extends
+	//   __generator
+	//   __importDefault
+	//   __importStar
+	//   __makeTemplateObject
+	//   __metadata
+	//   __param
+	//   __read
+	//   __rest
+	//   __spread
+	//   __spreadArray
+	//   __spreadArrays
+	//   __values
+	//
 	// Note: The "__rest" function has a for-of loop which requires ES6, but
 	// transforming destructuring to ES5 isn't even supported so it's ok.
 	text := `
