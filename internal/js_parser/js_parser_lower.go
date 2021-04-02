@@ -1789,13 +1789,13 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				}
 				for i, arg := range fn.Fn.Args {
 					for _, decorator := range arg.TSDecorators {
-						// Generate a call to "__param()" for this parameter decorator
+						// Generate a call to "__decorateParam()" for this parameter decorator
 						var decorators *[]js_ast.Expr = &prop.TSDecorators
 						if isConstructor {
 							decorators = &class.TSDecorators
 						}
 						*decorators = append(*decorators,
-							p.callRuntime(decorator.Loc, "__param", []js_ast.Expr{
+							p.callRuntime(decorator.Loc, "__decorateParam", []js_ast.Expr{
 								{Loc: decorator.Loc, Data: &js_ast.ENumber{Value: float64(i)}},
 								decorator,
 							}),

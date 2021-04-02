@@ -208,7 +208,7 @@ func code(isES6 bool) string {
 				__defProp(target, key, result)
 			return result
 		}
-		export var __param = (index, decorator) => (target, key) => decorator(target, key, index)
+		export var __decorateParam = (index, decorator) => (target, key) => decorator(target, key, index)
 
 		// For class members
 		export var __publicField = (obj, key, value) => {
@@ -339,7 +339,7 @@ var ES5Source = logger.Source{
 //     foo(@dec bar) {}                   foo(bar) {}
 //   }                                  }
 //                                      __decorateClass([
-//                                        __param(0, dec)
+//                                        __decorateParam(0, dec)
 //                                      ], C.prototype, 'foo', 1);
 //
 // ============================= Field decorator ==============================

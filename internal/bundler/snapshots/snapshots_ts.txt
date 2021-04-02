@@ -333,10 +333,10 @@ __decorateClass([
 __decorateClass([
   x,
   y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
+  __decorateParam(0, x0),
+  __decorateParam(0, y0),
+  __decorateParam(1, x1),
+  __decorateParam(1, y1)
 ], Foo.prototype, "method", 1);
 __decorateClass([
   x,
@@ -349,18 +349,18 @@ __decorateClass([
 __decorateClass([
   x,
   y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
+  __decorateParam(0, x0),
+  __decorateParam(0, y0),
+  __decorateParam(1, x1),
+  __decorateParam(1, y1)
 ], Foo, "sMethod", 1);
 Foo = __decorateClass([
   x.y(),
   new y.x(),
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
+  __decorateParam(0, x0),
+  __decorateParam(0, y0),
+  __decorateParam(1, x1),
+  __decorateParam(1, y1)
 ], Foo);
 var all_default = Foo;
 
@@ -391,10 +391,10 @@ __decorateClass([
 __decorateClass([
   x,
   y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
+  __decorateParam(0, x0),
+  __decorateParam(0, y0),
+  __decorateParam(1, x1),
+  __decorateParam(1, y1)
 ], Foo2.prototype, _c, 1);
 __decorateClass([
   x,
@@ -407,10 +407,10 @@ __decorateClass([
 __decorateClass([
   x,
   y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
+  __decorateParam(0, x0),
+  __decorateParam(0, y0),
+  __decorateParam(1, x1),
+  __decorateParam(1, y1)
 ], Foo2, _h, 1);
 Foo2 = __decorateClass([
   x?.[_ + "y"](),
@@ -537,8 +537,8 @@ var k_default = class {
   }
 };
 __decorateClass([
-  __param(0, x2(() => 0)),
-  __param(0, y(() => 1))
+  __decorateParam(0, x2(() => 0)),
+  __decorateParam(0, y(() => 1))
 ], k_default.prototype, "foo", 1);
 var k_default2 = k_default;
 
