@@ -202,6 +202,10 @@ type resolver struct {
 	dirCache map[string]*dirInfo
 }
 
+type resolverQuery struct {
+	*resolver
+}
+
 func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options config.Options) Resolver {
 	// Bundling for node implies allowing node's builtin modules
 	if options.Platform == config.PlatformNode {
@@ -257,7 +261,9 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 	}
 }
 
-func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) (*ResolveResult, DebugMeta) {
+func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) (*ResolveResult, DebugMeta) {
+	r := resolverQuery{resolver: rr}
+
 	// Certain types of URLs default to being external for convenience
 	if r.isExternalPattern(importPath) ||
 
@@ -328,7 +334,7 @@ func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportK
 	return result, debug
 }
 
-func (r *resolver) isExternalPattern(path string) bool {
+func (r resolverQuery) isExternalPattern(path string) bool {
 	for _, pattern := range r.options.ExternalModules.Patterns {
 		if len(path) >= len(pattern.Prefix)+len(pattern.Suffix) &&
 			strings.HasPrefix(path, pattern.Prefix) &&
@@ -339,7 +345,8 @@ func (r *resolver) isExternalPattern(path string) bool {
 	return false
 }
 
-func (r *resolver) ResolveAbs(absPath string) *ResolveResult {
+func (rr *resolver) ResolveAbs(absPath string) *ResolveResult {
+	r := resolverQuery{resolver: rr}
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -349,7 +356,8 @@ func (r *resolver) ResolveAbs(absPath string) *ResolveResult {
 	return result
 }
 
-func (r *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
+func (rr *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
+	r := resolverQuery{resolver: rr}
 	absPath := r.fs.Join(sourceDir, importPath)
 
 	r.mutex.Lock()
@@ -382,7 +390,7 @@ func IsInsideNodeModules(path string) bool {
 	}
 }
 
-func (r *resolver) finalizeResolve(result *ResolveResult) {
+func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 	for _, path := range result.PathPair.iter() {
 		if path.Namespace == "file" {
 			if dirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); dirInfo != nil {
@@ -450,7 +458,7 @@ func (r *resolver) finalizeResolve(result *ResolveResult) {
 	}
 }
 
-func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, kind ast.ImportKind) (*ResolveResult, DebugMeta) {
+func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath string, kind ast.ImportKind) (*ResolveResult, DebugMeta) {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
 	var result ResolveResult
@@ -611,7 +619,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 	return &result, DebugMeta{}
 }
 
-func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase, DebugMeta) {
+func (r resolverQuery) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase, DebugMeta) {
 	if IsPackagePath(importPath) {
 		return r.loadNodeModules(importPath, kind, sourceDirInfo)
 	} else {
@@ -664,7 +672,7 @@ type dirInfo struct {
 	absRealPath    string        // If non-empty, this is the real absolute path resolving any symlinks
 }
 
-func (r *resolver) dirInfoCached(path string) *dirInfo {
+func (r resolverQuery) dirInfoCached(path string) *dirInfo {
 	// First, check the cache
 	cached, ok := r.dirCache[path]
 
@@ -690,7 +698,7 @@ var errParseErrorAlreadyLogged = errors.New("(error already logged)")
 //
 // Nested calls may also return "parseErrorImportCycle". In that case the
 // caller is responsible for logging an appropriate error message.
-func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfigJSON, error) {
+func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSConfigJSON, error) {
 	// Don't infinite loop if a series of "extends" links forms a cycle
 	if visited[file] {
 		return nil, errParseErrorImportCycle
@@ -796,7 +804,7 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 	return result, nil
 }
 
-func (r *resolver) dirInfoUncached(path string) *dirInfo {
+func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	// Get the info for the parent directory
 	var parentInfo *dirInfo
 	parentDir := r.fs.Dir(path)
@@ -916,7 +924,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	return info
 }
 
-func (r *resolver) loadAsFile(path string, extensionOrder []string) (string, bool, *fs.DifferentCase) {
+func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string, bool, *fs.DifferentCase) {
 	// Read the directory entries once to minimize locking
 	dirPath := r.fs.Dir(path)
 	entries, err := r.fs.ReadDirectory(dirPath)
@@ -975,7 +983,7 @@ func (r *resolver) loadAsFile(path string, extensionOrder []string) (string, boo
 // We want to minimize the number of times directory contents are listed. For
 // this reason, the directory entries are computed by the caller and then
 // passed down to us.
-func (r *resolver) loadAsIndex(path string, entries fs.DirEntries) (string, bool, *fs.DifferentCase) {
+func (r resolverQuery) loadAsIndex(path string, entries fs.DirEntries) (string, bool, *fs.DifferentCase) {
 	// Try the "index" file with extensions
 	for _, ext := range r.options.ExtensionOrder {
 		base := "index" + ext
@@ -1013,7 +1021,7 @@ func getBool(json js_ast.Expr) (bool, bool) {
 	return false, false
 }
 
-func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase) {
+func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase) {
 	// Use a special import order for CSS "@import" imports
 	extensionOrder := r.options.ExtensionOrder
 	if kind == ast.ImportAt || kind == ast.ImportAtConditional {
@@ -1097,7 +1105,7 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (Path
 
 // This closely follows the behavior of "tryLoadModuleUsingPaths()" in the
 // official TypeScript compiler
-func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase) {
+func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, kind ast.ImportKind) (PathPair, bool, *fs.DifferentCase) {
 	absBaseURL := tsConfigJSON.BaseURLForPaths
 
 	// The explicit base URL should take precedence over the implicit base URL
@@ -1178,7 +1186,7 @@ func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, k
 	return PathPair{}, false, nil
 }
 
-func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool, *fs.DifferentCase, DebugMeta) {
+func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool, *fs.DifferentCase, DebugMeta) {
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
 	if dirInfo.tsConfigJSON != nil {
 		// Try path substitutions first

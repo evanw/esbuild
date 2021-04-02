@@ -67,7 +67,7 @@ type packageJSON struct {
 	exportsMap *peMap
 }
 
-func (r *resolver) parsePackageJSON(path string) *packageJSON {
+func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 	packageJSONPath := r.fs.Join(path, "package.json")
 	contents, err := r.caches.FSCache.ReadFile(r.fs, packageJSONPath)
 	if err != nil {
