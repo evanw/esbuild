@@ -41,7 +41,7 @@ TestSplittingCircularReferenceIssue251
 import {
   p,
   q
-} from "./chunk-AFFJAGB7.js";
+} from "./chunk-NCQUDVEL.js";
 export {
   p,
   q
@@ -51,18 +51,18 @@ export {
 import {
   p,
   q
-} from "./chunk-AFFJAGB7.js";
+} from "./chunk-NCQUDVEL.js";
 export {
   p,
   q
 };
 
----------- /out/chunk-AFFJAGB7.js ----------
-// b.js
-var q = 6;
-
+---------- /out/chunk-NCQUDVEL.js ----------
 // a.js
 var p = 5;
+
+// b.js
+var q = 6;
 
 export {
   p,

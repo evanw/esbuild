@@ -3022,7 +3022,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 type chunkOrder struct {
 	sourceIndex uint32
 	distance    uint32
-	path        logger.Path
+	tieBreaker  uint32
 }
 
 // This type is just so we can use Go's native sort function
@@ -3032,7 +3032,9 @@ func (a chunkOrderArray) Len() int          { return len(a) }
 func (a chunkOrderArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 
 func (a chunkOrderArray) Less(i int, j int) bool {
-	return a[i].distance < a[j].distance || (a[i].distance == a[j].distance && a[i].path.ComesBeforeInSortedOrder(a[j].path))
+	ai := a[i]
+	aj := a[j]
+	return ai.distance < aj.distance || (ai.distance == aj.distance && ai.tieBreaker < aj.tieBreaker)
 }
 
 func appendOrExtendPartRange(ranges []partRange, sourceIndex uint32, partIndex uint32) []partRange {
@@ -3074,13 +3076,13 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 		sorted = append(sorted, chunkOrder{
 			sourceIndex: sourceIndex,
 			distance:    file.distanceFromEntryPoint,
-			path:        file.source.KeyPath,
+			tieBreaker:  c.stableSourceIndices[sourceIndex],
 		})
 	}
 
 	// Sort so files closest to an entry point come first. If two files are
 	// equidistant to an entry point, then break the tie by sorting on the
-	// absolute path.
+	// stable source index derived from the DFS over all entry points.
 	sort.Sort(sorted)
 
 	visited := make(map[uint32]bool)
