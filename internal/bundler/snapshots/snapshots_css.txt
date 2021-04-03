@@ -18,7 +18,7 @@ TestCSSAndJavaScriptCodeSplittingIssue1064
 ---------- /out/a.js ----------
 import {
   shared_default
-} from "./chunk-JWQFE3AN.js";
+} from "./chunk-JHSNRTG6.js";
 
 // a.js
 console.log(shared_default() + 1);
@@ -26,12 +26,12 @@ console.log(shared_default() + 1);
 ---------- /out/b.js ----------
 import {
   shared_default
-} from "./chunk-JWQFE3AN.js";
+} from "./chunk-JHSNRTG6.js";
 
 // b.js
 console.log(shared_default() + 2);
 
----------- /out/chunk-JWQFE3AN.js ----------
+---------- /out/chunk-JHSNRTG6.js ----------
 // shared.js
 function shared_default() {
   return 3;
@@ -53,7 +53,7 @@ body {
   color: blue;
 }
 
----------- /out/chunk-Y6KZESIP.css ----------
+---------- /out/chunk-C7T4PGKL.css ----------
 /* shared.css */
 body {
   background: black;
@@ -183,17 +183,17 @@ path {
 
 ================================================================================
 TestFileImportURLInCSS
----------- /out/example-RPS4CMHF.data ----------
+---------- /out/example-GDKWWYFY.data ----------
 This is some data.
 ---------- /out/entry.css ----------
 /* one.css */
 a {
-  background: url(./example-RPS4CMHF.data);
+  background: url(./example-GDKWWYFY.data);
 }
 
 /* two.css */
 b {
-  background: url(./example-RPS4CMHF.data);
+  background: url(./example-GDKWWYFY.data);
 }
 
 /* entry.css */
