@@ -444,7 +444,7 @@ func newLinkerContext(
 
 			// Clone the symbol map
 			fileSymbols := append([]js_ast.Symbol{}, repr.ast.Symbols...)
-			c.symbols.Outer[sourceIndex] = fileSymbols
+			c.symbols.SymbolsForSource[sourceIndex] = fileSymbols
 			repr.ast.Symbols = nil
 
 			// Clone the parts
@@ -553,9 +553,9 @@ func newLinkerContext(
 
 	// Allocate a new unbound symbol called "module" in case we need it later
 	if c.options.OutputFormat == config.FormatCommonJS {
-		runtimeSymbols := &c.symbols.Outer[runtime.SourceIndex]
+		runtimeSymbols := &c.symbols.SymbolsForSource[runtime.SourceIndex]
 		runtimeScope := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope
-		c.unboundModuleRef = js_ast.Ref{OuterIndex: runtime.SourceIndex, InnerIndex: uint32(len(*runtimeSymbols))}
+		c.unboundModuleRef = js_ast.Ref{SourceIndex: runtime.SourceIndex, InnerIndex: uint32(len(*runtimeSymbols))}
 		runtimeScope.Generated = append(runtimeScope.Generated, c.unboundModuleRef)
 		*runtimeSymbols = append(*runtimeSymbols, js_ast.Symbol{
 			Kind:         js_ast.SymbolUnbound,
@@ -1232,8 +1232,8 @@ func (c *linkerContext) sortedCrossChunkExportItems(exportRefs map[js_ast.Ref]bo
 	result := make(renamer.StableRefArray, 0, len(exportRefs))
 	for ref := range exportRefs {
 		result = append(result, renamer.StableRef{
-			StableOuterIndex: c.stableSourceIndices[ref.OuterIndex],
-			Ref:              ref,
+			StableSourceIndex: c.stableSourceIndices[ref.SourceIndex],
+			Ref:               ref,
 		})
 	}
 	sort.Sort(result)
@@ -1517,10 +1517,10 @@ func (c *linkerContext) scanImportsAndExports() {
 		if file.isEntryPoint() && c.options.OutputFormat == config.FormatESModule {
 			copies := make([]js_ast.Ref, len(repr.meta.sortedAndFilteredExportAliases))
 			for i, alias := range repr.meta.sortedAndFilteredExportAliases {
-				symbols := &c.symbols.Outer[sourceIndex]
+				symbols := &c.symbols.SymbolsForSource[sourceIndex]
 				tempRef := js_ast.Ref{
-					OuterIndex: sourceIndex,
-					InnerIndex: uint32(len(*symbols)),
+					SourceIndex: sourceIndex,
+					InnerIndex:  uint32(len(*symbols)),
 				}
 				*symbols = append(*symbols, js_ast.Symbol{
 					Kind:         js_ast.SymbolOther,
@@ -1636,8 +1636,8 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 
 	generateExport := func(name string, alias string, value js_ast.Expr, prevExports []prevExport) prevExport {
 		// Generate a new symbol
-		inner := &c.symbols.Outer[sourceIndex]
-		ref := js_ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(len(*inner))}
+		inner := &c.symbols.SymbolsForSource[sourceIndex]
+		ref := js_ast.Ref{SourceIndex: sourceIndex, InnerIndex: uint32(len(*inner))}
 		*inner = append(*inner, js_ast.Symbol{Kind: js_ast.SymbolOther, OriginalName: name, Link: js_ast.InvalidRef})
 		repr.ast.ModuleScope.Generated = append(repr.ast.ModuleScope.Generated, ref)
 
@@ -1872,7 +1872,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 		// Re-use memory for the cycle detector
 		c.cycleDetector = c.cycleDetector[:0]
 
-		importRef := js_ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(innerIndex)}
+		importRef := js_ast.Ref{SourceIndex: sourceIndex, InnerIndex: uint32(innerIndex)}
 		result, reExports := c.matchImportWithExport(importTracker{sourceIndex: sourceIndex, importRef: importRef}, nil)
 		switch result.kind {
 		case matchImportIgnore:
@@ -4105,8 +4105,8 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	for _, imports := range chunk.chunkRepr.(*chunkReprJS).importsFromOtherChunks {
 		for _, item := range imports {
 			sorted = append(sorted, renamer.StableRef{
-				StableOuterIndex: c.stableSourceIndices[item.ref.OuterIndex],
-				Ref:              item.ref,
+				StableSourceIndex: c.stableSourceIndices[item.ref.SourceIndex],
+				Ref:               item.ref,
 			})
 		}
 	}

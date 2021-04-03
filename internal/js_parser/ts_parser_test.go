@@ -50,7 +50,7 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 			t.Fatal("Parse error")
 		}
 		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
+		symbols.SymbolsForSource[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.Options{}).JS
 		test.AssertEqual(t, string(js), expected)
@@ -102,7 +102,7 @@ func expectPrintedTSX(t *testing.T, contents string, expected string) {
 			t.Fatal("Parse error")
 		}
 		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
+		symbols.SymbolsForSource[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.Options{}).JS
 		test.AssertEqual(t, string(js), expected)

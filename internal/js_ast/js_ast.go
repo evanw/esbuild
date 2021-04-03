@@ -1358,15 +1358,15 @@ var InvalidRef Ref = Ref{^uint32(0), ^uint32(0)}
 // able to quickly merge symbol tables from all files into one giant symbol
 // table.
 //
-// We can accomplish both goals by giving each symbol ID two parts: an outer
+// We can accomplish both goals by giving each symbol ID two parts: a source
 // index that is unique to the parser goroutine, and an inner index that
 // increments as the parser generates new symbol IDs. Then a symbol map can
-// be an array of arrays indexed first by outer index, then by inner index.
+// be an array of arrays indexed first by source index, then by inner index.
 // The maps can be merged quickly by creating a single outer array containing
 // all inner arrays from all parsed files.
 type Ref struct {
-	OuterIndex uint32
-	InnerIndex uint32
+	SourceIndex uint32
+	InnerIndex  uint32
 }
 
 type ImportItemStatus uint8
@@ -1570,7 +1570,7 @@ type SymbolMap struct {
 	// single inner array, so you can join the maps together by just make a
 	// single outer array containing all of the inner arrays. See the comment on
 	// "Ref" for more detail.
-	Outer [][]Symbol
+	SymbolsForSource [][]Symbol
 }
 
 func NewSymbolMap(sourceCount int) SymbolMap {
@@ -1578,7 +1578,7 @@ func NewSymbolMap(sourceCount int) SymbolMap {
 }
 
 func (sm SymbolMap) Get(ref Ref) *Symbol {
-	return &sm.Outer[ref.OuterIndex][ref.InnerIndex]
+	return &sm.SymbolsForSource[ref.SourceIndex][ref.InnerIndex]
 }
 
 type ExportsKind uint8
@@ -1862,7 +1862,7 @@ func FollowSymbols(symbols SymbolMap, ref Ref) Ref {
 // but reading from a map is. Calling "FollowAllSymbols" first ensures that
 // all mutation is done up front.
 func FollowAllSymbols(symbols SymbolMap) {
-	for sourceIndex, inner := range symbols.Outer {
+	for sourceIndex, inner := range symbols.SymbolsForSource {
 		for symbolIndex := range inner {
 			FollowSymbols(symbols, Ref{uint32(sourceIndex), uint32(symbolIndex)})
 		}

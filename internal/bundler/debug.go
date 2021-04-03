@@ -27,7 +27,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 	sb := strings.Builder{}
 
 	quoteSym := func(ref js_ast.Ref) string {
-		name := fmt.Sprintf("%d:%d [%s]", ref.OuterIndex, ref.InnerIndex, c.symbols.Get(ref).OriginalName)
+		name := fmt.Sprintf("%d:%d [%s]", ref.SourceIndex, ref.InnerIndex, c.symbols.Get(ref).OriginalName)
 		return string(js_printer.QuoteForJSON(name, c.options.ASCIIOnly))
 	}
 
