@@ -54,7 +54,7 @@ type file struct {
 
 	// This holds all entry points that can reach this file. It will be used to
 	// assign the parts in this file to a chunk.
-	entryBits bitSet
+	entryBits helpers.BitSet
 
 	// If "AbsMetadataFile" is present, this will be filled out with information
 	// about this file in JSON format. This is a partial JSON file that will be

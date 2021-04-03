@@ -30,35 +30,6 @@ import (
 	"github.com/evanw/esbuild/internal/xxhash"
 )
 
-type bitSet struct {
-	entries []byte
-}
-
-func newBitSet(bitCount uint) bitSet {
-	return bitSet{make([]byte, (bitCount+7)/8)}
-}
-
-func (bs bitSet) hasBit(bit uint) bool {
-	return (bs.entries[bit/8] & (1 << (bit & 7))) != 0
-}
-
-func (bs bitSet) setBit(bit uint) {
-	bs.entries[bit/8] |= 1 << (bit & 7)
-}
-
-func (bs bitSet) equals(other bitSet) bool {
-	return bytes.Equal(bs.entries, other.entries)
-}
-
-func (bs *bitSet) isAllZeros() bool {
-	for _, v := range bs.entries {
-		if v != 0 {
-			return false
-		}
-	}
-	return true
-}
-
 type linkerContext struct {
 	options     *config.Options
 	log         logger.Log
@@ -310,7 +281,7 @@ type chunkInfo struct {
 	filesWithPartsInChunk map[uint32]bool
 	filesInChunkInOrder   []uint32
 	partsInChunkInOrder   []partRange
-	entryBits             bitSet
+	entryBits             helpers.BitSet
 
 	// This information is only useful if "isEntryPoint" is true
 	isEntryPoint  bool
@@ -1091,7 +1062,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		// these chunks are evaluated for their side effects too.
 		if chunk.isEntryPoint {
 			for otherChunkIndex, otherChunk := range chunks {
-				if _, ok := otherChunk.chunkRepr.(*chunkReprJS); ok && chunkIndex != otherChunkIndex && otherChunk.entryBits.hasBit(chunk.entryPointBit) {
+				if _, ok := otherChunk.chunkRepr.(*chunkReprJS); ok && chunkIndex != otherChunkIndex && otherChunk.entryBits.HasBit(chunk.entryPointBit) {
 					imports := chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)]
 					chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)] = imports
 				}
@@ -1209,7 +1180,7 @@ func (c *linkerContext) sortedCrossChunkImports(chunks []chunkInfo, importsFromO
 		sort.Sort(importItems)
 		result = append(result, crossChunkImport{
 			chunkIndex:        otherChunkIndex,
-			sortingKey:        string(chunks[otherChunkIndex].entryBits.entries),
+			sortingKey:        chunks[otherChunkIndex].entryBits.String(),
 			sortedImportItems: importItems,
 		})
 	}
@@ -2426,7 +2397,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	bitCount := uint(len(c.entryPoints))
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
-		file.entryBits = newBitSet(bitCount)
+		file.entryBits = helpers.NewBitSet(bitCount)
 
 		switch repr := file.repr.(type) {
 		case *reprJS:
@@ -2536,10 +2507,10 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 	distanceFromEntryPoint++
 
 	// Don't mark this file more than once
-	if file.entryBits.hasBit(entryPointBit) {
+	if file.entryBits.HasBit(entryPointBit) {
 		return
 	}
-	file.entryBits.setBit(entryPointBit)
+	file.entryBits.SetBit(entryPointBit)
 
 	switch repr := file.repr.(type) {
 	case *reprJS:
@@ -2833,8 +2804,8 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
-		entryBits := newBitSet(uint(len(c.entryPoints)))
-		entryBits.setBit(uint(i))
+		entryBits := helpers.NewBitSet(uint(len(c.entryPoints)))
+		entryBits.SetBit(uint(i))
 		info := chunkInfo{
 			entryBits:             entryBits,
 			isEntryPoint:          true,
@@ -2846,22 +2817,22 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		switch file.repr.(type) {
 		case *reprJS:
 			info.chunkRepr = &chunkReprJS{}
-			jsChunks[string(entryBits.entries)] = info
+			jsChunks[entryBits.String()] = info
 
 		case *reprCSS:
 			info.chunkRepr = &chunkReprCSS{}
-			cssChunks[string(entryBits.entries)] = info
+			cssChunks[entryBits.String()] = info
 		}
 	}
 
 	// Figure out which files are in which chunk
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
-		if file.entryBits.isAllZeros() {
+		if file.entryBits.IsAllZeros() {
 			// Ignore this file if it's not included in the bundle
 			continue
 		}
-		key := string(file.entryBits.entries)
+		key := file.entryBits.String()
 		var chunk chunkInfo
 		var ok bool
 		switch file.repr.(type) {
@@ -3079,7 +3050,7 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 
 		visited[sourceIndex] = true
 		file := &c.files[sourceIndex]
-		isFileInThisChunk := chunk.entryBits.equals(file.entryBits)
+		isFileInThisChunk := chunk.entryBits.Equals(file.entryBits)
 
 		switch repr := file.repr.(type) {
 		case *reprJS:
@@ -3211,7 +3182,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 		// Ignore this file if it's not included in the bundle. This can happen for
 		// wrapped ESM files but not for wrapped CommonJS files because we allow
 		// tree shaking inside wrapped ESM files.
-		if otherFile.entryBits.isAllZeros() {
+		if otherFile.entryBits.IsAllZeros() {
 			break
 		}
 
@@ -3527,7 +3498,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	r renamer.Renamer,
 	waitGroup *sync.WaitGroup,
 	partRange partRange,
-	entryBits bitSet,
+	entryBits helpers.BitSet,
 	chunkAbsDir string,
 	commonJSRef js_ast.Ref,
 	esmRef js_ast.Ref,
