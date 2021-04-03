@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.4
 
 * Avoid name collisions with TypeScript helper functions ([#1102](https://github.com/evanw/esbuild/issues/1102))
 
