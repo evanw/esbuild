@@ -18,7 +18,7 @@ TestCSSAndJavaScriptCodeSplittingIssue1064
 ---------- /out/a.js ----------
 import {
   shared_default
-} from "./chunk-HEZGRGFZ.js";
+} from "./chunk-JWQFE3AN.js";
 
 // a.js
 console.log(shared_default() + 1);
@@ -26,12 +26,12 @@ console.log(shared_default() + 1);
 ---------- /out/b.js ----------
 import {
   shared_default
-} from "./chunk-HEZGRGFZ.js";
+} from "./chunk-JWQFE3AN.js";
 
 // b.js
 console.log(shared_default() + 2);
 
----------- /out/chunk-HEZGRGFZ.js ----------
+---------- /out/chunk-JWQFE3AN.js ----------
 // shared.js
 function shared_default() {
   return 3;
@@ -53,7 +53,7 @@ body {
   color: blue;
 }
 
----------- /out/chunk-BJBIO5W2.css ----------
+---------- /out/chunk-Y6KZESIP.css ----------
 /* shared.css */
 body {
   background: black;

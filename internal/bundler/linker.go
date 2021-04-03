@@ -341,7 +341,6 @@ type chunkInfo struct {
 	// will be mixed into the hash. This is separated into two phases like this
 	// to handle cycles in the chunk import graph.
 	outputPieces []outputPiece
-	outputHash   hash.Hash
 
 	// Other fields relating to the output file for this chunk
 	jsonMetadataChunkCallback func(finalOutputSize int) []byte
@@ -646,13 +645,14 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 		chunk := &chunks[chunkIndex]
 
 		// Compute the final hash using the isolated hashes of the dependencies
-		appendIsolatedHashesForImportedChunks(chunk.outputHash, chunks, uint32(chunkIndex), visited, ^uint32(chunkIndex))
-		chunk.outputHash.Sum(finalHash[:0])
+		hash := sha1.New()
+		appendIsolatedHashesForImportedChunks(hash, chunks, uint32(chunkIndex), visited, ^uint32(chunkIndex))
+		hash.Sum(finalHash[:0])
 
 		// Render the last remaining placeholder in the template
-		hash := hashForFileName(finalHash)
+		hashSubstitution := hashForFileName(finalHash)
 		chunk.finalRelPath = config.TemplateToString(config.SubstituteTemplate(chunk.finalTemplate, config.PathPlaceholders{
-			Hash: &hash,
+			Hash: &hashSubstitution,
 		}))
 	}
 
@@ -4961,7 +4961,6 @@ func (c *linkerContext) generateIsolatedChunkHash(chunk *chunkInfo, pieces []out
 	// Store the hash so far. All other chunks that import this chunk will mix
 	// this hash into their "outputHash" to ensure that the import path changes
 	// if this chunk (or any dependencies of this chunk) is changed.
-	chunk.outputHash = hash
 	chunk.isolatedChunkHash = hash.Sum(nil)
 }
 

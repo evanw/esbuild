@@ -2650,26 +2650,26 @@ var import_es6_ns_export_abstract_class = __toModule(require_es6_ns_export_abstr
 TestTopLevelAwaitAllowedImportWithSplitting
 ---------- /out/entry.js ----------
 // entry.js
-import("./a-CDAX2F64.js");
-import("./b-TU32ADII.js");
-import("./c-HCUABLOG.js");
+import("./a-4AEJWCHS.js");
+import("./b-6EB7BLIM.js");
+import("./c-VSFX3WL4.js");
 require_entry();
 await 0;
 
----------- /out/a-CDAX2F64.js ----------
-import "./chunk-7VOEXAIV.js";
-import "./chunk-FLIOJ2XZ.js";
+---------- /out/a-4AEJWCHS.js ----------
+import "./chunk-K5FAGUED.js";
+import "./chunk-7Y4CCLAO.js";
 
----------- /out/b-TU32ADII.js ----------
-import "./chunk-7VOEXAIV.js";
-import "./chunk-FLIOJ2XZ.js";
+---------- /out/b-6EB7BLIM.js ----------
+import "./chunk-K5FAGUED.js";
+import "./chunk-7Y4CCLAO.js";
 
----------- /out/chunk-7VOEXAIV.js ----------
+---------- /out/chunk-K5FAGUED.js ----------
 
----------- /out/c-HCUABLOG.js ----------
-import "./chunk-FLIOJ2XZ.js";
+---------- /out/c-VSFX3WL4.js ----------
+import "./chunk-7Y4CCLAO.js";
 
----------- /out/chunk-FLIOJ2XZ.js ----------
+---------- /out/chunk-7Y4CCLAO.js ----------
 // c.js
 await 0;
 
