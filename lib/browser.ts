@@ -113,10 +113,18 @@ const startRunningService = async (wasmURL: string, useWorker: boolean): Promise
           err ? reject(err) : resolve(res as types.BuildResult))),
     transform: (input, options) =>
       new Promise((resolve, reject) =>
-        service.transform('transform', null, input, options || {}, false, {
-          readFile(_, callback) { callback(new Error('Internal error'), null); },
-          writeFile(_, callback) { callback(null); },
-        }, (err, res) => err ? reject(err) : resolve(res!))),
+        service.transform({
+          callName: 'transform',
+          refs: null,
+          input,
+          options: options || {},
+          isTTY: false,
+          fs: {
+            readFile(_, callback) { callback(new Error('Internal error'), null); },
+            writeFile(_, callback) { callback(null); },
+          },
+          callback: (err, res) => err ? reject(err) : resolve(res!),
+        })),
     formatMessages: (messages, options) =>
       new Promise((resolve, reject) =>
         service.formatMessages({

@@ -390,7 +390,7 @@ export interface StreamService {
     callback: (err: Error | null, res: types.BuildResult | types.ServeResult | null) => void,
   ): void;
 
-  transform(
+  transform(args: {
     callName: string,
     refs: Refs | null,
     input: string,
@@ -398,7 +398,7 @@ export interface StreamService {
     isTTY: boolean,
     fs: StreamFS,
     callback: (err: Error | null, res: types.TransformResult | null) => void,
-  ): void;
+  }): void;
 
   formatMessages(args: {
     callName: string,
@@ -1000,7 +1000,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
-  let transform: StreamService['transform'] = (callName, refs, input, options, isTTY, fs, callback) => {
+  let transform: StreamService['transform'] = ({ callName, refs, input, options, isTTY, fs, callback }) => {
     const details = createObjectStash();
     const logLevelDefault = 'silent';
 
