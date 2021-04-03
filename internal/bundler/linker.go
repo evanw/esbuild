@@ -1113,10 +1113,10 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 				if c.options.MinifyIdentifiers {
 					alias = r.NextMinifiedName()
 				} else {
-					alias = r.NextRenamedName(c.symbols.Get(export.ref).OriginalName)
+					alias = r.NextRenamedName(c.symbols.Get(export.Ref).OriginalName)
 				}
-				items = append(items, js_ast.ClauseItem{Name: js_ast.LocRef{Ref: export.ref}, Alias: alias})
-				chunkRepr.exportsToOtherChunks[export.ref] = alias
+				items = append(items, js_ast.ClauseItem{Name: js_ast.LocRef{Ref: export.Ref}, Alias: alias})
+				chunkRepr.exportsToOtherChunks[export.Ref] = alias
 			}
 			if len(items) > 0 {
 				chunkRepr.crossChunkSuffixStmts = []js_ast.Stmt{{Data: &js_ast.SExportClause{
@@ -1227,39 +1227,14 @@ func (a crossChunkImportItemArray) Less(i int, j int) bool {
 	return a[i].exportAlias < a[j].exportAlias
 }
 
-type crossChunkExportItem struct {
-	ref     js_ast.Ref
-	keyPath logger.Path
-}
-
-// This type is just so we can use Go's native sort function
-type crossChunkExportItemArray []crossChunkExportItem
-
-func (a crossChunkExportItemArray) Len() int          { return len(a) }
-func (a crossChunkExportItemArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
-
-func (a crossChunkExportItemArray) Less(i int, j int) bool {
-	ai := a[i]
-	aj := a[j]
-
-	// The sort order here is arbitrary but needs to be consistent between builds.
-	// The InnerIndex should be stable because the parser for a single file is
-	// single-threaded and deterministically assigns out InnerIndex values
-	// sequentially. But the OuterIndex (i.e. source index) should be unstable
-	// because the main thread assigns out source index values sequentially to
-	// newly-discovered dependencies in a multi-threaded producer/consumer
-	// relationship. So instead we use the key path from the source at OuterIndex
-	// for stability. This compares using the InnerIndex first before the key path
-	// because it's a less expensive comparison test.
-	return ai.ref.InnerIndex < aj.ref.InnerIndex ||
-		(ai.ref.InnerIndex == aj.ref.InnerIndex && ai.keyPath.ComesBeforeInSortedOrder(aj.keyPath))
-}
-
 // Sort cross-chunk exports by chunk name for determinism
-func (c *linkerContext) sortedCrossChunkExportItems(exportRefs map[js_ast.Ref]bool) crossChunkExportItemArray {
-	result := make(crossChunkExportItemArray, 0, len(exportRefs))
+func (c *linkerContext) sortedCrossChunkExportItems(exportRefs map[js_ast.Ref]bool) renamer.StableRefArray {
+	result := make(renamer.StableRefArray, 0, len(exportRefs))
 	for ref := range exportRefs {
-		result = append(result, crossChunkExportItem{ref: ref, keyPath: c.files[ref.OuterIndex].source.KeyPath})
+		result = append(result, renamer.StableRef{
+			StableOuterIndex: c.stableSourceIndices[ref.OuterIndex],
+			Ref:              ref,
+		})
 	}
 	sort.Sort(result)
 	return result

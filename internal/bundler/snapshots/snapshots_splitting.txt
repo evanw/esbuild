@@ -41,7 +41,7 @@ TestSplittingCircularReferenceIssue251
 import {
   p,
   q
-} from "./chunk-NCQUDVEL.js";
+} from "./chunk-GEJ3ERKC.js";
 export {
   p,
   q
@@ -51,13 +51,13 @@ export {
 import {
   p,
   q
-} from "./chunk-NCQUDVEL.js";
+} from "./chunk-GEJ3ERKC.js";
 export {
   p,
   q
 };
 
----------- /out/chunk-NCQUDVEL.js ----------
+---------- /out/chunk-GEJ3ERKC.js ----------
 // a.js
 var p = 5;
 
@@ -65,8 +65,8 @@ var p = 5;
 var q = 6;
 
 export {
-  p,
-  q
+  q,
+  p
 };
 
 ================================================================================
@@ -113,7 +113,7 @@ setX();
 ---------- /out/b.js ----------
 import {
   setZ
-} from "./chunk-M2WBFBDC.js";
+} from "./chunk-6A3UTKWI.js";
 import "./chunk-5KRVLGZM.js";
 
 // b.js
@@ -123,7 +123,7 @@ setZ();
 import {
   setY2,
   setZ2
-} from "./chunk-M2WBFBDC.js";
+} from "./chunk-6A3UTKWI.js";
 import {
   setX2
 } from "./chunk-5KRVLGZM.js";
@@ -133,7 +133,7 @@ setX2();
 setY2();
 setZ2();
 
----------- /out/chunk-M2WBFBDC.js ----------
+---------- /out/chunk-6A3UTKWI.js ----------
 import {
   setX
 } from "./chunk-5KRVLGZM.js";
@@ -159,8 +159,8 @@ function setZ2(v) {
 }
 
 export {
-  setZ,
   setY2,
+  setZ,
   setZ2
 };
 
@@ -205,27 +205,27 @@ TestSplittingDynamicAndNotDynamicCommonJSIntoES6
 import {
   __toModule,
   require_foo
-} from "./chunk-EIGPJKCZ.js";
+} from "./chunk-PSVXQMCR.js";
 
 // entry.js
 var import_foo = __toModule(require_foo());
-import("./foo-CARSV5UE.js").then(({default: {bar: b}}) => console.log(import_foo.bar, b));
+import("./foo-U7VJJE4V.js").then(({default: {bar: b}}) => console.log(import_foo.bar, b));
 
----------- /out/foo-CARSV5UE.js ----------
+---------- /out/foo-U7VJJE4V.js ----------
 import {
   require_foo
-} from "./chunk-EIGPJKCZ.js";
+} from "./chunk-PSVXQMCR.js";
 export default require_foo();
 
----------- /out/chunk-EIGPJKCZ.js ----------
+---------- /out/chunk-PSVXQMCR.js ----------
 // foo.js
 var require_foo = __commonJS((exports) => {
   exports.bar = 123;
 });
 
 export {
-  require_foo,
-  __toModule
+  __toModule,
+  require_foo
 };
 
 ================================================================================

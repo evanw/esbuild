@@ -303,6 +303,14 @@ func (a slotAndCountArray) Less(i int, j int) bool {
 	return ai.count > aj.count || (ai.count == aj.count && ai.slot < aj.slot)
 }
 
+// The sort order here is arbitrary but needs to be consistent between builds.
+// The InnerIndex should be stable because the parser for a single file is
+// single-threaded and deterministically assigns out InnerIndex values
+// sequentially. But the OuterIndex (i.e. source index) should be unstable
+// because the main thread assigns out source index values sequentially to
+// newly-discovered dependencies in a multi-threaded producer/consumer
+// relationship. So instead we use the index of the source in the DFS order
+// over all entry points for stability.
 type StableRef struct {
 	StableOuterIndex uint32
 	Ref              js_ast.Ref
@@ -315,7 +323,7 @@ func (a StableRefArray) Len() int          { return len(a) }
 func (a StableRefArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 func (a StableRefArray) Less(i int, j int) bool {
 	ai, aj := a[i], a[j]
-	return ai.StableOuterIndex > aj.StableOuterIndex || (ai.StableOuterIndex == aj.StableOuterIndex && ai.Ref.InnerIndex < aj.Ref.InnerIndex)
+	return ai.StableOuterIndex < aj.StableOuterIndex || (ai.StableOuterIndex == aj.StableOuterIndex && ai.Ref.InnerIndex < aj.Ref.InnerIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
