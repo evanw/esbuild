@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.5
 
 * Add support for the `override` keyword in TypeScript 4.3 ([#1105](https://github.com/evanw/esbuild/pull/1105))
 
