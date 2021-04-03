@@ -3380,6 +3380,43 @@
         if (a === b || ca === cb || a !== ca || b !== cb) throw 'fail'
       `,
     }),
+
+    // "sideEffects": false
+    // https://github.com/evanw/esbuild/issues/1081
+    test(['entry.js', '--outdir=out', '--splitting', '--format=esm', '--bundle', '--chunk-names=[name]'], {
+      'entry.js': `import('./a'); import('./b')`,
+      'a.js': `import { bar } from './shared'; bar()`,
+      'b.js': `import './shared'`,
+      'shared.js': `import { foo } from './foo'; export let bar = foo`,
+      'foo/index.js': `export let foo = () => {}`,
+      'foo/package.json': `{ "sideEffects": false }`,
+      'node.js': `
+        import path from 'path'
+        import url from 'url'
+        const __dirname = path.dirname(url.fileURLToPath(import.meta.url))
+
+        // Read the output files
+        import fs from 'fs'
+        const a = fs.readFileSync(path.join(__dirname, 'out', 'a.js'), 'utf8')
+        const chunk = fs.readFileSync(path.join(__dirname, 'out', 'chunk.js'), 'utf8')
+
+        // Make sure the two output files don't import each other
+        import assert from 'assert'
+        assert.notStrictEqual(chunk.includes('a.js'), a.includes('chunk.js'), 'chunks must not import each other')
+      `,
+    }),
+    test(['entry.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
+      'entry.js': `await import('./a'); await import('./b')`,
+      'a.js': `import { bar } from './shared'; bar()`,
+      'b.js': `import './shared'`,
+      'shared.js': `import { foo } from './foo'; export let bar = foo`,
+      'foo/index.js': `export let foo = () => {}`,
+      'foo/package.json': `{ "sideEffects": false }`,
+      'node.js': `
+        // This must not crash
+        import './out/entry.js'
+      `,
+    }),
   )
 
   // Test the binary loader
