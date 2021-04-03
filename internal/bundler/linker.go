@@ -333,14 +333,15 @@ type chunkInfo struct {
 
 	// When this chunk is initially generated in isolation, the output pieces
 	// will contain slices of the output with the unique keys of other chunks
-	// omitted. The output hash will contain the hash of those pieces. At this
-	// point, this variable is the current value of the output hash.
-	isolatedChunkHash []byte
-
-	// Later on in the linking process, the hashes of the referenced other chunks
-	// will be mixed into the hash. This is separated into two phases like this
-	// to handle cycles in the chunk import graph.
+	// omitted.
 	outputPieces []outputPiece
+
+	// This contains the hash for just this chunk without including information
+	// from the hashes of other chunks. Later on in the linking process, the
+	// final hash for this chunk will be constructed by merging the isolated
+	// hashes of all transitive dependencies of this chunk. This is separated
+	// into two phases like this to handle cycles in the chunk import graph.
+	waitForIsolatedHash func() []byte
 
 	// Other fields relating to the output file for this chunk
 	jsonMetadataChunkCallback func(finalOutputSize int) []byte
@@ -640,19 +641,24 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 	// parallel but it probably doesn't matter so much because we're not hashing
 	// that much data.
 	visited := make([]uint32, len(chunks))
-	var finalHash [sha1.Size]byte
+	var finalBytes [sha1.Size]byte
 	for chunkIndex := range chunks {
 		chunk := &chunks[chunkIndex]
+		var hashSubstitution *string
 
-		// Compute the final hash using the isolated hashes of the dependencies
-		hash := sha1.New()
-		appendIsolatedHashesForImportedChunks(hash, chunks, uint32(chunkIndex), visited, ^uint32(chunkIndex))
-		hash.Sum(finalHash[:0])
+		// Only wait for the hash if necessary
+		if config.HasPlaceholder(chunk.finalTemplate, config.HashPlaceholder) {
+			// Compute the final hash using the isolated hashes of the dependencies
+			hash := sha1.New()
+			appendIsolatedHashesForImportedChunks(hash, chunks, uint32(chunkIndex), visited, ^uint32(chunkIndex))
+			hash.Sum(finalBytes[:0])
+			finalString := hashForFileName(finalBytes)
+			hashSubstitution = &finalString
+		}
 
 		// Render the last remaining placeholder in the template
-		hashSubstitution := hashForFileName(finalHash)
 		chunk.finalRelPath = config.TemplateToString(config.SubstituteTemplate(chunk.finalTemplate, config.PathPlaceholders{
-			Hash: &hashSubstitution,
+			Hash: hashSubstitution,
 		}))
 	}
 
@@ -4586,7 +4592,8 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		}
 	}
 
-	c.generateIsolatedChunkHash(chunk, c.breakOutputIntoPieces(jsContents, uint32(len(chunks))))
+	chunk.outputPieces = c.breakOutputIntoPieces(jsContents, uint32(len(chunks)))
+	c.generateIsolatedHashInParallel(chunk)
 	chunk.isExecutable = isExecutable
 	chunkWaitGroup.Done()
 }
@@ -4813,7 +4820,8 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 		}
 	}
 
-	c.generateIsolatedChunkHash(chunk, c.breakOutputIntoPieces(cssContents, uint32(len(chunks))))
+	chunk.outputPieces = c.breakOutputIntoPieces(cssContents, uint32(len(chunks)))
+	c.generateIsolatedHashInParallel(chunk)
 	chunkWaitGroup.Done()
 }
 
@@ -4840,7 +4848,7 @@ func appendIsolatedHashesForImportedChunks(
 	}
 
 	// Mix in the hash for this chunk
-	hash.Write(chunk.isolatedChunkHash)
+	hash.Write(chunk.waitForIsolatedHash())
 }
 
 func (c *linkerContext) breakOutputIntoPieces(output []byte, chunkCount uint32) []outputPiece {
@@ -4888,9 +4896,19 @@ func (c *linkerContext) breakOutputIntoPieces(output []byte, chunkCount uint32) 
 	return pieces
 }
 
-func (c *linkerContext) generateIsolatedChunkHash(chunk *chunkInfo, pieces []outputPiece) {
-	chunk.outputPieces = pieces
+func (c *linkerContext) generateIsolatedHashInParallel(chunk *chunkInfo) {
+	// Compute the hash in parallel. This is a speedup when it turns out the hash
+	// isn't needed (well, as long as there are threads to spare).
+	channel := make(chan []byte, 1)
+	chunk.waitForIsolatedHash = func() []byte {
+		data := <-channel
+		channel <- data
+		return data
+	}
+	go c.generateIsolatedHash(chunk, channel)
+}
 
+func (c *linkerContext) generateIsolatedHash(chunk *chunkInfo, channel chan []byte) {
 	hash := sha1.New()
 
 	// Mix the file names and part ranges of all of the files in this chunk into
@@ -4934,7 +4952,7 @@ func (c *linkerContext) generateIsolatedChunkHash(chunk *chunkInfo, pieces []out
 	// Include the generated output content in the hash. This excludes the
 	// randomly-generated import paths (the unique keys) and only includes the
 	// data in the spans between them.
-	for _, piece := range pieces {
+	for _, piece := range chunk.outputPieces {
 		hashWriteLengthPrefixed(hash, piece.data)
 	}
 
@@ -4959,9 +4977,9 @@ func (c *linkerContext) generateIsolatedChunkHash(chunk *chunkInfo, pieces []out
 	hashWriteLengthPrefixed(hash, chunk.outputSourceMap.Suffix)
 
 	// Store the hash so far. All other chunks that import this chunk will mix
-	// this hash into their "outputHash" to ensure that the import path changes
+	// this hash into their final hash to ensure that the import path changes
 	// if this chunk (or any dependencies of this chunk) is changed.
-	chunk.isolatedChunkHash = hash.Sum(nil)
+	channel <- hash.Sum(nil)
 }
 
 func hashWriteUint32(hash hash.Hash, value uint32) {
