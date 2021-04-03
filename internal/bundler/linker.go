@@ -594,6 +594,37 @@ func (c *linkerContext) link() []OutputFile {
 	return c.generateChunksInParallel(chunks)
 }
 
+// Currently the automatic chunk generation algorithm should by construction
+// never generate chunks that import each other since files are allocated to
+// chunks based on which entry points they are reachable from.
+//
+// This will change in the future when we allow manual chunk labels. But before
+// we allow manual chunk labels, we'll need to rework module initialization to
+// allow code splitting chunks to be lazily-initialized.
+//
+// Since that work hasn't been finished yet, cycles in the chunk import graph
+// can cause initialization bugs. So let's forbid these cycles for now to guard
+// against code splitting bugs that could cause us to generate buggy chunks.
+func (c *linkerContext) enforceNoCyclicChunkImports(chunks []chunkInfo) {
+	var validate func(int, []int)
+	validate = func(chunkIndex int, path []int) {
+		for _, otherChunkIndex := range path {
+			if chunkIndex == otherChunkIndex {
+				c.log.AddError(nil, logger.Loc{}, "Internal error: generated chunks contain a circular import")
+				return
+			}
+		}
+		path = append(path, chunkIndex)
+		for _, otherChunkIndex := range chunks[chunkIndex].crossChunkImports {
+			validate(int(otherChunkIndex), path)
+		}
+	}
+	path := make([]int, 0, len(chunks))
+	for i := range chunks {
+		validate(i, path)
+	}
+}
+
 func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFile {
 	// Generate each chunk on a separate goroutine
 	generateWaitGroup := sync.WaitGroup{}
@@ -606,6 +637,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 			go c.generateChunkCSS(chunks, chunkIndex, &generateWaitGroup)
 		}
 	}
+	c.enforceNoCyclicChunkImports(chunks)
 	generateWaitGroup.Wait()
 
 	// Compute the final hashes of each chunk. This can technically be done in
@@ -2537,7 +2569,11 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 					// Don't include this module for its side effects if it can be
 					// considered to have no side effects
 					if otherFile := &c.files[otherSourceIndex]; otherFile.ignoreIfUnused && !c.options.IgnoreDCEAnnotations {
-						continue
+						// This is currently unsafe when code splitting is enabled, so
+						// disable it in that case
+						if len(c.entryPoints) < 2 {
+							continue
+						}
 					}
 
 					// Otherwise, include this module for its side effects
