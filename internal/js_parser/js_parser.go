@@ -1829,7 +1829,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 						return p.parseProperty(kind, opts, nil)
 					}
 
-				case "private", "protected", "public", "readonly", "abstract", "declare":
+				case "private", "protected", "public", "readonly", "abstract", "declare", "override":
 					// Skip over TypeScript keywords
 					if opts.isClass && p.options.ts.Parse && raw == name {
 						return p.parseProperty(kind, opts, nil)

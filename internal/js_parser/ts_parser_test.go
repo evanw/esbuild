@@ -350,6 +350,10 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { declare foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare public foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public declare foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { override foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { override public foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { public override foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { declare override public foo: number }", "class Foo {\n}\n")
 
 	expectPrintedTS(t, "class Foo { public static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { private static foo: number }", "class Foo {\n}\n")
@@ -358,6 +362,11 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { declare public static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public declare static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public static declare foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { override static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { override public static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { public override static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { public static override foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { declare override public static foo: number }", "class Foo {\n}\n")
 
 	expectPrintedTS(t, "class Foo { [key: string]: any\nfoo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { [key: string]: any; foo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
