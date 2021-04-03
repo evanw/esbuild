@@ -16,6 +16,22 @@
 
     With this release, esbuild will now ignore the `override` keyword when parsing TypeScript code instead of treating this keyword as a syntax error, which means esbuild can now support TypeScript 4.3 syntax. This change was contributed by [@g-plane](https://github.com/g-plane).
 
+* Allow `async` plugin `setup` functions
+
+    With this release, you can now return a promise from your plugin's `setup` function to delay the start of the build:
+
+    ```js
+    let slowInitPlugin = {
+      name: 'slow-init',
+      async setup(build) {
+        // Delay the start of the build
+        await new Promise(r => setTimeout(r, 1000))
+      },
+    }
+    ```
+
+    This is useful if your plugin needs to do something asynchronous before the build starts. For example, you may need some asynchronous information before modifying the `initialOptions` object, which must be done before the build starts for the modifications to take effect.
+
 ## 0.11.4
 
 * Avoid name collisions with TypeScript helper functions ([#1102](https://github.com/evanw/esbuild/issues/1102))

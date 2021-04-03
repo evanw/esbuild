@@ -180,7 +180,7 @@ export interface TransformFailure extends Error {
 
 export interface Plugin {
   name: string;
-  setup: (build: PluginBuild) => void;
+  setup: (build: PluginBuild) => (void | Promise<void>);
 }
 
 export interface PluginBuild {
