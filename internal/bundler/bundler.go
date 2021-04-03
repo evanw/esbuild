@@ -2,7 +2,6 @@ package bundler
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"encoding/base32"
 	"encoding/base64"
 	"fmt"
@@ -31,6 +30,7 @@ import (
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
 	"github.com/evanw/esbuild/internal/sourcemap"
+	"github.com/evanw/esbuild/internal/xxhash"
 )
 
 type entryPointKind uint8
@@ -342,8 +342,9 @@ func parseFile(args parseArgs) {
 		// but different contents from colliding
 		var hash string
 		if config.HasPlaceholder(args.options.AssetPathTemplate, config.HashPlaceholder) {
-			hashBytes := sha1.Sum([]byte(source.Contents))
-			hash = hashForFileName(hashBytes)
+			h := xxhash.New()
+			h.Write([]byte(source.Contents))
+			hash = hashForFileName(h.Sum(nil))
 		}
 		dir := "/"
 		relPath := config.TemplateToString(config.SubstituteTemplate(args.options.AssetPathTemplate, config.PathPlaceholders{
@@ -967,8 +968,8 @@ func lowerCaseAbsPathForWindows(absPath string) string {
 	return strings.ToLower(absPath)
 }
 
-func hashForFileName(hashBytes [sha1.Size]byte) string {
-	return base32.StdEncoding.EncodeToString(hashBytes[:])[:8]
+func hashForFileName(hashBytes []byte) string {
+	return base32.StdEncoding.EncodeToString(hashBytes)[:8]
 }
 
 type scanner struct {

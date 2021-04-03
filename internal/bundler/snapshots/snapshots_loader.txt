@@ -46,12 +46,12 @@ console.log(x_url, y_default);
 
 ================================================================================
 TestLoaderFile
----------- /out/test-T3K5TRK4.svg ----------
+---------- /out/test-IPILGNO5.svg ----------
 <svg></svg>
 ---------- /out/entry.js ----------
 // test.svg
 var require_test = __commonJS((exports, module) => {
-  module.exports = "./test-T3K5TRK4.svg";
+  module.exports = "./test-IPILGNO5.svg";
 });
 
 // entry.js
@@ -59,18 +59,18 @@ console.log(require_test());
 
 ================================================================================
 TestLoaderFileCommonJSAndES6
----------- /y-SXFQX7JJ.txt ----------
+---------- /y-YE5AYNFB.txt ----------
 y
----------- /x-CH3K3DWF.txt ----------
+---------- /x-LSAMBFUD.txt ----------
 x
 ---------- /out.js ----------
 // x.txt
 var require_x = __commonJS((exports, module) => {
-  module.exports = "./x-CH3K3DWF.txt";
+  module.exports = "./x-LSAMBFUD.txt";
 });
 
 // y.txt
-var y_default = "./y-SXFQX7JJ.txt";
+var y_default = "./y-YE5AYNFB.txt";
 
 // entry.js
 var x_url = require_x();
@@ -78,17 +78,17 @@ console.log(x_url, y_default);
 
 ================================================================================
 TestLoaderFileMultipleNoCollision
----------- /dist/test-VFFI7ZOM.txt ----------
+---------- /dist/test-J7OMUXO3.txt ----------
 test
 ---------- /dist/out.js ----------
 // a/test.txt
 var require_test = __commonJS((exports, module) => {
-  module.exports = "./test-VFFI7ZOM.txt";
+  module.exports = "./test-J7OMUXO3.txt";
 });
 
 // b/test.txt
 var require_test2 = __commonJS((exports, module) => {
-  module.exports = "./test-VFFI7ZOM.txt";
+  module.exports = "./test-J7OMUXO3.txt";
 });
 
 // entry.js

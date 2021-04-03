@@ -2,7 +2,6 @@ package bundler
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
@@ -28,6 +27,7 @@ import (
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
 	"github.com/evanw/esbuild/internal/sourcemap"
+	"github.com/evanw/esbuild/internal/xxhash"
 )
 
 type bitSet struct {
@@ -641,7 +641,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 	// parallel but it probably doesn't matter so much because we're not hashing
 	// that much data.
 	visited := make([]uint32, len(chunks))
-	var finalBytes [sha1.Size]byte
+	var finalBytes []byte
 	for chunkIndex := range chunks {
 		chunk := &chunks[chunkIndex]
 		var hashSubstitution *string
@@ -649,9 +649,9 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 		// Only wait for the hash if necessary
 		if config.HasPlaceholder(chunk.finalTemplate, config.HashPlaceholder) {
 			// Compute the final hash using the isolated hashes of the dependencies
-			hash := sha1.New()
+			hash := xxhash.New()
 			appendIsolatedHashesForImportedChunks(hash, chunks, uint32(chunkIndex), visited, ^uint32(chunkIndex))
-			hash.Sum(finalBytes[:0])
+			finalBytes = hash.Sum(finalBytes[:0])
 			finalString := hashForFileName(finalBytes)
 			hashSubstitution = &finalString
 		}
@@ -4909,7 +4909,7 @@ func (c *linkerContext) generateIsolatedHashInParallel(chunk *chunkInfo) {
 }
 
 func (c *linkerContext) generateIsolatedHash(chunk *chunkInfo, channel chan []byte) {
-	hash := sha1.New()
+	hash := xxhash.New()
 
 	// Mix the file names and part ranges of all of the files in this chunk into
 	// the hash. Objects that appear identical but that live in separate files or
