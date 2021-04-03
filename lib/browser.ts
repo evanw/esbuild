@@ -119,7 +119,12 @@ const startRunningService = async (wasmURL: string, useWorker: boolean): Promise
         }, (err, res) => err ? reject(err) : resolve(res!))),
     formatMessages: (messages, options) =>
       new Promise((resolve, reject) =>
-        service.formatMessages('formatMessages', null, messages, options, (err, res) =>
-          err ? reject(err) : resolve(res!))),
+        service.formatMessages({
+          callName: 'formatMessages',
+          refs: null,
+          messages,
+          options,
+          callback: (err, res) => err ? reject(err) : resolve(res!),
+        })),
   }
 }

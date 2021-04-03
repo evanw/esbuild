@@ -147,9 +147,12 @@ export let formatMessagesSync: typeof types.formatMessagesSync = (messages, opti
   }
 
   let result: string[];
-  runServiceSync(service => service.formatMessages('formatMessagesSync', null, messages, options, (err, res) => {
-    if (err) throw err;
-    result = res!;
+  runServiceSync(service => service.formatMessages({
+    callName: 'formatMessagesSync',
+    refs: null,
+    messages,
+    options,
+    callback: (err, res) => { if (err) throw err; result = res! },
   }));
   return result!;
 };
@@ -267,8 +270,13 @@ let ensureServiceIsRunning = (): Service => {
     },
     formatMessages: (messages, options) => {
       return new Promise((resolve, reject) =>
-        service.formatMessages('formatMessages', refs, messages, options, (err, res) =>
-          err ? reject(err) : resolve(res!)));
+        service.formatMessages({
+          callName: 'formatMessages',
+          refs,
+          messages,
+          options,
+          callback: (err, res) => err ? reject(err) : resolve(res!),
+        }));
     },
   };
   return longLivedService;

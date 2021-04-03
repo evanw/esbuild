@@ -400,13 +400,13 @@ export interface StreamService {
     callback: (err: Error | null, res: types.TransformResult | null) => void,
   ): void;
 
-  formatMessages(
+  formatMessages(args: {
     callName: string,
     refs: Refs | null,
     messages: types.PartialMessage[],
     options: types.FormatMessagesOptions,
     callback: (err: Error | null, res: string[] | null) => void,
-  ): void;
+  }): void;
 }
 
 // This can't use any promises in the main execution flow because it must work
@@ -1082,7 +1082,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     start(null);
   };
 
-  let formatMessages: StreamService['formatMessages'] = (callName, refs, messages, options, callback) => {
+  let formatMessages: StreamService['formatMessages'] = ({ callName, refs, messages, options, callback }) => {
     let result = sanitizeMessages(messages, 'messages', null);
     if (!options) throw new Error(`Missing second argument in ${callName}() call`);
     let keys: OptionKeys = {};
