@@ -144,9 +144,14 @@ export let buildSync: typeof types.buildSync = (options: types.BuildOptions): an
   }
 
   let result: types.BuildResult;
-  runServiceSync(service => service.buildOrServe('buildSync', null, null, options, isTTY(), defaultWD, (err, res) => {
-    if (err) throw err;
-    result = res as types.BuildResult;
+  runServiceSync(service => service.buildOrServe({
+    callName: 'buildSync',
+    refs: null,
+    serveOptions: null,
+    options,
+    isTTY: isTTY(),
+    defaultWD,
+    callback: (err, res) => { if (err) throw err; result = res as types.BuildResult },
   }));
   return result!;
 };
@@ -252,12 +257,14 @@ let ensureServiceIsRunning = (): Service => {
   longLivedService = {
     build: (options: types.BuildOptions): Promise<any> => {
       return new Promise<types.BuildResult>((resolve, reject) => {
-        service.buildOrServe('build', refs, null, options, isTTY(), defaultWD, (err, res) => {
-          if (err) {
-            reject(err)
-          } else {
-            resolve(res as types.BuildResult);
-          }
+        service.buildOrServe({
+          callName: 'build',
+          refs,
+          serveOptions: null,
+          options,
+          isTTY: isTTY(),
+          defaultWD,
+          callback: (err, res) => err ? reject(err) : resolve(res as types.BuildResult),
         })
       })
     },
@@ -265,12 +272,13 @@ let ensureServiceIsRunning = (): Service => {
       if (serveOptions === null || typeof serveOptions !== 'object')
         throw new Error('The first argument must be an object')
       return new Promise((resolve, reject) =>
-        service.buildOrServe('serve', refs, serveOptions, buildOptions, isTTY(), defaultWD, (err, res) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(res as types.ServeResult);
-          }
+        service.buildOrServe({
+          callName: 'serve',
+          refs,
+          serveOptions,
+          options: buildOptions,
+          isTTY: isTTY(),
+          defaultWD, callback: (err, res) => err ? reject(err) : resolve(res as types.ServeResult),
         }))
     },
     transform: (input, options) => {

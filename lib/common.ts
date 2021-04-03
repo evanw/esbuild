@@ -380,7 +380,7 @@ export interface Refs {
 }
 
 export interface StreamService {
-  buildOrServe(
+  buildOrServe(args: {
     callName: string,
     refs: Refs | null,
     serveOptions: types.ServeOptions | null,
@@ -388,7 +388,7 @@ export interface StreamService {
     isTTY: boolean,
     defaultWD: string,
     callback: (err: Error | null, res: types.BuildResult | types.ServeResult | null) => void,
-  ): void;
+  }): void;
 
   transform(args: {
     callName: string,
@@ -819,7 +819,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     };
   };
 
-  let buildOrServe: StreamService['buildOrServe'] = (callName, callerRefs, serveOptions, options, isTTY, defaultWD, callback) => {
+  let buildOrServe: StreamService['buildOrServe'] = ({ callName, refs: callerRefs, serveOptions, options, isTTY, defaultWD, callback }) => {
     let pluginRefs: Refs | undefined;
     const details = createObjectStash();
     const logLevelDefault = 'warning';

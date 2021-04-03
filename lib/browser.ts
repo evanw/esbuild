@@ -109,8 +109,15 @@ const startRunningService = async (wasmURL: string, useWorker: boolean): Promise
   longLivedService = {
     build: (options: types.BuildOptions): Promise<any> =>
       new Promise<types.BuildResult>((resolve, reject) =>
-        service.buildOrServe('build', null, null, options, false, '/', (err, res) =>
-          err ? reject(err) : resolve(res as types.BuildResult))),
+        service.buildOrServe({
+          callName: 'build',
+          refs: null,
+          serveOptions: null,
+          options,
+          isTTY: false,
+          defaultWD: '/',
+          callback: (err, res) => err ? reject(err) : resolve(res as types.BuildResult),
+        })),
     transform: (input, options) =>
       new Promise((resolve, reject) =>
         service.transform({
