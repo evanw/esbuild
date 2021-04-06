@@ -1118,10 +1118,6 @@ function __get_x__() {
 }`, ReplaceAll)
 }
 
-func TestLateDeclareLazyJS(t *testing.T) {
-	expectFixture(t, "late-declare.lazy.js", ReplaceAll)
-}
-
 func TestDebug(t *testing.T) {
 	debugPrinted(t, `
 const { v4: uuidv4 } = require('uuid')
