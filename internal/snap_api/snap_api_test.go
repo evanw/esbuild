@@ -204,6 +204,45 @@ function __get_obj__() {
 		},
 	)
 }
+
+func TestShouldRewriteModule(t *testing.T) {
+	snapApiSuite.expectBuild(t, built{
+		shouldRewriteModule: func(filePath string) bool {
+			return filePath != ProjectBaseDir[1:]+"/foo.js"
+		},
+		files: map[string]string{
+			ProjectBaseDir + "/foo.js": `var fs = require('fs')`,
+			ProjectBaseDir + "/bar.js": `var path = require('path')`,
+			ProjectBaseDir + "/entry.js": `
+exports.foo = require('./foo')
+exports.bar = require('./bar')
+`,
+		},
+		entryPoints: []string{ProjectBaseDir + "/entry.js"},
+	},
+		buildResult{
+			files: map[string]string{
+				`dev/foo.js`: `
+__commonJS["./foo.js"] = function(exports2, module2, __filename, __dirname, require) {
+  var fs = require("fs");
+};`,
+				`dev/bar.js`: `
+__commonJS["./bar.js"] = function(exports2, module2, __filename, __dirname, require) {
+let path;
+function __get_path__() {
+  return path = path || (require("path"))
+}
+};`,
+				`dev/entry.js`: `
+__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+  Object.defineProperty(exports, "foo", { get: () => require("./foo.js") });
+  Object.defineProperty(exports, "bar", { get: () => require("./bar.js") });
+};`,
+			},
+		},
+	)
+}
+
 func TestDebug(t *testing.T) {
 	snapApiSuite.debugBuild(t, built{
 		files: map[string]string{

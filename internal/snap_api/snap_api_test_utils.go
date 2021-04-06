@@ -14,7 +14,8 @@ import (
 type built struct {
 	files                map[string]string
 	entryPoints          []string
-	shouldReplaceRequire func(string) bool
+	shouldReplaceRequire api.ShouldReplaceRequirePredicate
+	shouldRewriteModule  api.ShouldRewriteModulePredicate
 }
 
 type buildResult struct {
@@ -39,7 +40,7 @@ func trimFirstLine(s string) string {
 
 const ProjectBaseDir = "/dev"
 
-func replaceAll(string) bool  { return true }
+func replaceAll(string) bool { return true }
 
 func assertEqual(t *testing.T, key string, a interface{}, b interface{}) {
 	t.Helper()
@@ -123,6 +124,7 @@ func (s *suite) build(args built) buildResult {
 		Snapshot: &api.SnapshotOptions{
 			CreateSnapshot:       true,
 			ShouldReplaceRequire: shouldReplaceRequire,
+			ShouldRewriteModule:  args.shouldRewriteModule,
 			AbsBasedir:           ProjectBaseDir,
 		},
 		FS: fs,

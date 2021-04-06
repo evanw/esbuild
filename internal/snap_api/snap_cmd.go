@@ -13,10 +13,12 @@ Usage:
   snapshot [options] entry point
 
 Options:
-  --outfile=...   The output file
-  --metafile=...  Write metadata about the build to a JSON file
-  --basedir=...   The full path project root relative to which modules are resolved 
-  --deferred=...  Comma separated list of relative paths to defer
+  --outfile=...    The output file
+  --metafile=...   Write metadata about the build to a JSON file
+  --basedir=...    The full path project root relative to which modules are resolved 
+  --deferred=...   Comma separated list of relative paths to defer
+  --norewrite=...  Comma separated list of relative paths to files we should not rewrite
+                   which are also automatically deferred
 
 Examples:
   snapshot entry_point.js --outfile=out.js --metafile: meta.json --basedir /dev/foo/snap --deferred='./foo,./bar'
@@ -28,12 +30,13 @@ type SnapCmdArgs struct {
 	Basedir    string
 	Metafile   string
 	Deferred   []string
+	Norewrite  []string
 }
 
 type ProcessCmdArgs = func(args *SnapCmdArgs) api.BuildResult
 
-func extractDeferred(deferred string) []string {
-	return strings.Split(deferred, ",")
+func extractArray(arr string) []string {
+	return strings.Split(arr, ",")
 }
 
 func SnapCmd(processArgs ProcessCmdArgs) {
@@ -61,8 +64,12 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 
 		case strings.HasPrefix(arg, "--basedir="):
 			cmdArgs.Basedir = arg[len("--basedir="):]
+
 		case strings.HasPrefix(arg, "--deferred="):
-			cmdArgs.Deferred = extractDeferred(arg[len("--deferred="):])
+			cmdArgs.Deferred = extractArray(arg[len("--deferred="):])
+
+		case strings.HasPrefix(arg, "--norewrite="):
+			cmdArgs.Norewrite = extractArray(arg[len("--norewrite="):])
 
 		case !strings.HasPrefix(arg, "-"):
 			cmdArgs.EntryPoint = arg

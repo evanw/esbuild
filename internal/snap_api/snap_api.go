@@ -24,9 +24,11 @@ func IsExternalModule(platform api.Platform, external []string) api.ShouldReplac
 func CreateShouldReplaceRequire(
 	platform api.Platform,
 	external []string,
-	replaceRequire api.ShouldReplaceRequirePredicate, ) api.ShouldReplaceRequirePredicate {
+	replaceRequire api.ShouldReplaceRequirePredicate,
+	rewriteModule api.ShouldRewriteModulePredicate,
+) api.ShouldReplaceRequirePredicate {
 	isExternal := IsExternalModule(platform, external)
 	return func(mdl string) bool {
-		return isExternal(mdl) || replaceRequire(mdl)
+		return isExternal(mdl) || replaceRequire(mdl) || !rewriteModule(mdl)
 	}
 }
