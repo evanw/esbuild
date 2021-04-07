@@ -80,6 +80,44 @@
     }),
   )
 
+  // Test coverage for a special JSX error message
+  tests.push(
+    test(['example.jsx', '--outfile=node.js'], {
+      'example.jsx': `let button = <Button content="some so-called \\"button text\\"" />`,
+    }, {
+      expectedStderr: ` > example.jsx:1:58: error: Unexpected backslash in JSX element
+    1 │ let button = <Button content="some so-called \\"button text\\"" />
+      ╵                                                           ^
+   example.jsx:1:45: note: JSX attributes use XML-style escapes instead of JavaScript-style escapes
+    1 │ let button = <Button content="some so-called \\"button text\\"" />
+      │                                              ~~
+      ╵                                              &quot;
+   example.jsx:1:29: note: Consider using a JavaScript string inside {...} instead of a JSX attribute
+    1 │ let button = <Button content="some so-called \\"button text\\"" />
+      │                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      ╵                              {"some so-called \\"button text\\""}
+
+`,
+    }),
+    test(['example.jsx', '--outfile=node.js'], {
+      'example.jsx': `let button = <Button content='some so-called \\'button text\\'' />`,
+    }, {
+      expectedStderr: ` > example.jsx:1:58: error: Unexpected backslash in JSX element
+    1 │ let button = <Button content='some so-called \\'button text\\'' />
+      ╵                                                           ^
+   example.jsx:1:45: note: JSX attributes use XML-style escapes instead of JavaScript-style escapes
+    1 │ let button = <Button content='some so-called \\'button text\\'' />
+      │                                              ~~
+      ╵                                              &apos;
+   example.jsx:1:29: note: Consider using a JavaScript string inside {...} instead of a JSX attribute
+    1 │ let button = <Button content='some so-called \\'button text\\'' />
+      │                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      ╵                              {'some so-called \\'button text\\''}
+
+`,
+    }),
+  )
+
   // Tests for symlinks
   //
   // Note: These are disabled on Windows because they fail when run with GitHub

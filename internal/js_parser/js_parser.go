@@ -4036,6 +4036,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 	}
 
 	// Parse attributes
+	var previousStringWithBackslashLoc logger.Loc
 	properties := []js_ast.Property{}
 	if startTag != nil {
 	parseAttributes:
@@ -4056,7 +4057,11 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 					// Use NextInsideJSXElement() not Next() so we can parse a JSX-style string literal
 					p.lexer.NextInsideJSXElement()
 					if p.lexer.Token == js_lexer.TStringLiteral {
-						value = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral}}
+						stringLoc := p.lexer.Loc()
+						if p.lexer.PreviousBackslashQuoteInJSX.Loc.Start > stringLoc.Start {
+							previousStringWithBackslashLoc = stringLoc
+						}
+						value = js_ast.Expr{Loc: stringLoc, Data: &js_ast.EString{Value: p.lexer.StringLiteral}}
 						p.lexer.NextInsideJSXElement()
 					} else {
 						// Use Expect() not ExpectInsideJSXElement() so we can parse expression tokens
@@ -4089,6 +4094,50 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 				break parseAttributes
 			}
 		}
+	}
+
+	// People sometimes try to use the output of "JSON.stringify()" as a JSX
+	// attribute when automatically-generating JSX code. Doing so is incorrect
+	// because JSX strings work like XML instead of like JS (since JSX is XML-in-
+	// JS). Specifically, using a backslash before a quote does not cause it to
+	// be escaped:
+	//
+	//   JSX ends the "content" attribute here and sets "content" to 'some so-called \\'
+	//                                          v
+	//         <Button content="some so-called \"button text\"" />
+	//                                                      ^
+	//       There is no "=" after the JSX attribute "text", so we expect a ">"
+	//
+	// This code special-cases this error to provide a less obscure error message.
+	if p.lexer.Token == js_lexer.TSyntaxError && p.lexer.Raw() == "\\" && previousStringWithBackslashLoc.Start > 0 {
+		msg := logger.Msg{Kind: logger.Error, Data: logger.RangeData(&p.source, p.lexer.Range(),
+			"Unexpected backslash in JSX element")}
+
+		// Option 1: Suggest using an XML escape
+		jsEscape := p.source.TextForRange(p.lexer.PreviousBackslashQuoteInJSX)
+		xmlEscape := ""
+		if jsEscape == "\\\"" {
+			xmlEscape = "&quot;"
+		} else if jsEscape == "\\'" {
+			xmlEscape = "&apos;"
+		}
+		if xmlEscape != "" {
+			data := logger.RangeData(&p.source, p.lexer.PreviousBackslashQuoteInJSX,
+				"JSX attributes use XML-style escapes instead of JavaScript-style escapes")
+			data.Location.Suggestion = xmlEscape
+			msg.Notes = append(msg.Notes, data)
+		}
+
+		// Option 2: Suggest using a JavaScript string
+		if stringRange := p.source.RangeOfString(previousStringWithBackslashLoc); stringRange.Len > 0 {
+			data := logger.RangeData(&p.source, stringRange,
+				"Consider using a JavaScript string inside {...} instead of a JSX attribute")
+			data.Location.Suggestion = fmt.Sprintf("{%s}", p.source.TextForRange(stringRange))
+			msg.Notes = append(msg.Notes, data)
+		}
+
+		p.log.AddMsg(msg)
+		panic(js_lexer.LexerPanic{})
 	}
 
 	// A slash here is a self-closing element

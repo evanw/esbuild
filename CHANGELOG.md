@@ -10,6 +10,42 @@
 
     Starting with this release, esbuild will now allow `node_modules` directories to take precedence over `NODE_PATH` directories. This is a deviation from the published algorithm.
 
+* Provide a better error message for incorrectly-quoted JSX attributes ([959](https://github.com/evanw/esbuild/issues/959), [#1115](https://github.com/evanw/esbuild/issues/1115))
+
+    People sometimes try to use the output of `JSON.stringify()` as a JSX attribute when automatically-generating JSX code. Doing so is incorrect because JSX strings work like XML instead of like JS (since JSX is XML-in-JS). Specifically, using a backslash before a quote does not cause it to be escaped:
+
+    ```
+           JSX ends the "content" attribute here and sets "content" to 'some so-called \\'
+                                                  v
+    let button = <Button content="some so-called \"button text\"" />
+                                                              ^
+               There is no "=" after the JSX attribute "text", so we expect a ">"
+    ```
+
+    This has come up twice now so it could be worth having a dedicated error message. Previously esbuild had a generic syntax error like this:
+
+    ```
+     > example.jsx:1:58: error: Expected ">" but found "\\"
+        1 │ let button = <Button content="some so-called \"button text\"" />
+          ╵                                                           ^
+    ```
+
+    Now esbuild will provide more information if it detects this case:
+
+    ```
+     > example.jsx:1:58: error: Unexpected backslash in JSX element
+        1 │ let button = <Button content="some so-called \"button text\"" />
+          ╵                                                           ^
+       example.jsx:1:45: note: JSX attributes use XML-style escapes instead of JavaScript-style escapes
+        1 │ let button = <Button content="some so-called \"button text\"" />
+          │                                              ~~
+          ╵                                              &quot;
+       example.jsx:1:29: note: Consider using a JavaScript string inside {...} instead of a JSX attribute
+        1 │ let button = <Button content="some so-called \"button text\"" />
+          │                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+          ╵                              {"some so-called \"button text\""}
+    ```
+
 ## 0.11.5
 
 * Add support for the `override` keyword in TypeScript 4.3 ([#1105](https://github.com/evanw/esbuild/pull/1105))
