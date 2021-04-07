@@ -40,7 +40,8 @@ func _TestRunSnap(t *testing.T) {
 
 		// write out a JSON file with metadata about the build
 		// https://esbuild.github.io/api/#metafile
-		Metafile: "meta_snap.json",
+		// TODO(rebase): what option do we use now?
+		// Metafile: "meta_snap.json",
 
 		// Applies when multiple entry points are used.
 		// https://esbuild.github.io/api/#outdir
@@ -116,19 +117,11 @@ func _TestRunSnap(t *testing.T) {
 		JSXFactory:  "",
 		JSXFragment: "",
 
-		// Temporal Dead Zone related perf tweak (var vs let)
-		// https://esbuild.github.io/api/#avoid-tdz
-		AvoidTDZ: false,
-
 		// https://esbuild.github.io/api/#charset
 		Charset: 0,
 
 		// https://esbuild.github.io/api/#color
 		Color: 0,
-
-		// https://esbuild.github.io/api/#error-limit
-		ErrorLimit: 0,
-
 
 		// additional package.json fields to try when resolving a package
 		// https://esbuild.github.io/api/#main-fields
