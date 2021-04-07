@@ -88,11 +88,11 @@
       expectedStderr: ` > example.jsx:1:58: error: Unexpected backslash in JSX element
     1 │ let button = <Button content="some so-called \\"button text\\"" />
       ╵                                                           ^
-   example.jsx:1:45: note: JSX attributes use XML-style escapes instead of JavaScript-style escapes
+   example.jsx:1:45: note: Quoted JSX attributes use XML-style escapes instead of JavaScript-style escapes
     1 │ let button = <Button content="some so-called \\"button text\\"" />
       │                                              ~~
       ╵                                              &quot;
-   example.jsx:1:29: note: Consider using a JavaScript string inside {...} instead of a JSX attribute
+   example.jsx:1:29: note: Consider using a JavaScript string inside {...} instead of a quoted JSX attribute
     1 │ let button = <Button content="some so-called \\"button text\\"" />
       │                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       ╵                              {"some so-called \\"button text\\""}
@@ -105,11 +105,11 @@
       expectedStderr: ` > example.jsx:1:58: error: Unexpected backslash in JSX element
     1 │ let button = <Button content='some so-called \\'button text\\'' />
       ╵                                                           ^
-   example.jsx:1:45: note: JSX attributes use XML-style escapes instead of JavaScript-style escapes
+   example.jsx:1:45: note: Quoted JSX attributes use XML-style escapes instead of JavaScript-style escapes
     1 │ let button = <Button content='some so-called \\'button text\\'' />
       │                                              ~~
       ╵                                              &apos;
-   example.jsx:1:29: note: Consider using a JavaScript string inside {...} instead of a JSX attribute
+   example.jsx:1:29: note: Consider using a JavaScript string inside {...} instead of a quoted JSX attribute
     1 │ let button = <Button content='some so-called \\'button text\\'' />
       │                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       ╵                              {'some so-called \\'button text\\''}

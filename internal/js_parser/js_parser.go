@@ -4123,7 +4123,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 		}
 		if xmlEscape != "" {
 			data := logger.RangeData(&p.source, p.lexer.PreviousBackslashQuoteInJSX,
-				"JSX attributes use XML-style escapes instead of JavaScript-style escapes")
+				"Quoted JSX attributes use XML-style escapes instead of JavaScript-style escapes")
 			data.Location.Suggestion = xmlEscape
 			msg.Notes = append(msg.Notes, data)
 		}
@@ -4131,7 +4131,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 		// Option 2: Suggest using a JavaScript string
 		if stringRange := p.source.RangeOfString(previousStringWithBackslashLoc); stringRange.Len > 0 {
 			data := logger.RangeData(&p.source, stringRange,
-				"Consider using a JavaScript string inside {...} instead of a JSX attribute")
+				"Consider using a JavaScript string inside {...} instead of a quoted JSX attribute")
 			data.Location.Suggestion = fmt.Sprintf("{%s}", p.source.TextForRange(stringRange))
 			msg.Notes = append(msg.Notes, data)
 		}

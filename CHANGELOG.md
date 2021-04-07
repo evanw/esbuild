@@ -6,7 +6,7 @@
 
     This release removes an incorrect substitution rule in esbuild's peephole optimizer, which is run when minification is enabled. The incorrect rule transformed `if(a && falsy)` into `if(a, falsy)` which is equivalent if `falsy` has no side effects (such as the literal `false`). However, the rule didn't check that the expression is side-effect free first which could result in miscompiled code. I have removed the rule instead of modifying it to check for the lack of side effects first because while the code is slightly smaller, it may also be more expensive at run-time which is undesirable. The size savings are also very insignificant.
 
-* Change how `NODE_PATH` works ([#1117](https://github.com/evanw/esbuild/issues/1117))
+* Change how `NODE_PATH` works to match node ([#1117](https://github.com/evanw/esbuild/issues/1117))
 
     Node searches for packages in nearby `node_modules` directories, but it also allows you to inject extra directories to search for packages in using the `NODE_PATH` environment variable. This is supported when using esbuild's CLI as well as via the `nodePaths` option when using esbuild's API.
 
@@ -18,15 +18,15 @@
 
     People sometimes try to use the output of `JSON.stringify()` as a JSX attribute when automatically-generating JSX code. Doing so is incorrect because JSX strings work like XML instead of like JS (since JSX is XML-in-JS). Specifically, using a backslash before a quote does not cause it to be escaped:
 
-    ```
-           JSX ends the "content" attribute here and sets "content" to 'some so-called \\'
-                                                  v
+    ```jsx
+    //     JSX ends the "content" attribute here and sets "content" to 'some so-called \\'
+    //                                            v
     let button = <Button content="some so-called \"button text\"" />
-                                                              ^
-               There is no "=" after the JSX attribute "text", so we expect a ">"
+    //                                                        ^
+    //         There is no "=" after the JSX attribute "text", so we expect a ">"
     ```
 
-    This has come up twice now so it could be worth having a dedicated error message. Previously esbuild had a generic syntax error like this:
+    It's not just esbuild; Babel and TypeScript also treat this as a syntax error. All of these JSX parsers are just following [the JSX specification](https://facebook.github.io/jsx/). This has come up twice now so it could be worth having a dedicated error message. Previously esbuild had a generic syntax error like this:
 
     ```
      > example.jsx:1:58: error: Expected ">" but found "\\"
@@ -40,11 +40,11 @@
      > example.jsx:1:58: error: Unexpected backslash in JSX element
         1 │ let button = <Button content="some so-called \"button text\"" />
           ╵                                                           ^
-       example.jsx:1:45: note: JSX attributes use XML-style escapes instead of JavaScript-style escapes
+       example.jsx:1:45: note: Quoted JSX attributes use XML-style escapes instead of JavaScript-style escapes
         1 │ let button = <Button content="some so-called \"button text\"" />
           │                                              ~~
           ╵                                              &quot;
-       example.jsx:1:29: note: Consider using a JavaScript string inside {...} instead of a JSX attribute
+       example.jsx:1:29: note: Consider using a JavaScript string inside {...} instead of a quoted JSX attribute
         1 │ let button = <Button content="some so-called \"button text\"" />
           │                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
           ╵                              {"some so-called \"button text\""}
