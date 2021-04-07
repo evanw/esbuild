@@ -53,10 +53,10 @@ var RewritingNameForSymbolOpts = nameForSymbolOpts{
 }
 
 // If the code doesn't have a commonJS wrapper then both of the below
-// have  Ref { OuterIndex: 0, InnerIndex: 0 }, which means they arent' defined.
+// have  Ref { SourceIndex: 0, InnerIndex: 0 }, which means they arent' defined.
 func isCommonJS(dirnameRef js_ast.Ref, filenameRef js_ast.Ref) bool {
-	return dirnameRef.OuterIndex+dirnameRef.InnerIndex+
-		filenameRef.OuterIndex+filenameRef.InnerIndex > 0
+	return dirnameRef.SourceIndex+dirnameRef.InnerIndex+
+		filenameRef.SourceIndex+filenameRef.InnerIndex > 0
 }
 
 func NewSnapRenamer(symbols js_ast.SymbolMap,

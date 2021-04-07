@@ -25,7 +25,7 @@ func getGlobalSymbols(symbols *js_ast.SymbolMap) GlobalSymbols {
 	// will run as a service in the future. In that case multiple bundles with
 	// different symbol setups would be created in the same process .
 	globalSymbols := GlobalSymbols{}
-	for _, outer := range symbols.Outer {
+	for _, outer := range symbols.SymbolsForSource {
 		for _, ref := range outer {
 			// Globals aren't declared anywhere and thus are unbound
 			if ref.Kind == js_ast.SymbolUnbound {
