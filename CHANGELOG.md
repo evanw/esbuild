@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.6
 
 * Fix an incorrect minification transformation ([#1121](https://github.com/evanw/esbuild/issues/1121))
 
