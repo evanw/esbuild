@@ -250,6 +250,10 @@ type Options struct {
 	ExcludeSourcesContent bool
 
 	Stdin *StdinInfo
+
+	// Snapshot
+	CreateSnapshot     bool
+	SnapshotAbsBaseDir string
 }
 
 type PathPlaceholder uint8
