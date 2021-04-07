@@ -84,7 +84,8 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 
 		// write out a JSON file with metadata about the build
 		// https://esbuild.github.io/api/#metafile
-		Metafile: metafile,
+		// TODO(rebase): what option do we use now?
+		// Metafile: metafile,
 
 		// Applies when one entry point is used.
 		// https://esbuild.github.io/api/#outfile
@@ -162,18 +163,11 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		JSXFactory:  "",
 		JSXFragment: "",
 
-		// Temporal Dead Zone related perf tweak (var vs let)
-		// https://esbuild.github.io/api/#avoid-tdz
-		AvoidTDZ: false,
-
 		// https://esbuild.github.io/api/#charset
 		Charset: 0,
 
 		// https://esbuild.github.io/api/#color
 		Color: 0,
-
-		// https://esbuild.github.io/api/#error-limit
-		ErrorLimit: 0,
 
 		// additional package.json fields to try when resolving a package
 		// https://esbuild.github.io/api/#main-fields
