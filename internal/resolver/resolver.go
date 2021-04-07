@@ -1432,14 +1432,6 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 		}
 	}
 
-	// Then check the global "NODE_PATH" environment variable
-	for _, absDir := range r.options.AbsNodePaths {
-		absPath := r.fs.Join(absDir, path)
-		if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath, kind); ok {
-			return absolute, true, diffCase, DebugMeta{}
-		}
-	}
-
 	esmPackageName, esmPackageSubpath, esmOK := esmParsePackageName(path)
 	if r.debugLogs != nil && esmOK {
 		r.debugLogs.addNote(fmt.Sprintf("Parsed package name %q and package subpath %q", esmPackageName, esmPackageSubpath))
@@ -1612,6 +1604,20 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 		dirInfo = dirInfo.parent
 		if dirInfo == nil {
 			break
+		}
+	}
+
+	// Then check the global "NODE_PATH" environment variable.
+	//
+	// Note: This is a deviation from node's published module resolution
+	// algorithm. The published algorithm says "NODE_PATH" must take precedence
+	// over "node_modules" paths, but it appears that the published algorithm is
+	// incorrect. We follow node's actual behavior instead of following the
+	// published algorithm. See also: https://github.com/nodejs/node/issues/38128.
+	for _, absDir := range r.options.AbsNodePaths {
+		absPath := r.fs.Join(absDir, path)
+		if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath, kind); ok {
+			return absolute, true, diffCase, DebugMeta{}
 		}
 	}
 

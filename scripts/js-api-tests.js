@@ -148,6 +148,34 @@ let buildTests = {
     assert.strictEqual(require(outfile).x, 123)
   },
 
+  // A local "node_modules" path should be preferred over "NODE_PATH".
+  // See: https://github.com/evanw/esbuild/issues/1117
+  async nodePathsLocalPreferredTestIssue1117({ esbuild, testDir }) {
+    let srcDir = path.join(testDir, 'src');
+    let srcOtherDir = path.join(testDir, 'src', 'node_modules', 'other');
+    let pkgDir = path.join(testDir, 'pkg');
+    let outfile = path.join(testDir, 'out.js');
+    let entry = path.join(srcDir, 'entry.js');
+    let srcOther = path.join(srcOtherDir, 'index.js');
+    let pkgOther = path.join(pkgDir, 'other.js');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.mkdirSync(srcOtherDir, { recursive: true });
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(entry, `export {x} from 'other'`);
+    fs.writeFileSync(srcOther, `export let x = 234`);
+    fs.writeFileSync(pkgOther, `export let x = 123`);
+
+    await esbuild.build({
+      entryPoints: [entry],
+      outfile,
+      bundle: true,
+      nodePaths: [pkgDir],
+      format: 'cjs',
+    })
+
+    assert.strictEqual(require(outfile).x, 234)
+  },
+
   async es6_to_cjs({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
