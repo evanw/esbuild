@@ -2677,7 +2677,7 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 		expectPrintedMangle(t, "y(x && "+value+")", "y(x && "+value+");\n")
 		expectPrintedMangle(t, "y(x || "+value+")", "y(x || "+value+");\n")
 
-		expectPrintedMangle(t, "y(!(x && "+value+"))", "y((x, true));\n")
+		expectPrintedMangle(t, "y(!(x && "+value+"))", "y(!(x && "+value+"));\n")
 		expectPrintedMangle(t, "y(!(x || "+value+"))", "y(!x);\n")
 
 		expectPrintedMangle(t, "if (x && "+value+") y", "x;\n")
@@ -2698,7 +2698,7 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 		expectPrintedMangle(t, "y(x || "+value+")", "y(x || "+value+");\n")
 
 		expectPrintedMangle(t, "y(!(x && "+value+"))", "y(!x);\n")
-		expectPrintedMangle(t, "y(!(x || "+value+"))", "y((x, false));\n")
+		expectPrintedMangle(t, "y(!(x || "+value+"))", "y(!(x || "+value+"));\n")
 
 		expectPrintedMangle(t, "if (x && "+value+") y", "x && y;\n")
 		expectPrintedMangle(t, "if (x || "+value+") y", "x, y;\n")
@@ -2720,7 +2720,7 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 		expectPrintedMangle(t, "y(x && "+value+")", "y(x && "+value+");\n")
 		expectPrintedMangle(t, "y(x || "+value+")", "y(x || "+value+");\n")
 
-		expectPrintedMangle(t, "y(!(x && "+value+"))", "y((x, !"+value+"));\n")
+		expectPrintedMangle(t, "y(!(x && "+value+"))", "y(!(x && "+value+"));\n")
 		expectPrintedMangle(t, "y(!(x || "+value+"))", "y(!(x || "+value+"));\n")
 
 		expectPrintedMangle(t, "if (x || "+value+") y", "(x || "+value+") && y;\n")
@@ -2735,7 +2735,7 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 		expectPrintedMangle(t, "y(x && "+value+")", "y(x && "+value+");\n")
 		expectPrintedMangle(t, "y(x || "+value+")", "y(x || "+value+");\n")
 
-		expectPrintedMangle(t, "y(!(x || "+value+"))", "y((x, !"+value+"));\n")
+		expectPrintedMangle(t, "y(!(x || "+value+"))", "y(!(x || "+value+"));\n")
 		expectPrintedMangle(t, "y(!(x && "+value+"))", "y(!(x && "+value+"));\n")
 
 		expectPrintedMangle(t, "if (x && "+value+") y", "x && "+value+" && y;\n")

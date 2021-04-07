@@ -9536,25 +9536,15 @@ func (p *parser) simplifyBooleanExpr(expr js_ast.Expr) js_ast.Expr {
 	case *js_ast.EBinary:
 		switch e.Op {
 		case js_ast.BinOpLogicalAnd:
-			if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Right.Data); ok {
-				if !boolean {
-					// "if (anything && falsyWithSideEffects)" => "if (anything, falsyWithSideEffects)"
-					e.Op = js_ast.BinOpComma
-				} else if sideEffects == noSideEffects {
-					// "if (anything && truthyNoSideEffects)" => "if (anything)"
-					return e.Left
-				}
+			if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Right.Data); ok && boolean && sideEffects == noSideEffects {
+				// "if (anything && truthyNoSideEffects)" => "if (anything)"
+				return e.Left
 			}
 
 		case js_ast.BinOpLogicalOr:
-			if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Right.Data); ok {
-				if boolean {
-					// "if (anything || truthyWithSideEffects)" => "if (anything, truthyWithSideEffects)"
-					e.Op = js_ast.BinOpComma
-				} else if sideEffects == noSideEffects {
-					// "if (anything || falsyNoSideEffects)" => "if (anything)"
-					return e.Left
-				}
+			if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Right.Data); ok && !boolean && sideEffects == noSideEffects {
+				// "if (anything || falsyNoSideEffects)" => "if (anything)"
+				return e.Left
 			}
 		}
 	}
