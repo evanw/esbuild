@@ -1,4 +1,4 @@
-package js_printer
+package snap_printer
 
 import (
 	"bytes"
@@ -10,82 +10,25 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
-	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
+	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
+	"github.com/evanw/esbuild/internal/snap_renamer"
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
 var positiveInfinity = math.Inf(1)
 var negativeInfinity = math.Inf(-1)
 
-// Coordinates in source maps are stored using relative offsets for size
-// reasons. When joining together chunks of a source map that were emitted
-// in parallel for different parts of a file, we need to fix up the first
-// segment of each chunk to be relative to the end of the previous chunk.
-type SourceMapState struct {
-	// This isn't stored in the source map. It's only used by the bundler to join
-	// source map chunks together correctly.
-	GeneratedLine int
+type SourceMapState = js_printer.SourceMapState
+type PrintOptions = js_printer.Options
 
-	// These are stored in the source map in VLQ format.
-	GeneratedColumn int
-	SourceIndex     int
-	OriginalLine    int
-	OriginalColumn  int
-}
+type SourceMapChunk = js_printer.SourceMapChunk
+type PrintResult = js_printer.PrintResult
 
-// Source map chunks are computed in parallel for speed. Each chunk is relative
-// to the zero state instead of being relative to the end state of the previous
-// chunk, since it's impossible to know the end state of the previous chunk in
-// a parallel computation.
-//
-// After all chunks are computed, they are joined together in a second pass.
-// This rewrites the first mapping in each chunk to be relative to the end
-// state of the previous chunk.
-func AppendSourceMapChunk(j *helpers.Joiner, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) {
-	// Handle line breaks in between this mapping and the previous one
-	if startState.GeneratedLine != 0 {
-		j.AddBytes(bytes.Repeat([]byte{';'}, startState.GeneratedLine))
-		prevEndState.GeneratedColumn = 0
-	}
-
-	// Skip past any leading semicolons, which indicate line breaks
-	semicolons := 0
-	for sourceMap[semicolons] == ';' {
-		semicolons++
-	}
-	if semicolons > 0 {
-		j.AddBytes(sourceMap[:semicolons])
-		sourceMap = sourceMap[semicolons:]
-		prevEndState.GeneratedColumn = 0
-		startState.GeneratedColumn = 0
-	}
-
-	// Strip off the first mapping from the buffer. The first mapping should be
-	// for the start of the original file (the printer always generates one for
-	// the start of the file).
-	generatedColumn, i := sourcemap.DecodeVLQ(sourceMap, 0)
-	sourceIndex, i := sourcemap.DecodeVLQ(sourceMap, i)
-	originalLine, i := sourcemap.DecodeVLQ(sourceMap, i)
-	originalColumn, i := sourcemap.DecodeVLQ(sourceMap, i)
-	sourceMap = sourceMap[i:]
-
-	// Rewrite the first mapping to be relative to the end state of the previous
-	// chunk. We now know what the end state is because we're in the second pass
-	// where all chunks have already been generated.
-	startState.SourceIndex += sourceIndex
-	startState.GeneratedColumn += generatedColumn
-	startState.OriginalLine += originalLine
-	startState.OriginalColumn += originalColumn
-	j.AddBytes(appendMapping(nil, j.LastByte(), prevEndState, startState))
-
-	// Then append everything after that without modification.
-	j.AddBytes(sourceMap)
-}
+var QuoteIdentifier = js_printer.QuoteIdentifier
 
 func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, currentState SourceMapState) []byte {
 	// Put commas in between mappings
@@ -113,148 +56,11 @@ func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, curre
 }
 
 const hexChars = "0123456789ABCDEF"
-const firstASCII = 0x20
 const lastASCII = 0x7E
 const firstHighSurrogate = 0xD800
 const lastHighSurrogate = 0xDBFF
 const firstLowSurrogate = 0xDC00
 const lastLowSurrogate = 0xDFFF
-
-func canPrintWithoutEscape(c rune, asciiOnly bool) bool {
-	if c <= lastASCII {
-		return c >= firstASCII && c != '\\' && c != '"'
-	} else {
-		return !asciiOnly && c != '\uFEFF' && (c < firstHighSurrogate || c > lastLowSurrogate)
-	}
-}
-
-func QuoteForJSON(text string, asciiOnly bool) []byte {
-	// Estimate the required length
-	lenEstimate := 2
-	for _, c := range text {
-		if canPrintWithoutEscape(c, asciiOnly) {
-			lenEstimate += utf8.RuneLen(c)
-		} else {
-			switch c {
-			case '\b', '\f', '\n', '\r', '\t', '\\', '"':
-				lenEstimate += 2
-			default:
-				if c <= 0xFFFF {
-					lenEstimate += 6
-				} else {
-					lenEstimate += 12
-				}
-			}
-		}
-	}
-
-	// Preallocate the array
-	bytes := make([]byte, 0, lenEstimate)
-	i := 0
-	n := len(text)
-	bytes = append(bytes, '"')
-
-	for i < n {
-		c, width := js_lexer.DecodeWTF8Rune(text[i:])
-
-		// Fast path: a run of characters that don't need escaping
-		if canPrintWithoutEscape(c, asciiOnly) {
-			start := i
-			i += width
-			for i < n {
-				c, width = js_lexer.DecodeWTF8Rune(text[i:])
-				if !canPrintWithoutEscape(c, asciiOnly) {
-					break
-				}
-				i += width
-			}
-			bytes = append(bytes, text[start:i]...)
-			continue
-		}
-
-		switch c {
-		case '\b':
-			bytes = append(bytes, "\\b"...)
-			i++
-
-		case '\f':
-			bytes = append(bytes, "\\f"...)
-			i++
-
-		case '\n':
-			bytes = append(bytes, "\\n"...)
-			i++
-
-		case '\r':
-			bytes = append(bytes, "\\r"...)
-			i++
-
-		case '\t':
-			bytes = append(bytes, "\\t"...)
-			i++
-
-		case '\\':
-			bytes = append(bytes, "\\\\"...)
-			i++
-
-		case '"':
-			bytes = append(bytes, "\\\""...)
-			i++
-
-		default:
-			i += width
-			if c <= 0xFFFF {
-				bytes = append(
-					bytes,
-					'\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15],
-				)
-			} else {
-				c -= 0x10000
-				lo := firstHighSurrogate + ((c >> 10) & 0x3FF)
-				hi := firstLowSurrogate + (c & 0x3FF)
-				bytes = append(
-					bytes,
-					'\\', 'u', hexChars[lo>>12], hexChars[(lo>>8)&15], hexChars[(lo>>4)&15], hexChars[lo&15],
-					'\\', 'u', hexChars[hi>>12], hexChars[(hi>>8)&15], hexChars[(hi>>4)&15], hexChars[hi&15],
-				)
-			}
-		}
-	}
-
-	return append(bytes, '"')
-}
-
-func QuoteIdentifier(js []byte, name string, unsupportedFeatures compat.JSFeature) []byte {
-	isASCII := false
-	asciiStart := 0
-	for i, c := range name {
-		if c >= firstASCII && c <= lastASCII {
-			// Fast path: a run of ASCII characters
-			if !isASCII {
-				isASCII = true
-				asciiStart = i
-			}
-		} else {
-			// Slow path: escape non-ACSII characters
-			if isASCII {
-				js = append(js, name[asciiStart:i]...)
-				isASCII = false
-			}
-			if c <= 0xFFFF {
-				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
-			} else if !unsupportedFeatures.Has(compat.UnicodeEscapes) {
-				js = append(js, fmt.Sprintf("\\u{%X}", c)...)
-			} else {
-				panic("Internal error: Cannot encode identifier: Unicode escapes are unsupported")
-			}
-		}
-	}
-	if isASCII {
-		// Print one final run of ASCII characters
-		js = append(js, name[asciiStart:]...)
-	}
-	return js
-}
 
 func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 	temp := make([]byte, utf8.UTFMax)
@@ -400,9 +206,9 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 
 type printer struct {
 	symbols            js_ast.SymbolMap
-	renamer            renamer.Renamer
+	renamer            snap_renamer.SnapRenamer
 	importRecords      []ast.ImportRecord
-	options            Options
+	options            PrintOptions
 	extractedComments  map[string]bool
 	needsSemicolon     bool
 	js                 []byte
@@ -424,7 +230,7 @@ type printer struct {
 	lastGeneratedUpdate int
 	generatedColumn     int
 	hasPrevState        bool
-	lineOffsetTables    []LineOffsetTable
+	lineOffsetTables    []js_printer.LineOffsetTable
 
 	// This is a workaround for a bug in the popular "source-map" library:
 	// https://github.com/mozilla/source-map/issues/261. The library will
@@ -436,23 +242,19 @@ type printer struct {
 	// to avoid replicating the previous mapping if we don't need to.
 	lineStartsWithMapping     bool
 	coverLinesWithoutMappings bool
-}
 
-type LineOffsetTable struct {
-	byteOffsetToStartOfLine int32
-
-	// The source map specification is very loose and does not specify what
-	// column numbers actually mean. The popular "source-map" library from Mozilla
-	// appears to interpret them as counts of UTF-16 code units, so we generate
-	// those too for compatibility.
 	//
-	// We keep mapping tables around to accelerate conversion from byte offsets
-	// to UTF-16 code unit counts. However, this mapping takes up a lot of memory
-	// and generates a lot of garbage. Since most JavaScript is ASCII and the
-	// mapping for ASCII is 1:1, we avoid creating a table for ASCII-only lines
-	// as an optimization.
-	byteOffsetToFirstNonASCII int32
-	columnsForNonASCII        []int32
+	// For snapshot
+	//
+	shouldReplaceRequire func(string) bool
+	topLevelVars         []TopLevelVar
+	// Keeps track of count of function entries in order to avoid rewriting code
+	// that is already wrapped in a function body.
+	// In order to not count entries into functions that are invoked immediately
+	// this count is decreased whenever such call is encountered.
+	// It does not consider cases in which a function is created and later invoked
+	// at the module level.
+	uninvokedFunctionDepth int8
 }
 
 func (p *printer) print(text string) {
@@ -479,29 +281,7 @@ func (p *printer) addSourceMapping(loc logger.Loc) {
 	}
 	p.prevLoc = loc
 
-	// Binary search to find the line
-	lineOffsetTables := p.lineOffsetTables
-	count := len(lineOffsetTables)
-	originalLine := 0
-	for count > 0 {
-		step := count / 2
-		i := originalLine + step
-		if lineOffsetTables[i].byteOffsetToStartOfLine <= loc.Start {
-			originalLine = i + 1
-			count = count - step - 1
-		} else {
-			count = step
-		}
-	}
-	originalLine--
-
-	// Use the line to compute the column
-	line := &lineOffsetTables[originalLine]
-	originalColumn := int(loc.Start - line.byteOffsetToStartOfLine)
-	if line.columnsForNonASCII != nil && originalColumn >= int(line.byteOffsetToFirstNonASCII) {
-		originalColumn = int(line.columnsForNonASCII[originalColumn-int(line.byteOffsetToFirstNonASCII)])
-	}
-
+	originalLine, originalColumn := js_printer.GetOriginalLoc(&p.lineOffsetTables, loc.Start)
 	p.updateGeneratedLineAndColumn()
 
 	// If this line doesn't start with a mapping and we're about to add a mapping
@@ -574,84 +354,6 @@ func (p *printer) updateGeneratedLineAndColumn() {
 	p.lastGeneratedUpdate = len(p.js)
 }
 
-func GenerateLineOffsetTables(contents string, approximateLineCount int32) []LineOffsetTable {
-	var columnsForNonASCII []int32
-	byteOffsetToFirstNonASCII := int32(0)
-	lineByteOffset := 0
-	columnByteOffset := 0
-	column := int32(0)
-
-	// Preallocate the top-level table using the approximate line count from the lexer
-	lineOffsetTables := make([]LineOffsetTable, 0, approximateLineCount)
-
-	for i, c := range contents {
-		// Mark the start of the next line
-		if column == 0 {
-			lineByteOffset = i
-		}
-
-		// Start the mapping if this character is non-ASCII
-		if c > 0x7F && columnsForNonASCII == nil {
-			columnByteOffset = i - lineByteOffset
-			byteOffsetToFirstNonASCII = int32(columnByteOffset)
-			columnsForNonASCII = []int32{}
-		}
-
-		// Update the per-byte column offsets
-		if columnsForNonASCII != nil {
-			for lineBytesSoFar := i - lineByteOffset; columnByteOffset <= lineBytesSoFar; columnByteOffset++ {
-				columnsForNonASCII = append(columnsForNonASCII, column)
-			}
-		}
-
-		switch c {
-		case '\r', '\n', '\u2028', '\u2029':
-			// Handle Windows-specific "\r\n" newlines
-			if c == '\r' && i+1 < len(contents) && contents[i+1] == '\n' {
-				column++
-				continue
-			}
-
-			lineOffsetTables = append(lineOffsetTables, LineOffsetTable{
-				byteOffsetToStartOfLine:   int32(lineByteOffset),
-				byteOffsetToFirstNonASCII: byteOffsetToFirstNonASCII,
-				columnsForNonASCII:        columnsForNonASCII,
-			})
-			columnByteOffset = 0
-			byteOffsetToFirstNonASCII = 0
-			columnsForNonASCII = nil
-			column = 0
-
-		default:
-			// Mozilla's "source-map" library counts columns using UTF-16 code units
-			if c <= 0xFFFF {
-				column++
-			} else {
-				column += 2
-			}
-		}
-	}
-
-	// Mark the start of the next line
-	if column == 0 {
-		lineByteOffset = len(contents)
-	}
-
-	// Do one last update for the column at the end of the file
-	if columnsForNonASCII != nil {
-		for lineBytesSoFar := len(contents) - lineByteOffset; columnByteOffset <= lineBytesSoFar; columnByteOffset++ {
-			columnsForNonASCII = append(columnsForNonASCII, column)
-		}
-	}
-
-	lineOffsetTables = append(lineOffsetTables, LineOffsetTable{
-		byteOffsetToStartOfLine:   int32(lineByteOffset),
-		byteOffsetToFirstNonASCII: byteOffsetToFirstNonASCII,
-		columnsForNonASCII:        columnsForNonASCII,
-	})
-	return lineOffsetTables
-}
-
 func (p *printer) appendMapping(currentState SourceMapState) {
 	// If the input file had a source map, map all the way back to the original
 	if p.options.InputSourceMap != nil {
@@ -696,12 +398,6 @@ func (p *printer) printSymbol(ref js_ast.Ref) {
 	p.printIdentifier(p.renamer.NameForSymbol(ref))
 }
 
-func CanQuoteIdentifier(name string, unsupportedJSFeatures compat.JSFeature, asciiOnly bool) bool {
-	return js_lexer.IsIdentifier(name) && (!asciiOnly ||
-		!unsupportedJSFeatures.Has(compat.UnicodeEscapes) ||
-		!js_lexer.ContainsNonBMPCodePoint(name))
-}
-
 func (p *printer) canPrintIdentifier(name string) bool {
 	return js_lexer.IsIdentifier(name) && (!p.options.ASCIIOnly ||
 		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
@@ -712,6 +408,11 @@ func (p *printer) canPrintIdentifierUTF16(name []uint16) bool {
 	return js_lexer.IsIdentifierUTF16(name) && (!p.options.ASCIIOnly ||
 		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
 		!js_lexer.ContainsNonBMPCodePointUTF16(name))
+}
+
+func (p *printer) printIdentifierForbidDefer(ref js_ast.Ref) {
+	p.printSpaceBeforeIdentifier()
+	p.printIdentifier(p.renamer.SnapNameForSymbol(ref, &snap_renamer.NoDeferNameForSymbolOpts))
 }
 
 func (p *printer) printIdentifier(name string) {
@@ -761,7 +462,7 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 	case *js_ast.BMissing:
 
 	case *js_ast.BIdentifier:
-		p.printSymbol(b.Ref)
+		p.printIdentifierForbidDefer(b.Ref)
 
 	case *js_ast.BArray:
 		p.print("[")
@@ -989,7 +690,9 @@ func (p *printer) printFnArgs(args []js_ast.Arg, hasRestArg bool, isArrow bool) 
 func (p *printer) printFn(fn js_ast.Fn) {
 	p.printFnArgs(fn.Args, fn.HasRestArg, false /* isArrow */)
 	p.printSpace()
+	p.uninvokedFunctionDepth++
 	p.printBlock(fn.Body.Loc, fn.Body.Stmts)
+	p.uninvokedFunctionDepth--
 }
 
 func (p *printer) printClass(class js_ast.Class) {
@@ -1206,11 +909,6 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	return c
 }
 
-type requireCallArgs struct {
-	isES6Import       bool
-	mustReturnPromise bool
-}
-
 func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []js_ast.Comment, level js_ast.L, flags int) {
 	record := &p.importRecords[importRecordIndex]
 
@@ -1256,6 +954,9 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 
 			p.printSpaceBeforeIdentifier()
 			p.print("require(")
+			wrapperRef := p.options.RequireOrImportMetaForSource(record.SourceIndex.GetIndex()).WrapperRef
+			name := p.renamer.NameForSymbol(wrapperRef)
+			p.printQuotedUTF8(name, true /* allowBacktick */)
 			defer p.print(")")
 		}
 		if len(leadingInteriorComments) > 0 {
@@ -1365,6 +1066,7 @@ func (p *printer) printDotThenSuffix() {
 const (
 	forbidCall = 1 << iota
 	forbidIn
+	forbidDefer
 	hasNonOptionalChainParent
 	exprResultIsUnused
 )
@@ -1451,6 +1153,10 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.ECall:
+		callingFunction := isDirectFunctionInvocation(e)
+		if callingFunction {
+			p.uninvokedFunctionDepth--
+		}
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
 		targetFlags := 0
 		if e.OptionalChain == js_ast.OptionalChainNone {
@@ -1504,6 +1210,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		p.print(")")
 		if wrap {
 			p.print(")")
+		}
+		if callingFunction {
+			p.uninvokedFunctionDepth++
 		}
 
 	case *js_ast.ERequire:
@@ -1659,6 +1368,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		p.printSpace()
 
 		wasPrinted := false
+		p.uninvokedFunctionDepth++
 		if len(e.Body.Stmts) == 1 && e.PreferExpr {
 			if s, ok := e.Body.Stmts[0].Data.(*js_ast.SReturn); ok && s.Value != nil {
 				p.arrowExprStart = len(p.js)
@@ -1672,6 +1382,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		if wrap {
 			p.print(")")
 		}
+		p.uninvokedFunctionDepth--
 
 	case *js_ast.EFunction:
 		n := len(p.js)
@@ -1929,7 +1640,12 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 		p.printSpaceBeforeIdentifier()
-		p.printIdentifier(name)
+
+		if flags&forbidDefer != 0 {
+			p.printIdentifierForbidDefer(e.Ref)
+		} else {
+			p.printIdentifier(name)
+		}
 
 		if wrap {
 			p.print(")")
@@ -2038,6 +1754,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.EBinary:
+		if handled := p.handleEBinary(e); handled {
+			return
+		}
 		entry := js_ast.OpTable[e.Op]
 		wrap := level >= entry.Level || (e.Op == js_ast.BinOpIn && (flags&forbidIn) != 0)
 
@@ -2093,7 +1812,13 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			}
 		}
 
-		p.printExpr(e.Left, leftLevel, flags&forbidIn)
+		_, hasDot := e.Left.Data.(*js_ast.EDot)
+		_, isIndexing := e.Left.Data.(*js_ast.EIndex)
+		if !hasDot && !isIndexing && e.Op.IsRightAssociative() {
+			p.printExpr(e.Left, leftLevel, flags&forbidIn|forbidDefer)
+		} else {
+			p.printExpr(e.Left, leftLevel, flags&forbidIn)
+		}
 
 		if e.Op != js_ast.BinOpComma {
 			p.printSpace()
@@ -2691,6 +2416,9 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SLocal:
+		if handled := p.handleSLocal(s); handled {
+			return
+		}
 		switch s.Kind {
 		case js_ast.LocalConst:
 			p.printDeclStmt(s.IsExport, "const", s.Decls)
@@ -3042,94 +2770,67 @@ func (p *printer) shouldIgnoreSourceMap() bool {
 	return true
 }
 
-type Options struct {
-	OutputFormat                 config.Format
-	RemoveWhitespace             bool
-	MangleSyntax                 bool
-	ASCIIOnly                    bool
-	ExtractComments              bool
-	AddSourceMappings            bool
-	Indent                       int
-	ToModuleRef                  js_ast.Ref
-	UnsupportedFeatures          compat.JSFeature
-	RequireOrImportMetaForSource func(uint32) RequireOrImportMeta
-
-	// If we're writing out a source map, this table of line start indices lets
-	// us do binary search on to figure out what line a given AST node came from
-	LineOffsetTables []LineOffsetTable
-
-	// This will be present if the input file had a source map. In that case we
-	// want to map all the way back to the original input file(s).
-	InputSourceMap *sourcemap.SourceMap
-
-	// Snapshot related
-	IsRuntime bool
-	FilePath  string
+func (p *printer) currentIdx() int {
+	return len(p.js)
 }
 
-type RequireOrImportMeta struct {
-	// CommonJS files will return the "require_*" wrapper function and an invalid
-	// exports object reference. Lazily-initialized ESM files will return the
-	// "init_*" wrapper function and the exports object for that file.
-	WrapperRef     js_ast.Ref
-	ExportsRef     js_ast.Ref
-	IsWrapperAsync bool
-}
+func Print(
+	tree js_ast.AST,
+	symbols js_ast.SymbolMap,
+	r renamer.Renamer,
+	options PrintOptions,
+	isWrapped bool,
+	shouldReplaceRequire func(string) bool,
+) PrintResult {
 
-type SourceMapChunk struct {
-	Buffer []byte
+	var p *printer
+	var isRenaming bool = false
+	switch snapRenamer := r.(type) {
+	case *snap_renamer.SnapRenamer:
+		isRenaming = snapRenamer.IsEnabled
+		topLevelVars := make([]TopLevelVar, 0)
+		var uninvokedFunctionDepth int8
+		if isWrapped {
+			uninvokedFunctionDepth = -1
+		}
 
-	// This end state will be used to rewrite the start of the following source
-	// map chunk so that the delta-encoded VLQ numbers are preserved.
-	EndState SourceMapState
+		p = &printer{
+			symbols:            symbols,
+			renamer:            *snapRenamer,
+			importRecords:      tree.ImportRecords,
+			options:            options,
+			stmtStart:          -1,
+			exportDefaultStart: -1,
+			arrowExprStart:     -1,
+			forOfInitStart:     -1,
+			prevOpEnd:          -1,
+			prevNumEnd:         -1,
+			prevRegExpEnd:      -1,
+			prevLoc:            logger.Loc{Start: -1},
+			lineOffsetTables:   options.LineOffsetTables,
 
-	// There probably isn't a source mapping at the end of the file (nor should
-	// there be) but if we're appending another source map chunk after this one,
-	// we'll need to know how many characters were in the last line we generated.
-	FinalGeneratedColumn int
+			// We automatically repeat the previous source mapping if we ever generate
+			// a line that doesn't start with a mapping. This helps give files more
+			// complete mapping coverage without gaps.
+			//
+			// However, we probably shouldn't do this if the input file has a nested
+			// source map that we will be remapping through. We have no idea what state
+			// that source map is in and it could be pretty scrambled.
+			//
+			// I've seen cases where blindly repeating the last mapping for subsequent
+			// lines gives very strange and unhelpful results with source maps from
+			// other tools.
+			coverLinesWithoutMappings: options.InputSourceMap == nil,
 
-	ShouldIgnore bool
-}
+			shouldReplaceRequire: shouldReplaceRequire,
+			topLevelVars:         topLevelVars,
 
-type PrintResult struct {
-	JS []byte
+			uninvokedFunctionDepth: uninvokedFunctionDepth,
+		}
+		p.renamer.CurrentPrinterIndex = p.currentIdx
 
-	// This source map chunk just contains the VLQ-encoded offsets for the "JS"
-	// field above. It's not a full source map. The bundler will be joining many
-	// source map chunks together to form the final source map.
-	SourceMapChunk SourceMapChunk
-
-	ExtractedComments map[string]bool
-}
-
-func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
-	p := &printer{
-		symbols:            symbols,
-		renamer:            r,
-		importRecords:      tree.ImportRecords,
-		options:            options,
-		stmtStart:          -1,
-		exportDefaultStart: -1,
-		arrowExprStart:     -1,
-		forOfInitStart:     -1,
-		prevOpEnd:          -1,
-		prevNumEnd:         -1,
-		prevRegExpEnd:      -1,
-		prevLoc:            logger.Loc{Start: -1},
-		lineOffsetTables:   options.LineOffsetTables,
-
-		// We automatically repeat the previous source mapping if we ever generate
-		// a line that doesn't start with a mapping. This helps give files more
-		// complete mapping coverage without gaps.
-		//
-		// However, we probably shouldn't do this if the input file has a nested
-		// source map that we will be remapping through. We have no idea what state
-		// that source map is in and it could be pretty scrambled.
-		//
-		// I've seen cases where blindly repeating the last mapping for subsequent
-		// lines gives very strange and unhelpful results with source maps from
-		// other tools.
-		coverLinesWithoutMappings: options.InputSourceMap == nil,
+	default:
+		panic("Need to pass a snap_renamer")
 	}
 
 	// Add the top-level directive if present
@@ -3146,7 +2847,12 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 		}
 	}
 
-	p.updateGeneratedLineAndColumn()
+	if isRenaming {
+		p.updateGeneratedLineAndColumn()
+		// This has to happen before prepending top level decls as otherwise our locations are off
+		p.fixNamedBeforeReplaceds()
+		p.prependTopLevelDecls()
+	}
 
 	return PrintResult{
 		JS:                p.js,
