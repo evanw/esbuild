@@ -1,4 +1,4 @@
-package snap_printer
+package js_printer
 
 import (
 	"bytes"
@@ -10,27 +10,82 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
+	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
-	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
-	"github.com/evanw/esbuild/internal/snap_renamer"
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
 var positiveInfinity = math.Inf(1)
 var negativeInfinity = math.Inf(-1)
 
-type SourceMapState = js_printer.SourceMapState
-type PrintOptions = js_printer.Options
-type QuotedSource = js_printer.QuotedSource
-type SourceMapChunk = js_printer.SourceMapChunk
-type Joiner = js_printer.Joiner
-type PrintResult = js_printer.PrintResult
+// Coordinates in source maps are stored using relative offsets for size
+// reasons. When joining together chunks of a source map that were emitted
+// in parallel for different parts of a file, we need to fix up the first
+// segment of each chunk to be relative to the end of the previous chunk.
+type SourceMapState struct {
+	// This isn't stored in the source map. It's only used by the bundler to join
+	// source map chunks together correctly.
+	GeneratedLine int
 
-var QuoteForJSON = js_printer.QuoteForJSON
-var QuoteIdentifier = js_printer.QuoteIdentifier
+	// These are stored in the source map in VLQ format.
+	GeneratedColumn int
+	SourceIndex     int
+	OriginalLine    int
+	OriginalColumn  int
+}
+
+// Source map chunks are computed in parallel for speed. Each chunk is relative
+// to the zero state instead of being relative to the end state of the previous
+// chunk, since it's impossible to know the end state of the previous chunk in
+// a parallel computation.
+//
+// After all chunks are computed, they are joined together in a second pass.
+// This rewrites the first mapping in each chunk to be relative to the end
+// state of the previous chunk.
+func AppendSourceMapChunk(j *helpers.Joiner, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) {
+	// Handle line breaks in between this mapping and the previous one
+	if startState.GeneratedLine != 0 {
+		j.AddBytes(bytes.Repeat([]byte{';'}, startState.GeneratedLine))
+		prevEndState.GeneratedColumn = 0
+	}
+
+	// Skip past any leading semicolons, which indicate line breaks
+	semicolons := 0
+	for sourceMap[semicolons] == ';' {
+		semicolons++
+	}
+	if semicolons > 0 {
+		j.AddBytes(sourceMap[:semicolons])
+		sourceMap = sourceMap[semicolons:]
+		prevEndState.GeneratedColumn = 0
+		startState.GeneratedColumn = 0
+	}
+
+	// Strip off the first mapping from the buffer. The first mapping should be
+	// for the start of the original file (the printer always generates one for
+	// the start of the file).
+	generatedColumn, i := sourcemap.DecodeVLQ(sourceMap, 0)
+	sourceIndex, i := sourcemap.DecodeVLQ(sourceMap, i)
+	originalLine, i := sourcemap.DecodeVLQ(sourceMap, i)
+	originalColumn, i := sourcemap.DecodeVLQ(sourceMap, i)
+	sourceMap = sourceMap[i:]
+
+	// Rewrite the first mapping to be relative to the end state of the previous
+	// chunk. We now know what the end state is because we're in the second pass
+	// where all chunks have already been generated.
+	startState.SourceIndex += sourceIndex
+	startState.GeneratedColumn += generatedColumn
+	startState.OriginalLine += originalLine
+	startState.OriginalColumn += originalColumn
+	j.AddBytes(appendMapping(nil, j.LastByte(), prevEndState, startState))
+
+	// Then append everything after that without modification.
+	j.AddBytes(sourceMap)
+}
 
 func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, currentState SourceMapState) []byte {
 	// Put commas in between mappings
@@ -58,11 +113,148 @@ func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, curre
 }
 
 const hexChars = "0123456789ABCDEF"
+const firstASCII = 0x20
 const lastASCII = 0x7E
 const firstHighSurrogate = 0xD800
 const lastHighSurrogate = 0xDBFF
 const firstLowSurrogate = 0xDC00
 const lastLowSurrogate = 0xDFFF
+
+func canPrintWithoutEscape(c rune, asciiOnly bool) bool {
+	if c <= lastASCII {
+		return c >= firstASCII && c != '\\' && c != '"'
+	} else {
+		return !asciiOnly && c != '\uFEFF' && (c < firstHighSurrogate || c > lastLowSurrogate)
+	}
+}
+
+func QuoteForJSON(text string, asciiOnly bool) []byte {
+	// Estimate the required length
+	lenEstimate := 2
+	for _, c := range text {
+		if canPrintWithoutEscape(c, asciiOnly) {
+			lenEstimate += utf8.RuneLen(c)
+		} else {
+			switch c {
+			case '\b', '\f', '\n', '\r', '\t', '\\', '"':
+				lenEstimate += 2
+			default:
+				if c <= 0xFFFF {
+					lenEstimate += 6
+				} else {
+					lenEstimate += 12
+				}
+			}
+		}
+	}
+
+	// Preallocate the array
+	bytes := make([]byte, 0, lenEstimate)
+	i := 0
+	n := len(text)
+	bytes = append(bytes, '"')
+
+	for i < n {
+		c, width := js_lexer.DecodeWTF8Rune(text[i:])
+
+		// Fast path: a run of characters that don't need escaping
+		if canPrintWithoutEscape(c, asciiOnly) {
+			start := i
+			i += width
+			for i < n {
+				c, width = js_lexer.DecodeWTF8Rune(text[i:])
+				if !canPrintWithoutEscape(c, asciiOnly) {
+					break
+				}
+				i += width
+			}
+			bytes = append(bytes, text[start:i]...)
+			continue
+		}
+
+		switch c {
+		case '\b':
+			bytes = append(bytes, "\\b"...)
+			i++
+
+		case '\f':
+			bytes = append(bytes, "\\f"...)
+			i++
+
+		case '\n':
+			bytes = append(bytes, "\\n"...)
+			i++
+
+		case '\r':
+			bytes = append(bytes, "\\r"...)
+			i++
+
+		case '\t':
+			bytes = append(bytes, "\\t"...)
+			i++
+
+		case '\\':
+			bytes = append(bytes, "\\\\"...)
+			i++
+
+		case '"':
+			bytes = append(bytes, "\\\""...)
+			i++
+
+		default:
+			i += width
+			if c <= 0xFFFF {
+				bytes = append(
+					bytes,
+					'\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15],
+				)
+			} else {
+				c -= 0x10000
+				lo := firstHighSurrogate + ((c >> 10) & 0x3FF)
+				hi := firstLowSurrogate + (c & 0x3FF)
+				bytes = append(
+					bytes,
+					'\\', 'u', hexChars[lo>>12], hexChars[(lo>>8)&15], hexChars[(lo>>4)&15], hexChars[lo&15],
+					'\\', 'u', hexChars[hi>>12], hexChars[(hi>>8)&15], hexChars[(hi>>4)&15], hexChars[hi&15],
+				)
+			}
+		}
+	}
+
+	return append(bytes, '"')
+}
+
+func QuoteIdentifier(js []byte, name string, unsupportedFeatures compat.JSFeature) []byte {
+	isASCII := false
+	asciiStart := 0
+	for i, c := range name {
+		if c >= firstASCII && c <= lastASCII {
+			// Fast path: a run of ASCII characters
+			if !isASCII {
+				isASCII = true
+				asciiStart = i
+			}
+		} else {
+			// Slow path: escape non-ACSII characters
+			if isASCII {
+				js = append(js, name[asciiStart:i]...)
+				isASCII = false
+			}
+			if c <= 0xFFFF {
+				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
+			} else if !unsupportedFeatures.Has(compat.UnicodeEscapes) {
+				js = append(js, fmt.Sprintf("\\u{%X}", c)...)
+			} else {
+				panic("Internal error: Cannot encode identifier: Unicode escapes are unsupported")
+			}
+		}
+	}
+	if isASCII {
+		// Print one final run of ASCII characters
+		js = append(js, name[asciiStart:]...)
+	}
+	return js
+}
 
 func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 	temp := make([]byte, utf8.UTFMax)
@@ -208,19 +400,21 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 
 type printer struct {
 	symbols            js_ast.SymbolMap
-	renamer            snap_renamer.SnapRenamer
+	renamer            renamer.Renamer
 	importRecords      []ast.ImportRecord
-	options            PrintOptions
+	options            Options
 	extractedComments  map[string]bool
 	needsSemicolon     bool
 	js                 []byte
 	stmtStart          int
 	exportDefaultStart int
 	arrowExprStart     int
+	forOfInitStart     int
 	prevOp             js_ast.OpCode
 	prevOpEnd          int
 	prevNumEnd         int
 	prevRegExpEnd      int
+	callTarget         js_ast.E
 	intToBytesBuffer   [64]byte
 
 	// For source maps
@@ -230,13 +424,7 @@ type printer struct {
 	lastGeneratedUpdate int
 	generatedColumn     int
 	hasPrevState        bool
-	lineOffsetTables    []lineOffsetTable
-
-	// For splicing adjacent files together
-	finalLocalSemi           int
-	firstDeclByteOffset      uint32
-	firstDeclSourceMapOffset uint32
-	hasDecl                  bool
+	lineOffsetTables    []LineOffsetTable
 
 	// This is a workaround for a bug in the popular "source-map" library:
 	// https://github.com/mozilla/source-map/issues/261. The library will
@@ -248,22 +436,9 @@ type printer struct {
 	// to avoid replicating the previous mapping if we don't need to.
 	lineStartsWithMapping     bool
 	coverLinesWithoutMappings bool
-
-	//
-	// For snapshot
-	//
-	shouldReplaceRequire func(string) bool
-	topLevelVars         []TopLevelVar
-	// Keeps track of count of function entries in order to avoid rewriting code
-	// that is already wrapped in a function body.
-	// In order to not count entries into functions that are invoked immediately
-	// this count is decreased whenever such call is encountered.
-	// It does not consider cases in which a function is created and later invoked
-	// at the module level.
-	uninvokedFunctionDepth int8
 }
 
-type lineOffsetTable struct {
+type LineOffsetTable struct {
 	byteOffsetToStartOfLine int32
 
 	// The source map specification is very loose and does not specify what
@@ -299,7 +474,7 @@ func (p *printer) printQuotedUTF8(text string, allowBacktick bool) {
 }
 
 func (p *printer) addSourceMapping(loc logger.Loc) {
-	if p.options.SourceForSourceMap == nil || loc == p.prevLoc {
+	if !p.options.AddSourceMappings || loc == p.prevLoc {
 		return
 	}
 	p.prevLoc = loc
@@ -399,7 +574,7 @@ func (p *printer) updateGeneratedLineAndColumn() {
 	p.lastGeneratedUpdate = len(p.js)
 }
 
-func generateLineOffsetTables(contents string, approximateLineCount int32) []lineOffsetTable {
+func GenerateLineOffsetTables(contents string, approximateLineCount int32) []LineOffsetTable {
 	var columnsForNonASCII []int32
 	byteOffsetToFirstNonASCII := int32(0)
 	lineByteOffset := 0
@@ -407,7 +582,7 @@ func generateLineOffsetTables(contents string, approximateLineCount int32) []lin
 	column := int32(0)
 
 	// Preallocate the top-level table using the approximate line count from the lexer
-	lineOffsetTables := make([]lineOffsetTable, 0, approximateLineCount)
+	lineOffsetTables := make([]LineOffsetTable, 0, approximateLineCount)
 
 	for i, c := range contents {
 		// Mark the start of the next line
@@ -432,14 +607,12 @@ func generateLineOffsetTables(contents string, approximateLineCount int32) []lin
 		switch c {
 		case '\r', '\n', '\u2028', '\u2029':
 			// Handle Windows-specific "\r\n" newlines
-			if c == '\r' {
-				if i+1 < len(contents) && contents[i+1] == '\n' {
-					column++
-					continue
-				}
+			if c == '\r' && i+1 < len(contents) && contents[i+1] == '\n' {
+				column++
+				continue
 			}
 
-			lineOffsetTables = append(lineOffsetTables, lineOffsetTable{
+			lineOffsetTables = append(lineOffsetTables, LineOffsetTable{
 				byteOffsetToStartOfLine:   int32(lineByteOffset),
 				byteOffsetToFirstNonASCII: byteOffsetToFirstNonASCII,
 				columnsForNonASCII:        columnsForNonASCII,
@@ -471,7 +644,7 @@ func generateLineOffsetTables(contents string, approximateLineCount int32) []lin
 		}
 	}
 
-	lineOffsetTables = append(lineOffsetTables, lineOffsetTable{
+	lineOffsetTables = append(lineOffsetTables, LineOffsetTable{
 		byteOffsetToStartOfLine:   int32(lineByteOffset),
 		byteOffsetToFirstNonASCII: byteOffsetToFirstNonASCII,
 		columnsForNonASCII:        columnsForNonASCII,
@@ -518,14 +691,15 @@ func (p *printer) printIndent() {
 	}
 }
 
-func (p *printer) printSymbolForbidDefer(ref js_ast.Ref) {
-	p.printSpaceBeforeIdentifier()
-	p.printIdentifier(p.renamer.SnapNameForSymbol(ref, &snap_renamer.NoDeferNameForSymbolOpts))
-}
-
 func (p *printer) printSymbol(ref js_ast.Ref) {
 	p.printSpaceBeforeIdentifier()
 	p.printIdentifier(p.renamer.NameForSymbol(ref))
+}
+
+func CanQuoteIdentifier(name string, unsupportedJSFeatures compat.JSFeature, asciiOnly bool) bool {
+	return js_lexer.IsIdentifier(name) && (!asciiOnly ||
+		!unsupportedJSFeatures.Has(compat.UnicodeEscapes) ||
+		!js_lexer.ContainsNonBMPCodePoint(name))
 }
 
 func (p *printer) canPrintIdentifier(name string) bool {
@@ -580,27 +754,16 @@ func (p *printer) printIdentifierUTF16(name []uint16) {
 	}
 }
 
-func (p *printer) addSourceMappingForDecl(loc logger.Loc) {
-	if !p.hasDecl {
-		p.hasDecl = true
-		p.firstDeclByteOffset = uint32(len(p.js))
-		p.firstDeclSourceMapOffset = uint32(len(p.sourceMap))
-		p.prevLoc.Start = -1 // Force a new source mapping to be generated
-		p.addSourceMapping(loc)
-	}
-}
-
 func (p *printer) printBinding(binding js_ast.Binding) {
+	p.addSourceMapping(binding.Loc)
+
 	switch b := binding.Data.(type) {
 	case *js_ast.BMissing:
 
 	case *js_ast.BIdentifier:
-		p.printSpaceBeforeIdentifier()
-		p.addSourceMappingForDecl(binding.Loc)
-		p.printSymbolForbidDefer(b.Ref)
+		p.printSymbol(b.Ref)
 
 	case *js_ast.BArray:
-		p.addSourceMappingForDecl(binding.Loc)
 		p.print("[")
 		if len(b.Items) > 0 {
 			if !b.IsSingleLine {
@@ -645,7 +808,6 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 		p.print("]")
 
 	case *js_ast.BObject:
-		p.addSourceMappingForDecl(binding.Loc)
 		p.print("{")
 		if len(b.Properties) > 0 {
 			if !b.IsSingleLine {
@@ -827,9 +989,7 @@ func (p *printer) printFnArgs(args []js_ast.Arg, hasRestArg bool, isArrow bool) 
 func (p *printer) printFn(fn js_ast.Fn) {
 	p.printFnArgs(fn.Args, fn.HasRestArg, false /* isArrow */)
 	p.printSpace()
-	p.uninvokedFunctionDepth++
-	p.printBlock(fn.Body.Stmts)
-	p.uninvokedFunctionDepth--
+	p.printBlock(fn.Body.Loc, fn.Body.Stmts)
 }
 
 func (p *printer) printClass(class js_ast.Class) {
@@ -840,6 +1000,7 @@ func (p *printer) printClass(class js_ast.Class) {
 	}
 	p.printSpace()
 
+	p.addSourceMapping(class.BodyLoc)
 	p.print("{")
 	p.printNewline()
 	p.options.Indent++
@@ -1045,13 +1206,58 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	return c
 }
 
-func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []js_ast.Comment) {
-	record := &p.importRecords[importRecordIndex]
-	p.printSpaceBeforeIdentifier()
+type requireCallArgs struct {
+	isES6Import       bool
+	mustReturnPromise bool
+}
 
-	// Preserve "import()" expressions that don't point inside the bundle
-	if record.SourceIndex == nil && record.Kind == ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
-		p.print("import(")
+func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []js_ast.Comment, level js_ast.L, flags int) {
+	record := &p.importRecords[importRecordIndex]
+
+	if level >= js_ast.LNew || (flags&forbidCall) != 0 {
+		p.print("(")
+		defer p.print(")")
+		level = js_ast.LLowest
+	}
+
+	if !record.SourceIndex.IsValid() {
+		// External "require()"
+		if record.Kind != ast.ImportDynamic {
+			if record.WrapWithToModule {
+				p.printSymbol(p.options.ToModuleRef)
+				p.print("(")
+				defer p.print(")")
+			}
+			p.printSpaceBeforeIdentifier()
+			p.print("require(")
+			p.addSourceMapping(record.Range.Loc)
+			p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
+			p.print(")")
+			return
+		}
+
+		// External "import()"
+		if !p.options.UnsupportedFeatures.Has(compat.DynamicImport) {
+			p.printSpaceBeforeIdentifier()
+			p.print("import(")
+			defer p.print(")")
+		} else {
+			p.printSpaceBeforeIdentifier()
+			p.print("Promise.resolve()")
+			p.printDotThenPrefix()
+			defer p.printDotThenSuffix()
+
+			// Wrap this with a call to "__toModule()" if this is a CommonJS file
+			if record.WrapWithToModule {
+				p.printSymbol(p.options.ToModuleRef)
+				p.print("(")
+				defer p.print(")")
+			}
+
+			p.printSpaceBeforeIdentifier()
+			p.print("require(")
+			defer p.print(")")
+		}
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent++
@@ -1060,80 +1266,107 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 			}
 			p.printIndent()
 		}
+		p.addSourceMapping(record.Range.Loc)
 		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent--
 			p.printIndent()
 		}
-		p.print(")")
 		return
 	}
 
-	// Make sure "import()" expressions return promises
-	if record.Kind == ast.ImportDynamic {
-		if p.options.UnsupportedFeatures.Has(compat.Arrow) {
-			p.print("Promise.resolve().then(function()")
-			p.printSpace()
-			p.print("{")
-			p.printNewline()
-			p.options.Indent++
-			p.printIndent()
-			p.print("return ")
-		} else {
-			if p.options.RemoveWhitespace {
-				p.print("Promise.resolve().then(()=>")
-			} else {
-				p.print("Promise.resolve().then(() => ")
-			}
-		}
+	meta := p.options.RequireOrImportMetaForSource(record.SourceIndex.GetIndex())
+
+	// Don't need the namespace object if the result is unused anyway
+	if (flags & exprResultIsUnused) != 0 {
+		meta.ExportsRef = js_ast.InvalidRef
 	}
 
-	// Make sure CommonJS imports are converted to ES6 if necessary
+	// Internal "import()" of async ESM
+	if record.Kind == ast.ImportDynamic && meta.IsWrapperAsync {
+		p.printSymbol(meta.WrapperRef)
+		p.print("()")
+		if meta.ExportsRef != js_ast.InvalidRef {
+			p.printDotThenPrefix()
+			p.printSymbol(meta.ExportsRef)
+			p.printDotThenSuffix()
+		}
+		return
+	}
+
+	// Internal "require()" or "import()"
+	if record.Kind == ast.ImportDynamic {
+		p.printSpaceBeforeIdentifier()
+		p.print("Promise.resolve()")
+		level = p.printDotThenPrefix()
+		defer p.printDotThenSuffix()
+	}
+
+	// Make sure the comma operator is propertly wrapped
+	if meta.ExportsRef != js_ast.InvalidRef && level >= js_ast.LComma {
+		p.print("(")
+		defer p.print(")")
+	}
+
+	// Wrap this with a call to "__toModule()" if this is a CommonJS file
 	if record.WrapWithToModule {
 		p.printSymbol(p.options.ToModuleRef)
 		p.print("(")
+		defer p.print(")")
 	}
 
-	// If this import points inside the bundle, then call the "require()"
-	// function for that module directly. The linker must ensure that the
-	// module's require function exists by this point. Otherwise, fall back to a
-	// bare "require()" call. Then it's up to the user to provide it.
-	if record.SourceIndex != nil {
-		p.print("require(")
-		name := p.renamer.NameForSymbol(p.options.WrapperRefForSource(*record.SourceIndex))
-		p.printQuotedUTF8(name, true /* allowBacktick */)
-		p.print(")")
+	// Call the wrapper
+	p.printSymbol(meta.WrapperRef)
+	p.print("()")
+
+	// Return the namespace object if this is an ESM file
+	if meta.ExportsRef != js_ast.InvalidRef {
+		p.print(",")
+		p.printSpace()
+		p.printSymbol(meta.ExportsRef)
+	}
+}
+
+func (p *printer) printDotThenPrefix() js_ast.L {
+	if p.options.UnsupportedFeatures.Has(compat.Arrow) {
+		p.print(".then(function()")
+		p.printSpace()
+		p.print("{")
+		p.printNewline()
+		p.options.Indent++
+		p.printIndent()
+		p.print("return")
+		p.printSpace()
+		return js_ast.LLowest
 	} else {
-		p.print("require(")
-		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
-		p.print(")")
+		p.print(".then(()")
+		p.printSpace()
+		p.print("=>")
+		p.printSpace()
+		return js_ast.LComma
 	}
+}
 
-	if record.WrapWithToModule {
-		p.print(")")
-	}
-
-	if record.Kind == ast.ImportDynamic {
-		if p.options.UnsupportedFeatures.Has(compat.Arrow) {
-			if !p.options.RemoveWhitespace {
-				p.print(";")
-			}
-			p.printNewline()
-			p.options.Indent--
-			p.printIndent()
-			p.print("})")
-		} else {
-			p.print(")")
+func (p *printer) printDotThenSuffix() {
+	if p.options.UnsupportedFeatures.Has(compat.Arrow) {
+		if !p.options.RemoveWhitespace {
+			p.print(";")
 		}
+		p.printNewline()
+		p.options.Indent--
+		p.printIndent()
+		p.print("})")
+	} else {
+		p.print(")")
 	}
 }
 
 const (
 	forbidCall = 1 << iota
 	forbidIn
-	forbidDefer
 	hasNonOptionalChainParent
+	exprResultIsUnused
 )
 
 func (p *printer) printUndefined(level js_ast.L) {
@@ -1218,10 +1451,6 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.ECall:
-		callingFunction := isDirectFunctionInvocation(e)
-		if callingFunction {
-			p.uninvokedFunctionDepth--
-		}
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
 		targetFlags := 0
 		if e.OptionalChain == js_ast.OptionalChainNone {
@@ -1248,6 +1477,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 		// We don't ever want to accidentally generate a direct eval expression here
+		p.callTarget = e.Target.Data
 		if !e.IsDirectEval && p.isUnboundEvalIdentifier(e.Target) {
 			if p.options.RemoveWhitespace {
 				p.print("(0,")
@@ -1275,19 +1505,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		if wrap {
 			p.print(")")
 		}
-		if callingFunction {
-			p.uninvokedFunctionDepth++
-		}
 
 	case *js_ast.ERequire:
-		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
-		if wrap {
-			p.print("(")
-		}
-		p.printRequireOrImportExpr(e.ImportRecordIndex, nil)
-		if wrap {
-			p.print(")")
-		}
+		p.printRequireOrImportExpr(e.ImportRecordIndex, nil, level, flags)
 
 	case *js_ast.ERequireResolve:
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
@@ -1303,41 +1523,41 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.EImport:
-		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
-		if wrap {
-			p.print("(")
-		}
-
 		var leadingInteriorComments []js_ast.Comment
 		if !p.options.RemoveWhitespace {
 			leadingInteriorComments = e.LeadingInteriorComments
 		}
 
-		if e.ImportRecordIndex != nil {
-			p.printRequireOrImportExpr(*e.ImportRecordIndex, leadingInteriorComments)
+		if e.ImportRecordIndex.IsValid() {
+			p.printRequireOrImportExpr(e.ImportRecordIndex.GetIndex(), leadingInteriorComments, level, flags)
 		} else {
 			// Handle non-string expressions
-			p.printSpaceBeforeIdentifier()
-			p.print("import(")
-			if len(leadingInteriorComments) > 0 {
-				p.printNewline()
-				p.options.Indent++
-				for _, comment := range e.LeadingInteriorComments {
-					p.printIndentedComment(comment.Text)
+			if !e.ImportRecordIndex.IsValid() {
+				wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
+				if wrap {
+					p.print("(")
 				}
-				p.printIndent()
+				p.printSpaceBeforeIdentifier()
+				p.print("import(")
+				if len(leadingInteriorComments) > 0 {
+					p.printNewline()
+					p.options.Indent++
+					for _, comment := range e.LeadingInteriorComments {
+						p.printIndentedComment(comment.Text)
+					}
+					p.printIndent()
+				}
+				p.printExpr(e.Expr, js_ast.LComma, 0)
+				if len(leadingInteriorComments) > 0 {
+					p.printNewline()
+					p.options.Indent--
+					p.printIndent()
+				}
+				p.print(")")
+				if wrap {
+					p.print(")")
+				}
 			}
-			p.printExpr(e.Expr, js_ast.LComma, 0)
-			if len(leadingInteriorComments) > 0 {
-				p.printNewline()
-				p.options.Indent--
-				p.printIndent()
-			}
-			p.print(")")
-		}
-
-		if wrap {
-			p.print(")")
 		}
 
 	case *js_ast.EDot:
@@ -1439,7 +1659,6 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		p.printSpace()
 
 		wasPrinted := false
-		p.uninvokedFunctionDepth++
 		if len(e.Body.Stmts) == 1 && e.PreferExpr {
 			if s, ok := e.Body.Stmts[0].Data.(*js_ast.SReturn); ok && s.Value != nil {
 				p.arrowExprStart = len(p.js)
@@ -1448,12 +1667,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			}
 		}
 		if !wasPrinted {
-			p.printBlock(e.Body.Stmts)
+			p.printBlock(e.Body.Loc, e.Body.Stmts)
 		}
 		if wrap {
 			p.print(")")
 		}
-		p.uninvokedFunctionDepth--
 
 	case *js_ast.EFunction:
 		n := len(p.js)
@@ -1615,7 +1833,14 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 		if e.Tag != nil {
-			p.printExpr(*e.Tag, js_ast.LPostfix, 0)
+			// Optional chains are forbidden in template tags
+			if js_ast.IsOptionalChain(*e.Tag) {
+				p.print("(")
+				p.printExpr(*e.Tag, js_ast.LLowest, 0)
+				p.print(")")
+			} else {
+				p.printExpr(*e.Tag, js_ast.LPostfix, 0)
+			}
 		}
 		p.print("`")
 		if e.Tag != nil {
@@ -1696,11 +1921,18 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.EIdentifier:
+		name := p.renamer.NameForSymbol(e.Ref)
+		wrap := len(p.js) == p.forOfInitStart && name == "let"
+
+		if wrap {
+			p.print("(")
+		}
+
 		p.printSpaceBeforeIdentifier()
-		if flags&forbidDefer != 0 {
-			p.printSymbolForbidDefer(e.Ref)
-		} else {
-			p.printSymbol(e.Ref)
+		p.printIdentifier(name)
+
+		if wrap {
+			p.print(")")
 		}
 
 	case *js_ast.EImportIdentifier:
@@ -1711,6 +1943,14 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		if symbol.ImportItemStatus == js_ast.ImportItemMissing {
 			p.printUndefined(level)
 		} else if symbol.NamespaceAlias != nil {
+			wrap := p.callTarget == e && e.WasOriginallyIdentifier
+			if wrap {
+				if p.options.RemoveWhitespace {
+					p.print("(0,")
+				} else {
+					p.print("(0, ")
+				}
+			}
 			p.printSymbol(symbol.NamespaceAlias.NamespaceRef)
 			alias := symbol.NamespaceAlias.Alias
 			if p.canPrintIdentifier(alias) {
@@ -1720,6 +1960,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 				p.print("[")
 				p.printQuotedUTF8(alias, true /* allowBacktick */)
 				p.print("]")
+			}
+			if wrap {
+				p.print(")")
 			}
 		} else {
 			p.printSymbol(e.Ref)
@@ -1735,7 +1978,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		p.printSpaceBeforeIdentifier()
 		p.print("await")
 		p.printSpace()
-		p.printExpr(e.Value, js_ast.LPrefix, 0)
+		p.printExpr(e.Value, js_ast.LPrefix-1, 0)
 
 		if wrap {
 			p.print(")")
@@ -1795,9 +2038,6 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.EBinary:
-		if handled := p.handleEBinary(e); handled {
-			return
-		}
 		entry := js_ast.OpTable[e.Op]
 		wrap := level >= entry.Level || (e.Op == js_ast.BinOpIn && (flags&forbidIn) != 0)
 
@@ -1837,6 +2077,8 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			// "**" can't contain certain unary expressions
 			if left, ok := e.Left.Data.(*js_ast.EUnary); ok && left.Op.UnaryAssignTarget() == js_ast.AssignTargetNone {
 				leftLevel = js_ast.LCall
+			} else if _, ok := e.Left.Data.(*js_ast.EAwait); ok {
+				leftLevel = js_ast.LCall
 			} else if _, ok := e.Left.Data.(*js_ast.EUndefined); ok {
 				// Undefined is printed as "void 0"
 				leftLevel = js_ast.LCall
@@ -1851,13 +2093,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			}
 		}
 
-		_, hasDot := e.Left.Data.(*js_ast.EDot)
-		_, isIndexing := e.Left.Data.(*js_ast.EIndex)
-		if !hasDot && !isIndexing && e.Op.IsRightAssociative() {
-			p.printExpr(e.Left, leftLevel, flags&forbidIn|forbidDefer)
-		} else {
-			p.printExpr(e.Left, leftLevel, flags&forbidIn)
-		}
+		p.printExpr(e.Left, leftLevel, flags&forbidIn)
 
 		if e.Op != js_ast.BinOpComma {
 			p.printSpace()
@@ -2067,15 +2303,13 @@ func (p *printer) printDeclStmt(isExport bool, keyword string, decls []js_ast.De
 		p.print("export ")
 	}
 	p.printDecls(keyword, decls, 0)
-	p.updateGeneratedLineAndColumn()
-	p.finalLocalSemi = p.generatedColumn
 	p.printSemicolonAfterStatement()
 }
 
 func (p *printer) printForLoopInit(init js_ast.Stmt) {
 	switch s := init.Data.(type) {
 	case *js_ast.SExpr:
-		p.printExpr(s.Value, js_ast.LLowest, forbidIn)
+		p.printExpr(s.Value, js_ast.LLowest, forbidIn|exprResultIsUnused)
 	case *js_ast.SLocal:
 		switch s.Kind {
 		case js_ast.LocalVar:
@@ -2113,7 +2347,7 @@ func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags int) {
 func (p *printer) printBody(body js_ast.Stmt) {
 	if block, ok := body.Data.(*js_ast.SBlock); ok {
 		p.printSpace()
-		p.printBlock(block.Stmts)
+		p.printBlock(body.Loc, block.Stmts)
 		p.printNewline()
 	} else {
 		p.printNewline()
@@ -2123,7 +2357,8 @@ func (p *printer) printBody(body js_ast.Stmt) {
 	}
 }
 
-func (p *printer) printBlock(stmts []js_ast.Stmt) {
+func (p *printer) printBlock(loc logger.Loc, stmts []js_ast.Stmt) {
+	p.addSourceMapping(loc)
 	p.print("{")
 	p.printNewline()
 
@@ -2179,7 +2414,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 
 	if yes, ok := s.Yes.Data.(*js_ast.SBlock); ok {
 		p.printSpace()
-		p.printBlock(yes.Stmts)
+		p.printBlock(s.Yes.Loc, yes.Stmts)
 
 		if s.No != nil {
 			p.printSpace()
@@ -2222,7 +2457,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 
 		if no, ok := s.No.Data.(*js_ast.SBlock); ok {
 			p.printSpace()
-			p.printBlock(no.Stmts)
+			p.printBlock(s.No.Loc, no.Stmts)
 			p.printNewline()
 		} else if no, ok := s.No.Data.(*js_ast.SIf); ok {
 			p.printIf(no)
@@ -2456,9 +2691,6 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SLocal:
-		if handled := p.handleSLocal(s); handled {
-			return
-		}
 		switch s.Kind {
 		case js_ast.LocalConst:
 			p.printDeclStmt(s.IsExport, "const", s.Decls)
@@ -2478,7 +2710,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.print("do")
 		if block, ok := s.Body.Data.(*js_ast.SBlock); ok {
 			p.printSpace()
-			p.printBlock(block.Stmts)
+			p.printBlock(s.Body.Loc, block.Stmts)
 			p.printSpace()
 		} else {
 			p.printNewline()
@@ -2519,6 +2751,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		}
 		p.printSpace()
 		p.print("(")
+		p.forOfInitStart = len(p.js)
 		p.printForLoopInit(s.Init)
 		p.printSpace()
 		p.printSpaceBeforeIdentifier()
@@ -2559,7 +2792,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("try")
 		p.printSpace()
-		p.printBlock(s.Body)
+		p.printBlock(s.BodyLoc, s.Body)
 
 		if s.Catch != nil {
 			p.printSpace()
@@ -2571,14 +2804,14 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 				p.print(")")
 			}
 			p.printSpace()
-			p.printBlock(s.Catch.Body)
+			p.printBlock(s.Catch.Loc, s.Catch.Body)
 		}
 
 		if s.Finally != nil {
 			p.printSpace()
 			p.print("finally")
 			p.printSpace()
-			p.printBlock(s.Finally.Stmts)
+			p.printBlock(s.Finally.Loc, s.Finally.Stmts)
 		}
 
 		p.printNewline()
@@ -2634,7 +2867,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			if len(c.Body) == 1 {
 				if block, ok := c.Body[0].Data.(*js_ast.SBlock); ok {
 					p.printSpace()
-					p.printBlock(block.Stmts)
+					p.printBlock(c.Body[0].Loc, block.Stmts)
 					p.printNewline()
 					continue
 				}
@@ -2733,7 +2966,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 
 	case *js_ast.SBlock:
 		p.printIndent()
-		p.printBlock(s.Stmts)
+		p.printBlock(stmt.Loc, s.Stmts)
 		p.printNewline()
 
 	case *js_ast.SDebugger:
@@ -2792,7 +3025,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 	case *js_ast.SExpr:
 		p.printIndent()
 		p.stmtStart = len(p.js)
-		p.printExpr(s.Value, js_ast.LLowest, 0)
+		p.printExpr(s.Value, js_ast.LLowest, exprResultIsUnused)
 		p.printSemicolonAfterStatement()
 
 	default:
@@ -2809,32 +3042,81 @@ func (p *printer) shouldIgnoreSourceMap() bool {
 	return true
 }
 
-func createPrinter(
-	symbols js_ast.SymbolMap,
-	r snap_renamer.SnapRenamer,
-	importRecords []ast.ImportRecord,
-	options PrintOptions,
-	approximateLineCount int32,
-	isWrapped bool,
-	shouldReplaceRequire func(string) bool,
-) *printer {
-	topLevelVars := make([]TopLevelVar, 0)
-	var uninvokedFunctionDepth int8
-	if isWrapped {
-		uninvokedFunctionDepth = -1
-	}
+type Options struct {
+	OutputFormat                 config.Format
+	RemoveWhitespace             bool
+	MangleSyntax                 bool
+	ASCIIOnly                    bool
+	ExtractComments              bool
+	AddSourceMappings            bool
+	Indent                       int
+	ToModuleRef                  js_ast.Ref
+	UnsupportedFeatures          compat.JSFeature
+	RequireOrImportMetaForSource func(uint32) RequireOrImportMeta
+
+	// If we're writing out a source map, this table of line start indices lets
+	// us do binary search on to figure out what line a given AST node came from
+	LineOffsetTables []LineOffsetTable
+
+	// This will be present if the input file had a source map. In that case we
+	// want to map all the way back to the original input file(s).
+	InputSourceMap *sourcemap.SourceMap
+
+	// Snapshot related
+	IsRuntime bool
+	FilePath  string
+}
+
+type RequireOrImportMeta struct {
+	// CommonJS files will return the "require_*" wrapper function and an invalid
+	// exports object reference. Lazily-initialized ESM files will return the
+	// "init_*" wrapper function and the exports object for that file.
+	WrapperRef     js_ast.Ref
+	ExportsRef     js_ast.Ref
+	IsWrapperAsync bool
+}
+
+type SourceMapChunk struct {
+	Buffer []byte
+
+	// This end state will be used to rewrite the start of the following source
+	// map chunk so that the delta-encoded VLQ numbers are preserved.
+	EndState SourceMapState
+
+	// There probably isn't a source mapping at the end of the file (nor should
+	// there be) but if we're appending another source map chunk after this one,
+	// we'll need to know how many characters were in the last line we generated.
+	FinalGeneratedColumn int
+
+	ShouldIgnore bool
+}
+
+type PrintResult struct {
+	JS []byte
+
+	// This source map chunk just contains the VLQ-encoded offsets for the "JS"
+	// field above. It's not a full source map. The bundler will be joining many
+	// source map chunks together to form the final source map.
+	SourceMapChunk SourceMapChunk
+
+	ExtractedComments map[string]bool
+}
+
+func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
 	p := &printer{
 		symbols:            symbols,
 		renamer:            r,
-		importRecords:      importRecords,
+		importRecords:      tree.ImportRecords,
 		options:            options,
 		stmtStart:          -1,
 		exportDefaultStart: -1,
 		arrowExprStart:     -1,
+		forOfInitStart:     -1,
 		prevOpEnd:          -1,
 		prevNumEnd:         -1,
 		prevRegExpEnd:      -1,
 		prevLoc:            logger.Loc{Start: -1},
+		lineOffsetTables:   options.LineOffsetTables,
 
 		// We automatically repeat the previous source mapping if we ever generate
 		// a line that doesn't start with a mapping. This helps give files more
@@ -2848,50 +3130,13 @@ func createPrinter(
 		// lines gives very strange and unhelpful results with source maps from
 		// other tools.
 		coverLinesWithoutMappings: options.InputSourceMap == nil,
-
-		shouldReplaceRequire: shouldReplaceRequire,
-		topLevelVars:         topLevelVars,
-
-		uninvokedFunctionDepth: uninvokedFunctionDepth,
 	}
 
-	// If we're writing out a source map, prepare a table of line start indices
-	// to do binary search on to figure out what line a given AST node came from
-	if options.SourceForSourceMap != nil {
-		p.lineOffsetTables = generateLineOffsetTables(options.SourceForSourceMap.Contents, approximateLineCount)
-	}
-	p.renamer.CurrentPrinterIndex = p.currentIdx
-
-	return p
-}
-
-func (p *printer) currentIdx() int {
-	return len(p.js)
-}
-
-func Print(
-	tree js_ast.AST,
-	symbols js_ast.SymbolMap,
-	r renamer.Renamer,
-	options PrintOptions,
-	isWrapped bool,
-	shouldReplaceRequire func(string) bool,
-) PrintResult {
-	var p *printer
-	var isRenaming bool = false
-	switch snapRenamer := r.(type) {
-	case *snap_renamer.SnapRenamer:
-		isRenaming = snapRenamer.IsEnabled
-		p = createPrinter(
-			symbols,
-			*snapRenamer,
-			tree.ImportRecords,
-			options,
-			tree.ApproximateLineCount,
-			isWrapped,
-			shouldReplaceRequire)
-	default:
-		panic("Need to pass a snap_renamer")
+	// Add the top-level directive if present
+	if tree.Directive != "" {
+		p.printQuotedUTF8(tree.Directive, options.ASCIIOnly)
+		p.print(";")
+		p.printNewline()
 	}
 
 	for _, part := range tree.Parts {
@@ -2901,53 +3146,16 @@ func Print(
 		}
 	}
 
-	if isRenaming {
-		p.updateGeneratedLineAndColumn()
-		// This has to happen before prepending top level decls as otherwise our locations are off
-		p.fixNamedBeforeReplaceds()
-		p.prependTopLevelDecls()
-	}
+	p.updateGeneratedLineAndColumn()
 
 	return PrintResult{
 		JS:                p.js,
 		ExtractedComments: p.extractedComments,
 		SourceMapChunk: SourceMapChunk{
 			Buffer:               p.sourceMap,
-			QuotedSources:        quotedSources(&tree, &options),
 			EndState:             p.prevState,
 			FinalGeneratedColumn: p.generatedColumn,
-			FinalLocalSemi:       p.finalLocalSemi,
 			ShouldIgnore:         p.shouldIgnoreSourceMap(),
 		},
-		FirstDeclByteOffset:      p.firstDeclByteOffset,
-		FirstDeclSourceMapOffset: p.firstDeclSourceMapOffset,
 	}
-}
-
-func quotedSources(tree *js_ast.AST, options *PrintOptions) []QuotedSource {
-	if options.SourceForSourceMap == nil {
-		return nil
-	}
-
-	if sm := options.InputSourceMap; sm != nil {
-		results := make([]QuotedSource, len(sm.Sources))
-		for i, source := range sm.Sources {
-			contents := []byte("null")
-			if i < len(sm.SourcesContent) {
-				if value := sm.SourcesContent[i]; value != nil {
-					contents = QuoteForJSON(*value, options.ASCIIOnly)
-				}
-			}
-			results[i] = QuotedSource{
-				QuotedPath:     QuoteForJSON(source, options.ASCIIOnly),
-				QuotedContents: contents,
-			}
-		}
-		return results
-	}
-
-	return []QuotedSource{{
-		QuotedPath:     QuoteForJSON(options.SourceForSourceMap.PrettyPath, options.ASCIIOnly),
-		QuotedContents: QuoteForJSON(options.SourceForSourceMap.Contents, options.ASCIIOnly),
-	}}
 }
