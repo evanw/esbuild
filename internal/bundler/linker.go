@@ -2926,7 +2926,18 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	// to look up the path for this chunk to use with the import.
 	for chunkIndex, chunk := range sortedChunks {
 		if chunk.isEntryPoint {
-			c.files[chunk.sourceIndex].entryPointChunkIndex = uint32(chunkIndex)
+			file := &c.files[chunk.sourceIndex]
+
+			// JS entry points that import CSS files generate two chunks, a JS chunk
+			// and a CSS chunk. Don't link the CSS chunk to the JS file since the CSS
+			// chunk is secondary (the JS chunk is primary).
+			if _, ok := chunk.chunkRepr.(*chunkReprCSS); ok {
+				if _, ok := file.repr.(*reprJS); ok {
+					continue
+				}
+			}
+
+			file.entryPointChunkIndex = uint32(chunkIndex)
 		}
 	}
 

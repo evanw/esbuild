@@ -3455,6 +3455,26 @@
         import './out/entry.js'
       `,
     }),
+
+    // Code splitting with a dynamic import that imports a CSS file
+    // https://github.com/evanw/esbuild/issues/1125
+    test(['parent.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
+      'parent.js': `
+        // This should import the primary JS chunk, not the secondary CSS chunk
+        await import('./child')
+      `,
+      'child.js': `
+        import './foo.css'
+      `,
+      'foo.css': `
+        body {
+          color: black;
+        }
+      `,
+      'node.js': `
+        import './out/parent.js'
+      `,
+    }),
   )
 
   // Test the binary loader

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix incorrect chunk reference with code splitting, css, and dynamic imports ([#1125](https://github.com/evanw/esbuild/issues/1125))
+
+    This release fixes a bug where when you use code splitting, CSS imports in JS, and dynamic imports all combined, the dynamic import incorrectly references the sibling CSS chunk for the dynamic import instead of the primary JS chunk. In this scenario the entry point file corresponds to two different output chunks (one for CSS and one for JS) and the wrong chunk was being picked. This bug has been fixed.
+
 ## 0.11.6
 
 * Fix an incorrect minification transformation ([#1121](https://github.com/evanw/esbuild/issues/1121))
