@@ -40,7 +40,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 		var isFirst bool
 		code := ""
 
-		sb.WriteString(fmt.Sprintf(`{"isLive":%v`, partMeta.isLive()))
+		sb.WriteString(fmt.Sprintf(`{"isLive":%v`, partMeta.isLive))
 		sb.WriteString(fmt.Sprintf(`,"canBeRemovedIfUnused":%v`, part.CanBeRemovedIfUnused))
 
 		if partIndex == int(repr.meta.nsExportPartIndex) {

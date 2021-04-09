@@ -52,6 +52,10 @@ type file struct {
 	// to this file
 	distanceFromEntryPoint uint32
 
+	// This is true if this file has been marked as live by the tree shaking
+	// algorithm.
+	isLive bool
+
 	// This holds all entry points that can reach this file. It will be used to
 	// assign the parts in this file to a chunk.
 	entryBits helpers.BitSet
