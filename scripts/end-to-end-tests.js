@@ -3456,6 +3456,33 @@
       `,
     }),
 
+    // Code splitting where only one entry point uses the runtime
+    // https://github.com/evanw/esbuild/issues/1123
+    test(['a.js', 'b.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
+      'a.js': `
+        import * as foo from './shared'
+        export default foo
+      `,
+      'b.js': `
+        import {bar} from './shared'
+        export default bar
+      `,
+      'shared.js': `
+        export function foo() {
+          return 'foo'
+        }
+        export function bar() {
+          return 'bar'
+        }
+      `,
+      'node.js': `
+        import a from './out/a.js'
+        import b from './out/b.js'
+        if (a.foo() !== 'foo') throw 'fail'
+        if (b() !== 'bar') throw 'fail'
+      `,
+    }),
+
     // Code splitting with a dynamic import that imports a CSS file
     // https://github.com/evanw/esbuild/issues/1125
     test(['parent.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {

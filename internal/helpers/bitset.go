@@ -22,15 +22,6 @@ func (bs BitSet) Equals(other BitSet) bool {
 	return bytes.Equal(bs.entries, other.entries)
 }
 
-func (bs *BitSet) IsAllZeros() bool {
-	for _, v := range bs.entries {
-		if v != 0 {
-			return false
-		}
-	}
-	return true
-}
-
 func (bs BitSet) String() string {
 	return string(bs.entries)
 }

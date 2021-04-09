@@ -157,8 +157,8 @@ type jsMeta struct {
 	importsToBind map[js_ast.Ref]importData
 
 	isAsyncOrHasAsyncDependency bool
-
-	wrap wrapKind
+	dependsOnRuntimeSymbol      bool
+	wrap                        wrapKind
 
 	// If true, the "__export(exports, { ... })" call will be force-included even
 	// if there are no parts that reference "exports". Otherwise this call will
@@ -254,17 +254,9 @@ type exportData struct {
 // linking operations may be happening in parallel with different metadata for
 // the same part in the same file.
 type partMeta struct {
-	// This part is considered live if any entry point can reach this part. In
-	// addition, we want to avoid visiting a given part twice during the depth-
-	// first live code detection traversal for a single entry point. This index
-	// solves both of these problems at once. This part is live if this index
-	// is valid, and this part should not be re-visited if this index equals
-	// the index of the current entry point being visted.
-	lastEntryBit ast.Index32
-}
-
-func (pm *partMeta) isLive() bool {
-	return pm.lastEntryBit.IsValid()
+	// This is true if this file has been marked as live by the tree shaking
+	// algorithm.
+	isLive bool
 }
 
 type partRange struct {
@@ -962,7 +954,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 				switch repr := c.files[sourceIndex].repr.(type) {
 				case *reprJS:
 					for partIndex, partMeta := range repr.meta.partMeta {
-						if !partMeta.isLive() {
+						if !partMeta.isLive {
 							continue
 						}
 						part := &repr.ast.Parts[partIndex]
@@ -1568,11 +1560,11 @@ func (c *linkerContext) scanImportsAndExports() {
 			exportPart := &repr.ast.Parts[repr.meta.nsExportPartIndex]
 			if repr.meta.needsExportSymbolFromRuntime {
 				exportRef := runtimeRepr.ast.ModuleScope.Members["__export"].Ref
-				c.generateUseOfSymbolForInclude(exportPart, &repr.meta, 1, exportRef, runtime.SourceIndex)
+				c.generateUseOfSymbolForInclude(exportPart, repr, 1, exportRef, runtime.SourceIndex)
 			}
 			if repr.meta.needsMarkAsModuleSymbolFromRuntime {
 				exportRef := runtimeRepr.ast.ModuleScope.Members["__markAsModule"].Ref
-				c.generateUseOfSymbolForInclude(exportPart, &repr.meta, 1, exportRef, runtime.SourceIndex)
+				c.generateUseOfSymbolForInclude(exportPart, repr, 1, exportRef, runtime.SourceIndex)
 			}
 		}
 
@@ -2425,8 +2417,9 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 }
 
 func (c *linkerContext) markPartsReachableFromEntryPoints() {
-	// Allocate bit sets
 	bitCount := uint(len(c.entryPoints))
+
+	// Generate wrapper parts for wrapped files
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
 		file.entryBits = helpers.NewBitSet(bitCount)
@@ -2463,7 +2456,6 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				partIndex := c.addPartToFile(sourceIndex, js_ast.Part{
 					SymbolUses: map[js_ast.Ref]js_ast.SymbolUse{
 						repr.ast.WrapperRef: {CountEstimate: 1},
-						commonJSRef:         {CountEstimate: 1},
 					},
 					DeclaredSymbols: []js_ast.DeclaredSymbol{
 						{Ref: repr.ast.ExportsRef, IsTopLevel: true},
@@ -2474,10 +2466,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				})
 				repr.meta.wrapperPartIndex = ast.MakeIndex32(partIndex)
 				repr.ast.TopLevelSymbolToParts[repr.ast.WrapperRef] = []uint32{partIndex}
-				repr.meta.importsToBind[commonJSRef] = importData{
-					ref:         commonJSRef,
-					sourceIndex: runtime.SourceIndex,
-				}
+				c.generateUseOfSymbolForInclude(&repr.ast.Parts[partIndex], repr, 1, commonJSRef, runtime.SourceIndex)
 			}
 
 			// If this is a lazily-initialized ESM file, we're going to need to
@@ -2506,7 +2495,6 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				partIndex := c.addPartToFile(sourceIndex, js_ast.Part{
 					SymbolUses: map[js_ast.Ref]js_ast.SymbolUse{
 						repr.ast.WrapperRef: {CountEstimate: 1},
-						esmRef:              {CountEstimate: 1},
 					},
 					DeclaredSymbols: []js_ast.DeclaredSymbol{
 						{Ref: repr.ast.WrapperRef, IsTopLevel: true},
@@ -2515,34 +2503,97 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				})
 				repr.meta.wrapperPartIndex = ast.MakeIndex32(partIndex)
 				repr.ast.TopLevelSymbolToParts[repr.ast.WrapperRef] = []uint32{partIndex}
-				repr.meta.importsToBind[esmRef] = importData{
-					ref:         esmRef,
-					sourceIndex: runtime.SourceIndex,
-				}
+				c.generateUseOfSymbolForInclude(&repr.ast.Parts[partIndex], repr, 1, esmRef, runtime.SourceIndex)
 			}
 		}
 	}
 
-	// Each entry point marks all files reachable from itself
+	// Tree shaking: Each entry point marks all files reachable from itself
+	for _, entryPoint := range c.entryPoints {
+		c.markFileAsLive(entryPoint.sourceIndex)
+	}
+
+	// Code splitting: Determine which entry points can reach which files. This
+	// has to happen after tree shaking because there is an implicit dependency
+	// between live parts within the same file. All liveness has to be computed
+	// first before determining which entry points can reach which files.
 	for i, entryPoint := range c.entryPoints {
-		c.includeFile(entryPoint.sourceIndex, uint(i), 0)
+		c.markFileAsReachable(entryPoint.sourceIndex, uint(i), 0)
 	}
 }
 
-func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
+func (c *linkerContext) markFileAsReachable(sourceIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
 	file := &c.files[sourceIndex]
+	if !file.isLive {
+		return
+	}
+	traverseAgain := false
 
 	// Track the minimum distance to an entry point
 	if distanceFromEntryPoint < file.distanceFromEntryPoint {
 		file.distanceFromEntryPoint = distanceFromEntryPoint
+		traverseAgain = true
 	}
 	distanceFromEntryPoint++
 
 	// Don't mark this file more than once
-	if file.entryBits.HasBit(entryPointBit) {
+	if file.entryBits.HasBit(entryPointBit) && !traverseAgain {
 		return
 	}
 	file.entryBits.SetBit(entryPointBit)
+
+	switch repr := file.repr.(type) {
+	case *reprJS:
+		// If the JavaScript stub for a CSS file is included, also include the CSS file
+		if repr.cssSourceIndex.IsValid() {
+			c.markFileAsReachable(repr.cssSourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
+		}
+
+		// Traverse into all dependencies
+		for _, record := range repr.ast.ImportRecords {
+			if record.SourceIndex.IsValid() && !c.isExternalDynamicImport(&record, sourceIndex) {
+				c.markFileAsReachable(record.SourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
+			}
+		}
+
+		// Pull in the runtime file if this file has been flagged as importing it.
+		// Right now imports to the runtime file are added during linking to handle
+		// various things (e.g. calling "__toModule" for import statements that turn
+		// out to be of CommonJS modules) but this works without adding actual import
+		// statements, which means the runtime won't be reached by the call above.
+		//
+		// This isn't great because it's an additional special-case. In the future,
+		// it would probably be good to change the code that imports stuff from the
+		// runtime to add normal import records and avoid this special-casing.
+		//
+		// That change hasn't been made yet because the tree shaking traversal
+		// currently adds imports during the traversal, and mutating import
+		// records when that happens would cause mutation-during-iteration for
+		// the tree shaking traversal which may have a caller higher up in the
+		// call stack iterating over those import records. Ideally all imports
+		// would be added ahead of time before the traversal begins.
+		if repr.meta.dependsOnRuntimeSymbol {
+			c.markFileAsReachable(runtime.SourceIndex, entryPointBit, distanceFromEntryPoint)
+		}
+
+	case *reprCSS:
+		// Traverse into all dependencies
+		for _, record := range repr.ast.ImportRecords {
+			if record.SourceIndex.IsValid() {
+				c.markFileAsReachable(record.SourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
+			}
+		}
+	}
+}
+
+func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
+	file := &c.files[sourceIndex]
+
+	// Don't mark this file more than once
+	if file.isLive {
+		return
+	}
+	file.isLive = true
 
 	switch repr := file.repr.(type) {
 	case *reprJS:
@@ -2550,7 +2601,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 
 		// If the JavaScript stub for a CSS file is included, also include the CSS file
 		if repr.cssSourceIndex.IsValid() {
-			c.includeFile(repr.cssSourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
+			c.markFileAsLive(repr.cssSourceIndex.GetIndex())
 		}
 
 		for partIndex, part := range repr.ast.Parts {
@@ -2577,7 +2628,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 					}
 
 					// Otherwise, include this module for its side effects
-					c.includeFile(otherSourceIndex, entryPointBit, distanceFromEntryPoint)
+					c.markFileAsLive(otherSourceIndex)
 				}
 
 				// If we get here then the import was included for its side effects, so
@@ -2589,7 +2640,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 			// everything if tree-shaking is disabled. Note that we still want to
 			// perform tree-shaking on the runtime even if tree-shaking is disabled.
 			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !isTreeShakingEnabled && file.isEntryPoint()) {
-				c.includePart(sourceIndex, uint32(partIndex), entryPointBit, distanceFromEntryPoint)
+				c.markPartAsLive(sourceIndex, uint32(partIndex))
 			}
 		}
 
@@ -2610,18 +2661,18 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 
 				// Pull in all declarations of this symbol
 				for _, partIndex := range targetRepr.ast.TopLevelSymbolToParts[targetRef] {
-					c.includePart(targetSourceIndex, partIndex, entryPointBit, distanceFromEntryPoint)
+					c.markPartAsLive(targetSourceIndex, partIndex)
 				}
 			}
 
 			// Ensure "exports" is included if the current output format needs it
 			if repr.meta.forceIncludeExportsForEntryPoint {
-				c.includePart(sourceIndex, repr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
+				c.markPartAsLive(sourceIndex, repr.meta.nsExportPartIndex)
 			}
 
 			// Include the wrapper if present
 			if repr.meta.wrap != wrapNone {
-				c.includePart(sourceIndex, repr.meta.wrapperPartIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
+				c.markPartAsLive(sourceIndex, repr.meta.wrapperPartIndex.GetIndex())
 			}
 		}
 
@@ -2629,41 +2680,48 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 		// Include all "@import" rules
 		for _, record := range repr.ast.ImportRecords {
 			if record.SourceIndex.IsValid() {
-				c.includeFile(record.SourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
+				c.markFileAsLive(record.SourceIndex.GetIndex())
 			}
 		}
 	}
 }
 
-func (c *linkerContext) includePartsForRuntimeSymbol(
-	part *js_ast.Part, jsMeta *jsMeta, useCount uint32,
-	name string, entryPointBit uint, distanceFromEntryPoint uint32,
+func (c *linkerContext) markPartsAsLiveForRuntimeSymbol(
+	part *js_ast.Part, repr *reprJS, useCount uint32, name string,
 ) {
 	if useCount > 0 {
 		runtimeRepr := c.files[runtime.SourceIndex].repr.(*reprJS)
 		ref := runtimeRepr.ast.NamedExports[name].Ref
 
 		// Depend on the symbol from the runtime
-		c.generateUseOfSymbolForInclude(part, jsMeta, useCount, ref, runtime.SourceIndex)
+		c.generateUseOfSymbolForInclude(part, repr, useCount, ref, runtime.SourceIndex)
 
 		// Since this part was included, also include the parts from the runtime
 		// that declare this symbol
 		for _, partIndex := range runtimeRepr.ast.TopLevelSymbolToParts[ref] {
-			c.includePart(runtime.SourceIndex, partIndex, entryPointBit, distanceFromEntryPoint)
+			c.markPartAsLive(runtime.SourceIndex, partIndex)
 		}
 	}
 }
 
 func (c *linkerContext) generateUseOfSymbolForInclude(
-	part *js_ast.Part, jsMeta *jsMeta, useCount uint32,
+	part *js_ast.Part, repr *reprJS, useCount uint32,
 	ref js_ast.Ref, otherSourceIndex uint32,
 ) {
+	// Mark this symbol as used by this part
 	use := part.SymbolUses[ref]
 	use.CountEstimate += useCount
 	part.SymbolUses[ref] = use
-	jsMeta.importsToBind[ref] = importData{
+
+	// Track that this specific symbol was imported
+	repr.meta.importsToBind[ref] = importData{
 		sourceIndex: otherSourceIndex,
 		ref:         ref,
+	}
+
+	// Make sure code splitting includes the runtime from this file
+	if otherSourceIndex == runtime.SourceIndex {
+		repr.meta.dependsOnRuntimeSymbol = true
 	}
 }
 
@@ -2671,25 +2729,25 @@ func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord, source
 	return record.Kind == ast.ImportDynamic && c.files[record.SourceIndex.GetIndex()].isEntryPoint() && record.SourceIndex.GetIndex() != sourceIndex
 }
 
-func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
+func (c *linkerContext) markPartAsLive(sourceIndex uint32, partIndex uint32) {
 	file := &c.files[sourceIndex]
 	repr := file.repr.(*reprJS)
 	partMeta := &repr.meta.partMeta[partIndex]
 
 	// Don't mark this part more than once
-	if partMeta.lastEntryBit == ast.MakeIndex32(uint32(entryPointBit)) {
+	if partMeta.isLive {
 		return
 	}
-	partMeta.lastEntryBit = ast.MakeIndex32(uint32(entryPointBit))
+	partMeta.isLive = true
 
 	part := &repr.ast.Parts[partIndex]
 
 	// Include the file containing this part
-	c.includeFile(sourceIndex, entryPointBit, distanceFromEntryPoint)
+	c.markFileAsLive(sourceIndex)
 
 	// Also include any dependencies
 	for _, dep := range part.Dependencies {
-		c.includePart(dep.SourceIndex, dep.PartIndex, entryPointBit, distanceFromEntryPoint)
+		c.markPartAsLive(dep.SourceIndex, dep.PartIndex)
 	}
 
 	// Also include any require() imports
@@ -2715,11 +2773,11 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		if record.Kind == ast.ImportRequire || record.Kind == ast.ImportDynamic ||
 			(record.Kind == ast.ImportStmt && otherRepr.meta.wrap != wrapNone) {
 			// This is a dynamically-evaluated import (i.e. not statically-evaluated)
-			c.includeFile(otherSourceIndex, entryPointBit, distanceFromEntryPoint)
+			c.markFileAsLive(otherSourceIndex)
 
 			// Depend on the automatically-generated require wrapper symbol
 			wrapperRef := otherRepr.ast.WrapperRef
-			c.generateUseOfSymbolForInclude(part, &repr.meta, 1, wrapperRef, otherSourceIndex)
+			c.generateUseOfSymbolForInclude(part, repr, 1, wrapperRef, otherSourceIndex)
 
 			// This is an ES6 import of a CommonJS module, so it needs the
 			// "__toModule" wrapper as long as it's not a bare "require()"
@@ -2734,8 +2792,8 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 			// but does not need to be done for "import" statements since
 			// those just cause us to reference the exports directly.
 			if otherRepr.meta.wrap == wrapESM && record.Kind != ast.ImportStmt {
-				c.generateUseOfSymbolForInclude(part, &repr.meta, 1, otherRepr.ast.ExportsRef, otherSourceIndex)
-				c.includePart(otherSourceIndex, otherRepr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
+				c.generateUseOfSymbolForInclude(part, repr, 1, otherRepr.ast.ExportsRef, otherSourceIndex)
+				c.markPartAsLive(otherSourceIndex, otherRepr.meta.nsExportPartIndex)
 			}
 		} else if record.Kind == ast.ImportStmt && otherRepr.ast.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
 			// This is an import of a module that has a dynamic export fallback
@@ -2743,14 +2801,14 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 			// something ends up needing to use it later. This could potentially
 			// be omitted in some cases with more advanced analysis if this
 			// dynamic export fallback object doesn't end up being needed.
-			c.generateUseOfSymbolForInclude(part, &repr.meta, 1, otherRepr.ast.ExportsRef, otherSourceIndex)
-			c.includePart(otherSourceIndex, otherRepr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
+			c.generateUseOfSymbolForInclude(part, repr, 1, otherRepr.ast.ExportsRef, otherSourceIndex)
+			c.markPartAsLive(otherSourceIndex, otherRepr.meta.nsExportPartIndex)
 		}
 	}
 
 	// If there's an ES6 import of a non-ES6 module, then we're going to need the
 	// "__toModule" symbol from the runtime to wrap the result of "require()"
-	c.includePartsForRuntimeSymbol(part, &repr.meta, toModuleUses, "__toModule", entryPointBit, distanceFromEntryPoint)
+	c.markPartsAsLiveForRuntimeSymbol(part, repr, toModuleUses, "__toModule")
 
 	// If there's an ES6 export star statement of a non-ES6 module, then we're
 	// going to need the "__reExport" symbol from the runtime
@@ -2771,20 +2829,20 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 				// pull in the "exports_b" symbol into this export star. This matters
 				// in code splitting situations where the "export_b" symbol might live
 				// in a different chunk than this export star.
-				c.generateUseOfSymbolForInclude(part, &repr.meta, 1, otherRepr.ast.ExportsRef, otherSourceIndex)
-				c.includePart(otherSourceIndex, otherRepr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
+				c.generateUseOfSymbolForInclude(part, repr, 1, otherRepr.ast.ExportsRef, otherSourceIndex)
+				c.markPartAsLive(otherSourceIndex, otherRepr.meta.nsExportPartIndex)
 			}
 		}
 		if happensAtRunTime {
 			// Depend on this file's "exports" object for the first argument to "__reExport"
-			c.generateUseOfSymbolForInclude(part, &repr.meta, 1, repr.ast.ExportsRef, sourceIndex)
-			c.includePart(sourceIndex, repr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
+			c.generateUseOfSymbolForInclude(part, repr, 1, repr.ast.ExportsRef, sourceIndex)
+			c.markPartAsLive(sourceIndex, repr.meta.nsExportPartIndex)
 			record.CallsRunTimeExportStarFn = true
 			repr.ast.UsesExportsRef = true
 			exportStarUses++
 		}
 	}
-	c.includePartsForRuntimeSymbol(part, &repr.meta, exportStarUses, "__reExport", entryPointBit, distanceFromEntryPoint)
+	c.markPartsAsLiveForRuntimeSymbol(part, repr, exportStarUses, "__reExport")
 }
 
 func sanitizeFilePathForVirtualModulePath(path string) string {
@@ -2864,7 +2922,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	// Figure out which files are in which chunk
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
-		if file.entryBits.IsAllZeros() {
+		if !file.isLive {
 			// Ignore this file if it's not included in the bundle
 			continue
 		}
@@ -3106,12 +3164,12 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 
 			// Make sure the generated call to "__export(exports, ...)" comes first
 			// before anything else in this file
-			if canFileBeSplit && isFileInThisChunk && repr.meta.partMeta[repr.meta.nsExportPartIndex].isLive() {
+			if canFileBeSplit && isFileInThisChunk && repr.meta.partMeta[repr.meta.nsExportPartIndex].isLive {
 				jsParts = appendOrExtendPartRange(jsParts, sourceIndex, repr.meta.nsExportPartIndex)
 			}
 
 			for partIndex, part := range repr.ast.Parts {
-				isPartInThisChunk := isFileInThisChunk && repr.meta.partMeta[partIndex].isLive()
+				isPartInThisChunk := isFileInThisChunk && repr.meta.partMeta[partIndex].isLive
 
 				// Also traverse any files imported by this part
 				for _, importRecordIndex := range part.ImportRecordIndices {
@@ -3229,7 +3287,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 		// Ignore this file if it's not included in the bundle. This can happen for
 		// wrapped ESM files but not for wrapped CommonJS files because we allow
 		// tree shaking inside wrapped ESM files.
-		if otherFile.entryBits.IsAllZeros() {
+		if !otherFile.isLive {
 			break
 		}
 
@@ -3562,7 +3620,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	// Make sure the generated call to "__export(exports, ...)" comes first
 	// before anything else.
 	if nsExportPartIndex >= partRange.partIndexBegin && nsExportPartIndex < partRange.partIndexEnd &&
-		repr.meta.partMeta[nsExportPartIndex].isLive() {
+		repr.meta.partMeta[nsExportPartIndex].isLive {
 		c.convertStmtsForChunk(partRange.sourceIndex, &stmtList, repr.ast.Parts[nsExportPartIndex].Stmts)
 
 		// Move everything to the prefix list
@@ -3577,7 +3635,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	// Add all other parts in this chunk
 	for partIndex := partRange.partIndexBegin; partIndex < partRange.partIndexEnd; partIndex++ {
 		part := repr.ast.Parts[partIndex]
-		if !repr.meta.partMeta[partIndex].isLive() {
+		if !repr.meta.partMeta[partIndex].isLive {
 			// Skip the part if it's not in this chunk
 			continue
 		}
@@ -4094,7 +4152,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 			}
 
 			for partIndex, part := range repr.ast.Parts {
-				if !repr.meta.partMeta[partIndex].isLive() {
+				if !repr.meta.partMeta[partIndex].isLive {
 					// Skip the part if it's not in this chunk
 					continue
 				}
@@ -4222,7 +4280,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 
 		// Rename each top-level symbol declaration in this chunk
 		for partIndex, part := range repr.ast.Parts {
-			if repr.meta.partMeta[partIndex].isLive() {
+			if repr.meta.partMeta[partIndex].isLive {
 				for _, declared := range part.DeclaredSymbols {
 					if declared.IsTopLevel {
 						r.AddTopLevelSymbol(declared.Ref)
