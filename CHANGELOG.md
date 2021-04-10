@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.7
 
 * Fix incorrect chunk reference with code splitting, css, and dynamic imports ([#1125](https://github.com/evanw/esbuild/issues/1125))
 
