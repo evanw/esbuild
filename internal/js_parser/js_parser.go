@@ -8978,10 +8978,6 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		// reference the same thing.
 		p.options.unsupportedJSFeatures.Has(compat.ClassStaticField) ||
 
-			// Do this when we are converting this class to a "var" to avoid temporal
-			// dead zone performance issues.
-			(p.options.mode == config.ModeBundle && p.currentScope.Parent == nil) ||
-
 			// Do this when TypeScript's "useDefineForClassFields: false" setting is
 			// active. In that case we change field initializers into assignment
 			// expressions to avoid "define" semantics, which end up outside of the
