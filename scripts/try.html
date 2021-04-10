@@ -163,6 +163,28 @@
           <option>ES2019</option>
           <option>ES2020</option>
           <option selected>ESNext</option>
+
+          <option>Chrome70</option>
+          <option>Chrome71</option>
+          <option>Chrome72</option>
+          <option>Chrome73</option>
+          <option>Chrome74</option>
+          <option>Chrome75</option>
+          <option>Chrome76</option>
+          <option>Chrome77</option>
+          <option>Chrome78</option>
+          <option>Chrome79</option>
+
+          <option>Chrome80</option>
+          <option>Chrome81</option>
+          <option>Chrome82</option>
+          <option>Chrome83</option>
+          <option>Chrome84</option>
+          <option>Chrome85</option>
+          <option>Chrome86</option>
+          <option>Chrome87</option>
+          <option>Chrome88</option>
+          <option>Chrome89</option>
         </select>
       </label>
       &nbsp; &nbsp;
@@ -190,6 +212,11 @@
         </select>
       </label>
       <br>
+      <label for="bundle">
+        <input id="bundle" type="checkbox">
+        Bundle
+      </label>
+      &nbsp; &nbsp;
       <label for="ascii">
         <input id="ascii" type="checkbox">
         ASCII
@@ -221,6 +248,7 @@
     const minifyIdents = document.querySelector('#minify-idents')
     const minifySpaces = document.querySelector('#minify-spaces')
     const ascii = document.querySelector('#ascii')
+    const bundle = document.querySelector('#bundle')
     const keepNames = document.querySelector('#keepNames')
     let runIfIdle
 
@@ -261,6 +289,7 @@
     persistChecked(minifyIdents, 'minifyIdents')
     persistChecked(minifySpaces, 'minifySpaces')
     persistChecked(ascii, 'ascii')
+    persistChecked(bundle, 'bundle')
     persistChecked(keepNames, 'keepNames')
 
     try {
@@ -296,16 +325,43 @@
         const inputValue = input.value
         var code, warnings, errors
         try {
-          ({ code, warnings } = await esbuild.transform(inputValue, {
-            target: target.value.toLowerCase(),
-            loader: loader.value.toLowerCase(),
-            format: format.value === 'Preserve' ? void 0 : format.value.toLowerCase(),
-            minifySyntax: minifySyntax.checked,
-            minifyIdentifiers: minifyIdents.checked,
-            minifyWhitespace: minifySpaces.checked,
-            charset: ascii.checked ? 'ascii' : 'utf8',
-            keepNames: keepNames.checked,
-          }))
+          if (bundle.checked) {
+            const results = await esbuild.build({
+              stdin: {
+                contents: inputValue,
+                loader: loader.value.toLowerCase(),
+              },
+              bundle: true,
+              target: target.value.toLowerCase(),
+              format: format.value === 'Preserve' ? void 0 : format.value.toLowerCase(),
+              minifySyntax: minifySyntax.checked,
+              minifyIdentifiers: minifyIdents.checked,
+              minifyWhitespace: minifySpaces.checked,
+              charset: ascii.checked ? 'ascii' : 'utf8',
+              keepNames: keepNames.checked,
+              plugins: [{
+                name: 'external-all',
+                setup(build) {
+                  build.onResolve({ filter: /.*/ }, args => {
+                    return { path: args.path, external: true }
+                  })
+                },
+              }],
+            })
+            code = results.outputFiles[0].text
+            warnings = results.warnings
+          } else {
+            ({ code, warnings } = await esbuild.transform(inputValue, {
+              target: target.value.toLowerCase(),
+              loader: loader.value.toLowerCase(),
+              format: format.value === 'Preserve' ? void 0 : format.value.toLowerCase(),
+              minifySyntax: minifySyntax.checked,
+              minifyIdentifiers: minifyIdents.checked,
+              minifyWhitespace: minifySpaces.checked,
+              charset: ascii.checked ? 'ascii' : 'utf8',
+              keepNames: keepNames.checked,
+            }))
+          }
         } catch (error) {
           ({ errors, warnings } = error)
           if (!errors) {
