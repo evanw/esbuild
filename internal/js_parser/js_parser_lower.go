@@ -198,7 +198,8 @@ func (p *parser) markLoweredSyntaxFeature(feature compat.JSFeature, r logger.Ran
 }
 
 func (p *parser) privateSymbolNeedsToBeLowered(private *js_ast.EPrivateIdentifier) bool {
-	return p.options.unsupportedJSFeatures.Has(p.symbols[private.Ref.InnerIndex].Kind.Feature())
+	symbol := &p.symbols[private.Ref.InnerIndex]
+	return p.options.unsupportedJSFeatures.Has(symbol.Kind.Feature()) || symbol.PrivateSymbolMustBeLowered
 }
 
 func (p *parser) captureThis() js_ast.Ref {
@@ -1632,6 +1633,203 @@ func (p *parser) captureKeyForObjectRest(originalKey js_ast.Expr) (finalKey js_a
 	return
 }
 
+type classLoweringInfo struct {
+	useDefineForClassFields bool
+	avoidTDZ                bool
+	lowerAllInstanceFields  bool
+	lowerAllStaticFields    bool
+}
+
+func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLoweringInfo) {
+	// TypeScript has legacy behavior that uses assignment semantics instead of
+	// define semantics for class fields by default. This happened before class
+	// fields were added to JavaScript, but then TC39 decided to go with define
+	// semantics for class fields instead, leaving TypeScript to deal with the
+	// incorrect assignment semantics. This behaves differently if the base class
+	// has a setter with the same name.
+	result.useDefineForClassFields = p.options.useDefineForClassFields != config.False
+
+	// Safari workaround: Automatically avoid TDZ issues when bundling
+	result.avoidTDZ = p.options.mode == config.ModeBundle && p.currentScope.Parent == nil
+
+	// Conservatively lower fields of a given type (instance or static) when any
+	// member of that type needs to be lowered. This must be done to preserve
+	// evaluation order. For example:
+	//
+	//   class Foo {
+	//     #foo = 123
+	//     bar = this.#foo
+	//   }
+	//
+	// It would be bad if we transformed that into something like this:
+	//
+	//   var _foo;
+	//   class Foo {
+	//     constructor() {
+	//       _foo.set(this, 123);
+	//     }
+	//     bar = __privateGet(this, _foo);
+	//   }
+	//   _foo = new WeakMap();
+	//
+	// That evaluates "bar" then "foo" instead of "foo" then "bar" like the
+	// original code. We need to do this instead:
+	//
+	//   var _foo;
+	//   class Foo {
+	//     constructor() {
+	//       _foo.set(this, 123);
+	//       __publicField(this, "bar", __privateGet(this, _foo));
+	//     }
+	//   }
+	//   _foo = new WeakMap();
+	//
+	for _, prop := range class.Properties {
+		if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
+			if prop.IsStatic {
+				if p.privateSymbolNeedsToBeLowered(private) {
+					result.lowerAllStaticFields = true
+				}
+
+				// Be conservative and always lower static fields when we're doing TDZ-
+				// avoidance if the class's shadowing symbol is referenced at all (i.e.
+				// the class name within the class body, which can be referenced by name
+				// or by "this" in a static initializer). We can't transform this:
+				//
+				//   class Foo {
+				//     static #foo = new Foo();
+				//   }
+				//
+				// into this:
+				//
+				//   var Foo = class {
+				//     static #foo = new Foo();
+				//   };
+				//
+				// since "new Foo" will crash. We need to lower this static field to avoid
+				// crashing due to an uninitialized binding.
+				if result.avoidTDZ {
+					// Note that due to esbuild's single-pass design where private fields
+					// are lowered as they are resolved, we must decide whether to lower
+					// these private fields before we enter the class body. We can't wait
+					// until we've scanned the class body and know if the shadowing symbol
+					// is used or not before we decide, because if "#foo" does need to be
+					// lowered, references to "#foo" inside the class body weren't lowered.
+					// So we just unconditionally do this instead.
+					result.lowerAllStaticFields = true
+				}
+			} else {
+				if p.privateSymbolNeedsToBeLowered(private) {
+					result.lowerAllInstanceFields = true
+
+					// We can't transform this:
+					//
+					//   class Foo {
+					//     #foo = 123
+					//     static bar = new Foo().#foo
+					//   }
+					//
+					// into this:
+					//
+					//   var _foo;
+					//   const _Foo = class {
+					//     constructor() {
+					//       _foo.set(this, 123);
+					//     }
+					//     static bar = __privateGet(new _Foo(), _foo);
+					//   };
+					//   let Foo = _Foo;
+					//   _foo = new WeakMap();
+					//
+					// because "_Foo" won't be initialized in the initializer for "bar".
+					// So we currently lower all static fields in this case too. This
+					// isn't great and it would be good to find a way to avoid this.
+					// The shadowing symbol substitution mechanism should probably be
+					// rethought.
+					result.lowerAllStaticFields = true
+				}
+			}
+			continue
+		}
+
+		// This doesn't come before the private member check above because
+		// unsupported private methods must also trigger field lowering:
+		//
+		//   class Foo {
+		//     bar = this.#foo()
+		//     #foo() {}
+		//   }
+		//
+		// It would be bad if we transformed that to something like this:
+		//
+		//   var _foo, foo_fn;
+		//   class Foo {
+		//     constructor() {
+		//       _foo.add(this);
+		//     }
+		//     bar = __privateMethod(this, _foo, foo_fn).call(this);
+		//   }
+		//   _foo = new WeakSet();
+		//   foo_fn = function() {
+		//   };
+		//
+		// In that case the initializer of "bar" would fail to call "#foo" because
+		// it's only added to the instance in the body of the constructor.
+		if prop.IsMethod {
+			continue
+		}
+
+		if prop.IsStatic {
+			// Static fields must be lowered if the target doesn't support them
+			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticField) {
+				result.lowerAllStaticFields = true
+			}
+
+			// Convert static fields to assignment statements if the TypeScript
+			// setting for this is enabled. I don't think this matters for private
+			// fields because there's no way for this to call a setter in the base
+			// class, so this isn't done for private fields.
+			if p.options.ts.Parse && !result.useDefineForClassFields {
+				result.lowerAllStaticFields = true
+			}
+
+			// Be conservative and always lower static fields when we're doing TDZ-
+			// avoidance. We can't transform this:
+			//
+			//   class Foo {
+			//     static foo = new Foo();
+			//   }
+			//
+			// into this:
+			//
+			//   var Foo = class {
+			//     static foo = new Foo();
+			//   };
+			//
+			// since "new Foo" will crash. We need to lower this static field to avoid
+			// crashing due to an uninitialized binding.
+			if result.avoidTDZ {
+				result.lowerAllStaticFields = true
+			}
+		} else {
+			// Instance fields must be lowered if the target doesn't support them
+			if p.options.unsupportedJSFeatures.Has(compat.ClassField) {
+				result.lowerAllInstanceFields = true
+			}
+
+			// Convert instance fields to assignment statements if the TypeScript
+			// setting for this is enabled. I don't think this matters for private
+			// fields because there's no way for this to call a setter in the base
+			// class, so this isn't done for private fields.
+			if p.options.ts.Parse && !result.useDefineForClassFields {
+				result.lowerAllInstanceFields = true
+			}
+		}
+	}
+
+	return
+}
+
 // Lower class fields for environments that don't support them. This either
 // takes a statement or an expression.
 func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast.Ref) ([]js_ast.Stmt, js_ast.Expr) {
@@ -1699,7 +1897,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	var parameterFields []js_ast.Stmt
 	var instanceMembers []js_ast.Stmt
 	var instancePrivateMethods []js_ast.Stmt
-	useDefineForClassFields := p.options.useDefineForClassFields != config.False
 	end := 0
 
 	// These expressions are generated after the class body, in this order
@@ -1770,8 +1967,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		}
 	}
 
-	// Safari workaround: Automatically avoid TDZ issues when bundling
-	avoidTDZ := p.options.mode == config.ModeBundle && p.currentScope.Parent == nil
+	classLoweringInfo := p.computeClassLoweringInfo(class)
 
 	for _, prop := range class.Properties {
 		// Merge parameter decorators with method decorators
@@ -1807,32 +2003,16 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		private, _ := prop.Key.Data.(*js_ast.EPrivateIdentifier)
 		mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
 		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.IsMethod && prop.Initializer == nil &&
-			!useDefineForClassFields && !mustLowerPrivate
+			!classLoweringInfo.useDefineForClassFields && !mustLowerPrivate
 
 		// Class fields must be lowered if the environment doesn't support them
-		mustLowerField := !prop.IsMethod &&
-			((!prop.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassField)) ||
-				(prop.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassStaticField)))
-
-		// Be conservative and always lower static fields when we're doing TDZ-
-		// avoidance and the shadowing name for the class was captured somewhere.
-		//
-		// We can't transform this:
-		//
-		//   class Foo {
-		//     static foo = new Foo();
-		//   }
-		//
-		// into this:
-		//
-		//   var Foo = class {
-		//     static foo = new Foo();
-		//   };
-		//
-		// since "new Foo" will crash. We need to lower this static field to avoid
-		// crashing due to an uninitialized binding.
-		if !prop.IsMethod && prop.IsStatic && avoidTDZ && shadowRef != js_ast.InvalidRef {
-			mustLowerField = true
+		mustLowerField := false
+		if !prop.IsMethod {
+			if prop.IsStatic {
+				mustLowerField = classLoweringInfo.lowerAllStaticFields
+			} else {
+				mustLowerField = classLoweringInfo.lowerAllInstanceFields
+			}
 		}
 
 		// Make sure the order of computed property keys doesn't change. These
@@ -1915,11 +2095,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			}
 		}
 
-		// Instance and static fields are a JavaScript feature, not just a
-		// TypeScript feature. Move their initializers from the class body to
-		// either the constructor (instance fields) or after the class (static
-		// fields).
-		if !prop.IsMethod && (mustLowerField || (p.options.ts.Parse && !useDefineForClassFields && (!prop.IsStatic || private == nil))) {
+		// Handle lowering of instance and static fields. Move their initializers
+		// from the class body to either the constructor (instance fields) or after
+		// the class (static fields).
+		if !prop.IsMethod && mustLowerField {
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
@@ -1973,7 +2152,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 						},
 					}}
 					p.recordUsage(ref)
-				} else if private == nil && useDefineForClassFields {
+				} else if private == nil && classLoweringInfo.useDefineForClassFields {
 					if _, ok := init.Data.(*js_ast.EUndefined); ok {
 						expr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key})
 					} else {
@@ -2014,7 +2193,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			prop.Initializer = nil
 		}
 
-		// Remember where the constructor is for later
 		if prop.IsMethod {
 			if mustLowerPrivate {
 				loc := prop.Key.Loc
@@ -2088,6 +2266,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				continue
 			} else if key, ok := prop.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(key.Value, "constructor") {
 				if fn, ok := prop.Value.Data.(*js_ast.EFunction); ok {
+					// Remember where the constructor is for later
 					ctor = fn
 
 					// Initialize TypeScript constructor parameter fields
@@ -2236,7 +2415,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	var stmts []js_ast.Stmt
 	var nameForClassDecorators js_ast.LocRef
 	generatedLocalStmt := false
-	if len(class.TSDecorators) > 0 || hasPotentialShadowCaptureEscape || avoidTDZ {
+	if len(class.TSDecorators) > 0 || hasPotentialShadowCaptureEscape || classLoweringInfo.avoidTDZ {
 		generatedLocalStmt = true
 		name := nameFunc()
 		nameRef := name.Data.(*js_ast.EIdentifier).Ref

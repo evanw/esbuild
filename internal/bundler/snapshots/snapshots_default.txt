@@ -2347,9 +2347,8 @@ var objFoo = {
     console.log(this);
   }
 };
-var Foo = class {
+var _Foo = class {
   x = this;
-  static y = this.z;
   foo(x = this) {
     console.log(this);
   }
@@ -2357,6 +2356,8 @@ var Foo = class {
     console.log(this);
   }
 };
+var Foo = _Foo;
+__publicField(Foo, "y", _Foo.z);
 new Foo(foo(objFoo));
 if (nested) {
   let bar = function(x = this) {
@@ -2543,9 +2544,8 @@ var objFoo = {
     console.log(this);
   }
 };
-var Foo = class {
+var _Foo = class {
   x = this;
-  static y = this.z;
   foo(x = this) {
     console.log(this);
   }
@@ -2553,6 +2553,8 @@ var Foo = class {
     console.log(this);
   }
 };
+var Foo = _Foo;
+__publicField(Foo, "y", _Foo.z);
 new Foo(foo(objFoo));
 if (nested) {
   let bar = function(x = this) {
