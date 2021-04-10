@@ -197,7 +197,7 @@ func (p *parser) markLoweredSyntaxFeature(feature compat.JSFeature, r logger.Ran
 	}
 }
 
-func (p *parser) isPrivateUnsupported(private *js_ast.EPrivateIdentifier) bool {
+func (p *parser) privateSymbolNeedsToBeLowered(private *js_ast.EPrivateIdentifier) bool {
 	return p.options.unsupportedJSFeatures.Has(p.symbols[private.Ref.InnerIndex].Kind.Feature())
 }
 
@@ -481,7 +481,7 @@ flatten:
 			// itself will have to be lowered even if the language target supports
 			// optional chaining. This is because there's no way to use our shim
 			// function for private names with optional chaining syntax.
-			if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
+			if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.privateSymbolNeedsToBeLowered(private) {
 				containsPrivateName = true
 			}
 
@@ -585,7 +585,7 @@ flatten:
 
 					// Capture the value of "this" if the target of the starting call
 					// expression is a private property access
-					if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
+					if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.privateSymbolNeedsToBeLowered(private) {
 						// "foo().#bar?.()" must capture "foo()" for "this"
 						expr = p.lowerPrivateGet(targetFunc(), e.Index.Loc, private)
 						thisArg = targetFunc()
@@ -633,7 +633,7 @@ flatten:
 			}}
 
 		case *js_ast.EIndex:
-			if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
+			if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.privateSymbolNeedsToBeLowered(private) {
 				// If this is private name property access inside a call expression and
 				// the call expression is part of this chain, then the call expression
 				// is going to need a copy of the property access target as the value
@@ -1076,7 +1076,7 @@ func (p *parser) lowerPrivateSetBinOp(target js_ast.Expr, loc logger.Loc, privat
 // the language target is such that private members must be lowered
 func (p *parser) extractPrivateIndex(target js_ast.Expr) (js_ast.Expr, logger.Loc, *js_ast.EPrivateIdentifier) {
 	if index, ok := target.Data.(*js_ast.EIndex); ok {
-		if private, ok := index.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
+		if private, ok := index.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.privateSymbolNeedsToBeLowered(private) {
 			return index.Target, index.Index.Loc, private
 		}
 	}
@@ -1253,7 +1253,7 @@ func (p *parser) lowerPrivateInAssign(expr js_ast.Expr) (js_ast.Expr, bool) {
 
 	case *js_ast.EIndex:
 		// "[a.#b] = [c]" => "[__privateAssign(a, #b)._] = [c]"
-		if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
+		if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.privateSymbolNeedsToBeLowered(private) {
 			var target js_ast.Expr
 
 			switch p.symbols[private.Ref.InnerIndex].Kind {
@@ -1805,7 +1805,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		// However, the TypeScript compiler doesn't remove the field when doing
 		// strict class field initialization, so we shouldn't either.
 		private, _ := prop.Key.Data.(*js_ast.EPrivateIdentifier)
-		mustLowerPrivate := private != nil && p.isPrivateUnsupported(private)
+		mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
 		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.IsMethod && prop.Initializer == nil &&
 			!useDefineForClassFields && !mustLowerPrivate
 
