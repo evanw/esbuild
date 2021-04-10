@@ -1455,6 +1455,59 @@ type Symbol struct {
 	// avoid this. We also need to be able to replace such import items with
 	// undefined, which this status is also used for.
 	ImportItemStatus ImportItemStatus
+
+	// Sometimes we lower private symbols even if they are supported. For example,
+	// consider the following TypeScript code:
+	//
+	//   class Foo {
+	//     #foo = 123
+	//     bar = this.#foo
+	//   }
+	//
+	// If "useDefineForClassFields: false" is set in "tsconfig.json", then "bar"
+	// must use assignment semantics instead of define semantics. We can compile
+	// that to this code:
+	//
+	//   class Foo {
+	//     constructor() {
+	//       this.#foo = 123;
+	//       this.bar = this.#foo;
+	//     }
+	//     #foo;
+	//   }
+	//
+	// However, we can't do the same for static fields:
+	//
+	//   class Foo {
+	//     static #foo = 123
+	//     static bar = this.#foo
+	//   }
+	//
+	// Compiling these static fields to something like this would be invalid:
+	//
+	//   class Foo {
+	//     static #foo;
+	//   }
+	//   Foo.#foo = 123;
+	//   Foo.bar = Foo.#foo;
+	//
+	// Thus "#foo" must be lowered even though it's supported. Another case is
+	// when we're converting top-level class declarations to class expressions
+	// to avoid the TDZ and the class shadowing symbol is referenced within the
+	// class body:
+	//
+	//   class Foo {
+	//     static #foo = Foo
+	//   }
+	//
+	// This cannot be converted into something like this:
+	//
+	//   var Foo = class {
+	//     static #foo;
+	//   };
+	//   Foo.#foo = Foo;
+	//
+	PrivateSymbolMustBeLowered bool
 }
 
 type SlotNamespace uint8

@@ -3635,6 +3635,80 @@ let transformTests = {
   asyncGenClassExprFn: ({ esbuild }) => futureSyntax(esbuild, '(class { async* foo() {} })', 'es2017', 'es2018'),
 }
 
+function registerClassPrivateTests(target) {
+  let contents = `
+    class Field { #foo = 123; bar = this.#foo }
+    if (new Field().bar !== 123) throw 'fail: field'
+
+    class Method { bar = this.#foo(); #foo() { return 123 } }
+    if (new Method().bar !== 123) throw 'fail: method'
+
+    class Accessor { bar = this.#foo; get #foo() { return 123 } }
+    if (new Accessor().bar !== 123) throw 'fail: accessor'
+
+    class StaticField { static #foo = 123; static bar = StaticField.#foo }
+    if (StaticField.bar !== 123) throw 'fail: static field'
+
+    class StaticMethod { static bar = StaticMethod.#foo(); static #foo() { return 123 } }
+    if (StaticMethod.bar !== 123) throw 'fail: static method'
+
+    class StaticAccessor { static bar = StaticAccessor.#foo; static get #foo() { return 123 } }
+    if (StaticAccessor.bar !== 123) throw 'fail: static accessor'
+
+    class StaticFieldThis { static #foo = 123; static bar = this.#foo }
+    if (StaticFieldThis.bar !== 123) throw 'fail: static field'
+
+    class StaticMethodThis { static bar = this.#foo(); static #foo() { return 123 } }
+    if (StaticMethodThis.bar !== 123) throw 'fail: static method'
+
+    class StaticAccessorThis { static bar = this.#foo; static get #foo() { return 123 } }
+    if (StaticAccessorThis.bar !== 123) throw 'fail: static accessor'
+
+    class FieldFromStatic { #foo = 123; static bar = new FieldFromStatic().#foo }
+    if (FieldFromStatic.bar !== 123) throw 'fail: field from static'
+
+    class MethodFromStatic { static bar = new MethodFromStatic().#foo(); #foo() { return 123 } }
+    if (MethodFromStatic.bar !== 123) throw 'fail: method from static'
+
+    class AccessorFromStatic { static bar = new AccessorFromStatic().#foo; get #foo() { return 123 } }
+    if (AccessorFromStatic.bar !== 123) throw 'fail: accessor from static'
+  `
+
+  // Test this code as JavaScript
+  let buildOptions = {
+    stdin: { contents },
+    bundle: true,
+    write: false,
+    target,
+  }
+  transformTests[`transformClassPrivate_${target[0]}`] = async ({ esbuild }) =>
+    new Function((await esbuild.transform(contents, { target })).code)()
+  buildTests[`buildClassPrivate_${target[0]}`] = async ({ esbuild }) =>
+    new Function((await esbuild.build(buildOptions)).outputFiles[0].text)()
+
+  // Test this code as TypeScript
+  let buildOptionsTS = {
+    stdin: { contents, loader: 'ts' },
+    bundle: true,
+    write: false,
+  }
+  transformTests[`tsTransformClassPrivate_${target[0]}`] = async ({ esbuild }) =>
+    new Function((await esbuild.transform(contents, { target, loader: 'ts' })).code)()
+  buildTests[`tsBuildClassPrivate_${target[0]}`] = async ({ esbuild }) =>
+    new Function((await esbuild.build(buildOptionsTS)).outputFiles[0].text)()
+}
+
+for (let es of ['es2015', 'es2016', 'es2017', 'es2018', 'es2019', 'es2020', 'esnext'])
+  registerClassPrivateTests([es])
+for (let chrome = 49; chrome < 100; chrome++)
+  registerClassPrivateTests([`chrome${chrome}`])
+for (let firefox = 45; firefox < 100; firefox++)
+  registerClassPrivateTests([`firefox${firefox}`])
+for (let edge = 13; edge < 100; edge++)
+  registerClassPrivateTests([`edge${edge}`])
+for (let safari = 10; safari < 20; safari++)
+  registerClassPrivateTests([`safari${safari}`])
+
 let formatTests = {
   async formatMessages({ esbuild }) {
     const messages = await esbuild.formatMessages([

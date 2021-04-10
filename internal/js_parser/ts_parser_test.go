@@ -381,7 +381,7 @@ func TestTSPrivateIdentifiers(t *testing.T) {
 	// constructor, but it has to leave the private field declaration in place so
 	// the private field is still declared.
 	expectPrintedTS(t, "class Foo { #foo }", "class Foo {\n  #foo;\n}\n")
-	expectPrintedTS(t, "class Foo { #foo = 1 }", "class Foo {\n  constructor() {\n    this.#foo = 1;\n  }\n  #foo;\n}\n")
+	expectPrintedTS(t, "class Foo { #foo = 1 }", "class Foo {\n  #foo = 1;\n}\n")
 	expectPrintedTS(t, "class Foo { #foo() {} }", "class Foo {\n  #foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { get #foo() {} }", "class Foo {\n  get #foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { set #foo(x) {} }", "class Foo {\n  set #foo(x) {\n  }\n}\n")

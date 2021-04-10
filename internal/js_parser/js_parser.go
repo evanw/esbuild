@@ -8970,19 +8970,43 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		p.recordDeclaredSymbol(class.Name.Ref)
 	}
 
-	// Determine if we should replace "this" with a reference to the class inside
-	// static field initializers.
-	replaceThisInStaticFieldInit :=
-		// Do this if static fields are not supported. In this case we relocate the
-		// field initializers outside of the class body so "this" will no longer
-		// reference the same thing.
-		p.options.unsupportedJSFeatures.Has(compat.ClassStaticField) ||
+	// Replace "this" with a reference to the class inside static field
+	// initializers if static fields are being lowered, since that relocates the
+	// field initializers outside of the class body and "this" will no longer
+	// reference the same thing.
+	classLoweringInfo := p.computeClassLoweringInfo(class)
+	replaceThisInStaticFieldInit := classLoweringInfo.lowerAllStaticFields
 
-			// Do this when TypeScript's "useDefineForClassFields: false" setting is
-			// active. In that case we change field initializers into assignment
-			// expressions to avoid "define" semantics, which end up outside of the
-			// class body.
-			p.options.useDefineForClassFields == config.False
+	// Sometimes we need to lower private members even though they are supported.
+	// This flags them for lowering so that we lower references to them as we
+	// traverse the class body.
+	//
+	// We don't need to worry about possible references to the class shadowing
+	// symbol inside the class body changing our decision to lower private members
+	// later on because that shouldn't be possible.
+	if classLoweringInfo.lowerAllStaticFields {
+		for _, prop := range class.Properties {
+			// We need to lower all private members if fields of that type are lowered,
+			// not just private fields (methods and accessors too):
+			//
+			//   class Foo {
+			//     get #foo() {}
+			//     static bar = new Foo().#foo
+			//   }
+			//
+			// We can't transform that to this:
+			//
+			//   class Foo {
+			//     get #foo() {}
+			//   }
+			//   Foo.bar = new Foo().#foo;
+			//
+			// The private getter must be lowered too.
+			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
+				p.symbols[private.Ref.InnerIndex].PrivateSymbolMustBeLowered = true
+			}
+		}
+	}
 
 	p.pushScopeForVisitPass(js_ast.ScopeClassName, nameScopeLoc)
 	oldEnclosingClassKeyword := p.enclosingClassKeyword

@@ -65,6 +65,30 @@
 
     We can't just move the initializer containing `Foo.foo` outside of the class body because in JavaScript, the class name is shadowed inside the class body by a special hidden constant that is equal to the class object. Even if the class is reassigned later, references to that shadowing symbol within the class body should still refer to the original class object.
 
+* Various fixes for private class members ([#1131](https://github.com/evanw/esbuild/issues/1131))
+
+    This release fixes multiple issues with esbuild's handling of the `#private` syntax. Previously there could be scenarios where references to `this.#private` could be moved outside of the class body, which would cause them to become invalid (since the `#private` name is only available within the class body). One such case is when TypeScript's `useDefineForClassFields` setting has the value `false` (which is the default value), which causes class field initializers to be replaced with assignment expressions to avoid using "define" semantics:
+
+    ```js
+    class Foo {
+      static #foo = 123
+      static bar = Foo.#foo
+    }
+    ```
+
+    Previously this was turned into the following code, which is incorrect because `Foo.#foo` was moved outside of the class body:
+
+    ```js
+    class Foo {
+      static #foo = 123;
+    }
+    Foo.bar = Foo.#foo;
+    ```
+
+    This is now handled by converting the private field syntax into normal JavaScript that emulates it with a `WeakMap` instead.
+
+    This conversion is fairly conservative to make sure certain edge cases are covered, so this release may unfortunately convert more private fields than previous releases, even when the target is `esnext`. It should be possible to improve this transformation in future releases so that this happens less often while still preserving correctness.
+
 ## 0.11.6
 
 * Fix an incorrect minification transformation ([#1121](https://github.com/evanw/esbuild/issues/1121))

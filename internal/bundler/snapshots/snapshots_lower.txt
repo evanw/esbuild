@@ -271,8 +271,8 @@ var _foo, foo_get;
 class Foo {
   constructor() {
     _foo.add(this);
+    __publicField(this, "bar", __privateGet(this, _foo, foo_get));
   }
-  bar = __privateGet(this, _foo, foo_get);
 }
 _foo = new WeakSet();
 foo_get = function() {
@@ -300,10 +300,14 @@ export let Foo = (_a = class {
 ================================================================================
 TestLowerPrivateClassFieldOrder
 ---------- /out.js ----------
+var _foo;
 class Foo {
-  #foo = 123;
-  bar = __privateGet(this, #foo);
+  constructor() {
+    _foo.set(this, 123);
+    __publicField(this, "bar", __privateGet(this, _foo));
+  }
 }
+_foo = new WeakMap();
 console.log(new Foo().bar === 123);
 
 ================================================================================
@@ -313,8 +317,8 @@ var _foo, foo_fn;
 class Foo {
   constructor() {
     _foo.add(this);
+    __publicField(this, "bar", __privateMethod(this, _foo, foo_fn).call(this));
   }
-  bar = __privateMethod(this, _foo, foo_fn).call(this);
 }
 _foo = new WeakSet();
 foo_fn = function() {
@@ -327,7 +331,6 @@ TestLowerPrivateClassStaticAccessorOrder
 ---------- /out.js ----------
 var _foo, foo_get, _foo2, foo_get2;
 const _Foo = class {
-  static bar = __privateGet(_Foo, _foo, foo_get);
 };
 let Foo = _Foo;
 _foo = new WeakSet();
@@ -335,29 +338,36 @@ foo_get = function() {
   return 123;
 };
 _foo.add(Foo);
+__publicField(Foo, "bar", __privateGet(_Foo, _foo, foo_get));
 console.log(Foo.bar === 123);
-class FooThis {
-  static bar = __privateGet(this, _foo2, foo_get2);
-}
+const _FooThis = class {
+};
+let FooThis = _FooThis;
 _foo2 = new WeakSet();
 foo_get2 = function() {
   return 123;
 };
 _foo2.add(FooThis);
+__publicField(FooThis, "bar", __privateGet(_FooThis, _foo2, foo_get2));
 console.log(FooThis.bar === 123);
 
 ================================================================================
 TestLowerPrivateClassStaticFieldOrder
 ---------- /out.js ----------
-class Foo {
-  static #foo = 123;
-  static bar = __privateGet(Foo, #foo);
-}
+var _foo, _foo2;
+const _Foo = class {
+};
+let Foo = _Foo;
+_foo = new WeakMap();
+_foo.set(Foo, 123);
+__publicField(Foo, "bar", __privateGet(_Foo, _foo));
 console.log(Foo.bar === 123);
-class FooThis {
-  static #foo = 123;
-  static bar = __privateGet(this, #foo);
-}
+const _FooThis = class {
+};
+let FooThis = _FooThis;
+_foo2 = new WeakMap();
+_foo2.set(FooThis, 123);
+__publicField(FooThis, "bar", __privateGet(_FooThis, _foo2));
 console.log(FooThis.bar === 123);
 
 ================================================================================
@@ -365,7 +375,6 @@ TestLowerPrivateClassStaticMethodOrder
 ---------- /out.js ----------
 var _foo, foo_fn, _foo2, foo_fn2;
 const _Foo = class {
-  static bar = __privateMethod(_Foo, _foo, foo_fn).call(_Foo);
 };
 let Foo = _Foo;
 _foo = new WeakSet();
@@ -373,15 +382,17 @@ foo_fn = function() {
   return 123;
 };
 _foo.add(Foo);
+__publicField(Foo, "bar", __privateMethod(_Foo, _foo, foo_fn).call(_Foo));
 console.log(Foo.bar === 123);
-class FooThis {
-  static bar = __privateMethod(this, _foo2, foo_fn2).call(this);
-}
+const _FooThis = class {
+};
+let FooThis = _FooThis;
 _foo2 = new WeakSet();
 foo_fn2 = function() {
   return 123;
 };
 _foo2.add(FooThis);
+__publicField(FooThis, "bar", __privateMethod(_FooThis, _foo2, foo_fn2).call(_FooThis));
 console.log(FooThis.bar === 123);
 
 ================================================================================
@@ -1003,16 +1014,20 @@ console.log(loose_default2, strict_default2);
 ================================================================================
 TestTSLowerClassPrivateFieldNextNoBundle
 ---------- /out.js ----------
+var _foo, _bar, _s_foo, _s_bar;
 class Foo {
   constructor() {
-    this.#foo = 123;
+    _foo.set(this, 123);
+    _bar.set(this, void 0);
     this.foo = 123;
   }
-  #foo;
-  #bar;
-  static #s_foo = 123;
-  static #s_bar;
 }
+_foo = new WeakMap();
+_bar = new WeakMap();
+_s_foo = new WeakMap();
+_s_bar = new WeakMap();
+_s_foo.set(Foo, 123);
+_s_bar.set(Foo, void 0);
 Foo.s_foo = 123;
 
 ================================================================================
