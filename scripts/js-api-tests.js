@@ -2798,6 +2798,28 @@ let transformTests = {
     new Function(code)()
   },
 
+  // Note: The TypeScript compiler's transformer doesn't handle this case.
+  // Using "this" like this is a syntax error instead. However, we can handle
+  // it without too much trouble so we handle it here. This is defensive in
+  // case the TypeScript compiler team fixes this in the future.
+  async tsAvoidTDZThis({ esbuild }) {
+    var { code } = await esbuild.transform(`
+      class Foo {
+        static foo = 123
+        static bar = this.foo // "this" must be rewritten when the property is relocated
+      }
+      if (Foo.bar !== 123) throw 'fail'
+    `, {
+      loader: 'ts',
+      tsconfigRaw: {
+        compilerOptions: {
+          useDefineForClassFields: false,
+        },
+      },
+    })
+    new Function(code)()
+  },
+
   async tsDecoratorAvoidTDZ({ esbuild }) {
     var { code } = await esbuild.transform(`
       class Bar {}

@@ -16,6 +16,55 @@
 
     This release splits apart tree shaking and code splitting into two separate passes, which fixes certain cases where two generated code splitting chunks ended up each importing symbols from the other and causing a cycle. There should hopefully no longer be cycles in generated code splitting chunks.
 
+* Make `this` work in static class fields in TypeScript files
+
+    Currently `this` is mis-compiled in static fields in TypeScript files if the `useDefineForClassFields` setting in `tsconfig.json` is `false` (the default value):
+
+    ```js
+    class Foo {
+      static foo = 123
+      static bar = this.foo
+    }
+    console.log(Foo.bar)
+    ```
+
+    This is currently compiled into the code below, which is incorrect because it changes the value of `this` (it's supposed to refer to `Foo`):
+
+    ```js
+    class Foo {
+    }
+    Foo.foo = 123;
+    Foo.bar = this.foo;
+    console.log(Foo.bar);
+    ```
+
+    This was an intentionally unhandled case because the TypeScript compiler doesn't handle this either (esbuild's currently incorrect output matches the output from the TypeScript compiler, which is also currently incorrect). However, the TypeScript compiler might fix their output at some point in which case esbuild's behavior would become problematic.
+
+    So this release now generates the correct output:
+
+    ```js
+    const _Foo = class {
+    };
+    let Foo = _Foo;
+    Foo.foo = 123;
+    Foo.bar = _Foo.foo;
+    console.log(Foo.bar);
+    ```
+
+    Presumably the TypeScript compiler will be fixed to also generate something like this in the future. If you're wondering why esbuild generates the extra `_Foo` variable, it's defensive code to handle the possibility of the class being reassigned, since class declarations are not constants:
+
+    ```js
+    class Foo {
+      static foo = 123
+      static bar = () => Foo.foo
+    }
+    let bar = Foo.bar
+    Foo = { foo: 321 }
+    console.log(bar())
+    ```
+
+    We can't just move the initializer containing `Foo.foo` outside of the class body because in JavaScript, the class name is shadowed inside the class body by a special hidden constant that is equal to the class object. Even if the class is reassigned later, references to that shadowing symbol within the class body should still refer to the original class object.
+
 ## 0.11.6
 
 * Fix an incorrect minification transformation ([#1121](https://github.com/evanw/esbuild/issues/1121))

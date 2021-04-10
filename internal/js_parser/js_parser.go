@@ -8970,11 +8970,23 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		p.recordDeclaredSymbol(class.Name.Ref)
 	}
 
-	// Replace "this" with a reference to the class inside static field
-	// initializers either if static fields are not supported or if we are
-	// converting this class to a "var" to avoid the temporal dead zone.
-	replaceThisInStaticFieldInit := p.options.unsupportedJSFeatures.Has(compat.ClassStaticField) ||
-		(p.options.mode == config.ModeBundle && p.currentScope.Parent == nil)
+	// Determine if we should replace "this" with a reference to the class inside
+	// static field initializers.
+	replaceThisInStaticFieldInit :=
+		// Do this if static fields are not supported. In this case we relocate the
+		// field initializers outside of the class body so "this" will no longer
+		// reference the same thing.
+		p.options.unsupportedJSFeatures.Has(compat.ClassStaticField) ||
+
+			// Do this when we are converting this class to a "var" to avoid temporal
+			// dead zone performance issues.
+			(p.options.mode == config.ModeBundle && p.currentScope.Parent == nil) ||
+
+			// Do this when TypeScript's "useDefineForClassFields: false" setting is
+			// active. In that case we change field initializers into assignment
+			// expressions to avoid "define" semantics, which end up outside of the
+			// class body.
+			p.options.useDefineForClassFields == config.False
 
 	p.pushScopeForVisitPass(js_ast.ScopeClassName, nameScopeLoc)
 	oldEnclosingClassKeyword := p.enclosingClassKeyword

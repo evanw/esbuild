@@ -2419,7 +2419,7 @@ if (nested) {
       console.log(this);
     }
   };
-  class Bar {
+  const _Bar = class {
     constructor() {
       this.x = this;
     }
@@ -2429,8 +2429,9 @@ if (nested) {
     static bar(x = this) {
       console.log(this);
     }
-  }
-  Bar.y = this.z;
+  };
+  let Bar = _Bar;
+  Bar.y = _Bar.z;
   new Bar(bar(objBar));
 }
 var bar2;
@@ -2446,7 +2447,7 @@ const objFoo = {
     console.log(this);
   }
 };
-class Foo {
+const _Foo = class {
   constructor() {
     this.x = this;
   }
@@ -2456,8 +2457,9 @@ class Foo {
   static bar(x = this) {
     console.log(this);
   }
-}
-Foo.y = this.z;
+};
+let Foo = _Foo;
+Foo.y = _Foo.z;
 new Foo(foo(objFoo));
 if (nested) {
   let bar2 = function(x = this) {
@@ -2469,7 +2471,7 @@ if (nested) {
       console.log(this);
     }
   };
-  class Bar {
+  const _Bar = class {
     constructor() {
       this.x = this;
     }
@@ -2479,8 +2481,9 @@ if (nested) {
     static bar(x = this) {
       console.log(this);
     }
-  }
-  Bar.y = this.z;
+  };
+  let Bar = _Bar;
+  Bar.y = _Bar.z;
   new Bar(bar2(objBar));
 }
 
