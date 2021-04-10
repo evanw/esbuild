@@ -265,6 +265,22 @@ try {
 var e3;
 
 ================================================================================
+TestLowerPrivateClassAccessorOrder
+---------- /out.js ----------
+var _foo, foo_get;
+class Foo {
+  constructor() {
+    _foo.add(this);
+  }
+  bar = __privateGet(this, _foo, foo_get);
+}
+_foo = new WeakSet();
+foo_get = function() {
+  return 123;
+};
+console.log(new Foo().bar === 123);
+
+================================================================================
 TestLowerPrivateClassExpr2020NoBundle
 ---------- /out.js ----------
 var _field, _method, method_fn, _a, _staticField, _staticMethod, staticMethod_fn;
@@ -280,6 +296,93 @@ export let Foo = (_a = class {
 }, _field = new WeakMap(), _method = new WeakSet(), method_fn = function() {
 }, _staticField = new WeakMap(), _staticMethod = new WeakSet(), staticMethod_fn = function() {
 }, _staticMethod.add(_a), _staticField.set(_a, void 0), _a);
+
+================================================================================
+TestLowerPrivateClassFieldOrder
+---------- /out.js ----------
+class Foo {
+  #foo = 123;
+  bar = __privateGet(this, #foo);
+}
+console.log(new Foo().bar === 123);
+
+================================================================================
+TestLowerPrivateClassMethodOrder
+---------- /out.js ----------
+var _foo, foo_fn;
+class Foo {
+  constructor() {
+    _foo.add(this);
+  }
+  bar = __privateMethod(this, _foo, foo_fn).call(this);
+}
+_foo = new WeakSet();
+foo_fn = function() {
+  return 123;
+};
+console.log(new Foo().bar === 123);
+
+================================================================================
+TestLowerPrivateClassStaticAccessorOrder
+---------- /out.js ----------
+var _foo, foo_get, _foo2, foo_get2;
+const _Foo = class {
+  static bar = __privateGet(_Foo, _foo, foo_get);
+};
+let Foo = _Foo;
+_foo = new WeakSet();
+foo_get = function() {
+  return 123;
+};
+_foo.add(Foo);
+console.log(Foo.bar === 123);
+class FooThis {
+  static bar = __privateGet(this, _foo2, foo_get2);
+}
+_foo2 = new WeakSet();
+foo_get2 = function() {
+  return 123;
+};
+_foo2.add(FooThis);
+console.log(FooThis.bar === 123);
+
+================================================================================
+TestLowerPrivateClassStaticFieldOrder
+---------- /out.js ----------
+class Foo {
+  static #foo = 123;
+  static bar = __privateGet(Foo, #foo);
+}
+console.log(Foo.bar === 123);
+class FooThis {
+  static #foo = 123;
+  static bar = __privateGet(this, #foo);
+}
+console.log(FooThis.bar === 123);
+
+================================================================================
+TestLowerPrivateClassStaticMethodOrder
+---------- /out.js ----------
+var _foo, foo_fn, _foo2, foo_fn2;
+const _Foo = class {
+  static bar = __privateMethod(_Foo, _foo, foo_fn).call(_Foo);
+};
+let Foo = _Foo;
+_foo = new WeakSet();
+foo_fn = function() {
+  return 123;
+};
+_foo.add(Foo);
+console.log(Foo.bar === 123);
+class FooThis {
+  static bar = __privateMethod(this, _foo2, foo_fn2).call(this);
+}
+_foo2 = new WeakSet();
+foo_fn2 = function() {
+  return 123;
+};
+_foo2.add(FooThis);
+console.log(FooThis.bar === 123);
 
 ================================================================================
 TestLowerPrivateFieldAssignments2015NoBundle

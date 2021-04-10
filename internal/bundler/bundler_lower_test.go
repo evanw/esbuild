@@ -7,6 +7,7 @@ package bundler
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 )
 
@@ -1345,5 +1346,143 @@ func TestLowerForbidStrictModeSyntax(t *testing.T) {
 delete-2.js: error: Delete of a bare identifier cannot be used with the "esm" output format due to strict mode
 with.js: error: With statements cannot be used with the "esm" output format due to strict mode
 `,
+	})
+}
+
+func TestLowerPrivateClassFieldOrder(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#foo = 123 // This must be set before "bar" is initialized
+					bar = this.#foo
+				}
+				console.log(new Foo().bar === 123)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ClassPrivateField,
+		},
+	})
+}
+
+func TestLowerPrivateClassMethodOrder(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					bar = this.#foo()
+					#foo() { return 123 } // This must be set before "bar" is initialized
+				}
+				console.log(new Foo().bar === 123)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ClassPrivateMethod,
+		},
+	})
+}
+
+func TestLowerPrivateClassAccessorOrder(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					bar = this.#foo
+					get #foo() { return 123 } // This must be set before "bar" is initialized
+				}
+				console.log(new Foo().bar === 123)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ClassPrivateAccessor,
+		},
+	})
+}
+
+func TestLowerPrivateClassStaticFieldOrder(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					static #foo = 123 // This must be set before "bar" is initialized
+					static bar = Foo.#foo
+				}
+				console.log(Foo.bar === 123)
+
+				class FooThis {
+					static #foo = 123 // This must be set before "bar" is initialized
+					static bar = this.#foo
+				}
+				console.log(FooThis.bar === 123)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ClassPrivateStaticField,
+		},
+	})
+}
+
+func TestLowerPrivateClassStaticMethodOrder(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					static bar = Foo.#foo()
+					static #foo() { return 123 } // This must be set before "bar" is initialized
+				}
+				console.log(Foo.bar === 123)
+
+				class FooThis {
+					static bar = this.#foo()
+					static #foo() { return 123 } // This must be set before "bar" is initialized
+				}
+				console.log(FooThis.bar === 123)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ClassPrivateStaticMethod,
+		},
+	})
+}
+
+func TestLowerPrivateClassStaticAccessorOrder(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					static bar = Foo.#foo
+					static get #foo() { return 123 } // This must be set before "bar" is initialized
+				}
+				console.log(Foo.bar === 123)
+
+				class FooThis {
+					static bar = this.#foo
+					static get #foo() { return 123 } // This must be set before "bar" is initialized
+				}
+				console.log(FooThis.bar === 123)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ClassPrivateStaticAccessor,
+		},
 	})
 }

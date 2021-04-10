@@ -1816,6 +1816,21 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 		// Be conservative and always lower static fields when we're doing TDZ-
 		// avoidance and the shadowing name for the class was captured somewhere.
+		//
+		// We can't transform this:
+		//
+		//   class Foo {
+		//     static foo = new Foo();
+		//   }
+		//
+		// into this:
+		//
+		//   var Foo = class {
+		//     static foo = new Foo();
+		//   };
+		//
+		// since "new Foo" will crash. We need to lower this static field to avoid
+		// crashing due to an uninitialized binding.
 		if !prop.IsMethod && prop.IsStatic && avoidTDZ && shadowRef != js_ast.InvalidRef {
 			mustLowerField = true
 		}
