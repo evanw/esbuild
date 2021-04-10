@@ -2384,6 +2384,200 @@ if (nested) {
 var bar2;
 
 ================================================================================
+TestThisInsideFunctionTS
+---------- /out.js ----------
+// entry.ts
+function foo(x = this) {
+  console.log(this);
+}
+var objFoo = {
+  foo(x = this) {
+    console.log(this);
+  }
+};
+var _Foo = class {
+  constructor() {
+    this.x = this;
+  }
+  foo(x = this) {
+    console.log(this);
+  }
+  static bar(x = this) {
+    console.log(this);
+  }
+};
+var Foo = _Foo;
+Foo.y = _Foo.z;
+new Foo(foo(objFoo));
+if (nested) {
+  let bar = function(x = this) {
+    console.log(this);
+  };
+  bar2 = bar;
+  const objBar = {
+    foo(x = this) {
+      console.log(this);
+    }
+  };
+  class Bar {
+    constructor() {
+      this.x = this;
+    }
+    foo(x = this) {
+      console.log(this);
+    }
+    static bar(x = this) {
+      console.log(this);
+    }
+  }
+  Bar.y = this.z;
+  new Bar(bar(objBar));
+}
+var bar2;
+
+================================================================================
+TestThisInsideFunctionTSNoBundle
+---------- /out.js ----------
+function foo(x = this) {
+  console.log(this);
+}
+const objFoo = {
+  foo(x = this) {
+    console.log(this);
+  }
+};
+class Foo {
+  constructor() {
+    this.x = this;
+  }
+  foo(x = this) {
+    console.log(this);
+  }
+  static bar(x = this) {
+    console.log(this);
+  }
+}
+Foo.y = this.z;
+new Foo(foo(objFoo));
+if (nested) {
+  let bar2 = function(x = this) {
+    console.log(this);
+  };
+  var bar = bar2;
+  const objBar = {
+    foo(x = this) {
+      console.log(this);
+    }
+  };
+  class Bar {
+    constructor() {
+      this.x = this;
+    }
+    foo(x = this) {
+      console.log(this);
+    }
+    static bar(x = this) {
+      console.log(this);
+    }
+  }
+  Bar.y = this.z;
+  new Bar(bar2(objBar));
+}
+
+================================================================================
+TestThisInsideFunctionTSNoBundleUseDefineForClassFields
+---------- /out.js ----------
+function foo(x = this) {
+  console.log(this);
+}
+const objFoo = {
+  foo(x = this) {
+    console.log(this);
+  }
+};
+class Foo {
+  x = this;
+  static y = this.z;
+  foo(x = this) {
+    console.log(this);
+  }
+  static bar(x = this) {
+    console.log(this);
+  }
+}
+new Foo(foo(objFoo));
+if (nested) {
+  let bar2 = function(x = this) {
+    console.log(this);
+  };
+  var bar = bar2;
+  const objBar = {
+    foo(x = this) {
+      console.log(this);
+    }
+  };
+  class Bar {
+    x = this;
+    static y = this.z;
+    foo(x = this) {
+      console.log(this);
+    }
+    static bar(x = this) {
+      console.log(this);
+    }
+  }
+  new Bar(bar2(objBar));
+}
+
+================================================================================
+TestThisInsideFunctionTSUseDefineForClassFields
+---------- /out.js ----------
+// entry.ts
+function foo(x = this) {
+  console.log(this);
+}
+var objFoo = {
+  foo(x = this) {
+    console.log(this);
+  }
+};
+var _Foo = class {
+  x = this;
+  foo(x = this) {
+    console.log(this);
+  }
+  static bar(x = this) {
+    console.log(this);
+  }
+};
+var Foo = _Foo;
+__publicField(Foo, "y", _Foo.z);
+new Foo(foo(objFoo));
+if (nested) {
+  let bar = function(x = this) {
+    console.log(this);
+  };
+  bar2 = bar;
+  const objBar = {
+    foo(x = this) {
+      console.log(this);
+    }
+  };
+  class Bar {
+    x = this;
+    static y = this.z;
+    foo(x = this) {
+      console.log(this);
+    }
+    static bar(x = this) {
+      console.log(this);
+    }
+  }
+  new Bar(bar(objBar));
+}
+var bar2;
+
+================================================================================
 TestThisOutsideFunction
 ---------- /out.js ----------
 // entry.js

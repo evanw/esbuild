@@ -877,8 +877,164 @@ func TestExportTypeIssue379(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:          config.ModeBundle,
+			Mode:                    config.ModeBundle,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.False,
+		},
+	})
+}
+
+func TestThisInsideFunctionTS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				function foo(x = this) { console.log(this) }
+				const objFoo = {
+					foo(x = this) { console.log(this) }
+				}
+				class Foo {
+					x = this
+					static y = this.z
+					foo(x = this) { console.log(this) }
+					static bar(x = this) { console.log(this) }
+				}
+				new Foo(foo(objFoo))
+				if (nested) {
+					function bar(x = this) { console.log(this) }
+					const objBar = {
+						foo(x = this) { console.log(this) }
+					}
+					class Bar {
+						x = this
+						static y = this.z
+						foo(x = this) { console.log(this) }
+						static bar(x = this) { console.log(this) }
+					}
+					new Bar(bar(objBar))
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                    config.ModeBundle,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.False,
+		},
+	})
+}
+
+func TestThisInsideFunctionTSUseDefineForClassFields(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				function foo(x = this) { console.log(this) }
+				const objFoo = {
+					foo(x = this) { console.log(this) }
+				}
+				class Foo {
+					x = this
+					static y = this.z
+					foo(x = this) { console.log(this) }
+					static bar(x = this) { console.log(this) }
+				}
+				new Foo(foo(objFoo))
+				if (nested) {
+					function bar(x = this) { console.log(this) }
+					const objBar = {
+						foo(x = this) { console.log(this) }
+					}
+					class Bar {
+						x = this
+						static y = this.z
+						foo(x = this) { console.log(this) }
+						static bar(x = this) { console.log(this) }
+					}
+					new Bar(bar(objBar))
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                    config.ModeBundle,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.True,
+		},
+	})
+}
+
+func TestThisInsideFunctionTSNoBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				function foo(x = this) { console.log(this) }
+				const objFoo = {
+					foo(x = this) { console.log(this) }
+				}
+				class Foo {
+					x = this
+					static y = this.z
+					foo(x = this) { console.log(this) }
+					static bar(x = this) { console.log(this) }
+				}
+				new Foo(foo(objFoo))
+				if (nested) {
+					function bar(x = this) { console.log(this) }
+					const objBar = {
+						foo(x = this) { console.log(this) }
+					}
+					class Bar {
+						x = this
+						static y = this.z
+						foo(x = this) { console.log(this) }
+						static bar(x = this) { console.log(this) }
+					}
+					new Bar(bar(objBar))
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
 			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestThisInsideFunctionTSNoBundleUseDefineForClassFields(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				function foo(x = this) { console.log(this) }
+				const objFoo = {
+					foo(x = this) { console.log(this) }
+				}
+				class Foo {
+					x = this
+					static y = this.z
+					foo(x = this) { console.log(this) }
+					static bar(x = this) { console.log(this) }
+				}
+				new Foo(foo(objFoo))
+				if (nested) {
+					function bar(x = this) { console.log(this) }
+					const objBar = {
+						foo(x = this) { console.log(this) }
+					}
+					class Bar {
+						x = this
+						static y = this.z
+						foo(x = this) { console.log(this) }
+						static bar(x = this) { console.log(this) }
+					}
+					new Bar(bar(objBar))
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                    config.ModePassThrough,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.True,
 		},
 	})
 }
