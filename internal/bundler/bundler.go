@@ -1099,8 +1099,8 @@ func (s *scanner) maybeParseFile(
 	if len(resolveResult.JSXFragment) > 0 {
 		optionsClone.JSX.Fragment = resolveResult.JSXFragment
 	}
-	if resolveResult.UseDefineForClassFieldsTS {
-		optionsClone.UseDefineForClassFields = true
+	if resolveResult.UseDefineForClassFieldsTS != config.Unspecified {
+		optionsClone.UseDefineForClassFields = resolveResult.UseDefineForClassFieldsTS
 	}
 	if resolveResult.PreserveUnusedImportsTS {
 		optionsClone.PreserveUnusedImportsTS = true

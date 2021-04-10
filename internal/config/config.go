@@ -168,6 +168,14 @@ const (
 	ModuleESM
 )
 
+type MaybeBool uint8
+
+const (
+	Unspecified MaybeBool = iota
+	True
+	False
+)
+
 type Options struct {
 	Mode              Mode
 	ModuleType        ModuleType
@@ -195,7 +203,7 @@ type Options struct {
 
 	OmitRuntimeForTests     bool
 	PreserveUnusedImportsTS bool
-	UseDefineForClassFields bool
+	UseDefineForClassFields MaybeBool
 	ASCIIOnly               bool
 	KeepNames               bool
 	IgnoreDCEAnnotations    bool

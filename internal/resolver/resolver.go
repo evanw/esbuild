@@ -103,7 +103,7 @@ type ResolveResult struct {
 	IsExternal bool
 
 	// If true, the class field transform should use Object.defineProperty().
-	UseDefineForClassFieldsTS bool
+	UseDefineForClassFieldsTS config.MaybeBool
 
 	// If true, unused imports are retained in TypeScript code. This matches the
 	// behavior of the "importsNotUsedAsValues" field in "tsconfig.json" when the

@@ -1699,6 +1699,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	var parameterFields []js_ast.Stmt
 	var instanceMembers []js_ast.Stmt
 	var instancePrivateMethods []js_ast.Stmt
+	useDefineForClassFields := p.options.useDefineForClassFields != config.False
 	end := 0
 
 	// These expressions are generated after the class body, in this order
@@ -1806,7 +1807,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		private, _ := prop.Key.Data.(*js_ast.EPrivateIdentifier)
 		mustLowerPrivate := private != nil && p.isPrivateUnsupported(private)
 		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.IsMethod && prop.Initializer == nil &&
-			!p.options.useDefineForClassFields && !mustLowerPrivate
+			!useDefineForClassFields && !mustLowerPrivate
 
 		// Class fields must be lowered if the environment doesn't support them
 		mustLowerField := !prop.IsMethod &&
@@ -1903,7 +1904,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		// TypeScript feature. Move their initializers from the class body to
 		// either the constructor (instance fields) or after the class (static
 		// fields).
-		if !prop.IsMethod && (mustLowerField || (p.options.ts.Parse && !p.options.useDefineForClassFields && (!prop.IsStatic || private == nil))) {
+		if !prop.IsMethod && (mustLowerField || (p.options.ts.Parse && !useDefineForClassFields && (!prop.IsStatic || private == nil))) {
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
@@ -1957,7 +1958,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 						},
 					}}
 					p.recordUsage(ref)
-				} else if private == nil && p.options.useDefineForClassFields {
+				} else if private == nil && useDefineForClassFields {
 					if _, ok := init.Data.(*js_ast.EUndefined); ok {
 						expr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key})
 					} else {

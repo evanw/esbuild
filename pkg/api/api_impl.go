@@ -1185,7 +1185,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Settings from the user come first
 	preserveUnusedImportsTS := false
-	useDefineForClassFieldsTS := false
+	useDefineForClassFieldsTS := config.Unspecified
 	jsx := config.JSXOptions{
 		Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
 		Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
@@ -1206,8 +1206,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			if len(result.JSXFragmentFactory) > 0 {
 				jsx.Fragment = result.JSXFragmentFactory
 			}
-			if result.UseDefineForClassFields {
-				useDefineForClassFieldsTS = true
+			if result.UseDefineForClassFields != config.Unspecified {
+				useDefineForClassFieldsTS = result.UseDefineForClassFields
 			}
 			if result.PreserveImportsNotUsedAsValues {
 				preserveUnusedImportsTS = true

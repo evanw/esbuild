@@ -294,7 +294,7 @@ type optionsThatSupportStructuralEquality struct {
 	omitRuntimeForTests            bool
 	ignoreDCEAnnotations           bool
 	preserveUnusedImportsTS        bool
-	useDefineForClassFields        bool
+	useDefineForClassFields        config.MaybeBool
 	suppressWarningsAboutWeirdCode bool
 }
 
@@ -12701,9 +12701,18 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		options.jsx.Fragment = defaultJSXFragment
 	}
 
-	// Non-TypeScript files get the real JavaScript class field behavior
 	if !options.ts.Parse {
-		options.useDefineForClassFields = true
+		// Non-TypeScript files always get the real JavaScript class field behavior
+		options.useDefineForClassFields = config.True
+	} else if options.useDefineForClassFields == config.Unspecified {
+		// TypeScript files always get the incorrect TypeScript-specific class field behavior
+		//
+		// Note: This may be changing soon. https://github.com/microsoft/TypeScript/pull/42663
+		// appears to change this behavior to default to "true" if the target is "esnext" and
+		// "false" otherwise. In that case, perhaps esbuild should change its behavior for this
+		// too. If that happens, it will go into TypeScript version 4.3 which is supposed to
+		// come out on May 25th, 2021: https://github.com/microsoft/TypeScript/issues/42762.
+		options.useDefineForClassFields = config.False
 	}
 
 	p := newParser(log, source, js_lexer.NewLexer(log, source), &options)
