@@ -61,7 +61,7 @@ type packageJSON struct {
 	// not.
 	sideEffectsMap     map[string]bool
 	sideEffectsRegexps []*regexp.Regexp
-	ignoreIfUnusedData *IgnoreIfUnusedData
+	sideEffectsData    *SideEffectsData
 
 	// This represents the "exports" field in this package.json file.
 	exportsMap *peMap
@@ -217,7 +217,7 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 				// Make an empty map for "sideEffects: false", which indicates all
 				// files in this module can be considered to not have side effects.
 				packageJSON.sideEffectsMap = make(map[string]bool)
-				packageJSON.ignoreIfUnusedData = &IgnoreIfUnusedData{
+				packageJSON.sideEffectsData = &SideEffectsData{
 					IsSideEffectsArrayInJSON: false,
 					Source:                   &jsonSource,
 					Range:                    jsonSource.RangeOfString(sideEffectsLoc),
@@ -228,7 +228,7 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 			// The "sideEffects: []" format means all files in this module but not in
 			// the array can be considered to not have side effects.
 			packageJSON.sideEffectsMap = make(map[string]bool)
-			packageJSON.ignoreIfUnusedData = &IgnoreIfUnusedData{
+			packageJSON.sideEffectsData = &SideEffectsData{
 				IsSideEffectsArrayInJSON: true,
 				Source:                   &jsonSource,
 				Range:                    jsonSource.RangeOfString(sideEffectsLoc),
