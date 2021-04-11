@@ -1356,6 +1356,96 @@ func (c *linkerContext) scanImportsAndExports() {
 			})
 			repr.Meta.EntryPointPartIndex = ast.MakeIndex32(entryPointPartIndex)
 		}
+
+		// Encode import-specific constraints in the dependency graph
+		for partIndex, part := range repr.AST.Parts {
+			toModuleUses := uint32(0)
+
+			// Imports of wrapped files must depend on the wrapper
+			for _, importRecordIndex := range part.ImportRecordIndices {
+				record := &repr.AST.ImportRecords[importRecordIndex]
+
+				// Don't follow external imports (this includes import() expressions)
+				if !record.SourceIndex.IsValid() || c.isExternalDynamicImport(record, sourceIndex) {
+					// This is an external import, so it needs the "__toModule" wrapper as
+					// long as it's not a bare "require()"
+					if record.Kind != ast.ImportRequire && (!c.options.OutputFormat.KeepES6ImportExportSyntax() ||
+						(record.Kind == ast.ImportDynamic && c.options.UnsupportedJSFeatures.Has(compat.DynamicImport))) {
+						record.WrapWithToModule = true
+						toModuleUses++
+					}
+					continue
+				}
+
+				otherSourceIndex := record.SourceIndex.GetIndex()
+				otherRepr := c.graph.Files[otherSourceIndex].InputFile.Repr.(*graph.JSRepr)
+
+				if otherRepr.Meta.Wrap != graph.WrapNone {
+					// Depend on the automatically-generated require wrapper symbol
+					wrapperRef := otherRepr.AST.WrapperRef
+					c.graph.GenerateSymbolImportAndUse(sourceIndex, uint32(partIndex), wrapperRef, 1, otherSourceIndex)
+
+					// This is an ES6 import of a CommonJS module, so it needs the
+					// "__toModule" wrapper as long as it's not a bare "require()"
+					if record.Kind != ast.ImportRequire && otherRepr.AST.ExportsKind == js_ast.ExportsCommonJS {
+						record.WrapWithToModule = true
+						toModuleUses++
+					}
+
+					// If this is an ESM wrapper, also depend on the exports object
+					// since the final code will contain an inline reference to it.
+					// This must be done for "require()" and "import()" expressions
+					// but does not need to be done for "import" statements since
+					// those just cause us to reference the exports directly.
+					if otherRepr.Meta.Wrap == graph.WrapESM && record.Kind != ast.ImportStmt {
+						c.graph.GenerateSymbolImportAndUse(sourceIndex, uint32(partIndex), otherRepr.AST.ExportsRef, 1, otherSourceIndex)
+					}
+				} else if record.Kind == ast.ImportStmt && otherRepr.AST.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
+					// This is an import of a module that has a dynamic export fallback
+					// object. In that case we need to depend on that object in case
+					// something ends up needing to use it later. This could potentially
+					// be omitted in some cases with more advanced analysis if this
+					// dynamic export fallback object doesn't end up being needed.
+					c.graph.GenerateSymbolImportAndUse(sourceIndex, uint32(partIndex), otherRepr.AST.ExportsRef, 1, otherSourceIndex)
+				}
+			}
+
+			// If there's an ES6 import of a non-ES6 module, then we're going to need the
+			// "__toModule" symbol from the runtime to wrap the result of "require()"
+			c.graph.GenerateRuntimeSymbolImportAndUse(sourceIndex, uint32(partIndex), "__toModule", toModuleUses)
+
+			// If there's an ES6 export star statement of a non-ES6 module, then we're
+			// going to need the "__reExport" symbol from the runtime
+			reExportUses := uint32(0)
+			for _, importRecordIndex := range repr.AST.ExportStarImportRecords {
+				record := &repr.AST.ImportRecords[importRecordIndex]
+
+				// Is this export star evaluated at run time?
+				happensAtRunTime := !record.SourceIndex.IsValid() && (!file.IsEntryPoint() || !c.options.OutputFormat.KeepES6ImportExportSyntax())
+				if record.SourceIndex.IsValid() {
+					otherSourceIndex := record.SourceIndex.GetIndex()
+					otherRepr := c.graph.Files[otherSourceIndex].InputFile.Repr.(*graph.JSRepr)
+					if otherSourceIndex != sourceIndex && otherRepr.AST.ExportsKind.IsDynamic() {
+						happensAtRunTime = true
+					}
+					if otherRepr.AST.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
+						// This looks like "__reExport(exports_a, exports_b)". Make sure to
+						// pull in the "exports_b" symbol into this export star. This matters
+						// in code splitting situations where the "export_b" symbol might live
+						// in a different chunk than this export star.
+						c.graph.GenerateSymbolImportAndUse(sourceIndex, uint32(partIndex), otherRepr.AST.ExportsRef, 1, otherSourceIndex)
+					}
+				}
+				if happensAtRunTime {
+					// Depend on this file's "exports" object for the first argument to "__reExport"
+					c.graph.GenerateSymbolImportAndUse(sourceIndex, uint32(partIndex), repr.AST.ExportsRef, 1, sourceIndex)
+					record.CallsRunTimeReExportFn = true
+					repr.AST.UsesExportsRef = true
+					reExportUses++
+				}
+			}
+			c.graph.GenerateRuntimeSymbolImportAndUse(sourceIndex, uint32(partIndex), "__reExport", reExportUses)
+		}
 	}
 }
 
@@ -2301,31 +2391,20 @@ func (c *linkerContext) markFileAsReachable(sourceIndex uint32, entryPointBit ui
 			c.markFileAsReachable(repr.CSSSourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
 		}
 
-		// Traverse into all dependencies
+		// Traverse into all imported files
 		for _, record := range repr.AST.ImportRecords {
 			if record.SourceIndex.IsValid() && !c.isExternalDynamicImport(&record, sourceIndex) {
 				c.markFileAsReachable(record.SourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
 			}
 		}
 
-		// Pull in the runtime file if this file has been flagged as importing it.
-		// Right now imports to the runtime file are added during linking to handle
-		// various things (e.g. calling "__toModule" for import statements that turn
-		// out to be of CommonJS modules) but this works without adding actual import
-		// statements, which means the runtime won't be reached by the call above.
-		//
-		// This isn't great because it's an additional special-case. In the future,
-		// it would probably be good to change the code that imports stuff from the
-		// runtime to add normal import records and avoid this special-casing.
-		//
-		// That change hasn't been made yet because the tree shaking traversal
-		// currently adds imports during the traversal, and mutating import
-		// records when that happens would cause mutation-during-iteration for
-		// the tree shaking traversal which may have a caller higher up in the
-		// call stack iterating over those import records. Ideally all imports
-		// would be added ahead of time before the traversal begins.
-		if repr.Meta.DependsOnRuntimeSymbol {
-			c.markFileAsReachable(runtime.SourceIndex, entryPointBit, distanceFromEntryPoint)
+		// Traverse into all dependencies of all parts in this file
+		for _, part := range repr.AST.Parts {
+			for _, dependency := range part.Dependencies {
+				if dependency.SourceIndex != sourceIndex {
+					c.markFileAsReachable(dependency.SourceIndex, entryPointBit, distanceFromEntryPoint)
+				}
+			}
 		}
 
 	case *graph.CSSRepr:
@@ -2402,27 +2481,6 @@ func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
 	}
 }
 
-func (c *linkerContext) markPartsAsLiveForRuntimeSymbol(
-	sourceIndex uint32,
-	partIndex uint32,
-	name string,
-	useCount uint32,
-) {
-	if useCount > 0 {
-		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
-		ref := runtimeRepr.AST.NamedExports[name].Ref
-
-		// Depend on the symbol from the runtime
-		c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, ref, useCount, runtime.SourceIndex)
-
-		// Since this part was included, also include the parts from the runtime
-		// that declare this symbol
-		for _, partIndex := range runtimeRepr.AST.TopLevelSymbolToParts[ref] {
-			c.markPartAsLive(runtime.SourceIndex, partIndex)
-		}
-	}
-}
-
 func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord, sourceIndex uint32) bool {
 	return record.Kind == ast.ImportDynamic && c.graph.Files[record.SourceIndex.GetIndex()].IsEntryPoint() && record.SourceIndex.GetIndex() != sourceIndex
 }
@@ -2445,99 +2503,6 @@ func (c *linkerContext) markPartAsLive(sourceIndex uint32, partIndex uint32) {
 	for _, dep := range part.Dependencies {
 		c.markPartAsLive(dep.SourceIndex, dep.PartIndex)
 	}
-
-	// Also include any require() imports
-	toModuleUses := uint32(0)
-	for _, importRecordIndex := range part.ImportRecordIndices {
-		record := &repr.AST.ImportRecords[importRecordIndex]
-
-		// Don't follow external imports (this includes import() expressions)
-		if !record.SourceIndex.IsValid() || c.isExternalDynamicImport(record, sourceIndex) {
-			// This is an external import, so it needs the "__toModule" wrapper as
-			// long as it's not a bare "require()"
-			if record.Kind != ast.ImportRequire && (!c.options.OutputFormat.KeepES6ImportExportSyntax() ||
-				(record.Kind == ast.ImportDynamic && c.options.UnsupportedJSFeatures.Has(compat.DynamicImport))) {
-				record.WrapWithToModule = true
-				toModuleUses++
-			}
-			continue
-		}
-
-		otherSourceIndex := record.SourceIndex.GetIndex()
-		otherRepr := c.graph.Files[otherSourceIndex].InputFile.Repr.(*graph.JSRepr)
-
-		if otherRepr.Meta.Wrap != graph.WrapNone {
-			// This is a dynamically-evaluated import (i.e. not statically-evaluated)
-			c.markFileAsLive(otherSourceIndex)
-
-			// Depend on the automatically-generated require wrapper symbol
-			wrapperRef := otherRepr.AST.WrapperRef
-			c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, wrapperRef, 1, otherSourceIndex)
-
-			// This is an ES6 import of a CommonJS module, so it needs the
-			// "__toModule" wrapper as long as it's not a bare "require()"
-			if record.Kind != ast.ImportRequire && otherRepr.AST.ExportsKind == js_ast.ExportsCommonJS {
-				record.WrapWithToModule = true
-				toModuleUses++
-			}
-
-			// If this is an ESM wrapper, also depend on the exports object
-			// since the final code will contain an inline reference to it.
-			// This must be done for "require()" and "import()" expressions
-			// but does not need to be done for "import" statements since
-			// those just cause us to reference the exports directly.
-			if otherRepr.Meta.Wrap == graph.WrapESM && record.Kind != ast.ImportStmt {
-				c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, otherRepr.AST.ExportsRef, 1, otherSourceIndex)
-				c.markPartAsLive(otherSourceIndex, otherRepr.Meta.NSExportPartIndex)
-			}
-		} else if record.Kind == ast.ImportStmt && otherRepr.AST.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
-			// This is an import of a module that has a dynamic export fallback
-			// object. In that case we need to depend on that object in case
-			// something ends up needing to use it later. This could potentially
-			// be omitted in some cases with more advanced analysis if this
-			// dynamic export fallback object doesn't end up being needed.
-			c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, otherRepr.AST.ExportsRef, 1, otherSourceIndex)
-			c.markPartAsLive(otherSourceIndex, otherRepr.Meta.NSExportPartIndex)
-		}
-	}
-
-	// If there's an ES6 import of a non-ES6 module, then we're going to need the
-	// "__toModule" symbol from the runtime to wrap the result of "require()"
-	c.markPartsAsLiveForRuntimeSymbol(sourceIndex, partIndex, "__toModule", toModuleUses)
-
-	// If there's an ES6 export star statement of a non-ES6 module, then we're
-	// going to need the "__reExport" symbol from the runtime
-	reExportUses := uint32(0)
-	for _, importRecordIndex := range repr.AST.ExportStarImportRecords {
-		record := &repr.AST.ImportRecords[importRecordIndex]
-
-		// Is this export star evaluated at run time?
-		happensAtRunTime := !record.SourceIndex.IsValid() && (!file.IsEntryPoint() || !c.options.OutputFormat.KeepES6ImportExportSyntax())
-		if record.SourceIndex.IsValid() {
-			otherSourceIndex := record.SourceIndex.GetIndex()
-			otherRepr := c.graph.Files[otherSourceIndex].InputFile.Repr.(*graph.JSRepr)
-			if otherSourceIndex != sourceIndex && otherRepr.AST.ExportsKind.IsDynamic() {
-				happensAtRunTime = true
-			}
-			if otherRepr.AST.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
-				// This looks like "__reExport(exports_a, exports_b)". Make sure to
-				// pull in the "exports_b" symbol into this export star. This matters
-				// in code splitting situations where the "export_b" symbol might live
-				// in a different chunk than this export star.
-				c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, otherRepr.AST.ExportsRef, 1, otherSourceIndex)
-				c.markPartAsLive(otherSourceIndex, otherRepr.Meta.NSExportPartIndex)
-			}
-		}
-		if happensAtRunTime {
-			// Depend on this file's "exports" object for the first argument to "__reExport"
-			c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, repr.AST.ExportsRef, 1, sourceIndex)
-			c.markPartAsLive(sourceIndex, repr.Meta.NSExportPartIndex)
-			record.CallsRunTimeReExportFn = true
-			repr.AST.UsesExportsRef = true
-			reExportUses++
-		}
-	}
-	c.markPartsAsLiveForRuntimeSymbol(sourceIndex, partIndex, "__reExport", reExportUses)
 }
 
 func sanitizeFilePathForVirtualModulePath(path string) string {
