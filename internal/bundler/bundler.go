@@ -29,7 +29,6 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
-	"github.com/evanw/esbuild/internal/sourcemap"
 	"github.com/evanw/esbuild/internal/xxhash"
 )
 
@@ -43,7 +42,6 @@ const (
 
 type file struct {
 	module     graph.Module
-	sourceMap  *sourcemap.SourceMap
 	pluginData interface{}
 
 	// The minimum number of links in the module graph to get from an entry point
@@ -486,7 +484,7 @@ func parseFile(args parseArgs) {
 		if repr, ok := result.file.module.Repr.(*graph.JSRepr); ok && repr.AST.SourceMapComment.Text != "" {
 			if path, contents := extractSourceMapFromComment(args.log, args.fs, &args.caches.FSCache,
 				args.res, &source, repr.AST.SourceMapComment, absResolveDir); contents != nil {
-				result.file.sourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
+				result.file.module.InputSourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
 					KeyPath:    path,
 					PrettyPath: args.res.PrettyPath(path),
 					Contents:   *contents,
@@ -2042,7 +2040,7 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 				go func(sourceIndex uint32, f *file, repr *graph.JSRepr) {
 					result := &results[sourceIndex]
 					result.lineOffsetTables = js_printer.GenerateLineOffsetTables(f.module.Source.Contents, repr.AST.ApproximateLineCount)
-					sm := f.sourceMap
+					sm := f.module.InputSourceMap
 					if !options.ExcludeSourcesContent {
 						if sm == nil {
 							// Simple case: no nested source map

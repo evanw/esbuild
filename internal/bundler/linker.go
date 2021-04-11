@@ -3633,7 +3633,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	var lineOffsetTables []js_printer.LineOffsetTable
 	if file.module.Loader.CanHaveSourceMap() && c.options.SourceMap != config.SourceMapNone {
 		addSourceMappings = true
-		inputSourceMap = file.sourceMap
+		inputSourceMap = file.module.InputSourceMap
 		lineOffsetTables = dataForSourceMaps[partRange.sourceIndex].lineOffsetTables
 	}
 
@@ -5041,7 +5041,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 		file := &c.files[result.sourceIndex]
 
 		// Simple case: no nested source map
-		if file.sourceMap == nil {
+		if file.module.InputSourceMap == nil {
 			var quotedContents []byte
 			if !c.options.ExcludeSourcesContent {
 				quotedContents = dataForSourceMaps[result.sourceIndex].quotedContents[0]
@@ -5056,7 +5056,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 		}
 
 		// Complex case: nested source map
-		sm := file.sourceMap
+		sm := file.module.InputSourceMap
 		for i, source := range sm.Sources {
 			path := logger.Path{
 				Namespace: file.module.Source.KeyPath.Namespace,
