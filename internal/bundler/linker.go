@@ -1603,9 +1603,8 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			Dependencies:    nsExportDependencies,
 			DeclaredSymbols: declaredSymbols,
 
-			// This can be removed if nothing uses it. Except if we're a CommonJS
-			// module, in which case it's always necessary.
-			CanBeRemovedIfUnused: repr.AST.ExportsKind != js_ast.ExportsCommonJS,
+			// This can be removed if nothing uses it
+			CanBeRemovedIfUnused: true,
 
 			// Make sure this is trimmed if unused even if tree shaking is disabled
 			ForceTreeShaking: true,
