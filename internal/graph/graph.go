@@ -11,7 +11,7 @@ const (
 )
 
 type LinkerFile struct {
-	Module Module
+	InputFile InputFile
 
 	// The minimum number of links in the module graph to get from an entry point
 	// to this file

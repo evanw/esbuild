@@ -10,9 +10,9 @@ import (
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
-type Module struct {
+type InputFile struct {
 	Source         logger.Source
-	Repr           ModuleRepr
+	Repr           InputFileRepr
 	Loader         config.Loader
 	SideEffects    SideEffects
 	InputSourceMap *sourcemap.SourceMap
@@ -62,7 +62,7 @@ const (
 	NoSideEffects_PureData_FromPlugin
 )
 
-type ModuleRepr interface {
+type InputFileRepr interface {
 	ImportRecords() *[]ast.ImportRecord
 }
 
