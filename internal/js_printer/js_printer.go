@@ -1206,11 +1206,6 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	return c
 }
 
-type requireCallArgs struct {
-	isES6Import       bool
-	mustReturnPromise bool
-}
-
 func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []js_ast.Comment, level js_ast.L, flags int) {
 	record := &p.importRecords[importRecordIndex]
 

@@ -1266,7 +1266,6 @@ func (lexer *Lexer) Next() {
 			case '=':
 				lexer.step()
 				lexer.Token = TSlashEquals
-				break
 
 			case '/':
 			singleLineComment:
