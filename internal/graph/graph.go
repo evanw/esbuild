@@ -285,6 +285,10 @@ func (g *LinkerGraph) GenerateSymbolImportAndUse(
 	useCount uint32,
 	sourceIndexToImportFrom uint32,
 ) {
+	if useCount == 0 {
+		return
+	}
+
 	repr := g.Files[sourceIndex].InputFile.Repr.(*JSRepr)
 	part := &repr.AST.Parts[partIndex]
 
@@ -293,10 +297,20 @@ func (g *LinkerGraph) GenerateSymbolImportAndUse(
 	use.CountEstimate += useCount
 	part.SymbolUses[ref] = use
 
+	// Uphold invariants about the CommonJS "exports" and "module" symbols
+	if ref == repr.AST.ExportsRef {
+		repr.AST.UsesExportsRef = true
+	}
+	if ref == repr.AST.ModuleRef {
+		repr.AST.UsesModuleRef = true
+	}
+
 	// Track that this specific symbol was imported
-	repr.Meta.ImportsToBind[ref] = ImportData{
-		SourceIndex: sourceIndexToImportFrom,
-		Ref:         ref,
+	if sourceIndexToImportFrom != sourceIndex {
+		repr.Meta.ImportsToBind[ref] = ImportData{
+			SourceIndex: sourceIndexToImportFrom,
+			Ref:         ref,
+		}
 	}
 
 	// Pull in all parts that declare this symbol
@@ -315,9 +329,11 @@ func (g *LinkerGraph) GenerateRuntimeSymbolImportAndUse(
 	name string,
 	useCount uint32,
 ) {
-	if useCount > 0 {
-		runtimeRepr := g.Files[runtime.SourceIndex].InputFile.Repr.(*JSRepr)
-		ref := runtimeRepr.AST.NamedExports[name].Ref
-		g.GenerateSymbolImportAndUse(sourceIndex, partIndex, ref, useCount, runtime.SourceIndex)
+	if useCount == 0 {
+		return
 	}
+
+	runtimeRepr := g.Files[runtime.SourceIndex].InputFile.Repr.(*JSRepr)
+	ref := runtimeRepr.AST.NamedExports[name].Ref
+	g.GenerateSymbolImportAndUse(sourceIndex, partIndex, ref, useCount, runtime.SourceIndex)
 }
