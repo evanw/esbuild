@@ -36,7 +36,7 @@ type linkerContext struct {
 	log         logger.Log
 	fs          fs.FS
 	res         resolver.Resolver
-	entryPoints []entryMeta
+	entryPoints []graph.EntryPoint
 	graph       graph.LinkerGraph
 
 	// This helps avoid an infinite loop when matching imports to exports
@@ -177,7 +177,7 @@ func newLinkerContext(
 	fs fs.FS,
 	res resolver.Resolver,
 	inputFiles []graph.InputFile,
-	entryPoints []entryMeta,
+	entryPoints []graph.EntryPoint,
 	reachableFiles []uint32,
 	dataForSourceMaps func() []dataForSourceMap,
 ) linkerContext {
@@ -189,14 +189,14 @@ func newLinkerContext(
 		log:               log,
 		fs:                fs,
 		res:               res,
-		entryPoints:       append([]entryMeta{}, entryPoints...),
+		entryPoints:       append([]graph.EntryPoint{}, entryPoints...),
 		graph:             graph.MakeLinkerGraph(inputFiles, reachableFiles),
 		dataForSourceMaps: dataForSourceMaps,
 	}
 
 	// Mark all entry points so we don't add them again for import() expressions
 	for _, entryPoint := range entryPoints {
-		file := &c.graph.Files[entryPoint.sourceIndex]
+		file := &c.graph.Files[entryPoint.SourceIndex]
 		file.EntryPointKind = graph.EntryPointUserSpecified
 
 		if repr, ok := file.InputFile.Repr.(*graph.JSRepr); ok {
@@ -267,7 +267,7 @@ func (c *linkerContext) link() []graph.OutputFile {
 
 	if c.options.Mode == config.ModePassThrough {
 		for _, entryPoint := range c.entryPoints {
-			c.preventExportsFromBeingRenamed(entryPoint.sourceIndex)
+			c.preventExportsFromBeingRenamed(entryPoint.SourceIndex)
 		}
 	}
 
@@ -547,7 +547,7 @@ func (c *linkerContext) pathRelativeToOutbase(
 	absPath := file.InputFile.Source.KeyPath.Text
 	isCustomOutputPath := false
 
-	if outPath := c.entryPoints[entryPointBit].outputPath; outPath != "" {
+	if outPath := c.entryPoints[entryPointBit].OutputPath; outPath != "" {
 		// Use the configured output path if present
 		absPath = outPath
 		if !c.fs.IsAbs(absPath) {
@@ -1046,8 +1046,8 @@ func (c *linkerContext) scanImportsAndExports() {
 					if c.options.CodeSplitting {
 						// Files that are imported with import() must be entry points
 						if otherFile.EntryPointKind == graph.EntryPointNone {
-							c.entryPoints = append(c.entryPoints, entryMeta{
-								sourceIndex: record.SourceIndex.GetIndex(),
+							c.entryPoints = append(c.entryPoints, graph.EntryPoint{
+								SourceIndex: record.SourceIndex.GetIndex(),
 							})
 							otherFile.EntryPointKind = graph.EntryPointDynamicImport
 						}
@@ -2237,7 +2237,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	// Tree shaking: Each entry point marks all files reachable from itself
 	for _, entryPoint := range c.entryPoints {
-		c.markFileAsLive(entryPoint.sourceIndex)
+		c.markFileAsLive(entryPoint.SourceIndex)
 	}
 
 	// Code splitting: Determine which entry points can reach which files. This
@@ -2245,7 +2245,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	// between live parts within the same file. All liveness has to be computed
 	// first before determining which entry points can reach which files.
 	for i, entryPoint := range c.entryPoints {
-		c.markFileAsReachable(entryPoint.sourceIndex, uint(i), 0)
+		c.markFileAsReachable(entryPoint.SourceIndex, uint(i), 0)
 	}
 }
 
@@ -2601,7 +2601,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 
 	// Create chunks for entry points
 	for i, entryPoint := range c.entryPoints {
-		file := &c.graph.Files[entryPoint.sourceIndex]
+		file := &c.graph.Files[entryPoint.SourceIndex]
 
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
@@ -2610,7 +2610,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		info := chunkInfo{
 			entryBits:             entryBits,
 			isEntryPoint:          true,
-			sourceIndex:           entryPoint.sourceIndex,
+			sourceIndex:           entryPoint.SourceIndex,
 			entryPointBit:         uint(i),
 			filesWithPartsInChunk: make(map[uint32]bool),
 		}
