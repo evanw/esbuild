@@ -23,7 +23,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 	}
 
 	file := &c.files[sourceIndex]
-	repr := file.repr.(*reprJS)
+	repr := file.repr.(*JSRepr)
 	sb := strings.Builder{}
 
 	quoteSym := func(ref js_ast.Ref) string {
@@ -32,26 +32,26 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 	}
 
 	sb.WriteString(`,"parts":[`)
-	for partIndex, part := range repr.ast.Parts {
-		partMeta := &repr.meta.partMeta[partIndex]
+	for partIndex, part := range repr.AST.Parts {
+		partMeta := &repr.Meta.PartMeta[partIndex]
 		if partIndex > 0 {
 			sb.WriteByte(',')
 		}
 		var isFirst bool
 		code := ""
 
-		sb.WriteString(fmt.Sprintf(`{"isLive":%v`, partMeta.isLive))
+		sb.WriteString(fmt.Sprintf(`{"isLive":%v`, partMeta.IsLive))
 		sb.WriteString(fmt.Sprintf(`,"canBeRemovedIfUnused":%v`, part.CanBeRemovedIfUnused))
 
-		if partIndex == int(repr.meta.nsExportPartIndex) {
+		if partIndex == int(repr.Meta.NSExportPartIndex) {
 			sb.WriteString(`,"nsExportPartIndex":true`)
-		} else if ast.MakeIndex32(uint32(partIndex)) == repr.meta.wrapperPartIndex {
+		} else if ast.MakeIndex32(uint32(partIndex)) == repr.Meta.WrapperPartIndex {
 			sb.WriteString(`,"wrapperPartIndex":true`)
 		} else if len(part.Stmts) > 0 {
 			start := part.Stmts[0].Loc.Start
 			end := len(file.module.Source.Contents)
-			if partIndex+1 < len(repr.ast.Parts) {
-				if nextStmts := repr.ast.Parts[partIndex+1].Stmts; len(nextStmts) > 0 {
+			if partIndex+1 < len(repr.AST.Parts) {
+				if nextStmts := repr.AST.Parts[partIndex+1].Stmts; len(nextStmts) > 0 {
 					if nextStart := nextStmts[0].Loc.Start; nextStart >= start {
 						end = int(nextStart)
 					}
@@ -64,7 +64,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 		sb.WriteString(`,"importRecords":[`)
 		isFirst = true
 		for _, importRecordIndex := range part.ImportRecordIndices {
-			record := repr.ast.ImportRecords[importRecordIndex]
+			record := repr.AST.ImportRecords[importRecordIndex]
 			if !record.SourceIndex.IsValid() {
 				continue
 			}
