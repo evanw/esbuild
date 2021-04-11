@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.8
 
 * Fix hash calculation for code splitting and dynamic imports ([#1076](https://github.com/evanw/esbuild/issues/1076))
 
