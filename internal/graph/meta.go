@@ -1,5 +1,8 @@
 package graph
 
+// The code in this file represents data that is required by the compile phase
+// of the bundler but that is not required by the scan phase.
+
 import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/js_ast"
@@ -124,8 +127,13 @@ type JSReprMeta struct {
 	// entry point files have one of these.
 	EntryPointPartIndex ast.Index32
 
+	// This is true if this file is affected by top-level await, either by having
+	// a top-level await inside this file or by having an import/export statement
+	// that transitively imports such a file. It is forbidden to call "require()"
+	// on these files since they are evaluated asynchronously.
 	IsAsyncOrHasAsyncDependency bool
-	Wrap                        WrapKind
+
+	Wrap WrapKind
 
 	// If true, the "__export(exports, { ... })" call will be force-included even
 	// if there are no parts that reference "exports". Otherwise this call will
@@ -139,6 +147,11 @@ type JSReprMeta struct {
 	// because of concurrent map hazards. Instead, it must be done later.
 	NeedsExportSymbolFromRuntime       bool
 	NeedsMarkAsModuleSymbolFromRuntime bool
+
+	// Wrapped files must also ensure that their dependencies are wrapped. This
+	// flag is used during the traversal that enforces this invariant, and is used
+	// to detect when the fixed point has been reached.
+	DidWrapDependencies bool
 }
 
 type ImportData struct {
