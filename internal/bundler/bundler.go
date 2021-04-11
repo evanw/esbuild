@@ -32,12 +32,12 @@ import (
 	"github.com/evanw/esbuild/internal/xxhash"
 )
 
-type entryPointKind uint8
+type EntryPointKind uint8
 
 const (
-	entryPointNone entryPointKind = iota
-	entryPointUserSpecified
-	entryPointDynamicImport
+	EntryPointNone EntryPointKind = iota
+	EntryPointUserSpecified
+	EntryPointDynamicImport
 )
 
 type scannerFile struct {
@@ -50,34 +50,34 @@ type scannerFile struct {
 	jsonMetadataChunk string
 }
 
-type linkerFile struct {
-	module graph.Module
+type LinkerFile struct {
+	Module graph.Module
 
 	// The minimum number of links in the module graph to get from an entry point
 	// to this file
-	distanceFromEntryPoint uint32
+	DistanceFromEntryPoint uint32
 
 	// This is true if this file has been marked as live by the tree shaking
 	// algorithm.
-	isLive bool
+	IsLive bool
 
 	// This holds all entry points that can reach this file. It will be used to
 	// assign the parts in this file to a chunk.
-	entryBits helpers.BitSet
+	EntryBits helpers.BitSet
 
 	// If "entryPointKind" is not "entryPointNone", this is the index of the
 	// corresponding entry point chunk.
-	entryPointChunkIndex uint32
+	EntryPointChunkIndex uint32
 
 	// This file is an entry point if and only if this is not "entryPointNone".
 	// Note that dynamically-imported files are allowed to also be specified by
 	// the user as top-level entry points, so some dynamically-imported files
 	// may be "entryPointUserSpecified" instead of "entryPointDynamicImport".
-	entryPointKind entryPointKind
+	EntryPointKind EntryPointKind
 }
 
-func (f *linkerFile) isEntryPoint() bool {
-	return f.entryPointKind != entryPointNone
+func (f *LinkerFile) IsEntryPoint() bool {
+	return f.EntryPointKind != EntryPointNone
 }
 
 // This is data related to source maps. It's computed in parallel with linking
@@ -1879,9 +1879,9 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 		options.OutputFormat = config.FormatESModule
 	}
 
-	files := make([]linkerFile, len(b.files))
+	files := make([]LinkerFile, len(b.files))
 	for i, file := range b.files {
-		files[i].module = file.module
+		files[i].Module = file.module
 	}
 
 	// Get the base path from the options or choose the lowest common ancestor of all entry points
@@ -1987,7 +1987,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 // deterministic given that the entry point order is deterministic, since the
 // returned order is the postorder of the graph traversal and import record
 // order within a given file is deterministic.
-func findReachableFiles(files []linkerFile, entryPoints []entryMeta) []uint32 {
+func findReachableFiles(files []LinkerFile, entryPoints []entryMeta) []uint32 {
 	visited := make(map[uint32]bool)
 	var order []uint32
 	var visit func(uint32)
@@ -1997,10 +1997,10 @@ func findReachableFiles(files []linkerFile, entryPoints []entryMeta) []uint32 {
 		if !visited[sourceIndex] {
 			visited[sourceIndex] = true
 			file := &files[sourceIndex]
-			if repr, ok := file.module.Repr.(*graph.JSRepr); ok && repr.CSSSourceIndex.IsValid() {
+			if repr, ok := file.Module.Repr.(*graph.JSRepr); ok && repr.CSSSourceIndex.IsValid() {
 				visit(repr.CSSSourceIndex.GetIndex())
 			}
-			for _, record := range *file.module.Repr.ImportRecords() {
+			for _, record := range *file.Module.Repr.ImportRecords() {
 				if record.SourceIndex.IsValid() {
 					visit(record.SourceIndex.GetIndex())
 				}
