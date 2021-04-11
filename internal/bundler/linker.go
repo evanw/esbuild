@@ -238,16 +238,6 @@ func newLinkerContext(
 	return c
 }
 
-func (c *linkerContext) addPartToFile(sourceIndex uint32, part js_ast.Part) uint32 {
-	if part.SymbolUses == nil {
-		part.SymbolUses = make(map[js_ast.Ref]js_ast.SymbolUse)
-	}
-	repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr)
-	partIndex := uint32(len(repr.AST.Parts))
-	repr.AST.Parts = append(repr.AST.Parts, part)
-	return partIndex
-}
-
 func (c *linkerContext) generateUniqueKeyPrefix() bool {
 	var data [12]byte
 	rand.Seed(time.Now().UnixNano())
@@ -1143,7 +1133,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		}
 
 		// Add an empty part for the namespace export that we can fill in later
-		repr.Meta.NSExportPartIndex = c.addPartToFile(sourceIndex, js_ast.Part{
+		repr.Meta.NSExportPartIndex = c.graph.AddPartToFile(sourceIndex, js_ast.Part{
 			CanBeRemovedIfUnused: true,
 			IsNamespaceExport:    true,
 		})
@@ -1399,7 +1389,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		}
 
 		// Link the export into the graph for tree shaking
-		partIndex := c.addPartToFile(sourceIndex, js_ast.Part{
+		partIndex := c.graph.AddPartToFile(sourceIndex, js_ast.Part{
 			Stmts:                []js_ast.Stmt{stmt},
 			SymbolUses:           map[js_ast.Ref]js_ast.SymbolUse{repr.AST.ModuleRef: {CountEstimate: 1}},
 			DeclaredSymbols:      []js_ast.DeclaredSymbol{{Ref: ref, IsTopLevel: true}},
@@ -2192,7 +2182,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 						PartIndex:   partIndex,
 					}
 				}
-				partIndex := c.addPartToFile(sourceIndex, js_ast.Part{
+				partIndex := c.graph.AddPartToFile(sourceIndex, js_ast.Part{
 					SymbolUses: map[js_ast.Ref]js_ast.SymbolUse{
 						repr.AST.WrapperRef: {CountEstimate: 1},
 					},
@@ -2231,7 +2221,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 						PartIndex:   partIndex,
 					}
 				}
-				partIndex := c.addPartToFile(sourceIndex, js_ast.Part{
+				partIndex := c.graph.AddPartToFile(sourceIndex, js_ast.Part{
 					SymbolUses: map[js_ast.Ref]js_ast.SymbolUse{
 						repr.AST.WrapperRef: {CountEstimate: 1},
 					},
