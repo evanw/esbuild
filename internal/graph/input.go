@@ -1,5 +1,12 @@
 package graph
 
+// The code in this file mainly represents data that passes from the scan phase
+// to the compile phase of the bundler. There is currently one exception: the
+// "meta" member of the JavaScript file representation. That could have been
+// stored separately but is stored together for convenience and to avoid an
+// extra level of indirection. Instead it's kept in a separate type to keep
+// things organized.
+
 import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
@@ -75,8 +82,6 @@ type JSRepr struct {
 	// A JavaScript stub is automatically generated for a CSS file when it's
 	// imported from a JavaScript file.
 	CSSSourceIndex ast.Index32
-
-	DidWrapDependencies bool
 }
 
 func (repr *JSRepr) ImportRecords() *[]ast.ImportRecord {

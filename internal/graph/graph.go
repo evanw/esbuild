@@ -1,5 +1,18 @@
 package graph
 
+// This graph represents the set of files that the linker operates on. Each
+// linker has a separate one of these graphs (there is one linker when code
+// splitting is on, but one linker per entry point when code splitting is off).
+//
+// The input data to the linker constructor must be considered immutable because
+// it's shared between linker invocations and is also stored in the cache for
+// incremental builds.
+//
+// The linker constructor makes a shallow clone of the input data and is careful
+// to pre-clone ahead of time the AST fields that it may modify. The Go language
+// doesn't have any type system features for immutability so this has to be
+// manually enforced. Please be careful.
+
 import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/helpers"

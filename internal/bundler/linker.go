@@ -2109,10 +2109,10 @@ loop:
 
 func (c *linkerContext) recursivelyWrapDependencies(sourceIndex uint32) {
 	repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr)
-	if repr.DidWrapDependencies {
+	if repr.Meta.DidWrapDependencies {
 		return
 	}
-	repr.DidWrapDependencies = true
+	repr.Meta.DidWrapDependencies = true
 
 	// Never wrap the runtime file since it always comes first
 	if sourceIndex == runtime.SourceIndex {
