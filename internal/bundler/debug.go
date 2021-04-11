@@ -24,7 +24,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 	}
 
 	file := &c.files[sourceIndex]
-	repr := file.Module.Repr.(*graph.JSRepr)
+	repr := file.InputFile.Repr.(*graph.JSRepr)
 	sb := strings.Builder{}
 
 	quoteSym := func(ref js_ast.Ref) string {
@@ -50,7 +50,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 			sb.WriteString(`,"wrapperPartIndex":true`)
 		} else if len(part.Stmts) > 0 {
 			start := part.Stmts[0].Loc.Start
-			end := len(file.Module.Source.Contents)
+			end := len(file.InputFile.Source.Contents)
 			if partIndex+1 < len(repr.AST.Parts) {
 				if nextStmts := repr.AST.Parts[partIndex+1].Stmts; len(nextStmts) > 0 {
 					if nextStart := nextStmts[0].Loc.Start; nextStart >= start {
@@ -58,7 +58,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 					}
 				}
 			}
-			code = file.Module.Source.Contents[start:end]
+			code = file.InputFile.Source.Contents[start:end]
 		}
 
 		// importRecords
@@ -74,7 +74,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 			} else {
 				sb.WriteByte(',')
 			}
-			path := c.files[record.SourceIndex.GetIndex()].Module.Source.PrettyPath
+			path := c.files[record.SourceIndex.GetIndex()].InputFile.Source.PrettyPath
 			sb.WriteString(fmt.Sprintf(`{"source":%s}`, js_printer.QuoteForJSON(path, c.options.ASCIIOnly)))
 		}
 		sb.WriteByte(']')
@@ -115,7 +115,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 				sb.WriteByte(',')
 			}
 			sb.WriteString(fmt.Sprintf(`{"source":%s,"partIndex":%d}`,
-				js_printer.QuoteForJSON(c.files[dep.SourceIndex].Module.Source.PrettyPath, c.options.ASCIIOnly),
+				js_printer.QuoteForJSON(c.files[dep.SourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
 				dep.PartIndex,
 			))
 		}
