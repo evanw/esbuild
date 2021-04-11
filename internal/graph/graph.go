@@ -17,17 +17,13 @@ const (
 type LinkerFile struct {
 	InputFile InputFile
 
-	// The minimum number of links in the module graph to get from an entry point
-	// to this file
-	DistanceFromEntryPoint uint32
-
-	// This is true if this file has been marked as live by the tree shaking
-	// algorithm.
-	IsLive bool
-
 	// This holds all entry points that can reach this file. It will be used to
 	// assign the parts in this file to a chunk.
 	EntryBits helpers.BitSet
+
+	// The minimum number of links in the module graph to get from an entry point
+	// to this file
+	DistanceFromEntryPoint uint32
 
 	// If "entryPointKind" is not "entryPointNone", this is the index of the
 	// corresponding entry point chunk.
@@ -38,6 +34,10 @@ type LinkerFile struct {
 	// the user as top-level entry points, so some dynamically-imported files
 	// may be "entryPointUserSpecified" instead of "entryPointDynamicImport".
 	EntryPointKind EntryPointKind
+
+	// This is true if this file has been marked as live by the tree shaking
+	// algorithm.
+	IsLive bool
 }
 
 func (f *LinkerFile) IsEntryPoint() bool {

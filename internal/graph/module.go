@@ -13,14 +13,15 @@ import (
 type InputFile struct {
 	Source         logger.Source
 	Repr           InputFileRepr
-	Loader         config.Loader
-	SideEffects    SideEffects
 	InputSourceMap *sourcemap.SourceMap
 
 	// If this file ends up being used in the bundle, these are additional files
 	// that must be written to the output directory. It's used by the "file"
 	// loader.
 	AdditionalFiles []OutputFile
+
+	SideEffects SideEffects
+	Loader      config.Loader
 }
 
 type OutputFile struct {
@@ -36,10 +37,10 @@ type OutputFile struct {
 }
 
 type SideEffects struct {
-	Kind SideEffectsKind
-
 	// This is optional additional information for use in error messages
 	Data *resolver.SideEffectsData
+
+	Kind SideEffectsKind
 }
 
 type SideEffectsKind uint8
