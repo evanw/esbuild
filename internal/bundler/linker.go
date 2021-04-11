@@ -1233,19 +1233,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		if file.IsEntryPoint() && c.options.OutputFormat == config.FormatESModule {
 			copies := make([]js_ast.Ref, len(repr.Meta.SortedAndFilteredExportAliases))
 			for i, alias := range repr.Meta.SortedAndFilteredExportAliases {
-				symbols := &c.graph.Symbols.SymbolsForSource[sourceIndex]
-				tempRef := js_ast.Ref{
-					SourceIndex: sourceIndex,
-					InnerIndex:  uint32(len(*symbols)),
-				}
-				*symbols = append(*symbols, js_ast.Symbol{
-					Kind:         js_ast.SymbolOther,
-					OriginalName: "export_" + alias,
-					Link:         js_ast.InvalidRef,
-				})
-				generated := &repr.AST.ModuleScope.Generated
-				*generated = append(*generated, tempRef)
-				copies[i] = tempRef
+				copies[i] = c.graph.GenerateNewSymbol(sourceIndex, js_ast.SymbolOther, "export_"+alias)
 			}
 			repr.Meta.CJSExportCopies = copies
 		}
