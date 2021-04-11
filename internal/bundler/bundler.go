@@ -1841,9 +1841,9 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 		options.OutputFormat = config.FormatESModule
 	}
 
-	files := make([]graph.LinkerFile, len(b.files))
+	files := make([]graph.InputFile, len(b.files))
 	for i, file := range b.files {
-		files[i].InputFile = file.inputFile
+		files[i] = file.inputFile
 	}
 
 	// Get the base path from the options or choose the lowest common ancestor of all entry points
@@ -1949,7 +1949,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 // deterministic given that the entry point order is deterministic, since the
 // returned order is the postorder of the graph traversal and import record
 // order within a given file is deterministic.
-func findReachableFiles(files []graph.LinkerFile, entryPoints []entryMeta) []uint32 {
+func findReachableFiles(files []graph.InputFile, entryPoints []entryMeta) []uint32 {
 	visited := make(map[uint32]bool)
 	var order []uint32
 	var visit func(uint32)
@@ -1959,10 +1959,10 @@ func findReachableFiles(files []graph.LinkerFile, entryPoints []entryMeta) []uin
 		if !visited[sourceIndex] {
 			visited[sourceIndex] = true
 			file := &files[sourceIndex]
-			if repr, ok := file.InputFile.Repr.(*graph.JSRepr); ok && repr.CSSSourceIndex.IsValid() {
+			if repr, ok := file.Repr.(*graph.JSRepr); ok && repr.CSSSourceIndex.IsValid() {
 				visit(repr.CSSSourceIndex.GetIndex())
 			}
-			for _, record := range *file.InputFile.Repr.ImportRecords() {
+			for _, record := range *file.Repr.ImportRecords() {
 				if record.SourceIndex.IsValid() {
 					visit(record.SourceIndex.GetIndex())
 				}
