@@ -1476,8 +1476,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 			}},
 			lazy.Value,
 		)}
-		part.SymbolUses[repr.AST.ModuleRef] = js_ast.SymbolUse{CountEstimate: 1}
-		repr.AST.UsesModuleRef = true
+		c.graph.GenerateSymbolImportAndUse(sourceIndex, 0, repr.AST.ModuleRef, 1, sourceIndex)
 		return
 	}
 
@@ -1490,12 +1489,9 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		partIndex uint32
 	}
 
-	generateExport := func(name string, alias string, value js_ast.Expr, prevExports []prevExport) prevExport {
+	generateExport := func(name string, alias string, value js_ast.Expr) prevExport {
 		// Generate a new symbol
-		inner := &c.graph.Symbols.SymbolsForSource[sourceIndex]
-		ref := js_ast.Ref{SourceIndex: sourceIndex, InnerIndex: uint32(len(*inner))}
-		*inner = append(*inner, js_ast.Symbol{Kind: js_ast.SymbolOther, OriginalName: name, Link: js_ast.InvalidRef})
-		repr.AST.ModuleScope.Generated = append(repr.AST.ModuleScope.Generated, ref)
+		ref := c.graph.GenerateNewSymbol(sourceIndex, js_ast.SymbolOther, name)
 
 		// Generate an ES6 export
 		var stmt js_ast.Stmt
@@ -1517,24 +1513,16 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		// Link the export into the graph for tree shaking
 		partIndex := c.graph.AddPartToFile(sourceIndex, js_ast.Part{
 			Stmts:                []js_ast.Stmt{stmt},
-			SymbolUses:           map[js_ast.Ref]js_ast.SymbolUse{repr.AST.ModuleRef: {CountEstimate: 1}},
 			DeclaredSymbols:      []js_ast.DeclaredSymbol{{Ref: ref, IsTopLevel: true}},
 			CanBeRemovedIfUnused: true,
 		})
+		c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, repr.AST.ModuleRef, 1, sourceIndex)
 		repr.Meta.ResolvedExports[alias] = graph.ExportData{Ref: ref, SourceIndex: sourceIndex}
-		part := &repr.AST.Parts[partIndex]
-		for _, export := range prevExports {
-			part.SymbolUses[export.ref] = js_ast.SymbolUse{CountEstimate: 1}
-			part.Dependencies = append(part.Dependencies, js_ast.Dependency{
-				SourceIndex: sourceIndex,
-				PartIndex:   export.partIndex,
-			})
-		}
 		return prevExport{ref: ref, partIndex: partIndex}
 	}
 
 	// Unwrap JSON objects into separate top-level variables
-	var prevExports []prevExport
+	var prevExports []js_ast.Ref
 	jsonValue := lazy.Value
 	if object, ok := jsonValue.Data.(*js_ast.EObject); ok {
 		clone := *object
@@ -1542,16 +1530,21 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		for i, property := range clone.Properties {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok && (!file.IsEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value)) {
 				name := js_lexer.UTF16ToString(str.Value)
-				export := generateExport(name, name, *property.Value, nil)
-				prevExports = append(prevExports, export)
-				clone.Properties[i].Value = &js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EIdentifier{Ref: export.ref}}
+				exportRef := generateExport(name, name, *property.Value).ref
+				prevExports = append(prevExports, exportRef)
+				clone.Properties[i].Value = &js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EIdentifier{Ref: exportRef}}
 			}
 		}
 		jsonValue.Data = &clone
 	}
 
 	// Generate the default export
-	generateExport(file.InputFile.Source.IdentifierName+"_default", "default", jsonValue, prevExports)
+	finalExportPartIndex := generateExport(file.InputFile.Source.IdentifierName+"_default", "default", jsonValue).partIndex
+
+	// The default export depends on all of the previous exports
+	for _, exportRef := range prevExports {
+		c.graph.GenerateSymbolImportAndUse(sourceIndex, finalExportPartIndex, exportRef, 1, sourceIndex)
+	}
 }
 
 func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
