@@ -48,12 +48,6 @@ const (
 type JSReprMeta struct {
 	PartMeta []PartMeta
 
-	// This is the index to the automatically-generated part containing code that
-	// calls "__export(exports, { ... getters ... })". This is used to generate
-	// getters on an exports object for ES6 export statements, and is both for
-	// ES6 star imports and CommonJS-style modules.
-	NSExportPartIndex uint32
-
 	// This is only for TypeScript files. If an import symbol is in this map, it
 	// means the import couldn't be found and doesn't actually exist. This is not
 	// an error in TypeScript because the import is probably just a type.
@@ -90,30 +84,6 @@ type JSReprMeta struct {
 	// into two separate passes.
 	ImportsToBind map[js_ast.Ref]ImportData
 
-	IsAsyncOrHasAsyncDependency bool
-	DependsOnRuntimeSymbol      bool
-	Wrap                        WrapKind
-
-	// If true, the "__export(exports, { ... })" call will be force-included even
-	// if there are no parts that reference "exports". Otherwise this call will
-	// be removed due to the tree shaking pass. This is used when for entry point
-	// files when code related to the current output format needs to reference
-	// the "exports" variable.
-	ForceIncludeExportsForEntryPoint bool
-
-	// This is set when we need to pull in the "__export" symbol in to the part
-	// at "nsExportPartIndex". This can't be done in "createExportsForFile"
-	// because of concurrent map hazards. Instead, it must be done later.
-	NeedsExportSymbolFromRuntime       bool
-	NeedsMarkAsModuleSymbolFromRuntime bool
-
-	// The index of the automatically-generated part used to represent the
-	// CommonJS or ESM wrapper. This part is empty and is only useful for tree
-	// shaking and code splitting. The wrapper can't be inserted into the part
-	// because the wrapper contains other parts, which can't be represented by
-	// the current part system.
-	WrapperPartIndex ast.Index32
-
 	// This includes both named exports and re-exports.
 	//
 	// Named exports come from explicit export statements in the original file,
@@ -134,6 +104,36 @@ type JSReprMeta struct {
 	// temporary symbol for each entry in "sortedAndFilteredExportAliases".
 	// These may be needed to store copies of CommonJS re-exports in ESM.
 	CJSExportCopies []js_ast.Ref
+
+	// This is the index to the automatically-generated part containing code that
+	// calls "__export(exports, { ... getters ... })". This is used to generate
+	// getters on an exports object for ES6 export statements, and is both for
+	// ES6 star imports and CommonJS-style modules.
+	NSExportPartIndex uint32
+
+	// The index of the automatically-generated part used to represent the
+	// CommonJS or ESM wrapper. This part is empty and is only useful for tree
+	// shaking and code splitting. The wrapper can't be inserted into the part
+	// because the wrapper contains other parts, which can't be represented by
+	// the current part system.
+	WrapperPartIndex ast.Index32
+
+	IsAsyncOrHasAsyncDependency bool
+	DependsOnRuntimeSymbol      bool
+	Wrap                        WrapKind
+
+	// If true, the "__export(exports, { ... })" call will be force-included even
+	// if there are no parts that reference "exports". Otherwise this call will
+	// be removed due to the tree shaking pass. This is used when for entry point
+	// files when code related to the current output format needs to reference
+	// the "exports" variable.
+	ForceIncludeExportsForEntryPoint bool
+
+	// This is set when we need to pull in the "__export" symbol in to the part
+	// at "nsExportPartIndex". This can't be done in "createExportsForFile"
+	// because of concurrent map hazards. Instead, it must be done later.
+	NeedsExportSymbolFromRuntime       bool
+	NeedsMarkAsModuleSymbolFromRuntime bool
 }
 
 type ImportData struct {
@@ -145,9 +145,9 @@ type ImportData struct {
 	// different files.
 	ReExports []js_ast.Dependency
 
-	SourceIndex uint32
 	NameLoc     logger.Loc // Optional, goes with sourceIndex, ignore if zero
 	Ref         js_ast.Ref
+	SourceIndex uint32
 }
 
 type ExportData struct {
@@ -178,8 +178,8 @@ type ExportData struct {
 
 	// This is the file that the named export above came from. This will be
 	// different from the file that contains this object if this is a re-export.
-	SourceIndex uint32
 	NameLoc     logger.Loc // Optional, goes with sourceIndex, ignore if zero
+	SourceIndex uint32
 }
 
 // This contains linker-specific metadata corresponding to a "js_ast.Part" struct
