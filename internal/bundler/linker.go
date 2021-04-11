@@ -1286,14 +1286,13 @@ func (c *linkerContext) scanImportsAndExports() {
 		// parallel and can't safely mutate the "importsToBind" map of another file.
 		if repr.Meta.NeedsExportSymbolFromRuntime || repr.Meta.NeedsMarkAsModuleSymbolFromRuntime {
 			runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
-			exportPart := &repr.AST.Parts[repr.Meta.NSExportPartIndex]
 			if repr.Meta.NeedsExportSymbolFromRuntime {
 				exportRef := runtimeRepr.AST.ModuleScope.Members["__export"].Ref
-				c.generateUseOfSymbolForInclude(exportPart, repr, 1, exportRef, runtime.SourceIndex)
+				c.graph.GenerateSymbolImportAndUse(sourceIndex, repr.Meta.NSExportPartIndex, exportRef, 1, runtime.SourceIndex)
 			}
 			if repr.Meta.NeedsMarkAsModuleSymbolFromRuntime {
-				exportRef := runtimeRepr.AST.ModuleScope.Members["__markAsModule"].Ref
-				c.generateUseOfSymbolForInclude(exportPart, repr, 1, exportRef, runtime.SourceIndex)
+				markAsModuleRef := runtimeRepr.AST.ModuleScope.Members["__markAsModule"].Ref
+				c.graph.GenerateSymbolImportAndUse(sourceIndex, repr.Meta.NSExportPartIndex, markAsModuleRef, 1, runtime.SourceIndex)
 			}
 		}
 
@@ -2195,7 +2194,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				})
 				repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
 				repr.AST.TopLevelSymbolToParts[repr.AST.WrapperRef] = []uint32{partIndex}
-				c.generateUseOfSymbolForInclude(&repr.AST.Parts[partIndex], repr, 1, commonJSRef, runtime.SourceIndex)
+				c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, commonJSRef, 1, runtime.SourceIndex)
 			}
 
 			// If this is a lazily-initialized ESM file, we're going to need to
@@ -2232,7 +2231,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 				})
 				repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
 				repr.AST.TopLevelSymbolToParts[repr.AST.WrapperRef] = []uint32{partIndex}
-				c.generateUseOfSymbolForInclude(&repr.AST.Parts[partIndex], repr, 1, esmRef, runtime.SourceIndex)
+				c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, esmRef, 1, runtime.SourceIndex)
 			}
 		}
 	}
@@ -2416,41 +2415,23 @@ func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
 }
 
 func (c *linkerContext) markPartsAsLiveForRuntimeSymbol(
-	part *js_ast.Part, repr *graph.JSRepr, useCount uint32, name string,
+	sourceIndex uint32,
+	partIndex uint32,
+	name string,
+	useCount uint32,
 ) {
 	if useCount > 0 {
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
 		ref := runtimeRepr.AST.NamedExports[name].Ref
 
 		// Depend on the symbol from the runtime
-		c.generateUseOfSymbolForInclude(part, repr, useCount, ref, runtime.SourceIndex)
+		c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, ref, useCount, runtime.SourceIndex)
 
 		// Since this part was included, also include the parts from the runtime
 		// that declare this symbol
 		for _, partIndex := range runtimeRepr.AST.TopLevelSymbolToParts[ref] {
 			c.markPartAsLive(runtime.SourceIndex, partIndex)
 		}
-	}
-}
-
-func (c *linkerContext) generateUseOfSymbolForInclude(
-	part *js_ast.Part, repr *graph.JSRepr, useCount uint32,
-	ref js_ast.Ref, otherSourceIndex uint32,
-) {
-	// Mark this symbol as used by this part
-	use := part.SymbolUses[ref]
-	use.CountEstimate += useCount
-	part.SymbolUses[ref] = use
-
-	// Track that this specific symbol was imported
-	repr.Meta.ImportsToBind[ref] = graph.ImportData{
-		SourceIndex: otherSourceIndex,
-		Ref:         ref,
-	}
-
-	// Make sure code splitting includes the runtime from this file
-	if otherSourceIndex == runtime.SourceIndex {
-		repr.Meta.DependsOnRuntimeSymbol = true
 	}
 }
 
@@ -2504,7 +2485,7 @@ func (c *linkerContext) markPartAsLive(sourceIndex uint32, partIndex uint32) {
 
 			// Depend on the automatically-generated require wrapper symbol
 			wrapperRef := otherRepr.AST.WrapperRef
-			c.generateUseOfSymbolForInclude(part, repr, 1, wrapperRef, otherSourceIndex)
+			c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, wrapperRef, 1, otherSourceIndex)
 
 			// This is an ES6 import of a CommonJS module, so it needs the
 			// "__toModule" wrapper as long as it's not a bare "require()"
@@ -2519,7 +2500,7 @@ func (c *linkerContext) markPartAsLive(sourceIndex uint32, partIndex uint32) {
 			// but does not need to be done for "import" statements since
 			// those just cause us to reference the exports directly.
 			if otherRepr.Meta.Wrap == graph.WrapESM && record.Kind != ast.ImportStmt {
-				c.generateUseOfSymbolForInclude(part, repr, 1, otherRepr.AST.ExportsRef, otherSourceIndex)
+				c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, otherRepr.AST.ExportsRef, 1, otherSourceIndex)
 				c.markPartAsLive(otherSourceIndex, otherRepr.Meta.NSExportPartIndex)
 			}
 		} else if record.Kind == ast.ImportStmt && otherRepr.AST.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
@@ -2528,18 +2509,18 @@ func (c *linkerContext) markPartAsLive(sourceIndex uint32, partIndex uint32) {
 			// something ends up needing to use it later. This could potentially
 			// be omitted in some cases with more advanced analysis if this
 			// dynamic export fallback object doesn't end up being needed.
-			c.generateUseOfSymbolForInclude(part, repr, 1, otherRepr.AST.ExportsRef, otherSourceIndex)
+			c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, otherRepr.AST.ExportsRef, 1, otherSourceIndex)
 			c.markPartAsLive(otherSourceIndex, otherRepr.Meta.NSExportPartIndex)
 		}
 	}
 
 	// If there's an ES6 import of a non-ES6 module, then we're going to need the
 	// "__toModule" symbol from the runtime to wrap the result of "require()"
-	c.markPartsAsLiveForRuntimeSymbol(part, repr, toModuleUses, "__toModule")
+	c.markPartsAsLiveForRuntimeSymbol(sourceIndex, partIndex, "__toModule", toModuleUses)
 
 	// If there's an ES6 export star statement of a non-ES6 module, then we're
 	// going to need the "__reExport" symbol from the runtime
-	exportStarUses := uint32(0)
+	reExportUses := uint32(0)
 	for _, importRecordIndex := range repr.AST.ExportStarImportRecords {
 		record := &repr.AST.ImportRecords[importRecordIndex]
 
@@ -2556,20 +2537,20 @@ func (c *linkerContext) markPartAsLive(sourceIndex uint32, partIndex uint32) {
 				// pull in the "exports_b" symbol into this export star. This matters
 				// in code splitting situations where the "export_b" symbol might live
 				// in a different chunk than this export star.
-				c.generateUseOfSymbolForInclude(part, repr, 1, otherRepr.AST.ExportsRef, otherSourceIndex)
+				c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, otherRepr.AST.ExportsRef, 1, otherSourceIndex)
 				c.markPartAsLive(otherSourceIndex, otherRepr.Meta.NSExportPartIndex)
 			}
 		}
 		if happensAtRunTime {
 			// Depend on this file's "exports" object for the first argument to "__reExport"
-			c.generateUseOfSymbolForInclude(part, repr, 1, repr.AST.ExportsRef, sourceIndex)
+			c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, repr.AST.ExportsRef, 1, sourceIndex)
 			c.markPartAsLive(sourceIndex, repr.Meta.NSExportPartIndex)
-			record.CallsRunTimeExportStarFn = true
+			record.CallsRunTimeReExportFn = true
 			repr.AST.UsesExportsRef = true
-			exportStarUses++
+			reExportUses++
 		}
 	}
-	c.markPartsAsLiveForRuntimeSymbol(part, repr, exportStarUses, "__reExport")
+	c.markPartsAsLiveForRuntimeSymbol(sourceIndex, partIndex, "__reExport", reExportUses)
 }
 
 func sanitizeFilePathForVirtualModulePath(path string) string {
@@ -3084,7 +3065,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 
 			// Is this export star evaluated at run time?
 			if !record.SourceIndex.IsValid() && c.options.OutputFormat.KeepES6ImportExportSyntax() {
-				if record.CallsRunTimeExportStarFn {
+				if record.CallsRunTimeReExportFn {
 					// Turn this statement into "import * as ns from 'path'"
 					stmt.Data = &js_ast.SImport{
 						NamespaceRef:      s.NamespaceRef,
@@ -3120,7 +3101,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					}
 				}
 
-				if record.CallsRunTimeExportStarFn {
+				if record.CallsRunTimeReExportFn {
 					var target js_ast.E
 					if record.SourceIndex.IsValid() {
 						if otherRepr := c.graph.Files[record.SourceIndex.GetIndex()].InputFile.Repr.(*graph.JSRepr); otherRepr.AST.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
