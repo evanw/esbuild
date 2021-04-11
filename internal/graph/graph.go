@@ -63,8 +63,9 @@ type EntryPoint struct {
 }
 
 type LinkerGraph struct {
-	Files   []LinkerFile
-	Symbols js_ast.SymbolMap
+	Files       []LinkerFile
+	EntryPoints []EntryPoint
+	Symbols     js_ast.SymbolMap
 
 	// We should avoid traversing all files in the bundle, because the linker
 	// should be able to run a linking operation on a large bundle where only
@@ -84,7 +85,9 @@ type LinkerGraph struct {
 func MakeLinkerGraph(
 	inputFiles []InputFile,
 	reachableFiles []uint32,
+	originalEntryPoints []EntryPoint,
 ) LinkerGraph {
+	entryPoints := append([]EntryPoint{}, originalEntryPoints...)
 	symbols := js_ast.NewSymbolMap(len(inputFiles))
 	files := make([]LinkerFile, len(inputFiles))
 
@@ -187,6 +190,7 @@ func MakeLinkerGraph(
 
 	return LinkerGraph{
 		Symbols:             symbols,
+		EntryPoints:         entryPoints,
 		Files:               files,
 		ReachableFiles:      reachableFiles,
 		StableSourceIndices: stableSourceIndices,
