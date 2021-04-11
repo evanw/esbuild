@@ -1866,11 +1866,6 @@ type Part struct {
 	// don't have this flag enabled must be included.
 	CanBeRemovedIfUnused bool
 
-	// If true, this is the automatically-generated part for this file's ES6
-	// exports. It may hold the "var exports = {};" statement and also the
-	// "__export(exports, { ... })" call to initialize the getters.
-	IsNamespaceExport bool
-
 	// This is used for generated parts that we don't want to be present if they
 	// aren't needed. This enables tree shaking for these parts even if global
 	// tree shaking isn't enabled.
