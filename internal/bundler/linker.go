@@ -2466,8 +2466,7 @@ func (c *linkerContext) markPartAsLive(sourceIndex uint32, partIndex uint32) {
 		otherSourceIndex := record.SourceIndex.GetIndex()
 		otherRepr := c.graph.Files[otherSourceIndex].InputFile.Repr.(*graph.JSRepr)
 
-		if record.Kind == ast.ImportRequire || record.Kind == ast.ImportDynamic ||
-			(record.Kind == ast.ImportStmt && otherRepr.Meta.Wrap != graph.WrapNone) {
+		if otherRepr.Meta.Wrap != graph.WrapNone {
 			// This is a dynamically-evaluated import (i.e. not statically-evaluated)
 			c.markFileAsLive(otherSourceIndex)
 
