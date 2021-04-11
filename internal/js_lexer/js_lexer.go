@@ -565,6 +565,7 @@ func IsIdentifierUTF16(text []uint16) bool {
 		return false
 	}
 	for i := 0; i < n; i++ {
+		isStart := i == 0
 		r1 := rune(text[i])
 		if r1 >= 0xD800 && r1 <= 0xDBFF && i+1 < n {
 			if r2 := rune(text[i+1]); r2 >= 0xDC00 && r2 <= 0xDFFF {
@@ -572,7 +573,7 @@ func IsIdentifierUTF16(text []uint16) bool {
 				i++
 			}
 		}
-		if i == 0 {
+		if isStart {
 			if !IsIdentifierStart(r1) {
 				return false
 			}

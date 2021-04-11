@@ -3386,6 +3386,12 @@ let transformTests = {
     assert.strictEqual(code, `var x = "y";\nvar stdin_default = {x};\nexport {\n  stdin_default as default,\n  x\n};\n`)
   },
 
+  async jsonInvalidIdentifierStart({ esbuild }) {
+    // This character is a valid "ID_Continue" but not a valid "ID_Start" so it must be quoted
+    const { code } = await esbuild.transform(`{ "\\uD835\\uDFCE": "y" }`, { loader: 'json' })
+    assert.strictEqual(code, `module.exports = {"\\u{1D7CE}": "y"};\n`)
+  },
+
   async text({ esbuild }) {
     const { code } = await esbuild.transform(`This is some text`, { loader: 'text' })
     assert.strictEqual(code, `module.exports = "This is some text";\n`)
