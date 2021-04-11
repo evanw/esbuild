@@ -38,7 +38,7 @@ type linkerContext struct {
 	res         resolver.Resolver
 	symbols     js_ast.SymbolMap
 	entryPoints []entryMeta
-	files       []file
+	files       []linkerFile
 
 	// This helps avoid an infinite loop when matching imports to exports
 	cycleDetector []importTracker
@@ -191,7 +191,7 @@ func newLinkerContext(
 	log logger.Log,
 	fs fs.FS,
 	res resolver.Resolver,
-	files []file,
+	files []linkerFile,
 	entryPoints []entryMeta,
 	reachableFiles []uint32,
 	dataForSourceMaps func() []dataForSourceMap,
@@ -205,7 +205,7 @@ func newLinkerContext(
 		fs:                fs,
 		res:               res,
 		entryPoints:       append([]entryMeta{}, entryPoints...),
-		files:             make([]file, len(files)),
+		files:             make([]linkerFile, len(files)),
 		symbols:           js_ast.NewSymbolMap(len(files)),
 		reachableFiles:    reachableFiles,
 		dataForSourceMaps: dataForSourceMaps,
