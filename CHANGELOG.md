@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+* Fix hash calculation for code splitting and dynamic imports ([#1076](https://github.com/evanw/esbuild/issues/1076))
+
+    The hash included in the file name of each output file is intended to change if and only if anything relevant to the content of that output file changes. It includes:
+
+    * The contents of the file with the paths of other output files omitted
+    * The output path of the file the final hash omitted
+    * Some information about the input files involved in that output file
+    * The contents of the associated source map, if there is one
+    * All of the information above for all transitive dependencies found by following `import` statements
+
+    However, this didn't include dynamic `import()` expressions due to an oversight. With this release, dynamic `import()` expressions are now also counted as transitive dependencies. This fixes an issue where the content of an output file could change without its hash also changing. As a side effect of this change, dynamic imports inside output files of other output files are now listed in the metadata file if the `metafile` setting is enabled.
+
 ## 0.11.7
 
 * Fix incorrect chunk reference with code splitting, css, and dynamic imports ([#1125](https://github.com/evanw/esbuild/issues/1125))
