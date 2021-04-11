@@ -76,7 +76,7 @@ func (pp *PathPair) HasSecondary() bool {
 	return pp.Secondary.Text != ""
 }
 
-type IgnoreIfUnusedData struct {
+type SideEffectsData struct {
 	Source *logger.Source
 	Range  logger.Range
 
@@ -96,9 +96,9 @@ type ResolveResult struct {
 
 	DifferentCase *fs.DifferentCase
 
-	// If true, any ES6 imports to this file can be considered to have no side
+	// If present, any ES6 imports to this file can be considered to have no side
 	// effects. This means they should be removed if unused.
-	IgnorePrimaryIfUnused *IgnoreIfUnusedData
+	PrimarySideEffectsData *SideEffectsData
 
 	IsExternal bool
 
@@ -483,7 +483,7 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 										r.debugLogs.addNote(fmt.Sprintf("Marking this file as having no side effects due to %q",
 											info.packageJSON.source.KeyPath.Text))
 									}
-									result.IgnorePrimaryIfUnused = info.packageJSON.ignoreIfUnusedData
+									result.PrimarySideEffectsData = info.packageJSON.sideEffectsData
 								}
 							}
 
