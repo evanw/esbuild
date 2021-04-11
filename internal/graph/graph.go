@@ -197,9 +197,13 @@ func MakeLinkerGraph(
 	}
 
 	// Create a way to convert source indices to a stable ordering
+	bitCount := uint(len(entryPoints))
 	stableSourceIndices := make([]uint32, len(inputFiles))
 	for stableIndex, sourceIndex := range reachableFiles {
 		stableSourceIndices[sourceIndex] = uint32(stableIndex)
+
+		// Allocate the entry bit set now that the number of entry points is known
+		files[sourceIndex].EntryBits = helpers.NewBitSet(bitCount)
 	}
 
 	return LinkerGraph{
