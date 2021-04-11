@@ -1312,12 +1312,8 @@ func (c *linkerContext) scanImportsAndExports() {
 	}
 
 	// Step 7: Generate wrapper parts for wrapped files
-	bitCount := uint(len(c.graph.EntryPoints))
 	for _, sourceIndex := range c.graph.ReachableFiles {
-		file := &c.graph.Files[sourceIndex]
-		file.EntryBits = helpers.NewBitSet(bitCount)
-
-		switch repr := file.InputFile.Repr.(type) {
+		switch repr := c.graph.Files[sourceIndex].InputFile.Repr.(type) {
 		case *graph.JSRepr:
 			switch repr.Meta.Wrap {
 			// If this is a CommonJS file, we're going to need to generate a wrapper
