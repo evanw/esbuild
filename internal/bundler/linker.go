@@ -2265,7 +2265,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	}
 
 	// Missing re-exports in TypeScript files are indistinguishable from types
-	if file.loader.IsTypeScript() && namedImport.IsExported {
+	if file.module.Loader.IsTypeScript() && namedImport.IsExported {
 		return importTracker{}, importProbablyTypeScriptType, nil
 	}
 
@@ -3634,7 +3634,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	var addSourceMappings bool
 	var inputSourceMap *sourcemap.SourceMap
 	var lineOffsetTables []js_printer.LineOffsetTable
-	if file.loader.CanHaveSourceMap() && c.options.SourceMap != config.SourceMapNone {
+	if file.module.Loader.CanHaveSourceMap() && c.options.SourceMap != config.SourceMapNone {
 		addSourceMappings = true
 		inputSourceMap = file.sourceMap
 		lineOffsetTables = dataForSourceMaps[partRange.sourceIndex].lineOffsetTables

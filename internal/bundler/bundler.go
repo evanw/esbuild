@@ -43,7 +43,6 @@ const (
 
 type file struct {
 	module     graph.Module
-	loader     config.Loader
 	sourceMap  *sourcemap.SourceMap
 	pluginData interface{}
 
@@ -211,8 +210,10 @@ func parseFile(args parseArgs) {
 
 	result := parseResult{
 		file: file{
-			module:     graph.Module{Source: source},
-			loader:     loader,
+			module: graph.Module{
+				Source: source,
+				Loader: loader,
+			},
 			pluginData: pluginData,
 
 			// Record information from "sideEffects" in "package.json"
@@ -1190,8 +1191,8 @@ func (s *scanner) preprocessInjectedFiles() {
 				module: graph.Module{
 					Source: source,
 					Repr:   &graph.JSRepr{AST: ast},
+					Loader: config.LoaderJSON,
 				},
-				loader:         config.LoaderJSON,
 				ignoreIfUnused: true,
 			},
 		}
@@ -2043,7 +2044,7 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 	results := make([]dataForSourceMap, len(b.files))
 
 	for _, sourceIndex := range reachableFiles {
-		if f := &b.files[sourceIndex]; f.loader.CanHaveSourceMap() {
+		if f := &b.files[sourceIndex]; f.module.Loader.CanHaveSourceMap() {
 			if repr, ok := f.module.Repr.(*graph.JSRepr); ok {
 				waitGroup.Add(1)
 				go func(sourceIndex uint32, f *file, repr *graph.JSRepr) {

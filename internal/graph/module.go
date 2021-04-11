@@ -2,6 +2,7 @@ package graph
 
 import (
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
@@ -10,6 +11,7 @@ import (
 type Module struct {
 	Source logger.Source
 	Repr   ModuleRepr
+	Loader config.Loader
 }
 
 type ModuleRepr interface {
