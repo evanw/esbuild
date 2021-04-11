@@ -19,6 +19,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/graph"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
@@ -937,7 +938,7 @@ func rebuildImpl(
 						waitGroup := sync.WaitGroup{}
 						waitGroup.Add(len(results))
 						for _, result := range results {
-							go func(result bundler.OutputFile) {
+							go func(result graph.OutputFile) {
 								fs.BeforeFileOpen()
 								defer fs.AfterFileClose()
 								if err := os.MkdirAll(realFS.Dir(result.AbsPath), 0755); err != nil {
@@ -1274,7 +1275,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		options.Mode = config.ModeConvertFormat
 	}
 
-	var results []bundler.OutputFile
+	var results []graph.OutputFile
 
 	// Stop now if there were errors
 	if !log.HasErrors() {

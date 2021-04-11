@@ -376,7 +376,7 @@ func (c *linkerContext) generateUniqueKeyPrefix() bool {
 	return true
 }
 
-func (c *linkerContext) link() []OutputFile {
+func (c *linkerContext) link() []graph.OutputFile {
 	if !c.generateUniqueKeyPrefix() {
 		return nil
 	}
@@ -384,7 +384,7 @@ func (c *linkerContext) link() []OutputFile {
 
 	// Stop now if there were errors
 	if c.log.HasErrors() {
-		return []OutputFile{}
+		return []graph.OutputFile{}
 	}
 
 	c.markPartsReachableFromEntryPoints()
@@ -442,7 +442,7 @@ func (c *linkerContext) enforceNoCyclicChunkImports(chunks []chunkInfo) {
 	}
 }
 
-func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFile {
+func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.OutputFile {
 	// Generate each chunk on a separate goroutine
 	generateWaitGroup := sync.WaitGroup{}
 	generateWaitGroup.Add(len(chunks))
@@ -484,16 +484,16 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 
 	// Generate the final output files by joining file pieces together
 	var resultsWaitGroup sync.WaitGroup
-	results := make([][]OutputFile, len(chunks))
+	results := make([][]graph.OutputFile, len(chunks))
 	resultsWaitGroup.Add(len(chunks))
 	for chunkIndex, chunk := range chunks {
 		go func(chunkIndex int, chunk chunkInfo) {
-			var outputFiles []OutputFile
+			var outputFiles []graph.OutputFile
 
 			// Each file may optionally contain additional files to be copied to the
 			// output directory. This is used by the "file" loader.
 			for _, sourceIndex := range chunk.filesInChunkInOrder {
-				outputFiles = append(outputFiles, c.files[sourceIndex].additionalFiles...)
+				outputFiles = append(outputFiles, c.files[sourceIndex].module.AdditionalFiles...)
 			}
 
 			// Path substitution for the chunk itself
@@ -527,10 +527,10 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 				// Potentially write the external source map file
 				switch c.options.SourceMap {
 				case config.SourceMapLinkedWithComment, config.SourceMapInlineAndExternal, config.SourceMapExternalWithoutComment:
-					outputFiles = append(outputFiles, OutputFile{
+					outputFiles = append(outputFiles, graph.OutputFile{
 						AbsPath:  c.fs.Join(c.options.AbsOutputDir, finalRelPathForSourceMap),
 						Contents: outputSourceMap,
-						jsonMetadataChunk: fmt.Sprintf(
+						JSONMetadataChunk: fmt.Sprintf(
 							"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(outputSourceMap)),
 					})
 				}
@@ -550,10 +550,10 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 			}
 
 			// Generate the output file for this chunk
-			outputFiles = append(outputFiles, OutputFile{
+			outputFiles = append(outputFiles, graph.OutputFile{
 				AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.finalRelPath),
 				Contents:          outputContents,
-				jsonMetadataChunk: jsonMetadataChunk,
+				JSONMetadataChunk: jsonMetadataChunk,
 				IsExecutable:      chunk.isExecutable,
 			})
 
@@ -568,7 +568,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 	for _, result := range results {
 		outputFilesLen += len(result)
 	}
-	outputFiles := make([]OutputFile, 0, outputFilesLen)
+	outputFiles := make([]graph.OutputFile, 0, outputFilesLen)
 	for _, result := range results {
 		outputFiles = append(outputFiles, result...)
 	}
@@ -1103,12 +1103,8 @@ func (c *linkerContext) scanImportsAndExports() {
 		file := &c.files[sourceIndex]
 		switch repr := file.module.Repr.(type) {
 		case *graph.CSSRepr:
-			// We shouldn't need to clone this because it should be empty for CSS files
-			if file.additionalFiles != nil {
-				panic("Internal error")
-			}
-
 			// Inline URLs for non-CSS files into the CSS file
+			var additionalFiles []graph.OutputFile
 			for importRecordIndex := range repr.AST.ImportRecords {
 				if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() {
 					otherFile := &c.files[record.SourceIndex.GetIndex()]
@@ -1118,10 +1114,11 @@ func (c *linkerContext) scanImportsAndExports() {
 						record.SourceIndex = ast.Index32{}
 
 						// Copy the additional files to the output directory
-						file.additionalFiles = append(file.additionalFiles, otherFile.additionalFiles...)
+						additionalFiles = append(additionalFiles, otherFile.module.AdditionalFiles...)
 					}
 				}
 			}
+			file.module.AdditionalFiles = additionalFiles
 
 		case *graph.JSRepr:
 			for importRecordIndex := range repr.AST.ImportRecords {
