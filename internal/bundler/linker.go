@@ -38,7 +38,7 @@ type linkerContext struct {
 	res         resolver.Resolver
 	symbols     js_ast.SymbolMap
 	entryPoints []entryMeta
-	files       []LinkerFile
+	files       []graph.LinkerFile
 
 	// This helps avoid an infinite loop when matching imports to exports
 	cycleDetector []importTracker
@@ -191,7 +191,7 @@ func newLinkerContext(
 	log logger.Log,
 	fs fs.FS,
 	res resolver.Resolver,
-	files []LinkerFile,
+	files []graph.LinkerFile,
 	entryPoints []entryMeta,
 	reachableFiles []uint32,
 	dataForSourceMaps func() []dataForSourceMap,
@@ -205,7 +205,7 @@ func newLinkerContext(
 		fs:                fs,
 		res:               res,
 		entryPoints:       append([]entryMeta{}, entryPoints...),
-		files:             make([]LinkerFile, len(files)),
+		files:             make([]graph.LinkerFile, len(files)),
 		symbols:           js_ast.NewSymbolMap(len(files)),
 		reachableFiles:    reachableFiles,
 		dataForSourceMaps: dataForSourceMaps,
@@ -310,7 +310,7 @@ func newLinkerContext(
 	// Mark all entry points so we don't add them again for import() expressions
 	for _, entryPoint := range entryPoints {
 		file := &c.files[entryPoint.sourceIndex]
-		file.EntryPointKind = EntryPointUserSpecified
+		file.EntryPointKind = graph.EntryPointUserSpecified
 
 		if repr, ok := file.Module.Repr.(*graph.JSRepr); ok {
 			// Loaders default to CommonJS when they are the entry point and the output
@@ -1169,11 +1169,11 @@ func (c *linkerContext) scanImportsAndExports() {
 				case ast.ImportDynamic:
 					if c.options.CodeSplitting {
 						// Files that are imported with import() must be entry points
-						if otherFile.EntryPointKind == EntryPointNone {
+						if otherFile.EntryPointKind == graph.EntryPointNone {
 							c.entryPoints = append(c.entryPoints, entryMeta{
 								sourceIndex: record.SourceIndex.GetIndex(),
 							})
-							otherFile.EntryPointKind = EntryPointDynamicImport
+							otherFile.EntryPointKind = graph.EntryPointDynamicImport
 						}
 					} else {
 						// If we're not splitting, then import() is just a require() that
@@ -2903,7 +2903,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		var dir, base, ext string
 		var template []config.PathTemplate
 		if chunk.isEntryPoint {
-			if c.files[chunk.sourceIndex].EntryPointKind == EntryPointUserSpecified {
+			if c.files[chunk.sourceIndex].EntryPointKind == graph.EntryPointUserSpecified {
 				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, chunk.entryPointBit, stdExt, false /* avoidIndex */)
 				template = c.options.EntryPathTemplate
 			} else {
