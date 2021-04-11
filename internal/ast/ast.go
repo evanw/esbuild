@@ -83,7 +83,7 @@ type ImportRecord struct {
 
 	// If true, this "export * from 'path'" statement is evaluated at run-time by
 	// calling the "__reExport()" helper function
-	CallsRunTimeExportStarFn bool
+	CallsRunTimeReExportFn bool
 
 	// Tell the printer to wrap this call to "require()" in "__toModule(...)"
 	WrapWithToModule bool

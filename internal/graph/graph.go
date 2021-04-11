@@ -4,6 +4,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/runtime"
 )
 
 type EntryPointKind uint8
@@ -183,4 +184,32 @@ func (g *LinkerGraph) AddPartToFile(sourceIndex uint32, part js_ast.Part) uint32
 	partIndex := uint32(len(repr.AST.Parts))
 	repr.AST.Parts = append(repr.AST.Parts, part)
 	return partIndex
+}
+
+func (g *LinkerGraph) GenerateSymbolImportAndUse(
+	sourceIndex uint32,
+	partIndex uint32,
+	ref js_ast.Ref,
+	useCount uint32,
+	sourceIndexToImportFrom uint32,
+) {
+	file := &g.Files[sourceIndex]
+	repr := file.InputFile.Repr.(*JSRepr)
+	part := &repr.AST.Parts[partIndex]
+
+	// Mark this symbol as used by this part
+	use := part.SymbolUses[ref]
+	use.CountEstimate += useCount
+	part.SymbolUses[ref] = use
+
+	// Track that this specific symbol was imported
+	repr.Meta.ImportsToBind[ref] = ImportData{
+		SourceIndex: sourceIndexToImportFrom,
+		Ref:         ref,
+	}
+
+	// Make sure code splitting includes the runtime from this file
+	if sourceIndexToImportFrom == runtime.SourceIndex {
+		repr.Meta.DependsOnRuntimeSymbol = true
+	}
 }
