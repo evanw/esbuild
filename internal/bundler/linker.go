@@ -32,12 +32,11 @@ import (
 )
 
 type linkerContext struct {
-	options     *config.Options
-	log         logger.Log
-	fs          fs.FS
-	res         resolver.Resolver
-	entryPoints []graph.EntryPoint
-	graph       graph.LinkerGraph
+	options *config.Options
+	log     logger.Log
+	fs      fs.FS
+	res     resolver.Resolver
+	graph   graph.LinkerGraph
 
 	// This helps avoid an infinite loop when matching imports to exports
 	cycleDetector []importTracker
@@ -77,7 +76,7 @@ type chunkInfo struct {
 	// This information is only useful if "isEntryPoint" is true
 	isEntryPoint  bool
 	sourceIndex   uint32 // An index into "c.sources"
-	entryPointBit uint   // An index into "c.entryPoints"
+	entryPointBit uint   // An index into "c.graph.EntryPoints"
 
 	// For code splitting
 	crossChunkImports []chunkImport
@@ -189,8 +188,7 @@ func newLinkerContext(
 		log:               log,
 		fs:                fs,
 		res:               res,
-		entryPoints:       append([]graph.EntryPoint{}, entryPoints...),
-		graph:             graph.MakeLinkerGraph(inputFiles, reachableFiles),
+		graph:             graph.MakeLinkerGraph(inputFiles, reachableFiles, entryPoints),
 		dataForSourceMaps: dataForSourceMaps,
 	}
 
@@ -266,7 +264,7 @@ func (c *linkerContext) link() []graph.OutputFile {
 	c.markPartsReachableFromEntryPoints()
 
 	if c.options.Mode == config.ModePassThrough {
-		for _, entryPoint := range c.entryPoints {
+		for _, entryPoint := range c.graph.EntryPoints {
 			c.preventExportsFromBeingRenamed(entryPoint.SourceIndex)
 		}
 	}
@@ -547,7 +545,7 @@ func (c *linkerContext) pathRelativeToOutbase(
 	absPath := file.InputFile.Source.KeyPath.Text
 	isCustomOutputPath := false
 
-	if outPath := c.entryPoints[entryPointBit].OutputPath; outPath != "" {
+	if outPath := c.graph.EntryPoints[entryPointBit].OutputPath; outPath != "" {
 		// Use the configured output path if present
 		absPath = outPath
 		if !c.fs.IsAbs(absPath) {
@@ -1046,7 +1044,7 @@ func (c *linkerContext) scanImportsAndExports() {
 					if c.options.CodeSplitting {
 						// Files that are imported with import() must be entry points
 						if otherFile.EntryPointKind == graph.EntryPointNone {
-							c.entryPoints = append(c.entryPoints, graph.EntryPoint{
+							c.graph.EntryPoints = append(c.graph.EntryPoints, graph.EntryPoint{
 								SourceIndex: record.SourceIndex.GetIndex(),
 							})
 							otherFile.EntryPointKind = graph.EntryPointDynamicImport
@@ -1322,7 +1320,7 @@ func (c *linkerContext) scanImportsAndExports() {
 	}
 
 	// Step 7: Generate wrapper parts for wrapped files
-	bitCount := uint(len(c.entryPoints))
+	bitCount := uint(len(c.graph.EntryPoints))
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		file := &c.graph.Files[sourceIndex]
 		file.EntryBits = helpers.NewBitSet(bitCount)
@@ -2236,7 +2234,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	// Tree shaking: Each entry point marks all files reachable from itself
-	for _, entryPoint := range c.entryPoints {
+	for _, entryPoint := range c.graph.EntryPoints {
 		c.markFileAsLive(entryPoint.SourceIndex)
 	}
 
@@ -2244,7 +2242,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	// has to happen after tree shaking because there is an implicit dependency
 	// between live parts within the same file. All liveness has to be computed
 	// first before determining which entry points can reach which files.
-	for i, entryPoint := range c.entryPoints {
+	for i, entryPoint := range c.graph.EntryPoints {
 		c.markFileAsReachable(entryPoint.SourceIndex, uint(i), 0)
 	}
 }
@@ -2349,7 +2347,7 @@ func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
 					if otherFile := &c.graph.Files[otherSourceIndex]; otherFile.InputFile.SideEffects.Kind != graph.HasSideEffects && !c.options.IgnoreDCEAnnotations {
 						// This is currently unsafe when code splitting is enabled, so
 						// disable it in that case
-						if len(c.entryPoints) < 2 {
+						if len(c.graph.EntryPoints) < 2 {
 							continue
 						}
 					}
@@ -2600,12 +2598,12 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	cssChunks := make(map[string]chunkInfo)
 
 	// Create chunks for entry points
-	for i, entryPoint := range c.entryPoints {
+	for i, entryPoint := range c.graph.EntryPoints {
 		file := &c.graph.Files[entryPoint.SourceIndex]
 
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
-		entryBits := helpers.NewBitSet(uint(len(c.entryPoints)))
+		entryBits := helpers.NewBitSet(uint(len(c.graph.EntryPoints)))
 		entryBits.SetBit(uint(i))
 		info := chunkInfo{
 			entryBits:             entryBits,
