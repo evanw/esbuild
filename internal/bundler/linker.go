@@ -854,7 +854,7 @@ func (c *linkerContext) pathRelativeToOutbase(
 		return
 	}
 
-	absPath := file.source.KeyPath.Text
+	absPath := file.module.Source.KeyPath.Text
 	isCustomOutputPath := false
 
 	if outPath := c.entryPoints[entryPointBit].outputPath; outPath != "" {
@@ -864,7 +864,7 @@ func (c *linkerContext) pathRelativeToOutbase(
 			absPath = c.fs.Join(c.options.AbsOutputBase, absPath)
 		}
 		isCustomOutputPath = true
-	} else if file.source.KeyPath.Namespace != "file" {
+	} else if file.module.Source.KeyPath.Namespace != "file" {
 		// Come up with a path for virtual paths (i.e. non-file-system paths)
 		dir, base, _ := logger.PlatformIndependentPathDirBaseExt(absPath)
 		if avoidIndex && base == "index" {
@@ -1579,7 +1579,7 @@ func (c *linkerContext) scanImportsAndExports() {
 
 		// Use "init_*" for ESM wrappers instead of "require_*"
 		if repr.meta.wrap == wrapESM {
-			c.symbols.Get(repr.ast.WrapperRef).OriginalName = "init_" + file.source.IdentifierName
+			c.symbols.Get(repr.ast.WrapperRef).OriginalName = "init_" + file.module.Source.IdentifierName
 		}
 
 		// If this isn't CommonJS, then rename the unused "exports" and "module"
@@ -1589,7 +1589,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// this point, we know the CommonJS status will not change further.
 		if repr.meta.wrap != wrapCJS && repr.ast.ExportsKind != js_ast.ExportsCommonJS && (!file.isEntryPoint() ||
 			c.options.OutputFormat != config.FormatCommonJS) {
-			name := file.source.IdentifierName
+			name := file.module.Source.IdentifierName
 			c.symbols.Get(repr.ast.ExportsRef).OriginalName = name + "_exports"
 			c.symbols.Get(repr.ast.ModuleRef).OriginalName = name + "_module"
 		}
@@ -1739,7 +1739,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 	}
 
 	// Generate the default export
-	generateExport(file.source.IdentifierName+"_default", "default", jsonValue, prevExports)
+	generateExport(file.module.Source.IdentifierName+"_default", "default", jsonValue, prevExports)
 }
 
 func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
@@ -1947,7 +1947,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 		case matchImportCycle:
 			namedImport := repr.ast.NamedImports[importRef]
-			c.log.AddRangeError(&file.source, js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc),
+			c.log.AddRangeError(&file.module.Source, js_lexer.RangeOfIdentifier(file.module.Source, namedImport.AliasLoc),
 				fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
 
 		case matchImportProbablyTypeScriptType:
@@ -1955,13 +1955,13 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 		case matchImportAmbiguous:
 			namedImport := repr.ast.NamedImports[importRef]
-			r := js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc)
+			r := js_lexer.RangeOfIdentifier(file.module.Source, namedImport.AliasLoc)
 			var notes []logger.MsgData
 
 			// Provide the locations of both ambiguous exports if possible
 			if result.nameLoc.Start != 0 && result.otherNameLoc.Start != 0 {
-				a := c.files[result.sourceIndex].source
-				b := c.files[result.otherSourceIndex].source
+				a := c.files[result.sourceIndex].module.Source
+				b := c.files[result.otherSourceIndex].module.Source
 				notes = []logger.MsgData{
 					logger.RangeData(&a, js_lexer.RangeOfIdentifier(a, result.nameLoc), "One matching export is here"),
 					logger.RangeData(&b, js_lexer.RangeOfIdentifier(b, result.otherNameLoc), "Another matching export is here"),
@@ -1979,10 +1979,10 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
 				msg := fmt.Sprintf("Import %q will always be undefined because there are multiple matching exports", namedImport.Alias)
-				c.log.AddRangeWarningWithNotes(&file.source, r, msg, notes)
+				c.log.AddRangeWarningWithNotes(&file.module.Source, r, msg, notes)
 			} else {
 				msg := fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias)
-				c.log.AddRangeErrorWithNotes(&file.source, r, msg, notes)
+				c.log.AddRangeErrorWithNotes(&file.module.Source, r, msg, notes)
 			}
 		}
 	}
@@ -2082,12 +2082,12 @@ loop:
 
 			// Warn about importing from a file that is known to not have any exports
 			if status == importCommonJSWithoutExports {
-				source := trackerFile.source
+				source := trackerFile.module.Source
 				symbol := c.symbols.Get(tracker.importRef)
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
 				c.log.AddRangeWarning(&source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
 					fmt.Sprintf("Import %q will always be undefined because the file %q has no exports",
-						namedImport.Alias, c.files[nextTracker.sourceIndex].source.PrettyPath))
+						namedImport.Alias, c.files[nextTracker.sourceIndex].module.Source.PrettyPath))
 			}
 
 		case importDynamicFallback:
@@ -2109,7 +2109,7 @@ loop:
 		case importNoMatch:
 			symbol := c.symbols.Get(tracker.importRef)
 			trackerFile := &c.files[tracker.sourceIndex]
-			source := trackerFile.source
+			source := trackerFile.module.Source
 			namedImport := trackerFile.repr.(*reprJS).ast.NamedImports[tracker.importRef]
 			r := js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
 
@@ -2127,7 +2127,7 @@ loop:
 					"Import %q will always be undefined because there is no matching export", namedImport.Alias))
 			} else {
 				c.log.AddRangeError(&source, r, fmt.Sprintf("No matching export in %q for import %q",
-					c.files[nextTracker.sourceIndex].source.PrettyPath, namedImport.Alias))
+					c.files[nextTracker.sourceIndex].module.Source.PrettyPath, namedImport.Alias))
 			}
 
 		case importProbablyTypeScriptType:
@@ -2405,7 +2405,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 	// Is this a disabled file?
 	otherSourceIndex := record.SourceIndex.GetIndex()
-	if c.files[otherSourceIndex].source.KeyPath.IsDisabled() {
+	if c.files[otherSourceIndex].module.Source.KeyPath.IsDisabled() {
 		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importDisabled, nil
 	}
 
@@ -4552,7 +4552,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			jMeta.AddString("\n      ")
 		}
 		if chunk.isEntryPoint {
-			entryPoint := c.files[chunk.sourceIndex].source.PrettyPath
+			entryPoint := c.files[chunk.sourceIndex].module.Source.PrettyPath
 			jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {", js_printer.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
 		} else {
 			jMeta.AddString("],\n      \"inputs\": {")
@@ -4586,7 +4586,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 				j.AddString("\n")
 			}
 
-			path := c.files[compileResult.sourceIndex].source.PrettyPath
+			path := c.files[compileResult.sourceIndex].module.Source.PrettyPath
 
 			// Make sure newlines in the path can't cause a syntax error. This does
 			// not minimize allocations because it's expected that this case never
@@ -4626,7 +4626,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			// Include this file in the metadata
 			if c.options.NeedsMetafile {
 				// Accumulate file sizes since a given file may be split into multiple parts
-				path := c.files[compileResult.sourceIndex].source.PrettyPath
+				path := c.files[compileResult.sourceIndex].module.Source.PrettyPath
 				if count, ok := metaByteCount[path]; ok {
 					metaByteCount[path] = count + len(compileResult.JS)
 				} else {
@@ -4696,7 +4696,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 				} else {
 					jMeta.AddString(",")
 				}
-				path := c.files[sourceIndex].source.PrettyPath
+				path := c.files[sourceIndex].module.Source.PrettyPath
 				extra := c.generateExtraDataForFileJS(sourceIndex)
 				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        %s}",
 					js_printer.QuoteForJSON(path, c.options.ASCIIOnly), metaByteCount[path], extra))
@@ -4878,7 +4878,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			// and there is already an output file for the JavaScript entry point.
 			if _, ok := file.repr.(*reprCSS); ok {
 				jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {",
-					js_printer.QuoteForJSON(file.source.PrettyPath, c.options.ASCIIOnly)))
+					js_printer.QuoteForJSON(file.module.Source.PrettyPath, c.options.ASCIIOnly)))
 			} else {
 				jMeta.AddString("],\n      \"inputs\": {")
 			}
@@ -4894,7 +4894,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			if newlineBeforeComment {
 				j.AddString("\n")
 			}
-			j.AddString(fmt.Sprintf("/* %s */\n", c.files[compileResult.sourceIndex].source.PrettyPath))
+			j.AddString(fmt.Sprintf("/* %s */\n", c.files[compileResult.sourceIndex].module.Source.PrettyPath))
 		}
 		if len(compileResult.printedCSS) > 0 {
 			newlineBeforeComment = true
@@ -4909,7 +4909,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 				jMeta.AddString(",")
 			}
 			jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-				js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
+				js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].module.Source.PrettyPath, c.options.ASCIIOnly),
 				len(compileResult.printedCSS)))
 		}
 	}
@@ -5036,20 +5036,20 @@ func (c *linkerContext) generateIsolatedHash(chunk *chunkInfo, channel chan []by
 		var filePath string
 		file := &c.files[partRange.sourceIndex]
 
-		if file.source.KeyPath.Namespace == "file" {
+		if file.module.Source.KeyPath.Namespace == "file" {
 			// Use the pretty path as the file name since it should be platform-
 			// independent (relative paths and the "/" path separator)
-			filePath = file.source.PrettyPath
+			filePath = file.module.Source.PrettyPath
 		} else {
 			// If this isn't in the "file" namespace, just use the full path text
 			// verbatim. This could be a source of cross-platform differences if
 			// plugins are storing platform-specific information in here, but then
 			// that problem isn't caused by esbuild itself.
-			filePath = file.source.KeyPath.Text
+			filePath = file.module.Source.KeyPath.Text
 		}
 
 		// Include the path namespace in the hash
-		hashWriteLengthPrefixed(hash, []byte(file.source.KeyPath.Namespace))
+		hashWriteLengthPrefixed(hash, []byte(file.module.Source.KeyPath.Namespace))
 
 		// Then include the file path
 		hashWriteLengthPrefixed(hash, []byte(filePath))
@@ -5236,8 +5236,8 @@ func (c *linkerContext) generateSourceMapForChunk(
 				quotedContents = dataForSourceMaps[result.sourceIndex].quotedContents[0]
 			}
 			items = append(items, item{
-				path:           file.source.KeyPath,
-				prettyPath:     file.source.PrettyPath,
+				path:           file.module.Source.KeyPath,
+				prettyPath:     file.module.Source.PrettyPath,
 				quotedContents: quotedContents,
 			})
 			nextSourcesIndex++
@@ -5248,14 +5248,14 @@ func (c *linkerContext) generateSourceMapForChunk(
 		sm := file.sourceMap
 		for i, source := range sm.Sources {
 			path := logger.Path{
-				Namespace: file.source.KeyPath.Namespace,
+				Namespace: file.module.Source.KeyPath.Namespace,
 				Text:      source,
 			}
 
 			// If this file is in the "file" namespace, change the relative path in
 			// the source map into an absolute path using the directory of this file
 			if path.Namespace == "file" {
-				path.Text = c.fs.Join(c.fs.Dir(file.source.KeyPath.Text), source)
+				path.Text = c.fs.Join(c.fs.Dir(file.module.Source.KeyPath.Text), source)
 			}
 
 			var quotedContents []byte

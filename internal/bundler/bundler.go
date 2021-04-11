@@ -21,6 +21,7 @@ import (
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_parser"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/graph"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
@@ -42,7 +43,7 @@ const (
 )
 
 type file struct {
-	source     logger.Source
+	module     graph.Module
 	repr       fileRepr
 	loader     config.Loader
 	sourceMap  *sourcemap.SourceMap
@@ -245,7 +246,7 @@ func parseFile(args parseArgs) {
 
 	result := parseResult{
 		file: file{
-			source:     source,
+			module:     graph.Module{Source: source},
 			loader:     loader,
 			pluginData: pluginData,
 
@@ -1029,7 +1030,13 @@ func ScanBundle(
 	s.remaining++
 	go func() {
 		source, ast, ok := globalRuntimeCache.parseRuntime(&options)
-		s.resultChannel <- parseResult{file: file{source: source, repr: &reprJS{ast: ast}}, ok: ok}
+		s.resultChannel <- parseResult{
+			file: file{
+				module: graph.Module{Source: source},
+				repr:   &reprJS{ast: ast},
+			},
+			ok: ok,
+		}
 	}()
 
 	s.preprocessInjectedFiles()
@@ -1213,7 +1220,7 @@ func (s *scanner) preprocessInjectedFiles() {
 		result := parseResult{
 			ok: true,
 			file: file{
-				source:         source,
+				module:         graph.Module{Source: source},
 				loader:         config.LoaderJSON,
 				repr:           &reprJS{ast: ast},
 				ignoreIfUnused: true,
@@ -1544,7 +1551,7 @@ func (s *scanner) scanAllDependencies() {
 				if !resolveResult.IsExternal {
 					// Handle a path within the bundle
 					sourceIndex := s.maybeParseFile(*resolveResult, s.res.PrettyPath(path),
-						&result.file.source, record.Range, resolveResult.PluginData, inputKindNormal, nil)
+						&result.file.module.Source, record.Range, resolveResult.PluginData, inputKindNormal, nil)
 					record.SourceIndex = ast.MakeIndex32(sourceIndex)
 				} else {
 					// If the path to the external module is relative to the source
@@ -1567,7 +1574,7 @@ func (s *scanner) scanAllDependencies() {
 			}
 		}
 
-		s.results[result.file.source.Index] = result
+		s.results[result.file.module.Source.Index] = result
 	}
 }
 
@@ -1583,8 +1590,8 @@ func (s *scanner) processScannedFiles() []file {
 
 		// Begin the metadata chunk
 		if s.options.NeedsMetafile {
-			sb.Write(js_printer.QuoteForJSON(result.file.source.PrettyPath, s.options.ASCIIOnly))
-			sb.WriteString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(result.file.source.Contents)))
+			sb.Write(js_printer.QuoteForJSON(result.file.module.Source.PrettyPath, s.options.ASCIIOnly))
+			sb.WriteString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(result.file.module.Source.Contents)))
 		}
 
 		// Don't try to resolve paths if we're not bundling
@@ -1627,7 +1634,7 @@ func (s *scanner) processScannedFiles() []file {
 						sb.WriteString(",\n        ")
 					}
 					sb.WriteString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s\n        }",
-						js_printer.QuoteForJSON(s.results[record.SourceIndex.GetIndex()].file.source.PrettyPath, s.options.ASCIIOnly),
+						js_printer.QuoteForJSON(s.results[record.SourceIndex.GetIndex()].file.module.Source.PrettyPath, s.options.ASCIIOnly),
 						js_printer.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
 				}
 
@@ -1636,10 +1643,10 @@ func (s *scanner) processScannedFiles() []file {
 					// Using a JavaScript file with CSS "@import" is not allowed
 					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					if _, ok := otherFile.repr.(*reprJS); ok {
-						s.log.AddRangeError(&result.file.source, record.Range,
-							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.source.PrettyPath))
+						s.log.AddRangeError(&result.file.module.Source, record.Range,
+							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.module.Source.PrettyPath))
 					} else if record.Kind == ast.ImportAtConditional {
-						s.log.AddRangeError(&result.file.source, record.Range,
+						s.log.AddRangeError(&result.file.module.Source, record.Range,
 							"Bundling with conditional \"@import\" rules is not currently supported")
 					}
 
@@ -1648,13 +1655,13 @@ func (s *scanner) processScannedFiles() []file {
 					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					switch otherRepr := otherFile.repr.(type) {
 					case *reprCSS:
-						s.log.AddRangeError(&result.file.source, record.Range,
-							fmt.Sprintf("Cannot use %q as a URL", otherFile.source.PrettyPath))
+						s.log.AddRangeError(&result.file.module.Source, record.Range,
+							fmt.Sprintf("Cannot use %q as a URL", otherFile.module.Source.PrettyPath))
 
 					case *reprJS:
 						if otherRepr.ast.URLForCSS == "" {
-							s.log.AddRangeError(&result.file.source, record.Range,
-								fmt.Sprintf("Cannot use %q as a URL", otherFile.source.PrettyPath))
+							s.log.AddRangeError(&result.file.module.Source, record.Range,
+								fmt.Sprintf("Cannot use %q as a URL", otherFile.module.Source.PrettyPath))
 						}
 					}
 				}
@@ -1666,26 +1673,26 @@ func (s *scanner) processScannedFiles() []file {
 					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					if css, ok := otherFile.repr.(*reprCSS); ok {
 						if s.options.WriteToStdout {
-							s.log.AddRangeError(&result.file.source, record.Range,
-								fmt.Sprintf("Cannot import %q into a JavaScript file without an output path configured", otherFile.source.PrettyPath))
+							s.log.AddRangeError(&result.file.module.Source, record.Range,
+								fmt.Sprintf("Cannot import %q into a JavaScript file without an output path configured", otherFile.module.Source.PrettyPath))
 						} else if !css.jsSourceIndex.IsValid() {
-							stubKey := otherFile.source.KeyPath
+							stubKey := otherFile.module.Source.KeyPath
 							if stubKey.Namespace == "file" {
 								stubKey.Text = lowerCaseAbsPathForWindows(stubKey.Text)
 							}
 							sourceIndex := s.allocateSourceIndex(stubKey, cache.SourceIndexJSStubForCSS)
 							source := logger.Source{
 								Index:      sourceIndex,
-								PrettyPath: otherFile.source.PrettyPath,
+								PrettyPath: otherFile.module.Source.PrettyPath,
 							}
 							s.results[sourceIndex] = parseResult{
 								file: file{
+									module: graph.Module{Source: source},
 									repr: &reprJS{
 										ast: js_parser.LazyExportAST(s.log, source,
 											js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: &js_ast.EObject{}}, ""),
 										cssSourceIndex: ast.MakeIndex32(record.SourceIndex.GetIndex()),
 									},
-									source: source,
 								},
 								ok: true,
 							}
@@ -1707,7 +1714,7 @@ func (s *scanner) processScannedFiles() []file {
 				// about it. Note that this can result in esbuild silently generating
 				// broken code. If this actually happens for people, it's probably worth
 				// re-enabling the warning about code inside "node_modules".
-				if record.WasOriginallyBareImport && !s.options.IgnoreDCEAnnotations && !resolver.IsInsideNodeModules(result.file.source.KeyPath.Text) {
+				if record.WasOriginallyBareImport && !s.options.IgnoreDCEAnnotations && !resolver.IsInsideNodeModules(result.file.module.Source.KeyPath.Text) {
 					if otherFile := &s.results[record.SourceIndex.GetIndex()].file; otherFile.warnIfUnused {
 						var notes []logger.MsgData
 						if otherFile.warnIfUnusedData != nil {
@@ -1719,9 +1726,9 @@ func (s *scanner) processScannedFiles() []file {
 							}
 							notes = append(notes, logger.RangeData(otherFile.warnIfUnusedData.Source, otherFile.warnIfUnusedData.Range, text))
 						}
-						s.log.AddRangeWarningWithNotes(&result.file.source, record.Range,
+						s.log.AddRangeWarningWithNotes(&result.file.module.Source, record.Range,
 							fmt.Sprintf("Ignoring this import because %q was marked as having no side effects",
-								otherFile.source.PrettyPath), notes)
+								otherFile.module.Source.PrettyPath), notes)
 					}
 				}
 			}
@@ -1788,8 +1795,8 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 							parentRepr := parentResult.file.repr.(*reprJS)
 
 							if parentRepr.ast.TopLevelAwaitKeyword.Len > 0 {
-								tlaPrettyPath = parentResult.file.source.PrettyPath
-								notes = append(notes, logger.RangeData(&parentResult.file.source, parentRepr.ast.TopLevelAwaitKeyword,
+								tlaPrettyPath = parentResult.file.module.Source.PrettyPath
+								notes = append(notes, logger.RangeData(&parentResult.file.module.Source, parentRepr.ast.TopLevelAwaitKeyword,
 									fmt.Sprintf("The top-level await in %q is here", tlaPrettyPath)))
 								break
 							}
@@ -1801,14 +1808,14 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 
 							otherSourceIndex = parentResult.tlaCheck.parent.GetIndex()
 
-							notes = append(notes, logger.RangeData(&parentResult.file.source,
+							notes = append(notes, logger.RangeData(&parentResult.file.module.Source,
 								parentRepr.ast.ImportRecords[parent.importRecordIndex].Range,
 								fmt.Sprintf("The file %q imports the file %q here",
-									parentResult.file.source.PrettyPath, s.results[otherSourceIndex].file.source.PrettyPath)))
+									parentResult.file.module.Source.PrettyPath, s.results[otherSourceIndex].file.module.Source.PrettyPath)))
 						}
 
 						var text string
-						importedPrettyPath := s.results[record.SourceIndex.GetIndex()].file.source.PrettyPath
+						importedPrettyPath := s.results[record.SourceIndex.GetIndex()].file.module.Source.PrettyPath
 
 						if importedPrettyPath == tlaPrettyPath {
 							text = fmt.Sprintf("This require call is not allowed because the imported file %q contains a top-level await",
@@ -1818,7 +1825,7 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 								tlaPrettyPath)
 						}
 
-						s.log.AddRangeErrorWithNotes(&result.file.source, record.Range, text, notes)
+						s.log.AddRangeErrorWithNotes(&result.file.module.Source, record.Range, text, notes)
 					}
 				}
 			}
@@ -1950,7 +1957,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, 
 		// Make sure an output file never overwrites an input file
 		sourceAbsPaths := make(map[string]uint32)
 		for _, sourceIndex := range allReachableFiles {
-			keyPath := b.files[sourceIndex].source.KeyPath
+			keyPath := b.files[sourceIndex].module.Source.KeyPath
 			if keyPath.Namespace == "file" {
 				lowerAbsPath := lowerCaseAbsPathForWindows(keyPath.Text)
 				sourceAbsPaths[lowerAbsPath] = sourceIndex
@@ -1959,7 +1966,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, 
 		for _, outputFile := range outputFiles {
 			lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
 			if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
-				log.AddError(nil, logger.Loc{}, "Refusing to overwrite input file: "+b.files[sourceIndex].source.PrettyPath)
+				log.AddError(nil, logger.Loc{}, "Refusing to overwrite input file: "+b.files[sourceIndex].module.Source.PrettyPath)
 			}
 		}
 
@@ -2070,12 +2077,12 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 				waitGroup.Add(1)
 				go func(sourceIndex uint32, f *file, repr *reprJS) {
 					result := &results[sourceIndex]
-					result.lineOffsetTables = js_printer.GenerateLineOffsetTables(f.source.Contents, repr.ast.ApproximateLineCount)
+					result.lineOffsetTables = js_printer.GenerateLineOffsetTables(f.module.Source.Contents, repr.ast.ApproximateLineCount)
 					sm := f.sourceMap
 					if !options.ExcludeSourcesContent {
 						if sm == nil {
 							// Simple case: no nested source map
-							result.quotedContents = [][]byte{js_printer.QuoteForJSON(f.source.Contents, options.ASCIIOnly)}
+							result.quotedContents = [][]byte{js_printer.QuoteForJSON(f.module.Source.Contents, options.ASCIIOnly)}
 						} else {
 							// Complex case: nested source map
 							result.quotedContents = make([][]byte, len(sm.Sources))
