@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/graph"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_printer"
 )
@@ -23,7 +24,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 	}
 
 	file := &c.files[sourceIndex]
-	repr := file.repr.(*JSRepr)
+	repr := file.repr.(*graph.JSRepr)
 	sb := strings.Builder{}
 
 	quoteSym := func(ref js_ast.Ref) string {
