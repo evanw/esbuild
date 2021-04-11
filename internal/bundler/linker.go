@@ -1347,7 +1347,6 @@ func (c *linkerContext) scanImportsAndExports() {
 					Dependencies: dependencies,
 				})
 				repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
-				repr.AST.TopLevelSymbolToParts[repr.AST.WrapperRef] = []uint32{partIndex}
 				c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, commonJSRef, 1, runtime.SourceIndex)
 
 			// If this is a lazily-initialized ESM file, we're going to need to
@@ -1383,7 +1382,6 @@ func (c *linkerContext) scanImportsAndExports() {
 					Dependencies: dependencies,
 				})
 				repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
-				repr.AST.TopLevelSymbolToParts[repr.AST.WrapperRef] = []uint32{partIndex}
 				c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, esmRef, 1, runtime.SourceIndex)
 			}
 		}
