@@ -1117,7 +1117,6 @@ func (c *linkerContext) scanImportsAndExports() {
 		// Add an empty part for the namespace export that we can fill in later
 		repr.Meta.NSExportPartIndex = c.graph.AddPartToFile(sourceIndex, js_ast.Part{
 			CanBeRemovedIfUnused: true,
-			IsNamespaceExport:    true,
 		})
 
 		// Also add a special export so import stars can bind to it. This must be
@@ -1635,9 +1634,6 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			// This can be removed if nothing uses it. Except if we're a CommonJS
 			// module, in which case it's always necessary.
 			CanBeRemovedIfUnused: repr.AST.ExportsKind != js_ast.ExportsCommonJS,
-
-			// Put the export definitions first before anything else gets evaluated
-			IsNamespaceExport: true,
 
 			// Make sure this is trimmed if unused even if tree shaking is disabled
 			ForceTreeShaking: true,
