@@ -234,6 +234,25 @@ func (g *LinkerGraph) AddPartToFile(sourceIndex uint32, part js_ast.Part) uint32
 	return partIndex
 }
 
+func (g *LinkerGraph) GenerateNewSymbol(sourceIndex uint32, kind js_ast.SymbolKind, originalName string) js_ast.Ref {
+	sourceSymbols := &g.Symbols.SymbolsForSource[sourceIndex]
+
+	ref := js_ast.Ref{
+		SourceIndex: sourceIndex,
+		InnerIndex:  uint32(len(*sourceSymbols)),
+	}
+
+	*sourceSymbols = append(*sourceSymbols, js_ast.Symbol{
+		Kind:         kind,
+		OriginalName: originalName,
+		Link:         js_ast.InvalidRef,
+	})
+
+	generated := &g.Files[sourceIndex].InputFile.Repr.(*JSRepr).AST.ModuleScope.Generated
+	*generated = append(*generated, ref)
+	return ref
+}
+
 func (g *LinkerGraph) GenerateSymbolImportAndUse(
 	sourceIndex uint32,
 	partIndex uint32,
