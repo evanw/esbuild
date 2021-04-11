@@ -14,6 +14,23 @@ type Module struct {
 	Repr        ModuleRepr
 	Loader      config.Loader
 	SideEffects SideEffects
+
+	// If this file ends up being used in the bundle, these are additional files
+	// that must be written to the output directory. It's used by the "file"
+	// loader.
+	AdditionalFiles []OutputFile
+}
+
+type OutputFile struct {
+	AbsPath  string
+	Contents []byte
+
+	// If "AbsMetadataFile" is present, this will be filled out with information
+	// about this file in JSON format. This is a partial JSON file that will be
+	// fully assembled later.
+	JSONMetadataChunk string
+
+	IsExecutable bool
 }
 
 type SideEffects struct {

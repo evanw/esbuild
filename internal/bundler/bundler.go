@@ -67,11 +67,6 @@ type file struct {
 	// corresponding entry point chunk.
 	entryPointChunkIndex uint32
 
-	// If this file ends up being used in the bundle, these are additional files
-	// that must be written to the output directory. It's used by the "file"
-	// loader.
-	additionalFiles []OutputFile
-
 	// This file is an entry point if and only if this is not "entryPointNone".
 	// Note that dynamically-imported files are allowed to also be specified by
 	// the user as top-level entry points, so some dynamically-imported files
@@ -350,10 +345,10 @@ func parseFile(args parseArgs) {
 
 		// Copy the file using an additional file payload to make sure we only copy
 		// the file if the module isn't removed due to tree shaking.
-		result.file.additionalFiles = []OutputFile{{
+		result.file.module.AdditionalFiles = []graph.OutputFile{{
 			AbsPath:           args.fs.Join(args.options.AbsOutputDir, relPath),
 			Contents:          []byte(source.Contents),
-			jsonMetadataChunk: jsonMetadataChunk,
+			JSONMetadataChunk: jsonMetadataChunk,
 		}}
 
 	default:
@@ -1837,18 +1832,6 @@ func DefaultExtensionToLoaderMap() map[string]config.Loader {
 	}
 }
 
-type OutputFile struct {
-	AbsPath  string
-	Contents []byte
-
-	// If "AbsMetadataFile" is present, this will be filled out with information
-	// about this file in JSON format. This is a partial JSON file that will be
-	// fully assembled later.
-	jsonMetadataChunk string
-
-	IsExecutable bool
-}
-
 func applyOptionDefaults(options *config.Options) {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
@@ -1881,7 +1864,7 @@ func applyOptionDefaults(options *config.Options) {
 	}
 }
 
-func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, string) {
+func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.OutputFile, string) {
 	start := time.Now()
 	if log.Debug {
 		log.AddDebug(nil, logger.Loc{}, "Started the compile phase")
@@ -1900,15 +1883,15 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, 
 	// Compute source map data in parallel with linking
 	dataForSourceMaps := b.computeDataForSourceMapsInParallel(&options, allReachableFiles)
 
-	var resultGroups [][]OutputFile
+	var resultGroups [][]graph.OutputFile
 	if options.CodeSplitting {
 		// If code splitting is enabled, link all entry points together
 		c := newLinkerContext(&options, log, b.fs, b.res, b.files, b.entryPoints, allReachableFiles, dataForSourceMaps)
-		resultGroups = [][]OutputFile{c.link()}
+		resultGroups = [][]graph.OutputFile{c.link()}
 	} else {
 		// Otherwise, link each entry point with the runtime file separately
 		waitGroup := sync.WaitGroup{}
-		resultGroups = make([][]OutputFile, len(b.entryPoints))
+		resultGroups = make([][]graph.OutputFile, len(b.entryPoints))
 		for i, entryPoint := range b.entryPoints {
 			waitGroup.Add(1)
 			go func(i int, entryPoint entryMeta) {
@@ -1923,7 +1906,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, 
 	}
 
 	// Join the results in entry point order for determinism
-	var outputFiles []OutputFile
+	var outputFiles []graph.OutputFile
 	for _, group := range resultGroups {
 		outputFiles = append(outputFiles, group...)
 	}
@@ -2098,7 +2081,7 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 	}
 }
 
-func (b *Bundle) generateMetadataJSON(results []OutputFile, allReachableFiles []uint32, asciiOnly bool) string {
+func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFiles []uint32, asciiOnly bool) string {
 	sb := strings.Builder{}
 	sb.WriteString("{\n  \"inputs\": {")
 
@@ -2125,7 +2108,7 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile, allReachableFiles []
 	isFirst = true
 	paths := make(map[string]bool)
 	for _, result := range results {
-		if len(result.jsonMetadataChunk) > 0 {
+		if len(result.JSONMetadataChunk) > 0 {
 			path := b.res.PrettyPath(logger.Path{Text: result.AbsPath, Namespace: "file"})
 			if paths[path] {
 				// Don't write out the same path twice (can happen with the "file" loader)
@@ -2139,7 +2122,7 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile, allReachableFiles []
 			}
 			paths[path] = true
 			sb.WriteString(fmt.Sprintf("%s: ", js_printer.QuoteForJSON(path, asciiOnly)))
-			sb.WriteString(result.jsonMetadataChunk)
+			sb.WriteString(result.JSONMetadataChunk)
 		}
 	}
 
