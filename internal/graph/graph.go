@@ -1,6 +1,9 @@
 package graph
 
-import "github.com/evanw/esbuild/internal/helpers"
+import (
+	"github.com/evanw/esbuild/internal/helpers"
+	"github.com/evanw/esbuild/internal/js_ast"
+)
 
 type EntryPointKind uint8
 
@@ -38,4 +41,23 @@ type LinkerFile struct {
 
 func (f *LinkerFile) IsEntryPoint() bool {
 	return f.EntryPointKind != EntryPointNone
+}
+
+type LinkerGraph struct {
+	Files   []LinkerFile
+	Symbols js_ast.SymbolMap
+
+	// We should avoid traversing all files in the bundle, because the linker
+	// should be able to run a linking operation on a large bundle where only
+	// a few files are needed (e.g. an incremental compilation scenario). This
+	// holds all files that could possibly be reached through the entry points.
+	// If you need to iterate over all files in the linking operation, iterate
+	// over this array. This array is also sorted in a deterministic ordering
+	// to help ensure deterministic builds (source indices are random).
+	ReachableFiles []uint32
+
+	// This maps from unstable source index to stable reachable file index. This
+	// is useful as a deterministic key for sorting if you need to sort something
+	// containing a source index (such as "js_ast.Ref" symbol references).
+	StableSourceIndices []uint32
 }

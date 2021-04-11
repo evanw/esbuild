@@ -23,12 +23,12 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 		return ""
 	}
 
-	file := &c.files[sourceIndex]
+	file := &c.graph.Files[sourceIndex]
 	repr := file.InputFile.Repr.(*graph.JSRepr)
 	sb := strings.Builder{}
 
 	quoteSym := func(ref js_ast.Ref) string {
-		name := fmt.Sprintf("%d:%d [%s]", ref.SourceIndex, ref.InnerIndex, c.symbols.Get(ref).OriginalName)
+		name := fmt.Sprintf("%d:%d [%s]", ref.SourceIndex, ref.InnerIndex, c.graph.Symbols.Get(ref).OriginalName)
 		return string(js_printer.QuoteForJSON(name, c.options.ASCIIOnly))
 	}
 
@@ -74,7 +74,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 			} else {
 				sb.WriteByte(',')
 			}
-			path := c.files[record.SourceIndex.GetIndex()].InputFile.Source.PrettyPath
+			path := c.graph.Files[record.SourceIndex.GetIndex()].InputFile.Source.PrettyPath
 			sb.WriteString(fmt.Sprintf(`{"source":%s}`, js_printer.QuoteForJSON(path, c.options.ASCIIOnly)))
 		}
 		sb.WriteByte(']')
@@ -115,7 +115,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 				sb.WriteByte(',')
 			}
 			sb.WriteString(fmt.Sprintf(`{"source":%s,"partIndex":%d}`,
-				js_printer.QuoteForJSON(c.files[dep.SourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
+				js_printer.QuoteForJSON(c.graph.Files[dep.SourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
 				dep.PartIndex,
 			))
 		}
