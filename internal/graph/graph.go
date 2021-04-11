@@ -272,8 +272,7 @@ func (g *LinkerGraph) GenerateSymbolImportAndUse(
 	useCount uint32,
 	sourceIndexToImportFrom uint32,
 ) {
-	file := &g.Files[sourceIndex]
-	repr := file.InputFile.Repr.(*JSRepr)
+	repr := g.Files[sourceIndex].InputFile.Repr.(*JSRepr)
 	part := &repr.AST.Parts[partIndex]
 
 	// Mark this symbol as used by this part
@@ -287,8 +286,25 @@ func (g *LinkerGraph) GenerateSymbolImportAndUse(
 		Ref:         ref,
 	}
 
-	// Make sure code splitting includes the runtime from this file
-	if sourceIndexToImportFrom == runtime.SourceIndex {
-		repr.Meta.DependsOnRuntimeSymbol = true
+	// Pull in all parts that declare this symbol
+	targetRepr := g.Files[sourceIndexToImportFrom].InputFile.Repr.(*JSRepr)
+	for _, partIndex := range targetRepr.AST.TopLevelSymbolToParts[ref] {
+		part.Dependencies = append(part.Dependencies, js_ast.Dependency{
+			SourceIndex: sourceIndexToImportFrom,
+			PartIndex:   partIndex,
+		})
+	}
+}
+
+func (g *LinkerGraph) GenerateRuntimeSymbolImportAndUse(
+	sourceIndex uint32,
+	partIndex uint32,
+	name string,
+	useCount uint32,
+) {
+	if useCount > 0 {
+		runtimeRepr := g.Files[runtime.SourceIndex].InputFile.Repr.(*JSRepr)
+		ref := runtimeRepr.AST.NamedExports[name].Ref
+		g.GenerateSymbolImportAndUse(sourceIndex, partIndex, ref, useCount, runtime.SourceIndex)
 	}
 }

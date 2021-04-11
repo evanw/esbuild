@@ -125,7 +125,6 @@ type JSReprMeta struct {
 	EntryPointPartIndex ast.Index32
 
 	IsAsyncOrHasAsyncDependency bool
-	DependsOnRuntimeSymbol      bool
 	Wrap                        WrapKind
 
 	// If true, the "__export(exports, { ... })" call will be force-included even
