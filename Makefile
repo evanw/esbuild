@@ -14,7 +14,7 @@ test-all:
 	make -j6 test-common ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 # This includes tests of some 3rd-party libraries, which can be very slow
-test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
+test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild bench-readmin-esbuild test-esprima test-rollup
 
 check-go-version:
 	@go version | grep ' go1\.16\.3 ' || (echo 'Please install Go version 1.16.3' && false)
