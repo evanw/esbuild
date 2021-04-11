@@ -9,6 +9,7 @@ import (
 
 type Module struct {
 	Source logger.Source
+	Repr   ModuleRepr
 }
 
 type ModuleRepr interface {
