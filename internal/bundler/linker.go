@@ -220,15 +220,7 @@ func newLinkerContext(
 
 	// Allocate a new unbound symbol called "module" in case we need it later
 	if c.options.OutputFormat == config.FormatCommonJS {
-		runtimeSymbols := &c.graph.Symbols.SymbolsForSource[runtime.SourceIndex]
-		runtimeScope := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.ModuleScope
-		c.unboundModuleRef = js_ast.Ref{SourceIndex: runtime.SourceIndex, InnerIndex: uint32(len(*runtimeSymbols))}
-		runtimeScope.Generated = append(runtimeScope.Generated, c.unboundModuleRef)
-		*runtimeSymbols = append(*runtimeSymbols, js_ast.Symbol{
-			Kind:         js_ast.SymbolUnbound,
-			OriginalName: "module",
-			Link:         js_ast.InvalidRef,
-		})
+		c.unboundModuleRef = c.graph.GenerateNewSymbol(runtime.SourceIndex, js_ast.SymbolUnbound, "module")
 	} else {
 		c.unboundModuleRef = js_ast.InvalidRef
 	}
