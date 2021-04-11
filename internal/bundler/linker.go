@@ -1521,7 +1521,6 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 			DeclaredSymbols:      []js_ast.DeclaredSymbol{{Ref: ref, IsTopLevel: true}},
 			CanBeRemovedIfUnused: true,
 		})
-		repr.AST.TopLevelSymbolToParts[ref] = []uint32{partIndex}
 		repr.Meta.ResolvedExports[alias] = graph.ExportData{Ref: ref, SourceIndex: sourceIndex}
 		part := &repr.AST.Parts[partIndex]
 		for _, export := range prevExports {
