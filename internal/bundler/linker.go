@@ -182,22 +182,22 @@ func newLinkerContext(
 ) linkerContext {
 	log = wrappedLog(log)
 
-	// Clone information about symbols and files so we don't mutate the input data
 	c := linkerContext{
 		options:           options,
 		log:               log,
 		fs:                fs,
 		res:               res,
-		graph:             graph.MakeLinkerGraph(inputFiles, reachableFiles, entryPoints),
 		dataForSourceMaps: dataForSourceMaps,
+		graph: graph.MakeLinkerGraph(
+			inputFiles,
+			reachableFiles,
+			entryPoints,
+			options.CodeSplitting,
+		),
 	}
 
-	// Mark all entry points so we don't add them again for import() expressions
 	for _, entryPoint := range entryPoints {
-		file := &c.graph.Files[entryPoint.SourceIndex]
-		file.EntryPointKind = graph.EntryPointUserSpecified
-
-		if repr, ok := file.InputFile.Repr.(*graph.JSRepr); ok {
+		if repr, ok := c.graph.Files[entryPoint.SourceIndex].InputFile.Repr.(*graph.JSRepr); ok {
 			// Loaders default to CommonJS when they are the entry point and the output
 			// format is not ESM-compatible since that avoids generating the ESM-to-CJS
 			// machinery.
@@ -1041,15 +1041,7 @@ func (c *linkerContext) scanImportsAndExports() {
 					}
 
 				case ast.ImportDynamic:
-					if c.options.CodeSplitting {
-						// Files that are imported with import() must be entry points
-						if otherFile.EntryPointKind == graph.EntryPointNone {
-							c.graph.EntryPoints = append(c.graph.EntryPoints, graph.EntryPoint{
-								SourceIndex: record.SourceIndex.GetIndex(),
-							})
-							otherFile.EntryPointKind = graph.EntryPointDynamicImport
-						}
-					} else {
+					if !c.options.CodeSplitting {
 						// If we're not splitting, then import() is just a require() that
 						// returns a promise, so the imported file must be a CommonJS module
 						if otherRepr.AST.ExportsKind == js_ast.ExportsESM {
