@@ -34,14 +34,13 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 
 	sb.WriteString(`,"parts":[`)
 	for partIndex, part := range repr.AST.Parts {
-		partMeta := &repr.Meta.PartMeta[partIndex]
 		if partIndex > 0 {
 			sb.WriteByte(',')
 		}
 		var isFirst bool
 		code := ""
 
-		sb.WriteString(fmt.Sprintf(`{"isLive":%v`, partMeta.IsLive))
+		sb.WriteString(fmt.Sprintf(`{"isLive":%v`, part.IsLive))
 		sb.WriteString(fmt.Sprintf(`,"canBeRemovedIfUnused":%v`, part.CanBeRemovedIfUnused))
 
 		if partIndex == int(repr.Meta.NSExportPartIndex) {

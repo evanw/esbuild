@@ -1875,6 +1875,10 @@ type Part struct {
 	// aren't needed. This enables tree shaking for these parts even if global
 	// tree shaking isn't enabled.
 	ForceTreeShaking bool
+
+	// This is true if this file has been marked as live by the tree shaking
+	// algorithm.
+	IsLive bool
 }
 
 type Dependency struct {
