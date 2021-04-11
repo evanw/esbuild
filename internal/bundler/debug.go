@@ -24,7 +24,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 	}
 
 	file := &c.files[sourceIndex]
-	repr := file.repr.(*graph.JSRepr)
+	repr := file.module.Repr.(*graph.JSRepr)
 	sb := strings.Builder{}
 
 	quoteSym := func(ref js_ast.Ref) string {
