@@ -1379,6 +1379,57 @@ func (c *linkerContext) scanImportsAndExports() {
 			repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
 			c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, esmRef, 1, runtime.SourceIndex)
 		}
+
+		// If this is an entry point, depend on all exports so they are included
+		if file.IsEntryPoint() {
+			var dependencies []js_ast.Dependency
+
+			for _, alias := range repr.Meta.SortedAndFilteredExportAliases {
+				export := repr.Meta.ResolvedExports[alias]
+				targetSourceIndex := export.SourceIndex
+				targetRef := export.Ref
+
+				// If this is an import, then target what the import points to
+				targetRepr := c.graph.Files[targetSourceIndex].InputFile.Repr.(*graph.JSRepr)
+				if importData, ok := targetRepr.Meta.ImportsToBind[targetRef]; ok {
+					targetSourceIndex = importData.SourceIndex
+					targetRef = importData.Ref
+					targetRepr = c.graph.Files[targetSourceIndex].InputFile.Repr.(*graph.JSRepr)
+					dependencies = append(dependencies, importData.ReExports...)
+				}
+
+				// Pull in all declarations of this symbol
+				for _, partIndex := range targetRepr.AST.TopLevelSymbolToParts[targetRef] {
+					dependencies = append(dependencies, js_ast.Dependency{
+						SourceIndex: targetSourceIndex,
+						PartIndex:   partIndex,
+					})
+				}
+			}
+
+			// Ensure "exports" is included if the current output format needs it
+			if repr.Meta.ForceIncludeExportsForEntryPoint {
+				dependencies = append(dependencies, js_ast.Dependency{
+					SourceIndex: sourceIndex,
+					PartIndex:   repr.Meta.NSExportPartIndex,
+				})
+			}
+
+			// Include the wrapper if present
+			if repr.Meta.Wrap != graph.WrapNone {
+				dependencies = append(dependencies, js_ast.Dependency{
+					SourceIndex: sourceIndex,
+					PartIndex:   repr.Meta.WrapperPartIndex.GetIndex(),
+				})
+			}
+
+			// Represent these constraints with a dummy part
+			entryPointPartIndex := c.graph.AddPartToFile(sourceIndex, js_ast.Part{
+				Dependencies:         dependencies,
+				CanBeRemovedIfUnused: false,
+			})
+			repr.Meta.EntryPointPartIndex = ast.MakeIndex32(entryPointPartIndex)
+		}
 	}
 }
 
@@ -2331,38 +2382,6 @@ func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
 			// perform tree-shaking on the runtime even if tree-shaking is disabled.
 			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !isTreeShakingEnabled && file.IsEntryPoint()) {
 				c.markPartAsLive(sourceIndex, uint32(partIndex))
-			}
-		}
-
-		// If this is an entry point, include all exports
-		if file.IsEntryPoint() {
-			for _, alias := range repr.Meta.SortedAndFilteredExportAliases {
-				export := repr.Meta.ResolvedExports[alias]
-				targetSourceIndex := export.SourceIndex
-				targetRef := export.Ref
-
-				// If this is an import, then target what the import points to
-				targetRepr := c.graph.Files[targetSourceIndex].InputFile.Repr.(*graph.JSRepr)
-				if importData, ok := targetRepr.Meta.ImportsToBind[targetRef]; ok {
-					targetSourceIndex = importData.SourceIndex
-					targetRef = importData.Ref
-					targetRepr = c.graph.Files[targetSourceIndex].InputFile.Repr.(*graph.JSRepr)
-				}
-
-				// Pull in all declarations of this symbol
-				for _, partIndex := range targetRepr.AST.TopLevelSymbolToParts[targetRef] {
-					c.markPartAsLive(targetSourceIndex, partIndex)
-				}
-			}
-
-			// Ensure "exports" is included if the current output format needs it
-			if repr.Meta.ForceIncludeExportsForEntryPoint {
-				c.markPartAsLive(sourceIndex, repr.Meta.NSExportPartIndex)
-			}
-
-			// Include the wrapper if present
-			if repr.Meta.Wrap != graph.WrapNone {
-				c.markPartAsLive(sourceIndex, repr.Meta.WrapperPartIndex.GetIndex())
 			}
 		}
 

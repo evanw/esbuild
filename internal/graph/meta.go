@@ -106,15 +106,23 @@ type JSReprMeta struct {
 	// This is the index to the automatically-generated part containing code that
 	// calls "__export(exports, { ... getters ... })". This is used to generate
 	// getters on an exports object for ES6 export statements, and is both for
-	// ES6 star imports and CommonJS-style modules.
+	// ES6 star imports and CommonJS-style modules. All files have one of these,
+	// although it may contain no statements if there is nothing to export.
 	NSExportPartIndex uint32
 
 	// The index of the automatically-generated part used to represent the
 	// CommonJS or ESM wrapper. This part is empty and is only useful for tree
 	// shaking and code splitting. The wrapper can't be inserted into the part
 	// because the wrapper contains other parts, which can't be represented by
-	// the current part system.
+	// the current part system. Only wrapped files have one of these.
 	WrapperPartIndex ast.Index32
+
+	// The index of the automatically-generated part used to handle entry point
+	// specific stuff. If a certain part is needed by the entry point, it's added
+	// as a dependency of this part. This is important for parts that are marked
+	// as removable when unused and that are not used by anything else. Only
+	// entry point files have one of these.
+	EntryPointPartIndex ast.Index32
 
 	IsAsyncOrHasAsyncDependency bool
 	DependsOnRuntimeSymbol      bool

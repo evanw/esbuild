@@ -41,7 +41,7 @@ TestSplittingCircularReferenceIssue251
 import {
   p,
   q
-} from "./chunk-G2XWJIBP.js";
+} from "./chunk-7MUWF4J7.js";
 export {
   p,
   q
@@ -51,13 +51,13 @@ export {
 import {
   p,
   q
-} from "./chunk-G2XWJIBP.js";
+} from "./chunk-7MUWF4J7.js";
 export {
   p,
   q
 };
 
----------- /out/chunk-G2XWJIBP.js ----------
+---------- /out/chunk-7MUWF4J7.js ----------
 // a.js
 var p = 5;
 
@@ -205,19 +205,19 @@ TestSplittingDynamicAndNotDynamicCommonJSIntoES6
 import {
   __toModule,
   require_foo
-} from "./chunk-NAN7I22W.js";
+} from "./chunk-DOF77JFX.js";
 
 // entry.js
 var import_foo = __toModule(require_foo());
-import("./foo-GCHTONSU.js").then(({default: {bar: b}}) => console.log(import_foo.bar, b));
+import("./foo-RHEBPILD.js").then(({default: {bar: b}}) => console.log(import_foo.bar, b));
 
----------- /out/foo-GCHTONSU.js ----------
+---------- /out/foo-RHEBPILD.js ----------
 import {
   require_foo
-} from "./chunk-NAN7I22W.js";
+} from "./chunk-DOF77JFX.js";
 export default require_foo();
 
----------- /out/chunk-NAN7I22W.js ----------
+---------- /out/chunk-DOF77JFX.js ----------
 // foo.js
 var require_foo = __commonJS((exports) => {
   exports.bar = 123;
@@ -233,20 +233,20 @@ TestSplittingDynamicAndNotDynamicES6IntoES6
 ---------- /out/entry.js ----------
 import {
   bar
-} from "./chunk-A3NXEA7F.js";
+} from "./chunk-FIX3TEVC.js";
 
 // entry.js
-import("./foo-ZFJDZWZM.js").then(({bar: b}) => console.log(bar, b));
+import("./foo-WSZEPKL7.js").then(({bar: b}) => console.log(bar, b));
 
----------- /out/foo-ZFJDZWZM.js ----------
+---------- /out/foo-WSZEPKL7.js ----------
 import {
   bar
-} from "./chunk-A3NXEA7F.js";
+} from "./chunk-FIX3TEVC.js";
 export {
   bar
 };
 
----------- /out/chunk-A3NXEA7F.js ----------
+---------- /out/chunk-FIX3TEVC.js ----------
 // foo.js
 var bar = 123;
 
@@ -258,9 +258,9 @@ export {
 TestSplittingDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
 // entry.js
-import("./foo-2YYMPLZI.js").then(({default: {bar}}) => console.log(bar));
+import("./foo-BQWGKGO4.js").then(({default: {bar}}) => console.log(bar));
 
----------- /out/foo-2YYMPLZI.js ----------
+---------- /out/foo-BQWGKGO4.js ----------
 // foo.js
 var require_foo = __commonJS((exports) => {
   exports.bar = 123;
@@ -271,9 +271,9 @@ export default require_foo();
 TestSplittingDynamicES6IntoES6
 ---------- /out/entry.js ----------
 // entry.js
-import("./foo-F64I22OH.js").then(({bar}) => console.log(bar));
+import("./foo-HLOHNJMC.js").then(({bar}) => console.log(bar));
 
----------- /out/foo-F64I22OH.js ----------
+---------- /out/foo-HLOHNJMC.js ----------
 // foo.js
 var bar = 123;
 export {
@@ -297,13 +297,13 @@ export {
 TestSplittingDynamicImportOutsideSourceTreeIssue264
 ---------- /out/entry1.js ----------
 // Users/user/project/src/entry1.js
-import("./package-UW4GHB5S.js");
+import("./package-L6SN4V3F.js");
 
 ---------- /out/entry2.js ----------
 // Users/user/project/src/entry2.js
-import("./package-UW4GHB5S.js");
+import("./package-L6SN4V3F.js");
 
----------- /out/package-UW4GHB5S.js ----------
+---------- /out/package-L6SN4V3F.js ----------
 // Users/user/project/node_modules/package/index.js
 console.log("imported");
 
@@ -313,7 +313,7 @@ TestSplittingHybridESMAndCJSIssue617
 import {
   foo,
   init_a
-} from "./chunk-UHVVO4ZE.js";
+} from "./chunk-XSW6IF3B.js";
 init_a();
 export {
   foo
@@ -323,7 +323,7 @@ export {
 import {
   a_exports,
   init_a
-} from "./chunk-UHVVO4ZE.js";
+} from "./chunk-XSW6IF3B.js";
 
 // b.js
 var bar = (init_a(), a_exports);
@@ -331,7 +331,7 @@ export {
   bar
 };
 
----------- /out/chunk-UHVVO4ZE.js ----------
+---------- /out/chunk-XSW6IF3B.js ----------
 // a.js
 var a_exports = {};
 __export(a_exports, {
@@ -442,9 +442,9 @@ export {
 TestSplittingPublicPathEntryName
 ---------- /out/a.js ----------
 // a.js
-import("/www/b-UNIUFLXI.js");
+import("/www/b-EDTTWD26.js");
 
----------- /out/b-UNIUFLXI.js ----------
+---------- /out/b-EDTTWD26.js ----------
 // b.js
 console.log("b");
 
@@ -453,7 +453,7 @@ TestSplittingReExportIssue273
 ---------- /out/a.js ----------
 import {
   a
-} from "./chunk-OBLLZOHJ.js";
+} from "./chunk-WJGWDRHM.js";
 export {
   a
 };
@@ -461,12 +461,12 @@ export {
 ---------- /out/b.js ----------
 import {
   a
-} from "./chunk-OBLLZOHJ.js";
+} from "./chunk-WJGWDRHM.js";
 export {
   a
 };
 
----------- /out/chunk-OBLLZOHJ.js ----------
+---------- /out/chunk-WJGWDRHM.js ----------
 // a.js
 var a = 1;
 
