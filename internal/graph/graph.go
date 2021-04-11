@@ -174,3 +174,13 @@ func MakeLinkerGraph(
 		StableSourceIndices: stableSourceIndices,
 	}
 }
+
+func (g *LinkerGraph) AddPartToFile(sourceIndex uint32, part js_ast.Part) uint32 {
+	if part.SymbolUses == nil {
+		part.SymbolUses = make(map[js_ast.Ref]js_ast.SymbolUse)
+	}
+	repr := g.Files[sourceIndex].InputFile.Repr.(*JSRepr)
+	partIndex := uint32(len(repr.AST.Parts))
+	repr.AST.Parts = append(repr.AST.Parts, part)
+	return partIndex
+}
