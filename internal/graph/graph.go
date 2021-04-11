@@ -86,16 +86,21 @@ func MakeLinkerGraph(
 	inputFiles []InputFile,
 	reachableFiles []uint32,
 	originalEntryPoints []EntryPoint,
+	codeSplitting bool,
 ) LinkerGraph {
 	entryPoints := append([]EntryPoint{}, originalEntryPoints...)
 	symbols := js_ast.NewSymbolMap(len(inputFiles))
 	files := make([]LinkerFile, len(inputFiles))
 
+	// Mark all entry points so we don't add them again for import() expressions
+	for _, entryPoint := range entryPoints {
+		files[entryPoint.SourceIndex].EntryPointKind = EntryPointUserSpecified
+	}
+
 	// Clone various things since we may mutate them later
 	for _, sourceIndex := range reachableFiles {
-		file := LinkerFile{
-			InputFile: inputFiles[sourceIndex],
-		}
+		file := &files[sourceIndex]
+		file.InputFile = inputFiles[sourceIndex]
 
 		switch repr := file.InputFile.Repr.(type) {
 		case *JSRepr:
@@ -125,6 +130,18 @@ func MakeLinkerGraph(
 
 			// Clone the import records
 			repr.AST.ImportRecords = append([]ast.ImportRecord{}, repr.AST.ImportRecords...)
+
+			// Add dynamic imports as additional entry points if code splitting is active
+			if codeSplitting {
+				for importRecordIndex := range repr.AST.ImportRecords {
+					if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic {
+						if otherFile := &files[record.SourceIndex.GetIndex()]; otherFile.EntryPointKind == EntryPointNone {
+							entryPoints = append(entryPoints, EntryPoint{SourceIndex: record.SourceIndex.GetIndex()})
+							otherFile.EntryPointKind = EntryPointDynamicImport
+						}
+					}
+				}
+			}
 
 			// Clone the import map
 			namedImports := make(map[js_ast.Ref]js_ast.NamedImport, len(repr.AST.NamedImports))
@@ -177,9 +194,6 @@ func MakeLinkerGraph(
 
 		// All files start off as far as possible from an entry point
 		file.DistanceFromEntryPoint = ^uint32(0)
-
-		// Update the file in our copy of the file array
-		files[sourceIndex] = file
 	}
 
 	// Create a way to convert source indices to a stable ordering
