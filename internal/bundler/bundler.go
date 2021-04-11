@@ -40,9 +40,18 @@ const (
 	entryPointDynamicImport
 )
 
-type file struct {
+type scannerFile struct {
 	module     graph.Module
 	pluginData interface{}
+
+	// If "AbsMetadataFile" is present, this will be filled out with information
+	// about this file in JSON format. This is a partial JSON file that will be
+	// fully assembled later.
+	jsonMetadataChunk string
+}
+
+type linkerFile struct {
+	module graph.Module
 
 	// The minimum number of links in the module graph to get from an entry point
 	// to this file
@@ -56,11 +65,6 @@ type file struct {
 	// assign the parts in this file to a chunk.
 	entryBits helpers.BitSet
 
-	// If "AbsMetadataFile" is present, this will be filled out with information
-	// about this file in JSON format. This is a partial JSON file that will be
-	// fully assembled later.
-	jsonMetadataChunk string
-
 	// If "entryPointKind" is not "entryPointNone", this is the index of the
 	// corresponding entry point chunk.
 	entryPointChunkIndex uint32
@@ -72,7 +76,7 @@ type file struct {
 	entryPointKind entryPointKind
 }
 
-func (f *file) isEntryPoint() bool {
+func (f *linkerFile) isEntryPoint() bool {
 	return f.entryPointKind != entryPointNone
 }
 
@@ -94,7 +98,7 @@ type dataForSourceMap struct {
 type Bundle struct {
 	fs          fs.FS
 	res         resolver.Resolver
-	files       []file
+	files       []scannerFile
 	entryPoints []entryMeta
 }
 
@@ -117,7 +121,7 @@ type parseArgs struct {
 }
 
 type parseResult struct {
-	file           file
+	file           scannerFile
 	resolveResults []*resolver.ResolveResult
 	tlaCheck       tlaCheck
 	ok             bool
@@ -186,7 +190,7 @@ func parseFile(args parseArgs) {
 	}
 
 	result := parseResult{
-		file: file{
+		file: scannerFile{
 			module: graph.Module{
 				Source:      source,
 				Loader:      loader,
@@ -988,7 +992,7 @@ func ScanBundle(
 	go func() {
 		source, ast, ok := globalRuntimeCache.parseRuntime(&options)
 		s.resultChannel <- parseResult{
-			file: file{
+			file: scannerFile{
 				module: graph.Module{
 					Source: source,
 					Repr:   &graph.JSRepr{AST: ast},
@@ -1183,7 +1187,7 @@ func (s *scanner) preprocessInjectedFiles() {
 		ast := js_parser.LazyExportAST(s.log, source, js_parser.OptionsFromConfig(&s.options), expr, "")
 		result := parseResult{
 			ok: true,
-			file: file{
+			file: scannerFile{
 				module: graph.Module{
 					Source: source,
 					Repr:   &graph.JSRepr{AST: ast},
@@ -1546,7 +1550,7 @@ func (s *scanner) scanAllDependencies() {
 	}
 }
 
-func (s *scanner) processScannedFiles() []file {
+func (s *scanner) processScannedFiles() []scannerFile {
 	// Now that all files have been scanned, process the final file import records
 	for i, result := range s.results {
 		if !result.ok {
@@ -1654,7 +1658,7 @@ func (s *scanner) processScannedFiles() []file {
 								PrettyPath: otherFile.module.Source.PrettyPath,
 							}
 							s.results[sourceIndex] = parseResult{
-								file: file{
+								file: scannerFile{
 									module: graph.Module{
 										Source: source,
 										Repr: &graph.JSRepr{
@@ -1722,7 +1726,7 @@ func (s *scanner) processScannedFiles() []file {
 	// The linker operates on an array of files, so construct that now. This
 	// can't be constructed earlier because we generate new parse results for
 	// JavaScript stub files for CSS imports above.
-	files := make([]file, len(s.results))
+	files := make([]scannerFile, len(s.results))
 	for sourceIndex := range s.results {
 		if result := &s.results[sourceIndex]; result.ok {
 			s.validateTLA(uint32(sourceIndex))
@@ -1875,8 +1879,13 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 		options.OutputFormat = config.FormatESModule
 	}
 
+	files := make([]linkerFile, len(b.files))
+	for i, file := range b.files {
+		files[i].module = file.module
+	}
+
 	// Get the base path from the options or choose the lowest common ancestor of all entry points
-	allReachableFiles := findReachableFiles(b.files, b.entryPoints)
+	allReachableFiles := findReachableFiles(files, b.entryPoints)
 
 	// Compute source map data in parallel with linking
 	dataForSourceMaps := b.computeDataForSourceMapsInParallel(&options, allReachableFiles)
@@ -1884,7 +1893,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 	var resultGroups [][]graph.OutputFile
 	if options.CodeSplitting {
 		// If code splitting is enabled, link all entry points together
-		c := newLinkerContext(&options, log, b.fs, b.res, b.files, b.entryPoints, allReachableFiles, dataForSourceMaps)
+		c := newLinkerContext(&options, log, b.fs, b.res, files, b.entryPoints, allReachableFiles, dataForSourceMaps)
 		resultGroups = [][]graph.OutputFile{c.link()}
 	} else {
 		// Otherwise, link each entry point with the runtime file separately
@@ -1894,8 +1903,8 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 			waitGroup.Add(1)
 			go func(i int, entryPoint entryMeta) {
 				entryPoints := []entryMeta{entryPoint}
-				reachableFiles := findReachableFiles(b.files, entryPoints)
-				c := newLinkerContext(&options, log, b.fs, b.res, b.files, entryPoints, reachableFiles, dataForSourceMaps)
+				reachableFiles := findReachableFiles(files, entryPoints)
+				c := newLinkerContext(&options, log, b.fs, b.res, files, entryPoints, reachableFiles, dataForSourceMaps)
 				resultGroups[i] = c.link()
 				waitGroup.Done()
 			}(i, entryPoint)
@@ -1978,7 +1987,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 // deterministic given that the entry point order is deterministic, since the
 // returned order is the postorder of the graph traversal and import record
 // order within a given file is deterministic.
-func findReachableFiles(files []file, entryPoints []entryMeta) []uint32 {
+func findReachableFiles(files []linkerFile, entryPoints []entryMeta) []uint32 {
 	visited := make(map[uint32]bool)
 	var order []uint32
 	var visit func(uint32)
@@ -2037,7 +2046,7 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 		if f := &b.files[sourceIndex]; f.module.Loader.CanHaveSourceMap() {
 			if repr, ok := f.module.Repr.(*graph.JSRepr); ok {
 				waitGroup.Add(1)
-				go func(sourceIndex uint32, f *file, repr *graph.JSRepr) {
+				go func(sourceIndex uint32, f *scannerFile, repr *graph.JSRepr) {
 					result := &results[sourceIndex]
 					result.lineOffsetTables = js_printer.GenerateLineOffsetTables(f.module.Source.Contents, repr.AST.ApproximateLineCount)
 					sm := f.module.InputSourceMap
