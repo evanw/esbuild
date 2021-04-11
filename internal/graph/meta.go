@@ -46,8 +46,6 @@ const (
 // linking operations may be happening in parallel with different metadata for
 // the same file.
 type JSReprMeta struct {
-	PartMeta []PartMeta
-
 	// This is only for TypeScript files. If an import symbol is in this map, it
 	// means the import couldn't be found and doesn't actually exist. This is not
 	// an error in TypeScript because the import is probably just a type.
@@ -180,15 +178,4 @@ type ExportData struct {
 	// different from the file that contains this object if this is a re-export.
 	NameLoc     logger.Loc // Optional, goes with sourceIndex, ignore if zero
 	SourceIndex uint32
-}
-
-// This contains linker-specific metadata corresponding to a "js_ast.Part" struct
-// from the initial scan phase of the bundler. It's separated out because it's
-// conceptually only used for a single linking operation and because multiple
-// linking operations may be happening in parallel with different metadata for
-// the same part in the same file.
-type PartMeta struct {
-	// This is true if this file has been marked as live by the tree shaking
-	// algorithm.
-	IsLive bool
 }

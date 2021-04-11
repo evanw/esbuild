@@ -138,7 +138,6 @@ func MakeLinkerGraph(
 			}
 
 			// Also associate some default metadata with the file
-			repr.Meta.PartMeta = make([]PartMeta, len(repr.AST.Parts))
 			repr.Meta.ResolvedExports = resolvedExports
 			repr.Meta.IsProbablyTypeScriptType = make(map[js_ast.Ref]bool)
 			repr.Meta.ImportsToBind = make(map[js_ast.Ref]ImportData)

@@ -245,7 +245,6 @@ func (c *linkerContext) addPartToFile(sourceIndex uint32, part js_ast.Part) uint
 	repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr)
 	partIndex := uint32(len(repr.AST.Parts))
 	repr.AST.Parts = append(repr.AST.Parts, part)
-	repr.Meta.PartMeta = append(repr.Meta.PartMeta, graph.PartMeta{})
 	return partIndex
 }
 
@@ -668,7 +667,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 				// Go over each part in this file that's marked for inclusion in this chunk
 				switch repr := c.graph.Files[sourceIndex].InputFile.Repr.(type) {
 				case *graph.JSRepr:
-					for partIndex, partMeta := range repr.Meta.PartMeta {
+					for partIndex, partMeta := range repr.AST.Parts {
 						if !partMeta.IsLive {
 							continue
 						}
@@ -2472,15 +2471,13 @@ func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord, source
 func (c *linkerContext) markPartAsLive(sourceIndex uint32, partIndex uint32) {
 	file := &c.graph.Files[sourceIndex]
 	repr := file.InputFile.Repr.(*graph.JSRepr)
-	partMeta := &repr.Meta.PartMeta[partIndex]
+	part := &repr.AST.Parts[partIndex]
 
 	// Don't mark this part more than once
-	if partMeta.IsLive {
+	if part.IsLive {
 		return
 	}
-	partMeta.IsLive = true
-
-	part := &repr.AST.Parts[partIndex]
+	part.IsLive = true
 
 	// Include the file containing this part
 	c.markFileAsLive(sourceIndex)
@@ -2903,12 +2900,12 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 
 			// Make sure the generated call to "__export(exports, ...)" comes first
 			// before anything else in this file
-			if canFileBeSplit && isFileInThisChunk && repr.Meta.PartMeta[repr.Meta.NSExportPartIndex].IsLive {
+			if canFileBeSplit && isFileInThisChunk && repr.AST.Parts[repr.Meta.NSExportPartIndex].IsLive {
 				jsParts = appendOrExtendPartRange(jsParts, sourceIndex, repr.Meta.NSExportPartIndex)
 			}
 
 			for partIndex, part := range repr.AST.Parts {
-				isPartInThisChunk := isFileInThisChunk && repr.Meta.PartMeta[partIndex].IsLive
+				isPartInThisChunk := isFileInThisChunk && repr.AST.Parts[partIndex].IsLive
 
 				// Also traverse any files imported by this part
 				for _, importRecordIndex := range part.ImportRecordIndices {
@@ -3359,7 +3356,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	// Make sure the generated call to "__export(exports, ...)" comes first
 	// before anything else.
 	if nsExportPartIndex >= partRange.partIndexBegin && nsExportPartIndex < partRange.partIndexEnd &&
-		repr.Meta.PartMeta[nsExportPartIndex].IsLive {
+		repr.AST.Parts[nsExportPartIndex].IsLive {
 		c.convertStmtsForChunk(partRange.sourceIndex, &stmtList, repr.AST.Parts[nsExportPartIndex].Stmts)
 
 		// Move everything to the prefix list
@@ -3374,7 +3371,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	// Add all other parts in this chunk
 	for partIndex := partRange.partIndexBegin; partIndex < partRange.partIndexEnd; partIndex++ {
 		part := repr.AST.Parts[partIndex]
-		if !repr.Meta.PartMeta[partIndex].IsLive {
+		if !repr.AST.Parts[partIndex].IsLive {
 			// Skip the part if it's not in this chunk
 			continue
 		}
@@ -3891,7 +3888,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 			}
 
 			for partIndex, part := range repr.AST.Parts {
-				if !repr.Meta.PartMeta[partIndex].IsLive {
+				if !repr.AST.Parts[partIndex].IsLive {
 					// Skip the part if it's not in this chunk
 					continue
 				}
@@ -4019,7 +4016,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 
 		// Rename each top-level symbol declaration in this chunk
 		for partIndex, part := range repr.AST.Parts {
-			if repr.Meta.PartMeta[partIndex].IsLive {
+			if repr.AST.Parts[partIndex].IsLive {
 				for _, declared := range part.DeclaredSymbols {
 					if declared.IsTopLevel {
 						r.AddTopLevelSymbol(declared.Ref)
