@@ -7,12 +7,12 @@ import (
 	"github.com/evanw/esbuild/internal/runtime"
 )
 
-type EntryPointKind uint8
+type entryPointKind uint8
 
 const (
-	EntryPointNone EntryPointKind = iota
-	EntryPointUserSpecified
-	EntryPointDynamicImport
+	entryPointNone entryPointKind = iota
+	entryPointUserSpecified
+	entryPointDynamicImport
 )
 
 type LinkerFile struct {
@@ -34,7 +34,7 @@ type LinkerFile struct {
 	// Note that dynamically-imported files are allowed to also be specified by
 	// the user as top-level entry points, so some dynamically-imported files
 	// may be "entryPointUserSpecified" instead of "entryPointDynamicImport".
-	EntryPointKind EntryPointKind
+	entryPointKind entryPointKind
 
 	// This is true if this file has been marked as live by the tree shaking
 	// algorithm.
@@ -42,7 +42,11 @@ type LinkerFile struct {
 }
 
 func (f *LinkerFile) IsEntryPoint() bool {
-	return f.EntryPointKind != EntryPointNone
+	return f.entryPointKind != entryPointNone
+}
+
+func (f *LinkerFile) IsUserSpecifiedEntryPoint() bool {
+	return f.entryPointKind == entryPointUserSpecified
 }
 
 type EntryPoint struct {
@@ -64,7 +68,7 @@ type EntryPoint struct {
 
 type LinkerGraph struct {
 	Files       []LinkerFile
-	EntryPoints []EntryPoint
+	entryPoints []EntryPoint
 	Symbols     js_ast.SymbolMap
 
 	// We should avoid traversing all files in the bundle, because the linker
@@ -94,7 +98,7 @@ func MakeLinkerGraph(
 
 	// Mark all entry points so we don't add them again for import() expressions
 	for _, entryPoint := range entryPoints {
-		files[entryPoint.SourceIndex].EntryPointKind = EntryPointUserSpecified
+		files[entryPoint.SourceIndex].entryPointKind = entryPointUserSpecified
 	}
 
 	// Clone various things since we may mutate them later
@@ -135,9 +139,9 @@ func MakeLinkerGraph(
 			if codeSplitting {
 				for importRecordIndex := range repr.AST.ImportRecords {
 					if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic {
-						if otherFile := &files[record.SourceIndex.GetIndex()]; otherFile.EntryPointKind == EntryPointNone {
+						if otherFile := &files[record.SourceIndex.GetIndex()]; otherFile.entryPointKind == entryPointNone {
 							entryPoints = append(entryPoints, EntryPoint{SourceIndex: record.SourceIndex.GetIndex()})
-							otherFile.EntryPointKind = EntryPointDynamicImport
+							otherFile.entryPointKind = entryPointDynamicImport
 						}
 					}
 				}
@@ -208,11 +212,16 @@ func MakeLinkerGraph(
 
 	return LinkerGraph{
 		Symbols:             symbols,
-		EntryPoints:         entryPoints,
+		entryPoints:         entryPoints,
 		Files:               files,
 		ReachableFiles:      reachableFiles,
 		StableSourceIndices: stableSourceIndices,
 	}
+}
+
+// Prevent packages that depend on us from adding or removing entry points
+func (g *LinkerGraph) EntryPoints() []EntryPoint {
+	return g.entryPoints
 }
 
 func (g *LinkerGraph) AddPartToFile(sourceIndex uint32, part js_ast.Part) uint32 {

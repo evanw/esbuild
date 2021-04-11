@@ -264,7 +264,7 @@ func (c *linkerContext) link() []graph.OutputFile {
 	c.markPartsReachableFromEntryPoints()
 
 	if c.options.Mode == config.ModePassThrough {
-		for _, entryPoint := range c.graph.EntryPoints {
+		for _, entryPoint := range c.graph.EntryPoints() {
 			c.preventExportsFromBeingRenamed(entryPoint.SourceIndex)
 		}
 	}
@@ -545,7 +545,7 @@ func (c *linkerContext) pathRelativeToOutbase(
 	absPath := file.InputFile.Source.KeyPath.Text
 	isCustomOutputPath := false
 
-	if outPath := c.graph.EntryPoints[entryPointBit].OutputPath; outPath != "" {
+	if outPath := c.graph.EntryPoints()[entryPointBit].OutputPath; outPath != "" {
 		// Use the configured output path if present
 		absPath = outPath
 		if !c.fs.IsAbs(absPath) {
@@ -2222,7 +2222,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	// Tree shaking: Each entry point marks all files reachable from itself
-	for _, entryPoint := range c.graph.EntryPoints {
+	for _, entryPoint := range c.graph.EntryPoints() {
 		c.markFileAsLive(entryPoint.SourceIndex)
 	}
 
@@ -2230,7 +2230,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	// has to happen after tree shaking because there is an implicit dependency
 	// between live parts within the same file. All liveness has to be computed
 	// first before determining which entry points can reach which files.
-	for i, entryPoint := range c.graph.EntryPoints {
+	for i, entryPoint := range c.graph.EntryPoints() {
 		c.markFileAsReachable(entryPoint.SourceIndex, uint(i), 0)
 	}
 }
@@ -2335,7 +2335,7 @@ func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
 					if otherFile := &c.graph.Files[otherSourceIndex]; otherFile.InputFile.SideEffects.Kind != graph.HasSideEffects && !c.options.IgnoreDCEAnnotations {
 						// This is currently unsafe when code splitting is enabled, so
 						// disable it in that case
-						if len(c.graph.EntryPoints) < 2 {
+						if len(c.graph.EntryPoints()) < 2 {
 							continue
 						}
 					}
@@ -2586,12 +2586,12 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	cssChunks := make(map[string]chunkInfo)
 
 	// Create chunks for entry points
-	for i, entryPoint := range c.graph.EntryPoints {
+	for i, entryPoint := range c.graph.EntryPoints() {
 		file := &c.graph.Files[entryPoint.SourceIndex]
 
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
-		entryBits := helpers.NewBitSet(uint(len(c.graph.EntryPoints)))
+		entryBits := helpers.NewBitSet(uint(len(c.graph.EntryPoints())))
 		entryBits.SetBit(uint(i))
 		info := chunkInfo{
 			entryBits:             entryBits,
@@ -2743,7 +2743,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		var dir, base, ext string
 		var template []config.PathTemplate
 		if chunk.isEntryPoint {
-			if c.graph.Files[chunk.sourceIndex].EntryPointKind == graph.EntryPointUserSpecified {
+			if c.graph.Files[chunk.sourceIndex].IsUserSpecifiedEntryPoint() {
 				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, chunk.entryPointBit, stdExt, false /* avoidIndex */)
 				template = c.options.EntryPathTemplate
 			} else {
