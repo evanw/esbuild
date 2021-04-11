@@ -1214,7 +1214,8 @@ func (c *linkerContext) scanImportsAndExports() {
 	waitGroup.Wait()
 
 	// Step 6: Bind imports to exports. This adds non-local dependencies on the
-	// parts that declare the export to all parts that use the import.
+	// parts that declare the export to all parts that use the import. Also
+	// generate wrapper parts for wrapped files.
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		file := &c.graph.Files[sourceIndex]
 		repr, ok := file.InputFile.Repr.(*graph.JSRepr)
@@ -1300,89 +1301,83 @@ func (c *linkerContext) scanImportsAndExports() {
 			// Merge these symbols so they will share the same name
 			js_ast.MergeSymbols(c.graph.Symbols, importRef, importData.Ref)
 		}
-	}
 
-	// Step 7: Generate wrapper parts for wrapped files
-	for _, sourceIndex := range c.graph.ReachableFiles {
-		switch repr := c.graph.Files[sourceIndex].InputFile.Repr.(type) {
-		case *graph.JSRepr:
-			switch repr.Meta.Wrap {
-			// If this is a CommonJS file, we're going to need to generate a wrapper
-			// for the CommonJS closure. That will end up looking something like this:
-			//
-			//   var require_foo = __commonJS((exports, module) => {
-			//     ...
-			//   });
-			//
-			// However, that generation is special-cased for various reasons and is
-			// done later on. Still, we're going to need to ensure that this file
-			// both depends on the "__commonJS" symbol and declares the "require_foo"
-			// symbol. Instead of special-casing this during the reachablity analysis
-			// below, we just append a dummy part to the end of the file with these
-			// dependencies and let the general-purpose reachablity analysis take care
-			// of it.
-			case graph.WrapCJS:
-				runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
-				commonJSRef := runtimeRepr.AST.NamedExports["__commonJS"].Ref
-				commonJSParts := runtimeRepr.AST.TopLevelSymbolToParts[commonJSRef]
+		switch repr.Meta.Wrap {
+		// If this is a CommonJS file, we're going to need to generate a wrapper
+		// for the CommonJS closure. That will end up looking something like this:
+		//
+		//   var require_foo = __commonJS((exports, module) => {
+		//     ...
+		//   });
+		//
+		// However, that generation is special-cased for various reasons and is
+		// done later on. Still, we're going to need to ensure that this file
+		// both depends on the "__commonJS" symbol and declares the "require_foo"
+		// symbol. Instead of special-casing this during the reachablity analysis
+		// below, we just append a dummy part to the end of the file with these
+		// dependencies and let the general-purpose reachablity analysis take care
+		// of it.
+		case graph.WrapCJS:
+			runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
+			commonJSRef := runtimeRepr.AST.NamedExports["__commonJS"].Ref
+			commonJSParts := runtimeRepr.AST.TopLevelSymbolToParts[commonJSRef]
 
-				// Generate the dummy part
-				dependencies := make([]js_ast.Dependency, len(commonJSParts))
-				for i, partIndex := range commonJSParts {
-					dependencies[i] = js_ast.Dependency{
-						SourceIndex: runtime.SourceIndex,
-						PartIndex:   partIndex,
-					}
+			// Generate the dummy part
+			dependencies := make([]js_ast.Dependency, len(commonJSParts))
+			for i, partIndex := range commonJSParts {
+				dependencies[i] = js_ast.Dependency{
+					SourceIndex: runtime.SourceIndex,
+					PartIndex:   partIndex,
 				}
-				partIndex := c.graph.AddPartToFile(sourceIndex, js_ast.Part{
-					SymbolUses: map[js_ast.Ref]js_ast.SymbolUse{
-						repr.AST.WrapperRef: {CountEstimate: 1},
-					},
-					DeclaredSymbols: []js_ast.DeclaredSymbol{
-						{Ref: repr.AST.ExportsRef, IsTopLevel: true},
-						{Ref: repr.AST.ModuleRef, IsTopLevel: true},
-						{Ref: repr.AST.WrapperRef, IsTopLevel: true},
-					},
-					Dependencies: dependencies,
-				})
-				repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
-				c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, commonJSRef, 1, runtime.SourceIndex)
-
-			// If this is a lazily-initialized ESM file, we're going to need to
-			// generate a wrapper for the ESM closure. That will end up looking
-			// something like this:
-			//
-			//   var init_foo = __esm((exports, module) => {
-			//     ...
-			//   });
-			//
-			// This depends on the "__esm" symbol and declares the "init_foo" symbol
-			// for similar reasons to the CommonJS closure above.
-			case graph.WrapESM:
-				runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
-				esmRef := runtimeRepr.AST.NamedExports["__esm"].Ref
-				esmParts := runtimeRepr.AST.TopLevelSymbolToParts[esmRef]
-
-				// Generate the dummy part
-				dependencies := make([]js_ast.Dependency, len(esmParts))
-				for i, partIndex := range esmParts {
-					dependencies[i] = js_ast.Dependency{
-						SourceIndex: runtime.SourceIndex,
-						PartIndex:   partIndex,
-					}
-				}
-				partIndex := c.graph.AddPartToFile(sourceIndex, js_ast.Part{
-					SymbolUses: map[js_ast.Ref]js_ast.SymbolUse{
-						repr.AST.WrapperRef: {CountEstimate: 1},
-					},
-					DeclaredSymbols: []js_ast.DeclaredSymbol{
-						{Ref: repr.AST.WrapperRef, IsTopLevel: true},
-					},
-					Dependencies: dependencies,
-				})
-				repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
-				c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, esmRef, 1, runtime.SourceIndex)
 			}
+			partIndex := c.graph.AddPartToFile(sourceIndex, js_ast.Part{
+				SymbolUses: map[js_ast.Ref]js_ast.SymbolUse{
+					repr.AST.WrapperRef: {CountEstimate: 1},
+				},
+				DeclaredSymbols: []js_ast.DeclaredSymbol{
+					{Ref: repr.AST.ExportsRef, IsTopLevel: true},
+					{Ref: repr.AST.ModuleRef, IsTopLevel: true},
+					{Ref: repr.AST.WrapperRef, IsTopLevel: true},
+				},
+				Dependencies: dependencies,
+			})
+			repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
+			c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, commonJSRef, 1, runtime.SourceIndex)
+
+		// If this is a lazily-initialized ESM file, we're going to need to
+		// generate a wrapper for the ESM closure. That will end up looking
+		// something like this:
+		//
+		//   var init_foo = __esm(() => {
+		//     ...
+		//   });
+		//
+		// This depends on the "__esm" symbol and declares the "init_foo" symbol
+		// for similar reasons to the CommonJS closure above.
+		case graph.WrapESM:
+			runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
+			esmRef := runtimeRepr.AST.NamedExports["__esm"].Ref
+			esmParts := runtimeRepr.AST.TopLevelSymbolToParts[esmRef]
+
+			// Generate the dummy part
+			dependencies := make([]js_ast.Dependency, len(esmParts))
+			for i, partIndex := range esmParts {
+				dependencies[i] = js_ast.Dependency{
+					SourceIndex: runtime.SourceIndex,
+					PartIndex:   partIndex,
+				}
+			}
+			partIndex := c.graph.AddPartToFile(sourceIndex, js_ast.Part{
+				SymbolUses: map[js_ast.Ref]js_ast.SymbolUse{
+					repr.AST.WrapperRef: {CountEstimate: 1},
+				},
+				DeclaredSymbols: []js_ast.DeclaredSymbol{
+					{Ref: repr.AST.WrapperRef, IsTopLevel: true},
+				},
+				Dependencies: dependencies,
+			})
+			repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
+			c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, esmRef, 1, runtime.SourceIndex)
 		}
 	}
 }
