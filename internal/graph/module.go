@@ -7,13 +7,15 @@ import (
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
+	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
 type Module struct {
-	Source      logger.Source
-	Repr        ModuleRepr
-	Loader      config.Loader
-	SideEffects SideEffects
+	Source         logger.Source
+	Repr           ModuleRepr
+	Loader         config.Loader
+	SideEffects    SideEffects
+	InputSourceMap *sourcemap.SourceMap
 
 	// If this file ends up being used in the bundle, these are additional files
 	// that must be written to the output directory. It's used by the "file"
