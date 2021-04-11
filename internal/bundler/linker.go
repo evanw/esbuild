@@ -253,7 +253,7 @@ func (c *linkerContext) link() []graph.OutputFile {
 		return []graph.OutputFile{}
 	}
 
-	c.markPartsReachableFromEntryPoints()
+	c.treeShakingAndCodeSplitting()
 
 	if c.options.Mode == config.ModePassThrough {
 		for _, entryPoint := range c.graph.EntryPoints() {
@@ -2341,10 +2341,10 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	return importTracker{sourceIndex: otherSourceIndex}, importNoMatch, nil
 }
 
-func (c *linkerContext) markPartsReachableFromEntryPoints() {
+func (c *linkerContext) treeShakingAndCodeSplitting() {
 	// Tree shaking: Each entry point marks all files reachable from itself
 	for _, entryPoint := range c.graph.EntryPoints() {
-		c.markFileAsLive(entryPoint.SourceIndex)
+		c.markFileLiveForTreeShaking(entryPoint.SourceIndex)
 	}
 
 	// Code splitting: Determine which entry points can reach which files. This
@@ -2352,11 +2352,11 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	// between live parts within the same file. All liveness has to be computed
 	// first before determining which entry points can reach which files.
 	for i, entryPoint := range c.graph.EntryPoints() {
-		c.markFileAsReachable(entryPoint.SourceIndex, uint(i), 0)
+		c.markFileReachableForCodeSplitting(entryPoint.SourceIndex, uint(i), 0)
 	}
 }
 
-func (c *linkerContext) markFileAsReachable(sourceIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
+func (c *linkerContext) markFileReachableForCodeSplitting(sourceIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
 	file := &c.graph.Files[sourceIndex]
 	if !file.IsLive {
 		return
@@ -2380,13 +2380,13 @@ func (c *linkerContext) markFileAsReachable(sourceIndex uint32, entryPointBit ui
 	case *graph.JSRepr:
 		// If the JavaScript stub for a CSS file is included, also include the CSS file
 		if repr.CSSSourceIndex.IsValid() {
-			c.markFileAsReachable(repr.CSSSourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
+			c.markFileReachableForCodeSplitting(repr.CSSSourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
 		}
 
 		// Traverse into all imported files
 		for _, record := range repr.AST.ImportRecords {
 			if record.SourceIndex.IsValid() && !c.isExternalDynamicImport(&record, sourceIndex) {
-				c.markFileAsReachable(record.SourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
+				c.markFileReachableForCodeSplitting(record.SourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
 			}
 		}
 
@@ -2394,7 +2394,7 @@ func (c *linkerContext) markFileAsReachable(sourceIndex uint32, entryPointBit ui
 		for _, part := range repr.AST.Parts {
 			for _, dependency := range part.Dependencies {
 				if dependency.SourceIndex != sourceIndex {
-					c.markFileAsReachable(dependency.SourceIndex, entryPointBit, distanceFromEntryPoint)
+					c.markFileReachableForCodeSplitting(dependency.SourceIndex, entryPointBit, distanceFromEntryPoint)
 				}
 			}
 		}
@@ -2403,13 +2403,13 @@ func (c *linkerContext) markFileAsReachable(sourceIndex uint32, entryPointBit ui
 		// Traverse into all dependencies
 		for _, record := range repr.AST.ImportRecords {
 			if record.SourceIndex.IsValid() {
-				c.markFileAsReachable(record.SourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
+				c.markFileReachableForCodeSplitting(record.SourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
 			}
 		}
 	}
 }
 
-func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
+func (c *linkerContext) markFileLiveForTreeShaking(sourceIndex uint32) {
 	file := &c.graph.Files[sourceIndex]
 
 	// Don't mark this file more than once
@@ -2424,7 +2424,7 @@ func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
 
 		// If the JavaScript stub for a CSS file is included, also include the CSS file
 		if repr.CSSSourceIndex.IsValid() {
-			c.markFileAsLive(repr.CSSSourceIndex.GetIndex())
+			c.markFileLiveForTreeShaking(repr.CSSSourceIndex.GetIndex())
 		}
 
 		for partIndex, part := range repr.AST.Parts {
@@ -2447,7 +2447,7 @@ func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
 					}
 
 					// Otherwise, include this module for its side effects
-					c.markFileAsLive(otherSourceIndex)
+					c.markFileLiveForTreeShaking(otherSourceIndex)
 				}
 
 				// If we get here then the import was included for its side effects, so
@@ -2459,7 +2459,7 @@ func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
 			// everything if tree-shaking is disabled. Note that we still want to
 			// perform tree-shaking on the runtime even if tree-shaking is disabled.
 			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !isTreeShakingEnabled && file.IsEntryPoint()) {
-				c.markPartAsLive(sourceIndex, uint32(partIndex))
+				c.markPartLiveForTreeShaking(sourceIndex, uint32(partIndex))
 			}
 		}
 
@@ -2467,7 +2467,7 @@ func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
 		// Include all "@import" rules
 		for _, record := range repr.AST.ImportRecords {
 			if record.SourceIndex.IsValid() {
-				c.markFileAsLive(record.SourceIndex.GetIndex())
+				c.markFileLiveForTreeShaking(record.SourceIndex.GetIndex())
 			}
 		}
 	}
@@ -2477,7 +2477,7 @@ func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord, source
 	return record.Kind == ast.ImportDynamic && c.graph.Files[record.SourceIndex.GetIndex()].IsEntryPoint() && record.SourceIndex.GetIndex() != sourceIndex
 }
 
-func (c *linkerContext) markPartAsLive(sourceIndex uint32, partIndex uint32) {
+func (c *linkerContext) markPartLiveForTreeShaking(sourceIndex uint32, partIndex uint32) {
 	file := &c.graph.Files[sourceIndex]
 	repr := file.InputFile.Repr.(*graph.JSRepr)
 	part := &repr.AST.Parts[partIndex]
@@ -2489,11 +2489,11 @@ func (c *linkerContext) markPartAsLive(sourceIndex uint32, partIndex uint32) {
 	part.IsLive = true
 
 	// Include the file containing this part
-	c.markFileAsLive(sourceIndex)
+	c.markFileLiveForTreeShaking(sourceIndex)
 
 	// Also include any dependencies
 	for _, dep := range part.Dependencies {
-		c.markPartAsLive(dep.SourceIndex, dep.PartIndex)
+		c.markPartLiveForTreeShaking(dep.SourceIndex, dep.PartIndex)
 	}
 }
 
