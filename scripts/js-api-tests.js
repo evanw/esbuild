@@ -991,9 +991,13 @@ body {
       outChunk,
     ])
 
-    assert.deepStrictEqual(json.outputs[outEntry].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
-    assert.deepStrictEqual(json.outputs[outImport1].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
-    assert.deepStrictEqual(json.outputs[outImport2].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
+    assert.deepStrictEqual(json.outputs[outEntry].imports, [
+      { path: outImport1, kind: 'dynamic-import' },
+      { path: outImport2, kind: 'dynamic-import' },
+      { path: outChunk, kind: 'import-statement' },
+    ])
+    assert.deepStrictEqual(json.outputs[outImport1].imports, [{ path: outChunk, kind: 'import-statement' }])
+    assert.deepStrictEqual(json.outputs[outImport2].imports, [{ path: outChunk, kind: 'import-statement' }])
     assert.deepStrictEqual(json.outputs[outChunk].imports, [])
 
     assert.deepStrictEqual(json.outputs[outEntry].exports, [])
@@ -1578,6 +1582,90 @@ export {
     assert.strictEqual(await result1.default(), 'shared1shared2');
     assert.strictEqual(await result2.default(), 'shared2shared3');
     assert.strictEqual(await result3.default(), 'shared3shared1');
+  },
+
+  async splittingStaticImportHashChange({ esbuild, testDir }) {
+    const input1 = path.join(testDir, 'a', 'in1.js')
+    const input2 = path.join(testDir, 'b', 'in2.js')
+    const outdir = path.join(testDir, 'out')
+
+    await mkdirAsync(path.dirname(input1), { recursive: true })
+    await mkdirAsync(path.dirname(input2), { recursive: true })
+    await writeFileAsync(input1, `import ${JSON.stringify(input2)}`)
+    await writeFileAsync(input2, `console.log(123)`)
+
+    const result1 = await esbuild.build({
+      entryPoints: [input1, input2],
+      bundle: true,
+      outdir,
+      format: 'esm',
+      splitting: true,
+      write: false,
+      entryNames: '[name]-[hash]',
+    })
+
+    await writeFileAsync(input2, `console.log(321)`)
+
+    const result2 = await esbuild.build({
+      entryPoints: [input1, input2],
+      bundle: true,
+      outdir,
+      format: 'esm',
+      splitting: true,
+      write: false,
+      entryNames: '[name]-[hash]',
+    })
+
+    assert.strictEqual(result1.outputFiles.length, 3)
+    assert.strictEqual(result2.outputFiles.length, 3)
+
+    // The hashes of both output files must change. Previously there was a bug
+    // where hash changes worked for static imports but not for dynamic imports.
+    for (const { path: oldPath } of result1.outputFiles)
+      for (const { path: newPath } of result2.outputFiles)
+        assert.notStrictEqual(oldPath, newPath)
+  },
+
+  async splittingDynamicImportHashChangeIssue1076({ esbuild, testDir }) {
+    const input1 = path.join(testDir, 'a', 'in1.js')
+    const input2 = path.join(testDir, 'b', 'in2.js')
+    const outdir = path.join(testDir, 'out')
+
+    await mkdirAsync(path.dirname(input1), { recursive: true })
+    await mkdirAsync(path.dirname(input2), { recursive: true })
+    await writeFileAsync(input1, `import(${JSON.stringify(input2)})`)
+    await writeFileAsync(input2, `console.log(123)`)
+
+    const result1 = await esbuild.build({
+      entryPoints: [input1],
+      bundle: true,
+      outdir,
+      format: 'esm',
+      splitting: true,
+      write: false,
+      entryNames: '[name]-[hash]',
+    })
+
+    await writeFileAsync(input2, `console.log(321)`)
+
+    const result2 = await esbuild.build({
+      entryPoints: [input1],
+      bundle: true,
+      outdir,
+      format: 'esm',
+      splitting: true,
+      write: false,
+      entryNames: '[name]-[hash]',
+    })
+
+    assert.strictEqual(result1.outputFiles.length, 2)
+    assert.strictEqual(result2.outputFiles.length, 2)
+
+    // The hashes of both output files must change. Previously there was a bug
+    // where hash changes worked for static imports but not for dynamic imports.
+    for (const { path: oldPath } of result1.outputFiles)
+      for (const { path: newPath } of result2.outputFiles)
+        assert.notStrictEqual(oldPath, newPath)
   },
 
   async stdinStdoutBundle({ esbuild, testDir }) {

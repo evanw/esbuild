@@ -281,7 +281,7 @@ type chunkInfo struct {
 	entryPointBit uint   // An index into "c.entryPoints"
 
 	// For code splitting
-	crossChunkImports []uint32
+	crossChunkImports []chunkImport
 
 	// This is the representation-specific information
 	chunkRepr chunkRepr
@@ -310,6 +310,11 @@ type chunkInfo struct {
 	jsonMetadataChunkCallback func(finalOutputSize int) []byte
 	outputSourceMap           sourcemap.SourceMapPieces
 	isExecutable              bool
+}
+
+type chunkImport struct {
+	chunkIndex uint32
+	importKind ast.ImportKind
 }
 
 // This is a chunk of source code followed by a reference to another chunk. For
@@ -607,8 +612,14 @@ func (c *linkerContext) enforceNoCyclicChunkImports(chunks []chunkInfo) {
 			}
 		}
 		path = append(path, chunkIndex)
-		for _, otherChunkIndex := range chunks[chunkIndex].crossChunkImports {
-			validate(int(otherChunkIndex), path)
+		for _, chunkImport := range chunks[chunkIndex].crossChunkImports {
+			// Ignore cycles caused by dynamic "import()" expressions. These are fine
+			// because they don't necessarily cause initialization order issues and
+			// they don't indicate a bug in our chunk generation algorithm. They arise
+			// normally in real code (e.g. two files that import each other).
+			if chunkImport.importKind != ast.ImportDynamic {
+				validate(int(chunkImport.chunkIndex), path)
+			}
 		}
 	}
 	path := make([]int, 0, len(chunks))
@@ -933,8 +944,9 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 	}
 
 	type chunkMeta struct {
-		imports map[js_ast.Ref]bool
-		exports map[js_ast.Ref]bool
+		imports        map[js_ast.Ref]bool
+		exports        map[js_ast.Ref]bool
+		dynamicImports map[int]bool
 	}
 
 	chunkMetas := make([]chunkMeta, len(chunks))
@@ -945,8 +957,10 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 	waitGroup.Add(len(chunks))
 	for chunkIndex, chunk := range chunks {
 		go func(chunkIndex int, chunk chunkInfo) {
+			chunkMeta := &chunkMetas[chunkIndex]
 			imports := make(map[js_ast.Ref]bool)
-			chunkMetas[chunkIndex] = chunkMeta{imports: imports, exports: make(map[js_ast.Ref]bool)}
+			chunkMeta.imports = imports
+			chunkMeta.exports = make(map[js_ast.Ref]bool)
 
 			// Go over each file in this chunk
 			for sourceIndex := range chunk.filesWithPartsInChunk {
@@ -966,6 +980,16 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 								otherChunkIndex := c.files[record.SourceIndex.GetIndex()].entryPointChunkIndex
 								record.Path.Text = chunks[otherChunkIndex].uniqueKey
 								record.SourceIndex = ast.Index32{}
+
+								// Track this cross-chunk dynamic import so we make sure to
+								// include its hash when we're calculating the hashes of all
+								// dependencies of this chunk.
+								if int(otherChunkIndex) != chunkIndex {
+									if chunkMeta.dynamicImports == nil {
+										chunkMeta.dynamicImports = make(map[int]bool)
+									}
+									chunkMeta.dynamicImports[int(otherChunkIndex)] = true
+								}
 							}
 						}
 
@@ -1067,10 +1091,11 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		if !ok {
 			continue
 		}
+		chunkMeta := chunkMetas[chunkIndex]
 
 		// Find all uses in this chunk of symbols from other chunks
 		chunkRepr.importsFromOtherChunks = make(map[uint32]crossChunkImportItemArray)
-		for importRef := range chunkMetas[chunkIndex].imports {
+		for importRef := range chunkMeta.imports {
 			// Ignore uses that aren't top-level symbols
 			if otherChunkIndex := c.symbols.Get(importRef).ChunkIndex; otherChunkIndex.IsValid() {
 				if otherChunkIndex := otherChunkIndex.GetIndex(); otherChunkIndex != uint32(chunkIndex) {
@@ -1090,6 +1115,23 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 					imports := chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)]
 					chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)] = imports
 				}
+			}
+		}
+
+		// Make sure we also track dynamic cross-chunk imports. These need to be
+		// tracked so we count them as dependencies of this chunk for the purpose
+		// of hash calculation.
+		if chunkMeta.dynamicImports != nil {
+			sortedDynamicImports := make([]int, 0, len(chunkMeta.dynamicImports))
+			for chunkIndex := range chunkMeta.dynamicImports {
+				sortedDynamicImports = append(sortedDynamicImports, chunkIndex)
+			}
+			sort.Ints(sortedDynamicImports)
+			for _, chunkIndex := range sortedDynamicImports {
+				chunk.crossChunkImports = append(chunk.crossChunkImports, chunkImport{
+					importKind: ast.ImportDynamic,
+					chunkIndex: uint32(chunkIndex),
+				})
 			}
 		}
 	}
@@ -1140,7 +1182,6 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 			continue
 		}
 
-		var crossChunkImports []uint32
 		var crossChunkPrefixStmts []js_ast.Stmt
 
 		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, chunkRepr.importsFromOtherChunks) {
@@ -1150,8 +1191,11 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 				for _, item := range crossChunkImport.sortedImportItems {
 					items = append(items, js_ast.ClauseItem{Name: js_ast.LocRef{Ref: item.ref}, Alias: item.exportAlias})
 				}
-				importRecordIndex := uint32(len(crossChunkImports))
-				crossChunkImports = append(crossChunkImports, crossChunkImport.chunkIndex)
+				importRecordIndex := uint32(len(chunk.crossChunkImports))
+				chunk.crossChunkImports = append(chunk.crossChunkImports, chunkImport{
+					importKind: ast.ImportStmt,
+					chunkIndex: crossChunkImport.chunkIndex,
+				})
 				if len(items) > 0 {
 					// "import {a, b} from './chunk.js'"
 					crossChunkPrefixStmts = append(crossChunkPrefixStmts, js_ast.Stmt{Data: &js_ast.SImport{
@@ -1170,14 +1214,12 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 			}
 		}
 
-		chunk.crossChunkImports = crossChunkImports
 		chunkRepr.crossChunkPrefixStmts = crossChunkPrefixStmts
 	}
 }
 
 type crossChunkImport struct {
 	chunkIndex        uint32
-	sortingKey        string
 	sortedImportItems crossChunkImportItemArray
 }
 
@@ -1188,7 +1230,7 @@ func (a crossChunkImportArray) Len() int          { return len(a) }
 func (a crossChunkImportArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 
 func (a crossChunkImportArray) Less(i int, j int) bool {
-	return a[i].sortingKey < a[j].sortingKey
+	return a[i].chunkIndex < a[j].chunkIndex
 }
 
 // Sort cross-chunk imports by chunk name for determinism
@@ -1197,14 +1239,14 @@ func (c *linkerContext) sortedCrossChunkImports(chunks []chunkInfo, importsFromO
 
 	for otherChunkIndex, importItems := range importsFromOtherChunks {
 		// Sort imports from a single chunk by alias for determinism
-		exportsToOtherChunks := chunks[otherChunkIndex].chunkRepr.(*chunkReprJS).exportsToOtherChunks
+		otherChunk := &chunks[otherChunkIndex]
+		exportsToOtherChunks := otherChunk.chunkRepr.(*chunkReprJS).exportsToOtherChunks
 		for i, item := range importItems {
 			importItems[i].exportAlias = exportsToOtherChunks[item.ref]
 		}
 		sort.Sort(importItems)
 		result = append(result, crossChunkImport{
 			chunkIndex:        otherChunkIndex,
-			sortingKey:        chunks[otherChunkIndex].entryBits.String(),
 			sortedImportItems: importItems,
 		})
 	}
@@ -2958,9 +3000,8 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
 	}
 
-	// Sort the chunks for determinism. This mostly doesn't matter because each
-	// chunk is a separate file, but it matters for error messages in tests since
-	// tests stop on the first output mismatch.
+	// Sort the chunks for determinism. This matters because we use chunk indices
+	// as sorting keys in a few places.
 	sortedChunks := make([]chunkInfo, 0, len(jsChunks)+len(cssChunks))
 	sortedKeys := make([]string, 0, len(jsChunks)+len(cssChunks))
 	for key := range jsChunks {
@@ -4362,10 +4403,10 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			MangleSyntax:     c.options.MangleSyntax,
 		}
 		crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
-		for i, otherChunkIndex := range chunk.crossChunkImports {
+		for i, chunkImport := range chunk.crossChunkImports {
 			crossChunkImportRecords[i] = ast.ImportRecord{
-				Kind: ast.ImportStmt,
-				Path: logger.Path{Text: chunks[otherChunkIndex].uniqueKey},
+				Kind: chunkImport.importKind,
+				Path: logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey},
 			}
 		}
 		crossChunkPrefix = js_printer.Print(js_ast.AST{
@@ -4461,15 +4502,15 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		// Print imports
 		isFirstMeta := true
 		jMeta.AddString("{\n      \"imports\": [")
-		for _, otherChunkIndex := range chunk.crossChunkImports {
+		for _, chunkImport := range chunk.crossChunkImports {
 			if isFirstMeta {
 				isFirstMeta = false
 			} else {
 				jMeta.AddString(",")
 			}
 			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
-				js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[otherChunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
-				js_printer.QuoteForJSON(ast.ImportStmt.StringForMetafile(), c.options.ASCIIOnly)))
+				js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
+				js_printer.QuoteForJSON(chunkImport.importKind.StringForMetafile(), c.options.ASCIIOnly)))
 		}
 		if !isFirstMeta {
 			jMeta.AddString("\n      ")
@@ -4816,15 +4857,15 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 	if c.options.NeedsMetafile {
 		isFirstMeta := true
 		jMeta.AddString("{\n      \"imports\": [")
-		for _, otherChunkIndex := range chunk.crossChunkImports {
+		for _, chunkImport := range chunk.crossChunkImports {
 			if isFirstMeta {
 				isFirstMeta = false
 			} else {
 				jMeta.AddString(",")
 			}
 			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
-				js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[otherChunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
-				js_printer.QuoteForJSON(ast.ImportAt.StringForMetafile(), c.options.ASCIIOnly)))
+				js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
+				js_printer.QuoteForJSON(chunkImport.importKind.StringForMetafile(), c.options.ASCIIOnly)))
 		}
 		if !isFirstMeta {
 			jMeta.AddString("\n      ")
@@ -4919,8 +4960,8 @@ func appendIsolatedHashesForImportedChunks(
 	chunk := &chunks[chunkIndex]
 
 	// Visit the other chunks that this chunk imports before visiting this chunk
-	for _, otherChunkIndex := range chunk.crossChunkImports {
-		appendIsolatedHashesForImportedChunks(hash, chunks, otherChunkIndex, visited, visitedKey)
+	for _, chunkImport := range chunk.crossChunkImports {
+		appendIsolatedHashesForImportedChunks(hash, chunks, chunkImport.chunkIndex, visited, visitedKey)
 	}
 
 	// Mix in the hash for this chunk
