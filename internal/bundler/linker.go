@@ -2323,11 +2323,7 @@ func (c *linkerContext) markFileAsLive(sourceIndex uint32) {
 					// Don't include this module for its side effects if it can be
 					// considered to have no side effects
 					if otherFile := &c.graph.Files[otherSourceIndex]; otherFile.InputFile.SideEffects.Kind != graph.HasSideEffects && !c.options.IgnoreDCEAnnotations {
-						// This is currently unsafe when code splitting is enabled, so
-						// disable it in that case
-						if len(c.graph.EntryPoints()) < 2 {
-							continue
-						}
+						continue
 					}
 
 					// Otherwise, include this module for its side effects
