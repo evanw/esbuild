@@ -18,7 +18,6 @@ import (
 	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_parser"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/graph"
@@ -44,7 +43,7 @@ const (
 
 type file struct {
 	module     graph.Module
-	repr       ModuleRepr
+	repr       graph.ModuleRepr
 	loader     config.Loader
 	sourceMap  *sourcemap.SourceMap
 	pluginData interface{}
@@ -99,39 +98,6 @@ type file struct {
 
 func (f *file) isEntryPoint() bool {
 	return f.entryPointKind != entryPointNone
-}
-
-type ModuleRepr interface {
-	ImportRecords() *[]ast.ImportRecord
-}
-
-type JSRepr struct {
-	AST  js_ast.AST
-	Meta JSReprMeta
-
-	// If present, this is the CSS file that this JavaScript stub corresponds to.
-	// A JavaScript stub is automatically generated for a CSS file when it's
-	// imported from a JavaScript file.
-	CSSSourceIndex ast.Index32
-
-	DidWrapDependencies bool
-}
-
-func (repr *JSRepr) ImportRecords() *[]ast.ImportRecord {
-	return &repr.AST.ImportRecords
-}
-
-type CSSRepr struct {
-	AST css_ast.AST
-
-	// If present, this is the JavaScript stub corresponding to this CSS file.
-	// A JavaScript stub is automatically generated for a CSS file when it's
-	// imported from a JavaScript file.
-	JSSourceIndex ast.Index32
-}
-
-func (repr *CSSRepr) ImportRecords() *[]ast.ImportRecord {
-	return &repr.AST.ImportRecords
 }
 
 // This is data related to source maps. It's computed in parallel with linking
@@ -260,26 +226,26 @@ func parseFile(args parseArgs) {
 	switch loader {
 	case config.LoaderJS:
 		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
-		result.file.repr = &JSRepr{AST: ast}
+		result.file.repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
 	case config.LoaderJSX:
 		args.options.JSX.Parse = true
 		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
-		result.file.repr = &JSRepr{AST: ast}
+		result.file.repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
 	case config.LoaderTS:
 		args.options.TS.Parse = true
 		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
-		result.file.repr = &JSRepr{AST: ast}
+		result.file.repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
 	case config.LoaderTSX:
 		args.options.TS.Parse = true
 		args.options.JSX.Parse = true
 		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
-		result.file.repr = &JSRepr{AST: ast}
+		result.file.repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
 	case config.LoaderCSS:
@@ -288,7 +254,7 @@ func parseFile(args parseArgs) {
 			RemoveWhitespace:       args.options.RemoveWhitespace,
 			UnsupportedCSSFeatures: args.options.UnsupportedCSSFeatures,
 		})
-		result.file.repr = &CSSRepr{AST: ast}
+		result.file.repr = &graph.CSSRepr{AST: ast}
 		result.ok = true
 
 	case config.LoaderJSON:
@@ -296,7 +262,7 @@ func parseFile(args parseArgs) {
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		result.file.ignoreIfUnused = true
 		result.file.warnIfUnused = pluginName == ""
-		result.file.repr = &JSRepr{AST: ast}
+		result.file.repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
 	case config.LoaderText:
@@ -306,7 +272,7 @@ func parseFile(args parseArgs) {
 		ast.URLForCSS = "data:text/plain;base64," + encoded
 		result.file.ignoreIfUnused = true
 		result.file.warnIfUnused = pluginName == ""
-		result.file.repr = &JSRepr{AST: ast}
+		result.file.repr = &graph.JSRepr{AST: ast}
 		result.ok = true
 
 	case config.LoaderBase64:
@@ -317,7 +283,7 @@ func parseFile(args parseArgs) {
 		ast.URLForCSS = "data:" + mimeType + ";base64," + encoded
 		result.file.ignoreIfUnused = true
 		result.file.warnIfUnused = pluginName == ""
-		result.file.repr = &JSRepr{AST: ast}
+		result.file.repr = &graph.JSRepr{AST: ast}
 		result.ok = true
 
 	case config.LoaderBinary:
@@ -327,7 +293,7 @@ func parseFile(args parseArgs) {
 		ast.URLForCSS = "data:application/octet-stream;base64," + encoded
 		result.file.ignoreIfUnused = true
 		result.file.warnIfUnused = pluginName == ""
-		result.file.repr = &JSRepr{AST: ast}
+		result.file.repr = &graph.JSRepr{AST: ast}
 		result.ok = true
 
 	case config.LoaderDataURL:
@@ -339,7 +305,7 @@ func parseFile(args parseArgs) {
 		ast.URLForCSS = url
 		result.file.ignoreIfUnused = true
 		result.file.warnIfUnused = pluginName == ""
-		result.file.repr = &JSRepr{AST: ast}
+		result.file.repr = &graph.JSRepr{AST: ast}
 		result.ok = true
 
 	case config.LoaderFile:
@@ -367,7 +333,7 @@ func parseFile(args parseArgs) {
 		ast.URLForCSS = publicPath
 		result.file.ignoreIfUnused = true
 		result.file.warnIfUnused = pluginName == ""
-		result.file.repr = &JSRepr{AST: ast}
+		result.file.repr = &graph.JSRepr{AST: ast}
 		result.ok = true
 
 		// Optionally add metadata about the file
@@ -405,7 +371,7 @@ func parseFile(args parseArgs) {
 	// This must come before we send on the "results" channel to avoid deadlock
 	if args.inject != nil {
 		var exports []string
-		if repr, ok := result.file.repr.(*JSRepr); ok {
+		if repr, ok := result.file.repr.(*graph.JSRepr); ok {
 			exports = make([]string, 0, len(repr.AST.NamedExports))
 			for alias := range repr.AST.NamedExports {
 				exports = append(exports, alias)
@@ -524,7 +490,7 @@ func parseFile(args parseArgs) {
 
 	// Attempt to parse the source map if present
 	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone {
-		if repr, ok := result.file.repr.(*JSRepr); ok && repr.AST.SourceMapComment.Text != "" {
+		if repr, ok := result.file.repr.(*graph.JSRepr); ok && repr.AST.SourceMapComment.Text != "" {
 			if path, contents := extractSourceMapFromComment(args.log, args.fs, &args.caches.FSCache,
 				args.res, &source, repr.AST.SourceMapComment, absResolveDir); contents != nil {
 				result.file.sourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
@@ -1033,7 +999,7 @@ func ScanBundle(
 		s.resultChannel <- parseResult{
 			file: file{
 				module: graph.Module{Source: source},
-				repr:   &JSRepr{AST: ast},
+				repr:   &graph.JSRepr{AST: ast},
 			},
 			ok: ok,
 		}
@@ -1222,7 +1188,7 @@ func (s *scanner) preprocessInjectedFiles() {
 			file: file{
 				module:         graph.Module{Source: source},
 				loader:         config.LoaderJSON,
-				repr:           &JSRepr{AST: ast},
+				repr:           &graph.JSRepr{AST: ast},
 				ignoreIfUnused: true,
 			},
 		}
@@ -1642,7 +1608,7 @@ func (s *scanner) processScannedFiles() []file {
 				case ast.ImportAt, ast.ImportAtConditional:
 					// Using a JavaScript file with CSS "@import" is not allowed
 					otherFile := &s.results[record.SourceIndex.GetIndex()].file
-					if _, ok := otherFile.repr.(*JSRepr); ok {
+					if _, ok := otherFile.repr.(*graph.JSRepr); ok {
 						s.log.AddRangeError(&result.file.module.Source, record.Range,
 							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.module.Source.PrettyPath))
 					} else if record.Kind == ast.ImportAtConditional {
@@ -1654,11 +1620,11 @@ func (s *scanner) processScannedFiles() []file {
 					// Using a JavaScript or CSS file with CSS "url()" is not allowed
 					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					switch otherRepr := otherFile.repr.(type) {
-					case *CSSRepr:
+					case *graph.CSSRepr:
 						s.log.AddRangeError(&result.file.module.Source, record.Range,
 							fmt.Sprintf("Cannot use %q as a URL", otherFile.module.Source.PrettyPath))
 
-					case *JSRepr:
+					case *graph.JSRepr:
 						if otherRepr.AST.URLForCSS == "" {
 							s.log.AddRangeError(&result.file.module.Source, record.Range,
 								fmt.Sprintf("Cannot use %q as a URL", otherFile.module.Source.PrettyPath))
@@ -1669,9 +1635,9 @@ func (s *scanner) processScannedFiles() []file {
 				// If an import from a JavaScript file targets a CSS file, generate a
 				// JavaScript stub to ensure that JavaScript files only ever import
 				// other JavaScript files.
-				if _, ok := result.file.repr.(*JSRepr); ok {
+				if _, ok := result.file.repr.(*graph.JSRepr); ok {
 					otherFile := &s.results[record.SourceIndex.GetIndex()].file
-					if css, ok := otherFile.repr.(*CSSRepr); ok {
+					if css, ok := otherFile.repr.(*graph.CSSRepr); ok {
 						if s.options.WriteToStdout {
 							s.log.AddRangeError(&result.file.module.Source, record.Range,
 								fmt.Sprintf("Cannot import %q into a JavaScript file without an output path configured", otherFile.module.Source.PrettyPath))
@@ -1688,7 +1654,7 @@ func (s *scanner) processScannedFiles() []file {
 							s.results[sourceIndex] = parseResult{
 								file: file{
 									module: graph.Module{Source: source},
-									repr: &JSRepr{
+									repr: &graph.JSRepr{
 										AST: js_parser.LazyExportAST(s.log, source,
 											js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: &js_ast.EObject{}}, ""),
 										CSSSourceIndex: ast.MakeIndex32(record.SourceIndex.GetIndex()),
@@ -1762,7 +1728,7 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 	result := &s.results[sourceIndex]
 
 	if result.ok && result.tlaCheck.depth == 0 {
-		if repr, ok := result.file.repr.(*JSRepr); ok {
+		if repr, ok := result.file.repr.(*graph.JSRepr); ok {
 			result.tlaCheck.depth = 1
 			if repr.AST.TopLevelAwaitKeyword.Len > 0 {
 				result.tlaCheck.parent = ast.MakeIndex32(sourceIndex)
@@ -1792,7 +1758,7 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 						// Build up a chain of relevant notes for all of the imports
 						for {
 							parentResult := &s.results[otherSourceIndex]
-							parentRepr := parentResult.file.repr.(*JSRepr)
+							parentRepr := parentResult.file.repr.(*graph.JSRepr)
 
 							if parentRepr.AST.TopLevelAwaitKeyword.Len > 0 {
 								tlaPrettyPath = parentResult.file.module.Source.PrettyPath
@@ -2026,7 +1992,7 @@ func findReachableFiles(files []file, entryPoints []entryMeta) []uint32 {
 		if !visited[sourceIndex] {
 			visited[sourceIndex] = true
 			file := &files[sourceIndex]
-			if repr, ok := file.repr.(*JSRepr); ok && repr.CSSSourceIndex.IsValid() {
+			if repr, ok := file.repr.(*graph.JSRepr); ok && repr.CSSSourceIndex.IsValid() {
 				visit(repr.CSSSourceIndex.GetIndex())
 			}
 			for _, record := range *file.repr.ImportRecords() {
@@ -2073,9 +2039,9 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 
 	for _, sourceIndex := range reachableFiles {
 		if f := &b.files[sourceIndex]; f.loader.CanHaveSourceMap() {
-			if repr, ok := f.repr.(*JSRepr); ok {
+			if repr, ok := f.repr.(*graph.JSRepr); ok {
 				waitGroup.Add(1)
-				go func(sourceIndex uint32, f *file, repr *JSRepr) {
+				go func(sourceIndex uint32, f *file, repr *graph.JSRepr) {
 					result := &results[sourceIndex]
 					result.lineOffsetTables = js_printer.GenerateLineOffsetTables(f.module.Source.Contents, repr.AST.ApproximateLineCount)
 					sm := f.sourceMap
