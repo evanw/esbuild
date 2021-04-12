@@ -1135,22 +1135,22 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 // We want to minimize the number of times directory contents are listed. For
 // this reason, the directory entries are computed by the caller and then
 // passed down to us.
-func (r resolverQuery) loadAsIndex(path string, entries fs.DirEntries) (string, bool, *fs.DifferentCase) {
+func (r resolverQuery) loadAsIndex(dirInfo *dirInfo, path string) (PathPair, bool, *fs.DifferentCase) {
 	// Try the "index" file with extensions
 	for _, ext := range r.options.ExtensionOrder {
 		base := "index" + ext
-		if entry, diffCase := entries.Get(base); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+		if entry, diffCase := dirInfo.entries.Get(base); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("Found file %q", r.fs.Join(path, base)))
 			}
-			return r.fs.Join(path, base), true, diffCase
+			return PathPair{Primary: logger.Path{Text: r.fs.Join(path, base), Namespace: "file"}}, true, diffCase
 		}
 		if r.debugLogs != nil {
 			r.debugLogs.addNote(fmt.Sprintf("Failed to find file %q", r.fs.Join(path, base)))
 		}
 	}
 
-	return "", false, nil
+	return PathPair{}, false, nil
 }
 
 func getProperty(json js_ast.Expr, name string) (js_ast.Expr, logger.Loc, bool) {
@@ -1235,8 +1235,8 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 
 			// Is it a directory with an index?
 			if fieldDirInfo := r.dirInfoCached(fieldAbsPath); fieldDirInfo != nil {
-				if absolute, ok, _ := r.loadAsIndex(fieldAbsPath, fieldDirInfo.entries); ok {
-					return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, nil
+				if absolute, ok, _ := r.loadAsIndex(fieldDirInfo, fieldAbsPath); ok {
+					return absolute, true, nil
 				}
 			}
 
@@ -1269,8 +1269,8 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 						// Some packages have a "module" field without a "main" field but
 						// still have an implicit "index.js" file. In that case, treat that
 						// as the value for "main".
-						if absolute, ok, diffCase := r.loadAsIndex(path, dirInfo.entries); ok {
-							absoluteMain = PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}
+						if absolute, ok, diffCase := r.loadAsIndex(dirInfo, path); ok {
+							absoluteMain = absolute
 							okMain = true
 							diffCaseMain = diffCase
 						}
@@ -1315,8 +1315,8 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 	}
 
 	// Look for an "index" file with known extensions
-	if absolute, ok, diffCase := r.loadAsIndex(path, dirInfo.entries); ok {
-		return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
+	if absolute, ok, diffCase := r.loadAsIndex(dirInfo, path); ok {
+		return absolute, true, diffCase
 	}
 
 	return PathPair{}, false, nil
