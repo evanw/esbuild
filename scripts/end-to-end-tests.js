@@ -182,6 +182,22 @@
     }),
     test(['entry.js', '--bundle', '--outfile=node.js'], {
       'entry.js': `require('pkg')`,
+      'node_modules/pkg/package.json': `{ "browser": { "./index.js": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'node_modules/pkg/index.js': `throw 'fail'`,
+      'node_modules/pkg/package.json': `{ "browser": { "./index": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'node_modules/pkg/package.json': `{ "browser": { "./index": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
       'node_modules/pkg/main.js': `throw 'fail'`,
       'node_modules/pkg/package.json': `{ "main": "./main",\n  "browser": { "./main.js": "./file" } }`,
       'node_modules/pkg/file.js': `var works = true`,

@@ -1129,12 +1129,9 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 	return "", false, nil
 }
 
-// We want to minimize the number of times directory contents are listed. For
-// this reason, the directory entries are computed by the caller and then
-// passed down to us.
-func (r resolverQuery) loadAsIndex(dirInfo *dirInfo, path string) (PathPair, bool, *fs.DifferentCase) {
+func (r resolverQuery) loadAsIndex(dirInfo *dirInfo, path string, extensionOrder []string) (PathPair, bool, *fs.DifferentCase) {
 	// Try the "index" file with extensions
-	for _, ext := range r.options.ExtensionOrder {
+	for _, ext := range extensionOrder {
 		base := "index" + ext
 		if entry, diffCase := dirInfo.entries.Get(base); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 			if r.debugLogs != nil {
@@ -1148,6 +1145,35 @@ func (r resolverQuery) loadAsIndex(dirInfo *dirInfo, path string) (PathPair, boo
 	}
 
 	return PathPair{}, false, nil
+}
+
+func (r resolverQuery) loadAsIndexWithBrowserRemapping(dirInfo *dirInfo, path string, extensionOrder []string) (PathPair, bool, *fs.DifferentCase) {
+	// Potentially remap using the "browser" field
+	if dirInfo.enclosingBrowserScope != nil {
+		if remapped, ok := r.checkBrowserMap(dirInfo.enclosingBrowserScope.packageJSON, "index"); ok {
+			if remapped == nil {
+				return PathPair{Primary: logger.Path{Text: r.fs.Join(path, "index"), Namespace: "file", Flags: logger.PathDisabled}}, true, nil
+			}
+			remappedAbs := r.fs.Join(path, *remapped)
+
+			// Is this a file?
+			absolute, ok, diffCase := r.loadAsFile(remappedAbs, extensionOrder)
+			if ok {
+				return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
+			}
+
+			// Is it a directory with an index?
+			if fieldDirInfo := r.dirInfoCached(remappedAbs); fieldDirInfo != nil {
+				if absolute, ok, _ := r.loadAsIndex(fieldDirInfo, remappedAbs, extensionOrder); ok {
+					return absolute, true, nil
+				}
+			}
+
+			return PathPair{}, false, nil
+		}
+	}
+
+	return r.loadAsIndex(dirInfo, path, extensionOrder)
 }
 
 func getProperty(json js_ast.Expr, name string) (js_ast.Expr, logger.Loc, bool) {
@@ -1212,16 +1238,15 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 		}
 
 		loadMainField := func(fieldRelPath string) (PathPair, bool, *fs.DifferentCase) {
+			// Potentially remap using the "browser" field
 			if dirInfo.enclosingBrowserScope != nil {
 				if remapped, ok := r.checkBrowserMap(dirInfo.enclosingBrowserScope.packageJSON, fieldRelPath); ok {
 					if remapped == nil {
 						return PathPair{Primary: logger.Path{Text: r.fs.Join(path, fieldRelPath), Namespace: "file", Flags: logger.PathDisabled}}, true, nil
-					} else {
-						fieldRelPath = *remapped
 					}
+					fieldRelPath = *remapped
 				}
 			}
-
 			fieldAbsPath := r.fs.Join(path, fieldRelPath)
 
 			// Is this a file?
@@ -1232,7 +1257,7 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 
 			// Is it a directory with an index?
 			if fieldDirInfo := r.dirInfoCached(fieldAbsPath); fieldDirInfo != nil {
-				if absolute, ok, _ := r.loadAsIndex(fieldDirInfo, fieldAbsPath); ok {
+				if absolute, ok, _ := r.loadAsIndexWithBrowserRemapping(fieldDirInfo, fieldAbsPath, extensionOrder); ok {
 					return absolute, true, nil
 				}
 			}
@@ -1266,7 +1291,7 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 						// Some packages have a "module" field without a "main" field but
 						// still have an implicit "index.js" file. In that case, treat that
 						// as the value for "main".
-						if absolute, ok, diffCase := r.loadAsIndex(dirInfo, path); ok {
+						if absolute, ok, diffCase := r.loadAsIndexWithBrowserRemapping(dirInfo, path, extensionOrder); ok {
 							absoluteMain = absolute
 							okMain = true
 							diffCaseMain = diffCase
@@ -1312,7 +1337,7 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 	}
 
 	// Look for an "index" file with known extensions
-	if absolute, ok, diffCase := r.loadAsIndex(dirInfo, path); ok {
+	if absolute, ok, diffCase := r.loadAsIndexWithBrowserRemapping(dirInfo, path, extensionOrder); ok {
 		return absolute, true, diffCase
 	}
 
@@ -1595,7 +1620,8 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 							if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
 								if remapped == nil {
 									return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil, DebugMeta{}
-								} else if remappedResult, ok, diffCase, notes := r.resolveWithoutRemapping(pkgDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+								}
+								if remappedResult, ok, diffCase, notes := r.resolveWithoutRemapping(pkgDirInfo.enclosingBrowserScope, *remapped, kind); ok {
 									return remappedResult, true, diffCase, notes
 								}
 							}
