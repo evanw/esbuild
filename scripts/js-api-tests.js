@@ -409,7 +409,7 @@ let buildTests = {
     const resultMap = await readFileAsync(output + '.map', 'utf8')
     const json = JSON.parse(resultMap)
     assert.strictEqual(json.version, 3)
-    assert.strictEqual(json.sources[0], path.basename(disabled))
+    assert.strictEqual(json.sources[0], 'disabled')
     assert.strictEqual(json.sources[1], path.basename(input))
     assert.strictEqual(json.sourcesContent[0], '')
     assert.strictEqual(json.sourcesContent[1], content)
