@@ -608,7 +608,7 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}, IsExternal: true}, DebugMeta{}
 		}
 
-		// Check the non-package "browser" map for the first time (1 out of 2)
+		// Check the "browser" map for the first time (1 out of 2)
 		if importDirInfo := r.dirInfoCached(r.fs.Dir(absPath)); importDirInfo != nil && importDirInfo.enclosingBrowserScope != nil {
 			if packageJSON := importDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserMap != nil {
 				if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), absPath); ok {
@@ -697,7 +697,7 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 		}
 	}
 
-	// Check the non-package "browser" map for the second time (2 out of 2)
+	// Check the "browser" map for the second time (2 out of 2)
 	for _, path := range result.PathPair.iter() {
 		if resultDirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); resultDirInfo != nil && resultDirInfo.enclosingBrowserScope != nil {
 			if packageJSON := resultDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserMap != nil {
@@ -840,13 +840,13 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 	result := ParseTSConfigJSON(r.log, source, &r.caches.JSONCache, func(extends string, extendsRange logger.Range) *TSConfigJSON {
 		if IsPackagePath(extends) {
 			// If this is a package path, try to resolve it to a "node_modules"
-			// starting from %q. This doesn't use the normal node module resolution algorit,dirInfo.absPathhm
+			// folder. This doesn't use the normal node module resolution algorithm
 			// both because it's different (e.g. we don't want to match a directory)
 			// and because it would deadlock since we're currently in the middle of
 			// populating the directory info cache.
 			current := fileDir
 			for {
-				// Skip "node_modules" starting from %,dirInfo.absPathqs
+				// Skip "node_modules" folders
 				if r.fs.Base(current) != "node_modules" {
 					join := r.fs.Join(current, "node_modules", extends)
 					filesToCheck := []string{r.fs.Join(join, "tsconfig.json"), join, join + ".json"}
@@ -1458,7 +1458,7 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 				r.debugLogs.addNote(fmt.Sprintf("Checking for a package in the directory %q", absPath))
 			}
 
-			// Check for an "exports" map in the package's package.json starting from ,dirInfo.absPath%q
+			// Check for an "exports" map in the package's package.json folder
 			if esmOK {
 				absPkgPath := r.fs.Join(dirInfo.absPath, "node_modules", esmPackageName)
 				if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil {
@@ -1592,7 +1592,7 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 				}
 			}
 
-			// Check the non-package "browser" map for the first time (1 out of 2)
+			// Check the "browser" map for the first time (1 out of 2)
 			if importDirInfo := r.dirInfoCached(r.fs.Dir(absPath)); importDirInfo != nil && importDirInfo.enclosingBrowserScope != nil {
 				if packageJSON := importDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserMap != nil {
 					if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), absPath); ok {
