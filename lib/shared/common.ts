@@ -552,7 +552,9 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
         case 'serve-build': {
           let callbacks = serveCallbacks.get(request.serveID);
-          if (callbacks && callbacks.onBuild) callbacks.onBuild(request.args);
+          let buildResult: types.BuildResult = { warnings: request.args.warnings }
+          copyResponseToResult(request.args, buildResult);
+          if (callbacks && callbacks.onBuild) callbacks.onBuild(buildResult);
           sendResponse(id, {});
           break;
         }
@@ -891,6 +893,11 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   }
 
+  let copyResponseToResult = (response: protocol.BuildResponse, result: types.BuildResult) => {
+    if (response.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
+    if (response.metafile) result.metafile = JSON.parse(response!.metafile);
+    if (response.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''));
+  };
   // "buildOrServe" cannot be written using async/await due to "buildSync" and
   // must be written in continuation-passing style instead. Sorry about all of
   // the arguments, but these are passed explicitly instead of using another
@@ -962,11 +969,6 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     // Factor out response handling so it can be reused for rebuilds
     let rebuild: types.BuildResult['rebuild'] | undefined;
     let stop: types.BuildResult['stop'] | undefined;
-    let copyResponseToResult = (response: protocol.BuildResponse, result: types.BuildResult) => {
-      if (response.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
-      if (response.metafile) result.metafile = JSON.parse(response!.metafile);
-      if (response.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''));
-    };
     let buildResponseToResult = (
       response: protocol.BuildResponse | null,
       callback: (error: Error | null, result: types.BuildResult | null) => void,

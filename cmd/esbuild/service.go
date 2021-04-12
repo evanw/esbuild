@@ -523,14 +523,20 @@ func (service *serviceType) handleServeRequest(id uint32, options api.BuildOptio
 		})
 	}
 	serveOptions.OnBuild = func(args api.BuildResult) {
+		response := map[string]interface{}{
+			"errors":   encodeMessages(args.Errors),
+			"warnings": encodeMessages(args.Warnings),
+		}
+		if !options.Write {
+			response["outputFiles"] = encodeOutputFiles(args.OutputFiles)
+		}
+		if options.Metafile {
+			response["metafile"] = args.Metafile
+		}
 		service.sendRequest(map[string]interface{}{
 			"command": "serve-build",
 			"serveID": serveID,
-			"args": map[string]interface{}{
-				"errors":   encodeMessages(args.Errors),
-				"warnings": encodeMessages(args.Warnings),
-				"metafile": args.Metafile,
-			},
+			"args":    response,
 		})
 	}
 	result, err := api.Serve(serveOptions, options)

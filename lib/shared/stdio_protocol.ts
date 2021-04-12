@@ -88,7 +88,7 @@ export interface OnRequestRequest {
 export interface OnServeBuild {
   command: 'serve-build';
   serveID: number;
-  args: types.BuildResult;
+  args: BuildResponse;
 }
 
 export interface OnWaitRequest {
