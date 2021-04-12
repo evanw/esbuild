@@ -146,5 +146,5 @@ func (fs *mockFS) kind(dir string, base string) (symlink string, kind EntryKind)
 }
 
 func (fs *mockFS) WatchData() WatchData {
-	panic("This should never be called")
+	return WatchData{Paths: map[string]func() bool{}}
 }
