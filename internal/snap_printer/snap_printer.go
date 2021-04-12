@@ -909,6 +909,16 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	return c
 }
 
+func (p *printer) resolveRequireName(record *ast.ImportRecord) string {
+	if record.SourceIndex.IsValid() {
+		wrapperRef := p.options.RequireOrImportMetaForSource(record.SourceIndex.GetIndex()).WrapperRef
+		return p.renamer.NameForSymbol(wrapperRef)
+
+	} else {
+		return record.Path.Text
+	}
+}
+
 func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []js_ast.Comment, level js_ast.L, flags int) {
 	record := &p.importRecords[importRecordIndex]
 
@@ -918,7 +928,8 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		level = js_ast.LLowest
 	}
 
-	if !record.SourceIndex.IsValid() {
+	// TODO(thlorenz): ensure that when not rewriting a module `require`s are printed correctly
+	if p.renamer.IsEnabled || !record.SourceIndex.IsValid() {
 		// External "require()"
 		if record.Kind != ast.ImportDynamic {
 			if record.WrapWithToModule {
@@ -929,7 +940,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 			p.printSpaceBeforeIdentifier()
 			p.print("require(")
 			p.addSourceMapping(record.Range.Loc)
-			p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
+			p.printQuotedUTF8(p.resolveRequireName(record), true /* allowBacktick */)
 			p.print(")")
 			return
 		}
@@ -954,9 +965,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 
 			p.printSpaceBeforeIdentifier()
 			p.print("require(")
-			wrapperRef := p.options.RequireOrImportMetaForSource(record.SourceIndex.GetIndex()).WrapperRef
-			name := p.renamer.NameForSymbol(wrapperRef)
-			p.printQuotedUTF8(name, true /* allowBacktick */)
+			p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 			defer p.print(")")
 		}
 		if len(leadingInteriorComments) > 0 {
