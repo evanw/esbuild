@@ -610,17 +610,16 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 
 		// Check the "browser" map for the first time (1 out of 2)
 		if importDirInfo := r.dirInfoCached(r.fs.Dir(absPath)); importDirInfo != nil && importDirInfo.enclosingBrowserScope != nil {
-			if packageJSON := importDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserMap != nil {
-				if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), absPath); ok {
-					if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
-						if remapped == nil {
-							return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}, DebugMeta{}
-						}
-						if remappedResult, ok, diffCase, _ := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-							result = ResolveResult{PathPair: remappedResult, DifferentCase: diffCase}
-							checkRelative = false
-							checkPackage = false
-						}
+			packageJSON := importDirInfo.enclosingBrowserScope.packageJSON
+			if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), absPath); ok {
+				if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
+					if remapped == nil {
+						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}, DebugMeta{}
+					}
+					if remappedResult, ok, diffCase, _ := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+						result = ResolveResult{PathPair: remappedResult, DifferentCase: diffCase}
+						checkRelative = false
+						checkPackage = false
 					}
 				}
 			}
@@ -666,26 +665,25 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 
 		// Support remapping one package path to another via the "browser" field
 		if sourceDirInfo.enclosingBrowserScope != nil {
-			if packageJSON := sourceDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserMap != nil {
-				if remapped, ok := r.checkBrowserMap(packageJSON, importPath); ok {
-					if remapped == nil {
-						// "browser": {"module": false}
-						if absolute, ok, diffCase, _ := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
-							absolute.Primary = logger.Path{Text: absolute.Primary.Text, Namespace: "file", Flags: logger.PathDisabled}
-							if absolute.HasSecondary() {
-								absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Namespace: "file", Flags: logger.PathDisabled}
-							}
-							return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}, DebugMeta{}
-						} else {
-							return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Flags: logger.PathDisabled}}, DifferentCase: diffCase}, DebugMeta{}
+			packageJSON := sourceDirInfo.enclosingBrowserScope.packageJSON
+			if remapped, ok := r.checkBrowserMap(packageJSON, importPath); ok {
+				if remapped == nil {
+					// "browser": {"module": false}
+					if absolute, ok, diffCase, _ := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
+						absolute.Primary = logger.Path{Text: absolute.Primary.Text, Namespace: "file", Flags: logger.PathDisabled}
+						if absolute.HasSecondary() {
+							absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Namespace: "file", Flags: logger.PathDisabled}
 						}
+						return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}, DebugMeta{}
+					} else {
+						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Flags: logger.PathDisabled}}, DifferentCase: diffCase}, DebugMeta{}
 					}
-
-					// "browser": {"module": "./some-file"}
-					// "browser": {"module": "another-module"}
-					importPath = *remapped
-					sourceDirInfo = sourceDirInfo.enclosingBrowserScope
 				}
+
+				// "browser": {"module": "./some-file"}
+				// "browser": {"module": "another-module"}
+				importPath = *remapped
+				sourceDirInfo = sourceDirInfo.enclosingBrowserScope
 			}
 		}
 
@@ -700,17 +698,16 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 	// Check the "browser" map for the second time (2 out of 2)
 	for _, path := range result.PathPair.iter() {
 		if resultDirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); resultDirInfo != nil && resultDirInfo.enclosingBrowserScope != nil {
-			if packageJSON := resultDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserMap != nil {
-				if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), path.Text); ok {
-					if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
-						if remapped == nil {
-							path.Flags |= logger.PathDisabled
+			packageJSON := resultDirInfo.enclosingBrowserScope.packageJSON
+			if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), path.Text); ok {
+				if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
+					if remapped == nil {
+						path.Flags |= logger.PathDisabled
+					} else {
+						if remappedResult, ok, _, _ := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+							*path = remappedResult.Primary
 						} else {
-							if remappedResult, ok, _, _ := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-								*path = remappedResult.Primary
-							} else {
-								return nil, DebugMeta{}
-							}
+							return nil, DebugMeta{}
 						}
 					}
 				}
@@ -1215,8 +1212,8 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 		}
 
 		loadMainField := func(fieldRelPath string) (PathPair, bool, *fs.DifferentCase) {
-			if dirInfo.packageJSON.browserMap != nil {
-				if remapped, ok := r.checkBrowserMap(dirInfo.packageJSON, fieldRelPath); ok {
+			if dirInfo.enclosingBrowserScope != nil {
+				if remapped, ok := r.checkBrowserMap(dirInfo.enclosingBrowserScope.packageJSON, fieldRelPath); ok {
 					if remapped == nil {
 						return PathPair{Primary: logger.Path{Text: r.fs.Join(path, fieldRelPath), Namespace: "file", Flags: logger.PathDisabled}}, true, nil
 					} else {
@@ -1461,13 +1458,11 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 			// Check for an "exports" map in the package's package.json folder
 			if esmOK {
 				absPkgPath := r.fs.Join(dirInfo.absPath, "node_modules", esmPackageName)
-				if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil && pkgDirInfo.packageJSON != nil {
-					pkgJSON := pkgDirInfo.packageJSON
-
+				if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil {
 					// Check for an "exports" map in the package's package.json folder
-					if pkgJSON.exportsMap != nil {
+					if packageJSON := pkgDirInfo.packageJSON; packageJSON != nil && packageJSON.exportsMap != nil {
 						if r.debugLogs != nil {
-							r.debugLogs.addNote(fmt.Sprintf("Checking \"exports\" map in %s", pkgJSON.source.KeyPath.Text))
+							r.debugLogs.addNote(fmt.Sprintf("Checking \"exports\" map in %s", packageJSON.source.KeyPath.Text))
 						}
 
 						// The condition set is determined by the kind of import
@@ -1485,7 +1480,7 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 						// want problems due to Windows paths, which are very unlike URL
 						// paths. We also want to avoid any "%" characters in the absolute
 						// directory path accidentally being interpreted as URL escapes.
-						resolvedPath, status, debug := esmPackageExportsResolveWithPostConditions("/", esmPackageSubpath, pkgJSON.exportsMap.root, conditions)
+						resolvedPath, status, debug := esmPackageExportsResolveWithPostConditions("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
 						if (status == peStatusExact || status == peStatusInexact) && strings.HasPrefix(resolvedPath, "/") {
 							absResolvedPath := r.fs.Join(absPkgPath, resolvedPath[1:])
 
@@ -1527,11 +1522,11 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 						// Provide additional details about the failure to help with debugging
 						switch status {
 						case peStatusInvalidModuleSpecifier:
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token,
+							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
 								fmt.Sprintf("The module specifier %q is invalid", resolvedPath))}
 
 						case peStatusInvalidPackageConfiguration:
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token,
+							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
 								"The package configuration has an invalid value here")}
 
 						case peStatusInvalidPackageTarget:
@@ -1542,18 +1537,18 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 								// configuration error
 								why = "The package configuration has an invalid value here"
 							}
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token, why)}
+							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token, why)}
 
 						case peStatusPackagePathNotExported:
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token,
+							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
 								fmt.Sprintf("The path %q is not exported by package %q", esmPackageSubpath, esmPackageName))}
 
 						case peStatusModuleNotFound:
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token,
+							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
 								fmt.Sprintf("The module %q was not found on the file system", resolvedPath))}
 
 						case peStatusUnsupportedDirectoryImport:
-							notes = []logger.MsgData{logger.RangeData(&pkgJSON.source, debug.token,
+							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
 								fmt.Sprintf("Importing the directory %q is not supported", resolvedPath))}
 
 						case peStatusUndefinedNoConditionsMatch:
@@ -1570,10 +1565,10 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 							}
 							sort.Strings(keys)
 							notes = []logger.MsgData{
-								logger.RangeData(&pkgJSON.source, pkgJSON.exportsMap.root.firstToken,
+								logger.RangeData(&packageJSON.source, packageJSON.exportsMap.root.firstToken,
 									fmt.Sprintf("The path %q is not currently exported by package %q",
 										esmPackageSubpath, esmPackageName)),
-								logger.RangeData(&pkgJSON.source, debug.token,
+								logger.RangeData(&packageJSON.source, debug.token,
 									fmt.Sprintf("None of the conditions provided (%s) match any of the currently active conditions (%s)",
 										prettyPrintConditions(debug.unmatchedConditions),
 										prettyPrintConditions(keys),
@@ -1594,9 +1589,10 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 					}
 
 					// Check the "browser" map
-					if pkgJSON.browserMap != nil {
-						if relPath, ok := r.fs.Rel(r.fs.Dir(pkgJSON.source.KeyPath.Text), absPath); ok {
-							if remapped, ok := r.checkBrowserMap(pkgJSON, relPath); ok {
+					if pkgDirInfo.enclosingBrowserScope != nil {
+						packageJSON := pkgDirInfo.enclosingBrowserScope.packageJSON
+						if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), absPath); ok {
+							if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
 								if remapped == nil {
 									return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil, DebugMeta{}
 								} else if remappedResult, ok, diffCase, notes := r.resolveWithoutRemapping(pkgDirInfo.enclosingBrowserScope, *remapped, kind); ok {
