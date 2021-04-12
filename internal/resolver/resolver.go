@@ -1228,28 +1228,71 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 	}
 
 	// Try using the main field(s) from "package.json"
-	if dirInfo.packageJSON != nil && dirInfo.packageJSON.absMainFields != nil {
-		absMainFields := dirInfo.packageJSON.absMainFields
-		mainFields := r.options.MainFields
+	if dirInfo.packageJSON != nil && dirInfo.packageJSON.mainFields != nil {
+		mainFieldValues := dirInfo.packageJSON.mainFields
+		mainFieldKeys := r.options.MainFields
 		autoMain := false
 
 		// If the user has not explicitly specified a "main" field order,
 		// use a default one determined by the current platform target
-		if mainFields == nil {
-			mainFields = defaultMainFields[r.options.Platform]
+		if mainFieldKeys == nil {
+			mainFieldKeys = defaultMainFields[r.options.Platform]
 			autoMain = true
 		}
 
-		for _, field := range mainFields {
-			if absolute, ok := absMainFields[field]; ok {
+		loadMainField := func(fieldRelPath string) (string, bool, *fs.DifferentCase) {
+			fieldAbsPath := r.fs.Join(path, fieldRelPath)
+
+			// Is this a file?
+			absolute, ok, diffCase := r.loadAsFile(fieldAbsPath, extensionOrder)
+			if ok {
+				return absolute, true, diffCase
+			}
+
+			// Is it a directory with an index?
+			if fieldDirInfo := r.dirInfoCached(fieldAbsPath); fieldDirInfo != nil {
+				if absolute, ok, _ := r.loadAsIndex(fieldAbsPath, fieldDirInfo.entries); ok {
+					return absolute, true, nil
+				}
+			}
+
+			return "", false, nil
+		}
+
+		for _, key := range mainFieldKeys {
+			if fieldRelPath, ok := mainFieldValues[key]; ok {
+				absolute, ok, diffCase := loadMainField(fieldRelPath)
+				if !ok {
+					continue
+				}
+
 				// If the user did not manually configure a "main" field order, then
 				// use a special per-module automatic algorithm to decide whether to
 				// use "module" or "main" based on whether the package is imported
 				// using "import" or "require".
-				if autoMain && field == "module" {
-					absoluteMain, ok := absMainFields["main"]
+				if autoMain && key == "module" {
+					var absoluteMain string
+					var okMain bool
+					var diffCaseMain *fs.DifferentCase
 
-					if ok {
+					if mainRelPath, ok := mainFieldValues["main"]; ok {
+						if absolute, ok, diffCase := loadMainField(mainRelPath); ok {
+							absoluteMain = absolute
+							okMain = true
+							diffCaseMain = diffCase
+						}
+					} else {
+						// Some packages have a "module" field without a "main" field but
+						// still have an implicit "index.js" file. In that case, treat that
+						// as the value for "main".
+						if absolute, ok, diffCase := r.loadAsIndex(path, dirInfo.entries); ok {
+							absoluteMain = absolute
+							okMain = true
+							diffCaseMain = diffCase
+						}
+					}
+
+					if okMain {
 						// If both the "main" and "module" fields exist, use "main" if the
 						// path is for "require" and "module" if the path is for "import".
 						// If we're using "module", return enough information to be able to
@@ -1267,28 +1310,28 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 								// This is the whole point of the path pair
 								Primary:   logger.Path{Text: absolute, Namespace: "file"},
 								Secondary: logger.Path{Text: absoluteMain, Namespace: "file"},
-							}, true, nil
+							}, true, diffCase
 						} else {
 							if r.debugLogs != nil {
 								r.debugLogs.addNote(fmt.Sprintf("Resolved to %q because of \"require\"", absoluteMain))
 							}
-							return PathPair{Primary: logger.Path{Text: absoluteMain, Namespace: "file"}}, true, nil
+							return PathPair{Primary: logger.Path{Text: absoluteMain, Namespace: "file"}}, true, diffCaseMain
 						}
 					}
 				}
 
 				if r.debugLogs != nil {
 					r.debugLogs.addNote(fmt.Sprintf("Resolved to %q using the %q field in %q",
-						absolute, field, dirInfo.packageJSON.source.KeyPath.Text))
+						absolute, key, dirInfo.packageJSON.source.KeyPath.Text))
 				}
-				return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, nil
+				return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
 			}
 		}
 	}
 
 	// Look for an "index" file with known extensions
-	if absolute, ok, _ := r.loadAsIndex(path, dirInfo.entries); ok {
-		return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, nil
+	if absolute, ok, diffCase := r.loadAsIndex(path, dirInfo.entries); ok {
+		return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
 	}
 
 	return PathPair{}, false, nil

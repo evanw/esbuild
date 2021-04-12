@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"syscall"
 
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
@@ -17,9 +16,9 @@ import (
 )
 
 type packageJSON struct {
-	source        logger.Source
-	absMainFields map[string]string
-	moduleType    config.ModuleType
+	source     logger.Source
+	mainFields map[string]string
+	moduleType config.ModuleType
 
 	// Present if the "browser" field is present. This field is intended to be
 	// used by bundlers and lets you redirect the paths of certain 3rd-party
@@ -95,31 +94,6 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 		return nil
 	}
 
-	toAbsPath := func(pathText string, pathRange logger.Range) *string {
-		// Is it a file?
-		if absolute, ok, _ := r.loadAsFile(pathText, r.options.ExtensionOrder); ok {
-			return &absolute
-		}
-
-		// Is it a directory?
-		if mainEntries, err, originalError := r.fs.ReadDirectory(pathText); err == nil {
-			// Look for an "index" file with known extensions
-			if absolute, ok, _ := r.loadAsIndex(pathText, mainEntries); ok {
-				return &absolute
-			}
-		} else {
-			if r.debugLogs != nil && originalError != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Failed to read directory %q: %s", pathText, originalError.Error()))
-			}
-			if err != syscall.ENOENT {
-				r.log.AddRangeError(&jsonSource, pathRange,
-					fmt.Sprintf("Cannot read directory %q: %s",
-						r.PrettyPath(logger.Path{Text: pathText, Namespace: "file"}), err.Error()))
-			}
-		}
-		return nil
-	}
-
 	packageJSON := &packageJSON{source: jsonSource}
 
 	// Read the "type" field
@@ -147,13 +121,11 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 	}
 	for _, field := range mainFields {
 		if mainJSON, _, ok := getProperty(json, field); ok {
-			if main, ok := getString(mainJSON); ok {
-				if packageJSON.absMainFields == nil {
-					packageJSON.absMainFields = make(map[string]string)
+			if main, ok := getString(mainJSON); ok && main != "" {
+				if packageJSON.mainFields == nil {
+					packageJSON.mainFields = make(map[string]string)
 				}
-				if absPath := toAbsPath(r.fs.Join(path, main), jsonSource.RangeOfString(mainJSON.Loc)); absPath != nil {
-					packageJSON.absMainFields[field] = *absPath
-				}
+				packageJSON.mainFields[field] = main
 			}
 		}
 	}
