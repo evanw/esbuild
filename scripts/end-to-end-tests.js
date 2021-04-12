@@ -153,6 +153,16 @@
       'node_modules/pkg/file.js': `var works = true`,
     }),
     test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg/foo/bar')`,
+      'node_modules/pkg/package.json': `{ "browser": { "./foo/bar": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg/foo/bar')`,
+      'node_modules/pkg/package.json': `{ "browser": { "foo/bar": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
       'entry.js': `require('pkg')`,
       'node_modules/pkg/index.js': `require('foo/bar')`,
       'node_modules/pkg/package.json': `{ "browser": { "./foo/bar": "./file" } }`,

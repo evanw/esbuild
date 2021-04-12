@@ -1461,8 +1461,11 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 			// Check for an "exports" map in the package's package.json folder
 			if esmOK {
 				absPkgPath := r.fs.Join(dirInfo.absPath, "node_modules", esmPackageName)
-				if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil {
-					if pkgJSON := pkgDirInfo.packageJSON; pkgJSON != nil && pkgJSON.exportsMap != nil {
+				if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil && pkgDirInfo.packageJSON != nil {
+					pkgJSON := pkgDirInfo.packageJSON
+
+					// Check for an "exports" map in the package's package.json folder
+					if pkgJSON.exportsMap != nil {
 						if r.debugLogs != nil {
 							r.debugLogs.addNote(fmt.Sprintf("Checking \"exports\" map in %s", pkgJSON.source.KeyPath.Text))
 						}
@@ -1587,6 +1590,19 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 						return PathPair{}, false, nil, DebugMeta{
 							notes:    notes,
 							approach: approach,
+						}
+					}
+
+					// Check the "browser" map
+					if pkgJSON.browserMap != nil {
+						if relPath, ok := r.fs.Rel(r.fs.Dir(pkgJSON.source.KeyPath.Text), absPath); ok {
+							if remapped, ok := r.checkBrowserMap(pkgJSON, relPath); ok {
+								if remapped == nil {
+									return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil, DebugMeta{}
+								} else if remappedResult, ok, diffCase, notes := r.resolveWithoutRemapping(pkgDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+									return remappedResult, true, diffCase, notes
+								}
+							}
 						}
 					}
 				}
