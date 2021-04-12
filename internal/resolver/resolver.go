@@ -797,7 +797,6 @@ type dirInfo struct {
 	absPath        string
 	entries        fs.DirEntries
 	hasNodeModules bool          // Is there a "node_modules" subdirectory?
-	absPathIndex   *string       // Is there an "index.js" file?
 	packageJSON    *packageJSON  // Is there a "package.json" file?
 	tsConfigJSON   *TSConfigJSON // Is there a "tsconfig.json" file in this directory or a parent directory?
 	absRealPath    string        // If non-empty, this is the real absolute path resolving any symlinks
@@ -1075,11 +1074,6 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 		info.tsConfigJSON = parentInfo.tsConfigJSON
 	}
 
-	// Look for an "index" file with known extensions
-	if absolute, ok, _ := r.loadAsIndex(path, entries); ok {
-		info.absPathIndex = &absolute
-	}
-
 	return info
 }
 
@@ -1255,14 +1249,6 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 				if autoMain && field == "module" {
 					absoluteMain, ok := absMainFields["main"]
 
-					// Some packages have a "module" field without a "main" field but
-					// still have an implicit "index.js" file. In that case, treat that
-					// as the value for "main".
-					if !ok && dirInfo.absPathIndex != nil {
-						absoluteMain = *dirInfo.absPathIndex
-						ok = true
-					}
-
 					if ok {
 						// If both the "main" and "module" fields exist, use "main" if the
 						// path is for "require" and "module" if the path is for "import".
@@ -1300,12 +1286,9 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 		}
 	}
 
-	// Return the "index.js" file
-	if dirInfo.absPathIndex != nil {
-		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("Resolved to %q using the \"index\" rule", *dirInfo.absPathIndex))
-		}
-		return PathPair{Primary: logger.Path{Text: *dirInfo.absPathIndex, Namespace: "file"}}, true, nil
+	// Look for an "index" file with known extensions
+	if absolute, ok, _ := r.loadAsIndex(path, dirInfo.entries); ok {
+		return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, nil
 	}
 
 	return PathPair{}, false, nil
