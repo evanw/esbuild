@@ -1604,21 +1604,6 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 				}
 			}
 
-			// Check the "browser" map for the first time (1 out of 2)
-			if importDirInfo := r.dirInfoCached(r.fs.Dir(absPath)); importDirInfo != nil && importDirInfo.enclosingBrowserScope != nil {
-				if packageJSON := importDirInfo.enclosingBrowserScope.packageJSON; packageJSON.browserMap != nil {
-					if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), absPath); ok {
-						if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
-							if remapped == nil {
-								return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil, DebugMeta{}
-							} else if remappedResult, ok, diffCase, notes := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-								return remappedResult, true, diffCase, notes
-							}
-						}
-					}
-				}
-			}
-
 			if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath, kind); ok {
 				return absolute, true, diffCase, DebugMeta{}
 			}
