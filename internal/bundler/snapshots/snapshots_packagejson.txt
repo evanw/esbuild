@@ -132,7 +132,7 @@ console.log((0, import_demo_pkg.default)());
 ================================================================================
 TestPackageJsonBrowserMapRelativeDisabled
 ---------- /Users/user/project/out.js ----------
-// (disabled):Users/user/project/node_modules/demo-pkg/util-node.js
+// (disabled):Users/user/project/node_modules/demo-pkg/util-node
 var require_util_node = __commonJS(() => {
 });
 

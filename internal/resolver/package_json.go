@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"syscall"
 
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
@@ -17,9 +16,9 @@ import (
 )
 
 type packageJSON struct {
-	source        logger.Source
-	absMainFields map[string]string
-	moduleType    config.ModuleType
+	source     logger.Source
+	mainFields map[string]string
+	moduleType config.ModuleType
 
 	// Present if the "browser" field is present. This field is intended to be
 	// used by bundlers and lets you redirect the paths of certain 3rd-party
@@ -31,7 +30,7 @@ type packageJSON struct {
 	//
 	// This field contains a mapping of absolute paths to absolute paths. Mapping
 	// to an empty path indicates that the module is disabled. As far as I can
-	// tell, the official spec is a GitHub repo hosted by a user account:
+	// tell, the official spec is an abandoned GitHub repo hosted by a user account:
 	// https://github.com/defunctzombie/package-browser-field-spec. The npm docs
 	// say almost nothing: https://docs.npmjs.com/files/package.json.
 	//
@@ -46,8 +45,7 @@ type packageJSON struct {
 	// * Given the mapping "./ext.js": "./ext-browser.js" the query "./ext.js"
 	//   should match and the query "./ext" should ALSO match.
 	//
-	browserNonPackageMap map[string]*string
-	browserPackageMap    map[string]*string
+	browserMap map[string]*string
 
 	// If this is non-nil, each entry in this map is the absolute path of a file
 	// with side effects. Any entry not in this map should be considered to have
@@ -67,8 +65,57 @@ type packageJSON struct {
 	exportsMap *peMap
 }
 
-func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
-	packageJSONPath := r.fs.Join(path, "package.json")
+func (r resolverQuery) checkBrowserMap(pj *packageJSON, inputPath string) (remapped *string, ok bool) {
+	// Normalize the path so we can compare against it without getting confused by "./"
+	cleanPath := path.Clean(strings.ReplaceAll(inputPath, "\\", "/"))
+
+	if cleanPath == "." {
+		// No bundler supports remapping ".", so we don't either
+		return nil, false
+	}
+
+	if r.debugLogs != nil {
+		r.debugLogs.addNote(fmt.Sprintf("Checking for %q in the \"browser\" map in %q",
+			inputPath, pj.source.KeyPath.Text))
+	}
+
+	// Check for equality
+	if r.debugLogs != nil {
+		r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", cleanPath))
+	}
+	remapped, ok = pj.browserMap[cleanPath]
+
+	// If that failed, try adding implicit extensions
+	if !ok {
+		for _, ext := range r.options.ExtensionOrder {
+			extPath := cleanPath + ext
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", extPath))
+			}
+			remapped, ok = pj.browserMap[extPath]
+			if ok {
+				cleanPath = extPath
+				break
+			}
+		}
+	}
+
+	if r.debugLogs != nil {
+		if ok {
+			if remapped == nil {
+				r.debugLogs.addNote(fmt.Sprintf("  Found %q marked as disabled", inputPath))
+			} else {
+				r.debugLogs.addNote(fmt.Sprintf("  Found %q mapping to %q", cleanPath, *remapped))
+			}
+		} else {
+			r.debugLogs.addNote(fmt.Sprintf("  Failed to find %q", inputPath))
+		}
+	}
+	return
+}
+
+func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
+	packageJSONPath := r.fs.Join(inputPath, "package.json")
 	contents, err, originalError := r.caches.FSCache.ReadFile(r.fs, packageJSONPath)
 	if r.debugLogs != nil && originalError != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", packageJSONPath, originalError.Error()))
@@ -92,31 +139,6 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 
 	json, ok := r.caches.JSONCache.Parse(r.log, jsonSource, js_parser.JSONOptions{})
 	if !ok {
-		return nil
-	}
-
-	toAbsPath := func(pathText string, pathRange logger.Range) *string {
-		// Is it a file?
-		if absolute, ok, _ := r.loadAsFile(pathText, r.options.ExtensionOrder); ok {
-			return &absolute
-		}
-
-		// Is it a directory?
-		if mainEntries, err, originalError := r.fs.ReadDirectory(pathText); err == nil {
-			// Look for an "index" file with known extensions
-			if absolute, ok, _ := r.loadAsIndex(pathText, mainEntries); ok {
-				return &absolute
-			}
-		} else {
-			if r.debugLogs != nil && originalError != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Failed to read directory %q: %s", pathText, originalError.Error()))
-			}
-			if err != syscall.ENOENT {
-				r.log.AddRangeError(&jsonSource, pathRange,
-					fmt.Sprintf("Cannot read directory %q: %s",
-						r.PrettyPath(logger.Path{Text: pathText, Namespace: "file"}), err.Error()))
-			}
-		}
 		return nil
 	}
 
@@ -147,13 +169,11 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 	}
 	for _, field := range mainFields {
 		if mainJSON, _, ok := getProperty(json, field); ok {
-			if main, ok := getString(mainJSON); ok {
-				if packageJSON.absMainFields == nil {
-					packageJSON.absMainFields = make(map[string]string)
+			if main, ok := getString(mainJSON); ok && main != "" {
+				if packageJSON.mainFields == nil {
+					packageJSON.mainFields = make(map[string]string)
 				}
-				if absPath := toAbsPath(r.fs.Join(path, main), jsonSource.RangeOfString(mainJSON.Loc)); absPath != nil {
-					packageJSON.absMainFields[field] = *absPath
-				}
+				packageJSON.mainFields[field] = main
 			}
 		}
 	}
@@ -173,39 +193,38 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 		//
 		if browser, ok := browserJSON.Data.(*js_ast.EObject); ok {
 			// The value is an object
-			browserPackageMap := make(map[string]*string)
-			browserNonPackageMap := make(map[string]*string)
+			browserMap := make(map[string]*string)
 
 			// Remap all files in the browser field
 			for _, prop := range browser.Properties {
 				if key, ok := getString(prop.Key); ok && prop.Value != nil {
-					isPackagePath := IsPackagePath(key)
-
-					// Make this an absolute path if it's not a package
-					if !isPackagePath {
-						key = r.fs.Join(path, key)
-					}
+					// Normalize the path so we can compare against it without getting
+					// confused by "./". There is no distinction between package paths and
+					// relative paths for these values because some tools (i.e. Browserify)
+					// don't make such a distinction.
+					//
+					// This leads to weird things like a mapping for "./foo" matching an
+					// import of "foo", but that's actually not a bug. Or arguably it's a
+					// bug in Browserify but we have to replicate this bug because packages
+					// do this in the wild.
+					key = path.Clean(key)
 
 					if value, ok := getString(*prop.Value); ok {
 						// If this is a string, it's a replacement package
-						if isPackagePath {
-							browserPackageMap[key] = &value
-						} else {
-							browserNonPackageMap[key] = &value
-						}
-					} else if value, ok := getBool(*prop.Value); ok && !value {
+						browserMap[key] = &value
+					} else if value, ok := getBool(*prop.Value); ok {
 						// If this is false, it means the package is disabled
-						if isPackagePath {
-							browserPackageMap[key] = nil
-						} else {
-							browserNonPackageMap[key] = nil
+						if !value {
+							browserMap[key] = nil
 						}
+					} else {
+						r.log.AddWarning(&jsonSource, prop.Value.Loc,
+							"Each \"browser\" mapping must be a string or a boolean")
 					}
 				}
 			}
 
-			packageJSON.browserPackageMap = browserPackageMap
-			packageJSON.browserNonPackageMap = browserNonPackageMap
+			packageJSON.browserMap = browserMap
 		}
 	}
 
@@ -241,7 +260,7 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 					continue
 				}
 
-				absPattern := r.fs.Join(path, js_lexer.UTF16ToString(item.Value))
+				absPattern := r.fs.Join(inputPath, js_lexer.UTF16ToString(item.Value))
 				re, hadWildcard := globToEscapedRegexp(absPattern)
 
 				// Wildcard patterns require more expensive matching

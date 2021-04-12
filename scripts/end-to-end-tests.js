@@ -118,6 +118,118 @@
     }),
   )
 
+  // Test the "browser" field in "package.json"
+  tests.push(
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('foo')`,
+      'package.json': `{ "browser": { "./foo": "./file" } }`,
+      'file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('foo')`,
+      'package.json': `{ "browser": { "foo": "./file" } }`,
+      'file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('./foo')`,
+      'package.json': `{ "browser": { "./foo": "./file" } }`,
+      'file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('./foo')`,
+      'package.json': `{ "browser": { "foo": "./file" } }`,
+      'file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg/foo/bar')`,
+      'node_modules/pkg/package.json': `{ "browser": { "./foo/bar": "./file" } }`,
+      'node_modules/pkg/foo/bar.js': `invalid syntax`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg/foo/bar')`,
+      'node_modules/pkg/package.json': `{ "browser": { "foo/bar": "./file" } }`,
+      'node_modules/pkg/foo/bar.js': `invalid syntax`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg/foo/bar')`,
+      'node_modules/pkg/package.json': `{ "browser": { "./foo/bar": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg/foo/bar')`,
+      'node_modules/pkg/package.json': `{ "browser": { "foo/bar": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'node_modules/pkg/index.js': `require('foo/bar')`,
+      'node_modules/pkg/package.json': `{ "browser": { "./foo/bar": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'node_modules/pkg/index.js': `require('foo/bar')`,
+      'node_modules/pkg/package.json': `{ "browser": { "foo/bar": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'node_modules/pkg/index.js': `throw 'fail'`,
+      'node_modules/pkg/package.json': `{ "browser": { "./index.js": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'node_modules/pkg/package.json': `{ "browser": { "./index.js": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'node_modules/pkg/index.js': `throw 'fail'`,
+      'node_modules/pkg/package.json': `{ "browser": { "./index": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'node_modules/pkg/package.json': `{ "browser": { "./index": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'node_modules/pkg/main.js': `throw 'fail'`,
+      'node_modules/pkg/package.json': `{ "main": "./main",\n  "browser": { "./main.js": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'node_modules/pkg/package.json': `{ "main": "./main",\n  "browser": { "./main.js": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'package.json': `{ "browser": { "pkg2": "pkg3" } }`,
+      'node_modules/pkg/index.js': `require('pkg2')`,
+      'node_modules/pkg/package.json': `{ "browser": { "pkg2": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'package.json': `{ "browser": { "pkg2": "pkg3" } }`,
+      'node_modules/pkg/index.js': `require('pkg2')`,
+      'node_modules/pkg2/index.js': `throw 'fail'`,
+      'node_modules/pkg3/index.js': `var works = true`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `require('pkg')`,
+      'package.json': `{ "browser": { "pkg2": "pkg3" } }`,
+      'node_modules/pkg/index.js': `require('pkg2')`,
+      'node_modules/pkg/package.json': `{ "browser": { "./pkg2": "./file" } }`,
+      'node_modules/pkg/file.js': `var works = true`,
+    }),
+  )
+
   // Tests for symlinks
   //
   // Note: These are disabled on Windows because they fail when run with GitHub
