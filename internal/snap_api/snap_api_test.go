@@ -25,26 +25,24 @@ func TestEntryRequiringLocalModule(t *testing.T) {
 		buildResult{
 			files: map[string]string{
 				ProjectBaseDir + "/entry.js": `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
 let oneTwoThree;
 function __get_oneTwoThree__() {
   return oneTwoThree = oneTwoThree || (require("./foo.js").oneTwoThree)
 }
-  module.exports = function() {
+  module2.exports = function() {
     get_console().log((__get_oneTwoThree__()));
   };
 };`,
 				ProjectBaseDir + `/foo.js`: `
-__commonJS["./foo.js"] = function(exports2, module2, __filename, __dirname, require) {
-  exports2.oneTwoThree = 123;
+__commonJS["./foo.js"] = function(exports, module2, __filename, __dirname, require) {
+  exports.oneTwoThree = 123;
 };`,
 			},
 		},
 	)
 }
 
-// TODO: what about __toModule?
-//   - @see snap_printer.go:1078 (printRequireOrImportExpr)
 func TestEntryImportingLocalModule(t *testing.T) {
 	snapApiSuite.expectBuild(t, built{
 		files: map[string]string{
@@ -61,17 +59,17 @@ func TestEntryImportingLocalModule(t *testing.T) {
 		buildResult{
 			files: map[string]string{
 				ProjectBaseDir + `/foo.js`: `
-__commonJS["./foo.js"] = function(exports2, module2, __filename, __dirname, require) {
-  exports2.oneTwoThree = 123;
+__commonJS["./foo.js"] = function(exports, module2, __filename, __dirname, require) {
+  exports.oneTwoThree = 123;
 };`,
 				ProjectBaseDir + `/entry.js`: `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
-let foo;
-function __get_foo__() {
-  return foo = foo || (__toModule(require("./foo.js")))
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
+let import_foo;
+function __get_import_foo__() {
+  return import_foo = import_foo || (require("./foo.js"))
 }
-  module.exports = function() {
-    get_console().log((__get_foo__()).oneTwoThree);
+  module2.exports = function() {
+    get_console().log((__get_import_foo__()).oneTwoThree);
   };
 };`,
 			},
@@ -93,12 +91,12 @@ module.exports = function () { deprecate() }
 		buildResult{
 			files: map[string]string{
 				ProjectBaseDir + `/entry.js`: `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
 let deprecate;
 function __get_deprecate__() {
   return deprecate = deprecate || (require("./depd.js")("http-errors"))
 }
-  module.exports = function() {
+  module2.exports = function() {
     (__get_deprecate__())();
   };
 };`,
@@ -119,11 +117,11 @@ func TestNotWrappingExports(t *testing.T) {
 		buildResult{
 			files: map[string]string{
 				ProjectBaseDir + "/body-parser.js": `
-__commonJS["./body-parser.js"] = function(exports2, module2, __filename, __dirname, require) {
-  exports2 = module2.exports = foo();
+__commonJS["./body-parser.js"] = function(exports, module2, __filename, __dirname, require) {
+  exports = module2.exports = foo();
 };`,
 				ProjectBaseDir + "/entry.js": `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
   require("./body-parser.js");
 };`,
 			},
@@ -145,7 +143,7 @@ old = Promise;
 		buildResult{
 			files: map[string]string{
 				ProjectBaseDir + `/entry.js`: `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
   "use strict";
 let __get_old__;
   var old;
@@ -171,7 +169,7 @@ require('non-existent')
 		buildResult{
 			files: map[string]string{
 				ProjectBaseDir + `/entry.js`: `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
   require("non-existent");
 };`,
 			},
@@ -191,7 +189,7 @@ func TestNestedScopeVarsAreNotRelocated(t *testing.T) {
 		buildResult{
 			files: map[string]string{
 				ProjectBaseDir + `/entry.js`: `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
   {
 let obj;
 function __get_obj__() {
@@ -226,14 +224,14 @@ __commonJS["./foo.js"] = function(exports, module, __filename, __dirname, requir
   var fs = require("fs");
 };`,
 				`dev/bar.js`: `
-__commonJS["./bar.js"] = function(exports2, module2, __filename, __dirname, require) {
+__commonJS["./bar.js"] = function(exports, module2, __filename, __dirname, require) {
 let path;
 function __get_path__() {
   return path = path || (require("path"))
 }
 };`,
 				`dev/entry.js`: `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
   Object.defineProperty(exports, "foo", { get: () => require("./foo.js") });
   Object.defineProperty(exports, "bar", { get: () => require("./bar.js") });
 };`,
@@ -262,7 +260,7 @@ exports.fsevents = require('` + ProjectBaseDir + `/node_modules/fsevents/fsevent
 			files: map[string]string{
 				`dev/node_modules/fsevents/fsevents.js`: `
 __commonJS["./node_modules/fsevents/fsevents.js"] = function(exports, module, __filename, __dirname, require) {
-  var Native = require("./node_modules/fsevents/fsevents.node");
+  var Native = require("./fsevents.node");
   var events = Native.constants;
 };`,
 				`dev/entry.js`: `
@@ -293,11 +291,11 @@ exports.fsevents = require('` + ProjectBaseDir + `/node_modules/fsevents/fsevent
 		buildResult{
 			files: map[string]string{
 				`dev/node_modules/fsevents/fsevents.js`: `
-__commonJS["./node_modules/fsevents/fsevents.js"] = function(exports2, module2, __filename, __dirname, require) {
+__commonJS["./node_modules/fsevents/fsevents.js"] = function(exports, module2, __filename, __dirname, require) {
   module2.exports = __resolve_path(typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname);
 };`,
 				`dev/entry.js`: `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
   exports.fsevents = require("./node_modules/fsevents/fsevents.js");
 };`,
 			},
@@ -323,13 +321,13 @@ exports.fileUrl = require('` + ProjectBaseDir + `/node_modules/file-url.js')
 		buildResult{
 			files: map[string]string{
 				`dev/node_modules/file-url.js`: `
-__commonJS["./node_modules/file-url.js"] = function(exports2, module2, __filename, __dirname, require) {
+__commonJS["./node_modules/file-url.js"] = function(exports, module2, __filename, __dirname, require) {
   module2.exports = function foo() {
     return "file://" + __resolve_path(typeof __filename2 !== 'undefined' ? __filename2 : __filename);
   };
 };`,
 				`dev/entry.js`: `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
   exports.fileUrl = require("./node_modules/file-url.js");
 };`,
 			},
@@ -356,18 +354,18 @@ module.exports = function () {
 		buildResult{
 			files: map[string]string{
 				`dev/fine.js`: `
-__commonJS["./fine.js"] = function(exports2, module2, __filename, __dirname, require) {
+__commonJS["./fine.js"] = function(exports, module2, __filename, __dirname, require) {
   get_console().log("fine");
 };`,
 				`dev/reassigns-console.js`: `
-__commonJS["./reassigns-console.js"] = function(exports2, module2, __filename, __dirname, require) {
+__commonJS["./reassigns-console.js"] = function(exports, module2, __filename, __dirname, require) {
   console = function() {
   };
   get_console().log("reassigned");
 };`,
 				`dev/entry.js`: `
-__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
-  module.exports = function() {
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
+  module2.exports = function() {
     require("./fine.js");
     require("./reassigns-console.js");
   };
