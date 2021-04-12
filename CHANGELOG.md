@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.9
 
 * Fix escaping of non-BMP characters in property names ([#977](https://github.com/evanw/esbuild/issues/977))
 
