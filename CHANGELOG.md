@@ -6,6 +6,14 @@
 
     Property names in object literals do not have to be quoted if the property is a valid JavaScript identifier. This is defined as starting with a character in the `ID_Start` Unicode category and ending with zero or more characters in the `ID_Continue` Unicode category. However, esbuild had a bug where non-BMP characters (i.e. characters encoded using two UTF-16 code units instead of one) were always checked against `ID_Continue` instead of `ID_Start` because they included a code unit that wasn't at the start. This could result in invalid JavaScript being generated when using `--charset=utf8` because `ID_Continue` is a superset of `ID_Start` and contains some characters that are not valid at the start of an identifier. This bug has been fixed.
 
+* Be maximally liberal in the interpretation of the `browser` field ([#740](https://github.com/evanw/esbuild/issues/740))
+
+    The `browser` field in `package.json` is an informal convention followed by browser-specific bundlers that allows package authors to substitute certain node-specific import paths with alternative browser-specific import paths. It doesn't have a rigorous specification and the [canonical description](https://github.com/defunctzombie/package-browser-field-spec) of the feature doesn't include any tests. As a result, each bundler implements this feature differently. I have tried to create a [survey of how different bundlers interpret the `browser` field](https://github.com/evanw/package-json-browser-tests) and the results are very inconsistent.
+
+    This release attempts to change esbuild to support the union of the behavior of all other bundlers. That way if people have the `browser` field working with some other bundler and they switch to esbuild, the `browser` field shouldn't ever suddenly stop working. This seemed like the most principled approach to take in this situation.
+
+    The drawback of this approach is that it means the `browser` field may start working when switching to esbuild when it was previously not working. This could cause bugs, but I consider this to be a problem with the package (i.e. not using a more well-supported form of the `browser` field), not a problem with esbuild itself.
+
 ## 0.11.8
 
 * Fix hash calculation for code splitting and dynamic imports ([#1076](https://github.com/evanw/esbuild/issues/1076))
