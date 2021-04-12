@@ -29,6 +29,7 @@ type apiHandler struct {
 	servedir         string
 	options          *config.Options
 	onRequest        func(ServeOnRequestArgs)
+	onBuild          func(BuildResult)
 	rebuild          func() BuildResult
 	currentBuild     *runningBuild
 	fs               fs.FS
@@ -53,6 +54,9 @@ func (h *apiHandler) build() BuildResult {
 				result := h.rebuild()
 				h.rebuild = result.Rebuild
 				build.result = result
+				if h.onBuild != nil {
+					h.onBuild(result)
+				}
 				build.waitGroup.Done()
 
 				// Build results stay valid for a little bit afterward since a page
@@ -526,6 +530,7 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 	var handler *apiHandler
 	handler = &apiHandler{
 		onRequest:        serveOptions.OnRequest,
+		onBuild:          serveOptions.OnBuild,
 		outdirPathPrefix: outdirPathPrefix,
 		servedir:         serveOptions.Servedir,
 		rebuild: func() BuildResult {

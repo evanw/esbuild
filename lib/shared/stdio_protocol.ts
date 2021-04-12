@@ -85,6 +85,12 @@ export interface OnRequestRequest {
   args: types.ServeOnRequestArgs;
 }
 
+export interface OnServeBuild {
+  command: 'serve-build';
+  serveID: number;
+  args: types.BuildResult;
+}
+
 export interface OnWaitRequest {
   command: 'serve-wait';
   serveID: number;

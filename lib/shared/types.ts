@@ -134,6 +134,7 @@ export interface ServeOptions {
   host?: string;
   servedir?: string;
   onRequest?: (args: ServeOnRequestArgs) => void;
+  onBuild?: (args: BuildResult) => void;
 }
 
 export interface ServeOnRequestArgs {

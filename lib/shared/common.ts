@@ -420,6 +420,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
   interface ServeCallbacks {
     onRequest: types.ServeOptions['onRequest'];
+    onBuild: types.ServeOptions['onBuild'];
     onWait: (error: string | null) => void;
   }
 
@@ -510,6 +511,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     | protocol.OnRequestRequest
     | protocol.OnWaitRequest
     | protocol.OnWatchRebuildRequest
+    | protocol.OnServeBuild
 
   let handleRequest = async (id: number, request: RequestType) => {
     // Catch exceptions in the code below so they get passed to the caller
@@ -544,6 +546,13 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         case 'serve-wait': {
           let callbacks = serveCallbacks.get(request.serveID);
           if (callbacks) callbacks.onWait(request.error);
+          sendResponse(id, {});
+          break;
+        }
+
+        case 'serve-build': {
+          let callbacks = serveCallbacks.get(request.serveID);
+          if (callbacks && callbacks.onBuild) callbacks.onBuild(request.args);
           sendResponse(id, {});
           break;
         }
@@ -801,6 +810,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let host = getFlag(options, keys, 'host', mustBeString);
     let servedir = getFlag(options, keys, 'servedir', mustBeString);
     let onRequest = getFlag(options, keys, 'onRequest', mustBeFunction);
+    let onBuild = getFlag(options, keys, 'onBuild', mustBeFunction);
     let serveID = nextServeID++;
     let onWait: ServeCallbacks['onWait'];
     let wait = new Promise<void>((resolve, reject) => {
@@ -817,6 +827,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     if (servedir !== void 0) request.serve.servedir = servedir;
     serveCallbacks.set(serveID, {
       onRequest,
+      onBuild,
       onWait: onWait!,
     });
     return {

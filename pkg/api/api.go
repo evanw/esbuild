@@ -376,6 +376,7 @@ type ServeOptions struct {
 	Host      string
 	Servedir  string
 	OnRequest func(ServeOnRequestArgs)
+	OnBuild   func(BuildResult)
 }
 
 type ServeOnRequestArgs struct {
