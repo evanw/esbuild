@@ -1214,23 +1214,33 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 			autoMain = true
 		}
 
-		loadMainField := func(fieldRelPath string) (string, bool, *fs.DifferentCase) {
+		loadMainField := func(fieldRelPath string) (PathPair, bool, *fs.DifferentCase) {
+			if dirInfo.packageJSON.browserMap != nil {
+				if remapped, ok := r.checkBrowserMap(dirInfo.packageJSON, fieldRelPath); ok {
+					if remapped == nil {
+						return PathPair{Primary: logger.Path{Text: r.fs.Join(path, fieldRelPath), Namespace: "file", Flags: logger.PathDisabled}}, true, nil
+					} else {
+						fieldRelPath = *remapped
+					}
+				}
+			}
+
 			fieldAbsPath := r.fs.Join(path, fieldRelPath)
 
 			// Is this a file?
 			absolute, ok, diffCase := r.loadAsFile(fieldAbsPath, extensionOrder)
 			if ok {
-				return absolute, true, diffCase
+				return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
 			}
 
 			// Is it a directory with an index?
 			if fieldDirInfo := r.dirInfoCached(fieldAbsPath); fieldDirInfo != nil {
 				if absolute, ok, _ := r.loadAsIndex(fieldAbsPath, fieldDirInfo.entries); ok {
-					return absolute, true, nil
+					return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, nil
 				}
 			}
 
-			return "", false, nil
+			return PathPair{}, false, nil
 		}
 
 		for _, key := range mainFieldKeys {
@@ -1245,7 +1255,7 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 				// use "module" or "main" based on whether the package is imported
 				// using "import" or "require".
 				if autoMain && key == "module" {
-					var absoluteMain string
+					var absoluteMain PathPair
 					var okMain bool
 					var diffCaseMain *fs.DifferentCase
 
@@ -1260,7 +1270,7 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 						// still have an implicit "index.js" file. In that case, treat that
 						// as the value for "main".
 						if absolute, ok, diffCase := r.loadAsIndex(path, dirInfo.entries); ok {
-							absoluteMain = absolute
+							absoluteMain = PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}
 							okMain = true
 							diffCaseMain = diffCase
 						}
@@ -1277,28 +1287,29 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 						if kind != ast.ImportRequire {
 							if r.debugLogs != nil {
 								r.debugLogs.addNote(fmt.Sprintf("Resolved to %q using the \"module\" field in %q",
-									absolute, dirInfo.packageJSON.source.KeyPath.Text))
-								r.debugLogs.addNote(fmt.Sprintf("The fallback path in case of \"require\" is %q", absoluteMain))
+									absolute.Primary.Text, dirInfo.packageJSON.source.KeyPath.Text))
+								r.debugLogs.addNote(fmt.Sprintf("The fallback path in case of \"require\" is %q",
+									absoluteMain.Primary.Text))
 							}
 							return PathPair{
 								// This is the whole point of the path pair
-								Primary:   logger.Path{Text: absolute, Namespace: "file"},
-								Secondary: logger.Path{Text: absoluteMain, Namespace: "file"},
+								Primary:   absolute.Primary,
+								Secondary: absoluteMain.Primary,
 							}, true, diffCase
 						} else {
 							if r.debugLogs != nil {
-								r.debugLogs.addNote(fmt.Sprintf("Resolved to %q because of \"require\"", absoluteMain))
+								r.debugLogs.addNote(fmt.Sprintf("Resolved to %q because of \"require\"", absoluteMain.Primary.Text))
 							}
-							return PathPair{Primary: logger.Path{Text: absoluteMain, Namespace: "file"}}, true, diffCaseMain
+							return absoluteMain, true, diffCaseMain
 						}
 					}
 				}
 
 				if r.debugLogs != nil {
 					r.debugLogs.addNote(fmt.Sprintf("Resolved to %q using the %q field in %q",
-						absolute, key, dirInfo.packageJSON.source.KeyPath.Text))
+						absolute.Primary.Text, key, dirInfo.packageJSON.source.KeyPath.Text))
 				}
-				return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
+				return absolute, true, diffCase
 			}
 		}
 	}
