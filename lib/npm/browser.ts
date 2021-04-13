@@ -1,5 +1,5 @@
-import * as types from "./types"
-import * as common from "./common"
+import * as types from "../shared/types"
+import * as common from "../shared/common"
 
 declare const ESBUILD_VERSION: string;
 declare let WEB_WORKER_SOURCE_CODE: string

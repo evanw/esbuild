@@ -1,6 +1,7 @@
 .DS_Store
 /bench/
 /demo/
+/deno/
 /esbuild
 /github/
 /npm/esbuild-wasm/browser.js
