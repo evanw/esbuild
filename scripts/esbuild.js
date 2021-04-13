@@ -6,6 +6,7 @@ const fs = require('fs')
 const os = require('os')
 
 const repoDir = path.dirname(__dirname)
+const denoDir = path.join(repoDir, 'deno')
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
 const version = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
 const nodeTarget = 'node10'; // See: https://nodejs.org/en/about/releases/
@@ -194,6 +195,29 @@ module.exports = ${JSON.stringify(exit0Map, null, 2)};
   await goBuildPromise;
 }
 
+exports.buildDenoLib = (esbuildPath) => {
+  // Generate "deno/esbuild/mod.js"
+  childProcess.execFileSync(esbuildPath, [
+    path.join(repoDir, 'lib', 'deno', 'mod.ts'),
+    '--bundle',
+    '--outfile=' + path.join(denoDir, 'mod.js'),
+    '--target=es2020',
+    '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+    '--platform=neutral',
+    '--log-level=warning',
+    '--banner:js=/// <reference path="./mod.d.ts" />',
+  ], { cwd: repoDir })
+
+  // Generate "deno/esbuild/mod.d.ts"
+  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'types.ts'), 'utf8')
+  fs.writeFileSync(path.join(denoDir, 'mod.d.ts'), types_ts +
+    `\n// Unlike node, Deno lacks the necessary APIs to clean up child processes` +
+    `\n// automatically. You must manually call stop() in Deno when you're done` +
+    `\n// using esbuild or Deno will continue running forever.` +
+    `\nexport function stop(): void;` +
+    `\n`)
+}
+
 // Writing a file atomically is important for watch mode tests since we don't
 // want to read the file after it has been truncated but before the new contents
 // have been written.
@@ -267,9 +291,7 @@ exports.dirname = __dirname
 
 // The main Makefile invokes this script before publishing
 if (require.main === module) {
-  if (process.argv.indexOf('--wasm') >= 0) {
-    exports.buildWasmLib(process.argv[2])
-  } else {
-    exports.buildNativeLib(process.argv[2])
-  }
+  if (process.argv.indexOf('--wasm') >= 0) exports.buildWasmLib(process.argv[2])
+  else if (process.argv.indexOf('--deno') >= 0) exports.buildDenoLib(process.argv[2])
+  else exports.buildNativeLib(process.argv[2])
 }

@@ -114,7 +114,8 @@ platform-all: cmd/esbuild/version.go test-all
 		platform-linux-mips64le \
 		platform-linux-ppc64le \
 		platform-wasm \
-		platform-neutral
+		platform-neutral \
+		platform-deno
 
 platform-windows:
 	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
@@ -170,6 +171,9 @@ platform-wasm: esbuild | scripts/node_modules
 platform-neutral: esbuild lib-typecheck | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/esbuild.js ./esbuild
+
+platform-deno: esbuild lib-typecheck | scripts/node_modules
+	node scripts/esbuild.js ./esbuild --deno
 
 test-otp:
 	test -n "$(OTP)" && echo publish --otp="$(OTP)"
