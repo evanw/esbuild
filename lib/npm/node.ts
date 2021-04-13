@@ -1,5 +1,5 @@
-import * as types from "./types";
-import * as common from "./common";
+import * as types from "../shared/types";
+import * as common from "../shared/common";
 
 import child_process = require('child_process');
 import crypto = require('crypto');

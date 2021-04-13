@@ -18,7 +18,7 @@ exports.buildNativeLib = (esbuildPath) => {
 
   // Generate "npm/esbuild/install.js"
   childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'install.ts'),
+    path.join(repoDir, 'lib', 'npm', 'install.ts'),
     '--outfile=' + path.join(npmDir, 'install.js'),
     '--target=' + nodeTarget,
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
@@ -28,7 +28,7 @@ exports.buildNativeLib = (esbuildPath) => {
 
   // Generate "npm/esbuild/lib/main.js"
   childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'node.ts'),
+    path.join(repoDir, 'lib', 'npm', 'node.ts'),
     '--outfile=' + path.join(libDir, 'main.js'),
     '--bundle',
     '--target=' + nodeTarget,
@@ -40,7 +40,7 @@ exports.buildNativeLib = (esbuildPath) => {
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild/lib/main.d.ts"
-  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'types.ts'), 'utf8')
+  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'types.ts'), 'utf8')
   fs.writeFileSync(path.join(libDir, 'main.d.ts'), types_ts)
 }
 
@@ -98,7 +98,7 @@ exports.buildWasmLib = async (esbuildPath) => {
 
   // Generate "npm/esbuild-wasm/lib/main.js"
   childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'node.ts'),
+    path.join(repoDir, 'lib', 'npm', 'node.ts'),
     '--outfile=' + path.join(libDir, 'main.js'),
     '--bundle',
     '--target=' + nodeTarget,
@@ -110,7 +110,7 @@ exports.buildWasmLib = async (esbuildPath) => {
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild-wasm/lib/main.d.ts" and "npm/esbuild-wasm/lib/browser.d.ts"
-  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'types.ts'), 'utf8')
+  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'types.ts'), 'utf8')
   fs.writeFileSync(path.join(libDir, 'main.d.ts'), types_ts)
   fs.writeFileSync(path.join(libDir, 'browser.d.ts'), types_ts)
   fs.writeFileSync(path.join(esmDir, 'browser.d.ts'), types_ts)
@@ -133,7 +133,7 @@ exports.buildWasmLib = async (esbuildPath) => {
 
       // Process "lib/worker.ts"
       const workerCode = childProcess.execFileSync(esbuildPath, [
-        path.join(repoDir, 'lib', 'worker.ts'),
+        path.join(repoDir, 'lib', 'npm', 'worker.ts'),
         '--target=' + target,
         '--define:ESBUILD_VERSION=' + JSON.stringify(version),
         '--log-level=warning',
@@ -146,7 +146,7 @@ exports.buildWasmLib = async (esbuildPath) => {
     const umdPrefix = `(exports=>{`
     const umdSuffix = `})(typeof exports==="object"?exports:(typeof self!=="undefined"?self:this).esbuild={});`
     const browserCJS = childProcess.execFileSync(esbuildPath, [
-      path.join(repoDir, 'lib', 'browser.ts'),
+      path.join(repoDir, 'lib', 'npm', 'browser.ts'),
       '--bundle',
       '--target=' + umdBrowserTarget,
       '--format=cjs',
@@ -160,7 +160,7 @@ exports.buildWasmLib = async (esbuildPath) => {
 
     // Generate "npm/esbuild-wasm/esm/browser.min.js"
     const browserESM = childProcess.execFileSync(esbuildPath, [
-      path.join(repoDir, 'lib', 'browser.ts'),
+      path.join(repoDir, 'lib', 'npm', 'browser.ts'),
       '--bundle',
       '--target=' + esmBrowserTarget,
       '--format=esm',
@@ -173,7 +173,7 @@ exports.buildWasmLib = async (esbuildPath) => {
 
   // Generate the "exit0" stubs
   const exit0Map = {};
-  const exit0Dir = path.join(__dirname, '..', 'lib', 'exit0');
+  const exit0Dir = path.join(repoDir, 'lib', 'npm', 'exit0');
   for (const entry of fs.readdirSync(exit0Dir)) {
     if (entry.endsWith('.node')) {
       const absPath = path.join(exit0Dir, entry);
