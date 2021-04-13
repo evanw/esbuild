@@ -4258,8 +4258,18 @@
   removeRecursiveSync(testDir)
   await fs.mkdir(testDir, { recursive: true })
 
-  // Run all tests concurrently
-  const allTestsPassed = (await Promise.all(tests.map(test => test()))).every(success => success)
+  // Run tests in batches so they work in CI, which has a limited memory ceiling
+  let allTestsPassed = true
+  let batch = 32
+  for (let i = 0; i < tests.length; i += batch) {
+    let promises = []
+    for (let test of tests.slice(i, i + batch)) {
+      let promise = test()
+      promise.catch(() => allTestsPassed = false)
+      promises.push(promise)
+    }
+    await Promise.all(promises)
+  }
 
   if (!allTestsPassed) {
     console.error(`❌ end-to-end tests failed`)
