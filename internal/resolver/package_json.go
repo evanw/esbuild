@@ -778,11 +778,10 @@ func (r resolverQuery) esmPackageTargetResolve(
 
 		for _, p := range target.mapData {
 			if p.key == "default" || conditions[p.key] {
-				targetValue := p.value
 				if r.debugLogs != nil {
 					r.debugLogs.addNote(fmt.Sprintf("The key %q applies", p.key))
 				}
-				resolved, status, debug := r.esmPackageTargetResolve(packageURL, targetValue, subpath, pattern, conditions)
+				resolved, status, debug := r.esmPackageTargetResolve(packageURL, p.value, subpath, pattern, conditions)
 				if status.isUndefined() {
 					continue
 				}
@@ -884,4 +883,118 @@ func esmParsePackageName(packageSpecifier string) (packageName string, packageSu
 	packageSubpath = "." + packageSpecifier[len(packageName):]
 	ok = true
 	return
+}
+
+func (r resolverQuery) esmPackageExportsReverseResolve(
+	query string,
+	root peEntry,
+	conditions map[string]bool,
+) (bool, string, logger.Range) {
+	if root.kind == peObject && root.keysStartWithDot() {
+		if ok, subpath, token := r.esmPackageImportsExportsReverseResolve(query, root, conditions); ok {
+			return true, subpath, token
+		}
+	}
+
+	return false, "", logger.Range{}
+}
+
+func (r resolverQuery) esmPackageImportsExportsReverseResolve(
+	query string,
+	matchObj peEntry,
+	conditions map[string]bool,
+) (bool, string, logger.Range) {
+	if !strings.HasSuffix(query, "*") {
+		for _, entry := range matchObj.mapData {
+			if ok, subpath, token := r.esmPackageTargetReverseResolve(query, entry.key, entry.value, esmReverseExact, conditions); ok {
+				return true, subpath, token
+			}
+		}
+	}
+
+	for _, expansion := range matchObj.expansionKeys {
+		if strings.HasSuffix(expansion.key, "*") {
+			if ok, subpath, token := r.esmPackageTargetReverseResolve(query, expansion.key, expansion.value, esmReversePattern, conditions); ok {
+				return true, subpath, token
+			}
+		}
+
+		if ok, subpath, token := r.esmPackageTargetReverseResolve(query, expansion.key, expansion.value, esmReversePrefix, conditions); ok {
+			return true, subpath, token
+		}
+	}
+
+	return false, "", logger.Range{}
+}
+
+type esmReverseKind uint8
+
+const (
+	esmReverseExact esmReverseKind = iota
+	esmReversePattern
+	esmReversePrefix
+)
+
+func (r resolverQuery) esmPackageTargetReverseResolve(
+	query string,
+	key string,
+	target peEntry,
+	kind esmReverseKind,
+	conditions map[string]bool,
+) (bool, string, logger.Range) {
+	switch target.kind {
+	case peString:
+		switch kind {
+		case esmReverseExact:
+			if query == target.strData {
+				return true, key, target.firstToken
+			}
+
+		case esmReversePrefix:
+			if strings.HasPrefix(query, target.strData) {
+				return true, key + query[len(target.strData):], target.firstToken
+			}
+
+		case esmReversePattern:
+			star := strings.IndexByte(target.strData, '*')
+			keyWithoutTrailingStar := strings.TrimSuffix(key, "*")
+
+			// Handle the case of no "*"
+			if star == -1 {
+				if query == target.strData {
+					return true, keyWithoutTrailingStar, target.firstToken
+				}
+				break
+			}
+
+			// Only support tracing through a single "*"
+			prefix := target.strData[0:star]
+			suffix := target.strData[star+1:]
+			if !strings.ContainsRune(suffix, '*') && strings.HasPrefix(query, prefix) {
+				if afterPrefix := query[len(prefix):]; strings.HasSuffix(afterPrefix, suffix) {
+					starData := afterPrefix[:len(afterPrefix)-len(suffix)]
+					return true, keyWithoutTrailingStar + starData, target.firstToken
+				}
+			}
+			break
+		}
+
+	case peObject:
+		for _, p := range target.mapData {
+			if p.key == "default" || conditions[p.key] {
+				if ok, subpath, token := r.esmPackageTargetReverseResolve(query, key, p.value, kind, conditions); ok {
+					return true, subpath, token
+				}
+			}
+		}
+
+	case peArray:
+		for _, targetValue := range target.arrData {
+			if ok, subpath, token := r.esmPackageTargetReverseResolve(query, key, targetValue, kind, conditions); ok {
+				return true, subpath, token
+			}
+		}
+	}
+
+	return false, "", logger.Range{}
 }

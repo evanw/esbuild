@@ -3,6 +3,7 @@ package resolver
 import (
 	"errors"
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
+	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -114,31 +116,26 @@ type ResolveResult struct {
 	ModuleType config.ModuleType
 }
 
-type AlternativeApproach uint8
-
-const (
-	AlternativeApproachNone AlternativeApproach = iota
-	AlternativeApproachImport
-	AlternativeApproachRequire
-)
-
 type DebugMeta struct {
-	notes    []logger.MsgData
-	approach AlternativeApproach
+	notes             []logger.MsgData
+	suggestionText    string
+	suggestionMessage string
 }
 
-func (dm DebugMeta) Notes(importSource *logger.Source, importRange logger.Range) []logger.MsgData {
-	if importSource != nil {
-		switch dm.approach {
-		case AlternativeApproachImport:
-			return append(append([]logger.MsgData{}, dm.notes...), logger.RangeData(importSource, importRange,
-				"Consider using an \"import\" statement to import this package"))
-		case AlternativeApproachRequire:
-			return append(append([]logger.MsgData{}, dm.notes...), logger.RangeData(importSource, importRange,
-				"Consider using a \"require()\" call to import this package"))
-		}
+func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string) {
+	msg := logger.Msg{
+		Kind:  logger.Error,
+		Data:  logger.RangeData(source, r, text),
+		Notes: dm.notes,
 	}
-	return dm.notes
+
+	if source != nil && dm.suggestionMessage != "" {
+		data := logger.RangeData(source, r, dm.suggestionMessage)
+		data.Location.Suggestion = dm.suggestionText
+		msg.Notes = append(msg.Notes, data)
+	}
+
+	log.AddMsg(msg)
 }
 
 type Resolver interface {
@@ -1474,9 +1471,9 @@ func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path strin
 	return PathPair{}, false, nil
 }
 
-func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool, *fs.DifferentCase, DebugMeta) {
+func (r resolverQuery) loadNodeModules(importPath string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool, *fs.DifferentCase, DebugMeta) {
 	if r.debugLogs != nil {
-		r.debugLogs.addNote(fmt.Sprintf("Searching for %q in \"node_modules\" directories starting from %q", path, dirInfo.absPath))
+		r.debugLogs.addNote(fmt.Sprintf("Searching for %q in \"node_modules\" directories starting from %q", importPath, dirInfo.absPath))
 		r.debugLogs.increaseIndent()
 		defer r.debugLogs.decreaseIndent()
 	}
@@ -1485,21 +1482,21 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 	if dirInfo.tsConfigJSON != nil {
 		// Try path substitutions first
 		if dirInfo.tsConfigJSON.Paths != nil {
-			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.tsConfigJSON, path, kind); ok {
+			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.tsConfigJSON, importPath, kind); ok {
 				return absolute, true, diffCase, DebugMeta{}
 			}
 		}
 
 		// Try looking up the path relative to the base URL
 		if dirInfo.tsConfigJSON.BaseURL != nil {
-			basePath := r.fs.Join(*dirInfo.tsConfigJSON.BaseURL, path)
+			basePath := r.fs.Join(*dirInfo.tsConfigJSON.BaseURL, importPath)
 			if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath, kind); ok {
 				return absolute, true, diffCase, DebugMeta{}
 			}
 		}
 	}
 
-	esmPackageName, esmPackageSubpath, esmOK := esmParsePackageName(path)
+	esmPackageName, esmPackageSubpath, esmOK := esmParsePackageName(importPath)
 	if r.debugLogs != nil && esmOK {
 		r.debugLogs.addNote(fmt.Sprintf("Parsed package name %q and package subpath %q", esmPackageName, esmPackageSubpath))
 	}
@@ -1509,7 +1506,7 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 		// Skip directories that are themselves called "node_modules", since we
 		// don't ever want to search for "node_modules/node_modules"
 		if dirInfo.hasNodeModules {
-			absPath := r.fs.Join(dirInfo.absPath, "node_modules", path)
+			absPath := r.fs.Join(dirInfo.absPath, "node_modules", importPath)
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("Checking for a package in the directory %q", absPath))
 			}
@@ -1583,8 +1580,7 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 							}
 						}
 
-						var notes []logger.MsgData
-						var approach AlternativeApproach
+						var debugMeta DebugMeta
 						if strings.HasPrefix(resolvedPath, "/") {
 							resolvedPath = "." + resolvedPath
 						}
@@ -1592,11 +1588,11 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 						// Provide additional details about the failure to help with debugging
 						switch status {
 						case peStatusInvalidModuleSpecifier:
-							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
 								fmt.Sprintf("The module specifier %q is invalid", resolvedPath))}
 
 						case peStatusInvalidPackageConfiguration:
-							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
 								"The package configuration has an invalid value here")}
 
 						case peStatusInvalidPackageTarget:
@@ -1607,18 +1603,39 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 								// configuration error
 								why = "The package configuration has an invalid value here"
 							}
-							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token, why)}
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token, why)}
 
 						case peStatusPackagePathNotExported:
-							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
 								fmt.Sprintf("The path %q is not exported by package %q", esmPackageSubpath, esmPackageName))}
 
+							// If this fails, try to resolve it using the old algorithm
+							if absolute, ok, _ := r.loadAsFileOrDirectory(absPath, kind); ok && absolute.Primary.Namespace == "file" {
+								if relPath, ok := r.fs.Rel(absPkgPath, absolute.Primary.Text); ok {
+									query := "." + path.Join("/", strings.ReplaceAll(relPath, "\\", "/"))
+
+									// If that succeeds, try to do a reverse lookup using the
+									// "exports" map for the currently-active set of conditions
+									if ok, subpath, token := r.esmPackageExportsReverseResolve(
+										query, pkgDirInfo.packageJSON.exportsMap.root, conditions); ok {
+										debugMeta.notes = append(debugMeta.notes, logger.RangeData(&pkgDirInfo.packageJSON.source, token,
+											fmt.Sprintf("The file %q is exported at path %q", query, subpath)))
+
+										// Provide an inline suggestion message with the correct import path
+										actualImportPath := path.Join(esmPackageName, subpath)
+										debugMeta.suggestionText = string(js_printer.QuoteForJSON(actualImportPath, false))
+										debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q",
+											actualImportPath, r.PrettyPath(absolute.Primary))
+									}
+								}
+							}
+
 						case peStatusModuleNotFound:
-							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
 								fmt.Sprintf("The module %q was not found on the file system", resolvedPath))}
 
 						case peStatusUnsupportedDirectoryImport:
-							notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
 								fmt.Sprintf("Importing the directory %q is not supported", resolvedPath))}
 
 						case peStatusUndefinedNoConditionsMatch:
@@ -1634,7 +1651,7 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 								keys = append(keys, key)
 							}
 							sort.Strings(keys)
-							notes = []logger.MsgData{
+							debugMeta.notes = []logger.MsgData{
 								logger.RangeData(&packageJSON.source, packageJSON.exportsMap.root.firstToken,
 									fmt.Sprintf("The path %q is not currently exported by package %q",
 										esmPackageSubpath, esmPackageName)),
@@ -1645,17 +1662,14 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 									))}
 							for _, key := range debug.unmatchedConditions {
 								if key == "import" && (kind == ast.ImportRequire || kind == ast.ImportRequireResolve) {
-									approach = AlternativeApproachImport
+									debugMeta.suggestionMessage = "Consider using an \"import\" statement to import this file"
 								} else if key == "require" && (kind == ast.ImportStmt || kind == ast.ImportDynamic) {
-									approach = AlternativeApproachRequire
+									debugMeta.suggestionMessage = "Consider using a \"require()\" call to import this file"
 								}
 							}
 						}
 
-						return PathPair{}, false, nil, DebugMeta{
-							notes:    notes,
-							approach: approach,
-						}
+						return PathPair{}, false, nil, debugMeta
 					}
 
 					// Check the "browser" map
@@ -1695,7 +1709,7 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 	// incorrect. We follow node's actual behavior instead of following the
 	// published algorithm. See also: https://github.com/nodejs/node/issues/38128.
 	for _, absDir := range r.options.AbsNodePaths {
-		absPath := r.fs.Join(absDir, path)
+		absPath := r.fs.Join(absDir, importPath)
 		if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath, kind); ok {
 			return absolute, true, diffCase, DebugMeta{}
 		}

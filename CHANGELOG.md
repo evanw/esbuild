@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased
+
+* Provide more information about `exports` map import failures if possible ([#1143](https://github.com/evanw/esbuild/issues/1143))
+
+    Node has a new feature where you can [add an `exports` map to your `package.json` file](https://nodejs.org/api/packages.html#packages_package_entry_points) to control how external import paths map to the files in your package. You can change which paths map to which files as well as make it impossible to import certain files (i.e. the files are private).
+
+    If path resolution fails due to an `exports` map and the failure is not related to import conditions, esbuild's current error message for this just says that the import isn't possible:
+
+    ```
+     > example.js:1:15: error: Could not resolve "vanillajs-datepicker/js/i18n/locales/ca" (mark it as external to exclude it from the bundle)
+        1 │ import ca from 'vanillajs-datepicker/js/i18n/locales/ca'
+          ╵                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+       node_modules/vanillajs-datepicker/package.json:6:13: note: The path "./js/i18n/locales/ca" is not exported by package "vanillajs-datepicker"
+        6 │   "exports": {
+          ╵              ^
+    ```
+
+    This error message matches the error that node itself throws. However, the message could be improved in the case where someone is trying to import a file using its file system path and that path is actually exported by the package, just under a different export path. This case comes up a lot when using TypeScript because the TypeScript compiler (and therefore the Visual Studio Code IDE) [still doesn't support package `exports`](https://github.com/microsoft/TypeScript/issues/33079).
+
+    With this release, esbuild will now do a reverse lookup of the file system path using the `exports` map to determine what the correct import path should be:
+
+    ```
+     > example.js:1:15: error: Could not resolve "vanillajs-datepicker/js/i18n/locales/ca" (mark it as external to exclude it from the bundle)
+         1 │ import ca from 'vanillajs-datepicker/js/i18n/locales/ca'
+           ╵                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+       node_modules/vanillajs-datepicker/package.json:6:13: note: The path "./js/i18n/locales/ca" is not exported by package "vanillajs-datepicker"
+         6 │   "exports": {
+           ╵              ^
+       node_modules/vanillajs-datepicker/package.json:12:19: note: The file "./js/i18n/locales/ca.js" is exported at path "./locales/ca"
+        12 │     "./locales/*": "./js/i18n/locales/*.js",
+           ╵                    ~~~~~~~~~~~~~~~~~~~~~~~~
+       example.js:1:15: note: Import from "vanillajs-datepicker/locales/ca" to get the file "node_modules/vanillajs-datepicker/js/i18n/locales/ca.js"
+         1 │ import ca from 'vanillajs-datepicker/js/i18n/locales/ca'
+           │                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           ╵                "vanillajs-datepicker/locales/ca"
+    ```
+
+    Hopefully this should enable people encountering this issue to fix the problem themselves.
+
 ## 0.11.9
 
 * Fix escaping of non-BMP characters in property names ([#977](https://github.com/evanw/esbuild/issues/977))

@@ -1842,11 +1842,11 @@ func TestPackageJsonExportsMustUseRequire(t *testing.T) {
 		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
 Users/user/project/node_modules/pkg1/package.json: note: The path "." is not currently exported by package "pkg1"
 Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import")
-Users/user/project/src/entry.js: note: Consider using a "require()" call to import this package
+Users/user/project/src/entry.js: note: Consider using a "require()" call to import this file
 Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo.js" (mark it as external to exclude it from the bundle)
 Users/user/project/node_modules/pkg1/package.json: note: The path "./foo.js" is not currently exported by package "pkg1"
 Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import")
-Users/user/project/src/entry.js: note: Consider using a "require()" call to import this package
+Users/user/project/src/entry.js: note: Consider using a "require()" call to import this file
 `,
 	})
 }
@@ -1882,11 +1882,50 @@ func TestPackageJsonExportsMustUseImport(t *testing.T) {
 		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg1" (mark it as external to exclude it from the bundle)
 Users/user/project/node_modules/pkg1/package.json: note: The path "." is not currently exported by package "pkg1"
 Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("import") match any of the currently active conditions ("browser", "default", "require")
-Users/user/project/src/entry.js: note: Consider using an "import" statement to import this package
+Users/user/project/src/entry.js: note: Consider using an "import" statement to import this file
 Users/user/project/src/entry.js: error: Could not resolve "pkg1/foo.js" (mark it as external to exclude it from the bundle)
 Users/user/project/node_modules/pkg1/package.json: note: The path "./foo.js" is not currently exported by package "pkg1"
 Users/user/project/node_modules/pkg1/package.json: note: None of the conditions provided ("import") match any of the currently active conditions ("browser", "default", "require")
-Users/user/project/src/entry.js: note: Consider using an "import" statement to import this package
+Users/user/project/src/entry.js: note: Consider using an "import" statement to import this file
+`,
+	})
+}
+
+func TestPackageJsonExportsReverseLookup(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				require('pkg/path/to/real/file')
+				require('pkg/path/to/other/file')
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"./lib/te*": {
+							"default": "./path/to/re*.js"
+						},
+						"./extra/": {
+							"default": "./path/to/"
+						}
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/path/to/real/file.js":  ``,
+			"/Users/user/project/node_modules/pkg/path/to/other/file.js": ``,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "pkg/path/to/real/file" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg/package.json: note: The path "./path/to/real/file" is not exported by package "pkg"
+Users/user/project/node_modules/pkg/package.json: note: The file "./path/to/real/file.js" is exported at path "./lib/teal/file"
+Users/user/project/src/entry.js: note: Import from "pkg/lib/teal/file" to get the file "Users/user/project/node_modules/pkg/path/to/real/file.js"
+Users/user/project/src/entry.js: error: Could not resolve "pkg/path/to/other/file" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/pkg/package.json: note: The path "./path/to/other/file" is not exported by package "pkg"
+Users/user/project/node_modules/pkg/package.json: note: The file "./path/to/other/file.js" is exported at path "./extra/other/file.js"
+Users/user/project/src/entry.js: note: Import from "pkg/extra/other/file.js" to get the file "Users/user/project/node_modules/pkg/path/to/other/file.js"
 `,
 	})
 }

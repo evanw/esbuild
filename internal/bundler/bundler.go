@@ -434,8 +434,7 @@ func parseFile(args parseArgs) {
 						if absResolveDir == "" && pluginName != "" {
 							hint = fmt.Sprintf(" (the plugin %q didn't set a resolve directory)", pluginName)
 						}
-						args.log.AddRangeErrorWithNotes(&source, record.Range,
-							fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint), debug.Notes(&source, record.Range))
+						debug.LogErrorMsg(args.log, &source, record.Range, fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint))
 					}
 					continue
 				}
@@ -1306,7 +1305,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 						hint = fmt.Sprintf(" (use %q to reference the file %q)", "./"+entryPoint.InputPath, s.res.PrettyPath(query.PathPair.Primary))
 					}
 				}
-				s.log.AddErrorWithNotes(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q%s", entryPoint.InputPath, hint), debug.Notes(nil, logger.Range{}))
+				debug.LogErrorMsg(s.log, nil, logger.Range{}, fmt.Sprintf("Could not resolve %q%s", entryPoint.InputPath, hint))
 			}
 			entryPointWaitGroup.Done()
 		}(i, entryPoint)
