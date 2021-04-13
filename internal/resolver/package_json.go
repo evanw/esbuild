@@ -81,7 +81,7 @@ func (r resolverQuery) checkBrowserMap(pj *packageJSON, inputPath string) (remap
 
 	// Check for equality
 	if r.debugLogs != nil {
-		r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", cleanPath))
+		r.debugLogs.addNote(fmt.Sprintf("Checking for %q", cleanPath))
 	}
 	remapped, ok = pj.browserMap[cleanPath]
 
@@ -90,7 +90,7 @@ func (r resolverQuery) checkBrowserMap(pj *packageJSON, inputPath string) (remap
 		for _, ext := range r.options.ExtensionOrder {
 			extPath := cleanPath + ext
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", extPath))
+				r.debugLogs.addNote(fmt.Sprintf("Checking for %q", extPath))
 			}
 			remapped, ok = pj.browserMap[extPath]
 			if ok {
@@ -103,12 +103,12 @@ func (r resolverQuery) checkBrowserMap(pj *packageJSON, inputPath string) (remap
 	if r.debugLogs != nil {
 		if ok {
 			if remapped == nil {
-				r.debugLogs.addNote(fmt.Sprintf("  Found %q marked as disabled", inputPath))
+				r.debugLogs.addNote(fmt.Sprintf("Found %q marked as disabled", inputPath))
 			} else {
-				r.debugLogs.addNote(fmt.Sprintf("  Found %q mapping to %q", cleanPath, *remapped))
+				r.debugLogs.addNote(fmt.Sprintf("Found %q mapping to %q", cleanPath, *remapped))
 			}
 		} else {
-			r.debugLogs.addNote(fmt.Sprintf("  Failed to find %q", inputPath))
+			r.debugLogs.addNote(fmt.Sprintf("Failed to find %q", inputPath))
 		}
 	}
 	return
@@ -538,7 +538,7 @@ func (r resolverQuery) esmPackageExportsResolveWithPostConditions(
 	resolvedPath, err := url.PathUnescape(resolved)
 	if err != nil {
 		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("  The path %q contains invalid URL escapes: %s", resolved, err.Error()))
+			r.debugLogs.addNote(fmt.Sprintf("The path %q contains invalid URL escapes: %s", resolved, err.Error()))
 		}
 		return resolved, peStatusInvalidModuleSpecifier, debug
 	}
@@ -554,7 +554,7 @@ func (r resolverQuery) esmPackageExportsResolveWithPostConditions(
 	}
 	if found != "" {
 		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("  The path %q is not allowed to contain %q", resolved, found))
+			r.debugLogs.addNote(fmt.Sprintf("The path %q is not allowed to contain %q", resolved, found))
 		}
 		return resolved, peStatusInvalidModuleSpecifier, debug
 	}
@@ -563,7 +563,7 @@ func (r resolverQuery) esmPackageExportsResolveWithPostConditions(
 	// Import error.
 	if strings.HasSuffix(resolvedPath, "/") || strings.HasSuffix(resolvedPath, "\\") {
 		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("  The path %q is not allowed to end with a slash", resolved))
+			r.debugLogs.addNote(fmt.Sprintf("The path %q is not allowed to end with a slash", resolved))
 		}
 		return resolved, peStatusUnsupportedDirectoryImport, debug
 	}
@@ -580,7 +580,7 @@ func (r resolverQuery) esmPackageExportsResolve(
 ) (string, peStatus, peDebug) {
 	if exports.kind == peInvalid {
 		if r.debugLogs != nil {
-			r.debugLogs.addNote("  Invalid package configuration")
+			r.debugLogs.addNote("Invalid package configuration")
 		}
 		return "", peStatusInvalidPackageConfiguration, peDebug{token: exports.firstToken}
 	}
@@ -591,7 +591,7 @@ func (r resolverQuery) esmPackageExportsResolve(
 		} else if exports.kind == peObject {
 			if dot, ok := exports.valueForKey("."); ok {
 				if r.debugLogs != nil {
-					r.debugLogs.addNote("  Using the entry for \".\"")
+					r.debugLogs.addNote("Using the entry for \".\"")
 				}
 				mainExport = dot
 			}
@@ -609,7 +609,7 @@ func (r resolverQuery) esmPackageExportsResolve(
 		}
 	}
 	if r.debugLogs != nil {
-		r.debugLogs.addNote(fmt.Sprintf("  The path %q not exported", subpath))
+		r.debugLogs.addNote(fmt.Sprintf("The path %q not exported", subpath))
 	}
 	return "", peStatusPackagePathNotExported, peDebug{token: exports.firstToken}
 }
@@ -621,13 +621,13 @@ func (r resolverQuery) esmPackageImportsExportsResolve(
 	conditions map[string]bool,
 ) (string, peStatus, peDebug) {
 	if r.debugLogs != nil {
-		r.debugLogs.addNote(fmt.Sprintf("  Checking object path map for %q", matchKey))
+		r.debugLogs.addNote(fmt.Sprintf("Checking object path map for %q", matchKey))
 	}
 
 	if !strings.HasSuffix(matchKey, "*") {
 		if target, ok := matchObj.valueForKey(matchKey); ok {
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("  Found exact match for %q", matchKey))
+				r.debugLogs.addNote(fmt.Sprintf("Found exact match for %q", matchKey))
 			}
 			return r.esmPackageTargetResolve(packageURL, target, "", false, conditions)
 		}
@@ -641,7 +641,7 @@ func (r resolverQuery) esmPackageImportsExportsResolve(
 				target := expansion.value
 				subpath := matchKey[len(expansion.key)-1:]
 				if r.debugLogs != nil {
-					r.debugLogs.addNote(fmt.Sprintf("  The key %q matched with %q left over", expansion.key, subpath))
+					r.debugLogs.addNote(fmt.Sprintf("The key %q matched with %q left over", expansion.key, subpath))
 				}
 				return r.esmPackageTargetResolve(packageURL, target, subpath, true, conditions)
 			}
@@ -651,7 +651,7 @@ func (r resolverQuery) esmPackageImportsExportsResolve(
 			target := expansion.value
 			subpath := matchKey[len(expansion.key):]
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("  The key %q matched with %q left over", expansion.key, subpath))
+				r.debugLogs.addNote(fmt.Sprintf("The key %q matched with %q left over", expansion.key, subpath))
 			}
 			result, status, debug := r.esmPackageTargetResolve(packageURL, target, subpath, false, conditions)
 			if status == peStatusExact {
@@ -662,12 +662,12 @@ func (r resolverQuery) esmPackageImportsExportsResolve(
 		}
 
 		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("  The key %q did not match", expansion.key))
+			r.debugLogs.addNote(fmt.Sprintf("The key %q did not match", expansion.key))
 		}
 	}
 
 	if r.debugLogs != nil {
-		r.debugLogs.addNote(fmt.Sprintf("  No keys matched %q", matchKey))
+		r.debugLogs.addNote(fmt.Sprintf("No keys matched %q", matchKey))
 	}
 	return "", peStatusNull, peDebug{token: matchObj.firstToken}
 }
@@ -706,21 +706,23 @@ func (r resolverQuery) esmPackageTargetResolve(
 	switch target.kind {
 	case peString:
 		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("  Checking path %q against target %q", subpath, target.strData))
+			r.debugLogs.addNote(fmt.Sprintf("Checking path %q against target %q", subpath, target.strData))
+			r.debugLogs.increaseIndent()
+			defer r.debugLogs.decreaseIndent()
 		}
 
 		// If pattern is false, subpath has non-zero length and target
 		// does not end with "/", throw an Invalid Module Specifier error.
 		if !pattern && subpath != "" && !strings.HasSuffix(target.strData, "/") {
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("    The target %q is invalid because it doesn't end \"/\"", target.strData))
+				r.debugLogs.addNote(fmt.Sprintf("The target %q is invalid because it doesn't end \"/\"", target.strData))
 			}
 			return target.strData, peStatusInvalidModuleSpecifier, peDebug{token: target.firstToken}
 		}
 
 		if !strings.HasPrefix(target.strData, "./") {
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("    The target %q is invalid because it doesn't start with \"./\"", target.strData))
+				r.debugLogs.addNote(fmt.Sprintf("The target %q is invalid because it doesn't start with \"./\"", target.strData))
 			}
 			return target.strData, peStatusInvalidPackageTarget, peDebug{token: target.firstToken}
 		}
@@ -729,7 +731,7 @@ func (r resolverQuery) esmPackageTargetResolve(
 		// segments after the first segment, throw an Invalid Package Target error.
 		if invalidSegment := findInvalidSegment(target.strData); invalidSegment != "" {
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("    The target %q is invalid because it contains invalid segment %q", target.strData, invalidSegment))
+				r.debugLogs.addNote(fmt.Sprintf("The target %q is invalid because it contains invalid segment %q", target.strData, invalidSegment))
 			}
 			return target.strData, peStatusInvalidPackageTarget, peDebug{token: target.firstToken}
 		}
@@ -741,7 +743,7 @@ func (r resolverQuery) esmPackageTargetResolve(
 		// segments, throw an Invalid Module Specifier error.
 		if invalidSegment := findInvalidSegment(subpath); invalidSegment != "" {
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("    The path %q is invalid because it contains invalid segment %q", subpath, invalidSegment))
+				r.debugLogs.addNote(fmt.Sprintf("The path %q is invalid because it contains invalid segment %q", subpath, invalidSegment))
 			}
 			return subpath, peStatusInvalidModuleSpecifier, peDebug{token: target.firstToken}
 		}
@@ -750,14 +752,14 @@ func (r resolverQuery) esmPackageTargetResolve(
 			// Return the URL resolution of resolvedTarget with every instance of "*" replaced with subpath.
 			result := strings.ReplaceAll(resolvedTarget, "*", subpath)
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("    Substituted %q for \"*\" in %q to get %q", subpath, "."+resolvedTarget, "."+result))
+				r.debugLogs.addNote(fmt.Sprintf("Substituted %q for \"*\" in %q to get %q", subpath, "."+resolvedTarget, "."+result))
 			}
 			return result, peStatusExact, peDebug{token: target.firstToken}
 		} else {
 			// Return the URL resolution of the concatenation of subpath and resolvedTarget.
 			result := path.Join(resolvedTarget, subpath)
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("    Joined %q to %q to get %q", subpath, "."+resolvedTarget, "."+result))
+				r.debugLogs.addNote(fmt.Sprintf("Joined %q to %q to get %q", subpath, "."+resolvedTarget, "."+result))
 			}
 			return result, peStatusExact, peDebug{token: target.firstToken}
 		}
@@ -769,14 +771,16 @@ func (r resolverQuery) esmPackageTargetResolve(
 				keys = append(keys, fmt.Sprintf("%q", key))
 			}
 			sort.Strings(keys)
-			r.debugLogs.addNote(fmt.Sprintf("  Checking condition map for one of [%s]", strings.Join(keys, ", ")))
+			r.debugLogs.addNote(fmt.Sprintf("Checking condition map for one of [%s]", strings.Join(keys, ", ")))
+			r.debugLogs.increaseIndent()
+			defer r.debugLogs.decreaseIndent()
 		}
 
 		for _, p := range target.mapData {
 			if p.key == "default" || conditions[p.key] {
 				targetValue := p.value
 				if r.debugLogs != nil {
-					r.debugLogs.addNote(fmt.Sprintf("    The key %q applies", p.key))
+					r.debugLogs.addNote(fmt.Sprintf("The key %q applies", p.key))
 				}
 				resolved, status, debug := r.esmPackageTargetResolve(packageURL, targetValue, subpath, pattern, conditions)
 				if status.isUndefined() {
@@ -785,12 +789,12 @@ func (r resolverQuery) esmPackageTargetResolve(
 				return resolved, status, debug
 			}
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("    The key %q does not apply", p.key))
+				r.debugLogs.addNote(fmt.Sprintf("The key %q does not apply", p.key))
 			}
 		}
 
 		if r.debugLogs != nil {
-			r.debugLogs.addNote("    No keys in the map were applicable")
+			r.debugLogs.addNote("No keys in the map were applicable")
 		}
 
 		// ALGORITHM DEVIATION: Provide a friendly error message if no conditions matched
@@ -810,12 +814,14 @@ func (r resolverQuery) esmPackageTargetResolve(
 	case peArray:
 		if len(target.arrData) == 0 {
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("  The path %q is set to an empty array", subpath))
+				r.debugLogs.addNote(fmt.Sprintf("The path %q is set to an empty array", subpath))
 			}
 			return "", peStatusNull, peDebug{token: target.firstToken}
 		}
 		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("  Checking for %q in an array", subpath))
+			r.debugLogs.addNote(fmt.Sprintf("Checking for %q in an array", subpath))
+			r.debugLogs.increaseIndent()
+			defer r.debugLogs.decreaseIndent()
 		}
 		lastException := peStatusUndefined
 		lastDebug := peDebug{token: target.firstToken}
@@ -838,13 +844,13 @@ func (r resolverQuery) esmPackageTargetResolve(
 
 	case peNull:
 		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("  The path %q is set to null", subpath))
+			r.debugLogs.addNote(fmt.Sprintf("The path %q is set to null", subpath))
 		}
 		return "", peStatusNull, peDebug{token: target.firstToken}
 	}
 
 	if r.debugLogs != nil {
-		r.debugLogs.addNote(fmt.Sprintf("  Invalid package target for path %q", subpath))
+		r.debugLogs.addNote(fmt.Sprintf("Invalid package target for path %q", subpath))
 	}
 	return "", peStatusInvalidPackageTarget, peDebug{token: target.firstToken}
 }
