@@ -1487,7 +1487,7 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 					// Check for an "exports" map in the package's package.json folder
 					if packageJSON := pkgDirInfo.packageJSON; packageJSON != nil && packageJSON.exportsMap != nil {
 						if r.debugLogs != nil {
-							r.debugLogs.addNote(fmt.Sprintf("Checking \"exports\" map in %s", packageJSON.source.KeyPath.Text))
+							r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"exports\" map in %q", esmPackageSubpath, packageJSON.source.KeyPath.Text))
 						}
 
 						// The condition set is determined by the kind of import
@@ -1505,18 +1505,24 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 						// want problems due to Windows paths, which are very unlike URL
 						// paths. We also want to avoid any "%" characters in the absolute
 						// directory path accidentally being interpreted as URL escapes.
-						resolvedPath, status, debug := esmPackageExportsResolveWithPostConditions("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
+						resolvedPath, status, debug := r.esmPackageExportsResolveWithPostConditions("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
 						if (status == peStatusExact || status == peStatusInexact) && strings.HasPrefix(resolvedPath, "/") {
 							absResolvedPath := r.fs.Join(absPkgPath, resolvedPath[1:])
 
 							switch status {
 							case peStatusExact:
+								if r.debugLogs != nil {
+									r.debugLogs.addNote(fmt.Sprintf("  The resolved path %q is exact", absResolvedPath))
+								}
 								resolvedDirInfo := r.dirInfoCached(r.fs.Dir(absResolvedPath))
 								if resolvedDirInfo == nil {
 									status = peStatusModuleNotFound
 								} else if entry, diffCase := resolvedDirInfo.entries.Get(r.fs.Base(absResolvedPath)); entry == nil {
 									status = peStatusModuleNotFound
 								} else if kind := entry.Kind(r.fs); kind == fs.DirEntry {
+									if r.debugLogs != nil {
+										r.debugLogs.addNote(fmt.Sprintf("  The path %q is a directory, which is not allowed", absResolvedPath))
+									}
 									status = peStatusUnsupportedDirectoryImport
 								} else if kind != fs.FileEntry {
 									status = peStatusModuleNotFound
@@ -1531,6 +1537,9 @@ func (r resolverQuery) loadNodeModules(path string, kind ast.ImportKind, dirInfo
 								// If this was resolved against an expansion key ending in a "/"
 								// instead of a "*", we need to try CommonJS-style implicit
 								// extension and/or directory detection.
+								if r.debugLogs != nil {
+									r.debugLogs.addNote(fmt.Sprintf("  The resolved path %q is inexact", absResolvedPath))
+								}
 								if absolute, ok, diffCase := r.loadAsFileOrDirectory(absResolvedPath, kind); ok {
 									return absolute, true, diffCase, DebugMeta{}
 								}
