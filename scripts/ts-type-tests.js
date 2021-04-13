@@ -267,7 +267,7 @@ async function main() {
   fs.mkdirSync(testDir, { recursive: true })
   fs.writeFileSync(path.join(testDir, 'tsconfig.json'), JSON.stringify(tsconfigJson))
 
-  const types = fs.readFileSync(path.join(__dirname, '..', 'lib', 'types.ts'), 'utf8')
+  const types = fs.readFileSync(path.join(__dirname, '..', 'lib', 'shared', 'types.ts'), 'utf8')
   const esbuild_d_ts = path.join(testDir, 'node_modules', 'esbuild', 'index.d.ts')
   fs.mkdirSync(path.dirname(esbuild_d_ts), { recursive: true })
   fs.writeFileSync(esbuild_d_ts, `
@@ -298,4 +298,8 @@ async function main() {
   }
 }
 
-main()
+main().catch(e => {
+  setTimeout(() => {
+    throw e
+  })
+})
