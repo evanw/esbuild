@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.10
 
 * Provide more information about `exports` map import failures if possible ([#1143](https://github.com/evanw/esbuild/issues/1143))
 
