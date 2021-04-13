@@ -28,6 +28,11 @@ jobs:
       with:
         node-version: 14
 
+    - name: Setup Deno 1.x
+      uses: denolib/setup-deno@v2
+      with:
+        deno-version: v1.x
+
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
 
@@ -36,6 +41,12 @@ jobs:
 
     - name: go vet
       run: go vet ./cmd/... ./internal/... ./pkg/...
+
+    - name: Deno Tests
+      # Deno tests currently don't run on Windows because of "esbuild" vs.
+      # "esbuild.exe" in the test harness. This should be fixed...
+      if: matrix.os != 'windows-latest'
+      run: make test-deno
 
     - name: Test for path/filepath
       if: matrix.os == 'ubuntu-latest'

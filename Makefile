@@ -11,7 +11,7 @@ test-common: test-go vet-go no-filepath verify-source-map end-to-end-tests js-ap
 
 # These tests are for release (the extra tests are not included in "test" because they are pretty slow)
 test-all:
-	make -j6 test-common ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
+	make -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 # This includes tests of some 3rd-party libraries, which can be very slow
 test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild bench-readmin-esbuild test-esprima test-rollup
@@ -44,6 +44,9 @@ test-wasm-node: esbuild
 
 test-wasm-browser: platform-wasm | scripts/browser/node_modules
 	cd scripts/browser && node browser-tests.js
+
+test-deno: esbuild platform-deno
+	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno run --allow-run --allow-env --allow-net --allow-read --allow-write scripts/deno-tests.js
 
 register-test: cmd/esbuild/version.go | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
