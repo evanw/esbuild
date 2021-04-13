@@ -928,8 +928,8 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		level = js_ast.LLowest
 	}
 
-	// TODO(thlorenz): ensure that when not rewriting a module `require`s are printed correctly
-	if p.renamer.IsEnabled || !record.SourceIndex.IsValid() {
+	// NOTE: for snapshots we always want to write `require` statements
+	if !p.options.IsRuntime || !record.SourceIndex.IsValid() {
 		// External "require()"
 		if record.Kind != ast.ImportDynamic {
 			if record.WrapWithToModule {
