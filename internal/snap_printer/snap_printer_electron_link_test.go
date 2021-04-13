@@ -390,10 +390,6 @@ let {a, b, ...rest} = {a: 1, b: 2, c: 3};
 `, ReplaceAll)
 }
 
-// TODO: this is about rewriting require strings depending on a basedir
-//   which is handled at the bundler level.
-// test('path resolution') line 353
-
 // test('use reference directly')
 func TestElinkUseReferenceDirectly(t *testing.T) {
 	expectPrinted(t, `

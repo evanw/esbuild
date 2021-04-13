@@ -43,7 +43,7 @@ func (p *printer) printReferenceReplacementFunctionAssign(
 	p.print(fnHeader)
 	p.printNewline()
 	p.print(fnBodyStart)
-	// TODO: not sure where I'd get a level + flags from in this case
+	// TODO(thlorenz): not sure where I'd get a level + flags from in this case
 	p.printExpr(*expr, js_ast.LLowest, 0)
 	if isDestructuring {
 		p.print(".")

@@ -663,11 +663,11 @@ function __get_u__() {
 `, ReplaceAll)
 }
 
-// TODO: do we care that the below rewrite doesn't work as expected
+// TODO(thlorenz): do we care that the below rewrite doesn't work as expected
 // since types is defined initially, i.e. we'll never run Object.create(null)?
 // Latter excludes `Object` prototype methods.
 // Example from `esprima/esprima.js`
-// TODO: sometimes (since introducing late declare support) the let is placed incorrectly
+// TODO(thlorenz): sometimes (since introducing late declare support) the let is placed incorrectly
 // Resulting in:
 // (function(root, factory) {
 //  "use strict";

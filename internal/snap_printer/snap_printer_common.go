@@ -93,8 +93,6 @@ func (p *printer) extractRequireExpression(expr js_ast.Expr, propDepth int, call
 		}
 
 		var requireArg string
-		// TODO(rebase): verify that 0 now is a standin for nil as described in comments in ast.go
-		//    - stores a 32-bit index where the zero value is an invalid index. This is
 		if record.SourceIndex.IsValid() {
 			wrapperRef := p.options.RequireOrImportMetaForSource(record.SourceIndex.GetIndex()).WrapperRef
 			requireArg = p.renamer.NameForSymbol(wrapperRef)

@@ -142,7 +142,7 @@ func (p *printer) prependTopLevelDecls() {
 
 	offset := 0
 
-	// TODO: map iteration order is not guaranteed but here we make the assumption that it is
+	// TODO(thlorenz): map iteration order is not guaranteed but here we make the assumption that it is
 	// https://stackoverflow.com/a/9621526/97443
 	for idx, names := range grouped {
 		decl := "let "
