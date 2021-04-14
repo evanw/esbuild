@@ -1,5 +1,4 @@
 const childProcess = require('child_process')
-const rimraf = require('rimraf')
 const path = require('path')
 const zlib = require('zlib')
 const fs = require('fs')
@@ -241,11 +240,7 @@ exports.buildBinary = () => {
 
 exports.removeRecursiveSync = path => {
   try {
-    // Strangely node doesn't have a function to remove a directory tree.
-    // Using "rm -fr" will never work on Windows because the "rm" command
-    // doesn't exist. Using the "rimraf" should be cross-platform and even
-    // works on Windows some of the time.
-    rimraf.sync(path, { disableGlob: true })
+    fs.rmSync(path, { recursive: true })
   } catch (e) {
     // Removing stuff on Windows is flaky and unreliable. Don't fail tests
     // on CI if Windows is just being a pain. Common causes of flakes include
