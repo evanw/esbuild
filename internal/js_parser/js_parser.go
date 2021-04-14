@@ -114,6 +114,7 @@ type parser struct {
 	namedImports            map[js_ast.Ref]js_ast.NamedImport
 	namedExports            map[string]js_ast.NamedExport
 	topLevelSymbolToParts   map[js_ast.Ref][]uint32
+	importNamespaceCCMap    map[importNamespaceCallOrConstruct]bool
 
 	// The parser does two passes and we need to pass the scope tree information
 	// from the first pass to the second pass. That's done by tracking the calls
@@ -250,6 +251,11 @@ type parser struct {
 	//     Expression , AssignmentExpression
 	//
 	afterArrowBodyLoc logger.Loc
+}
+
+type importNamespaceCallOrConstruct struct {
+	ref         js_ast.Ref
+	isConstruct bool
 }
 
 type thenCatchChain struct {
@@ -11522,6 +11528,18 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 func (p *parser) warnAboutImportNamespaceCallOrConstruct(target js_ast.Expr, isConstruct bool) {
 	if p.options.outputFormat != config.FormatPreserve {
 		if id, ok := target.Data.(*js_ast.EIdentifier); ok && p.importItemsForNamespace[id.Ref] != nil {
+			key := importNamespaceCallOrConstruct{
+				ref:         id.Ref,
+				isConstruct: isConstruct,
+			}
+			if p.importNamespaceCCMap == nil {
+				p.importNamespaceCCMap = make(map[importNamespaceCallOrConstruct]bool)
+			}
+			if _, ok := p.importNamespaceCCMap[key]; ok {
+				// Don't log a warning for the same identifier more than once
+				return
+			}
+			p.importNamespaceCCMap[key] = true
 			r := js_lexer.RangeOfIdentifier(p.source, target.Loc)
 			hint := ""
 			if p.options.ts.Parse {
