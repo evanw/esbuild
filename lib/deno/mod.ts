@@ -80,7 +80,12 @@ function getCachePath(name: string): { finalPath: string, finalDir: string } {
       break
 
     case 'windows':
-      baseDir = Deno.env.get('FOLDERID_LocalAppData')
+      baseDir = Deno.env.get('LOCALAPPDATA')
+      if (!baseDir) {
+        baseDir = Deno.env.get('USERPROFILE')
+        if (baseDir) baseDir += '/AppData/Local'
+      }
+      if (baseDir) baseDir += '/Cache'
       break
 
     case 'linux':
@@ -123,6 +128,9 @@ function extractFileFromTarGzip(buffer: Uint8Array, file: string): Uint8Array {
 }
 
 async function install(): Promise<string> {
+  const overridePath = Deno.env.get('ESBUILD_BINARY_PATH')
+  if (overridePath) return overridePath
+
   const platformKey = Deno.build.target
   const knownWindowsPackages: Record<string, string> = {
     'x86_64-pc-windows-msvc': 'esbuild-windows-64',
