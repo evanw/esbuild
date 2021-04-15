@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.11
 
 * Initial support for Deno ([#936](https://github.com/evanw/esbuild/issues/936))
 
