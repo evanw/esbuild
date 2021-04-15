@@ -821,12 +821,6 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 		},
 		expectedScanLog: `entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
 entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
 `,
 	})
 }
@@ -940,8 +934,6 @@ func TestConditionalImport(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `b.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
-`,
 	})
 }
 
@@ -1056,8 +1048,6 @@ func TestRequireWithoutCall(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-`,
 	})
 }
 
@@ -1076,8 +1066,6 @@ func TestNestedRequireWithoutCall(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-`,
 	})
 }
 
@@ -1144,31 +1132,6 @@ func TestRequirePropertyAccessCommonJS(t *testing.T) {
 	})
 }
 
-func TestRequirePropertyAccessES6(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				// These should warn since the format is ESM
-				console.log(Object.keys(require.cache))
-				console.log(Object.keys(require.extensions))
-				delete require.cache['fs']
-				delete require.extensions['.json']
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			OutputFormat:  config.FormatESModule,
-			AbsOutputFile: "/out.js",
-		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-`,
-	})
-}
-
 // Test a workaround for code using "await import()"
 func TestAwaitImportInsideTry(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
@@ -1195,13 +1158,12 @@ func TestImportInsideTry(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				async function main(name) {
-					try {
-						return import(name)
-					} catch {
-					}
+				let x
+				try {
+					x = import('nope1')
+					x = await import('nope2')
+				} catch {
 				}
-				main('fs')
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1209,7 +1171,7 @@ func TestImportInsideTry(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
+		expectedScanLog: `entry.js: error: Could not resolve "nope1" (mark it as external to exclude it from the bundle, or add ".catch()" to handle the failure at run-time)
 `,
 	})
 }
@@ -1311,83 +1273,6 @@ func TestHashbangNoBundle(t *testing.T) {
 		options: config.Options{
 			AbsOutputFile: "/out.js",
 		},
-	})
-}
-
-func TestTypeofRequireBundle(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log([
-					typeof require,
-					typeof require == 'function',
-					typeof require == 'function' && require,
-					'function' == typeof require,
-					'function' == typeof require && require,
-				]);
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-		},
-	})
-}
-
-func TestTypeofRequireNoBundle(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log([
-					typeof require,
-					typeof require == 'function',
-					typeof require == 'function' && require,
-					'function' == typeof require,
-					'function' == typeof require && require,
-				]);
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			AbsOutputFile: "/out.js",
-		},
-	})
-}
-
-func TestTypeofRequireBadPatterns(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log([
-					typeof require != 'function' && require,
-					typeof require === 'function' && require,
-					typeof require == 'function' || require,
-					typeof require == 'function' && notRequire,
-					typeof notRequire == 'function' && require,
-
-					'function' != typeof require && require,
-					'function' === typeof require && require,
-					'function' == typeof require || require,
-					'function' == typeof require && notRequire,
-					'function' == typeof notRequire && require,
-				]);
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-`,
 	})
 }
 
@@ -3559,10 +3444,7 @@ func TestRequireResolve(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: "./present-file" should be marked as external for use with "require.resolve"
+		expectedScanLog: `entry.js: warning: "./present-file" should be marked as external for use with "require.resolve"
 entry.js: warning: "./missing-file" should be marked as external for use with "require.resolve"
 entry.js: warning: "missing-pkg" should be marked as external for use with "require.resolve"
 entry.js: warning: "@scope/missing-pkg" should be marked as external for use with "require.resolve"
@@ -4111,26 +3993,6 @@ func TestRequireMainCacheCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			OutputFormat:  config.FormatCommonJS,
 		},
-	})
-}
-
-func TestRequireMainCacheIIFE(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log('is main:', require.main === module)
-				console.log('cache:', require.cache);
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-			OutputFormat:  config.FormatIIFE,
-		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-`,
 	})
 }
 
