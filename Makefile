@@ -207,6 +207,7 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j2 \
 		publish-neutral \
+		publish-deno \
 		publish-wasm
 	git commit -am "publish $(ESBUILD_VERSION) to npm"
 	git tag "v$(ESBUILD_VERSION)"
@@ -256,6 +257,14 @@ publish-wasm: platform-wasm
 
 publish-neutral: platform-neutral
 	test -n "$(OTP)" && cd npm/esbuild && npm publish --otp="$(OTP)"
+
+publish-deno:
+	test -f deno/.git || (rm -fr deno && git clone git@github.com:esbuild/deno-esbuild.git deno)
+	cd deno && git fetch && git reset --hard origin/main
+	make platform-deno
+	cd deno && git commit -am "publish $(ESBUILD_VERSION) to deno"
+	cd deno && git tag "v$(ESBUILD_VERSION)"
+	cd deno && git push origin main "v$(ESBUILD_VERSION)"
 
 clean:
 	rm -f esbuild
