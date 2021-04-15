@@ -88,9 +88,17 @@ type ImportRecord struct {
 	// Tell the printer to wrap this call to "require()" in "__toModule(...)"
 	WrapWithToModule bool
 
-	// True for require calls like this: "try { require() } catch {}". In this
-	// case we shouldn't generate an error if the path could not be resolved.
-	IsInsideTryBody bool
+	// True for the following cases:
+	//
+	//   try { require('x') } catch { handle }
+	//   try { await import('x') } catch { handle }
+	//   try { require.resolve('x') } catch { handle }
+	//   import('x').catch(handle)
+	//   import('x').then(_, handle)
+	//
+	// In these cases we shouldn't generate an error if the path could not be
+	// resolved.
+	HandlesImportErrors bool
 
 	// If true, this was originally written as a bare "import 'file'" statement
 	WasOriginallyBareImport bool

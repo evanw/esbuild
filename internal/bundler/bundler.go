@@ -404,7 +404,7 @@ func parseFile(args parseArgs) {
 				// All "require.resolve()" imports should be external because we don't
 				// want to waste effort traversing into them
 				if record.Kind == ast.ImportRequireResolve {
-					if !record.IsInsideTryBody && (resolveResult == nil || !resolveResult.IsExternal) {
+					if !record.HandlesImportErrors && (resolveResult == nil || !resolveResult.IsExternal) {
 						args.log.AddRangeWarning(&source, record.Range,
 							fmt.Sprintf("%q should be marked as external for use with \"require.resolve\"", record.Path.Text))
 					}
@@ -416,10 +416,15 @@ func parseFile(args parseArgs) {
 					// external imports instead of causing errors. This matches a common
 					// code pattern for conditionally importing a module with a graceful
 					// fallback.
-					if !didLogError && !record.IsInsideTryBody {
+					if !didLogError && !record.HandlesImportErrors {
 						hint := ""
 						if resolver.IsPackagePath(record.Path.Text) {
-							hint = " (mark it as external to exclude it from the bundle)"
+							if record.Kind == ast.ImportRequire {
+								hint = ", or surround it with try/catch to handle the failure at run-time"
+							} else if record.Kind == ast.ImportDynamic {
+								hint = ", or add \".catch()\" to handle the failure at run-time"
+							}
+							hint = fmt.Sprintf(" (mark it as external to exclude it from the bundle%s)", hint)
 							if pluginName == "" && !args.fs.IsAbs(record.Path.Text) {
 								if query := args.res.ProbeResolvePackageAsRelative(absResolveDir, record.Path.Text, record.Kind); query != nil {
 									hint = fmt.Sprintf(" (use %q to reference the file %q)", "./"+record.Path.Text, args.res.PrettyPath(query.PathPair.Primary))

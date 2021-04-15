@@ -949,18 +949,6 @@ const imp = [
 console.log(ns, a, c, def, def2, ns2, def3, a2, c3, imp);
 
 ================================================================================
-TestImportInsideTry
----------- /out.js ----------
-// entry.js
-async function main(name) {
-  try {
-    return import(name);
-  } catch {
-  }
-}
-main("fs");
-
-================================================================================
 TestImportMetaCommonJS
 ---------- /out.js ----------
 // entry.js
@@ -2127,18 +2115,6 @@ console.log(require_is_main());
 console.log("cache:", require.cache);
 
 ================================================================================
-TestRequireMainCacheIIFE
----------- /out.js ----------
-(() => {
-  // entry.js
-  var require_entry = __commonJS((exports, module) => {
-    console.log("is main:", require.main === module);
-    console.log("cache:", require.cache);
-  });
-  require_entry();
-})();
-
-================================================================================
 TestRequireParentDirCommonJS
 ---------- /out.js ----------
 // Users/user/project/src/index.js
@@ -2160,15 +2136,6 @@ console.log(src_default);
 
 ================================================================================
 TestRequirePropertyAccessCommonJS
----------- /out.js ----------
-// entry.js
-console.log(Object.keys(require.cache));
-console.log(Object.keys(require.extensions));
-delete require.cache["fs"];
-delete require.extensions[".json"];
-
-================================================================================
-TestRequirePropertyAccessES6
 ---------- /out.js ----------
 // entry.js
 console.log(Object.keys(require.cache));
@@ -2929,46 +2896,6 @@ TestTopLevelReturnAllowedImport
 ---------- /out.js ----------
 return;
 import "foo";
-
-================================================================================
-TestTypeofRequireBadPatterns
----------- /out.js ----------
-// entry.js
-console.log([
-  false,
-  require,
-  true,
-  notRequire,
-  typeof notRequire == "function" && require,
-  false,
-  require,
-  true,
-  notRequire,
-  typeof notRequire == "function" && require
-]);
-
-================================================================================
-TestTypeofRequireBundle
----------- /out.js ----------
-// entry.js
-console.log([
-  "function",
-  true,
-  false,
-  true,
-  false
-]);
-
-================================================================================
-TestTypeofRequireNoBundle
----------- /out.js ----------
-console.log([
-  typeof require,
-  typeof require == "function",
-  typeof require == "function" && require,
-  typeof require == "function",
-  typeof require == "function" && require
-]);
 
 ================================================================================
 TestUseStrictDirectiveMinifyNoBundle

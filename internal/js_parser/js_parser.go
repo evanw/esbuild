@@ -143,69 +143,6 @@ type parser struct {
 	moduleScope       *js_ast.Scope
 	isControlFlowDead bool
 
-	// These are for recognizing "typeof require == 'function' && require". This
-	// is a workaround for code that browserify generates that looks like this:
-	//
-	//   (function e(t, n, r) {
-	//     function s(o2, u) {
-	//       if (!n[o2]) {
-	//         if (!t[o2]) {
-	//           var a = typeof require == "function" && require;
-	//           if (!u && a)
-	//             return a(o2, true);
-	//           if (i)
-	//             return i(o2, true);
-	//           throw new Error("Cannot find module '" + o2 + "'");
-	//         }
-	//         var f = n[o2] = {exports: {}};
-	//         t[o2][0].call(f.exports, function(e2) {
-	//           var n2 = t[o2][1][e2];
-	//           return s(n2 ? n2 : e2);
-	//         }, f, f.exports, e, t, n, r);
-	//       }
-	//       return n[o2].exports;
-	//     }
-	//     var i = typeof require == "function" && require;
-	//     for (var o = 0; o < r.length; o++)
-	//       s(r[o]);
-	//     return s;
-	//   });
-	//
-	// It's checking to see if the environment it's running in has a "require"
-	// function before calling it. However, esbuild's bundling environment has a
-	// bundle-time require function because it's a bundler. So in this case
-	// "typeof require == 'function'" is true and the "&&" expression just
-	// becomes a single "require" identifier, which will then crash at run time.
-	//
-	// The workaround is to explicitly pattern-match for the exact expression
-	// "typeof require == 'function' && require" and replace it with "false" if
-	// we're targeting the browser.
-	//
-	// Note that we can't just leave "typeof require == 'function'" alone because
-	// there is other code in the wild that legitimately does need it to become
-	// "true" when bundling. Specifically, the package "@dagrejs/graphlib" has
-	// code that looks like this:
-	//
-	//   if (typeof require === "function") {
-	//     try {
-	//       lodash = {
-	//         clone: require("lodash/clone"),
-	//         constant: require("lodash/constant"),
-	//         each: require("lodash/each"),
-	//         // ... more calls to require() here ...
-	//       };
-	//     } catch (e) {
-	//       // continue regardless of error
-	//     }
-	//   }
-	//
-	// That library will crash later on during startup if that branch isn't
-	// taken because "typeof require === 'function'" is false at run time.
-	typeofTarget                js_ast.E
-	typeofRequire               js_ast.E
-	typeofRequireEqualsFn       js_ast.E
-	typeofRequireEqualsFnTarget js_ast.E
-
 	// This helps recognize the "await import()" pattern. When this is present,
 	// warnings about non-string import paths will be omitted inside try blocks.
 	awaitTarget js_ast.E
@@ -213,15 +150,6 @@ type parser struct {
 	// This helps recognize the "import().catch()" pattern. We also try to avoid
 	// warning about this just like the "try { await import() }" pattern.
 	thenCatchChain thenCatchChain
-
-	// This helps recognize the "require.someProperty" pattern. If this pattern is
-	// present and the output format is CommonJS, we avoid generating a warning
-	// about an unbundled use of "require".
-	cjsDotTarget js_ast.E
-
-	// This helps recognize calls to "require.resolve()" which may become
-	// ERequireResolve expressions.
-	resolveCallTarget js_ast.E
 
 	// Temporary variables used for lowering
 	tempRefsToDeclare []tempRef
@@ -420,19 +348,9 @@ type fnOrArrowDataVisit struct {
 	isInsideSwitch     bool
 	isOutsideFnOrArrow bool
 
-	// This is used to silence references to "require" inside a try/catch
-	// statement. The assumption is that the try/catch statement is there to
-	// handle the case where the reference to "require" crashes. Specifically,
-	// the workaround handles the "moment" library which contains code that
-	// looks like this:
-	//
-	//   try {
-	//     oldLocale = globalLocale._abbr;
-	//     var aliasedRequire = require;
-	//     aliasedRequire('./locale/' + name);
-	//     getSetGlobalLocale(oldLocale);
-	//   } catch (e) {}
-	//
+	// This is used to silence unresolvable imports due to "require" calls inside
+	// a try/catch statement. The assumption is that the try/catch statement is
+	// there to handle the case where the reference to "require" crashes.
 	tryBodyCount int
 }
 
@@ -10044,11 +9962,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{assignTarget: e.Op.BinaryAssignTarget()})
 
-		// Pattern-match "typeof require == 'function' && ___" from browserify
-		if e.Op == js_ast.BinOpLogicalAnd && e.Left.Data == p.typeofRequireEqualsFn {
-			p.typeofRequireEqualsFnTarget = e.Right.Data
-		}
-
 		// Mark the control flow as dead if the branch is never taken
 		switch e.Op {
 		case js_ast.BinOpLogicalOr:
@@ -10118,17 +10031,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		case js_ast.BinOpLooseEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				data := &js_ast.EBoolean{Value: result}
-
-				// Pattern-match "typeof require == 'function'" from browserify. Also
-				// match "'function' == typeof require" because some minifiers such as
-				// terser transpose the left and right operands to "==" to form a
-				// different but equivalent expression.
-				if result && (e.Left.Data == p.typeofRequire || e.Right.Data == p.typeofRequire) {
-					p.typeofRequireEqualsFn = data
-				}
-
-				return js_ast.Expr{Loc: expr.Loc, Data: data}, exprOut{}
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: result}}, exprOut{}
 			}
 			afterOpLoc := locAfterOp(e)
 			if !p.warnAboutEqualityCheck("==", e.Left, afterOpLoc) {
@@ -10622,8 +10525,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	case *js_ast.EUnary:
 		switch e.Op {
 		case js_ast.UnOpTypeof:
-			p.typeofTarget = e.Value.Data
-
 			_, idBefore := e.Value.Data.(*js_ast.EIdentifier)
 			e.Value, _ = p.visitExprInOut(e.Value, exprIn{assignTarget: e.Op.UnaryAssignTarget()})
 			id, idAfter := e.Value.Data.(*js_ast.EIdentifier)
@@ -10632,15 +10533,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// is unbound because that could suppress a ReferenceError from "x"
 			if !idBefore && idAfter && p.symbols[id.Ref.InnerIndex].Kind == js_ast.SymbolUnbound {
 				e.Value = js_ast.JoinWithComma(js_ast.Expr{Loc: e.Value.Loc, Data: &js_ast.ENumber{}}, e.Value)
-			}
-
-			// "typeof require" => "'function'"
-			if p.options.mode == config.ModeBundle {
-				if id, ok := e.Value.Data.(*js_ast.EIdentifier); ok && id.Ref == p.requireRef {
-					p.ignoreUsage(p.requireRef)
-					p.typeofRequire = &js_ast.EString{Value: js_lexer.StringToUTF16("function")}
-					return js_ast.Expr{Loc: expr.Loc, Data: p.typeofRequire}, exprOut{}
-				}
 			}
 
 			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
@@ -10795,11 +10687,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					break
 				}
 			}
-		}
-
-		// This helps us pattern-match "require.someProperty" when targeting CommonJS
-		if p.options.outputFormat == config.FormatCommonJS {
-			p.cjsDotTarget = e.Target.Data
 		}
 
 		// Track ".then().catch()" chains
@@ -11127,32 +11014,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, js_lexer.UTF16ToString(str.Value))
+				p.importRecords[importRecordIndex].HandlesImportErrors = (isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0) || isThenCatchTarget
 				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImport{
 					Expr:                    arg,
 					ImportRecordIndex:       ast.MakeIndex32(importRecordIndex),
 					LeadingInteriorComments: e.LeadingInteriorComments,
 				}}
-			}
-
-			if p.options.mode == config.ModeBundle {
-				// Heuristic: omit warnings when using "await import()" inside a try
-				// block because presumably the try block is there to handle the
-				// potential run-time error from the unbundled "await import()" call
-				// failing. Also support the "import().then(pass, fail)" pattern as
-				// well as the "import().catch(fail)" pattern.
-				omitWarnings := (p.fnOrArrowDataVisit.tryBodyCount != 0 && isAwaitTarget) || isThenCatchTarget
-
-				if !omitWarnings {
-					text := "This dynamic import will not be bundled because the argument is not a string literal"
-					if isAwaitTarget {
-						text += " (surround with a try/catch to silence this warning)"
-					} else {
-						text += " (use \"import().catch()\" to silence this warning)"
-					}
-					r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
-					p.log.AddRangeWarning(&p.source, r, text)
-				}
 			}
 
 			// We need to convert this into a call to "require()" if ES6 syntax is
@@ -11218,7 +11086,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		couldBeRequireResolve := false
 		if len(e.Args) == 1 && p.options.mode != config.ModePassThrough {
 			if dot, ok := e.Target.Data.(*js_ast.EDot); ok && dot.OptionalChain == js_ast.OptionalChainNone && dot.Name == "resolve" {
-				p.resolveCallTarget = dot.Target.Data
 				couldBeRequireResolve = true
 			}
 		}
@@ -11267,7 +11134,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							}
 
 							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value))
-							p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOrArrowDataVisit.tryBodyCount != 0
+							p.importRecords[importRecordIndex].HandlesImportErrors = p.fnOrArrowDataVisit.tryBodyCount != 0
 							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 							// Create a new expression to represent the operation
@@ -11393,7 +11260,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								}
 
 								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value))
-								p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOrArrowDataVisit.tryBodyCount != 0
+								p.importRecords[importRecordIndex].HandlesImportErrors = p.fnOrArrowDataVisit.tryBodyCount != 0
 								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 								// Create a new expression to represent the operation
@@ -11643,24 +11510,6 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 				Name:    name,
 				NameLoc: loc,
 			}}
-		}
-	}
-
-	// Warn about uses of "require" other than a direct "require()" call, a
-	// "typeof require" expression, or a "require.someProperty" access. But
-	// suppress warnings inside a try body block since presumably the try/catch
-	// is there to handle run-time failures due to indirect require calls.
-	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && e != p.cjsDotTarget && p.fnOrArrowDataVisit.tryBodyCount == 0 {
-		// "typeof require == 'function' && require"
-		if e == p.typeofRequireEqualsFnTarget {
-			// Become "false" in the browser and "require" in node
-			if p.options.platform == config.PlatformBrowser {
-				return js_ast.Expr{Loc: loc, Data: &js_ast.EBoolean{Value: false}}
-			}
-		} else if e != p.resolveCallTarget {
-			r := js_lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddRangeWarning(&p.source, r,
-				"Indirect calls to \"require\" will not be bundled (surround with a try/catch to silence this warning)")
 		}
 	}
 
