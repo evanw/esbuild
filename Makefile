@@ -32,7 +32,12 @@ vet-go:
 	go vet ./cmd/... ./internal/... ./pkg/...
 
 fmt-go:
-	go fmt -x ./cmd/... ./internal/... ./pkg/...
+	# This uses "|| true" to swallow errors because for some reason this command
+	# started randomly failing when run inside GitHub Actions. It still formats
+	# all files successfully but then sometimes exits with a status of 1 (this
+	# started on April 14th, 2021). I don't know why this happens and don't know
+	# how to fix it. I'm just swallowing this error for now to move past this.
+	go fmt ./cmd/... ./internal/... ./pkg/... || true
 
 no-filepath:
 	@! grep --color --include '*.go' -r '"path/filepath"' cmd internal pkg || ( \
