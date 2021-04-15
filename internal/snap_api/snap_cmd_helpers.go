@@ -54,20 +54,16 @@ func warningsJSON(result api.BuildResult) string {
 }
 
 func outputFilesToJSON(result api.BuildResult) string {
-	outputFiles := "["
+	if len(result.OutputFiles) != 1 {
+		panic(fmt.Sprintf("Expected exactly one OutputFile, got %d", len(result.OutputFiles)))
+	}
 
-	for i, x := range result.OutputFiles {
-		contents := x.Contents
-		outputFiles += fmt.Sprintf(`
+	outputFiles := "["
+	outputFiles += fmt.Sprintf(`
     { 
       "path": "<stdout>",
       "contents": "%v"
-    }`, hex.EncodeToString(contents))
-
-		if i+1 < len(result.OutputFiles) {
-			outputFiles += ","
-		}
-	}
+    }`, hex.EncodeToString(result.OutputFiles[0].Contents))
 	outputFiles += "\n  ]"
 	return outputFiles
 }
@@ -84,6 +80,7 @@ func outputFilesToJSON(result api.BuildResult) string {
  *  interface BuildResult {
  *	  warnings: Message[];
  *	  outputFiles?: OutputFile[]; // Only when "write: false"
+ *    metafile?: Metafile;        // Only when "metafile: true"
  *	  rebuild?: BuildInvalidate; // Only when "incremental" is true (not implemented for now)
  *	}
  */
@@ -96,6 +93,10 @@ func resultToJSON(result api.BuildResult, write bool) string {
 		json += fmt.Sprintf(`,
   "outfiles": %s`,
 			outputFilesToJSON(result))
+		json += fmt.Sprintf(`,
+  "metafile": { 
+    "contents": "%v"
+  }`, hex.EncodeToString([]byte(result.Metafile)))
 	}
 	json += "\n}"
 	return json

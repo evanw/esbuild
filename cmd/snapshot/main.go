@@ -54,18 +54,15 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		return true
 	}
 
+	// TODO(rebase): still needed?
 	// HACK: this is needed to make esbuild include the metafile with the out files in the
 	// result. I'm not sure how that works with the `{ write: false }` JS API.
 	// Additionally in that case the `Outdir` needs to be set as well.
 	// Note however that despite all this nothing is ever written and all paths are changed
 	// to `<stdout>` when writing output files to JSON (see `snap_api/snap_cmd_helpers.go`)
 	outdir := ""
-	metafile := args.Metafile
 	if !args.Write {
 		outdir = "/"
-		if metafile == "" {
-			metafile = "/"
-		}
 	}
 
 	return api.Build(api.BuildOptions{
@@ -82,10 +79,9 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		// https://esbuild.github.io/api/#outdir
 		Outdir: outdir,
 
-		// write out a JSON file with metadata about the build
+		// include JSON file with metadata about the build with the result
 		// https://esbuild.github.io/api/#metafile
-		// TODO(rebase): what option do we use now?
-		// Metafile: metafile,
+		Metafile: args.Metafile,
 
 		// Applies when one entry point is used.
 		// https://esbuild.github.io/api/#outfile

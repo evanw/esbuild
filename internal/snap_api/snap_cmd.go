@@ -23,14 +23,14 @@ Options:
                    which are also automatically deferred
 
 Examples:
-  snapshot entry_point.js --outfile=out.js --metafile: meta.json --basedir /dev/foo/snap --deferred='./foo,./bar'
+  snapshot entry_point.js --outfile=out.js --metafile --basedir /dev/foo/snap --deferred='./foo,./bar'
 `
 
 type SnapCmdArgs struct {
 	EntryPoint  string
 	Outfile     string
 	Basedir     string
-	Metafile    string
+	Metafile    bool
 	Write       bool
 	Deferred    []string
 	Norewrite   []string
@@ -116,8 +116,8 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 		case strings.HasPrefix(arg, "--outfile="):
 			cmdArgs.Outfile = arg[len("--outfile="):]
 
-		case strings.HasPrefix(arg, "--metafile="):
-			cmdArgs.Metafile = arg[len("--metafile="):]
+		case strings.HasPrefix(arg, "--metafile"):
+			cmdArgs.Metafile = true
 
 		case strings.HasPrefix(arg, "--write="):
 			cmdArgs.Write = true
@@ -153,10 +153,6 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 		fmt.Fprintf(os.Stderr, "Need outfile when writing\n\n%s\n", helpText)
 		os.Exit(1)
 	}
-	if cmdArgs.Write && cmdArgs.Metafile == "" {
-		fmt.Fprintf(os.Stderr, "Need metafile when writing\n\n%s\n", helpText)
-		os.Exit(1)
-	}
 	if cmdArgs.Basedir == "" {
 		fmt.Fprintf(os.Stderr, "Need basedir\n\n%s\n", helpText)
 		os.Exit(1)
@@ -168,8 +164,8 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 	result := processArgs(&cmdArgs)
 	_, prettyPrint := os.LookupEnv("SNAPSHOT_PRETTY_PRINT_CONTENTS")
 	if prettyPrint {
-		// _ = resultToFile(result)
-		fmt.Printf("%s", string(result.OutputFiles[0].Contents))
+		fmt.Printf("outfile:\n%s", string(result.OutputFiles[0].Contents))
+		fmt.Printf("metafile:\n%s", result.Metafile)
 	} else {
 		json := resultToJSON(result, cmdArgs.Write)
 		fmt.Fprintln(os.Stdout, json)
