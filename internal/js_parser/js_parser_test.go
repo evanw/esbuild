@@ -2557,6 +2557,13 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "let b; a = null === b || b === undefined ? c : b", "let b;\na = b ?? c;\n")
 	expectPrintedMangle(t, "let b; a = b !== undefined && b !== null ? b : c", "let b;\na = b ?? c;\n")
 
+	// Distinguish between negative an non-negative zero (i.e. Object.is)
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Equality_comparisons_and_sameness
+	expectPrintedMangle(t, "a(b ? 0 : 0)", "a((b, 0));\n")
+	expectPrintedMangle(t, "a(b ? +0 : -0)", "a(b ? 0 : -0);\n")
+	expectPrintedMangle(t, "a(b ? +0 : 0)", "a((b, 0));\n")
+	expectPrintedMangle(t, "a(b ? -0 : 0)", "a(b ? -0 : 0);\n")
+
 	expectPrintedMangle(t, "a ? b : b", "a, b;\n")
 	expectPrintedMangle(t, "let a; a ? b : b", "let a;\nb;\n")
 

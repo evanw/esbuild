@@ -889,6 +889,15 @@ func valuesLookTheSame(left js_ast.E, right js_ast.E) bool {
 			}
 			return true
 		}
+
+	// Special-case to distinguish between negative an non-negative zero when mangling
+	// "a ? -0 : 0" => "a ? -0 : 0"
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Equality_comparisons_and_sameness
+	case *js_ast.ENumber:
+		b, ok := right.(*js_ast.ENumber)
+		if ok && a.Value == 0 && b.Value == 0 && math.Signbit(a.Value) != math.Signbit(b.Value) {
+			return false
+		}
 	}
 
 	equal, ok := checkEqualityIfNoSideEffects(left, right)
