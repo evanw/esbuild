@@ -1328,6 +1328,9 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 			// If the output path is missing, automatically generate one from the input path
 			if outputPath == "" {
 				outputPath = entryPoints[i].InputPath
+				if resolveResult.RootDir != "" {
+					outputPath, _ = s.fs.Rel(resolveResult.RootDir, outputPath)
+				}
 				windowsVolumeLabel := ""
 
 				// The ":" character is invalid in file paths on Windows except when

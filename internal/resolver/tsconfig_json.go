@@ -35,6 +35,7 @@ type TSConfigJSON struct {
 
 	JSXFactory                     []string
 	JSXFragmentFactory             []string
+	RootDir                        string
 	UseDefineForClassFields        config.MaybeBool
 	PreserveImportsNotUsedAsValues bool
 }
@@ -62,7 +63,6 @@ func ParseTSConfigJSON(
 	}
 
 	var result TSConfigJSON
-	result.AbsPath = source.KeyPath.Text
 
 	// Parse "extends"
 	if extends != nil {
@@ -74,6 +74,9 @@ func ParseTSConfigJSON(
 			}
 		}
 	}
+
+	// preserve the absolute path of the non extends tsconfig
+	result.AbsPath = source.KeyPath.Text
 
 	// Parse "compilerOptions"
 	if compilerOptionsJSON, _, ok := getProperty(json, "compilerOptions"); ok {
@@ -95,6 +98,13 @@ func ParseTSConfigJSON(
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsxFragmentFactory"); ok {
 			if value, ok := getString(valueJSON); ok {
 				result.JSXFragmentFactory = parseMemberExpressionForJSX(log, source, valueJSON.Loc, value)
+			}
+		}
+
+		// Parse "rootDir"
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "rootDir"); ok {
+			if value, ok := getString(valueJSON); ok {
+				result.RootDir = value
 			}
 		}
 

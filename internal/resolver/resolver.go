@@ -112,6 +112,10 @@ type ResolveResult struct {
 	// value is not "remove".
 	PreserveUnusedImportsTS bool
 
+	// A relative dir which will be stripped in the output. Matches
+	// https://www.typescriptlang.org/tsconfig#rootDir
+	RootDir string
+
 	// This is the "type" field from "package.json"
 	ModuleType config.ModuleType
 }
@@ -509,6 +513,7 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 					result.JSXFragment = dirInfo.tsConfigJSON.JSXFragmentFactory
 					result.UseDefineForClassFieldsTS = dirInfo.tsConfigJSON.UseDefineForClassFields
 					result.PreserveUnusedImportsTS = dirInfo.tsConfigJSON.PreserveImportsNotUsedAsValues
+					result.RootDir = dirInfo.tsConfigJSON.RootDir
 
 					if r.debugLogs != nil {
 						r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
