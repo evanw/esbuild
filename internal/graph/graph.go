@@ -14,6 +14,8 @@ package graph
 // manually enforced. Please be careful.
 
 import (
+	"sync"
+
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
@@ -114,103 +116,120 @@ func MakeLinkerGraph(
 		files[entryPoint.SourceIndex].entryPointKind = entryPointUserSpecified
 	}
 
-	// Clone various things since we may mutate them later
+	// Clone various things since we may mutate them later. Do this in parallel
+	// for a speedup (around ~2x faster for this function in the three.js
+	// benchmark on a 6-core laptop).
+	var dynamicImportEntryPoints []uint32
+	var dynamicImportEntryPointsMutex sync.Mutex
+	waitGroup := sync.WaitGroup{}
+	waitGroup.Add(len(reachableFiles))
 	for _, sourceIndex := range reachableFiles {
-		file := &files[sourceIndex]
-		file.InputFile = inputFiles[sourceIndex]
+		go func(sourceIndex uint32) {
+			file := &files[sourceIndex]
+			file.InputFile = inputFiles[sourceIndex]
 
-		switch repr := file.InputFile.Repr.(type) {
-		case *JSRepr:
-			// Clone the representation
-			{
-				clone := *repr
-				repr = &clone
-				file.InputFile.Repr = repr
-			}
-
-			// Clone the symbol map
-			fileSymbols := append([]js_ast.Symbol{}, repr.AST.Symbols...)
-			symbols.SymbolsForSource[sourceIndex] = fileSymbols
-			repr.AST.Symbols = nil
-
-			// Clone the parts
-			repr.AST.Parts = append([]js_ast.Part{}, repr.AST.Parts...)
-			for i := range repr.AST.Parts {
-				part := &repr.AST.Parts[i]
-				clone := make(map[js_ast.Ref]js_ast.SymbolUse, len(part.SymbolUses))
-				for ref, uses := range part.SymbolUses {
-					clone[ref] = uses
+			switch repr := file.InputFile.Repr.(type) {
+			case *JSRepr:
+				// Clone the representation
+				{
+					clone := *repr
+					repr = &clone
+					file.InputFile.Repr = repr
 				}
-				part.SymbolUses = clone
-				part.Dependencies = append([]js_ast.Dependency{}, part.Dependencies...)
-			}
 
-			// Clone the import records
-			repr.AST.ImportRecords = append([]ast.ImportRecord{}, repr.AST.ImportRecords...)
+				// Clone the symbol map
+				fileSymbols := append([]js_ast.Symbol{}, repr.AST.Symbols...)
+				symbols.SymbolsForSource[sourceIndex] = fileSymbols
+				repr.AST.Symbols = nil
 
-			// Add dynamic imports as additional entry points if code splitting is active
-			if codeSplitting {
-				for importRecordIndex := range repr.AST.ImportRecords {
-					if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic {
-						if otherFile := &files[record.SourceIndex.GetIndex()]; otherFile.entryPointKind == entryPointNone {
-							entryPoints = append(entryPoints, EntryPoint{SourceIndex: record.SourceIndex.GetIndex()})
-							otherFile.entryPointKind = entryPointDynamicImport
+				// Clone the parts
+				repr.AST.Parts = append([]js_ast.Part{}, repr.AST.Parts...)
+				for i := range repr.AST.Parts {
+					part := &repr.AST.Parts[i]
+					clone := make(map[js_ast.Ref]js_ast.SymbolUse, len(part.SymbolUses))
+					for ref, uses := range part.SymbolUses {
+						clone[ref] = uses
+					}
+					part.SymbolUses = clone
+					part.Dependencies = append([]js_ast.Dependency{}, part.Dependencies...)
+				}
+
+				// Clone the import records
+				repr.AST.ImportRecords = append([]ast.ImportRecord{}, repr.AST.ImportRecords...)
+
+				// Add dynamic imports as additional entry points if code splitting is active
+				if codeSplitting {
+					for importRecordIndex := range repr.AST.ImportRecords {
+						if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic {
+							dynamicImportEntryPointsMutex.Lock()
+							dynamicImportEntryPoints = append(dynamicImportEntryPoints, record.SourceIndex.GetIndex())
+							dynamicImportEntryPointsMutex.Unlock()
 						}
 					}
 				}
-			}
 
-			// Clone the import map
-			namedImports := make(map[js_ast.Ref]js_ast.NamedImport, len(repr.AST.NamedImports))
-			for k, v := range repr.AST.NamedImports {
-				namedImports[k] = v
-			}
-			repr.AST.NamedImports = namedImports
-
-			// Clone the export map
-			resolvedExports := make(map[string]ExportData)
-			for alias, name := range repr.AST.NamedExports {
-				resolvedExports[alias] = ExportData{
-					Ref:         name.Ref,
-					SourceIndex: sourceIndex,
-					NameLoc:     name.AliasLoc,
+				// Clone the import map
+				namedImports := make(map[js_ast.Ref]js_ast.NamedImport, len(repr.AST.NamedImports))
+				for k, v := range repr.AST.NamedImports {
+					namedImports[k] = v
 				}
+				repr.AST.NamedImports = namedImports
+
+				// Clone the export map
+				resolvedExports := make(map[string]ExportData)
+				for alias, name := range repr.AST.NamedExports {
+					resolvedExports[alias] = ExportData{
+						Ref:         name.Ref,
+						SourceIndex: sourceIndex,
+						NameLoc:     name.AliasLoc,
+					}
+				}
+
+				// Clone the top-level symbol-to-parts map
+				topLevelSymbolToParts := make(map[js_ast.Ref][]uint32)
+				for ref, parts := range repr.AST.TopLevelSymbolToParts {
+					topLevelSymbolToParts[ref] = parts
+				}
+				repr.AST.TopLevelSymbolToParts = topLevelSymbolToParts
+
+				// Clone the top-level scope so we can generate more variables
+				{
+					new := &js_ast.Scope{}
+					*new = *repr.AST.ModuleScope
+					new.Generated = append([]js_ast.Ref{}, new.Generated...)
+					repr.AST.ModuleScope = new
+				}
+
+				// Also associate some default metadata with the file
+				repr.Meta.ResolvedExports = resolvedExports
+				repr.Meta.IsProbablyTypeScriptType = make(map[js_ast.Ref]bool)
+				repr.Meta.ImportsToBind = make(map[js_ast.Ref]ImportData)
+
+			case *CSSRepr:
+				// Clone the representation
+				{
+					clone := *repr
+					repr = &clone
+					file.InputFile.Repr = repr
+				}
+
+				// Clone the import records
+				repr.AST.ImportRecords = append([]ast.ImportRecord{}, repr.AST.ImportRecords...)
 			}
 
-			// Clone the top-level symbol-to-parts map
-			topLevelSymbolToParts := make(map[js_ast.Ref][]uint32)
-			for ref, parts := range repr.AST.TopLevelSymbolToParts {
-				topLevelSymbolToParts[ref] = parts
-			}
-			repr.AST.TopLevelSymbolToParts = topLevelSymbolToParts
+			// All files start off as far as possible from an entry point
+			file.DistanceFromEntryPoint = ^uint32(0)
+			waitGroup.Done()
+		}(sourceIndex)
+	}
+	waitGroup.Wait()
 
-			// Clone the top-level scope so we can generate more variables
-			{
-				new := &js_ast.Scope{}
-				*new = *repr.AST.ModuleScope
-				new.Generated = append([]js_ast.Ref{}, new.Generated...)
-				repr.AST.ModuleScope = new
-			}
-
-			// Also associate some default metadata with the file
-			repr.Meta.ResolvedExports = resolvedExports
-			repr.Meta.IsProbablyTypeScriptType = make(map[js_ast.Ref]bool)
-			repr.Meta.ImportsToBind = make(map[js_ast.Ref]ImportData)
-
-		case *CSSRepr:
-			// Clone the representation
-			{
-				clone := *repr
-				repr = &clone
-				file.InputFile.Repr = repr
-			}
-
-			// Clone the import records
-			repr.AST.ImportRecords = append([]ast.ImportRecord{}, repr.AST.ImportRecords...)
+	// Process dynamic entry points after merging control flow again
+	for _, sourceIndex := range dynamicImportEntryPoints {
+		if otherFile := &files[sourceIndex]; otherFile.entryPointKind == entryPointNone {
+			entryPoints = append(entryPoints, EntryPoint{SourceIndex: sourceIndex})
+			otherFile.entryPointKind = entryPointDynamicImport
 		}
-
-		// All files start off as far as possible from an entry point
-		file.DistanceFromEntryPoint = ^uint32(0)
 	}
 
 	// Create a way to convert source indices to a stable ordering
