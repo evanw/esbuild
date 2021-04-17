@@ -867,6 +867,15 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	}
 
 	p.lexer.Expect(js_lexer.TCloseBrace)
+
+	if opts.isTypeScriptDeclare {
+		if opts.isNamespaceScope && opts.isExport {
+			p.hasNonLocalExportDeclareInsideNamespace = true
+		}
+
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+	}
+
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SEnum{
 		Name:     name,
 		Arg:      argRef,
@@ -932,6 +941,8 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	name := js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
 
+	oldHasNonLocalExportDeclareInsideNamespace := p.hasNonLocalExportDeclareInsideNamespace
+	p.hasNonLocalExportDeclareInsideNamespace = false
 	var stmts []js_ast.Stmt
 	if p.lexer.Token == js_lexer.TDot {
 		dotLoc := p.lexer.Loc()
@@ -951,6 +962,8 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 		})
 		p.lexer.Next()
 	}
+	hasNonLocalExportDeclareInsideNamespace := p.hasNonLocalExportDeclareInsideNamespace
+	p.hasNonLocalExportDeclareInsideNamespace = oldHasNonLocalExportDeclareInsideNamespace
 
 	// Import assignments may be only used in type expressions, not value
 	// expressions. If this is the case, the TypeScript compiler removes
@@ -968,7 +981,12 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	// allowed to be exported, but can also only be used in type
 	// expressions when imported. So we shouldn't count them as a
 	// real export either.
-	if len(stmts) == importEqualsCount || opts.isTypeScriptDeclare {
+	//
+	// TypeScript also strangely counts namespaces containing only
+	// "export declare" statements as non-empty even though "declare"
+	// statements are only type annotations. We cannot omit the namespace
+	// in that case. See https://github.com/evanw/esbuild/issues/1158.
+	if (len(stmts) == importEqualsCount && !hasNonLocalExportDeclareInsideNamespace) || opts.isTypeScriptDeclare {
 		p.popAndDiscardScope(scopeIndex)
 		if opts.isModuleScope {
 			p.localTypeNames[nameText] = true

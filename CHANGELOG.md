@@ -6,6 +6,41 @@
 
     Previously esbuild would collapse `Object.is(x ? 0 : -0, -0)` into `Object.is((x, 0), -0)` during minification, which is incorrect. The IEEE floating-point value `-0` is a different bit pattern than `0` and while they both compare equal, the difference is detectable in a few scenarios such as when using `Object.is()`. The minification transformation now checks for `-0` vs. `0` and no longer has this bug. This fix was contributed by [@rtsao](https://github.com/rtsao).
 
+* Match the TypeScript compiler's output in a strange edge case ([#1158](https://github.com/evanw/esbuild/issues/1158))
+
+    With this release, esbuild's TypeScript-to-JavaScript transform will no longer omit the namespace in this case:
+
+    ```ts
+    namespace Something {
+      export declare function Print(a: string): void
+    }
+    Something.Print = function(a) {}
+    ```
+
+    This was previously omitted because TypeScript omits empty namespaces, and the namespace was considered empty because the `export declare function` statement isn't "real":
+
+    ```ts
+    namespace Something {
+      export declare function Print(a: string): void
+      setTimeout(() => Print('test'))
+    }
+    Something.Print = function(a) {}
+    ```
+
+    The TypeScript compiler compiles the above code into the following:
+
+    ```js
+    var Something;
+    (function (Something) {
+      setTimeout(() => Print('test'));
+    })(Something || (Something = {}));
+    Something.Print = function (a) { };
+    ```
+
+    Notice how `Something.Print` is never called, and what appears to be a reference to the `Print` symbol on the namespace `Something` is actually a reference to the global variable `Print`. I can only assume this is a bug in TypeScript, but it's important to replicate this behavior inside esbuild for TypeScript compatibility.
+
+    The TypeScript-to-JavaScript transform in esbuild has been updated to match the TypeScript compiler's output in both of these cases.
+
 ## 0.11.11
 
 * Initial support for Deno ([#936](https://github.com/evanw/esbuild/issues/936))
