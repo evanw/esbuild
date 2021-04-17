@@ -58,7 +58,7 @@ jobs:
 
     - name: go fmt
       if: matrix.os == 'macos-latest'
-      run: make fmt-go && git diff-index --quiet HEAD --
+      run: make fmt-go
 
     - name: npm ci
       run: cd scripts && npm ci
