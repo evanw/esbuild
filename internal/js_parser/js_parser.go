@@ -143,6 +143,62 @@ type parser struct {
 	moduleScope       *js_ast.Scope
 	isControlFlowDead bool
 
+	// Inside a TypeScript namespace, an "export declare" statement can be used
+	// to cause a namespace to be emitted even though it has no other observable
+	// effect. This flag is used to implement this feature.
+	//
+	// Specifically, namespaces should be generated for all of the following
+	// namespaces below except for "f", which should not be generated:
+	//
+	//   namespace a { export declare const a }
+	//   namespace b { export declare let [[b]] }
+	//   namespace c { export declare function c() }
+	//   namespace d { export declare class d {} }
+	//   namespace e { export declare enum e {} }
+	//   namespace f { export declare namespace f {} }
+	//
+	// The TypeScript compiler compiles this into the following code (notice "f"
+	// is missing):
+	//
+	//   var a; (function (a_1) {})(a || (a = {}));
+	//   var b; (function (b_1) {})(b || (b = {}));
+	//   var c; (function (c_1) {})(c || (c = {}));
+	//   var d; (function (d_1) {})(d || (d = {}));
+	//   var e; (function (e_1) {})(e || (e = {}));
+	//
+	// Note that this should not be implemented by declaring symbols for "export
+	// declare" statements because the TypeScript compiler doesn't generate any
+	// code for these statements, so these statements are actually references to
+	// global variables. There is one exception, which is that local variables
+	// *should* be declared as symbols because they are replaced with. This seems
+	// like very arbitrary behavior but it's what the TypeScript compiler does,
+	// so we try to match it.
+	//
+	// Specifically, in the following code below "a" and "b" should be declared
+	// and should be substituted with "ns.a" and "ns.b" but the other symbols
+	// shouldn't. References to the other symbols actually refer to global
+	// variables instead of to symbols that are exported from the namespace.
+	// This is the case as of TypeScript 4.3. I assume this is a TypeScript bug:
+	//
+	//   namespace ns {
+	//     export declare const a
+	//     export declare let [[b]]
+	//     export declare function c()
+	//     export declare class d { }
+	//     export declare enum e { }
+	//     console.log(a, b, c, d, e)
+	//   }
+	//
+	// The TypeScript compiler compiles this into the following code:
+	//
+	//   var ns;
+	//   (function (ns) {
+	//       console.log(ns.a, ns.b, c, d, e);
+	//   })(ns || (ns = {}));
+	//
+	// Relevant issue: https://github.com/evanw/esbuild/issues/1158
+	hasNonLocalExportDeclareInsideNamespace bool
+
 	// This helps recognize the "await import()" pattern. When this is present,
 	// warnings about non-string import paths will be omitted inside try blocks.
 	awaitTarget js_ast.E
@@ -4708,11 +4764,18 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 	}
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
 	class := p.parseClass(classKeyword, name, classOpts)
-	if classOpts.isTypeScriptDeclare {
+
+	if opts.isTypeScriptDeclare {
 		p.popAndDiscardScope(scopeIndex)
-	} else {
-		p.popScope()
+
+		if opts.isNamespaceScope && opts.isExport {
+			p.hasNonLocalExportDeclareInsideNamespace = true
+		}
+
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
 	}
+
+	p.popScope()
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SClass{Class: class, IsExport: opts.isExport}}
 }
 
@@ -4906,6 +4969,10 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 		// Balance the fake block scope introduced above
 		if hasIfScope {
 			p.popAndDiscardScope(ifStmtScopeIndex)
+		}
+
+		if opts.isTypeScriptDeclare && opts.isNamespaceScope && opts.isExport {
+			p.hasNonLocalExportDeclareInsideNamespace = true
 		}
 
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}

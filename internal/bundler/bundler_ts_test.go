@@ -665,13 +665,13 @@ func TestTSExportDefaultTypeIssue316(t *testing.T) {
 				import tone_def, { bar as tone } from './remove/type-only-namespace-exported'
 
 				export default [
-					dc,
-					dl,
-					im,
-					_in,
-					tn,
-					vn,
-					vnm,
+					dc_def, dc,
+					dl_def, dl,
+					im_def, im,
+					in_def, _in,
+					tn_def, tn,
+					vn_def, vn,
+					vnm_def, vnm,
 
 					i,
 					ie,

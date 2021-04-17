@@ -882,6 +882,30 @@ var f;
   log(f);
 })(f || (f = {}));
 `)
+
+	expectPrintedTS(t, `
+		namespace a { export declare var a }
+		namespace b { export declare let b }
+		namespace c { export declare enum c {} }
+		namespace d { export declare class d {} }
+		namespace e { export declare namespace e {} }
+		namespace f { export declare function f() {} }
+	`, `var a;
+(function(_a) {
+})(a || (a = {}));
+var b;
+(function(_b) {
+})(b || (b = {}));
+var c;
+(function(c) {
+})(c || (c = {}));
+var d;
+(function(d) {
+})(d || (d = {}));
+var f;
+(function(f) {
+})(f || (f = {}));
+`)
 }
 
 func TestTSNamespaceDestructuring(t *testing.T) {

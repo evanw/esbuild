@@ -95,6 +95,7 @@ var _foo = class {
 };
 var foo2 = _foo;
 foo2.x = new _foo();
+var interface_merged_default = foo2;
 var bar3 = 123;
 
 // keep/interface-nested.ts
@@ -114,6 +115,7 @@ var foo3;
 (function(foo5) {
   foo5.num = 0;
 })(foo3 || (foo3 = {}));
+var value_namespace_default = foo3;
 var bar6 = 123;
 
 // keep/value-namespace-merged.ts
@@ -121,6 +123,7 @@ var foo4;
 (function(foo5) {
   foo5.num = 0;
 })(foo4 || (foo4 = {}));
+var value_namespace_merged_default = foo4;
 var bar7 = 123;
 
 // remove/interface.ts
@@ -143,12 +146,19 @@ var bar13 = 123;
 
 // entry.ts
 var entry_default = [
+  declare_class_default,
   bar,
+  declare_let_default,
   bar2,
+  interface_merged_default,
   bar3,
+  interface_nested_default,
   bar4,
+  type_nested_default,
   bar5,
+  value_namespace_default,
   bar6,
+  value_namespace_merged_default,
   bar7,
   bar8,
   bar9,
