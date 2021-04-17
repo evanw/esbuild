@@ -440,6 +440,10 @@ func parseFile(args parseArgs) {
 							hint = fmt.Sprintf(" (the plugin %q didn't set a resolve directory)", pluginName)
 						}
 						debug.LogErrorMsg(args.log, &source, record.Range, fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint))
+					} else if args.log.Level <= logger.LevelDebug && !didLogError && record.HandlesImportErrors {
+						args.log.AddRangeDebug(&source, record.Range,
+							fmt.Sprintf("Importing %q was allowed even though it could not be resolved because dynamic import failures appear to be handled here",
+								record.Path.Text))
 					}
 					continue
 				}
@@ -538,15 +542,15 @@ func extractSourceMapFromComment(
 		absPath := fs.Join(absResolveDir, comment.Text)
 		path := logger.Path{Text: absPath, Namespace: "file"}
 		contents, err, originalError := fsCache.ReadFile(fs, absPath)
-		if log.Debug && originalError != nil {
-			log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Failed to read file %q: %s", absPath, originalError.Error()))
+		if log.Level <= logger.LevelDebug && originalError != nil {
+			log.AddRangeDebug(source, comment.Range, fmt.Sprintf("Failed to read file %q: %s", res.PrettyPath(path), originalError.Error()))
 		}
 		if err != nil {
 			if err == syscall.ENOENT {
 				// Don't report a warning because this is likely unactionable
 				return logger.Path{}, nil
 			}
-			log.AddRangeError(source, comment.Range, fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(path), err.Error()))
+			log.AddRangeWarning(source, comment.Range, fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(path), err.Error()))
 			return logger.Path{}, nil
 		}
 		return path, &contents
@@ -833,7 +837,7 @@ func runOnLoadPlugins(
 				absResolveDir: fs.Dir(source.KeyPath.Text),
 			}, true
 		} else {
-			if log.Debug && originalError != nil {
+			if log.Level <= logger.LevelDebug && originalError != nil {
 				log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Failed to read file %q: %s", source.KeyPath.Text, originalError.Error()))
 			}
 			if err == syscall.ENOENT {
@@ -935,8 +939,8 @@ func ScanBundle(
 	options config.Options,
 ) Bundle {
 	start := time.Now()
-	if log.Debug {
-		log.AddDebug(nil, logger.Loc{}, "Started the scan phase")
+	if log.Level <= logger.LevelVerbose {
+		log.AddVerbose(nil, logger.Loc{}, "Started the scan phase")
 	}
 
 	applyOptionDefaults(&options)
@@ -973,8 +977,8 @@ func ScanBundle(
 	s.scanAllDependencies()
 	files := s.processScannedFiles()
 
-	if log.Debug {
-		log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Ended the scan phase (%dms)", time.Since(start).Milliseconds()))
+	if log.Level <= logger.LevelVerbose {
+		log.AddVerbose(nil, logger.Loc{}, fmt.Sprintf("Ended the scan phase (%dms)", time.Since(start).Milliseconds()))
 	}
 
 	return Bundle{
@@ -1262,7 +1266,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 					entryPoint.InputPath = "./" + entryPoint.InputPath
 				}
 			}
-		} else if s.log.Debug && originalError != nil {
+		} else if s.log.Level <= logger.LevelDebug && originalError != nil {
 			s.log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Failed to read directory %q: %s", absPath, originalError.Error()))
 		}
 	}
@@ -1828,8 +1832,8 @@ func applyOptionDefaults(options *config.Options) {
 
 func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.OutputFile, string) {
 	start := time.Now()
-	if log.Debug {
-		log.AddDebug(nil, logger.Loc{}, "Started the compile phase")
+	if log.Level <= logger.LevelVerbose {
+		log.AddVerbose(nil, logger.Loc{}, "Started the compile phase")
 	}
 
 	applyOptionDefaults(&options)
@@ -1936,8 +1940,8 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 		outputFiles = outputFiles[:end]
 	}
 
-	if log.Debug {
-		log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Ended the compile phase (%dms)", time.Since(start).Milliseconds()))
+	if log.Level <= logger.LevelVerbose {
+		log.AddVerbose(nil, logger.Loc{}, fmt.Sprintf("Ended the compile phase (%dms)", time.Since(start).Milliseconds()))
 	}
 
 	return outputFiles, metafileJSON

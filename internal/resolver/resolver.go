@@ -261,7 +261,7 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 
 func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) (*ResolveResult, DebugMeta) {
 	r := resolverQuery{resolver: rr}
-	if r.log.Debug {
+	if r.log.Level <= logger.LevelDebug {
 		r.debugLogs = &debugLogs{what: fmt.Sprintf(
 			"Resolving import %q in directory %q of type %q",
 			importPath, sourceDir, kind.StringForMetafile())}
@@ -286,7 +286,7 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 			r.debugLogs.addNote("Marking this path as implicitly external")
 		}
 
-		r.flushDebugLogs()
+		r.flushDebugLogs(flushDueToSuccess)
 		return &ResolveResult{
 			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
 			IsExternal: true,
@@ -300,7 +300,7 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 			if r.debugLogs != nil {
 				r.debugLogs.addNote("Putting this path in the \"dataurl\" namespace")
 			}
-			r.flushDebugLogs()
+			r.flushDebugLogs(flushDueToSuccess)
 			return &ResolveResult{
 				PathPair: PathPair{Primary: logger.Path{Text: importPath, Namespace: "dataurl"}},
 			}, DebugMeta{}
@@ -310,7 +310,7 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Marking this data URL as external")
 		}
-		r.flushDebugLogs()
+		r.flushDebugLogs(flushDueToSuccess)
 		return &ResolveResult{
 			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
 			IsExternal: true,
@@ -323,7 +323,7 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Cannot resolve this path without a directory")
 		}
-		r.flushDebugLogs()
+		r.flushDebugLogs(flushDueToFailure)
 		return nil, DebugMeta{}
 	}
 
@@ -335,14 +335,14 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		// If resolution failed, try again with the URL query and/or hash removed
 		suffix := strings.IndexAny(importPath, "?#")
 		if suffix < 1 {
-			r.flushDebugLogs()
+			r.flushDebugLogs(flushDueToFailure)
 			return nil, debug
 		}
 		if r.debugLogs != nil {
 			r.debugLogs.addNote(fmt.Sprintf("Retrying resolution after removing the suffix %q", importPath[suffix:]))
 		}
 		if result2, debug2 := r.resolveWithoutSymlinks(sourceDir, importPath[:suffix], kind); result2 == nil {
-			r.flushDebugLogs()
+			r.flushDebugLogs(flushDueToFailure)
 			return nil, debug
 		} else {
 			result = result2
@@ -356,7 +356,7 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 
 	// If successful, resolve symlinks using the directory info cache
 	r.finalizeResolve(result)
-	r.flushDebugLogs()
+	r.flushDebugLogs(flushDueToSuccess)
 	return result, debug
 }
 
@@ -373,7 +373,7 @@ func (r resolverQuery) isExternalPattern(path string) bool {
 
 func (rr *resolver) ResolveAbs(absPath string) *ResolveResult {
 	r := resolverQuery{resolver: rr}
-	if r.log.Debug {
+	if r.log.Level <= logger.LevelDebug {
 		r.debugLogs = &debugLogs{what: fmt.Sprintf("Getting metadata for absolute path %s", absPath)}
 	}
 
@@ -383,16 +383,12 @@ func (rr *resolver) ResolveAbs(absPath string) *ResolveResult {
 	// Just decorate the absolute path with information from parent directories
 	result := &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}}
 	r.finalizeResolve(result)
-	r.flushDebugLogs()
+	r.flushDebugLogs(flushDueToSuccess)
 	return result
 }
 
 func (rr *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
 	r := resolverQuery{resolver: rr}
-	if r.log.Debug {
-		r.debugLogs = &debugLogs{what: fmt.Sprintf("Probing for relative import %q in directory %q", importPath, sourceDir)}
-	}
-
 	absPath := r.fs.Join(sourceDir, importPath)
 
 	r.mutex.Lock()
@@ -401,11 +397,10 @@ func (rr *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath s
 	if pair, ok, diffCase := r.loadAsFileOrDirectory(absPath, kind); ok {
 		result := &ResolveResult{PathPair: pair, DifferentCase: diffCase}
 		r.finalizeResolve(result)
-		r.flushDebugLogs()
+		r.flushDebugLogs(flushDueToSuccess)
 		return result
 	}
 
-	r.flushDebugLogs()
 	return nil
 }
 
@@ -430,9 +425,20 @@ func (d *debugLogs) decreaseIndent() {
 	d.indent = d.indent[2:]
 }
 
-func (r resolverQuery) flushDebugLogs() {
+type flushMode uint8
+
+const (
+	flushDueToFailure flushMode = iota
+	flushDueToSuccess
+)
+
+func (r resolverQuery) flushDebugLogs(mode flushMode) {
 	if r.debugLogs != nil {
-		r.log.AddDebugWithNotes(nil, logger.Loc{}, r.debugLogs.what, r.debugLogs.notes)
+		if mode == flushDueToFailure {
+			r.log.AddDebugWithNotes(nil, logger.Loc{}, r.debugLogs.what, r.debugLogs.notes)
+		} else if r.log.Level <= logger.LevelVerbose {
+			r.log.AddVerboseWithNotes(nil, logger.Loc{}, r.debugLogs.what, r.debugLogs.notes)
+		}
 	}
 }
 

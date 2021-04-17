@@ -19,7 +19,7 @@ import (
 const defaultTerminalWidth = 80
 
 type Log struct {
-	Debug bool
+	Level LogLevel
 
 	AddMsg    func(Msg)
 	HasErrors func() bool
@@ -36,6 +36,7 @@ type LogLevel int8
 
 const (
 	LevelNone LogLevel = iota
+	LevelVerbose
 	LevelDebug
 	LevelInfo
 	LevelWarning
@@ -50,6 +51,7 @@ const (
 	Warning
 	Note
 	Debug
+	Verbose
 )
 
 func (kind MsgKind) String() string {
@@ -62,6 +64,8 @@ func (kind MsgKind) String() string {
 		return "note"
 	case Debug:
 		return "debug"
+	case Verbose:
+		return "verbose"
 	default:
 		panic("Internal error")
 	}
@@ -397,18 +401,30 @@ func NewStderrLog(options OutputOptions) Log {
 	}
 
 	return Log{
-		Debug: options.LogLevel == LevelDebug,
+		Level: options.LogLevel,
+
 		AddMsg: func(msg Msg) {
 			mutex.Lock()
 			defer mutex.Unlock()
 			msgs = append(msgs, msg)
 
 			switch msg.Kind {
+			case Verbose:
+				if options.LogLevel <= LevelVerbose {
+					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
+				}
+
+			case Debug:
+				if options.LogLevel <= LevelDebug {
+					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
+				}
+
 			case Error:
 				hasErrors = true
 				if options.LogLevel <= LevelError {
 					errors++
 				}
+
 			case Warning:
 				if options.LogLevel <= LevelWarning {
 					warnings++
@@ -421,11 +437,6 @@ func NewStderrLog(options OutputOptions) Log {
 			}
 
 			switch msg.Kind {
-			case Debug:
-				if options.LogLevel <= LevelDebug {
-					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
-				}
-
 			case Error:
 				if options.LogLevel <= LevelError {
 					shownErrors++
@@ -449,17 +460,20 @@ func NewStderrLog(options OutputOptions) Log {
 				}
 			}
 		},
+
 		HasErrors: func() bool {
 			mutex.Lock()
 			defer mutex.Unlock()
 			return hasErrors
 		},
+
 		AlmostDone: func() {
 			mutex.Lock()
 			defer mutex.Unlock()
 
 			finalizeLog()
 		},
+
 		Done: func() []Msg {
 			mutex.Lock()
 			defer mutex.Unlock()
@@ -779,7 +793,13 @@ func NewDeferLog() Log {
 	var hasErrors bool
 
 	return Log{
+		Level: LevelInfo,
+
 		AddMsg: func(msg Msg) {
+			if msg.Kind == Verbose || msg.Kind == Debug {
+				// Ignore these when not writing to stderr
+				return
+			}
 			mutex.Lock()
 			defer mutex.Unlock()
 			if msg.Kind == Error {
@@ -787,13 +807,16 @@ func NewDeferLog() Log {
 			}
 			msgs = append(msgs, msg)
 		},
+
 		HasErrors: func() bool {
 			mutex.Lock()
 			defer mutex.Unlock()
 			return hasErrors
 		},
+
 		AlmostDone: func() {
 		},
+
 		Done: func() []Msg {
 			mutex.Lock()
 			defer mutex.Unlock()
@@ -889,6 +912,9 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 	}
 
 	switch kind {
+	case Verbose:
+		kindColor = colors.Green
+
 	case Debug:
 		kindColor = colors.Blue
 
@@ -1238,6 +1264,21 @@ func (log Log) AddDebugWithNotes(source *Source, loc Loc, text string, notes []M
 	})
 }
 
+func (log Log) AddVerbose(source *Source, loc Loc, text string) {
+	log.AddMsg(Msg{
+		Kind: Verbose,
+		Data: RangeData(source, Range{Loc: loc}, text),
+	})
+}
+
+func (log Log) AddVerboseWithNotes(source *Source, loc Loc, text string, notes []MsgData) {
+	log.AddMsg(Msg{
+		Kind:  Verbose,
+		Data:  RangeData(source, Range{Loc: loc}, text),
+		Notes: notes,
+	})
+}
+
 func (log Log) AddRangeError(source *Source, r Range, text string) {
 	log.AddMsg(Msg{
 		Kind: Error,
@@ -1248,6 +1289,13 @@ func (log Log) AddRangeError(source *Source, r Range, text string) {
 func (log Log) AddRangeWarning(source *Source, r Range, text string) {
 	log.AddMsg(Msg{
 		Kind: Warning,
+		Data: RangeData(source, r, text),
+	})
+}
+
+func (log Log) AddRangeDebug(source *Source, r Range, text string) {
+	log.AddMsg(Msg{
+		Kind: Debug,
 		Data: RangeData(source, r, text),
 	})
 }

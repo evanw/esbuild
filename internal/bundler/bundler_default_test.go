@@ -790,7 +790,6 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 				require(tag` + "`./b`" + `)
 				require(` + "`./${b}`" + `)
 
-				// Try/catch should silence this warning for require()
 				try {
 					require(tag` + "`./b`" + `)
 					require(` + "`./${b}`" + `)
@@ -803,7 +802,6 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 					await import(tag` + "`./b`" + `)
 					await import(` + "`./${b}`" + `)
 
-					// Try/catch should silence this warning for await import()
 					try {
 						import(tag` + "`./b`" + `)
 						import(` + "`./${b}`" + `)
@@ -819,9 +817,6 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-`,
 	})
 }
 
@@ -905,8 +900,6 @@ func TestConditionalRequire(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `a.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-`,
 	})
 }
 
@@ -944,7 +937,6 @@ func TestRequireBadArgumentCount(t *testing.T) {
 				require()
 				require("a", "b")
 
-				// Try/catch should silence this warning
 				try {
 					require()
 					require("a", "b")
@@ -957,9 +949,6 @@ func TestRequireBadArgumentCount(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: This call to "require" will not be bundled because it has 0 arguments (surround with a try/catch to silence this warning)
-entry.js: warning: This call to "require" will not be bundled because it has 2 arguments (surround with a try/catch to silence this warning)
-`,
 	})
 }
 

@@ -149,6 +149,8 @@ func validateColor(value StderrColor) logger.UseColor {
 
 func validateLogLevel(value LogLevel) logger.LogLevel {
 	switch value {
+	case LogLevelVerbose:
+		return logger.LevelVerbose
 	case LogLevelDebug:
 		return logger.LevelDebug
 	case LogLevelInfo:

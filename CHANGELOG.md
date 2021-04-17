@@ -41,6 +41,10 @@
 
     The TypeScript-to-JavaScript transform in esbuild has been updated to match the TypeScript compiler's output in both of these cases.
 
+* Separate the `debug` log level into `debug` and `verbose`
+
+    You can now use `--log-level=debug` to get some additional information that might indicate some problems with your build, but that has a high-enough false-positive rate that it isn't appropriate for warnings, which are on by default. Enabling the `debug` log level no longer generates a torrent of debug information like it did in the past; that behavior is now reserved for the `verbose` log level instead.
+
 ## 0.11.11
 
 * Initial support for Deno ([#936](https://github.com/evanw/esbuild/issues/936))

@@ -437,6 +437,8 @@ func parseOptionsImpl(
 			value := arg[len("--log-level="):]
 			var logLevel api.LogLevel
 			switch value {
+			case "verbose":
+				logLevel = api.LogLevelVerbose
 			case "debug":
 				logLevel = api.LogLevelDebug
 			case "info":
@@ -448,7 +450,7 @@ func parseOptionsImpl(
 			case "silent":
 				logLevel = api.LogLevelSilent
 			default:
-				return fmt.Errorf("Invalid log level: %q (valid: debug, info, warning, error, silent)", arg), nil
+				return fmt.Errorf("Invalid log level: %q (valid: verbose, debug, info, warning, error, silent)", arg), nil
 			}
 			if buildOpts != nil {
 				buildOpts.LogLevel = logLevel

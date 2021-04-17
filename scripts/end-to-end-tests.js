@@ -3648,7 +3648,7 @@
       `,
         'src/entry.js.map/x': ``,
       }, {
-        expectedStderr: ` > src/entry.js:2:29: error: Cannot read file "src/entry.js.map": ${errorText}
+        expectedStderr: ` > src/entry.js:2:29: warning: Cannot read file "src/entry.js.map": ${errorText}
     2 │         //# sourceMappingURL=entry.js.map
       ╵                              ~~~~~~~~~~~~
 

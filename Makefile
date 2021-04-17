@@ -835,6 +835,7 @@ READMIN_ESBUILD_FLAGS += --define:global=window
 READMIN_ESBUILD_FLAGS += --loader:.js=jsx
 READMIN_ESBUILD_FLAGS += --minify
 READMIN_ESBUILD_FLAGS += --sourcemap
+READMIN_ESBUILD_FLAGS += --log-level=debug
 
 bench-readmin-esbuild: esbuild | bench/readmin
 	rm -fr bench/readmin/esbuild

@@ -474,10 +474,6 @@ func (dc *duplicateCaseChecker) reset() {
 }
 
 func (dc *duplicateCaseChecker) check(p *parser, expr js_ast.Expr) {
-	if p.options.suppressWarningsAboutWeirdCode {
-		return
-	}
-
 	if hash, ok := duplicateCaseHash(expr); ok {
 		bucket := hash % bloomFilterSize
 		entry := &dc.bloomFilter[bucket/8]
@@ -489,12 +485,14 @@ func (dc *duplicateCaseChecker) check(p *parser, expr js_ast.Expr) {
 				if c.hash == hash {
 					if equals, couldBeIncorrect := duplicateCaseEquals(c.value, expr); equals {
 						r := p.source.RangeOfOperatorBefore(expr.Loc, "case")
+						text := "This case clause will never be evaluated because it duplicates an earlier case clause"
 						if couldBeIncorrect {
-							p.log.AddRangeWarning(&p.source, r,
-								"This case clause may never be evaluated because it likely duplicates an earlier case clause")
+							text = "This case clause may never be evaluated because it likely duplicates an earlier case clause"
+						}
+						if !p.options.suppressWarningsAboutWeirdCode {
+							p.log.AddRangeWarning(&p.source, r, text)
 						} else {
-							p.log.AddRangeWarning(&p.source, r,
-								"This case clause will never be evaluated because it duplicates an earlier case clause")
+							p.log.AddRangeDebug(&p.source, r, text)
 						}
 					}
 					return
@@ -9320,9 +9318,12 @@ func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr) {
 				// Warn about typeof comparisons with values that will never be
 				// returned. Here's an example of code with this problem:
 				// https://github.com/olifolkerd/tabulator/issues/2962
+				r := p.source.RangeOfString(b.Loc)
+				text := fmt.Sprintf("The \"typeof\" operator will never evaluate to %q", value)
 				if !p.options.suppressWarningsAboutWeirdCode {
-					r := p.source.RangeOfString(b.Loc)
-					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("The \"typeof\" operator will never evaluate to %q", value))
+					p.log.AddRangeWarning(&p.source, r, text)
+				} else {
+					p.log.AddRangeDebug(&p.source, r, text)
 				}
 			}
 		}
@@ -9352,10 +9353,6 @@ func maybeSimplifyEqualityComparison(e *js_ast.EBinary, isNotEqual bool) (js_ast
 }
 
 func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc logger.Loc) bool {
-	if p.options.suppressWarningsAboutWeirdCode {
-		return false
-	}
-
 	switch e := value.Data.(type) {
 	case *js_ast.ENumber:
 		// "0 === -0" is true in JavaScript. Here's an example of code with this
@@ -9370,7 +9367,11 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 			if op == "case" {
 				text = "Comparison with -0 using a case clause will also match 0"
 			}
-			p.log.AddRangeWarning(&p.source, r, text)
+			if !p.options.suppressWarningsAboutWeirdCode {
+				p.log.AddRangeWarning(&p.source, r, text)
+			} else {
+				p.log.AddRangeDebug(&p.source, r, text)
+			}
 			return true
 		}
 
@@ -9380,7 +9381,12 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 			if op == "case" {
 				text = "This case clause will never be evaluated because equality with NaN is always false"
 			}
-			p.log.AddRangeWarning(&p.source, p.source.RangeOfOperatorBefore(afterOpLoc, op), text)
+			r := p.source.RangeOfOperatorBefore(afterOpLoc, op)
+			if !p.options.suppressWarningsAboutWeirdCode {
+				p.log.AddRangeWarning(&p.source, r, text)
+			} else {
+				p.log.AddRangeDebug(&p.source, r, text)
+			}
 			return true
 		}
 
@@ -9395,7 +9401,12 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 			if op == "case" {
 				text = "This case clause will never be evaluated because the comparison is always false"
 			}
-			p.log.AddRangeWarning(&p.source, p.source.RangeOfOperatorBefore(afterOpLoc, op), text)
+			r := p.source.RangeOfOperatorBefore(afterOpLoc, op)
+			if !p.options.suppressWarningsAboutWeirdCode {
+				p.log.AddRangeWarning(&p.source, r, text)
+			} else {
+				p.log.AddRangeDebug(&p.source, r, text)
+			}
 			return true
 		}
 	}
@@ -10531,16 +10542,25 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !kind.IsPrivate() {
 				r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q must be declared in an enclosing class", name))
-			} else if !p.options.suppressWarningsAboutWeirdCode {
+			} else {
+				var r logger.Range
+				var text string
 				if in.assignTarget != js_ast.AssignTargetNone && (kind == js_ast.SymbolPrivateMethod || kind == js_ast.SymbolPrivateStaticMethod) {
-					r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
-					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Writing to read-only method %q will throw", name))
+					r = logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
+					text = fmt.Sprintf("Writing to read-only method %q will throw", name)
 				} else if in.assignTarget != js_ast.AssignTargetNone && (kind == js_ast.SymbolPrivateGet || kind == js_ast.SymbolPrivateStaticGet) {
-					r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
-					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Writing to getter-only property %q will throw", name))
+					r = logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
+					text = fmt.Sprintf("Writing to getter-only property %q will throw", name)
 				} else if in.assignTarget != js_ast.AssignTargetReplace && (kind == js_ast.SymbolPrivateSet || kind == js_ast.SymbolPrivateStaticSet) {
-					r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
-					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Reading from setter-only property %q will throw", name))
+					r = logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
+					text = fmt.Sprintf("Reading from setter-only property %q will throw", name)
+				}
+				if text != "" {
+					if !p.options.suppressWarningsAboutWeirdCode {
+						p.log.AddRangeWarning(&p.source, r, text)
+					} else {
+						p.log.AddRangeDebug(&p.source, r, text)
+					}
 				}
 			}
 
@@ -10630,9 +10650,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			case *js_ast.EIdentifier:
 				p.markStrictModeFeature(deleteBareName, js_lexer.RangeOfIdentifier(p.source, e.Value.Loc), "")
 			}
-			if !p.options.suppressWarningsAboutWeirdCode && superPropLoc.Start != 0 {
+			if superPropLoc.Start != 0 {
 				r := js_lexer.RangeOfIdentifier(p.source, superPropLoc)
-				p.log.AddRangeWarning(&p.source, r, "Attempting to delete a property of \"super\" will throw a ReferenceError")
+				text := "Attempting to delete a property of \"super\" will throw a ReferenceError"
+				if !p.options.suppressWarningsAboutWeirdCode {
+					p.log.AddRangeWarning(&p.source, r, text)
+				} else {
+					p.log.AddRangeDebug(&p.source, r, text)
+				}
 			}
 
 			p.deleteTarget = e.Value.Data
@@ -11099,6 +11124,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}}
 			}
 
+			// Use a debug log so people can see this if they want to
+			r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
+			p.log.AddRangeDebug(&p.source, r,
+				"This \"import\" expression will not be bundled because the argument is not a string literal")
+
 			// We need to convert this into a call to "require()" if ES6 syntax is
 			// not supported in the current output format. The full conversion:
 			//
@@ -11264,9 +11294,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// and exported symbols due to scope hoisting. Except don't warn when
 					// this code is in a 3rd-party library because there's nothing people
 					// will be able to do about the warning.
-					if p.options.mode == config.ModeBundle && p.hasESModuleSyntax && !p.options.suppressWarningsAboutWeirdCode {
-						p.log.AddRangeWarning(&p.source, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc),
-							"Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)")
+					if p.options.mode == config.ModeBundle {
+						text := "Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)"
+						if p.hasESModuleSyntax && !p.options.suppressWarningsAboutWeirdCode {
+							p.log.AddRangeWarning(&p.source, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc), text)
+						} else {
+							p.log.AddRangeDebug(&p.source, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc), text)
+						}
 					}
 				}
 			}
@@ -11344,11 +11378,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}}
 							}
 
-							if !omitWarnings {
-								r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-								p.log.AddRangeWarning(&p.source, r,
-									"This call to \"require\" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)")
-							}
+							// Use a debug log so people can see this if they want to
+							r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+							p.log.AddRangeDebug(&p.source, r,
+								"This call to \"require\" will not be bundled because the argument is not a string literal")
 
 							// Otherwise just return a clone of the "require()" call
 							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
@@ -11356,10 +11389,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								Args:   []js_ast.Expr{arg},
 							}}
 						}), exprOut{}
-					} else if !omitWarnings {
+					} else {
 						r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-						p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
-							"This call to \"require\" will not be bundled because it has %d arguments (surround with a try/catch to silence this warning)", len(e.Args)))
+						text := fmt.Sprintf("This call to \"require\" will not be bundled because it has %d arguments", len(e.Args))
+						p.log.AddRangeDebug(&p.source, r, text)
 					}
 				} else if p.options.outputFormat == config.FormatESModule && !omitWarnings {
 					r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)

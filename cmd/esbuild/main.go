@@ -63,8 +63,8 @@ var helpText = func(colors logger.Colors) string {
   --jsx-factory=...         What to use for JSX instead of React.createElement
   --jsx-fragment=...        What to use for JSX instead of React.Fragment
   --keep-names              Preserve "name" on functions and classes
-  --log-level=...           Disable logging (debug | info | warning | error |
-                            silent, default info)
+  --log-level=...           Disable logging (verbose | debug | info | warning |
+                            error | silent, default info)
   --log-limit=...           Maximum message count or 0 to disable (default 10)
   --main-fields=...         Override the main file order in package.json
                             (default "browser,module,main" when platform is

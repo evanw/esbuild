@@ -195,6 +195,7 @@ type LogLevel uint8
 
 const (
 	LogLevelSilent LogLevel = iota
+	LogLevelVerbose
 	LogLevelDebug
 	LogLevelInfo
 	LogLevelWarning
