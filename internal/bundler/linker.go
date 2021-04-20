@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash"
 	"math/rand"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ import (
 
 type linkerContext struct {
 	options *config.Options
+	timer   *helpers.Timer
 	log     logger.Log
 	fs      fs.FS
 	res     resolver.Resolver
@@ -170,8 +172,9 @@ func wrappedLog(log logger.Log) logger.Log {
 	return log
 }
 
-func newLinkerContext(
+func link(
 	options *config.Options,
+	timer *helpers.Timer,
 	log logger.Log,
 	fs fs.FS,
 	res resolver.Resolver,
@@ -179,22 +182,28 @@ func newLinkerContext(
 	entryPoints []graph.EntryPoint,
 	reachableFiles []uint32,
 	dataForSourceMaps func() []dataForSourceMap,
-) linkerContext {
+) []graph.OutputFile {
+	timer.Begin("Link")
+	defer timer.End("Link")
+
 	log = wrappedLog(log)
 
+	timer.Begin("Clone linker graph")
 	c := linkerContext{
 		options:           options,
+		timer:             timer,
 		log:               log,
 		fs:                fs,
 		res:               res,
 		dataForSourceMaps: dataForSourceMaps,
-		graph: graph.MakeLinkerGraph(
+		graph: graph.CloneLinkerGraph(
 			inputFiles,
 			reachableFiles,
 			entryPoints,
 			options.CodeSplitting,
 		),
 	}
+	timer.End("Clone linker graph")
 
 	for _, entryPoint := range entryPoints {
 		if repr, ok := c.graph.Files[entryPoint.SourceIndex].InputFile.Repr.(*graph.JSRepr); ok {
@@ -225,24 +234,6 @@ func newLinkerContext(
 		c.unboundModuleRef = js_ast.InvalidRef
 	}
 
-	return c
-}
-
-func (c *linkerContext) generateUniqueKeyPrefix() bool {
-	var data [12]byte
-	rand.Seed(time.Now().UnixNano())
-	if _, err := rand.Read(data[:]); err != nil {
-		c.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
-		return false
-	}
-
-	// This is 16 bytes and shouldn't generate escape characters when put into strings
-	c.uniqueKeyPrefix = base64.URLEncoding.EncodeToString(data[:])
-	c.uniqueKeyPrefixBytes = []byte(c.uniqueKeyPrefix)
-	return true
-}
-
-func (c *linkerContext) link() []graph.OutputFile {
 	if !c.generateUniqueKeyPrefix() {
 		return nil
 	}
@@ -269,6 +260,20 @@ func (c *linkerContext) link() []graph.OutputFile {
 	js_ast.FollowAllSymbols(c.graph.Symbols)
 
 	return c.generateChunksInParallel(chunks)
+}
+
+func (c *linkerContext) generateUniqueKeyPrefix() bool {
+	var data [12]byte
+	rand.Seed(time.Now().UnixNano())
+	if _, err := rand.Read(data[:]); err != nil {
+		c.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
+		return false
+	}
+
+	// This is 16 bytes and shouldn't generate escape characters when put into strings
+	c.uniqueKeyPrefix = base64.URLEncoding.EncodeToString(data[:])
+	c.uniqueKeyPrefixBytes = []byte(c.uniqueKeyPrefix)
+	return true
 }
 
 // Currently the automatic chunk generation algorithm should by construction
@@ -309,6 +314,9 @@ func (c *linkerContext) enforceNoCyclicChunkImports(chunks []chunkInfo) {
 }
 
 func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.OutputFile {
+	c.timer.Begin("Generate chunks")
+	defer c.timer.End("Generate chunks")
+
 	// Generate each chunk on a separate goroutine
 	generateWaitGroup := sync.WaitGroup{}
 	generateWaitGroup.Add(len(chunks))
@@ -349,6 +357,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 	}
 
 	// Generate the final output files by joining file pieces together
+	c.timer.Begin("Generate final output files")
 	var resultsWaitGroup sync.WaitGroup
 	results := make([][]graph.OutputFile, len(chunks))
 	resultsWaitGroup.Add(len(chunks))
@@ -428,6 +437,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 		}(chunkIndex, chunk)
 	}
 	resultsWaitGroup.Wait()
+	c.timer.End("Generate final output files")
 
 	// Merge the output files from the different goroutines together in order
 	outputFilesLen := 0
@@ -612,6 +622,9 @@ func (c *linkerContext) pathRelativeToOutbase(
 }
 
 func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
+	c.timer.Begin("Compute cross-chunk dependencies")
+	defer c.timer.End("Compute cross-chunk dependencies")
+
 	jsChunks := 0
 	for _, chunk := range chunks {
 		if _, ok := chunk.chunkRepr.(*chunkReprJS); ok {
@@ -964,6 +977,9 @@ func (c *linkerContext) sortedCrossChunkExportItems(exportRefs map[js_ast.Ref]bo
 }
 
 func (c *linkerContext) scanImportsAndExports() {
+	c.timer.Begin("Scan imports and exports")
+	defer c.timer.End("Scan imports and exports")
+
 	// Step 1: Figure out what modules must be CommonJS
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		file := &c.graph.Files[sourceIndex]
@@ -2331,17 +2347,21 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 func (c *linkerContext) treeShakingAndCodeSplitting() {
 	// Tree shaking: Each entry point marks all files reachable from itself
+	c.timer.Begin("Tree shaking")
 	for _, entryPoint := range c.graph.EntryPoints() {
 		c.markFileLiveForTreeShaking(entryPoint.SourceIndex)
 	}
+	c.timer.End("Tree shaking")
 
 	// Code splitting: Determine which entry points can reach which files. This
 	// has to happen after tree shaking because there is an implicit dependency
 	// between live parts within the same file. All liveness has to be computed
 	// first before determining which entry points can reach which files.
+	c.timer.Begin("Code splitting")
 	for i, entryPoint := range c.graph.EntryPoints() {
 		c.markFileReachableForCodeSplitting(entryPoint.SourceIndex, uint(i), 0)
 	}
+	c.timer.End("Code splitting")
 }
 
 func (c *linkerContext) markFileReachableForCodeSplitting(sourceIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
@@ -2529,6 +2549,9 @@ func sanitizeFilePathForVirtualModulePath(path string) string {
 }
 
 func (c *linkerContext) computeChunks() []chunkInfo {
+	c.timer.Begin("Compute chunks")
+	defer c.timer.End("Compute chunks")
+
 	jsChunks := make(map[string]chunkInfo)
 	cssChunks := make(map[string]chunkInfo)
 
@@ -3753,8 +3776,17 @@ func (c *linkerContext) generateEntryPointTailJS(
 	return
 }
 
-func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []uint32) renamer.Renamer {
+func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []uint32, timer *helpers.Timer) renamer.Renamer {
+	if c.options.MinifyIdentifiers {
+		timer.Begin("Minify symbols")
+		defer timer.End("Minify symbols")
+	} else {
+		timer.Begin("Rename symbols")
+		defer timer.End("Rename symbols")
+	}
+
 	// Determine the reserved names (e.g. can't generate the name "if")
+	timer.Begin("Compute reserved names")
 	moduleScopes := make([]*js_ast.Scope, len(filesInOrder))
 	for i, sourceIndex := range filesInOrder {
 		moduleScopes[i] = c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr).AST.ModuleScope
@@ -3766,6 +3798,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		reservedNames["require"] = 1
 		reservedNames["Promise"] = 1
 	}
+	timer.End("Compute reserved names")
 
 	// Minification uses frequency analysis to give shorter names to more frequent symbols
 	if c.options.MinifyIdentifiers {
@@ -3777,6 +3810,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		r := renamer.NewMinifyRenamer(c.graph.Symbols, firstTopLevelSlots, reservedNames)
 
 		// Accumulate symbol usage counts into their slots
+		timer.Begin("Accumulate symbol counts")
 		freq := js_ast.CharFreq{}
 		for _, sourceIndex := range filesInOrder {
 			repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr)
@@ -3805,6 +3839,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 				}
 			}
 		}
+		timer.End("Accumulate symbol counts")
 
 		// Add all of the character frequency histograms for all files in this
 		// chunk together, then use it to compute the character sequence used to
@@ -3813,7 +3848,9 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		// it's a very small win, we still do it because it's simple to do and very
 		// cheap to compute.
 		minifier := freq.Compile()
+		timer.Begin("Assign names by frequency")
 		r.AssignNamesByFrequency(&minifier)
+		timer.End("Assign names by frequency")
 		return r
 	}
 
@@ -3822,6 +3859,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	nestedScopes := make(map[uint32][]*js_ast.Scope)
 
 	// Make sure imports get a chance to be renamed
+	timer.Begin("Add top-level symbols")
 	var sorted renamer.StableRefArray
 	for _, imports := range chunk.chunkRepr.(*chunkReprJS).importsFromOtherChunks {
 		for _, item := range imports {
@@ -3931,23 +3969,35 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 
 		nestedScopes[sourceIndex] = scopes
 	}
+	timer.End("Add top-level symbols")
 
 	// Recursively rename symbols in child scopes now that all top-level
 	// symbols have been renamed. This is done in parallel because the symbols
 	// inside nested scopes are independent and can't conflict.
+	timer.Begin("Assign names by scope")
 	r.AssignNamesByScope(nestedScopes)
+	timer.End("Assign names by scope")
 	return r
 }
 
 func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
 	chunk := &chunks[chunkIndex]
+
+	timer := c.timer.Fork()
+	if timer != nil {
+		timeName := fmt.Sprintf("Generate chunk %q", path.Clean(config.TemplateToString(chunk.finalTemplate)))
+		timer.Begin(timeName)
+		defer c.timer.Join(timer)
+		defer timer.End(timeName)
+	}
+
 	chunkRepr := chunk.chunkRepr.(*chunkReprJS)
 	compileResults := make([]compileResultJS, 0, len(chunk.partsInChunkInOrder))
 	runtimeMembers := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.ModuleScope.Members
 	commonJSRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__commonJS"].Ref)
 	esmRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__esm"].Ref)
 	toModuleRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__toModule"].Ref)
-	r := c.renameSymbolsInChunk(chunk, chunk.filesInChunkInOrder)
+	r := c.renameSymbolsInChunk(chunk, chunk.filesInChunkInOrder, timer)
 	dataForSourceMaps := c.dataForSourceMaps()
 
 	// Note: This contains placeholders instead of what the placeholders are
@@ -3960,6 +4010,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	chunkAbsDir := c.fs.Dir(c.fs.Join(c.options.AbsOutputDir, config.TemplateToString(chunk.finalTemplate)))
 
 	// Generate JavaScript for each file in parallel
+	timer.Begin("Print JavaScript files")
 	waitGroup := sync.WaitGroup{}
 	for _, partRange := range chunk.partsInChunkInOrder {
 		// Skip the runtime in test output
@@ -4027,6 +4078,8 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	}
 
 	waitGroup.Wait()
+	timer.End("Print JavaScript files")
+	timer.Begin("Join JavaScript files")
 
 	j := helpers.Joiner{}
 	prevOffset := sourcemap.LineColumnOffset{}
@@ -4276,12 +4329,15 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		j.AddString("\n")
 	}
 
-	if c.options.SourceMap != config.SourceMapNone {
-		chunk.outputSourceMap = c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps)
-	}
-
 	// The JavaScript contents are done now that the source map comment is in
 	jsContents := j.Done()
+	timer.End("Join JavaScript files")
+
+	if c.options.SourceMap != config.SourceMapNone {
+		timer.Begin("Generate source map")
+		chunk.outputSourceMap = c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps)
+		timer.End("Generate source map")
+	}
 
 	// End the metadata lazily. The final output size is not known until the
 	// final import paths are substituted into the output pieces generated below.
@@ -4364,9 +4420,19 @@ type externalImportCSS struct {
 
 func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
 	chunk := &chunks[chunkIndex]
+
+	timer := c.timer.Fork()
+	if timer != nil {
+		timeName := fmt.Sprintf("Generate chunk %q", path.Clean(config.TemplateToString(chunk.finalTemplate)))
+		timer.Begin(timeName)
+		defer c.timer.Join(timer)
+		defer timer.End(timeName)
+	}
+
 	compileResults := make([]compileResultCSS, 0, len(chunk.filesInChunkInOrder))
 
 	// Generate CSS for each file in parallel
+	timer.Begin("Print CSS files")
 	waitGroup := sync.WaitGroup{}
 	for _, sourceIndex := range chunk.filesInChunkInOrder {
 		// Create a goroutine for this file
@@ -4407,6 +4473,8 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 	}
 
 	waitGroup.Wait()
+	timer.End("Print CSS files")
+	timer.Begin("Join CSS files")
 	j := helpers.Joiner{}
 	newlineBeforeComment := false
 
@@ -4522,6 +4590,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 
 	// The CSS contents are done now that the source map comment is in
 	cssContents := j.Done()
+	timer.End("Join CSS files")
 
 	// End the metadata lazily. The final output size is not known until the
 	// final import paths are substituted into the output pieces generated below.

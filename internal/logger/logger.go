@@ -49,6 +49,7 @@ type MsgKind uint8
 const (
 	Error MsgKind = iota
 	Warning
+	Info
 	Note
 	Debug
 	Verbose
@@ -60,6 +61,8 @@ func (kind MsgKind) String() string {
 		return "error"
 	case Warning:
 		return "warning"
+	case Info:
+		return "info"
 	case Note:
 		return "note"
 	case Debug:
@@ -416,6 +419,11 @@ func NewStderrLog(options OutputOptions) Log {
 
 			case Debug:
 				if options.LogLevel <= LevelDebug {
+					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
+				}
+
+			case Info:
+				if options.LogLevel <= LevelInfo {
 					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
 				}
 
@@ -913,10 +921,13 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 
 	switch kind {
 	case Verbose:
-		kindColor = colors.Green
+		kindColor = colors.Cyan
 
 	case Debug:
 		kindColor = colors.Blue
+
+	case Info:
+		kindColor = colors.Green
 
 	case Error:
 		kindColor = colors.Red

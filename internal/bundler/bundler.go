@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -914,6 +913,7 @@ type scanner struct {
 	res     resolver.Resolver
 	caches  *cache.CacheSet
 	options config.Options
+	timer   *helpers.Timer
 
 	// This is not guarded by a mutex because it's only ever modified by a single
 	// thread. Note that not all results in the "results" array are necessarily
@@ -937,11 +937,10 @@ func ScanBundle(
 	caches *cache.CacheSet,
 	entryPoints []EntryPoint,
 	options config.Options,
+	timer *helpers.Timer,
 ) Bundle {
-	start := time.Now()
-	if log.Level <= logger.LevelVerbose {
-		log.AddVerbose(nil, logger.Loc{}, "Started the scan phase")
-	}
+	timer.Begin("Scan phase")
+	defer timer.End("Scan phase")
 
 	applyOptionDefaults(&options)
 
@@ -951,6 +950,7 @@ func ScanBundle(
 		res:           res,
 		caches:        caches,
 		options:       options,
+		timer:         timer,
 		results:       make([]parseResult, 0, caches.SourceIndexCache.LenHint()),
 		visited:       make(map[logger.Path]uint32),
 		resultChannel: make(chan parseResult),
@@ -976,10 +976,6 @@ func ScanBundle(
 	entryPointMeta := s.addEntryPoints(entryPoints)
 	s.scanAllDependencies()
 	files := s.processScannedFiles()
-
-	if log.Level <= logger.LevelVerbose {
-		log.AddVerbose(nil, logger.Loc{}, fmt.Sprintf("Ended the scan phase (%dms)", time.Since(start).Milliseconds()))
-	}
 
 	return Bundle{
 		fs:          fs,
@@ -1125,6 +1121,9 @@ func (s *scanner) allocateSourceIndex(path logger.Path, kind cache.SourceIndexKi
 }
 
 func (s *scanner) preprocessInjectedFiles() {
+	s.timer.Begin("Preprocess injected files")
+	defer s.timer.End("Preprocess injected files")
+
 	injectedFiles := make([]config.InjectedFile, 0, len(s.options.InjectedDefines)+len(s.options.InjectAbsPaths))
 	duplicateInjectedFiles := make(map[string]bool)
 	injectWaitGroup := sync.WaitGroup{}
@@ -1213,6 +1212,9 @@ func (s *scanner) preprocessInjectedFiles() {
 }
 
 func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
+	s.timer.Begin("Add entry points")
+	defer s.timer.End("Add entry points")
+
 	// Reserve a slot for each entry point
 	entryMetas := make([]graph.EntryPoint, 0, len(entryPoints)+1)
 
@@ -1463,6 +1465,9 @@ func lowestCommonAncestorDirectory(fs fs.FS, entryPoints []graph.EntryPoint) str
 }
 
 func (s *scanner) scanAllDependencies() {
+	s.timer.Begin("Scan all dependencies")
+	defer s.timer.End("Scan all dependencies")
+
 	// Continue scanning until all dependencies have been discovered
 	for s.remaining > 0 {
 		result := <-s.resultChannel
@@ -1515,6 +1520,9 @@ func (s *scanner) scanAllDependencies() {
 }
 
 func (s *scanner) processScannedFiles() []scannerFile {
+	s.timer.Begin("Process scanned files")
+	defer s.timer.End("Process scanned files")
+
 	// Now that all files have been scanned, process the final file import records
 	for i, result := range s.results {
 		if !result.ok {
@@ -1830,11 +1838,9 @@ func applyOptionDefaults(options *config.Options) {
 	}
 }
 
-func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.OutputFile, string) {
-	start := time.Now()
-	if log.Level <= logger.LevelVerbose {
-		log.AddVerbose(nil, logger.Loc{}, "Started the compile phase")
-	}
+func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.Timer) ([]graph.OutputFile, string) {
+	timer.Begin("Compile phase")
+	defer timer.End("Compile phase")
 
 	applyOptionDefaults(&options)
 
@@ -1852,13 +1858,14 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 	allReachableFiles := findReachableFiles(files, b.entryPoints)
 
 	// Compute source map data in parallel with linking
+	timer.Begin("Spawn source map tasks")
 	dataForSourceMaps := b.computeDataForSourceMapsInParallel(&options, allReachableFiles)
+	timer.End("Spawn source map tasks")
 
 	var resultGroups [][]graph.OutputFile
-	if options.CodeSplitting {
-		// If code splitting is enabled, link all entry points together
-		c := newLinkerContext(&options, log, b.fs, b.res, files, b.entryPoints, allReachableFiles, dataForSourceMaps)
-		resultGroups = [][]graph.OutputFile{c.link()}
+	if options.CodeSplitting || len(b.entryPoints) == 1 {
+		// If code splitting is enabled or if there's only one entry point, link all entry points together
+		resultGroups = [][]graph.OutputFile{link(&options, timer, log, b.fs, b.res, files, b.entryPoints, allReachableFiles, dataForSourceMaps)}
 	} else {
 		// Otherwise, link each entry point with the runtime file separately
 		waitGroup := sync.WaitGroup{}
@@ -1867,9 +1874,10 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 			waitGroup.Add(1)
 			go func(i int, entryPoint graph.EntryPoint) {
 				entryPoints := []graph.EntryPoint{entryPoint}
+				forked := timer.Fork()
 				reachableFiles := findReachableFiles(files, entryPoints)
-				c := newLinkerContext(&options, log, b.fs, b.res, files, entryPoints, reachableFiles, dataForSourceMaps)
-				resultGroups[i] = c.link()
+				resultGroups[i] = link(&options, forked, log, b.fs, b.res, files, entryPoints, reachableFiles, dataForSourceMaps)
+				timer.Join(forked)
 				waitGroup.Done()
 			}(i, entryPoint)
 		}
@@ -1885,7 +1893,9 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 	// Also generate the metadata file if necessary
 	var metafileJSON string
 	if options.NeedsMetafile {
+		timer.Begin("Generate metadata JSON")
 		metafileJSON = b.generateMetadataJSON(outputFiles, allReachableFiles, options.ASCIIOnly)
+		timer.End("Generate metadata JSON")
 	}
 
 	if !options.WriteToStdout {
@@ -1938,10 +1948,6 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]graph.Output
 			log.AddError(nil, logger.Loc{}, "Two output files share the same path but have different contents: "+outputPath)
 		}
 		outputFiles = outputFiles[:end]
-	}
-
-	if log.Level <= logger.LevelVerbose {
-		log.AddVerbose(nil, logger.Loc{}, fmt.Sprintf("Ended the compile phase (%dms)", time.Since(start).Milliseconds()))
 	}
 
 	return outputFiles, metafileJSON

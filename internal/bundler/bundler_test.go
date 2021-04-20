@@ -98,7 +98,7 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 		for _, path := range args.entryPaths {
 			entryPoints = append(entryPoints, EntryPoint{InputPath: path})
 		}
-		bundle := ScanBundle(log, fs, resolver, caches, entryPoints, args.options)
+		bundle := ScanBundle(log, fs, resolver, caches, entryPoints, args.options, nil)
 		msgs := log.Done()
 		assertLog(t, msgs, args.expectedScanLog)
 
@@ -109,7 +109,7 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 
 		log = logger.NewDeferLog()
 		args.options.OmitRuntimeForTests = true
-		results, _ := bundle.Compile(log, args.options)
+		results, _ := bundle.Compile(log, args.options, nil)
 		msgs = log.Done()
 		assertLog(t, msgs, args.expectedCompileLog)
 

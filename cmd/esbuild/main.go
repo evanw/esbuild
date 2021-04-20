@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/evanw/esbuild/internal/api_helpers"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/pkg/cli"
 )
@@ -141,6 +142,11 @@ func main() {
 
 		case strings.HasPrefix(arg, "--trace="):
 			traceFile = arg[len("--trace="):]
+
+		case strings.HasPrefix(arg, "--timing"):
+			// This is a hidden flag because it's only intended for debugging esbuild
+			// itself. The output is not documented and not stable.
+			api_helpers.UseTimer = true
 
 		case strings.HasPrefix(arg, "--cpuprofile="):
 			cpuprofileFile = arg[len("--cpuprofile="):]

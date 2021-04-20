@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/evanw/esbuild/internal/api_helpers"
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/bundler"
 	"github.com/evanw/esbuild/internal/cache"
@@ -20,6 +21,7 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/graph"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
@@ -910,14 +912,19 @@ func rebuildImpl(
 	// Stop now if there were errors
 	resolver := resolver.NewResolver(realFS, log, caches, options)
 	if !log.HasErrors() {
+		var timer *helpers.Timer
+		if api_helpers.UseTimer {
+			timer = &helpers.Timer{}
+		}
+
 		// Scan over the bundle
-		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPoints, options)
+		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPoints, options, timer)
 		watchData = realFS.WatchData()
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, metafile := bundle.Compile(log, options)
+			results, metafile := bundle.Compile(log, options, timer)
 			metafileJSON = metafile
 
 			// Stop now if there were errors
@@ -926,8 +933,9 @@ func rebuildImpl(
 				log.AlmostDone()
 
 				if buildOpts.Write {
-					// Special-case writing to stdout
+					timer.Begin("Write output files")
 					if options.WriteToStdout {
+						// Special-case writing to stdout
 						if len(results) != 1 {
 							log.AddError(nil, logger.Loc{}, fmt.Sprintf(
 								"Internal error: did not expect to generate %d files when writing to stdout", len(results)))
@@ -961,6 +969,7 @@ func rebuildImpl(
 						}
 						waitGroup.Wait()
 					}
+					timer.End("Write output files")
 				}
 
 				// Return the results
@@ -976,6 +985,8 @@ func rebuildImpl(
 				}
 			}
 		}
+
+		timer.Log(log)
 	}
 
 	// End the log now, which may print a message
@@ -1281,16 +1292,23 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Stop now if there were errors
 	if !log.HasErrors() {
+		var timer *helpers.Timer
+		if api_helpers.UseTimer {
+			timer = &helpers.Timer{}
+		}
+
 		// Scan over the bundle
 		mockFS := fs.MockFS(make(map[string]string))
 		resolver := resolver.NewResolver(mockFS, log, caches, options)
-		bundle := bundler.ScanBundle(log, mockFS, resolver, caches, nil, options)
+		bundle := bundler.ScanBundle(log, mockFS, resolver, caches, nil, options, timer)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, _ = bundle.Compile(log, options)
+			results, _ = bundle.Compile(log, options, timer)
 		}
+
+		timer.Log(log)
 	}
 
 	// Return the results

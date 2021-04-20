@@ -101,7 +101,7 @@ type LinkerGraph struct {
 	StableSourceIndices []uint32
 }
 
-func MakeLinkerGraph(
+func CloneLinkerGraph(
 	inputFiles []InputFile,
 	reachableFiles []uint32,
 	originalEntryPoints []EntryPoint,

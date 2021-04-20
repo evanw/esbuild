@@ -586,7 +586,7 @@ bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-th
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
-	time -p ./esbuild --bundle --global-name=THREE --sourcemap --minify bench/three/src/entry.js --outfile=bench/three/esbuild/entry.esbuild.js
+	time -p ./esbuild --bundle --global-name=THREE --sourcemap --minify bench/three/src/entry.js --outfile=bench/three/esbuild/entry.esbuild.js --timing
 	du -h bench/three/esbuild/entry.esbuild.js*
 	shasum bench/three/esbuild/entry.esbuild.js*
 
@@ -695,7 +695,7 @@ bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-webpack5 bench-rome
 
 bench-rome-esbuild: esbuild | bench/rome bench/rome-verify
 	rm -fr bench/rome/esbuild
-	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node
+	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node --timing
 	du -h bench/rome/esbuild/rome.esbuild.js*
 	shasum bench/rome/esbuild/rome.esbuild.js*
 	cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
@@ -835,7 +835,7 @@ READMIN_ESBUILD_FLAGS += --define:global=window
 READMIN_ESBUILD_FLAGS += --loader:.js=jsx
 READMIN_ESBUILD_FLAGS += --minify
 READMIN_ESBUILD_FLAGS += --sourcemap
-READMIN_ESBUILD_FLAGS += --log-level=debug
+READMIN_ESBUILD_FLAGS += --timing
 
 bench-readmin-esbuild: esbuild | bench/readmin
 	rm -fr bench/readmin/esbuild
