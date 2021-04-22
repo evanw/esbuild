@@ -2642,6 +2642,21 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		p.lexer.Next()
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
 
+	case js_lexer.TPrivateIdentifier:
+		if !p.allowPrivateIdentifiers {
+			p.lexer.Unexpected()
+		}
+
+		ref := p.storeNameInRef(p.lexer.Identifier)
+		p.lexer.Next()
+
+		// Check for "#foo in bar"
+		if p.lexer.Token != js_lexer.TIn {
+			p.lexer.Expected(js_lexer.TIn)
+		}
+
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: ref}}
+
 	case js_lexer.TIdentifier:
 		name := p.lexer.Identifier
 		nameRange := p.lexer.Range()
@@ -10128,6 +10143,31 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EBinary:
+		// Special-case EPrivateIdentifier to allow it here
+		if private, ok := e.Left.Data.(*js_ast.EPrivateIdentifier); ok && e.Op == js_ast.BinOpIn {
+			name := p.loadNameFromRef(private.Ref)
+			result := p.findSymbol(e.Left.Loc, name)
+			private.Ref = result.ref
+
+			// Unlike regular identifiers, there are no unbound private identifiers
+			symbol := &p.symbols[result.ref.InnerIndex]
+			if !symbol.Kind.IsPrivate() {
+				r := logger.Range{Loc: e.Left.Loc, Len: int32(len(name))}
+				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q must be declared in an enclosing class", name))
+			} else if p.options.unsupportedJSFeatures.Has(compat.ClassPrivateBrandCheck) {
+				// This is an additional feature on top of private members, so make
+				// sure to lower this private member if it's used in a brand check
+				symbol.PrivateSymbolMustBeLowered = true
+			}
+
+			e.Right = p.visitExpr(e.Right)
+
+			if p.privateSymbolNeedsToBeLowered(private) {
+				return p.lowerPrivateBrandCheck(e.Right, expr.Loc, private), exprOut{}
+			}
+			break
+		}
+
 		isCallTarget := e == p.callTarget
 		isStmtExpr := e == p.stmtExprValue
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)

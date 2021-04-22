@@ -3864,10 +3864,12 @@ func TestPreserveOptionalChainParentheses(t *testing.T) {
 
 func TestPrivateIdentifiers(t *testing.T) {
 	expectParseError(t, "#foo", "<stdin>: error: Unexpected \"#foo\"\n")
+	expectParseError(t, "#foo in this", "<stdin>: error: Unexpected \"#foo\"\n")
 	expectParseError(t, "this.#foo", "<stdin>: error: Expected identifier but found \"#foo\"\n")
 	expectParseError(t, "this?.#foo", "<stdin>: error: Expected identifier but found \"#foo\"\n")
 	expectParseError(t, "({ #foo: 1 })", "<stdin>: error: Expected identifier but found \"#foo\"\n")
 	expectParseError(t, "class Foo { x = { #foo: 1 } }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseError(t, "class Foo { x = #foo }", "<stdin>: error: Expected \"in\" but found \"}\"\n")
 	expectParseError(t, "class Foo { #foo; foo() { delete this.#foo } }",
 		"<stdin>: error: Deleting the private name \"#foo\" is forbidden\n")
 	expectParseError(t, "class Foo { #foo; foo() { delete this?.#foo } }",
@@ -3877,6 +3879,7 @@ func TestPrivateIdentifiers(t *testing.T) {
 
 	expectPrinted(t, "class Foo { #foo }", "class Foo {\n  #foo;\n}\n")
 	expectPrinted(t, "class Foo { #foo = 1 }", "class Foo {\n  #foo = 1;\n}\n")
+	expectPrinted(t, "class Foo { #foo = #foo in this }", "class Foo {\n  #foo = #foo in this;\n}\n")
 	expectPrinted(t, "class Foo { #foo() {} }", "class Foo {\n  #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { get #foo() {} }", "class Foo {\n  get #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { set #foo(x) {} }", "class Foo {\n  set #foo(x) {\n  }\n}\n")
@@ -3930,6 +3933,8 @@ func TestPrivateIdentifiers(t *testing.T) {
 	expectParseError(t, "class Foo { #foo } class Bar { foo = this.#foo }",
 		"<stdin>: error: Private name \"#foo\" must be declared in an enclosing class\n")
 	expectParseError(t, "class Foo { #foo } class Bar { foo = this?.#foo }",
+		"<stdin>: error: Private name \"#foo\" must be declared in an enclosing class\n")
+	expectParseError(t, "class Foo { #foo } class Bar { foo = #foo in this }",
 		"<stdin>: error: Private name \"#foo\" must be declared in an enclosing class\n")
 
 	// Getter and setter warnings

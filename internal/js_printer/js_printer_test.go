@@ -596,6 +596,11 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "class Foo { static set foo(x) {} }", "class Foo {\n  static set foo(x) {\n  }\n}\n")
 }
 
+func TestPrivateIdentifiers(t *testing.T) {
+	expectPrinted(t, "class Foo { #foo; foo() { return #foo in this } }", "class Foo {\n  #foo;\n  foo() {\n    return #foo in this;\n  }\n}\n")
+	expectPrintedMinify(t, "class Foo { #foo; foo() { return #foo in this } }", "class Foo{#foo;foo(){return#foo in this}}")
+}
+
 func TestImport(t *testing.T) {
 	expectPrinted(t, "import('path');", "import(\"path\");\n") // The semicolon must not be a separate statement
 
