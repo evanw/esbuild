@@ -1310,7 +1310,10 @@ body {
       define: { FOO: '123' },
     })
 
-    const result = await import(input)
+    // This needs to use relative paths to avoid breaking on Windows.
+    // Importing by absolute path doesn't work on Windows in node.
+    const result = await import('./' + path.relative(__dirname, input))
+
     assert.strictEqual(result.default, 123)
   },
 
