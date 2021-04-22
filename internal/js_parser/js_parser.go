@@ -9639,6 +9639,67 @@ func (p *parser) maybeRewritePropertyAccess(
 		}
 	}
 
+	// Attempt to simplify statically-determined object literal property accesses
+	if !isCallTarget && p.options.mangleSyntax && assignTarget == js_ast.AssignTargetNone {
+		if object, ok := target.Data.(*js_ast.EObject); ok {
+			var replace js_ast.Expr
+			hasProtoNull := false
+			isUnsafe := false
+
+			// Check that doing this is safe
+			for _, prop := range object.Properties {
+				// "{ ...a }.a" must be preserved
+				// "new ({ a() {} }.a)" must throw
+				// "{ get a() {} }.a" must be preserved
+				// "{ set a(b) {} }.a = 1" must be preserved
+				// "{ a: 1, [String.fromCharCode(97)]: 2 }.a" must be 2
+				if prop.Kind == js_ast.PropertySpread || prop.IsComputed || prop.IsMethod {
+					isUnsafe = true
+					break
+				}
+
+				// Do not attempt to compare against numeric keys
+				key, ok := prop.Key.Data.(*js_ast.EString)
+				if !ok {
+					isUnsafe = true
+					break
+				}
+
+				// The "__proto__" key has special behavior
+				if js_lexer.UTF16EqualsString(key.Value, "__proto__") {
+					if _, ok := prop.Value.Data.(*js_ast.ENull); ok {
+						// Replacing "{__proto__: null}.a" with undefined should be safe
+						hasProtoNull = true
+					}
+				}
+
+				// This entire object literal must have no side effects
+				if !p.exprCanBeRemovedIfUnused(*prop.Value) {
+					isUnsafe = true
+					break
+				}
+
+				// Note that we need to take the last value if there are duplicate keys
+				if js_lexer.UTF16EqualsString(key.Value, name) {
+					replace = *prop.Value
+				}
+			}
+
+			if !isUnsafe {
+				// If the key was found, return the value for that key. Note
+				// that "{__proto__: null}.__proto__" is undefined, not null.
+				if replace.Data != nil && name != "__proto__" {
+					return replace, true
+				}
+
+				// We can only return "undefined" when a key is missing if the prototype is null
+				if hasProtoNull {
+					return js_ast.Expr{Loc: target.Loc, Data: &js_ast.EUndefined{}}, true
+				}
+			}
+		}
+	}
+
 	return js_ast.Expr{}, false
 }
 
@@ -10671,20 +10732,28 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EIndex:
+		isCallTarget := e == p.callTarget
+		isDeleteTarget := e == p.deleteTarget
+
 		// "a['b']" => "a.b"
 		if p.options.mangleSyntax {
 			if str, ok := e.Index.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
-				return p.visitExprInOut(js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
+				dot := &js_ast.EDot{
 					Target:        e.Target,
 					Name:          js_lexer.UTF16ToString(str.Value),
 					NameLoc:       e.Index.Loc,
 					OptionalChain: e.OptionalChain,
-				}}, in)
+				}
+				if isCallTarget {
+					p.callTarget = dot
+				}
+				if isDeleteTarget {
+					p.deleteTarget = dot
+				}
+				return p.visitExprInOut(js_ast.Expr{Loc: expr.Loc, Data: dot}, in)
 			}
 		}
 
-		isCallTarget := e == p.callTarget
-		isDeleteTarget := e == p.deleteTarget
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
 		})

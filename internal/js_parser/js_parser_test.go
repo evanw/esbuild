@@ -2930,6 +2930,18 @@ func TestMangleObject(t *testing.T) {
 	expectPrintedMangle(t, "x = {a, ...'123', b}", "x = {a, ...\"123\", b};\n")
 	expectPrintedMangle(t, "x = {a, ...[1, 2, 3], b}", "x = {a, ...[1, 2, 3], b};\n")
 	expectPrintedMangle(t, "x = {a, ...(()=>{})(), b}", "x = {a, ...(() => {\n})(), b};\n")
+
+	// Check simple cases of object simplification (advanced cases are checked in end-to-end tests)
+	expectPrintedMangle(t, "x = {['y']: z}.y", "x = {y: z}.y;\n")
+	expectPrintedMangle(t, "x = {['y']: z}.y; var z", "x = z;\nvar z;\n")
+	expectPrintedMangle(t, "x = {foo: foo(), y: 1}.y", "x = {foo: foo(), y: 1}.y;\n")
+	expectPrintedMangle(t, "x = {foo: /* @__PURE__ */ foo(), y: 1}.y", "x = 1;\n")
+	expectPrintedMangle(t, "x = {__proto__: null}.y", "x = void 0;\n")
+	expectPrintedMangle(t, "x = {__proto__: null, y: 1}.y", "x = 1;\n")
+	expectPrintedMangle(t, "x = {__proto__: null}.__proto__", "x = void 0;\n")
+	expectPrintedMangle(t, "x = {['__proto__']: null}.y", "x = {[\"__proto__\"]: null}.y;\n")
+	expectPrintedMangle(t, "x = {['__proto__']: null, y: 1}.y", "x = {[\"__proto__\"]: null, y: 1}.y;\n")
+	expectPrintedMangle(t, "x = {['__proto__']: null}.__proto__", "x = {[\"__proto__\"]: null}.__proto__;\n")
 }
 
 func TestMangleArrow(t *testing.T) {
