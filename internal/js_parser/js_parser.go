@@ -2855,7 +2855,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		// Special-case the weird "new.target" expression here
 		if p.lexer.Token == js_lexer.TDot {
 			p.lexer.Next()
-			if p.lexer.Token != js_lexer.TIdentifier || p.lexer.Identifier != "target" {
+			if p.lexer.Token != js_lexer.TIdentifier || p.lexer.Raw() != "target" {
 				p.lexer.Unexpected()
 			}
 			r := logger.Range{Loc: loc, Len: p.lexer.Range().End() - loc.Start}

@@ -3618,6 +3618,8 @@ func TestReplacementCharacter(t *testing.T) {
 func TestNewTarget(t *testing.T) {
 	expectPrinted(t, "new.target", "new.target;\n")
 	expectPrinted(t, "(new.target)", "new.target;\n")
+
+	expectParseError(t, "new.t\\u0061rget", "<stdin>: error: Unexpected \"t\\\\u0061rget\"\n")
 }
 
 func TestJSX(t *testing.T) {
