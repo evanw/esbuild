@@ -9074,7 +9074,10 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 						}
 					}
 
-					if !isInvalidConstructor {
+					// A static property must not be called "prototype"
+					isInvalidPrototype := property.IsStatic && js_lexer.UTF16EqualsString(str.Value, "prototype")
+
+					if !isInvalidConstructor && !isInvalidPrototype {
 						class.Properties[i].IsComputed = false
 					}
 				}
