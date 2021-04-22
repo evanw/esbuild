@@ -1300,6 +1300,20 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "({ *prototype() {} })", "({*prototype() {\n}});\n")
 	expectPrinted(t, "({ async prototype() {} })", "({async prototype() {\n}});\n")
 	expectPrinted(t, "({ async* prototype() {} })", "({async *prototype() {\n}});\n")
+
+	expectPrintedMangle(t, "class Foo { ['constructor'] = 0 }", "class Foo {\n  [\"constructor\"] = 0;\n}\n")
+	expectPrintedMangle(t, "class Foo { ['constructor']() {} }", "class Foo {\n  constructor() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { *['constructor']() {} }", "class Foo {\n  *[\"constructor\"]() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { get ['constructor']() {} }", "class Foo {\n  get [\"constructor\"]() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { set ['constructor'](x) {} }", "class Foo {\n  set [\"constructor\"](x) {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { async ['constructor']() {} }", "class Foo {\n  async [\"constructor\"]() {\n  }\n}\n")
+
+	expectPrintedMangle(t, "class Foo { static ['constructor'] = 0 }", "class Foo {\n  static [\"constructor\"] = 0;\n}\n")
+	expectPrintedMangle(t, "class Foo { static ['constructor']() {} }", "class Foo {\n  static constructor() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static *['constructor']() {} }", "class Foo {\n  static *constructor() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static get ['constructor']() {} }", "class Foo {\n  static get constructor() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static set ['constructor'](x) {} }", "class Foo {\n  static set constructor(x) {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static async ['constructor']() {} }", "class Foo {\n  static async constructor() {\n  }\n}\n")
 }
 
 func TestSuperCall(t *testing.T) {

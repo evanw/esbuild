@@ -9059,7 +9059,24 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 			// "class {['x'] = y}" => "class {x = y}"
 			if p.options.mangleSyntax && property.IsComputed {
 				if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
-					class.Properties[i].IsComputed = false
+					isInvalidConstructor := false
+					if js_lexer.UTF16EqualsString(str.Value, "constructor") {
+						if !property.IsMethod {
+							// "constructor" is an invalid name for both instance and static fields
+							isInvalidConstructor = true
+						} else if !property.IsStatic {
+							// The instance method "constructor" cannot be a getter, a setter, an async function, or a generator
+							if property.Kind == js_ast.PropertyGet || property.Kind == js_ast.PropertySet {
+								isInvalidConstructor = true
+							} else if fn := property.Value.Data.(*js_ast.EFunction).Fn; fn.IsAsync || fn.IsGenerator {
+								isInvalidConstructor = true
+							}
+						}
+					}
+
+					if !isInvalidConstructor {
+						class.Properties[i].IsComputed = false
+					}
 				}
 			}
 		}
