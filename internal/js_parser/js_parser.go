@@ -235,6 +235,25 @@ type parser struct {
 	//     Expression , AssignmentExpression
 	//
 	afterArrowBodyLoc logger.Loc
+
+	// We need to lower private names such as "#foo" if they are used in a brand
+	// check such as "#foo in x" even if the private name syntax would otherwise
+	// be supported. This is because private names are a newly-added feature.
+	//
+	// However, this parser operates in only two passes for speed. The first pass
+	// parses things and declares variables, and the second pass lowers things and
+	// resolves references to declared variables. So the existence of a "#foo in x"
+	// expression for a specific "#foo" cannot be used to decide to lower "#foo"
+	// because it's too late by that point. There may be another expression such
+	// as "x.#foo" before that point and that must be lowered as well even though
+	// it has already been visited.
+	//
+	// Instead what we do is track just the names of fields used in private brand
+	// checks during the first pass. This tracks the names themselves, not symbol
+	// references. Then, during the second pass when we are about to enter into
+	// a class, we conservatively decide to lower all private names in that class
+	// which are used in a brand check anywhere in the file.
+	classPrivateBrandChecksToLower map[string]bool
 }
 
 type importNamespaceCallOrConstruct struct {
@@ -2647,7 +2666,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			p.lexer.Unexpected()
 		}
 
-		ref := p.storeNameInRef(p.lexer.Identifier)
+		name := p.lexer.Identifier
 		p.lexer.Next()
 
 		// Check for "#foo in bar"
@@ -2655,7 +2674,15 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			p.lexer.Expected(js_lexer.TIn)
 		}
 
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: ref}}
+		// Make sure to lower all matching private names
+		if p.options.unsupportedJSFeatures.Has(compat.ClassPrivateBrandCheck) {
+			if p.classPrivateBrandChecksToLower == nil {
+				p.classPrivateBrandChecksToLower = make(map[string]bool)
+			}
+			p.classPrivateBrandChecksToLower[name] = true
+		}
+
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: p.storeNameInRef(name)}}
 
 	case js_lexer.TIdentifier:
 		name := p.lexer.Identifier
@@ -9085,6 +9112,18 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		}
 	}
 
+	// Conservatively lower all private names that have been used in a private
+	// brand check anywhere in the file. See the comment on this map for details.
+	if p.classPrivateBrandChecksToLower != nil {
+		for _, prop := range class.Properties {
+			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
+				if symbol := &p.symbols[private.Ref.InnerIndex]; p.classPrivateBrandChecksToLower[symbol.OriginalName] {
+					symbol.PrivateSymbolMustBeLowered = true
+				}
+			}
+		}
+	}
+
 	p.pushScopeForVisitPass(js_ast.ScopeClassName, nameScopeLoc)
 	oldEnclosingClassKeyword := p.enclosingClassKeyword
 	p.enclosingClassKeyword = class.ClassKeyword
@@ -10154,10 +10193,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !symbol.Kind.IsPrivate() {
 				r := logger.Range{Loc: e.Left.Loc, Len: int32(len(name))}
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q must be declared in an enclosing class", name))
-			} else if p.options.unsupportedJSFeatures.Has(compat.ClassPrivateBrandCheck) {
-				// This is an additional feature on top of private members, so make
-				// sure to lower this private member if it's used in a brand check
-				symbol.PrivateSymbolMustBeLowered = true
 			}
 
 			e.Right = p.visitExpr(e.Right)

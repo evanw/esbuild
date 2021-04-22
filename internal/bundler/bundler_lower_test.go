@@ -1494,7 +1494,13 @@ func TestLowerPrivateClassBrandCheckUnsupported(t *testing.T) {
 				class Foo {
 					#foo
 					#bar
-					baz() { #foo in this }
+					baz() {
+						return [
+							this.#foo,
+							this.#bar,
+							#foo in this,
+						]
+					}
 				}
 			`,
 		},
@@ -1514,7 +1520,13 @@ func TestLowerPrivateClassBrandCheckSupported(t *testing.T) {
 				class Foo {
 					#foo
 					#bar
-					baz() { #foo in this }
+					baz() {
+						return [
+							this.#foo,
+							this.#bar,
+							#foo in this,
+						]
+					}
 				}
 			`,
 		},

@@ -287,7 +287,11 @@ class Foo {
   #foo;
   #bar;
   baz() {
-    #foo in this;
+    return [
+      this.#foo,
+      this.#bar,
+      #foo in this
+    ];
   }
 }
 
@@ -302,7 +306,11 @@ class Foo {
   }
   #bar;
   baz() {
-    __privateIn(_foo, this);
+    return [
+      __privateGet(this, _foo),
+      this.#bar,
+      __privateIn(_foo, this)
+    ];
   }
 }
 _foo = new WeakMap();
