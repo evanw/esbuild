@@ -432,7 +432,14 @@ func parseFile(args parseArgs) {
 						}
 						if args.options.Platform != config.PlatformNode {
 							if _, ok := resolver.BuiltInNodeModules[record.Path.Text]; ok {
-								hint = " (set platform to \"node\" when building for node)"
+								switch logger.API {
+								case logger.CLIAPI:
+									hint = " (use \"--platform=node\" when building for node)"
+								case logger.JSAPI:
+									hint = " (use \"platform: 'node'\" when building for node)"
+								case logger.GoAPI:
+									hint = " (use \"Platform: api.PlatformNode\" when building for node)"
+								}
 							}
 						}
 						if absResolveDir == "" && pluginName != "" {
@@ -1912,9 +1919,18 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 			for _, outputFile := range outputFiles {
 				lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
 				if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
+					hint := ""
+					switch logger.API {
+					case logger.CLIAPI:
+						hint = " (use \"--allow-overwrite\" to allow this)"
+					case logger.JSAPI:
+						hint = " (use \"allowOverwrite: true\" to allow this)"
+					case logger.GoAPI:
+						hint = " (use \"AllowOverwrite: true\" to allow this)"
+					}
 					log.AddError(nil, logger.Loc{},
-						fmt.Sprintf("Refusing to overwrite input file %q without permission (enable \"allow overwrite\" to proceed)",
-							b.files[sourceIndex].inputFile.Source.PrettyPath))
+						fmt.Sprintf("Refusing to overwrite input file %q%s",
+							b.files[sourceIndex].inputFile.Source.PrettyPath, hint))
 				}
 			}
 		}

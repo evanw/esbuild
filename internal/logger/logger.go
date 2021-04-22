@@ -349,6 +349,17 @@ func errorAndWarningSummary(errors int, warnings int, shownErrors int, shownWarn
 	}
 }
 
+type APIKind uint8
+
+const (
+	GoAPI APIKind = iota
+	CLIAPI
+	JSAPI
+)
+
+// This can be used to customize error messages for the current API kind
+var API APIKind
+
 type TerminalInfo struct {
 	IsTTY           bool
 	UseColorEscapes bool

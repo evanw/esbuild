@@ -117,6 +117,8 @@ var helpText = func(colors logger.Colors) string {
 }
 
 func main() {
+	logger.API = logger.CLIAPI
+
 	osArgs := os.Args[1:]
 	heapFile := ""
 	traceFile := ""

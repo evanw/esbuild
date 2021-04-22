@@ -1278,7 +1278,7 @@ func TestRequireFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: `entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
+		expectedScanLog: `entry.js: error: Could not resolve "fs" (use "Platform: api.PlatformNode" when building for node)
 `,
 	})
 }
@@ -1335,7 +1335,7 @@ func TestImportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: `entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
+		expectedScanLog: `entry.js: error: Could not resolve "fs" (use "Platform: api.PlatformNode" when building for node)
 `,
 	})
 }
@@ -1396,7 +1396,7 @@ func TestExportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: `entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
+		expectedScanLog: `entry.js: error: Could not resolve "fs" (use "Platform: api.PlatformNode" when building for node)
 `,
 	})
 }
@@ -2646,7 +2646,8 @@ func TestNoOverwriteInputFileError(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/",
 		},
-		expectedCompileLog: "error: Refusing to overwrite input file: entry.js\n",
+		expectedCompileLog: `error: Refusing to overwrite input file "entry.js" (use "AllowOverwrite: true" to allow this)
+`,
 	})
 }
 

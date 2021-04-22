@@ -47,6 +47,8 @@ type outgoingPacket struct {
 }
 
 func runService(sendPings bool) {
+	logger.API = logger.JSAPI
+
 	service := serviceType{
 		callbacks:       make(map[uint32]responseCallback),
 		rebuilds:        make(map[int]rebuildCallback),

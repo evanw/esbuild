@@ -418,7 +418,11 @@ func validateDefines(
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
 			if !js_lexer.IsIdentifier(part) {
-				log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define key: %q", key))
+				if part == key {
+					log.AddError(nil, logger.Loc{}, fmt.Sprintf("The define key %q must be a valid identifier", key))
+				} else {
+					log.AddError(nil, logger.Loc{}, fmt.Sprintf("The define key %q contains invalid identifier %q", key, part))
+				}
 				continue
 			}
 		}
