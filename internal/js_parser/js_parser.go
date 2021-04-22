@@ -11006,7 +11006,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				// "{['x']: y}" => "{x: y}"
 				if p.options.mangleSyntax && property.IsComputed {
-					if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
+					if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) && !js_lexer.UTF16EqualsString(str.Value, "__proto__") {
 						property.IsComputed = false
 					}
 				}
