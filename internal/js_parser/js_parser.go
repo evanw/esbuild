@@ -10150,10 +10150,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			private.Ref = result.ref
 
 			// Unlike regular identifiers, there are no unbound private identifiers
-			kind := p.symbols[result.ref.InnerIndex].Kind
-			if !kind.IsPrivate() {
+			symbol := &p.symbols[result.ref.InnerIndex]
+			if !symbol.Kind.IsPrivate() {
 				r := logger.Range{Loc: e.Left.Loc, Len: int32(len(name))}
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q must be declared in an enclosing class", name))
+			} else if p.options.unsupportedJSFeatures.Has(compat.ClassPrivateBrandCheck) {
+				// This is an additional feature on top of private members, so make
+				// sure to lower this private member if it's used in a brand check
+				symbol.PrivateSymbolMustBeLowered = true
 			}
 
 			e.Right = p.visitExpr(e.Right)

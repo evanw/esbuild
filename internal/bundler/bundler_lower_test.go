@@ -1486,3 +1486,42 @@ func TestLowerPrivateClassStaticAccessorOrder(t *testing.T) {
 		},
 	})
 }
+
+func TestLowerPrivateClassBrandCheckUnsupported(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#foo
+					#bar
+					baz() { #foo in this }
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ClassPrivateBrandCheck,
+		},
+	})
+}
+
+func TestLowerPrivateClassBrandCheckSupported(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#foo
+					#bar
+					baz() { #foo in this }
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

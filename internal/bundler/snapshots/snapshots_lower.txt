@@ -281,6 +281,33 @@ foo_get = function() {
 console.log(new Foo().bar === 123);
 
 ================================================================================
+TestLowerPrivateClassBrandCheckSupported
+---------- /out.js ----------
+class Foo {
+  #foo;
+  #bar;
+  baz() {
+    #foo in this;
+  }
+}
+
+================================================================================
+TestLowerPrivateClassBrandCheckUnsupported
+---------- /out.js ----------
+var _foo;
+class Foo {
+  constructor() {
+    _foo.set(this, void 0);
+    this.#bar = void 0;
+  }
+  #bar;
+  baz() {
+    __privateIn(_foo, this);
+  }
+}
+_foo = new WeakMap();
+
+================================================================================
 TestLowerPrivateClassExpr2020NoBundle
 ---------- /out.js ----------
 var _field, _method, method_fn, _a, _staticField, _staticMethod, staticMethod_fn;

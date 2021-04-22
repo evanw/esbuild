@@ -45,6 +45,7 @@ const (
 	Class
 	ClassField
 	ClassPrivateAccessor
+	ClassPrivateBrandCheck
 	ClassPrivateField
 	ClassPrivateMethod
 	ClassPrivateStaticAccessor
@@ -149,6 +150,9 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Chrome: {84},
 		Edge:   {84},
 		Node:   {14, 6},
+	},
+	ClassPrivateBrandCheck: {
+		Chrome: {91},
 	},
 	ClassPrivateField: {
 		Chrome: {84},

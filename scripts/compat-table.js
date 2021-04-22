@@ -71,6 +71,9 @@ const features = {
   'private class methods: private accessor properties': { target: 'ClassPrivateAccessor' },
   'private class methods: private static methods': { target: 'ClassPrivateStaticMethod' },
   'private class methods: private static accessor properties': { target: 'ClassPrivateStaticAccessor' },
+
+  // Private "in"
+  'Ergonomic brand checks for private fields': { target: 'ClassPrivateBrandCheck' },
 }
 
 const versions = {}
