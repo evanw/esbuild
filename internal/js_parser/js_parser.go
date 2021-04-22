@@ -372,14 +372,27 @@ type scopeOrder struct {
 	scope *js_ast.Scope
 }
 
+type awaitOrYield uint8
+
+const (
+	// The keyword is used as an identifier, not a special expression
+	allowIdent awaitOrYield = iota
+
+	// Declaring the identifier is forbidden, and the keyword is used as a special expression
+	allowExpr
+
+	// Declaring the identifier is forbidden, and using the identifier is also forbidden
+	forbidAll
+)
+
 // This is function-specific information used during parsing. It is saved and
 // restored on the call stack around code that parses nested functions and
 // arrow expressions.
 type fnOrArrowDataParse struct {
 	asyncRange          logger.Range
 	arrowArgErrors      *deferredArrowArgErrors
-	allowAwait          bool
-	allowYield          bool
+	await               awaitOrYield
+	yield               awaitOrYield
 	allowSuperCall      bool
 	isTopLevel          bool
 	isConstructor       bool
@@ -1831,7 +1844,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 		if !opts.isClass && kind == js_ast.PropertyNormal && p.lexer.Token != js_lexer.TColon &&
 			p.lexer.Token != js_lexer.TOpenParen && p.lexer.Token != js_lexer.TLessThan && !opts.isGenerator &&
 			js_lexer.Keywords[name] == js_lexer.T(0) {
-			if (p.fnOrArrowDataParse.allowAwait && name == "await") || (p.fnOrArrowDataParse.allowYield && name == "yield") {
+			if (p.fnOrArrowDataParse.await != allowIdent && name == "await") || (p.fnOrArrowDataParse.yield != allowIdent && name == "yield") {
 				p.log.AddRangeError(&p.source, nameRange, fmt.Sprintf("Cannot use %q as an identifier here", name))
 			}
 			ref := p.storeNameInRef(name)
@@ -1951,10 +1964,19 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 			}
 		}
 
+		await := allowIdent
+		yield := allowIdent
+		if opts.isAsync {
+			await = allowExpr
+		}
+		if opts.isGenerator {
+			yield = allowExpr
+		}
+
 		fn, hadBody := p.parseFn(nil, fnOrArrowDataParse{
 			asyncRange:        opts.asyncRange,
-			allowAwait:        opts.isAsync,
-			allowYield:        opts.isGenerator,
+			await:             await,
+			yield:             yield,
 			allowSuperCall:    opts.classHasExtends && isConstructor,
 			allowTSDecorators: opts.allowTSDecorators,
 			isConstructor:     isConstructor,
@@ -2205,7 +2227,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L) j
 			p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, asyncRange.Loc)
 			defer p.popScope()
 
-			arrow := p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{allowAwait: true})
+			arrow := p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{await: allowExpr})
 			arrow.IsAsync = true
 			return js_ast.Expr{Loc: asyncRange.Loc, Data: arrow}
 
@@ -2261,10 +2283,19 @@ func (p *parser) parseFnExpr(loc logger.Loc, isAsync bool, asyncRange logger.Ran
 		p.skipTypeScriptTypeParameters()
 	}
 
+	await := allowIdent
+	yield := allowIdent
+	if isAsync {
+		await = allowExpr
+	}
+	if isGenerator {
+		yield = allowExpr
+	}
+
 	fn, _ := p.parseFn(name, fnOrArrowDataParse{
 		asyncRange: asyncRange,
-		allowAwait: isAsync,
-		allowYield: isGenerator,
+		await:      await,
+		yield:      yield,
 	})
 	return js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{Fn: fn}}
 }
@@ -2401,7 +2432,12 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 				panic(js_lexer.LexerPanic{})
 			}
 
-			arrow := p.parseArrowBody(args, fnOrArrowDataParse{allowAwait: opts.isAsync})
+			await := allowIdent
+			if opts.isAsync {
+				await = allowExpr
+			}
+
+			arrow := p.parseArrowBody(args, fnOrArrowDataParse{await: await})
 			arrow.IsAsync = opts.isAsync
 			arrow.HasRestArg = spreadRange.Len > 0
 			p.popScope()
@@ -2620,7 +2656,11 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			}
 
 		case "await":
-			if p.fnOrArrowDataParse.allowAwait {
+			switch p.fnOrArrowDataParse.await {
+			case forbidAll:
+				p.log.AddRangeError(&p.source, nameRange, "The keyword \"await\" cannot be used here")
+
+			case allowExpr:
 				if raw != "await" {
 					p.log.AddRangeError(&p.source, nameRange, "The keyword \"await\" cannot be escaped")
 				} else {
@@ -2640,7 +2680,11 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			}
 
 		case "yield":
-			if p.fnOrArrowDataParse.allowYield {
+			switch p.fnOrArrowDataParse.yield {
+			case forbidAll:
+				p.log.AddRangeError(&p.source, nameRange, "The keyword \"yield\" cannot be used here")
+
+			case allowExpr:
 				if raw != "yield" {
 					p.log.AddRangeError(&p.source, nameRange, "The keyword \"yield\" cannot be escaped")
 				} else {
@@ -2652,13 +2696,16 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 					}
 					return p.parseYieldExpr(loc)
 				}
-			} else if !p.lexer.HasNewlineBefore {
-				// Try to gracefully recover if "yield" is used in the wrong place
-				switch p.lexer.Token {
-				case js_lexer.TNull, js_lexer.TIdentifier, js_lexer.TFalse, js_lexer.TTrue,
-					js_lexer.TNumericLiteral, js_lexer.TBigIntegerLiteral, js_lexer.TStringLiteral:
-					p.log.AddRangeError(&p.source, nameRange, "Cannot use \"yield\" outside a generator function")
-					return p.parseYieldExpr(loc)
+
+			case allowIdent:
+				if !p.lexer.HasNewlineBefore {
+					// Try to gracefully recover if "yield" is used in the wrong place
+					switch p.lexer.Token {
+					case js_lexer.TNull, js_lexer.TIdentifier, js_lexer.TFalse, js_lexer.TTrue,
+						js_lexer.TNumericLiteral, js_lexer.TBigIntegerLiteral, js_lexer.TStringLiteral:
+						p.log.AddRangeError(&p.source, nameRange, "Cannot use \"yield\" outside a generator function")
+						return p.parseYieldExpr(loc)
+					}
 				}
 			}
 		}
@@ -4450,7 +4497,7 @@ func (p *parser) parseBinding() js_ast.Binding {
 	switch p.lexer.Token {
 	case js_lexer.TIdentifier:
 		name := p.lexer.Identifier
-		if (p.fnOrArrowDataParse.allowAwait && name == "await") || (p.fnOrArrowDataParse.allowYield && name == "yield") {
+		if (p.fnOrArrowDataParse.await != allowIdent && name == "await") || (p.fnOrArrowDataParse.yield != allowIdent && name == "yield") {
 			p.log.AddRangeError(&p.source, p.lexer.Range(), fmt.Sprintf("Cannot use %q as an identifier here", name))
 		}
 		ref := p.storeNameInRef(name)
@@ -4574,22 +4621,30 @@ func (p *parser) parseBinding() js_ast.Binding {
 }
 
 func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_ast.Fn, hadBody bool) {
-	if data.allowAwait && data.allowYield {
+	if data.await == allowExpr && data.yield == allowExpr {
 		p.markSyntaxFeature(compat.AsyncGenerator, data.asyncRange)
 	}
 
 	fn.Name = name
 	fn.HasRestArg = false
-	fn.IsAsync = data.allowAwait
-	fn.IsGenerator = data.allowYield
+	fn.IsAsync = data.await == allowExpr
+	fn.IsGenerator = data.yield == allowExpr
 	fn.ArgumentsRef = js_ast.InvalidRef
 	fn.OpenParenLoc = p.lexer.Loc()
 	p.lexer.Expect(js_lexer.TOpenParen)
 
 	// Await and yield are not allowed in function arguments
 	oldFnOrArrowData := p.fnOrArrowDataParse
-	p.fnOrArrowDataParse.allowAwait = false
-	p.fnOrArrowDataParse.allowYield = false
+	if data.await == allowExpr {
+		p.fnOrArrowDataParse.await = forbidAll
+	} else {
+		p.fnOrArrowDataParse.await = allowIdent
+	}
+	if data.yield == allowExpr {
+		p.fnOrArrowDataParse.yield = forbidAll
+	} else {
+		p.fnOrArrowDataParse.yield = allowIdent
+	}
 
 	// If "super()" is allowed in the body, it's allowed in the arguments
 	p.fnOrArrowDataParse.allowSuperCall = data.allowSuperCall
@@ -4950,10 +5005,19 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, p.lexer.Loc())
 
+	await := allowIdent
+	yield := allowIdent
+	if isAsync {
+		await = allowExpr
+	}
+	if isGenerator {
+		yield = allowExpr
+	}
+
 	fn, hadBody := p.parseFn(name, fnOrArrowDataParse{
 		asyncRange:          asyncRange,
-		allowAwait:          isAsync,
-		allowYield:          isGenerator,
+		await:               await,
+		yield:               yield,
 		isTypeScriptDeclare: opts.isTypeScriptDeclare,
 
 		// Only allow omitting the body if we're parsing TypeScript
@@ -5611,7 +5675,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		isForAwait := p.lexer.IsContextualKeyword("await")
 		if isForAwait {
 			awaitRange := p.lexer.Range()
-			if !p.fnOrArrowDataParse.allowAwait {
+			if p.fnOrArrowDataParse.await != allowExpr {
 				p.log.AddRangeError(&p.source, awaitRange, "Cannot use \"await\" outside an async function")
 				isForAwait = false
 			} else {
@@ -12753,7 +12817,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	}
 
 	// Allow top-level await
-	p.fnOrArrowDataParse.allowAwait = true
+	p.fnOrArrowDataParse.await = allowExpr
 	p.fnOrArrowDataParse.isTopLevel = true
 
 	// Parse the file in the first pass, but do not bind symbols
