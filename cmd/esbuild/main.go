@@ -46,6 +46,7 @@ var helpText = func(colors logger.Colors) string {
   --watch               Watch mode: rebuild on file system changes
 
 ` + colors.Bold + `Advanced options:` + colors.Reset + `
+  --allow-overwrite         Allow output files to overwrite input files
   --asset-names=...         Path template to use for "file" loader files
                             (default "[name]-[hash]")
   --banner:T=...            Text to be prepended to each output file of type T

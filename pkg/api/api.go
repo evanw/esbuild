@@ -276,10 +276,11 @@ type BuildOptions struct {
 	EntryPoints         []string
 	EntryPointsAdvanced []EntryPoint
 
-	Stdin       *StdinOptions
-	Write       bool
-	Incremental bool
-	Plugins     []Plugin
+	Stdin          *StdinOptions
+	Write          bool
+	AllowOverwrite bool
+	Incremental    bool
+	Plugins        []Plugin
 
 	Watch *WatchMode
 }

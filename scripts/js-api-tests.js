@@ -1285,6 +1285,35 @@ body {
     assert.strictEqual(meta.outputs[makePath(output + '.map')].bytes, value.outputFiles[0].contents.length)
   },
 
+  async allowOverwrite({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.mjs')
+    await writeFileAsync(input, `export default FOO`)
+
+    // Fail without "allowOverwrite"
+    try {
+      await esbuild.build({
+        entryPoints: [input],
+        outfile: input,
+        logLevel: 'silent',
+      })
+      throw new Error('Expected build failure');
+    } catch (e) {
+      if (!e || !e.errors || !e.errors.length || !e.errors[0].text.includes('Refusing to overwrite input file'))
+        throw e
+    }
+
+    // Succeed with "allowOverwrite"
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: input,
+      allowOverwrite: true,
+      define: { FOO: '123' },
+    })
+
+    const result = await import(input)
+    assert.strictEqual(result.default, 123)
+  },
+
   async splittingRelativeSameDir({ esbuild, testDir }) {
     const inputA = path.join(testDir, 'a.js')
     const inputB = path.join(testDir, 'b.js')

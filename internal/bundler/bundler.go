@@ -1900,18 +1900,22 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 
 	if !options.WriteToStdout {
 		// Make sure an output file never overwrites an input file
-		sourceAbsPaths := make(map[string]uint32)
-		for _, sourceIndex := range allReachableFiles {
-			keyPath := b.files[sourceIndex].inputFile.Source.KeyPath
-			if keyPath.Namespace == "file" {
-				lowerAbsPath := lowerCaseAbsPathForWindows(keyPath.Text)
-				sourceAbsPaths[lowerAbsPath] = sourceIndex
+		if !options.AllowOverwrite {
+			sourceAbsPaths := make(map[string]uint32)
+			for _, sourceIndex := range allReachableFiles {
+				keyPath := b.files[sourceIndex].inputFile.Source.KeyPath
+				if keyPath.Namespace == "file" {
+					lowerAbsPath := lowerCaseAbsPathForWindows(keyPath.Text)
+					sourceAbsPaths[lowerAbsPath] = sourceIndex
+				}
 			}
-		}
-		for _, outputFile := range outputFiles {
-			lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
-			if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
-				log.AddError(nil, logger.Loc{}, "Refusing to overwrite input file: "+b.files[sourceIndex].inputFile.Source.PrettyPath)
+			for _, outputFile := range outputFiles {
+				lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
+				if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
+					log.AddError(nil, logger.Loc{},
+						fmt.Sprintf("Refusing to overwrite input file %q without permission (enable \"allow overwrite\" to proceed)",
+							b.files[sourceIndex].inputFile.Source.PrettyPath))
+				}
 			}
 		}
 

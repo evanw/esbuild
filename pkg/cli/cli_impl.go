@@ -57,6 +57,9 @@ func parseOptionsImpl(
 		case arg == "--splitting" && buildOpts != nil:
 			buildOpts.Splitting = true
 
+		case arg == "--allow-overwrite" && buildOpts != nil:
+			buildOpts.AllowOverwrite = true
+
 		case arg == "--watch" && buildOpts != nil:
 			buildOpts.Watch = &api.WatchMode{}
 

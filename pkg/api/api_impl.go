@@ -787,6 +787,7 @@ func rebuildImpl(
 		MangleSyntax:          buildOpts.MinifySyntax,
 		RemoveWhitespace:      buildOpts.MinifyWhitespace,
 		MinifyIdentifiers:     buildOpts.MinifyIdentifiers,
+		AllowOverwrite:        buildOpts.AllowOverwrite,
 		ASCIIOnly:             validateASCIIOnly(buildOpts.Charset),
 		IgnoreDCEAnnotations:  validateIgnoreDCEAnnotations(buildOpts.TreeShaking),
 		GlobalName:            validateGlobalName(log, buildOpts.GlobalName),

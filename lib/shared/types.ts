@@ -47,6 +47,7 @@ export interface BuildOptions extends CommonOptions {
   mainFields?: string[];
   conditions?: string[];
   write?: boolean;
+  allowOverwrite?: boolean;
   tsconfig?: string;
   outExtension?: { [ext: string]: string };
   publicPath?: string;

@@ -197,12 +197,14 @@ function flagsForBuildOptions(
   let absWorkingDir = getFlag(options, keys, 'absWorkingDir', mustBeString);
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
   let write = getFlag(options, keys, 'write', mustBeBoolean) ?? writeDefault; // Default to true if not specified
+  let allowOverwrite = getFlag(options, keys, 'allowOverwrite', mustBeBoolean);
   let incremental = getFlag(options, keys, 'incremental', mustBeBoolean) === true;
   keys.plugins = true; // "plugins" has already been read earlier
   checkForInvalidFlags(options, keys, `in ${callName}() call`);
 
   if (sourcemap) flags.push(`--sourcemap${sourcemap === true ? '' : `=${sourcemap}`}`);
   if (bundle) flags.push('--bundle');
+  if (allowOverwrite) flags.push('--allow-overwrite');
   if (watch) {
     flags.push('--watch');
     if (typeof watch === 'boolean') {
