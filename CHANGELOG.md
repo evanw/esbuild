@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+* Implement ergonomic brand checks for private fields
+
+    This introduces new JavaScript syntax:
+
+    ```js
+    class Foo {
+      #field
+      static isFoo(x) {
+        return #foo in x // This is an "ergonomic brand check"
+      }
+    }
+    assert(Foo.isFoo(new Foo))
+    ```
+
+    [The TC39 proposal for this feature](https://github.com/tc39/proposal-private-fields-in-in) is currently at stage 3 but has already been shipped in Chrome 91 and has also landed in Firefox. It seems reasonably inevitable given that it's already shipping and that it's a very simple feature, so it seems appropriate to add this feature to esbuild.
+
 ## 0.11.12
 
 * Fix a bug where `-0` and `0` were collapsed to the same value ([#1159](https://github.com/evanw/esbuild/issues/1159))

@@ -218,6 +218,10 @@ func code(isES6 bool) string {
 		var __accessCheck = (obj, member, msg) => {
 			if (!member.has(obj)) throw TypeError('Cannot ' + msg)
 		}
+		export var __privateIn = (member, obj) => {
+			if (Object(obj) !== obj) throw TypeError('Cannot use the "in" operator on this value')
+			return member.has(obj)
+		}
 		export var __privateGet = (obj, member, getter) => {
 			__accessCheck(obj, member, 'read from private field')
 			return getter ? getter.call(obj) : member.get(obj)

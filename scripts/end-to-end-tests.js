@@ -2818,6 +2818,49 @@
         if (new Foo().foo() !== '[1,2,3,{"z":4,"w":5},[6,7,8],9]') throw 'fail'
       `,
     }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          #a
+          #b() {}
+          get #c() {}
+          set #d(x) {}
+          bar(x) {
+            return #a in x && #b in x && #c in x && #d in x
+          }
+        }
+        let foo = new Foo()
+        if (foo.bar(foo) !== true || foo.bar(Foo) !== false) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          #a
+          #b() {}
+          get #c() {}
+          set #d(x) {}
+          bar(x) {
+            return #a in x && #b in x && #c in x && #d in x
+          }
+        }
+        function mustFail(x) {
+          let foo = new Foo()
+          try {
+            foo.bar(x)
+          } catch (e) {
+            if (e instanceof TypeError) return
+            throw e
+          }
+          throw 'fail'
+        }
+        mustFail(null)
+        mustFail(void 0)
+        mustFail(0)
+        mustFail('')
+        mustFail(Symbol('x'))
+      `,
+    }),
   )
 
   // Async lowering tests
@@ -4265,7 +4308,10 @@
     let promises = []
     for (let test of tests.slice(i, i + batch)) {
       let promise = test()
-      promise.catch(() => allTestsPassed = false)
+      promise.then(
+        success => { if (!success) allTestsPassed = false },
+        () => allTestsPassed = false,
+      )
       promises.push(promise)
     }
     await Promise.all(promises)

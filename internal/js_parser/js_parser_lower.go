@@ -971,6 +971,14 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 	return result
 }
 
+func (p *parser) lowerPrivateBrandCheck(target js_ast.Expr, loc logger.Loc, private *js_ast.EPrivateIdentifier) js_ast.Expr {
+	// "#field in this" => "__privateIn(#field, this)"
+	return p.callRuntime(loc, "__privateIn", []js_ast.Expr{
+		{Loc: loc, Data: &js_ast.EIdentifier{Ref: private.Ref}},
+		target,
+	})
+}
+
 func (p *parser) lowerPrivateGet(target js_ast.Expr, loc logger.Loc, private *js_ast.EPrivateIdentifier) js_ast.Expr {
 	switch p.symbols[private.Ref.InnerIndex].Kind {
 	case js_ast.SymbolPrivateMethod, js_ast.SymbolPrivateStaticMethod:

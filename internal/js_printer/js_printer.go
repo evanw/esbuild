@@ -692,8 +692,14 @@ func (p *printer) printIndent() {
 }
 
 func (p *printer) printSymbol(ref js_ast.Ref) {
-	p.printSpaceBeforeIdentifier()
-	p.printIdentifier(p.renamer.NameForSymbol(ref))
+	name := p.renamer.NameForSymbol(ref)
+
+	// Minify "return #foo in bar" to "return#foo in bar"
+	if !strings.HasPrefix(name, "#") {
+		p.printSpaceBeforeIdentifier()
+	}
+
+	p.printIdentifier(name)
 }
 
 func CanQuoteIdentifier(name string, unsupportedJSFeatures compat.JSFeature, asciiOnly bool) bool {
@@ -2088,7 +2094,12 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			}
 		}
 
-		p.printExpr(e.Left, leftLevel, flags&forbidIn)
+		// Special-case "#foo in bar"
+		if private, ok := e.Left.Data.(*js_ast.EPrivateIdentifier); ok {
+			p.printSymbol(private.Ref)
+		} else {
+			p.printExpr(e.Left, leftLevel, flags&forbidIn)
+		}
 
 		if e.Op != js_ast.BinOpComma {
 			p.printSpace()
