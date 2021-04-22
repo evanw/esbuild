@@ -91,7 +91,7 @@ func (t *Timer) Log(log logger.Log) {
 
 	log.AddMsg(logger.Msg{
 		Kind:  logger.Info,
-		Data:  logger.MsgData{Text: "Timing information (times may not nest hierarchically up due to parallelism)"},
+		Data:  logger.MsgData{Text: "Timing information (times may not nest hierarchically due to parallelism)"},
 		Notes: notes,
 	})
 }
