@@ -230,6 +230,35 @@
     }),
   )
 
+  // Test arbitrary module namespace identifier names
+  // See https://github.com/tc39/ecma262/pull/2154
+  tests.push(
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `import {'*' as star} from './export.js'; if (star !== 123) throw 'fail'`,
+      'export.js': `let foo = 123; export {foo as '*'}`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `import {'\\0' as bar} from './export.js'; if (bar !== 123) throw 'fail'`,
+      'export.js': `let foo = 123; export {foo as '\\0'}`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `import {'\\uD800\\uDC00' as bar} from './export.js'; if (bar !== 123) throw 'fail'`,
+      'export.js': `let foo = 123; export {foo as '\\uD800\\uDC00'}`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `import {'🍕' as bar} from './export.js'; if (bar !== 123) throw 'fail'`,
+      'export.js': `let foo = 123; export {foo as '🍕'}`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `import {' ' as bar} from './export.js'; if (bar !== 123) throw 'fail'`,
+      'export.js': `export let foo = 123; export {foo as ' '} from './export.js'`,
+    }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `import {'' as ab} from './export.js'; if (ab.foo !== 123 || ab.bar !== 234) throw 'fail'`,
+      'export.js': `export let foo = 123, bar = 234; export * as '' from './export.js'`,
+    }),
+  )
+
   // Tests for symlinks
   //
   // Note: These are disabled on Windows because they fail when run with GitHub
@@ -1499,7 +1528,7 @@
         let fn = async () => {
           let error
           await import('./out.js').catch(x => error = x)
-          if (!error || error.message !== 'require is not defined') throw 'fail'
+          if (!error || !error.message.includes('require is not defined')) throw 'fail'
         }
         export {fn as async}
       `,
@@ -1520,7 +1549,7 @@
         let fn = async () => {
           let error
           await import('./out.js').catch(x => error = x)
-          if (!error || error.message !== 'require is not defined') throw 'fail'
+          if (!error || !error.message.includes('require is not defined')) throw 'fail'
         }
         export {fn as async}
       `,

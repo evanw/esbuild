@@ -37,7 +37,8 @@ func (e Engine) String() string {
 type JSFeature uint64
 
 const (
-	ArraySpread JSFeature = 1 << iota
+	ArbitraryModuleNamespaceNames JSFeature = 1 << iota
+	ArraySpread
 	Arrow
 	AsyncAwait
 	AsyncGenerator
@@ -84,6 +85,10 @@ func (features JSFeature) Has(feature JSFeature) bool {
 }
 
 var jsTable = map[JSFeature]map[Engine][]int{
+	ArbitraryModuleNamespaceNames: {
+		Chrome: {90},
+		Node:   {16},
+	},
 	ArraySpread: {
 		Chrome:  {46},
 		Edge:    {13},

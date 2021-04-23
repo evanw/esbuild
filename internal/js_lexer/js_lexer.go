@@ -2678,15 +2678,42 @@ func UTF16ToString(text []uint16) string {
 	n := len(text)
 	for i := 0; i < n; i++ {
 		r1 := rune(text[i])
-		if utf16.IsSurrogate(r1) && i+1 < n {
-			r2 := rune(text[i+1])
-			r1 = (r1-0xD800)<<10 | (r2 - 0xDC00) + 0x10000
-			i++
+		if r1 >= 0xD800 && r1 <= 0xDBFF && i+1 < n {
+			if r2 := rune(text[i+1]); r2 >= 0xDC00 && r2 <= 0xDFFF {
+				r1 = (r1-0xD800)<<10 | (r2 - 0xDC00) + 0x10000
+				i++
+			}
 		}
 		width := encodeWTF8Rune(temp, r1)
 		b.Write(temp[:width])
 	}
 	return b.String()
+}
+
+func UTF16ToStringWithValidation(text []uint16) (string, uint16, bool) {
+	temp := make([]byte, utf8.UTFMax)
+	b := strings.Builder{}
+	n := len(text)
+	for i := 0; i < n; i++ {
+		r1 := rune(text[i])
+		if r1 >= 0xD800 && r1 <= 0xDBFF {
+			if i+1 < n {
+				if r2 := rune(text[i+1]); r2 >= 0xDC00 && r2 <= 0xDFFF {
+					r1 = (r1-0xD800)<<10 | (r2 - 0xDC00) + 0x10000
+					i++
+				} else {
+					return "", uint16(r1), false
+				}
+			} else {
+				return "", uint16(r1), false
+			}
+		} else if r1 >= 0xDC00 && r1 <= 0xDFFF {
+			return "", uint16(r1), false
+		}
+		width := encodeWTF8Rune(temp, r1)
+		b.Write(temp[:width])
+	}
+	return b.String(), 0, true
 }
 
 // Does "UTF16ToString(text) == str" without a temporary allocation
@@ -2700,10 +2727,11 @@ func UTF16EqualsString(text []uint16, str string) bool {
 	j := 0
 	for i := 0; i < n; i++ {
 		r1 := rune(text[i])
-		if utf16.IsSurrogate(r1) && i+1 < n {
-			r2 := rune(text[i+1])
-			r1 = (r1-0xD800)<<10 | (r2 - 0xDC00) + 0x10000
-			i++
+		if r1 >= 0xD800 && r1 <= 0xDBFF && i+1 < n {
+			if r2 := rune(text[i+1]); r2 >= 0xDC00 && r2 <= 0xDFFF {
+				r1 = (r1-0xD800)<<10 | (r2 - 0xDC00) + 0x10000
+				i++
+			}
 		}
 		width := encodeWTF8Rune(temp[:], r1)
 		if j+width > len(str) {

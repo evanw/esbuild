@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+* Implement arbitrary module namespace identifiers
+
+    This introduces new JavaScript syntax:
+
+    ```js
+    import {'🍕' as food} from 'file'
+    export {food as '🧀'}
+    ```
+
+    [The proposal for this feature](https://github.com/bmeck/proposal-arbitrary-module-namespace-identifiers) appears to not be going through the regular TC39 process. It is being done as a subtle [direct pull request](https://github.com/tc39/ecma262/pull/2154) instead. It seems appropriate for esbuild to support this feature since it has been implemented in V8 and has now shipped in Chrome 90 and node 16.
+
+    According to the proposal, this feature is intended to improve interop with non-JavaScript languages which use exports that aren't valid JavaScript identifiers such as `Foo::~Foo`. In particular, WebAssembly allows any valid UTF-8 string as to be used as an export alias.
+
+    This feature was actually already partially possible in previous versions of JavaScript via the computed property syntax:
+
+    ```js
+    import * as ns from './file.json'
+    console.log(ns['🍕'])
+    ```
+
+    However, doing this is very un-ergonomic and exporting something as an arbitrary name is impossible outside of `export * from`. So this proposal is designed to fully fill out the possibility matrix and make arbitrary alias names a proper first-class feature.
+
 ## 0.11.13
 
 * Implement ergonomic brand checks for private fields

@@ -702,6 +702,15 @@ func (p *printer) printSymbol(ref js_ast.Ref) {
 	p.printIdentifier(name)
 }
 
+func (p *printer) printClauseAlias(alias string) {
+	if js_lexer.IsIdentifier(alias) {
+		p.printSpaceBeforeIdentifier()
+		p.printIdentifier(alias)
+	} else {
+		p.printQuotedUTF8(alias, false /* allowBacktick */)
+	}
+}
+
 func CanQuoteIdentifier(name string, unsupportedJSFeatures compat.JSFeature, asciiOnly bool) bool {
 	return js_lexer.IsIdentifier(name) && (!asciiOnly ||
 		!unsupportedJSFeatures.Has(compat.UnicodeEscapes) ||
@@ -2603,8 +2612,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		if s.Alias != nil {
 			p.print("as")
 			p.printSpace()
-			p.printSpaceBeforeIdentifier()
-			p.printIdentifier(s.Alias.OriginalName)
+			p.printClauseAlias(s.Alias.OriginalName)
 			p.printSpace()
 			p.printSpaceBeforeIdentifier()
 		}
@@ -2639,8 +2647,9 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			name := p.renamer.NameForSymbol(item.Name.Ref)
 			p.printIdentifier(name)
 			if name != item.Alias {
-				p.print(" as ")
-				p.printIdentifier(item.Alias)
+				p.print(" as")
+				p.printSpace()
+				p.printClauseAlias(item.Alias)
 			}
 		}
 
@@ -2676,10 +2685,13 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 				p.printNewline()
 				p.printIndent()
 			}
-			p.printIdentifier(item.OriginalName)
+			p.printClauseAlias(item.OriginalName)
 			if item.OriginalName != item.Alias {
-				p.print(" as ")
-				p.printIdentifier(item.Alias)
+				p.printSpace()
+				p.printSpaceBeforeIdentifier()
+				p.print("as")
+				p.printSpace()
+				p.printClauseAlias(item.Alias)
 			}
 		}
 
@@ -2930,10 +2942,12 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 					p.printNewline()
 					p.printIndent()
 				}
-				p.printIdentifier(item.Alias)
+				p.printClauseAlias(item.Alias)
 				name := p.renamer.NameForSymbol(item.Name.Ref)
 				if name != item.Alias {
-					p.print(" as ")
+					p.printSpace()
+					p.printSpaceBeforeIdentifier()
+					p.print("as ")
 					p.printIdentifier(name)
 				}
 			}
