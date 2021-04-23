@@ -508,11 +508,18 @@ flatten:
 
 	// Stop now if we can strip the whole chain as dead code. Since the chain is
 	// lazily evaluated, it's safe to just drop the code entirely.
-	if isNullOrUndefined, sideEffects, ok := toNullOrUndefinedWithSideEffects(expr.Data); ok && isNullOrUndefined {
-		if sideEffects == couldHaveSideEffects {
-			return js_ast.JoinWithComma(p.simplifyUnusedExpr(expr), valueWhenUndefined), exprOut{}
+	if p.options.mangleSyntax {
+		if isNullOrUndefined, sideEffects, ok := toNullOrUndefinedWithSideEffects(expr.Data); ok && isNullOrUndefined {
+			if sideEffects == couldHaveSideEffects {
+				return js_ast.JoinWithComma(p.simplifyUnusedExpr(expr), valueWhenUndefined), exprOut{}
+			}
+			return valueWhenUndefined, exprOut{}
 		}
-		return valueWhenUndefined, exprOut{}
+	} else {
+		switch expr.Data.(type) {
+		case *js_ast.ENull, *js_ast.EUndefined:
+			return valueWhenUndefined, exprOut{}
+		}
 	}
 
 	// We need to lower this if this is an optional call off of a private name
