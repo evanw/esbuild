@@ -1852,6 +1852,92 @@
         'in.js': `let fn = (a, b) => { if (a && (x = () => y) && b) return; var x; let y = 123; if (x() !== 123) throw 'fail' }; fn(fn)`,
       }),
     )
+
+    // Check property access simplification
+    for (const access of [['.a'], ['["a"]']]) {
+      tests.push(
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({a: 1}${access} !== 1) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({a: {a: 1}}${access}${access} !== 1) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({a: {b: 1}}${access}.b !== 1) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({b: {a: 1}}.b${access} !== 1) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js', '--log-level=error'].concat(minify), {
+          'in.js': `if ({a: 1, a: 2}${access} !== 2) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({a: 1, [String.fromCharCode(97)]: 2}${access} !== 2) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `let a = {a: 1}; if ({...a}${access} !== 1) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({ get a() { return 1 } }${access} !== 1) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({ __proto__: {a: 1} }${access} !== 1) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({ __proto__: null, a: 1 }${access} !== 1) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({ __proto__: null, b: 1 }${access} !== void 0) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({ __proto__: null }.__proto__ !== void 0) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({ ['__proto__']: null }.__proto__ !== null) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `let x = 100; if ({ b: ++x, a: 1 }${access} !== 1 || x !== 101) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({ a: function() { return this.b }, b: 1 }${access}() !== 1) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if (({a: 2}${access} = 1) !== 1) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if ({a: 1}${access}++ !== 1) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `if (++{a: 1}${access} !== 2) throw 'fail'`,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `
+            Object.defineProperty(Object.prototype, 'MIN_OBJ_LIT', {value: 1})
+            if ({}.MIN_OBJ_LIT !== 1) throw 'fail'
+          `,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `
+            let x = false
+            function y() { x = true }
+            if ({ b: y(), a: 1 }${access} !== 1 || !x) throw 'fail'
+          `,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `
+            try { new ({ a() {} }${access}); throw 'fail' }
+            catch (e) { if (e === 'fail') throw e }
+          `,
+        }),
+        test(['in.js', '--outfile=node.js'].concat(minify), {
+          'in.js': `
+            let x = 1;
+            ({ set a(y) { x = y } }${access} = 2);
+            if (x !== 2) throw 'fail'
+          `,
+        }),
+      )
+    }
   }
 
   // Test minification of top-level symbols

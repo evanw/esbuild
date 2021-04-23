@@ -22,6 +22,23 @@
 
     This is a new flag that allows output files to overwrite input files. It's not enabled by default because doing so means overwriting your source code, which can lead to data loss if your code is not checked in. But supporting this makes certain workflows easier by avoiding the need for a temporary directory so doing this is now supported.
 
+* Minify property accesses on object literals ([#1166](https://github.com/evanw/esbuild/issues/1166))
+
+    The code `{a: {b: 1}}.a.b` will now be minified to `1`. This optimization is relatively complex and hard to do safely. Here are some tricky cases that are correctly handled:
+
+    ```js
+    var obj = {a: 1}
+    assert({a: 1, a: 2}.a === 2)
+    assert({a: 1, [String.fromCharCode(97)]: 2}.a === 2)
+    assert({__proto__: obj}.a === 1)
+    assert({__proto__: null}.a === undefined)
+    assert({__proto__: null}.__proto__ === undefined)
+    assert({a: function() { return this.b }, b: 1}.a() === 1)
+    assert(({a: 1}.a = 2) === 2)
+    assert(++{a: 1}.a === 2)
+    assert.throws(() => { new ({ a() {} }.a) })
+    ```
+
 ## 0.11.12
 
 * Fix a bug where `-0` and `0` were collapsed to the same value ([#1159](https://github.com/evanw/esbuild/issues/1159))
