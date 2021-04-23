@@ -2942,6 +2942,18 @@ func TestMangleObject(t *testing.T) {
 	expectPrintedMangle(t, "x = {['__proto__']: null}.y", "x = {[\"__proto__\"]: null}.y;\n")
 	expectPrintedMangle(t, "x = {['__proto__']: null, y: 1}.y", "x = {[\"__proto__\"]: null, y: 1}.y;\n")
 	expectPrintedMangle(t, "x = {['__proto__']: null}.__proto__", "x = {[\"__proto__\"]: null}.__proto__;\n")
+
+	expectPrinted(t, "x = {y: 1}?.y", "x = {y: 1}?.y;\n")
+	expectPrinted(t, "x = {y: 1}?.['y']", "x = {y: 1}?.[\"y\"];\n")
+	expectPrinted(t, "x = {y: {z: 1}}?.y.z", "x = {y: {z: 1}}?.y.z;\n")
+	expectPrinted(t, "x = {y: {z: 1}}?.y?.z", "x = {y: {z: 1}}?.y?.z;\n")
+	expectPrinted(t, "x = {y() {}}?.y()", "x = {y() {\n}}?.y();\n")
+
+	expectPrintedMangle(t, "x = {y: 1}?.y", "x = 1;\n")
+	expectPrintedMangle(t, "x = {y: 1}?.['y']", "x = 1;\n")
+	expectPrintedMangle(t, "x = {y: {z: 1}}?.y.z", "x = 1;\n")
+	expectPrintedMangle(t, "x = {y: {z: 1}}?.y?.z", "x = {z: 1}?.z;\n")
+	expectPrintedMangle(t, "x = {y() {}}?.y()", "x = {y() {\n}}.y();\n")
 }
 
 func TestMangleArrow(t *testing.T) {

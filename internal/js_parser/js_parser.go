@@ -3404,6 +3404,14 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 
 		case js_lexer.TQuestionDot:
 			p.lexer.Next()
+			optionalStart := js_ast.OptionalChainStart
+
+			// Remove unnecessary optional chains
+			if p.options.mangleSyntax {
+				if isNullOrUndefined, _, ok := toNullOrUndefinedWithSideEffects(left.Data); ok && !isNullOrUndefined {
+					optionalStart = js_ast.OptionalChainNone
+				}
+			}
 
 			switch p.lexer.Token {
 			case js_lexer.TOpenBracket:
@@ -3422,7 +3430,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EIndex{
 					Target:        left,
 					Index:         index,
-					OptionalChain: js_ast.OptionalChainStart,
+					OptionalChain: optionalStart,
 				}}
 
 			case js_lexer.TOpenParen:
@@ -3433,7 +3441,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 					Target:        left,
 					Args:          p.parseCallArgs(),
-					OptionalChain: js_ast.OptionalChainStart,
+					OptionalChain: optionalStart,
 				}}
 
 			case js_lexer.TLessThan:
@@ -3451,7 +3459,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 					Target:        left,
 					Args:          p.parseCallArgs(),
-					OptionalChain: js_ast.OptionalChainStart,
+					OptionalChain: optionalStart,
 				}}
 
 			default:
@@ -3464,7 +3472,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 					left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EIndex{
 						Target:        left,
 						Index:         js_ast.Expr{Loc: nameLoc, Data: &js_ast.EPrivateIdentifier{Ref: ref}},
-						OptionalChain: js_ast.OptionalChainStart,
+						OptionalChain: optionalStart,
 					}}
 				} else {
 					// "a?.b"
@@ -3478,12 +3486,15 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 						Target:        left,
 						Name:          name,
 						NameLoc:       nameLoc,
-						OptionalChain: js_ast.OptionalChainStart,
+						OptionalChain: optionalStart,
 					}}
 				}
 			}
 
-			optionalChain = js_ast.OptionalChainContinue
+			// Only continue if we have started
+			if optionalStart == js_ast.OptionalChainStart {
+				optionalChain = js_ast.OptionalChainContinue
+			}
 
 		case js_lexer.TNoSubstitutionTemplateLiteral:
 			if oldOptionalChain != js_ast.OptionalChainNone {
