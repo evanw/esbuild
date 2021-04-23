@@ -1629,6 +1629,40 @@ func TestArrow(t *testing.T) {
 	expectParseError(t, "(...x = y) => {}", "<stdin>: error: A rest argument cannot have a default initializer\n")
 	expectParseError(t, "([...x = y]) => {}", "<stdin>: error: A rest argument cannot have a default initializer\n")
 
+	// Can assign an arrow function
+	expectPrinted(t, "y = x => {}", "y = (x) => {\n};\n")
+	expectPrinted(t, "y = () => {}", "y = () => {\n};\n")
+	expectPrinted(t, "y = (x) => {}", "y = (x) => {\n};\n")
+	expectPrinted(t, "y = async x => {}", "y = async (x) => {\n};\n")
+	expectPrinted(t, "y = async () => {}", "y = async () => {\n};\n")
+	expectPrinted(t, "y = async (x) => {}", "y = async (x) => {\n};\n")
+
+	// Cannot add an arrow function
+	expectPrinted(t, "1 + function () {}", "1 + function() {\n};\n")
+	expectPrinted(t, "1 + async function () {}", "1 + async function() {\n};\n")
+	expectParseError(t, "1 + x => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
+	expectParseError(t, "1 + () => {}", "<stdin>: error: Unexpected \")\"\n")
+	expectParseError(t, "1 + (x) => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
+	expectParseError(t, "1 + async x => {}", "<stdin>: error: Expected \";\" but found \"x\"\n")
+	expectParseError(t, "1 + async () => {}", "<stdin>: error: Unexpected \"=>\"\n")
+	expectParseError(t, "1 + async (x) => {}", "<stdin>: error: Unexpected \"=>\"\n")
+
+	// Cannot extend an arrow function
+	expectPrinted(t, "class Foo extends function () {} {}", "class Foo extends function() {\n} {\n}\n")
+	expectPrinted(t, "class Foo extends async function () {} {}", "class Foo extends async function() {\n} {\n}\n")
+	expectParseError(t, "class Foo extends x => {} {}", "<stdin>: error: Expected \"{\" but found \"=>\"\n")
+	expectParseError(t, "class Foo extends () => {} {}", "<stdin>: error: Unexpected \")\"\n")
+	expectParseError(t, "class Foo extends (x) => {} {}", "<stdin>: error: Expected \"{\" but found \"=>\"\n")
+	expectParseError(t, "class Foo extends async x => {} {}", "<stdin>: error: Expected \"{\" but found \"x\"\n")
+	expectParseError(t, "class Foo extends async () => {} {}", "<stdin>: error: Unexpected \"=>\"\n")
+	expectParseError(t, "class Foo extends async (x) => {} {}", "<stdin>: error: Unexpected \"=>\"\n")
+	expectParseError(t, "(class extends x => {} {})", "<stdin>: error: Expected \"{\" but found \"=>\"\n")
+	expectParseError(t, "(class extends () => {} {})", "<stdin>: error: Unexpected \")\"\n")
+	expectParseError(t, "(class extends (x) => {} {})", "<stdin>: error: Expected \"{\" but found \"=>\"\n")
+	expectParseError(t, "(class extends async x => {} {})", "<stdin>: error: Expected \"{\" but found \"x\"\n")
+	expectParseError(t, "(class extends async () => {} {})", "<stdin>: error: Unexpected \"=>\"\n")
+	expectParseError(t, "(class extends async (x) => {} {})", "<stdin>: error: Unexpected \"=>\"\n")
+
 	expectParseError(t, "() => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
 	expectParseError(t, "x => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
 	expectParseError(t, "async () => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")

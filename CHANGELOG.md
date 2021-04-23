@@ -39,6 +39,16 @@
     assert.throws(() => { new ({ a() {} }.a) })
     ```
 
+* Improve arrow function parsing edge cases
+
+    There are now more situations where arrow expressions are not allowed. This improves esbuild's alignment with the JavaScript specification. Some examples of cases that were previously allowed but that are now no longer allowed:
+
+    ```js
+    1 + x => {}
+    console.log(x || async y => {})
+    class Foo extends async () => {} {}
+    ```
+
 ## 0.11.12
 
 * Fix a bug where `-0` and `0` were collapsed to the same value ([#1159](https://github.com/evanw/esbuild/issues/1159))

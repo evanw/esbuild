@@ -2229,39 +2229,43 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L) j
 		switch p.lexer.Token {
 		// "async => {}"
 		case js_lexer.TEqualsGreaterThan:
-			arg := js_ast.Arg{Binding: js_ast.Binding{Loc: asyncRange.Loc, Data: &js_ast.BIdentifier{Ref: p.storeNameInRef("async")}}}
+			if level <= js_ast.LAssign {
+				arg := js_ast.Arg{Binding: js_ast.Binding{Loc: asyncRange.Loc, Data: &js_ast.BIdentifier{Ref: p.storeNameInRef("async")}}}
 
-			p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, asyncRange.Loc)
-			defer p.popScope()
+				p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, asyncRange.Loc)
+				defer p.popScope()
 
-			return js_ast.Expr{Loc: asyncRange.Loc, Data: p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{})}
+				return js_ast.Expr{Loc: asyncRange.Loc, Data: p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{})}
+			}
 
 		// "async x => {}"
 		case js_lexer.TIdentifier:
-			p.markLoweredSyntaxFeature(compat.AsyncAwait, asyncRange, compat.Generator)
-			ref := p.storeNameInRef(p.lexer.Identifier)
-			arg := js_ast.Arg{Binding: js_ast.Binding{Loc: p.lexer.Loc(), Data: &js_ast.BIdentifier{Ref: ref}}}
-			p.lexer.Next()
+			if level <= js_ast.LAssign {
+				p.markLoweredSyntaxFeature(compat.AsyncAwait, asyncRange, compat.Generator)
+				ref := p.storeNameInRef(p.lexer.Identifier)
+				arg := js_ast.Arg{Binding: js_ast.Binding{Loc: p.lexer.Loc(), Data: &js_ast.BIdentifier{Ref: ref}}}
+				p.lexer.Next()
 
-			p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, asyncRange.Loc)
-			defer p.popScope()
+				p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, asyncRange.Loc)
+				defer p.popScope()
 
-			arrow := p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{await: allowExpr})
-			arrow.IsAsync = true
-			return js_ast.Expr{Loc: asyncRange.Loc, Data: arrow}
+				arrow := p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{await: allowExpr})
+				arrow.IsAsync = true
+				return js_ast.Expr{Loc: asyncRange.Loc, Data: arrow}
+			}
 
 		// "async()"
 		// "async () => {}"
 		case js_lexer.TOpenParen:
 			p.lexer.Next()
-			return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true, asyncRange: asyncRange})
+			return p.parseParenExpr(asyncRange.Loc, level, parenExprOpts{isAsync: true, asyncRange: asyncRange})
 
 		// "async<T>()"
 		// "async <T>() => {}"
 		case js_lexer.TLessThan:
 			if p.options.ts.Parse && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
 				p.lexer.Next()
-				return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true, asyncRange: asyncRange})
+				return p.parseParenExpr(asyncRange.Loc, level, parenExprOpts{isAsync: true, asyncRange: asyncRange})
 			}
 		}
 	}
@@ -2326,7 +2330,7 @@ type parenExprOpts struct {
 }
 
 // This assumes that the open parenthesis has already been parsed by the caller
-func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr {
+func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOpts) js_ast.Expr {
 	items := []js_ast.Expr{}
 	errors := deferredErrors{}
 	arrowArgErrors := deferredArrowArgErrors{}
@@ -2411,6 +2415,11 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 
 	// Are these arguments to an arrow function?
 	if p.lexer.Token == js_lexer.TEqualsGreaterThan || opts.forceArrowFn || (p.options.ts.Parse && p.lexer.Token == js_lexer.TColon) {
+		// Arrow functions are not allowed inside certain expressions
+		if level > js_ast.LAssign {
+			p.lexer.Unexpected()
+		}
+
 		invalidLog := []logger.Loc{}
 		args := []js_ast.Arg{}
 
@@ -2642,7 +2651,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			return value
 		}
 
-		value := p.parseParenExpr(loc, parenExprOpts{})
+		value := p.parseParenExpr(loc, level, parenExprOpts{})
 		return value
 
 	case js_lexer.TFalse:
@@ -2753,7 +2762,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		}
 
 		// Handle the start of an arrow expression
-		if p.lexer.Token == js_lexer.TEqualsGreaterThan {
+		if p.lexer.Token == js_lexer.TEqualsGreaterThan && level <= js_ast.LAssign {
 			ref := p.storeNameInRef(name)
 			arg := js_ast.Arg{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: ref}}}
 
@@ -3166,7 +3175,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			if isTSArrowFn {
 				p.skipTypeScriptTypeParameters()
 				p.lexer.Expect(js_lexer.TOpenParen)
-				return p.parseParenExpr(loc, parenExprOpts{forceArrowFn: true})
+				return p.parseParenExpr(loc, level, parenExprOpts{forceArrowFn: true})
 			}
 		}
 
@@ -3190,7 +3199,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			// "<T>(x) => {}"
 			if p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
 				p.lexer.Expect(js_lexer.TOpenParen)
-				return p.parseParenExpr(loc, parenExprOpts{})
+				return p.parseParenExpr(loc, level, parenExprOpts{})
 			}
 
 			// "<T>x"
