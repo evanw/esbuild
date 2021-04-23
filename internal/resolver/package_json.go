@@ -260,11 +260,13 @@ func (r resolverQuery) parsePackageJSON(path string) *packageJSON {
 		}
 	}
 
-	// Read the "exports" map
-	if exportsJSON, exportsRange, ok := getProperty(json, "exports"); ok {
-		if exportsMap := parseExportsMap(jsonSource, r.log, exportsJSON); exportsMap != nil {
-			exportsMap.exportsRange = jsonSource.RangeOfString(exportsRange)
-			packageJSON.exportsMap = exportsMap
+	if !r.options.CreateSnapshot {
+		// Read the "exports" map
+		if exportsJSON, exportsRange, ok := getProperty(json, "exports"); ok {
+			if exportsMap := parseExportsMap(jsonSource, r.log, exportsJSON); exportsMap != nil {
+				exportsMap.exportsRange = jsonSource.RangeOfString(exportsRange)
+				packageJSON.exportsMap = exportsMap
+			}
 		}
 	}
 
