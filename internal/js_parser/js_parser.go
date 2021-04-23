@@ -4413,22 +4413,43 @@ func (p *parser) forbidInitializers(decls []js_ast.Decl, loopType string, isVar 
 	}
 }
 
+func (p *parser) parseClauseAlias(kind string) string {
+	loc := p.lexer.Loc()
+
+	// The alias may now be a string (see https://github.com/tc39/ecma262/pull/2154)
+	if p.lexer.Token == js_lexer.TStringLiteral {
+		r := p.source.RangeOfString(loc)
+		alias, problem, ok := js_lexer.UTF16ToStringWithValidation(p.lexer.StringLiteral)
+		if !ok {
+			p.log.AddRangeError(&p.source, r,
+				fmt.Sprintf("This %s alias is invalid because it contains the unpaired Unicode surrogate U+%X", kind, problem))
+		} else {
+			p.markSyntaxFeature(compat.ArbitraryModuleNamespaceNames, r)
+		}
+		return alias
+	}
+
+	// The alias may be a keyword
+	if !p.lexer.IsIdentifierOrKeyword() {
+		p.lexer.Expect(js_lexer.TIdentifier)
+	}
+
+	alias := p.lexer.Identifier
+	p.checkForNonBMPCodePoint(loc, alias)
+	return alias
+}
+
 func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 	items := []js_ast.ClauseItem{}
 	p.lexer.Expect(js_lexer.TOpenBrace)
 	isSingleLine := !p.lexer.HasNewlineBefore
 
 	for p.lexer.Token != js_lexer.TCloseBrace {
-		alias := p.lexer.Identifier
+		isIdentifier := p.lexer.Token == js_lexer.TIdentifier
 		aliasLoc := p.lexer.Loc()
+		alias := p.parseClauseAlias("import")
 		name := js_ast.LocRef{Loc: aliasLoc, Ref: p.storeNameInRef(alias)}
 		originalName := alias
-
-		// The alias may be a keyword
-		isIdentifier := p.lexer.Token == js_lexer.TIdentifier
-		if !p.lexer.IsIdentifierOrKeyword() {
-			p.lexer.Expect(js_lexer.TIdentifier)
-		}
 		p.lexer.Next()
 
 		if p.lexer.IsContextualKeyword("as") {
@@ -4438,7 +4459,7 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 			p.lexer.Expect(js_lexer.TIdentifier)
 		} else if !isIdentifier {
 			// An import where the name is a keyword must have an alias
-			p.lexer.Unexpected()
+			p.lexer.ExpectedString("\"as\"")
 		}
 
 		// Reject forbidden names
@@ -4475,12 +4496,12 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 
 func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 	items := []js_ast.ClauseItem{}
-	firstKeywordItemLoc := logger.Loc{}
+	firstNonIdentifierLoc := logger.Loc{}
 	p.lexer.Expect(js_lexer.TOpenBrace)
 	isSingleLine := !p.lexer.HasNewlineBefore
 
 	for p.lexer.Token != js_lexer.TCloseBrace {
-		alias := p.lexer.Identifier
+		alias := p.parseClauseAlias("export")
 		aliasLoc := p.lexer.Loc()
 		name := js_ast.LocRef{Loc: aliasLoc, Ref: p.storeNameInRef(alias)}
 		originalName := alias
@@ -4495,27 +4516,15 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 		//   // This is a syntax error
 		//   export { default }
 		//
-		if p.lexer.Token != js_lexer.TIdentifier {
-			if !p.lexer.IsIdentifierOrKeyword() {
-				p.lexer.Expect(js_lexer.TIdentifier)
-			}
-			if firstKeywordItemLoc.Start == 0 {
-				firstKeywordItemLoc = p.lexer.Loc()
-			}
+		if p.lexer.Token != js_lexer.TIdentifier && firstNonIdentifierLoc.Start == 0 {
+			firstNonIdentifierLoc = p.lexer.Loc()
 		}
-		p.checkForNonBMPCodePoint(aliasLoc, alias)
 		p.lexer.Next()
 
 		if p.lexer.IsContextualKeyword("as") {
 			p.lexer.Next()
-			alias = p.lexer.Identifier
+			alias = p.parseClauseAlias("export")
 			aliasLoc = p.lexer.Loc()
-
-			// The alias may be a keyword
-			if !p.lexer.IsIdentifierOrKeyword() {
-				p.lexer.Expect(js_lexer.TIdentifier)
-			}
-			p.checkForNonBMPCodePoint(aliasLoc, alias)
 			p.lexer.Next()
 		}
 
@@ -4545,8 +4554,8 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 
 	// Throw an error here if we found a keyword earlier and this isn't an
 	// "export from" statement after all
-	if firstKeywordItemLoc.Start != 0 && !p.lexer.IsContextualKeyword("from") {
-		r := js_lexer.RangeOfIdentifier(p.source, firstKeywordItemLoc)
+	if firstNonIdentifierLoc.Start != 0 && !p.lexer.IsContextualKeyword("from") {
+		r := js_lexer.RangeOfIdentifier(p.source, firstNonIdentifierLoc)
 		p.log.AddRangeError(&p.source, r, fmt.Sprintf("Expected identifier but found %q", p.source.TextForRange(r)))
 		panic(js_lexer.LexerPanic{})
 	}
@@ -5415,13 +5424,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			if p.lexer.IsContextualKeyword("as") {
 				// "export * as ns from 'path'"
 				p.lexer.Next()
-				name := p.lexer.Identifier
+				name := p.parseClauseAlias("export")
 				namespaceRef = p.storeNameInRef(name)
 				alias = &js_ast.ExportStarAlias{Loc: p.lexer.Loc(), OriginalName: name}
-				if !p.lexer.IsIdentifierOrKeyword() {
-					p.lexer.Expect(js_lexer.TIdentifier)
-				}
-				p.checkForNonBMPCodePoint(alias.Loc, name)
 				p.lexer.Next()
 				p.lexer.ExpectContextualKeyword("from")
 				pathLoc, pathText = p.parsePath()

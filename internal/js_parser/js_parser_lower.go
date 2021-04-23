@@ -92,6 +92,11 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 			fmt.Sprintf("Top-level await is not available in %s", where))
 		return
 
+	case compat.ArbitraryModuleNamespaceNames:
+		p.log.AddRangeError(&p.source, r,
+			fmt.Sprintf("Using a string as a module namespace identifier name is not supported in %s", where))
+		return
+
 	case compat.BigInt:
 		// Transforming these will never be supported
 		p.log.AddRangeError(&p.source, r,

@@ -3,6 +3,7 @@ package bundler
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 )
 
@@ -339,6 +340,21 @@ func TestLoaderJSONNoBundle(t *testing.T) {
 }
 
 func TestLoaderJSONNoBundleES6(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/test.json": `{"test": 123, "invalid-identifier": true}`,
+		},
+		entryPaths: []string{"/test.json"},
+		options: config.Options{
+			Mode:                  config.ModeConvertFormat,
+			OutputFormat:          config.FormatESModule,
+			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestLoaderJSONNoBundleES6ArbitraryModuleNamespaceNames(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/test.json": `{"test": 123, "invalid-identifier": true}`,

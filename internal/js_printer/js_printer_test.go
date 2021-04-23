@@ -726,9 +726,14 @@ func TestMinify(t *testing.T) {
 	expectPrintedMinify(t, "import a from 'path'", "import a from\"path\";")
 	expectPrintedMinify(t, "import * as ns from 'path'", "import*as ns from\"path\";")
 	expectPrintedMinify(t, "import {a, b as c} from 'path'", "import{a,b as c}from\"path\";")
+	expectPrintedMinify(t, "import {a, ' ' as c} from 'path'", "import{a,\" \"as c}from\"path\";")
 
 	expectPrintedMinify(t, "export * as ns from 'path'", "export*as ns from\"path\";")
+	expectPrintedMinify(t, "export * as ' ' from 'path'", "export*as\" \"from\"path\";")
 	expectPrintedMinify(t, "export {a, b as c} from 'path'", "export{a,b as c}from\"path\";")
+	expectPrintedMinify(t, "export {' ', '-' as ';'} from 'path'", "export{\" \",\"-\"as\";\"}from\"path\";")
+	expectPrintedMinify(t, "let a, b; export {a, b as c}", "let a,b;export{a,b as c};")
+	expectPrintedMinify(t, "let a, b; export {a, b as ' '}", "let a,b;export{a,b as\" \"};")
 
 	// Print some strings using template literals when minifying
 	expectPrinted(t, "x = '\\n'", "x = \"\\n\";\n")

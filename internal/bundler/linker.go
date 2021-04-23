@@ -1532,7 +1532,9 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		clone := *object
 		clone.Properties = append(make([]js_ast.Property, 0, len(clone.Properties)), clone.Properties...)
 		for i, property := range clone.Properties {
-			if str, ok := property.Key.Data.(*js_ast.EString); ok && (!file.IsEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value)) {
+			if str, ok := property.Key.Data.(*js_ast.EString); ok &&
+				(!file.IsEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value) ||
+					!c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames)) {
 				name := js_lexer.UTF16ToString(str.Value)
 				exportRef := generateExport(name, name, *property.Value).ref
 				prevExports = append(prevExports, exportRef)
