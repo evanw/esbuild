@@ -2660,7 +2660,7 @@ func ContainsNonBMPCodePointUTF16(text []uint16) bool {
 }
 
 func StringToUTF16(text string) []uint16 {
-	decoded := []uint16{}
+	decoded := make([]uint16, 0, len(text))
 	for _, c := range text {
 		if c <= 0xFFFF {
 			decoded = append(decoded, uint16(c))
