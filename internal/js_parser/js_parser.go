@@ -2320,6 +2320,7 @@ func (p *parser) parseFnExpr(loc logger.Loc, isAsync bool, asyncRange logger.Ran
 		await:      await,
 		yield:      yield,
 	})
+	p.validateFunctionName(fn, fnExpr)
 	return js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{Fn: fn}}
 }
 
@@ -4840,6 +4841,26 @@ func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_as
 	return
 }
 
+type fnKind uint8
+
+const (
+	fnStmt fnKind = iota
+	fnExpr
+)
+
+func (p *parser) validateFunctionName(fn js_ast.Fn, kind fnKind) {
+	// Prevent the function name from being the same as a function-specific keyword
+	if fn.Name != nil {
+		if fn.IsAsync && p.symbols[fn.Name.Ref.InnerIndex].OriginalName == "await" {
+			p.log.AddRangeError(&p.source, js_lexer.RangeOfIdentifier(p.source, fn.Name.Loc),
+				"An async function cannot be named \"await\"")
+		} else if fn.IsGenerator && p.symbols[fn.Name.Ref.InnerIndex].OriginalName == "yield" && kind == fnExpr {
+			p.log.AddRangeError(&p.source, js_lexer.RangeOfIdentifier(p.source, fn.Name.Loc),
+				"A generator function expression cannot be named \"yield\"")
+		}
+	}
+}
+
 func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
 	var name *js_ast.LocRef
 	classKeyword := p.lexer.Range()
@@ -5124,6 +5145,7 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 	}
 
 	fn.HasIfScope = hasIfScope
+	p.validateFunctionName(fn, fnStmt)
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SFunction{Fn: fn, IsExport: opts.isExport}}
 }
 

@@ -1457,6 +1457,20 @@ func TestYield(t *testing.T) {
 	expectPrinted(t, "function foo() { let x = {yield} }", "function foo() {\n  let x = {yield};\n}\n")
 	expectParseError(t, "function *foo() { ({yield} = x) }", "<stdin>: error: Cannot use \"yield\" as an identifier here\n")
 	expectParseError(t, "function *foo() { let x = {yield} }", "<stdin>: error: Cannot use \"yield\" as an identifier here\n")
+
+	// Yield as a declaration
+	expectPrinted(t, "({ *yield() {} })", "({*yield() {\n}});\n")
+	expectPrinted(t, "(class { *yield() {} })", "(class {\n  *yield() {\n  }\n});\n")
+	expectPrinted(t, "class Foo { *yield() {} }", "class Foo {\n  *yield() {\n  }\n}\n")
+	expectPrinted(t, "function* yield() {}", "function* yield() {\n}\n")
+	expectParseError(t, "(function* yield() {})", "<stdin>: error: A generator function expression cannot be named \"yield\"\n")
+
+	// Yield as an async declaration
+	expectPrinted(t, "({ async *yield() {} })", "({async *yield() {\n}});\n")
+	expectPrinted(t, "(class { async *yield() {} })", "(class {\n  async *yield() {\n  }\n});\n")
+	expectPrinted(t, "class Foo { async *yield() {} }", "class Foo {\n  async *yield() {\n  }\n}\n")
+	expectPrinted(t, "async function* yield() {}", "async function* yield() {\n}\n")
+	expectParseError(t, "(async function* yield() {})", "<stdin>: error: A generator function expression cannot be named \"yield\"\n")
 }
 
 func TestAsync(t *testing.T) {
@@ -1590,6 +1604,20 @@ func TestAsync(t *testing.T) {
 	expectParseError(t, "let x = {await}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { ({await} = x) }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { let x = {await} }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+
+	// Await as a declaration
+	expectPrinted(t, "({ async await() {} })", "({async await() {\n}});\n")
+	expectPrinted(t, "(class { async await() {} })", "(class {\n  async await() {\n  }\n});\n")
+	expectPrinted(t, "class Foo { async await() {} }", "class Foo {\n  async await() {\n  }\n}\n")
+	expectParseError(t, "async function await() {}", "<stdin>: error: An async function cannot be named \"await\"\n")
+	expectParseError(t, "(async function await() {})", "<stdin>: error: An async function cannot be named \"await\"\n")
+
+	// Await as a generator declaration
+	expectPrinted(t, "({ async *await() {} })", "({async *await() {\n}});\n")
+	expectPrinted(t, "(class { async *await() {} })", "(class {\n  async *await() {\n  }\n});\n")
+	expectPrinted(t, "class Foo { async *await() {} }", "class Foo {\n  async *await() {\n  }\n}\n")
+	expectParseError(t, "async function* await() {}", "<stdin>: error: An async function cannot be named \"await\"\n")
+	expectParseError(t, "(async function* await() {})", "<stdin>: error: An async function cannot be named \"await\"\n")
 }
 
 func TestLabels(t *testing.T) {
