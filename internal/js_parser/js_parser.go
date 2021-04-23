@@ -9414,7 +9414,7 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 
 	// Build up a chain of property access expressions for subsequent parts
 	for i := 1; i < len(parts); i++ {
-		if expr, ok := p.maybeRewritePropertyAccess(loc, js_ast.AssignTargetNone, false, js_ast.OptionalChainNone, value, parts[i], loc, false); ok {
+		if expr, ok := p.maybeRewritePropertyAccess(loc, js_ast.AssignTargetNone, false, value, parts[i], loc, false); ok {
 			value = expr
 		} else {
 			value = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
@@ -9559,7 +9559,6 @@ func (p *parser) maybeRewritePropertyAccess(
 	loc logger.Loc,
 	assignTarget js_ast.AssignTarget,
 	isDeleteTarget bool,
-	optionalChain js_ast.OptionalChain,
 	target js_ast.Expr,
 	name string,
 	nameLoc logger.Loc,
@@ -9630,7 +9629,7 @@ func (p *parser) maybeRewritePropertyAccess(
 		}
 
 		// If this is a known enum value, inline the value of the enum
-		if p.options.ts.Parse && optionalChain == js_ast.OptionalChainNone {
+		if p.options.ts.Parse {
 			if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
 				if number, ok := enumValueMap[name]; ok {
 					return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: number}}, true
@@ -10825,10 +10824,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			out.thisArgFunc = nil
 			out.thisArgWrapFunc = nil
 		}
-		if str, ok := e.Index.Data.(*js_ast.EString); ok {
-			name := js_lexer.UTF16ToString(str.Value)
-			if value, ok := p.maybeRewritePropertyAccess(
-				expr.Loc, in.assignTarget, isDeleteTarget, e.OptionalChain, e.Target, name, e.Index.Loc, isCallTarget); ok {
+		if str, ok := e.Index.Data.(*js_ast.EString); ok && e.OptionalChain == js_ast.OptionalChainNone {
+			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, isDeleteTarget,
+				e.Target, js_lexer.UTF16ToString(str.Value), e.Index.Loc, isCallTarget); ok {
 				return value, out
 			}
 		}
@@ -11060,8 +11058,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			out.thisArgFunc = nil
 			out.thisArgWrapFunc = nil
 		}
-		if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, isDeleteTarget, e.OptionalChain, e.Target, e.Name, e.NameLoc, isCallTarget); ok {
-			return value, out
+		if e.OptionalChain == js_ast.OptionalChainNone {
+			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, isDeleteTarget, e.Target, e.Name, e.NameLoc, isCallTarget); ok {
+				return value, out
+			}
 		}
 		return js_ast.Expr{Loc: expr.Loc, Data: e}, out
 
