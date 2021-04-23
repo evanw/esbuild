@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.13
 
 * Implement ergonomic brand checks for private fields
 
