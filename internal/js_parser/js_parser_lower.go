@@ -508,8 +508,10 @@ flatten:
 
 	// Stop now if we can strip the whole chain as dead code. Since the chain is
 	// lazily evaluated, it's safe to just drop the code entirely.
-	switch expr.Data.(type) {
-	case *js_ast.ENull, *js_ast.EUndefined:
+	if isNullOrUndefined, sideEffects, ok := toNullOrUndefinedWithSideEffects(expr.Data); ok && isNullOrUndefined {
+		if sideEffects == couldHaveSideEffects {
+			return js_ast.JoinWithComma(p.simplifyUnusedExpr(expr), valueWhenUndefined), exprOut{}
+		}
 		return valueWhenUndefined, exprOut{}
 	}
 

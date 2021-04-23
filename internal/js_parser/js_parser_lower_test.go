@@ -429,6 +429,14 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2019, "delete undefined?.[x]", "true;\n")
 	expectPrintedTarget(t, 2019, "delete undefined?.(x)", "true;\n")
 
+	expectPrintedTarget(t, 2019, "(foo(), null)?.x", "foo(), void 0;\n")
+	expectPrintedTarget(t, 2019, "(foo(), null)?.[x]", "foo(), void 0;\n")
+	expectPrintedTarget(t, 2019, "(foo(), null)?.(x)", "foo(), void 0;\n")
+
+	expectPrintedTarget(t, 2019, "(foo(), void 0)?.x", "foo(), void 0;\n")
+	expectPrintedTarget(t, 2019, "(foo(), void 0)?.[x]", "foo(), void 0;\n")
+	expectPrintedTarget(t, 2019, "(foo(), void 0)?.(x)", "foo(), void 0;\n")
+
 	expectPrintedTarget(t, 2020, "x?.y", "x?.y;\n")
 	expectPrintedTarget(t, 2020, "x?.[y]", "x?.[y];\n")
 	expectPrintedTarget(t, 2020, "x?.(y)", "x?.(y);\n")
@@ -440,6 +448,14 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2020, "undefined?.x", "void 0;\n")
 	expectPrintedTarget(t, 2020, "undefined?.[x]", "void 0;\n")
 	expectPrintedTarget(t, 2020, "undefined?.(x)", "void 0;\n")
+
+	expectPrintedTarget(t, 2020, "(foo(), null)?.x", "foo(), void 0;\n")
+	expectPrintedTarget(t, 2020, "(foo(), null)?.[x]", "foo(), void 0;\n")
+	expectPrintedTarget(t, 2020, "(foo(), null)?.(x)", "foo(), void 0;\n")
+
+	expectPrintedTarget(t, 2020, "(foo(), void 0)?.x", "foo(), void 0;\n")
+	expectPrintedTarget(t, 2020, "(foo(), void 0)?.[x]", "foo(), void 0;\n")
+	expectPrintedTarget(t, 2020, "(foo(), void 0)?.(x)", "foo(), void 0;\n")
 
 	expectPrintedTarget(t, 2019, "a?.b()", "a == null ? void 0 : a.b();\n")
 	expectPrintedTarget(t, 2019, "a?.[b]()", "a == null ? void 0 : a[b]();\n")
