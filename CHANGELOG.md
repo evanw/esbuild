@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.14
 
 * Implement arbitrary module namespace identifiers
 
