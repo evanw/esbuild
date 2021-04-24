@@ -260,8 +260,13 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 					continue
 				}
 
-				absPattern := r.fs.Join(inputPath, js_lexer.UTF16ToString(item.Value))
-				re, hadWildcard := globToEscapedRegexp(absPattern)
+				// Reference: https://github.com/webpack/webpack/blob/ed175cd22f89eb9fecd0a70572a3fd0be028e77c/lib/optimize/SideEffectsFlagPlugin.js
+				pattern := js_lexer.UTF16ToString(item.Value)
+				if !strings.ContainsRune(pattern, '/') {
+					pattern = "**/" + pattern
+				}
+				absPattern := r.fs.Join(inputPath, pattern)
+				re, hadWildcard := globstarToEscapedRegexp(absPattern)
 
 				// Wildcard patterns require more expensive matching
 				if hadWildcard {
@@ -290,27 +295,59 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	return packageJSON
 }
 
-func globToEscapedRegexp(glob string) (string, bool) {
+// Reference: https://github.com/fitzgen/glob-to-regexp/blob/2abf65a834259c6504ed3b80e85f893f8cd99127/index.js
+func globstarToEscapedRegexp(glob string) (string, bool) {
 	sb := strings.Builder{}
 	sb.WriteByte('^')
 	hadWildcard := false
+	n := len(glob)
 
-	for _, c := range glob {
+	for i := 0; i < n; i++ {
+		c := glob[i]
 		switch c {
 		case '\\', '^', '$', '.', '+', '|', '(', ')', '[', ']', '{', '}':
 			sb.WriteByte('\\')
-			sb.WriteRune(c)
-
-		case '*':
-			sb.WriteString(".*")
-			hadWildcard = true
+			sb.WriteByte(c)
 
 		case '?':
 			sb.WriteByte('.')
 			hadWildcard = true
 
+		case '*':
+			// Move over all consecutive "*"'s.
+			// Also store the previous and next characters
+			prevChar := -1
+			if i > 0 {
+				prevChar = int(glob[i-1])
+			}
+			starCount := 1
+			for i+1 < n && glob[i+1] == '*' {
+				starCount++
+				i++
+			}
+			nextChar := -1
+			if i+1 < n {
+				nextChar = int(glob[i+1])
+			}
+
+			// Determine if this is a globstar segment
+			isGlobstar := starCount > 1 && // multiple "*"'s
+				(prevChar == '/' || prevChar == -1) && // from the start of the segment
+				(nextChar == '/' || nextChar == -1) // to the end of the segment
+
+			if isGlobstar {
+				// It's a globstar, so match zero or more path segments
+				sb.WriteString("(?:[^/]*(?:/|$))*")
+				i++ // Move over the "/"
+			} else {
+				// It's not a globstar, so only match one path segment
+				sb.WriteString("[^/]*")
+			}
+
+			hadWildcard = true
+
 		default:
-			sb.WriteRune(c)
+			sb.WriteByte(c)
 		}
 	}
 

@@ -24,6 +24,10 @@
 
     However, doing this is very un-ergonomic and exporting something as an arbitrary name is impossible outside of `export * from`. So this proposal is designed to fully fill out the possibility matrix and make arbitrary alias names a proper first-class feature.
 
+* Implement more accurate `sideEffects` behavior from Webpack ([#1184](https://github.com/evanw/esbuild/issues/1184))
+
+    This release adds support for the implicit `**/` prefix that must be added to paths in the `sideEffects` array in `package.json` if the path does not contain `/`. Another way of saying this is if `package.json` contains a `sideEffects` array with a string that doesn't contain a `/` then it should be treated as a file name instead of a path. Previously esbuild treated all strings in this array as paths, which does not match how Webpack behaves. The result of this meant that esbuild could consider files to have no side effects while Webpack would consider the same files to have side effects. This bug should now be fixed.
+
 ## 0.11.13
 
 * Implement ergonomic brand checks for private fields

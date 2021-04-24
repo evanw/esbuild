@@ -2349,6 +2349,18 @@
       'entry.js': `import {foo, bar} from './foo'; let unused = foo; if (bar) throw 'expected "foo" to be tree-shaken'`,
       'foo.js': `module.exports = {get foo() { module.exports.bar = 1 }, bar: 0}`,
     }),
+
+    // Test for an implicit and explicit "**/" prefix (see https://github.com/evanw/esbuild/issues/1184)
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import './foo'; if (global.dce6 !== 123) throw 'fail'`,
+      'foo/dir/x.js': `global.dce6 = 123`,
+      'foo/package.json': `{ "main": "dir/x", "sideEffects": ["x.*"] }`,
+    }),
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import './foo'; if (global.dce6 !== 123) throw 'fail'`,
+      'foo/dir/x.js': `global.dce6 = 123`,
+      'foo/package.json': `{ "main": "dir/x", "sideEffects": ["**/x.*"] }`,
+    }),
   )
 
   // Test obscure CommonJS symbol edge cases
