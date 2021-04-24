@@ -2672,7 +2672,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
 
 	case js_lexer.TPrivateIdentifier:
-		if !p.allowPrivateIdentifiers {
+		if !p.allowPrivateIdentifiers || !p.allowIn {
 			p.lexer.Unexpected()
 		}
 
