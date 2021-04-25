@@ -270,7 +270,7 @@ func parseFile(args parseArgs) {
 			h.Write([]byte(source.Contents))
 			hash = hashForFileName(h.Sum(nil))
 		}
-		dir := "/"
+		dir := strings.TrimPrefix(absResolveDir, args.options.AbsOutputBase)
 		relPath := config.TemplateToString(config.SubstituteTemplate(args.options.AssetPathTemplate, config.PathPlaceholders{
 			Dir:  &dir,
 			Name: &base,
