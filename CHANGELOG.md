@@ -11,8 +11,8 @@
     * `none`: Do not preserve any legal comments
     * `inline`: Preserve all statement-level legal comments
     * `eof`: Move all statement-level legal comments to the end of the file
-    * `linked`: Move all statement-level legal comments to a `.LICENSE.txt` file and link to them with a comment
-    * `external`: Move all statement-level legal comments to a `.LICENSE.txt` file but to not link to them
+    * `linked`: Move all statement-level legal comments to a `.LEGAL.txt` file and link to them with a comment
+    * `external`: Move all statement-level legal comments to a `.LEGAL.txt` file but to not link to them
 
     The default behavior is `eof` when bundling and `inline` otherwise.
 

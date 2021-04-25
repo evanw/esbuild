@@ -1222,7 +1222,7 @@ new clsExprKeep();
 
 ================================================================================
 TestLegalCommentsExternal
----------- /out.js.LICENSE.txt ----------
+---------- /out.js.LEGAL.txt ----------
 //! Copyright notice 1
 //! Copyright notice 2
 
@@ -1253,7 +1253,7 @@ console.log("in c");
 
 ================================================================================
 TestLegalCommentsLinked
----------- /out.js.LICENSE.txt ----------
+---------- /out.js.LEGAL.txt ----------
 //! Copyright notice 1
 //! Copyright notice 2
 
@@ -1266,7 +1266,7 @@ console.log("in b");
 
 // c.js
 console.log("in c");
-/*! For license information please see out.js.LICENSE.txt */
+/*! For license information please see out.js.LEGAL.txt */
 
 ================================================================================
 TestLegalCommentsNone
