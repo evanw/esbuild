@@ -6331,8 +6331,11 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 		if len(comments) > 0 {
 			for _, comment := range comments {
 				stmts = append(stmts, js_ast.Stmt{
-					Loc:  comment.Loc,
-					Data: &js_ast.SComment{Text: comment.Text},
+					Loc: comment.Loc,
+					Data: &js_ast.SComment{
+						Text:           comment.Text,
+						IsLegalComment: true,
+					},
 				})
 			}
 		}

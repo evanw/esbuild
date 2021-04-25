@@ -94,6 +94,9 @@ type chunkInfo struct {
 	// is the substitution of the final hash into "finalTemplate".
 	finalRelPath string
 
+	// If non-empty, this chunk needs to generate an external legal comments file.
+	externalLegalComments []byte
+
 	// When this chunk is initially generated in isolation, the output pieces
 	// will contain slices of the output with the unique keys of other chunks
 	// omitted.
@@ -376,6 +379,29 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 			outputContentsJoiner, outputSourceMapShifts := c.substituteFinalPaths(chunks, chunk.outputPieces, func(finalRelPathForImport string) string {
 				return c.pathBetweenChunks(finalRelDir, finalRelPathForImport)
 			})
+
+			// Generate the optional legal comments file for this chunk
+			if chunk.externalLegalComments != nil {
+				finalRelPathForLegalComments := chunk.finalRelPath + ".LICENSE.txt"
+
+				// Link the file to the legal comments
+				if c.options.LegalComments == config.LegalCommentsLinkedWithComment {
+					importPath := c.pathBetweenChunks(finalRelDir, finalRelPathForLegalComments)
+					importPath = strings.TrimPrefix(importPath, "./")
+					outputContentsJoiner.EnsureNewlineAtEnd()
+					outputContentsJoiner.AddString("/*! For license information please see ")
+					outputContentsJoiner.AddString(importPath)
+					outputContentsJoiner.AddString(" */\n")
+				}
+
+				// Write the external legal comments file
+				outputFiles = append(outputFiles, graph.OutputFile{
+					AbsPath:  c.fs.Join(c.options.AbsOutputDir, finalRelPathForLegalComments),
+					Contents: chunk.externalLegalComments,
+					JSONMetadataChunk: fmt.Sprintf(
+						"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(chunk.externalLegalComments)),
+				})
+			}
 
 			// Generate the optional source map for this chunk
 			if c.options.SourceMap != config.SourceMapNone && chunk.outputSourceMap.Suffix != nil {
@@ -3463,7 +3489,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		MangleSyntax:                 c.options.MangleSyntax,
 		ASCIIOnly:                    c.options.ASCIIOnly,
 		ToModuleRef:                  toModuleRef,
-		ExtractComments:              c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
+		LegalComments:                c.options.LegalComments,
 		UnsupportedFeatures:          c.options.UnsupportedJSFeatures,
 		AddSourceMappings:            addSourceMappings,
 		InputSourceMap:               inputSourceMap,
@@ -3770,7 +3796,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 		MangleSyntax:                 c.options.MangleSyntax,
 		ASCIIOnly:                    c.options.ASCIIOnly,
 		ToModuleRef:                  toModuleRef,
-		ExtractComments:              c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
+		LegalComments:                c.options.LegalComments,
 		UnsupportedFeatures:          c.options.UnsupportedJSFeatures,
 		RequireOrImportMetaForSource: c.requireOrImportMetaForSource,
 	}
@@ -4214,26 +4240,27 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 
 	// Concatenate the generated JavaScript chunks together
 	var compileResultsForSourceMap []compileResultJS
-	var commentList []string
+	var legalCommentList []string
 	var metaOrder []uint32
 	var metaByteCount map[string]int
-	commentSet := make(map[string]bool)
-	prevComment := uint32(0)
+	legalCommentSet := make(map[string]bool)
+	prevFileNameComment := uint32(0)
 	if c.options.NeedsMetafile {
 		metaOrder = make([]uint32, 0, len(compileResults))
 		metaByteCount = make(map[string]int, len(compileResults))
 	}
 	for _, compileResult := range compileResults {
 		isRuntime := compileResult.sourceIndex == runtime.SourceIndex
-		for text := range compileResult.ExtractedComments {
-			if !commentSet[text] {
-				commentSet[text] = true
-				commentList = append(commentList, text)
+		for text := range compileResult.ExtractedLegalComments {
+			if !legalCommentSet[text] {
+				legalCommentSet[text] = true
+				legalCommentList = append(legalCommentList, text)
 			}
 		}
 
 		// Add a comment with the file path before the file contents
-		if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace && prevComment != compileResult.sourceIndex && len(compileResult.JS) > 0 {
+		if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace &&
+			prevFileNameComment != compileResult.sourceIndex && len(compileResult.JS) > 0 {
 			if newlineBeforeComment {
 				prevOffset.AdvanceString("\n")
 				j.AddString("\n")
@@ -4252,7 +4279,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			text := fmt.Sprintf("%s// %s\n", indent, path)
 			prevOffset.AdvanceString(text)
 			j.AddString(text)
-			prevComment = compileResult.sourceIndex
+			prevFileNameComment = compileResult.sourceIndex
 		}
 
 		// Don't include the runtime in source maps
@@ -4320,10 +4347,25 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	// deduplicated because some projects have thousands of files with the same
 	// comment. The comment must be preserved in the output for legal reasons but
 	// at the same time we want to generate a small bundle when minifying.
-	sort.Strings(commentList)
-	for _, text := range commentList {
-		j.AddString(text)
-		j.AddString("\n")
+	if len(legalCommentList) > 0 {
+		sort.Strings(legalCommentList)
+
+		switch c.options.LegalComments {
+		case config.LegalCommentsEndOfFile:
+			for _, text := range legalCommentList {
+				j.AddString(text)
+				j.AddString("\n")
+			}
+
+		case config.LegalCommentsLinkedWithComment,
+			config.LegalCommentsExternalWithoutComment:
+			jComments := helpers.Joiner{}
+			for _, text := range legalCommentList {
+				jComments.AddString(text)
+				jComments.AddString("\n")
+			}
+			chunk.externalLegalComments = jComments.Done()
+		}
 	}
 
 	if len(c.options.JSFooter) > 0 {

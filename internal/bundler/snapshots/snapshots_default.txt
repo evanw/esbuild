@@ -340,13 +340,6 @@ for (const e of x)
   console.log(e);
 
 ================================================================================
-TestDeduplicateCommentsInBundle
----------- /out.js ----------
-console.log("in a");console.log("in b");console.log("in c");
-//! Copyright notice 1
-//! Copyright notice 2
-
-================================================================================
 TestDefineImportMeta
 ---------- /out.js ----------
 // entry.js
@@ -1226,6 +1219,66 @@ new clsStmtKeep();
 var clsExprKeep = /* @__PURE__ */ __name(class {
 }, "keep");
 new clsExprKeep();
+
+================================================================================
+TestLegalCommentsExternal
+---------- /out.js.LICENSE.txt ----------
+//! Copyright notice 1
+//! Copyright notice 2
+
+---------- /out.js ----------
+// a.js
+console.log("in a");
+
+// b.js
+console.log("in b");
+
+// c.js
+console.log("in c");
+
+================================================================================
+TestLegalCommentsInline
+---------- /out.js ----------
+// a.js
+console.log("in a");
+//! Copyright notice 1
+
+// b.js
+console.log("in b");
+//! Copyright notice 1
+
+// c.js
+console.log("in c");
+//! Copyright notice 2
+
+================================================================================
+TestLegalCommentsLinked
+---------- /out.js.LICENSE.txt ----------
+//! Copyright notice 1
+//! Copyright notice 2
+
+---------- /out.js ----------
+// a.js
+console.log("in a");
+
+// b.js
+console.log("in b");
+
+// c.js
+console.log("in c");
+/*! For license information please see out.js.LICENSE.txt */
+
+================================================================================
+TestLegalCommentsNone
+---------- /out.js ----------
+// a.js
+console.log("in a");
+
+// b.js
+console.log("in b");
+
+// c.js
+console.log("in c");
 
 ================================================================================
 TestLoaderDataURLApplicationJSON

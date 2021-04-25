@@ -94,6 +94,17 @@ const (
 	SourcesContentExclude
 )
 
+type LegalComments uint8
+
+const (
+	LegalCommentsDefault LegalComments = iota
+	LegalCommentsNone
+	LegalCommentsInline
+	LegalCommentsEndOfFile
+	LegalCommentsLinked
+	LegalCommentsExternal
+)
+
 type Target uint8
 
 const (
@@ -237,6 +248,7 @@ type BuildOptions struct {
 	MinifySyntax      bool
 	Charset           Charset
 	TreeShaking       TreeShaking
+	LegalComments     LegalComments
 
 	JSXFactory  string
 	JSXFragment string
@@ -343,6 +355,7 @@ type TransformOptions struct {
 	MinifySyntax      bool
 	Charset           Charset
 	TreeShaking       TreeShaking
+	LegalComments     LegalComments
 
 	JSXFactory  string
 	JSXFragment string

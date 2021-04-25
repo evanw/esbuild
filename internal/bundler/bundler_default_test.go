@@ -2885,7 +2885,7 @@ func TestImportMetaNoBundle(t *testing.T) {
 	})
 }
 
-func TestDeduplicateCommentsInBundle(t *testing.T) {
+func TestLegalCommentsNone(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2899,9 +2899,72 @@ func TestDeduplicateCommentsInBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:             config.ModeBundle,
-			RemoveWhitespace: true,
-			AbsOutputFile:    "/out.js",
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			LegalComments: config.LegalCommentsNone,
+		},
+	})
+}
+
+func TestLegalCommentsInline(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './a'
+				import './b'
+				import './c'
+			`,
+			"/a.js": `console.log('in a') //! Copyright notice 1`,
+			"/b.js": `console.log('in b') //! Copyright notice 1`,
+			"/c.js": `console.log('in c') //! Copyright notice 2`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			LegalComments: config.LegalCommentsInline,
+		},
+	})
+}
+
+func TestLegalCommentsLinked(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './a'
+				import './b'
+				import './c'
+			`,
+			"/a.js": `console.log('in a') //! Copyright notice 1`,
+			"/b.js": `console.log('in b') //! Copyright notice 1`,
+			"/c.js": `console.log('in c') //! Copyright notice 2`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			LegalComments: config.LegalCommentsLinkedWithComment,
+		},
+	})
+}
+
+func TestLegalCommentsExternal(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './a'
+				import './b'
+				import './c'
+			`,
+			"/a.js": `console.log('in a') //! Copyright notice 1`,
+			"/b.js": `console.log('in b') //! Copyright notice 1`,
+			"/c.js": `console.log('in c') //! Copyright notice 2`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			LegalComments: config.LegalCommentsExternalWithoutComment,
 		},
 	})
 }

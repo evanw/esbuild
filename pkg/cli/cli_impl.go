@@ -95,6 +95,29 @@ func parseOptionsImpl(
 				transformOpts.MinifyIdentifiers = true
 			}
 
+		case strings.HasPrefix(arg, "--legal-comments="):
+			value := arg[len("--legal-comments="):]
+			var legalComments api.LegalComments
+			switch value {
+			case "none":
+				legalComments = api.LegalCommentsNone
+			case "inline":
+				legalComments = api.LegalCommentsInline
+			case "eof":
+				legalComments = api.LegalCommentsEndOfFile
+			case "linked":
+				legalComments = api.LegalCommentsLinked
+			case "external":
+				legalComments = api.LegalCommentsExternal
+			default:
+				return fmt.Errorf("Invalid legal comments value: %q (valid: none, inline, eof, linked, external)", value), nil
+			}
+			if buildOpts != nil {
+				buildOpts.LegalComments = legalComments
+			} else {
+				transformOpts.LegalComments = legalComments
+			}
+
 		case strings.HasPrefix(arg, "--charset="):
 			var value *api.Charset
 			if buildOpts != nil {

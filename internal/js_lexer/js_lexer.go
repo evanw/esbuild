@@ -2510,7 +2510,7 @@ func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (js
 
 func (lexer *Lexer) scanCommentText() {
 	text := lexer.source.Contents[lexer.start:lexer.end]
-	hasPreserveAnnotation := len(text) > 2 && text[2] == '!'
+	hasLegalAnnotation := len(text) > 2 && text[2] == '!'
 	isMultiLineComment := text[1] == '*'
 
 	// Save the original comment text so we can subtract comments from the
@@ -2543,7 +2543,7 @@ func (lexer *Lexer) scanCommentText() {
 			if hasPrefixWithWordBoundary(rest, "__PURE__") {
 				lexer.HasPureCommentBefore = true
 			} else if hasPrefixWithWordBoundary(rest, "preserve") || hasPrefixWithWordBoundary(rest, "license") {
-				hasPreserveAnnotation = true
+				hasLegalAnnotation = true
 			} else if hasPrefixWithWordBoundary(rest, "jsx") {
 				if arg, ok := scanForPragmaArg(pragmaSkipSpaceFirst, lexer.start+i+1, "jsx", rest); ok {
 					lexer.JSXFactoryPragmaComment = arg
@@ -2560,7 +2560,7 @@ func (lexer *Lexer) scanCommentText() {
 		}
 	}
 
-	if hasPreserveAnnotation || lexer.PreserveAllCommentsBefore {
+	if hasLegalAnnotation || lexer.PreserveAllCommentsBefore {
 		if isMultiLineComment {
 			text = removeMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
 		}

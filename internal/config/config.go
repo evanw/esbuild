@@ -53,6 +53,20 @@ const (
 	SourceMapInlineAndExternal
 )
 
+type LegalComments uint8
+
+const (
+	LegalCommentsInline LegalComments = iota
+	LegalCommentsNone
+	LegalCommentsEndOfFile
+	LegalCommentsLinkedWithComment
+	LegalCommentsExternalWithoutComment
+)
+
+func (lc LegalComments) HasExternalFile() bool {
+	return lc == LegalCommentsLinkedWithComment || lc == LegalCommentsExternalWithoutComment
+}
+
 type Loader int
 
 const (
@@ -186,6 +200,7 @@ type Options struct {
 	CodeSplitting     bool
 	WatchMode         bool
 	AllowOverwrite    bool
+	LegalComments     LegalComments
 
 	// Setting this to true disables warnings about code that is very likely to
 	// be a bug. This is used to ignore issues inside "node_modules" directories.
