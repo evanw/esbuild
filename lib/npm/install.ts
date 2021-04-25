@@ -44,7 +44,7 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
   // If that fails, the user could have npm configured incorrectly or could not
   // have npm installed. Try downloading directly from npm as a last resort.
   if (!buffer) {
-    const url = `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`;
+    const url = `${getDownloadURL()}/${name}/-/${name}-${version}.tgz`;
     console.error(`Trying to download ${JSON.stringify(url)}`);
     try {
       buffer = extractFileFromTarGzip(await fetch(url), fromPath);
@@ -164,7 +164,9 @@ function extractFileFromTarGzip(buffer: Buffer, file: string): Buffer {
   throw new Error(`Could not find ${JSON.stringify(file)} in archive`);
 }
 
-function installUsingNPM(name: string, file: string): Buffer {
+function installUsingNPM(name: string, file: string): Buffer | undefined {
+  if (process.env.npm_config_esbuild_binary_site) return;
+
   const installDir = path.join(os.tmpdir(), 'esbuild-' + Math.random().toString(36).slice(2));
   fs.mkdirSync(installDir, { recursive: true });
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}');
@@ -190,6 +192,15 @@ function installUsingNPM(name: string, file: string): Buffer {
   }
   return buffer;
 }
+
+function getDownloadURL() {
+  if (process.env.npm_config_esbuild_binary_site) {
+    return process.env.npm_config_esbuild_binary_site;
+  }
+
+  return `https://registry.npmjs.org`;
+}
+
 
 function removeRecursive(dir: string): void {
   for (const entry of fs.readdirSync(dir)) {
