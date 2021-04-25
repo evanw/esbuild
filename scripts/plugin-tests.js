@@ -131,7 +131,8 @@ let pluginTests = {
       assert.strictEqual(e.message.split('\n')[0], 'Build failed with 1 error:')
       assert.notStrictEqual(e.errors, void 0)
       assert.strictEqual(e.errors.length, 1)
-      assert.strictEqual(e.errors[0].text, '[x] Plugin is missing a setup function')
+      assert.strictEqual(e.errors[0].pluginName, 'x')
+      assert.strictEqual(e.errors[0].text, 'Plugin is missing a setup function')
       assert.deepStrictEqual(e.warnings, [])
     }
   },
@@ -193,7 +194,7 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert(e.message.endsWith('error: [x] Expected onResolve() callback in plugin "x" to return an object'), e.message)
+      assert(e.message.endsWith('error: [plugin: x] Expected onResolve() callback in plugin "x" to return an object'), e.message)
     }
 
     try {
@@ -211,7 +212,7 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert(e.message.endsWith('error: [x] Invalid option from onResolve() callback in plugin "x": "thisIsWrong"'), e.message)
+      assert(e.message.endsWith('error: [plugin: x] Invalid option from onResolve() callback in plugin "x": "thisIsWrong"'), e.message)
     }
   },
 
@@ -254,7 +255,7 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert(e.message.endsWith(`error: [x] Expected onLoad() callback in plugin "x" to return an object`), e.message)
+      assert(e.message.endsWith(`error: [plugin: x] Expected onLoad() callback in plugin "x" to return an object`), e.message)
     }
 
     try {
@@ -275,7 +276,7 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert(e.message.endsWith('error: [x] Invalid option from onLoad() callback in plugin "x": "thisIsWrong"'), e.message)
+      assert(e.message.endsWith('error: [plugin: x] Invalid option from onLoad() callback in plugin "x": "thisIsWrong"'), e.message)
     }
   },
 
@@ -1152,6 +1153,7 @@ let pluginTests = {
     } catch (e) {
       assert.deepStrictEqual(e.warnings, [])
       assert.deepStrictEqual(e.errors, [{
+        pluginName: '',
         text: 'Expected ";" but found "y"',
         location: {
           file: '<stdin>',
@@ -1171,6 +1173,7 @@ let pluginTests = {
   async transformUndefinedDetailForWarning({ esbuild }) {
     const result = await esbuild.transform('typeof x == "null"')
     assert.deepStrictEqual(result.warnings, [{
+      pluginName: '',
       text: 'The "typeof" operator will never evaluate to "null"',
       location: {
         file: '<stdin>',
@@ -1197,6 +1200,7 @@ let pluginTests = {
     } catch (e) {
       assert.deepStrictEqual(e.warnings, [])
       assert.deepStrictEqual(e.errors, [{
+        pluginName: '',
         text: 'Expected ";" but found "y"',
         location: {
           file: '<stdin>',
@@ -1220,6 +1224,7 @@ let pluginTests = {
       logLevel: 'silent',
     })
     assert.deepStrictEqual(result.warnings, [{
+      pluginName: '',
       text: 'The "typeof" operator will never evaluate to "null"',
       location: {
         file: '<stdin>',
@@ -1243,7 +1248,7 @@ let pluginTests = {
         write: false,
         logLevel: 'silent',
         plugins: [{
-          name: 'plugin',
+          name: 'the-plugin',
           setup(build) {
             build.onResolve({ filter: /.*/ }, () => {
               throw theError;
@@ -1255,7 +1260,8 @@ let pluginTests = {
     } catch (e) {
       assert.strictEqual(e.warnings.length, 0)
       assert.strictEqual(e.errors.length, 1)
-      assert.strictEqual(e.errors[0].text, '[plugin] theError')
+      assert.strictEqual(e.errors[0].pluginName, 'the-plugin')
+      assert.strictEqual(e.errors[0].text, 'theError')
       assert.strictEqual(e.errors[0].detail, theError)
     }
   },
@@ -1268,7 +1274,7 @@ let pluginTests = {
         write: false,
         logLevel: 'silent',
         plugins: [{
-          name: 'plugin',
+          name: 'the-plugin',
           setup(build) {
             build.onResolve({ filter: /.*/ }, () => ({ path: 'abc', namespace: 'xyz' }))
             build.onLoad({ filter: /.*/ }, () => {
@@ -1281,7 +1287,8 @@ let pluginTests = {
     } catch (e) {
       assert.strictEqual(e.warnings.length, 0)
       assert.strictEqual(e.errors.length, 1)
-      assert.strictEqual(e.errors[0].text, '[plugin] theError')
+      assert.strictEqual(e.errors[0].pluginName, 'the-plugin')
+      assert.strictEqual(e.errors[0].text, 'theError')
       assert.strictEqual(e.errors[0].detail, theError)
     }
   },
@@ -1294,7 +1301,7 @@ let pluginTests = {
         write: false,
         logLevel: 'silent',
         plugins: [{
-          name: 'plugin',
+          name: 'the-plugin',
           setup(build) {
             build.onResolve({ filter: /.*/ }, () => {
               return {
@@ -1333,7 +1340,8 @@ let pluginTests = {
       assert.strictEqual(e.warnings.length, 0)
       assert.strictEqual(e.errors.length, 1)
       assert.deepStrictEqual(e.errors[0], {
-        text: '[plugin] some error',
+        pluginName: 'the-plugin',
+        text: 'some error',
         location: {
           file: 'ns1:file1',
           namespace: 'ns1',
@@ -1367,11 +1375,12 @@ let pluginTests = {
       write: false,
       logLevel: 'silent',
       plugins: [{
-        name: 'plugin',
+        name: 'the-plugin',
         setup(build) {
           build.onResolve({ filter: /.*/ }, () => {
             return {
               path: 'abc', namespace: 'xyz', warnings: [{
+                pluginName: 'other-plugin',
                 text: 'some warning',
                 location: {
                   file: 'file1',
@@ -1403,9 +1412,9 @@ let pluginTests = {
       }],
     })
     assert.strictEqual(result.warnings.length, 1)
-    assert.strictEqual(result.warnings[0].text, '[plugin] some warning')
     assert.deepStrictEqual(result.warnings[0], {
-      text: '[plugin] some warning',
+      pluginName: 'other-plugin',
+      text: 'some warning',
       location: {
         file: 'ns1:file1',
         namespace: 'ns1',
@@ -1439,7 +1448,7 @@ let pluginTests = {
         write: false,
         logLevel: 'silent',
         plugins: [{
-          name: 'plugin',
+          name: 'the-plugin',
           setup(build) {
             build.onResolve({ filter: /.*/ }, () => ({ path: 'abc', namespace: 'xyz' }))
             build.onLoad({ filter: /.*/ }, () => {
@@ -1479,7 +1488,8 @@ let pluginTests = {
       assert.strictEqual(e.warnings.length, 0)
       assert.strictEqual(e.errors.length, 1)
       assert.deepStrictEqual(e.errors[0], {
-        text: '[plugin] some error',
+        pluginName: 'the-plugin',
+        text: 'some error',
         location: {
           file: 'ns1:file1',
           namespace: 'ns1',
@@ -1513,7 +1523,7 @@ let pluginTests = {
       write: false,
       logLevel: 'silent',
       plugins: [{
-        name: 'plugin',
+        name: 'the-plugin',
         setup(build) {
           build.onResolve({ filter: /.*/ }, () => ({ path: 'abc', namespace: 'xyz' }))
           build.onLoad({ filter: /.*/ }, () => {
@@ -1550,7 +1560,8 @@ let pluginTests = {
     })
     assert.strictEqual(result.warnings.length, 1)
     assert.deepStrictEqual(result.warnings[0], {
-      text: '[plugin] some warning',
+      pluginName: 'the-plugin',
+      text: 'some warning',
       location: {
         file: 'ns1:file1',
         namespace: 'ns1',

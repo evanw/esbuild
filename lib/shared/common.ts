@@ -635,57 +635,64 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       let keys: OptionKeys = {};
       if (typeof item !== 'object') throw new Error(`Plugin at index ${i} must be an object`);
       let name = getFlag(item, keys, 'name', mustBeString);
-      let setup = getFlag(item, keys, 'setup', mustBeFunction);
-
       if (typeof name !== 'string' || name === '') throw new Error(`Plugin at index ${i} is missing a name`);
-      if (typeof setup !== 'function') throw new Error(`[${name}] Plugin is missing a setup function`);
-      checkForInvalidFlags(item, keys, `on plugin ${JSON.stringify(name)}`);
+      try {
+        let setup = getFlag(item, keys, 'setup', mustBeFunction);
+        if (typeof setup !== 'function') throw new Error(`Plugin is missing a setup function`);
+        checkForInvalidFlags(item, keys, `on plugin ${JSON.stringify(name)}`);
 
-      let plugin: protocol.BuildPlugin = {
-        name,
-        onResolve: [],
-        onLoad: [],
-      };
-      i++;
+        let plugin: protocol.BuildPlugin = {
+          name,
+          onResolve: [],
+          onLoad: [],
+        };
+        i++;
 
-      let promise = setup({
-        initialOptions,
+        let promise = setup({
+          initialOptions,
 
-        onResolve(options, callback) {
-          let registeredText = `This error came from the "onResolve" callback registered here`
-          let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onResolve');
-          let keys: OptionKeys = {};
-          let filter = getFlag(options, keys, 'filter', mustBeRegExp);
-          let namespace = getFlag(options, keys, 'namespace', mustBeString);
-          checkForInvalidFlags(options, keys, `in onResolve() call for plugin ${JSON.stringify(name)}`);
-          if (filter == null) throw new Error(`[${plugin.name}] onResolve() call is missing a filter`);
-          let id = nextCallbackID++;
-          onResolveCallbacks[id] = { name: name!, callback, note: registeredNote };
-          plugin.onResolve.push({ id, filter: filter.source, namespace: namespace || '' });
-        },
+          onResolve(options, callback) {
+            let registeredText = `This error came from the "onResolve" callback registered here`
+            let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onResolve');
+            let keys: OptionKeys = {};
+            let filter = getFlag(options, keys, 'filter', mustBeRegExp);
+            let namespace = getFlag(options, keys, 'namespace', mustBeString);
+            checkForInvalidFlags(options, keys, `in onResolve() call for plugin ${JSON.stringify(name)}`);
+            if (filter == null) throw new Error(`onResolve() call is missing a filter`);
+            let id = nextCallbackID++;
+            onResolveCallbacks[id] = { name: name!, callback, note: registeredNote };
+            plugin.onResolve.push({ id, filter: filter.source, namespace: namespace || '' });
+          },
 
-        onLoad(options, callback) {
-          let registeredText = `This error came from the "onLoad" callback registered here`
-          let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onLoad');
-          let keys: OptionKeys = {};
-          let filter = getFlag(options, keys, 'filter', mustBeRegExp);
-          let namespace = getFlag(options, keys, 'namespace', mustBeString);
-          checkForInvalidFlags(options, keys, `in onLoad() call for plugin ${JSON.stringify(name)}`);
-          if (filter == null) throw new Error(`[${plugin.name}] onLoad() call is missing a filter`);
-          let id = nextCallbackID++;
-          onLoadCallbacks[id] = { name: name!, callback, note: registeredNote };
-          plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' });
-        },
-      });
+          onLoad(options, callback) {
+            let registeredText = `This error came from the "onLoad" callback registered here`
+            let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onLoad');
+            let keys: OptionKeys = {};
+            let filter = getFlag(options, keys, 'filter', mustBeRegExp);
+            let namespace = getFlag(options, keys, 'namespace', mustBeString);
+            checkForInvalidFlags(options, keys, `in onLoad() call for plugin ${JSON.stringify(name)}`);
+            if (filter == null) throw new Error(`onLoad() call is missing a filter`);
+            let id = nextCallbackID++;
+            onLoadCallbacks[id] = { name: name!, callback, note: registeredNote };
+            plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' });
+          },
+        });
 
-      // Await a returned promise if there was one. This allows plugins to do
-      // some asynchronous setup while still retaining the ability to modify
-      // the build options. This deliberately serializes asynchronous plugin
-      // setup instead of running them concurrently so that build option
-      // modifications are easier to reason about.
-      if (promise) await promise;
+        // Await a returned promise if there was one. This allows plugins to do
+        // some asynchronous setup while still retaining the ability to modify
+        // the build options. This deliberately serializes asynchronous plugin
+        // setup instead of running them concurrently so that build option
+        // modifications are easier to reason about.
+        if (promise) await promise;
 
-      requestPlugins.push(plugin);
+        requestPlugins.push(plugin);
+      } catch (e) {
+        try {
+          e.pluginName = name
+        } catch {
+        }
+        throw e
+      }
     }
 
     const callback: PluginCallback = async (request) => {
@@ -1229,8 +1236,14 @@ function extractCallerV8(e: Error, streamIn: StreamIn, ident: string): () => typ
 }
 
 function extractErrorMessageV8(e: any, streamIn: StreamIn, stash: ObjectStash | null, note: types.Note | undefined): types.Message {
+  let pluginName = ''
   let text = 'Internal error'
   let location: types.Location | null = null
+
+  try {
+    pluginName = (e && e.pluginName || '') + '';
+  } catch {
+  }
 
   try {
     text = ((e && e.message) || e) + '';
@@ -1243,7 +1256,7 @@ function extractErrorMessageV8(e: any, streamIn: StreamIn, stash: ObjectStash | 
   } catch {
   }
 
-  return { text, location, notes: note ? [note] : [], detail: stash ? stash.store(e) : -1 }
+  return { pluginName, text, location, notes: note ? [note] : [], detail: stash ? stash.store(e) : -1 }
 }
 
 function parseStackLinesV8(streamIn: StreamIn, lines: string[], ident: string): types.Location | null {
@@ -1307,7 +1320,8 @@ function failureErrorWithLog(text: string, errors: types.Message[], warnings: ty
       if (i === limit) return '\n...';
       if (!e.location) return `\nerror: ${e.text}`;
       let { file, line, column } = e.location;
-      return `\n${file}:${line}:${column}: error: ${e.text}`;
+      let pluginText = e.pluginName ? `[plugin: ${e.pluginName}] ` : '';
+      return `\n${file}:${line}:${column}: error: ${pluginText}${e.text}`;
     }).join('');
   let error: any = new Error(`${text}${summary}`);
   error.errors = errors;
@@ -1352,6 +1366,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
 
   for (const message of messages) {
     let keys: OptionKeys = {};
+    let pluginName = getFlag(message, keys, 'pluginName', mustBeString);
     let text = getFlag(message, keys, 'text', mustBeString);
     let location = getFlag(message, keys, 'location', mustBeObjectOrNull);
     let notes = getFlag(message, keys, 'notes', mustBeArray);
@@ -1374,6 +1389,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
     }
 
     messagesClone.push({
+      pluginName: pluginName || '',
       text: text || '',
       location: sanitizeLocation(location, where),
       notes: notesClone,

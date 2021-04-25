@@ -180,9 +180,10 @@ type Location struct {
 }
 
 type Message struct {
-	Text     string
-	Location *Location
-	Notes    []Note
+	PluginName string
+	Text       string
+	Location   *Location
+	Notes      []Note
 
 	// Optional user-specified data that is passed through unmodified. You can
 	// use this to stash the original error, for example.

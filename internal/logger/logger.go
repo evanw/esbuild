@@ -75,9 +75,10 @@ func (kind MsgKind) String() string {
 }
 
 type Msg struct {
-	Kind  MsgKind
-	Data  MsgData
-	Notes []MsgData
+	PluginName string
+	Kind       MsgKind
+	Data       MsgData
+	Notes      []MsgData
 }
 
 type MsgData struct {
@@ -878,7 +879,7 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	}
 
 	// Format the message
-	text := msgString(options.IncludeSource, terminalInfo, msg.Kind, msg.Data, maxMargin)
+	text := msgString(options.IncludeSource, terminalInfo, msg.Kind, msg.Data, maxMargin, msg.PluginName)
 
 	// Put a blank line between the message and the notes if the message has a stack trace
 	gap := ""
@@ -889,7 +890,7 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	// Format the notes
 	for _, note := range msg.Notes {
 		text += gap
-		text += msgString(options.IncludeSource, terminalInfo, Note, note, maxMargin)
+		text += msgString(options.IncludeSource, terminalInfo, Note, note, maxMargin, "")
 	}
 
 	// Add extra spacing between messages if source code is present
@@ -915,7 +916,7 @@ func emptyMarginText(maxMargin int, isLast bool) string {
 	return fmt.Sprintf("    %s │ ", space)
 }
 
-func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int) string {
+func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int, pluginName string) string {
 	var colors Colors
 	if terminalInfo.UseColorEscapes {
 		colors = TerminalColors
@@ -958,18 +959,23 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 		panic("Internal error")
 	}
 
+	var pluginText string
+	if pluginName != "" {
+		pluginText = fmt.Sprintf("%s[plugin: %s] ", colors.Yellow, pluginName)
+	}
+
 	if data.Location == nil {
-		return fmt.Sprintf("%s%s%s%s: %s%s%s\n%s",
+		return fmt.Sprintf("%s%s%s%s: %s%s%s%s\n%s",
 			prefixColor, textIndent, kindColor, kind.String(),
-			colors.Reset, messageColor, data.Text,
+			pluginText, colors.Reset, messageColor, data.Text,
 			colors.Reset)
 	}
 
 	if !includeSource {
-		return fmt.Sprintf("%s%s%s: %s%s: %s%s%s\n%s",
+		return fmt.Sprintf("%s%s%s: %s%s: %s%s%s%s\n%s",
 			prefixColor, textIndent, data.Location.File,
 			kindColor, kind.String(),
-			colors.Reset, messageColor, data.Text,
+			pluginText, colors.Reset, messageColor, data.Text,
 			colors.Reset)
 	}
 
@@ -984,10 +990,10 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 			emptyMarginText(maxMargin, false), d.Indent, colors.Green, d.Marker, colors.Dim)
 	}
 
-	return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s%s\n%s%s%s%s%s%s%s\n%s%s%s%s%s%s%s\n%s",
+	return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s%s%s\n%s%s%s%s%s%s%s\n%s%s%s%s%s%s%s\n%s",
 		prefixColor, textIndent, d.Path, d.Line, d.Column,
 		kindColor, kind.String(),
-		colors.Reset, messageColor, d.Message,
+		pluginText, colors.Reset, messageColor, d.Message,
 		colors.Reset, colors.Dim, d.SourceBefore, colors.Green, d.SourceMarked, colors.Dim, d.SourceAfter,
 		calloutPrefix, emptyMarginText(maxMargin, true), d.Indent, colors.Green, callout, colors.Dim, d.ContentAfter,
 		colors.Reset)

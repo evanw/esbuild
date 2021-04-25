@@ -79,6 +79,7 @@ export interface StdinOptions {
 }
 
 export interface Message {
+  pluginName: string;
   text: string;
   location: Location | null;
   notes: Note[];
@@ -262,6 +263,7 @@ export interface OnLoadResult {
 }
 
 export interface PartialMessage {
+  pluginName?: string;
   text?: string;
   location?: Partial<Location> | null;
   notes?: PartialNote[];

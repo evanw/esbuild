@@ -376,7 +376,7 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
   // This forbids options which would cause structured clone errors
   let fakeBuildError = (text: string) => {
     let error: any = new Error(`Build failed with 1 error:\nerror: ${text}`);
-    let errors: types.Message[] = [{ text, location: null, notes: [], detail: void 0 }];
+    let errors: types.Message[] = [{ pluginName: '', text, location: null, notes: [], detail: void 0 }];
     error.errors = errors;
     error.warnings = [];
     return error;
