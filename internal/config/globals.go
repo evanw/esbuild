@@ -869,7 +869,8 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 	}
 
 	result := ProcessedDefines{
-		IdentifierDefines: make(map[string]DefineData),
+		// Estimate the number of identifier defines \{"([\w\d])+"\},
+		IdentifierDefines: make(map[string]DefineData, 639),
 		DotDefines:        make(map[string][]DotDefine),
 	}
 
