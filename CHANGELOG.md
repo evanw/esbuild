@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+* Provide options for how to handle legal comments ([#919](https://github.com/evanw/esbuild/issues/919))
+
+    A "legal comment" is considered to be any comment that contains `@license` or `@preserve` or that starts with `//!` or `/*!`. These comments are preserved in output files by esbuild since that follows the intent of the original authors of the code.
+
+    However, some people want to remove the automatically-generated license information before they distribute their code. To facilitate this, esbuild now provides several options for how to handle legal comments (via `--legal-comments=` in the CLI and `legalComments` in the JS API):
+
+    * `none`: Do not preserve any legal comments
+    * `inline`: Preserve all statement-level legal comments
+    * `eof`: Move all statement-level legal comments to the end of the file
+    * `linked`: Move all statement-level legal comments to a `.LICENSE.txt` file and link to them with a comment
+    * `external`: Move all statement-level legal comments to a `.LICENSE.txt` file but to not link to them
+
+    The default behavior is `eof` when bundling and `inline` otherwise.
+
 ## 0.11.14
 
 * Implement arbitrary module namespace identifiers

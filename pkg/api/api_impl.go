@@ -136,6 +136,29 @@ func validateSourceMap(value SourceMap) config.SourceMap {
 	}
 }
 
+func validateLegalComments(value LegalComments, bundle bool) config.LegalComments {
+	switch value {
+	case LegalCommentsDefault:
+		if bundle {
+			return config.LegalCommentsEndOfFile
+		} else {
+			return config.LegalCommentsInline
+		}
+	case LegalCommentsNone:
+		return config.LegalCommentsNone
+	case LegalCommentsInline:
+		return config.LegalCommentsInline
+	case LegalCommentsEndOfFile:
+		return config.LegalCommentsEndOfFile
+	case LegalCommentsLinked:
+		return config.LegalCommentsLinkedWithComment
+	case LegalCommentsExternal:
+		return config.LegalCommentsExternalWithoutComment
+	default:
+		panic("Invalid source map")
+	}
+}
+
 func validateColor(value StderrColor) logger.UseColor {
 	switch value {
 	case ColorIfTerminal:
@@ -786,6 +809,7 @@ func rebuildImpl(
 		InjectedDefines:       injectedDefines,
 		Platform:              validatePlatform(buildOpts.Platform),
 		SourceMap:             validateSourceMap(buildOpts.Sourcemap),
+		LegalComments:         validateLegalComments(buildOpts.LegalComments, buildOpts.Bundle),
 		SourceRoot:            buildOpts.SourceRoot,
 		ExcludeSourcesContent: buildOpts.SourcesContent == SourcesContentExclude,
 		MangleSyntax:          buildOpts.MinifySyntax,
@@ -868,6 +892,9 @@ func rebuildImpl(
 		// Forbid certain features when writing to stdout
 		if options.SourceMap != config.SourceMapNone && options.SourceMap != config.SourceMapInline {
 			log.AddError(nil, logger.Loc{}, "Cannot use an external source map without an output path")
+		}
+		if options.LegalComments.HasExternalFile() {
+			log.AddError(nil, logger.Loc{}, "Cannot use linked or external legal comments without an output path")
 		}
 		for _, loader := range options.ExtensionToLoader {
 			if loader == config.LoaderFile {
@@ -1253,6 +1280,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		Defines:                 defines,
 		InjectedDefines:         injectedDefines,
 		SourceMap:               validateSourceMap(transformOpts.Sourcemap),
+		LegalComments:           validateLegalComments(transformOpts.LegalComments, false /* bundle */),
 		SourceRoot:              transformOpts.SourceRoot,
 		ExcludeSourcesContent:   transformOpts.SourcesContent == SourcesContentExclude,
 		OutputFormat:            validateFormat(transformOpts.Format),
@@ -1286,6 +1314,9 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	if options.SourceMap != config.SourceMapNone && options.Stdin.SourceFile == "" {
 		log.AddError(nil, logger.Loc{},
 			"Must use \"sourcefile\" with \"sourcemap\" to set the original file name")
+	}
+	if options.LegalComments.HasExternalFile() {
+		log.AddError(nil, logger.Loc{}, "Cannot transform with linked or external legal comments")
 	}
 
 	// Set the output mode using other settings

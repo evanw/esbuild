@@ -937,7 +937,8 @@ type SEmpty struct{}
 type STypeScript struct{}
 
 type SComment struct {
-	Text string
+	Text           string
+	IsLegalComment bool
 }
 
 type SDebugger struct{}

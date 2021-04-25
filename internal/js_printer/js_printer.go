@@ -399,23 +399,23 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 }
 
 type printer struct {
-	symbols            js_ast.SymbolMap
-	renamer            renamer.Renamer
-	importRecords      []ast.ImportRecord
-	options            Options
-	extractedComments  map[string]bool
-	needsSemicolon     bool
-	js                 []byte
-	stmtStart          int
-	exportDefaultStart int
-	arrowExprStart     int
-	forOfInitStart     int
-	prevOp             js_ast.OpCode
-	prevOpEnd          int
-	prevNumEnd         int
-	prevRegExpEnd      int
-	callTarget         js_ast.E
-	intToBytesBuffer   [64]byte
+	symbols                js_ast.SymbolMap
+	renamer                renamer.Renamer
+	importRecords          []ast.ImportRecord
+	options                Options
+	extractedLegalComments map[string]bool
+	needsSemicolon         bool
+	js                     []byte
+	stmtStart              int
+	exportDefaultStart     int
+	arrowExprStart         int
+	forOfInitStart         int
+	prevOp                 js_ast.OpCode
+	prevOpEnd              int
+	prevNumEnd             int
+	prevRegExpEnd          int
+	callTarget             js_ast.E
+	intToBytesBuffer       [64]byte
 
 	// For source maps
 	sourceMap           []byte
@@ -2514,13 +2514,23 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 	switch s := stmt.Data.(type) {
 	case *js_ast.SComment:
 		text := s.Text
-		if p.options.ExtractComments {
-			if p.extractedComments == nil {
-				p.extractedComments = make(map[string]bool)
+
+		if s.IsLegalComment {
+			switch p.options.LegalComments {
+			case config.LegalCommentsNone:
+				return
+
+			case config.LegalCommentsEndOfFile,
+				config.LegalCommentsLinkedWithComment,
+				config.LegalCommentsExternalWithoutComment:
+				if p.extractedLegalComments == nil {
+					p.extractedLegalComments = make(map[string]bool)
+				}
+				p.extractedLegalComments[text] = true
+				return
 			}
-			p.extractedComments[text] = true
-			break
 		}
+
 		p.printIndentedComment(text)
 
 	case *js_ast.SFunction:
@@ -3067,7 +3077,7 @@ type Options struct {
 	RemoveWhitespace             bool
 	MangleSyntax                 bool
 	ASCIIOnly                    bool
-	ExtractComments              bool
+	LegalComments                config.LegalComments
 	AddSourceMappings            bool
 	Indent                       int
 	ToModuleRef                  js_ast.Ref
@@ -3115,7 +3125,7 @@ type PrintResult struct {
 	// source map chunks together to form the final source map.
 	SourceMapChunk SourceMapChunk
 
-	ExtractedComments map[string]bool
+	ExtractedLegalComments map[string]bool
 }
 
 func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
@@ -3165,8 +3175,8 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 	p.updateGeneratedLineAndColumn()
 
 	return PrintResult{
-		JS:                p.js,
-		ExtractedComments: p.extractedComments,
+		JS:                     p.js,
+		ExtractedLegalComments: p.extractedLegalComments,
 		SourceMapChunk: SourceMapChunk{
 			Buffer:               p.sourceMap,
 			EndState:             p.prevState,
