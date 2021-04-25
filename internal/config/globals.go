@@ -871,7 +871,7 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 	result := ProcessedDefines{
 		// Estimate the number of identifier defines \{"([\w\d])+"\},
 		IdentifierDefines: make(map[string]DefineData, 639),
-		DotDefines:        make(map[string][]DotDefine),
+		DotDefines:        make(map[string][]DotDefine, 38),
 	}
 
 	// Mark these property accesses as free of side effects. That means they can
