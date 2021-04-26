@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.15
 
 * Provide options for how to handle legal comments ([#919](https://github.com/evanw/esbuild/issues/919))
 
