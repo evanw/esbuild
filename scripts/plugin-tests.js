@@ -2150,6 +2150,80 @@ let syncTests = {
       result.stop()
     }
   },
+
+  async onStartCallback({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    await writeFileAsync(input, ``)
+
+    let onStartTimes = 0
+    let errorToThrow = null
+    let valueToReturn = null
+
+    const result = await esbuild.build({
+      entryPoints: [input],
+      write: false,
+      logLevel: 'silent',
+      incremental: true,
+      plugins: [
+        {
+          name: 'some-plugin',
+          setup(build) {
+            build.onStart(() => {
+              if (errorToThrow) throw errorToThrow
+              if (valueToReturn) return valueToReturn
+              onStartTimes++
+            })
+          },
+        },
+      ],
+    })
+    assert.strictEqual(onStartTimes, 1)
+
+    await result.rebuild()
+    assert.strictEqual(onStartTimes, 2)
+
+    await result.rebuild()
+    assert.strictEqual(onStartTimes, 3)
+
+    errorToThrow = new Error('throw test')
+    try {
+      await result.rebuild()
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.notStrictEqual(e.errors, void 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].pluginName, 'some-plugin')
+      assert.strictEqual(e.errors[0].text, 'throw test')
+    } finally {
+      errorToThrow = null
+    }
+
+    valueToReturn = { errors: [{ text: 'return test', location: { file: 'foo.js', line: 2 } }] }
+    try {
+      await result.rebuild()
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.notStrictEqual(e.errors, void 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].pluginName, 'some-plugin')
+      assert.strictEqual(e.errors[0].text, 'return test')
+      assert.notStrictEqual(e.errors[0].location, null)
+      assert.strictEqual(e.errors[0].location.file, 'foo.js')
+      assert.strictEqual(e.errors[0].location.line, 2)
+    } finally {
+      valueToReturn = null
+    }
+
+    assert.strictEqual(onStartTimes, 3)
+    valueToReturn = new Promise(resolve => setTimeout(() => {
+      onStartTimes++
+      resolve()
+    }, 500))
+    await result.rebuild()
+    assert.strictEqual(onStartTimes, 4)
+
+    result.rebuild.dispose()
+  },
 }
 
 async function main() {

@@ -423,8 +423,14 @@ type Plugin struct {
 
 type PluginBuild struct {
 	InitialOptions *BuildOptions
+	OnStart        func(callback func() (OnStartResult, error))
 	OnResolve      func(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
 	OnLoad         func(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
+}
+
+type OnStartResult struct {
+	Errors   []Message
+	Warnings []Message
 }
 
 type OnResolveOptions struct {

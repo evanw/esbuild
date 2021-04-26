@@ -949,6 +949,19 @@ func ScanBundle(
 
 	applyOptionDefaults(&options)
 
+	// Run "onStart" plugins in parallel
+	onStartWaitGroup := sync.WaitGroup{}
+	for _, plugin := range options.Plugins {
+		for _, onStart := range plugin.OnStart {
+			onStartWaitGroup.Add(1)
+			go func(plugin config.Plugin, onStart config.OnStart) {
+				result := onStart.Callback()
+				logPluginMessages(res, log, plugin.Name, result.Msgs, result.ThrownError, nil, logger.Range{})
+				onStartWaitGroup.Done()
+			}(plugin, onStart)
+		}
+	}
+
 	s := scanner{
 		log:           log,
 		fs:            fs,
@@ -982,6 +995,7 @@ func ScanBundle(
 	s.scanAllDependencies()
 	files := s.processScannedFiles()
 
+	onStartWaitGroup.Wait()
 	return Bundle{
 		fs:          fs,
 		res:         res,

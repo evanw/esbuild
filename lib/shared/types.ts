@@ -188,10 +188,17 @@ export interface Plugin {
 
 export interface PluginBuild {
   initialOptions: BuildOptions;
+  onStart(callback: () =>
+    (OnStartResult | null | undefined | Promise<OnStartResult | null | undefined>)): void;
   onResolve(options: OnResolveOptions, callback: (args: OnResolveArgs) =>
     (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): void;
   onLoad(options: OnLoadOptions, callback: (args: OnLoadArgs) =>
     (OnLoadResult | null | undefined | Promise<OnLoadResult | null | undefined>)): void;
+}
+
+export interface OnStartResult {
+  errors?: PartialMessage[];
+  warnings?: PartialMessage[];
 }
 
 export interface OnResolveOptions {

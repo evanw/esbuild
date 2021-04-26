@@ -1383,6 +1383,30 @@ type pluginImpl struct {
 	plugin config.Plugin
 }
 
+func (impl *pluginImpl) OnStart(callback func() (OnStartResult, error)) {
+	impl.plugin.OnStart = append(impl.plugin.OnStart, config.OnStart{
+		Name: impl.plugin.Name,
+		Callback: func() (result config.OnStartResult) {
+			response, err := callback()
+
+			if err != nil {
+				result.ThrownError = err
+				return
+			}
+
+			// Convert log messages
+			if len(response.Errors)+len(response.Warnings) > 0 {
+				msgs := make(logger.SortableMsgs, 0, len(response.Errors)+len(response.Warnings))
+				msgs = convertMessagesToInternal(msgs, logger.Error, response.Errors)
+				msgs = convertMessagesToInternal(msgs, logger.Warning, response.Warnings)
+				sort.Stable(msgs)
+				result.Msgs = msgs
+			}
+			return
+		},
+	})
+}
+
 func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnResolve", options.Filter)
 	if filter == nil {
@@ -1525,6 +1549,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (result
 
 		item.Setup(PluginBuild{
 			InitialOptions: initialOptions,
+			OnStart:        impl.OnStart,
 			OnResolve:      impl.OnResolve,
 			OnLoad:         impl.OnLoad,
 		})

@@ -454,8 +454,19 @@ func PluginAppliesToPath(path logger.Path, filter *regexp.Regexp, namespace stri
 
 type Plugin struct {
 	Name      string
+	OnStart   []OnStart
 	OnResolve []OnResolve
 	OnLoad    []OnLoad
+}
+
+type OnStart struct {
+	Name     string
+	Callback func() OnStartResult
+}
+
+type OnStartResult struct {
+	Msgs        []logger.Msg
+	ThrownError error
 }
 
 type OnResolve struct {

@@ -623,6 +623,24 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 	goPlugins = append(goPlugins, api.Plugin{
 		Name: "JavaScript plugins",
 		Setup: func(build api.PluginBuild) {
+			build.OnStart(func() (api.OnStartResult, error) {
+				result := api.OnStartResult{}
+
+				response := service.sendRequest(map[string]interface{}{
+					"command": "start",
+					"key":     key,
+				}).(map[string]interface{})
+
+				if value, ok := response["errors"]; ok {
+					result.Errors = decodeMessages(value.([]interface{}))
+				}
+				if value, ok := response["warnings"]; ok {
+					result.Warnings = decodeMessages(value.([]interface{}))
+				}
+
+				return result, nil
+			})
+
 			build.OnResolve(api.OnResolveOptions{Filter: ".*"}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
 				var ids []interface{}
 				applyPath := logger.Path{Text: args.Path, Namespace: args.Namespace}

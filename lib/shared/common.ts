@@ -417,8 +417,8 @@ export interface StreamService {
 // for both sync and async code. There is an exception for plugin code because
 // that can't work in sync code anyway.
 export function createChannel(streamIn: StreamIn): StreamOut {
-  type PluginCallback = (request: protocol.OnResolveRequest | protocol.OnLoadRequest) =>
-    Promise<protocol.OnResolveResponse | protocol.OnLoadResponse>;
+  type PluginCallback = (request: protocol.OnStartRequest | protocol.OnResolveRequest | protocol.OnLoadRequest) =>
+    Promise<protocol.OnStartResponse | protocol.OnResolveResponse | protocol.OnLoadResponse>;
 
   type WatchCallback = (error: Error | null, response: any) => void;
 
@@ -509,6 +509,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
   type RequestType =
     | protocol.PingRequest
+    | protocol.OnStartRequest
     | protocol.OnResolveRequest
     | protocol.OnLoadRequest
     | protocol.OnRequestRequest
@@ -521,6 +522,13 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       switch (request.command) {
         case 'ping': {
           sendResponse(id, {});
+          break;
+        }
+
+        case 'start': {
+          let callback = pluginCallbacks.get(request.key);
+          if (!callback) sendResponse(id, {});
+          else sendResponse(id, await callback!(request) as any);
           break;
         }
 
@@ -608,6 +616,12 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     buildKey: number,
     stash: ObjectStash,
   ): Promise<[protocol.BuildPlugin[], Refs]> => {
+    let onStartCallbacks: {
+      name: string,
+      note: () => types.Note | undefined,
+      callback: () => (types.OnStartResult | null | undefined | Promise<types.OnStartResult | null | undefined>),
+    }[] = [];
+
     let onResolveCallbacks: {
       [id: number]: {
         name: string,
@@ -616,6 +630,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           (types.OnResolveResult | null | undefined | Promise<types.OnResolveResult | null | undefined>),
       },
     } = {};
+
     let onLoadCallbacks: {
       [id: number]: {
         name: string,
@@ -624,6 +639,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           (types.OnLoadResult | null | undefined | Promise<types.OnLoadResult | null | undefined>),
       },
     } = {};
+
     let nextCallbackID = 0;
     let i = 0;
     let requestPlugins: protocol.BuildPlugin[] = [];
@@ -650,6 +666,12 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
         let promise = setup({
           initialOptions,
+
+          onStart(callback) {
+            let registeredText = `This error came from the "onStart" callback registered here`
+            let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onStart');
+            onStartCallbacks.push({ name: name!, callback, note: registeredNote });
+          },
 
           onResolve(options, callback) {
             let registeredText = `This error came from the "onResolve" callback registered here`
@@ -697,6 +719,31 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
     const callback: PluginCallback = async (request) => {
       switch (request.command) {
+        case 'start': {
+          let response: protocol.OnStartResponse = { errors: [], warnings: [] };
+          await Promise.all(onStartCallbacks.map(async ({ name, callback, note }) => {
+            try {
+              let result = await callback();
+
+              if (result != null) {
+                if (typeof result !== 'object') throw new Error(`Expected onStart() callback in plugin ${JSON.stringify(name)} to return an object`);
+                let keys: OptionKeys = {};
+                let errors = getFlag(result, keys, 'errors', mustBeArray);
+                let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+                checkForInvalidFlags(result, keys, `from onStart() callback in plugin ${JSON.stringify(name)}`);
+
+                if (errors != null) response.errors!.push(...sanitizeMessages(errors, 'errors', stash, name));
+                if (warnings != null) response.warnings!.push(...sanitizeMessages(warnings, 'warnings', stash, name));
+              }
+            } catch (e) {
+              let message = extractErrorMessageV8(e, streamIn, stash, note && note());
+              message.pluginName = name;
+              response.errors!.push(message);
+            }
+          }))
+          return response;
+        }
+
         case 'resolve': {
           let response: protocol.OnResolveResponse = {}, name, callback, note;
           for (let id of request.ids) {
@@ -731,8 +778,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (namespace != null) response.namespace = namespace;
                 if (external != null) response.external = external;
                 if (pluginData != null) response.pluginData = stash.store(pluginData);
-                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash);
-                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash);
+                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash, name);
+                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash, name);
                 if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
                 if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
                 break;
@@ -776,8 +823,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (resolveDir != null) response.resolveDir = resolveDir;
                 if (pluginData != null) response.pluginData = stash.store(pluginData);
                 if (loader != null) response.loader = loader;
-                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash);
-                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash);
+                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash, name);
+                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash, name);
                 if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
                 if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
                 break;
@@ -1157,7 +1204,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
   };
 
   let formatMessages: StreamService['formatMessages'] = ({ callName, refs, messages, options, callback }) => {
-    let result = sanitizeMessages(messages, 'messages', null);
+    let result = sanitizeMessages(messages, 'messages', null, '');
     if (!options) throw new Error(`Missing second argument in ${callName}() call`);
     let keys: OptionKeys = {};
     let kind = getFlag(options, keys, 'kind', mustBeString);
@@ -1360,7 +1407,7 @@ function sanitizeLocation(location: types.PartialMessage['location'], where: str
   };
 }
 
-function sanitizeMessages(messages: types.PartialMessage[], property: string, stash: ObjectStash | null): types.Message[] {
+function sanitizeMessages(messages: types.PartialMessage[], property: string, stash: ObjectStash | null, fallbackPluginName: string): types.Message[] {
   let messagesClone: types.Message[] = [];
   let index = 0;
 
@@ -1389,7 +1436,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
     }
 
     messagesClone.push({
-      pluginName: pluginName || '',
+      pluginName: pluginName || fallbackPluginName,
       text: text || '',
       location: sanitizeLocation(location, where),
       notes: notesClone,
