@@ -1,7 +1,7 @@
 ESBUILD_VERSION = $(shell cat version.txt)
 
 esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
-	go build "-ldflags=-s -w" ./cmd/esbuild
+	CGO_ENABLED=0 go build "-ldflags=-s -w" ./cmd/esbuild
 
 test:
 	make -j6 test-common
