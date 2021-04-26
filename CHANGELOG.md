@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased
+
+* Fix TypeScript `enum` edge case ([#1198](https://github.com/evanw/esbuild/issues/1198))
+
+    In TypeScript, you can reference the inner closure variable in an `enum` within the inner closure by name:
+
+    ```ts
+    enum A { B = A }
+    ```
+
+    The TypeScript compiler generates the following code for this case:
+
+    ```ts
+    var A;
+    (function (A) {
+      A[A["B"] = A] = "B";
+    })(A || (A = {}));
+    ```
+
+    However, TypeScript also lets you declare an `enum` value with the same name as the inner closure variable. In that case, the value "shadows" the declaration of the inner closure variable:
+
+    ```ts
+    enum A { A = 1, B = A }
+    ```
+
+    The TypeScript compiler generates the following code for this case:
+
+    ```ts
+    var A;
+    (function (A) {
+      A[A["A"] = 1] = "A";
+      A[A["B"] = 1] = "B";
+    })(A || (A = {}));
+    ```
+
+    Previously esbuild reported a duplicate variable declaration error in the second case due to the collision between the `enum` value and the inner closure variable with the same name. With this release, the shadowing is now handled correctly.
+
 ## 0.11.15
 
 * Provide options for how to handle legal comments ([#919](https://github.com/evanw/esbuild/issues/919))

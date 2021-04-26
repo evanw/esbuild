@@ -1011,6 +1011,24 @@ var Bar;
 x = [0, Foo?.A, Foo?.A()];
 y = [0, Foo?.["A"], Foo?.["A"]()];
 `)
+
+	// Check shadowing
+	expectPrintedTS(t, "enum Foo { Foo }", `var Foo;
+(function(_Foo) {
+  _Foo[_Foo["Foo"] = 0] = "Foo";
+})(Foo || (Foo = {}));
+`)
+	expectPrintedTS(t, "enum Foo { Bar = Foo }", `var Foo;
+(function(Foo) {
+  Foo[Foo["Bar"] = Foo] = "Bar";
+})(Foo || (Foo = {}));
+`)
+	expectPrintedTS(t, "enum Foo { Foo = 1, Bar = Foo }", `var Foo;
+(function(_Foo) {
+  _Foo[_Foo["Foo"] = 1] = "Foo";
+  _Foo[_Foo["Bar"] = 1] = "Bar";
+})(Foo || (Foo = {}));
+`)
 }
 
 func TestTSEnumConstantFolding(t *testing.T) {

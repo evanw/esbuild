@@ -820,7 +820,6 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	if !opts.isTypeScriptDeclare {
 		name.Ref = p.declareSymbol(js_ast.SymbolTSEnum, nameLoc, nameText)
 		p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
-		argRef = p.declareSymbol(js_ast.SymbolHoisted, nameLoc, nameText)
 	}
 	p.lexer.Expect(js_lexer.TOpenBrace)
 
@@ -863,6 +862,45 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	}
 
 	if !opts.isTypeScriptDeclare {
+		// Avoid a collision with the enum closure argument variable if the
+		// enum exports a symbol with the same name as the enum itself:
+		//
+		//   enum foo {
+		//     foo = 123,
+		//     bar = foo,
+		//   }
+		//
+		// TypeScript generates the following code in this case:
+		//
+		//   var foo;
+		//   (function (foo) {
+		//     foo[foo["foo"] = 123] = "foo";
+		//     foo[foo["bar"] = 123] = "bar";
+		//   })(foo || (foo = {}));
+		//
+		// Whereas in this case:
+		//
+		//   enum foo {
+		//     bar = foo as any,
+		//   }
+		//
+		// TypeScript generates the following code:
+		//
+		//   var foo;
+		//   (function (foo) {
+		//     foo[foo["bar"] = foo] = "bar";
+		//   })(foo || (foo = {}));
+		//
+		if _, ok := p.currentScope.Members[nameText]; ok {
+			// Add a "_" to make tests easier to read, since non-bundler tests don't
+			// run the renamer. For external-facing things the renamer will avoid
+			// collisions automatically so this isn't important for correctness.
+			argRef = p.newSymbol(js_ast.SymbolHoisted, "_"+nameText)
+			p.currentScope.Generated = append(p.currentScope.Generated, argRef)
+		} else {
+			argRef = p.declareSymbol(js_ast.SymbolHoisted, nameLoc, nameText)
+		}
+
 		p.popScope()
 	}
 
