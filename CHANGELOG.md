@@ -16,9 +16,9 @@
 
     The default behavior is `eof` when bundling and `inline` otherwise.
 
-* Add `onStart` callbacks to the plugin API
+* Add `onStart` and `onEnd` callbacks to the plugin API
 
-    Plugins can now register a callback to run when a build is started:
+    Plugins can now register callbacks to run when a build is started and ended:
 
     ```js
     const result = await esbuild.build({
@@ -27,20 +27,29 @@
       plugins: [{
         name: 'example',
         setup(build) {
-          build.onStart(() => {
-            console.log('rebuild started')
-          })
+          build.onStart(() => console.log('build started'))
+          build.onEnd(result => console.log('build ended', result))
         },
       }],
     })
     await result.rebuild()
     ```
 
-    You can put plugin initialization code directly inside the `setup` function, so `onStart` is not for initialization. The benefit of `onStart` is that it's run for all builds including rebuilds (relevant for incremental mode, watch mode, or serve mode). Registering an `onStart` callback lets you be notified every time a rebuild operation begins.
+    One benefit of `onStart` and `onEnd` is that they are run for all builds including rebuilds (relevant for incremental mode, watch mode, or serve mode), so they should be a good place to do work related to the build lifecycle.
 
-    These callbacks can be `async` and can return a promise. However, the build does not wait for the promise to be resolved before starting, so a slow `onStart` callback will not necessarily slow down the build. The returned promise is purely for error reporting, and matters when the `onStart` callback needs to do an asynchronous operation that may fail. If your plugin needs to wait for an asynchronous task in `onStart` to complete before any `onResolve` or `onLoad` callbacks are run, you will need to have your `onResolve` or `onLoad` callbacks block on that task from `onStart`.
+    More details:
 
-    Note that `onStart` callbacks do not have the ability to mutate `build.initialOptions`. The initial options can only be modified within the `setup` function and are consumed once the `setup` function returns. All rebuilds use the same initial options so the initial options are never re-consumed, and modifications to `build.initialOptions` that are done within `onStart` are ignored.
+    * `build.onStart()`
+
+        You should not use an `onStart` callback for initialization since it can be run multiple times. If you want to initialize something, just put your plugin initialization code directly inside the `setup` function instead.
+
+        The `onStart` callback can be `async` and can return a promise. However, the build does not wait for the promise to be resolved before starting, so a slow `onStart` callback will not necessarily slow down the build. All `onStart` callbacks are also run concurrently, not consecutively. The returned promise is purely for error reporting, and matters when the `onStart` callback needs to do an asynchronous operation that may fail. If your plugin needs to wait for an asynchronous task in `onStart` to complete before any `onResolve` or `onLoad` callbacks are run, you will need to have your `onResolve` or `onLoad` callbacks block on that task from `onStart`.
+
+        Note that `onStart` callbacks do not have the ability to mutate `build.initialOptions`. The initial options can only be modified within the `setup` function and are consumed once the `setup` function returns. All rebuilds use the same initial options so the initial options are never re-consumed, and modifications to `build.initialOptions` that are done within `onStart` are ignored.
+
+    * `build.onEnd()`
+
+        All `onEnd` callbacks are run in serial and each callback is given access to the final build result. It can modify the build result before returning and can delay the end of the build by returning a promise. If you want to be able to inspect the build graph, you should set `build.initialOptions.metafile = true` and the build graph will be returned as the `metafile` property on the build result object.
 
 ## 0.11.14
 

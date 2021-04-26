@@ -2221,6 +2221,87 @@ let syncTests = {
     }, 500))
     await result.rebuild()
     assert.strictEqual(onStartTimes, 4)
+    valueToReturn = null
+
+    result.rebuild.dispose()
+  },
+
+  async onEndCallback({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    await writeFileAsync(input, ``)
+
+    let onEndTimes = 0
+    let errorToThrow = null
+    let valueToReturn = null
+    let mutateFn = null
+
+    const result = await esbuild.build({
+      entryPoints: [input],
+      write: false,
+      logLevel: 'silent',
+      incremental: true,
+      plugins: [
+        {
+          name: 'some-plugin',
+          setup(build) {
+            build.onEnd(result => {
+              if (errorToThrow) throw errorToThrow
+              if (valueToReturn) return valueToReturn
+              if (mutateFn) mutateFn(result)
+              onEndTimes++
+            })
+          },
+        },
+      ],
+    })
+    assert.strictEqual(onEndTimes, 1)
+
+    await result.rebuild()
+    assert.strictEqual(onEndTimes, 2)
+
+    await result.rebuild()
+    assert.strictEqual(onEndTimes, 3)
+
+    errorToThrow = new Error('throw test')
+    try {
+      await result.rebuild()
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.notStrictEqual(e.errors, void 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].pluginName, 'some-plugin')
+      assert.strictEqual(e.errors[0].text, 'throw test')
+    } finally {
+      errorToThrow = null
+    }
+
+    assert.strictEqual(onEndTimes, 3)
+    valueToReturn = new Promise(resolve => setTimeout(() => {
+      onEndTimes++
+      resolve()
+    }, 500))
+    await result.rebuild()
+    assert.strictEqual(onEndTimes, 4)
+    valueToReturn = null
+
+    mutateFn = result => result.warnings.push(true)
+    const result2 = await result.rebuild()
+    assert.deepStrictEqual(result2.warnings, [true])
+    mutateFn = () => { }
+    const result3 = await result.rebuild()
+    assert.deepStrictEqual(result3.warnings, [])
+
+    mutateFn = result => result.errors.push({ text: 'test failure' })
+    try {
+      await result.rebuild()
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.notStrictEqual(e.errors, void 0)
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].pluginName, void 0)
+      assert.strictEqual(e.errors[0].text, 'test failure')
+      assert.strictEqual(e.errors[0].location, void 0)
+    }
 
     result.rebuild.dispose()
   },

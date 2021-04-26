@@ -424,6 +424,7 @@ type Plugin struct {
 type PluginBuild struct {
 	InitialOptions *BuildOptions
 	OnStart        func(callback func() (OnStartResult, error))
+	OnEnd          func(callback func(result *BuildResult))
 	OnResolve      func(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
 	OnLoad         func(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
 }

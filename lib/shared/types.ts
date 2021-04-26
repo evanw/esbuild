@@ -120,6 +120,7 @@ export interface BuildIncremental extends BuildResult {
 }
 
 export interface BuildResult {
+  errors: Message[];
   warnings: Message[];
   outputFiles?: OutputFile[]; // Only when "write: false"
   rebuild?: BuildInvalidate; // Only when "incremental: true"
@@ -190,6 +191,8 @@ export interface PluginBuild {
   initialOptions: BuildOptions;
   onStart(callback: () =>
     (OnStartResult | null | undefined | Promise<OnStartResult | null | undefined>)): void;
+  onEnd(callback: (result: BuildResult) =>
+    (undefined | Promise<undefined>)): void;
   onResolve(options: OnResolveOptions, callback: (args: OnResolveArgs) =>
     (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): void;
   onLoad(options: OnLoadOptions, callback: (args: OnLoadArgs) =>

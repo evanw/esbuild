@@ -712,12 +712,12 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 	// directory doesn't change, since breaking that invariant would break the
 	// validation that we just did above.
 	oldAbsWorkingDir := buildOpts.AbsWorkingDir
-	plugins := loadPlugins(&buildOpts, realFS, log)
+	plugins, onEndCallbacks := loadPlugins(&buildOpts, realFS, log)
 	if buildOpts.AbsWorkingDir != oldAbsWorkingDir {
 		panic("Mutating \"AbsWorkingDir\" is not allowed")
 	}
 
-	internalResult := rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, logOptions, log, false /* isRebuild */)
+	internalResult := rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, onEndCallbacks, logOptions, log, false /* isRebuild */)
 
 	// Print a summary of the generated files to stderr. Except don't do
 	// this if the terminal is already being used for something else.
@@ -780,6 +780,7 @@ func rebuildImpl(
 	buildOpts BuildOptions,
 	caches *cache.CacheSet,
 	plugins []config.Plugin,
+	onEndCallbacks []func(*BuildResult),
 	logOptions logger.OutputOptions,
 	log logger.Log,
 	isRebuild bool,
@@ -1035,7 +1036,7 @@ func rebuildImpl(
 			data:     watchData,
 			resolver: resolver,
 			rebuild: func() fs.WatchData {
-				value := rebuildImpl(buildOpts, caches, plugins, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
+				value := rebuildImpl(buildOpts, caches, plugins, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
 				if onRebuild != nil {
 					go onRebuild(value.result)
 				}
@@ -1052,7 +1053,7 @@ func rebuildImpl(
 	var rebuild func() BuildResult
 	if buildOpts.Incremental {
 		rebuild = func() BuildResult {
-			value := rebuildImpl(buildOpts, caches, plugins, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
+			value := rebuildImpl(buildOpts, caches, plugins, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
 			if watch != nil {
 				watch.setWatchData(value.watchData)
 			}
@@ -1068,6 +1069,11 @@ func rebuildImpl(
 		Rebuild:     rebuild,
 		Stop:        stop,
 	}
+
+	for _, onEnd := range onEndCallbacks {
+		onEnd(&result)
+	}
+
 	return internalBuildResult{
 		result:    result,
 		options:   options,
@@ -1531,7 +1537,11 @@ func (impl *pluginImpl) validatePathsArray(pathsIn []string, name string) (paths
 	return
 }
 
-func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (results []config.Plugin) {
+func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (plugins []config.Plugin, onEndCallbacks []func(*BuildResult)) {
+	onEnd := func(callback func(*BuildResult)) {
+		onEndCallbacks = append(onEndCallbacks, callback)
+	}
+
 	// Clone the plugin array to guard against mutation during iteration
 	clone := append(make([]Plugin, 0, len(initialOptions.Plugins)), initialOptions.Plugins...)
 
@@ -1550,11 +1560,12 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (result
 		item.Setup(PluginBuild{
 			InitialOptions: initialOptions,
 			OnStart:        impl.OnStart,
+			OnEnd:          onEnd,
 			OnResolve:      impl.OnResolve,
 			OnLoad:         impl.OnLoad,
 		})
 
-		results = append(results, impl.plugin)
+		plugins = append(plugins, impl.plugin)
 	}
 	return
 }
