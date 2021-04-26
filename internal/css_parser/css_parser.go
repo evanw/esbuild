@@ -361,7 +361,16 @@ var specialAtRules = map[string]atRuleKind{
 	"viewport":     atRuleDeclarations,
 	"-ms-viewport": atRuleDeclarations,
 
-	"document": atRuleInheritContext,
+	// This feature has been removed from the web because it's actively harmful.
+	// However, there is one exception where "@-moz-document url-prefix() {" is
+	// accepted by Firefox to basically be an "if Firefox" conditional rule.
+	//
+	//   Documentation: https://developer.mozilla.org/en-US/docs/Web/CSS/@document
+	//   Discussion: https://bugzilla.mozilla.org/show_bug.cgi?id=1035091
+	//
+	"document":      atRuleInheritContext,
+	"-moz-document": atRuleInheritContext,
+
 	"media":    atRuleInheritContext,
 	"scope":    atRuleInheritContext,
 	"supports": atRuleInheritContext,

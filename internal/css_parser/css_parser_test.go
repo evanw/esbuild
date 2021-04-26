@@ -688,6 +688,14 @@ func TestAtRule(t *testing.T) {
 	expectParseError(t, "@;", "<stdin>: warning: Unexpected \"@\"\n")
 	expectParseError(t, "@{}", "<stdin>: warning: Unexpected \"@\"\n")
 
+	expectPrinted(t, "@viewport { width: 100vw }", "@viewport {\n  width: 100vw;\n}\n")
+	expectPrinted(t, "@-ms-viewport { width: 100vw }", "@-ms-viewport {\n  width: 100vw;\n}\n")
+
+	expectPrinted(t, "@document url(\"https://www.example.com/\") { h1 { color: green } }",
+		"@document url(https://www.example.com/) {\n  h1 {\n    color: green;\n  }\n}\n")
+	expectPrinted(t, "@-moz-document url-prefix() { h1 { color: green } }",
+		"@-moz-document url-prefix() {\n  h1 {\n    color: green;\n  }\n}\n")
+
 	// https://www.w3.org/TR/css-page-3/#syntax-page-selector
 	expectPrinted(t, `
 		@page :first { margin: 0 }
