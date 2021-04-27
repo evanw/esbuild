@@ -646,6 +646,10 @@ func TestSelector(t *testing.T) {
 	expectParseError(t, "#-0 {}", "<stdin>: warning: Unexpected \"#-0\"\n")
 	expectParseError(t, "div#0 {}", "<stdin>: warning: Unexpected \"#0\"\n")
 	expectParseError(t, "div#-0 {}", "<stdin>: warning: Unexpected \"#-0\"\n")
+
+	// Make sure '-' and '\\' consume an ident-like token instead of a name
+	expectParseError(t, "_:-ms-lang(x) {}", "")
+	expectParseError(t, "_:\\ms-lang(x) {}", "")
 }
 
 func TestNestedSelector(t *testing.T) {

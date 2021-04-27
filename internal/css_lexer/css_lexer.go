@@ -307,8 +307,7 @@ func (lexer *lexer) next() {
 				lexer.step()
 				lexer.Token.Kind = TCDC
 			} else if lexer.wouldStartIdentifier() {
-				lexer.consumeName()
-				lexer.Token.Kind = TIdent
+				lexer.Token.Kind = lexer.consumeIdentLike()
 			} else {
 				lexer.step()
 				lexer.Token.Kind = TDelim
