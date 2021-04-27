@@ -3,6 +3,7 @@ package js_parser
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 )
 
@@ -12,6 +13,18 @@ func expectParseErrorTS(t *testing.T, contents string, expected string) {
 		TS: config.TSOptions{
 			Parse: true,
 		},
+	})
+}
+
+func expectParseErrorTargetTS(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
 	})
 }
 
@@ -1303,6 +1316,10 @@ func TestTSArrow(t *testing.T) {
 
 	expectPrintedTS(t, "let x: () => {} | ({y: z});", "let x;\n")
 	expectPrintedTS(t, "function x(): ({y: z}) {}", "function x() {\n}\n")
+
+	expectParseErrorTargetTS(t, 5, "return check ? (hover = 2, bar) : baz()", "")
+	expectParseErrorTargetTS(t, 5, "return check ? (hover = 2, bar) => 0 : baz()",
+		"<stdin>: error: Transforming default arguments to the configured target environment is not supported yet\n")
 }
 
 func TestTSCall(t *testing.T) {

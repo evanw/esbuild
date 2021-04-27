@@ -2421,7 +2421,7 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 			p.lexer.Unexpected()
 		}
 
-		invalidLog := []logger.Loc{}
+		var invalidLog invalidLog
 		args := []js_ast.Arg{}
 
 		if opts.isAsync {
@@ -2445,7 +2445,7 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 		// attempt to convert the expressions to bindings first before deciding
 		// whether this is an arrow function, and only pick an arrow function if
 		// there were no conversion errors.
-		if p.lexer.Token == js_lexer.TEqualsGreaterThan || (len(invalidLog) == 0 &&
+		if p.lexer.Token == js_lexer.TEqualsGreaterThan || (len(invalidLog.invalidTokens) == 0 &&
 			p.trySkipTypeScriptArrowReturnTypeWithBacktracking()) || opts.forceArrowFn {
 			if commaAfterSpread.Start != 0 {
 				p.log.AddRangeError(&p.source, logger.Range{Loc: commaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
@@ -2454,11 +2454,16 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 
 			// Now that we've decided we're an arrow function, report binding pattern
 			// conversion errors
-			if len(invalidLog) > 0 {
-				for _, loc := range invalidLog {
-					p.log.AddError(&p.source, loc, "Invalid binding pattern")
+			if len(invalidLog.invalidTokens) > 0 {
+				for _, token := range invalidLog.invalidTokens {
+					p.log.AddRangeError(&p.source, token, "Invalid binding pattern")
 				}
 				panic(js_lexer.LexerPanic{})
+			}
+
+			// Also report syntax features used in bindings
+			for _, entry := range invalidLog.syntaxFeatures {
+				p.markSyntaxFeature(entry.feature, entry.token)
 			}
 
 			await := allowIdent
@@ -2512,7 +2517,17 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 	return js_ast.Expr{}
 }
 
-func (p *parser) convertExprToBindingAndInitializer(expr js_ast.Expr, invalidLog []logger.Loc, isSpread bool) (js_ast.Binding, *js_ast.Expr, []logger.Loc) {
+type invalidLog struct {
+	invalidTokens  []logger.Range
+	syntaxFeatures []syntaxFeature
+}
+
+type syntaxFeature struct {
+	feature compat.JSFeature
+	token   logger.Range
+}
+
+func (p *parser) convertExprToBindingAndInitializer(expr js_ast.Expr, invalidLog invalidLog, isSpread bool) (js_ast.Binding, *js_ast.Expr, invalidLog) {
 	var initializer *js_ast.Expr
 	if assign, ok := expr.Data.(*js_ast.EBinary); ok && assign.Op == js_ast.BinOpAssign {
 		initializer = &assign.Right
@@ -2524,7 +2539,10 @@ func (p *parser) convertExprToBindingAndInitializer(expr js_ast.Expr, invalidLog
 		if isSpread {
 			p.log.AddRangeError(&p.source, equalsRange, "A rest argument cannot have a default initializer")
 		} else {
-			p.markSyntaxFeature(compat.DefaultArgument, equalsRange)
+			invalidLog.syntaxFeatures = append(invalidLog.syntaxFeatures, syntaxFeature{
+				feature: compat.DefaultArgument,
+				token:   equalsRange,
+			})
 		}
 	}
 	return binding, initializer, invalidLog
@@ -2534,7 +2552,7 @@ func (p *parser) convertExprToBindingAndInitializer(expr js_ast.Expr, invalidLog
 // from expression to binding should be written to "invalidLog" instead. That
 // way we can potentially keep this as an expression if it turns out it's not
 // needed as a binding after all.
-func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc) (js_ast.Binding, []logger.Loc) {
+func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (js_ast.Binding, invalidLog) {
 	switch e := expr.Data.(type) {
 	case *js_ast.EMissing:
 		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BMissing{}}, invalidLog
@@ -2544,10 +2562,10 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 
 	case *js_ast.EArray:
 		if e.CommaAfterSpread.Start != 0 {
-			invalidLog = append(invalidLog, e.CommaAfterSpread)
+			invalidLog.invalidTokens = append(invalidLog.invalidTokens, logger.Range{Loc: e.CommaAfterSpread, Len: 1})
 		}
 		if e.IsParenthesized {
-			invalidLog = append(invalidLog, p.source.RangeOfOperatorBefore(expr.Loc, "(").Loc)
+			invalidLog.invalidTokens = append(invalidLog.invalidTokens, p.source.RangeOfOperatorBefore(expr.Loc, "("))
 		}
 		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "["))
 		items := []js_ast.ArrayBinding{}
@@ -2572,16 +2590,16 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 
 	case *js_ast.EObject:
 		if e.CommaAfterSpread.Start != 0 {
-			invalidLog = append(invalidLog, e.CommaAfterSpread)
+			invalidLog.invalidTokens = append(invalidLog.invalidTokens, logger.Range{Loc: e.CommaAfterSpread, Len: 1})
 		}
 		if e.IsParenthesized {
-			invalidLog = append(invalidLog, p.source.RangeOfOperatorBefore(expr.Loc, "(").Loc)
+			invalidLog.invalidTokens = append(invalidLog.invalidTokens, p.source.RangeOfOperatorBefore(expr.Loc, "("))
 		}
 		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "{"))
 		properties := []js_ast.PropertyBinding{}
 		for _, item := range e.Properties {
 			if item.IsMethod || item.Kind == js_ast.PropertyGet || item.Kind == js_ast.PropertySet {
-				invalidLog = append(invalidLog, item.Key.Loc)
+				invalidLog.invalidTokens = append(invalidLog.invalidTokens, js_lexer.RangeOfIdentifier(p.source, item.Key.Loc))
 				continue
 			}
 			binding, initializer, log := p.convertExprToBindingAndInitializer(*item.Value, invalidLog, false)
@@ -2603,7 +2621,7 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 		}}, invalidLog
 
 	default:
-		invalidLog = append(invalidLog, expr.Loc)
+		invalidLog.invalidTokens = append(invalidLog.invalidTokens, logger.Range{Loc: expr.Loc})
 		return js_ast.Binding{}, invalidLog
 	}
 }

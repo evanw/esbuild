@@ -1328,8 +1328,8 @@ func (p *parser) lowerPrivateInAssign(expr js_ast.Expr) (js_ast.Expr, bool) {
 
 func (p *parser) lowerObjectRestToDecls(rootExpr js_ast.Expr, rootInit js_ast.Expr, decls []js_ast.Decl) ([]js_ast.Decl, bool) {
 	assign := func(left js_ast.Expr, right js_ast.Expr) {
-		binding, log := p.convertExprToBinding(left, nil)
-		if len(log) > 0 {
+		binding, invalidLog := p.convertExprToBinding(left, invalidLog{})
+		if len(invalidLog.invalidTokens) > 0 {
 			panic("Internal error")
 		}
 		decls = append(decls, js_ast.Decl{Binding: binding, Value: &right})
