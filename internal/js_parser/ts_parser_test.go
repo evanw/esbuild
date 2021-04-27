@@ -4,108 +4,47 @@ import (
 	"testing"
 
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/js_ast"
-	"github.com/evanw/esbuild/internal/js_printer"
-	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/renamer"
-	"github.com/evanw/esbuild/internal/test"
 )
 
 func expectParseErrorTS(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
-			TS: config.TSOptions{
-				Parse: true,
-			},
-		}))
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, expected)
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
 	})
 }
 
 func expectPrintedTS(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
-			TS: config.TSOptions{
-				Parse: true,
-			},
-		}))
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.SymbolsForSource[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.Options{}).JS
-		test.AssertEqual(t, string(js), expected)
+	expectPrintedCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
 	})
 }
 
 func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
-			TS: config.TSOptions{
-				Parse: true,
-			},
-			JSX: config.JSXOptions{
-				Parse: true,
-			},
-		}))
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, expected)
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
 	})
 }
 
 func expectPrintedTSX(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
-			TS: config.TSOptions{
-				Parse: true,
-			},
-			JSX: config.JSXOptions{
-				Parse: true,
-			},
-		}))
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.SymbolsForSource[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.Options{}).JS
-		test.AssertEqual(t, string(js), expected)
+	expectPrintedCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
 	})
 }
 
