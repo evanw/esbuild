@@ -476,37 +476,32 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 				// definition but we don't want to consider the primary path as not
 				// having side effects just because the secondary path is marked as
 				// not having side effects.
-				if *path == result.PathPair.Primary {
-					for info := dirInfo; info != nil; info = info.parent {
-						if info.packageJSON != nil {
-							if info.packageJSON.sideEffectsMap != nil {
-								hasSideEffects := false
-								if info.packageJSON.sideEffectsMap[path.Text] {
-									// Fast path: map lookup
+				if pkgJSON := dirInfo.enclosingPackageJSON; pkgJSON != nil && *path == result.PathPair.Primary {
+					if pkgJSON.sideEffectsMap != nil {
+						hasSideEffects := false
+						if pkgJSON.sideEffectsMap[path.Text] {
+							// Fast path: map lookup
+							hasSideEffects = true
+						} else {
+							// Slow path: glob tests
+							for _, re := range pkgJSON.sideEffectsRegexps {
+								if re.MatchString(path.Text) {
 									hasSideEffects = true
-								} else {
-									// Slow path: glob tests
-									for _, re := range info.packageJSON.sideEffectsRegexps {
-										if re.MatchString(path.Text) {
-											hasSideEffects = true
-											break
-										}
-									}
-								}
-								if !hasSideEffects {
-									if r.debugLogs != nil {
-										r.debugLogs.addNote(fmt.Sprintf("Marking this file as having no side effects due to %q",
-											info.packageJSON.source.KeyPath.Text))
-									}
-									result.PrimarySideEffectsData = info.packageJSON.sideEffectsData
+									break
 								}
 							}
-
-							// Also copy over the "type" field
-							result.ModuleType = info.packageJSON.moduleType
-							break
+						}
+						if !hasSideEffects {
+							if r.debugLogs != nil {
+								r.debugLogs.addNote(fmt.Sprintf("Marking this file as having no side effects due to %q",
+									pkgJSON.source.KeyPath.Text))
+							}
+							result.PrimarySideEffectsData = pkgJSON.sideEffectsData
 						}
 					}
+
+					// Also copy over the "type" field
+					result.ModuleType = pkgJSON.moduleType
 				}
 
 				// Copy various fields from the nearest enclosing "tsconfig.json" file if present
@@ -780,7 +775,8 @@ type dirInfo struct {
 	absPath               string
 	entries               fs.DirEntries
 	hasNodeModules        bool          // Is there a "node_modules" subdirectory?
-	packageJSON           *packageJSON  // Is there a "package.json" file?
+	packageJSON           *packageJSON  // Is there a "package.json" file in this directory?
+	enclosingPackageJSON  *packageJSON  // Is there a "package.json" file in this directory or a parent directory?
 	enclosingTSConfigJSON *TSConfigJSON // Is there a "tsconfig.json" file in this directory or a parent directory?
 	absRealPath           string        // If non-empty, this is the real absolute path resolving any symlinks
 }
@@ -992,7 +988,9 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 
 	// Propagate the browser scope into child directories
 	if parentInfo != nil {
+		info.enclosingPackageJSON = parentInfo.enclosingPackageJSON
 		info.enclosingBrowserScope = parentInfo.enclosingBrowserScope
+		info.enclosingTSConfigJSON = parentInfo.enclosingTSConfigJSON
 
 		// Make sure "absRealPath" is the real path of the directory (resolving any symlinks)
 		if !r.options.PreserveSymlinks {
@@ -1017,9 +1015,12 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	if entry, _ := entries.Get("package.json"); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 		info.packageJSON = r.parsePackageJSON(path)
 
-		// Propagate this browser scope into child directories
-		if info.packageJSON != nil && info.packageJSON.browserMap != nil {
-			info.enclosingBrowserScope = info
+		// Propagate this "package.json" file into child directories
+		if info.packageJSON != nil {
+			info.enclosingPackageJSON = info.packageJSON
+			if info.packageJSON.browserMap != nil {
+				info.enclosingBrowserScope = info
+			}
 		}
 	}
 
@@ -1050,11 +1051,6 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 				}
 			}
 		}
-	}
-
-	// Propagate the enclosing tsconfig.json from the parent directory
-	if info.enclosingTSConfigJSON == nil && parentInfo != nil {
-		info.enclosingTSConfigJSON = parentInfo.enclosingTSConfigJSON
 	}
 
 	return info
