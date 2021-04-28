@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.16
 
 * Fix TypeScript `enum` edge case ([#1198](https://github.com/evanw/esbuild/issues/1198))
 
