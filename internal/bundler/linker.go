@@ -3828,6 +3828,18 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	}
 	timer.End("Compute reserved names")
 
+	// Make sure imports get a chance to be renamed too
+	var sortedImportsFromOtherChunks renamer.StableRefArray
+	for _, imports := range chunk.chunkRepr.(*chunkReprJS).importsFromOtherChunks {
+		for _, item := range imports {
+			sortedImportsFromOtherChunks = append(sortedImportsFromOtherChunks, renamer.StableRef{
+				StableSourceIndex: c.graph.StableSourceIndices[item.ref.SourceIndex],
+				Ref:               item.ref,
+			})
+		}
+	}
+	sort.Sort(sortedImportsFromOtherChunks)
+
 	// Minification uses frequency analysis to give shorter names to more frequent symbols
 	if c.options.MinifyIdentifiers {
 		// Determine the first top-level slot (i.e. not in a nested scope)
@@ -3840,6 +3852,9 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		// Accumulate symbol usage counts into their slots
 		timer.Begin("Accumulate symbol counts")
 		freq := js_ast.CharFreq{}
+		for _, stable := range sortedImportsFromOtherChunks {
+			r.AccumulateSymbolCount(stable.Ref, 1)
+		}
 		for _, sourceIndex := range filesInOrder {
 			repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr)
 			if repr.AST.CharFreq != nil {
@@ -3886,22 +3901,10 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	r := renamer.NewNumberRenamer(c.graph.Symbols, reservedNames)
 	nestedScopes := make(map[uint32][]*js_ast.Scope)
 
-	// Make sure imports get a chance to be renamed
 	timer.Begin("Add top-level symbols")
-	var sorted renamer.StableRefArray
-	for _, imports := range chunk.chunkRepr.(*chunkReprJS).importsFromOtherChunks {
-		for _, item := range imports {
-			sorted = append(sorted, renamer.StableRef{
-				StableSourceIndex: c.graph.StableSourceIndices[item.ref.SourceIndex],
-				Ref:               item.ref,
-			})
-		}
-	}
-	sort.Sort(sorted)
-	for _, stable := range sorted {
+	for _, stable := range sortedImportsFromOtherChunks {
 		r.AddTopLevelSymbol(stable.Ref)
 	}
-
 	for _, sourceIndex := range filesInOrder {
 		repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr)
 		var scopes []*js_ast.Scope

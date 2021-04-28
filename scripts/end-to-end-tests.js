@@ -3784,6 +3784,38 @@
         import './out/parent.js'
       `,
     }),
+
+    // Code splitting with an entry point that exports two different
+    // symbols with the same original name (minified and not minified)
+    // https://github.com/evanw/esbuild/issues/1201
+    test(['entry1.js', 'entry2.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
+      'test1.js': `export const sameName = { test: 1 }`,
+      'test2.js': `export const sameName = { test: 2 }`,
+      'entry1.js': `
+        export { sameName } from './test1.js'
+        export { sameName as renameVar } from './test2.js'
+      `,
+      'entry2.js': `export * from './entry1.js'`,
+      'node.js': `
+        import { sameName as a, renameVar as b } from './out/entry1.js'
+        import { sameName as c, renameVar as d } from './out/entry2.js'
+        if (a.test !== 1 || b.test !== 2 || c.test !== 1 || d.test !== 2) throw 'fail'
+      `,
+    }),
+    test(['entry1.js', 'entry2.js', '--outdir=out', '--splitting', '--format=esm', '--bundle', '--minify'], {
+      'test1.js': `export const sameName = { test: 1 }`,
+      'test2.js': `export const sameName = { test: 2 }`,
+      'entry1.js': `
+        export { sameName } from './test1.js'
+        export { sameName as renameVar } from './test2.js'
+      `,
+      'entry2.js': `export * from './entry1.js'`,
+      'node.js': `
+        import { sameName as a, renameVar as b } from './out/entry1.js'
+        import { sameName as c, renameVar as d } from './out/entry2.js'
+        if (a.test !== 1 || b.test !== 2 || c.test !== 1 || d.test !== 2) throw 'fail'
+      `,
+    }),
   )
 
   // Test the binary loader
