@@ -618,7 +618,7 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}, IsExternal: true}, DebugMeta{}
 		}
 
-		// Check the "browser" map for the first time (1 out of 2)
+		// Check the "browser" map
 		if importDirInfo := r.dirInfoCached(r.fs.Dir(absPath)); importDirInfo != nil {
 			if remapped, ok := r.checkBrowserMap(importDirInfo, absPath, absolutePathKind); ok {
 				if remapped == nil {
@@ -696,23 +696,6 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 		} else {
 			// Note: node's "self references" are not currently supported
 			return nil, debug
-		}
-	}
-
-	// Check the "browser" map for the second time (2 out of 2)
-	for _, path := range result.PathPair.iter() {
-		if resultDirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); resultDirInfo != nil {
-			if remapped, ok := r.checkBrowserMap(resultDirInfo, path.Text, absolutePathKind); ok {
-				if remapped == nil {
-					path.Flags |= logger.PathDisabled
-				} else {
-					if remappedResult, ok, _, _ := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-						*path = remappedResult.Primary
-					} else {
-						return nil, DebugMeta{}
-					}
-				}
-			}
 		}
 	}
 
