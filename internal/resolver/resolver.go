@@ -476,58 +476,53 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 				// definition but we don't want to consider the primary path as not
 				// having side effects just because the secondary path is marked as
 				// not having side effects.
-				if *path == result.PathPair.Primary {
-					for info := dirInfo; info != nil; info = info.parent {
-						if info.packageJSON != nil {
-							if info.packageJSON.sideEffectsMap != nil {
-								hasSideEffects := false
-								if info.packageJSON.sideEffectsMap[path.Text] {
-									// Fast path: map lookup
+				if pkgJSON := dirInfo.enclosingPackageJSON; pkgJSON != nil && *path == result.PathPair.Primary {
+					if pkgJSON.sideEffectsMap != nil {
+						hasSideEffects := false
+						if pkgJSON.sideEffectsMap[path.Text] {
+							// Fast path: map lookup
+							hasSideEffects = true
+						} else {
+							// Slow path: glob tests
+							for _, re := range pkgJSON.sideEffectsRegexps {
+								if re.MatchString(path.Text) {
 									hasSideEffects = true
-								} else {
-									// Slow path: glob tests
-									for _, re := range info.packageJSON.sideEffectsRegexps {
-										if re.MatchString(path.Text) {
-											hasSideEffects = true
-											break
-										}
-									}
-								}
-								if !hasSideEffects {
-									if r.debugLogs != nil {
-										r.debugLogs.addNote(fmt.Sprintf("Marking this file as having no side effects due to %q",
-											info.packageJSON.source.KeyPath.Text))
-									}
-									result.PrimarySideEffectsData = info.packageJSON.sideEffectsData
+									break
 								}
 							}
-
-							// Also copy over the "type" field
-							result.ModuleType = info.packageJSON.moduleType
-							break
+						}
+						if !hasSideEffects {
+							if r.debugLogs != nil {
+								r.debugLogs.addNote(fmt.Sprintf("Marking this file as having no side effects due to %q",
+									pkgJSON.source.KeyPath.Text))
+							}
+							result.PrimarySideEffectsData = pkgJSON.sideEffectsData
 						}
 					}
+
+					// Also copy over the "type" field
+					result.ModuleType = pkgJSON.moduleType
 				}
 
 				// Copy various fields from the nearest enclosing "tsconfig.json" file if present
-				if path == &result.PathPair.Primary && dirInfo.tsConfigJSON != nil {
-					result.JSXFactory = dirInfo.tsConfigJSON.JSXFactory
-					result.JSXFragment = dirInfo.tsConfigJSON.JSXFragmentFactory
-					result.UseDefineForClassFieldsTS = dirInfo.tsConfigJSON.UseDefineForClassFields
-					result.PreserveUnusedImportsTS = dirInfo.tsConfigJSON.PreserveImportsNotUsedAsValues
+				if path == &result.PathPair.Primary && dirInfo.enclosingTSConfigJSON != nil {
+					result.JSXFactory = dirInfo.enclosingTSConfigJSON.JSXFactory
+					result.JSXFragment = dirInfo.enclosingTSConfigJSON.JSXFragmentFactory
+					result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
+					result.PreserveUnusedImportsTS = dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues
 
 					if r.debugLogs != nil {
 						r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
-							dirInfo.tsConfigJSON.AbsPath))
+							dirInfo.enclosingTSConfigJSON.AbsPath))
 						if result.JSXFactory != nil {
 							r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
 								strings.Join(result.JSXFactory, "."),
-								dirInfo.tsConfigJSON.AbsPath))
+								dirInfo.enclosingTSConfigJSON.AbsPath))
 						}
 						if result.JSXFragment != nil {
 							r.debugLogs.addNote(fmt.Sprintf("\"jsxFragment\" is %q due to %q",
 								strings.Join(result.JSXFragment, "."),
-								dirInfo.tsConfigJSON.AbsPath))
+								dirInfo.enclosingTSConfigJSON.AbsPath))
 						}
 					}
 				}
@@ -582,8 +577,8 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 		}
 
 		// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-		if dirInfo := r.dirInfoCached(sourceDir); dirInfo != nil && dirInfo.tsConfigJSON != nil && dirInfo.tsConfigJSON.Paths != nil {
-			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.tsConfigJSON, importPath, kind); ok {
+		if dirInfo := r.dirInfoCached(sourceDir); dirInfo != nil && dirInfo.enclosingTSConfigJSON != nil && dirInfo.enclosingTSConfigJSON.Paths != nil {
+			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.enclosingTSConfigJSON, importPath, kind); ok {
 				return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}, DebugMeta{}
 			}
 		}
@@ -623,19 +618,16 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}, IsExternal: true}, DebugMeta{}
 		}
 
-		// Check the "browser" map for the first time (1 out of 2)
-		if importDirInfo := r.dirInfoCached(r.fs.Dir(absPath)); importDirInfo != nil && importDirInfo.enclosingBrowserScope != nil {
-			packageJSON := importDirInfo.enclosingBrowserScope.packageJSON
-			if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), absPath); ok {
-				if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
-					if remapped == nil {
-						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}, DebugMeta{}
-					}
-					if remappedResult, ok, diffCase, _ := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-						result = ResolveResult{PathPair: remappedResult, DifferentCase: diffCase}
-						checkRelative = false
-						checkPackage = false
-					}
+		// Check the "browser" map
+		if importDirInfo := r.dirInfoCached(r.fs.Dir(absPath)); importDirInfo != nil {
+			if remapped, ok := r.checkBrowserMap(importDirInfo, absPath, absolutePathKind); ok {
+				if remapped == nil {
+					return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}, DebugMeta{}
+				}
+				if remappedResult, ok, diffCase, _ := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+					result = ResolveResult{PathPair: remappedResult, DifferentCase: diffCase}
+					checkRelative = false
+					checkPackage = false
 				}
 			}
 		}
@@ -679,27 +671,24 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 		}
 
 		// Support remapping one package path to another via the "browser" field
-		if sourceDirInfo.enclosingBrowserScope != nil {
-			packageJSON := sourceDirInfo.enclosingBrowserScope.packageJSON
-			if remapped, ok := r.checkBrowserMap(packageJSON, importPath); ok {
-				if remapped == nil {
-					// "browser": {"module": false}
-					if absolute, ok, diffCase, _ := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
-						absolute.Primary = logger.Path{Text: absolute.Primary.Text, Namespace: "file", Flags: logger.PathDisabled}
-						if absolute.HasSecondary() {
-							absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Namespace: "file", Flags: logger.PathDisabled}
-						}
-						return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}, DebugMeta{}
-					} else {
-						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Flags: logger.PathDisabled}}, DifferentCase: diffCase}, DebugMeta{}
+		if remapped, ok := r.checkBrowserMap(sourceDirInfo, importPath, packagePathKind); ok {
+			if remapped == nil {
+				// "browser": {"module": false}
+				if absolute, ok, diffCase, _ := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
+					absolute.Primary = logger.Path{Text: absolute.Primary.Text, Namespace: "file", Flags: logger.PathDisabled}
+					if absolute.HasSecondary() {
+						absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Namespace: "file", Flags: logger.PathDisabled}
 					}
+					return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}, DebugMeta{}
+				} else {
+					return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Flags: logger.PathDisabled}}, DifferentCase: diffCase}, DebugMeta{}
 				}
-
-				// "browser": {"module": "./some-file"}
-				// "browser": {"module": "another-module"}
-				importPath = *remapped
-				sourceDirInfo = sourceDirInfo.enclosingBrowserScope
 			}
+
+			// "browser": {"module": "./some-file"}
+			// "browser": {"module": "another-module"}
+			importPath = *remapped
+			sourceDirInfo = sourceDirInfo.enclosingBrowserScope
 		}
 
 		if absolute, ok, diffCase, debug := r.resolveWithoutRemapping(sourceDirInfo, importPath, kind); ok {
@@ -707,26 +696,6 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 		} else {
 			// Note: node's "self references" are not currently supported
 			return nil, debug
-		}
-	}
-
-	// Check the "browser" map for the second time (2 out of 2)
-	for _, path := range result.PathPair.iter() {
-		if resultDirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); resultDirInfo != nil && resultDirInfo.enclosingBrowserScope != nil {
-			packageJSON := resultDirInfo.enclosingBrowserScope.packageJSON
-			if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), path.Text); ok {
-				if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
-					if remapped == nil {
-						path.Flags |= logger.PathDisabled
-					} else {
-						if remappedResult, ok, _, _ := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-							*path = remappedResult.Primary
-						} else {
-							return nil, DebugMeta{}
-						}
-					}
-				}
-			}
 		}
 	}
 
@@ -777,12 +746,14 @@ type dirInfo struct {
 	enclosingBrowserScope *dirInfo
 
 	// All relevant information about this directory
-	absPath        string
-	entries        fs.DirEntries
-	hasNodeModules bool          // Is there a "node_modules" subdirectory?
-	packageJSON    *packageJSON  // Is there a "package.json" file?
-	tsConfigJSON   *TSConfigJSON // Is there a "tsconfig.json" file in this directory or a parent directory?
-	absRealPath    string        // If non-empty, this is the real absolute path resolving any symlinks
+	absPath               string
+	entries               fs.DirEntries
+	isNodeModules         bool          // Is the base name "node_modules"?
+	hasNodeModules        bool          // Is there a "node_modules" subdirectory?
+	packageJSON           *packageJSON  // Is there a "package.json" file in this directory?
+	enclosingPackageJSON  *packageJSON  // Is there a "package.json" file in this directory or a parent directory?
+	enclosingTSConfigJSON *TSConfigJSON // Is there a "tsconfig.json" file in this directory or a parent directory?
+	absRealPath           string        // If non-empty, this is the real absolute path resolving any symlinks
 }
 
 func (r resolverQuery) dirInfoCached(path string) *dirInfo {
@@ -984,15 +955,17 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 
 	// A "node_modules" directory isn't allowed to directly contain another "node_modules" directory
 	base := r.fs.Base(path)
-	if base != "node_modules" {
-		if entry, _ := entries.Get("node_modules"); entry != nil {
-			info.hasNodeModules = entry.Kind(r.fs) == fs.DirEntry
-		}
+	if base == "node_modules" {
+		info.isNodeModules = true
+	} else if entry, _ := entries.Get("node_modules"); entry != nil {
+		info.hasNodeModules = entry.Kind(r.fs) == fs.DirEntry
 	}
 
 	// Propagate the browser scope into child directories
 	if parentInfo != nil {
+		info.enclosingPackageJSON = parentInfo.enclosingPackageJSON
 		info.enclosingBrowserScope = parentInfo.enclosingBrowserScope
+		info.enclosingTSConfigJSON = parentInfo.enclosingTSConfigJSON
 
 		// Make sure "absRealPath" is the real path of the directory (resolving any symlinks)
 		if !r.options.PreserveSymlinks {
@@ -1017,9 +990,12 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	if entry, _ := entries.Get("package.json"); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 		info.packageJSON = r.parsePackageJSON(path)
 
-		// Propagate this browser scope into child directories
-		if info.packageJSON != nil && info.packageJSON.browserMap != nil {
-			info.enclosingBrowserScope = info
+		// Propagate this "package.json" file into child directories
+		if info.packageJSON != nil {
+			info.enclosingPackageJSON = info.packageJSON
+			if info.packageJSON.browserMap != nil {
+				info.enclosingBrowserScope = info
+			}
 		}
 	}
 
@@ -1038,7 +1014,7 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 		}
 		if tsConfigPath != "" {
 			var err error
-			info.tsConfigJSON, err = r.parseTSConfig(tsConfigPath, make(map[string]bool))
+			info.enclosingTSConfigJSON, err = r.parseTSConfig(tsConfigPath, make(map[string]bool))
 			if err != nil {
 				if err == syscall.ENOENT {
 					r.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Cannot find tsconfig file %q",
@@ -1050,11 +1026,6 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 				}
 			}
 		}
-	}
-
-	// Propagate the enclosing tsconfig.json from the parent directory
-	if info.tsConfigJSON == nil && parentInfo != nil {
-		info.tsConfigJSON = parentInfo.tsConfigJSON
 	}
 
 	return info
@@ -1166,28 +1137,27 @@ func (r resolverQuery) loadAsIndex(dirInfo *dirInfo, path string, extensionOrder
 
 func (r resolverQuery) loadAsIndexWithBrowserRemapping(dirInfo *dirInfo, path string, extensionOrder []string) (PathPair, bool, *fs.DifferentCase) {
 	// Potentially remap using the "browser" field
-	if dirInfo.enclosingBrowserScope != nil {
-		if remapped, ok := r.checkBrowserMap(dirInfo.enclosingBrowserScope.packageJSON, "index"); ok {
-			if remapped == nil {
-				return PathPair{Primary: logger.Path{Text: r.fs.Join(path, "index"), Namespace: "file", Flags: logger.PathDisabled}}, true, nil
-			}
-			remappedAbs := r.fs.Join(path, *remapped)
-
-			// Is this a file?
-			absolute, ok, diffCase := r.loadAsFile(remappedAbs, extensionOrder)
-			if ok {
-				return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
-			}
-
-			// Is it a directory with an index?
-			if fieldDirInfo := r.dirInfoCached(remappedAbs); fieldDirInfo != nil {
-				if absolute, ok, _ := r.loadAsIndex(fieldDirInfo, remappedAbs, extensionOrder); ok {
-					return absolute, true, nil
-				}
-			}
-
-			return PathPair{}, false, nil
+	absPath := r.fs.Join(path, "index")
+	if remapped, ok := r.checkBrowserMap(dirInfo, absPath, absolutePathKind); ok {
+		if remapped == nil {
+			return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil
 		}
+		remappedAbs := r.fs.Join(path, *remapped)
+
+		// Is this a file?
+		absolute, ok, diffCase := r.loadAsFile(remappedAbs, extensionOrder)
+		if ok {
+			return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
+		}
+
+		// Is it a directory with an index?
+		if fieldDirInfo := r.dirInfoCached(remappedAbs); fieldDirInfo != nil {
+			if absolute, ok, _ := r.loadAsIndex(fieldDirInfo, remappedAbs, extensionOrder); ok {
+				return absolute, true, nil
+			}
+		}
+
+		return PathPair{}, false, nil
 	}
 
 	return r.loadAsIndex(dirInfo, path, extensionOrder)
@@ -1264,15 +1234,13 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 			}
 
 			// Potentially remap using the "browser" field
-			if dirInfo.enclosingBrowserScope != nil {
-				if remapped, ok := r.checkBrowserMap(dirInfo.enclosingBrowserScope.packageJSON, fieldRelPath); ok {
-					if remapped == nil {
-						return PathPair{Primary: logger.Path{Text: r.fs.Join(path, fieldRelPath), Namespace: "file", Flags: logger.PathDisabled}}, true, nil
-					}
-					fieldRelPath = *remapped
-				}
-			}
 			fieldAbsPath := r.fs.Join(path, fieldRelPath)
+			if remapped, ok := r.checkBrowserMap(dirInfo, fieldAbsPath, absolutePathKind); ok {
+				if remapped == nil {
+					return PathPair{Primary: logger.Path{Text: fieldAbsPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil
+				}
+				fieldAbsPath = r.fs.Join(path, *remapped)
+			}
 
 			// Is this a file?
 			absolute, ok, diffCase := r.loadAsFile(fieldAbsPath, extensionOrder)
@@ -1485,17 +1453,17 @@ func (r resolverQuery) loadNodeModules(importPath string, kind ast.ImportKind, d
 	}
 
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-	if dirInfo.tsConfigJSON != nil {
+	if dirInfo.enclosingTSConfigJSON != nil {
 		// Try path substitutions first
-		if dirInfo.tsConfigJSON.Paths != nil {
-			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.tsConfigJSON, importPath, kind); ok {
+		if dirInfo.enclosingTSConfigJSON.Paths != nil {
+			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.enclosingTSConfigJSON, importPath, kind); ok {
 				return absolute, true, diffCase, DebugMeta{}
 			}
 		}
 
 		// Try looking up the path relative to the base URL
-		if dirInfo.tsConfigJSON.BaseURL != nil {
-			basePath := r.fs.Join(*dirInfo.tsConfigJSON.BaseURL, importPath)
+		if dirInfo.enclosingTSConfigJSON.BaseURL != nil {
+			basePath := r.fs.Join(*dirInfo.enclosingTSConfigJSON.BaseURL, importPath)
 			if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath, kind); ok {
 				return absolute, true, diffCase, DebugMeta{}
 			}
@@ -1679,17 +1647,12 @@ func (r resolverQuery) loadNodeModules(importPath string, kind ast.ImportKind, d
 					}
 
 					// Check the "browser" map
-					if pkgDirInfo.enclosingBrowserScope != nil {
-						packageJSON := pkgDirInfo.enclosingBrowserScope.packageJSON
-						if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), absPath); ok {
-							if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
-								if remapped == nil {
-									return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil, DebugMeta{}
-								}
-								if remappedResult, ok, diffCase, notes := r.resolveWithoutRemapping(pkgDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-									return remappedResult, true, diffCase, notes
-								}
-							}
+					if remapped, ok := r.checkBrowserMap(pkgDirInfo, absPath, absolutePathKind); ok {
+						if remapped == nil {
+							return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil, DebugMeta{}
+						}
+						if remappedResult, ok, diffCase, notes := r.resolveWithoutRemapping(pkgDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+							return remappedResult, true, diffCase, notes
 						}
 					}
 				}

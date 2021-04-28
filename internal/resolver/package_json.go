@@ -28,8 +28,8 @@ type packageJSON struct {
 	// to something like https://www.npmjs.com/package/util so it works in the
 	// browser.
 	//
-	// This field contains a mapping of absolute paths to absolute paths. Mapping
-	// to an empty path indicates that the module is disabled. As far as I can
+	// This field contains the original mapping object in "package.json". Mapping
+	// to a nil path indicates that the module is disabled. As far as I can
 	// tell, the official spec is an abandoned GitHub repo hosted by a user account:
 	// https://github.com/defunctzombie/package-browser-field-spec. The npm docs
 	// say almost nothing: https://docs.npmjs.com/files/package.json.
@@ -65,37 +65,124 @@ type packageJSON struct {
 	exportsMap *peMap
 }
 
-func (r resolverQuery) checkBrowserMap(pj *packageJSON, inputPath string) (remapped *string, ok bool) {
-	// Normalize the path so we can compare against it without getting confused by "./"
-	cleanPath := path.Clean(strings.ReplaceAll(inputPath, "\\", "/"))
+type browserPathKind uint8
 
-	if cleanPath == "." {
+const (
+	absolutePathKind browserPathKind = iota
+	packagePathKind
+)
+
+func (r resolverQuery) checkBrowserMap(resolveDirInfo *dirInfo, inputPath string, kind browserPathKind) (remapped *string, ok bool) {
+	// There must be an enclosing directory with a "package.json" file with a "browser" map
+	if resolveDirInfo.enclosingBrowserScope == nil {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("No \"browser\" map found in directory %q", resolveDirInfo.absPath))
+		}
+		return nil, false
+	}
+
+	packageJSON := resolveDirInfo.enclosingBrowserScope.packageJSON
+	browserMap := packageJSON.browserMap
+
+	checkPath := func(pathToCheck string) bool {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("Checking for %q in the \"browser\" map in %q",
+				pathToCheck, packageJSON.source.KeyPath.Text))
+		}
+
+		// Check for equality
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", pathToCheck))
+		}
+		remapped, ok = browserMap[pathToCheck]
+		if ok {
+			inputPath = pathToCheck
+			return true
+		}
+
+		// If that failed, try adding implicit extensions
+		for _, ext := range r.options.ExtensionOrder {
+			extPath := pathToCheck + ext
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", extPath))
+			}
+			remapped, ok = browserMap[extPath]
+			if ok {
+				inputPath = extPath
+				return true
+			}
+		}
+
+		// If that failed, try assuming this is a directory and looking for an "index" file
+		indexPath := path.Join(pathToCheck, "index")
+		if IsPackagePath(indexPath) && !IsPackagePath(pathToCheck) {
+			indexPath = "./" + indexPath
+		}
+
+		// Check for equality
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", indexPath))
+		}
+		remapped, ok = browserMap[indexPath]
+		if ok {
+			inputPath = indexPath
+			return true
+		}
+
+		// If that failed, try adding implicit extensions
+		for _, ext := range r.options.ExtensionOrder {
+			extPath := indexPath + ext
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", extPath))
+			}
+			remapped, ok = browserMap[extPath]
+			if ok {
+				inputPath = extPath
+				return true
+			}
+		}
+
+		return false
+	}
+
+	// Turn absolute paths into paths relative to the "browser" map location
+	if kind == absolutePathKind {
+		relPath, ok := r.fs.Rel(resolveDirInfo.enclosingBrowserScope.absPath, inputPath)
+		if !ok {
+			return nil, false
+		}
+		inputPath = strings.ReplaceAll(relPath, "\\", "/")
+	}
+
+	if inputPath == "." {
 		// No bundler supports remapping ".", so we don't either
 		return nil, false
 	}
 
-	if r.debugLogs != nil {
-		r.debugLogs.addNote(fmt.Sprintf("Checking for %q in the \"browser\" map in %q",
-			inputPath, pj.source.KeyPath.Text))
-	}
+	// First try the import path as a package path
+	if !checkPath(inputPath) && IsPackagePath(inputPath) {
+		// If a package path didn't work, try the import path as a relative path
+		switch kind {
+		case absolutePathKind:
+			checkPath("./" + inputPath)
 
-	// Check for equality
-	if r.debugLogs != nil {
-		r.debugLogs.addNote(fmt.Sprintf("Checking for %q", cleanPath))
-	}
-	remapped, ok = pj.browserMap[cleanPath]
-
-	// If that failed, try adding implicit extensions
-	if !ok {
-		for _, ext := range r.options.ExtensionOrder {
-			extPath := cleanPath + ext
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Checking for %q", extPath))
+		case packagePathKind:
+			// Browserify allows a browser map entry of "./pkg" to override a package
+			// path of "require('pkg')". This is weird, and arguably a bug. But we
+			// replicate this bug for compatibility. However, Browserify only allows
+			// this within the same package. It does not allow such an entry in a
+			// parent package to override this in a child package. So this behavior
+			// is disallowed if there is a "node_modules" folder in between the child
+			// package and the parent package.
+			isInSamePackage := true
+			for info := resolveDirInfo; info != nil && info != resolveDirInfo.enclosingBrowserScope; info = info.parent {
+				if info.isNodeModules {
+					isInSamePackage = false
+					break
+				}
 			}
-			remapped, ok = pj.browserMap[extPath]
-			if ok {
-				cleanPath = extPath
-				break
+			if isInSamePackage {
+				checkPath("./" + inputPath)
 			}
 		}
 	}
@@ -105,7 +192,7 @@ func (r resolverQuery) checkBrowserMap(pj *packageJSON, inputPath string) (remap
 			if remapped == nil {
 				r.debugLogs.addNote(fmt.Sprintf("Found %q marked as disabled", inputPath))
 			} else {
-				r.debugLogs.addNote(fmt.Sprintf("Found %q mapping to %q", cleanPath, *remapped))
+				r.debugLogs.addNote(fmt.Sprintf("Found %q mapping to %q", inputPath, *remapped))
 			}
 		} else {
 			r.debugLogs.addNote(fmt.Sprintf("Failed to find %q", inputPath))
@@ -198,17 +285,6 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 			// Remap all files in the browser field
 			for _, prop := range browser.Properties {
 				if key, ok := getString(prop.Key); ok && prop.Value != nil {
-					// Normalize the path so we can compare against it without getting
-					// confused by "./". There is no distinction between package paths and
-					// relative paths for these values because some tools (i.e. Browserify)
-					// don't make such a distinction.
-					//
-					// This leads to weird things like a mapping for "./foo" matching an
-					// import of "foo", but that's actually not a bug. Or arguably it's a
-					// bug in Browserify but we have to replicate this bug because packages
-					// do this in the wild.
-					key = path.Clean(key)
-
 					if value, ok := getString(*prop.Value); ok {
 						// If this is a string, it's a replacement package
 						browserMap[key] = &value
