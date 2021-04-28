@@ -352,7 +352,6 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	key := request["key"].(int)
 	write := request["write"].(bool)
 	incremental := request["incremental"].(bool)
-	hasOnRebuild := request["hasOnRebuild"].(bool)
 	serveObj, isServe := request["serve"].(interface{})
 	entries := request["entries"].([]interface{})
 	flags := decodeStringArray(request["flags"].([]interface{}))
@@ -438,7 +437,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		return response
 	}
 
-	if options.Watch != nil && hasOnRebuild {
+	if options.Watch != nil {
 		options.Watch.OnRebuild = func(result api.BuildResult) {
 			service.sendRequest(map[string]interface{}{
 				"command": "watch-rebuild",

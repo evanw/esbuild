@@ -69,6 +69,10 @@
 
     With this release, top-level calls to `super()` will no longer be placed inside `return` statements (in addition to various other kinds of statements such as `throw`, which are now also handled). This should avoid class field initializers being inserted before the `super()` call.
 
+* Fix a bug with `onEnd` and watch mode ([#1186](https://github.com/evanw/esbuild/issues/1186))
+
+    This release fixes a bug where `onEnd` plugin callbacks only worked with watch mode when an `onRebuild` watch mode callback was present. Now `onEnd` callbacks should fire even if there is no `onRebuild` callback.
+
 ## 0.11.15
 
 * Provide options for how to handle legal comments ([#919](https://github.com/evanw/esbuild/issues/919))

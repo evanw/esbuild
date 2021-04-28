@@ -17,7 +17,6 @@ export interface BuildRequest {
   absWorkingDir: string;
   incremental: boolean;
   nodePaths: string[];
-  hasOnRebuild: boolean;
   plugins?: BuildPlugin[];
   serve?: ServeRequest;
 }

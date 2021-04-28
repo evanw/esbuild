@@ -1049,7 +1049,6 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       absWorkingDir: absWorkingDir || defaultWD,
       incremental,
       nodePaths,
-      hasOnRebuild: !!(watch && watch.onRebuild),
     };
     if (requestPlugins) request.plugins = requestPlugins;
     let serve = serveOptions && buildServeData(refs, serveOptions, request);
@@ -1121,21 +1120,27 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               });
               refs.unref() // Do this after the callback so "sendRequest" can extend the lifetime
             }
-            if (watch && watch.onRebuild) {
+            if (watch) {
               watchCallbacks.set(response!.watchID, (serviceStopError, watchResponse) => {
-                if (serviceStopError) return watch!.onRebuild!(serviceStopError as any, null);
+                if (serviceStopError) {
+                  if (watch!.onRebuild) watch!.onRebuild(serviceStopError as any, null);
+                  return;
+                }
                 let result2: types.BuildResult = {
                   errors: replaceDetailsInMessages(watchResponse.errors, details),
                   warnings: replaceDetailsInMessages(watchResponse.warnings, details),
                 };
+
+                // Note: "onEnd" callbacks should run even when there is no "onRebuild" callback
                 runOnEndCallbacks(result2, () => {
                   if (result2.errors.length > 0) {
-                    return watch!.onRebuild!(failureErrorWithLog('Build failed', result2.errors, result2.warnings), null);
+                    if (watch!.onRebuild) watch!.onRebuild(failureErrorWithLog('Build failed', result2.errors, result2.warnings), null);
+                    return;
                   }
                   copyResponseToResult(watchResponse, result2);
                   if (watchResponse.rebuildID !== void 0) result2.rebuild = rebuild;
                   result2.stop = stop;
-                  watch!.onRebuild!(null, result2);
+                  if (watch!.onRebuild) watch!.onRebuild(null, result2);
                 });
               });
             }
