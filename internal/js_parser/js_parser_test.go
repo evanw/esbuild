@@ -69,7 +69,7 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 			UnsupportedFeatures: options.UnsupportedJSFeatures,
 			ASCIIOnly:           options.ASCIIOnly,
 		}).JS
-		test.AssertEqual(t, string(js), expected)
+		test.AssertEqualWithDiff(t, string(js), expected)
 	})
 }
 

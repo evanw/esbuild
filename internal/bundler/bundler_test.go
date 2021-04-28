@@ -31,27 +31,13 @@ func es(version int) compat.JSFeature {
 	})
 }
 
-func assertEqual(t *testing.T, a interface{}, b interface{}) {
-	t.Helper()
-	if a != b {
-		stringA := fmt.Sprintf("%v", a)
-		stringB := fmt.Sprintf("%v", b)
-		if strings.Contains(stringA, "\n") {
-			color := !fs.CheckIfWindows()
-			t.Fatal(test.Diff(stringB, stringA, color))
-		} else {
-			t.Fatalf("%s != %s", a, b)
-		}
-	}
-}
-
 func assertLog(t *testing.T, msgs []logger.Msg, expected string) {
 	t.Helper()
 	text := ""
 	for _, msg := range msgs {
 		text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 	}
-	assertEqual(t, text, expected)
+	test.AssertEqualWithDiff(t, text, expected)
 }
 
 func hasErrors(msgs []logger.Msg) bool {
@@ -176,7 +162,7 @@ func (s *suite) compareSnapshot(t *testing.T, testName string, generated string)
 	s.generatedSnapshots[testName] = generated
 	if !globalUpdateSnapshots {
 		if expected, ok := s.expectedSnapshots[testName]; ok {
-			assertEqual(t, generated, expected)
+			test.AssertEqualWithDiff(t, generated, expected)
 		} else {
 			t.Fatalf("No snapshot saved for %s\n%s%s%s",
 				testName,

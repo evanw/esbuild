@@ -7,7 +7,7 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
-func Diff(old string, new string, color bool) string {
+func diff(old string, new string, color bool) string {
 	return strings.Join(diffRec(nil, strings.Split(old, "\n"), strings.Split(new, "\n"), color), "\n")
 }
 
