@@ -510,24 +510,24 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 				}
 
 				// Copy various fields from the nearest enclosing "tsconfig.json" file if present
-				if path == &result.PathPair.Primary && dirInfo.tsConfigJSON != nil {
-					result.JSXFactory = dirInfo.tsConfigJSON.JSXFactory
-					result.JSXFragment = dirInfo.tsConfigJSON.JSXFragmentFactory
-					result.UseDefineForClassFieldsTS = dirInfo.tsConfigJSON.UseDefineForClassFields
-					result.PreserveUnusedImportsTS = dirInfo.tsConfigJSON.PreserveImportsNotUsedAsValues
+				if path == &result.PathPair.Primary && dirInfo.enclosingTSConfigJSON != nil {
+					result.JSXFactory = dirInfo.enclosingTSConfigJSON.JSXFactory
+					result.JSXFragment = dirInfo.enclosingTSConfigJSON.JSXFragmentFactory
+					result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
+					result.PreserveUnusedImportsTS = dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues
 
 					if r.debugLogs != nil {
 						r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
-							dirInfo.tsConfigJSON.AbsPath))
+							dirInfo.enclosingTSConfigJSON.AbsPath))
 						if result.JSXFactory != nil {
 							r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
 								strings.Join(result.JSXFactory, "."),
-								dirInfo.tsConfigJSON.AbsPath))
+								dirInfo.enclosingTSConfigJSON.AbsPath))
 						}
 						if result.JSXFragment != nil {
 							r.debugLogs.addNote(fmt.Sprintf("\"jsxFragment\" is %q due to %q",
 								strings.Join(result.JSXFragment, "."),
-								dirInfo.tsConfigJSON.AbsPath))
+								dirInfo.enclosingTSConfigJSON.AbsPath))
 						}
 					}
 				}
@@ -582,8 +582,8 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 		}
 
 		// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-		if dirInfo := r.dirInfoCached(sourceDir); dirInfo != nil && dirInfo.tsConfigJSON != nil && dirInfo.tsConfigJSON.Paths != nil {
-			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.tsConfigJSON, importPath, kind); ok {
+		if dirInfo := r.dirInfoCached(sourceDir); dirInfo != nil && dirInfo.enclosingTSConfigJSON != nil && dirInfo.enclosingTSConfigJSON.Paths != nil {
+			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.enclosingTSConfigJSON, importPath, kind); ok {
 				return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}, DebugMeta{}
 			}
 		}
@@ -777,12 +777,12 @@ type dirInfo struct {
 	enclosingBrowserScope *dirInfo
 
 	// All relevant information about this directory
-	absPath        string
-	entries        fs.DirEntries
-	hasNodeModules bool          // Is there a "node_modules" subdirectory?
-	packageJSON    *packageJSON  // Is there a "package.json" file?
-	tsConfigJSON   *TSConfigJSON // Is there a "tsconfig.json" file in this directory or a parent directory?
-	absRealPath    string        // If non-empty, this is the real absolute path resolving any symlinks
+	absPath               string
+	entries               fs.DirEntries
+	hasNodeModules        bool          // Is there a "node_modules" subdirectory?
+	packageJSON           *packageJSON  // Is there a "package.json" file?
+	enclosingTSConfigJSON *TSConfigJSON // Is there a "tsconfig.json" file in this directory or a parent directory?
+	absRealPath           string        // If non-empty, this is the real absolute path resolving any symlinks
 }
 
 func (r resolverQuery) dirInfoCached(path string) *dirInfo {
@@ -1038,7 +1038,7 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 		}
 		if tsConfigPath != "" {
 			var err error
-			info.tsConfigJSON, err = r.parseTSConfig(tsConfigPath, make(map[string]bool))
+			info.enclosingTSConfigJSON, err = r.parseTSConfig(tsConfigPath, make(map[string]bool))
 			if err != nil {
 				if err == syscall.ENOENT {
 					r.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Cannot find tsconfig file %q",
@@ -1053,8 +1053,8 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	}
 
 	// Propagate the enclosing tsconfig.json from the parent directory
-	if info.tsConfigJSON == nil && parentInfo != nil {
-		info.tsConfigJSON = parentInfo.tsConfigJSON
+	if info.enclosingTSConfigJSON == nil && parentInfo != nil {
+		info.enclosingTSConfigJSON = parentInfo.enclosingTSConfigJSON
 	}
 
 	return info
@@ -1485,17 +1485,17 @@ func (r resolverQuery) loadNodeModules(importPath string, kind ast.ImportKind, d
 	}
 
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-	if dirInfo.tsConfigJSON != nil {
+	if dirInfo.enclosingTSConfigJSON != nil {
 		// Try path substitutions first
-		if dirInfo.tsConfigJSON.Paths != nil {
-			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.tsConfigJSON, importPath, kind); ok {
+		if dirInfo.enclosingTSConfigJSON.Paths != nil {
+			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.enclosingTSConfigJSON, importPath, kind); ok {
 				return absolute, true, diffCase, DebugMeta{}
 			}
 		}
 
 		// Try looking up the path relative to the base URL
-		if dirInfo.tsConfigJSON.BaseURL != nil {
-			basePath := r.fs.Join(*dirInfo.tsConfigJSON.BaseURL, importPath)
+		if dirInfo.enclosingTSConfigJSON.BaseURL != nil {
+			basePath := r.fs.Join(*dirInfo.enclosingTSConfigJSON.BaseURL, importPath)
 			if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath, kind); ok {
 				return absolute, true, diffCase, DebugMeta{}
 			}
