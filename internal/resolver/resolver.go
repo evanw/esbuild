@@ -619,18 +619,15 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 		}
 
 		// Check the "browser" map for the first time (1 out of 2)
-		if importDirInfo := r.dirInfoCached(r.fs.Dir(absPath)); importDirInfo != nil && importDirInfo.enclosingBrowserScope != nil {
-			packageJSON := importDirInfo.enclosingBrowserScope.packageJSON
-			if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), absPath); ok {
-				if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
-					if remapped == nil {
-						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}, DebugMeta{}
-					}
-					if remappedResult, ok, diffCase, _ := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-						result = ResolveResult{PathPair: remappedResult, DifferentCase: diffCase}
-						checkRelative = false
-						checkPackage = false
-					}
+		if importDirInfo := r.dirInfoCached(r.fs.Dir(absPath)); importDirInfo != nil {
+			if remapped, ok := r.checkBrowserMap(importDirInfo, absPath, absolutePathKind); ok {
+				if remapped == nil {
+					return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}, DebugMeta{}
+				}
+				if remappedResult, ok, diffCase, _ := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+					result = ResolveResult{PathPair: remappedResult, DifferentCase: diffCase}
+					checkRelative = false
+					checkPackage = false
 				}
 			}
 		}
@@ -674,27 +671,24 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 		}
 
 		// Support remapping one package path to another via the "browser" field
-		if sourceDirInfo.enclosingBrowserScope != nil {
-			packageJSON := sourceDirInfo.enclosingBrowserScope.packageJSON
-			if remapped, ok := r.checkBrowserMap(packageJSON, importPath); ok {
-				if remapped == nil {
-					// "browser": {"module": false}
-					if absolute, ok, diffCase, _ := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
-						absolute.Primary = logger.Path{Text: absolute.Primary.Text, Namespace: "file", Flags: logger.PathDisabled}
-						if absolute.HasSecondary() {
-							absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Namespace: "file", Flags: logger.PathDisabled}
-						}
-						return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}, DebugMeta{}
-					} else {
-						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Flags: logger.PathDisabled}}, DifferentCase: diffCase}, DebugMeta{}
+		if remapped, ok := r.checkBrowserMap(sourceDirInfo, importPath, packagePathKind); ok {
+			if remapped == nil {
+				// "browser": {"module": false}
+				if absolute, ok, diffCase, _ := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
+					absolute.Primary = logger.Path{Text: absolute.Primary.Text, Namespace: "file", Flags: logger.PathDisabled}
+					if absolute.HasSecondary() {
+						absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Namespace: "file", Flags: logger.PathDisabled}
 					}
+					return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}, DebugMeta{}
+				} else {
+					return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Flags: logger.PathDisabled}}, DifferentCase: diffCase}, DebugMeta{}
 				}
-
-				// "browser": {"module": "./some-file"}
-				// "browser": {"module": "another-module"}
-				importPath = *remapped
-				sourceDirInfo = sourceDirInfo.enclosingBrowserScope
 			}
+
+			// "browser": {"module": "./some-file"}
+			// "browser": {"module": "another-module"}
+			importPath = *remapped
+			sourceDirInfo = sourceDirInfo.enclosingBrowserScope
 		}
 
 		if absolute, ok, diffCase, debug := r.resolveWithoutRemapping(sourceDirInfo, importPath, kind); ok {
@@ -707,18 +701,15 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 
 	// Check the "browser" map for the second time (2 out of 2)
 	for _, path := range result.PathPair.iter() {
-		if resultDirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); resultDirInfo != nil && resultDirInfo.enclosingBrowserScope != nil {
-			packageJSON := resultDirInfo.enclosingBrowserScope.packageJSON
-			if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), path.Text); ok {
-				if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
-					if remapped == nil {
-						path.Flags |= logger.PathDisabled
+		if resultDirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); resultDirInfo != nil {
+			if remapped, ok := r.checkBrowserMap(resultDirInfo, path.Text, absolutePathKind); ok {
+				if remapped == nil {
+					path.Flags |= logger.PathDisabled
+				} else {
+					if remappedResult, ok, _, _ := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+						*path = remappedResult.Primary
 					} else {
-						if remappedResult, ok, _, _ := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-							*path = remappedResult.Primary
-						} else {
-							return nil, DebugMeta{}
-						}
+						return nil, DebugMeta{}
 					}
 				}
 			}
@@ -774,6 +765,7 @@ type dirInfo struct {
 	// All relevant information about this directory
 	absPath               string
 	entries               fs.DirEntries
+	isNodeModules         bool          // Is the base name "node_modules"?
 	hasNodeModules        bool          // Is there a "node_modules" subdirectory?
 	packageJSON           *packageJSON  // Is there a "package.json" file in this directory?
 	enclosingPackageJSON  *packageJSON  // Is there a "package.json" file in this directory or a parent directory?
@@ -980,10 +972,10 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 
 	// A "node_modules" directory isn't allowed to directly contain another "node_modules" directory
 	base := r.fs.Base(path)
-	if base != "node_modules" {
-		if entry, _ := entries.Get("node_modules"); entry != nil {
-			info.hasNodeModules = entry.Kind(r.fs) == fs.DirEntry
-		}
+	if base == "node_modules" {
+		info.isNodeModules = true
+	} else if entry, _ := entries.Get("node_modules"); entry != nil {
+		info.hasNodeModules = entry.Kind(r.fs) == fs.DirEntry
 	}
 
 	// Propagate the browser scope into child directories
@@ -1162,28 +1154,27 @@ func (r resolverQuery) loadAsIndex(dirInfo *dirInfo, path string, extensionOrder
 
 func (r resolverQuery) loadAsIndexWithBrowserRemapping(dirInfo *dirInfo, path string, extensionOrder []string) (PathPair, bool, *fs.DifferentCase) {
 	// Potentially remap using the "browser" field
-	if dirInfo.enclosingBrowserScope != nil {
-		if remapped, ok := r.checkBrowserMap(dirInfo.enclosingBrowserScope.packageJSON, "index"); ok {
-			if remapped == nil {
-				return PathPair{Primary: logger.Path{Text: r.fs.Join(path, "index"), Namespace: "file", Flags: logger.PathDisabled}}, true, nil
-			}
-			remappedAbs := r.fs.Join(path, *remapped)
-
-			// Is this a file?
-			absolute, ok, diffCase := r.loadAsFile(remappedAbs, extensionOrder)
-			if ok {
-				return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
-			}
-
-			// Is it a directory with an index?
-			if fieldDirInfo := r.dirInfoCached(remappedAbs); fieldDirInfo != nil {
-				if absolute, ok, _ := r.loadAsIndex(fieldDirInfo, remappedAbs, extensionOrder); ok {
-					return absolute, true, nil
-				}
-			}
-
-			return PathPair{}, false, nil
+	absPath := r.fs.Join(path, "index")
+	if remapped, ok := r.checkBrowserMap(dirInfo, absPath, absolutePathKind); ok {
+		if remapped == nil {
+			return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil
 		}
+		remappedAbs := r.fs.Join(path, *remapped)
+
+		// Is this a file?
+		absolute, ok, diffCase := r.loadAsFile(remappedAbs, extensionOrder)
+		if ok {
+			return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
+		}
+
+		// Is it a directory with an index?
+		if fieldDirInfo := r.dirInfoCached(remappedAbs); fieldDirInfo != nil {
+			if absolute, ok, _ := r.loadAsIndex(fieldDirInfo, remappedAbs, extensionOrder); ok {
+				return absolute, true, nil
+			}
+		}
+
+		return PathPair{}, false, nil
 	}
 
 	return r.loadAsIndex(dirInfo, path, extensionOrder)
@@ -1260,15 +1251,13 @@ func (r resolverQuery) loadAsFileOrDirectory(path string, kind ast.ImportKind) (
 			}
 
 			// Potentially remap using the "browser" field
-			if dirInfo.enclosingBrowserScope != nil {
-				if remapped, ok := r.checkBrowserMap(dirInfo.enclosingBrowserScope.packageJSON, fieldRelPath); ok {
-					if remapped == nil {
-						return PathPair{Primary: logger.Path{Text: r.fs.Join(path, fieldRelPath), Namespace: "file", Flags: logger.PathDisabled}}, true, nil
-					}
-					fieldRelPath = *remapped
-				}
-			}
 			fieldAbsPath := r.fs.Join(path, fieldRelPath)
+			if remapped, ok := r.checkBrowserMap(dirInfo, fieldAbsPath, absolutePathKind); ok {
+				if remapped == nil {
+					return PathPair{Primary: logger.Path{Text: fieldAbsPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil
+				}
+				fieldAbsPath = r.fs.Join(path, *remapped)
+			}
 
 			// Is this a file?
 			absolute, ok, diffCase := r.loadAsFile(fieldAbsPath, extensionOrder)
@@ -1675,17 +1664,12 @@ func (r resolverQuery) loadNodeModules(importPath string, kind ast.ImportKind, d
 					}
 
 					// Check the "browser" map
-					if pkgDirInfo.enclosingBrowserScope != nil {
-						packageJSON := pkgDirInfo.enclosingBrowserScope.packageJSON
-						if relPath, ok := r.fs.Rel(r.fs.Dir(packageJSON.source.KeyPath.Text), absPath); ok {
-							if remapped, ok := r.checkBrowserMap(packageJSON, relPath); ok {
-								if remapped == nil {
-									return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil, DebugMeta{}
-								}
-								if remappedResult, ok, diffCase, notes := r.resolveWithoutRemapping(pkgDirInfo.enclosingBrowserScope, *remapped, kind); ok {
-									return remappedResult, true, diffCase, notes
-								}
-							}
+					if remapped, ok := r.checkBrowserMap(pkgDirInfo, absPath, absolutePathKind); ok {
+						if remapped == nil {
+							return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil, DebugMeta{}
+						}
+						if remappedResult, ok, diffCase, notes := r.resolveWithoutRemapping(pkgDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+							return remappedResult, true, diffCase, notes
 						}
 					}
 				}

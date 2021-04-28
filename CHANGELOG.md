@@ -57,6 +57,10 @@
 
     Previously this code incorrectly generated an error since `hover = 2` was incorrectly eagerly validated as a default argument. With this release, the reporting of the default argument error when targeting `es5` is now done lazily and only when it's determined that the parenthesized code should actually be interpreted as an arrow function parameter list.
 
+* Further changes to the behavior of the `browser` field ([#1209](https://github.com/evanw/esbuild/issues/1209))
+
+    This release includes some changes to how the `browser` field in `package.json` is interpreted to better match how Browserify, Webpack, Parcel, and Rollup behave. The interpretation of this map in esbuild is intended to be applied if and only if it's applied by any one of these bundlers. However, there were some cases where esbuild applied the mapping and none of the other bundlers did, which could lead to build failures. These cases have been added to my [growing list of `browser` field test cases](https://github.com/evanw/package-json-browser-tests) and esbuild's behavior should now be consistent with other bundlers again.
+
 ## 0.11.15
 
 * Provide options for how to handle legal comments ([#919](https://github.com/evanw/esbuild/issues/919))
