@@ -408,6 +408,7 @@ const (
 // restored on the call stack around code that parses nested functions and
 // arrow expressions.
 type fnOrArrowDataParse struct {
+	needsAsyncLoc       logger.Loc
 	asyncRange          logger.Range
 	arrowArgErrors      *deferredArrowArgErrors
 	await               awaitOrYield
@@ -1993,6 +1994,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 		}
 
 		fn, hadBody := p.parseFn(nil, fnOrArrowDataParse{
+			needsAsyncLoc:     key.Loc,
 			asyncRange:        opts.asyncRange,
 			await:             await,
 			yield:             yield,
@@ -2235,7 +2237,9 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L) j
 				p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, asyncRange.Loc)
 				defer p.popScope()
 
-				return js_ast.Expr{Loc: asyncRange.Loc, Data: p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{})}
+				return js_ast.Expr{Loc: asyncRange.Loc, Data: p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{
+					needsAsyncLoc: asyncRange.Loc,
+				})}
 			}
 
 		// "async x => {}"
@@ -2249,7 +2253,10 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L) j
 				p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, asyncRange.Loc)
 				defer p.popScope()
 
-				arrow := p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{await: allowExpr})
+				arrow := p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{
+					needsAsyncLoc: arg.Binding.Loc,
+					await:         allowExpr,
+				})
 				arrow.IsAsync = true
 				return js_ast.Expr{Loc: asyncRange.Loc, Data: arrow}
 			}
@@ -2316,9 +2323,10 @@ func (p *parser) parseFnExpr(loc logger.Loc, isAsync bool, asyncRange logger.Ran
 	}
 
 	fn, _ := p.parseFn(name, fnOrArrowDataParse{
-		asyncRange: asyncRange,
-		await:      await,
-		yield:      yield,
+		needsAsyncLoc: loc,
+		asyncRange:    asyncRange,
+		await:         await,
+		yield:         yield,
 	})
 	p.validateFunctionName(fn, fnExpr)
 	return js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{Fn: fn}}
@@ -2471,7 +2479,10 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 				await = allowExpr
 			}
 
-			arrow := p.parseArrowBody(args, fnOrArrowDataParse{await: await})
+			arrow := p.parseArrowBody(args, fnOrArrowDataParse{
+				needsAsyncLoc: loc,
+				await:         await,
+			})
 			arrow.IsAsync = opts.isAsync
 			arrow.HasRestArg = spreadRange.Len > 0
 			p.popScope()
@@ -2747,6 +2758,11 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 					}
 					return js_ast.Expr{Loc: loc, Data: &js_ast.EAwait{Value: value}}
 				}
+
+			case allowIdent:
+				p.lexer.PrevTokenWasAwaitKeyword = true
+				p.lexer.AwaitKeywordLoc = loc
+				p.lexer.FnOrArrowStartLoc = p.fnOrArrowDataParse.needsAsyncLoc
 			}
 
 		case "yield":
@@ -2788,7 +2804,9 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, loc)
 			defer p.popScope()
 
-			return js_ast.Expr{Loc: loc, Data: p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{})}
+			return js_ast.Expr{Loc: loc, Data: p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{
+				needsAsyncLoc: loc,
+			})}
 		}
 
 		ref := p.storeNameInRef(name)
@@ -5125,6 +5143,7 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 	}
 
 	fn, hadBody := p.parseFn(name, fnOrArrowDataParse{
+		needsAsyncLoc:       loc,
 		asyncRange:          asyncRange,
 		await:               await,
 		yield:               yield,

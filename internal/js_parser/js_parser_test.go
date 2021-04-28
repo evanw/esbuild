@@ -1504,6 +1504,9 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "new async function() { await 0 }", "new async function() {\n  await 0;\n}();\n")
 	expectPrinted(t, "new async function() { await 0 }.x", "new async function() {\n  await 0;\n}.x();\n")
 
+	friendlyAwaitError := "<stdin>: error: \"await\" can only be used inside an \"async\" function\n" +
+		"<stdin>: note: Consider adding the \"async\" keyword here\n"
+
 	expectPrinted(t, "async", "async;\n")
 	expectPrinted(t, "async + 1", "async + 1;\n")
 	expectPrinted(t, "async => {}", "(async) => {\n};\n")
@@ -1525,7 +1528,7 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "new (async().x)", "new (async()).x();\n")
 	expectParseError(t, "async x;", "<stdin>: error: Expected \"=>\" but found \";\"\n")
 	expectParseError(t, "async (...x,) => {}", "<stdin>: error: Unexpected \",\" after rest pattern\n")
-	expectParseError(t, "async => await 0", "<stdin>: error: Expected \";\" but found \"0\"\n")
+	expectParseError(t, "async => await 0", friendlyAwaitError)
 	expectParseError(t, "new async => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
 	expectParseError(t, "new async () => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
 
@@ -1546,19 +1549,19 @@ func TestAsync(t *testing.T) {
 
 	noAwait := "<stdin>: error: The keyword \"await\" cannot be used here\n"
 	expectParseError(t, "async function bar(x = await y) {}", noAwait+"<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async (function(x = await y) {})", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async ({ foo(x = await y) {} })", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "async (function(x = await y) {})", friendlyAwaitError)
+	expectParseError(t, "async ({ foo(x = await y) {} })", friendlyAwaitError)
 	expectParseError(t, "class Foo { async foo(x = await y) {} }", noAwait+"<stdin>: error: Expected \")\" but found \"y\"\n")
 	expectParseError(t, "(class { async foo(x = await y) {} })", noAwait+"<stdin>: error: Expected \")\" but found \"y\"\n")
 
-	expectParseError(t, "async function foo() { function bar(x = await y) {} }", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async function foo() { (function(x = await y) {}) }", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async function foo() { ({ foo(x = await y) {} }) }", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async function foo() { class Foo { foo(x = await y) {} } }", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async function foo() { (class { foo(x = await y) {} }) }", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "async function foo() { function bar(x = await y) {} }", friendlyAwaitError)
+	expectParseError(t, "async function foo() { (function(x = await y) {}) }", friendlyAwaitError)
+	expectParseError(t, "async function foo() { ({ foo(x = await y) {} }) }", friendlyAwaitError)
+	expectParseError(t, "async function foo() { class Foo { foo(x = await y) {} } }", friendlyAwaitError)
+	expectParseError(t, "async function foo() { (class { foo(x = await y) {} }) }", friendlyAwaitError)
 	expectParseError(t, "async function foo() { (x = await y) => {} }", "<stdin>: error: Cannot use an \"await\" expression here\n")
 	expectPrinted(t, "async function foo() { (x = await y) }", "async function foo() {\n  x = await y;\n}\n")
-	expectParseError(t, "function foo() { (x = await y) }", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "function foo() { (x = await y) }", friendlyAwaitError)
 
 	// Newlines
 	expectPrinted(t, "(class { async \n foo() {} })", "(class {\n  async;\n  foo() {\n  }\n});\n")
@@ -1569,18 +1572,18 @@ func TestAsync(t *testing.T) {
 	// Top-level await
 	expectPrinted(t, "await foo;", "await foo;\n")
 	expectPrinted(t, "for await(foo of bar);", "for await (foo of bar)\n  ;\n")
-	expectParseError(t, "function foo() { await foo }", "<stdin>: error: Expected \";\" but found \"foo\"\n")
+	expectParseError(t, "function foo() { await foo }", friendlyAwaitError)
 	expectParseError(t, "function foo() { for await(foo of bar); }", "<stdin>: error: Cannot use \"await\" outside an async function\n")
 	expectPrinted(t, "function foo(x = await) {}", "function foo(x = await) {\n}\n")
-	expectParseError(t, "function foo(x = await y) {}", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "function foo(x = await y) {}", friendlyAwaitError)
 	expectPrinted(t, "(function(x = await) {})", "(function(x = await) {\n});\n")
-	expectParseError(t, "(function(x = await y) {})", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "(function(x = await y) {})", friendlyAwaitError)
 	expectPrinted(t, "({ foo(x = await) {} })", "({foo(x = await) {\n}});\n")
-	expectParseError(t, "({ foo(x = await y) {} })", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "({ foo(x = await y) {} })", friendlyAwaitError)
 	expectPrinted(t, "class Foo { foo(x = await) {} }", "class Foo {\n  foo(x = await) {\n  }\n}\n")
-	expectParseError(t, "class Foo { foo(x = await y) {} }", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "class Foo { foo(x = await y) {} }", friendlyAwaitError)
 	expectPrinted(t, "(class { foo(x = await) {} })", "(class {\n  foo(x = await) {\n  }\n});\n")
-	expectParseError(t, "(class { foo(x = await y) {} })", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "(class { foo(x = await y) {} })", friendlyAwaitError)
 	expectParseError(t, "(x = await) => {}", "<stdin>: error: Unexpected \")\"\n")
 	expectParseError(t, "(x = await y) => {}", "<stdin>: error: Cannot use an \"await\" expression here\n")
 	expectParseError(t, "(x = await)", "<stdin>: error: Unexpected \")\"\n")

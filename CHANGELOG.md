@@ -77,6 +77,30 @@
 
     The names of symbols imported from other chunks were previously not considered for renaming during minified name assignment. This could cause a syntax error due to a name collision when two symbols have the same original name. This was just an oversight and has been fixed, so symbols imported from other chunks should now be renamed when minification is enabled.
 
+* Provide a friendly error message when you forget `async` ([#1216](https://github.com/evanw/esbuild/issues/1216))
+
+    If the parser hits a parse error inside a non-asynchronous function or arrow expression and the previous token is `await`, esbuild will now report a friendly error about a missing `async` keyword instead of reporting the parse error. This behavior matches other JavaScript parsers including TypeScript, Babel, and V8.
+
+    The previous error looked like this:
+
+    ```
+     > test.ts:2:8: error: Expected ";" but found "f"
+        2 │   await f();
+          ╵         ^
+    ```
+
+    The error now looks like this:
+
+    ```
+     > example.js:2:2: error: "await" can only be used inside an "async" function
+        2 │   await f();
+          ╵   ~~~~~
+       example.js:1:0: note: Consider adding the "async" keyword here
+        1 │ function f() {
+          │ ^
+          ╵ async
+    ```
+
 ## 0.11.15
 
 * Provide options for how to handle legal comments ([#919](https://github.com/evanw/esbuild/issues/919))

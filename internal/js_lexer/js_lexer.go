@@ -223,12 +223,15 @@ type Lexer struct {
 	end                             int
 	ApproximateNewlineCount         int
 	LegacyOctalLoc                  logger.Loc
+	AwaitKeywordLoc                 logger.Loc
+	FnOrArrowStartLoc               logger.Loc
 	PreviousBackslashQuoteInJSX     logger.Range
 	Token                           T
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
 	PreserveAllCommentsBefore       bool
 	IsLegacyOctalLiteral            bool
+	PrevTokenWasAwaitKeyword        bool
 	CommentsToPreserveBefore        []js_ast.Comment
 	AllOriginalComments             []js_ast.Comment
 	codePoint                       rune
@@ -251,9 +254,10 @@ type LexerPanic struct{}
 
 func NewLexer(log logger.Log, source logger.Source) Lexer {
 	lexer := Lexer{
-		log:          log,
-		source:       source,
-		prevErrorLoc: logger.Loc{Start: -1},
+		log:               log,
+		source:            source,
+		prevErrorLoc:      logger.Loc{Start: -1},
+		FnOrArrowStartLoc: logger.Loc{Start: -1},
 	}
 	lexer.step()
 	lexer.Next()
@@ -262,10 +266,11 @@ func NewLexer(log logger.Log, source logger.Source) Lexer {
 
 func NewLexerGlobalName(log logger.Log, source logger.Source) Lexer {
 	lexer := Lexer{
-		log:           log,
-		source:        source,
-		prevErrorLoc:  logger.Loc{Start: -1},
-		forGlobalName: true,
+		log:               log,
+		source:            source,
+		prevErrorLoc:      logger.Loc{Start: -1},
+		FnOrArrowStartLoc: logger.Loc{Start: -1},
+		forGlobalName:     true,
 	}
 	lexer.step()
 	lexer.Next()
@@ -274,9 +279,10 @@ func NewLexerGlobalName(log logger.Log, source logger.Source) Lexer {
 
 func NewLexerJSON(log logger.Log, source logger.Source, allowComments bool) Lexer {
 	lexer := Lexer{
-		log:          log,
-		source:       source,
-		prevErrorLoc: logger.Loc{Start: -1},
+		log:               log,
+		source:            source,
+		prevErrorLoc:      logger.Loc{Start: -1},
+		FnOrArrowStartLoc: logger.Loc{Start: -1},
 		json: json{
 			parse:         true,
 			allowComments: allowComments,
@@ -384,6 +390,21 @@ func (lexer *Lexer) SyntaxError() {
 }
 
 func (lexer *Lexer) ExpectedString(text string) {
+	// Provide a friendly error message about "await" without "async"
+	if lexer.PrevTokenWasAwaitKeyword {
+		var notes []logger.MsgData
+		if lexer.FnOrArrowStartLoc.Start != -1 {
+			note := logger.RangeData(&lexer.source, logger.Range{Loc: lexer.FnOrArrowStartLoc},
+				"Consider adding the \"async\" keyword here")
+			note.Location.Suggestion = "async"
+			notes = []logger.MsgData{note}
+		}
+		lexer.addRangeErrorWithNotes(RangeOfIdentifier(lexer.source, lexer.AwaitKeywordLoc),
+			"\"await\" can only be used inside an \"async\" function",
+			notes)
+		panic(LexerPanic{})
+	}
+
 	found := fmt.Sprintf("%q", lexer.Raw())
 	if lexer.start == len(lexer.source.Contents) {
 		found = "end of file"
@@ -992,6 +1013,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 func (lexer *Lexer) Next() {
 	lexer.HasNewlineBefore = lexer.end == 0
 	lexer.HasPureCommentBefore = false
+	lexer.PrevTokenWasAwaitKeyword = false
 	lexer.CommentsToPreserveBefore = nil
 
 	for {
@@ -2437,6 +2459,18 @@ func (lexer *Lexer) addRangeError(r logger.Range, text string) {
 
 	if !lexer.IsLogDisabled {
 		lexer.log.AddRangeError(&lexer.source, r, text)
+	}
+}
+
+func (lexer *Lexer) addRangeErrorWithNotes(r logger.Range, text string, notes []logger.MsgData) {
+	// Don't report multiple errors in the same spot
+	if r.Loc == lexer.prevErrorLoc {
+		return
+	}
+	lexer.prevErrorLoc = r.Loc
+
+	if !lexer.IsLogDisabled {
+		lexer.log.AddRangeErrorWithNotes(&lexer.source, r, text, notes)
 	}
 }
 
