@@ -22,6 +22,24 @@ let tests = {
     asserts.assertStrictEquals(result.default, true)
   },
 
+  async largeBuild() {
+    // This should be large enough to be bigger than Deno's write buffer
+    let x = '0'
+    for (let i = 0; i < 1000; i++)x += '+' + i
+    x += ','
+    let y = 'return['
+    for (let i = 0; i < 1000; i++)y += x
+    y += ']'
+    const result = await esbuild.build({
+      stdin: {
+        contents: y,
+      },
+      write: false,
+      minify: true,
+    })
+    asserts.assertStrictEquals(result.outputFiles[0].text, y.slice(0, -2) + '];\n')
+  },
+
   async basicTransform() {
     const ts = 'let x: number = 1+2'
     const result = await esbuild.transform(ts, { loader: 'ts' })

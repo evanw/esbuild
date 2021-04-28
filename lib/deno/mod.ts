@@ -180,9 +180,25 @@ let ensureServiceIsRunning = (): Promise<Service> => {
         child.close()
       }
 
+      let writeQueue: Uint8Array[] = []
+      let isQueueLocked = false
+
+      // We need to keep calling "write()" until it actually writes the data
+      const startWriteFromQueueWorker = () => {
+        if (isQueueLocked || writeQueue.length === 0) return
+        isQueueLocked = true
+        child.stdin.write(writeQueue[0]).then(bytesWritten => {
+          isQueueLocked = false
+          if (bytesWritten === writeQueue[0].length) writeQueue.shift()
+          else writeQueue[0] = writeQueue[0].subarray(bytesWritten)
+          startWriteFromQueueWorker()
+        })
+      }
+
       const { readFromStdout, afterClose, service } = common.createChannel({
         writeToStdin(bytes) {
-          child.stdin.write(bytes)
+          writeQueue.push(bytes)
+          startWriteFromQueueWorker()
         },
         isSync: false,
         isBrowser: false,

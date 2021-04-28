@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix building with a large `stdin` string with Deno ([#1219](https://github.com/evanw/esbuild/issues/1219))
+
+    When I did the initial port of esbuild's node-based API to Deno, I didn't realize that Deno's `write(bytes)` function doesn't actually write the provided bytes. Instead it may only write some of those bytes and needs to be repeatedly called again until it writes everything. This meant that calling esbuild's Deno-based API could hang if the API request was large enough, which can happen in practice when using the `stdin` string feature. The `write` API is now called in a loop so these hangs in Deno should now be fixed.
+
 ## 0.11.16
 
 * Fix TypeScript `enum` edge case ([#1198](https://github.com/evanw/esbuild/issues/1198))
