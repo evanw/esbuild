@@ -1354,6 +1354,21 @@ func TestSuperCall(t *testing.T) {
 		"class Foo extends Bar {\n  constructor(x = super()) {\n  }\n}\n")
 	expectPrinted(t, "class Foo extends Bar { constructor(x = () => super()) {} }",
 		"class Foo extends Bar {\n  constructor(x = () => super()) {\n  }\n}\n")
+
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super() } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); c() } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    c();\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); if (c) throw c } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    if (c)\n      throw c;\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); switch (c) { case 0: throw c } } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    switch (c) {\n      case 0:\n        throw c;\n    }\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); while (!c) throw c } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    for (; !c; )\n      throw c;\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); return c } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    return c;\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); throw c } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    throw c;\n  }\n}\n")
 }
 
 func TestClassFields(t *testing.T) {

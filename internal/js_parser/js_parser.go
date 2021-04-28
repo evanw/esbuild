@@ -7055,7 +7055,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			// Merge return statements with the previous expression statement
 			if len(result) > 0 && s.Value != nil {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok {
+				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
 					value := js_ast.JoinWithComma(prevS.Value, *s.Value)
 					result[len(result)-1] = js_ast.Stmt{Loc: prevStmt.Loc, Data: &js_ast.SReturn{Value: &value}}
 					continue
@@ -7068,7 +7068,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			// Merge throw statements with the previous expression statement
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok {
+				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
 					result[len(result)-1] = js_ast.Stmt{Loc: prevStmt.Loc, Data: &js_ast.SThrow{Value: js_ast.JoinWithComma(prevS.Value, s.Value)}}
 					continue
 				}
@@ -7082,7 +7082,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 		case *js_ast.SFor:
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok {
+				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
 					// Insert the previous expression into the for loop initializer
 					if s.Init == nil {
 						result[len(result)-1] = stmt
@@ -7151,6 +7151,11 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 				case *js_ast.SExpr:
 					// This return statement must have a value
 					if lastReturn.Value == nil {
+						break returnLoop
+					}
+
+					// Do not absorb a "super()" call so that we keep it first
+					if js_ast.IsSuperCall(prevStmt) {
 						break returnLoop
 					}
 
@@ -7228,6 +7233,11 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 
 				switch prevS := prevStmt.Data.(type) {
 				case *js_ast.SExpr:
+					// Do not absorb a "super()" call so that we keep it first
+					if js_ast.IsSuperCall(prevStmt) {
+						break throwLoop
+					}
+
 					// "a(); throw b;" => "throw a(), b;"
 					lastThrow = &js_ast.SThrow{Value: js_ast.JoinWithComma(prevS.Value, lastThrow.Value)}
 
