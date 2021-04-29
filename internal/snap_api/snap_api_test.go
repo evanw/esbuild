@@ -66,7 +66,7 @@ __commonJS["./foo.js"] = function(exports, module2, __filename, __dirname, requi
 __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
 let import_foo;
 function __get_import_foo__() {
-  return import_foo = import_foo || (require("./foo.js"))
+  return import_foo = import_foo || (__toModule(require("./foo.js")))
 }
   module2.exports = function() {
     get_console().log((__get_import_foo__()).oneTwoThree);
@@ -260,7 +260,7 @@ exports.fsevents = require('` + ProjectBaseDir + `/node_modules/fsevents/fsevent
 			files: map[string]string{
 				`dev/node_modules/fsevents/fsevents.js`: `
 __commonJS["./node_modules/fsevents/fsevents.js"] = function(exports, module, __filename, __dirname, require) {
-  var Native = require("./fsevents.node");
+  var Native = require("./node_modules/fsevents/fsevents.node");
   var events = Native.constants;
 };`,
 				`dev/entry.js`: `
