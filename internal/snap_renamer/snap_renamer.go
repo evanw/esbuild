@@ -300,3 +300,19 @@ func (r *SnapRenamer) GlobalNeedsDefer(ref js_ast.Ref) bool {
 		return false
 	}
 }
+
+//
+// Used by Validator
+//
+
+func (r *SnapRenamer) IsProcessRef(ref js_ast.Ref) bool {
+	ref = r.resolveRefFromSymbols(ref)
+	symbol := r.symbols.Get(ref)
+	return symbol.OriginalName == "process" && symbol.Link == r.globalSymbols.process.Link
+}
+
+func (r *SnapRenamer) IsFunctionRef(ref js_ast.Ref) bool {
+	ref = r.resolveRefFromSymbols(ref)
+	symbol := r.symbols.Get(ref)
+	return symbol.Kind.IsFunction()
+}

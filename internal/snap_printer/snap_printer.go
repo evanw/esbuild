@@ -27,6 +27,7 @@ type PrintOptions = js_printer.Options
 
 type SourceMapChunk = js_printer.SourceMapChunk
 type PrintResult = js_printer.PrintResult
+type ValidationError = js_printer.ValidationError
 
 var QuoteIdentifier = js_printer.QuoteIdentifier
 
@@ -207,6 +208,7 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 type printer struct {
 	symbols            js_ast.SymbolMap
 	renamer            snap_renamer.SnapRenamer
+	validator          SnapAstValiator
 	importRecords      []ast.ImportRecord
 	options            PrintOptions
 	extractedComments  map[string]bool
@@ -255,6 +257,7 @@ type printer struct {
 	// It does not consider cases in which a function is created and later invoked
 	// at the module level.
 	uninvokedFunctionDepth int8
+	validationErrors       []ValidationError
 }
 
 func (p *printer) print(text string) {
@@ -2762,6 +2765,12 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 	case *js_ast.SExpr:
 		p.printIndent()
 		p.stmtStart = len(p.js)
+
+		msg, ok := p.validator.verifySExpr(s)
+		if !ok {
+			p.validationErrors = append(p.validationErrors, ValidationError{Msg: msg, Idx: p.stmtStart})
+		}
+
 		p.printExpr(s.Value, js_ast.LLowest, exprResultIsUnused)
 		p.printSemicolonAfterStatement()
 
@@ -2803,9 +2812,14 @@ func Print(
 			uninvokedFunctionDepth = -1
 		}
 
+		validator := SnapAstValiator{
+			renamer: snapRenamer,
+		}
+
 		p = &printer{
 			symbols:            symbols,
 			renamer:            *snapRenamer,
+			validator:          validator,
 			importRecords:      tree.ImportRecords,
 			options:            options,
 			stmtStart:          -1,
@@ -2835,6 +2849,7 @@ func Print(
 			topLevelVars:         topLevelVars,
 
 			uninvokedFunctionDepth: uninvokedFunctionDepth,
+			validationErrors:       []ValidationError{},
 		}
 		p.renamer.CurrentPrinterIndex = p.currentIdx
 
@@ -2851,6 +2866,9 @@ func Print(
 
 	for _, part := range tree.Parts {
 		for _, stmt := range part.Stmts {
+			if len(p.validationErrors) > 0 {
+				goto reportResult
+			}
 			p.printStmt(stmt)
 			p.printSemicolonIfNeeded()
 		}
@@ -2863,6 +2881,7 @@ func Print(
 		p.prependTopLevelDecls()
 	}
 
+reportResult:
 	return PrintResult{
 		JS:                p.js,
 		ExtractedComments: p.extractedComments,
@@ -2872,5 +2891,6 @@ func Print(
 			FinalGeneratedColumn: p.generatedColumn,
 			ShouldIgnore:         p.shouldIgnoreSourceMap(),
 		},
+		ValidationErrors: p.validationErrors,
 	}
 }
