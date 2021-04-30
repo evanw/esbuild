@@ -23,7 +23,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		tree, ok := js_parser.Parse(log, test.SourceForTest(contents), js_parser.OptionsFromConfig(&config.Options{
 			MangleSyntax:          options.MangleSyntax,
 			UnsupportedJSFeatures: options.UnsupportedFeatures,

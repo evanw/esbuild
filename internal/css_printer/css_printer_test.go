@@ -19,7 +19,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		tree := css_parser.Parse(log, test.SourceForTest(contents), css_parser.Options{
 			RemoveWhitespace: options.RemoveWhitespace,
 		})

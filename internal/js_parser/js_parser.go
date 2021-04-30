@@ -42,6 +42,7 @@ type parser struct {
 	latestReturnHadSemicolon bool
 	hasImportMeta            bool
 	hasESModuleSyntax        bool
+	warnedThisIsUndefined    bool
 	topLevelAwaitKeyword     logger.Range
 	fnOrArrowDataParse       fnOrArrowDataParse
 	fnOrArrowDataVisit       fnOrArrowDataVisit
@@ -10012,6 +10013,36 @@ func (p *parser) valueForThis(loc logger.Loc) (js_ast.Expr, bool) {
 
 	if p.options.mode != config.ModePassThrough && !p.fnOnlyDataVisit.isThisNested {
 		if p.hasESModuleSyntax {
+			// Warn about "this" becoming undefined, but only once per file
+			if !p.warnedThisIsUndefined {
+				p.warnedThisIsUndefined = true
+				r := js_lexer.RangeOfIdentifier(p.source, loc)
+				text := "Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module"
+
+				// Say why this is being considered ESM
+				var notes []logger.MsgData
+				var where logger.Range
+				switch {
+				case p.es6ImportKeyword.Len > 0:
+					where = p.es6ImportKeyword
+				case p.es6ExportKeyword.Len > 0:
+					where = p.es6ExportKeyword
+				case p.topLevelAwaitKeyword.Len > 0:
+					where = p.topLevelAwaitKeyword
+				}
+				if where.Len > 0 {
+					notes = []logger.MsgData{logger.RangeData(&p.source, where,
+						fmt.Sprintf("This file is considered an ECMAScript module because of the %q keyword here", p.source.TextForRange(where)))}
+				}
+
+				// Show the warning as a debug message if we're in "node_modules"
+				if !p.options.suppressWarningsAboutWeirdCode {
+					p.log.AddRangeWarningWithNotes(&p.source, r, text, notes)
+				} else {
+					p.log.AddRangeDebugWithNotes(&p.source, r, text, notes)
+				}
+			}
+
 			// In an ES6 module, "this" is supposed to be undefined. Instead of
 			// doing this at runtime using "fn.call(undefined)", we do it at
 			// compile time using expression substitution here.

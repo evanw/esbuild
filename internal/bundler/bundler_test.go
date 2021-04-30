@@ -77,7 +77,7 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 		if args.options.AbsOutputFile != "" {
 			args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
 		}
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		caches := cache.MakeCacheSet()
 		resolver := resolver.NewResolver(fs, log, caches, args.options)
 		entryPoints := make([]EntryPoint, 0, len(args.entryPaths))
@@ -93,7 +93,7 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 			return
 		}
 
-		log = logger.NewDeferLog()
+		log = logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		args.options.OmitRuntimeForTests = true
 		results, _ := bundle.Compile(log, args.options, nil)
 		msgs = log.Done()

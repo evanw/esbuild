@@ -807,7 +807,14 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 	})
 }
 
-func NewDeferLog() Log {
+type DeferLogKind uint8
+
+const (
+	DeferLogAll DeferLogKind = iota
+	DeferLogNoVerboseOrDebug
+)
+
+func NewDeferLog(kind DeferLogKind) Log {
 	var msgs SortableMsgs
 	var mutex sync.Mutex
 	var hasErrors bool
@@ -816,8 +823,7 @@ func NewDeferLog() Log {
 		Level: LevelInfo,
 
 		AddMsg: func(msg Msg) {
-			if msg.Kind == Verbose || msg.Kind == Debug {
-				// Ignore these when not writing to stderr
+			if kind == DeferLogNoVerboseOrDebug && (msg.Kind == Verbose || msg.Kind == Debug) {
 				return
 			}
 			mutex.Lock()
@@ -1307,23 +1313,24 @@ func (log Log) AddVerboseWithNotes(source *Source, loc Loc, text string, notes [
 	})
 }
 
-func (log Log) AddRangeError(source *Source, r Range, text string) {
-	log.AddMsg(Msg{
-		Kind: Error,
-		Data: RangeData(source, r, text),
-	})
-}
-
-func (log Log) AddRangeWarning(source *Source, r Range, text string) {
-	log.AddMsg(Msg{
-		Kind: Warning,
-		Data: RangeData(source, r, text),
-	})
-}
-
 func (log Log) AddRangeDebug(source *Source, r Range, text string) {
 	log.AddMsg(Msg{
 		Kind: Debug,
+		Data: RangeData(source, r, text),
+	})
+}
+
+func (log Log) AddRangeDebugWithNotes(source *Source, r Range, text string, notes []MsgData) {
+	log.AddMsg(Msg{
+		Kind:  Debug,
+		Data:  RangeData(source, r, text),
+		Notes: notes,
+	})
+}
+
+func (log Log) AddRangeError(source *Source, r Range, text string) {
+	log.AddMsg(Msg{
+		Kind: Error,
 		Data: RangeData(source, r, text),
 	})
 }
@@ -1333,6 +1340,13 @@ func (log Log) AddRangeErrorWithNotes(source *Source, r Range, text string, note
 		Kind:  Error,
 		Data:  RangeData(source, r, text),
 		Notes: notes,
+	})
+}
+
+func (log Log) AddRangeWarning(source *Source, r Range, text string) {
+	log.AddMsg(Msg{
+		Kind: Warning,
+		Data: RangeData(source, r, text),
 	})
 }
 

@@ -6,6 +6,31 @@
 
     When I did the initial port of esbuild's node-based API to Deno, I didn't realize that Deno's `write(bytes)` function doesn't actually write the provided bytes. Instead it may only write some of those bytes and needs to be repeatedly called again until it writes everything. This meant that calling esbuild's Deno-based API could hang if the API request was large enough, which can happen in practice when using the `stdin` string feature. The `write` API is now called in a loop so these hangs in Deno should now be fixed.
 
+* Add a warning about replacing `this` with `undefined` in ESM code ([#1225](https://github.com/evanw/esbuild/issues/1225))
+
+    There is existing JavaScript code that sometimes references top-level `this` as a way to access the global scope. However, top-level `this` is actually specified to be `undefined` inside of ECMAScript module code, which makes referencing top-level `this` inside ESM code useless. This issue can come up when the existing JavaScript code is adapted for ESM by adding `import` and/or `export`. All top-level references to `this` are replaced with `undefined` when bundling to make sure ECMAScript module behavior is emulated correctly regardless of the environment in which the resulting code is run.
+
+    With this release, esbuild will now warn about this when bundling:
+
+    ```
+     > example.mjs:1:61: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+        1 │ export let Array = (typeof window !== 'undefined' ? window : this).Array
+          ╵                                                              ~~~~
+       example.mjs:1:0: note: This file is considered an ECMAScript module because of the "export" keyword here
+        1 │ export let Array = (typeof window !== 'undefined' ? window : this).Array
+          ╵ ~~~~~~
+    ```
+
+    This warning is not unique to esbuild. Rollup also already has a similar warning:
+
+    ```
+    (!) `this` has been rewritten to `undefined`
+    https://rollupjs.org/guide/en/#error-this-is-undefined
+    example.mjs
+    1: export let Array = (typeof window !== 'undefined' ? window : this).Array
+                                                                    ^
+    ```
+
 ## 0.11.16
 
 * Fix TypeScript `enum` edge case ([#1198](https://github.com/evanw/esbuild/issues/1198))

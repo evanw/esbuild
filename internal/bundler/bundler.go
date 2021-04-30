@@ -2191,7 +2191,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 	} else {
 		constraint = 5
 	}
-	log := logger.NewDeferLog()
+	log := logger.NewDeferLog(logger.DeferLogAll)
 	runtimeAST, ok = js_parser.Parse(log, source, js_parser.OptionsFromConfig(&config.Options{
 		// These configuration options must only depend on the key
 		MangleSyntax:      key.MangleSyntax,

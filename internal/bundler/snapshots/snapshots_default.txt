@@ -2648,6 +2648,18 @@ var require_entry = __commonJS((exports) => {
 export default require_entry();
 
 ================================================================================
+TestThisUndefinedWarningESM
+---------- /out/entry.js ----------
+// file1.js
+var file1_default = [void 0, void 0];
+
+// node_modules/pkg/file2.js
+var file2_default = [void 0, void 0];
+
+// entry.js
+console.log(file1_default, file2_default);
+
+================================================================================
 TestThisWithES6Syntax
 ---------- /out.js ----------
 // cjs.js

@@ -1784,6 +1784,43 @@ func TestThisWithES6Syntax(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+		expectedScanLog: `es6-export-abstract-class.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-abstract-class.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-async-function.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-async-function.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-class.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-class.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-clause-from.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-clause-from.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-clause.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-clause.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-const-enum.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-const-enum.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-default.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-default.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-enum.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-enum.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-function.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-function.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-import-assign.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-import-assign.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-module.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-module.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-namespace.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-namespace.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-star-as.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-star-as.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-star.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-star.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-variable.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-variable.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-expr-import-meta.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-expr-import-meta.js: note: This file is considered an ECMAScript module because of the "import" keyword here
+es6-import-meta.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-import-meta.js: note: This file is considered an ECMAScript module because of the "import" keyword here
+es6-import-stmt.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-import-stmt.js: note: This file is considered an ECMAScript module because of the "import" keyword here
+`,
 	})
 }
 
@@ -4282,5 +4319,31 @@ func TestImportNamespaceThisValue(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestThisUndefinedWarningESM(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import x from './file1.js'
+				import y from 'pkg/file2.js'
+				console.log(x, y)
+			`,
+			"/file1.js": `
+				export default [this, this]
+			`,
+			"/node_modules/pkg/file2.js": `
+				export default [this, this]
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `file1.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+file1.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+`,
 	})
 }

@@ -55,7 +55,7 @@ func (c *CSSCache) Parse(log logger.Log, source logger.Source, options css_parse
 	}
 
 	// Cache miss
-	tempLog := logger.NewDeferLog()
+	tempLog := logger.NewDeferLog(logger.DeferLogAll)
 	ast := css_parser.Parse(tempLog, source, options)
 	msgs := tempLog.Done()
 	for _, msg := range msgs {
@@ -110,7 +110,7 @@ func (c *JSONCache) Parse(log logger.Log, source logger.Source, options js_parse
 	}
 
 	// Cache miss
-	tempLog := logger.NewDeferLog()
+	tempLog := logger.NewDeferLog(logger.DeferLogAll)
 	expr, ok := js_parser.ParseJSON(tempLog, source, options)
 	msgs := tempLog.Done()
 	for _, msg := range msgs {
@@ -166,7 +166,7 @@ func (c *JSCache) Parse(log logger.Log, source logger.Source, options js_parser.
 	}
 
 	// Cache miss
-	tempLog := logger.NewDeferLog()
+	tempLog := logger.NewDeferLog(logger.DeferLogAll)
 	ast, ok := js_parser.Parse(tempLog, source, options)
 	msgs := tempLog.Done()
 	for _, msg := range msgs {
