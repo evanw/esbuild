@@ -1132,12 +1132,12 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 };
 
                 // Note: "onEnd" callbacks should run even when there is no "onRebuild" callback
+                copyResponseToResult(watchResponse, result2);
                 runOnEndCallbacks(result2, () => {
                   if (result2.errors.length > 0) {
                     if (watch!.onRebuild) watch!.onRebuild(failureErrorWithLog('Build failed', result2.errors, result2.warnings), null);
                     return;
                   }
-                  copyResponseToResult(watchResponse, result2);
                   if (watchResponse.rebuildID !== void 0) result2.rebuild = rebuild;
                   result2.stop = stop;
                   if (watch!.onRebuild) watch!.onRebuild(null, result2);

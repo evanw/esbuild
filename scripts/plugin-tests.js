@@ -2328,6 +2328,7 @@ let syncTests = {
         onRebuild: (...args) => onRebuild(args),
       },
       bundle: true,
+      metafile: true,
       plugins: [
         {
           name: 'some-plugin',
@@ -2335,7 +2336,8 @@ let syncTests = {
             build.onStart(() => {
               onStartCalls++
             })
-            build.onEnd(() => {
+            build.onEnd(result => {
+              assert.notStrictEqual(result.metafile, void 0)
               onEndCalls++
             })
 
