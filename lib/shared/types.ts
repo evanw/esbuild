@@ -24,7 +24,7 @@ interface CommonOptions {
 
   jsxFactory?: string;
   jsxFragment?: string;
-  define?: { [key: string]: string };
+  define?: { [key: string]: number | string | boolean };
   pure?: string[];
   keepNames?: boolean;
 
