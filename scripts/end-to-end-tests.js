@@ -2394,7 +2394,7 @@
       'in.js': `const ns = require('./foo'); if (ns.a !== 123 || ns.b.a !== 123) throw 'fail'`,
       'foo.js': `exports.a = 123; exports.b = this`,
     }),
-    test(['in.js', '--outfile=node.js', '--bundle'], {
+    test(['in.js', '--outfile=node.js', '--bundle', '--log-level=error'], {
       'in.js': `const ns = require('./foo'); if (ns.a !== 123 || ns.b !== void 0) throw 'fail'`,
       'foo.js': `export let a = 123, b = this`,
     }),
