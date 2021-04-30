@@ -21,8 +21,9 @@ type built struct {
 }
 
 type buildResult struct {
-	files  map[string]string
-	bundle string
+	files    map[string]string
+	bundle   string
+	warnings []string
 }
 
 type suite struct {
@@ -57,12 +58,22 @@ func assertEqual(t *testing.T, key string, a interface{}, b interface{}) {
 	}
 }
 
-func extractBuildResult(bundle string) buildResult {
+func extractWarnings(result *api.BuildResult) []string {
+	warnings := []string{}
+	for _, warn := range result.Warnings {
+		warnings = append(warnings, warn.Text)
+	}
+	return warnings
+}
+
+func extractBuildResult(bundle string, res *api.BuildResult) buildResult {
 	newFileSectionRx := regexp.MustCompile(`^\/\/ (.+)$`)
+	warnings := extractWarnings(res)
 	lines := strings.Split(bundle, "\n")
 	result := buildResult{
-		bundle: bundle,
-		files:  make(map[string]string),
+		bundle:   bundle,
+		files:    make(map[string]string),
+		warnings: warnings,
 	}
 	var currentFile string
 	var currentContent string
@@ -132,11 +143,12 @@ func (s *suite) build(args built) buildResult {
 		FS: fs,
 	})
 	if len(result.OutputFiles) > 0 {
-		return extractBuildResult(string(result.OutputFiles[0].Contents))
+		return extractBuildResult(string(result.OutputFiles[0].Contents), &result)
 	} else {
 		return buildResult{
-			files:  map[string]string{},
-			bundle: NO_BUNDLE_GENERATED,
+			files:    map[string]string{},
+			bundle:   NO_BUNDLE_GENERATED,
+			warnings: extractWarnings(&result),
 		}
 	}
 }
@@ -157,5 +169,26 @@ func (s *suite) expectBuild(t *testing.T, args built, expected buildResult) {
 		t.Helper()
 		result := s.build(args)
 		verifyBuildResult(t, result, expected)
+	})
+}
+
+func (s *suite) expectWarnings(t *testing.T, args built, warnings []string) {
+	t.Helper()
+	t.Run("", func(t *testing.T) {
+		t.Helper()
+		result := s.build(args)
+		if warnings == nil {
+			fmt.Println("[]string{")
+			for _, warning := range result.warnings {
+				fmt.Printf("    \"%s\",\n", warning)
+			}
+			fmt.Println("}")
+		}
+		if len(result.warnings) != len(warnings) {
+			t.Fatal("should same amount of warnings")
+		}
+		for idx, warning := range result.warnings {
+			assertEqual(t, fmt.Sprint(idx), warning, warnings[idx])
+		}
 	})
 }

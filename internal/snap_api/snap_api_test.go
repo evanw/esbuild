@@ -375,6 +375,21 @@ __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, req
 	)
 }
 
+func TestReportsValidationErrorsAsWarnings(t *testing.T) {
+	snapApiSuite.expectWarnings(t, built{
+		files: map[string]string{
+			ProjectBaseDir + "/entry.js": `
+function override() {} 
+process.emitWarning = override 
+`,
+		},
+		entryPoints: []string{ProjectBaseDir + "/entry.js"},
+	}, []string{
+		"[SNAPSHOT_REWRITE_FAILURE] Cannot override 'process.emitWarning'",
+	},
+	)
+}
+
 func TestDebug(t *testing.T) {
 	snapApiSuite.debugBuild(t, built{
 		files: map[string]string{
