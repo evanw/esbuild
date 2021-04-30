@@ -16,8 +16,13 @@ type LanguageTarget int8
 
 type JSXOptions struct {
 	Parse    bool
-	Factory  []string
-	Fragment []string
+	Factory  JSXExpr
+	Fragment JSXExpr
+}
+
+type JSXExpr struct {
+	Parts    []string
+	Constant js_ast.E
 }
 
 type TSOptions struct {

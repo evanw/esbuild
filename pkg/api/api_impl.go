@@ -412,18 +412,12 @@ func validateLoaders(log logger.Log, loaders map[string]Loader) map[string]confi
 	return result
 }
 
-func validateJSX(log logger.Log, text string, name string) []string {
-	if text == "" {
-		return nil
+func validateJSXExpr(log logger.Log, text string, name string, kind js_parser.JSXExprKind) config.JSXExpr {
+	if expr, ok := js_parser.ParseJSXExpr(text, kind); ok {
+		return expr
 	}
-	parts := strings.Split(text, ".")
-	for _, part := range parts {
-		if !js_lexer.IsIdentifier(part) {
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
-			return nil
-		}
-	}
-	return parts
+	log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
+	return config.JSXExpr{}
 }
 
 func validateDefines(
@@ -805,8 +799,8 @@ func rebuildImpl(
 		UnsupportedCSSFeatures: cssFeatures,
 		OriginalTargetEnv:      targetEnv,
 		JSX: config.JSXOptions{
-			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
-			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
+			Factory:  validateJSXExpr(log, buildOpts.JSXFactory, "factory", js_parser.JSXFactory),
+			Fragment: validateJSXExpr(log, buildOpts.JSXFragment, "fragment", js_parser.JSXFragment),
 		},
 		Defines:               defines,
 		InjectedDefines:       injectedDefines,
@@ -1241,8 +1235,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	preserveUnusedImportsTS := false
 	useDefineForClassFieldsTS := config.Unspecified
 	jsx := config.JSXOptions{
-		Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
-		Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
+		Factory:  validateJSXExpr(log, transformOpts.JSXFactory, "factory", js_parser.JSXFactory),
+		Fragment: validateJSXExpr(log, transformOpts.JSXFragment, "fragment", js_parser.JSXFragment),
 	}
 
 	// Settings from "tsconfig.json" override those
@@ -1255,10 +1249,10 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		}
 		if result := resolver.ParseTSConfigJSON(log, source, &caches.JSONCache, nil); result != nil {
 			if len(result.JSXFactory) > 0 {
-				jsx.Factory = result.JSXFactory
+				jsx.Factory = config.JSXExpr{Parts: result.JSXFactory}
 			}
 			if len(result.JSXFragmentFactory) > 0 {
-				jsx.Fragment = result.JSXFragmentFactory
+				jsx.Fragment = config.JSXExpr{Parts: result.JSXFragmentFactory}
 			}
 			if result.UseDefineForClassFields != config.Unspecified {
 				useDefineForClassFieldsTS = result.UseDefineForClassFields

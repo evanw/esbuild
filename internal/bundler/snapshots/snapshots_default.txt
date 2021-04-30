@@ -1178,6 +1178,36 @@ console.log(collide);
 console.log(re_export);
 
 ================================================================================
+TestJSXConstantFragments
+---------- /out.js ----------
+// default.jsx
+console.log(/* @__PURE__ */ React.createElement("]", null));
+
+// null.jsx
+console.log(/* @__PURE__ */ React.createElement(null, null));
+
+// boolean.jsx
+console.log(/* @__PURE__ */ React.createElement(true, null));
+
+// number.jsx
+console.log(/* @__PURE__ */ React.createElement(123, null));
+
+// string-single-empty.jsx
+console.log(/* @__PURE__ */ React.createElement("", null));
+
+// string-double-empty.jsx
+console.log(/* @__PURE__ */ React.createElement("", null));
+
+// string-single-punctuation.jsx
+console.log(/* @__PURE__ */ React.createElement("[", null));
+
+// string-double-punctuation.jsx
+console.log(/* @__PURE__ */ React.createElement("[", null));
+
+// string-template.jsx
+console.log(/* @__PURE__ */ React.createElement("]", null));
+
+================================================================================
 TestJSXImportsCommonJS
 ---------- /out.js ----------
 // custom-react.js

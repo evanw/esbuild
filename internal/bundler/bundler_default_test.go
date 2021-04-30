@@ -7,6 +7,7 @@ import (
 
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -447,8 +448,8 @@ func TestJSXImportsCommonJS(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory:  []string{"elem"},
-				Fragment: []string{"frag"},
+				Factory:  config.JSXExpr{Parts: []string{"elem"}},
+				Fragment: config.JSXExpr{Parts: []string{"frag"}},
 			},
 			AbsOutputFile: "/out.js",
 		},
@@ -471,8 +472,8 @@ func TestJSXImportsES6(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory:  []string{"elem"},
-				Fragment: []string{"frag"},
+				Factory:  config.JSXExpr{Parts: []string{"elem"}},
+				Fragment: config.JSXExpr{Parts: []string{"frag"}},
 			},
 			AbsOutputFile: "/out.js",
 		},
@@ -492,6 +493,45 @@ func TestJSXSyntaxInJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `entry.js: error: Unexpected "<"
+`,
+	})
+}
+
+func TestJSXConstantFragments(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './default'
+				import './null'
+				import './boolean'
+				import './number'
+				import './string-single-empty'
+				import './string-double-empty'
+				import './string-single-punctuation'
+				import './string-double-punctuation'
+				import './string-template'
+			`,
+			"/default.jsx":                   `console.log(<></>)`,
+			"/null.jsx":                      `console.log(<></>) // @jsxFrag null`,
+			"/boolean.jsx":                   `console.log(<></>) // @jsxFrag true`,
+			"/number.jsx":                    `console.log(<></>) // @jsxFrag 123`,
+			"/string-single-empty.jsx":       `console.log(<></>) // @jsxFrag ''`,
+			"/string-double-empty.jsx":       `console.log(<></>) // @jsxFrag ""`,
+			"/string-single-punctuation.jsx": `console.log(<></>) // @jsxFrag '['`,
+			"/string-double-punctuation.jsx": `console.log(<></>) // @jsxFrag "["`,
+			"/string-template.jsx":           `console.log(<></>) // @jsxFrag ` + "``",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			JSX: config.JSXOptions{
+				Fragment: config.JSXExpr{
+					Constant: &js_ast.EString{Value: js_lexer.StringToUTF16("]")},
+				},
+			},
+		},
+		expectedScanLog: `string-template.jsx: warning: Invalid JSX fragment: ` + "``" + `
 `,
 	})
 }
@@ -2039,7 +2079,7 @@ func TestImportReExportES6Issue149(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory: []string{"h"},
+				Factory: config.JSXExpr{Parts: []string{"h"}},
 			},
 			AbsOutputFile: "/out.js",
 			ExternalModules: config.ExternalModules{

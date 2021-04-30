@@ -31,6 +31,12 @@
                                                                     ^
     ```
 
+* Allow a string literal as a JSX fragment ([#1217](https://github.com/evanw/esbuild/issues/1217))
+
+    TypeScript's JSX implementation allows you to configure a custom JSX factory and a custom JSX fragment, but requires that they are both valid JavaScript identifier member expression chains. Since esbuild's JSX implementation is based on TypeScript, esbuild has the same requirement. So `React.createElement` is a valid JSX factory value but `['React', 'createElement']` is not.
+
+    However, the [Mithril](https://mithril.js.org/jsx.html) framework has decided to use `"["` as a JSX fragment, which is not a valid JavaScript identifier member expression chain. This meant that using Mithril with esbuild required a workaround. In this release, esbuild now lets you use a string literal as a custom JSX fragment. It should now be easier to use esbuild's JSX implementation with libraries such as Mithril.
+
 ## 0.11.16
 
 * Fix TypeScript `enum` edge case ([#1198](https://github.com/evanw/esbuild/issues/1198))

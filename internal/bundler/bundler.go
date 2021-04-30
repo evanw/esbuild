@@ -1049,10 +1049,10 @@ func (s *scanner) maybeParseFile(
 
 	// Allow certain properties to be overridden
 	if len(resolveResult.JSXFactory) > 0 {
-		optionsClone.JSX.Factory = resolveResult.JSXFactory
+		optionsClone.JSX.Factory = config.JSXExpr{Parts: resolveResult.JSXFactory}
 	}
 	if len(resolveResult.JSXFragment) > 0 {
-		optionsClone.JSX.Fragment = resolveResult.JSXFragment
+		optionsClone.JSX.Fragment = config.JSXExpr{Parts: resolveResult.JSXFragment}
 	}
 	if resolveResult.UseDefineForClassFieldsTS != config.Unspecified {
 		optionsClone.UseDefineForClassFields = resolveResult.UseDefineForClassFieldsTS

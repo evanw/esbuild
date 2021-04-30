@@ -352,7 +352,7 @@ func (a *Options) Equal(b *Options) bool {
 	}
 
 	// Compare "JSX"
-	if a.jsx.Parse != b.jsx.Parse || !stringArraysEqual(a.jsx.Factory, b.jsx.Factory) || !stringArraysEqual(a.jsx.Fragment, b.jsx.Fragment) {
+	if a.jsx.Parse != b.jsx.Parse || !jsxExprsEqual(a.jsx.Factory, b.jsx.Factory) || !jsxExprsEqual(a.jsx.Fragment, b.jsx.Fragment) {
 		return false
 	}
 
@@ -361,6 +361,22 @@ func (a *Options) Equal(b *Options) bool {
 		len(a.defines.IdentifierDefines) != len(b.defines.IdentifierDefines) ||
 		len(a.defines.DotDefines) != len(b.defines.DotDefines)) {
 		panic("Internal error")
+	}
+
+	return true
+}
+
+func jsxExprsEqual(a config.JSXExpr, b config.JSXExpr) bool {
+	if !stringArraysEqual(a.Parts, b.Parts) {
+		return false
+	}
+
+	if a.Constant != nil {
+		if b.Constant == nil || !valuesLookTheSame(a.Constant, b.Constant) {
+			return false
+		}
+	} else if b.Constant != nil {
+		return false
 	}
 
 	return true
@@ -10309,7 +10325,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// A missing tag is a fragment
 		tag := e.Tag
 		if tag == nil {
-			value := p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Fragment)
+			var value js_ast.Expr
+			if len(p.options.jsx.Fragment.Parts) > 0 {
+				value = p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Fragment.Parts)
+			} else if constant := p.options.jsx.Fragment.Constant; constant != nil {
+				value = js_ast.Expr{Loc: expr.Loc, Data: constant}
+			}
 			tag = &value
 		} else {
 			*tag = p.visitExpr(*tag)
@@ -10346,7 +10367,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Call createElement()
 		return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-			Target: p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Factory),
+			Target: p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Factory.Parts),
 			Args:   args,
 
 			// Enable tree shaking
@@ -13058,11 +13079,11 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	}()
 
 	// Default options for JSX elements
-	if len(options.jsx.Factory) == 0 {
-		options.jsx.Factory = defaultJSXFactory
+	if len(options.jsx.Factory.Parts) == 0 {
+		options.jsx.Factory = config.JSXExpr{Parts: defaultJSXFactory}
 	}
-	if len(options.jsx.Fragment) == 0 {
-		options.jsx.Fragment = defaultJSXFragment
+	if len(options.jsx.Fragment.Parts) == 0 && options.jsx.Fragment.Constant == nil {
+		options.jsx.Fragment = config.JSXExpr{Parts: defaultJSXFragment}
 	}
 
 	if !options.ts.Parse {
@@ -13230,18 +13251,46 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 	return ast
 }
 
-func (p *parser) validateJSX(span js_ast.Span, name string) []string {
-	if span.Text == "" {
-		return nil
+type JSXExprKind uint8
+
+const (
+	JSXFactory JSXExprKind = iota
+	JSXFragment
+)
+
+func ParseJSXExpr(text string, kind JSXExprKind) (config.JSXExpr, bool) {
+	if text == "" {
+		return config.JSXExpr{}, true
 	}
-	parts := strings.Split(span.Text, ".")
+
+	// Try a property chain
+	parts := strings.Split(text, ".")
 	for _, part := range parts {
 		if !js_lexer.IsIdentifier(part) {
-			p.log.AddRangeWarning(&p.source, span.Range, fmt.Sprintf("Invalid JSX %s: %s", name, span.Text))
-			return nil
+			parts = nil
+			break
 		}
 	}
-	return parts
+	if parts != nil {
+		return config.JSXExpr{Parts: parts}, true
+	}
+
+	if kind == JSXFragment {
+		// Try a JSON value
+		source := logger.Source{Contents: text}
+		expr, ok := ParseJSON(logger.NewDeferLog(logger.DeferLogAll), source, JSONOptions{})
+		if !ok {
+			return config.JSXExpr{}, false
+		}
+
+		// Only primitives are supported for now
+		switch expr.Data.(type) {
+		case *js_ast.ENull, *js_ast.EBoolean, *js_ast.EString, *js_ast.ENumber:
+			return config.JSXExpr{Constant: expr.Data}, true
+		}
+	}
+
+	return config.JSXExpr{}, false
 }
 
 func (p *parser) prepareForVisitPass() {
@@ -13291,11 +13340,17 @@ func (p *parser) prepareForVisitPass() {
 
 	// Handle "@jsx" and "@jsxFrag" pragmas now that lexing is done
 	if p.options.jsx.Parse {
-		if value := p.validateJSX(p.lexer.JSXFactoryPragmaComment, "factory"); value != nil {
-			p.options.jsx.Factory = value
+		if expr, ok := ParseJSXExpr(p.lexer.JSXFactoryPragmaComment.Text, JSXFactory); !ok {
+			p.log.AddRangeWarning(&p.source, p.lexer.JSXFactoryPragmaComment.Range,
+				fmt.Sprintf("Invalid JSX factory: %s", p.lexer.JSXFactoryPragmaComment.Text))
+		} else if len(expr.Parts) > 0 {
+			p.options.jsx.Factory = expr
 		}
-		if value := p.validateJSX(p.lexer.JSXFragmentPragmaComment, "fragment"); value != nil {
-			p.options.jsx.Fragment = value
+		if expr, ok := ParseJSXExpr(p.lexer.JSXFragmentPragmaComment.Text, JSXFragment); !ok {
+			p.log.AddRangeWarning(&p.source, p.lexer.JSXFragmentPragmaComment.Range,
+				fmt.Sprintf("Invalid JSX fragment: %s", p.lexer.JSXFragmentPragmaComment.Text))
+		} else if len(expr.Parts) > 0 || expr.Constant != nil {
+			p.options.jsx.Fragment = expr
 		}
 	}
 }
