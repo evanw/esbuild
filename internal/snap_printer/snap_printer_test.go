@@ -1118,6 +1118,35 @@ function __get_x__() {
 }`, ReplaceAll)
 }
 
+//
+// Validation
+//
+
+func TestInvalidateProcessMethodPatchIdentifier(t *testing.T) {
+	expectValidationErrors(t, `
+function override() {}
+process.emitWarning = override
+  `, []string{
+		"Cannot override 'process.emitWarning'",
+	})
+}
+
+func TestInvalidateProcessMethodPatchInlineFunction(t *testing.T) {
+	expectValidationErrors(t, `
+process.cwd = function cwd() {}
+  `, []string{
+		"Cannot override 'process.cwd'",
+	})
+}
+
+func TestInvalidateProcessMethodPatchInlineArrowFunction(t *testing.T) {
+	expectValidationErrors(t, `
+process.cwd = () => {}
+  `, []string{
+		"Cannot override 'process.cwd'",
+	})
+}
+
 func TestDebug(t *testing.T) {
 	debugPrinted(t, `
 const { v4: uuidv4 } = require('uuid')

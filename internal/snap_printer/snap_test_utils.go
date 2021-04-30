@@ -220,5 +220,61 @@ func expectFixture(t *testing.T, fixtureName string, shouldReplaceRequire func(s
 		},
 	)
 }
+
+func expectValidationErrors(
+	t *testing.T,
+	contents string,
+	expectedMessages []string,
+) {
+	name := contents
+	options := PrintOptions{}
+	testOpts := testOpts{shouldReplaceRequire: ReplaceAll, shouldRewrite: true}
+
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		t.Helper()
+		log := logger.NewDeferLog()
+		tree, ok := js_parser.Parse(log, test.SourceForTest(contents), js_parser.Options{})
+		msgs := log.Done()
+		text := ""
+		for _, msg := range msgs {
+			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+		}
+		assertEqual(t, text, "")
+		if !ok {
+			t.Fatal("Parse error")
+		}
+		symbols := js_ast.NewSymbolMap(1)
+		symbols.SymbolsForSource[0] = tree.Symbols
+		r := snap_renamer.NewSnapRenamer(
+			symbols,
+			name,
+			tree.DirnameRef,
+			tree.FilenameRef,
+			testOpts.shouldRewrite)
+
+		errors := Print(
+			tree,
+			symbols,
+			&r,
+			options,
+			testOpts.isWrapped,
+			testOpts.shouldReplaceRequire,
+		).ValidationErrors
+
+		if expectedMessages == nil {
+			fmt.Println("[]string{")
+			for _, err := range errors {
+				fmt.Printf("    \"%s\",\n", err.Msg)
+			}
+			fmt.Println("}")
+		} else {
+			assertEqual(t, len(errors), len(expectedMessages))
+			for idx, err := range errors {
+				assertEqual(t, expectedMessages[idx], err.Msg)
+			}
+		}
+	})
+}
 func ReplaceAll(string) bool  { return true }
 func ReplaceNone(string) bool { return false }
