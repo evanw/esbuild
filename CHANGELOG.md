@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.17
 
 * Fix building with a large `stdin` string with Deno ([#1219](https://github.com/evanw/esbuild/issues/1219))
 
