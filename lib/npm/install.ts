@@ -285,6 +285,7 @@ const knownUnixlikePackages: Record<string, string> = {
   'darwin x64 LE': 'esbuild-darwin-64',
   'freebsd arm64 LE': 'esbuild-freebsd-arm64',
   'freebsd x64 LE': 'esbuild-freebsd-64',
+  'openbsd x64 LE': 'esbuild-openbsd-64',
   'linux arm LE': 'esbuild-linux-arm',
   'linux arm64 LE': 'esbuild-linux-arm64',
   'linux ia32 LE': 'esbuild-linux-32',

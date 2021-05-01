@@ -116,6 +116,7 @@ platform-all: cmd/esbuild/version.go test-all
 		platform-darwin-arm64 \
 		platform-freebsd \
 		platform-freebsd-arm64 \
+		platform-openbsd \
 		platform-linux \
 		platform-linux-32 \
 		platform-linux-arm \
@@ -154,6 +155,9 @@ platform-freebsd:
 
 platform-freebsd-arm64:
 	make GOOS=freebsd GOARCH=arm64 NPMDIR=npm/esbuild-freebsd-arm64 platform-unixlike
+
+platform-openbsd:
+	make GOOS=openbsd GOARCH=amd64 NPMDIR=npm/esbuild-openbsd-64 platform-unixlike
 
 platform-linux:
 	make GOOS=linux GOARCH=amd64 NPMDIR=npm/esbuild-linux-64 platform-unixlike
@@ -198,6 +202,7 @@ publish-all: cmd/esbuild/version.go test-prepublish
 		publish-windows-32 \
 		publish-freebsd \
 		publish-freebsd-arm64 \
+		publish-openbsd \
 		publish-darwin \
 		publish-darwin-arm64
 	@echo Enter one-time password:
@@ -240,6 +245,9 @@ publish-freebsd: platform-freebsd
 publish-freebsd-arm64: platform-freebsd-arm64
 	test -n "$(OTP)" && cd npm/esbuild-freebsd-arm64 && npm publish --otp="$(OTP)"
 
+publish-openbsd: platform-openbsd
+	test -n "$(OTP)" && cd npm/esbuild-openbsd-64 && npm publish --otp="$(OTP)"
+
 publish-linux: platform-linux
 	test -n "$(OTP)" && cd npm/esbuild-linux-64 && npm publish --otp="$(OTP)"
 
@@ -281,6 +289,7 @@ clean:
 	rm -rf npm/esbuild-darwin-arm64/bin
 	rm -rf npm/esbuild-freebsd-64/bin
 	rm -rf npm/esbuild-freebsd-amd64/bin
+	rm -rf npm/esbuild-openbsd-64/bin
 	rm -rf npm/esbuild-linux-32/bin
 	rm -rf npm/esbuild-linux-64/bin
 	rm -rf npm/esbuild-linux-arm/bin

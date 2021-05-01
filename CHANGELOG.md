@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* Add support for OpenBSD on x86-64 ([#1235](https://github.com/evanw/esbuild/issues/1235))
+
+    Someone has asked for OpenBSD to be supported on x86-64. It should now be supported starting with this release.
+
+* Fix an incorrect warning about top-level `this`
+
+    This was introduced in the previous release, and happens when using a top-level `async` arrow function with a compilation target that doesn't support it. The reason is that doing this generates a shim that preserves the value of `this`. However, this warning message is confusing because there is not necessarily any `this` present in the source code. The warning message has been removed in this case. Now it should only show up if `this` is actually present in the source code.
+
 ## 0.11.17
 
 * Fix building with a large `stdin` string with Deno ([#1219](https://github.com/evanw/esbuild/issues/1219))
