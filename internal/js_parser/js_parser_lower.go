@@ -297,7 +297,7 @@ func (p *parser) lowerFunction(
 		}
 
 		// Determine the value for "this"
-		thisValue, hasThisValue := p.valueForThis(bodyLoc)
+		thisValue, hasThisValue := p.valueForThis(bodyLoc, false /* shouldWarn */)
 		if !hasThisValue {
 			thisValue = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EThis{}}
 		}

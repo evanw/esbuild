@@ -863,7 +863,11 @@ func TestLowerAsyncThis2016ES6(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
+				export {bar} from "./other"
 				export let foo = async () => this
+			`,
+			"/other.js": `
+				export let bar = async () => {}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},

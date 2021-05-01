@@ -10020,7 +10020,7 @@ func (p *parser) visitExpr(expr js_ast.Expr) js_ast.Expr {
 	return expr
 }
 
-func (p *parser) valueForThis(loc logger.Loc) (js_ast.Expr, bool) {
+func (p *parser) valueForThis(loc logger.Loc, shouldWarn bool) (js_ast.Expr, bool) {
 	// Substitute "this" if we're inside a static class property initializer
 	if p.fnOnlyDataVisit.thisClassStaticRef != nil {
 		p.recordUsage(*p.fnOnlyDataVisit.thisClassStaticRef)
@@ -10030,7 +10030,7 @@ func (p *parser) valueForThis(loc logger.Loc) (js_ast.Expr, bool) {
 	if p.options.mode != config.ModePassThrough && !p.fnOnlyDataVisit.isThisNested {
 		if p.hasESModuleSyntax {
 			// Warn about "this" becoming undefined, but only once per file
-			if !p.warnedThisIsUndefined {
+			if shouldWarn && !p.warnedThisIsUndefined {
 				p.warnedThisIsUndefined = true
 				r := js_lexer.RangeOfIdentifier(p.source, loc)
 				text := "Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module"
@@ -10229,7 +10229,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EThis:
-		if value, ok := p.valueForThis(expr.Loc); ok {
+		if value, ok := p.valueForThis(expr.Loc, true /* shouldWarn */); ok {
 			return value, exprOut{}
 		}
 
