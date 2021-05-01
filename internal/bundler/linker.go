@@ -4995,7 +4995,15 @@ func (c *linkerContext) generateSourceMapForChunk(
 		// Modify the absolute path to the original file to be relative to the
 		// directory that will contain the output file for this chunk
 		if item.path.Namespace == "file" {
-			if relPath, ok := c.fs.Rel(chunkAbsDir, item.path.Text); ok {
+			basePath := chunkAbsDir
+
+			// If "SourceRoot" is an absolute path, use it as the base for the
+			// relative paths
+			if sourceRootIsAbs := c.fs.IsAbs(c.options.SourceRoot); sourceRootIsAbs {
+				basePath = c.options.SourceRoot
+			}
+
+			if relPath, ok := c.fs.Rel(basePath, item.path.Text); ok {
 				// Make sure to always use forward slashes, even on Windows
 				item.prettyPath = strings.ReplaceAll(relPath, "\\", "/")
 			}
