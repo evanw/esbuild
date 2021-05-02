@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.18
 
 * Add support for OpenBSD on x86-64 ([#1235](https://github.com/evanw/esbuild/issues/1235))
 
