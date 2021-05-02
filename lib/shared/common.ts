@@ -624,13 +624,13 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let onStartCallbacks: {
       name: string,
       note: () => types.Note | undefined,
-      callback: () => (types.OnStartResult | null | undefined | Promise<types.OnStartResult | null | undefined>),
+      callback: () => (types.OnStartResult | null | void | Promise<types.OnStartResult | null | void>),
     }[] = [];
 
     let onEndCallbacks: {
       name: string,
       note: () => types.Note | undefined,
-      callback: (result: types.BuildResult) => (undefined | Promise<undefined>),
+      callback: (result: types.BuildResult) => (void | Promise<void>),
     }[] = [];
 
     let onResolveCallbacks: {
