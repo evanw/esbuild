@@ -1,7 +1,13 @@
 ESBUILD_VERSION = $(shell cat version.txt)
 
+# Strip debug info
+GO_FLAGS += "-ldflags=-s -w"
+
+# Avoid embedding the build path in the executable for more reproducible builds
+GO_FLAGS += -trimpath
+
 esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
-	go build "-ldflags=-s -w" ./cmd/esbuild
+	CGO_ENABLED=0 go build $(GO_FLAGS) ./cmd/esbuild
 
 test:
 	make -j6 test-common
@@ -11,13 +17,13 @@ test-common: test-go vet-go no-filepath verify-source-map end-to-end-tests js-ap
 
 # These tests are for release (the extra tests are not included in "test" because they are pretty slow)
 test-all:
-	make -j6 test-common ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
+	make -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 # This includes tests of some 3rd-party libraries, which can be very slow
-test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
+test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild bench-readmin-esbuild test-esprima test-rollup
 
 check-go-version:
-	@go version | grep ' go1\.16 ' || (echo 'Please install Go version 1.16.0' && false)
+	@go version | grep ' go1\.16\.3 ' || (echo 'Please install Go version 1.16.3' && false)
 
 # This "ESBUILD_RACE" variable exists at the request of a user on GitHub who
 # wants to run "make test" on an unsupported version of macOS (version 10.9).
@@ -32,7 +38,7 @@ vet-go:
 	go vet ./cmd/... ./internal/... ./pkg/...
 
 fmt-go:
-	go fmt ./cmd/... ./internal/... ./pkg/...
+	test -z "$(shell go fmt ./cmd/... ./internal/... ./pkg/... )"
 
 no-filepath:
 	@! grep --color --include '*.go' -r '"path/filepath"' cmd internal pkg || ( \
@@ -44,6 +50,9 @@ test-wasm-node: esbuild
 
 test-wasm-browser: platform-wasm | scripts/browser/node_modules
 	cd scripts/browser && node browser-tests.js
+
+test-deno: esbuild platform-deno
+	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno run --allow-run --allow-env --allow-net --allow-read --allow-write scripts/deno-tests.js
 
 register-test: cmd/esbuild/version.go | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
@@ -67,7 +76,7 @@ plugin-tests: cmd/esbuild/version.go | scripts/node_modules
 ts-type-tests: | scripts/node_modules
 	node scripts/ts-type-tests.js
 
-node-unref-tests:
+node-unref-tests: | scripts/node_modules
 	node scripts/node-unref-tests.js
 
 lib-typecheck: | lib/node_modules
@@ -102,10 +111,12 @@ platform-all: cmd/esbuild/version.go test-all
 	make -j8 \
 		platform-windows \
 		platform-windows-32 \
+		platform-android-arm64 \
 		platform-darwin \
 		platform-darwin-arm64 \
 		platform-freebsd \
 		platform-freebsd-arm64 \
+		platform-openbsd \
 		platform-linux \
 		platform-linux-32 \
 		platform-linux-arm \
@@ -113,21 +124,25 @@ platform-all: cmd/esbuild/version.go test-all
 		platform-linux-mips64le \
 		platform-linux-ppc64le \
 		platform-wasm \
-		platform-neutral
+		platform-neutral \
+		platform-deno
 
 platform-windows:
 	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS=windows GOARCH=amd64 go build "-ldflags=-s -w" -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GO_FLAGS) -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
 
 platform-windows-32:
 	cd npm/esbuild-windows-32 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS=windows GOARCH=386 go build "-ldflags=-s -w" -o npm/esbuild-windows-32/esbuild.exe ./cmd/esbuild
+	CGO_ENABLED=0 GOOS=windows GOARCH=386 go build $(GO_FLAGS) -o npm/esbuild-windows-32/esbuild.exe ./cmd/esbuild
 
 platform-unixlike:
 	test -n "$(GOOS)" && test -n "$(GOARCH)" && test -n "$(NPMDIR)"
 	mkdir -p "$(NPMDIR)/bin"
 	cd "$(NPMDIR)" && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build "-ldflags=-s -w" -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
+	CGO_ENABLED=0 GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
+
+platform-android-arm64:
+	make GOOS=android GOARCH=arm64 NPMDIR=npm/esbuild-android-arm64 platform-unixlike
 
 platform-darwin:
 	make GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
@@ -140,6 +155,9 @@ platform-freebsd:
 
 platform-freebsd-arm64:
 	make GOOS=freebsd GOARCH=arm64 NPMDIR=npm/esbuild-freebsd-arm64 platform-unixlike
+
+platform-openbsd:
+	make GOOS=openbsd GOARCH=amd64 NPMDIR=npm/esbuild-openbsd-64 platform-unixlike
 
 platform-linux:
 	make GOOS=linux GOARCH=amd64 NPMDIR=npm/esbuild-linux-64 platform-unixlike
@@ -167,6 +185,9 @@ platform-neutral: esbuild lib-typecheck | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/esbuild.js ./esbuild
 
+platform-deno: esbuild lib-typecheck | scripts/node_modules
+	node scripts/esbuild.js ./esbuild --deno
+
 test-otp:
 	test -n "$(OTP)" && echo publish --otp="$(OTP)"
 
@@ -180,15 +201,15 @@ publish-all: cmd/esbuild/version.go test-prepublish
 		publish-windows \
 		publish-windows-32 \
 		publish-freebsd \
-		publish-freebsd-arm64
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j4 \
+		publish-freebsd-arm64 \
+		publish-openbsd \
 		publish-darwin \
-		publish-darwin-arm64 \
-		publish-linux \
-		publish-linux-32
+		publish-darwin-arm64
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j4 \
+		publish-android-arm64 \
+		publish-linux \
+		publish-linux-32 \
 		publish-linux-arm \
 		publish-linux-arm64 \
 		publish-linux-mips64le \
@@ -197,6 +218,7 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j2 \
 		publish-neutral \
+		publish-deno \
 		publish-wasm
 	git commit -am "publish $(ESBUILD_VERSION) to npm"
 	git tag "v$(ESBUILD_VERSION)"
@@ -207,6 +229,9 @@ publish-windows: platform-windows
 
 publish-windows-32: platform-windows-32
 	test -n "$(OTP)" && cd npm/esbuild-windows-32 && npm publish --otp="$(OTP)"
+
+publish-android-arm64: platform-android-arm64
+	test -n "$(OTP)" && cd npm/esbuild-android-arm64 && npm publish --otp="$(OTP)"
 
 publish-darwin: platform-darwin
 	test -n "$(OTP)" && cd npm/esbuild-darwin-64 && npm publish --otp="$(OTP)"
@@ -219,6 +244,9 @@ publish-freebsd: platform-freebsd
 
 publish-freebsd-arm64: platform-freebsd-arm64
 	test -n "$(OTP)" && cd npm/esbuild-freebsd-arm64 && npm publish --otp="$(OTP)"
+
+publish-openbsd: platform-openbsd
+	test -n "$(OTP)" && cd npm/esbuild-openbsd-64 && npm publish --otp="$(OTP)"
 
 publish-linux: platform-linux
 	test -n "$(OTP)" && cd npm/esbuild-linux-64 && npm publish --otp="$(OTP)"
@@ -244,14 +272,24 @@ publish-wasm: platform-wasm
 publish-neutral: platform-neutral
 	test -n "$(OTP)" && cd npm/esbuild && npm publish --otp="$(OTP)"
 
+publish-deno:
+	test -f deno/.git || (rm -fr deno && git clone git@github.com:esbuild/deno-esbuild.git deno)
+	cd deno && git fetch && git reset --hard origin/main
+	make platform-deno
+	cd deno && git commit -am "publish $(ESBUILD_VERSION) to deno"
+	cd deno && git tag "v$(ESBUILD_VERSION)"
+	cd deno && git push origin main "v$(ESBUILD_VERSION)"
+
 clean:
 	rm -f esbuild
 	rm -f npm/esbuild-windows-32/esbuild.exe
 	rm -f npm/esbuild-windows-64/esbuild.exe
+	rm -rf npm/esbuild-android-arm64/bin
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-darwin-arm64/bin
 	rm -rf npm/esbuild-freebsd-64/bin
 	rm -rf npm/esbuild-freebsd-amd64/bin
+	rm -rf npm/esbuild-openbsd-64/bin
 	rm -rf npm/esbuild-linux-32/bin
 	rm -rf npm/esbuild-linux-64/bin
 	rm -rf npm/esbuild-linux-arm/bin
@@ -271,7 +309,7 @@ clean-all: clean
 	rm -fr github demo bench
 
 ################################################################################
-# These npm packages are used for benchmarks. Instal them in subdirectories
+# These npm packages are used for benchmarks. Install them in subdirectories
 # because we want to install the same package name at multiple versions
 
 require/webpack/node_modules:
@@ -563,7 +601,7 @@ bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-th
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
-	time -p ./esbuild --bundle --global-name=THREE --sourcemap --minify bench/three/src/entry.js --outfile=bench/three/esbuild/entry.esbuild.js
+	time -p ./esbuild --bundle --global-name=THREE --sourcemap --minify bench/three/src/entry.js --outfile=bench/three/esbuild/entry.esbuild.js --timing
 	du -h bench/three/esbuild/entry.esbuild.js*
 	shasum bench/three/esbuild/entry.esbuild.js*
 
@@ -672,7 +710,7 @@ bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-webpack5 bench-rome
 
 bench-rome-esbuild: esbuild | bench/rome bench/rome-verify
 	rm -fr bench/rome/esbuild
-	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node
+	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node --timing
 	du -h bench/rome/esbuild/rome.esbuild.js*
 	shasum bench/rome/esbuild/rome.esbuild.js*
 	cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
@@ -809,10 +847,10 @@ bench-readmin: bench-readmin-esbuild
 
 READMIN_ESBUILD_FLAGS += --bundle
 READMIN_ESBUILD_FLAGS += --define:global=window
-READMIN_ESBUILD_FLAGS += --define:process.env.NODE_ENV='"production"'
 READMIN_ESBUILD_FLAGS += --loader:.js=jsx
 READMIN_ESBUILD_FLAGS += --minify
 READMIN_ESBUILD_FLAGS += --sourcemap
+READMIN_ESBUILD_FLAGS += --timing
 
 bench-readmin-esbuild: esbuild | bench/readmin
 	rm -fr bench/readmin/esbuild

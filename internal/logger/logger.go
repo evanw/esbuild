@@ -19,6 +19,8 @@ import (
 const defaultTerminalWidth = 80
 
 type Log struct {
+	Level LogLevel
+
 	AddMsg    func(Msg)
 	HasErrors func() bool
 
@@ -34,6 +36,8 @@ type LogLevel int8
 
 const (
 	LevelNone LogLevel = iota
+	LevelVerbose
+	LevelDebug
 	LevelInfo
 	LevelWarning
 	LevelError
@@ -45,7 +49,10 @@ type MsgKind uint8
 const (
 	Error MsgKind = iota
 	Warning
+	Info
 	Note
+	Debug
+	Verbose
 )
 
 func (kind MsgKind) String() string {
@@ -54,17 +61,24 @@ func (kind MsgKind) String() string {
 		return "error"
 	case Warning:
 		return "warning"
+	case Info:
+		return "info"
 	case Note:
 		return "note"
+	case Debug:
+		return "debug"
+	case Verbose:
+		return "verbose"
 	default:
 		panic("Internal error")
 	}
 }
 
 type Msg struct {
-	Kind  MsgKind
-	Data  MsgData
-	Notes []MsgData
+	PluginName string
+	Kind       MsgKind
+	Data       MsgData
+	Notes      []MsgData
 }
 
 type MsgData struct {
@@ -336,6 +350,17 @@ func errorAndWarningSummary(errors int, warnings int, shownErrors int, shownWarn
 	}
 }
 
+type APIKind uint8
+
+const (
+	GoAPI APIKind = iota
+	CLIAPI
+	JSAPI
+)
+
+// This can be used to customize error messages for the current API kind
+var API APIKind
+
 type TerminalInfo struct {
 	IsTTY           bool
 	UseColorEscapes bool
@@ -391,17 +416,35 @@ func NewStderrLog(options OutputOptions) Log {
 	}
 
 	return Log{
+		Level: options.LogLevel,
+
 		AddMsg: func(msg Msg) {
 			mutex.Lock()
 			defer mutex.Unlock()
 			msgs = append(msgs, msg)
 
 			switch msg.Kind {
+			case Verbose:
+				if options.LogLevel <= LevelVerbose {
+					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
+				}
+
+			case Debug:
+				if options.LogLevel <= LevelDebug {
+					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
+				}
+
+			case Info:
+				if options.LogLevel <= LevelInfo {
+					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
+				}
+
 			case Error:
 				hasErrors = true
 				if options.LogLevel <= LevelError {
 					errors++
 				}
+
 			case Warning:
 				if options.LogLevel <= LevelWarning {
 					warnings++
@@ -437,17 +480,20 @@ func NewStderrLog(options OutputOptions) Log {
 				}
 			}
 		},
+
 		HasErrors: func() bool {
 			mutex.Lock()
 			defer mutex.Unlock()
 			return hasErrors
 		},
+
 		AlmostDone: func() {
 			mutex.Lock()
 			defer mutex.Unlock()
 
 			finalizeLog()
 		},
+
 		Done: func() []Msg {
 			mutex.Lock()
 			defer mutex.Unlock()
@@ -495,9 +541,10 @@ func PrintMessageToStderr(osArgs []string, msg Msg) {
 }
 
 type Colors struct {
-	Default string
-	Bold    string
-	Dim     string
+	Reset     string
+	Bold      string
+	Dim       string
+	Underline string
 
 	Red   string
 	Green string
@@ -506,8 +553,21 @@ type Colors struct {
 	Cyan    string
 	Magenta string
 	Yellow  string
+}
 
-	Underline string
+var TerminalColors = Colors{
+	Reset:     "\033[0m",
+	Bold:      "\033[1m",
+	Dim:       "\033[37m",
+	Underline: "\033[4m",
+
+	Red:   "\033[31m",
+	Green: "\033[32m",
+	Blue:  "\033[34m",
+
+	Cyan:    "\033[36m",
+	Magenta: "\033[35m",
+	Yellow:  "\033[33m",
 }
 
 func PrintText(file *os.File, level LogLevel, osArgs []string, callback func(Colors) string) {
@@ -534,19 +594,7 @@ func PrintTextWithColor(file *os.File, useColor UseColor, callback func(Colors) 
 
 	var colors Colors
 	if useColorEscapes {
-		colors.Default = colorReset
-		colors.Bold = colorResetBold
-		colors.Dim = colorResetDim
-
-		colors.Red = colorRed
-		colors.Green = colorGreen
-		colors.Blue = colorBlue
-
-		colors.Cyan = colorCyan
-		colors.Magenta = colorMagenta
-		colors.Yellow = colorYellow
-
-		colors.Underline = colorResetUnderline
+		colors = TerminalColors
 	}
 	writeStringWithColor(file, callback(colors))
 }
@@ -582,14 +630,6 @@ func (t SummaryTable) Less(i int, j int) bool {
 		return true
 	}
 	if ti.Bytes < tj.Bytes {
-		return false
-	}
-
-	// Sort subdirectories first
-	if strings.HasPrefix(ti.Dir, tj.Dir) {
-		return true
-	}
-	if strings.HasPrefix(tj.Dir, ti.Dir) {
 		return false
 	}
 
@@ -719,18 +759,19 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 					}
 				}
 
-				sb.WriteString(fmt.Sprintf("%s%s%s%s%s%s%s%s%s%s%s\n",
+				sb.WriteString(fmt.Sprintf("%s%s%s%s%s%s%s%s%s%s%s%s\n",
 					margin,
 					colors.Dim,
 					dir,
+					colors.Reset,
 					colors.Bold,
 					base,
-					colors.Default,
+					colors.Reset,
 					strings.Repeat(" ", spacer),
 					sizeColor,
 					entry.Size,
 					sizeWarning,
-					colors.Default,
+					colors.Reset,
 				))
 			}
 
@@ -740,7 +781,7 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 				if length == maxLength+1 {
 					plural = ""
 				}
-				sb.WriteString(fmt.Sprintf("%s%s...and %d more output file%s...%s\n", margin, colors.Dim, length-maxLength, plural, colors.Default))
+				sb.WriteString(fmt.Sprintf("%s%s...and %d more output file%s...%s\n", margin, colors.Dim, length-maxLength, plural, colors.Reset))
 			}
 		}
 		sb.WriteByte('\n')
@@ -758,7 +799,7 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 				lightningSymbol,
 				colors.Green,
 				time.Since(*start).Milliseconds(),
-				colors.Default,
+				colors.Reset,
 			))
 		}
 
@@ -766,13 +807,25 @@ func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 	})
 }
 
-func NewDeferLog() Log {
+type DeferLogKind uint8
+
+const (
+	DeferLogAll DeferLogKind = iota
+	DeferLogNoVerboseOrDebug
+)
+
+func NewDeferLog(kind DeferLogKind) Log {
 	var msgs SortableMsgs
 	var mutex sync.Mutex
 	var hasErrors bool
 
 	return Log{
+		Level: LevelInfo,
+
 		AddMsg: func(msg Msg) {
+			if kind == DeferLogNoVerboseOrDebug && (msg.Kind == Verbose || msg.Kind == Debug) {
+				return
+			}
 			mutex.Lock()
 			defer mutex.Unlock()
 			if msg.Kind == Error {
@@ -780,13 +833,16 @@ func NewDeferLog() Log {
 			}
 			msgs = append(msgs, msg)
 		},
+
 		HasErrors: func() bool {
 			mutex.Lock()
 			defer mutex.Unlock()
 			return hasErrors
 		},
+
 		AlmostDone: func() {
 		},
+
 		Done: func() []Msg {
 			mutex.Lock()
 			defer mutex.Unlock()
@@ -795,21 +851,6 @@ func NewDeferLog() Log {
 		},
 	}
 }
-
-const colorReset = "\033[0m"
-
-const colorRed = "\033[31m"
-const colorGreen = "\033[32m"
-const colorBlue = "\033[34m"
-
-const colorCyan = "\033[36m"
-const colorMagenta = "\033[35m"
-const colorYellow = "\033[33m"
-
-const colorResetDim = "\033[0;37m"
-const colorBold = "\033[1m"
-const colorResetBold = "\033[0;1m"
-const colorResetUnderline = "\033[0;4m"
 
 type UseColor uint8
 
@@ -844,7 +885,7 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	}
 
 	// Format the message
-	text := msgString(options, terminalInfo, msg.Kind, msg.Data, maxMargin)
+	text := msgString(options.IncludeSource, terminalInfo, msg.Kind, msg.Data, maxMargin, msg.PluginName)
 
 	// Put a blank line between the message and the notes if the message has a stack trace
 	gap := ""
@@ -855,7 +896,7 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	// Format the notes
 	for _, note := range msg.Notes {
 		text += gap
-		text += msgString(options, terminalInfo, Note, note, maxMargin)
+		text += msgString(options.IncludeSource, terminalInfo, Note, note, maxMargin, "")
 	}
 
 	// Add extra spacing between messages if source code is present
@@ -881,28 +922,42 @@ func emptyMarginText(maxMargin int, isLast bool) string {
 	return fmt.Sprintf("    %s │ ", space)
 }
 
-func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int) string {
+func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int, pluginName string) string {
+	var colors Colors
+	if terminalInfo.UseColorEscapes {
+		colors = TerminalColors
+	}
+
 	var kindColor string
-	textColor := colorBold
-	textResetColor := colorResetBold
+	prefixColor := colors.Bold
+	messageColor := colors.Bold
 	textIndent := ""
 
-	if options.IncludeSource {
+	if includeSource {
 		textIndent = " > "
 	}
 
 	switch kind {
+	case Verbose:
+		kindColor = colors.Cyan
+
+	case Debug:
+		kindColor = colors.Blue
+
+	case Info:
+		kindColor = colors.Green
+
 	case Error:
-		kindColor = colorRed
+		kindColor = colors.Red
 
 	case Warning:
-		kindColor = colorMagenta
+		kindColor = colors.Magenta
 
 	case Note:
-		textColor = colorReset
-		kindColor = colorResetBold
-		textResetColor = colorReset
-		if options.IncludeSource {
+		prefixColor = colors.Reset
+		kindColor = colors.Bold
+		messageColor = ""
+		if includeSource {
 			textIndent = "   "
 		}
 
@@ -910,69 +965,44 @@ func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, d
 		panic("Internal error")
 	}
 
-	if data.Location == nil {
-		if terminalInfo.UseColorEscapes {
-			return fmt.Sprintf("%s%s%s%s: %s%s%s\n",
-				textColor, textIndent, kindColor, kind.String(),
-				textResetColor, data.Text,
-				colorReset)
-		}
-
-		return fmt.Sprintf("%s%s: %s\n", textIndent, kind.String(), data.Text)
+	var pluginText string
+	if pluginName != "" {
+		pluginText = fmt.Sprintf("%s[plugin: %s] ", colors.Yellow, pluginName)
 	}
 
-	if !options.IncludeSource {
-		if terminalInfo.UseColorEscapes {
-			return fmt.Sprintf("%s%s%s: %s%s: %s%s%s\n",
-				textColor, textIndent, data.Location.File,
-				kindColor, kind.String(),
-				textResetColor, data.Text,
-				colorReset)
-		}
+	if data.Location == nil {
+		return fmt.Sprintf("%s%s%s%s: %s%s%s%s\n%s",
+			prefixColor, textIndent, kindColor, kind.String(),
+			pluginText, colors.Reset, messageColor, data.Text,
+			colors.Reset)
+	}
 
-		return fmt.Sprintf("%s%s: %s: %s\n",
-			textIndent, data.Location.File, kind.String(), data.Text)
+	if !includeSource {
+		return fmt.Sprintf("%s%s%s: %s%s: %s%s%s%s\n%s",
+			prefixColor, textIndent, data.Location.File,
+			kindColor, kind.String(),
+			pluginText, colors.Reset, messageColor, data.Text,
+			colors.Reset)
 	}
 
 	d := detailStruct(data, terminalInfo, maxMargin)
 
-	if terminalInfo.UseColorEscapes {
-		if d.Suggestion != "" {
-			return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s\n%s%s%s%s%s%s%s\n",
-				textColor, textIndent, d.Path, d.Line, d.Column,
-				kindColor, kind.String(),
-				textResetColor, d.Message,
-				colorResetDim, d.SourceBefore, colorGreen, d.SourceMarked, colorResetDim, d.SourceAfter,
-				emptyMarginText(maxMargin, false), d.Indent, colorGreen, d.Marker, colorResetDim,
-				emptyMarginText(maxMargin, true), d.Indent, colorGreen, d.Suggestion, colorResetDim,
-				d.ContentAfter, colorReset)
-		}
-
-		return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s%s%s\n",
-			textColor, textIndent, d.Path, d.Line, d.Column,
-			kindColor, kind.String(),
-			textResetColor, d.Message,
-			colorResetDim, d.SourceBefore, colorGreen, d.SourceMarked, colorResetDim, d.SourceAfter,
-			emptyMarginText(maxMargin, true), d.Indent, colorGreen, d.Marker, colorResetDim,
-			d.ContentAfter, colorReset)
-	}
+	callout := d.Marker
+	calloutPrefix := ""
 
 	if d.Suggestion != "" {
-		return fmt.Sprintf("%s%s:%d:%d: %s: %s\n%s%s%s\n%s%s%s\n%s%s%s%s\n",
-			textIndent, d.Path, d.Line, d.Column,
-			kind.String(), d.Message,
-			d.SourceBefore, d.SourceMarked, d.SourceAfter,
-			emptyMarginText(maxMargin, false), d.Indent, d.Marker,
-			emptyMarginText(maxMargin, true), d.Indent, d.Suggestion,
-			d.ContentAfter)
+		callout = d.Suggestion
+		calloutPrefix = fmt.Sprintf("%s%s%s%s%s\n",
+			emptyMarginText(maxMargin, false), d.Indent, colors.Green, d.Marker, colors.Dim)
 	}
 
-	return fmt.Sprintf("%s%s:%d:%d: %s: %s\n%s%s%s\n%s%s%s%s\n",
-		textIndent, d.Path, d.Line, d.Column,
-		kind.String(), d.Message,
-		d.SourceBefore, d.SourceMarked, d.SourceAfter,
-		emptyMarginText(maxMargin, true), d.Indent, d.Marker,
-		d.ContentAfter)
+	return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s%s%s\n%s%s%s%s%s%s%s\n%s%s%s%s%s%s%s\n%s",
+		prefixColor, textIndent, d.Path, d.Line, d.Column,
+		kindColor, kind.String(),
+		pluginText, colors.Reset, messageColor, d.Message,
+		colors.Reset, colors.Dim, d.SourceBefore, colors.Green, d.SourceMarked, colors.Dim, d.SourceAfter,
+		calloutPrefix, emptyMarginText(maxMargin, true), d.Indent, colors.Green, callout, colors.Dim, d.ContentAfter,
+		colors.Reset)
 }
 
 type MsgDetail struct {
@@ -1253,16 +1283,54 @@ func (log Log) AddWarning(source *Source, loc Loc, text string) {
 	})
 }
 
-func (log Log) AddRangeError(source *Source, r Range, text string) {
+func (log Log) AddDebug(source *Source, loc Loc, text string) {
 	log.AddMsg(Msg{
-		Kind: Error,
+		Kind: Debug,
+		Data: RangeData(source, Range{Loc: loc}, text),
+	})
+}
+
+func (log Log) AddDebugWithNotes(source *Source, loc Loc, text string, notes []MsgData) {
+	log.AddMsg(Msg{
+		Kind:  Debug,
+		Data:  RangeData(source, Range{Loc: loc}, text),
+		Notes: notes,
+	})
+}
+
+func (log Log) AddVerbose(source *Source, loc Loc, text string) {
+	log.AddMsg(Msg{
+		Kind: Verbose,
+		Data: RangeData(source, Range{Loc: loc}, text),
+	})
+}
+
+func (log Log) AddVerboseWithNotes(source *Source, loc Loc, text string, notes []MsgData) {
+	log.AddMsg(Msg{
+		Kind:  Verbose,
+		Data:  RangeData(source, Range{Loc: loc}, text),
+		Notes: notes,
+	})
+}
+
+func (log Log) AddRangeDebug(source *Source, r Range, text string) {
+	log.AddMsg(Msg{
+		Kind: Debug,
 		Data: RangeData(source, r, text),
 	})
 }
 
-func (log Log) AddRangeWarning(source *Source, r Range, text string) {
+func (log Log) AddRangeDebugWithNotes(source *Source, r Range, text string, notes []MsgData) {
 	log.AddMsg(Msg{
-		Kind: Warning,
+		Kind:  Debug,
+		Data:  RangeData(source, r, text),
+		Notes: notes,
+	})
+}
+
+func (log Log) AddRangeError(source *Source, r Range, text string) {
+	log.AddMsg(Msg{
+		Kind: Error,
 		Data: RangeData(source, r, text),
 	})
 }
@@ -1272,6 +1340,13 @@ func (log Log) AddRangeErrorWithNotes(source *Source, r Range, text string, note
 		Kind:  Error,
 		Data:  RangeData(source, r, text),
 		Notes: notes,
+	})
+}
+
+func (log Log) AddRangeWarning(source *Source, r Range, text string) {
+	log.AddMsg(Msg{
+		Kind: Warning,
+		Data: RangeData(source, r, text),
 	})
 }
 

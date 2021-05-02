@@ -67,49 +67,45 @@ func writeStringWithColor(file *os.File, text string) {
 			i++
 			continue
 
-		case strings.HasPrefix(text[i:], colorReset):
-			i += len(colorReset)
+		case strings.HasPrefix(text[i:], TerminalColors.Reset):
+			i += len(TerminalColors.Reset)
 			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
 
-		case strings.HasPrefix(text[i:], colorRed):
-			i += len(colorRed)
+		case strings.HasPrefix(text[i:], TerminalColors.Red):
+			i += len(TerminalColors.Red)
 			attributes = FOREGROUND_RED
 
-		case strings.HasPrefix(text[i:], colorGreen):
-			i += len(colorGreen)
+		case strings.HasPrefix(text[i:], TerminalColors.Green):
+			i += len(TerminalColors.Green)
 			attributes = FOREGROUND_GREEN
 
-		case strings.HasPrefix(text[i:], colorBlue):
-			i += len(colorBlue)
+		case strings.HasPrefix(text[i:], TerminalColors.Blue):
+			i += len(TerminalColors.Blue)
 			attributes = FOREGROUND_BLUE
 
-		case strings.HasPrefix(text[i:], colorCyan):
-			i += len(colorCyan)
+		case strings.HasPrefix(text[i:], TerminalColors.Cyan):
+			i += len(TerminalColors.Cyan)
 			attributes = FOREGROUND_GREEN | FOREGROUND_BLUE
 
-		case strings.HasPrefix(text[i:], colorMagenta):
-			i += len(colorMagenta)
+		case strings.HasPrefix(text[i:], TerminalColors.Magenta):
+			i += len(TerminalColors.Magenta)
 			attributes = FOREGROUND_RED | FOREGROUND_BLUE
 
-		case strings.HasPrefix(text[i:], colorYellow):
-			i += len(colorYellow)
+		case strings.HasPrefix(text[i:], TerminalColors.Yellow):
+			i += len(TerminalColors.Yellow)
 			attributes = FOREGROUND_RED | FOREGROUND_GREEN
 
-		case strings.HasPrefix(text[i:], colorResetDim):
-			i += len(colorResetDim)
+		case strings.HasPrefix(text[i:], TerminalColors.Dim):
+			i += len(TerminalColors.Dim)
 			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
 
-		case strings.HasPrefix(text[i:], colorBold):
-			i += len(colorBold)
-			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY
-
-		case strings.HasPrefix(text[i:], colorResetBold):
-			i += len(colorResetBold)
+		case strings.HasPrefix(text[i:], TerminalColors.Bold):
+			i += len(TerminalColors.Bold)
 			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY
 
 		// Apparently underlines only work with the CJK locale on Windows :(
-		case strings.HasPrefix(text[i:], colorResetUnderline):
-			i += len(colorResetUnderline)
+		case strings.HasPrefix(text[i:], TerminalColors.Underline):
+			i += len(TerminalColors.Underline)
 			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
 
 		default:

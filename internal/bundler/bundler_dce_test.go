@@ -779,6 +779,269 @@ func TestPackageJsonSideEffectsKeepExportDefaultExpr(t *testing.T) {
 	})
 }
 
+func TestPackageJsonSideEffectsFalseNoWarningInNodeModulesIssue999(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import "demo-pkg"
+				console.log('used import')
+				`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				import "demo-pkg2"
+				console.log('unused import')
+			`,
+			"/Users/user/project/node_modules/demo-pkg2/index.js": `
+				export const foo = 123
+				console.log('hello')
+			`,
+			"/Users/user/project/node_modules/demo-pkg2/package.json": `
+				{
+					"sideEffects": false
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsFalseIntermediateFilesUnused(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "demo-pkg"
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				export {foo} from "./foo.js"
+				throw 'REMOVE THIS'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/foo.js": `
+				export const foo = 123
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{ "sideEffects": false }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsFalseIntermediateFilesUsed(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "demo-pkg"
+				console.log(foo)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				export {foo} from "./foo.js"
+				throw 'keep this'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/foo.js": `
+				export const foo = 123
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{ "sideEffects": false }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsFalseIntermediateFilesChainAll(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "a"
+				console.log(foo)
+			`,
+			"/Users/user/project/node_modules/a/index.js": `
+				export {foo} from "b"
+			`,
+			"/Users/user/project/node_modules/a/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/b/index.js": `
+				export {foo} from "c"
+				throw 'keep this'
+			`,
+			"/Users/user/project/node_modules/b/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/c/index.js": `
+				export {foo} from "d"
+			`,
+			"/Users/user/project/node_modules/c/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/d/index.js": `
+				export const foo = 123
+			`,
+			"/Users/user/project/node_modules/d/package.json": `
+				{ "sideEffects": false }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsFalseIntermediateFilesChainOne(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "a"
+				console.log(foo)
+			`,
+			"/Users/user/project/node_modules/a/index.js": `
+				export {foo} from "b"
+			`,
+			"/Users/user/project/node_modules/b/index.js": `
+				export {foo} from "c"
+				throw 'keep this'
+			`,
+			"/Users/user/project/node_modules/b/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/c/index.js": `
+				export {foo} from "d"
+			`,
+			"/Users/user/project/node_modules/d/index.js": `
+				export const foo = 123
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsFalseIntermediateFilesDiamond(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "a"
+				console.log(foo)
+			`,
+			"/Users/user/project/node_modules/a/index.js": `
+				export * from "b1"
+				export * from "b2"
+			`,
+			"/Users/user/project/node_modules/b1/index.js": `
+				export {foo} from "c"
+				throw 'keep this 1'
+			`,
+			"/Users/user/project/node_modules/b1/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/b2/index.js": `
+				export {foo} from "c"
+				throw 'keep this 2'
+			`,
+			"/Users/user/project/node_modules/b2/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/c/index.js": `
+				export {foo} from "d"
+			`,
+			"/Users/user/project/node_modules/d/index.js": `
+				export const foo = 123
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsFalseOneFork(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import("a").then(x => assert(x.foo === "foo"))
+			`,
+			"/Users/user/project/node_modules/a/index.js": `
+				export {foo} from "b"
+			`,
+			"/Users/user/project/node_modules/b/index.js": `
+				export {foo, bar} from "c"
+				export {baz} from "d"
+			`,
+			"/Users/user/project/node_modules/b/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/c/index.js": `
+				export let foo = "foo"
+				export let bar = "bar"
+			`,
+			"/Users/user/project/node_modules/d/index.js": `
+				export let baz = "baz"
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsFalseAllFork(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import("a").then(x => assert(x.foo === "foo"))
+			`,
+			"/Users/user/project/node_modules/a/index.js": `
+				export {foo} from "b"
+			`,
+			"/Users/user/project/node_modules/b/index.js": `
+				export {foo, bar} from "c"
+				export {baz} from "d"
+			`,
+			"/Users/user/project/node_modules/b/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/c/index.js": `
+				export let foo = "foo"
+				export let bar = "bar"
+			`,
+			"/Users/user/project/node_modules/c/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/d/index.js": `
+				export let baz = "baz"
+			`,
+			"/Users/user/project/node_modules/d/package.json": `
+				{ "sideEffects": false }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestJSONLoaderRemoveUnused(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1362,6 +1625,32 @@ func TestTreeShakingNoBundleIIFE(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeConvertFormat,
 			OutputFormat:  config.FormatIIFE,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTreeShakingInESMWrapper(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {keep1} from './lib'
+				console.log(keep1(), require('./cjs'))
+			`,
+			"/cjs.js": `
+				import {keep2} from './lib'
+				export default keep2()
+			`,
+			"/lib.js": `
+				export let keep1 = () => 'keep1'
+				export let keep2 = () => 'keep2'
+				export let REMOVE = () => 'REMOVE'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 	})

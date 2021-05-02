@@ -11,6 +11,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -45,7 +46,7 @@ type SourceMapState struct {
 // After all chunks are computed, they are joined together in a second pass.
 // This rewrites the first mapping in each chunk to be relative to the end
 // state of the previous chunk.
-func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) {
+func AppendSourceMapChunk(j *helpers.Joiner, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) {
 	// Handle line breaks in between this mapping and the previous one
 	if startState.GeneratedLine != 0 {
 		j.AddBytes(bytes.Repeat([]byte{';'}, startState.GeneratedLine))
@@ -80,7 +81,7 @@ func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState Sou
 	startState.GeneratedColumn += generatedColumn
 	startState.OriginalLine += originalLine
 	startState.OriginalColumn += originalColumn
-	j.AddBytes(appendMapping(nil, j.lastByte, prevEndState, startState))
+	j.AddBytes(appendMapping(nil, j.LastByte(), prevEndState, startState))
 
 	// Then append everything after that without modification.
 	j.AddBytes(sourceMap)
@@ -108,62 +109,6 @@ func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, curre
 	buffer = append(buffer, sourcemap.EncodeVLQ(currentState.OriginalColumn-prevState.OriginalColumn)...)
 	prevState.OriginalColumn = currentState.OriginalColumn
 
-	return buffer
-}
-
-// This provides an efficient way to join lots of big string and byte slices
-// together. It avoids the cost of repeatedly reallocating as the buffer grows
-// by measuring exactly how big the buffer should be and then allocating once.
-// This is a measurable speedup.
-type Joiner struct {
-	lastByte byte
-	strings  []joinerString
-	bytes    []joinerBytes
-	length   uint32
-}
-
-type joinerString struct {
-	data   string
-	offset uint32
-}
-
-type joinerBytes struct {
-	data   []byte
-	offset uint32
-}
-
-func (j *Joiner) AddString(data string) {
-	if len(data) > 0 {
-		j.lastByte = data[len(data)-1]
-	}
-	j.strings = append(j.strings, joinerString{data, j.length})
-	j.length += uint32(len(data))
-}
-
-func (j *Joiner) AddBytes(data []byte) {
-	if len(data) > 0 {
-		j.lastByte = data[len(data)-1]
-	}
-	j.bytes = append(j.bytes, joinerBytes{data, j.length})
-	j.length += uint32(len(data))
-}
-
-func (j *Joiner) LastByte() byte {
-	return j.lastByte
-}
-
-func (j *Joiner) Length() uint32 {
-	return j.length
-}
-
-func (j *Joiner) Done() []byte {
-	buffer := make([]byte, j.length)
-	for _, item := range j.strings {
-		copy(buffer[item.offset:], item.data)
-	}
-	for _, item := range j.bytes {
-		copy(buffer[item.offset:], item.data)
-	}
 	return buffer
 }
 
@@ -454,23 +399,23 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 }
 
 type printer struct {
-	symbols            js_ast.SymbolMap
-	renamer            renamer.Renamer
-	importRecords      []ast.ImportRecord
-	options            Options
-	extractedComments  map[string]bool
-	needsSemicolon     bool
-	js                 []byte
-	stmtStart          int
-	exportDefaultStart int
-	arrowExprStart     int
-	forOfInitStart     int
-	prevOp             js_ast.OpCode
-	prevOpEnd          int
-	prevNumEnd         int
-	prevRegExpEnd      int
-	callTarget         js_ast.E
-	intToBytesBuffer   [64]byte
+	symbols                js_ast.SymbolMap
+	renamer                renamer.Renamer
+	importRecords          []ast.ImportRecord
+	options                Options
+	extractedLegalComments map[string]bool
+	needsSemicolon         bool
+	js                     []byte
+	stmtStart              int
+	exportDefaultStart     int
+	arrowExprStart         int
+	forOfInitStart         int
+	prevOp                 js_ast.OpCode
+	prevOpEnd              int
+	prevNumEnd             int
+	prevRegExpEnd          int
+	callTarget             js_ast.E
+	intToBytesBuffer       [64]byte
 
 	// For source maps
 	sourceMap           []byte
@@ -662,11 +607,9 @@ func GenerateLineOffsetTables(contents string, approximateLineCount int32) []Lin
 		switch c {
 		case '\r', '\n', '\u2028', '\u2029':
 			// Handle Windows-specific "\r\n" newlines
-			if c == '\r' {
-				if i+1 < len(contents) && contents[i+1] == '\n' {
-					column++
-					continue
-				}
+			if c == '\r' && i+1 < len(contents) && contents[i+1] == '\n' {
+				column++
+				continue
 			}
 
 			lineOffsetTables = append(lineOffsetTables, LineOffsetTable{
@@ -749,8 +692,23 @@ func (p *printer) printIndent() {
 }
 
 func (p *printer) printSymbol(ref js_ast.Ref) {
-	p.printSpaceBeforeIdentifier()
-	p.printIdentifier(p.renamer.NameForSymbol(ref))
+	name := p.renamer.NameForSymbol(ref)
+
+	// Minify "return #foo in bar" to "return#foo in bar"
+	if !strings.HasPrefix(name, "#") {
+		p.printSpaceBeforeIdentifier()
+	}
+
+	p.printIdentifier(name)
+}
+
+func (p *printer) printClauseAlias(alias string) {
+	if js_lexer.IsIdentifier(alias) {
+		p.printSpaceBeforeIdentifier()
+		p.printIdentifier(alias)
+	} else {
+		p.printQuotedUTF8(alias, false /* allowBacktick */)
+	}
 }
 
 func CanQuoteIdentifier(name string, unsupportedJSFeatures compat.JSFeature, asciiOnly bool) bool {
@@ -1263,18 +1221,53 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	return c
 }
 
-type requireCallArgs struct {
-	isES6Import       bool
-	mustReturnPromise bool
-}
-
-func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []js_ast.Comment) {
+func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []js_ast.Comment, level js_ast.L, flags int) {
 	record := &p.importRecords[importRecordIndex]
-	p.printSpaceBeforeIdentifier()
 
-	// Preserve "import()" expressions that don't point inside the bundle
-	if !record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
-		p.print("import(")
+	if level >= js_ast.LNew || (flags&forbidCall) != 0 {
+		p.print("(")
+		defer p.print(")")
+		level = js_ast.LLowest
+	}
+
+	if !record.SourceIndex.IsValid() {
+		// External "require()"
+		if record.Kind != ast.ImportDynamic {
+			if record.WrapWithToModule {
+				p.printSymbol(p.options.ToModuleRef)
+				p.print("(")
+				defer p.print(")")
+			}
+			p.printSpaceBeforeIdentifier()
+			p.print("require(")
+			p.addSourceMapping(record.Range.Loc)
+			p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
+			p.print(")")
+			return
+		}
+
+		// External "import()"
+		if !p.options.UnsupportedFeatures.Has(compat.DynamicImport) {
+			p.printSpaceBeforeIdentifier()
+			p.print("import(")
+			defer p.print(")")
+		} else {
+			p.printSpaceBeforeIdentifier()
+			p.print("Promise.resolve()")
+			p.printDotThenPrefix()
+			defer p.printDotThenSuffix()
+
+			// Wrap this with a call to "__toModule()" if this is a CommonJS file
+			if record.WrapWithToModule {
+				p.printSymbol(p.options.ToModuleRef)
+				p.print("(")
+				defer p.print(")")
+			}
+
+			p.printSpaceBeforeIdentifier()
+			p.print("require(")
+			defer p.print(")")
+		}
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent++
@@ -1283,70 +1276,99 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 			}
 			p.printIndent()
 		}
+		p.addSourceMapping(record.Range.Loc)
 		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent--
 			p.printIndent()
 		}
-		p.print(")")
 		return
 	}
 
-	// Make sure "import()" expressions return promises
-	if record.Kind == ast.ImportDynamic {
-		if p.options.UnsupportedFeatures.Has(compat.Arrow) {
-			p.print("Promise.resolve().then(function()")
-			p.printSpace()
-			p.print("{")
-			p.printNewline()
-			p.options.Indent++
-			p.printIndent()
-			p.print("return ")
-		} else {
-			if p.options.RemoveWhitespace {
-				p.print("Promise.resolve().then(()=>")
-			} else {
-				p.print("Promise.resolve().then(() => ")
-			}
-		}
+	meta := p.options.RequireOrImportMetaForSource(record.SourceIndex.GetIndex())
+
+	// Don't need the namespace object if the result is unused anyway
+	if (flags & exprResultIsUnused) != 0 {
+		meta.ExportsRef = js_ast.InvalidRef
 	}
 
-	// Make sure CommonJS imports are converted to ES6 if necessary
+	// Internal "import()" of async ESM
+	if record.Kind == ast.ImportDynamic && meta.IsWrapperAsync {
+		p.printSymbol(meta.WrapperRef)
+		p.print("()")
+		if meta.ExportsRef != js_ast.InvalidRef {
+			p.printDotThenPrefix()
+			p.printSymbol(meta.ExportsRef)
+			p.printDotThenSuffix()
+		}
+		return
+	}
+
+	// Internal "require()" or "import()"
+	if record.Kind == ast.ImportDynamic {
+		p.printSpaceBeforeIdentifier()
+		p.print("Promise.resolve()")
+		level = p.printDotThenPrefix()
+		defer p.printDotThenSuffix()
+	}
+
+	// Make sure the comma operator is propertly wrapped
+	if meta.ExportsRef != js_ast.InvalidRef && level >= js_ast.LComma {
+		p.print("(")
+		defer p.print(")")
+	}
+
+	// Wrap this with a call to "__toModule()" if this is a CommonJS file
 	if record.WrapWithToModule {
 		p.printSymbol(p.options.ToModuleRef)
 		p.print("(")
+		defer p.print(")")
 	}
 
-	// If this import points inside the bundle, then call the "require()"
-	// function for that module directly. The linker must ensure that the
-	// module's require function exists by this point. Otherwise, fall back to a
-	// bare "require()" call. Then it's up to the user to provide it.
-	if record.SourceIndex.IsValid() {
-		p.printSymbol(p.options.WrapperRefForSource(record.SourceIndex.GetIndex()))
-		p.print("()")
+	// Call the wrapper
+	p.printSymbol(meta.WrapperRef)
+	p.print("()")
+
+	// Return the namespace object if this is an ESM file
+	if meta.ExportsRef != js_ast.InvalidRef {
+		p.print(",")
+		p.printSpace()
+		p.printSymbol(meta.ExportsRef)
+	}
+}
+
+func (p *printer) printDotThenPrefix() js_ast.L {
+	if p.options.UnsupportedFeatures.Has(compat.Arrow) {
+		p.print(".then(function()")
+		p.printSpace()
+		p.print("{")
+		p.printNewline()
+		p.options.Indent++
+		p.printIndent()
+		p.print("return")
+		p.printSpace()
+		return js_ast.LLowest
 	} else {
-		p.print("require(")
-		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
-		p.print(")")
+		p.print(".then(()")
+		p.printSpace()
+		p.print("=>")
+		p.printSpace()
+		return js_ast.LComma
 	}
+}
 
-	if record.WrapWithToModule {
-		p.print(")")
-	}
-
-	if record.Kind == ast.ImportDynamic {
-		if p.options.UnsupportedFeatures.Has(compat.Arrow) {
-			if !p.options.RemoveWhitespace {
-				p.print(";")
-			}
-			p.printNewline()
-			p.options.Indent--
-			p.printIndent()
-			p.print("})")
-		} else {
-			p.print(")")
+func (p *printer) printDotThenSuffix() {
+	if p.options.UnsupportedFeatures.Has(compat.Arrow) {
+		if !p.options.RemoveWhitespace {
+			p.print(";")
 		}
+		p.printNewline()
+		p.options.Indent--
+		p.printIndent()
+		p.print("})")
+	} else {
+		p.print(")")
 	}
 }
 
@@ -1354,6 +1376,7 @@ const (
 	forbidCall = 1 << iota
 	forbidIn
 	hasNonOptionalChainParent
+	exprResultIsUnused
 )
 
 func (p *printer) printUndefined(level js_ast.L) {
@@ -1494,14 +1517,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.ERequire:
-		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
-		if wrap {
-			p.print("(")
-		}
-		p.printRequireOrImportExpr(e.ImportRecordIndex, nil)
-		if wrap {
-			p.print(")")
-		}
+		p.printRequireOrImportExpr(e.ImportRecordIndex, nil, level, flags)
 
 	case *js_ast.ERequireResolve:
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
@@ -1517,41 +1533,41 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.EImport:
-		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
-		if wrap {
-			p.print("(")
-		}
-
 		var leadingInteriorComments []js_ast.Comment
 		if !p.options.RemoveWhitespace {
 			leadingInteriorComments = e.LeadingInteriorComments
 		}
 
 		if e.ImportRecordIndex.IsValid() {
-			p.printRequireOrImportExpr(e.ImportRecordIndex.GetIndex(), leadingInteriorComments)
+			p.printRequireOrImportExpr(e.ImportRecordIndex.GetIndex(), leadingInteriorComments, level, flags)
 		} else {
 			// Handle non-string expressions
-			p.printSpaceBeforeIdentifier()
-			p.print("import(")
-			if len(leadingInteriorComments) > 0 {
-				p.printNewline()
-				p.options.Indent++
-				for _, comment := range e.LeadingInteriorComments {
-					p.printIndentedComment(comment.Text)
+			if !e.ImportRecordIndex.IsValid() {
+				wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
+				if wrap {
+					p.print("(")
 				}
-				p.printIndent()
+				p.printSpaceBeforeIdentifier()
+				p.print("import(")
+				if len(leadingInteriorComments) > 0 {
+					p.printNewline()
+					p.options.Indent++
+					for _, comment := range e.LeadingInteriorComments {
+						p.printIndentedComment(comment.Text)
+					}
+					p.printIndent()
+				}
+				p.printExpr(e.Expr, js_ast.LComma, 0)
+				if len(leadingInteriorComments) > 0 {
+					p.printNewline()
+					p.options.Indent--
+					p.printIndent()
+				}
+				p.print(")")
+				if wrap {
+					p.print(")")
+				}
 			}
-			p.printExpr(e.Expr, js_ast.LComma, 0)
-			if len(leadingInteriorComments) > 0 {
-				p.printNewline()
-				p.options.Indent--
-				p.printIndent()
-			}
-			p.print(")")
-		}
-
-		if wrap {
-			p.print(")")
 		}
 
 	case *js_ast.EDot:
@@ -2087,7 +2103,12 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			}
 		}
 
-		p.printExpr(e.Left, leftLevel, flags&forbidIn)
+		// Special-case "#foo in bar"
+		if private, ok := e.Left.Data.(*js_ast.EPrivateIdentifier); ok && e.Op == js_ast.BinOpIn {
+			p.printSymbol(private.Ref)
+		} else {
+			p.printExpr(e.Left, leftLevel, flags&forbidIn)
+		}
 
 		if e.Op != js_ast.BinOpComma {
 			p.printSpace()
@@ -2303,7 +2324,7 @@ func (p *printer) printDeclStmt(isExport bool, keyword string, decls []js_ast.De
 func (p *printer) printForLoopInit(init js_ast.Stmt) {
 	switch s := init.Data.(type) {
 	case *js_ast.SExpr:
-		p.printExpr(s.Value, js_ast.LLowest, forbidIn)
+		p.printExpr(s.Value, js_ast.LLowest, forbidIn|exprResultIsUnused)
 	case *js_ast.SLocal:
 		switch s.Kind {
 		case js_ast.LocalVar:
@@ -2493,13 +2514,23 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 	switch s := stmt.Data.(type) {
 	case *js_ast.SComment:
 		text := s.Text
-		if p.options.ExtractComments {
-			if p.extractedComments == nil {
-				p.extractedComments = make(map[string]bool)
+
+		if s.IsLegalComment {
+			switch p.options.LegalComments {
+			case config.LegalCommentsNone:
+				return
+
+			case config.LegalCommentsEndOfFile,
+				config.LegalCommentsLinkedWithComment,
+				config.LegalCommentsExternalWithoutComment:
+				if p.extractedLegalComments == nil {
+					p.extractedLegalComments = make(map[string]bool)
+				}
+				p.extractedLegalComments[text] = true
+				return
 			}
-			p.extractedComments[text] = true
-			break
 		}
+
 		p.printIndentedComment(text)
 
 	case *js_ast.SFunction:
@@ -2591,8 +2622,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		if s.Alias != nil {
 			p.print("as")
 			p.printSpace()
-			p.printSpaceBeforeIdentifier()
-			p.printIdentifier(s.Alias.OriginalName)
+			p.printClauseAlias(s.Alias.OriginalName)
 			p.printSpace()
 			p.printSpaceBeforeIdentifier()
 		}
@@ -2627,8 +2657,9 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			name := p.renamer.NameForSymbol(item.Name.Ref)
 			p.printIdentifier(name)
 			if name != item.Alias {
-				p.print(" as ")
-				p.printIdentifier(item.Alias)
+				p.print(" as")
+				p.printSpace()
+				p.printClauseAlias(item.Alias)
 			}
 		}
 
@@ -2664,10 +2695,13 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 				p.printNewline()
 				p.printIndent()
 			}
-			p.printIdentifier(item.OriginalName)
+			p.printClauseAlias(item.OriginalName)
 			if item.OriginalName != item.Alias {
-				p.print(" as ")
-				p.printIdentifier(item.Alias)
+				p.printSpace()
+				p.printSpaceBeforeIdentifier()
+				p.print("as")
+				p.printSpace()
+				p.printClauseAlias(item.Alias)
 			}
 		}
 
@@ -2918,10 +2952,12 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 					p.printNewline()
 					p.printIndent()
 				}
-				p.printIdentifier(item.Alias)
+				p.printClauseAlias(item.Alias)
 				name := p.renamer.NameForSymbol(item.Name.Ref)
 				if name != item.Alias {
-					p.print(" as ")
+					p.printSpace()
+					p.printSpaceBeforeIdentifier()
+					p.print("as ")
 					p.printIdentifier(name)
 				}
 			}
@@ -3019,7 +3055,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 	case *js_ast.SExpr:
 		p.printIndent()
 		p.stmtStart = len(p.js)
-		p.printExpr(s.Value, js_ast.LLowest, 0)
+		p.printExpr(s.Value, js_ast.LLowest, exprResultIsUnused)
 		p.printSemicolonAfterStatement()
 
 	default:
@@ -3037,16 +3073,16 @@ func (p *printer) shouldIgnoreSourceMap() bool {
 }
 
 type Options struct {
-	OutputFormat        config.Format
-	RemoveWhitespace    bool
-	MangleSyntax        bool
-	ASCIIOnly           bool
-	ExtractComments     bool
-	AddSourceMappings   bool
-	Indent              int
-	ToModuleRef         js_ast.Ref
-	WrapperRefForSource func(uint32) js_ast.Ref
-	UnsupportedFeatures compat.JSFeature
+	OutputFormat                 config.Format
+	RemoveWhitespace             bool
+	MangleSyntax                 bool
+	ASCIIOnly                    bool
+	LegalComments                config.LegalComments
+	AddSourceMappings            bool
+	Indent                       int
+	ToModuleRef                  js_ast.Ref
+	UnsupportedFeatures          compat.JSFeature
+	RequireOrImportMetaForSource func(uint32) RequireOrImportMeta
 
 	// If we're writing out a source map, this table of line start indices lets
 	// us do binary search on to figure out what line a given AST node came from
@@ -3055,6 +3091,15 @@ type Options struct {
 	// This will be present if the input file had a source map. In that case we
 	// want to map all the way back to the original input file(s).
 	InputSourceMap *sourcemap.SourceMap
+}
+
+type RequireOrImportMeta struct {
+	// CommonJS files will return the "require_*" wrapper function and an invalid
+	// exports object reference. Lazily-initialized ESM files will return the
+	// "init_*" wrapper function and the exports object for that file.
+	WrapperRef     js_ast.Ref
+	ExportsRef     js_ast.Ref
+	IsWrapperAsync bool
 }
 
 type SourceMapChunk struct {
@@ -3080,7 +3125,7 @@ type PrintResult struct {
 	// source map chunks together to form the final source map.
 	SourceMapChunk SourceMapChunk
 
-	ExtractedComments map[string]bool
+	ExtractedLegalComments map[string]bool
 }
 
 func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
@@ -3130,8 +3175,8 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 	p.updateGeneratedLineAndColumn()
 
 	return PrintResult{
-		JS:                p.js,
-		ExtractedComments: p.extractedComments,
+		JS:                     p.js,
+		ExtractedLegalComments: p.extractedLegalComments,
 		SourceMapChunk: SourceMapChunk{
 			Buffer:               p.sourceMap,
 			EndState:             p.prevState,

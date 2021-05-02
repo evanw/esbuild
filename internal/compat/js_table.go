@@ -14,10 +14,31 @@ const (
 	Safari
 )
 
+func (e Engine) String() string {
+	switch e {
+	case Chrome:
+		return "chrome"
+	case Edge:
+		return "edge"
+	case ES:
+		return "es"
+	case Firefox:
+		return "firefox"
+	case IOS:
+		return "ios"
+	case Node:
+		return "node"
+	case Safari:
+		return "safari"
+	}
+	return ""
+}
+
 type JSFeature uint64
 
 const (
-	ArraySpread JSFeature = 1 << iota
+	ArbitraryModuleNamespaceNames JSFeature = 1 << iota
+	ArraySpread
 	Arrow
 	AsyncAwait
 	AsyncGenerator
@@ -25,6 +46,7 @@ const (
 	Class
 	ClassField
 	ClassPrivateAccessor
+	ClassPrivateBrandCheck
 	ClassPrivateField
 	ClassPrivateMethod
 	ClassPrivateStaticAccessor
@@ -34,6 +56,7 @@ const (
 	Const
 	DefaultArgument
 	Destructuring
+	DynamicImport
 	ExponentOperator
 	ExportStarAs
 	ForAwait
@@ -62,22 +85,26 @@ func (features JSFeature) Has(feature JSFeature) bool {
 }
 
 var jsTable = map[JSFeature]map[Engine][]int{
+	ArbitraryModuleNamespaceNames: {
+		Chrome: {90},
+		Node:   {16},
+	},
 	ArraySpread: {
 		Chrome:  {46},
-		Edge:    {12},
+		Edge:    {13},
 		ES:      {2015},
-		Firefox: {27},
-		IOS:     {8},
+		Firefox: {36},
+		IOS:     {10},
 		Node:    {5},
-		Safari:  {7, 1},
+		Safari:  {10},
 	},
 	Arrow: {
-		Chrome:  {45},
-		Edge:    {12},
+		Chrome:  {49},
+		Edge:    {13},
 		ES:      {2015},
-		Firefox: {22},
+		Firefox: {45},
 		IOS:     {10},
-		Node:    {4},
+		Node:    {6},
 		Safari:  {10},
 	},
 	AsyncAwait: {
@@ -85,9 +112,9 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Edge:    {15},
 		ES:      {2017},
 		Firefox: {52},
-		IOS:     {10, 3},
+		IOS:     {11},
 		Node:    {7, 6},
-		Safari:  {10, 1},
+		Safari:  {11},
 	},
 	AsyncGenerator: {
 		Chrome:  {63},
@@ -112,12 +139,12 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Edge:    {13},
 		ES:      {2015},
 		Firefox: {45},
-		IOS:     {9},
+		IOS:     {10},
 		Node:    {6},
-		Safari:  {9},
+		Safari:  {10},
 	},
 	ClassField: {
-		Chrome:  {72},
+		Chrome:  {73},
 		Edge:    {79},
 		Firefox: {69},
 		IOS:     {14},
@@ -129,10 +156,13 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Edge:   {84},
 		Node:   {14, 6},
 	},
+	ClassPrivateBrandCheck: {
+		Chrome: {91},
+	},
 	ClassPrivateField: {
-		Chrome: {74},
-		Edge:   {79},
-		Node:   {12, 0},
+		Chrome: {84},
+		Edge:   {84},
+		Node:   {14, 6},
 		Safari: {14, 1},
 	},
 	ClassPrivateMethod: {
@@ -157,38 +187,47 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Node:   {14, 6},
 	},
 	ClassStaticField: {
-		Chrome:  {72},
+		Chrome:  {73},
 		Edge:    {79},
 		Firefox: {75},
 		Node:    {12, 0},
 		Safari:  {14, 1},
 	},
 	Const: {
-		Chrome:  {5},
-		Edge:    {12},
+		Chrome:  {49},
+		Edge:    {14},
 		ES:      {2015},
-		Firefox: {3},
-		IOS:     {6},
-		Node:    {0, 12},
-		Safari:  {3, 1},
+		Firefox: {51},
+		IOS:     {11},
+		Node:    {6},
+		Safari:  {11},
 	},
 	DefaultArgument: {
 		Chrome:  {49},
 		Edge:    {14},
 		ES:      {2015},
-		Firefox: {15},
+		Firefox: {53},
 		IOS:     {10},
 		Node:    {6},
 		Safari:  {10},
 	},
 	Destructuring: {
-		Chrome:  {49},
-		Edge:    {14},
+		Chrome:  {51},
+		Edge:    {18},
 		ES:      {2015},
-		Firefox: {2},
-		IOS:     {8},
-		Node:    {6},
-		Safari:  {7, 1},
+		Firefox: {53},
+		IOS:     {10},
+		Node:    {6, 5},
+		Safari:  {10},
+	},
+	DynamicImport: {
+		Chrome:  {63},
+		Edge:    {79},
+		ES:      {2015},
+		Firefox: {67},
+		IOS:     {11},
+		Node:    {13, 2},
+		Safari:  {11, 1},
 	},
 	ExponentOperator: {
 		Chrome:  {52},
@@ -216,21 +255,21 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Safari:  {12},
 	},
 	ForOf: {
-		Chrome:  {38},
-		Edge:    {12},
+		Chrome:  {51},
+		Edge:    {15},
 		ES:      {2015},
-		Firefox: {13},
-		IOS:     {8},
-		Node:    {0, 12},
-		Safari:  {7, 1},
+		Firefox: {53},
+		IOS:     {10},
+		Node:    {6, 5},
+		Safari:  {10},
 	},
 	Generator: {
-		Chrome:  {39},
+		Chrome:  {50},
 		Edge:    {13},
 		ES:      {2015},
-		Firefox: {27},
+		Firefox: {53},
 		IOS:     {10},
-		Node:    {4},
+		Node:    {6},
 		Safari:  {10},
 	},
 	Hashbang: {
@@ -252,12 +291,12 @@ var jsTable = map[JSFeature]map[Engine][]int{
 	},
 	Let: {
 		Chrome:  {49},
-		Edge:    {12},
+		Edge:    {14},
 		ES:      {2015},
-		Firefox: {44},
-		IOS:     {10},
+		Firefox: {51},
+		IOS:     {11},
 		Node:    {6},
-		Safari:  {10},
+		Safari:  {11},
 	},
 	LogicalAssignment: {
 		Chrome:  {85},
@@ -278,7 +317,7 @@ var jsTable = map[JSFeature]map[Engine][]int{
 	},
 	NewTarget: {
 		Chrome:  {46},
-		Edge:    {13},
+		Edge:    {14},
 		ES:      {2015},
 		Firefox: {41},
 		IOS:     {10},
@@ -308,9 +347,9 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Edge:    {12},
 		ES:      {2015},
 		Firefox: {34},
-		IOS:     {8},
+		IOS:     {10},
 		Node:    {4},
-		Safari:  {7, 1},
+		Safari:  {10},
 	},
 	ObjectRestSpread: {
 		ES:      {2018},
@@ -340,26 +379,29 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Chrome:  {47},
 		Edge:    {12},
 		ES:      {2015},
-		Firefox: {15},
+		Firefox: {43},
 		IOS:     {10},
 		Node:    {6},
 		Safari:  {10},
 	},
 	TemplateLiteral: {
 		Chrome:  {41},
-		Edge:    {12},
+		Edge:    {13},
 		ES:      {2015},
 		Firefox: {34},
 		IOS:     {9},
 		Node:    {4},
 		Safari:  {9},
 	},
-	TopLevelAwait: {},
+	TopLevelAwait: {
+		Chrome: {89},
+		Node:   {14, 8},
+	},
 	UnicodeEscapes: {
 		Chrome:  {44},
 		Edge:    {12},
 		ES:      {2015},
-		Firefox: {40},
+		Firefox: {53},
 		IOS:     {9},
 		Node:    {4},
 		Safari:  {9},

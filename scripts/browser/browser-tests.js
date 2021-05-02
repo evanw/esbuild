@@ -102,7 +102,7 @@ async function runAllTests({ esbuild }) {
         stdin: {
           contents: `
             import x from 'fib(10)'
-            return x
+            module.exports = x
           `,
         },
         format: 'cjs',
@@ -112,8 +112,9 @@ async function runAllTests({ esbuild }) {
       assertStrictEqual(result.outputFiles.length, 1)
       assertStrictEqual(result.outputFiles[0].path, '<stdout>')
       const code = result.outputFiles[0].text
-      const fib10 = new Function(code)()
-      assertStrictEqual(fib10, 55)
+      const answer = {}
+      new Function('module', code)(answer)
+      assertStrictEqual(answer.exports, 55)
     },
 
     async buildRelativeIssue693() {

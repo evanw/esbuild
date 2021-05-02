@@ -1,12 +1,14 @@
 export type Platform = 'browser' | 'node' | 'neutral';
 export type Format = 'iife' | 'cjs' | 'esm';
 export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'css' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary' | 'default';
-export type LogLevel = 'info' | 'warning' | 'error' | 'silent';
+export type LogLevel = 'verbose' | 'debug' | 'info' | 'warning' | 'error' | 'silent';
 export type Charset = 'ascii' | 'utf8';
 export type TreeShaking = true | 'ignore-annotations';
 
 interface CommonOptions {
   sourcemap?: boolean | 'inline' | 'external' | 'both';
+  legalComments?: 'none' | 'inline' | 'eof' | 'linked' | 'external';
+  sourceRoot?: string;
   sourcesContent?: boolean;
 
   format?: Format;
@@ -46,16 +48,18 @@ export interface BuildOptions extends CommonOptions {
   mainFields?: string[];
   conditions?: string[];
   write?: boolean;
+  allowOverwrite?: boolean;
   tsconfig?: string;
   outExtension?: { [ext: string]: string };
   publicPath?: string;
+  entryNames?: string;
   chunkNames?: string;
   assetNames?: string;
   inject?: string[];
   banner?: { [type: string]: string };
   footer?: { [type: string]: string };
   incremental?: boolean;
-  entryPoints?: string[];
+  entryPoints?: string[] | Record<string, string>;
   stdin?: StdinOptions;
   plugins?: Plugin[];
   absWorkingDir?: string;
@@ -75,6 +79,7 @@ export interface StdinOptions {
 }
 
 export interface Message {
+  pluginName: string;
   text: string;
   location: Location | null;
   notes: Note[];
@@ -96,6 +101,7 @@ export interface Location {
   column: number; // 0-based, in bytes
   length: number; // in bytes
   lineText: string;
+  suggestion: string;
 }
 
 export interface OutputFile {
@@ -114,6 +120,7 @@ export interface BuildIncremental extends BuildResult {
 }
 
 export interface BuildResult {
+  errors: Message[];
   warnings: Message[];
   outputFiles?: OutputFile[]; // Only when "write: false"
   rebuild?: BuildInvalidate; // Only when "incremental: true"
@@ -177,14 +184,24 @@ export interface TransformFailure extends Error {
 
 export interface Plugin {
   name: string;
-  setup: (build: PluginBuild) => void;
+  setup: (build: PluginBuild) => (void | Promise<void>);
 }
 
 export interface PluginBuild {
+  initialOptions: BuildOptions;
+  onStart(callback: () =>
+    (OnStartResult | null | void | Promise<OnStartResult | null | void>)): void;
+  onEnd(callback: (result: BuildResult) =>
+    (void | Promise<void>)): void;
   onResolve(options: OnResolveOptions, callback: (args: OnResolveArgs) =>
     (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): void;
   onLoad(options: OnLoadOptions, callback: (args: OnLoadArgs) =>
     (OnLoadResult | null | undefined | Promise<OnLoadResult | null | undefined>)): void;
+}
+
+export interface OnStartResult {
+  errors?: PartialMessage[];
+  warnings?: PartialMessage[];
 }
 
 export interface OnResolveOptions {
@@ -224,6 +241,9 @@ export interface OnResolveResult {
   external?: boolean;
   namespace?: string;
   pluginData?: any;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
 }
 
 export interface OnLoadOptions {
@@ -247,9 +267,13 @@ export interface OnLoadResult {
   resolveDir?: string;
   loader?: Loader;
   pluginData?: any;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
 }
 
 export interface PartialMessage {
+  pluginName?: string;
   text?: string;
   location?: Partial<Location> | null;
   notes?: PartialNote[];
@@ -289,12 +313,18 @@ export interface Metafile {
   }
 }
 
+export interface FormatMessagesOptions {
+  kind: 'error' | 'warning';
+  color?: boolean;
+  terminalWidth?: number;
+}
+
 // This function invokes the "esbuild" command-line tool for you. It returns a
 // promise that either resolves with a "BuildResult" object or rejects with a
 // "BuildFailure" object.
 //
 // Works in node: yes
-// Works in browser: no
+// Works in browser: yes
 export declare function build(options: BuildOptions & { write: false }): Promise<BuildResult & { outputFiles: OutputFile[] }>;
 export declare function build(options: BuildOptions & { incremental: true }): Promise<BuildIncremental>;
 export declare function build(options: BuildOptions): Promise<BuildResult>;
@@ -312,8 +342,16 @@ export declare function serve(serveOptions: ServeOptions, buildOptions: BuildOpt
 // "TransformResult" object or rejected with a "TransformFailure" object.
 //
 // Works in node: yes
-// Works in browser: no
+// Works in browser: yes
 export declare function transform(input: string, options?: TransformOptions): Promise<TransformResult>;
+
+// Converts log messages to formatted message strings suitable for printing in
+// the terminal. This allows you to reuse the built-in behavior of esbuild's
+// log message formatter. This is a batch-oriented API for efficiency.
+//
+// Works in node: yes
+// Works in browser: yes
+export declare function formatMessages(messages: PartialMessage[], options: FormatMessagesOptions): Promise<string[]>;
 
 // A synchronous version of "build".
 //
@@ -327,6 +365,12 @@ export declare function buildSync(options: BuildOptions): BuildResult;
 // Works in node: yes
 // Works in browser: no
 export declare function transformSync(input: string, options?: TransformOptions): TransformResult;
+
+// A synchronous version of "formatMessages".
+//
+// Works in node: yes
+// Works in browser: no
+export declare function formatMessagesSync(messages: PartialMessage[], options: FormatMessagesOptions): string[];
 
 // This configures the browser-based version of esbuild. It is necessary to
 // call this first and wait for the returned promise to be resolved before

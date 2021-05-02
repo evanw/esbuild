@@ -350,7 +350,27 @@ var specialAtRules = map[string]atRuleKind{
 	"top-right-corner":    atRuleDeclarations,
 	"top-right":           atRuleDeclarations,
 
-	"document": atRuleInheritContext,
+	// These properties are very deprecated and appear to only be useful for
+	// mobile versions of internet explorer (which may no longer exist?), but
+	// they are used by the https://ant.design/ design system so we recognize
+	// them to avoid the warning.
+	//
+	//   Documentation: https://developer.mozilla.org/en-US/docs/Web/CSS/@viewport
+	//   Discussion: https://github.com/w3c/csswg-drafts/issues/4766
+	//
+	"viewport":     atRuleDeclarations,
+	"-ms-viewport": atRuleDeclarations,
+
+	// This feature has been removed from the web because it's actively harmful.
+	// However, there is one exception where "@-moz-document url-prefix() {" is
+	// accepted by Firefox to basically be an "if Firefox" conditional rule.
+	//
+	//   Documentation: https://developer.mozilla.org/en-US/docs/Web/CSS/@document
+	//   Discussion: https://bugzilla.mozilla.org/show_bug.cgi?id=1035091
+	//
+	"document":      atRuleInheritContext,
+	"-moz-document": atRuleInheritContext,
+
 	"media":    atRuleInheritContext,
 	"scope":    atRuleInheritContext,
 	"supports": atRuleInheritContext,

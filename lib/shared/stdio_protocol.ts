@@ -9,6 +9,7 @@ import * as types from "./types";
 export interface BuildRequest {
   command: 'build';
   key: number;
+  entries: [string, string][]; // Use an array instead of a map to preserve order
   flags: string[];
   write: boolean;
   stdinContents: string | null;
@@ -16,7 +17,6 @@ export interface BuildRequest {
   absWorkingDir: string;
   incremental: boolean;
   nodePaths: string[];
-  hasOnRebuild: boolean;
   plugins?: BuildPlugin[];
   serve?: ServeRequest;
 }
@@ -114,6 +114,28 @@ export interface TransformResponse {
   mapFS: boolean;
 }
 
+export interface FormatMsgsRequest {
+  command: 'format-msgs';
+  messages: types.Message[];
+  isWarning: boolean;
+  color?: boolean;
+  terminalWidth?: number;
+}
+
+export interface FormatMsgsResponse {
+  messages: string[];
+}
+
+export interface OnStartRequest {
+  command: 'start';
+  key: number;
+}
+
+export interface OnStartResponse {
+  errors?: types.PartialMessage[];
+  warnings?: types.PartialMessage[];
+}
+
 export interface OnResolveRequest {
   command: 'resolve';
   key: number;
@@ -137,6 +159,9 @@ export interface OnResolveResponse {
   external?: boolean;
   namespace?: string;
   pluginData?: number;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
 }
 
 export interface OnLoadRequest {
@@ -159,6 +184,9 @@ export interface OnLoadResponse {
   resolveDir?: string;
   loader?: string;
   pluginData?: number;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,7 +380,10 @@ else if (typeof Buffer !== 'undefined') {
 
     return buffer;
   };
-  decodeUTF8 = bytes => Buffer.from(bytes).toString();
+  decodeUTF8 = bytes => {
+    let { buffer, byteOffset, byteLength } = bytes;
+    return Buffer.from(buffer, byteOffset, byteLength).toString();
+  }
 }
 
 else {

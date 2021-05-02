@@ -7,6 +7,7 @@ import (
 
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -363,30 +364,6 @@ func TestExportFormsCommonJS(t *testing.T) {
 	})
 }
 
-func TestReExportDefaultCommonJS(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				import {foo as entry} from './foo'
-				entry()
-			`,
-			"/foo.js": `
-				export {default as foo} from './bar'
-			`,
-			"/bar.js": `
-				export default function foo() {
-					return exports // Force this to be a CommonJS module
-				}
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-		},
-	})
-}
-
 func TestExportChain(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -471,8 +448,8 @@ func TestJSXImportsCommonJS(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory:  []string{"elem"},
-				Fragment: []string{"frag"},
+				Factory:  config.JSXExpr{Parts: []string{"elem"}},
+				Fragment: config.JSXExpr{Parts: []string{"frag"}},
 			},
 			AbsOutputFile: "/out.js",
 		},
@@ -495,8 +472,8 @@ func TestJSXImportsES6(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory:  []string{"elem"},
-				Fragment: []string{"frag"},
+				Factory:  config.JSXExpr{Parts: []string{"elem"}},
+				Fragment: config.JSXExpr{Parts: []string{"frag"}},
 			},
 			AbsOutputFile: "/out.js",
 		},
@@ -516,6 +493,45 @@ func TestJSXSyntaxInJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `entry.js: error: Unexpected "<"
+`,
+	})
+}
+
+func TestJSXConstantFragments(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './default'
+				import './null'
+				import './boolean'
+				import './number'
+				import './string-single-empty'
+				import './string-double-empty'
+				import './string-single-punctuation'
+				import './string-double-punctuation'
+				import './string-template'
+			`,
+			"/default.jsx":                   `console.log(<></>)`,
+			"/null.jsx":                      `console.log(<></>) // @jsxFrag null`,
+			"/boolean.jsx":                   `console.log(<></>) // @jsxFrag true`,
+			"/number.jsx":                    `console.log(<></>) // @jsxFrag 123`,
+			"/string-single-empty.jsx":       `console.log(<></>) // @jsxFrag ''`,
+			"/string-double-empty.jsx":       `console.log(<></>) // @jsxFrag ""`,
+			"/string-single-punctuation.jsx": `console.log(<></>) // @jsxFrag '['`,
+			"/string-double-punctuation.jsx": `console.log(<></>) // @jsxFrag "["`,
+			"/string-template.jsx":           `console.log(<></>) // @jsxFrag ` + "``",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			JSX: config.JSXOptions{
+				Fragment: config.JSXExpr{
+					Constant: &js_ast.EString{Value: js_lexer.StringToUTF16("]")},
+				},
+			},
+		},
+		expectedScanLog: `string-template.jsx: warning: Invalid JSX fragment: ` + "``" + `
 `,
 	})
 }
@@ -717,10 +733,8 @@ func TestImportMissingNeitherES6NorCommonJS(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedCompileLog: `named.js: warning: Import "default" will always be undefined because the file "foo.js" has no exports
-named.js: warning: Import "x" will always be undefined because the file "foo.js" has no exports
+		expectedCompileLog: `named.js: warning: Import "x" will always be undefined because the file "foo.js" has no exports
 named.js: warning: Import "y" will always be undefined because the file "foo.js" has no exports
-star.js: warning: Import "default" will always be undefined because the file "foo.js" has no exports
 star.js: warning: Import "x" will always be undefined because the file "foo.js" has no exports
 star.js: warning: Import "y" will always be undefined because the file "foo.js" has no exports
 `,
@@ -816,7 +830,6 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 				require(tag` + "`./b`" + `)
 				require(` + "`./${b}`" + `)
 
-				// Try/catch should silence this warning for require()
 				try {
 					require(tag` + "`./b`" + `)
 					require(` + "`./${b}`" + `)
@@ -829,7 +842,6 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 					await import(tag` + "`./b`" + `)
 					await import(` + "`./${b}`" + `)
 
-					// Try/catch should silence this warning for await import()
 					try {
 						import(tag` + "`./b`" + `)
 						import(` + "`./${b}`" + `)
@@ -845,15 +857,6 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
-entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
-`,
 	})
 }
 
@@ -874,24 +877,6 @@ func TestDynamicImportWithExpressionCJS(t *testing.T) {
 	})
 }
 
-func TestDynamicImportWithExpressionCJSAndES5(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/a.js": `
-				import('foo')
-				import(foo())
-			`,
-		},
-		entryPaths: []string{"/a.js"},
-		options: config.Options{
-			Mode:                  config.ModeConvertFormat,
-			OutputFormat:          config.FormatCommonJS,
-			UnsupportedJSFeatures: es(5),
-			AbsOutputFile:         "/out.js",
-		},
-	})
-}
-
 func TestMinifiedDynamicImportWithExpressionCJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -906,25 +891,6 @@ func TestMinifiedDynamicImportWithExpressionCJS(t *testing.T) {
 			OutputFormat:     config.FormatCommonJS,
 			AbsOutputFile:    "/out.js",
 			RemoveWhitespace: true,
-		},
-	})
-}
-
-func TestMinifiedDynamicImportWithExpressionCJSAndES5(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/a.js": `
-				import('foo')
-				import(foo())
-			`,
-		},
-		entryPaths: []string{"/a.js"},
-		options: config.Options{
-			Mode:                  config.ModeConvertFormat,
-			OutputFormat:          config.FormatCommonJS,
-			UnsupportedJSFeatures: es(5),
-			AbsOutputFile:         "/out.js",
-			RemoveWhitespace:      true,
 		},
 	})
 }
@@ -974,8 +940,6 @@ func TestConditionalRequire(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `a.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
-`,
 	})
 }
 
@@ -1003,8 +967,6 @@ func TestConditionalImport(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `b.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
-`,
 	})
 }
 
@@ -1015,7 +977,6 @@ func TestRequireBadArgumentCount(t *testing.T) {
 				require()
 				require("a", "b")
 
-				// Try/catch should silence this warning
 				try {
 					require()
 					require("a", "b")
@@ -1028,9 +989,6 @@ func TestRequireBadArgumentCount(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: This call to "require" will not be bundled because it has 0 arguments (surround with a try/catch to silence this warning)
-entry.js: warning: This call to "require" will not be bundled because it has 2 arguments (surround with a try/catch to silence this warning)
-`,
 	})
 }
 
@@ -1119,8 +1077,6 @@ func TestRequireWithoutCall(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-`,
 	})
 }
 
@@ -1139,8 +1095,6 @@ func TestNestedRequireWithoutCall(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-`,
 	})
 }
 
@@ -1207,31 +1161,6 @@ func TestRequirePropertyAccessCommonJS(t *testing.T) {
 	})
 }
 
-func TestRequirePropertyAccessES6(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				// These should warn since the format is ESM
-				console.log(Object.keys(require.cache))
-				console.log(Object.keys(require.extensions))
-				delete require.cache['fs']
-				delete require.extensions['.json']
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			OutputFormat:  config.FormatESModule,
-			AbsOutputFile: "/out.js",
-		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-`,
-	})
-}
-
 // Test a workaround for code using "await import()"
 func TestAwaitImportInsideTry(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
@@ -1258,13 +1187,12 @@ func TestImportInsideTry(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				async function main(name) {
-					try {
-						return import(name)
-					} catch {
-					}
+				let x
+				try {
+					x = import('nope1')
+					x = await import('nope2')
+				} catch {
 				}
-				main('fs')
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1272,7 +1200,7 @@ func TestImportInsideTry(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (use "import().catch()" to silence this warning)
+		expectedScanLog: `entry.js: error: Could not resolve "nope1" (mark it as external to exclude it from the bundle, or add ".catch()" to handle the failure at run-time)
 `,
 	})
 }
@@ -1377,83 +1305,6 @@ func TestHashbangNoBundle(t *testing.T) {
 	})
 }
 
-func TestTypeofRequireBundle(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log([
-					typeof require,
-					typeof require == 'function',
-					typeof require == 'function' && require,
-					'function' == typeof require,
-					'function' == typeof require && require,
-				]);
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-		},
-	})
-}
-
-func TestTypeofRequireNoBundle(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log([
-					typeof require,
-					typeof require == 'function',
-					typeof require == 'function' && require,
-					'function' == typeof require,
-					'function' == typeof require && require,
-				]);
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			AbsOutputFile: "/out.js",
-		},
-	})
-}
-
-func TestTypeofRequireBadPatterns(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log([
-					typeof require != 'function' && require,
-					typeof require === 'function' && require,
-					typeof require == 'function' || require,
-					typeof require == 'function' && notRequire,
-					typeof notRequire == 'function' && require,
-
-					'function' != typeof require && require,
-					'function' === typeof require && require,
-					'function' == typeof require || require,
-					'function' == typeof require && notRequire,
-					'function' == typeof notRequire && require,
-				]);
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-`,
-	})
-}
-
 func TestRequireFSBrowser(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1467,7 +1318,7 @@ func TestRequireFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: `entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
+		expectedScanLog: `entry.js: error: Could not resolve "fs" (use "Platform: api.PlatformNode" when building for node)
 `,
 	})
 }
@@ -1524,7 +1375,7 @@ func TestImportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: `entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
+		expectedScanLog: `entry.js: error: Could not resolve "fs" (use "Platform: api.PlatformNode" when building for node)
 `,
 	})
 }
@@ -1585,7 +1436,7 @@ func TestExportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: `entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
+		expectedScanLog: `entry.js: error: Could not resolve "fs" (use "Platform: api.PlatformNode" when building for node)
 `,
 	})
 }
@@ -1632,10 +1483,10 @@ func TestExportFSNodeInCommonJSModule(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				export * as fs from 'fs'
-				export {readFileSync} from 'fs'
-
-				// Force this to be a CommonJS module
+				import * as fs from 'fs'
+				import {readFileSync} from 'fs'
+				exports.fs = fs
+				exports.readFileSync = readFileSync
 				exports.foo = 123
 			`,
 		},
@@ -1766,25 +1617,56 @@ func TestRuntimeNameCollisionNoBundle(t *testing.T) {
 	})
 }
 
-func TestTopLevelReturn(t *testing.T) {
+func TestTopLevelReturnAllowedImport(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				import {foo} from './foo'
-				foo()
-			`,
-			"/foo.js": `
-				// Top-level return must force CommonJS mode
-				if (Math.random() < 0.5) return
-
-				export function foo() {}
+				return
+				import 'foo'
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:          config.ModeBundle,
+			Mode:          config.ModePassThrough,
 			AbsOutputFile: "/out.js",
 		},
+	})
+}
+
+func TestTopLevelReturnForbiddenExport(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				return
+				export var foo
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: Top-level return cannot be used inside an ECMAScript module
+entry.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+`,
+	})
+}
+
+func TestTopLevelReturnForbiddenTLA(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				return await foo
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: Top-level return cannot be used inside an ECMAScript module
+entry.js: note: This file is considered an ECMAScript module because of the "await" keyword here
+`,
 	})
 }
 
@@ -1897,7 +1779,7 @@ func TestThisWithES6Syntax(t *testing.T) {
 				import './es6-ns-export-namespace'
 				import './es6-ns-export-class'
 				import './es6-ns-export-abstract-class'
-				`,
+			`,
 			"/dummy.js": `export const dummy = 123`,
 			"/cjs.js":   `console.log(this)`,
 
@@ -1942,6 +1824,43 @@ func TestThisWithES6Syntax(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+		expectedScanLog: `es6-export-abstract-class.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-abstract-class.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-async-function.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-async-function.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-class.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-class.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-clause-from.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-clause-from.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-clause.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-clause.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-const-enum.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-const-enum.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-default.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-default.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-enum.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-enum.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-function.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-function.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-import-assign.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-import-assign.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-module.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-module.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-namespace.ts: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-namespace.ts: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-star-as.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-star-as.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-star.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-star.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-export-variable.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-export-variable.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+es6-expr-import-meta.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-expr-import-meta.js: note: This file is considered an ECMAScript module because of the "import" keyword here
+es6-import-meta.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-import-meta.js: note: This file is considered an ECMAScript module because of the "import" keyword here
+es6-import-stmt.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+es6-import-stmt.js: note: This file is considered an ECMAScript module because of the "import" keyword here
+`,
 	})
 }
 
@@ -2160,7 +2079,7 @@ func TestImportReExportES6Issue149(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory: []string{"h"},
+				Factory: config.JSXExpr{Parts: []string{"h"}},
 			},
 			AbsOutputFile: "/out.js",
 			ExternalModules: config.ExternalModules{
@@ -2804,11 +2723,12 @@ func TestNoOverwriteInputFileError(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/",
 		},
-		expectedCompileLog: "error: Refusing to overwrite input file: entry.js\n",
+		expectedCompileLog: `error: Refusing to overwrite input file "entry.js" (use "AllowOverwrite: true" to allow this)
+`,
 	})
 }
 
-func TestDuplicateEntryPointError(t *testing.T) {
+func TestDuplicateEntryPoint(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2820,8 +2740,6 @@ func TestDuplicateEntryPointError(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out.js",
 		},
-		expectedScanLog: `error: Duplicate entry point "entry.js"
-`,
 	})
 }
 
@@ -3044,7 +2962,7 @@ func TestImportMetaNoBundle(t *testing.T) {
 	})
 }
 
-func TestDeduplicateCommentsInBundle(t *testing.T) {
+func TestLegalCommentsNone(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3058,9 +2976,72 @@ func TestDeduplicateCommentsInBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:             config.ModeBundle,
-			RemoveWhitespace: true,
-			AbsOutputFile:    "/out.js",
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			LegalComments: config.LegalCommentsNone,
+		},
+	})
+}
+
+func TestLegalCommentsInline(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './a'
+				import './b'
+				import './c'
+			`,
+			"/a.js": `console.log('in a') //! Copyright notice 1`,
+			"/b.js": `console.log('in b') //! Copyright notice 1`,
+			"/c.js": `console.log('in c') //! Copyright notice 2`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			LegalComments: config.LegalCommentsInline,
+		},
+	})
+}
+
+func TestLegalCommentsLinked(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './a'
+				import './b'
+				import './c'
+			`,
+			"/a.js": `console.log('in a') //! Copyright notice 1`,
+			"/b.js": `console.log('in b') //! Copyright notice 1`,
+			"/c.js": `console.log('in c') //! Copyright notice 2`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			LegalComments: config.LegalCommentsLinkedWithComment,
+		},
+	})
+}
+
+func TestLegalCommentsExternal(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './a'
+				import './b'
+				import './c'
+			`,
+			"/a.js": `console.log('in a') //! Copyright notice 1`,
+			"/b.js": `console.log('in b') //! Copyright notice 1`,
+			"/c.js": `console.log('in c') //! Copyright notice 2`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			LegalComments: config.LegalCommentsExternalWithoutComment,
 		},
 	})
 }
@@ -3115,7 +3096,7 @@ func TestOutputExtensionRemappingDir(t *testing.T) {
 	})
 }
 
-func TestTopLevelAwait(t *testing.T) {
+func TestTopLevelAwaitIIFE(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3126,11 +3107,49 @@ func TestTopLevelAwait(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: error: Top-level await is currently not supported when bundling
-entry.js: error: Top-level await is currently not supported when bundling
+		expectedScanLog: `entry.js: error: Top-level await is currently not supported with the "iife" output format
+entry.js: error: Top-level await is currently not supported with the "iife" output format
 `,
+	})
+}
+
+func TestTopLevelAwaitCJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: Top-level await is currently not supported with the "cjs" output format
+entry.js: error: Top-level await is currently not supported with the "cjs" output format
+`,
+	})
+}
+
+func TestTopLevelAwaitESM(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
 	})
 }
 
@@ -3206,6 +3225,106 @@ entry.js: error: Top-level await is currently not supported with the "iife" outp
 	})
 }
 
+func TestTopLevelAwaitForbiddenRequire(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				require('./a')
+				require('./b')
+				require('./c')
+				require('./entry')
+				await 0
+			`,
+			"/a.js": `
+				import './b'
+			`,
+			"/b.js": `
+				import './c'
+			`,
+			"/c.js": `
+				await 0
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: This require call is not allowed because the transitive dependency "c.js" contains a top-level await
+a.js: note: The file "a.js" imports the file "b.js" here
+b.js: note: The file "b.js" imports the file "c.js" here
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This require call is not allowed because the transitive dependency "c.js" contains a top-level await
+b.js: note: The file "b.js" imports the file "c.js" here
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This require call is not allowed because the imported file "c.js" contains a top-level await
+c.js: note: The top-level await in "c.js" is here
+entry.js: error: This require call is not allowed because the imported file "entry.js" contains a top-level await
+entry.js: note: The top-level await in "entry.js" is here
+`,
+	})
+}
+
+func TestTopLevelAwaitAllowedImportWithoutSplitting(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import('./a')
+				import('./b')
+				import('./c')
+				import('./entry')
+				await 0
+			`,
+			"/a.js": `
+				import './b'
+			`,
+			"/b.js": `
+				import './c'
+			`,
+			"/c.js": `
+				await 0
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTopLevelAwaitAllowedImportWithSplitting(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import('./a')
+				import('./b')
+				import('./c')
+				import('./entry')
+				await 0
+			`,
+			"/a.js": `
+				import './b'
+			`,
+			"/b.js": `
+				import './c'
+			`,
+			"/c.js": `
+				await 0
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			CodeSplitting: true,
+			AbsOutputDir:  "/out",
+		},
+	})
+}
+
 func TestAssignToImport(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3269,10 +3388,10 @@ bad1.js: error: Cannot assign to import "x"
 bad10.js: error: Cannot assign to import "y z"
 bad11.js: error: Cannot assign to import "x"
 bad11.js: error: Delete of a bare identifier cannot be used in strict mode
-bad11.js: note: This file is implicitly in strict mode because of the "import" keyword
+bad11.js: note: This file is implicitly in strict mode because of the "import" keyword here
 bad12.js: error: Cannot assign to import "x"
 bad12.js: error: Delete of a bare identifier cannot be used in strict mode
-bad12.js: note: This file is implicitly in strict mode because of the "import" keyword
+bad12.js: note: This file is implicitly in strict mode because of the "import" keyword here
 bad13.js: error: Cannot assign to import "y"
 bad14.js: error: Cannot assign to import "y"
 bad15.js: error: Cannot assign to property on import "x"
@@ -3455,10 +3574,7 @@ func TestRequireResolve(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: "./present-file" should be marked as external for use with "require.resolve"
+		expectedScanLog: `entry.js: warning: "./present-file" should be marked as external for use with "require.resolve"
 entry.js: warning: "./missing-file" should be marked as external for use with "require.resolve"
 entry.js: warning: "missing-pkg" should be marked as external for use with "require.resolve"
 entry.js: warning: "@scope/missing-pkg" should be marked as external for use with "require.resolve"
@@ -3784,80 +3900,6 @@ func TestAvoidTDZNoBundle(t *testing.T) {
 	})
 }
 
-func TestProcessEnvNodeEnvWarning(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log(
-					process.env.NODE_ENV,
-					process.env.NODE_ENV,
-				)
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-		},
-		expectedScanLog: `entry.js: warning: Define "process.env.NODE_ENV" when bundling for the browser
-`,
-	})
-}
-
-func TestProcessEnvNodeEnvWarningNode(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log(process.env.NODE_ENV)
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-			Platform:      config.PlatformNode,
-		},
-	})
-}
-
-func TestProcessEnvNodeEnvWarningDefine(t *testing.T) {
-	defines := config.ProcessDefines(map[string]config.DefineData{
-		"process.env.NODE_ENV": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.ENull{}
-			},
-		},
-	})
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log(process.env.NODE_ENV)
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-			Defines:       &defines,
-		},
-	})
-}
-
-func TestProcessEnvNodeEnvWarningNoBundle(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log(process.env.NODE_ENV)
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModePassThrough,
-			AbsOutputFile: "/out.js",
-		},
-	})
-}
-
 func TestDefineImportMeta(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"import.meta": {
@@ -4081,26 +4123,6 @@ func TestRequireMainCacheCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			OutputFormat:  config.FormatCommonJS,
 		},
-	})
-}
-
-func TestRequireMainCacheIIFE(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				console.log('is main:', require.main === module)
-				console.log('cache:', require.cache);
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-			OutputFormat:  config.FormatIIFE,
-		},
-		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-`,
 	})
 }
 
@@ -4337,5 +4359,31 @@ func TestImportNamespaceThisValue(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestThisUndefinedWarningESM(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import x from './file1.js'
+				import y from 'pkg/file2.js'
+				console.log(x, y)
+			`,
+			"/file1.js": `
+				export default [this, this]
+			`,
+			"/node_modules/pkg/file2.js": `
+				export default [this, this]
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `file1.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+file1.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+`,
 	})
 }

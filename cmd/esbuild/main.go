@@ -7,22 +7,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/evanw/esbuild/internal/api_helpers"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/pkg/cli"
 )
 
 var helpText = func(colors logger.Colors) string {
 	return `
-` + colors.Bold + `Usage:` + colors.Default + `
+` + colors.Bold + `Usage:` + colors.Reset + `
   esbuild [options] [entry points]
 
-` + colors.Bold + `Documentation:` + colors.Default + `
-  ` + colors.Underline + `https://esbuild.github.io/` + colors.Default + `
+` + colors.Bold + `Documentation:` + colors.Reset + `
+  ` + colors.Underline + `https://esbuild.github.io/` + colors.Reset + `
 
-` + colors.Bold + `Repository:` + colors.Default + `
-  ` + colors.Underline + `https://github.com/evanw/esbuild` + colors.Default + `
+` + colors.Bold + `Repository:` + colors.Reset + `
+  ` + colors.Underline + `https://github.com/evanw/esbuild` + colors.Reset + `
 
-` + colors.Bold + `Simple options:` + colors.Default + `
+` + colors.Bold + `Simple options:` + colors.Reset + `
   --bundle              Bundle all dependencies into the output files
   --define:K=V          Substitute K with V while parsing
   --external:M          Exclude module M from the bundle (can use * wildcards)
@@ -44,12 +45,18 @@ var helpText = func(colors logger.Colors) string {
                         safari11, edge16, node10, default esnext)
   --watch               Watch mode: rebuild on file system changes
 
-` + colors.Bold + `Advanced options:` + colors.Default + `
+` + colors.Bold + `Advanced options:` + colors.Reset + `
+  --allow-overwrite         Allow output files to overwrite input files
+  --asset-names=...         Path template to use for "file" loader files
+                            (default "[name]-[hash]")
   --banner:T=...            Text to be prepended to each output file of type T
                             where T is one of: css | js
   --charset=utf8            Do not escape UTF-8 code points
+  --chunk-names=...         Path template to use for code splitting chunks
+                            (default "[name]-[hash]")
   --color=...               Force use of color terminal escapes (true | false)
-  --log-limit=...           Maximum message count or 0 to disable (default 10)
+  --entry-names=...         Path template to use for entry point output paths
+                            (default "[dir]/[name]", can also use "[hash]")
   --footer:T=...            Text to be appended to each output file of type T
                             where T is one of: css | js
   --global-name=...         The name of the global for the IIFE format
@@ -58,8 +65,12 @@ var helpText = func(colors logger.Colors) string {
   --jsx-factory=...         What to use for JSX instead of React.createElement
   --jsx-fragment=...        What to use for JSX instead of React.Fragment
   --keep-names              Preserve "name" on functions and classes
-  --log-level=...           Disable logging (info | warning | error | silent,
-                            default info)
+  --legal-comments=...      Where to place license comments (none | inline |
+                            eof | linked | external, default eof when bundling
+                            and inline otherwise)
+  --log-level=...           Disable logging (verbose | debug | info | warning |
+                            error | silent, default info)
+  --log-limit=...           Maximum message count or 0 to disable (default 10)
   --main-fields=...         Override the main file order in package.json
                             (default "browser,module,main" when platform is
                             browser and "main,module" when platform is node)
@@ -76,6 +87,7 @@ var helpText = func(colors logger.Colors) string {
   --resolve-extensions=...  A comma-separated list of implicit extensions
                             (default ".tsx,.ts,.jsx,.js,.css,.json")
   --servedir=...            What to serve in addition to generated output files
+  --source-root=...         Sets the "sourceRoot" field in generated source maps
   --sourcefile=...          Set the source file for the source map (for stdin)
   --sourcemap=external      Do not link to the source map with a comment
   --sourcemap=inline        Emit the source map with an inline data URL
@@ -85,29 +97,31 @@ var helpText = func(colors logger.Colors) string {
   --tsconfig=...            Use this tsconfig.json file instead of other ones
   --version                 Print the current version (` + esbuildVersion + `) and exit
 
-` + colors.Bold + `Examples:` + colors.Default + `
-  ` + colors.Dim + `# Produces dist/entry_point.js and dist/entry_point.js.map` + colors.Default + `
+` + colors.Bold + `Examples:` + colors.Reset + `
+  ` + colors.Dim + `# Produces dist/entry_point.js and dist/entry_point.js.map` + colors.Reset + `
   esbuild --bundle entry_point.js --outdir=dist --minify --sourcemap
 
-  ` + colors.Dim + `# Allow JSX syntax in .js files` + colors.Default + `
+  ` + colors.Dim + `# Allow JSX syntax in .js files` + colors.Reset + `
   esbuild --bundle entry_point.js --outfile=out.js --loader:.js=jsx
 
-  ` + colors.Dim + `# Substitute the identifier RELEASE for the literal true` + colors.Default + `
+  ` + colors.Dim + `# Substitute the identifier RELEASE for the literal true` + colors.Reset + `
   esbuild example.js --outfile=out.js --define:RELEASE=true
 
-  ` + colors.Dim + `# Provide input via stdin, get output via stdout` + colors.Default + `
+  ` + colors.Dim + `# Provide input via stdin, get output via stdout` + colors.Reset + `
   esbuild --minify --loader=ts < input.ts > output.js
 
-  ` + colors.Dim + `# Automatically rebuild when input files are changed` + colors.Default + `
+  ` + colors.Dim + `# Automatically rebuild when input files are changed` + colors.Reset + `
   esbuild app.ts --bundle --watch
 
-  ` + colors.Dim + `# Start a local HTTP server for everything in "www"` + colors.Default + `
+  ` + colors.Dim + `# Start a local HTTP server for everything in "www"` + colors.Reset + `
   esbuild app.ts --bundle --servedir=www --outdir=www/js
 
 `
 }
 
 func main() {
+	logger.API = logger.CLIAPI
+
 	osArgs := os.Args[1:]
 	heapFile := ""
 	traceFile := ""
@@ -134,6 +148,11 @@ func main() {
 
 		case strings.HasPrefix(arg, "--trace="):
 			traceFile = arg[len("--trace="):]
+
+		case strings.HasPrefix(arg, "--timing"):
+			// This is a hidden flag because it's only intended for debugging esbuild
+			// itself. The output is not documented and not stable.
+			api_helpers.UseTimer = true
 
 		case strings.HasPrefix(arg, "--cpuprofile="):
 			cpuprofileFile = arg[len("--cpuprofile="):]

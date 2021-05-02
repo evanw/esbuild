@@ -94,6 +94,17 @@ const (
 	SourcesContentExclude
 )
 
+type LegalComments uint8
+
+const (
+	LegalCommentsDefault LegalComments = iota
+	LegalCommentsNone
+	LegalCommentsInline
+	LegalCommentsEndOfFile
+	LegalCommentsLinked
+	LegalCommentsExternal
+)
+
 type Target uint8
 
 const (
@@ -159,18 +170,20 @@ type Engine struct {
 }
 
 type Location struct {
-	File      string
-	Namespace string
-	Line      int // 1-based
-	Column    int // 0-based, in bytes
-	Length    int // in bytes
-	LineText  string
+	File       string
+	Namespace  string
+	Line       int // 1-based
+	Column     int // 0-based, in bytes
+	Length     int // in bytes
+	LineText   string
+	Suggestion string
 }
 
 type Message struct {
-	Text     string
-	Location *Location
-	Notes    []Note
+	PluginName string
+	Text       string
+	Location   *Location
+	Notes      []Note
 
 	// Optional user-specified data that is passed through unmodified. You can
 	// use this to stash the original error, for example.
@@ -194,6 +207,8 @@ type LogLevel uint8
 
 const (
 	LogLevelSilent LogLevel = iota
+	LogLevelVerbose
+	LogLevelDebug
 	LogLevelInfo
 	LogLevelWarning
 	LogLevelError
@@ -223,6 +238,7 @@ type BuildOptions struct {
 	LogLevel LogLevel
 
 	Sourcemap      SourceMap
+	SourceRoot     string
 	SourcesContent SourcesContent
 
 	Target  Target
@@ -233,6 +249,7 @@ type BuildOptions struct {
 	MinifySyntax      bool
 	Charset           Charset
 	TreeShaking       TreeShaking
+	LegalComments     LegalComments
 
 	JSXFactory  string
 	JSXFragment string
@@ -265,16 +282,25 @@ type BuildOptions struct {
 	Footer            map[string]string
 	NodePaths         []string // The "NODE_PATH" variable from Node.js
 
+	EntryNames string
 	ChunkNames string
 	AssetNames string
 
-	EntryPoints []string
-	Stdin       *StdinOptions
-	Write       bool
-	Incremental bool
-	Plugins     []Plugin
+	EntryPoints         []string
+	EntryPointsAdvanced []EntryPoint
+
+	Stdin          *StdinOptions
+	Write          bool
+	AllowOverwrite bool
+	Incremental    bool
+	Plugins        []Plugin
 
 	Watch *WatchMode
+}
+
+type EntryPoint struct {
+	InputPath  string
+	OutputPath string
 }
 
 type WatchMode struct {
@@ -317,6 +343,7 @@ type TransformOptions struct {
 	LogLevel LogLevel
 
 	Sourcemap      SourceMap
+	SourceRoot     string
 	SourcesContent SourcesContent
 
 	Target     Target
@@ -329,6 +356,7 @@ type TransformOptions struct {
 	MinifySyntax      bool
 	Charset           Charset
 	TreeShaking       TreeShaking
+	LegalComments     LegalComments
 
 	JSXFactory  string
 	JSXFragment string
@@ -393,9 +421,17 @@ type Plugin struct {
 	Setup func(PluginBuild)
 }
 
-type PluginBuild interface {
-	OnResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
-	OnLoad(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
+type PluginBuild struct {
+	InitialOptions *BuildOptions
+	OnStart        func(callback func() (OnStartResult, error))
+	OnEnd          func(callback func(result *BuildResult))
+	OnResolve      func(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
+	OnLoad         func(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
+}
+
+type OnStartResult struct {
+	Errors   []Message
+	Warnings []Message
 }
 
 type OnResolveOptions struct {
@@ -422,6 +458,9 @@ type OnResolveResult struct {
 	External   bool
 	Namespace  string
 	PluginData interface{}
+
+	WatchFiles []string
+	WatchDirs  []string
 }
 
 type OnLoadOptions struct {
@@ -445,6 +484,9 @@ type OnLoadResult struct {
 	ResolveDir string
 	Loader     Loader
 	PluginData interface{}
+
+	WatchFiles []string
+	WatchDirs  []string
 }
 
 type ResolveKind uint8
@@ -458,3 +500,23 @@ const (
 	ResolveCSSImportRule
 	ResolveCSSURLToken
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// FormatMessages API
+
+type MessageKind uint8
+
+const (
+	ErrorMessage MessageKind = iota
+	WarningMessage
+)
+
+type FormatMessagesOptions struct {
+	TerminalWidth int
+	Kind          MessageKind
+	Color         bool
+}
+
+func FormatMessages(msgs []Message, opts FormatMessagesOptions) []string {
+	return formatMsgsImpl(msgs, opts)
+}

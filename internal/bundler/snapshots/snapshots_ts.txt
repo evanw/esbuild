@@ -95,6 +95,7 @@ var _foo = class {
 };
 var foo2 = _foo;
 foo2.x = new _foo();
+var interface_merged_default = foo2;
 var bar3 = 123;
 
 // keep/interface-nested.ts
@@ -114,6 +115,7 @@ var foo3;
 (function(foo5) {
   foo5.num = 0;
 })(foo3 || (foo3 = {}));
+var value_namespace_default = foo3;
 var bar6 = 123;
 
 // keep/value-namespace-merged.ts
@@ -121,6 +123,7 @@ var foo4;
 (function(foo5) {
   foo5.num = 0;
 })(foo4 || (foo4 = {}));
+var value_namespace_merged_default = foo4;
 var bar7 = 123;
 
 // remove/interface.ts
@@ -143,12 +146,19 @@ var bar13 = 123;
 
 // entry.ts
 var entry_default = [
+  declare_class_default,
   bar,
+  declare_let_default,
   bar2,
+  interface_merged_default,
   bar3,
+  interface_nested_default,
   bar4,
+  type_nested_default,
   bar5,
+  value_namespace_default,
   bar6,
+  value_namespace_merged_default,
   bar7,
   bar8,
   bar9,
@@ -322,45 +332,45 @@ var Foo = class {
   }
 };
 Foo.sDef = new Foo();
-__decorate([
+__decorateClass([
   x,
   y
 ], Foo.prototype, "mUndef", 2);
-__decorate([
+__decorateClass([
   x,
   y
 ], Foo.prototype, "mDef", 2);
-__decorate([
+__decorateClass([
   x,
   y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
+  __decorateParam(0, x0),
+  __decorateParam(0, y0),
+  __decorateParam(1, x1),
+  __decorateParam(1, y1)
 ], Foo.prototype, "method", 1);
-__decorate([
+__decorateClass([
   x,
   y
 ], Foo, "sUndef", 2);
-__decorate([
+__decorateClass([
   x,
   y
 ], Foo, "sDef", 2);
-__decorate([
+__decorateClass([
   x,
   y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
+  __decorateParam(0, x0),
+  __decorateParam(0, y0),
+  __decorateParam(1, x1),
+  __decorateParam(1, y1)
 ], Foo, "sMethod", 1);
-Foo = __decorate([
+Foo = __decorateClass([
   x.y(),
   new y.x(),
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
+  __decorateParam(0, x0),
+  __decorateParam(0, y0),
+  __decorateParam(1, x1),
+  __decorateParam(1, y1)
 ], Foo);
 var all_default = Foo;
 
@@ -380,39 +390,39 @@ var Foo2 = class {
 };
 Foo2[_e] = 3;
 Foo2[_g] = new Foo2();
-__decorate([
+__decorateClass([
   x,
   y
 ], Foo2.prototype, _a, 2);
-__decorate([
+__decorateClass([
   x,
   y
 ], Foo2.prototype, _b, 2);
-__decorate([
+__decorateClass([
   x,
   y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
+  __decorateParam(0, x0),
+  __decorateParam(0, y0),
+  __decorateParam(1, x1),
+  __decorateParam(1, y1)
 ], Foo2.prototype, _c, 1);
-__decorate([
+__decorateClass([
   x,
   y
 ], Foo2, _f, 2);
-__decorate([
+__decorateClass([
   x,
   y
 ], Foo2, _g, 2);
-__decorate([
+__decorateClass([
   x,
   y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
+  __decorateParam(0, x0),
+  __decorateParam(0, y0),
+  __decorateParam(1, x1),
+  __decorateParam(1, y1)
 ], Foo2, _h, 1);
-Foo2 = __decorate([
+Foo2 = __decorateClass([
   x?.[_ + "y"](),
   new y?.[_ + "x"]()
 ], Foo2);
@@ -425,7 +435,7 @@ var a_class = class {
   }
 };
 a_class.z = new a_class();
-a_class = __decorate([
+a_class = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], a_class);
@@ -438,7 +448,7 @@ var b_class = class {
   }
 };
 b_class.z = new b_class();
-b_class = __decorate([
+b_class = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], b_class);
@@ -451,7 +461,7 @@ var c = class {
   }
 };
 c.z = new c();
-c = __decorate([
+c = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], c);
@@ -463,7 +473,7 @@ var d = class {
   }
 };
 d.z = new d();
-d = __decorate([
+d = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], d);
@@ -471,7 +481,7 @@ d = __decorate([
 // e.ts
 var e_default = class {
 };
-e_default = __decorate([
+e_default = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], e_default);
@@ -484,7 +494,7 @@ var f = class {
   }
 };
 f.z = new f();
-f = __decorate([
+f = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], f);
@@ -493,7 +503,7 @@ var f_default = f;
 // g.ts
 var g_default = class {
 };
-g_default = __decorate([
+g_default = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], g_default);
@@ -506,7 +516,7 @@ var h = class {
   }
 };
 h.z = new h();
-h = __decorate([
+h = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], h);
@@ -515,7 +525,7 @@ var h_default = h;
 // i.ts
 var i_class = class {
 };
-__decorate([
+__decorateClass([
   x(() => 0),
   y(() => 1)
 ], i_class.prototype, "foo", 2);
@@ -526,7 +536,7 @@ var j = class {
   foo() {
   }
 };
-__decorate([
+__decorateClass([
   x(() => 0),
   y(() => 1)
 ], j.prototype, "foo", 1);
@@ -536,9 +546,9 @@ var k_default = class {
   foo(x2) {
   }
 };
-__decorate([
-  __param(0, x2(() => 0)),
-  __param(0, y(() => 1))
+__decorateClass([
+  __decorateParam(0, x2(() => 0)),
+  __decorateParam(0, y(() => 1))
 ], k_default.prototype, "foo", 1);
 var k_default2 = k_default;
 
@@ -551,7 +561,7 @@ function fn(x2) {
     [_a2 = arguments[0]]() {
     }
   }
-  __decorate([
+  __decorateClass([
     dec(arguments[0])
   ], Foo3.prototype, _a2, 1);
   return Foo3;

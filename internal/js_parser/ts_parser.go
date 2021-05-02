@@ -137,166 +137,224 @@ func (p *parser) skipTypeScriptParenOrFnType() {
 }
 
 func (p *parser) skipTypeScriptReturnType() {
-	// Skip over "function assert(x: boolean): asserts x"
-	if p.lexer.IsContextualKeyword("asserts") {
-		p.lexer.Next()
-
-		// "function assert(x: boolean): asserts" is also valid
-		if p.lexer.Token != js_lexer.TIdentifier && p.lexer.Token != js_lexer.TThis {
-			return
-		}
-		p.lexer.Next()
-
-		// Continue on to the "is" check below to handle something like
-		// "function assert(x: any): asserts x is boolean"
-	} else {
-		p.skipTypeScriptType(js_ast.LLowest)
-	}
-
-	if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
-		p.lexer.Next()
-		p.skipTypeScriptType(js_ast.LLowest)
-	}
+	p.skipTypeScriptTypeWithOpts(js_ast.LLowest, skipTypeOpts{isReturnType: true})
 }
 
 func (p *parser) skipTypeScriptType(level js_ast.L) {
-	p.skipTypeScriptTypePrefix()
-	p.skipTypeScriptTypeSuffix(level)
+	p.skipTypeScriptTypeWithOpts(level, skipTypeOpts{})
 }
 
-func (p *parser) skipTypeScriptTypePrefix() {
-	switch p.lexer.Token {
-	case js_lexer.TNumericLiteral, js_lexer.TBigIntegerLiteral, js_lexer.TStringLiteral,
-		js_lexer.TNoSubstitutionTemplateLiteral, js_lexer.TThis, js_lexer.TTrue, js_lexer.TFalse,
-		js_lexer.TNull, js_lexer.TVoid, js_lexer.TConst:
-		p.lexer.Next()
+type skipTypeOpts struct {
+	isReturnType bool
+}
 
-	case js_lexer.TMinus:
-		// "-123"
-		// "-123n"
-		p.lexer.Next()
-		if p.lexer.Token == js_lexer.TBigIntegerLiteral {
+type tsTypeIdentifierKind uint8
+
+const (
+	tsTypeIdentifierNormal tsTypeIdentifierKind = iota
+	tsTypeIdentifierUnique
+	tsTypeIdentifierAbstract
+	tsTypeIdentifierAsserts
+	tsTypeIdentifierPrefix
+	tsTypeIdentifierPrimitive
+)
+
+// Use a map to improve lookup speed
+var tsTypeIdentifierMap = map[string]tsTypeIdentifierKind{
+	"unique":   tsTypeIdentifierUnique,
+	"abstract": tsTypeIdentifierAbstract,
+	"asserts":  tsTypeIdentifierAsserts,
+
+	"keyof":    tsTypeIdentifierPrefix,
+	"readonly": tsTypeIdentifierPrefix,
+	"infer":    tsTypeIdentifierPrefix,
+
+	"any":       tsTypeIdentifierPrimitive,
+	"never":     tsTypeIdentifierPrimitive,
+	"unknown":   tsTypeIdentifierPrimitive,
+	"undefined": tsTypeIdentifierPrimitive,
+	"object":    tsTypeIdentifierPrimitive,
+	"number":    tsTypeIdentifierPrimitive,
+	"string":    tsTypeIdentifierPrimitive,
+	"boolean":   tsTypeIdentifierPrimitive,
+	"bigint":    tsTypeIdentifierPrimitive,
+	"symbol":    tsTypeIdentifierPrimitive,
+}
+
+func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
+	for {
+		switch p.lexer.Token {
+		case js_lexer.TNumericLiteral, js_lexer.TBigIntegerLiteral, js_lexer.TStringLiteral,
+			js_lexer.TNoSubstitutionTemplateLiteral, js_lexer.TTrue, js_lexer.TFalse,
+			js_lexer.TNull, js_lexer.TVoid, js_lexer.TConst:
 			p.lexer.Next()
-		} else {
-			p.lexer.Expect(js_lexer.TNumericLiteral)
-		}
 
-	case js_lexer.TAmpersand:
-	case js_lexer.TBar:
-		// Support things like "type Foo = | A | B" and "type Foo = & A & B"
-		p.lexer.Next()
-		p.skipTypeScriptTypePrefix()
-
-	case js_lexer.TImport:
-		// "import('fs')"
-		p.lexer.Next()
-		p.lexer.Expect(js_lexer.TOpenParen)
-		p.lexer.Expect(js_lexer.TStringLiteral)
-		p.lexer.Expect(js_lexer.TCloseParen)
-
-	case js_lexer.TNew:
-		// "new () => Foo"
-		// "new <T>() => Foo<T>"
-		p.lexer.Next()
-		p.skipTypeScriptTypeParameters()
-		p.skipTypeScriptParenOrFnType()
-
-	case js_lexer.TLessThan:
-		// "<T>() => Foo<T>"
-		p.skipTypeScriptTypeParameters()
-		p.skipTypeScriptParenOrFnType()
-
-	case js_lexer.TOpenParen:
-		// "(number | string)"
-		p.skipTypeScriptParenOrFnType()
-
-	case js_lexer.TIdentifier:
-		switch p.lexer.Identifier {
-		case "keyof", "readonly", "infer":
+		case js_lexer.TThis:
 			p.lexer.Next()
-			p.skipTypeScriptType(js_ast.LPrefix)
 
-		case "unique":
-			p.lexer.Next()
-			if p.lexer.IsContextualKeyword("symbol") {
+			// "function check(): this is boolean"
+			if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
 				p.lexer.Next()
+				p.skipTypeScriptType(js_ast.LLowest)
+				return
 			}
 
-		// This was added in TypeScript 4.2
-		case "abstract":
+		case js_lexer.TMinus:
+			// "-123"
+			// "-123n"
 			p.lexer.Next()
-			if p.lexer.Token == js_lexer.TNew {
-				p.skipTypeScriptTypePrefix()
+			if p.lexer.Token == js_lexer.TBigIntegerLiteral {
+				p.lexer.Next()
+			} else {
+				p.lexer.Expect(js_lexer.TNumericLiteral)
 			}
 
-		default:
+		case js_lexer.TAmpersand:
+		case js_lexer.TBar:
+			// Support things like "type Foo = | A | B" and "type Foo = & A & B"
 			p.lexer.Next()
-		}
+			continue
 
-	case js_lexer.TTypeof:
-		p.lexer.Next()
-		if p.lexer.Token == js_lexer.TImport {
-			// "typeof import('fs')"
-			p.skipTypeScriptTypePrefix()
-		} else {
-			// "typeof x"
-			// "typeof x.y"
-			for {
-				if !p.lexer.IsIdentifierOrKeyword() {
-					p.lexer.Expected(js_lexer.TIdentifier)
+		case js_lexer.TImport:
+			// "import('fs')"
+			p.lexer.Next()
+			p.lexer.Expect(js_lexer.TOpenParen)
+			p.lexer.Expect(js_lexer.TStringLiteral)
+			p.lexer.Expect(js_lexer.TCloseParen)
+
+		case js_lexer.TNew:
+			// "new () => Foo"
+			// "new <T>() => Foo<T>"
+			p.lexer.Next()
+			p.skipTypeScriptTypeParameters()
+			p.skipTypeScriptParenOrFnType()
+
+		case js_lexer.TLessThan:
+			// "<T>() => Foo<T>"
+			p.skipTypeScriptTypeParameters()
+			p.skipTypeScriptParenOrFnType()
+
+		case js_lexer.TOpenParen:
+			// "(number | string)"
+			p.skipTypeScriptParenOrFnType()
+
+		case js_lexer.TIdentifier:
+			kind := tsTypeIdentifierMap[p.lexer.Identifier]
+
+			if kind == tsTypeIdentifierPrefix {
+				p.lexer.Next()
+				p.skipTypeScriptType(js_ast.LPrefix)
+				break
+			}
+
+			checkTypeParameters := true
+
+			if kind == tsTypeIdentifierUnique {
+				p.lexer.Next()
+
+				// "let foo: unique symbol"
+				if p.lexer.IsContextualKeyword("symbol") {
+					p.lexer.Next()
+					break
 				}
+			} else if kind == tsTypeIdentifierAbstract {
 				p.lexer.Next()
-				if p.lexer.Token != js_lexer.TDot {
+
+				// "let foo: abstract new () => {}" added in TypeScript 4.2
+				if p.lexer.Token == js_lexer.TNew {
+					continue
+				}
+			} else if kind == tsTypeIdentifierAsserts {
+				p.lexer.Next()
+
+				// "function assert(x: boolean): asserts x"
+				// "function assert(x: boolean): asserts x is boolean"
+				if opts.isReturnType && !p.lexer.HasNewlineBefore && (p.lexer.Token == js_lexer.TIdentifier || p.lexer.Token == js_lexer.TThis) {
+					p.lexer.Next()
+				}
+			} else if kind == tsTypeIdentifierPrimitive {
+				p.lexer.Next()
+				checkTypeParameters = false
+			} else {
+				p.lexer.Next()
+			}
+
+			// "function assert(x: any): x is boolean"
+			if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
+				p.lexer.Next()
+				p.skipTypeScriptType(js_ast.LLowest)
+				return
+			}
+
+			// "let foo: any \n <number>foo" must not become a single type
+			if checkTypeParameters && !p.lexer.HasNewlineBefore {
+				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+			}
+
+		case js_lexer.TTypeof:
+			p.lexer.Next()
+			if p.lexer.Token == js_lexer.TImport {
+				// "typeof import('fs')"
+				continue
+			} else {
+				// "typeof x"
+				// "typeof x.y"
+				for {
+					if !p.lexer.IsIdentifierOrKeyword() {
+						p.lexer.Expected(js_lexer.TIdentifier)
+					}
+					p.lexer.Next()
+					if p.lexer.Token != js_lexer.TDot {
+						break
+					}
+					p.lexer.Next()
+				}
+			}
+
+		case js_lexer.TOpenBracket:
+			// "[number, string]"
+			// "[first: number, second: string]"
+			p.lexer.Next()
+			for p.lexer.Token != js_lexer.TCloseBracket {
+				if p.lexer.Token == js_lexer.TDotDotDot {
+					p.lexer.Next()
+				}
+				p.skipTypeScriptType(js_ast.LLowest)
+				if p.lexer.Token == js_lexer.TQuestion {
+					p.lexer.Next()
+				}
+				if p.lexer.Token == js_lexer.TColon {
+					p.lexer.Next()
+					p.skipTypeScriptType(js_ast.LLowest)
+				}
+				if p.lexer.Token != js_lexer.TComma {
 					break
 				}
 				p.lexer.Next()
 			}
-		}
+			p.lexer.Expect(js_lexer.TCloseBracket)
 
-	case js_lexer.TOpenBracket:
-		// "[number, string]"
-		// "[first: number, second: string]"
-		p.lexer.Next()
-		for p.lexer.Token != js_lexer.TCloseBracket {
-			if p.lexer.Token == js_lexer.TDotDotDot {
-				p.lexer.Next()
-			}
-			p.skipTypeScriptType(js_ast.LLowest)
-			if p.lexer.Token == js_lexer.TQuestion {
-				p.lexer.Next()
-			}
-			if p.lexer.Token == js_lexer.TColon {
+		case js_lexer.TOpenBrace:
+			p.skipTypeScriptObjectType()
+
+		case js_lexer.TTemplateHead:
+			// "`${'a' | 'b'}-${'c' | 'd'}`"
+			for {
 				p.lexer.Next()
 				p.skipTypeScriptType(js_ast.LLowest)
+				p.lexer.RescanCloseBraceAsTemplateToken()
+				if p.lexer.Token == js_lexer.TTemplateTail {
+					p.lexer.Next()
+					break
+				}
 			}
-			if p.lexer.Token != js_lexer.TComma {
-				break
-			}
-			p.lexer.Next()
+
+		default:
+			p.lexer.Unexpected()
 		}
-		p.lexer.Expect(js_lexer.TCloseBracket)
-
-	case js_lexer.TOpenBrace:
-		p.skipTypeScriptObjectType()
-
-	case js_lexer.TTemplateHead:
-		// "`${'a' | 'b'}-${'c' | 'd'}`"
-		for {
-			p.lexer.Next()
-			p.skipTypeScriptType(js_ast.LLowest)
-			p.lexer.RescanCloseBraceAsTemplateToken()
-			if p.lexer.Token == js_lexer.TTemplateTail {
-				p.lexer.Next()
-				break
-			}
-		}
-
-	default:
-		p.lexer.Unexpected()
+		break
 	}
-}
 
-func (p *parser) skipTypeScriptTypeSuffix(level js_ast.L) {
 	for {
 		switch p.lexer.Token {
 		case js_lexer.TBar:
@@ -330,6 +388,7 @@ func (p *parser) skipTypeScriptTypeSuffix(level js_ast.L) {
 				p.lexer.Expect(js_lexer.TIdentifier)
 			}
 			p.lexer.Next()
+			p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
 
 		case js_lexer.TOpenBracket:
 			// "{ ['x']: string \n ['y']: string }" must not become a single type
@@ -341,22 +400,6 @@ func (p *parser) skipTypeScriptTypeSuffix(level js_ast.L) {
 				p.skipTypeScriptType(js_ast.LLowest)
 			}
 			p.lexer.Expect(js_lexer.TCloseBracket)
-
-		case js_lexer.TLessThan, js_lexer.TLessThanEquals,
-			js_lexer.TLessThanLessThan, js_lexer.TLessThanLessThanEquals:
-			// "let foo: any \n <number>foo" must not become a single type
-			if p.lexer.HasNewlineBefore {
-				return
-			}
-			p.lexer.ExpectLessThan(false /* isInsideJSXElement */)
-			for {
-				p.skipTypeScriptType(js_ast.LLowest)
-				if p.lexer.Token != js_lexer.TComma {
-					break
-				}
-				p.lexer.Next()
-			}
-			p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
 
 		case js_lexer.TExtends:
 			// "{ x: number \n extends: boolean }" must not become a single type
@@ -511,11 +554,14 @@ func (p *parser) skipTypeScriptTypeParameters() {
 }
 
 func (p *parser) skipTypeScriptTypeArguments(isInsideJSXElement bool) bool {
-	if p.lexer.Token != js_lexer.TLessThan {
+	switch p.lexer.Token {
+	case js_lexer.TLessThan, js_lexer.TLessThanEquals,
+		js_lexer.TLessThanLessThan, js_lexer.TLessThanLessThanEquals:
+	default:
 		return false
 	}
 
-	p.lexer.Next()
+	p.lexer.ExpectLessThan(false /* isInsideJSXElement */)
 
 	for {
 		p.skipTypeScriptType(js_ast.LLowest)
@@ -774,7 +820,6 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	if !opts.isTypeScriptDeclare {
 		name.Ref = p.declareSymbol(js_ast.SymbolTSEnum, nameLoc, nameText)
 		p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
-		argRef = p.declareSymbol(js_ast.SymbolHoisted, nameLoc, nameText)
 	}
 	p.lexer.Expect(js_lexer.TOpenBrace)
 
@@ -817,10 +862,58 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	}
 
 	if !opts.isTypeScriptDeclare {
+		// Avoid a collision with the enum closure argument variable if the
+		// enum exports a symbol with the same name as the enum itself:
+		//
+		//   enum foo {
+		//     foo = 123,
+		//     bar = foo,
+		//   }
+		//
+		// TypeScript generates the following code in this case:
+		//
+		//   var foo;
+		//   (function (foo) {
+		//     foo[foo["foo"] = 123] = "foo";
+		//     foo[foo["bar"] = 123] = "bar";
+		//   })(foo || (foo = {}));
+		//
+		// Whereas in this case:
+		//
+		//   enum foo {
+		//     bar = foo as any,
+		//   }
+		//
+		// TypeScript generates the following code:
+		//
+		//   var foo;
+		//   (function (foo) {
+		//     foo[foo["bar"] = foo] = "bar";
+		//   })(foo || (foo = {}));
+		//
+		if _, ok := p.currentScope.Members[nameText]; ok {
+			// Add a "_" to make tests easier to read, since non-bundler tests don't
+			// run the renamer. For external-facing things the renamer will avoid
+			// collisions automatically so this isn't important for correctness.
+			argRef = p.newSymbol(js_ast.SymbolHoisted, "_"+nameText)
+			p.currentScope.Generated = append(p.currentScope.Generated, argRef)
+		} else {
+			argRef = p.declareSymbol(js_ast.SymbolHoisted, nameLoc, nameText)
+		}
+
 		p.popScope()
 	}
 
 	p.lexer.Expect(js_lexer.TCloseBrace)
+
+	if opts.isTypeScriptDeclare {
+		if opts.isNamespaceScope && opts.isExport {
+			p.hasNonLocalExportDeclareInsideNamespace = true
+		}
+
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+	}
+
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SEnum{
 		Name:     name,
 		Arg:      argRef,
@@ -886,6 +979,8 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	name := js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
 
+	oldHasNonLocalExportDeclareInsideNamespace := p.hasNonLocalExportDeclareInsideNamespace
+	p.hasNonLocalExportDeclareInsideNamespace = false
 	var stmts []js_ast.Stmt
 	if p.lexer.Token == js_lexer.TDot {
 		dotLoc := p.lexer.Loc()
@@ -905,6 +1000,8 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 		})
 		p.lexer.Next()
 	}
+	hasNonLocalExportDeclareInsideNamespace := p.hasNonLocalExportDeclareInsideNamespace
+	p.hasNonLocalExportDeclareInsideNamespace = oldHasNonLocalExportDeclareInsideNamespace
 
 	// Import assignments may be only used in type expressions, not value
 	// expressions. If this is the case, the TypeScript compiler removes
@@ -922,7 +1019,12 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	// allowed to be exported, but can also only be used in type
 	// expressions when imported. So we shouldn't count them as a
 	// real export either.
-	if len(stmts) == importEqualsCount || opts.isTypeScriptDeclare {
+	//
+	// TypeScript also strangely counts namespaces containing only
+	// "export declare" statements as non-empty even though "declare"
+	// statements are only type annotations. We cannot omit the namespace
+	// in that case. See https://github.com/evanw/esbuild/issues/1158.
+	if (len(stmts) == importEqualsCount && !hasNonLocalExportDeclareInsideNamespace) || opts.isTypeScriptDeclare {
 		p.popAndDiscardScope(scopeIndex)
 		if opts.isModuleScope {
 			p.localTypeNames[nameText] = true

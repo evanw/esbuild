@@ -47,6 +47,8 @@ type outgoingPacket struct {
 }
 
 func runService(sendPings bool) {
+	logger.API = logger.JSAPI
+
 	service := serviceType{
 		callbacks:       make(map[uint32]responseCallback),
 		rebuilds:        make(map[int]rebuildCallback),
@@ -304,6 +306,11 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 				}),
 			}
 
+		case "format-msgs":
+			return outgoingPacket{
+				bytes: service.handleFormatMessagesRequest(p.id, request),
+			}
+
 		default:
 			return outgoingPacket{
 				bytes: encodePacket(packet{
@@ -345,13 +352,23 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	key := request["key"].(int)
 	write := request["write"].(bool)
 	incremental := request["incremental"].(bool)
-	hasOnRebuild := request["hasOnRebuild"].(bool)
 	serveObj, isServe := request["serve"].(interface{})
+	entries := request["entries"].([]interface{})
 	flags := decodeStringArray(request["flags"].([]interface{}))
 
 	options, err := cli.ParseBuildOptions(flags)
 	options.AbsWorkingDir = request["absWorkingDir"].(string)
 	options.NodePaths = decodeStringArray(request["nodePaths"].([]interface{}))
+
+	for _, entry := range entries {
+		entry := entry.([]interface{})
+		key := entry[0].(string)
+		value := entry[1].(string)
+		options.EntryPointsAdvanced = append(options.EntryPointsAdvanced, api.EntryPoint{
+			OutputPath: key,
+			InputPath:  value,
+		})
+	}
 
 	// Normally when "write" is true and there is no output file/directory then
 	// the output is written to stdout instead. However, we're currently using
@@ -420,7 +437,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		return response
 	}
 
-	if options.Watch != nil && hasOnRebuild {
+	if options.Watch != nil {
 		options.Watch.OnRebuild = func(result api.BuildResult) {
 			service.sendRequest(map[string]interface{}{
 				"command": "watch-rebuild",
@@ -605,6 +622,24 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 	goPlugins = append(goPlugins, api.Plugin{
 		Name: "JavaScript plugins",
 		Setup: func(build api.PluginBuild) {
+			build.OnStart(func() (api.OnStartResult, error) {
+				result := api.OnStartResult{}
+
+				response := service.sendRequest(map[string]interface{}{
+					"command": "start",
+					"key":     key,
+				}).(map[string]interface{})
+
+				if value, ok := response["errors"]; ok {
+					result.Errors = decodeMessages(value.([]interface{}))
+				}
+				if value, ok := response["warnings"]; ok {
+					result.Warnings = decodeMessages(value.([]interface{}))
+				}
+
+				return result, nil
+			})
+
 			build.OnResolve(api.OnResolveOptions{Filter: ".*"}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
 				var ids []interface{}
 				applyPath := logger.Path{Text: args.Path, Namespace: args.Namespace}
@@ -689,6 +724,12 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				if value, ok := response["warnings"]; ok {
 					result.Warnings = decodeMessages(value.([]interface{}))
 				}
+				if value, ok := response["watchFiles"]; ok {
+					result.WatchFiles = decodeStringArray(value.([]interface{}))
+				}
+				if value, ok := response["watchDirs"]; ok {
+					result.WatchDirs = decodeStringArray(value.([]interface{}))
+				}
 
 				return result, nil
 			})
@@ -746,6 +787,12 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				}
 				if value, ok := response["warnings"]; ok {
 					result.Warnings = decodeMessages(value.([]interface{}))
+				}
+				if value, ok := response["watchFiles"]; ok {
+					result.WatchFiles = decodeStringArray(value.([]interface{}))
+				}
+				if value, ok := response["watchDirs"]; ok {
+					result.WatchDirs = decodeStringArray(value.([]interface{}))
 				}
 				if value, ok := response["loader"]; ok {
 					loader, err := cli_helpers.ParseLoader(value.(string))
@@ -826,6 +873,40 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 	})
 }
 
+func (service *serviceType) handleFormatMessagesRequest(id uint32, request map[string]interface{}) []byte {
+	msgs := decodeMessages(request["messages"].([]interface{}))
+
+	options := api.FormatMessagesOptions{
+		Kind: api.ErrorMessage,
+	}
+	if request["isWarning"].(bool) {
+		options.Kind = api.WarningMessage
+	}
+	if value, ok := request["color"].(bool); ok {
+		options.Color = value
+	}
+	if value, ok := request["terminalWidth"].(int); ok {
+		options.TerminalWidth = value
+	}
+
+	result := api.FormatMessages(msgs, options)
+
+	return encodePacket(packet{
+		id: id,
+		value: map[string]interface{}{
+			"messages": encodeStringArray(result),
+		},
+	})
+}
+
+func encodeStringArray(strings []string) []interface{} {
+	values := make([]interface{}, len(strings))
+	for i, value := range strings {
+		values[i] = value
+	}
+	return values
+}
+
 func decodeStringArray(values []interface{}) []string {
 	strings := make([]string, len(values))
 	for i, value := range values {
@@ -850,12 +931,13 @@ func encodeLocation(loc *api.Location) interface{} {
 		return nil
 	}
 	return map[string]interface{}{
-		"file":      loc.File,
-		"namespace": loc.Namespace,
-		"line":      loc.Line,
-		"column":    loc.Column,
-		"length":    loc.Length,
-		"lineText":  loc.LineText,
+		"file":       loc.File,
+		"namespace":  loc.Namespace,
+		"line":       loc.Line,
+		"column":     loc.Column,
+		"length":     loc.Length,
+		"lineText":   loc.LineText,
+		"suggestion": loc.Suggestion,
 	}
 }
 
@@ -863,8 +945,9 @@ func encodeMessages(msgs []api.Message) []interface{} {
 	values := make([]interface{}, len(msgs))
 	for i, msg := range msgs {
 		value := map[string]interface{}{
-			"text":     msg.Text,
-			"location": encodeLocation(msg.Location),
+			"pluginName": msg.PluginName,
+			"text":       msg.Text,
+			"location":   encodeLocation(msg.Location),
 		}
 		values[i] = value
 
@@ -897,12 +980,13 @@ func decodeLocation(value interface{}) *api.Location {
 		namespace = "file"
 	}
 	return &api.Location{
-		File:      loc["file"].(string),
-		Namespace: namespace,
-		Line:      loc["line"].(int),
-		Column:    loc["column"].(int),
-		Length:    loc["length"].(int),
-		LineText:  loc["lineText"].(string),
+		File:       loc["file"].(string),
+		Namespace:  namespace,
+		Line:       loc["line"].(int),
+		Column:     loc["column"].(int),
+		Length:     loc["length"].(int),
+		LineText:   loc["lineText"].(string),
+		Suggestion: loc["suggestion"].(string),
 	}
 }
 
@@ -911,9 +995,10 @@ func decodeMessages(values []interface{}) []api.Message {
 	for i, value := range values {
 		obj := value.(map[string]interface{})
 		msg := api.Message{
-			Text:     obj["text"].(string),
-			Location: decodeLocation(obj["location"]),
-			Detail:   obj["detail"].(int),
+			PluginName: obj["pluginName"].(string),
+			Text:       obj["text"].(string),
+			Location:   decodeLocation(obj["location"]),
+			Detail:     obj["detail"].(int),
 		}
 		for _, note := range obj["notes"].([]interface{}) {
 			noteObj := note.(map[string]interface{})
@@ -937,21 +1022,25 @@ func decodeLocationToPrivate(value interface{}) *logger.MsgLocation {
 		namespace = "file"
 	}
 	return &logger.MsgLocation{
-		File:      loc["file"].(string),
-		Namespace: namespace,
-		Line:      loc["line"].(int),
-		Column:    loc["column"].(int),
-		Length:    loc["length"].(int),
-		LineText:  loc["lineText"].(string),
+		File:       loc["file"].(string),
+		Namespace:  namespace,
+		Line:       loc["line"].(int),
+		Column:     loc["column"].(int),
+		Length:     loc["length"].(int),
+		LineText:   loc["lineText"].(string),
+		Suggestion: loc["suggestion"].(string),
 	}
 }
 
 func decodeMessageToPrivate(obj map[string]interface{}) logger.Msg {
-	msg := logger.Msg{Data: logger.MsgData{
-		Text:       obj["text"].(string),
-		Location:   decodeLocationToPrivate(obj["location"]),
-		UserDetail: obj["detail"].(int),
-	}}
+	msg := logger.Msg{
+		PluginName: obj["pluginName"].(string),
+		Data: logger.MsgData{
+			Text:       obj["text"].(string),
+			Location:   decodeLocationToPrivate(obj["location"]),
+			UserDetail: obj["detail"].(int),
+		},
+	}
 	for _, note := range obj["notes"].([]interface{}) {
 		noteObj := note.(map[string]interface{})
 		msg.Notes = append(msg.Notes, logger.MsgData{

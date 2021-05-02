@@ -31,7 +31,7 @@ func assertEqualStrings(t *testing.T, a string, b string) {
 }
 
 func lexToken(t *testing.T, contents string) T {
-	log := logger.NewDeferLog()
+	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 	lexer := NewLexer(log, test.SourceForTest(contents))
 	return lexer.Token
 }
@@ -40,7 +40,7 @@ func expectLexerError(t *testing.T, contents string, expected string) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		func() {
 			defer func() {
 				r := recover()
@@ -70,7 +70,7 @@ func expectHashbang(t *testing.T, contents string, expected string) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -98,7 +98,7 @@ func expectIdentifier(t *testing.T, contents string, expected string) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -137,7 +137,7 @@ func expectNumber(t *testing.T, contents string, expected float64) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -344,7 +344,7 @@ func expectBigInteger(t *testing.T, contents string, expected string) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -399,7 +399,7 @@ func expectString(t *testing.T, contents string, expected string) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()

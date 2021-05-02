@@ -51,6 +51,10 @@ func MakeEmptyDirEntries(dir string) DirEntries {
 	return DirEntries{dir, make(map[string]*Entry)}
 }
 
+func (entries DirEntries) Len() int {
+	return len(entries.data)
+}
+
 type DifferentCase struct {
 	Dir    string
 	Query  string
@@ -86,8 +90,8 @@ func (entries DirEntries) UnorderedKeys() (keys []string) {
 type FS interface {
 	// The returned map is immutable and is cached across invocations. Do not
 	// mutate it.
-	ReadDirectory(path string) (DirEntries, error)
-	ReadFile(path string) (string, error)
+	ReadDirectory(path string) (entries DirEntries, canonicalError error, originalError error)
+	ReadFile(path string) (contents string, canonicalError error, originalError error)
 
 	// This is a key made from the information returned by "stat". It is intended
 	// to be different if the file has been edited, and to otherwise be equal if

@@ -71,6 +71,9 @@ const features = {
   'private class methods: private accessor properties': { target: 'ClassPrivateAccessor' },
   'private class methods: private static methods': { target: 'ClassPrivateStaticMethod' },
   'private class methods: private static accessor properties': { target: 'ClassPrivateStaticAccessor' },
+
+  // Private "in"
+  'Ergonomic brand checks for private fields': { target: 'ClassPrivateBrandCheck' },
 }
 
 const versions = {}
@@ -85,7 +88,12 @@ const engines = [
 ]
 
 function mergeVersions(target, res) {
-  const map = versions[target] || (versions[target] = {})
+  // The original data set will contain something like "chrome44: true" for a
+  // given feature. And the interpolation script will expand this to something
+  // like "chrome44: true, chrome45: true, chrome46: true, ..." so we want to
+  // take the minimum version to find the boundary.
+  const lowestVersionMap = {}
+
   for (const key in res) {
     if (res[key] === true) {
       const match = /^([a-z_]+)[0-9_]+$/.exec(key)
@@ -93,11 +101,22 @@ function mergeVersions(target, res) {
         const engine = match[1]
         if (engines.indexOf(engine) >= 0) {
           const version = parseEnvsVersions({ [key]: true })[engine][0].version
-          if (!map[engine] || compareVersions(version, map[engine]) < 0) {
-            map[engine] = version
+          if (!lowestVersionMap[engine] || compareVersions({ version }, { version: lowestVersionMap[engine] }) < 0) {
+            lowestVersionMap[engine] = version
           }
         }
       }
+    }
+  }
+
+  // The original data set can sometimes contain many subtests. We only want to
+  // support a given feature if the version is greater than the maximum version
+  // for all subtests. This is the inverse of the minimum test below.
+  const highestVersionMap = versions[target] || (versions[target] = {})
+  for (const engine in lowestVersionMap) {
+    const version = lowestVersionMap[engine]
+    if (!highestVersionMap[engine] || compareVersions({ version }, { version: highestVersionMap[engine] }) > 0) {
+      highestVersionMap[engine] = version
     }
   }
 }
@@ -112,6 +131,7 @@ mergeVersions('Class', { es2015: true })
 mergeVersions('Const', { es2015: true })
 mergeVersions('DefaultArgument', { es2015: true })
 mergeVersions('Destructuring', { es2015: true })
+mergeVersions('DynamicImport', { es2015: true })
 mergeVersions('ForOf', { es2015: true })
 mergeVersions('Generator', { es2015: true })
 mergeVersions('Let', { es2015: true })
@@ -134,6 +154,7 @@ mergeVersions('ImportMeta', { es2020: true })
 mergeVersions('NullishCoalescing', { es2020: true })
 mergeVersions('OptionalChain', { es2020: true })
 mergeVersions('TopLevelAwait', {})
+mergeVersions('ArbitraryModuleNamespaceNames', {})
 
 // Manually copied from https://caniuse.com/?search=export%20*%20as
 mergeVersions('ExportStarAs', {
@@ -148,11 +169,32 @@ mergeVersions('ExportStarAs', {
 mergeVersions('ImportMeta', {
   chrome64: true,
   edge79: true,
-  es2020: true,
   firefox62: true,
   ios12: true,
   node10_4: true, // From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import.meta
   safari11_1: true,
+})
+
+// Manually copied from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/await
+mergeVersions('TopLevelAwait', {
+  chrome89: true,
+  node14_8: true,
+})
+
+// Manually copied from https://caniuse.com/es6-module-dynamic-import
+mergeVersions('DynamicImport', {
+  chrome63: true,
+  edge79: true,
+  firefox67: true,
+  ios11: true,
+  node13_2: true, // From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import
+  safari11_1: true,
+})
+
+// From https://github.com/tc39/ecma262/pull/2154#issuecomment-825201030
+mergeVersions('ArbitraryModuleNamespaceNames', {
+  chrome90: true,
+  node16: true,
 })
 
 for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests]) {
@@ -212,6 +254,13 @@ type Engine uint8
 const (
 ${engines.map((x, i) => `\t${upper(x)}${i ? '' : ' Engine = iota'}`).join('\n')}
 )
+
+func (e Engine) String() string {
+\tswitch e {
+${engines.map((x, i) => `\tcase ${upper(x)}:\n\t\treturn "${x}"`).join('\n')}
+\t}
+\treturn ""
+}
 
 type JSFeature uint64
 

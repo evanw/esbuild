@@ -57,6 +57,9 @@ func parseOptionsImpl(
 		case arg == "--splitting" && buildOpts != nil:
 			buildOpts.Splitting = true
 
+		case arg == "--allow-overwrite" && buildOpts != nil:
+			buildOpts.AllowOverwrite = true
+
 		case arg == "--watch" && buildOpts != nil:
 			buildOpts.Watch = &api.WatchMode{}
 
@@ -90,6 +93,29 @@ func parseOptionsImpl(
 				buildOpts.MinifyIdentifiers = true
 			} else {
 				transformOpts.MinifyIdentifiers = true
+			}
+
+		case strings.HasPrefix(arg, "--legal-comments="):
+			value := arg[len("--legal-comments="):]
+			var legalComments api.LegalComments
+			switch value {
+			case "none":
+				legalComments = api.LegalCommentsNone
+			case "inline":
+				legalComments = api.LegalCommentsInline
+			case "eof":
+				legalComments = api.LegalCommentsEndOfFile
+			case "linked":
+				legalComments = api.LegalCommentsLinked
+			case "external":
+				legalComments = api.LegalCommentsExternal
+			default:
+				return fmt.Errorf("Invalid legal comments value: %q (valid: none, inline, eof, linked, external)", value), nil
+			}
+			if buildOpts != nil {
+				buildOpts.LegalComments = legalComments
+			} else {
+				transformOpts.LegalComments = legalComments
 			}
 
 		case strings.HasPrefix(arg, "--charset="):
@@ -159,6 +185,14 @@ func parseOptionsImpl(
 			}
 			hasBareSourceMapFlag = false
 
+		case strings.HasPrefix(arg, "--source-root="):
+			sourceRoot := arg[len("--source-root="):]
+			if buildOpts != nil {
+				buildOpts.SourceRoot = sourceRoot
+			} else {
+				transformOpts.SourceRoot = sourceRoot
+			}
+
 		case strings.HasPrefix(arg, "--sources-content="):
 			value := arg[len("--sources-content="):]
 			var sourcesContent api.SourcesContent
@@ -227,6 +261,9 @@ func parseOptionsImpl(
 
 		case strings.HasPrefix(arg, "--tsconfig-raw=") && transformOpts != nil:
 			transformOpts.TsconfigRaw = arg[len("--tsconfig-raw="):]
+
+		case strings.HasPrefix(arg, "--entry-names=") && buildOpts != nil:
+			buildOpts.EntryNames = arg[len("--entry-names="):]
 
 		case strings.HasPrefix(arg, "--chunk-names=") && buildOpts != nil:
 			buildOpts.ChunkNames = arg[len("--chunk-names="):]
@@ -426,6 +463,10 @@ func parseOptionsImpl(
 			value := arg[len("--log-level="):]
 			var logLevel api.LogLevel
 			switch value {
+			case "verbose":
+				logLevel = api.LogLevelVerbose
+			case "debug":
+				logLevel = api.LogLevelDebug
 			case "info":
 				logLevel = api.LogLevelInfo
 			case "warning":
@@ -435,7 +476,7 @@ func parseOptionsImpl(
 			case "silent":
 				logLevel = api.LogLevelSilent
 			default:
-				return fmt.Errorf("Invalid log level: %q (valid: info, warning, error, silent)", arg), nil
+				return fmt.Errorf("Invalid log level: %q (valid: verbose, debug, info, warning, error, silent)", arg), nil
 			}
 			if buildOpts != nil {
 				buildOpts.LogLevel = logLevel
@@ -447,7 +488,14 @@ func parseOptionsImpl(
 			return fmt.Errorf("Unexpected single quote character before flag (use \\\" to escape double quotes): %s", arg), nil
 
 		case !strings.HasPrefix(arg, "-") && buildOpts != nil:
-			buildOpts.EntryPoints = append(buildOpts.EntryPoints, arg)
+			if equals := strings.IndexByte(arg, '='); equals != -1 {
+				buildOpts.EntryPointsAdvanced = append(buildOpts.EntryPointsAdvanced, api.EntryPoint{
+					OutputPath: arg[:equals],
+					InputPath:  arg[equals+1:],
+				})
+			} else {
+				buildOpts.EntryPoints = append(buildOpts.EntryPoints, arg)
+			}
 
 		default:
 			if buildOpts != nil {
@@ -595,7 +643,7 @@ func runImpl(osArgs []string) int {
 		}
 
 		// Read from stdin when there are no entry points
-		if len(buildOptions.EntryPoints) == 0 {
+		if len(buildOptions.EntryPoints)+len(buildOptions.EntryPointsAdvanced) == 0 {
 			if buildOptions.Stdin == nil {
 				buildOptions.Stdin = &api.StdinOptions{}
 			}
@@ -771,7 +819,7 @@ func serveImpl(osArgs []string) error {
 			}
 			return fmt.Sprintf("%s%s - %q %s%d%s [%dms]%s\n",
 				colors.Dim, args.RemoteAddress, args.Method+" "+args.Path,
-				statusColor, args.Status, colors.Dim, args.TimeInMS, colors.Default)
+				statusColor, args.Status, colors.Dim, args.TimeInMS, colors.Reset)
 		})
 	}
 
@@ -784,7 +832,7 @@ func serveImpl(osArgs []string) error {
 	logger.PrintText(os.Stderr, logger.LevelInfo, filteredArgs, func(colors logger.Colors) string {
 		var hosts []string
 		sb := strings.Builder{}
-		sb.WriteString(colors.Default)
+		sb.WriteString(colors.Reset)
 
 		// If this is "0.0.0.0" or "::", list all relevant IP addresses
 		if ip := net.ParseIP(result.Host); ip != nil && ip.IsUnspecified() {
@@ -820,7 +868,7 @@ func serveImpl(osArgs []string) error {
 		for i, kind := range kinds {
 			sb.WriteString(fmt.Sprintf("\n > %s:%s %shttp://%s/%s",
 				kind, strings.Repeat(" ", maxLen-len(kind)), colors.Underline,
-				net.JoinHostPort(hosts[i], fmt.Sprintf("%d", result.Port)), colors.Default))
+				net.JoinHostPort(hosts[i], fmt.Sprintf("%d", result.Port)), colors.Reset))
 		}
 
 		sb.WriteString("\n\n")

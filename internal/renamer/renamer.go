@@ -127,8 +127,8 @@ func (r *MinifyRenamer) AccumulateSymbolUseCounts(symbolUses map[js_ast.Ref]js_a
 	r.sortedBuffer = r.sortedBuffer[:0]
 	for ref := range symbolUses {
 		r.sortedBuffer = append(r.sortedBuffer, StableRef{
-			StableOuterIndex: stableSourceIndices[ref.OuterIndex],
-			Ref:              ref,
+			StableSourceIndex: stableSourceIndices[ref.SourceIndex],
+			Ref:               ref,
 		})
 	}
 	sort.Sort(r.sortedBuffer)
@@ -303,9 +303,16 @@ func (a slotAndCountArray) Less(i int, j int) bool {
 	return ai.count > aj.count || (ai.count == aj.count && ai.slot < aj.slot)
 }
 
+// The sort order here is arbitrary but needs to be consistent between builds.
+// The InnerIndex should be stable because the parser for a single file is
+// single-threaded and deterministically assigns out InnerIndex values
+// sequentially. But the SourceIndex should be unstable because the main thread
+// assigns out source index values sequentially to newly-discovered dependencies
+// in a multi-threaded producer/consumer relationship. So instead we use the
+// index of the source in the DFS order over all entry points for stability.
 type StableRef struct {
-	StableOuterIndex uint32
-	Ref              js_ast.Ref
+	StableSourceIndex uint32
+	Ref               js_ast.Ref
 }
 
 // This type is just so we can use Go's native sort function
@@ -315,7 +322,7 @@ func (a StableRefArray) Len() int          { return len(a) }
 func (a StableRefArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 func (a StableRefArray) Less(i int, j int) bool {
 	ai, aj := a[i], a[j]
-	return ai.StableOuterIndex > aj.StableOuterIndex || (ai.StableOuterIndex == aj.StableOuterIndex && ai.Ref.InnerIndex < aj.Ref.InnerIndex)
+	return ai.StableSourceIndex < aj.StableSourceIndex || (ai.StableSourceIndex == aj.StableSourceIndex && ai.Ref.InnerIndex < aj.Ref.InnerIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -330,14 +337,14 @@ type NumberRenamer struct {
 func NewNumberRenamer(symbols js_ast.SymbolMap, reservedNames map[string]uint32) *NumberRenamer {
 	return &NumberRenamer{
 		symbols: symbols,
-		names:   make([][]string, len(symbols.Outer)),
+		names:   make([][]string, len(symbols.SymbolsForSource)),
 		root:    numberScope{nameCounts: reservedNames},
 	}
 }
 
 func (r *NumberRenamer) NameForSymbol(ref js_ast.Ref) string {
 	ref = js_ast.FollowSymbols(r.symbols, ref)
-	if inner := r.names[ref.OuterIndex]; inner != nil {
+	if inner := r.names[ref.SourceIndex]; inner != nil {
 		if name := inner[ref.InnerIndex]; name != "" {
 			return name
 		}
@@ -353,7 +360,7 @@ func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
 	ref = js_ast.FollowSymbols(r.symbols, ref)
 
 	// Don't rename the same symbol more than once
-	inner := r.names[ref.OuterIndex]
+	inner := r.names[ref.SourceIndex]
 	if inner != nil && inner[ref.InnerIndex] != "" {
 		return
 	}
@@ -378,8 +385,8 @@ func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
 		// "names" array ahead of time, that will waste a lot more memory for
 		// builds that make heavy use of code splitting and have many chunks. Doing
 		// things lazily like this means we use less memory but still stay safe.
-		inner = make([]string, len(r.symbols.Outer[ref.OuterIndex]))
-		r.names[ref.OuterIndex] = inner
+		inner = make([]string, len(r.symbols.SymbolsForSource[ref.SourceIndex]))
+		r.names[ref.SourceIndex] = inner
 	}
 	inner[ref.InnerIndex] = name
 }
@@ -396,7 +403,7 @@ func (r *NumberRenamer) assignNamesRecursive(scope *js_ast.Scope, sourceIndex ui
 
 	// Rename all symbols in this scope
 	for _, innerIndex := range *sorted {
-		r.assignName(s, js_ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(innerIndex)})
+		r.assignName(s, js_ast.Ref{SourceIndex: sourceIndex, InnerIndex: uint32(innerIndex)})
 	}
 	for _, ref := range scope.Generated {
 		r.assignName(s, ref)

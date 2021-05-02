@@ -13,12 +13,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/evanw/esbuild/internal/api_helpers"
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/bundler"
 	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/graph"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
@@ -48,6 +51,10 @@ func validatePathTemplate(template string) []config.PathTemplate {
 
 		// Check for a placeholder
 		switch {
+		case strings.HasPrefix(tail, "[dir]"):
+			placeholder = config.DirPlaceholder
+			search += len("[dir]")
+
 		case strings.HasPrefix(tail, "[name]"):
 			placeholder = config.NamePlaceholder
 			search += len("[name]")
@@ -129,6 +136,29 @@ func validateSourceMap(value SourceMap) config.SourceMap {
 	}
 }
 
+func validateLegalComments(value LegalComments, bundle bool) config.LegalComments {
+	switch value {
+	case LegalCommentsDefault:
+		if bundle {
+			return config.LegalCommentsEndOfFile
+		} else {
+			return config.LegalCommentsInline
+		}
+	case LegalCommentsNone:
+		return config.LegalCommentsNone
+	case LegalCommentsInline:
+		return config.LegalCommentsInline
+	case LegalCommentsEndOfFile:
+		return config.LegalCommentsEndOfFile
+	case LegalCommentsLinked:
+		return config.LegalCommentsLinkedWithComment
+	case LegalCommentsExternal:
+		return config.LegalCommentsExternalWithoutComment
+	default:
+		panic("Invalid source map")
+	}
+}
+
 func validateColor(value StderrColor) logger.UseColor {
 	switch value {
 	case ColorIfTerminal:
@@ -144,6 +174,10 @@ func validateColor(value StderrColor) logger.UseColor {
 
 func validateLogLevel(value LogLevel) logger.LogLevel {
 	switch value {
+	case LogLevelVerbose:
+		return logger.LevelVerbose
+	case LogLevelDebug:
+		return logger.LevelDebug
 	case LogLevelInfo:
 		return logger.LevelInfo
 	case LogLevelWarning:
@@ -233,8 +267,9 @@ func validateEngine(value EngineName) compat.Engine {
 
 var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?$`)
 
-func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature) {
+func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, string) {
 	constraints := make(map[compat.Engine][]int)
+	targets := make([]string, 0, 1+len(engines))
 
 	switch target {
 	case ES5:
@@ -289,7 +324,23 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.J
 		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid version: %q", engine.Version))
 	}
 
-	return compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints)
+	for engine, version := range constraints {
+		var text string
+		switch len(version) {
+		case 1:
+			text = fmt.Sprintf("%s%d", engine.String(), version[0])
+		case 2:
+			text = fmt.Sprintf("%s%d.%d", engine.String(), version[0], version[1])
+		case 3:
+			text = fmt.Sprintf("%s%d.%d.%d", engine.String(), version[0], version[1], version[2])
+		}
+		targets = append(targets, fmt.Sprintf("%q", text))
+	}
+
+	sort.Strings(targets)
+	targetEnv := strings.Join(targets, ", ")
+
+	return compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints), targetEnv
 }
 
 func validateGlobalName(log logger.Log, text string) []string {
@@ -361,34 +412,34 @@ func validateLoaders(log logger.Log, loaders map[string]Loader) map[string]confi
 	return result
 }
 
-func validateJSX(log logger.Log, text string, name string) []string {
-	if text == "" {
-		return nil
+func validateJSXExpr(log logger.Log, text string, name string, kind js_parser.JSXExprKind) config.JSXExpr {
+	if expr, ok := js_parser.ParseJSXExpr(text, kind); ok {
+		return expr
 	}
-	parts := strings.Split(text, ".")
-	for _, part := range parts {
-		if !js_lexer.IsIdentifier(part) {
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
-			return nil
-		}
-	}
-	return parts
+	log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
+	return config.JSXExpr{}
 }
 
-func validateDefines(log logger.Log, defines map[string]string, pureFns []string) (*config.ProcessedDefines, []config.InjectedDefine) {
-	if len(defines) == 0 && len(pureFns) == 0 {
-		return nil, nil
-	}
-
+func validateDefines(
+	log logger.Log,
+	defines map[string]string,
+	pureFns []string,
+	platform Platform,
+	minify bool,
+) (*config.ProcessedDefines, []config.InjectedDefine) {
 	rawDefines := make(map[string]config.DefineData)
-	valueToInject := make(map[string]config.InjectedDefine)
+	var valueToInject map[string]config.InjectedDefine
 	var definesToInject []string
 
 	for key, value := range defines {
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
 			if !js_lexer.IsIdentifier(part) {
-				log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define key: %q", key))
+				if part == key {
+					log.AddError(nil, logger.Loc{}, fmt.Sprintf("The define key %q must be a valid identifier", key))
+				} else {
+					log.AddError(nil, logger.Loc{}, fmt.Sprintf("The define key %q contains invalid identifier %q", key, part))
+				}
 				continue
 			}
 		}
@@ -402,19 +453,13 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 						return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, name)}
 					},
 				}
-
-				// Try to be helpful for common mistakes
-				if key == "process.env.NODE_ENV" {
-					log.AddWarning(nil, logger.Loc{}, fmt.Sprintf(
-						"%q is defined as an identifier instead of a string (surround %q with double quotes to get a string)", key, value))
-				}
 				continue
 			}
 		}
 
 		// Parse the value as JSON
 		source := logger.Source{Contents: value}
-		expr, ok := js_parser.ParseJSON(logger.NewDeferLog(), source, js_parser.JSONOptions{})
+		expr, ok := js_parser.ParseJSON(logger.NewDeferLog(logger.DeferLogAll), source, js_parser.JSONOptions{})
 		if !ok {
 			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define value (must be valid JSON syntax or a single identifier): %s", value))
 			continue
@@ -435,6 +480,9 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 		// These values are extracted into a shared symbol reference
 		case *js_ast.EArray, *js_ast.EObject:
 			definesToInject = append(definesToInject, key)
+			if valueToInject == nil {
+				valueToInject = make(map[string]config.InjectedDefine)
+			}
 			valueToInject[key] = config.InjectedDefine{Source: source, Data: e, Name: key}
 			continue
 		}
@@ -444,14 +492,43 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 
 	// Sort injected defines for determinism, since the imports will be injected
 	// into every file in the order that we return them from this function
-	injectedDefines := make([]config.InjectedDefine, len(definesToInject))
-	sort.Strings(definesToInject)
-	for i, key := range definesToInject {
-		index := i // Capture this for the closure below
-		injectedDefines[i] = valueToInject[key]
-		rawDefines[key] = config.DefineData{DefineFunc: func(args config.DefineArgs) js_ast.E {
-			return &js_ast.EIdentifier{Ref: args.SymbolForDefine(index)}
-		}}
+	var injectedDefines []config.InjectedDefine
+	if len(definesToInject) > 0 {
+		injectedDefines = make([]config.InjectedDefine, len(definesToInject))
+		sort.Strings(definesToInject)
+		for i, key := range definesToInject {
+			index := i // Capture this for the closure below
+			injectedDefines[i] = valueToInject[key]
+			rawDefines[key] = config.DefineData{DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EIdentifier{Ref: args.SymbolForDefine(index)}
+			}}
+		}
+	}
+
+	// If we're bundling for the browser, add a special-cased define for
+	// "process.env.NODE_ENV" that is "development" when not minifying and
+	// "production" when minifying. This is a convention from the React world
+	// that must be handled to avoid all React code crashing instantly. This
+	// is only done if it's not already defined so that you can override it if
+	// necessary.
+	if platform == PlatformBrowser {
+		if _, process := rawDefines["process"]; !process {
+			if _, processEnv := rawDefines["process.env"]; !processEnv {
+				if _, processEnvNodeEnv := rawDefines["process.env.NODE_ENV"]; !processEnvNodeEnv {
+					var value []uint16
+					if minify {
+						value = js_lexer.StringToUTF16("production")
+					} else {
+						value = js_lexer.StringToUTF16("development")
+					}
+					rawDefines["process.env.NODE_ENV"] = config.DefineData{
+						DefineFunc: func(args config.DefineArgs) js_ast.E {
+							return &js_ast.EString{Value: value}
+						},
+					}
+				}
+			}
+		}
 	}
 
 	for _, key := range pureFns {
@@ -520,12 +597,13 @@ func validateBannerOrFooter(log logger.Log, name string, values map[string]strin
 func convertLocationToPublic(loc *logger.MsgLocation) *Location {
 	if loc != nil {
 		return &Location{
-			File:      loc.File,
-			Namespace: loc.Namespace,
-			Line:      loc.Line,
-			Column:    loc.Column,
-			Length:    loc.Length,
-			LineText:  loc.LineText,
+			File:       loc.File,
+			Namespace:  loc.Namespace,
+			Line:       loc.Line,
+			Column:     loc.Column,
+			Length:     loc.Length,
+			LineText:   loc.LineText,
+			Suggestion: loc.Suggestion,
 		}
 	}
 	return nil
@@ -543,10 +621,11 @@ func convertMessagesToPublic(kind logger.MsgKind, msgs []logger.Msg) []Message {
 				})
 			}
 			filtered = append(filtered, Message{
-				Text:     msg.Data.Text,
-				Location: convertLocationToPublic(msg.Data.Location),
-				Notes:    notes,
-				Detail:   msg.Data.UserDetail,
+				PluginName: msg.PluginName,
+				Text:       msg.Data.Text,
+				Location:   convertLocationToPublic(msg.Data.Location),
+				Notes:      notes,
+				Detail:     msg.Data.UserDetail,
 			})
 		}
 	}
@@ -560,12 +639,13 @@ func convertLocationToInternal(loc *Location) *logger.MsgLocation {
 			namespace = "file"
 		}
 		return &logger.MsgLocation{
-			File:      loc.File,
-			Namespace: namespace,
-			Line:      loc.Line,
-			Column:    loc.Column,
-			Length:    loc.Length,
-			LineText:  loc.LineText,
+			File:       loc.File,
+			Namespace:  namespace,
+			Line:       loc.Line,
+			Column:     loc.Column,
+			Length:     loc.Length,
+			LineText:   loc.LineText,
+			Suggestion: loc.Suggestion,
 		}
 	}
 	return nil
@@ -581,7 +661,8 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 			})
 		}
 		msgs = append(msgs, logger.Msg{
-			Kind: kind,
+			PluginName: message.PluginName,
+			Kind:       kind,
 			Data: logger.MsgData{
 				Text:       message.Text,
 				Location:   convertLocationToInternal(message.Location),
@@ -621,9 +702,16 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 		return internalBuildResult{result: BuildResult{Errors: convertMessagesToPublic(logger.Error, log.Done())}}
 	}
 
-	// Do not re-evaluate plugins when rebuilding
-	plugins := loadPlugins(realFS, log, buildOpts.Plugins)
-	internalResult := rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, logOptions, log, false /* isRebuild */)
+	// Do not re-evaluate plugins when rebuilding. Also make sure the working
+	// directory doesn't change, since breaking that invariant would break the
+	// validation that we just did above.
+	oldAbsWorkingDir := buildOpts.AbsWorkingDir
+	plugins, onEndCallbacks := loadPlugins(&buildOpts, realFS, log)
+	if buildOpts.AbsWorkingDir != oldAbsWorkingDir {
+		panic("Mutating \"AbsWorkingDir\" is not allowed")
+	}
+
+	internalResult := rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, onEndCallbacks, logOptions, log, false /* isRebuild */)
 
 	// Print a summary of the generated files to stderr. Except don't do
 	// this if the terminal is already being used for something else.
@@ -686,6 +774,7 @@ func rebuildImpl(
 	buildOpts BuildOptions,
 	caches *cache.CacheSet,
 	plugins []config.Plugin,
+	onEndCallbacks []func(*BuildResult),
 	logOptions logger.OutputOptions,
 	log logger.Log,
 	isRebuild bool,
@@ -699,26 +788,31 @@ func rebuildImpl(
 		// This should already have been checked above
 		panic(err.Error())
 	}
-	jsFeatures, cssFeatures := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
+	jsFeatures, cssFeatures, targetEnv := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtensions)
 	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
 	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
-	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure)
+	minify := buildOpts.MinifyWhitespace && buildOpts.MinifyIdentifiers && buildOpts.MinifySyntax
+	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, buildOpts.Platform, minify)
 	options := config.Options{
 		UnsupportedJSFeatures:  jsFeatures,
 		UnsupportedCSSFeatures: cssFeatures,
+		OriginalTargetEnv:      targetEnv,
 		JSX: config.JSXOptions{
-			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
-			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
+			Factory:  validateJSXExpr(log, buildOpts.JSXFactory, "factory", js_parser.JSXFactory),
+			Fragment: validateJSXExpr(log, buildOpts.JSXFragment, "fragment", js_parser.JSXFragment),
 		},
 		Defines:               defines,
 		InjectedDefines:       injectedDefines,
 		Platform:              validatePlatform(buildOpts.Platform),
 		SourceMap:             validateSourceMap(buildOpts.Sourcemap),
+		LegalComments:         validateLegalComments(buildOpts.LegalComments, buildOpts.Bundle),
+		SourceRoot:            buildOpts.SourceRoot,
 		ExcludeSourcesContent: buildOpts.SourcesContent == SourcesContentExclude,
 		MangleSyntax:          buildOpts.MinifySyntax,
 		RemoveWhitespace:      buildOpts.MinifyWhitespace,
 		MinifyIdentifiers:     buildOpts.MinifyIdentifiers,
+		AllowOverwrite:        buildOpts.AllowOverwrite,
 		ASCIIOnly:             validateASCIIOnly(buildOpts.Charset),
 		IgnoreDCEAnnotations:  validateIgnoreDCEAnnotations(buildOpts.TreeShaking),
 		GlobalName:            validateGlobalName(log, buildOpts.GlobalName),
@@ -728,6 +822,7 @@ func rebuildImpl(
 		AbsOutputDir:          validatePath(log, realFS, buildOpts.Outdir, "outdir path"),
 		AbsOutputBase:         validatePath(log, realFS, buildOpts.Outbase, "outbase path"),
 		NeedsMetafile:         buildOpts.Metafile,
+		EntryPathTemplate:     validatePathTemplate(buildOpts.EntryNames),
 		ChunkPathTemplate:     validatePathTemplate(buildOpts.ChunkNames),
 		AssetPathTemplate:     validatePathTemplate(buildOpts.AssetNames),
 		OutputExtensionJS:     outJS,
@@ -759,10 +854,13 @@ func rebuildImpl(
 	for i, path := range buildOpts.NodePaths {
 		options.AbsNodePaths[i] = validatePath(log, realFS, path, "node path")
 	}
-	if options.PublicPath != "" && !strings.HasSuffix(options.PublicPath, "/") && !strings.HasSuffix(options.PublicPath, "\\") {
-		options.PublicPath += "/"
+	entryPoints := make([]bundler.EntryPoint, 0, len(buildOpts.EntryPoints)+len(buildOpts.EntryPointsAdvanced))
+	for _, ep := range buildOpts.EntryPoints {
+		entryPoints = append(entryPoints, bundler.EntryPoint{InputPath: ep})
 	}
-	entryPoints := append([]string{}, buildOpts.EntryPoints...)
+	for _, ep := range buildOpts.EntryPointsAdvanced {
+		entryPoints = append(entryPoints, bundler.EntryPoint{InputPath: ep.InputPath, OutputPath: ep.OutputPath})
+	}
 	entryPointCount := len(entryPoints)
 	if buildOpts.Stdin != nil {
 		entryPointCount++
@@ -791,6 +889,9 @@ func rebuildImpl(
 		// Forbid certain features when writing to stdout
 		if options.SourceMap != config.SourceMapNone && options.SourceMap != config.SourceMapInline {
 			log.AddError(nil, logger.Loc{}, "Cannot use an external source map without an output path")
+		}
+		if options.LegalComments.HasExternalFile() {
+			log.AddError(nil, logger.Loc{}, "Cannot use linked or external legal comments without an output path")
 		}
 		for _, loader := range options.ExtensionToLoader {
 			if loader == config.LoaderFile {
@@ -840,14 +941,19 @@ func rebuildImpl(
 	// Stop now if there were errors
 	resolver := resolver.NewResolver(realFS, log, caches, options)
 	if !log.HasErrors() {
+		var timer *helpers.Timer
+		if api_helpers.UseTimer {
+			timer = &helpers.Timer{}
+		}
+
 		// Scan over the bundle
-		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPoints, options)
+		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPoints, options, timer)
 		watchData = realFS.WatchData()
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, metafile := bundle.Compile(log, options)
+			results, metafile := bundle.Compile(log, options, timer)
 			metafileJSON = metafile
 
 			// Stop now if there were errors
@@ -856,8 +962,9 @@ func rebuildImpl(
 				log.AlmostDone()
 
 				if buildOpts.Write {
-					// Special-case writing to stdout
+					timer.Begin("Write output files")
 					if options.WriteToStdout {
+						// Special-case writing to stdout
 						if len(results) != 1 {
 							log.AddError(nil, logger.Loc{}, fmt.Sprintf(
 								"Internal error: did not expect to generate %d files when writing to stdout", len(results)))
@@ -870,7 +977,7 @@ func rebuildImpl(
 						waitGroup := sync.WaitGroup{}
 						waitGroup.Add(len(results))
 						for _, result := range results {
-							go func(result bundler.OutputFile) {
+							go func(result graph.OutputFile) {
 								fs.BeforeFileOpen()
 								defer fs.AfterFileClose()
 								if err := os.MkdirAll(realFS.Dir(result.AbsPath), 0755); err != nil {
@@ -891,6 +998,7 @@ func rebuildImpl(
 						}
 						waitGroup.Wait()
 					}
+					timer.End("Write output files")
 				}
 
 				// Return the results
@@ -906,6 +1014,8 @@ func rebuildImpl(
 				}
 			}
 		}
+
+		timer.Log(log)
 	}
 
 	// End the log now, which may print a message
@@ -920,7 +1030,7 @@ func rebuildImpl(
 			data:     watchData,
 			resolver: resolver,
 			rebuild: func() fs.WatchData {
-				value := rebuildImpl(buildOpts, caches, plugins, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
+				value := rebuildImpl(buildOpts, caches, plugins, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
 				if onRebuild != nil {
 					go onRebuild(value.result)
 				}
@@ -937,7 +1047,7 @@ func rebuildImpl(
 	var rebuild func() BuildResult
 	if buildOpts.Incremental {
 		rebuild = func() BuildResult {
-			value := rebuildImpl(buildOpts, caches, plugins, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
+			value := rebuildImpl(buildOpts, caches, plugins, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
 			if watch != nil {
 				watch.setWatchData(value.watchData)
 			}
@@ -953,6 +1063,11 @@ func rebuildImpl(
 		Rebuild:     rebuild,
 		Stop:        stop,
 	}
+
+	for _, onEnd := range onEndCallbacks {
+		onEnd(&result)
+	}
+
 	return internalBuildResult{
 		result:    result,
 		options:   options,
@@ -1004,13 +1119,15 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 	useColor := validateColor(color)
 
 	go func() {
+		shouldLog := logLevel == LogLevelInfo || logLevel == LogLevelDebug
+
 		// Note: Do not change these log messages without a breaking version change.
 		// People want to run regexes over esbuild's stderr stream to look for these
 		// messages instead of using esbuild's API.
 
-		if logLevel == LogLevelInfo {
+		if shouldLog {
 			logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
-				return fmt.Sprintf("%s[watch] build finished, watching for changes...%s\n", colors.Dim, colors.Default)
+				return fmt.Sprintf("%s[watch] build finished, watching for changes...%s\n", colors.Dim, colors.Reset)
 			})
 		}
 
@@ -1020,19 +1137,19 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 
 			// Rebuild if we're dirty
 			if absPath := w.tryToFindDirtyPath(); absPath != "" {
-				if logLevel == LogLevelInfo {
+				if shouldLog {
 					logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
 						prettyPath := w.resolver.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
-						return fmt.Sprintf("%s[watch] build started (change: %q)%s\n", colors.Dim, prettyPath, colors.Default)
+						return fmt.Sprintf("%s[watch] build started (change: %q)%s\n", colors.Dim, prettyPath, colors.Reset)
 					})
 				}
 
 				// Run the build
 				w.setWatchData(w.rebuild())
 
-				if logLevel == LogLevelInfo {
+				if shouldLog {
 					logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
-						return fmt.Sprintf("%s[watch] build finished%s\n", colors.Dim, colors.Default)
+						return fmt.Sprintf("%s[watch] build finished%s\n", colors.Dim, colors.Reset)
 					})
 				}
 			}
@@ -1116,10 +1233,10 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Settings from the user come first
 	preserveUnusedImportsTS := false
-	useDefineForClassFieldsTS := false
+	useDefineForClassFieldsTS := config.Unspecified
 	jsx := config.JSXOptions{
-		Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
-		Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
+		Factory:  validateJSXExpr(log, transformOpts.JSXFactory, "factory", js_parser.JSXFactory),
+		Fragment: validateJSXExpr(log, transformOpts.JSXFragment, "fragment", js_parser.JSXFragment),
 	}
 
 	// Settings from "tsconfig.json" override those
@@ -1132,13 +1249,13 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		}
 		if result := resolver.ParseTSConfigJSON(log, source, &caches.JSONCache, nil); result != nil {
 			if len(result.JSXFactory) > 0 {
-				jsx.Factory = result.JSXFactory
+				jsx.Factory = config.JSXExpr{Parts: result.JSXFactory}
 			}
 			if len(result.JSXFragmentFactory) > 0 {
-				jsx.Fragment = result.JSXFragmentFactory
+				jsx.Fragment = config.JSXExpr{Parts: result.JSXFragmentFactory}
 			}
-			if result.UseDefineForClassFields {
-				useDefineForClassFieldsTS = true
+			if result.UseDefineForClassFields != config.Unspecified {
+				useDefineForClassFieldsTS = result.UseDefineForClassFields
 			}
 			if result.PreserveImportsNotUsedAsValues {
 				preserveUnusedImportsTS = true
@@ -1155,15 +1272,18 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Convert and validate the transformOpts
-	jsFeatures, cssFeatures := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
-	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure)
+	jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
+	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, PlatformNeutral, false /* minify */)
 	options := config.Options{
 		UnsupportedJSFeatures:   jsFeatures,
 		UnsupportedCSSFeatures:  cssFeatures,
+		OriginalTargetEnv:       targetEnv,
 		JSX:                     jsx,
 		Defines:                 defines,
 		InjectedDefines:         injectedDefines,
 		SourceMap:               validateSourceMap(transformOpts.Sourcemap),
+		LegalComments:           validateLegalComments(transformOpts.LegalComments, false /* bundle */),
+		SourceRoot:              transformOpts.SourceRoot,
 		ExcludeSourcesContent:   transformOpts.SourcesContent == SourcesContentExclude,
 		OutputFormat:            validateFormat(transformOpts.Format),
 		GlobalName:              validateGlobalName(log, transformOpts.GlobalName),
@@ -1197,26 +1317,36 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		log.AddError(nil, logger.Loc{},
 			"Must use \"sourcefile\" with \"sourcemap\" to set the original file name")
 	}
+	if options.LegalComments.HasExternalFile() {
+		log.AddError(nil, logger.Loc{}, "Cannot transform with linked or external legal comments")
+	}
 
 	// Set the output mode using other settings
 	if options.OutputFormat != config.FormatPreserve {
 		options.Mode = config.ModeConvertFormat
 	}
 
-	var results []bundler.OutputFile
+	var results []graph.OutputFile
 
 	// Stop now if there were errors
 	if !log.HasErrors() {
+		var timer *helpers.Timer
+		if api_helpers.UseTimer {
+			timer = &helpers.Timer{}
+		}
+
 		// Scan over the bundle
 		mockFS := fs.MockFS(make(map[string]string))
 		resolver := resolver.NewResolver(mockFS, log, caches, options)
-		bundle := bundler.ScanBundle(log, mockFS, resolver, caches, nil, options)
+		bundle := bundler.ScanBundle(log, mockFS, resolver, caches, nil, options, timer)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, _ = bundle.Compile(log, options)
+			results, _ = bundle.Compile(log, options, timer)
 		}
+
+		timer.Log(log)
 	}
 
 	// Return the results
@@ -1251,6 +1381,30 @@ type pluginImpl struct {
 	log    logger.Log
 	fs     fs.FS
 	plugin config.Plugin
+}
+
+func (impl *pluginImpl) OnStart(callback func() (OnStartResult, error)) {
+	impl.plugin.OnStart = append(impl.plugin.OnStart, config.OnStart{
+		Name: impl.plugin.Name,
+		Callback: func() (result config.OnStartResult) {
+			response, err := callback()
+
+			if err != nil {
+				result.ThrownError = err
+				return
+			}
+
+			// Convert log messages
+			if len(response.Errors)+len(response.Warnings) > 0 {
+				msgs := make(logger.SortableMsgs, 0, len(response.Errors)+len(response.Warnings))
+				msgs = convertMessagesToInternal(msgs, logger.Error, response.Errors)
+				msgs = convertMessagesToInternal(msgs, logger.Warning, response.Warnings)
+				sort.Stable(msgs)
+				result.Msgs = msgs
+			}
+			return
+		},
+	})
 }
 
 func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error)) {
@@ -1294,6 +1448,8 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 				PluginData: args.PluginData,
 			})
 			result.PluginName = response.PluginName
+			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")
+			result.AbsWatchDirs = impl.validatePathsArray(response.WatchDirs, "watch directory")
 
 			if err != nil {
 				result.ThrownError = err
@@ -1334,6 +1490,8 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 				PluginData: args.PluginData,
 			})
 			result.PluginName = response.PluginName
+			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")
+			result.AbsWatchDirs = impl.validatePathsArray(response.WatchDirs, "watch directory")
 
 			if err != nil {
 				result.ThrownError = err
@@ -1361,8 +1519,27 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 	})
 }
 
-func loadPlugins(fs fs.FS, log logger.Log, plugins []Plugin) (results []config.Plugin) {
-	for i, item := range plugins {
+func (impl *pluginImpl) validatePathsArray(pathsIn []string, name string) (pathsOut []string) {
+	if len(pathsIn) > 0 {
+		pathKind := fmt.Sprintf("%s path for plugin %q", name, impl.plugin.Name)
+		for _, relPath := range pathsIn {
+			if absPath := validatePath(impl.log, impl.fs, relPath, pathKind); absPath != "" {
+				pathsOut = append(pathsOut, absPath)
+			}
+		}
+	}
+	return
+}
+
+func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (plugins []config.Plugin, onEndCallbacks []func(*BuildResult)) {
+	onEnd := func(callback func(*BuildResult)) {
+		onEndCallbacks = append(onEndCallbacks, callback)
+	}
+
+	// Clone the plugin array to guard against mutation during iteration
+	clone := append(make([]Plugin, 0, len(initialOptions.Plugins)), initialOptions.Plugins...)
+
+	for i, item := range clone {
 		if item.Name == "" {
 			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Plugin at index %d is missing a name", i))
 			continue
@@ -1374,8 +1551,39 @@ func loadPlugins(fs fs.FS, log logger.Log, plugins []Plugin) (results []config.P
 			plugin: config.Plugin{Name: item.Name},
 		}
 
-		item.Setup(impl)
-		results = append(results, impl.plugin)
+		item.Setup(PluginBuild{
+			InitialOptions: initialOptions,
+			OnStart:        impl.OnStart,
+			OnEnd:          onEnd,
+			OnResolve:      impl.OnResolve,
+			OnLoad:         impl.OnLoad,
+		})
+
+		plugins = append(plugins, impl.plugin)
 	}
 	return
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FormatMessages API
+
+func formatMsgsImpl(msgs []Message, opts FormatMessagesOptions) []string {
+	kind := logger.Error
+	if opts.Kind == WarningMessage {
+		kind = logger.Warning
+	}
+	logMsgs := convertMessagesToInternal(nil, kind, msgs)
+	strings := make([]string, len(logMsgs))
+	for i, msg := range logMsgs {
+		strings[i] = msg.String(
+			logger.OutputOptions{
+				IncludeSource: true,
+			},
+			logger.TerminalInfo{
+				UseColorEscapes: opts.Color,
+				Width:           opts.TerminalWidth,
+			},
+		)
+	}
+	return strings
 }

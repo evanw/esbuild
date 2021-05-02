@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/internal/cache"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
@@ -12,6 +13,8 @@ import (
 )
 
 type TSConfigJSON struct {
+	AbsPath string
+
 	// The absolute path of "compilerOptions.baseUrl"
 	BaseURL *string
 
@@ -32,7 +35,7 @@ type TSConfigJSON struct {
 
 	JSXFactory                     []string
 	JSXFragmentFactory             []string
-	UseDefineForClassFields        bool
+	UseDefineForClassFields        config.MaybeBool
 	PreserveImportsNotUsedAsValues bool
 }
 
@@ -59,6 +62,7 @@ func ParseTSConfigJSON(
 	}
 
 	var result TSConfigJSON
+	result.AbsPath = source.KeyPath.Text
 
 	// Parse "extends"
 	if extends != nil {
@@ -97,7 +101,11 @@ func ParseTSConfigJSON(
 		// Parse "useDefineForClassFields"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "useDefineForClassFields"); ok {
 			if value, ok := getBool(valueJSON); ok {
-				result.UseDefineForClassFields = value
+				if value {
+					result.UseDefineForClassFields = config.True
+				} else {
+					result.UseDefineForClassFields = config.False
+				}
 			}
 		}
 

@@ -132,7 +132,7 @@ console.log((0, import_demo_pkg.default)());
 ================================================================================
 TestPackageJsonBrowserMapRelativeDisabled
 ---------- /Users/user/project/out.js ----------
-// (disabled):Users/user/project/node_modules/demo-pkg/util-node.js
+// (disabled):Users/user/project/node_modules/demo-pkg/util-node
 var require_util_node = __commonJS(() => {
 });
 
@@ -328,20 +328,21 @@ console.log(import_demo_pkg.default);
 TestPackageJsonDualPackageHazardImportAndRequireForceModuleBeforeMain
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/module.js
-var require_module = __commonJS((exports) => {
-  __markAsModule(exports);
-  __export(exports, {
-    default: () => module_default
-  });
-  var module_default = "module";
+var module_exports = {};
+__export(module_exports, {
+  default: () => module_default
+});
+var module_default;
+var init_module = __esm(() => {
+  module_default = "module";
 });
 
 // Users/user/project/src/test-main.js
-console.log(require_module());
+console.log((init_module(), module_exports));
 
 // Users/user/project/src/test-module.js
-var import_demo_pkg = require_module();
-console.log(import_demo_pkg.default);
+init_module();
+console.log(module_default);
 
 ================================================================================
 TestPackageJsonDualPackageHazardImportAndRequireImplicitMain
@@ -362,20 +363,21 @@ console.log(import_demo_pkg.default);
 TestPackageJsonDualPackageHazardImportAndRequireImplicitMainForceModuleBeforeMain
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/module.js
-var require_module = __commonJS((exports) => {
-  __markAsModule(exports);
-  __export(exports, {
-    default: () => module_default
-  });
-  var module_default = "module";
+var module_exports = {};
+__export(module_exports, {
+  default: () => module_default
+});
+var module_default;
+var init_module = __esm(() => {
+  module_default = "module";
 });
 
 // Users/user/project/src/test-index.js
-console.log(require_module());
+console.log((init_module(), module_exports));
 
 // Users/user/project/src/test-module.js
-var import_demo_pkg = require_module();
-console.log(import_demo_pkg.default);
+init_module();
+console.log(module_default);
 
 ================================================================================
 TestPackageJsonDualPackageHazardImportAndRequireSameFile

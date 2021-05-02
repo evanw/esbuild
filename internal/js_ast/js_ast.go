@@ -897,15 +897,20 @@ func JoinWithLeftAssociativeOp(op OpCode, a Expr, b Expr) Expr {
 }
 
 func JoinWithComma(a Expr, b Expr) Expr {
+	if a.Data == nil {
+		return b
+	}
+	if b.Data == nil {
+		return a
+	}
 	return Expr{Loc: a.Loc, Data: &EBinary{Op: BinOpComma, Left: a, Right: b}}
 }
 
-func JoinAllWithComma(all []Expr) Expr {
-	result := all[0]
-	for _, value := range all[1:] {
+func JoinAllWithComma(all []Expr) (result Expr) {
+	for _, value := range all {
 		result = JoinWithComma(result, value)
 	}
-	return result
+	return
 }
 
 type ExprOrStmt struct {
@@ -932,7 +937,8 @@ type SEmpty struct{}
 type STypeScript struct{}
 
 type SComment struct {
-	Text string
+	Text           string
+	IsLegalComment bool
 }
 
 type SDebugger struct{}
@@ -1353,15 +1359,15 @@ var InvalidRef Ref = Ref{^uint32(0), ^uint32(0)}
 // able to quickly merge symbol tables from all files into one giant symbol
 // table.
 //
-// We can accomplish both goals by giving each symbol ID two parts: an outer
+// We can accomplish both goals by giving each symbol ID two parts: a source
 // index that is unique to the parser goroutine, and an inner index that
 // increments as the parser generates new symbol IDs. Then a symbol map can
-// be an array of arrays indexed first by outer index, then by inner index.
+// be an array of arrays indexed first by source index, then by inner index.
 // The maps can be merged quickly by creating a single outer array containing
 // all inner arrays from all parsed files.
 type Ref struct {
-	OuterIndex uint32
-	InnerIndex uint32
+	SourceIndex uint32
+	InnerIndex  uint32
 }
 
 type ImportItemStatus uint8
@@ -1450,6 +1456,59 @@ type Symbol struct {
 	// avoid this. We also need to be able to replace such import items with
 	// undefined, which this status is also used for.
 	ImportItemStatus ImportItemStatus
+
+	// Sometimes we lower private symbols even if they are supported. For example,
+	// consider the following TypeScript code:
+	//
+	//   class Foo {
+	//     #foo = 123
+	//     bar = this.#foo
+	//   }
+	//
+	// If "useDefineForClassFields: false" is set in "tsconfig.json", then "bar"
+	// must use assignment semantics instead of define semantics. We can compile
+	// that to this code:
+	//
+	//   class Foo {
+	//     constructor() {
+	//       this.#foo = 123;
+	//       this.bar = this.#foo;
+	//     }
+	//     #foo;
+	//   }
+	//
+	// However, we can't do the same for static fields:
+	//
+	//   class Foo {
+	//     static #foo = 123
+	//     static bar = this.#foo
+	//   }
+	//
+	// Compiling these static fields to something like this would be invalid:
+	//
+	//   class Foo {
+	//     static #foo;
+	//   }
+	//   Foo.#foo = 123;
+	//   Foo.bar = Foo.#foo;
+	//
+	// Thus "#foo" must be lowered even though it's supported. Another case is
+	// when we're converting top-level class declarations to class expressions
+	// to avoid the TDZ and the class shadowing symbol is referenced within the
+	// class body:
+	//
+	//   class Foo {
+	//     static #foo = Foo
+	//   }
+	//
+	// This cannot be converted into something like this:
+	//
+	//   var Foo = class {
+	//     static #foo;
+	//   };
+	//   Foo.#foo = Foo;
+	//
+	PrivateSymbolMustBeLowered bool
 }
 
 type SlotNamespace uint8
@@ -1565,7 +1624,7 @@ type SymbolMap struct {
 	// single inner array, so you can join the maps together by just make a
 	// single outer array containing all of the inner arrays. See the comment on
 	// "Ref" for more detail.
-	Outer [][]Symbol
+	SymbolsForSource [][]Symbol
 }
 
 func NewSymbolMap(sourceCount int) SymbolMap {
@@ -1573,7 +1632,41 @@ func NewSymbolMap(sourceCount int) SymbolMap {
 }
 
 func (sm SymbolMap) Get(ref Ref) *Symbol {
-	return &sm.Outer[ref.OuterIndex][ref.InnerIndex]
+	return &sm.SymbolsForSource[ref.SourceIndex][ref.InnerIndex]
+}
+
+type ExportsKind uint8
+
+const (
+	// This file doesn't have any kind of export, so it's impossible to say what
+	// kind of file this is. An empty file is in this category, for example.
+	ExportsNone ExportsKind = iota
+
+	// The exports are stored on "module" and/or "exports". Calling "require()"
+	// on this module returns "module.exports". All imports to this module are
+	// allowed but may return undefined.
+	ExportsCommonJS
+
+	// All export names are known explicitly. Calling "require()" on this module
+	// generates an exports object (stored in "exports") with getters for the
+	// export names. Named imports to this module are only allowed if they are
+	// in the set of export names.
+	ExportsESM
+
+	// Some export names are known explicitly, but others fall back to a dynamic
+	// run-time object. This is necessary when using the "export * from" syntax
+	// with either a CommonJS module or an external module (i.e. a module whose
+	// export names are not known at compile-time).
+	//
+	// Calling "require()" on this module generates an exports object (stored in
+	// "exports") with getters for the export names. All named imports to this
+	// module are allowed. Direct named imports reference the corresponding export
+	// directly. Other imports go through property accesses on "exports".
+	ExportsESMWithDynamicFallback
+)
+
+func (kind ExportsKind) IsDynamic() bool {
+	return kind == ExportsCommonJS || kind == ExportsESMWithDynamicFallback
 }
 
 type AST struct {
@@ -1587,6 +1680,7 @@ type AST struct {
 	HasTopLevelReturn bool
 	UsesExportsRef    bool
 	UsesModuleRef     bool
+	ExportsKind       ExportsKind
 
 	// This is a list of ES6 features. They are ranges instead of booleans so
 	// that they can be used in log messages. Check to see if "Len > 0".
@@ -1718,18 +1812,6 @@ func (minifier *NameMinifier) NumberToMinifiedName(i int) string {
 	return name
 }
 
-func (ast *AST) HasCommonJSFeatures() bool {
-	return ast.UsesCommonJSExports() || ast.HasTopLevelReturn
-}
-
-func (ast *AST) UsesCommonJSExports() bool {
-	return ast.UsesExportsRef || ast.UsesModuleRef
-}
-
-func (ast *AST) HasESMFeatures() bool {
-	return ast.ImportKeyword.Len > 0 || ast.ExportKeyword.Len > 0 || ast.TopLevelAwaitKeyword.Len > 0
-}
-
 type NamedImport struct {
 	// Parts within this file that use this import
 	LocalPartsWithUses []uint32
@@ -1778,22 +1860,26 @@ type Part struct {
 
 	// The indices of the other parts in this file that are needed if this part
 	// is needed.
-	LocalDependencies map[uint32]bool
+	Dependencies []Dependency
 
 	// If true, this part can be removed if none of the declared symbols are
 	// used. If the file containing this part is imported, then all parts that
 	// don't have this flag enabled must be included.
 	CanBeRemovedIfUnused bool
 
-	// If true, this is the automatically-generated part for this file's ES6
-	// exports. It may hold the "var exports = {};" statement and also the
-	// "__export(exports, { ... })" call to initialize the getters.
-	IsNamespaceExport bool
-
 	// This is used for generated parts that we don't want to be present if they
 	// aren't needed. This enables tree shaking for these parts even if global
 	// tree shaking isn't enabled.
 	ForceTreeShaking bool
+
+	// This is true if this file has been marked as live by the tree shaking
+	// algorithm.
+	IsLive bool
+}
+
+type Dependency struct {
+	SourceIndex uint32
+	PartIndex   uint32
 }
 
 type DeclaredSymbol struct {
@@ -1803,7 +1889,6 @@ type DeclaredSymbol struct {
 
 type SymbolUse struct {
 	CountEstimate uint32
-	IsAssigned    bool
 }
 
 // Returns the canonical ref that represents the ref for the provided symbol.
@@ -1830,7 +1915,7 @@ func FollowSymbols(symbols SymbolMap, ref Ref) Ref {
 // but reading from a map is. Calling "FollowAllSymbols" first ensures that
 // all mutation is done up front.
 func FollowAllSymbols(symbols SymbolMap) {
-	for sourceIndex, inner := range symbols.Outer {
+	for sourceIndex, inner := range symbols.SymbolsForSource {
 		for symbolIndex := range inner {
 			FollowSymbols(symbols, Ref{uint32(sourceIndex), uint32(symbolIndex)})
 		}
@@ -1918,4 +2003,59 @@ func EnsureValidIdentifier(base string) string {
 		return "_"
 	}
 	return string(bytes)
+}
+
+func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, Ref) Expr) Expr {
+	loc := binding.Loc
+
+	switch b := binding.Data.(type) {
+	case *BMissing:
+		return Expr{Loc: loc, Data: &EMissing{}}
+
+	case *BIdentifier:
+		if wrapIdentifier != nil {
+			return wrapIdentifier(loc, b.Ref)
+		}
+		return Expr{Loc: loc, Data: &EIdentifier{Ref: b.Ref}}
+
+	case *BArray:
+		exprs := make([]Expr, len(b.Items))
+		for i, item := range b.Items {
+			expr := ConvertBindingToExpr(item.Binding, wrapIdentifier)
+			if b.HasSpread && i+1 == len(b.Items) {
+				expr = Expr{Loc: expr.Loc, Data: &ESpread{Value: expr}}
+			} else if item.DefaultValue != nil {
+				expr = Assign(expr, *item.DefaultValue)
+			}
+			exprs[i] = expr
+		}
+		return Expr{Loc: loc, Data: &EArray{
+			Items:        exprs,
+			IsSingleLine: b.IsSingleLine,
+		}}
+
+	case *BObject:
+		properties := make([]Property, len(b.Properties))
+		for i, property := range b.Properties {
+			value := ConvertBindingToExpr(property.Value, wrapIdentifier)
+			kind := PropertyNormal
+			if property.IsSpread {
+				kind = PropertySpread
+			}
+			properties[i] = Property{
+				Kind:        kind,
+				IsComputed:  property.IsComputed,
+				Key:         property.Key,
+				Value:       &value,
+				Initializer: property.DefaultValue,
+			}
+		}
+		return Expr{Loc: loc, Data: &EObject{
+			Properties:   properties,
+			IsSingleLine: b.IsSingleLine,
+		}}
+
+	default:
+		panic("Internal error")
+	}
 }

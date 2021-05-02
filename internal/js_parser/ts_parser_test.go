@@ -3,109 +3,61 @@ package js_parser
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/js_ast"
-	"github.com/evanw/esbuild/internal/js_printer"
-	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/renamer"
-	"github.com/evanw/esbuild/internal/test"
 )
 
 func expectParseErrorTS(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
-			TS: config.TSOptions{
-				Parse: true,
-			},
-		}))
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, expected)
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
+	})
+}
+
+func expectParseErrorTargetTS(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
 	})
 }
 
 func expectPrintedTS(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
-			TS: config.TSOptions{
-				Parse: true,
-			},
-		}))
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.Options{}).JS
-		test.AssertEqual(t, string(js), expected)
+	expectPrintedCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
 	})
 }
 
 func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
-			TS: config.TSOptions{
-				Parse: true,
-			},
-			JSX: config.JSXOptions{
-				Parse: true,
-			},
-		}))
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, expected)
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
 	})
 }
 
 func expectPrintedTSX(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
-			TS: config.TSOptions{
-				Parse: true,
-			},
-			JSX: config.JSXOptions{
-				Parse: true,
-			},
-		}))
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.Options{}).JS
-		test.AssertEqual(t, string(js), expected)
+	expectPrintedCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
 	})
 }
 
@@ -152,7 +104,9 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "type Foo<T> = {+readonly [P in keyof T]: T[P]}", "")
 	expectPrintedTS(t, "let x: number! = y", "let x = y;\n")
 	expectPrintedTS(t, "let x: number \n !y", "let x;\n!y;\n")
-	expectPrintedTS(t, "const x: unique symbol = y", "const x = y;\n")
+	expectPrintedTS(t, "const x: unique = y", "const x = y;\n")
+	expectPrintedTS(t, "const x: unique<T> = y", "const x = y;\n")
+	expectPrintedTS(t, "const x: unique\nsymbol = y", "const x = y;\n")
 	expectPrintedTS(t, "let x: typeof a = y", "let x = y;\n")
 	expectPrintedTS(t, "let x: typeof a.b = y", "let x = y;\n")
 	expectPrintedTS(t, "let x: typeof a.if = y", "let x = y;\n")
@@ -168,6 +122,10 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x: A.B<X.Y<Z>>=2", "let x = 2;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y<Z<T>>>", "let x;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y<Z<T>>>=2", "let x = 2;\n")
+
+	expectPrintedTS(t, "(): A<T>=> 0", "() => 0;\n")
+	expectPrintedTS(t, "(): A<B<T>>=> 0", "() => 0;\n")
+	expectPrintedTS(t, "(): A<B<C<T>>>=> 0", "() => 0;\n")
 
 	expectPrintedTS(t, "let foo: any\n<x>y", "let foo;\ny;\n")
 	expectPrintedTSX(t, "let foo: any\n<x>y</x>", "let foo;\n/* @__PURE__ */ React.createElement(\"x\", null, \"y\");\n")
@@ -192,6 +150,30 @@ func TestTSTypes(t *testing.T) {
 
 	expectPrintedTS(t, "type Foo = Array<<T>(x: T) => T>\n x", "x;\n")
 	expectPrintedTSX(t, "<Foo<<T>(x: T) => T>/>", "/* @__PURE__ */ React.createElement(Foo, null);\n")
+
+	// Certain built-in types do not accept type parameters
+	expectPrintedTS(t, "x as 1 < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as 1n < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as -1 < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as -1n < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as '' < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as `` < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as any < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as bigint < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as false < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as never < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as null < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as number < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as object < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as string < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as symbol < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as this < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as true < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as undefined < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as unique symbol < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as unknown < 1", "x < 1;\n")
+	expectPrintedTS(t, "x as void < 1", "x < 1;\n")
+	expectParseErrorTS(t, "x as Foo < 1", "<stdin>: error: Expected \">\" but found end of file\n")
 
 	// TypeScript 4.1
 	expectPrintedTS(t, "let foo: `${'a' | 'b'}-${'c' | 'd'}` = 'a-c'", "let foo = \"a-c\";\n")
@@ -320,6 +302,10 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { declare foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare public foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public declare foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { override foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { override public foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { public override foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { declare override public foo: number }", "class Foo {\n}\n")
 
 	expectPrintedTS(t, "class Foo { public static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { private static foo: number }", "class Foo {\n}\n")
@@ -328,6 +314,11 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { declare public static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public declare static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public static declare foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { override static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { override public static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { public override static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { public static override foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { declare override public static foo: number }", "class Foo {\n}\n")
 
 	expectPrintedTS(t, "class Foo { [key: string]: any\nfoo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { [key: string]: any; foo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
@@ -342,7 +333,7 @@ func TestTSPrivateIdentifiers(t *testing.T) {
 	// constructor, but it has to leave the private field declaration in place so
 	// the private field is still declared.
 	expectPrintedTS(t, "class Foo { #foo }", "class Foo {\n  #foo;\n}\n")
-	expectPrintedTS(t, "class Foo { #foo = 1 }", "class Foo {\n  constructor() {\n    this.#foo = 1;\n  }\n  #foo;\n}\n")
+	expectPrintedTS(t, "class Foo { #foo = 1 }", "class Foo {\n  #foo = 1;\n}\n")
 	expectPrintedTS(t, "class Foo { #foo() {} }", "class Foo {\n  #foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { get #foo() {} }", "class Foo {\n  get #foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { set #foo(x) {} }", "class Foo {\n  set #foo(x) {\n  }\n}\n")
@@ -843,6 +834,30 @@ var f;
   log(f);
 })(f || (f = {}));
 `)
+
+	expectPrintedTS(t, `
+		namespace a { export declare var a }
+		namespace b { export declare let b }
+		namespace c { export declare enum c {} }
+		namespace d { export declare class d {} }
+		namespace e { export declare namespace e {} }
+		namespace f { export declare function f() {} }
+	`, `var a;
+(function(_a) {
+})(a || (a = {}));
+var b;
+(function(_b) {
+})(b || (b = {}));
+var c;
+(function(c) {
+})(c || (c = {}));
+var d;
+(function(d) {
+})(d || (d = {}));
+var f;
+(function(f) {
+})(f || (f = {}));
+`)
 }
 
 func TestTSNamespaceDestructuring(t *testing.T) {
@@ -947,6 +962,24 @@ var Bar;
 })(Foo || (Foo = {}));
 x = [0, Foo?.A, Foo?.A()];
 y = [0, Foo?.["A"], Foo?.["A"]()];
+`)
+
+	// Check shadowing
+	expectPrintedTS(t, "enum Foo { Foo }", `var Foo;
+(function(_Foo) {
+  _Foo[_Foo["Foo"] = 0] = "Foo";
+})(Foo || (Foo = {}));
+`)
+	expectPrintedTS(t, "enum Foo { Bar = Foo }", `var Foo;
+(function(Foo) {
+  Foo[Foo["Bar"] = Foo] = "Bar";
+})(Foo || (Foo = {}));
+`)
+	expectPrintedTS(t, "enum Foo { Foo = 1, Bar = Foo }", `var Foo;
+(function(_Foo) {
+  _Foo[_Foo["Foo"] = 1] = "Foo";
+  _Foo[_Foo["Bar"] = 1] = "Bar";
+})(Foo || (Foo = {}));
 `)
 }
 
@@ -1265,6 +1298,11 @@ func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "async (a): void => {}", "async (a) => {\n};\n")
 	expectParseErrorTS(t, "async x: void => {}", "<stdin>: error: Expected \"=>\" but found \":\"\n")
 
+	expectPrintedTS(t, "function foo(x: boolean): asserts x", "")
+	expectPrintedTS(t, "function foo(x: boolean): asserts<T>", "")
+	expectPrintedTS(t, "function foo(x: boolean): asserts\nx", "x;\n")
+	expectPrintedTS(t, "function foo(x: boolean): asserts<T>\nx", "x;\n")
+	expectParseErrorTS(t, "function foo(x: boolean): asserts<T> x", "<stdin>: error: Expected \";\" but found \"x\"\n")
 	expectPrintedTS(t, "(x: boolean): asserts x => {}", "(x) => {\n};\n")
 	expectPrintedTS(t, "(x: boolean): asserts this is object => {}", "(x) => {\n};\n")
 	expectPrintedTS(t, "(x: T): asserts x is NonNullable<T> => {}", "(x) => {\n};\n")
@@ -1272,9 +1310,16 @@ func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "(x: any): this is object => {}", "(x) => {\n};\n")
 	expectPrintedTS(t, "(x: any): (() => void) => {}", "(x) => {\n};\n")
 	expectPrintedTS(t, "(x: any): ((y: any) => void) => {}", "(x) => {\n};\n")
+	expectPrintedTS(t, "function foo(this: any): this is number {}", "function foo() {\n}\n")
+	expectPrintedTS(t, "function foo(this: any): asserts this is number {}", "function foo() {\n}\n")
+	expectPrintedTS(t, "(symbol: any): symbol is number => {}", "(symbol) => {\n};\n")
 
 	expectPrintedTS(t, "let x: () => {} | ({y: z});", "let x;\n")
 	expectPrintedTS(t, "function x(): ({y: z}) {}", "function x() {\n}\n")
+
+	expectParseErrorTargetTS(t, 5, "return check ? (hover = 2, bar) : baz()", "")
+	expectParseErrorTargetTS(t, 5, "return check ? (hover = 2, bar) => 0 : baz()",
+		"<stdin>: error: Transforming default arguments to the configured target environment is not supported yet\n")
 }
 
 func TestTSCall(t *testing.T) {
@@ -1398,7 +1443,7 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectPrintedTS(t, "import type * as foo from 'bar'; x", "x;\n")
 	expectPrintedTS(t, "import type * as foo from 'bar'\nx", "x;\n")
 	expectPrintedTS(t, "import type {foo, bar as baz} from 'bar'; x", "x;\n")
-	expectPrintedTS(t, "import type {foo, bar as baz} from 'bar'\nx", "x;\n")
+	expectPrintedTS(t, "import type {'foo' as bar} from 'bar'\nx", "x;\n")
 
 	expectPrintedTS(t, "import type = bar; type", "const type = bar;\ntype;\n")
 	expectPrintedTS(t, "import type = foo.bar; type", "const type = foo.bar;\ntype;\n")
@@ -1413,7 +1458,7 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectParseErrorTS(t, "import type", "<stdin>: error: Expected \"from\" but found end of file\n")
 	expectParseErrorTS(t, "import type * foo", "<stdin>: error: Expected \"as\" but found \"foo\"\n")
 	expectParseErrorTS(t, "import type * as 'bar'", "<stdin>: error: Expected identifier but found \"'bar'\"\n")
-	expectParseErrorTS(t, "import type { 'bar'", "<stdin>: error: Expected identifier but found \"'bar'\"\n")
+	expectParseErrorTS(t, "import type { 'bar' }", "<stdin>: error: Expected \"as\" but found \"}\"\n")
 
 	expectParseErrorTS(t, "import type foo, * as foo from 'bar'", "<stdin>: error: Expected \"from\" but found \",\"\n")
 	expectParseErrorTS(t, "import type foo, {foo} from 'bar'", "<stdin>: error: Expected \"from\" but found \",\"\n")
@@ -1472,7 +1517,7 @@ func TestTSJSX(t *testing.T) {
 
 	expectPrintedTSX(t, "const x = <Foo<T>></Foo>", "const x = /* @__PURE__ */ React.createElement(Foo, null);\n")
 	expectPrintedTSX(t, "const x = <Foo<T> data-foo></Foo>", "const x = /* @__PURE__ */ React.createElement(Foo, {\n  \"data-foo\": true\n});\n")
-	expectParseErrorTSX(t, "const x = <Foo<T>=>", "<stdin>: error: Expected \">\" but found \"=\"\n")
+	expectParseErrorTSX(t, "const x = <Foo<T>=>", "<stdin>: error: Expected \">\" but found \"=>\"\n")
 
 	expectPrintedTS(t, "const x = <T>() => {}", "const x = () => {\n};\n")
 	expectPrintedTS(t, "const x = <T>(y)", "const x = y;\n")
@@ -1488,6 +1533,7 @@ func TestTSJSX(t *testing.T) {
 
 	expectPrintedTS(t, "const x = async <T>() => {}", "const x = async () => {\n};\n")
 	expectPrintedTS(t, "const x = async <T>(y)", "const x = async(y);\n")
+	expectPrintedTS(t, "const x = async\n<T>(y)", "const x = async(y);\n")
 	expectPrintedTS(t, "const x = async <T>(y, z)", "const x = async(y, z);\n")
 	expectPrintedTS(t, "const x = async <T>(y: T) => {}", "const x = async (y) => {\n};\n")
 	expectPrintedTS(t, "const x = async <T>(y, z) => {}", "const x = async (y, z) => {\n};\n")
@@ -1499,6 +1545,7 @@ func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = async <T extends X = Y>(y, z) => {}", "const x = async (y, z) => {\n};\n")
 	expectParseErrorTS(t, "const x = async <T>(y: T)", "<stdin>: error: Unexpected \":\"\n")
 	expectParseErrorTS(t, "const x = async\n<T>() => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
+	expectParseErrorTS(t, "const x = async\n<T>(x) => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
 
 	expectPrintedTS(t, "const x = <{}>() => {}", "const x = () => {\n};\n")
 	expectPrintedTS(t, "const x = <{}>(y)", "const x = y;\n")

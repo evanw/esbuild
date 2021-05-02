@@ -1,32 +1,47 @@
 package test
 
 import (
+	"fmt"
 	"strings"
+
+	"github.com/evanw/esbuild/internal/logger"
 )
 
-func Diff(old string, new string) string {
-	return strings.Join(diffRec(nil, strings.Split(old, "\n"), strings.Split(new, "\n")), "\n")
+func diff(old string, new string, color bool) string {
+	return strings.Join(diffRec(nil, strings.Split(old, "\n"), strings.Split(new, "\n"), color), "\n")
 }
 
 // This is a simple recursive line-by-line diff implementation
-func diffRec(result []string, old []string, new []string) []string {
+func diffRec(result []string, old []string, new []string, color bool) []string {
 	o, n, common := lcSubstr(old, new)
 
 	if common == 0 {
 		// Everything changed
 		for _, line := range old {
-			result = append(result, "-"+line)
+			if color {
+				result = append(result, fmt.Sprintf("%s-%s%s", logger.TerminalColors.Red, line, logger.TerminalColors.Reset))
+			} else {
+				result = append(result, "-"+line)
+			}
 		}
 		for _, line := range new {
-			result = append(result, "+"+line)
+			if color {
+				result = append(result, fmt.Sprintf("%s+%s%s", logger.TerminalColors.Green, line, logger.TerminalColors.Reset))
+			} else {
+				result = append(result, "+"+line)
+			}
 		}
 	} else {
 		// Something in the middle stayed the same
-		result = diffRec(result, old[:o], new[:n])
+		result = diffRec(result, old[:o], new[:n], color)
 		for _, line := range old[o : o+common] {
-			result = append(result, " "+line)
+			if color {
+				result = append(result, fmt.Sprintf("%s %s%s", logger.TerminalColors.Dim, line, logger.TerminalColors.Reset))
+			} else {
+				result = append(result, " "+line)
+			}
 		}
-		result = diffRec(result, old[o+common:], new[n+common:])
+		result = diffRec(result, old[o+common:], new[n+common:], color)
 	}
 
 	return result

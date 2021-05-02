@@ -97,7 +97,7 @@ function startChildProcess() {
   const timeout = setTimeout(() => {
     console.error('❌ node unref test timeout - child_process.unref() broken?')
     process.exit(1);
-  }, 6000);
+  }, 30 * 1000);
 
   child.on('error', (error) => {
     console.error('❌', error);

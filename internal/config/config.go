@@ -16,8 +16,13 @@ type LanguageTarget int8
 
 type JSXOptions struct {
 	Parse    bool
-	Factory  []string
-	Fragment []string
+	Factory  JSXExpr
+	Fragment JSXExpr
+}
+
+type JSXExpr struct {
+	Parts    []string
+	Constant js_ast.E
 }
 
 type TSOptions struct {
@@ -52,6 +57,20 @@ const (
 	SourceMapExternalWithoutComment
 	SourceMapInlineAndExternal
 )
+
+type LegalComments uint8
+
+const (
+	LegalCommentsInline LegalComments = iota
+	LegalCommentsNone
+	LegalCommentsEndOfFile
+	LegalCommentsLinkedWithComment
+	LegalCommentsExternalWithoutComment
+)
+
+func (lc LegalComments) HasExternalFile() bool {
+	return lc == LegalCommentsLinkedWithComment || lc == LegalCommentsExternalWithoutComment
+}
 
 type Loader int
 
@@ -160,14 +179,33 @@ const (
 	ModeBundle
 )
 
+type ModuleType uint8
+
+const (
+	ModuleUnknown ModuleType = iota
+	ModuleCommonJS
+	ModuleESM
+)
+
+type MaybeBool uint8
+
+const (
+	Unspecified MaybeBool = iota
+	True
+	False
+)
+
 type Options struct {
 	Mode              Mode
+	ModuleType        ModuleType
 	PreserveSymlinks  bool
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
 	MangleSyntax      bool
 	CodeSplitting     bool
 	WatchMode         bool
+	AllowOverwrite    bool
+	LegalComments     LegalComments
 
 	// Setting this to true disables warnings about code that is very likely to
 	// be a bug. This is used to ignore issues inside "node_modules" directories.
@@ -186,7 +224,7 @@ type Options struct {
 
 	OmitRuntimeForTests     bool
 	PreserveUnusedImportsTS bool
-	UseDefineForClassFields bool
+	UseDefineForClassFields MaybeBool
 	ASCIIOnly               bool
 	KeepNames               bool
 	IgnoreDCEAnnotations    bool
@@ -198,6 +236,10 @@ type Options struct {
 
 	UnsupportedJSFeatures  compat.JSFeature
 	UnsupportedCSSFeatures compat.CSSFeature
+
+	// This is the original information that was used to generate the
+	// unsupported feature sets above. It's used for error messages.
+	OriginalTargetEnv string
 
 	ExtensionOrder  []string
 	MainFields      []string
@@ -224,6 +266,7 @@ type Options struct {
 	CSSBanner string
 	CSSFooter string
 
+	EntryPathTemplate []PathTemplate
 	ChunkPathTemplate []PathTemplate
 	AssetPathTemplate []PathTemplate
 
@@ -232,6 +275,7 @@ type Options struct {
 	NeedsMetafile bool
 
 	SourceMap             SourceMap
+	SourceRoot            string
 	ExcludeSourcesContent bool
 
 	Stdin *StdinInfo
@@ -241,6 +285,10 @@ type PathPlaceholder uint8
 
 const (
 	NoPlaceholder PathPlaceholder = iota
+
+	// The relative path from the original parent directory to the configured
+	// "outbase" directory, or to the lowest common ancestor directory
+	DirPlaceholder
 
 	// The original name of the file, or the manual chunk name, or the name of
 	// the type of output file ("entry" or "chunk" or "asset")
@@ -257,12 +305,15 @@ type PathTemplate struct {
 }
 
 type PathPlaceholders struct {
+	Dir  *string
 	Name *string
 	Hash *string
 }
 
 func (placeholders PathPlaceholders) Get(placeholder PathPlaceholder) *string {
 	switch placeholder {
+	case DirPlaceholder:
+		return placeholders.Dir
 	case NamePlaceholder:
 		return placeholders.Name
 	case HashPlaceholder:
@@ -280,6 +331,8 @@ func TemplateToString(template []PathTemplate) string {
 	for _, part := range template {
 		sb.WriteString(part.Data)
 		switch part.Placeholder {
+		case DirPlaceholder:
+			sb.WriteString("[dir]")
 		case NamePlaceholder:
 			sb.WriteString("[name]")
 		case HashPlaceholder:
@@ -406,8 +459,19 @@ func PluginAppliesToPath(path logger.Path, filter *regexp.Regexp, namespace stri
 
 type Plugin struct {
 	Name      string
+	OnStart   []OnStart
 	OnResolve []OnResolve
 	OnLoad    []OnLoad
+}
+
+type OnStart struct {
+	Name     string
+	Callback func() OnStartResult
+}
+
+type OnStartResult struct {
+	Msgs        []logger.Msg
+	ThrownError error
 }
 
 type OnResolve struct {
@@ -434,6 +498,9 @@ type OnResolveResult struct {
 
 	Msgs        []logger.Msg
 	ThrownError error
+
+	AbsWatchFiles []string
+	AbsWatchDirs  []string
 }
 
 type OnLoad struct {
@@ -458,4 +525,7 @@ type OnLoadResult struct {
 
 	Msgs        []logger.Msg
 	ThrownError error
+
+	AbsWatchFiles []string
+	AbsWatchDirs  []string
 }

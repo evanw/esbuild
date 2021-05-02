@@ -77,16 +77,28 @@ type ImportRecord struct {
 	// CommonJS wrapper or not.
 	ContainsImportStar bool
 
+	// If this is true, the import contains an import for the alias "default",
+	// either via the "import x from" or "import {default as x} from" syntax.
+	ContainsDefaultAlias bool
+
 	// If true, this "export * from 'path'" statement is evaluated at run-time by
-	// calling the "__exportStar()" helper function
-	CallsRunTimeExportStarFn bool
+	// calling the "__reExport()" helper function
+	CallsRunTimeReExportFn bool
 
 	// Tell the printer to wrap this call to "require()" in "__toModule(...)"
 	WrapWithToModule bool
 
-	// True for require calls like this: "try { require() } catch {}". In this
-	// case we shouldn't generate an error if the path could not be resolved.
-	IsInsideTryBody bool
+	// True for the following cases:
+	//
+	//   try { require('x') } catch { handle }
+	//   try { await import('x') } catch { handle }
+	//   try { require.resolve('x') } catch { handle }
+	//   import('x').catch(handle)
+	//   import('x').then(_, handle)
+	//
+	// In these cases we shouldn't generate an error if the path could not be
+	// resolved.
+	HandlesImportErrors bool
 
 	// If true, this was originally written as a bare "import 'file'" statement
 	WasOriginallyBareImport bool

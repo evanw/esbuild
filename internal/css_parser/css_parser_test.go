@@ -21,7 +21,7 @@ func expectParseError(t *testing.T, contents string, expected string) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		Parse(log, test.SourceForTest(contents), Options{})
 		msgs := log.Done()
 		text := ""
@@ -36,7 +36,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		tree := Parse(log, test.SourceForTest(contents), Options{
 			MangleSyntax:           options.MangleSyntax,
 			RemoveWhitespace:       options.RemoveWhitespace,
@@ -646,6 +646,10 @@ func TestSelector(t *testing.T) {
 	expectParseError(t, "#-0 {}", "<stdin>: warning: Unexpected \"#-0\"\n")
 	expectParseError(t, "div#0 {}", "<stdin>: warning: Unexpected \"#0\"\n")
 	expectParseError(t, "div#-0 {}", "<stdin>: warning: Unexpected \"#-0\"\n")
+
+	// Make sure '-' and '\\' consume an ident-like token instead of a name
+	expectParseError(t, "_:-ms-lang(x) {}", "")
+	expectParseError(t, "_:\\ms-lang(x) {}", "")
 }
 
 func TestNestedSelector(t *testing.T) {
@@ -687,6 +691,14 @@ func TestAtRule(t *testing.T) {
 	expectParseError(t, "@", "<stdin>: warning: Unexpected \"@\"\n")
 	expectParseError(t, "@;", "<stdin>: warning: Unexpected \"@\"\n")
 	expectParseError(t, "@{}", "<stdin>: warning: Unexpected \"@\"\n")
+
+	expectPrinted(t, "@viewport { width: 100vw }", "@viewport {\n  width: 100vw;\n}\n")
+	expectPrinted(t, "@-ms-viewport { width: 100vw }", "@-ms-viewport {\n  width: 100vw;\n}\n")
+
+	expectPrinted(t, "@document url(\"https://www.example.com/\") { h1 { color: green } }",
+		"@document url(https://www.example.com/) {\n  h1 {\n    color: green;\n  }\n}\n")
+	expectPrinted(t, "@-moz-document url-prefix() { h1 { color: green } }",
+		"@-moz-document url-prefix() {\n  h1 {\n    color: green;\n  }\n}\n")
 
 	// https://www.w3.org/TR/css-page-3/#syntax-page-selector
 	expectPrinted(t, `

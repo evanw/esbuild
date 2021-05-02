@@ -185,7 +185,7 @@ func TestLowerClassInstance(t *testing.T) {
 `)
 	expectPrintedTarget(t, 2015, "class Foo extends Bar { bar() {} foo; constructor({ ...args }) { super() } }", `class Foo extends Bar {
   constructor(_a) {
-    var args = __rest(_a, []);
+    var args = __objRest(_a, []);
     super();
     __publicField(this, "foo");
   }
@@ -429,6 +429,14 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2019, "delete undefined?.[x]", "true;\n")
 	expectPrintedTarget(t, 2019, "delete undefined?.(x)", "true;\n")
 
+	expectPrintedMangleTarget(t, 2019, "(foo(), null)?.x; y = (bar(), null)?.x", "foo(), y = (bar(), void 0);\n")
+	expectPrintedMangleTarget(t, 2019, "(foo(), null)?.[x]; y = (bar(), null)?.[x]", "foo(), y = (bar(), void 0);\n")
+	expectPrintedMangleTarget(t, 2019, "(foo(), null)?.(x); y = (bar(), null)?.(x)", "foo(), y = (bar(), void 0);\n")
+
+	expectPrintedMangleTarget(t, 2019, "(foo(), void 0)?.x; y = (bar(), void 0)?.x", "foo(), y = (bar(), void 0);\n")
+	expectPrintedMangleTarget(t, 2019, "(foo(), void 0)?.[x]; y = (bar(), void 0)?.[x]", "foo(), y = (bar(), void 0);\n")
+	expectPrintedMangleTarget(t, 2019, "(foo(), void 0)?.(x); y = (bar(), void 0)?.(x)", "foo(), y = (bar(), void 0);\n")
+
 	expectPrintedTarget(t, 2020, "x?.y", "x?.y;\n")
 	expectPrintedTarget(t, 2020, "x?.[y]", "x?.[y];\n")
 	expectPrintedTarget(t, 2020, "x?.(y)", "x?.(y);\n")
@@ -440,6 +448,36 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2020, "undefined?.x", "void 0;\n")
 	expectPrintedTarget(t, 2020, "undefined?.[x]", "void 0;\n")
 	expectPrintedTarget(t, 2020, "undefined?.(x)", "void 0;\n")
+
+	expectPrintedTarget(t, 2020, "(foo(), null)?.x", "(foo(), null)?.x;\n")
+	expectPrintedTarget(t, 2020, "(foo(), null)?.[x]", "(foo(), null)?.[x];\n")
+	expectPrintedTarget(t, 2020, "(foo(), null)?.(x)", "(foo(), null)?.(x);\n")
+
+	expectPrintedTarget(t, 2020, "(foo(), void 0)?.x", "(foo(), void 0)?.x;\n")
+	expectPrintedTarget(t, 2020, "(foo(), void 0)?.[x]", "(foo(), void 0)?.[x];\n")
+	expectPrintedTarget(t, 2020, "(foo(), void 0)?.(x)", "(foo(), void 0)?.(x);\n")
+
+	expectPrintedMangleTarget(t, 2020, "(foo(), null)?.x; y = (bar(), null)?.x", "foo(), y = (bar(), void 0);\n")
+	expectPrintedMangleTarget(t, 2020, "(foo(), null)?.[x]; y = (bar(), null)?.[x]", "foo(), y = (bar(), void 0);\n")
+	expectPrintedMangleTarget(t, 2020, "(foo(), null)?.(x); y = (bar(), null)?.(x)", "foo(), y = (bar(), void 0);\n")
+
+	expectPrintedMangleTarget(t, 2020, "(foo(), void 0)?.x; y = (bar(), void 0)?.x", "foo(), y = (bar(), void 0);\n")
+	expectPrintedMangleTarget(t, 2020, "(foo(), void 0)?.[x]; y = (bar(), void 0)?.[x]", "foo(), y = (bar(), void 0);\n")
+	expectPrintedMangleTarget(t, 2020, "(foo(), void 0)?.(x); y = (bar(), void 0)?.(x)", "foo(), y = (bar(), void 0);\n")
+
+	expectPrintedTarget(t, 2019, "a?.b()", "a == null ? void 0 : a.b();\n")
+	expectPrintedTarget(t, 2019, "a?.[b]()", "a == null ? void 0 : a[b]();\n")
+	expectPrintedTarget(t, 2019, "a?.b.c()", "a == null ? void 0 : a.b.c();\n")
+	expectPrintedTarget(t, 2019, "a?.b[c]()", "a == null ? void 0 : a.b[c]();\n")
+	expectPrintedTarget(t, 2019, "a()?.b()", "var _a;\n(_a = a()) == null ? void 0 : _a.b();\n")
+	expectPrintedTarget(t, 2019, "a()?.[b]()", "var _a;\n(_a = a()) == null ? void 0 : _a[b]();\n")
+
+	expectPrintedTarget(t, 2019, "(a?.b)()", "(a == null ? void 0 : a.b).call(a);\n")
+	expectPrintedTarget(t, 2019, "(a?.[b])()", "(a == null ? void 0 : a[b]).call(a);\n")
+	expectPrintedTarget(t, 2019, "(a?.b.c)()", "var _a;\n(a == null ? void 0 : (_a = a.b).c).call(_a);\n")
+	expectPrintedTarget(t, 2019, "(a?.b[c])()", "var _a;\n(a == null ? void 0 : (_a = a.b)[c]).call(_a);\n")
+	expectPrintedTarget(t, 2019, "(a()?.b)()", "var _a;\n((_a = a()) == null ? void 0 : _a.b).call(_a);\n")
+	expectPrintedTarget(t, 2019, "(a()?.[b])()", "var _a;\n((_a = a()) == null ? void 0 : _a[b]).call(_a);\n")
 
 	// Check multiple levels of nesting
 	expectPrintedTarget(t, 2019, "a?.b?.c?.d", `var _a, _b;
@@ -487,8 +525,8 @@ func TestLowerOptionalChain(t *testing.T) {
 (_b = (_a = a[b])[c]) == null ? void 0 : _b.call(_a, d);
 `)
 
-	// Check that direct eval status is propagated through optional chaining
-	expectPrintedTarget(t, 2019, "eval?.(x)", "eval == null ? void 0 : eval(x);\n")
+	// Check that direct eval status is not propagated through optional chaining
+	expectPrintedTarget(t, 2019, "eval?.(x)", "eval == null ? void 0 : (0, eval)(x);\n")
 	expectPrintedMangleTarget(t, 2019, "(1 ? eval : 0)?.(x)", "eval == null || (0, eval)(x);\n")
 
 	// Check super property access

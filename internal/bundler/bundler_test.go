@@ -31,26 +31,13 @@ func es(version int) compat.JSFeature {
 	})
 }
 
-func assertEqual(t *testing.T, a interface{}, b interface{}) {
-	t.Helper()
-	if a != b {
-		stringA := fmt.Sprintf("%v", a)
-		stringB := fmt.Sprintf("%v", b)
-		if strings.Contains(stringA, "\n") {
-			t.Fatal(test.Diff(stringB, stringA))
-		} else {
-			t.Fatalf("%s != %s", a, b)
-		}
-	}
-}
-
 func assertLog(t *testing.T, msgs []logger.Msg, expected string) {
 	t.Helper()
 	text := ""
 	for _, msg := range msgs {
 		text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 	}
-	assertEqual(t, text, expected)
+	test.AssertEqualWithDiff(t, text, expected)
 }
 
 func hasErrors(msgs []logger.Msg) bool {
@@ -90,10 +77,14 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 		if args.options.AbsOutputFile != "" {
 			args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
 		}
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		caches := cache.MakeCacheSet()
 		resolver := resolver.NewResolver(fs, log, caches, args.options)
-		bundle := ScanBundle(log, fs, resolver, caches, args.entryPaths, args.options)
+		entryPoints := make([]EntryPoint, 0, len(args.entryPaths))
+		for _, path := range args.entryPaths {
+			entryPoints = append(entryPoints, EntryPoint{InputPath: path})
+		}
+		bundle := ScanBundle(log, fs, resolver, caches, entryPoints, args.options, nil)
 		msgs := log.Done()
 		assertLog(t, msgs, args.expectedScanLog)
 
@@ -102,9 +93,9 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 			return
 		}
 
-		log = logger.NewDeferLog()
+		log = logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		args.options.OmitRuntimeForTests = true
-		results, _ := bundle.Compile(log, args.options)
+		results, _ := bundle.Compile(log, args.options, nil)
 		msgs = log.Done()
 		assertLog(t, msgs, args.expectedCompileLog)
 
@@ -171,9 +162,14 @@ func (s *suite) compareSnapshot(t *testing.T, testName string, generated string)
 	s.generatedSnapshots[testName] = generated
 	if !globalUpdateSnapshots {
 		if expected, ok := s.expectedSnapshots[testName]; ok {
-			assertEqual(t, generated, expected)
+			test.AssertEqualWithDiff(t, generated, expected)
 		} else {
-			t.Fatalf("No snapshot saved for %s\n%s", testName, generated)
+			t.Fatalf("No snapshot saved for %s\n%s%s%s",
+				testName,
+				logger.TerminalColors.Green,
+				generated,
+				logger.TerminalColors.Reset,
+			)
 		}
 	}
 }

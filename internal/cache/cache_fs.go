@@ -22,7 +22,7 @@ type fsEntry struct {
 	isModKeyUsable bool
 }
 
-func (c *FSCache) ReadFile(fs fs.FS, path string) (string, error) {
+func (c *FSCache) ReadFile(fs fs.FS, path string) (contents string, canonicalError error, originalError error) {
 	entry := func() *fsEntry {
 		c.mutex.Lock()
 		defer c.mutex.Unlock()
@@ -33,12 +33,12 @@ func (c *FSCache) ReadFile(fs fs.FS, path string) (string, error) {
 	// the contents of the file are also the same and skip reading the file.
 	modKey, modKeyErr := fs.ModKey(path)
 	if entry != nil && entry.isModKeyUsable && modKeyErr == nil && entry.modKey == modKey {
-		return entry.contents, nil
+		return entry.contents, nil, nil
 	}
 
-	contents, err := fs.ReadFile(path)
+	contents, err, originalError := fs.ReadFile(path)
 	if err != nil {
-		return "", err
+		return "", err, originalError
 	}
 
 	c.mutex.Lock()
@@ -48,5 +48,5 @@ func (c *FSCache) ReadFile(fs fs.FS, path string) (string, error) {
 		modKey:         modKey,
 		isModKeyUsable: modKeyErr == nil,
 	}
-	return contents, nil
+	return contents, nil, nil
 }

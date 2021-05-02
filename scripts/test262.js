@@ -37,8 +37,7 @@ function formatErrors(content, error) {
 }
 
 async function main() {
-  const { startService } = installForTests();
-  const service = await startService();
+  const esbuild = installForTests();
   const files = findFiles();
   let runCount = 0;
   let shouldHavePassed = 0;
@@ -49,8 +48,8 @@ async function main() {
 
   async function esbuildFile(input, options) {
     try {
-      const { js } = await service.transform(input, options);
-      return { success: true, output: js };
+      const { code } = await esbuild.transform(input, options);
+      return { success: true, output: code };
     } catch (error) {
       return { success: false, error };
     }
@@ -145,9 +144,6 @@ async function main() {
   console.log(`reparse failures: ${reparseCount}`);
   console.log(`reprint failures: ${reprintCount}`);
   console.log(`minify failures: ${minifyCount}`);
-
-  // Clean up after all tests finish
-  service.stop();
 }
 
 main().catch(e => setTimeout(() => {

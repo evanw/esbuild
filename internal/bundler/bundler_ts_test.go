@@ -665,13 +665,13 @@ func TestTSExportDefaultTypeIssue316(t *testing.T) {
 				import tone_def, { bar as tone } from './remove/type-only-namespace-exported'
 
 				export default [
-					dc,
-					dl,
-					im,
-					_in,
-					tn,
-					vn,
-					vnm,
+					dc_def, dc,
+					dl_def, dl,
+					im_def, im,
+					in_def, _in,
+					tn_def, tn,
+					vn_def, vn,
+					vnm_def, vnm,
 
 					i,
 					ie,
@@ -877,8 +877,164 @@ func TestExportTypeIssue379(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:          config.ModeBundle,
+			Mode:                    config.ModeBundle,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.False,
+		},
+	})
+}
+
+func TestThisInsideFunctionTS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				function foo(x = this) { console.log(this) }
+				const objFoo = {
+					foo(x = this) { console.log(this) }
+				}
+				class Foo {
+					x = this
+					static y = this.z
+					foo(x = this) { console.log(this) }
+					static bar(x = this) { console.log(this) }
+				}
+				new Foo(foo(objFoo))
+				if (nested) {
+					function bar(x = this) { console.log(this) }
+					const objBar = {
+						foo(x = this) { console.log(this) }
+					}
+					class Bar {
+						x = this
+						static y = this.z
+						foo(x = this) { console.log(this) }
+						static bar(x = this) { console.log(this) }
+					}
+					new Bar(bar(objBar))
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                    config.ModeBundle,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.False,
+		},
+	})
+}
+
+func TestThisInsideFunctionTSUseDefineForClassFields(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				function foo(x = this) { console.log(this) }
+				const objFoo = {
+					foo(x = this) { console.log(this) }
+				}
+				class Foo {
+					x = this
+					static y = this.z
+					foo(x = this) { console.log(this) }
+					static bar(x = this) { console.log(this) }
+				}
+				new Foo(foo(objFoo))
+				if (nested) {
+					function bar(x = this) { console.log(this) }
+					const objBar = {
+						foo(x = this) { console.log(this) }
+					}
+					class Bar {
+						x = this
+						static y = this.z
+						foo(x = this) { console.log(this) }
+						static bar(x = this) { console.log(this) }
+					}
+					new Bar(bar(objBar))
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                    config.ModeBundle,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.True,
+		},
+	})
+}
+
+func TestThisInsideFunctionTSNoBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				function foo(x = this) { console.log(this) }
+				const objFoo = {
+					foo(x = this) { console.log(this) }
+				}
+				class Foo {
+					x = this
+					static y = this.z
+					foo(x = this) { console.log(this) }
+					static bar(x = this) { console.log(this) }
+				}
+				new Foo(foo(objFoo))
+				if (nested) {
+					function bar(x = this) { console.log(this) }
+					const objBar = {
+						foo(x = this) { console.log(this) }
+					}
+					class Bar {
+						x = this
+						static y = this.z
+						foo(x = this) { console.log(this) }
+						static bar(x = this) { console.log(this) }
+					}
+					new Bar(bar(objBar))
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
 			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestThisInsideFunctionTSNoBundleUseDefineForClassFields(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				function foo(x = this) { console.log(this) }
+				const objFoo = {
+					foo(x = this) { console.log(this) }
+				}
+				class Foo {
+					x = this
+					static y = this.z
+					foo(x = this) { console.log(this) }
+					static bar(x = this) { console.log(this) }
+				}
+				new Foo(foo(objFoo))
+				if (nested) {
+					function bar(x = this) { console.log(this) }
+					const objBar = {
+						foo(x = this) { console.log(this) }
+					}
+					class Bar {
+						x = this
+						static y = this.z
+						foo(x = this) { console.log(this) }
+						static bar(x = this) { console.log(this) }
+					}
+					new Bar(bar(objBar))
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                    config.ModePassThrough,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.True,
 		},
 	})
 }

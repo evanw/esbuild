@@ -1,11 +1,11 @@
 const childProcess = require('child_process')
-const rimraf = require('rimraf')
 const path = require('path')
 const zlib = require('zlib')
 const fs = require('fs')
 const os = require('os')
 
 const repoDir = path.dirname(__dirname)
+const denoDir = path.join(repoDir, 'deno')
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
 const version = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
 const nodeTarget = 'node10'; // See: https://nodejs.org/en/about/releases/
@@ -18,7 +18,7 @@ exports.buildNativeLib = (esbuildPath) => {
 
   // Generate "npm/esbuild/install.js"
   childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'install.ts'),
+    path.join(repoDir, 'lib', 'npm', 'install.ts'),
     '--outfile=' + path.join(npmDir, 'install.js'),
     '--target=' + nodeTarget,
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
@@ -28,7 +28,7 @@ exports.buildNativeLib = (esbuildPath) => {
 
   // Generate "npm/esbuild/lib/main.js"
   childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'node.ts'),
+    path.join(repoDir, 'lib', 'npm', 'node.ts'),
     '--outfile=' + path.join(libDir, 'main.js'),
     '--bundle',
     '--target=' + nodeTarget,
@@ -40,7 +40,7 @@ exports.buildNativeLib = (esbuildPath) => {
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild/lib/main.d.ts"
-  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'types.ts'), 'utf8')
+  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'types.ts'), 'utf8')
   fs.writeFileSync(path.join(libDir, 'main.d.ts'), types_ts)
 }
 
@@ -98,7 +98,7 @@ exports.buildWasmLib = async (esbuildPath) => {
 
   // Generate "npm/esbuild-wasm/lib/main.js"
   childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'node.ts'),
+    path.join(repoDir, 'lib', 'npm', 'node.ts'),
     '--outfile=' + path.join(libDir, 'main.js'),
     '--bundle',
     '--target=' + nodeTarget,
@@ -110,7 +110,7 @@ exports.buildWasmLib = async (esbuildPath) => {
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild-wasm/lib/main.d.ts" and "npm/esbuild-wasm/lib/browser.d.ts"
-  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'types.ts'), 'utf8')
+  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'types.ts'), 'utf8')
   fs.writeFileSync(path.join(libDir, 'main.d.ts'), types_ts)
   fs.writeFileSync(path.join(libDir, 'browser.d.ts'), types_ts)
   fs.writeFileSync(path.join(esmDir, 'browser.d.ts'), types_ts)
@@ -133,7 +133,7 @@ exports.buildWasmLib = async (esbuildPath) => {
 
       // Process "lib/worker.ts"
       const workerCode = childProcess.execFileSync(esbuildPath, [
-        path.join(repoDir, 'lib', 'worker.ts'),
+        path.join(repoDir, 'lib', 'npm', 'worker.ts'),
         '--target=' + target,
         '--define:ESBUILD_VERSION=' + JSON.stringify(version),
         '--log-level=warning',
@@ -146,7 +146,7 @@ exports.buildWasmLib = async (esbuildPath) => {
     const umdPrefix = `(exports=>{`
     const umdSuffix = `})(typeof exports==="object"?exports:(typeof self!=="undefined"?self:this).esbuild={});`
     const browserCJS = childProcess.execFileSync(esbuildPath, [
-      path.join(repoDir, 'lib', 'browser.ts'),
+      path.join(repoDir, 'lib', 'npm', 'browser.ts'),
       '--bundle',
       '--target=' + umdBrowserTarget,
       '--format=cjs',
@@ -160,7 +160,7 @@ exports.buildWasmLib = async (esbuildPath) => {
 
     // Generate "npm/esbuild-wasm/esm/browser.min.js"
     const browserESM = childProcess.execFileSync(esbuildPath, [
-      path.join(repoDir, 'lib', 'browser.ts'),
+      path.join(repoDir, 'lib', 'npm', 'browser.ts'),
       '--bundle',
       '--target=' + esmBrowserTarget,
       '--format=esm',
@@ -173,7 +173,7 @@ exports.buildWasmLib = async (esbuildPath) => {
 
   // Generate the "exit0" stubs
   const exit0Map = {};
-  const exit0Dir = path.join(__dirname, '..', 'lib', 'exit0');
+  const exit0Dir = path.join(repoDir, 'lib', 'npm', 'exit0');
   for (const entry of fs.readdirSync(exit0Dir)) {
     if (entry.endsWith('.node')) {
       const absPath = path.join(exit0Dir, entry);
@@ -192,6 +192,29 @@ module.exports = ${JSON.stringify(exit0Map, null, 2)};
 
   // Join with the asynchronous WebAssembly build
   await goBuildPromise;
+}
+
+exports.buildDenoLib = (esbuildPath) => {
+  // Generate "deno/esbuild/mod.js"
+  childProcess.execFileSync(esbuildPath, [
+    path.join(repoDir, 'lib', 'deno', 'mod.ts'),
+    '--bundle',
+    '--outfile=' + path.join(denoDir, 'mod.js'),
+    '--target=es2020',
+    '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+    '--platform=neutral',
+    '--log-level=warning',
+    '--banner:js=/// <reference path="./mod.d.ts" />',
+  ], { cwd: repoDir })
+
+  // Generate "deno/esbuild/mod.d.ts"
+  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'types.ts'), 'utf8')
+  fs.writeFileSync(path.join(denoDir, 'mod.d.ts'), types_ts +
+    `\n// Unlike node, Deno lacks the necessary APIs to clean up child processes` +
+    `\n// automatically. You must manually call stop() in Deno when you're done` +
+    `\n// using esbuild or Deno will continue running forever.` +
+    `\nexport function stop(): void;` +
+    `\n`)
 }
 
 // Writing a file atomically is important for watch mode tests since we don't
@@ -217,11 +240,7 @@ exports.buildBinary = () => {
 
 exports.removeRecursiveSync = path => {
   try {
-    // Strangely node doesn't have a function to remove a directory tree.
-    // Using "rm -fr" will never work on Windows because the "rm" command
-    // doesn't exist. Using the "rimraf" should be cross-platform and even
-    // works on Windows some of the time.
-    rimraf.sync(path, { disableGlob: true })
+    fs.rmSync(path, { recursive: true })
   } catch (e) {
     // Removing stuff on Windows is flaky and unreliable. Don't fail tests
     // on CI if Windows is just being a pain. Common causes of flakes include
@@ -267,9 +286,7 @@ exports.dirname = __dirname
 
 // The main Makefile invokes this script before publishing
 if (require.main === module) {
-  if (process.argv.indexOf('--wasm') >= 0) {
-    exports.buildWasmLib(process.argv[2])
-  } else {
-    exports.buildNativeLib(process.argv[2])
-  }
+  if (process.argv.indexOf('--wasm') >= 0) exports.buildWasmLib(process.argv[2])
+  else if (process.argv.indexOf('--deno') >= 0) exports.buildDenoLib(process.argv[2])
+  else exports.buildNativeLib(process.argv[2])
 }

@@ -1,18 +1,19 @@
 TestTSImportStarAndCommonJS
 ---------- /out.js ----------
 // foo.ts
-var require_foo = __commonJS((exports) => {
-  __markAsModule(exports);
-  __export(exports, {
-    foo: () => foo2
-  });
-  var foo2 = 123;
+var foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo
+});
+var foo;
+var init_foo = __esm(() => {
+  foo = 123;
 });
 
 // entry.js
-var ns = require_foo();
-var ns2 = require_foo();
-console.log(ns.foo, ns2.foo);
+init_foo();
+var ns2 = (init_foo(), foo_exports);
+console.log(foo, ns2.foo);
 
 ================================================================================
 TestTSImportStarCapture

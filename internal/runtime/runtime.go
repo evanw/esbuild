@@ -20,7 +20,49 @@ func CanUseES6(unsupportedFeatures compat.JSFeature) bool {
 }
 
 func code(isES6 bool) string {
-	// Note: The "__rest" function has a for-of loop which requires ES6, but
+	// Note: These helper functions used to be named similar things to the helper
+	// functions from the TypeScript compiler. However, people sometimes use these
+	// two projects in combination and TypeScript's implementation of these helpers
+	// causes name collisions. Some examples:
+	//
+	// * The "tslib" library will overwrite esbuild's helper functions if the bundled
+	//   code is run in the global scope: https://github.com/evanw/esbuild/issues/1102
+	//
+	// * Running the TypeScript compiler on esbuild's output to convert ES6 to ES5
+	//   will also overwrite esbuild's helper functions because TypeScript doesn't
+	//   change the names of its helper functions to avoid name collisions:
+	//   https://github.com/microsoft/TypeScript/issues/43296
+	//
+	// These can both be considered bugs in TypeScript. However, they are unlikely
+	// to be fixed and it's simplest to just avoid using the same names to avoid
+	// these bugs. Forbidden names (from "tslib"):
+	//
+	//   __assign
+	//   __asyncDelegator
+	//   __asyncGenerator
+	//   __asyncValues
+	//   __await
+	//   __awaiter
+	//   __classPrivateFieldGet
+	//   __classPrivateFieldSet
+	//   __createBinding
+	//   __decorate
+	//   __exportStar
+	//   __extends
+	//   __generator
+	//   __importDefault
+	//   __importStar
+	//   __makeTemplateObject
+	//   __metadata
+	//   __param
+	//   __read
+	//   __rest
+	//   __spread
+	//   __spreadArray
+	//   __spreadArrays
+	//   __values
+	//
+	// Note: The "__objRest" function has a for-of loop which requires ES6, but
 	// transforming destructuring to ES5 isn't even supported so it's ok.
 	text := `
 		var __create = Object.create
@@ -33,7 +75,36 @@ func code(isES6 bool) string {
 		var __propIsEnum = Object.prototype.propertyIsEnumerable
 
 		export var __pow = Math.pow
-		export var __assign = Object.assign
+
+		var __defNormalProp = (obj, key, value) => key in obj
+			? __defProp(obj, key, {enumerable: true, configurable: true, writable: true, value})
+			: obj[key] = value
+
+		export var __objSpread = (a, b) => {
+			for (var prop in b ||= {})
+				if (__hasOwnProp.call(b, prop))
+					__defNormalProp(a, prop, b[prop])
+			if (__getOwnPropSymbols)
+		`
+
+	// Avoid "of" when not using ES6
+	if isES6 {
+		text += `
+				for (var prop of __getOwnPropSymbols(b)) {
+		`
+	} else {
+		text += `
+				for (var props = __getOwnPropSymbols(b), i = 0, n = props.length, prop; i < n; i++) {
+					prop = props[i]
+		`
+	}
+
+	text += `
+					if (__propIsEnum.call(b, prop))
+						__defNormalProp(a, prop, b[prop])
+				}
+			return a
+		}
 
 		// Tells importing modules that this can be considered an ES6 module
 		var __markAsModule = target => __defProp(target, '__esModule', { value: true })
@@ -43,7 +114,7 @@ func code(isES6 bool) string {
 
 		// For object rest patterns
 		export var __restKey = key => typeof key === 'symbol' ? key : key + ''
-		export var __rest = (source, exclude) => {
+		export var __objRest = (source, exclude) => {
 			var target = {}
 			for (var prop in source)
 				if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
@@ -70,21 +141,18 @@ func code(isES6 bool) string {
 			return target
 		}
 
+		// This is for lazily-initialized ESM code
+		export var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res)
+
 		// Wraps a CommonJS closure and returns a require() function
-		export var __commonJS = (callback, module) => () => {
-			if (!module) {
-				module = {exports: {}}
-				callback(module.exports, module)
-			}
-			return module.exports
-		}
+		export var __commonJS = (cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports)
 
 		// Used to implement ES6 exports to CommonJS
 		export var __export = (target, all) => {
 			for (var name in all)
 				__defProp(target, name, { get: all[name], enumerable: true })
 		}
-		export var __exportStar = (target, module, desc) => {
+		export var __reExport = (target, module, desc) => {
 			if (module && typeof module === 'object' || typeof module === 'function')
 	`
 
@@ -111,7 +179,7 @@ func code(isES6 bool) string {
 
 		// Converts the module from CommonJS to ES6 if necessary
 		export var __toModule = module => {
-			return __exportStar(__markAsModule(
+			return __reExport(__markAsModule(
 				__defProp(
 					module != null ? __create(__getProtoOf(module)) : {},
 					'default',
@@ -131,7 +199,7 @@ func code(isES6 bool) string {
 		// - kind === undefined: class
 		// - kind === 1: method, parameter
 		// - kind === 2: field
-		export var __decorate = (decorators, target, key, kind) => {
+		export var __decorateClass = (decorators, target, key, kind) => {
 			var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc(target, key) : target
 			for (var i = decorators.length - 1, decorator; i >= 0; i--)
 				if (decorator = decorators[i])
@@ -140,16 +208,19 @@ func code(isES6 bool) string {
 				__defProp(target, key, result)
 			return result
 		}
-		export var __param = (index, decorator) => (target, key) => decorator(target, key, index)
+		export var __decorateParam = (index, decorator) => (target, key) => decorator(target, key, index)
 
 		// For class members
 		export var __publicField = (obj, key, value) => {
-			if (typeof key !== 'symbol') key += ''
-			if (key in obj) return __defProp(obj, key, {enumerable: true, configurable: true, writable: true, value})
-			return obj[key] = value
+			__defNormalProp(obj, typeof key !== 'symbol' ? key + '' : key, value)
+			return value
 		}
 		var __accessCheck = (obj, member, msg) => {
 			if (!member.has(obj)) throw TypeError('Cannot ' + msg)
+		}
+		export var __privateIn = (member, obj) => {
+			if (Object(obj) !== obj) throw TypeError('Cannot use the "in" operator on this value')
+			return member.has(obj)
 		}
 		export var __privateGet = (obj, member, getter) => {
 			__accessCheck(obj, member, 'read from private field')
@@ -159,6 +230,9 @@ func code(isES6 bool) string {
 			__accessCheck(obj, member, 'write to private field')
 			setter ? setter.call(obj, value) : member.set(obj, value)
 			return value
+		}
+		export var __privateAssign = (obj, member, setter) => {
+			return { set _(value) { __privateSet(obj, member, value, setter) } }
 		}
 		export var __privateMethod = (obj, member, method) => {
 			__accessCheck(obj, member, 'access private method')
@@ -182,9 +256,7 @@ func code(isES6 bool) string {
 						reject(e)
 					}
 				}
-				var step = result => {
-					return result.done ? resolve(result.value) : Promise.resolve(result.value).then(fulfilled, rejected)
-				}
+				var step = x => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected)
 				step((generator = generator.apply(__this, __arguments)).next())
 			})
 		}
@@ -231,12 +303,12 @@ var ES5Source = logger.Source{
 // The TypeScript decorator transform behaves similar to the official
 // TypeScript compiler.
 //
-// One difference is that the "__decorate" function doesn't contain a reference
+// One difference is that the "__decorateClass" function doesn't contain a reference
 // to the non-existent "Reflect.decorate" function. This function was never
 // standardized and checking for it is wasted code (as well as a potentially
 // dangerous cause of unintentional behavior changes in the future).
 //
-// Another difference is that the "__decorate" function doesn't take in an
+// Another difference is that the "__decorateClass" function doesn't take in an
 // optional property descriptor like it does in the official TypeScript
 // compiler's support code. This appears to be a dead code path in the official
 // support code that is only there for legacy reasons.
@@ -248,7 +320,7 @@ var ES5Source = logger.Source{
 //   // TypeScript                      // JavaScript
 //   @dec                               let C = class {
 //   class C {                          };
-//   }                                  C = __decorate([
+//   }                                  C = __decorateClass([
 //                                        dec
 //                                      ], C);
 //
@@ -258,7 +330,7 @@ var ES5Source = logger.Source{
 //   class C {                          class C {
 //     @dec                               foo() {}
 //     foo() {}                         }
-//   }                                  __decorate([
+//   }                                  __decorateClass([
 //                                        dec
 //                                      ], C.prototype, 'foo', 1);
 //
@@ -268,8 +340,8 @@ var ES5Source = logger.Source{
 //   class C {                          class C {
 //     foo(@dec bar) {}                   foo(bar) {}
 //   }                                  }
-//                                      __decorate([
-//                                        __param(0, dec)
+//                                      __decorateClass([
+//                                        __decorateParam(0, dec)
 //                                      ], C.prototype, 'foo', 1);
 //
 // ============================= Field decorator ==============================
@@ -280,6 +352,6 @@ var ES5Source = logger.Source{
 //     foo = 123                            this.foo = 123
 //   }                                    }
 //                                      }
-//                                      __decorate([
+//                                      __decorateClass([
 //                                        dec
 //                                      ], C.prototype, 'foo', 2);

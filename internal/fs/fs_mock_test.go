@@ -14,13 +14,13 @@ func TestMockFSBasic(t *testing.T) {
 	})
 
 	// Test a missing file
-	_, err := fs.ReadFile("/missing.txt")
+	_, err, _ := fs.ReadFile("/missing.txt")
 	if err == nil {
 		t.Fatal("Unexpectedly found /missing.txt")
 	}
 
 	// Test an existing file
-	readme, err := fs.ReadFile("/README.md")
+	readme, err, _ := fs.ReadFile("/README.md")
 	if err != nil {
 		t.Fatal("Expected to find /README.md")
 	}
@@ -29,7 +29,7 @@ func TestMockFSBasic(t *testing.T) {
 	}
 
 	// Test an existing nested file
-	index, err := fs.ReadFile("/src/index.js")
+	index, err, _ := fs.ReadFile("/src/index.js")
 	if err != nil {
 		t.Fatal("Expected to find /src/index.js")
 	}
@@ -38,13 +38,13 @@ func TestMockFSBasic(t *testing.T) {
 	}
 
 	// Test a missing directory
-	_, err = fs.ReadDirectory("/missing")
+	_, err, _ = fs.ReadDirectory("/missing")
 	if err == nil {
 		t.Fatal("Unexpectedly found /missing")
 	}
 
 	// Test a nested directory
-	src, err := fs.ReadDirectory("/src")
+	src, err, _ := fs.ReadDirectory("/src")
 	if err != nil {
 		t.Fatal("Expected to find /src")
 	}
@@ -57,7 +57,7 @@ func TestMockFSBasic(t *testing.T) {
 	}
 
 	// Test the top-level directory
-	slash, err := fs.ReadDirectory("/")
+	slash, err, _ := fs.ReadDirectory("/")
 	if err != nil {
 		t.Fatal("Expected to find /")
 	}
@@ -98,4 +98,11 @@ func TestMockFSRel(t *testing.T) {
 	expect("/a/b/c/d", "/a/b/x", "../../x")
 	expect("/a/b/c", "/a/b/x/y", "../x/y")
 	expect("/a/b/c/d", "/a/b/x/y", "../../x/y")
+
+	expect("a/b", "a/c", "../c")
+	expect("./a/b", "./a/c", "../c")
+	expect(".", "./a/b", "a/b")
+	expect(".", ".//a/b", "a/b")
+	expect(".", "././a/b", "a/b")
+	expect(".", "././/a/b", "a/b")
 }

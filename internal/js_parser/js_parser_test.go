@@ -19,7 +19,7 @@ func expectParseErrorCommon(t *testing.T, contents string, expected string, opti
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		Parse(log, test.SourceForTest(contents), OptionsFromConfig(&options))
 		msgs := log.Done()
 		text := ""
@@ -48,7 +48,7 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		options.OmitRuntimeForTests = true
 		tree, ok := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&options))
 		msgs := log.Done()
@@ -63,13 +63,13 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 			t.Fatal("Parse error")
 		}
 		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
+		symbols.SymbolsForSource[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.Options{
 			UnsupportedFeatures: options.UnsupportedJSFeatures,
 			ASCIIOnly:           options.ASCIIOnly,
 		}).JS
-		test.AssertEqual(t, string(js), expected)
+		test.AssertEqualWithDiff(t, string(js), expected)
 	})
 }
 
@@ -228,7 +228,7 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "(x, ...y) => { 'use strict' }", nonSimple)
 	expectParseError(t, "(x, ...y) => { //! @license comment\n 'use strict' }", nonSimple)
 
-	why := "<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword\n"
+	why := "<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n"
 
 	expectPrinted(t, "let x = '\\0'", "let x = \"\\0\";\n")
 	expectPrinted(t, "let x = '\\00'", "let x = \"\\0\";\n")
@@ -356,11 +356,11 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "class f { x() { function y() { with (x) y } } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
 
 	importKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
-		"<stdin>: note: This file is implicitly in strict mode because of the \"import\" keyword\n"
+		"<stdin>: note: This file is implicitly in strict mode because of the \"import\" keyword here\n"
 	exportKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
-		"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword\n"
+		"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n"
 	tlaKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
-		"<stdin>: note: This file is implicitly in strict mode because of the top-level \"await\" keyword\n"
+		"<stdin>: note: This file is implicitly in strict mode because of the \"await\" keyword here\n"
 
 	expectPrinted(t, "import(x); with (y) z", "import(x);\nwith (y)\n  z;\n")
 	expectPrinted(t, "import('x'); with (y) z", "import(\"x\");\nwith (y)\n  z;\n")
@@ -470,7 +470,7 @@ func TestAwait(t *testing.T) {
 
 	expectParseError(t, "await delete x",
 		`<stdin>: error: Delete of a bare identifier cannot be used in strict mode
-<stdin>: note: This file is implicitly in strict mode because of the top-level "await" keyword
+<stdin>: note: This file is implicitly in strict mode because of the "await" keyword here
 `)
 	expectPrinted(t, "async function f() { await delete x }", "async function f() {\n  await delete x;\n}\n")
 }
@@ -1043,6 +1043,9 @@ func TestObject(t *testing.T) {
 	expectParseError(t, "({__proto__, __proto__: 2})", "")
 	expectParseError(t, "({__proto__: x, __proto__: y} = z)", "")
 
+	expectPrintedMangle(t, "x = {['_proto_']: x}", "x = {_proto_: x};\n")
+	expectPrintedMangle(t, "x = {['__proto__']: x}", "x = {[\"__proto__\"]: x};\n")
+
 	expectParseError(t, "({set foo() {}})", "<stdin>: error: Setter \"foo\" must have exactly one argument\n")
 	expectParseError(t, "({get foo(x) {}})", "<stdin>: error: Getter \"foo\" must have zero arguments\n")
 	expectParseError(t, "({set foo(x, y) {}})", "<stdin>: error: Setter \"foo\" must have exactly one argument\n")
@@ -1300,6 +1303,34 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "({ *prototype() {} })", "({*prototype() {\n}});\n")
 	expectPrinted(t, "({ async prototype() {} })", "({async prototype() {\n}});\n")
 	expectPrinted(t, "({ async* prototype() {} })", "({async *prototype() {\n}});\n")
+
+	expectPrintedMangle(t, "class Foo { ['constructor'] = 0 }", "class Foo {\n  [\"constructor\"] = 0;\n}\n")
+	expectPrintedMangle(t, "class Foo { ['constructor']() {} }", "class Foo {\n  constructor() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { *['constructor']() {} }", "class Foo {\n  *[\"constructor\"]() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { get ['constructor']() {} }", "class Foo {\n  get [\"constructor\"]() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { set ['constructor'](x) {} }", "class Foo {\n  set [\"constructor\"](x) {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { async ['constructor']() {} }", "class Foo {\n  async [\"constructor\"]() {\n  }\n}\n")
+
+	expectPrintedMangle(t, "class Foo { static ['constructor'] = 0 }", "class Foo {\n  static [\"constructor\"] = 0;\n}\n")
+	expectPrintedMangle(t, "class Foo { static ['constructor']() {} }", "class Foo {\n  static constructor() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static *['constructor']() {} }", "class Foo {\n  static *constructor() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static get ['constructor']() {} }", "class Foo {\n  static get constructor() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static set ['constructor'](x) {} }", "class Foo {\n  static set constructor(x) {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static async ['constructor']() {} }", "class Foo {\n  static async constructor() {\n  }\n}\n")
+
+	expectPrintedMangle(t, "class Foo { ['prototype'] = 0 }", "class Foo {\n  prototype = 0;\n}\n")
+	expectPrintedMangle(t, "class Foo { ['prototype']() {} }", "class Foo {\n  prototype() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { *['prototype']() {} }", "class Foo {\n  *prototype() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { get ['prototype']() {} }", "class Foo {\n  get prototype() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { set ['prototype'](x) {} }", "class Foo {\n  set prototype(x) {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { async ['prototype']() {} }", "class Foo {\n  async prototype() {\n  }\n}\n")
+
+	expectPrintedMangle(t, "class Foo { static ['prototype'] = 0 }", "class Foo {\n  static [\"prototype\"] = 0;\n}\n")
+	expectPrintedMangle(t, "class Foo { static ['prototype']() {} }", "class Foo {\n  static [\"prototype\"]() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static *['prototype']() {} }", "class Foo {\n  static *[\"prototype\"]() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static get ['prototype']() {} }", "class Foo {\n  static get [\"prototype\"]() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static set ['prototype'](x) {} }", "class Foo {\n  static set [\"prototype\"](x) {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static async ['prototype']() {} }", "class Foo {\n  static async [\"prototype\"]() {\n  }\n}\n")
 }
 
 func TestSuperCall(t *testing.T) {
@@ -1323,6 +1354,21 @@ func TestSuperCall(t *testing.T) {
 		"class Foo extends Bar {\n  constructor(x = super()) {\n  }\n}\n")
 	expectPrinted(t, "class Foo extends Bar { constructor(x = () => super()) {} }",
 		"class Foo extends Bar {\n  constructor(x = () => super()) {\n  }\n}\n")
+
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super() } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); c() } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    c();\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); if (c) throw c } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    if (c)\n      throw c;\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); switch (c) { case 0: throw c } } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    switch (c) {\n      case 0:\n        throw c;\n    }\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); while (!c) throw c } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    for (; !c; )\n      throw c;\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); return c } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    return c;\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); throw c } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    throw c;\n  }\n}\n")
 }
 
 func TestClassFields(t *testing.T) {
@@ -1402,11 +1448,12 @@ func TestYield(t *testing.T) {
 	expectParseError(t, "-yield 100", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
 	expectPrinted(t, "yield\n100", "yield;\n100;\n")
 
-	expectParseError(t, "function* bar(x = yield y) {}", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
-	expectParseError(t, "(function*(x = yield y) {})", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
-	expectParseError(t, "({ *foo(x = yield y) {} })", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
-	expectParseError(t, "class Foo { *foo(x = yield y) {} }", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
-	expectParseError(t, "(class { *foo(x = yield y) {} })", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
+	noYield := "<stdin>: error: The keyword \"yield\" cannot be used here\n"
+	expectParseError(t, "function* bar(x = yield y) {}", noYield+"<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "(function*(x = yield y) {})", noYield+"<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "({ *foo(x = yield y) {} })", noYield+"<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "class Foo { *foo(x = yield y) {} }", noYield+"<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "(class { *foo(x = yield y) {} })", noYield+"<stdin>: error: Expected \")\" but found \"y\"\n")
 
 	expectParseError(t, "function *foo() { function bar(x = yield y) {} }", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
 	expectParseError(t, "function *foo() { (function(x = yield y) {}) }", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
@@ -1425,6 +1472,20 @@ func TestYield(t *testing.T) {
 	expectPrinted(t, "function foo() { let x = {yield} }", "function foo() {\n  let x = {yield};\n}\n")
 	expectParseError(t, "function *foo() { ({yield} = x) }", "<stdin>: error: Cannot use \"yield\" as an identifier here\n")
 	expectParseError(t, "function *foo() { let x = {yield} }", "<stdin>: error: Cannot use \"yield\" as an identifier here\n")
+
+	// Yield as a declaration
+	expectPrinted(t, "({ *yield() {} })", "({*yield() {\n}});\n")
+	expectPrinted(t, "(class { *yield() {} })", "(class {\n  *yield() {\n  }\n});\n")
+	expectPrinted(t, "class Foo { *yield() {} }", "class Foo {\n  *yield() {\n  }\n}\n")
+	expectPrinted(t, "function* yield() {}", "function* yield() {\n}\n")
+	expectParseError(t, "(function* yield() {})", "<stdin>: error: A generator function expression cannot be named \"yield\"\n")
+
+	// Yield as an async declaration
+	expectPrinted(t, "({ async *yield() {} })", "({async *yield() {\n}});\n")
+	expectPrinted(t, "(class { async *yield() {} })", "(class {\n  async *yield() {\n  }\n});\n")
+	expectPrinted(t, "class Foo { async *yield() {} }", "class Foo {\n  async *yield() {\n  }\n}\n")
+	expectPrinted(t, "async function* yield() {}", "async function* yield() {\n}\n")
+	expectParseError(t, "(async function* yield() {})", "<stdin>: error: A generator function expression cannot be named \"yield\"\n")
 }
 
 func TestAsync(t *testing.T) {
@@ -1442,6 +1503,9 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "(x, async function() { await 0 })", "x, async function() {\n  await 0;\n};\n")
 	expectPrinted(t, "new async function() { await 0 }", "new async function() {\n  await 0;\n}();\n")
 	expectPrinted(t, "new async function() { await 0 }.x", "new async function() {\n  await 0;\n}.x();\n")
+
+	friendlyAwaitError := "<stdin>: error: \"await\" can only be used inside an \"async\" function\n" +
+		"<stdin>: note: Consider adding the \"async\" keyword here\n"
 
 	expectPrinted(t, "async", "async;\n")
 	expectPrinted(t, "async + 1", "async + 1;\n")
@@ -1464,7 +1528,7 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "new (async().x)", "new (async()).x();\n")
 	expectParseError(t, "async x;", "<stdin>: error: Expected \"=>\" but found \";\"\n")
 	expectParseError(t, "async (...x,) => {}", "<stdin>: error: Unexpected \",\" after rest pattern\n")
-	expectParseError(t, "async => await 0", "<stdin>: error: Expected \";\" but found \"0\"\n")
+	expectParseError(t, "async => await 0", friendlyAwaitError)
 	expectParseError(t, "new async => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
 	expectParseError(t, "new async () => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
 
@@ -1483,20 +1547,21 @@ func TestAsync(t *testing.T) {
 	expectParseError(t, "export default async x => y, z", "<stdin>: error: Expected \";\" but found \",\"\n")
 	expectParseError(t, "export default async (x) => y, z", "<stdin>: error: Expected \";\" but found \",\"\n")
 
-	expectParseError(t, "async function bar(x = await y) {}", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async (function(x = await y) {})", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async ({ foo(x = await y) {} })", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "class Foo { async foo(x = await y) {} }", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "(class { async foo(x = await y) {} })", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	noAwait := "<stdin>: error: The keyword \"await\" cannot be used here\n"
+	expectParseError(t, "async function bar(x = await y) {}", noAwait+"<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "async (function(x = await y) {})", friendlyAwaitError)
+	expectParseError(t, "async ({ foo(x = await y) {} })", friendlyAwaitError)
+	expectParseError(t, "class Foo { async foo(x = await y) {} }", noAwait+"<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "(class { async foo(x = await y) {} })", noAwait+"<stdin>: error: Expected \")\" but found \"y\"\n")
 
-	expectParseError(t, "async function foo() { function bar(x = await y) {} }", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async function foo() { (function(x = await y) {}) }", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async function foo() { ({ foo(x = await y) {} }) }", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async function foo() { class Foo { foo(x = await y) {} } }", "<stdin>: error: Expected \")\" but found \"y\"\n")
-	expectParseError(t, "async function foo() { (class { foo(x = await y) {} }) }", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "async function foo() { function bar(x = await y) {} }", friendlyAwaitError)
+	expectParseError(t, "async function foo() { (function(x = await y) {}) }", friendlyAwaitError)
+	expectParseError(t, "async function foo() { ({ foo(x = await y) {} }) }", friendlyAwaitError)
+	expectParseError(t, "async function foo() { class Foo { foo(x = await y) {} } }", friendlyAwaitError)
+	expectParseError(t, "async function foo() { (class { foo(x = await y) {} }) }", friendlyAwaitError)
 	expectParseError(t, "async function foo() { (x = await y) => {} }", "<stdin>: error: Cannot use an \"await\" expression here\n")
 	expectPrinted(t, "async function foo() { (x = await y) }", "async function foo() {\n  x = await y;\n}\n")
-	expectParseError(t, "function foo() { (x = await y) }", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "function foo() { (x = await y) }", friendlyAwaitError)
 
 	// Newlines
 	expectPrinted(t, "(class { async \n foo() {} })", "(class {\n  async;\n  foo() {\n  }\n});\n")
@@ -1507,18 +1572,18 @@ func TestAsync(t *testing.T) {
 	// Top-level await
 	expectPrinted(t, "await foo;", "await foo;\n")
 	expectPrinted(t, "for await(foo of bar);", "for await (foo of bar)\n  ;\n")
-	expectParseError(t, "function foo() { await foo }", "<stdin>: error: Expected \";\" but found \"foo\"\n")
+	expectParseError(t, "function foo() { await foo }", friendlyAwaitError)
 	expectParseError(t, "function foo() { for await(foo of bar); }", "<stdin>: error: Cannot use \"await\" outside an async function\n")
 	expectPrinted(t, "function foo(x = await) {}", "function foo(x = await) {\n}\n")
-	expectParseError(t, "function foo(x = await y) {}", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "function foo(x = await y) {}", friendlyAwaitError)
 	expectPrinted(t, "(function(x = await) {})", "(function(x = await) {\n});\n")
-	expectParseError(t, "(function(x = await y) {})", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "(function(x = await y) {})", friendlyAwaitError)
 	expectPrinted(t, "({ foo(x = await) {} })", "({foo(x = await) {\n}});\n")
-	expectParseError(t, "({ foo(x = await y) {} })", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "({ foo(x = await y) {} })", friendlyAwaitError)
 	expectPrinted(t, "class Foo { foo(x = await) {} }", "class Foo {\n  foo(x = await) {\n  }\n}\n")
-	expectParseError(t, "class Foo { foo(x = await y) {} }", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "class Foo { foo(x = await y) {} }", friendlyAwaitError)
 	expectPrinted(t, "(class { foo(x = await) {} })", "(class {\n  foo(x = await) {\n  }\n});\n")
-	expectParseError(t, "(class { foo(x = await y) {} })", "<stdin>: error: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "(class { foo(x = await y) {} })", friendlyAwaitError)
 	expectParseError(t, "(x = await) => {}", "<stdin>: error: Unexpected \")\"\n")
 	expectParseError(t, "(x = await y) => {}", "<stdin>: error: Cannot use an \"await\" expression here\n")
 	expectParseError(t, "(x = await)", "<stdin>: error: Unexpected \")\"\n")
@@ -1557,6 +1622,20 @@ func TestAsync(t *testing.T) {
 	expectParseError(t, "let x = {await}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { ({await} = x) }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { let x = {await} }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+
+	// Await as a declaration
+	expectPrinted(t, "({ async await() {} })", "({async await() {\n}});\n")
+	expectPrinted(t, "(class { async await() {} })", "(class {\n  async await() {\n  }\n});\n")
+	expectPrinted(t, "class Foo { async await() {} }", "class Foo {\n  async await() {\n  }\n}\n")
+	expectParseError(t, "async function await() {}", "<stdin>: error: An async function cannot be named \"await\"\n")
+	expectParseError(t, "(async function await() {})", "<stdin>: error: An async function cannot be named \"await\"\n")
+
+	// Await as a generator declaration
+	expectPrinted(t, "({ async *await() {} })", "({async *await() {\n}});\n")
+	expectPrinted(t, "(class { async *await() {} })", "(class {\n  async *await() {\n  }\n});\n")
+	expectPrinted(t, "class Foo { async *await() {} }", "class Foo {\n  async *await() {\n  }\n}\n")
+	expectParseError(t, "async function* await() {}", "<stdin>: error: An async function cannot be named \"await\"\n")
+	expectParseError(t, "(async function* await() {})", "<stdin>: error: An async function cannot be named \"await\"\n")
 }
 
 func TestLabels(t *testing.T) {
@@ -1595,6 +1674,40 @@ func TestArrow(t *testing.T) {
 	expectParseError(t, "1 < () => {}", "<stdin>: error: Unexpected \")\"\n")
 	expectParseError(t, "(...x = y) => {}", "<stdin>: error: A rest argument cannot have a default initializer\n")
 	expectParseError(t, "([...x = y]) => {}", "<stdin>: error: A rest argument cannot have a default initializer\n")
+
+	// Can assign an arrow function
+	expectPrinted(t, "y = x => {}", "y = (x) => {\n};\n")
+	expectPrinted(t, "y = () => {}", "y = () => {\n};\n")
+	expectPrinted(t, "y = (x) => {}", "y = (x) => {\n};\n")
+	expectPrinted(t, "y = async x => {}", "y = async (x) => {\n};\n")
+	expectPrinted(t, "y = async () => {}", "y = async () => {\n};\n")
+	expectPrinted(t, "y = async (x) => {}", "y = async (x) => {\n};\n")
+
+	// Cannot add an arrow function
+	expectPrinted(t, "1 + function () {}", "1 + function() {\n};\n")
+	expectPrinted(t, "1 + async function () {}", "1 + async function() {\n};\n")
+	expectParseError(t, "1 + x => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
+	expectParseError(t, "1 + () => {}", "<stdin>: error: Unexpected \")\"\n")
+	expectParseError(t, "1 + (x) => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
+	expectParseError(t, "1 + async x => {}", "<stdin>: error: Expected \";\" but found \"x\"\n")
+	expectParseError(t, "1 + async () => {}", "<stdin>: error: Unexpected \"=>\"\n")
+	expectParseError(t, "1 + async (x) => {}", "<stdin>: error: Unexpected \"=>\"\n")
+
+	// Cannot extend an arrow function
+	expectPrinted(t, "class Foo extends function () {} {}", "class Foo extends function() {\n} {\n}\n")
+	expectPrinted(t, "class Foo extends async function () {} {}", "class Foo extends async function() {\n} {\n}\n")
+	expectParseError(t, "class Foo extends x => {} {}", "<stdin>: error: Expected \"{\" but found \"=>\"\n")
+	expectParseError(t, "class Foo extends () => {} {}", "<stdin>: error: Unexpected \")\"\n")
+	expectParseError(t, "class Foo extends (x) => {} {}", "<stdin>: error: Expected \"{\" but found \"=>\"\n")
+	expectParseError(t, "class Foo extends async x => {} {}", "<stdin>: error: Expected \"{\" but found \"x\"\n")
+	expectParseError(t, "class Foo extends async () => {} {}", "<stdin>: error: Unexpected \"=>\"\n")
+	expectParseError(t, "class Foo extends async (x) => {} {}", "<stdin>: error: Unexpected \"=>\"\n")
+	expectParseError(t, "(class extends x => {} {})", "<stdin>: error: Expected \"{\" but found \"=>\"\n")
+	expectParseError(t, "(class extends () => {} {})", "<stdin>: error: Unexpected \")\"\n")
+	expectParseError(t, "(class extends (x) => {} {})", "<stdin>: error: Expected \"{\" but found \"=>\"\n")
+	expectParseError(t, "(class extends async x => {} {})", "<stdin>: error: Expected \"{\" but found \"x\"\n")
+	expectParseError(t, "(class extends async () => {} {})", "<stdin>: error: Unexpected \"=>\"\n")
+	expectParseError(t, "(class extends async (x) => {} {})", "<stdin>: error: Unexpected \"=>\"\n")
 
 	expectParseError(t, "() => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
 	expectParseError(t, "x => {}(0)", "<stdin>: error: Expected \";\" but found \"(\"\n")
@@ -2025,6 +2138,22 @@ func TestImport(t *testing.T) {
 	expectParseError(t, "import {x as \\u0061rguments} from 'foo'", "<stdin>: error: Cannot use \"arguments\" as an identifier here\n")
 	expectPrinted(t, "import {arguments as x} from 'foo'", "import {arguments as x} from \"foo\";\n")
 	expectPrinted(t, "import {\\u0061rguments as x} from 'foo'", "import {arguments as x} from \"foo\";\n")
+
+	// String import alias with "import {} from"
+	expectPrinted(t, "import {'' as x} from 'foo'", "import {\"\" as x} from \"foo\";\n")
+	expectPrinted(t, "import {'🍕' as x} from 'foo'", "import {\"🍕\" as x} from \"foo\";\n")
+	expectPrinted(t, "import {'a b' as x} from 'foo'", "import {\"a b\" as x} from \"foo\";\n")
+	expectPrinted(t, "import {'\\uD800\\uDC00' as x} from 'foo'", "import {𐀀 as x} from \"foo\";\n")
+	expectParseError(t, "import {'x'} from 'foo'", "<stdin>: error: Expected \"as\" but found \"}\"\n")
+	expectParseError(t, "import {'\\uD800' as x} from 'foo'",
+		"<stdin>: error: This import alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
+	expectParseError(t, "import {'\\uDC00' as x} from 'foo'",
+		"<stdin>: error: This import alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
+	expectParseErrorTarget(t, 2020, "import {'' as x} from 'foo'",
+		"<stdin>: error: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
+
+	// String import alias with "import * as"
+	expectParseError(t, "import * as '' from 'foo'", "<stdin>: error: Expected identifier but found \"''\"\n")
 }
 
 func TestExport(t *testing.T) {
@@ -2051,6 +2180,62 @@ func TestExport(t *testing.T) {
 	expectParseError(t, "export async", "<stdin>: error: Expected \"function\" but found end of file\n")
 	expectParseError(t, "export async function", "<stdin>: error: Expected identifier but found end of file\n")
 	expectParseError(t, "export async () => {}", "<stdin>: error: Expected \"function\" but found \"(\"\n")
+
+	// String export alias with "export {}"
+	expectPrinted(t, "let x; export {x as ''}", "let x;\nexport {x as \"\"};\n")
+	expectPrinted(t, "let x; export {x as '🍕'}", "let x;\nexport {x as \"🍕\"};\n")
+	expectPrinted(t, "let x; export {x as 'a b'}", "let x;\nexport {x as \"a b\"};\n")
+	expectPrinted(t, "let x; export {x as '\\uD800\\uDC00'}", "let x;\nexport {x as 𐀀};\n")
+	expectParseError(t, "let x; export {'x'}", "<stdin>: error: Expected identifier but found \"'x'\"\n")
+	expectParseError(t, "let x; export {'x' as 'y'}", "<stdin>: error: Expected identifier but found \"'x'\"\n")
+	expectParseError(t, "let x; export {x as '\\uD800'}",
+		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
+	expectParseError(t, "let x; export {x as '\\uDC00'}",
+		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
+	expectParseErrorTarget(t, 2020, "let x; export {x as ''}",
+		"<stdin>: error: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
+
+	// String import alias with "export {} from"
+	expectPrinted(t, "export {'' as x} from 'foo'", "export {\"\" as x} from \"foo\";\n")
+	expectPrinted(t, "export {'🍕' as x} from 'foo'", "export {\"🍕\" as x} from \"foo\";\n")
+	expectPrinted(t, "export {'a b' as x} from 'foo'", "export {\"a b\" as x} from \"foo\";\n")
+	expectPrinted(t, "export {'\\uD800\\uDC00' as x} from 'foo'", "export {𐀀 as x} from \"foo\";\n")
+	expectParseError(t, "export {'\\uD800' as x} from 'foo'",
+		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
+	expectParseError(t, "export {'\\uDC00' as x} from 'foo'",
+		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
+	expectParseErrorTarget(t, 2020, "export {'' as x} from 'foo'",
+		"<stdin>: error: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
+
+	// String export alias with "export {} from"
+	expectPrinted(t, "export {x as ''} from 'foo'", "export {x as \"\"} from \"foo\";\n")
+	expectPrinted(t, "export {x as '🍕'} from 'foo'", "export {x as \"🍕\"} from \"foo\";\n")
+	expectPrinted(t, "export {x as 'a b'} from 'foo'", "export {x as \"a b\"} from \"foo\";\n")
+	expectPrinted(t, "export {x as '\\uD800\\uDC00'} from 'foo'", "export {x as 𐀀} from \"foo\";\n")
+	expectParseError(t, "export {x as '\\uD800'} from 'foo'",
+		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
+	expectParseError(t, "export {x as '\\uDC00'} from 'foo'",
+		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
+	expectParseErrorTarget(t, 2020, "export {x as ''} from 'foo'",
+		"<stdin>: error: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
+
+	// String import and export alias with "export {} from"
+	expectPrinted(t, "export {'x'} from 'foo'", "export {x} from \"foo\";\n")
+	expectPrinted(t, "export {'a b'} from 'foo'", "export {\"a b\"} from \"foo\";\n")
+	expectPrinted(t, "export {'x' as 'y'} from 'foo'", "export {x as y} from \"foo\";\n")
+	expectPrinted(t, "export {'a b' as 'c d'} from 'foo'", "export {\"a b\" as \"c d\"} from \"foo\";\n")
+
+	// String export alias with "export * as"
+	expectPrinted(t, "export * as '' from 'foo'", "export * as \"\" from \"foo\";\n")
+	expectPrinted(t, "export * as '🍕' from 'foo'", "export * as \"🍕\" from \"foo\";\n")
+	expectPrinted(t, "export * as 'a b' from 'foo'", "export * as \"a b\" from \"foo\";\n")
+	expectPrinted(t, "export * as '\\uD800\\uDC00' from 'foo'", "export * as 𐀀 from \"foo\";\n")
+	expectParseError(t, "export * as '\\uD800' from 'foo'",
+		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
+	expectParseError(t, "export * as '\\uDC00' from 'foo'",
+		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
+	expectParseErrorTarget(t, 2020, "export * as '' from 'foo'",
+		"<stdin>: error: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
 }
 
 func TestExportDuplicates(t *testing.T) {
@@ -2557,6 +2742,13 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "let b; a = null === b || b === undefined ? c : b", "let b;\na = b ?? c;\n")
 	expectPrintedMangle(t, "let b; a = b !== undefined && b !== null ? b : c", "let b;\na = b ?? c;\n")
 
+	// Distinguish between negative an non-negative zero (i.e. Object.is)
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Equality_comparisons_and_sameness
+	expectPrintedMangle(t, "a(b ? 0 : 0)", "a((b, 0));\n")
+	expectPrintedMangle(t, "a(b ? +0 : -0)", "a(b ? 0 : -0);\n")
+	expectPrintedMangle(t, "a(b ? +0 : 0)", "a((b, 0));\n")
+	expectPrintedMangle(t, "a(b ? -0 : 0)", "a(b ? -0 : 0);\n")
+
 	expectPrintedMangle(t, "a ? b : b", "a, b;\n")
 	expectPrintedMangle(t, "let a; a ? b : b", "let a;\nb;\n")
 
@@ -2677,7 +2869,7 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 		expectPrintedMangle(t, "y(x && "+value+")", "y(x && "+value+");\n")
 		expectPrintedMangle(t, "y(x || "+value+")", "y(x || "+value+");\n")
 
-		expectPrintedMangle(t, "y(!(x && "+value+"))", "y((x, true));\n")
+		expectPrintedMangle(t, "y(!(x && "+value+"))", "y(!(x && "+value+"));\n")
 		expectPrintedMangle(t, "y(!(x || "+value+"))", "y(!x);\n")
 
 		expectPrintedMangle(t, "if (x && "+value+") y", "x;\n")
@@ -2698,7 +2890,7 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 		expectPrintedMangle(t, "y(x || "+value+")", "y(x || "+value+");\n")
 
 		expectPrintedMangle(t, "y(!(x && "+value+"))", "y(!x);\n")
-		expectPrintedMangle(t, "y(!(x || "+value+"))", "y((x, false));\n")
+		expectPrintedMangle(t, "y(!(x || "+value+"))", "y(!(x || "+value+"));\n")
 
 		expectPrintedMangle(t, "if (x && "+value+") y", "x && y;\n")
 		expectPrintedMangle(t, "if (x || "+value+") y", "x, y;\n")
@@ -2720,7 +2912,7 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 		expectPrintedMangle(t, "y(x && "+value+")", "y(x && "+value+");\n")
 		expectPrintedMangle(t, "y(x || "+value+")", "y(x || "+value+");\n")
 
-		expectPrintedMangle(t, "y(!(x && "+value+"))", "y((x, !"+value+"));\n")
+		expectPrintedMangle(t, "y(!(x && "+value+"))", "y(!(x && "+value+"));\n")
 		expectPrintedMangle(t, "y(!(x || "+value+"))", "y(!(x || "+value+"));\n")
 
 		expectPrintedMangle(t, "if (x || "+value+") y", "(x || "+value+") && y;\n")
@@ -2735,7 +2927,7 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 		expectPrintedMangle(t, "y(x && "+value+")", "y(x && "+value+");\n")
 		expectPrintedMangle(t, "y(x || "+value+")", "y(x || "+value+");\n")
 
-		expectPrintedMangle(t, "y(!(x || "+value+"))", "y((x, !"+value+"));\n")
+		expectPrintedMangle(t, "y(!(x || "+value+"))", "y(!(x || "+value+"));\n")
 		expectPrintedMangle(t, "y(!(x && "+value+"))", "y(!(x && "+value+"));\n")
 
 		expectPrintedMangle(t, "if (x && "+value+") y", "x && "+value+" && y;\n")
@@ -2890,6 +3082,30 @@ func TestMangleObject(t *testing.T) {
 	expectPrintedMangle(t, "x = {a, ...'123', b}", "x = {a, ...\"123\", b};\n")
 	expectPrintedMangle(t, "x = {a, ...[1, 2, 3], b}", "x = {a, ...[1, 2, 3], b};\n")
 	expectPrintedMangle(t, "x = {a, ...(()=>{})(), b}", "x = {a, ...(() => {\n})(), b};\n")
+
+	// Check simple cases of object simplification (advanced cases are checked in end-to-end tests)
+	expectPrintedMangle(t, "x = {['y']: z}.y", "x = {y: z}.y;\n")
+	expectPrintedMangle(t, "x = {['y']: z}.y; var z", "x = z;\nvar z;\n")
+	expectPrintedMangle(t, "x = {foo: foo(), y: 1}.y", "x = {foo: foo(), y: 1}.y;\n")
+	expectPrintedMangle(t, "x = {foo: /* @__PURE__ */ foo(), y: 1}.y", "x = 1;\n")
+	expectPrintedMangle(t, "x = {__proto__: null}.y", "x = void 0;\n")
+	expectPrintedMangle(t, "x = {__proto__: null, y: 1}.y", "x = 1;\n")
+	expectPrintedMangle(t, "x = {__proto__: null}.__proto__", "x = void 0;\n")
+	expectPrintedMangle(t, "x = {['__proto__']: null}.y", "x = {[\"__proto__\"]: null}.y;\n")
+	expectPrintedMangle(t, "x = {['__proto__']: null, y: 1}.y", "x = {[\"__proto__\"]: null, y: 1}.y;\n")
+	expectPrintedMangle(t, "x = {['__proto__']: null}.__proto__", "x = {[\"__proto__\"]: null}.__proto__;\n")
+
+	expectPrinted(t, "x = {y: 1}?.y", "x = {y: 1}?.y;\n")
+	expectPrinted(t, "x = {y: 1}?.['y']", "x = {y: 1}?.[\"y\"];\n")
+	expectPrinted(t, "x = {y: {z: 1}}?.y.z", "x = {y: {z: 1}}?.y.z;\n")
+	expectPrinted(t, "x = {y: {z: 1}}?.y?.z", "x = {y: {z: 1}}?.y?.z;\n")
+	expectPrinted(t, "x = {y() {}}?.y()", "x = {y() {\n}}?.y();\n")
+
+	expectPrintedMangle(t, "x = {y: 1}?.y", "x = 1;\n")
+	expectPrintedMangle(t, "x = {y: 1}?.['y']", "x = 1;\n")
+	expectPrintedMangle(t, "x = {y: {z: 1}}?.y.z", "x = 1;\n")
+	expectPrintedMangle(t, "x = {y: {z: 1}}?.y?.z", "x = {z: 1}?.z;\n")
+	expectPrintedMangle(t, "x = {y() {}}?.y()", "x = {y() {\n}}.y();\n")
 }
 
 func TestMangleArrow(t *testing.T) {
@@ -3580,6 +3796,8 @@ func TestReplacementCharacter(t *testing.T) {
 func TestNewTarget(t *testing.T) {
 	expectPrinted(t, "new.target", "new.target;\n")
 	expectPrinted(t, "(new.target)", "new.target;\n")
+
+	expectParseError(t, "new.t\\u0061rget", "<stdin>: error: Unexpected \"t\\\\u0061rget\"\n")
 }
 
 func TestJSX(t *testing.T) {
@@ -3822,19 +4040,26 @@ func TestPreserveOptionalChainParentheses(t *testing.T) {
 
 func TestPrivateIdentifiers(t *testing.T) {
 	expectParseError(t, "#foo", "<stdin>: error: Unexpected \"#foo\"\n")
+	expectParseError(t, "#foo in this", "<stdin>: error: Unexpected \"#foo\"\n")
 	expectParseError(t, "this.#foo", "<stdin>: error: Expected identifier but found \"#foo\"\n")
 	expectParseError(t, "this?.#foo", "<stdin>: error: Expected identifier but found \"#foo\"\n")
 	expectParseError(t, "({ #foo: 1 })", "<stdin>: error: Expected identifier but found \"#foo\"\n")
 	expectParseError(t, "class Foo { x = { #foo: 1 } }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseError(t, "class Foo { x = #foo }", "<stdin>: error: Expected \"in\" but found \"}\"\n")
 	expectParseError(t, "class Foo { #foo; foo() { delete this.#foo } }",
 		"<stdin>: error: Deleting the private name \"#foo\" is forbidden\n")
 	expectParseError(t, "class Foo { #foo; foo() { delete this?.#foo } }",
 		"<stdin>: error: Deleting the private name \"#foo\" is forbidden\n")
 	expectParseError(t, "class Foo extends Bar { #foo; foo() { super.#foo } }",
 		"<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseError(t, "class Foo { #foo = () => { for (#foo in this) ; } }",
+		"<stdin>: error: Unexpected \"#foo\"\n")
+	expectParseError(t, "class Foo { #foo = () => { for (x = #foo in this) ; } }",
+		"<stdin>: error: Unexpected \"#foo\"\n")
 
 	expectPrinted(t, "class Foo { #foo }", "class Foo {\n  #foo;\n}\n")
 	expectPrinted(t, "class Foo { #foo = 1 }", "class Foo {\n  #foo = 1;\n}\n")
+	expectPrinted(t, "class Foo { #foo = #foo in this }", "class Foo {\n  #foo = #foo in this;\n}\n")
 	expectPrinted(t, "class Foo { #foo() {} }", "class Foo {\n  #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { get #foo() {} }", "class Foo {\n  get #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { set #foo(x) {} }", "class Foo {\n  set #foo(x) {\n  }\n}\n")
@@ -3889,6 +4114,8 @@ func TestPrivateIdentifiers(t *testing.T) {
 		"<stdin>: error: Private name \"#foo\" must be declared in an enclosing class\n")
 	expectParseError(t, "class Foo { #foo } class Bar { foo = this?.#foo }",
 		"<stdin>: error: Private name \"#foo\" must be declared in an enclosing class\n")
+	expectParseError(t, "class Foo { #foo } class Bar { foo = #foo in this }",
+		"<stdin>: error: Private name \"#foo\" must be declared in an enclosing class\n")
 
 	// Getter and setter warnings
 	expectParseError(t, "class Foo { get #x() { this.#x = 1 } }",
@@ -3899,6 +4126,12 @@ func TestPrivateIdentifiers(t *testing.T) {
 		"<stdin>: warning: Reading from setter-only property \"#x\" will throw\n")
 	expectParseError(t, "class Foo { set #x(x) { this.#x += 1 } }",
 		"<stdin>: warning: Reading from setter-only property \"#x\" will throw\n")
+
+	// Writing to method warnings
+	expectParseError(t, "class Foo { #x() { this.#x = 1 } }",
+		"<stdin>: warning: Writing to read-only method \"#x\" will throw\n")
+	expectParseError(t, "class Foo { #x() { this.#x += 1 } }",
+		"<stdin>: warning: Writing to read-only method \"#x\" will throw\n")
 
 	expectPrinted(t, `class Foo {
 	#if
