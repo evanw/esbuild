@@ -177,7 +177,13 @@ let ensureServiceIsRunning = (): Promise<Service> => {
       })
 
       stopService = () => {
+        // Close all resources related to the subprocess.
+        child.stdin.close()
+        child.stdout.close()
         child.close()
+        initializeWasCalled = false;
+        longLivedService = undefined;
+        stopService = undefined
       }
 
       let writeQueue: Uint8Array[] = []
@@ -211,6 +217,13 @@ let ensureServiceIsRunning = (): Promise<Service> => {
         } else {
           readFromStdout(stdoutBuffer.subarray(0, n))
           readMoreStdout()
+        }
+      }).catch(e => {
+        if (e instanceof Deno.errors.Interrupted || e instanceof Deno.errors.BadResource) {
+          // ignore the error if read was interrupted (stdout was closed)
+          afterClose()
+        } else {
+          throw e;
         }
       })
       readMoreStdout()
