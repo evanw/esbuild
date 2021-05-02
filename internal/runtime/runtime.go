@@ -142,10 +142,10 @@ func code(isES6 bool) string {
 		}
 
 		// This is for lazily-initialized ESM code
-		export var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res)
+		export var __esm = (fn, res) => function __esmWrapper() { return fn && (res = fn(fn = 0)), res }
 
 		// Wraps a CommonJS closure and returns a require() function
-		export var __commonJS = (cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports)
+		export var __commonJS = (cb, mod) => function __commonJSWrapper() { return mod || cb((mod = {exports: {}}).exports, mod), mod.exports }
 
 		// Used to implement ES6 exports to CommonJS
 		export var __export = (target, all) => {
