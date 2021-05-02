@@ -52,7 +52,7 @@ test-wasm-browser: platform-wasm | scripts/browser/node_modules
 	cd scripts/browser && node browser-tests.js
 
 test-deno: esbuild platform-deno
-	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno run --allow-run --allow-env --allow-net --allow-read --allow-write scripts/deno-tests.js
+	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno test --allow-run --allow-env --allow-net --allow-read --allow-write --no-check scripts/deno-tests.js
 
 register-test: cmd/esbuild/version.go | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
