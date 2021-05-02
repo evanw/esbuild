@@ -180,7 +180,12 @@ const tests = {
         {
           name: 'x',
           setup(build) {
-            build.onResolve({filter: /./}, () => undefined)
+            build.onStart(() => {})
+            build.onStart(async () => {})
+            build.onStart(() => ({ warnings: [{text: '', location: {file: '', line: 0}}] }))
+            build.onStart(async () => ({ warnings: [{text: '', location: {file: '', line: 0}}] }))
+            build.onEnd(result => {})
+            build.onEnd(async result => {})
             build.onLoad({filter: /./}, () => undefined)
             build.onResolve({filter: /./, namespace: ''}, args => {
               let path: string = args.path;
