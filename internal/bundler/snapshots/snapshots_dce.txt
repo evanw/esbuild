@@ -107,8 +107,10 @@ console.log("unused import");
 TestImportReExportOfNamespaceImport
 ---------- /out.js ----------
 // Users/user/project/node_modules/pkg/foo.js
-var require_foo = __commonJS((exports, module) => {
-  module.exports = 123;
+var require_foo = __commonJS({
+  "Users/user/project/node_modules/pkg/foo.js"(exports, module) {
+    module.exports = 123;
+  }
 });
 
 // Users/user/project/node_modules/pkg/index.js
@@ -147,9 +149,11 @@ __export(index_main_exports, {
   foo: () => foo
 });
 var foo;
-var init_index_main = __esm(() => {
-  foo = 123;
-  console.log("this should be kept");
+var init_index_main = __esm({
+  "Users/user/project/node_modules/demo-pkg/index-main.js"() {
+    foo = 123;
+    console.log("this should be kept");
+  }
 });
 
 // Users/user/project/src/entry.js
@@ -191,9 +195,11 @@ __export(index_main_exports, {
   foo: () => foo
 });
 var foo;
-var init_index_main = __esm(() => {
-  foo = 123;
-  console.log("this should be kept");
+var init_index_main = __esm({
+  "Users/user/project/node_modules/demo-pkg/index-main.js"() {
+    foo = 123;
+    console.log("this should be kept");
+  }
 });
 
 // Users/user/project/src/require-demo-pkg.js
@@ -237,13 +243,17 @@ TestPackageJsonSideEffectsFalseAllFork
 ---------- /out.js ----------
 // Users/user/project/node_modules/c/index.js
 var foo;
-var init_c = __esm(() => {
-  foo = "foo";
+var init_c = __esm({
+  "Users/user/project/node_modules/c/index.js"() {
+    foo = "foo";
+  }
 });
 
 // Users/user/project/node_modules/b/index.js
-var init_b = __esm(() => {
-  init_c();
+var init_b = __esm({
+  "Users/user/project/node_modules/b/index.js"() {
+    init_c();
+  }
 });
 
 // Users/user/project/node_modules/a/index.js
@@ -251,8 +261,10 @@ var a_exports = {};
 __export(a_exports, {
   foo: () => foo
 });
-var init_a = __esm(() => {
-  init_b();
+var init_a = __esm({
+  "Users/user/project/node_modules/a/index.js"() {
+    init_b();
+  }
 });
 
 // Users/user/project/src/entry.js
@@ -317,9 +329,11 @@ console.log(foo);
 TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js
-var require_demo_pkg = __commonJS((exports) => {
-  exports.foo = 123;
-  console.log("hello");
+var require_demo_pkg = __commonJS({
+  "Users/user/project/node_modules/demo-pkg/index.js"(exports) {
+    exports.foo = 123;
+    console.log("hello");
+  }
 });
 
 // Users/user/project/src/entry.js
@@ -335,9 +349,11 @@ __export(demo_pkg_exports, {
   foo: () => foo
 });
 var foo;
-var init_demo_pkg = __esm(() => {
-  foo = 123;
-  console.log("hello");
+var init_demo_pkg = __esm({
+  "Users/user/project/node_modules/demo-pkg/index.js"() {
+    foo = 123;
+    console.log("hello");
+  }
 });
 
 // Users/user/project/src/entry.js
@@ -348,9 +364,11 @@ console.log("unused import");
 TestPackageJsonSideEffectsFalseKeepNamedImportCommonJS
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js
-var require_demo_pkg = __commonJS((exports) => {
-  exports.foo = 123;
-  console.log("hello");
+var require_demo_pkg = __commonJS({
+  "Users/user/project/node_modules/demo-pkg/index.js"(exports) {
+    exports.foo = 123;
+    console.log("hello");
+  }
 });
 
 // Users/user/project/src/entry.js
@@ -371,9 +389,11 @@ console.log(foo);
 TestPackageJsonSideEffectsFalseKeepStarImportCommonJS
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js
-var require_demo_pkg = __commonJS((exports) => {
-  exports.foo = 123;
-  console.log("hello");
+var require_demo_pkg = __commonJS({
+  "Users/user/project/node_modules/demo-pkg/index.js"(exports) {
+    exports.foo = 123;
+    console.log("hello");
+  }
 });
 
 // Users/user/project/src/entry.js
@@ -408,18 +428,24 @@ TestPackageJsonSideEffectsFalseOneFork
 ---------- /out.js ----------
 // Users/user/project/node_modules/c/index.js
 var foo;
-var init_c = __esm(() => {
-  foo = "foo";
+var init_c = __esm({
+  "Users/user/project/node_modules/c/index.js"() {
+    foo = "foo";
+  }
 });
 
 // Users/user/project/node_modules/d/index.js
-var init_d = __esm(() => {
+var init_d = __esm({
+  "Users/user/project/node_modules/d/index.js"() {
+  }
 });
 
 // Users/user/project/node_modules/b/index.js
-var init_b = __esm(() => {
-  init_c();
-  init_d();
+var init_b = __esm({
+  "Users/user/project/node_modules/b/index.js"() {
+    init_c();
+    init_d();
+  }
 });
 
 // Users/user/project/node_modules/a/index.js
@@ -427,8 +453,10 @@ var a_exports = {};
 __export(a_exports, {
   foo: () => foo
 });
-var init_a = __esm(() => {
-  init_b();
+var init_a = __esm({
+  "Users/user/project/node_modules/a/index.js"() {
+    init_b();
+  }
 });
 
 // Users/user/project/src/entry.js
@@ -489,9 +517,11 @@ console.log("unused import");
 TestPackageJsonSideEffectsTrueKeepCommonJS
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js
-var require_demo_pkg = __commonJS((exports) => {
-  exports.foo = 123;
-  console.log("hello");
+var require_demo_pkg = __commonJS({
+  "Users/user/project/node_modules/demo-pkg/index.js"(exports) {
+    exports.foo = 123;
+    console.log("hello");
+  }
 });
 
 // Users/user/project/src/entry.js
@@ -639,9 +669,11 @@ TestTreeShakingInESMWrapper
 ---------- /out.js ----------
 // lib.js
 var keep1, keep2;
-var init_lib = __esm(() => {
-  keep1 = () => "keep1";
-  keep2 = () => "keep2";
+var init_lib = __esm({
+  "lib.js"() {
+    keep1 = () => "keep1";
+    keep2 = () => "keep2";
+  }
 });
 
 // cjs.js
@@ -650,9 +682,11 @@ __export(cjs_exports, {
   default: () => cjs_default
 });
 var cjs_default;
-var init_cjs = __esm(() => {
-  init_lib();
-  cjs_default = keep2();
+var init_cjs = __esm({
+  "cjs.js"() {
+    init_lib();
+    cjs_default = keep2();
+  }
 });
 
 // entry.js

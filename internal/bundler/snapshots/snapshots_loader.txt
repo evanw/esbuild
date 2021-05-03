@@ -1,8 +1,10 @@
 TestAutoDetectMimeTypeFromExtension
 ---------- /out.js ----------
 // test.svg
-var require_test = __commonJS((exports, module) => {
-  module.exports = "data:image/svg+xml;base64,YQBigGP/ZA==";
+var require_test = __commonJS({
+  "test.svg"(exports, module) {
+    module.exports = "data:image/svg+xml;base64,YQBigGP/ZA==";
+  }
 });
 
 // entry.js
@@ -18,8 +20,10 @@ console.log(/* @__PURE__ */ React.createElement("div", null));
 TestLoaderBase64CommonJSAndES6
 ---------- /out.js ----------
 // x.b64
-var require_x = __commonJS((exports, module) => {
-  module.exports = "eA==";
+var require_x = __commonJS({
+  "x.b64"(exports, module) {
+    module.exports = "eA==";
+  }
 });
 
 // y.b64
@@ -33,8 +37,10 @@ console.log(x_b64, y_default);
 TestLoaderDataURLCommonJSAndES6
 ---------- /out.js ----------
 // x.txt
-var require_x = __commonJS((exports, module) => {
-  module.exports = "data:text/plain;charset=utf-8;base64,eA==";
+var require_x = __commonJS({
+  "x.txt"(exports, module) {
+    module.exports = "data:text/plain;charset=utf-8;base64,eA==";
+  }
 });
 
 // y.txt
@@ -50,8 +56,10 @@ TestLoaderFile
 <svg></svg>
 ---------- /out/entry.js ----------
 // test.svg
-var require_test = __commonJS((exports, module) => {
-  module.exports = "./test-IPILGNO5.svg";
+var require_test = __commonJS({
+  "test.svg"(exports, module) {
+    module.exports = "./test-IPILGNO5.svg";
+  }
 });
 
 // entry.js
@@ -65,8 +73,10 @@ y
 x
 ---------- /out.js ----------
 // x.txt
-var require_x = __commonJS((exports, module) => {
-  module.exports = "./x-LSAMBFUD.txt";
+var require_x = __commonJS({
+  "x.txt"(exports, module) {
+    module.exports = "./x-LSAMBFUD.txt";
+  }
 });
 
 // y.txt
@@ -82,13 +92,17 @@ TestLoaderFileMultipleNoCollision
 test
 ---------- /dist/out.js ----------
 // a/test.txt
-var require_test = __commonJS((exports, module) => {
-  module.exports = "./test-J7OMUXO3.txt";
+var require_test = __commonJS({
+  "a/test.txt"(exports, module) {
+    module.exports = "./test-J7OMUXO3.txt";
+  }
 });
 
 // b/test.txt
-var require_test2 = __commonJS((exports, module) => {
-  module.exports = "./test-J7OMUXO3.txt";
+var require_test2 = __commonJS({
+  "b/test.txt"(exports, module) {
+    module.exports = "./test-J7OMUXO3.txt";
+  }
 });
 
 // entry.js
@@ -98,8 +112,10 @@ console.log(require_test(), require_test2());
 TestLoaderJSONCommonJSAndES6
 ---------- /out.js ----------
 // x.json
-var require_x = __commonJS((exports, module) => {
-  module.exports = {x: true};
+var require_x = __commonJS({
+  "x.json"(exports, module) {
+    module.exports = {x: true};
+  }
 });
 
 // y.json
@@ -169,8 +185,10 @@ export {
 TestLoaderJSONNoBundleIIFE
 ---------- /out.js ----------
 (() => {
-  var require_test = __commonJS((exports, module) => {
-    module.exports = {test: 123, "invalid-identifier": true};
+  var require_test = __commonJS({
+    "test.json"(exports, module) {
+      module.exports = {test: 123, "invalid-identifier": true};
+    }
   });
   require_test();
 })();
@@ -197,8 +215,10 @@ console.log("b:", data_default);
 TestLoaderTextCommonJSAndES6
 ---------- /out.js ----------
 // x.txt
-var require_x = __commonJS((exports, module) => {
-  module.exports = "x";
+var require_x = __commonJS({
+  "x.txt"(exports, module) {
+    module.exports = "x";
+  }
 });
 
 // y.txt
@@ -212,8 +232,10 @@ console.log(x_txt, y_default);
 TestRequireCustomExtensionBase64
 ---------- /out.js ----------
 // test.custom
-var require_test = __commonJS((exports, module) => {
-  module.exports = "YQBigGP/ZA==";
+var require_test = __commonJS({
+  "test.custom"(exports, module) {
+    module.exports = "YQBigGP/ZA==";
+  }
 });
 
 // entry.js
@@ -223,8 +245,10 @@ console.log(require_test());
 TestRequireCustomExtensionDataURL
 ---------- /out.js ----------
 // test.custom
-var require_test = __commonJS((exports, module) => {
-  module.exports = "data:application/octet-stream;base64,YQBigGP/ZA==";
+var require_test = __commonJS({
+  "test.custom"(exports, module) {
+    module.exports = "data:application/octet-stream;base64,YQBigGP/ZA==";
+  }
 });
 
 // entry.js
@@ -234,13 +258,17 @@ console.log(require_test());
 TestRequireCustomExtensionPreferLongest
 ---------- /out.js ----------
 // test.txt
-var require_test = __commonJS((exports, module) => {
-  module.exports = "test.txt";
+var require_test = __commonJS({
+  "test.txt"(exports, module) {
+    module.exports = "test.txt";
+  }
 });
 
 // test.base64.txt
-var require_test_base64 = __commonJS((exports, module) => {
-  module.exports = "dGVzdC5iYXNlNjQudHh0";
+var require_test_base64 = __commonJS({
+  "test.base64.txt"(exports, module) {
+    module.exports = "dGVzdC5iYXNlNjQudHh0";
+  }
 });
 
 // entry.js
@@ -250,8 +278,10 @@ console.log(require_test(), require_test_base64());
 TestRequireCustomExtensionString
 ---------- /out.js ----------
 // test.custom
-var require_test = __commonJS((exports, module) => {
-  module.exports = "#include <stdio.h>";
+var require_test = __commonJS({
+  "test.custom"(exports, module) {
+    module.exports = "#include <stdio.h>";
+  }
 });
 
 // entry.js

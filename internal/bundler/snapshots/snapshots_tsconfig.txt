@@ -1,10 +1,12 @@
 TestJsconfigJsonBaseUrl
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
+var require_util = __commonJS({
+  "Users/user/project/src/lib/util.js"(exports, module) {
+    module.exports = function() {
+      return 123;
+    };
+  }
 });
 
 // Users/user/project/src/app/entry.js
@@ -200,10 +202,12 @@ console.log(test_default);
 TestTsconfigJsonAbsoluteBaseUrl
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
+var require_util = __commonJS({
+  "Users/user/project/src/lib/util.js"(exports, module) {
+    module.exports = function() {
+      return 123;
+    };
+  }
 });
 
 // Users/user/project/src/app/entry.js
@@ -214,10 +218,12 @@ console.log((0, import_util.default)());
 TestTsconfigJsonBaseUrl
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
+var require_util = __commonJS({
+  "Users/user/project/src/lib/util.js"(exports, module) {
+    module.exports = function() {
+      return 123;
+    };
+  }
 });
 
 // Users/user/project/src/app/entry.js
@@ -228,10 +234,12 @@ console.log((0, import_util.default)());
 TestTsconfigJsonCommentAllowed
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
+var require_util = __commonJS({
+  "Users/user/project/src/lib/util.js"(exports, module) {
+    module.exports = function() {
+      return 123;
+    };
+  }
 });
 
 // Users/user/project/src/app/entry.js
@@ -293,10 +301,12 @@ console.log("good");
 TestTsconfigJsonTrailingCommaAllowed
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
+var require_util = __commonJS({
+  "Users/user/project/src/lib/util.js"(exports, module) {
+    module.exports = function() {
+      return 123;
+    };
+  }
 });
 
 // Users/user/project/src/app/entry.js

@@ -1855,6 +1855,8 @@ func applyOptionDefaults(options *config.Options) {
 			{Data: "-", Placeholder: config.HashPlaceholder},
 		}
 	}
+
+	options.ProfilerNames = !options.MinifyIdentifiers
 }
 
 func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.Timer) ([]graph.OutputFile, string) {
@@ -2142,6 +2144,7 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 type runtimeCacheKey struct {
 	MangleSyntax      bool
 	MinifyIdentifiers bool
+	ProfilerNames     bool
 	ES6               bool
 	Platform          config.Platform
 }
@@ -2161,6 +2164,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		// All configuration options that the runtime code depends on must go here
 		MangleSyntax:      options.MangleSyntax,
 		MinifyIdentifiers: options.MinifyIdentifiers,
+		ProfilerNames:     options.ProfilerNames,
 		Platform:          options.Platform,
 		ES6:               runtime.CanUseES6(options.UnsupportedJSFeatures),
 	}
@@ -2197,7 +2201,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		MangleSyntax:      key.MangleSyntax,
 		MinifyIdentifiers: key.MinifyIdentifiers,
 		Platform:          key.Platform,
-		Defines:           cache.processedDefines(key.Platform),
+		Defines:           cache.processedDefines(key.Platform, key.ProfilerNames),
 		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(
 			map[compat.Engine][]int{compat.ES: {constraint}}),
 
@@ -2225,7 +2229,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 	return
 }
 
-func (cache *runtimeCache) processedDefines(key config.Platform) (defines *config.ProcessedDefines) {
+func (cache *runtimeCache) processedDefines(key config.Platform, profilerNames bool) (defines *config.ProcessedDefines) {
 	ok := false
 
 	// Cache hit?
@@ -2254,6 +2258,11 @@ func (cache *runtimeCache) processedDefines(key config.Platform) (defines *confi
 		"__platform": {
 			DefineFunc: func(config.DefineArgs) js_ast.E {
 				return &js_ast.EString{Value: js_lexer.StringToUTF16(platform)}
+			},
+		},
+		"__profiler": {
+			DefineFunc: func(da config.DefineArgs) js_ast.E {
+				return &js_ast.EBoolean{Value: profilerNames}
 			},
 		},
 	})

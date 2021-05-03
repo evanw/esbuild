@@ -1597,6 +1597,59 @@
     }),
   )
 
+  // Check for file names of wrapped modules in non-minified stack traces (for profiling)
+  // Context: https://github.com/evanw/esbuild/pull/1236
+  tests.push(
+    test(['entry.js', '--outfile=node.js', '--bundle'], {
+      'entry.js': `
+        try {
+          require('./src/a')
+        } catch (e) {
+          if (!e.stack.includes('at __require') || !e.stack.includes('at src/a.ts') || !e.stack.includes('at src/b.ts'))
+            throw new Error(e.stack)
+        }
+      `,
+      'src/a.ts': `require('./b')`,
+      'src/b.ts': `throw new Error('fail')`,
+    }),
+    test(['entry.js', '--outfile=node.js', '--bundle', '--minify-identifiers'], {
+      'entry.js': `
+        try {
+          require('./src/a')
+        } catch (e) {
+          if (e.stack.includes('at __require') || e.stack.includes('at src/a.ts') || e.stack.includes('at src/b.ts'))
+            throw new Error(e.stack)
+        }
+      `,
+      'src/a.ts': `require('./b')`,
+      'src/b.ts': `throw new Error('fail')`,
+    }),
+    test(['entry.js', '--outfile=node.js', '--bundle'], {
+      'entry.js': `
+        try {
+          require('./src/a')
+        } catch (e) {
+          if (!e.stack.includes('at __init') || !e.stack.includes('at src/a.ts') || !e.stack.includes('at src/b.ts'))
+            throw new Error(e.stack)
+        }
+      `,
+      'src/a.ts': `export let esm = true; require('./b')`,
+      'src/b.ts': `export let esm = true; throw new Error('fail')`,
+    }),
+    test(['entry.js', '--outfile=node.js', '--bundle', '--minify-identifiers'], {
+      'entry.js': `
+        try {
+          require('./src/a')
+        } catch (e) {
+          if (e.stack.includes('at __init') || e.stack.includes('at src/a.ts') || e.stack.includes('at src/b.ts'))
+            throw new Error(e.stack)
+        }
+      `,
+      'src/a.ts': `export let esm = true; require('./b')`,
+      'src/b.ts': `export let esm = true; throw new Error('fail')`,
+    }),
+  )
+
   // This shouldn't crash
   // https://github.com/evanw/esbuild/issues/1080
   tests.push(

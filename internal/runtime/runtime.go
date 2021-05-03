@@ -141,11 +141,23 @@ func code(isES6 bool) string {
 			return target
 		}
 
-		// This is for lazily-initialized ESM code
-		export var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res)
+		// This is for lazily-initialized ESM code. This has two implementations, a
+		// compact one for minified code and a verbose one that generates friendly
+		// names in V8's profiler and in stack traces.
+		export var __esm = __profiler
+			&& ((fn, res) => function __init() {
+				return fn && (res = (0, fn[Object.keys(fn)[0]])(fn = 0)), res
+			})
+			|| ((fn, res) => () => (fn && (res = fn(fn = 0)), res))
 
-		// Wraps a CommonJS closure and returns a require() function
-		export var __commonJS = (cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports)
+		// Wraps a CommonJS closure and returns a require() function. This has two
+		// implementations, a compact one for minified code and a verbose one that
+		// generates friendly names in V8's profiler and in stack traces.
+		export var __commonJS = __profiler
+			&& ((cb, mod) => function __require() {
+				return mod || (0, cb[Object.keys(cb)[0]])((mod = {exports: {}}).exports, mod), mod.exports
+			})
+			|| ((cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports))
 
 		// Used to implement ES6 exports to CommonJS
 		export var __export = (target, all) => {

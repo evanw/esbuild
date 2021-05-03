@@ -195,10 +195,12 @@ export {
 TestTSExportEquals
 ---------- /out.js ----------
 // b.ts
-var require_b = __commonJS((exports, module) => {
-  function foo() {
+var require_b = __commonJS({
+  "b.ts"(exports, module) {
+    function foo() {
+    }
+    module.exports = [123, foo];
   }
-  module.exports = [123, foo];
 });
 
 // a.ts
@@ -301,7 +303,7 @@ console.log(a, b, c, d, e, real);
 ================================================================================
 TestTSMinifiedBundleCommonJS
 ---------- /out.js ----------
-var n=e(r=>{r.foo=function(){return 123}});var u=e((j,t)=>{t.exports={test:!0}});var{foo:c}=n();console.log(c(),u());
+var t=r(n=>{n.foo=function(){return 123}});var s=r((l,u)=>{u.exports={test:!0}});var{foo:c}=t();console.log(c(),s());
 
 ================================================================================
 TestTSMinifiedBundleES6
