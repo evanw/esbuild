@@ -594,10 +594,16 @@
     test(['--bundle', 'in.js', '--outfile=node.js', '--format=cjs'], {
       'in.js': `export const foo = 123; const out = require('./in'); if (!out.__esModule || out.foo !== 123) throw 'fail'`,
     }),
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=cjs', '--minify'], {
+      'in.js': `export const foo = 123; const out = require('./in'); if (!out.__esModule || out.foo !== 123) throw 'fail'`,
+    }),
     test(['--bundle', 'in.js', '--outfile=node.js', '--format=cjs'], {
       'in.js': `export default 123; const out = require('./in'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'], {
+      'in.js': `export const foo = 123; const out = require('./in'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm', '--minify'], {
       'in.js': `export const foo = 123; const out = require('./in'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'], {

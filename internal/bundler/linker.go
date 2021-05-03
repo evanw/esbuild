@@ -1189,7 +1189,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// symbols. In that case make sure to mark them as such so they don't
 		// get minified.
 		if (c.options.OutputFormat == config.FormatPreserve || c.options.OutputFormat == config.FormatCommonJS) &&
-			repr.Meta.Wrap == graph.WrapNone && file.IsEntryPoint() {
+			repr.Meta.Wrap != graph.WrapCJS && file.IsEntryPoint() {
 			exportsRef := js_ast.FollowSymbols(c.graph.Symbols, repr.AST.ExportsRef)
 			moduleRef := js_ast.FollowSymbols(c.graph.Symbols, repr.AST.ModuleRef)
 			c.graph.Symbols.Get(exportsRef).Kind = js_ast.SymbolUnbound
