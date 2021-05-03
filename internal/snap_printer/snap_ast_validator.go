@@ -46,3 +46,19 @@ func (v *SnapAstValiator) verifySExpr(expr *js_ast.SExpr) (string, bool) {
 	}
 	return "", true
 }
+
+func (v *SnapAstValiator) verifyEIfBranchTarget(expr *js_ast.Expr) (string, bool) {
+	// Detect conditional assignments that depend on globals, i.e. `var x = Buffer ? Buffer.isBuffer : undefined`
+	switch access := expr.Data.(type) {
+	// <target>.<property>
+	case *js_ast.EDot:
+		switch target := access.Target.Data.(type) {
+		case *js_ast.EIdentifier:
+			if name, isGlobal := v.renamer.IsGlobalEntityRef(target.Ref); isGlobal {
+				return fmt.Sprintf("Cannot probe '%s' properties", name), false
+			}
+
+		}
+	}
+	return "", true
+}

@@ -29,6 +29,9 @@ type SourceMapChunk = js_printer.SourceMapChunk
 type PrintResult = js_printer.PrintResult
 type ValidationError = js_printer.ValidationError
 
+var Defer = js_printer.Defer
+var NoRewrite = js_printer.NoRewrite
+
 var QuoteIdentifier = js_printer.QuoteIdentifier
 
 func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, currentState SourceMapState) []byte {
@@ -1353,10 +1356,26 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		p.printSpace()
 		p.print("?")
 		p.printSpace()
+
+		if p.uninvokedFunctionDepth == 0 {
+			yesMsg, yesOk := p.validator.verifyEIfBranchTarget(&e.Yes)
+			if !yesOk {
+				p.validationErrors = append(p.validationErrors, ValidationError{Kind: Defer, Msg: yesMsg, Idx: p.stmtStart})
+			}
+		}
+
 		p.printExpr(e.Yes, js_ast.LYield, 0)
 		p.printSpace()
 		p.print(":")
 		p.printSpace()
+
+		if p.uninvokedFunctionDepth == 0 {
+			noMsg, noOk := p.validator.verifyEIfBranchTarget(&e.No)
+			if !noOk {
+				p.validationErrors = append(p.validationErrors, ValidationError{Kind: Defer, Msg: noMsg, Idx: p.stmtStart})
+			}
+		}
+
 		p.printExpr(e.No, js_ast.LYield, flags&forbidIn)
 		if wrap {
 			p.print(")")
@@ -2768,7 +2787,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 
 		msg, ok := p.validator.verifySExpr(s)
 		if !ok {
-			p.validationErrors = append(p.validationErrors, ValidationError{Msg: msg, Idx: p.stmtStart})
+			p.validationErrors = append(p.validationErrors, ValidationError{Kind: NoRewrite, Msg: msg, Idx: p.stmtStart})
 		}
 
 		p.printExpr(s.Value, js_ast.LLowest, exprResultIsUnused)

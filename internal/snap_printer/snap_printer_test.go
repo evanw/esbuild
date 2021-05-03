@@ -1126,24 +1126,51 @@ func TestInvalidateProcessMethodPatchIdentifier(t *testing.T) {
 	expectValidationErrors(t, `
 function override() {}
 process.emitWarning = override
-  `, []string{
-		"Cannot override 'process.emitWarning'",
+  `, []ValidationError{
+		{Kind: NoRewrite, Msg: "Cannot override 'process.emitWarning'"},
 	})
 }
 
 func TestInvalidateProcessMethodPatchInlineFunction(t *testing.T) {
 	expectValidationErrors(t, `
 process.cwd = function cwd() {}
-  `, []string{
-		"Cannot override 'process.cwd'",
+  `, []ValidationError{
+		{Kind: NoRewrite, Msg: "Cannot override 'process.cwd'"},
 	})
 }
 
 func TestInvalidateProcessMethodPatchInlineArrowFunction(t *testing.T) {
 	expectValidationErrors(t, `
 process.cwd = () => {}
-  `, []string{
-		"Cannot override 'process.cwd'",
+  `, []ValidationError{
+		{Kind: NoRewrite, Msg: "Cannot override 'process.cwd'"},
+	})
+}
+
+func TestInvalidateBufferPropertyProbingScriptLevel(t *testing.T) {
+	expectValidationErrors(t, `
+var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined
+  `, []ValidationError{
+		{Kind: Defer, Msg: "Cannot probe 'Buffer' properties"},
+	})
+}
+
+func TestValidateBufferPropertyProbingInsideClosure(t *testing.T) {
+	expectValidationErrors(t, `
+function foo() {
+  var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined
+}
+  `, []ValidationError{})
+}
+
+// NOTE: this isn't smart enough to detect functions declared and then invoked later
+func TestInalidateBufferPropertyProbingInsideSelfInvokingClosure(t *testing.T) {
+	expectValidationErrors(t, `
+(function foo() {
+  var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined
+}).call(this)
+  `, []ValidationError{
+		{Kind: Defer, Msg: "Cannot probe 'Buffer' properties"},
 	})
 }
 

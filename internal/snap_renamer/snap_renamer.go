@@ -316,3 +316,14 @@ func (r *SnapRenamer) IsFunctionRef(ref js_ast.Ref) bool {
 	symbol := r.symbols.Get(ref)
 	return symbol.Kind.IsFunction()
 }
+
+func (r *SnapRenamer) IsGlobalEntityRef(ref js_ast.Ref) (string, bool) {
+	ref = r.resolveRefFromSymbols(ref)
+	symbol := r.symbols.Get(ref)
+	for _, globSymbol := range r.globalSymbols.all {
+		if globSymbol.Link == symbol.Link {
+			return globSymbol.OriginalName, true
+		}
+	}
+	return "", false
+}

@@ -224,7 +224,7 @@ func expectFixture(t *testing.T, fixtureName string, shouldReplaceRequire func(s
 func expectValidationErrors(
 	t *testing.T,
 	contents string,
-	expectedMessages []string,
+	expectedErrors []ValidationError,
 ) {
 	name := contents
 	options := PrintOptions{}
@@ -262,16 +262,17 @@ func expectValidationErrors(
 			testOpts.shouldReplaceRequire,
 		).ValidationErrors
 
-		if expectedMessages == nil {
+		if expectedErrors == nil {
 			fmt.Println("[]string{")
 			for _, err := range errors {
 				fmt.Printf("    \"%s\",\n", err.Msg)
 			}
 			fmt.Println("}")
 		} else {
-			assertEqual(t, len(errors), len(expectedMessages))
+			assertEqual(t, len(errors), len(expectedErrors))
 			for idx, err := range errors {
-				assertEqual(t, expectedMessages[idx], err.Msg)
+				assertEqual(t, expectedErrors[idx].Msg, err.Msg)
+				assertEqual(t, expectedErrors[idx].Kind, err.Kind)
 			}
 		}
 	})

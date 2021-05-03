@@ -9,7 +9,7 @@ import (
 // globals derived from electron-link blueprint declarations
 // See: https://github.com/atom/electron-link/blob/abeb97d8633c06ac6a762ac427b272adebd32c4f/src/blueprint.js#L6
 // Also related to: internal/resolver/resolver.go :1246 (BuiltInNodeModules)
-var snapGlobals = []string{"process", "document", "global", "window", "console"}
+var snapGlobals = []string{"process", "document", "global", "window", "console", "Buffer"}
 
 type GlobalSymbols struct {
 	process  js_ast.Symbol
@@ -17,6 +17,9 @@ type GlobalSymbols struct {
 	global   js_ast.Symbol
 	window   js_ast.Symbol
 	console  js_ast.Symbol
+	buffer   js_ast.Symbol
+
+	all []*js_ast.Symbol
 }
 
 func getGlobalSymbols(symbols *js_ast.SymbolMap) GlobalSymbols {
@@ -32,19 +35,27 @@ func getGlobalSymbols(symbols *js_ast.SymbolMap) GlobalSymbols {
 				switch ref.OriginalName {
 				case "process":
 					globalSymbols.process = ref
+					globalSymbols.all = append(globalSymbols.all, &globalSymbols.process)
 					break
 				case "document":
 					globalSymbols.document = ref
+					globalSymbols.all = append(globalSymbols.all, &globalSymbols.document)
 					break
 				case "global":
 					globalSymbols.global = ref
+					globalSymbols.all = append(globalSymbols.all, &globalSymbols.global)
 					break
 				case "window":
 					globalSymbols.window = ref
+					globalSymbols.all = append(globalSymbols.all, &globalSymbols.window)
 					break
 				case "console":
 					globalSymbols.console = ref
+					globalSymbols.all = append(globalSymbols.all, &globalSymbols.console)
 					break
+				case "Buffer":
+					globalSymbols.buffer = ref
+					globalSymbols.all = append(globalSymbols.all, &globalSymbols.buffer)
 				}
 			}
 		}
