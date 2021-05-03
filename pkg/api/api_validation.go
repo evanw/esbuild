@@ -53,10 +53,19 @@ func reportValidationErrors(result *snap_printer.PrintResult, log *logger.Log, f
 		return false
 	}
 	reportedError := false
-	vlog := ErrorToWarningLogger(log, SNAPSHOT_REWRITE_FAILURE)
+	rewriteLog := ErrorToWarningLogger(log, SNAPSHOT_REWRITE_FAILURE)
+	deferLog := ErrorToWarningLogger(log, SNAPSHOT_CACHE_FAILURE)
 	source := fileLoggerSource(filePath, result.JS)
 	for _, err := range result.ValidationErrors {
-		vlog.AddError(&source, logger.Loc{Start: int32(err.Idx)}, err.Msg)
+		switch err.Kind {
+		case snap_printer.NoRewrite:
+			rewriteLog.AddError(&source, logger.Loc{Start: int32(err.Idx)}, err.Msg)
+			break
+		case snap_printer.Defer:
+			deferLog.AddError(&source, logger.Loc{Start: int32(err.Idx)}, err.Msg)
+			break
+
+		}
 		reportedError = true
 	}
 	return reportedError
