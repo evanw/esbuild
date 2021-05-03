@@ -202,6 +202,7 @@ type Options struct {
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
 	MangleSyntax      bool
+	ProfilerNames     bool
 	CodeSplitting     bool
 	WatchMode         bool
 	AllowOverwrite    bool

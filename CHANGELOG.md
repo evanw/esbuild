@@ -6,6 +6,54 @@
 
     This fixes a bug with TypeScript code that uses `declare` on a class field and your `tsconfig.json` file has `"useDefineForClassFields": true`. Fields marked as `declare` should not be defined in the generated code, but they were incorrectly being declared as `undefined`. These fields are now correctly omitted from the generated code.
 
+* Annotate module wrapper functions in debug builds ([#1236](https://github.com/evanw/esbuild/pull/1236))
+
+    Sometimes esbuild needs to wrap certain modules in a function when bundling. This is done both for lazy evaluation and for CommonJS modules that use a top-level `return` statement. Previously these functions were all anonymous, so stack traces for errors thrown during initialization looked like this:
+
+    ```
+    Error: Electron failed to install correctly, please delete node_modules/electron and try installing again
+        at getElectronPath (out.js:16:13)
+        at out.js:19:21
+        at out.js:1:45
+        at out.js:24:3
+        at out.js:1:45
+        at out.js:29:3
+        at out.js:1:45
+        at Object.<anonymous> (out.js:33:1)
+    ```
+
+    This release adds names to these anonymous functions when minification is disabled. The above stack trace now looks like this:
+
+    ```
+    Error: Electron failed to install correctly, please delete node_modules/electron and try installing again
+        at getElectronPath (out.js:19:15)
+        at node_modules/electron/index.js (out.js:22:23)
+        at __require (out.js:2:44)
+        at src/base/window.js (out.js:29:5)
+        at __require (out.js:2:44)
+        at src/base/kiosk.js (out.js:36:5)
+        at __require (out.js:2:44)
+        at Object.<anonymous> (out.js:41:1)
+    ```
+
+    This is similar to Webpack's development-mode behavior:
+
+    ```
+    Error: Electron failed to install correctly, please delete node_modules/electron and try installing again
+        at getElectronPath (out.js:23:11)
+        at Object../node_modules/electron/index.js (out.js:27:18)
+        at __webpack_require__ (out.js:96:41)
+        at Object../src/base/window.js (out.js:49:1)
+        at __webpack_require__ (out.js:96:41)
+        at Object../src/base/kiosk.js (out.js:38:1)
+        at __webpack_require__ (out.js:96:41)
+        at out.js:109:1
+        at out.js:111:3
+        at Object.<anonymous> (out.js:113:12)
+    ```
+
+    These descriptive function names will additionally be available when using a profiler such as the one included in the "Performance" tab in Chrome Developer Tools. Previously all functions were named `(anonymous)` which made it difficult to investigate performance issues during bundle initialization.
+
 ## 0.11.18
 
 * Add support for OpenBSD on x86-64 ([#1235](https://github.com/evanw/esbuild/issues/1235))

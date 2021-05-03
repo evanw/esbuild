@@ -119,10 +119,12 @@ class Derived extends Base {
 TestLowerAsyncThis2016CommonJS
 ---------- /out.js ----------
 // entry.js
-var require_entry = __commonJS((exports) => {
-  exports.foo = () => __async(exports, null, function* () {
-    return exports;
-  });
+var require_entry = __commonJS({
+  "entry.js"(exports) {
+    exports.foo = () => __async(exports, null, function* () {
+      return exports;
+    });
+  }
 });
 export default require_entry();
 

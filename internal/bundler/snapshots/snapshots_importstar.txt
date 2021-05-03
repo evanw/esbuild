@@ -1,8 +1,10 @@
 TestExportOtherAsNamespaceCommonJS
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
+var require_foo = __commonJS({
+  "foo.js"(exports) {
+    exports.foo = 123;
+  }
 });
 
 // entry.js
@@ -16,8 +18,10 @@ var ns = __toModule(require_foo());
 TestExportOtherCommonJS
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
+var require_foo = __commonJS({
+  "foo.js"(exports) {
+    exports.foo = 123;
+  }
 });
 
 // entry.js
@@ -31,8 +35,10 @@ var import_foo = __toModule(require_foo());
 TestExportOtherNestedCommonJS
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
+var require_foo = __commonJS({
+  "foo.js"(exports) {
+    exports.foo = 123;
+  }
 });
 
 // entry.js
@@ -64,9 +70,11 @@ __export(exports, {
   foo: () => foo
 });
 var foo;
-var init_entry = __esm(() => {
-  foo = 123;
-  console.log((init_entry(), exports));
+var init_entry = __esm({
+  "entry.js"() {
+    foo = 123;
+    console.log((init_entry(), exports));
+  }
 });
 init_entry();
 
@@ -110,11 +118,11 @@ var foo = 123;
 TestExportSelfCommonJSMinified
 ---------- /out.js ----------
 // entry.js
-var r = n((t, e) => {
-  e.exports = {foo: 123};
-  console.log(r());
+var l = n((c, r) => {
+  r.exports = {foo: 123};
+  console.log(l());
 });
-module.exports = r();
+module.exports = l();
 
 ================================================================================
 TestExportSelfES6
@@ -252,8 +260,10 @@ console.log(internal_default, void 0);
 TestImportExportOtherAsNamespaceCommonJS
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
+var require_foo = __commonJS({
+  "foo.js"(exports) {
+    exports.foo = 123;
+  }
 });
 
 // entry.js
@@ -322,10 +332,12 @@ console.log(value);
 TestImportSelfCommonJS
 ---------- /out.js ----------
 // entry.js
-var require_entry = __commonJS((exports) => {
-  var import_entry = __toModule(require_entry());
-  exports.foo = 123;
-  console.log(import_entry.foo);
+var require_entry = __commonJS({
+  "entry.js"(exports) {
+    var import_entry = __toModule(require_entry());
+    exports.foo = 123;
+    console.log(import_entry.foo);
+  }
 });
 module.exports = require_entry();
 
@@ -338,8 +350,10 @@ __export(foo_exports, {
   foo: () => foo
 });
 var foo;
-var init_foo = __esm(() => {
-  foo = 123;
+var init_foo = __esm({
+  "foo.js"() {
+    foo = 123;
+  }
 });
 
 // entry.js
@@ -365,8 +379,10 @@ console.log(foo_exports, foo, foo2);
 TestImportStarCommonJSCapture
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
+var require_foo = __commonJS({
+  "foo.js"(exports) {
+    exports.foo = 123;
+  }
 });
 
 // entry.js
@@ -378,8 +394,10 @@ console.log(ns, ns.foo, foo);
 TestImportStarCommonJSNoCapture
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
+var require_foo = __commonJS({
+  "foo.js"(exports) {
+    exports.foo = 123;
+  }
 });
 
 // entry.js
@@ -391,8 +409,10 @@ console.log(ns.foo, ns.foo, foo2);
 TestImportStarCommonJSUnused
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
+var require_foo = __commonJS({
+  "foo.js"(exports) {
+    exports.foo = 123;
+  }
 });
 
 // entry.js
@@ -619,8 +639,10 @@ console.log(JSON.stringify(folders_exports));
 TestNamespaceImportMissingCommonJS
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports) => {
-  exports.x = 123;
+var require_foo = __commonJS({
+  "foo.js"(exports) {
+    exports.x = 123;
+  }
 });
 
 // entry.js
@@ -665,8 +687,10 @@ console.log(void 0);
 TestNamespaceImportUnusedMissingCommonJS
 ---------- /out.js ----------
 // foo.js
-var require_foo = __commonJS((exports) => {
-  exports.x = 123;
+var require_foo = __commonJS({
+  "foo.js"(exports) {
+    exports.x = 123;
+  }
 });
 
 // entry.js

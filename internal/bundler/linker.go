@@ -3371,21 +3371,27 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				}
 			}
 
-			// "__commonJS((exports, module) => { ... })"
-			var value js_ast.Expr
-			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
-				value = js_ast.Expr{Data: &js_ast.ECall{
-					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
-					Args:   []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}}},
-				}}
+			var cjsArgs []js_ast.Expr
+			if c.options.ProfilerNames {
+				// "__commonJS({ 'file.js'(exports, module) { ... } })"
+				cjsArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
+					IsMethod: !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
+					Key:      js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(file.InputFile.Source.PrettyPath)}},
+					Value:    &js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
+				}}}}}
+			} else if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+				// "__commonJS(function (exports, module) { ... })"
+				cjsArgs = []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}}}
 			} else {
-				value = js_ast.Expr{Data: &js_ast.ECall{
-					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
-					Args:   []js_ast.Expr{{Data: &js_ast.EArrow{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
-				}}
+				// "__commonJS((exports, module) => { ... })"
+				cjsArgs = []js_ast.Expr{{Data: &js_ast.EArrow{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}}
 			}
+			value := js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
+				Args:   cjsArgs,
+			}}
 
-			// "var require_foo = __commonJS((exports, module) => { ... });"
+			// "var require_foo = __commonJS(...);"
 			stmts = append(stmtList.outsideWrapperPrefix, js_ast.Stmt{Data: &js_ast.SLocal{
 				Decls: []js_ast.Decl{{
 					Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.WrapperRef}},
@@ -3433,19 +3439,25 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			}
 			stmts = stmts[:end]
 
-			// "__esm(() => { ... })"
-			var value js_ast.Expr
-			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
-				value = js_ast.Expr{Data: &js_ast.ECall{
-					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: esmRef}},
-					Args:   []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}}},
-				}}
+			var esmArgs []js_ast.Expr
+			if c.options.ProfilerNames {
+				// "__esm({ 'file.js'() { ... } })"
+				esmArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
+					IsMethod: !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
+					Key:      js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(file.InputFile.Source.PrettyPath)}},
+					Value:    &js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}},
+				}}}}}
+			} else if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+				// "__esm(function () { ... })"
+				esmArgs = []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}}}
 			} else {
-				value = js_ast.Expr{Data: &js_ast.ECall{
-					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: esmRef}},
-					Args:   []js_ast.Expr{{Data: &js_ast.EArrow{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}},
-				}}
+				// "__esm(() => { ... })"
+				esmArgs = []js_ast.Expr{{Data: &js_ast.EArrow{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}}
 			}
+			value := js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: esmRef}},
+				Args:   esmArgs,
+			}}
 
 			// "var foo, bar;"
 			if !c.options.MangleSyntax && len(decls) > 0 {
@@ -3455,7 +3467,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				decls = nil
 			}
 
-			// "var init_foo = __esm(() => { ... });"
+			// "var init_foo = __esm(...);"
 			stmts = append(stmtList.outsideWrapperPrefix, js_ast.Stmt{Data: &js_ast.SLocal{
 				Decls: append(decls, js_ast.Decl{
 					Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.WrapperRef}},

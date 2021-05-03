@@ -6,8 +6,10 @@ __export(foo_exports, {
   foo: () => foo
 });
 var foo;
-var init_foo = __esm(() => {
-  foo = 123;
+var init_foo = __esm({
+  "foo.ts"() {
+    foo = 123;
+  }
 });
 
 // entry.js
@@ -33,8 +35,10 @@ console.log(foo_exports, foo, foo2);
 TestTSImportStarCommonJSCapture
 ---------- /out.js ----------
 // foo.ts
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
+var require_foo = __commonJS({
+  "foo.ts"(exports) {
+    exports.foo = 123;
+  }
 });
 
 // entry.ts
@@ -46,8 +50,10 @@ console.log(ns, ns.foo, foo);
 TestTSImportStarCommonJSNoCapture
 ---------- /out.js ----------
 // foo.ts
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
+var require_foo = __commonJS({
+  "foo.ts"(exports) {
+    exports.foo = 123;
+  }
 });
 
 // entry.ts
