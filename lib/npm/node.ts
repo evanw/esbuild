@@ -37,6 +37,22 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
     return [path.resolve(process.env.ESBUILD_BINARY_PATH), []];
   }
 
+  // Try to have a nice error message when people accidentally bundle esbuild
+  if (path.basename(__filename) !== 'main.js' || path.basename(__dirname) !== 'lib') {
+    throw new Error(
+      `The esbuild JavaScript API cannot be bundled. Please mark the "esbuild" ` +
+      `package as external so it's not included in the bundle.\n` +
+      `\n` +
+      `More information: The file containing the code for esbuild's JavaScript ` +
+      `API (${__filename}) does not appear to be inside the esbuild package on ` +
+      `the file system, which usually means that the esbuild package was bundled ` +
+      `into another file. This is problematic because the API needs to run a ` +
+      `binary executable inside the esbuild package which is located using a ` +
+      `relative path from the API code to the executable. If the esbuild package ` +
+      `is bundled, the relative path will be incorrect and the executable won't ` +
+      `be found.`);
+  }
+
   if (WASM) {
     return ['node', [path.join(__dirname, '..', 'bin', 'esbuild')]];
   }
