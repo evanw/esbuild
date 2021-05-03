@@ -3,6 +3,7 @@ package bundler
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 )
 
@@ -86,6 +87,48 @@ func TestTSDeclareClass(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTSDeclareClassFields(t *testing.T) {
+	// Note: this test uses arrow functions to validate that
+	// scopes inside "declare" fields are correctly discarded
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import './define-false'
+				import './define-true'
+			`,
+			"/define-false/index.ts": `
+				class Foo {
+					a
+					declare b
+					c = () => this
+					declare d = () => this
+				}
+				(() => new Foo())()
+			`,
+			"/define-true/index.ts": `
+				class Bar {
+					a
+					declare b
+					c = () => this
+					declare d = () => this
+				}
+				(() => new Bar())()
+			`,
+			"/define-true/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ClassField,
 		},
 	})
 }

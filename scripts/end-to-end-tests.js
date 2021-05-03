@@ -2994,6 +2994,38 @@
         mustFail(Symbol('x'))
       `,
     }),
+
+    test(['in.ts', '--outfile=node.js', '--target=es6'], {
+      'in.ts': `
+        let b = 0
+        class Foo {
+          a
+          [(() => ++b)()]
+          declare c
+          declare [(() => ++b)()]
+        }
+        const foo = new Foo
+        if (b !== 1 || 'a' in foo || 1 in foo || 'c' in foo || 2 in foo) throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--target=es6'], {
+      'in.ts': `
+        let b = 0
+        class Foo {
+          a
+          [(() => ++b)()]
+          declare c
+          declare [(() => ++b)()]
+        }
+        const foo = new Foo
+        if (b !== 1 || !('a' in foo) || !(1 in foo) || 'c' in foo || 2 in foo) throw 'fail'
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "useDefineForClassFields": true
+        }
+      }`
+    }),
   )
 
   // Async lowering tests

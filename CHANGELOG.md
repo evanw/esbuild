@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix code generation with `declare` class fields ([#1242](https://github.com/evanw/esbuild/issues/1242))
+
+    This fixes a bug with TypeScript code that uses `declare` on a class field and your `tsconfig.json` file has `"useDefineForClassFields": true`. Fields marked as `declare` should not be defined in the generated code, but they were incorrectly being declared as `undefined`. These fields are now correctly omitted from the generated code.
+
 ## 0.11.18
 
 * Add support for OpenBSD on x86-64 ([#1235](https://github.com/evanw/esbuild/issues/1235))

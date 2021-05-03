@@ -38,6 +38,26 @@ TestTSDeclareClass
 var foo = bar();
 
 ================================================================================
+TestTSDeclareClassFields
+---------- /out.js ----------
+// define-false/index.ts
+var Foo = class {
+  constructor() {
+    this.c = () => this;
+  }
+};
+(() => new Foo())();
+
+// define-true/index.ts
+var Bar = class {
+  constructor() {
+    __publicField(this, "a");
+    __publicField(this, "c", () => this);
+  }
+};
+(() => new Bar())();
+
+================================================================================
 TestTSDeclareConst
 ---------- /out.js ----------
 // entry.ts
