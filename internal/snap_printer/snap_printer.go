@@ -1360,7 +1360,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		if p.uninvokedFunctionDepth == 0 {
 			yesMsg, yesOk := p.validator.verifyEIfBranchTarget(&e.Yes)
 			if !yesOk {
-				p.validationErrors = append(p.validationErrors, ValidationError{Kind: Defer, Msg: yesMsg, Idx: p.stmtStart})
+				p.validationErrors = append(p.validationErrors, ValidationError{Kind: Defer, Msg: yesMsg, Idx: p.currentIdx()})
 			}
 		}
 
@@ -1372,7 +1372,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		if p.uninvokedFunctionDepth == 0 {
 			noMsg, noOk := p.validator.verifyEIfBranchTarget(&e.No)
 			if !noOk {
-				p.validationErrors = append(p.validationErrors, ValidationError{Kind: Defer, Msg: noMsg, Idx: p.stmtStart})
+				p.validationErrors = append(p.validationErrors, ValidationError{Kind: Defer, Msg: noMsg, Idx: p.currentIdx()})
 			}
 		}
 

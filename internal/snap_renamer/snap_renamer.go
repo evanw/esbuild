@@ -321,8 +321,8 @@ func (r *SnapRenamer) IsGlobalEntityRef(ref js_ast.Ref) (string, bool) {
 	ref = r.resolveRefFromSymbols(ref)
 	symbol := r.symbols.Get(ref)
 	for _, globSymbol := range r.globalSymbols.all {
-		if globSymbol.Link == symbol.Link {
-			return globSymbol.OriginalName, true
+		if globSymbol.Link == symbol.Link && globSymbol.OriginalName == symbol.OriginalName {
+			return symbol.OriginalName, true
 		}
 	}
 	return "", false

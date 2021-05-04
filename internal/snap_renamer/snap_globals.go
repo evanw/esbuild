@@ -19,7 +19,7 @@ type GlobalSymbols struct {
 	console  js_ast.Symbol
 	buffer   js_ast.Symbol
 
-	all []*js_ast.Symbol
+	all []js_ast.Symbol
 }
 
 func getGlobalSymbols(symbols *js_ast.SymbolMap) GlobalSymbols {
@@ -35,27 +35,27 @@ func getGlobalSymbols(symbols *js_ast.SymbolMap) GlobalSymbols {
 				switch ref.OriginalName {
 				case "process":
 					globalSymbols.process = ref
-					globalSymbols.all = append(globalSymbols.all, &globalSymbols.process)
+					globalSymbols.all = append(globalSymbols.all, globalSymbols.process)
 					break
 				case "document":
 					globalSymbols.document = ref
-					globalSymbols.all = append(globalSymbols.all, &globalSymbols.document)
+					globalSymbols.all = append(globalSymbols.all, globalSymbols.document)
 					break
 				case "global":
 					globalSymbols.global = ref
-					globalSymbols.all = append(globalSymbols.all, &globalSymbols.global)
+					globalSymbols.all = append(globalSymbols.all, globalSymbols.global)
 					break
 				case "window":
 					globalSymbols.window = ref
-					globalSymbols.all = append(globalSymbols.all, &globalSymbols.window)
+					globalSymbols.all = append(globalSymbols.all, globalSymbols.window)
 					break
 				case "console":
 					globalSymbols.console = ref
-					globalSymbols.all = append(globalSymbols.all, &globalSymbols.console)
+					globalSymbols.all = append(globalSymbols.all, globalSymbols.console)
 					break
 				case "Buffer":
 					globalSymbols.buffer = ref
-					globalSymbols.all = append(globalSymbols.all, &globalSymbols.buffer)
+					globalSymbols.all = append(globalSymbols.all, globalSymbols.buffer)
 				}
 			}
 		}
