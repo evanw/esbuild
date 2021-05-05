@@ -1,6 +1,8 @@
 package css_ast
 
 import (
+	"strconv"
+
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -67,6 +69,73 @@ type Token struct {
 	Whitespace WhitespaceFlags // 1 byte
 }
 
+func (a Token) EqualsIgnoringWhitespace(b Token) bool {
+	if a.Kind == b.Kind && a.Text == b.Text && a.ImportRecordIndex == b.ImportRecordIndex {
+		if a.Children == nil && b.Children == nil {
+			return true
+		}
+
+		if a.Children != nil && b.Children != nil {
+			if ac, bc := *a.Children, *b.Children; len(ac) == len(bc) {
+				for i, c := range ac {
+					if !c.EqualsIgnoringWhitespace(bc[i]) {
+						return false
+					}
+				}
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (t Token) FractionForPercentage() (float64, bool) {
+	if t.Kind == css_lexer.TPercentage {
+		if f, err := strconv.ParseFloat(t.PercentageValue(), 64); err == nil {
+			if f < 0 {
+				return 0, true
+			}
+			if f > 100 {
+				return 1, true
+			}
+			return f / 100.0, true
+		}
+	}
+	return 0, false
+}
+
+var isLengthDimensionUnit = map[string]bool{
+	"ch":   true,
+	"cm":   true,
+	"em":   true,
+	"ex":   true,
+	"in":   true,
+	"mm":   true,
+	"pc":   true,
+	"pt":   true,
+	"px":   true,
+	"Q":    true,
+	"rem":  true,
+	"vh":   true,
+	"vmax": true,
+	"vmin": true,
+	"vw":   true,
+}
+
+// https://drafts.csswg.org/css-values-3/#lengths
+// For zero lengths the unit identifier is optional
+// (i.e. can be syntactically represented as the <number> 0).
+func (t *Token) TurnLengthIntoNumberIfZero() bool {
+	if (t.Kind == css_lexer.TDimension && t.DimensionValue() == "0") ||
+		(t.Kind == css_lexer.TPercentage && t.PercentageValue() == "0") {
+		t.Kind = css_lexer.TNumber
+		t.Text = "0"
+		return true
+	}
+	return false
+}
+
 type WhitespaceFlags uint8
 
 const (
@@ -74,7 +143,7 @@ const (
 	WhitespaceAfter
 )
 
-func (t Token) PercentValue() string {
+func (t Token) PercentageValue() string {
 	return t.Text[:len(t.Text)-1]
 }
 

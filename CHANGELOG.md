@@ -54,6 +54,14 @@
 
     These descriptive function names will additionally be available when using a profiler such as the one included in the "Performance" tab in Chrome Developer Tools. Previously all functions were named `(anonymous)` which made it difficult to investigate performance issues during bundle initialization.
 
+* Add CSS minification for more cases
+
+    The following CSS minification cases are now supported:
+
+    * The CSS `margin` property family is now minified including combining the `margin-top`, `margin-right`, `margin-bottom`, and `margin-left` properties into a single `margin` property.
+
+    * The four special pseudo-elements `::before`, `::after`, `::first-line`, and `::first-letter` are allowed to be parsed with one `:` for legacy reasons, so the `::` is now converted to `:` for these pseudo-elements.
+
 ## 0.11.18
 
 * Add support for OpenBSD on x86-64 ([#1235](https://github.com/evanw/esbuild/issues/1235))

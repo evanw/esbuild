@@ -237,7 +237,7 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 			p.advance()
 
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
-			p.processDeclarations(list)
+			list = p.processDeclarations(list)
 			if p.options.MangleSyntax {
 				list = removeEmptyRules(list)
 			}
@@ -678,7 +678,7 @@ loop:
 
 		case css_lexer.TPercentage:
 			if p.options.MangleSyntax {
-				if text, ok := mangleNumber(token.PercentValue()); ok {
+				if text, ok := mangleNumber(token.PercentageValue()); ok {
 					token.Text = text + "%"
 				}
 			}

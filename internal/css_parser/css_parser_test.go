@@ -893,3 +893,67 @@ func TestEmptyRule(t *testing.T) {
 	expectPrintedMangleMinify(t, "@keyframes test { from {} to { color: red } }", "@keyframes test{to{color:red}}")
 	expectPrintedMangleMinify(t, "@keyframes test { from { color: red } to {} }", "@keyframes test{0%{color:red}}")
 }
+
+func TestMargin(t *testing.T) {
+	expectPrinted(t, "a { margin: 0 1 0 1 }", "a {\n  margin: 0 1 0 1;\n}\n")
+	expectPrinted(t, "a { margin: 0 1 0px 1px }", "a {\n  margin: 0 1 0px 1px;\n}\n")
+
+	expectPrintedMangle(t, "a { margin-top: 0px }", "a {\n  margin-top: 0;\n}\n")
+	expectPrintedMangle(t, "a { margin-right: 0px }", "a {\n  margin-right: 0;\n}\n")
+	expectPrintedMangle(t, "a { margin-bottom: 0px }", "a {\n  margin-bottom: 0;\n}\n")
+	expectPrintedMangle(t, "a { margin-left: 0px }", "a {\n  margin-left: 0;\n}\n")
+
+	expectPrintedMangle(t, "a { margin-top: 1px }", "a {\n  margin-top: 1px;\n}\n")
+	expectPrintedMangle(t, "a { margin-right: 1px }", "a {\n  margin-right: 1px;\n}\n")
+	expectPrintedMangle(t, "a { margin-bottom: 1px }", "a {\n  margin-bottom: 1px;\n}\n")
+	expectPrintedMangle(t, "a { margin-left: 1px }", "a {\n  margin-left: 1px;\n}\n")
+
+	expectPrintedMangle(t, "a { margin: 0 1 0 0 }", "a {\n  margin: 0 1 0 0;\n}\n")
+	expectPrintedMangle(t, "a { margin: 0 1 2 1 }", "a {\n  margin: 0 1 2;\n}\n")
+	expectPrintedMangle(t, "a { margin: 0 1 0 1 }", "a {\n  margin: 0 1;\n}\n")
+	expectPrintedMangle(t, "a { margin: 0 0 0 0 }", "a {\n  margin: 0;\n}\n")
+	expectPrintedMangle(t, "a { margin: 0 0 0 0 !important }", "a {\n  margin: 0 !important;\n}\n")
+	expectPrintedMangle(t, "a { margin: 0 1px 0px 1px }", "a {\n  margin: 0 1px;\n}\n")
+	expectPrintedMangle(t, "a { margin: 0 1 0px 1px }", "a {\n  margin: 0 1 0 1px;\n}\n")
+
+	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-top: 5 }", "a {\n  margin: 5 2 3 4;\n}\n")
+	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-right: 5 }", "a {\n  margin: 1 5 3 4;\n}\n")
+	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-bottom: 5 }", "a {\n  margin: 1 2 5 4;\n}\n")
+	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-left: 5 }", "a {\n  margin: 1 2 3 5;\n}\n")
+
+	expectPrintedMangle(t, "a { margin-top: 5; margin: 1 2 3 4 }", "a {\n  margin: 1 2 3 4;\n}\n")
+	expectPrintedMangle(t, "a { margin-right: 5; margin: 1 2 3 4 }", "a {\n  margin: 1 2 3 4;\n}\n")
+	expectPrintedMangle(t, "a { margin-bottom: 5; margin: 1 2 3 4 }", "a {\n  margin: 1 2 3 4;\n}\n")
+	expectPrintedMangle(t, "a { margin-left: 5; margin: 1 2 3 4 }", "a {\n  margin: 1 2 3 4;\n}\n")
+
+	expectPrintedMangle(t, "a { margin-top: 1; margin-top: 2 }", "a {\n  margin-top: 2;\n}\n")
+	expectPrintedMangle(t, "a { margin-right: 1; margin-right: 2 }", "a {\n  margin-right: 2;\n}\n")
+	expectPrintedMangle(t, "a { margin-bottom: 1; margin-bottom: 2 }", "a {\n  margin-bottom: 2;\n}\n")
+	expectPrintedMangle(t, "a { margin-left: 1; margin-left: 2 }", "a {\n  margin-left: 2;\n}\n")
+
+	expectPrintedMangle(t, "a { margin: 1; margin: 2 !important }", "a {\n  margin: 2 !important;\n}\n")
+	expectPrintedMangle(t, "a { margin-top: 1; margin-top: 2 !important }", "a {\n  margin-top: 2 !important;\n}\n")
+	expectPrintedMangle(t, "a { margin-right: 1; margin-right: 2 !important }", "a {\n  margin-right: 2 !important;\n}\n")
+	expectPrintedMangle(t, "a { margin-bottom: 1; margin-bottom: 2 !important }", "a {\n  margin-bottom: 2 !important;\n}\n")
+	expectPrintedMangle(t, "a { margin-left: 1; margin-left: 2 !important }", "a {\n  margin-left: 2 !important;\n}\n")
+
+	expectPrintedMangle(t, "a { margin: 1 !important; margin: 2 }", "a {\n  margin: 2;\n}\n")
+	expectPrintedMangle(t, "a { margin-top: 1 !important; margin-top: 2 }", "a {\n  margin-top: 2;\n}\n")
+	expectPrintedMangle(t, "a { margin-right: 1 !important; margin-right: 2 }", "a {\n  margin-right: 2;\n}\n")
+	expectPrintedMangle(t, "a { margin-bottom: 1 !important; margin-bottom: 2 }", "a {\n  margin-bottom: 2;\n}\n")
+	expectPrintedMangle(t, "a { margin-left: 1 !important; margin-left: 2 }", "a {\n  margin-left: 2;\n}\n")
+
+	expectPrintedMangle(t, "a { margin-top: 1; margin-top: }", "a {\n  margin-top: 1;\n  margin-top:;\n}\n")
+	expectPrintedMangle(t, "a { margin-top: 1; margin-top: 2 3 }", "a {\n  margin-top: 1;\n  margin-top: 2 3;\n}\n")
+	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-right: calc(1 + var(--x)) }", "a {\n  margin: 1 calc(1 + var(--x)) 3 4;\n}\n")
+	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-left: -4; margin-right: -2 }", "a {\n  margin: 1 -2 3 -4;\n}\n")
+	expectPrintedMangle(t, "a { margin: 1 auto 3 4; margin-left: auto }", "a {\n  margin: 1 auto 3;\n}\n")
+
+	expectPrintedMangle(t, "a { margin-left: 1; margin-right: 2; margin-top: 3; margin-bottom: 4 }", "a {\n  margin: 3 2 4 1;\n}\n")
+	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-right: 5 !important }",
+		"a {\n  margin: 1 2 3 4;\n  margin-right: 5 !important;\n}\n")
+	expectPrintedMangle(t, "a { margin: 1 2 3 4 !important; margin-right: 5 }",
+		"a {\n  margin: 1 2 3 4 !important;\n  margin-right: 5;\n}\n")
+	expectPrintedMangle(t, "a { margin-left: 1 !important; margin-right: 2; margin-top: 3 !important; margin-bottom: 4 }",
+		"a {\n  margin-left: 1 !important;\n  margin-right: 2;\n  margin-top: 3 !important;\n  margin-bottom: 4;\n}\n")
+}
