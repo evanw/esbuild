@@ -64,7 +64,8 @@ func compactTokenQuad(a css_ast.Token, b css_ast.Token, c css_ast.Token, d css_a
 }
 
 func (p *parser) processDeclarations(rules []css_ast.R) []css_ast.R {
-	margin := marginTracker{}
+	margin := boxTracker{}
+	padding := boxTracker{}
 	borderRadius := borderRadiusTracker{}
 
 	for i, rule := range rules {
@@ -104,25 +105,46 @@ func (p *parser) processDeclarations(rules []css_ast.R) []css_ast.R {
 				}
 			}
 
+		case css_ast.DPadding:
+			if p.options.MangleSyntax {
+				padding.mangleSides(rules, decl, i, p.options.RemoveWhitespace)
+			}
+		case css_ast.DPaddingTop:
+			if p.options.MangleSyntax {
+				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxTop)
+			}
+		case css_ast.DPaddingRight:
+			if p.options.MangleSyntax {
+				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxRight)
+			}
+		case css_ast.DPaddingBottom:
+			if p.options.MangleSyntax {
+				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxBottom)
+			}
+		case css_ast.DPaddingLeft:
+			if p.options.MangleSyntax {
+				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxLeft)
+			}
+
 		case css_ast.DMargin:
 			if p.options.MangleSyntax {
 				margin.mangleSides(rules, decl, i, p.options.RemoveWhitespace)
 			}
 		case css_ast.DMarginTop:
 			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, marginTop)
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxTop)
 			}
 		case css_ast.DMarginRight:
 			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, marginRight)
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxRight)
 			}
 		case css_ast.DMarginBottom:
 			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, marginBottom)
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxBottom)
 			}
 		case css_ast.DMarginLeft:
 			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, marginLeft)
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxLeft)
 			}
 
 		case css_ast.DBorderRadius:

@@ -60,6 +60,8 @@
 
     * The CSS `margin` property family is now minified including combining the `margin-top`, `margin-right`, `margin-bottom`, and `margin-left` properties into a single `margin` property.
 
+    * The CSS `padding` property family is now minified including combining the `padding-top`, `padding-right`, `padding-bottom`, and `padding-left` properties into a single `padding` property.
+
     * The CSS `border-radius` property family is now minified including combining the `border-top-left-radius`, `border-top-right-radius`, `border-bottom-right-radius`, and `border-bottom-left-radius` properties into a single `border-radius` property.
 
     * The four special pseudo-elements `::before`, `::after`, `::first-line`, and `::first-letter` are allowed to be parsed with one `:` for legacy reasons, so the `::` is now converted to `:` for these pseudo-elements.

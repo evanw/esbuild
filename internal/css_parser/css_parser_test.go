@@ -894,70 +894,72 @@ func TestEmptyRule(t *testing.T) {
 	expectPrintedMangleMinify(t, "@keyframes test { from { color: red } to {} }", "@keyframes test{0%{color:red}}")
 }
 
-func TestMargin(t *testing.T) {
-	expectPrinted(t, "a { margin: 0 1 0 1 }", "a {\n  margin: 0 1 0 1;\n}\n")
-	expectPrinted(t, "a { margin: 0 1 0px 1px }", "a {\n  margin: 0 1 0px 1px;\n}\n")
+func TestMarginAndPadding(t *testing.T) {
+	for _, x := range []string{"margin", "padding"} {
+		expectPrinted(t, "a { "+x+": 0 1 0 1 }", "a {\n  "+x+": 0 1 0 1;\n}\n")
+		expectPrinted(t, "a { "+x+": 0 1 0px 1px }", "a {\n  "+x+": 0 1 0px 1px;\n}\n")
 
-	expectPrintedMangle(t, "a { margin-top: 0px }", "a {\n  margin-top: 0;\n}\n")
-	expectPrintedMangle(t, "a { margin-right: 0px }", "a {\n  margin-right: 0;\n}\n")
-	expectPrintedMangle(t, "a { margin-bottom: 0px }", "a {\n  margin-bottom: 0;\n}\n")
-	expectPrintedMangle(t, "a { margin-left: 0px }", "a {\n  margin-left: 0;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-top: 0px }", "a {\n  "+x+"-top: 0;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-right: 0px }", "a {\n  "+x+"-right: 0;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-bottom: 0px }", "a {\n  "+x+"-bottom: 0;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-left: 0px }", "a {\n  "+x+"-left: 0;\n}\n")
 
-	expectPrintedMangle(t, "a { margin-top: 1px }", "a {\n  margin-top: 1px;\n}\n")
-	expectPrintedMangle(t, "a { margin-right: 1px }", "a {\n  margin-right: 1px;\n}\n")
-	expectPrintedMangle(t, "a { margin-bottom: 1px }", "a {\n  margin-bottom: 1px;\n}\n")
-	expectPrintedMangle(t, "a { margin-left: 1px }", "a {\n  margin-left: 1px;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-top: 1px }", "a {\n  "+x+"-top: 1px;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-right: 1px }", "a {\n  "+x+"-right: 1px;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-bottom: 1px }", "a {\n  "+x+"-bottom: 1px;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-left: 1px }", "a {\n  "+x+"-left: 1px;\n}\n")
 
-	expectPrintedMangle(t, "a { margin: 0 1 0 0 }", "a {\n  margin: 0 1 0 0;\n}\n")
-	expectPrintedMangle(t, "a { margin: 0 1 2 1 }", "a {\n  margin: 0 1 2;\n}\n")
-	expectPrintedMangle(t, "a { margin: 0 1 0 1 }", "a {\n  margin: 0 1;\n}\n")
-	expectPrintedMangle(t, "a { margin: 0 0 0 0 }", "a {\n  margin: 0;\n}\n")
-	expectPrintedMangle(t, "a { margin: 0 0 0 0 !important }", "a {\n  margin: 0 !important;\n}\n")
-	expectPrintedMangle(t, "a { margin: 0 1px 0px 1px }", "a {\n  margin: 0 1px;\n}\n")
-	expectPrintedMangle(t, "a { margin: 0 1 0px 1px }", "a {\n  margin: 0 1 0 1px;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 1 0 0 }", "a {\n  "+x+": 0 1 0 0;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 1 2 1 }", "a {\n  "+x+": 0 1 2;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 1 0 1 }", "a {\n  "+x+": 0 1;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 0 0 0 }", "a {\n  "+x+": 0;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 0 0 0 !important }", "a {\n  "+x+": 0 !important;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 1px 0px 1px }", "a {\n  "+x+": 0 1px;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 1 0px 1px }", "a {\n  "+x+": 0 1 0 1px;\n}\n")
 
-	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-top: 5 }", "a {\n  margin: 5 2 3 4;\n}\n")
-	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-right: 5 }", "a {\n  margin: 1 5 3 4;\n}\n")
-	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-bottom: 5 }", "a {\n  margin: 1 2 5 4;\n}\n")
-	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-left: 5 }", "a {\n  margin: 1 2 3 5;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-top: 5 }", "a {\n  "+x+": 5 2 3 4;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-right: 5 }", "a {\n  "+x+": 1 5 3 4;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-bottom: 5 }", "a {\n  "+x+": 1 2 5 4;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-left: 5 }", "a {\n  "+x+": 1 2 3 5;\n}\n")
 
-	expectPrintedMangle(t, "a { margin-top: 5; margin: 1 2 3 4 }", "a {\n  margin: 1 2 3 4;\n}\n")
-	expectPrintedMangle(t, "a { margin-right: 5; margin: 1 2 3 4 }", "a {\n  margin: 1 2 3 4;\n}\n")
-	expectPrintedMangle(t, "a { margin-bottom: 5; margin: 1 2 3 4 }", "a {\n  margin: 1 2 3 4;\n}\n")
-	expectPrintedMangle(t, "a { margin-left: 5; margin: 1 2 3 4 }", "a {\n  margin: 1 2 3 4;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-top: 5; "+x+": 1 2 3 4 }", "a {\n  "+x+": 1 2 3 4;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-right: 5; "+x+": 1 2 3 4 }", "a {\n  "+x+": 1 2 3 4;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-bottom: 5; "+x+": 1 2 3 4 }", "a {\n  "+x+": 1 2 3 4;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-left: 5; "+x+": 1 2 3 4 }", "a {\n  "+x+": 1 2 3 4;\n}\n")
 
-	expectPrintedMangle(t, "a { margin-top: 1; margin-top: 2 }", "a {\n  margin-top: 2;\n}\n")
-	expectPrintedMangle(t, "a { margin-right: 1; margin-right: 2 }", "a {\n  margin-right: 2;\n}\n")
-	expectPrintedMangle(t, "a { margin-bottom: 1; margin-bottom: 2 }", "a {\n  margin-bottom: 2;\n}\n")
-	expectPrintedMangle(t, "a { margin-left: 1; margin-left: 2 }", "a {\n  margin-left: 2;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-top: 1; "+x+"-top: 2 }", "a {\n  "+x+"-top: 2;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-right: 1; "+x+"-right: 2 }", "a {\n  "+x+"-right: 2;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-bottom: 1; "+x+"-bottom: 2 }", "a {\n  "+x+"-bottom: 2;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-left: 1; "+x+"-left: 2 }", "a {\n  "+x+"-left: 2;\n}\n")
 
-	expectPrintedMangle(t, "a { margin: 1; margin: 2 !important }", "a {\n  margin: 2 !important;\n}\n")
-	expectPrintedMangle(t, "a { margin-top: 1; margin-top: 2 !important }", "a {\n  margin-top: 2 !important;\n}\n")
-	expectPrintedMangle(t, "a { margin-right: 1; margin-right: 2 !important }", "a {\n  margin-right: 2 !important;\n}\n")
-	expectPrintedMangle(t, "a { margin-bottom: 1; margin-bottom: 2 !important }", "a {\n  margin-bottom: 2 !important;\n}\n")
-	expectPrintedMangle(t, "a { margin-left: 1; margin-left: 2 !important }", "a {\n  margin-left: 2 !important;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1; "+x+": 2 !important }", "a {\n  "+x+": 2 !important;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-top: 1; "+x+"-top: 2 !important }", "a {\n  "+x+"-top: 2 !important;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-right: 1; "+x+"-right: 2 !important }", "a {\n  "+x+"-right: 2 !important;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-bottom: 1; "+x+"-bottom: 2 !important }", "a {\n  "+x+"-bottom: 2 !important;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-left: 1; "+x+"-left: 2 !important }", "a {\n  "+x+"-left: 2 !important;\n}\n")
 
-	expectPrintedMangle(t, "a { margin: 1 !important; margin: 2 }", "a {\n  margin: 2;\n}\n")
-	expectPrintedMangle(t, "a { margin-top: 1 !important; margin-top: 2 }", "a {\n  margin-top: 2;\n}\n")
-	expectPrintedMangle(t, "a { margin-right: 1 !important; margin-right: 2 }", "a {\n  margin-right: 2;\n}\n")
-	expectPrintedMangle(t, "a { margin-bottom: 1 !important; margin-bottom: 2 }", "a {\n  margin-bottom: 2;\n}\n")
-	expectPrintedMangle(t, "a { margin-left: 1 !important; margin-left: 2 }", "a {\n  margin-left: 2;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1 !important; "+x+": 2 }", "a {\n  "+x+": 2;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-top: 1 !important; "+x+"-top: 2 }", "a {\n  "+x+"-top: 2;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-right: 1 !important; "+x+"-right: 2 }", "a {\n  "+x+"-right: 2;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-bottom: 1 !important; "+x+"-bottom: 2 }", "a {\n  "+x+"-bottom: 2;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-left: 1 !important; "+x+"-left: 2 }", "a {\n  "+x+"-left: 2;\n}\n")
 
-	expectPrintedMangle(t, "a { margin-top: 1; margin-top: }", "a {\n  margin-top: 1;\n  margin-top:;\n}\n")
-	expectPrintedMangle(t, "a { margin-top: 1; margin-top: 2 3 }", "a {\n  margin-top: 1;\n  margin-top: 2 3;\n}\n")
-	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-right: calc(1 + var(--x)) }", "a {\n  margin: 1 calc(1 + var(--x)) 3 4;\n}\n")
-	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-left: -4; margin-right: -2 }", "a {\n  margin: 1 -2 3 -4;\n}\n")
-	expectPrintedMangle(t, "a { margin: 1 auto 3 4; margin-left: auto }", "a {\n  margin: 1 auto 3;\n}\n")
-	expectPrintedMangle(t, "a { margin: 1 2; margin-top: 5 }", "a {\n  margin: 5 2 1;\n}\n")
-	expectPrintedMangle(t, "a { margin: 1; margin-top: 5 }", "a {\n  margin: 5 1 1;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-top: 1; "+x+"-top: }", "a {\n  "+x+"-top: 1;\n  "+x+"-top:;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-top: 1; "+x+"-top: 2 3 }", "a {\n  "+x+"-top: 1;\n  "+x+"-top: 2 3;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-right: calc(1 + var(--x)) }", "a {\n  "+x+": 1 calc(1 + var(--x)) 3 4;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-left: -4; "+x+"-right: -2 }", "a {\n  "+x+": 1 -2 3 -4;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1 auto 3 4; "+x+"-left: auto }", "a {\n  "+x+": 1 auto 3;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1 2; "+x+"-top: 5 }", "a {\n  "+x+": 5 2 1;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1; "+x+"-top: 5 }", "a {\n  "+x+": 5 1 1;\n}\n")
 
-	expectPrintedMangle(t, "a { margin-left: 1; margin-right: 2; margin-top: 3; margin-bottom: 4 }", "a {\n  margin: 3 2 4 1;\n}\n")
-	expectPrintedMangle(t, "a { margin: 1 2 3 4; margin-right: 5 !important }",
-		"a {\n  margin: 1 2 3 4;\n  margin-right: 5 !important;\n}\n")
-	expectPrintedMangle(t, "a { margin: 1 2 3 4 !important; margin-right: 5 }",
-		"a {\n  margin: 1 2 3 4 !important;\n  margin-right: 5;\n}\n")
-	expectPrintedMangle(t, "a { margin-left: 1 !important; margin-right: 2; margin-top: 3 !important; margin-bottom: 4 }",
-		"a {\n  margin-left: 1 !important;\n  margin-right: 2;\n  margin-top: 3 !important;\n  margin-bottom: 4;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-left: 1; "+x+"-right: 2; "+x+"-top: 3; "+x+"-bottom: 4 }", "a {\n  "+x+": 3 2 4 1;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-right: 5 !important }",
+			"a {\n  "+x+": 1 2 3 4;\n  "+x+"-right: 5 !important;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1 2 3 4 !important; "+x+"-right: 5 }",
+			"a {\n  "+x+": 1 2 3 4 !important;\n  "+x+"-right: 5;\n}\n")
+		expectPrintedMangle(t, "a { "+x+"-left: 1 !important; "+x+"-right: 2; "+x+"-top: 3 !important; "+x+"-bottom: 4 }",
+			"a {\n  "+x+"-left: 1 !important;\n  "+x+"-right: 2;\n  "+x+"-top: 3 !important;\n  "+x+"-bottom: 4;\n}\n")
+	}
 }
 
 func TestBorderRadius(t *testing.T) {
