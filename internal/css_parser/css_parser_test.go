@@ -1014,3 +1014,32 @@ func TestBorderRadius(t *testing.T) {
 	expectPrintedMangleMinify(t, "a { border-radius: 1 2 3 4; border-top-right-radius: 5; }", "a{border-radius:1 5 3 4}")
 	expectPrintedMangleMinify(t, "a { border-radius: 1 2 3 4; border-top-right-radius: 5 6; }", "a{border-radius:1 5 3 4/1 6 3 4}")
 }
+
+func TestDeduplicateRules(t *testing.T) {
+	expectPrinted(t, "a { color: red; color: green; color: red }",
+		"a {\n  color: red;\n  color: green;\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red; color: green; color: red }",
+		"a {\n  color: green;\n  color: red;\n}\n")
+
+	expectPrinted(t, "a { color: red } a { color: green } a { color: red }",
+		"a {\n  color: red;\n}\na {\n  color: green;\n}\na {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } a { color: green } a { color: red }",
+		"a {\n  color: green;\n}\na {\n  color: red;\n}\n")
+
+	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { a { color: red } }",
+		"@media screen {\n  a {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { & a { color: red } }",
+		"@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  & a {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { a[x] { color: red } }",
+		"@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  a[x] {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { a.x { color: red } }",
+		"@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  a.x {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { a#x { color: red } }",
+		"@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  a#x {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { a:x { color: red } }",
+		"@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  a:x {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@media screen { a:x { color: red } } @media screen { a:x(y) { color: red } }",
+		"@media screen {\n  a:x {\n    color: red;\n  }\n}\n@media screen {\n  a:x(y) {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@media screen { a b { color: red } } @media screen { a + b { color: red } }",
+		"@media screen {\n  a b {\n    color: red;\n  }\n}\n@media screen {\n  a + b {\n    color: red;\n  }\n}\n")
+}

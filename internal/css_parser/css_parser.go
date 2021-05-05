@@ -225,7 +225,7 @@ loop:
 	}
 
 	if p.options.MangleSyntax {
-		rules = removeEmptyRules(rules)
+		rules = removeEmptyAndDuplicateRules(rules)
 	}
 	return rules
 }
@@ -239,7 +239,7 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
 			list = p.processDeclarations(list)
 			if p.options.MangleSyntax {
-				list = removeEmptyRules(list)
+				list = removeEmptyAndDuplicateRules(list)
 			}
 			return
 
@@ -258,9 +258,20 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 	}
 }
 
-func removeEmptyRules(rules []css_ast.R) []css_ast.R {
-	end := 0
-	for _, rule := range rules {
+func removeEmptyAndDuplicateRules(rules []css_ast.R) []css_ast.R {
+	type hashEntry struct {
+		indices []uint32
+	}
+
+	n := len(rules)
+	start := n
+	entries := make(map[uint32]hashEntry)
+
+	// Scan from the back so we keep the last rule
+skipRule:
+	for i := n - 1; i >= 0; i-- {
+		rule := rules[i]
+
 		switch r := rule.(type) {
 		case *css_ast.RAtKeyframes:
 			if len(r.Blocks) == 0 {
@@ -278,10 +289,25 @@ func removeEmptyRules(rules []css_ast.R) []css_ast.R {
 			}
 		}
 
-		rules[end] = rule
-		end++
+		if hash, ok := rule.Hash(); ok {
+			entry := entries[hash]
+
+			// For duplicate rules, omit all but the last copy
+			for _, index := range entry.indices {
+				if rule.Equal(rules[index]) {
+					continue skipRule
+				}
+			}
+
+			entry.indices = append(entry.indices, uint32(i))
+			entries[hash] = entry
+		}
+
+		start--
+		rules[start] = rule
 	}
-	return rules[:end]
+
+	return rules[start:]
 }
 
 func (p *parser) parseURLOrString() (string, logger.Range, bool) {

@@ -11,6 +11,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -555,10 +556,6 @@ func (dc *duplicateCaseChecker) check(p *parser, expr js_ast.Expr) {
 	}
 }
 
-func hashCombine(seed uint32, hash uint32) uint32 {
-	return seed ^ (hash + 0x9e3779b9 + (seed << 6) + (seed >> 2))
-}
-
 func duplicateCaseHash(expr js_ast.Expr) (uint32, bool) {
 	switch e := expr.Data.(type) {
 	case *js_ast.ENull:
@@ -569,44 +566,40 @@ func duplicateCaseHash(expr js_ast.Expr) (uint32, bool) {
 
 	case *js_ast.EBoolean:
 		if e.Value {
-			return hashCombine(2, 1), true
+			return helpers.HashCombine(2, 1), true
 		}
-		return hashCombine(2, 0), true
+		return helpers.HashCombine(2, 0), true
 
 	case *js_ast.ENumber:
 		bits := math.Float64bits(e.Value)
-		return hashCombine(hashCombine(3, uint32(bits)), uint32(bits>>32)), true
+		return helpers.HashCombine(helpers.HashCombine(3, uint32(bits)), uint32(bits>>32)), true
 
 	case *js_ast.EString:
 		hash := uint32(4)
 		for _, c := range e.Value {
-			hash = hashCombine(hash, uint32(c))
+			hash = helpers.HashCombine(hash, uint32(c))
 		}
 		return hash, true
 
 	case *js_ast.EBigInt:
 		hash := uint32(5)
 		for _, c := range e.Value {
-			hash = hashCombine(hash, uint32(c))
+			hash = helpers.HashCombine(hash, uint32(c))
 		}
 		return hash, true
 
 	case *js_ast.EIdentifier:
-		return hashCombine(6, e.Ref.InnerIndex), true
+		return helpers.HashCombine(6, e.Ref.InnerIndex), true
 
 	case *js_ast.EDot:
 		if target, ok := duplicateCaseHash(e.Target); ok {
-			hash := hashCombine(7, target)
-			for _, c := range e.Name {
-				hash = hashCombine(hash, uint32(c))
-			}
-			return hash, true
+			return helpers.HashCombineString(helpers.HashCombine(7, target), e.Name), true
 		}
 
 	case *js_ast.EIndex:
 		if target, ok := duplicateCaseHash(e.Target); ok {
 			if index, ok := duplicateCaseHash(e.Index); ok {
-				return hashCombine(hashCombine(8, target), index), true
+				return helpers.HashCombine(helpers.HashCombine(8, target), index), true
 			}
 		}
 	}
