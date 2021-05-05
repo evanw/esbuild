@@ -87,10 +87,12 @@ func (p *parser) processDeclarations(rules []css_ast.R) []css_ast.R {
 			css_ast.DCaretColor,
 			css_ast.DColor,
 			css_ast.DColumnRuleColor,
+			css_ast.DFill,
 			css_ast.DFloodColor,
 			css_ast.DLightingColor,
 			css_ast.DOutlineColor,
 			css_ast.DStopColor,
+			css_ast.DStroke,
 			css_ast.DTextDecorationColor,
 			css_ast.DTextEmphasisColor:
 
