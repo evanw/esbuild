@@ -31,41 +31,32 @@ func (margin *marginTracker) updateSide(rules []css_ast.R, side int, new marginS
 	margin.sides[side] = new
 }
 
-func (margin *marginTracker) mangleSides(rules []css_ast.R, decl *css_ast.RDeclaration, index int) {
+func (margin *marginTracker) mangleSides(rules []css_ast.R, decl *css_ast.RDeclaration, index int, removeWhitespace bool) {
 	if n := len(decl.Value); n >= 1 && n <= 4 {
-		for side, t := range decl.Value {
+		for side, t := range expandTokenQuad(decl.Value) {
 			t.TurnLengthIntoNumberIfZero()
 			margin.updateSide(rules, side, marginSide{token: t, index: uint32(index), important: decl.Important})
 		}
-		if n == 1 {
-			margin.sides[1] = margin.sides[0]
-		}
-		if n <= 2 {
-			margin.sides[2] = margin.sides[0]
-		}
-		if n <= 3 {
-			margin.sides[3] = margin.sides[1]
-		}
-		margin.compactRules(rules, decl.KeyRange)
+		margin.compactRules(rules, decl.KeyRange, removeWhitespace)
 	} else {
 		margin.sides = [4]marginSide{}
 	}
 }
 
-func (margin *marginTracker) mangleSide(rules []css_ast.R, decl *css_ast.RDeclaration, index int, side int) {
+func (margin *marginTracker) mangleSide(rules []css_ast.R, decl *css_ast.RDeclaration, index int, removeWhitespace bool, side int) {
 	if tokens := decl.Value; len(tokens) == 1 {
 		t := tokens[0]
 		if t.TurnLengthIntoNumberIfZero() {
 			tokens[0] = t
 		}
 		margin.updateSide(rules, side, marginSide{token: t, index: uint32(index), important: decl.Important, single: true})
-		margin.compactRules(rules, decl.KeyRange)
+		margin.compactRules(rules, decl.KeyRange, removeWhitespace)
 	} else {
 		margin.sides = [4]marginSide{}
 	}
 }
 
-func (margin *marginTracker) compactRules(rules []css_ast.R, keyRange logger.Range) {
+func (margin *marginTracker) compactRules(rules []css_ast.R, keyRange logger.Range, removeWhitespace bool) {
 	// All tokens must be present
 	if eof := css_lexer.TEndOfFile; margin.sides[0].token.Kind == eof || margin.sides[1].token.Kind == eof ||
 		margin.sides[2].token.Kind == eof || margin.sides[3].token.Kind == eof {
@@ -79,28 +70,13 @@ func (margin *marginTracker) compactRules(rules []css_ast.R, keyRange logger.Ran
 	}
 
 	// Generate the most minimal representation
-	tokens := []css_ast.Token{
+	tokens := compactTokenQuad(
 		margin.sides[0].token,
 		margin.sides[1].token,
 		margin.sides[2].token,
 		margin.sides[3].token,
-	}
-	if tokens[3].EqualsIgnoringWhitespace(tokens[1]) {
-		if tokens[2].EqualsIgnoringWhitespace(tokens[0]) {
-			if tokens[1].EqualsIgnoringWhitespace(tokens[0]) {
-				tokens = tokens[:1]
-			} else {
-				tokens = tokens[:2]
-			}
-		} else {
-			tokens = tokens[:3]
-		}
-
-		// Copy the whitespace after flag from the last token
-		if last := &tokens[len(tokens)-1]; (last.Whitespace^margin.sides[3].token.Whitespace)&css_ast.WhitespaceAfter != 0 {
-			last.Whitespace ^= css_ast.WhitespaceAfter
-		}
-	}
+		removeWhitespace,
+	)
 
 	// Remove all of the existing declarations
 	rules[margin.sides[0].index] = nil

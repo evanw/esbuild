@@ -69,25 +69,30 @@ type Token struct {
 	Whitespace WhitespaceFlags // 1 byte
 }
 
-func (a Token) EqualsIgnoringWhitespace(b Token) bool {
+func (a Token) EqualIgnoringWhitespace(b Token) bool {
 	if a.Kind == b.Kind && a.Text == b.Text && a.ImportRecordIndex == b.ImportRecordIndex {
 		if a.Children == nil && b.Children == nil {
 			return true
 		}
 
-		if a.Children != nil && b.Children != nil {
-			if ac, bc := *a.Children, *b.Children; len(ac) == len(bc) {
-				for i, c := range ac {
-					if !c.EqualsIgnoringWhitespace(bc[i]) {
-						return false
-					}
-				}
-				return true
-			}
+		if a.Children != nil && b.Children != nil && TokensEqualIgnoringWhitespace(*a.Children, *b.Children) {
+			return true
 		}
 	}
 
 	return false
+}
+
+func TokensEqualIgnoringWhitespace(a []Token, b []Token) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, c := range a {
+		if !c.EqualIgnoringWhitespace(b[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 func (t Token) FractionForPercentage() (float64, bool) {

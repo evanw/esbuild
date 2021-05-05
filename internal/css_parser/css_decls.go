@@ -16,8 +16,56 @@ func (p *parser) commaToken() css_ast.Token {
 	return t
 }
 
+func expandTokenQuad(tokens []css_ast.Token) (result [4]css_ast.Token) {
+	n := len(tokens)
+	result[0] = tokens[0]
+	if n > 1 {
+		result[1] = tokens[1]
+	} else {
+		result[1] = result[0]
+	}
+	if n > 2 {
+		result[2] = tokens[2]
+	} else {
+		result[2] = result[0]
+	}
+	if n > 3 {
+		result[3] = tokens[3]
+	} else {
+		result[3] = result[1]
+	}
+	return
+}
+
+func compactTokenQuad(a css_ast.Token, b css_ast.Token, c css_ast.Token, d css_ast.Token, removeWhitespace bool) []css_ast.Token {
+	tokens := []css_ast.Token{a, b, c, d}
+	if tokens[3].EqualIgnoringWhitespace(tokens[1]) {
+		if tokens[2].EqualIgnoringWhitespace(tokens[0]) {
+			if tokens[1].EqualIgnoringWhitespace(tokens[0]) {
+				tokens = tokens[:1]
+			} else {
+				tokens = tokens[:2]
+			}
+		} else {
+			tokens = tokens[:3]
+		}
+	}
+	for i := range tokens {
+		var whitespace css_ast.WhitespaceFlags
+		if !removeWhitespace || i > 0 {
+			whitespace |= css_ast.WhitespaceBefore
+		}
+		if i+1 < len(tokens) {
+			whitespace |= css_ast.WhitespaceAfter
+		}
+		tokens[i].Whitespace = whitespace
+	}
+	return tokens
+}
+
 func (p *parser) processDeclarations(rules []css_ast.R) []css_ast.R {
 	margin := marginTracker{}
+	borderRadius := borderRadiusTracker{}
 
 	for i, rule := range rules {
 		decl, ok := rule.(*css_ast.RDeclaration)
@@ -56,27 +104,44 @@ func (p *parser) processDeclarations(rules []css_ast.R) []css_ast.R {
 
 		case css_ast.DMargin:
 			if p.options.MangleSyntax {
-				margin.mangleSides(rules, decl, i)
+				margin.mangleSides(rules, decl, i, p.options.RemoveWhitespace)
 			}
-
 		case css_ast.DMarginTop:
 			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, marginTop)
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, marginTop)
 			}
-
 		case css_ast.DMarginRight:
 			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, marginRight)
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, marginRight)
 			}
-
 		case css_ast.DMarginBottom:
 			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, marginBottom)
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, marginBottom)
 			}
-
 		case css_ast.DMarginLeft:
 			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, marginLeft)
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, marginLeft)
+			}
+
+		case css_ast.DBorderRadius:
+			if p.options.MangleSyntax {
+				borderRadius.mangleCorners(rules, decl, i, p.options.RemoveWhitespace)
+			}
+		case css_ast.DBorderTopLeftRadius:
+			if p.options.MangleSyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusTopLeft)
+			}
+		case css_ast.DBorderTopRightRadius:
+			if p.options.MangleSyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusTopRight)
+			}
+		case css_ast.DBorderBottomRightRadius:
+			if p.options.MangleSyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusBottomRight)
+			}
+		case css_ast.DBorderBottomLeftRadius:
+			if p.options.MangleSyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusBottomLeft)
 			}
 		}
 	}
