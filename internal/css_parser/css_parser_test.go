@@ -647,6 +647,11 @@ func TestSelector(t *testing.T) {
 	expectParseError(t, "div#0 {}", "<stdin>: warning: Unexpected \"#0\"\n")
 	expectParseError(t, "div#-0 {}", "<stdin>: warning: Unexpected \"#-0\"\n")
 
+	expectPrinted(t, "div::before::after::selection::first-line::first-letter {color:red}",
+		"div::before::after::selection::first-line::first-letter {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "div::before::after::selection::first-line::first-letter {color:red}",
+		"div:before:after::selection:first-line:first-letter {\n  color: red;\n}\n")
+
 	// Make sure '-' and '\\' consume an ident-like token instead of a name
 	expectParseError(t, "_:-ms-lang(x) {}", "")
 	expectParseError(t, "_:\\ms-lang(x) {}", "")

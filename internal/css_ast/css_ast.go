@@ -161,11 +161,10 @@ type ComplexSelector struct {
 }
 
 type CompoundSelector struct {
-	HasNestPrefix        bool   // "&"
-	Combinator           string // Optional, may be ""
-	TypeSelector         *NamespacedName
-	SubclassSelectors    []SS
-	PseudoClassSelectors []SSPseudoClass // If present, these follow a ":" character
+	HasNestPrefix     bool   // "&"
+	Combinator        string // Optional, may be ""
+	TypeSelector      *NamespacedName
+	SubclassSelectors []SS
 }
 
 type NameToken struct {
@@ -203,8 +202,9 @@ type SSAttribute struct {
 }
 
 type SSPseudoClass struct {
-	Name string
-	Args []Token
+	Name      string
+	Args      []Token
+	IsElement bool // If true, this is prefixed by "::" instead of ":"
 }
 
 func (*SSHash) isSubclassSelector()        {}
