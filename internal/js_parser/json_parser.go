@@ -97,7 +97,7 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 		p.lexer.Next()
 		isSingleLine := !p.lexer.HasNewlineBefore
 		properties := []js_ast.Property{}
-		duplicates := make(map[string]bool)
+		duplicates := make(map[string]logger.Range)
 
 		for p.lexer.Token != js_lexer.TCloseBrace {
 			if len(properties) > 0 {
@@ -119,10 +119,11 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 
 			// Warn about duplicate keys
 			keyText := js_lexer.UTF16ToString(keyString)
-			if duplicates[keyText] {
-				p.log.AddRangeWarning(&p.tracker, keyRange, fmt.Sprintf("Duplicate key %q in object literal", keyText))
+			if prevRange, ok := duplicates[keyText]; ok {
+				p.log.AddRangeWarningWithNotes(&p.tracker, keyRange, fmt.Sprintf("Duplicate key %q in object literal", keyText),
+					[]logger.MsgData{logger.RangeData(&p.tracker, prevRange, fmt.Sprintf("The original %q is here", keyText))})
 			} else {
-				duplicates[keyText] = true
+				duplicates[keyText] = keyRange
 			}
 
 			p.lexer.Expect(js_lexer.TColon)
