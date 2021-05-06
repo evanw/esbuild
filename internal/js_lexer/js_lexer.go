@@ -218,6 +218,7 @@ type json struct {
 type Lexer struct {
 	log                             logger.Log
 	source                          logger.Source
+	tracker                         logger.LineColumnTracker
 	current                         int
 	start                           int
 	end                             int
@@ -256,6 +257,7 @@ func NewLexer(log logger.Log, source logger.Source) Lexer {
 	lexer := Lexer{
 		log:               log,
 		source:            source,
+		tracker:           logger.MakeLineColumnTracker(&source),
 		prevErrorLoc:      logger.Loc{Start: -1},
 		FnOrArrowStartLoc: logger.Loc{Start: -1},
 	}
@@ -268,6 +270,7 @@ func NewLexerGlobalName(log logger.Log, source logger.Source) Lexer {
 	lexer := Lexer{
 		log:               log,
 		source:            source,
+		tracker:           logger.MakeLineColumnTracker(&source),
 		prevErrorLoc:      logger.Loc{Start: -1},
 		FnOrArrowStartLoc: logger.Loc{Start: -1},
 		forGlobalName:     true,
@@ -281,6 +284,7 @@ func NewLexerJSON(log logger.Log, source logger.Source, allowComments bool) Lexe
 	lexer := Lexer{
 		log:               log,
 		source:            source,
+		tracker:           logger.MakeLineColumnTracker(&source),
 		prevErrorLoc:      logger.Loc{Start: -1},
 		FnOrArrowStartLoc: logger.Loc{Start: -1},
 		json: json{
@@ -394,7 +398,7 @@ func (lexer *Lexer) ExpectedString(text string) {
 	if lexer.PrevTokenWasAwaitKeyword {
 		var notes []logger.MsgData
 		if lexer.FnOrArrowStartLoc.Start != -1 {
-			note := logger.RangeData(&lexer.source, logger.Range{Loc: lexer.FnOrArrowStartLoc},
+			note := logger.RangeData(&lexer.tracker, logger.Range{Loc: lexer.FnOrArrowStartLoc},
 				"Consider adding the \"async\" keyword here")
 			note.Location.Suggestion = "async"
 			notes = []logger.MsgData{note}
@@ -899,7 +903,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
 						lexer.addErrorWithNotes(lexer.Loc(), "Expected \"*/\" to terminate multi-line comment",
-							[]logger.MsgData{logger.RangeData(&lexer.source, startRange, "The multi-line comment starts here")})
+							[]logger.MsgData{logger.RangeData(&lexer.tracker, startRange, "The multi-line comment starts here")})
 						panic(LexerPanic{})
 
 					default:
@@ -1234,7 +1238,7 @@ func (lexer *Lexer) Next() {
 				// Handle legacy HTML-style comments
 				if lexer.codePoint == '>' && lexer.HasNewlineBefore {
 					lexer.step()
-					lexer.log.AddRangeWarning(&lexer.source, lexer.Range(),
+					lexer.log.AddRangeWarning(&lexer.tracker, lexer.Range(),
 						"Treating \"-->\" as the start of a legacy HTML single-line comment")
 				singleLineHTMLCloseComment:
 					for {
@@ -1328,7 +1332,7 @@ func (lexer *Lexer) Next() {
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
 						lexer.addErrorWithNotes(lexer.Loc(), "Expected \"*/\" to terminate multi-line comment",
-							[]logger.MsgData{logger.RangeData(&lexer.source, startRange, "The multi-line comment starts here")})
+							[]logger.MsgData{logger.RangeData(&lexer.tracker, startRange, "The multi-line comment starts here")})
 						panic(LexerPanic{})
 
 					default:
@@ -1388,7 +1392,7 @@ func (lexer *Lexer) Next() {
 					lexer.step()
 					lexer.step()
 					lexer.step()
-					lexer.log.AddRangeWarning(&lexer.source, lexer.Range(),
+					lexer.log.AddRangeWarning(&lexer.tracker, lexer.Range(),
 						"Treating \"<!--\" as the start of a legacy HTML single-line comment")
 				singleLineHTMLOpenComment:
 					for {
@@ -2434,7 +2438,7 @@ func (lexer *Lexer) addError(loc logger.Loc, text string) {
 	lexer.prevErrorLoc = loc
 
 	if !lexer.IsLogDisabled {
-		lexer.log.AddError(&lexer.source, loc, text)
+		lexer.log.AddError(&lexer.tracker, loc, text)
 	}
 }
 
@@ -2446,7 +2450,7 @@ func (lexer *Lexer) addErrorWithNotes(loc logger.Loc, text string, notes []logge
 	lexer.prevErrorLoc = loc
 
 	if !lexer.IsLogDisabled {
-		lexer.log.AddErrorWithNotes(&lexer.source, loc, text, notes)
+		lexer.log.AddErrorWithNotes(&lexer.tracker, loc, text, notes)
 	}
 }
 
@@ -2458,7 +2462,7 @@ func (lexer *Lexer) addRangeError(r logger.Range, text string) {
 	lexer.prevErrorLoc = r.Loc
 
 	if !lexer.IsLogDisabled {
-		lexer.log.AddRangeError(&lexer.source, r, text)
+		lexer.log.AddRangeError(&lexer.tracker, r, text)
 	}
 }
 
@@ -2470,7 +2474,7 @@ func (lexer *Lexer) addRangeErrorWithNotes(r logger.Range, text string, notes []
 	lexer.prevErrorLoc = r.Loc
 
 	if !lexer.IsLogDisabled {
-		lexer.log.AddRangeErrorWithNotes(&lexer.source, r, text, notes)
+		lexer.log.AddRangeErrorWithNotes(&lexer.tracker, r, text, notes)
 	}
 }
 

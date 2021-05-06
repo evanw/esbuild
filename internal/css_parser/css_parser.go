@@ -17,6 +17,7 @@ import (
 type parser struct {
 	log           logger.Log
 	source        logger.Source
+	tracker       logger.LineColumnTracker
 	options       Options
 	tokens        []css_lexer.Token
 	stack         []css_lexer.T
@@ -36,6 +37,7 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 	p := parser{
 		log:       log,
 		source:    source,
+		tracker:   logger.MakeLineColumnTracker(&source),
 		options:   options,
 		tokens:    css_lexer.Tokenize(log, source),
 		prevError: logger.Loc{Start: -1},
@@ -124,7 +126,7 @@ func (p *parser) expect(kind css_lexer.T) bool {
 		}
 	}
 	if t.Range.Loc.Start > p.prevError.Start {
-		p.log.AddRangeWarning(&p.source, t.Range, text)
+		p.log.AddRangeWarning(&p.tracker, t.Range, text)
 		p.prevError = t.Range.Loc
 	}
 	return false
@@ -142,7 +144,7 @@ func (p *parser) unexpected() {
 		default:
 			text = fmt.Sprintf("Unexpected %q", p.raw())
 		}
-		p.log.AddRangeWarning(&p.source, t.Range, text)
+		p.log.AddRangeWarning(&p.tracker, t.Range, text)
 		p.prevError = t.Range.Loc
 	}
 }
@@ -177,8 +179,8 @@ loop:
 				switch rule.(type) {
 				case *css_ast.RAtCharset:
 					if !didWarnAboutCharset && len(rules) > 0 {
-						p.log.AddRangeWarningWithNotes(&p.source, first, "\"@charset\" must be the first rule in the file",
-							[]logger.MsgData{logger.RangeData(&p.source, logger.Range{Loc: locs[len(locs)-1]},
+						p.log.AddRangeWarningWithNotes(&p.tracker, first, "\"@charset\" must be the first rule in the file",
+							[]logger.MsgData{logger.RangeData(&p.tracker, logger.Range{Loc: locs[len(locs)-1]},
 								"This rule cannot come before a \"@charset\" rule")})
 						didWarnAboutCharset = true
 					}
@@ -190,8 +192,8 @@ loop:
 							switch before.(type) {
 							case *css_ast.RAtCharset, *css_ast.RAtImport:
 							default:
-								p.log.AddRangeWarningWithNotes(&p.source, first, "All \"@import\" rules must come first",
-									[]logger.MsgData{logger.RangeData(&p.source, logger.Range{Loc: locs[i]},
+								p.log.AddRangeWarningWithNotes(&p.tracker, first, "All \"@import\" rules must come first",
+									[]logger.MsgData{logger.RangeData(&p.tracker, logger.Range{Loc: locs[i]},
 										"This rule cannot come before an \"@import\" rule")})
 								didWarnAboutImport = true
 								break importLoop
@@ -422,7 +424,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		if p.peek(css_lexer.TString) {
 			encoding := p.decoded()
 			if encoding != "UTF-8" {
-				p.log.AddRangeWarning(&p.source, p.current().Range,
+				p.log.AddRangeWarning(&p.tracker, p.current().Range,
 					fmt.Sprintf("\"UTF-8\" will be used instead of unsupported charset %q", encoding))
 			}
 			p.advance()
@@ -587,9 +589,9 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 				//
 				// Instead of implementing all of that for an extremely obscure feature,
 				// CSS namespaces are just explicitly not supported.
-				p.log.AddRangeWarning(&p.source, atRange, "\"@namespace\" rules are not supported")
+				p.log.AddRangeWarning(&p.tracker, atRange, "\"@namespace\" rules are not supported")
 			} else {
-				p.log.AddRangeWarning(&p.source, atRange, fmt.Sprintf("%q is not a known rule name", "@"+atToken))
+				p.log.AddRangeWarning(&p.tracker, atRange, fmt.Sprintf("%q is not a known rule name", "@"+atToken))
 			}
 		}
 	}

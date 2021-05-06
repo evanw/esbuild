@@ -123,14 +123,16 @@ type DebugMeta struct {
 }
 
 func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string) {
+	tracker := logger.MakeLineColumnTracker(source)
+
 	msg := logger.Msg{
 		Kind:  logger.Error,
-		Data:  logger.RangeData(source, r, text),
+		Data:  logger.RangeData(&tracker, r, text),
 		Notes: dm.notes,
 	}
 
 	if source != nil && dm.suggestionMessage != "" {
-		data := logger.RangeData(source, r, dm.suggestionMessage)
+		data := logger.RangeData(&tracker, r, dm.suggestionMessage)
 		data.Location.Suggestion = dm.suggestionText
 		msg.Notes = append(msg.Notes, data)
 	}
@@ -818,6 +820,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 		PrettyPath: r.PrettyPath(keyPath),
 		Contents:   contents,
 	}
+	tracker := logger.MakeLineColumnTracker(&source)
 	fileDir := r.fs.Dir(file)
 
 	result := ParseTSConfigJSON(r.log, source, &r.caches.JSONCache, func(extends string, extendsRange logger.Range) *TSConfigJSON {
@@ -840,10 +843,10 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 						} else if err == syscall.ENOENT {
 							continue
 						} else if err == errParseErrorImportCycle {
-							r.log.AddRangeWarning(&source, extendsRange,
+							r.log.AddRangeWarning(&tracker, extendsRange,
 								fmt.Sprintf("Base config file %q forms cycle", extends))
 						} else if err != errParseErrorAlreadyLogged {
-							r.log.AddRangeError(&source, extendsRange,
+							r.log.AddRangeError(&tracker, extendsRange,
 								fmt.Sprintf("Cannot read file %q: %s",
 									r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
 						}
@@ -871,10 +874,10 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 				} else if err == syscall.ENOENT {
 					continue
 				} else if err == errParseErrorImportCycle {
-					r.log.AddRangeWarning(&source, extendsRange,
+					r.log.AddRangeWarning(&tracker, extendsRange,
 						fmt.Sprintf("Base config file %q forms cycle", extends))
 				} else if err != errParseErrorAlreadyLogged {
-					r.log.AddRangeError(&source, extendsRange,
+					r.log.AddRangeError(&tracker, extendsRange,
 						fmt.Sprintf("Cannot read file %q: %s",
 							r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
 				}
@@ -884,7 +887,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 
 		// Suppress warnings about missing base config files inside "node_modules"
 		if !IsInsideNodeModules(file) {
-			r.log.AddRangeWarning(&source, extendsRange,
+			r.log.AddRangeWarning(&tracker, extendsRange,
 				fmt.Sprintf("Cannot find base config file %q", extends))
 		}
 
@@ -1560,13 +1563,14 @@ func (r resolverQuery) loadNodeModules(importPath string, kind ast.ImportKind, d
 						}
 
 						// Provide additional details about the failure to help with debugging
+						tracker := logger.MakeLineColumnTracker(&packageJSON.source)
 						switch status {
 						case peStatusInvalidModuleSpecifier:
-							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token,
 								fmt.Sprintf("The module specifier %q is invalid", resolvedPath))}
 
 						case peStatusInvalidPackageConfiguration:
-							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token,
 								"The package configuration has an invalid value here")}
 
 						case peStatusInvalidPackageTarget:
@@ -1577,10 +1581,10 @@ func (r resolverQuery) loadNodeModules(importPath string, kind ast.ImportKind, d
 								// configuration error
 								why = "The package configuration has an invalid value here"
 							}
-							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token, why)}
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token, why)}
 
 						case peStatusPackagePathNotExported:
-							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token,
 								fmt.Sprintf("The path %q is not exported by package %q", esmPackageSubpath, esmPackageName))}
 
 							// If this fails, try to resolve it using the old algorithm
@@ -1592,7 +1596,7 @@ func (r resolverQuery) loadNodeModules(importPath string, kind ast.ImportKind, d
 									// "exports" map for the currently-active set of conditions
 									if ok, subpath, token := r.esmPackageExportsReverseResolve(
 										query, pkgDirInfo.packageJSON.exportsMap.root, conditions); ok {
-										debugMeta.notes = append(debugMeta.notes, logger.RangeData(&pkgDirInfo.packageJSON.source, token,
+										debugMeta.notes = append(debugMeta.notes, logger.RangeData(&tracker, token,
 											fmt.Sprintf("The file %q is exported at path %q", query, subpath)))
 
 										// Provide an inline suggestion message with the correct import path
@@ -1605,11 +1609,11 @@ func (r resolverQuery) loadNodeModules(importPath string, kind ast.ImportKind, d
 							}
 
 						case peStatusModuleNotFound:
-							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token,
 								fmt.Sprintf("The module %q was not found on the file system", resolvedPath))}
 
 						case peStatusUnsupportedDirectoryImport:
-							debugMeta.notes = []logger.MsgData{logger.RangeData(&packageJSON.source, debug.token,
+							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token,
 								fmt.Sprintf("Importing the directory %q is not supported", resolvedPath))}
 
 						case peStatusUndefinedNoConditionsMatch:
@@ -1626,10 +1630,10 @@ func (r resolverQuery) loadNodeModules(importPath string, kind ast.ImportKind, d
 							}
 							sort.Strings(keys)
 							debugMeta.notes = []logger.MsgData{
-								logger.RangeData(&packageJSON.source, packageJSON.exportsMap.root.firstToken,
+								logger.RangeData(&tracker, packageJSON.exportsMap.root.firstToken,
 									fmt.Sprintf("The path %q is not currently exported by package %q",
 										esmPackageSubpath, esmPackageName)),
-								logger.RangeData(&packageJSON.source, debug.token,
+								logger.RangeData(&tracker, debug.token,
 									fmt.Sprintf("None of the conditions provided (%s) match any of the currently active conditions (%s)",
 										prettyPrintConditions(debug.unmatchedConditions),
 										prettyPrintConditions(keys),

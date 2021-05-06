@@ -19,7 +19,7 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 
 	if !p.options.unsupportedJSFeatures.Has(feature) {
 		if feature == compat.TopLevelAwait && !p.options.outputFormat.KeepES6ImportExportSyntax() {
-			p.log.AddRangeError(&p.source, r, fmt.Sprintf(
+			p.log.AddRangeError(&p.tracker, r, fmt.Sprintf(
 				"Top-level await is currently not supported with the %q output format", p.options.outputFormat.String()))
 			return
 		}
@@ -88,34 +88,34 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 		name = "non-identifier array rest patterns"
 
 	case compat.TopLevelAwait:
-		p.log.AddRangeError(&p.source, r,
+		p.log.AddRangeError(&p.tracker, r,
 			fmt.Sprintf("Top-level await is not available in %s", where))
 		return
 
 	case compat.ArbitraryModuleNamespaceNames:
-		p.log.AddRangeError(&p.source, r,
+		p.log.AddRangeError(&p.tracker, r,
 			fmt.Sprintf("Using a string as a module namespace identifier name is not supported in %s", where))
 		return
 
 	case compat.BigInt:
 		// Transforming these will never be supported
-		p.log.AddRangeError(&p.source, r,
+		p.log.AddRangeError(&p.tracker, r,
 			fmt.Sprintf("Big integer literals are not available in %s", where))
 		return
 
 	case compat.ImportMeta:
 		// This can't be polyfilled
-		p.log.AddRangeWarning(&p.source, r,
+		p.log.AddRangeWarning(&p.tracker, r,
 			fmt.Sprintf("\"import.meta\" is not available in %s and will be empty", where))
 		return
 
 	default:
-		p.log.AddRangeError(&p.source, r,
+		p.log.AddRangeError(&p.tracker, r,
 			fmt.Sprintf("This feature is not available in %s", where))
 		return
 	}
 
-	p.log.AddRangeError(&p.source, r,
+	p.log.AddRangeError(&p.tracker, r,
 		fmt.Sprintf("Transforming %s to %s is not supported yet", name, where))
 	return
 }
@@ -184,12 +184,12 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 			if why == "" {
 				why = fmt.Sprintf("This file is implicitly in strict mode because of the %q keyword here", p.source.TextForRange(where))
 			}
-			notes = []logger.MsgData{logger.RangeData(&p.source, where, why)}
+			notes = []logger.MsgData{logger.RangeData(&p.tracker, where, why)}
 		}
-		p.log.AddRangeErrorWithNotes(&p.source, r,
+		p.log.AddRangeErrorWithNotes(&p.tracker, r,
 			fmt.Sprintf("%s cannot be used in strict mode", text), notes)
 	} else if !canBeTransformed && p.isStrictModeOutputFormat() {
-		p.log.AddRangeError(&p.source, r,
+		p.log.AddRangeError(&p.tracker, r,
 			fmt.Sprintf("%s cannot be used with the \"esm\" output format due to strict mode", text))
 	}
 }

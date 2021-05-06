@@ -11,6 +11,7 @@ import (
 type jsonParser struct {
 	log     logger.Log
 	source  logger.Source
+	tracker logger.LineColumnTracker
 	lexer   js_lexer.Lexer
 	options JSONOptions
 }
@@ -21,7 +22,7 @@ func (p *jsonParser) parseMaybeTrailingComma(closeToken js_lexer.T) bool {
 
 	if p.lexer.Token == closeToken {
 		if !p.options.AllowTrailingCommas {
-			p.log.AddRangeError(&p.source, commaRange, "JSON does not support trailing commas")
+			p.log.AddRangeError(&p.tracker, commaRange, "JSON does not support trailing commas")
 		}
 		return false
 	}
@@ -119,7 +120,7 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 			// Warn about duplicate keys
 			keyText := js_lexer.UTF16ToString(keyString)
 			if duplicates[keyText] {
-				p.log.AddRangeWarning(&p.source, keyRange, fmt.Sprintf("Duplicate key %q in object literal", keyText))
+				p.log.AddRangeWarning(&p.tracker, keyRange, fmt.Sprintf("Duplicate key %q in object literal", keyText))
 			} else {
 				duplicates[keyText] = true
 			}
@@ -169,6 +170,7 @@ func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (resul
 	p := &jsonParser{
 		log:     log,
 		source:  source,
+		tracker: logger.MakeLineColumnTracker(&source),
 		options: options,
 		lexer:   js_lexer.NewLexerJSON(log, source, options.AllowComments),
 	}
