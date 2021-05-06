@@ -273,8 +273,8 @@ publish-neutral: platform-neutral
 	test -n "$(OTP)" && cd npm/esbuild && npm publish --otp="$(OTP)"
 
 publish-deno:
-	test -f deno/.git || (rm -fr deno && git clone git@github.com:esbuild/deno-esbuild.git deno)
-	cd deno && git fetch && git reset --hard origin/main
+	test -d deno/.git || (rm -fr deno && git clone git@github.com:esbuild/deno-esbuild.git deno)
+	cd deno && git fetch && git checkout main && git reset --hard origin/main
 	make platform-deno
 	cd deno && git commit -am "publish $(ESBUILD_VERSION) to deno"
 	cd deno && git tag "v$(ESBUILD_VERSION)"
