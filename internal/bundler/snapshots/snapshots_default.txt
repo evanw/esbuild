@@ -2028,6 +2028,20 @@ TestOutputExtensionRemappingFile
 console.log("test");
 
 ================================================================================
+TestQuotedProperty
+---------- /out/entry.js ----------
+// entry.js
+var ns = __toModule(require("ext"));
+console.log(ns.mustBeUnquoted, ns["mustBeQuoted"]);
+
+================================================================================
+TestQuotedPropertyMangle
+---------- /out/entry.js ----------
+// entry.js
+var ns = __toModule(require("ext"));
+console.log(ns.mustBeUnquoted, ns.mustBeUnquoted2);
+
+================================================================================
 TestReExportCommonJSAsES6
 ---------- /out.js ----------
 // foo.js

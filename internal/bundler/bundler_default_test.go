@@ -4387,3 +4387,48 @@ file1.js: note: This file is considered an ECMAScript module because of the "exp
 `,
 	})
 }
+
+func TestQuotedProperty(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from 'ext'
+				console.log(ns.mustBeUnquoted, ns['mustBeQuoted'])
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			OutputFormat: config.FormatCommonJS,
+			AbsOutputDir: "/out",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"ext": true,
+				},
+			},
+		},
+	})
+}
+
+func TestQuotedPropertyMangle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from 'ext'
+				console.log(ns.mustBeUnquoted, ns['mustBeUnquoted2'])
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			OutputFormat: config.FormatCommonJS,
+			AbsOutputDir: "/out",
+			MangleSyntax: true,
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"ext": true,
+				},
+			},
+		},
+	})
+}

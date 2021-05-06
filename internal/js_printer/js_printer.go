@@ -860,24 +860,20 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 						continue
 					}
 
-					if str, ok := property.Key.Data.(*js_ast.EString); ok {
-						if p.canPrintIdentifierUTF16(str.Value) {
-							p.addSourceMapping(property.Key.Loc)
-							p.printSpaceBeforeIdentifier()
-							p.printIdentifierUTF16(str.Value)
+					if str, ok := property.Key.Data.(*js_ast.EString); ok && !property.PreferQuotedKey && p.canPrintIdentifierUTF16(str.Value) {
+						p.addSourceMapping(property.Key.Loc)
+						p.printSpaceBeforeIdentifier()
+						p.printIdentifierUTF16(str.Value)
 
-							// Use a shorthand property if the names are the same
-							if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok && js_lexer.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
-								if property.DefaultValue != nil {
-									p.printSpace()
-									p.print("=")
-									p.printSpace()
-									p.printExpr(*property.DefaultValue, js_ast.LComma, 0)
-								}
-								continue
+						// Use a shorthand property if the names are the same
+						if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok && js_lexer.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
+							if property.DefaultValue != nil {
+								p.printSpace()
+								p.print("=")
+								p.printSpace()
+								p.printExpr(*property.DefaultValue, js_ast.LComma, 0)
 							}
-						} else {
-							p.printExpr(property.Key, js_ast.LLowest, 0)
+							continue
 						}
 					} else {
 						p.printExpr(property.Key, js_ast.LLowest, 0)
@@ -1107,7 +1103,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 
 	case *js_ast.EString:
 		p.addSourceMapping(item.Key.Loc)
-		if p.canPrintIdentifierUTF16(key.Value) {
+		if !item.PreferQuotedKey && p.canPrintIdentifierUTF16(key.Value) {
 			p.printSpaceBeforeIdentifier()
 			p.printIdentifierUTF16(key.Value)
 
@@ -1963,7 +1959,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			}
 			p.printSymbol(symbol.NamespaceAlias.NamespaceRef)
 			alias := symbol.NamespaceAlias.Alias
-			if p.canPrintIdentifier(alias) {
+			if !e.PreferQuotedKey && p.canPrintIdentifier(alias) {
 				p.print(".")
 				p.printIdentifier(alias)
 			} else {

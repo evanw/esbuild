@@ -1755,6 +1755,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 	var key js_ast.Expr
 	keyRange := p.lexer.Range()
 	isComputed := false
+	preferQuotedKey := false
 
 	switch p.lexer.Token {
 	case js_lexer.TNumericLiteral:
@@ -1764,6 +1765,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 
 	case js_lexer.TStringLiteral:
 		key = p.parseStringLiteral()
+		preferQuotedKey = !p.options.mangleSyntax
 
 	case js_lexer.TBigIntegerLiteral:
 		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EBigInt{Value: p.lexer.Identifier}}
@@ -1964,12 +1966,13 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 
 		p.lexer.ExpectOrInsertSemicolon()
 		return js_ast.Property{
-			TSDecorators: opts.tsDecorators,
-			Kind:         kind,
-			IsComputed:   isComputed,
-			IsStatic:     opts.isStatic,
-			Key:          key,
-			Initializer:  initializer,
+			TSDecorators:    opts.tsDecorators,
+			Kind:            kind,
+			IsComputed:      isComputed,
+			PreferQuotedKey: preferQuotedKey,
+			IsStatic:        opts.isStatic,
+			Key:             key,
+			Initializer:     initializer,
 		}, true
 	}
 
@@ -2099,13 +2102,14 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 		}
 
 		return js_ast.Property{
-			TSDecorators: opts.tsDecorators,
-			Kind:         kind,
-			IsComputed:   isComputed,
-			IsMethod:     true,
-			IsStatic:     opts.isStatic,
-			Key:          key,
-			Value:        &value,
+			TSDecorators:    opts.tsDecorators,
+			Kind:            kind,
+			IsComputed:      isComputed,
+			PreferQuotedKey: preferQuotedKey,
+			IsMethod:        true,
+			IsStatic:        opts.isStatic,
+			Key:             key,
+			Value:           &value,
 		}, true
 	}
 
@@ -2113,16 +2117,18 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 	p.lexer.Expect(js_lexer.TColon)
 	value := p.parseExprOrBindings(js_ast.LComma, errors)
 	return js_ast.Property{
-		Kind:       kind,
-		IsComputed: isComputed,
-		Key:        key,
-		Value:      &value,
+		Kind:            kind,
+		IsComputed:      isComputed,
+		PreferQuotedKey: preferQuotedKey,
+		Key:             key,
+		Value:           &value,
 	}, true
 }
 
 func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 	var key js_ast.Expr
 	isComputed := false
+	preferQuotedKey := false
 
 	switch p.lexer.Token {
 	case js_lexer.TDotDotDot:
@@ -2141,6 +2147,7 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 
 	case js_lexer.TStringLiteral:
 		key = p.parseStringLiteral()
+		preferQuotedKey = !p.options.mangleSyntax
 
 	case js_lexer.TBigIntegerLiteral:
 		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EBigInt{Value: p.lexer.Identifier}}
@@ -2192,10 +2199,11 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 	}
 
 	return js_ast.PropertyBinding{
-		IsComputed:   isComputed,
-		Key:          key,
-		Value:        value,
-		DefaultValue: defaultValue,
+		IsComputed:      isComputed,
+		PreferQuotedKey: preferQuotedKey,
+		Key:             key,
+		Value:           value,
+		DefaultValue:    defaultValue,
 	}
 }
 
@@ -9532,7 +9540,7 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 
 	// Build up a chain of property access expressions for subsequent parts
 	for i := 1; i < len(parts); i++ {
-		if expr, ok := p.maybeRewritePropertyAccess(loc, js_ast.AssignTargetNone, false, value, parts[i], loc, false); ok {
+		if expr, ok := p.maybeRewritePropertyAccess(loc, js_ast.AssignTargetNone, false, value, parts[i], loc, false, false); ok {
 			value = expr
 		} else {
 			value = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
@@ -9681,6 +9689,7 @@ func (p *parser) maybeRewritePropertyAccess(
 	name string,
 	nameLoc logger.Loc,
 	isCallTarget bool,
+	preferQuotedKey bool,
 ) (js_ast.Expr, bool) {
 	if id, ok := target.Data.(*js_ast.EIdentifier); ok {
 		// Rewrite property accesses on explicit namespace imports as an identifier.
@@ -9728,8 +9737,9 @@ func (p *parser) maybeRewritePropertyAccess(
 				// Track how many times we've referenced this symbol
 				p.recordUsage(item.Ref)
 				return p.handleIdentifier(nameLoc, &js_ast.EIdentifier{Ref: item.Ref}, identifierOpts{
-					assignTarget:   assignTarget,
-					isDeleteTarget: isDeleteTarget,
+					assignTarget:    assignTarget,
+					isDeleteTarget:  isDeleteTarget,
+					preferQuotedKey: preferQuotedKey,
 
 					// If this expression is used as the target of a call expression, make
 					// sure the value of "this" is preserved.
@@ -10978,8 +10988,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			out.thisArgWrapFunc = nil
 		}
 		if str, ok := e.Index.Data.(*js_ast.EString); ok && e.OptionalChain == js_ast.OptionalChainNone {
+			preferQuotedKey := !p.options.mangleSyntax
 			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, isDeleteTarget,
-				e.Target, js_lexer.UTF16ToString(str.Value), e.Index.Loc, isCallTarget); ok {
+				e.Target, js_lexer.UTF16ToString(str.Value), e.Index.Loc, isCallTarget, preferQuotedKey); ok {
 				return value, out
 			}
 		}
@@ -11212,7 +11223,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			out.thisArgWrapFunc = nil
 		}
 		if e.OptionalChain == js_ast.OptionalChainNone {
-			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, isDeleteTarget, e.Target, e.Name, e.NameLoc, isCallTarget); ok {
+			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget,
+				isDeleteTarget, e.Target, e.Name, e.NameLoc, isCallTarget, false); ok {
 				return value, out
 			}
 		}
@@ -11952,6 +11964,7 @@ func (p *parser) valueForDefine(loc logger.Loc, assignTarget js_ast.AssignTarget
 type identifierOpts struct {
 	assignTarget            js_ast.AssignTarget
 	isDeleteTarget          bool
+	preferQuotedKey         bool
 	wasOriginallyIdentifier bool
 }
 
@@ -11977,6 +11990,7 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 	if p.isImportItem[ref] {
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EImportIdentifier{
 			Ref:                     ref,
+			PreferQuotedKey:         opts.preferQuotedKey,
 			WasOriginallyIdentifier: opts.wasOriginallyIdentifier,
 		}}
 	}

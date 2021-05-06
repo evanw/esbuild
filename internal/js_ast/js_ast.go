@@ -285,19 +285,21 @@ type Property struct {
 	//
 	Initializer *Expr
 
-	Kind         PropertyKind
-	IsComputed   bool
-	IsMethod     bool
-	IsStatic     bool
-	WasShorthand bool
+	Kind            PropertyKind
+	IsComputed      bool
+	IsMethod        bool
+	IsStatic        bool
+	WasShorthand    bool
+	PreferQuotedKey bool
 }
 
 type PropertyBinding struct {
-	IsComputed   bool
-	IsSpread     bool
-	Key          Expr
-	Value        Binding
-	DefaultValue *Expr
+	Key             Expr
+	Value           Binding
+	DefaultValue    *Expr
+	IsComputed      bool
+	IsSpread        bool
+	PreferQuotedKey bool
 }
 
 type Arg struct {
@@ -545,7 +547,8 @@ type EIdentifier struct {
 // "{x: importedNamespace.x}". This separate type forces code to opt-in to
 // doing this instead of opt-out.
 type EImportIdentifier struct {
-	Ref Ref
+	Ref             Ref
+	PreferQuotedKey bool
 
 	// If true, this was originally an identifier expression such as "foo". If
 	// false, this could potentially have been a member access expression such
