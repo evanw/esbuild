@@ -3907,6 +3907,22 @@
         if (a.test !== 1 || b.test !== 2 || c.test !== 1 || d.test !== 2) throw 'fail'
       `,
     }),
+
+    // https://github.com/evanw/esbuild/issues/1252
+    test(['client.js', 'utilities.js', '--splitting', '--bundle', '--format=esm', '--outdir=out'], {
+      'client.js': `export { Observable } from './utilities'`,
+      'utilities.js': `export { Observable } from './observable'`,
+      'observable.js': `
+        import Observable from './zen-observable'
+        export { Observable }
+      `,
+      'zen-observable.js': `module.exports = 123`,
+      'node.js': `
+        import {Observable as x} from './out/client.js'
+        import {Observable as y} from './out/utilities.js'
+        if (x !== 123 || y !== 123) throw 'fail'
+      `,
+    })
   )
 
   // Test the binary loader

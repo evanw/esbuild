@@ -8,6 +8,10 @@
 
     With this release, you can now continue to use esbuild after calling `stop()`. This will restart esbuild's API and means that you will need to call `stop()` again for Deno to be able to exit. This feature was contributed by [@lucacasonato](https://github.com/lucacasonato).
 
+* Fix code splitting edge case ([#1252](https://github.com/evanw/esbuild/issues/1252))
+
+    This release fixes an edge case where bundling with code splitting enabled generated incorrect code if multiple ESM entry points re-exported the same re-exported symbol from a CommonJS file. In this case the cross-chunk symbol dependency should be the variable that holds the return value from the `require()` call instead of the original ESM named `import` clause item. When this bug occurred, the generated ESM code contained an export and import for a symbol that didn't exist, which caused a module initialization error. This case should now work correctly.
+
 * Fix code generation with `declare` class fields ([#1242](https://github.com/evanw/esbuild/issues/1242))
 
     This fixes a bug with TypeScript code that uses `declare` on a class field and your `tsconfig.json` file has `"useDefineForClassFields": true`. Fields marked as `declare` should not be defined in the generated code, but they were incorrectly being declared as `undefined`. These fields are now correctly omitted from the generated code.

@@ -782,6 +782,14 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 								targetRef = importData.Ref
 							}
 
+							// If this is an ES6 import from a CommonJS file, it will become a
+							// property access off the namespace symbol instead of a bare
+							// identifier. In that case we want to pull in the namespace symbol
+							// instead. The namespace symbol stores the result of "require()".
+							if symbol := c.graph.Symbols.Get(targetRef); symbol.NamespaceAlias != nil {
+								targetRef = symbol.NamespaceAlias.NamespaceRef
+							}
+
 							imports[targetRef] = true
 						}
 					}
