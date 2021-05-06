@@ -257,6 +257,18 @@ type parser struct {
 	// a class, we conservatively decide to lower all private names in that class
 	// which are used in a brand check anywhere in the file.
 	classPrivateBrandChecksToLower map[string]bool
+
+	// Setting this to true disables warnings about code that is very likely to
+	// be a bug. This is used to ignore issues inside "node_modules" directories.
+	// This has caught real issues in the past. However, it's not esbuild's job
+	// to find bugs in other libraries, and these warnings are problematic for
+	// people using these libraries with esbuild. The only fix is to either
+	// disable all esbuild warnings and not get warnings about your own code, or
+	// to try to get the warning fixed in the affected library. This is
+	// especially annoying if the warning is a false positive as was the case in
+	// https://github.com/firebase/firebase-js-sdk/issues/3814. So these warnings
+	// are now disabled for code inside "node_modules" directories.
+	suppressWarningsAboutWeirdCode bool
 }
 
 type importNamespaceCallOrConstruct struct {
@@ -294,20 +306,19 @@ type optionsThatSupportStructuralEquality struct {
 	originalTargetEnv     string
 
 	// Byte-sized values go here (gathered together here to keep this object compact)
-	ts                             config.TSOptions
-	mode                           config.Mode
-	platform                       config.Platform
-	outputFormat                   config.Format
-	moduleType                     config.ModuleType
-	asciiOnly                      bool
-	keepNames                      bool
-	mangleSyntax                   bool
-	minifyIdentifiers              bool
-	omitRuntimeForTests            bool
-	ignoreDCEAnnotations           bool
-	preserveUnusedImportsTS        bool
-	useDefineForClassFields        config.MaybeBool
-	suppressWarningsAboutWeirdCode bool
+	ts                      config.TSOptions
+	mode                    config.Mode
+	platform                config.Platform
+	outputFormat            config.Format
+	moduleType              config.ModuleType
+	asciiOnly               bool
+	keepNames               bool
+	mangleSyntax            bool
+	minifyIdentifiers       bool
+	omitRuntimeForTests     bool
+	ignoreDCEAnnotations    bool
+	preserveUnusedImportsTS bool
+	useDefineForClassFields config.MaybeBool
 }
 
 func OptionsFromConfig(options *config.Options) Options {
@@ -316,22 +327,21 @@ func OptionsFromConfig(options *config.Options) Options {
 		jsx:           options.JSX,
 		defines:       options.Defines,
 		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
-			unsupportedJSFeatures:          options.UnsupportedJSFeatures,
-			originalTargetEnv:              options.OriginalTargetEnv,
-			ts:                             options.TS,
-			mode:                           options.Mode,
-			platform:                       options.Platform,
-			outputFormat:                   options.OutputFormat,
-			moduleType:                     options.ModuleType,
-			asciiOnly:                      options.ASCIIOnly,
-			keepNames:                      options.KeepNames,
-			mangleSyntax:                   options.MangleSyntax,
-			minifyIdentifiers:              options.MinifyIdentifiers,
-			omitRuntimeForTests:            options.OmitRuntimeForTests,
-			ignoreDCEAnnotations:           options.IgnoreDCEAnnotations,
-			preserveUnusedImportsTS:        options.PreserveUnusedImportsTS,
-			useDefineForClassFields:        options.UseDefineForClassFields,
-			suppressWarningsAboutWeirdCode: options.SuppressWarningsAboutWeirdCode,
+			unsupportedJSFeatures:   options.UnsupportedJSFeatures,
+			originalTargetEnv:       options.OriginalTargetEnv,
+			ts:                      options.TS,
+			mode:                    options.Mode,
+			platform:                options.Platform,
+			outputFormat:            options.OutputFormat,
+			moduleType:              options.ModuleType,
+			asciiOnly:               options.ASCIIOnly,
+			keepNames:               options.KeepNames,
+			mangleSyntax:            options.MangleSyntax,
+			minifyIdentifiers:       options.MinifyIdentifiers,
+			omitRuntimeForTests:     options.OmitRuntimeForTests,
+			ignoreDCEAnnotations:    options.IgnoreDCEAnnotations,
+			preserveUnusedImportsTS: options.PreserveUnusedImportsTS,
+			useDefineForClassFields: options.UseDefineForClassFields,
 		},
 	}
 }
@@ -541,7 +551,7 @@ func (dc *duplicateCaseChecker) check(p *parser, expr js_ast.Expr) {
 						if couldBeIncorrect {
 							text = "This case clause may never be evaluated because it likely duplicates an earlier case clause"
 						}
-						if !p.options.suppressWarningsAboutWeirdCode {
+						if !p.suppressWarningsAboutWeirdCode {
 							p.log.AddRangeWarning(&p.tracker, r, text)
 						} else {
 							p.log.AddRangeDebug(&p.tracker, r, text)
@@ -4017,7 +4027,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			}
 
 			// Warn about "!a in b" instead of "!(a in b)"
-			if !p.options.suppressWarningsAboutWeirdCode {
+			if !p.suppressWarningsAboutWeirdCode {
 				if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
 					p.log.AddWarning(&p.tracker, left.Loc,
 						"Suspicious use of the \"!\" operator inside the \"in\" operator")
@@ -4034,7 +4044,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 
 			// Warn about "!a instanceof b" instead of "!(a instanceof b)". Here's an
 			// example of code with this problem: https://github.com/mrdoob/three.js/pull/11182.
-			if !p.options.suppressWarningsAboutWeirdCode {
+			if !p.suppressWarningsAboutWeirdCode {
 				if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
 					p.log.AddWarning(&p.tracker, left.Loc,
 						"Suspicious use of the \"!\" operator inside the \"instanceof\" operator")
@@ -6456,7 +6466,7 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 
 		// Warn about ASI and return statements. Here's an example of code with
 		// this problem: https://github.com/rollup/rollup/issues/3729
-		if !p.options.suppressWarningsAboutWeirdCode {
+		if !p.suppressWarningsAboutWeirdCode {
 			if s, ok := stmt.Data.(*js_ast.SReturn); ok && s.Value == nil && !p.latestReturnHadSemicolon {
 				returnWithoutSemicolonStart = stmt.Loc.Start
 			} else {
@@ -9584,7 +9594,7 @@ func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr) {
 				// https://github.com/olifolkerd/tabulator/issues/2962
 				r := p.source.RangeOfString(b.Loc)
 				text := fmt.Sprintf("The \"typeof\" operator will never evaluate to %q", value)
-				if !p.options.suppressWarningsAboutWeirdCode {
+				if !p.suppressWarningsAboutWeirdCode {
 					p.log.AddRangeWarning(&p.tracker, r, text)
 				} else {
 					p.log.AddRangeDebug(&p.tracker, r, text)
@@ -9631,7 +9641,7 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 			if op == "case" {
 				text = "Comparison with -0 using a case clause will also match 0"
 			}
-			if !p.options.suppressWarningsAboutWeirdCode {
+			if !p.suppressWarningsAboutWeirdCode {
 				p.log.AddRangeWarning(&p.tracker, r, text)
 			} else {
 				p.log.AddRangeDebug(&p.tracker, r, text)
@@ -9646,7 +9656,7 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 				text = "This case clause will never be evaluated because equality with NaN is always false"
 			}
 			r := p.source.RangeOfOperatorBefore(afterOpLoc, op)
-			if !p.options.suppressWarningsAboutWeirdCode {
+			if !p.suppressWarningsAboutWeirdCode {
 				p.log.AddRangeWarning(&p.tracker, r, text)
 			} else {
 				p.log.AddRangeDebug(&p.tracker, r, text)
@@ -9666,7 +9676,7 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 				text = "This case clause will never be evaluated because the comparison is always false"
 			}
 			r := p.source.RangeOfOperatorBefore(afterOpLoc, op)
-			if !p.options.suppressWarningsAboutWeirdCode {
+			if !p.suppressWarningsAboutWeirdCode {
 				p.log.AddRangeWarning(&p.tracker, r, text)
 			} else {
 				p.log.AddRangeDebug(&p.tracker, r, text)
@@ -10066,7 +10076,7 @@ func (p *parser) valueForThis(loc logger.Loc, shouldWarn bool) (js_ast.Expr, boo
 				}
 
 				// Show the warning as a debug message if we're in "node_modules"
-				if !p.options.suppressWarningsAboutWeirdCode {
+				if !p.suppressWarningsAboutWeirdCode {
 					p.log.AddRangeWarningWithNotes(&p.tracker, r, text, notes)
 				} else {
 					p.log.AddRangeDebugWithNotes(&p.tracker, r, text, notes)
@@ -10946,7 +10956,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					text = fmt.Sprintf("Reading from setter-only property %q will throw", name)
 				}
 				if text != "" {
-					if !p.options.suppressWarningsAboutWeirdCode {
+					if !p.suppressWarningsAboutWeirdCode {
 						p.log.AddRangeWarning(&p.tracker, r, text)
 					} else {
 						p.log.AddRangeDebug(&p.tracker, r, text)
@@ -11043,7 +11053,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if superPropLoc.Start != 0 {
 				r := js_lexer.RangeOfIdentifier(p.source, superPropLoc)
 				text := "Attempting to delete a property of \"super\" will throw a ReferenceError"
-				if !p.options.suppressWarningsAboutWeirdCode {
+				if !p.suppressWarningsAboutWeirdCode {
 					p.log.AddRangeWarning(&p.tracker, r, text)
 				} else {
 					p.log.AddRangeDebug(&p.tracker, r, text)
@@ -11413,7 +11423,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Check for and warn about duplicate keys in object literals
-		if len(e.Properties) > 1 && !p.options.suppressWarningsAboutWeirdCode {
+		if len(e.Properties) > 1 && !p.suppressWarningsAboutWeirdCode {
 			type keyKind uint8
 			type existingKey struct {
 				loc  logger.Loc
@@ -11689,7 +11699,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// will be able to do about the warning.
 					if p.options.mode == config.ModeBundle {
 						text := "Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)"
-						if p.hasESModuleSyntax && !p.options.suppressWarningsAboutWeirdCode {
+						if p.hasESModuleSyntax && !p.suppressWarningsAboutWeirdCode {
 							p.log.AddRangeWarning(&p.tracker, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc), text)
 						} else {
 							p.log.AddRangeDebug(&p.tracker, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc), text)
@@ -13066,6 +13076,8 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		isImportItem:            make(map[js_ast.Ref]bool),
 		namedImports:            make(map[js_ast.Ref]js_ast.NamedImport),
 		namedExports:            make(map[string]js_ast.NamedExport),
+
+		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
 	}
 
 	p.findSymbolHelper = func(loc logger.Loc, name string) js_ast.Ref {

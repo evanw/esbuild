@@ -4432,3 +4432,36 @@ func TestQuotedPropertyMangle(t *testing.T) {
 		},
 	})
 }
+
+func TestDuplicatePropertyWarning(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './outside-node-modules'
+				import 'inside-node-modules'
+			`,
+			"/outside-node-modules/index.js": `
+				console.log({ a: 1, a: 2 })
+			`,
+			"/outside-node-modules/package.json": `
+				{ "b": 1, "b": 2 }
+			`,
+			"/node_modules/inside-node-modules/index.js": `
+				console.log({ c: 1, c: 2 })
+			`,
+			"/node_modules/inside-node-modules/package.json": `
+				{ "d": 1, "d": 2 }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `outside-node-modules/index.js: warning: Duplicate key "a" in object literal
+outside-node-modules/index.js: note: The original "a" is here
+outside-node-modules/package.json: warning: Duplicate key "b" in object literal
+outside-node-modules/package.json: note: The original "b" is here
+`,
+	})
+}

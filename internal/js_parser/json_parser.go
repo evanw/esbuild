@@ -3,17 +3,19 @@ package js_parser
 import (
 	"fmt"
 
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
 type jsonParser struct {
-	log     logger.Log
-	source  logger.Source
-	tracker logger.LineColumnTracker
-	lexer   js_lexer.Lexer
-	options JSONOptions
+	log                            logger.Log
+	source                         logger.Source
+	tracker                        logger.LineColumnTracker
+	lexer                          js_lexer.Lexer
+	options                        JSONOptions
+	suppressWarningsAboutWeirdCode bool
 }
 
 func (p *jsonParser) parseMaybeTrailingComma(closeToken js_lexer.T) bool {
@@ -118,12 +120,14 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 			p.lexer.Expect(js_lexer.TStringLiteral)
 
 			// Warn about duplicate keys
-			keyText := js_lexer.UTF16ToString(keyString)
-			if prevRange, ok := duplicates[keyText]; ok {
-				p.log.AddRangeWarningWithNotes(&p.tracker, keyRange, fmt.Sprintf("Duplicate key %q in object literal", keyText),
-					[]logger.MsgData{logger.RangeData(&p.tracker, prevRange, fmt.Sprintf("The original %q is here", keyText))})
-			} else {
-				duplicates[keyText] = keyRange
+			if !p.suppressWarningsAboutWeirdCode {
+				keyText := js_lexer.UTF16ToString(keyString)
+				if prevRange, ok := duplicates[keyText]; ok {
+					p.log.AddRangeWarningWithNotes(&p.tracker, keyRange, fmt.Sprintf("Duplicate key %q in object literal", keyText),
+						[]logger.MsgData{logger.RangeData(&p.tracker, prevRange, fmt.Sprintf("The original %q is here", keyText))})
+				} else {
+					duplicates[keyText] = keyRange
+				}
 			}
 
 			p.lexer.Expect(js_lexer.TColon)
@@ -169,11 +173,12 @@ func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (resul
 	}()
 
 	p := &jsonParser{
-		log:     log,
-		source:  source,
-		tracker: logger.MakeLineColumnTracker(&source),
-		options: options,
-		lexer:   js_lexer.NewLexerJSON(log, source, options.AllowComments),
+		log:                            log,
+		source:                         source,
+		tracker:                        logger.MakeLineColumnTracker(&source),
+		options:                        options,
+		lexer:                          js_lexer.NewLexerJSON(log, source, options.AllowComments),
+		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
 	}
 
 	result = p.parseExpr()

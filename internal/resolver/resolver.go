@@ -13,6 +13,7 @@ import (
 	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_printer"
@@ -444,25 +445,6 @@ func (r resolverQuery) flushDebugLogs(mode flushMode) {
 	}
 }
 
-func IsInsideNodeModules(path string) bool {
-	for {
-		// This is written in a platform-independent manner because it's run on
-		// user-specified paths which can be arbitrary non-file-system things. So
-		// for example Windows paths may end up being used on Unix or URLs may end
-		// up being used on Windows. Be consistently agnostic to which kind of
-		// slash is used on all platforms.
-		slash := strings.LastIndexAny(path, "/\\")
-		if slash == -1 {
-			return false
-		}
-		dir, base := path[:slash], path[slash+1:]
-		if base == "node_modules" {
-			return true
-		}
-		path = dir
-	}
-}
-
 func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 	for _, path := range result.PathPair.iter() {
 		if path.Namespace == "file" {
@@ -886,7 +868,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 		}
 
 		// Suppress warnings about missing base config files inside "node_modules"
-		if !IsInsideNodeModules(file) {
+		if !helpers.IsInsideNodeModules(file) {
 			r.log.AddRangeWarning(&tracker, extendsRange,
 				fmt.Sprintf("Cannot find base config file %q", extends))
 		}

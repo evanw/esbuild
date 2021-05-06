@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Omit warning about duplicate JSON keys from inside `node_modules` ([#1254](https://github.com/evanw/esbuild/issues/1254))
+
+    This release no longer warns about duplicate keys inside `package.json` files inside `node_modules`. There are packages like this that are published to npm, and this warning is unactionable. Now esbuild will only issue this warning outside of `node_modules` directories.
+
 ## 0.11.19
 
 * Allow esbuild to be restarted in Deno ([#1238](https://github.com/evanw/esbuild/pull/1238))

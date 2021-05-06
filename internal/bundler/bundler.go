@@ -742,7 +742,7 @@ func runOnResolvePlugins(
 	result, debug := res.Resolve(absResolveDir, path, kind)
 
 	// Warn when the case used for importing differs from the actual file name
-	if result != nil && result.DifferentCase != nil && !resolver.IsInsideNodeModules(absResolveDir) {
+	if result != nil && result.DifferentCase != nil && !helpers.IsInsideNodeModules(absResolveDir) {
 		diffCase := *result.DifferentCase
 		log.AddRangeWarning(&tracker, importPathRange, fmt.Sprintf(
 			"Use %q instead of %q to avoid issues with case-sensitive file systems",
@@ -1047,11 +1047,6 @@ func (s *scanner) maybeParseFile(
 	optionsClone := s.options
 	if kind != inputKindStdin {
 		optionsClone.Stdin = nil
-	}
-
-	// Don't emit warnings for code inside a "node_modules" directory
-	if resolver.IsInsideNodeModules(path.Text) {
-		optionsClone.SuppressWarningsAboutWeirdCode = true
 	}
 
 	// Allow certain properties to be overridden
@@ -1688,7 +1683,8 @@ func (s *scanner) processScannedFiles() []scannerFile {
 				// about it. Note that this can result in esbuild silently generating
 				// broken code. If this actually happens for people, it's probably worth
 				// re-enabling the warning about code inside "node_modules".
-				if record.WasOriginallyBareImport && !s.options.IgnoreDCEAnnotations && !resolver.IsInsideNodeModules(result.file.inputFile.Source.KeyPath.Text) {
+				if record.WasOriginallyBareImport && !s.options.IgnoreDCEAnnotations &&
+					!helpers.IsInsideNodeModules(result.file.inputFile.Source.KeyPath.Text) {
 					if otherModule := &s.results[record.SourceIndex.GetIndex()].file.inputFile; otherModule.SideEffects.Kind != graph.HasSideEffects &&
 						// Do not warn if this is from a plugin, since removing the import
 						// would cause the plugin to not run, and running a plugin is a side

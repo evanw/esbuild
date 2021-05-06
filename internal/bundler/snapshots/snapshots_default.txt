@@ -411,6 +411,15 @@ TestDuplicateEntryPoint
 console.log(123);
 
 ================================================================================
+TestDuplicatePropertyWarning
+---------- /out/entry.js ----------
+// outside-node-modules/index.js
+console.log({a: 1, a: 2});
+
+// node_modules/inside-node-modules/index.js
+console.log({c: 1, c: 2});
+
+================================================================================
 TestDynamicImportWithExpressionCJS
 ---------- /out.js ----------
 import("foo");
