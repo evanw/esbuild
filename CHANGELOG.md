@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Allow esbuild to be restarted in Deno ([#1238](https://github.com/evanw/esbuild/pull/1238))
+
+    The esbuild API for [Deno](https://deno.land) has an extra function called `stop()` that doesn't exist in esbuild's API for node. This is because Deno doesn't provide a way to stop esbuild automatically, so calling `stop()` is required to allow Deno to exit. However, once stopped the esbuild API could not be restarted.
+
+    With this release, you can now continue to use esbuild after calling `stop()`. This will restart esbuild's API and means that you will need to call `stop()` again for Deno to be able to exit. This feature was contributed by [@lucacasonato](https://github.com/lucacasonato).
+
 * Fix code generation with `declare` class fields ([#1242](https://github.com/evanw/esbuild/issues/1242))
 
     This fixes a bug with TypeScript code that uses `declare` on a class field and your `tsconfig.json` file has `"useDefineForClassFields": true`. Fields marked as `declare` should not be defined in the generated code, but they were incorrectly being declared as `undefined`. These fields are now correctly omitted from the generated code.

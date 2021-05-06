@@ -4,6 +4,7 @@ import * as path from 'https://deno.land/std@0.95.0/path/mod.ts'
 import * as asserts from 'https://deno.land/std@0.95.0/testing/asserts.ts'
 
 const rootTestDir = path.join(path.dirname(path.fromFileUrl(import.meta.url)), '.deno-tests')
+let testDidFail = false
 
 try {
   Deno.removeSync(rootTestDir, { recursive: true })
@@ -17,20 +18,28 @@ function test(name, fn) {
     await Deno.mkdir(testDir, { recursive: true })
     try {
       await fn({ testDir })
-    } finally {
       await Deno.remove(testDir, { recursive: true }).catch(() => null)
+    } catch (e) {
+      testDidFail = true
+      throw e
+    } finally {
       esbuild.stop()
     }
   })
 }
 
-window.addEventListener("unload", () => {
-  try {
-    Deno.removeSync(rootTestDir, { recursive: true })
-  } catch {
-    // root test dir possibly already removed, so ignore
+window.addEventListener("unload", (e) => {
+  if (testDidFail) {
+    console.error(`❌ deno tests failed`)
+  } else {
+    console.log(`✅ deno tests passed`)
+    try {
+      Deno.removeSync(rootTestDir, { recursive: true })
+    } catch {
+      // root test dir possibly already removed, so ignore
+    }
   }
-}) 
+})
 
 test("basicBuild", async ({ testDir }) => {
   const input = path.join(testDir, 'in.ts')
