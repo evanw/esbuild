@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.19
 
 * Allow esbuild to be restarted in Deno ([#1238](https://github.com/evanw/esbuild/pull/1238))
 
