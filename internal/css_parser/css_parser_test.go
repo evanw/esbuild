@@ -1015,6 +1015,21 @@ func TestBorderRadius(t *testing.T) {
 	expectPrintedMangleMinify(t, "a { border-radius: 1 2 3 4; border-top-right-radius: 5 6; }", "a{border-radius:1 5 3 4/1 6 3 4}")
 }
 
+func TestBoxShadow(t *testing.T) {
+	expectPrinted(t, "a { box-shadow: inset 0px 0px 0px 0px black }", "a {\n  box-shadow: inset 0px 0px 0px 0px black;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: 0px 0px 0px 0px inset black }", "a {\n  box-shadow: 0 0 inset #000;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: 0px 0px 0px 0px black inset }", "a {\n  box-shadow: 0 0 #000 inset;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: black 0px 0px 0px 0px inset }", "a {\n  box-shadow: #000 0 0 inset;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: inset 0px 0px 0px 0px black }", "a {\n  box-shadow: inset 0 0 #000;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: inset black 0px 0px 0px 0px }", "a {\n  box-shadow: inset #000 0 0;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: black inset 0px 0px 0px 0px }", "a {\n  box-shadow: #000 inset 0 0;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: yellow 1px 0px 0px 1px inset }", "a {\n  box-shadow: #ff0 1px 0 0 1px inset;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: yellow 1px 0px 1px 0px inset }", "a {\n  box-shadow: #ff0 1px 0 1px inset;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: rebeccapurple, yellow, black }", "a {\n  box-shadow:\n    #639,\n    #ff0,\n    #000;\n}\n")
+	expectPrintedMangleMinify(t, "a { box-shadow: rebeccapurple , yellow , black }", "a{box-shadow:#639,#ff0,#000}")
+	expectPrintedMangleMinify(t, "a { box-shadow: rgb(255, 0, 17) 0 0 1 inset }", "a{box-shadow:#f01 0 0 1 inset}")
+}
+
 func TestDeduplicateRules(t *testing.T) {
 	expectPrinted(t, "a { color: red; color: green; color: red }",
 		"a {\n  color: red;\n  color: green;\n  color: red;\n}\n")

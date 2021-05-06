@@ -151,30 +151,11 @@ func (t Token) FractionForPercentage() (float64, bool) {
 	return 0, false
 }
 
-var isLengthDimensionUnit = map[string]bool{
-	"ch":   true,
-	"cm":   true,
-	"em":   true,
-	"ex":   true,
-	"in":   true,
-	"mm":   true,
-	"pc":   true,
-	"pt":   true,
-	"px":   true,
-	"Q":    true,
-	"rem":  true,
-	"vh":   true,
-	"vmax": true,
-	"vmin": true,
-	"vw":   true,
-}
-
 // https://drafts.csswg.org/css-values-3/#lengths
 // For zero lengths the unit identifier is optional
 // (i.e. can be syntactically represented as the <number> 0).
 func (t *Token) TurnLengthIntoNumberIfZero() bool {
-	if (t.Kind == css_lexer.TDimension && t.DimensionValue() == "0") ||
-		(t.Kind == css_lexer.TPercentage && t.PercentageValue() == "0") {
+	if t.Kind == css_lexer.TDimension && t.DimensionValue() == "0" {
 		t.Kind = css_lexer.TNumber
 		t.Text = "0"
 		return true
