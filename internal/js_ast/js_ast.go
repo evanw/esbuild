@@ -1316,6 +1316,9 @@ const (
 	// Assigning to a "const" symbol will throw a TypeError at runtime
 	SymbolConst
 
+	// Injected symbols can be overridden by provided defines
+	SymbolInjected
+
 	// This annotates all other symbols that don't have special behavior.
 	SymbolOther
 )
@@ -1353,6 +1356,10 @@ func (kind SymbolKind) IsHoistedOrFunction() bool {
 
 func (kind SymbolKind) IsFunction() bool {
 	return kind == SymbolHoistedFunction || kind == SymbolGeneratorOrAsyncFunction
+}
+
+func (kind SymbolKind) IsUnboundOrInjected() bool {
+	return kind == SymbolUnbound || kind == SymbolInjected
 }
 
 var InvalidRef Ref = Ref{^uint32(0), ^uint32(0)}
