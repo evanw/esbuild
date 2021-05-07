@@ -899,19 +899,19 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 }
 
 // Lower object spread for environments that don't support them. Non-spread
-// properties are grouped into object literals and then passed to "__objSpread"
-// like this:
+// properties are grouped into object literals and then passed to the
+// "__spreadValues" and "__spreadProps" functions like this:
 //
-//   "{a, b, ...c, d, e}" => "__objSpread(__objSpread(__objSpread({a, b}, c), {d, e})"
+//   "{a, b, ...c, d, e}" => "__spreadProps(__spreadValues(__spreadProps({a, b}, c), {d, e})"
 //
 // If the object literal starts with a spread, then we pass an empty object
-// literal to "__objSpread" to make sure we clone the object:
+// literal to "__spreadValues" to make sure we clone the object:
 //
-//   "{...a, b}" => "__objSpread(__objSpread({}, a), {b})"
+//   "{...a, b}" => "__spreadProps(__spreadValues({}, a), {b})"
 //
 // It's not immediately obvious why we don't compile everything to a single
-// call to "Object.assign". After all, "Object.assign" can take any number of
-// arguments. The reason is to preserve the order of side effects. Consider
+// call to a function that takes any number of arguments, since that would be
+// shorter. The reason is to preserve the order of side effects. Consider
 // this code:
 //
 //   let a = {
@@ -923,9 +923,9 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 //   let b = {}
 //   let c = {...a, ...b}
 //
-// Converting the above code to "let c = Object.assign({}, a, b)" means "c"
+// Converting the above code to "let c = __spreadFn({}, a, null, b)" means "c"
 // becomes "{x: 1}" which is incorrect. Converting the above code instead to
-// "let c = Object.assign(Object.assign({}, a), b)" means "c" becomes
+// "let c = __spreadProps(__spreadProps({}, a), b)" means "c" becomes
 // "{x: 1, y: 2}" which is correct.
 func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Expr {
 	needsLowering := false
@@ -954,14 +954,14 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 
 		if len(properties) > 0 || result.Data == nil {
 			if result.Data == nil {
-				// "{a, ...b}" => "__objSpread({a}, b)"
+				// "{a, ...b}" => "__spreadValues({a}, b)"
 				result = js_ast.Expr{Loc: loc, Data: &js_ast.EObject{
 					Properties:   properties,
 					IsSingleLine: e.IsSingleLine,
 				}}
 			} else {
-				// "{...a, b, ...c}" => "__objSpread(__objSpread(__objSpread({}, a), {b}), c)"
-				result = p.callRuntime(loc, "__objSpread",
+				// "{...a, b, ...c}" => "__spreadValues(__spreadProps(__spreadValues({}, a), {b}), c)"
+				result = p.callRuntime(loc, "__spreadProps",
 					[]js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
 						Properties:   properties,
 						IsSingleLine: e.IsSingleLine,
@@ -970,13 +970,13 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 			properties = []js_ast.Property{}
 		}
 
-		// "{a, ...b}" => "__objSpread({a}, b)"
-		result = p.callRuntime(loc, "__objSpread", []js_ast.Expr{result, *property.Value})
+		// "{a, ...b}" => "__spreadValues({a}, b)"
+		result = p.callRuntime(loc, "__spreadValues", []js_ast.Expr{result, *property.Value})
 	}
 
 	if len(properties) > 0 {
-		// "{...a, b}" => "__objSpread(__objSpread({}, a), {b})"
-		result = p.callRuntime(loc, "__objSpread", []js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
+		// "{...a, b}" => "__spreadProps(__spreadValues({}, a), {b})"
+		result = p.callRuntime(loc, "__spreadProps", []js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
 			Properties:   properties,
 			IsSingleLine: e.IsSingleLine,
 		}}})

@@ -67,11 +67,13 @@ func code(isES6 bool) string {
 	text := `
 		var __create = Object.create
 		var __defProp = Object.defineProperty
+		var __defProps = Object.defineProperties
+		var __getOwnPropDesc = Object.getOwnPropertyDescriptor // Note: can return "undefined" due to a Safari bug
+		var __getOwnPropDescs = Object.getOwnPropertyDescriptors
+		var __getOwnPropNames = Object.getOwnPropertyNames
+		var __getOwnPropSymbols = Object.getOwnPropertySymbols
 		var __getProtoOf = Object.getPrototypeOf
 		var __hasOwnProp = Object.prototype.hasOwnProperty
-		var __getOwnPropNames = Object.getOwnPropertyNames
-		var __getOwnPropDesc = Object.getOwnPropertyDescriptor // Note: can return "undefined" due to a Safari bug
-		var __getOwnPropSymbols = Object.getOwnPropertySymbols
 		var __propIsEnum = Object.prototype.propertyIsEnumerable
 
 		export var __pow = Math.pow
@@ -80,7 +82,7 @@ func code(isES6 bool) string {
 			? __defProp(obj, key, {enumerable: true, configurable: true, writable: true, value})
 			: obj[key] = value
 
-		export var __objSpread = (a, b) => {
+		export var __spreadValues = (a, b) => {
 			for (var prop in b ||= {})
 				if (__hasOwnProp.call(b, prop))
 					__defNormalProp(a, prop, b[prop])
@@ -105,6 +107,7 @@ func code(isES6 bool) string {
 				}
 			return a
 		}
+		export var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b))
 
 		// Tells importing modules that this can be considered an ES6 module
 		var __markAsModule = target => __defProp(target, '__esModule', { value: true })

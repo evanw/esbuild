@@ -401,7 +401,7 @@
   // Check object spread lowering
   // https://github.com/evanw/esbuild/issues/1017
   const objectAssignSemantics = `
-    var a, b, p, s = Symbol('s')
+    var a, b, c, p, s = Symbol('s')
 
     // Getter
     a = { x: 1 }
@@ -439,6 +439,35 @@
     a = Object.create(p)
     b = { ...a }
     if (b[s] === a[s]) throw 'fail: 6'
+
+    // Getter evaluation 1
+    a = 1
+    b = 10
+    p = { get x() { return a++ }, ...{ get y() { return b++ } } }
+    if (
+      p.x !== 1 || p.x !== 2 || p.x !== 3 ||
+      p.y !== 10 || p.y !== 10 || p.y !== 10
+    ) throw 'fail: 7'
+
+    // Getter evaluation 2
+    a = 1
+    b = 10
+    p = { ...{ get x() { return a++ } }, get y() { return b++ } }
+    if (
+      p.x !== 1 || p.x !== 1 || p.x !== 1 ||
+      p.y !== 10 || p.y !== 11 || p.y !== 12
+    ) throw 'fail: 8'
+
+    // Getter evaluation 3
+    a = 1
+    b = 10
+    c = 100
+    p = { ...{ get x() { return a++ } }, get y() { return b++ }, ...{ get z() { return c++ } } }
+    if (
+      p.x !== 1 || p.x !== 1 || p.x !== 1 ||
+      p.y !== 10 || p.y !== 11 || p.y !== 12 ||
+      p.z !== 100 || p.z !== 100 || p.z !== 100
+    ) throw 'fail: 9'
   `
   tests.push(
     test(['in.js', '--outfile=node.js'], {

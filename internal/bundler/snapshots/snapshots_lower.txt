@@ -229,28 +229,28 @@ export {ns2 as sn};
 TestLowerObjectSpreadNoBundle
 ---------- /out.js ----------
 let tests = [
-  __objSpread(__objSpread({}, a), b),
-  __objSpread({a, b}, c),
-  __objSpread(__objSpread({}, a), {b, c}),
-  __objSpread(__objSpread({a}, b), {c}),
-  __objSpread(__objSpread(__objSpread(__objSpread(__objSpread(__objSpread({a, b}, c), d), {e, f}), g), h), {i, j})
+  __spreadValues(__spreadValues({}, a), b),
+  __spreadValues({a, b}, c),
+  __spreadProps(__spreadValues({}, a), {b, c}),
+  __spreadProps(__spreadValues({a}, b), {c}),
+  __spreadProps(__spreadValues(__spreadValues(__spreadProps(__spreadValues(__spreadValues({a, b}, c), d), {e, f}), g), h), {i, j})
 ];
 let jsx = [
-  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread({}, a), b)),
-  /* @__PURE__ */ React.createElement("div", __objSpread({
+  /* @__PURE__ */ React.createElement("div", __spreadValues(__spreadValues({}, a), b)),
+  /* @__PURE__ */ React.createElement("div", __spreadValues({
     a: true,
     b: true
   }, c)),
-  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread({}, a), {
+  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues({}, a), {
     b: true,
     c: true
   })),
-  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread({
+  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues({
     a: true
   }, b), {
     c: true
   })),
-  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread(__objSpread(__objSpread(__objSpread(__objSpread({
+  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues(__spreadValues(__spreadProps(__spreadValues(__spreadValues({
     a: true,
     b: true
   }, c), d), {

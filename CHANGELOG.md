@@ -10,6 +10,21 @@
 
     The CSS `box-shadow` property is now minified when `--mangle-syntax` is enabled. This includes trimming length values and minifying color representations.
 
+* Fix object spread transform for non-spread getters ([#1259](https://github.com/evanw/esbuild/issues/1259))
+
+    When transforming an object literal containing object spread (the `...` syntax), properties inside the spread should be evaluated but properties outside the spread should not be evaluated. Previously esbuild's object spread transform incorrectly evaluated properties in both cases. Consider this example:
+
+    ```js
+    var obj = {
+      ...{ get x() { console.log(1) } },
+      get y() { console.log(3) },
+    }
+    console.log(2)
+    obj.y
+    ```
+
+    This should print out `1 2 3` because the non-spread getter should not be evaluated. Instead, esbuild was incorrectly transforming this into code that printed `1 3 2`. This issue should now be fixed with this release.
+
 ## 0.11.19
 
 * Allow esbuild to be restarted in Deno ([#1238](https://github.com/evanw/esbuild/pull/1238))
