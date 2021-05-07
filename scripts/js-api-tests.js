@@ -444,6 +444,7 @@ let buildTests = {
 
   async sourceMapWithDifferentDirectories({ esbuild, testDir }) {
     const inputDir = path.join(testDir, "input");
+    const inputDirURI = `file://${inputDir}`
     const outputDir = path.join(testDir, "output");
     await mkdirAsync(inputDir, { recursive: true });
     await mkdirAsync(outputDir, { recursive: true });
@@ -455,7 +456,7 @@ let buildTests = {
       entryPoints: [input],
       outfile: output,
       sourcemap: true,
-      sourceRoot: inputDir,
+      sourceRoot: inputDirURI,
     });
     const result = require(output);
     assert.strictEqual(result.foo, 123);
@@ -467,6 +468,7 @@ let buildTests = {
     assert.strictEqual(json.version, 3);
     assert.strictEqual(json.sources[0], path.relative(inputDir, input));
     assert.strictEqual(json.sourcesContent[0], content);
+    assert.strictEqual(json.sourceRoot, inputDirURI);
   },
 
   async resolveExtensionOrder({ esbuild, testDir }) {

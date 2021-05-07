@@ -4999,8 +4999,8 @@ func (c *linkerContext) generateSourceMapForChunk(
 
 			// If "SourceRoot" is an absolute path, use it as the base for the
 			// relative paths
-			if sourceRootIsAbs := c.fs.IsAbs(c.options.SourceRoot); sourceRootIsAbs {
-				basePath = c.options.SourceRoot
+			if sourceRootIsAbs := strings.HasPrefix(c.options.SourceRoot, "file://"); sourceRootIsAbs {
+				basePath = strings.TrimPrefix(c.options.SourceRoot, "file://")
 			}
 
 			if relPath, ok := c.fs.Rel(basePath, item.path.Text); ok {
