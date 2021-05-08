@@ -3108,6 +3108,74 @@
         }
       }`
     }),
+
+    // Validate "branding" behavior
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Base { constructor(x) { return x } }
+        class Derived extends Base { #y = true; static is(z) { return z.#y } }
+        const foo = {}
+        try { Derived.is(foo); throw 'fail 1' } catch (e) { if (e === 'fail 1') throw e }
+        new Derived(foo)
+        if (Derived.is(foo) !== true) throw 'fail 2'
+        try { new Derived(foo); throw 'fail 3' } catch (e) { if (e === 'fail 3') throw e }
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Base { constructor(x) { return x } }
+        class Derived extends Base { #y = true; static is(z) { return z.#y } }
+        const foo = 123
+        try { Derived.is(foo); throw 'fail 1' } catch (e) { if (e === 'fail 1') throw e }
+        new Derived(foo)
+        try { Derived.is(foo); throw 'fail 2' } catch (e) { if (e === 'fail 2') throw e }
+        new Derived(foo)
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Base { constructor(x) { return x } }
+        class Derived extends Base { #y = true; static is(z) { return z.#y } }
+        const foo = null
+        try { Derived.is(foo); throw 'fail 1' } catch (e) { if (e === 'fail 1') throw e }
+        new Derived(foo)
+        try { Derived.is(foo); throw 'fail 2' } catch (e) { if (e === 'fail 2') throw e }
+        new Derived(foo)
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Base { constructor(x) { return x } }
+        class Derived extends Base { #y() { return true } static is(z) { return z.#y } }
+        const foo = {}
+        try { Derived.is(foo); throw 'fail 1' } catch (e) { if (e === 'fail 1') throw e }
+        new Derived(foo)
+        if (Derived.is(foo)() !== true) throw 'fail 2'
+        try { new Derived(foo); throw 'fail 3' } catch (e) { if (e === 'fail 3') throw e }
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Base { constructor(x) { return x } }
+        class Derived extends Base { #y() {} static is(z) { return z.#y } }
+        const foo = 123
+        try { Derived.is(foo); throw 'fail 1' } catch (e) { if (e === 'fail 1') throw e }
+        new Derived(foo)
+        try { Derived.is(foo); throw 'fail 2' } catch (e) { if (e === 'fail 2') throw e }
+        new Derived(foo)
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Base { constructor(x) { return x } }
+        class Derived extends Base { #y() {} static is(z) { return z.#y } }
+        const foo = null
+        try { Derived.is(foo); throw 'fail 1' } catch (e) { if (e === 'fail 1') throw e }
+        new Derived(foo)
+        try { Derived.is(foo); throw 'fail 2' } catch (e) { if (e === 'fail 2') throw e }
+        new Derived(foo)
+      `,
+    }),
   )
 
   // Async lowering tests

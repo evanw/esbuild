@@ -6,7 +6,7 @@ export class A {
 export class B extends A {
   constructor(c) {
     super();
-    _e.set(this, void 0);
+    __privateAdd(this, _e, void 0);
     var _a;
     __privateSet(this, _e, (_a = c.d) != null ? _a : "test");
   }
@@ -150,8 +150,8 @@ TestLowerClassField2020NoBundle
 var _foo, _bar, _s_foo, _s_bar;
 class Foo {
   constructor() {
-    _foo.set(this, 123);
-    _bar.set(this, void 0);
+    __privateAdd(this, _foo, 123);
+    __privateAdd(this, _bar, void 0);
     __publicField(this, "foo", 123);
     __publicField(this, "bar");
   }
@@ -160,8 +160,8 @@ _foo = new WeakMap();
 _bar = new WeakMap();
 _s_foo = new WeakMap();
 _s_bar = new WeakMap();
-_s_foo.set(Foo, 123);
-_s_bar.set(Foo, void 0);
+__privateAdd(Foo, _s_foo, 123);
+__privateAdd(Foo, _s_bar, void 0);
 __publicField(Foo, "s_foo", 123);
 __publicField(Foo, "s_bar");
 
@@ -277,7 +277,7 @@ TestLowerPrivateClassAccessorOrder
 var _foo, foo_get;
 class Foo {
   constructor() {
-    _foo.add(this);
+    __privateAdd(this, _foo);
     __publicField(this, "bar", __privateGet(this, _foo, foo_get));
   }
 }
@@ -308,7 +308,7 @@ TestLowerPrivateClassBrandCheckUnsupported
 var _foo;
 class Foo {
   constructor() {
-    _foo.set(this, void 0);
+    __privateAdd(this, _foo, void 0);
     this.#bar = void 0;
   }
   #bar;
@@ -326,18 +326,9 @@ _foo = new WeakMap();
 TestLowerPrivateClassExpr2020NoBundle
 ---------- /out.js ----------
 var _field, _method, method_fn, _a, _staticField, _staticMethod, staticMethod_fn;
-export let Foo = (_a = class {
-  constructor() {
-    _method.add(this);
-    _field.set(this, void 0);
-  }
-  foo() {
-    __privateSet(this, _field, __privateMethod(this, _method, method_fn).call(this));
-    __privateSet(Foo, _staticField, __privateMethod(Foo, _staticMethod, staticMethod_fn).call(Foo));
-  }
-}, _field = new WeakMap(), _method = new WeakSet(), method_fn = function() {
+export let Foo = (__privateAdd(_a, _staticMethod), _field = new WeakMap(), _method = new WeakSet(), method_fn = function() {
 }, _staticField = new WeakMap(), _staticMethod = new WeakSet(), staticMethod_fn = function() {
-}, _staticMethod.add(_a), _staticField.set(_a, void 0), _a);
+}, __privateAdd(_a, _staticMethod), __privateAdd(_a, _staticField, void 0), _a);
 
 ================================================================================
 TestLowerPrivateClassFieldOrder
@@ -345,7 +336,7 @@ TestLowerPrivateClassFieldOrder
 var _foo;
 class Foo {
   constructor() {
-    _foo.set(this, 123);
+    __privateAdd(this, _foo, 123);
     __publicField(this, "bar", __privateGet(this, _foo));
   }
 }
@@ -358,7 +349,7 @@ TestLowerPrivateClassMethodOrder
 var _foo, foo_fn;
 class Foo {
   constructor() {
-    _foo.add(this);
+    __privateAdd(this, _foo);
     __publicField(this, "bar", __privateMethod(this, _foo, foo_fn).call(this));
   }
 }
@@ -379,7 +370,7 @@ _foo = new WeakSet();
 foo_get = function() {
   return 123;
 };
-_foo.add(Foo);
+__privateAdd(Foo, _foo);
 __publicField(Foo, "bar", __privateGet(_Foo, _foo, foo_get));
 console.log(Foo.bar === 123);
 const _FooThis = class {
@@ -389,7 +380,7 @@ _foo2 = new WeakSet();
 foo_get2 = function() {
   return 123;
 };
-_foo2.add(FooThis);
+__privateAdd(FooThis, _foo2);
 __publicField(FooThis, "bar", __privateGet(_FooThis, _foo2, foo_get2));
 console.log(FooThis.bar === 123);
 
@@ -401,14 +392,14 @@ const _Foo = class {
 };
 let Foo = _Foo;
 _foo = new WeakMap();
-_foo.set(Foo, 123);
+__privateAdd(Foo, _foo, 123);
 __publicField(Foo, "bar", __privateGet(_Foo, _foo));
 console.log(Foo.bar === 123);
 const _FooThis = class {
 };
 let FooThis = _FooThis;
 _foo2 = new WeakMap();
-_foo2.set(FooThis, 123);
+__privateAdd(FooThis, _foo2, 123);
 __publicField(FooThis, "bar", __privateGet(_FooThis, _foo2));
 console.log(FooThis.bar === 123);
 
@@ -423,7 +414,7 @@ _foo = new WeakSet();
 foo_fn = function() {
   return 123;
 };
-_foo.add(Foo);
+__privateAdd(Foo, _foo);
 __publicField(Foo, "bar", __privateMethod(_Foo, _foo, foo_fn).call(_Foo));
 console.log(Foo.bar === 123);
 const _FooThis = class {
@@ -433,7 +424,7 @@ _foo2 = new WeakSet();
 foo_fn2 = function() {
   return 123;
 };
-_foo2.add(FooThis);
+__privateAdd(FooThis, _foo2);
 __publicField(FooThis, "bar", __privateMethod(_FooThis, _foo2, foo_fn2).call(_FooThis));
 console.log(FooThis.bar === 123);
 
@@ -443,7 +434,7 @@ TestLowerPrivateFieldAssignments2015NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   unary() {
     var _a, _b;
@@ -480,7 +471,7 @@ TestLowerPrivateFieldAssignments2019NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   unary() {
     var _a, _b;
@@ -517,7 +508,7 @@ TestLowerPrivateFieldAssignments2020NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   unary() {
     var _a, _b;
@@ -584,7 +575,7 @@ TestLowerPrivateFieldOptionalChain2019NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   foo() {
     var _a;
@@ -601,7 +592,7 @@ TestLowerPrivateFieldOptionalChain2020NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   foo() {
     this == null ? void 0 : __privateGet(this, _x).y;
@@ -630,9 +621,9 @@ TestLowerPrivateGetterSetter2015
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
 var Foo = class {
   constructor() {
-    _foo.add(this);
-    _bar.add(this);
-    _prop.add(this);
+    __privateAdd(this, _foo);
+    __privateAdd(this, _bar);
+    __privateAdd(this, _prop);
   }
   foo(fn) {
     __privateGet(fn(), _foo, foo_get);
@@ -690,9 +681,9 @@ TestLowerPrivateGetterSetter2019
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
 var Foo = class {
   constructor() {
-    _foo.add(this);
-    _bar.add(this);
-    _prop.add(this);
+    __privateAdd(this, _foo);
+    __privateAdd(this, _bar);
+    __privateAdd(this, _prop);
   }
   foo(fn) {
     __privateGet(fn(), _foo, foo_get);
@@ -750,9 +741,9 @@ TestLowerPrivateGetterSetter2020
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
 var Foo = class {
   constructor() {
-    _foo.add(this);
-    _bar.add(this);
-    _prop.add(this);
+    __privateAdd(this, _foo);
+    __privateAdd(this, _bar);
+    __privateAdd(this, _prop);
   }
   foo(fn) {
     __privateGet(fn(), _foo, foo_get);
@@ -859,8 +850,8 @@ TestLowerPrivateMethod2019
 var _field, _method, method_fn;
 var Foo = class {
   constructor() {
-    _method.add(this);
-    _field.set(this, void 0);
+    __privateAdd(this, _method);
+    __privateAdd(this, _field, void 0);
   }
   baseline() {
     var _a, _b, _c, _d, _e;
@@ -901,8 +892,8 @@ TestLowerPrivateMethod2020
 var _field, _method, method_fn;
 var Foo = class {
   constructor() {
-    _method.add(this);
-    _field.set(this, void 0);
+    __privateAdd(this, _method);
+    __privateAdd(this, _field, void 0);
   }
   baseline() {
     a().foo;
@@ -975,9 +966,9 @@ TestLowerPrivateMethodWithModifiers2020
 var _g, g_fn, _a, a_fn, _ag, ag_fn, _sg, sg_fn, _sa, sa_fn, _sag, sag_fn;
 var Foo = class {
   constructor() {
-    _g.add(this);
-    _a.add(this);
-    _ag.add(this);
+    __privateAdd(this, _g);
+    __privateAdd(this, _a);
+    __privateAdd(this, _ag);
   }
 };
 _g = new WeakSet();
@@ -998,9 +989,9 @@ sa_fn = async function() {
 _sag = new WeakSet();
 sag_fn = async function* () {
 };
-_sg.add(Foo);
-_sa.add(Foo);
-_sag.add(Foo);
+__privateAdd(Foo, _sg);
+__privateAdd(Foo, _sa);
+__privateAdd(Foo, _sag);
 
 ================================================================================
 TestLowerStrictModeSyntax
@@ -1021,8 +1012,8 @@ TestTSLowerClassField2020NoBundle
 var _foo, _bar, _s_foo, _s_bar;
 class Foo {
   constructor() {
-    _foo.set(this, 123);
-    _bar.set(this, void 0);
+    __privateAdd(this, _foo, 123);
+    __privateAdd(this, _bar, void 0);
     this.foo = 123;
   }
 }
@@ -1030,8 +1021,8 @@ _foo = new WeakMap();
 _bar = new WeakMap();
 _s_foo = new WeakMap();
 _s_bar = new WeakMap();
-_s_foo.set(Foo, 123);
-_s_bar.set(Foo, void 0);
+__privateAdd(Foo, _s_foo, 123);
+__privateAdd(Foo, _s_bar, void 0);
 Foo.s_foo = 123;
 
 ================================================================================
@@ -1059,8 +1050,8 @@ TestTSLowerClassPrivateFieldNextNoBundle
 var _foo, _bar, _s_foo, _s_bar;
 class Foo {
   constructor() {
-    _foo.set(this, 123);
-    _bar.set(this, void 0);
+    __privateAdd(this, _foo, 123);
+    __privateAdd(this, _bar, void 0);
     this.foo = 123;
   }
 }
@@ -1068,8 +1059,8 @@ _foo = new WeakMap();
 _bar = new WeakMap();
 _s_foo = new WeakMap();
 _s_bar = new WeakMap();
-_s_foo.set(Foo, 123);
-_s_bar.set(Foo, void 0);
+__privateAdd(Foo, _s_foo, 123);
+__privateAdd(Foo, _s_bar, void 0);
 Foo.s_foo = 123;
 
 ================================================================================
@@ -1222,14 +1213,14 @@ TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015
 var _x;
 var WeakMap2 = class {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
 };
 _x = new WeakMap();
 var _y, y_fn;
 var WeakSet2 = class {
   constructor() {
-    _y.add(this);
+    __privateAdd(this, _y);
   }
 };
 _y = new WeakSet();
@@ -1242,7 +1233,7 @@ TestTSLowerPrivateFieldOptionalChain2015NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   foo() {
     var _a;
@@ -1274,6 +1265,6 @@ y_set = function(x) {
 _z = new WeakSet();
 z_fn = function() {
 };
-_y.add(Foo);
-_z.add(Foo);
-_x.set(Foo, void 0);
+__privateAdd(Foo, _y);
+__privateAdd(Foo, _z);
+__privateAdd(Foo, _x, void 0);

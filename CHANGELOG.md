@@ -25,6 +25,29 @@
 
     This should print out `1 2 3` because the non-spread getter should not be evaluated. Instead, esbuild was incorrectly transforming this into code that printed `1 3 2`. This issue should now be fixed with this release.
 
+* Prevent private class members from being added more than once
+
+    This fixes a corner case with the private class member implementation. Constructors in JavaScript can return an object other than `this`, so private class members can actually be added to objects other than `this`. This can be abused to attach completely private metadata to other objects:
+
+    ```js
+    class Base {
+      constructor(x) {
+        return x
+      }
+    }
+    class Derived extends Base {
+      #y
+      static is(z) {
+        return #y in z
+      }
+    }
+    const foo = {}
+    new Derived(foo)
+    console.log(Derived.is(foo)) // true
+    ```
+
+    This already worked in code transformed by esbuild for older browsers. However, calling `new Derived(foo)` multiple times in the above code was incorrectly allowed, and was a no-op. This should not be allowed because it would mean that the private field `#y` would be re-declared. This is no longer allowed starting from this release.
+
 ## 0.11.19
 
 * Allow esbuild to be restarted in Deno ([#1238](https://github.com/evanw/esbuild/pull/1238))

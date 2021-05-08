@@ -2162,17 +2162,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					p.recordUsage(ref)
 
 					// Add every newly-constructed instance into this map
-					expr = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
-						Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
-							Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
-							Name:    "set",
-							NameLoc: loc,
-						}},
-						Args: []js_ast.Expr{
-							target,
-							init,
-						},
-					}}
+					expr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
+						target,
+						{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
+						init,
+					})
 					p.recordUsage(ref)
 				} else if private == nil && classLoweringInfo.useDefineForClassFields {
 					if _, ok := init.Data.(*js_ast.EUndefined); ok {
@@ -2245,16 +2239,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					}
 
 					// Add every newly-constructed instance into this map
-					expr := js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
-						Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
-							Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
-							Name:    "add",
-							NameLoc: loc,
-						}},
-						Args: []js_ast.Expr{
-							target,
-						},
-					}}
+					expr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
+						target,
+						{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
+					})
 					p.recordUsage(ref)
 
 					// Make sure that adding to the map happens before any field

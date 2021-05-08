@@ -241,6 +241,10 @@ func code(isES6 bool) string {
 			__accessCheck(obj, member, 'read from private field')
 			return getter ? getter.call(obj) : member.get(obj)
 		}
+		export var __privateAdd = (obj, member, value) => {
+			if (member.has(obj)) throw TypeError('Cannot add the same private member more than once')
+			member instanceof WeakSet ? member.add(obj) : member.set(obj, value)
+		}
 		export var __privateSet = (obj, member, value, setter) => {
 			__accessCheck(obj, member, 'write to private field')
 			setter ? setter.call(obj, value) : member.set(obj, value)
