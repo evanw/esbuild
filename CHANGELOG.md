@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.20
 
 * Omit warning about duplicate JSON keys from inside `node_modules` ([#1254](https://github.com/evanw/esbuild/issues/1254))
 
@@ -46,7 +46,7 @@
     console.log(Derived.is(foo)) // true
     ```
 
-    This already worked in code transformed by esbuild for older browsers. However, calling `new Derived(foo)` multiple times in the above code was incorrectly allowed, and was a no-op. This should not be allowed because it would mean that the private field `#y` would be re-declared. This is no longer allowed starting from this release.
+    This already worked in code transformed by esbuild for older browsers. However, calling `new Derived(foo)` multiple times in the above code was incorrectly allowed. This should not be allowed because it would mean that the private field `#y` would be re-declared. This is no longer allowed starting from this release.
 
 ## 0.11.19
 
