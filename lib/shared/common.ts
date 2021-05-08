@@ -90,7 +90,7 @@ function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys,
   let logLevel = getFlag(options, keys, 'logLevel', mustBeString);
   let logLimit = getFlag(options, keys, 'logLimit', mustBeInteger);
 
-  if (color) flags.push(`--color=${color}`);
+  if (color !== void 0) flags.push(`--color=${color}`);
   else if (isTTY) flags.push(`--color=true`); // This is needed to fix "execFileSync" which buffers stderr
   flags.push(`--log-level=${logLevel || logLevelDefault}`);
   flags.push(`--log-limit=${logLimit || 0}`);
