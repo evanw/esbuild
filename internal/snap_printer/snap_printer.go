@@ -1352,31 +1352,27 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			p.print("(")
 			flags &= ^forbidIn
 		}
-		p.printExpr(e.Test, js_ast.LConditional, flags&forbidIn)
-		p.printSpace()
-		p.print("?")
-		p.printSpace()
 
-		if p.uninvokedFunctionDepth == 0 {
-			yesMsg, yesOk := p.validator.verifyEIfBranchTarget(&e.Yes)
-			if !yesOk {
-				p.validationErrors = append(p.validationErrors, ValidationError{Kind: Defer, Msg: yesMsg, Idx: p.currentIdx()})
-			}
+		// Replace the entire conditional expression with an error if either branch is invalid
+		yesMsg, yesOk := p.validator.verifyEIfBranchTarget(&e.Yes)
+		noMsg, noOk := p.validator.verifyEIfBranchTarget(&e.No)
+		if !yesOk {
+			p.printThrowValidationError(&ValidationError{Kind: Defer, Msg: yesMsg, Idx: p.currentIdx()})
+		} else if !noOk {
+			p.printThrowValidationError(&ValidationError{Kind: Defer, Msg: noMsg, Idx: p.currentIdx()})
+		} else {
+			p.printExpr(e.Test, js_ast.LConditional, flags&forbidIn)
+			p.printSpace()
+			p.print("?")
+			p.printSpace()
+			p.printExpr(e.Yes, js_ast.LYield, 0)
+			p.printSpace()
+			p.print(":")
+			p.printSpace()
+
+			p.printExpr(e.No, js_ast.LYield, flags&forbidIn)
 		}
 
-		p.printExpr(e.Yes, js_ast.LYield, 0)
-		p.printSpace()
-		p.print(":")
-		p.printSpace()
-
-		if p.uninvokedFunctionDepth == 0 {
-			noMsg, noOk := p.validator.verifyEIfBranchTarget(&e.No)
-			if !noOk {
-				p.validationErrors = append(p.validationErrors, ValidationError{Kind: Defer, Msg: noMsg, Idx: p.currentIdx()})
-			}
-		}
-
-		p.printExpr(e.No, js_ast.LYield, flags&forbidIn)
 		if wrap {
 			p.print(")")
 		}

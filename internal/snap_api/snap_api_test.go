@@ -390,20 +390,6 @@ process.emitWarning = override
 	)
 }
 
-func TestReportsDeferValidationErrorsAsWarnings(t *testing.T) {
-	snapApiSuite.expectWarnings(t, built{
-		files: map[string]string{
-			ProjectBaseDir + "/entry.js": `
-var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined
-`,
-		},
-		entryPoints: []string{ProjectBaseDir + "/entry.js"},
-	}, []string{
-		"[SNAPSHOT_CACHE_FAILURE] Cannot probe 'Buffer' properties",
-	},
-	)
-}
-
 func TestDebug(t *testing.T) {
 	snapApiSuite.debugBuild(t, built{
 		files: map[string]string{

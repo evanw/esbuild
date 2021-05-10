@@ -1148,30 +1148,46 @@ process.cwd = () => {}
 }
 
 func TestInvalidateBufferPropertyProbingScriptLevel(t *testing.T) {
-	expectValidationErrors(t, `
+	expectPrinted(t, `
 var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined
-  `, []ValidationError{
-		{Kind: Defer, Msg: "Cannot probe 'Buffer' properties"},
-	})
+  `, `
+var nativeIsBuffer = (function () { throw new Error("[SNAPSHOT_CACHE_FAILURE] Cannot probe 'Buffer' properties") })();
+`, ReplaceAll)
 }
 
 func TestValidateBufferPropertyProbingInsideClosure(t *testing.T) {
-	expectValidationErrors(t, `
+	expectPrinted(t, `
 function foo() {
   var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined
 }
-  `, []ValidationError{})
+  `, `
+function foo() {
+  var nativeIsBuffer = (function () { throw new Error("[SNAPSHOT_CACHE_FAILURE] Cannot probe 'Buffer' properties") })();
+}
+`, ReplaceAll)
 }
 
-// NOTE: this isn't smart enough to detect functions declared and then invoked later
+func TestValidateBufferPropertyReturnProbingInsideClosure(t *testing.T) {
+	expectPrinted(t, `
+function foo() {
+  return Buffer ? Buffer.isBuffer : undefined
+}
+  `, `
+function foo() {
+  return (function () { throw new Error("[SNAPSHOT_CACHE_FAILURE] Cannot probe 'Buffer' properties") })();
+}
+`, ReplaceAll)
+}
 func TestInalidateBufferPropertyProbingInsideSelfInvokingClosure(t *testing.T) {
-	expectValidationErrors(t, `
+	expectPrinted(t, `
 (function foo() {
   var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined
 }).call(this)
-  `, []ValidationError{
-		{Kind: Defer, Msg: "Cannot probe 'Buffer' properties"},
-	})
+  `, `
+(function foo() {
+  var nativeIsBuffer = (function () { throw new Error("[SNAPSHOT_CACHE_FAILURE] Cannot probe 'Buffer' properties") })();
+}).call(this);
+`, ReplaceAll)
 }
 
 func TestDebug(t *testing.T) {
