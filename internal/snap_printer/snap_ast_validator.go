@@ -11,10 +11,14 @@ const SNAPSHOT_REWRITE_FAILURE = "[SNAPSHOT_REWRITE_FAILURE]"
 const SNAPSHOT_CACHE_FAILURE = "[SNAPSHOT_CACHE_FAILURE]"
 
 type SnapAstValiator struct {
-	renamer *snap_renamer.SnapRenamer
+	renamer        *snap_renamer.SnapRenamer
+	validateStrict bool
 }
 
 func (v *SnapAstValiator) verifySExpr(expr *js_ast.SExpr) (string, bool) {
+	if !v.validateStrict {
+		return "", true
+	}
 
 	// Detect monkey patches on `process`, i.e. `process.emitWarning = function () { ... }`
 	// We don't allow them since they cause problems with rewrites performed on
@@ -54,6 +58,9 @@ func (v *SnapAstValiator) verifySExpr(expr *js_ast.SExpr) (string, bool) {
 }
 
 func (v *SnapAstValiator) verifyEIfBranchTarget(expr *js_ast.Expr) (string, bool) {
+	if !v.validateStrict {
+		return "", true
+	}
 	// Detect conditional assignments that depend on globals, i.e. `var x = Buffer ? Buffer.isBuffer : undefined`
 
 	// This kind of validation error should cause a defer and will be rewritten by the printer so that

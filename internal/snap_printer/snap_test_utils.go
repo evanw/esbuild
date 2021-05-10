@@ -25,6 +25,7 @@ type testOpts struct {
 	debug                bool
 	isWrapped            bool
 	shouldRewrite        bool
+	validateStrict       bool
 	snapFilePath         string
 }
 
@@ -68,6 +69,7 @@ func expectPrintedCommon(
 			symbols,
 			&r,
 			options,
+			testOpts.validateStrict,
 			testOpts.isWrapped,
 			testOpts.shouldReplaceRequire,
 		).JS
@@ -109,7 +111,7 @@ func expectPrinted(t *testing.T, contents string, expected string, shouldReplace
 		contents,
 		expected,
 		PrintOptions{},
-		testOpts{shouldReplaceRequire: shouldReplaceRequire, shouldRewrite: true},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, shouldRewrite: true, validateStrict: true},
 	)
 }
 
@@ -121,7 +123,7 @@ func expectPrintedNorewrite(t *testing.T, contents string, expected string, shou
 		contents,
 		expected,
 		PrintOptions{},
-		testOpts{shouldReplaceRequire: shouldReplaceRequire, shouldRewrite: false},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, shouldRewrite: false, validateStrict: true},
 	)
 }
 
@@ -133,7 +135,7 @@ func expectByLine(t *testing.T, contents string, expected string, shouldReplaceR
 		contents,
 		expected,
 		PrintOptions{},
-		testOpts{shouldReplaceRequire: shouldReplaceRequire, compareByLine: true, shouldRewrite: true},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, compareByLine: true, shouldRewrite: true, validateStrict: true},
 	)
 }
 
@@ -145,7 +147,7 @@ func debugByLine(t *testing.T, contents string, expected string, shouldReplaceRe
 		contents,
 		expected,
 		PrintOptions{},
-		testOpts{shouldReplaceRequire: shouldReplaceRequire, compareByLine: true, debug: true, shouldRewrite: true},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, compareByLine: true, debug: true, shouldRewrite: true, validateStrict: true},
 	)
 }
 
@@ -157,7 +159,7 @@ func debugPrinted(t *testing.T, contents string, shouldReplaceRequire func(strin
 		contents,
 		"",
 		PrintOptions{},
-		testOpts{shouldReplaceRequire: shouldReplaceRequire, debug: true, shouldRewrite: true},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, debug: true, shouldRewrite: true, validateStrict: true},
 	)
 }
 
@@ -169,7 +171,7 @@ func debugPrintedNorewrite(t *testing.T, contents string, shouldReplaceRequire f
 		contents,
 		"",
 		PrintOptions{},
-		testOpts{shouldReplaceRequire: shouldReplaceRequire, debug: true, shouldRewrite: false},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, debug: true, shouldRewrite: false, validateStrict: true},
 	)
 }
 
@@ -191,6 +193,7 @@ func debugFixture(t *testing.T, fixtureName string, shouldReplaceRequire func(st
 			debug:                true,
 			snapFilePath:         "./fixtures/snap-" + fixtureName,
 			shouldRewrite:        true,
+			validateStrict:       true,
 		},
 	)
 }
@@ -228,7 +231,7 @@ func expectValidationErrors(
 ) {
 	name := contents
 	options := PrintOptions{}
-	testOpts := testOpts{shouldReplaceRequire: ReplaceAll, shouldRewrite: true}
+	testOpts := testOpts{shouldReplaceRequire: ReplaceAll, shouldRewrite: true, validateStrict: true}
 
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
@@ -258,6 +261,7 @@ func expectValidationErrors(
 			symbols,
 			&r,
 			options,
+			testOpts.validateStrict,
 			testOpts.isWrapped,
 			testOpts.shouldReplaceRequire,
 		).ValidationErrors

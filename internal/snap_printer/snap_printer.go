@@ -2812,6 +2812,7 @@ func Print(
 	symbols js_ast.SymbolMap,
 	r renamer.Renamer,
 	options PrintOptions,
+	validateStrict bool,
 	isWrapped bool,
 	shouldReplaceRequire func(string) bool,
 ) PrintResult {
@@ -2828,7 +2829,8 @@ func Print(
 		}
 
 		validator := SnapAstValiator{
-			renamer: snapRenamer,
+			renamer:        snapRenamer,
+			validateStrict: validateStrict,
 		}
 
 		p = &printer{

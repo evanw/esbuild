@@ -46,6 +46,7 @@ func createPrintAST(snapshot *SnapshotOptions, log *logger.Log) bundler.PrintAST
 					symbols,
 					&r,
 					options,
+					snapshot.Doctor,
 					true,
 					shouldReplaceRequire)
 
