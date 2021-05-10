@@ -135,6 +135,7 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 			ShouldReplaceRequire: snap_api.CreateShouldReplaceRequire(platform, external, shouldReplaceRequire, shouldRewriteModule),
 			ShouldRewriteModule:  shouldRewriteModule,
 			AbsBasedir:           args.Basedir,
+			Doctor:               args.Doctor,
 			VerifyPrint:          true,
 			PanicOnError:         false,
 		},

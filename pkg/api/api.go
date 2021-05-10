@@ -316,6 +316,7 @@ type SnapshotOptions struct {
 	AbsBasedir           string
 	VerifyPrint          bool
 	PanicOnError         bool
+	Doctor               bool
 }
 
 type BuildResult struct {

@@ -139,6 +139,7 @@ func (s *suite) build(args built) buildResult {
 			ShouldReplaceRequire: shouldReplaceRequire,
 			ShouldRewriteModule:  args.shouldRewriteModule,
 			AbsBasedir:           ProjectBaseDir,
+			Doctor:               true,
 		},
 		FS: fs,
 	})
