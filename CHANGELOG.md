@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+* TypeScript `override` for parameter properties ([#1262](https://github.com/evanw/esbuild/pull/1262))
+
+    You can now use the `override` keyword instead of or in addition to the `public`, `private`, `protected`, and `readonly` keywords for declaring a TypeScript parameter property:
+
+    ```ts
+    class Derived extends Base {
+      constructor(override field: any) {
+      }
+    }
+    ```
+
+    This feature was [recently added to the TypeScript compiler](https://github.com/microsoft/TypeScript/pull/43831) and will presumably be in an upcoming version of the TypeScript language. Support for this feature in esbuild was contributed by [@g-plane](https://github.com/g-plane).
+
 ## 0.11.20
 
 * Omit warning about duplicate JSON keys from inside `node_modules` ([#1254](https://github.com/evanw/esbuild/issues/1254))
