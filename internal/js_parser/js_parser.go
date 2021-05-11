@@ -4833,7 +4833,7 @@ func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_as
 			// as a "parameter property" in TypeScript.
 			if isIdentifier && data.isConstructor {
 				for p.lexer.Token == js_lexer.TIdentifier || p.lexer.Token == js_lexer.TOpenBrace || p.lexer.Token == js_lexer.TOpenBracket {
-					if text != "public" && text != "private" && text != "protected" && text != "readonly" {
+					if text != "public" && text != "private" && text != "protected" && text != "readonly" && text != "override" {
 						break
 					}
 					isTypeScriptCtorField = true
