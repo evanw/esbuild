@@ -96,6 +96,9 @@ func (p *printer) handleEBinary(e *js_ast.EBinary) (handled bool) {
 	if e.Op != js_ast.BinOpAssign || p.prevOp == js_ast.BinOpLogicalAnd {
 		return false
 	}
+	if !p.validator.verifyNoRecursiveRef(e) {
+		return false
+	}
 
 	require, isRequire := p.extractRequireExpression(e.Right, 0, 0, 0)
 	if isRequire {

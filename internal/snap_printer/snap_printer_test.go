@@ -1190,6 +1190,45 @@ func TestInalidateBufferPropertyProbingInsideSelfInvokingClosure(t *testing.T) {
 `, ReplaceAll)
 }
 
+func TestNorewriteRecursiveReferencesDirectCall(t *testing.T) {
+	expectPrinted(t, `
+var debug = require('debug')
+debug = wrap(debug)
+`, `
+let debug;
+function __get_debug__() {
+  return debug = debug || (require("debug"))
+}
+debug = wrap((__get_debug__()));
+`, ReplaceAll)
+}
+
+func TestNorewriteRecursiveReferencesDirectCallOnInstance(t *testing.T) {
+	expectPrinted(t, `
+var debug = require('debug')
+debug = _.wrap(debug)
+`, `
+let debug;
+function __get_debug__() {
+  return debug = debug || (require("debug"))
+}
+debug = _.wrap((__get_debug__()));
+`, ReplaceAll)
+}
+
+func TestNorewriteRecursiveReferencesNestedCallOnInstance(t *testing.T) {
+	expectPrinted(t, `
+var debug = require('debug')
+debug = _.wrap(normalize(debug))
+`, `
+let debug;
+function __get_debug__() {
+  return debug = debug || (require("debug"))
+}
+debug = _.wrap(normalize((__get_debug__())));
+`, ReplaceAll)
+}
+
 func TestDebug(t *testing.T) {
 	debugPrinted(t, `
 const { v4: uuidv4 } = require('uuid')

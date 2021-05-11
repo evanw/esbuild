@@ -83,6 +83,35 @@ func (v *SnapAstValiator) verifyEIfBranchTarget(expr *js_ast.Expr) (string, bool
 	return "", true
 }
 
+func (v *SnapAstValiator) verifyNoRecursiveRef(e *js_ast.EBinary) bool {
+	switch leftIdentifier := e.Left.Data.(type) {
+	case *js_ast.EIdentifier:
+		// Now make sure that the identifier we're assigning to is not referenced on the right
+		return !_references(leftIdentifier.Ref, &e.Right)
+	default:
+		return true
+	}
+}
+
+func _references(ref js_ast.Ref, expr *js_ast.Expr) bool {
+	switch e := expr.Data.(type) {
+
+	case *js_ast.EIdentifier:
+		return e.Ref == ref
+
+	case *js_ast.ECall:
+		for _, arg := range e.Args {
+			if _references(ref, &arg) {
+				return true
+			}
+		}
+		return _references(ref, &e.Target)
+
+	default:
+		return false
+	}
+}
+
 // Prints code that will throw an Error when it runs. The error message is derived from the
 // validation error message.
 func (p *printer) printThrowValidationError(err *ValidationError) {
