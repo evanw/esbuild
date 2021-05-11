@@ -2394,6 +2394,95 @@ let syncTests = {
       result.stop()
     }
   },
+
+  async onDynamicImportPluginInjectModule({ esbuild, testDir }) {
+    const input = path.join(testDir, "in.js");
+    const supportingJson = path.join(testDir, 'supporting.json')
+    const output = path.join(testDir, "out.js");
+    const supportingJsonData = { foo: 'bar' }
+    await writeFileAsync(
+      input,
+      `
+      const loadFile = name => {
+        const file = require(\`./files/\${name}.json\`)
+
+        return file
+      }
+
+      module.exports = loadFile
+    `
+    );
+    await writeFileAsync(
+      supportingJson,
+      JSON.stringify(supportingJsonData)
+    );
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: "cjs",
+      plugins: [
+        {
+          name: "name",
+          setup(build) {
+            build.onDynamicImport({}, (args) => {
+              assert.strictEqual(args.expression, '`./files/${name}.json`');
+              assert.strictEqual(args.importer, input);
+              assert.strictEqual(args.namespace, 'file');
+
+              return {
+                contents: `module.exports = () => require('./supporting.json')`,
+              };
+            });
+          },
+        },
+      ],
+    });
+    const bundle = require(output)
+    const result = bundle()
+
+    assert.deepStrictEqual(result, supportingJsonData)
+  },
+
+  async onDynamicImportPluginIgnoreUnclaimed({ esbuild, testDir }) {
+    const input = path.join(testDir, "in.js");
+    const output = path.join(testDir, "out.js");
+    await writeFileAsync(
+      input,
+      `
+      const loadFile = name => {
+        const file = require(\`./files/\${name}.json\`)
+
+        return file
+      }
+
+      module.exports = loadFile
+    `
+    );
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: "cjs",
+      plugins: [
+        {
+          name: "name",
+          setup(build) {
+            build.onDynamicImport({}, (args) => {
+              assert.strictEqual(args.expression, '`./files/${name}.json`');
+              assert.strictEqual(args.importer, input);
+              assert.strictEqual(args.namespace, 'file');
+
+              return;
+            });
+          },
+        },
+      ],
+    });
+    const code = await readFileAsync(output, 'utf8')
+
+    assert.ok(code.includes('require(`./files/${name}.json`)'))
+  },
 }
 
 async function main() {

@@ -266,9 +266,10 @@ type Options struct {
 	CSSBanner string
 	CSSFooter string
 
-	EntryPathTemplate []PathTemplate
-	ChunkPathTemplate []PathTemplate
-	AssetPathTemplate []PathTemplate
+	EntryPathTemplate         []PathTemplate
+	ChunkPathTemplate         []PathTemplate
+	AssetPathTemplate         []PathTemplate
+	DynamicImportPathTemplate []PathTemplate
 
 	Plugins []Plugin
 
@@ -458,10 +459,11 @@ func PluginAppliesToPath(path logger.Path, filter *regexp.Regexp, namespace stri
 // Plugin API
 
 type Plugin struct {
-	Name      string
-	OnStart   []OnStart
-	OnResolve []OnResolve
-	OnLoad    []OnLoad
+	Name            string
+	OnStart         []OnStart
+	OnResolve       []OnResolve
+	OnLoad          []OnLoad
+	OnDynamicImport []OnDynamicImport
 }
 
 type OnStart struct {
@@ -522,6 +524,33 @@ type OnLoadResult struct {
 	AbsResolveDir string
 	Loader        Loader
 	PluginData    interface{}
+
+	Msgs        []logger.Msg
+	ThrownError error
+
+	AbsWatchFiles []string
+	AbsWatchDirs  []string
+}
+
+type OnDynamicImport struct {
+	Name      string
+	Filter    *regexp.Regexp
+	Namespace string
+	Callback  func(OnDynamicImportArgs) OnDynamicImportResult
+}
+
+type OnDynamicImportArgs struct {
+	Expression logger.Path
+	Importer   logger.Path
+	Namespace  string
+	PluginData interface{}
+}
+
+type OnDynamicImportResult struct {
+	PluginName string
+
+	Contents   *string
+	PluginData interface{}
 
 	Msgs        []logger.Msg
 	ThrownError error

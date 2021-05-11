@@ -103,6 +103,14 @@ type ImportRecord struct {
 	// If true, this was originally written as a bare "import 'file'" statement
 	WasOriginallyBareImport bool
 
+	// If true, the import contains a dynamic expression that cannot be evaluated
+	// at compile time
+	IsDynamicExpression bool
+
+	// Path to the generated module that replaces the dynamic expression import.
+	// If empty, the import statement will be left as is
+	DynamicExpressionModulePath string
+
 	Kind ImportKind
 }
 

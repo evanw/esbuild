@@ -581,6 +581,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 
 	var onResolveCallbacks []filteredCallback
 	var onLoadCallbacks []filteredCallback
+	var onDynamicImportCallbacks []filteredCallback
 
 	filteredCallbacks := func(pluginName string, kind string, items []interface{}) (result []filteredCallback, err error) {
 		for _, item := range items {
@@ -613,6 +614,12 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 			return nil, err
 		} else {
 			onLoadCallbacks = append(onLoadCallbacks, callbacks...)
+		}
+
+		if callbacks, err := filteredCallbacks(pluginName, "onDynamicImport", p["onDynamicImport"].([]interface{})); err != nil {
+			return nil, err
+		} else {
+			onDynamicImportCallbacks = append(onDynamicImportCallbacks, callbacks...)
 		}
 	}
 
@@ -800,6 +807,65 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 						return api.OnLoadResult{}, err
 					}
 					result.Loader = loader
+				}
+
+				return result, nil
+			})
+
+			build.OnDynamicImport(api.OnDynamicImportOptions{Filter: ".*"}, func(args api.OnDynamicImportArgs) (api.OnDynamicImportResult, error) {
+				var ids []interface{}
+				for _, item := range onDynamicImportCallbacks {
+					ids = append(ids, item.id)
+				}
+
+				result := api.OnDynamicImportResult{}
+				if len(ids) == 0 {
+					return result, nil
+				}
+
+				response := service.sendRequest(map[string]interface{}{
+					"command":    "dynamicImport",
+					"key":        key,
+					"ids":        ids,
+					"expression": args.Expression,
+					"importer":   args.Importer,
+					"namespace":  args.Namespace,
+					"pluginData": args.PluginData,
+				}).(map[string]interface{})
+
+				if value, ok := response["id"]; ok {
+					id := value.(int)
+					for _, item := range onDynamicImportCallbacks {
+						if item.id == id {
+							result.PluginName = item.pluginName
+							break
+						}
+					}
+				}
+				if value, ok := response["error"]; ok {
+					return result, errors.New(value.(string))
+				}
+				if value, ok := response["pluginName"]; ok {
+					result.PluginName = value.(string)
+				}
+				if value, ok := response["contents"]; ok {
+					contents := string(value.([]byte))
+					result.Contents = &contents
+				}
+				if value, ok := response["pluginData"]; ok {
+					result.PluginData = value.(int)
+				}
+				if value, ok := response["errors"]; ok {
+					result.Errors = decodeMessages(value.([]interface{}))
+				}
+				if value, ok := response["warnings"]; ok {
+					result.Warnings = decodeMessages(value.([]interface{}))
+				}
+				if value, ok := response["watchFiles"]; ok {
+					result.WatchFiles = decodeStringArray(value.([]interface{}))
+				}
+				if value, ok := response["watchDirs"]; ok {
+					result.WatchDirs = decodeStringArray(value.([]interface{}))
 				}
 
 				return result, nil

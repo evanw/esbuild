@@ -417,8 +417,8 @@ export interface StreamService {
 // for both sync and async code. There is an exception for plugin code because
 // that can't work in sync code anyway.
 export function createChannel(streamIn: StreamIn): StreamOut {
-  type PluginCallback = (request: protocol.OnStartRequest | protocol.OnResolveRequest | protocol.OnLoadRequest) =>
-    Promise<protocol.OnStartResponse | protocol.OnResolveResponse | protocol.OnLoadResponse>;
+  type PluginCallback = (request: protocol.OnStartRequest | protocol.OnResolveRequest | protocol.OnLoadRequest | protocol.OnDynamicImportRequest) =>
+    Promise<protocol.OnStartResponse | protocol.OnResolveResponse | protocol.OnLoadResponse | protocol.OnDynamicImportResponse>;
 
   type WatchCallback = (error: Error | null, response: any) => void;
 
@@ -515,6 +515,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     | protocol.OnRequestRequest
     | protocol.OnWaitRequest
     | protocol.OnWatchRebuildRequest
+    | protocol.OnDynamicImportRequest
 
   let handleRequest = async (id: number, request: RequestType) => {
     // Catch exceptions in the code below so they get passed to the caller
@@ -540,6 +541,13 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         }
 
         case 'load': {
+          let callback = pluginCallbacks.get(request.key);
+          if (!callback) sendResponse(id, {});
+          else sendResponse(id, await callback!(request) as any);
+          break;
+        }
+
+        case 'dynamicImport': {
           let callback = pluginCallbacks.get(request.key);
           if (!callback) sendResponse(id, {});
           else sendResponse(id, await callback!(request) as any);
@@ -651,6 +659,15 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       },
     } = {};
 
+    let onDynamicImportCallbacks: {
+      [id: number]: {
+        name: string,
+        note: () => types.Note | undefined,
+        callback: (args: types.OnDynamicImportArgs) =>
+          (types.OnDynamicImportResult | null | undefined | Promise<types.OnDynamicImportResult | null | undefined>),
+      },
+    } = {};    
+
     let nextCallbackID = 0;
     let i = 0;
     let requestPlugins: protocol.BuildPlugin[] = [];
@@ -672,6 +689,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           name,
           onResolve: [],
           onLoad: [],
+          onDynamicImport: []
         };
         i++;
 
@@ -715,6 +733,18 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             onLoadCallbacks[id] = { name: name!, callback, note: registeredNote };
             plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' });
           },
+
+          onDynamicImport(options, callback) {
+            let registeredText = `This error came from the "onDynamicImport" callback registered here`
+            let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onDynamicImport');
+            let keys: OptionKeys = {};
+            let filter = getFlag(options, keys, 'filter', mustBeRegExp) || /.*/;
+            let namespace = getFlag(options, keys, 'namespace', mustBeString);
+            checkForInvalidFlags(options, keys, `in onDynamicImport() call for plugin ${JSON.stringify(name)}`);
+            let id = nextCallbackID++;
+            onDynamicImportCallbacks[id] = { name: name!, callback, note: registeredNote };
+            plugin.onDynamicImport.push({ id, filter: filter.source, namespace: namespace || '' });
+          },          
         });
 
         // Await a returned promise if there was one. This allows plugins to do
@@ -834,6 +864,48 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (resolveDir != null) response.resolveDir = resolveDir;
                 if (pluginData != null) response.pluginData = stash.store(pluginData);
                 if (loader != null) response.loader = loader;
+                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash, name);
+                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash, name);
+                if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
+                if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
+                break;
+              }
+            } catch (e) {
+              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note && note(), name)] };
+            }
+          }
+          return response;
+        }
+
+        case 'dynamicImport': {
+          let response: protocol.OnDynamicImportResponse = {}, name = '', callback, note;
+          for (let id of request.ids) {
+            try {
+              ({ name, callback, note } = onDynamicImportCallbacks[id]);
+              let result = await callback({
+                expression: request.expression,
+                importer: request.importer,
+                namespace: request.namespace,
+                pluginData: stash.load(request.pluginData),
+              });
+
+              if (result != null) {
+                if (typeof result !== 'object') throw new Error(`Expected onDynamicImport() callback in plugin ${JSON.stringify(name)} to return an object`);
+                let keys: OptionKeys = {};
+                let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
+                let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array);
+                let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
+                let errors = getFlag(result, keys, 'errors', mustBeArray);
+                let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+                let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
+                let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
+                checkForInvalidFlags(result, keys, `from onDynamicImport() callback in plugin ${JSON.stringify(name)}`);
+
+                response.id = id;
+                if (pluginName != null) response.pluginName = pluginName;
+                if (contents instanceof Uint8Array) response.contents = contents;
+                else if (contents != null) response.contents = protocol.encodeUTF8(contents);
+                if (pluginData != null) response.pluginData = stash.store(pluginData);
                 if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash, name);
                 if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash, name);
                 if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');

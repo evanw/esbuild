@@ -11737,7 +11737,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// There must be one argument
 					if len(e.Args) == 1 {
 						return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
-							// The argument must be a string
+							// If the argument is a string, we treat this as a normal require
+							// with a static expression
 							if str, ok := arg.Data.(*js_ast.EString); ok {
 								// Ignore calls to require() if the control flow is provably dead here.
 								// We don't want to spend time scanning the required files if they will
@@ -11755,16 +11756,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}}
 							}
 
-							// Use a debug log so people can see this if they want to
-							r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-							p.log.AddRangeDebug(&p.source, r,
-								"This call to \"require\" will not be bundled because the argument is not a string literal")
+							// This is a require with a dynamic expression. Use the string
+							// representation of the expression as the import path and flag
+							// the import record as containing a dynamic expression.
+							r := js_lexer.RangeOfCallArgs(p.source, arg.Loc)
+							importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, p.source.TextForRange(r))
+							p.importRecords[importRecordIndex].IsDynamicExpression = true
 
-							// Otherwise just return a clone of the "require()" call
-							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-								Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
-								Args:   []js_ast.Expr{arg},
-							}}
+							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}}
 						}), exprOut{}
 					} else {
 						r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)

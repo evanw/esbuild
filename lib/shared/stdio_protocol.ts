@@ -42,6 +42,7 @@ export interface BuildPlugin {
   name: string;
   onResolve: { id: number, filter: string, namespace: string }[];
   onLoad: { id: number, filter: string, namespace: string }[];
+  onDynamicImport: { id: number, filter: string, namespace: string }[];
 }
 
 export interface BuildResponse {
@@ -183,6 +184,30 @@ export interface OnLoadResponse {
   contents?: Uint8Array;
   resolveDir?: string;
   loader?: string;
+  pluginData?: number;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
+}
+
+export interface OnDynamicImportRequest {
+  command: 'dynamicImport';
+  key: number;
+  ids: number[];
+  expression: string;
+  importer: string;
+  namespace: string;
+  pluginData: number;
+}
+
+export interface OnDynamicImportResponse {
+  id?: number;
+  pluginName?: string;
+
+  errors?: types.PartialMessage[];
+  warnings?: types.PartialMessage[];
+
+  contents?: Uint8Array;
   pluginData?: number;
 
   watchFiles?: string[];

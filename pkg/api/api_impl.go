@@ -1519,6 +1519,48 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 	})
 }
 
+func (impl *pluginImpl) OnDynamicImport(options OnDynamicImportOptions, callback func(OnDynamicImportArgs) (OnDynamicImportResult, error)) {
+	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnDynamicImport", options.Filter)
+	if filter == nil {
+		impl.log.AddError(nil, logger.Loc{}, err.Error())
+		return
+	}
+
+	impl.plugin.OnDynamicImport = append(impl.plugin.OnDynamicImport, config.OnDynamicImport{
+		Filter:    filter,
+		Namespace: options.Namespace,
+		Callback: func(args config.OnDynamicImportArgs) (result config.OnDynamicImportResult) {
+			response, err := callback(OnDynamicImportArgs{
+				Expression: args.Expression.Text,
+				Importer:   args.Importer.Text,
+				Namespace:  args.Namespace,
+				PluginData: args.PluginData,
+			})
+			result.PluginName = response.PluginName
+			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")
+			result.AbsWatchDirs = impl.validatePathsArray(response.WatchDirs, "watch directory")
+
+			if err != nil {
+				result.ThrownError = err
+				return
+			}
+
+			result.Contents = response.Contents
+			result.PluginData = response.PluginData
+
+			// Convert log messages
+			if len(response.Errors)+len(response.Warnings) > 0 {
+				msgs := make(logger.SortableMsgs, 0, len(response.Errors)+len(response.Warnings))
+				msgs = convertMessagesToInternal(msgs, logger.Error, response.Errors)
+				msgs = convertMessagesToInternal(msgs, logger.Warning, response.Warnings)
+				sort.Stable(msgs)
+				result.Msgs = msgs
+			}
+			return
+		},
+	})
+}
+
 func (impl *pluginImpl) validatePathsArray(pathsIn []string, name string) (pathsOut []string) {
 	if len(pathsIn) > 0 {
 		pathKind := fmt.Sprintf("%s path for plugin %q", name, impl.plugin.Name)
@@ -1552,11 +1594,12 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (plugin
 		}
 
 		item.Setup(PluginBuild{
-			InitialOptions: initialOptions,
-			OnStart:        impl.OnStart,
-			OnEnd:          onEnd,
-			OnResolve:      impl.OnResolve,
-			OnLoad:         impl.OnLoad,
+			InitialOptions:  initialOptions,
+			OnStart:         impl.OnStart,
+			OnEnd:           onEnd,
+			OnResolve:       impl.OnResolve,
+			OnLoad:          impl.OnLoad,
+			OnDynamicImport: impl.OnDynamicImport,
 		})
 
 		plugins = append(plugins, impl.plugin)

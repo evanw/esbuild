@@ -197,6 +197,8 @@ export interface PluginBuild {
     (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): void;
   onLoad(options: OnLoadOptions, callback: (args: OnLoadArgs) =>
     (OnLoadResult | null | undefined | Promise<OnLoadResult | null | undefined>)): void;
+  onDynamicImport(options: OnDynamicImportOptions, callback: (args: OnDynamicImportArgs) =>
+    (OnDynamicImportResult | null | undefined | Promise<OnDynamicImportResult | null | undefined>)): void;
 }
 
 export interface OnStartResult {
@@ -258,6 +260,33 @@ export interface OnLoadArgs {
 }
 
 export interface OnLoadResult {
+  pluginName?: string;
+
+  errors?: PartialMessage[];
+  warnings?: PartialMessage[];
+
+  contents?: string | Uint8Array;
+  resolveDir?: string;
+  loader?: Loader;
+  pluginData?: any;
+
+  watchFiles?: string[];
+  watchDirs?: string[];
+}
+
+export interface OnDynamicImportOptions {
+  filter: RegExp;
+  namespace?: string;
+}
+
+export interface OnDynamicImportArgs {
+  expression: string;
+  importer: string;
+  namespace: string;
+  pluginData: any;
+}
+
+export interface OnDynamicImportResult {
   pluginName?: string;
 
   errors?: PartialMessage[];

@@ -422,11 +422,12 @@ type Plugin struct {
 }
 
 type PluginBuild struct {
-	InitialOptions *BuildOptions
-	OnStart        func(callback func() (OnStartResult, error))
-	OnEnd          func(callback func(result *BuildResult))
-	OnResolve      func(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
-	OnLoad         func(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
+	InitialOptions  *BuildOptions
+	OnStart         func(callback func() (OnStartResult, error))
+	OnEnd           func(callback func(result *BuildResult))
+	OnResolve       func(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
+	OnLoad          func(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
+	OnDynamicImport func(options OnDynamicImportOptions, callback func(OnDynamicImportArgs) (OnDynamicImportResult, error))
 }
 
 type OnStartResult struct {
@@ -475,6 +476,33 @@ type OnLoadArgs struct {
 }
 
 type OnLoadResult struct {
+	PluginName string
+
+	Errors   []Message
+	Warnings []Message
+
+	Contents   *string
+	ResolveDir string
+	Loader     Loader
+	PluginData interface{}
+
+	WatchFiles []string
+	WatchDirs  []string
+}
+
+type OnDynamicImportOptions struct {
+	Filter    string
+	Namespace string
+}
+
+type OnDynamicImportArgs struct {
+	Expression string
+	Importer   string
+	Namespace  string
+	PluginData interface{}
+}
+
+type OnDynamicImportResult struct {
 	PluginName string
 
 	Errors   []Message

@@ -728,6 +728,28 @@ func RangeOfIdentifier(source logger.Source, loc logger.Loc) logger.Range {
 	return source.RangeOfString(loc)
 }
 
+func RangeOfCallArgs(source logger.Source, loc logger.Loc) logger.Range {
+	text := source.Contents[loc.Start:]
+	if len(text) == 0 {
+		return logger.Range{Loc: loc, Len: 0}
+	}
+
+	d := 1
+	i := 0
+
+	for d > 0 {
+		if text[i] == '(' {
+			d++
+		} else if text[i] == ')' {
+			d--
+		}
+
+		i++
+	}
+
+	return logger.Range{Loc: loc, Len: int32(i - 1)}
+}
+
 func (lexer *Lexer) ExpectJSXElementChild(token T) {
 	if lexer.Token != token {
 		lexer.Expected(token)
