@@ -2161,63 +2161,69 @@ func (p *printer) printIf(s *js_ast.SIf) {
 	p.print("if")
 	p.printSpace()
 	p.print("(")
-	p.printExpr(s.Test, js_ast.LLowest, 0)
-	p.print(")")
-
-	if yes, ok := s.Yes.Data.(*js_ast.SBlock); ok {
-		p.printSpace()
-		p.printBlock(s.Yes.Loc, yes.Stmts)
-
-		if s.No != nil {
-			p.printSpace()
-		} else {
-			p.printNewline()
-		}
-	} else if wrapToAvoidAmbiguousElse(s.Yes.Data) {
-		p.printSpace()
-		p.print("{")
-		p.printNewline()
-
-		p.options.Indent++
-		p.printStmt(s.Yes)
-		p.options.Indent--
-		p.needsSemicolon = false
-
-		p.printIndent()
-		p.print("}")
-
-		if s.No != nil {
-			p.printSpace()
-		} else {
-			p.printNewline()
-		}
+	err, ok := p.validator.verifyIfTest(&s.Test)
+	if !ok {
+		p.printThrowValidationError(&ValidationError{Msg: err, Idx: p.currentIdx(), Kind: Defer})
+		p.print(") {}")
 	} else {
-		p.printNewline()
-		p.options.Indent++
-		p.printStmt(s.Yes)
-		p.options.Indent--
+		p.printExpr(s.Test, js_ast.LLowest, 0)
+		p.print(")")
 
-		if s.No != nil {
-			p.printIndent()
-		}
-	}
-
-	if s.No != nil {
-		p.printSemicolonIfNeeded()
-		p.printSpaceBeforeIdentifier()
-		p.print("else")
-
-		if no, ok := s.No.Data.(*js_ast.SBlock); ok {
+		if yes, ok := s.Yes.Data.(*js_ast.SBlock); ok {
 			p.printSpace()
-			p.printBlock(s.No.Loc, no.Stmts)
+			p.printBlock(s.Yes.Loc, yes.Stmts)
+
+			if s.No != nil {
+				p.printSpace()
+			} else {
+				p.printNewline()
+			}
+		} else if wrapToAvoidAmbiguousElse(s.Yes.Data) {
+			p.printSpace()
+			p.print("{")
 			p.printNewline()
-		} else if no, ok := s.No.Data.(*js_ast.SIf); ok {
-			p.printIf(no)
+
+			p.options.Indent++
+			p.printStmt(s.Yes)
+			p.options.Indent--
+			p.needsSemicolon = false
+
+			p.printIndent()
+			p.print("}")
+
+			if s.No != nil {
+				p.printSpace()
+			} else {
+				p.printNewline()
+			}
 		} else {
 			p.printNewline()
 			p.options.Indent++
-			p.printStmt(*s.No)
+			p.printStmt(s.Yes)
 			p.options.Indent--
+
+			if s.No != nil {
+				p.printIndent()
+			}
+		}
+
+		if s.No != nil {
+			p.printSemicolonIfNeeded()
+			p.printSpaceBeforeIdentifier()
+			p.print("else")
+
+			if no, ok := s.No.Data.(*js_ast.SBlock); ok {
+				p.printSpace()
+				p.printBlock(s.No.Loc, no.Stmts)
+				p.printNewline()
+			} else if no, ok := s.No.Data.(*js_ast.SIf); ok {
+				p.printIf(no)
+			} else {
+				p.printNewline()
+				p.options.Indent++
+				p.printStmt(*s.No)
+				p.options.Indent--
+			}
 		}
 	}
 }

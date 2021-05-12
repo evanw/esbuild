@@ -1229,6 +1229,32 @@ debug = _.wrap(normalize((__get_debug__())));
 `, ReplaceAll)
 }
 
+func TestDeferProbingProcessInIfCondition(t *testing.T) {
+	cases := []string{`
+if (process.browser) {
+  cwd = process.cwd()
+}`, `
+if (!process.browser) {
+  cwd = process.cwd()
+}`, `
+if (process) {
+  cwd = process.cwd()
+}`, `
+if (!process) {
+  cwd = process.cwd()
+}`, `
+if (process == null) {
+}`, `
+if (typeof process === 'undefined') {
+}`}
+
+	for _, c := range cases {
+		expectPrinted(t, c, `
+if ((function () { throw new Error("[SNAPSHOT_CACHE_FAILURE] Cannot probe 'process' or its properties") })()) {}`,
+			ReplaceAll)
+	}
+}
+
 func TestDebug(t *testing.T) {
 	debugPrinted(t, `
 const { v4: uuidv4 } = require('uuid')

@@ -67,8 +67,6 @@ func (v *SnapAstValiator) verifyEIfBranchTarget(expr *js_ast.Expr) (string, bool
 	// the section of code is rewritten to throw an Error. This guarantees that any dependent modules
 	// triggering the section of code to run will also be deferred.
 
-	// TODO(thlorenz): the above should only occur when we're in the 'doctor' phase
-
 	switch access := expr.Data.(type) {
 	// <target>.<property>
 	case *js_ast.EDot:
@@ -91,6 +89,31 @@ func (v *SnapAstValiator) verifyNoRecursiveRef(e *js_ast.EBinary) bool {
 	default:
 		return true
 	}
+}
+
+func (v *SnapAstValiator) verifyIfTest(expr *js_ast.Expr) (string, bool) {
+	var err = ""
+	var ok = true
+	if !v.validateStrict {
+		return err, ok
+	}
+	switch e := expr.Data.(type) {
+	case *js_ast.EIdentifier:
+		if name, isGlobal := v.renamer.IsGlobalEntityRef(e.Ref); isGlobal {
+			return fmt.Sprintf("Cannot probe '%s' or its properties", name), false
+		}
+	case *js_ast.EDot:
+		return v.verifyIfTest(&e.Target)
+	case *js_ast.EUnary:
+		return v.verifyIfTest(&e.Value)
+	case *js_ast.EBinary:
+		err, ok = v.verifyIfTest(&e.Left)
+		if !ok {
+			return err, ok
+		}
+		return v.verifyIfTest(&e.Right)
+	}
+	return err, ok
 }
 
 func _references(ref js_ast.Ref, expr *js_ast.Expr) bool {
