@@ -12106,13 +12106,69 @@ func (p *parser) recordExportedBinding(binding js_ast.Binding) {
 	}
 }
 
-type scanForImportsAndExportsResult struct {
+type importsExportsScanResult struct {
 	stmts               []js_ast.Stmt
 	keptImportEquals    bool
 	removedImportEquals bool
 }
 
-func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForImportsAndExportsResult) {
+// Returns true if this is an unused TypeScript import-equals statement
+func (p *parser) checkForUnusedTSImportEquals(s *js_ast.SLocal, result *importsExportsScanResult) bool {
+	if s.WasTSImportEquals && !s.IsExport {
+		decl := s.Decls[0]
+
+		// Skip to the underlying reference
+		value := *s.Decls[0].Value
+		for {
+			if dot, ok := value.Data.(*js_ast.EDot); ok {
+				value = dot.Target
+			} else {
+				break
+			}
+		}
+
+		// Is this an identifier reference and not a require() call?
+		if id, ok := value.Data.(*js_ast.EIdentifier); ok {
+			// Is this import statement unused?
+			if ref := decl.Binding.Data.(*js_ast.BIdentifier).Ref; p.symbols[ref.InnerIndex].UseCountEstimate == 0 {
+				// Also don't count the referenced identifier
+				p.ignoreUsage(id.Ref)
+
+				// Import-equals statements can come in any order. Removing one
+				// could potentially cause another one to be removable too.
+				// Continue iterating until a fixed point has been reached to make
+				// sure we get them all.
+				result.removedImportEquals = true
+				return true
+			} else {
+				result.keptImportEquals = true
+			}
+		}
+	}
+
+	return false
+}
+
+func (p *parser) scanForUnusedTSImportEquals(stmts []js_ast.Stmt) (result importsExportsScanResult) {
+	stmtsEnd := 0
+
+	for _, stmt := range stmts {
+		if s, ok := stmt.Data.(*js_ast.SLocal); ok && p.checkForUnusedTSImportEquals(s, &result) {
+			// Remove unused import-equals statements, since those likely
+			// correspond to types instead of values
+			continue
+		}
+
+		// Filter out statements we skipped over
+		stmts[stmtsEnd] = stmt
+		stmtsEnd++
+	}
+
+	result.stmts = stmts[:stmtsEnd]
+	return
+}
+
+func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsExportsScanResult) {
 	stmtsEnd := 0
 
 	for _, stmt := range stmts {
@@ -12429,36 +12485,8 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 
 			// Remove unused import-equals statements, since those likely
 			// correspond to types instead of values
-			if s.WasTSImportEquals && !s.IsExport {
-				decl := s.Decls[0]
-
-				// Skip to the underlying reference
-				value := *s.Decls[0].Value
-				for {
-					if dot, ok := value.Data.(*js_ast.EDot); ok {
-						value = dot.Target
-					} else {
-						break
-					}
-				}
-
-				// Is this an identifier reference and not a require() call?
-				if id, ok := value.Data.(*js_ast.EIdentifier); ok {
-					// Is this import statement unused?
-					if ref := decl.Binding.Data.(*js_ast.BIdentifier).Ref; p.symbols[ref.InnerIndex].UseCountEstimate == 0 {
-						// Also don't count the referenced identifier
-						p.ignoreUsage(id.Ref)
-
-						// Import-equals statements can come in any order. Removing one
-						// could potentially cause another one to be removable too.
-						// Continue iterating until a fixed point has been reached to make
-						// sure we get them all.
-						result.removedImportEquals = true
-						continue
-					} else {
-						result.keptImportEquals = true
-					}
-				}
+			if p.checkForUnusedTSImportEquals(s, &result) {
+				continue
 			}
 
 		case *js_ast.SExportDefault:
@@ -13528,43 +13556,67 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 	// Handle import paths after the whole file has been visited because we need
 	// symbol usage counts to be able to remove unused type-only imports in
 	// TypeScript code.
-	for {
-		keptImportEquals := false
-		removedImportEquals := false
+	keptImportEquals := false
+	removedImportEquals := false
+	partsEnd := 0
+	for _, part := range parts {
+		p.importRecordsForCurrentPart = nil
+		p.declaredSymbols = nil
 
-		// Potentially remove some statements, then filter out parts to remove any
-		// with no statements
+		result := p.scanForImportsAndExports(part.Stmts)
+		part.Stmts = result.stmts
+		keptImportEquals = keptImportEquals || result.keptImportEquals
+		removedImportEquals = removedImportEquals || result.removedImportEquals
+
+		part.ImportRecordIndices = append(part.ImportRecordIndices, p.importRecordsForCurrentPart...)
+		part.DeclaredSymbols = append(part.DeclaredSymbols, p.declaredSymbols...)
+
+		if len(part.Stmts) > 0 {
+			if p.moduleScope.ContainsDirectEval && len(part.DeclaredSymbols) > 0 {
+				// If this file contains a direct call to "eval()", all parts that
+				// declare top-level symbols must be kept since the eval'd code may
+				// reference those symbols.
+				part.CanBeRemovedIfUnused = false
+			}
+			parts[partsEnd] = part
+			partsEnd++
+		}
+	}
+	parts = parts[:partsEnd]
+
+	// We need to iterate multiple times if an import-equals statement was
+	// removed and there are more import-equals statements that may be removed.
+	// In the example below, a/b/c should be kept but x/y/z should be removed
+	// (and removal requires multiple passes):
+	//
+	//   import a = foo.a
+	//   import b = a.b
+	//   import c = b.c
+	//
+	//   import x = foo.x
+	//   import y = x.y
+	//   import z = y.z
+	//
+	//   export let bar = c
+	//
+	// This is a smaller version of the general import/export scanning loop above.
+	// We only want to repeat the the code that eliminates TypeScript import-equals
+	// statements, not the other code in the loop above.
+	for keptImportEquals && removedImportEquals {
+		keptImportEquals = false
+		removedImportEquals = false
 		partsEnd := 0
 		for _, part := range parts {
-			p.importRecordsForCurrentPart = nil
-			p.declaredSymbols = nil
-
-			result := p.scanForImportsAndExports(part.Stmts)
+			result := p.scanForUnusedTSImportEquals(part.Stmts)
 			part.Stmts = result.stmts
 			keptImportEquals = keptImportEquals || result.keptImportEquals
 			removedImportEquals = removedImportEquals || result.removedImportEquals
-
-			part.ImportRecordIndices = append(part.ImportRecordIndices, p.importRecordsForCurrentPart...)
-			part.DeclaredSymbols = append(part.DeclaredSymbols, p.declaredSymbols...)
-
 			if len(part.Stmts) > 0 {
-				if p.moduleScope.ContainsDirectEval && len(part.DeclaredSymbols) > 0 {
-					// If this file contains a direct call to "eval()", all parts that
-					// declare top-level symbols must be kept since the eval'd code may
-					// reference those symbols.
-					part.CanBeRemovedIfUnused = false
-				}
 				parts[partsEnd] = part
 				partsEnd++
 			}
 		}
 		parts = parts[:partsEnd]
-
-		// We need to iterate multiple times if an import-equals statement was
-		// removed and there are more import-equals statements that may be removed
-		if !keptImportEquals || !removedImportEquals {
-			break
-		}
 	}
 
 	// Do a second pass for exported items now that imported items are filled out

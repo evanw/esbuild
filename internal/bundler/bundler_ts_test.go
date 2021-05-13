@@ -496,6 +496,29 @@ func TestTSImportVsLocalCollisionMixed(t *testing.T) {
 	})
 }
 
+func TestTSImportEqualsEliminationTest(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import a = foo.a
+				import b = a.b
+				import c = b.c
+
+				import x = foo.x
+				import y = x.y
+				import z = y.z
+
+				export let bar = c
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestTSMinifiedBundleES6(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{

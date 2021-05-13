@@ -15,6 +15,35 @@
 
     This feature was [recently added to the TypeScript compiler](https://github.com/microsoft/TypeScript/pull/43831) and will presumably be in an upcoming version of the TypeScript language. Support for this feature in esbuild was contributed by [@g-plane](https://github.com/g-plane).
 
+* Fix duplicate export errors due to TypeScript import-equals statements ([#1283](https://github.com/evanw/esbuild/issues/1283))
+
+    TypeScript has a special import-equals statement that is not part of JavaScript. It looks like this:
+
+    ```ts
+    import a = foo.a
+    import b = a.b
+    import c = b.c
+
+    import x = foo.x
+    import y = x.y
+    import z = y.z
+
+    export let bar = c
+    ```
+
+    Each import can be a type or a value and type-only imports need to be eliminated when converting this code to JavaScript, since types do not exist at run-time. The TypeScript compiler generates the following JavaScript code for this example:
+
+    ```js
+    var a = foo.a;
+    var b = a.b;
+    var c = b.c;
+    export let bar = c;
+    ```
+
+    The `x`, `y`, and `z` import statements are eliminated in esbuild by iterating over imports and exports multiple times and continuing to remove unused TypeScript import-equals statements until none are left. The first pass removes `z` and marks `y` as unused, the second pass removes `y` and marks `x` as unused, and the third pass removes `x`.
+
+    However, this had the side effect of making esbuild incorrectly think that a single export is exported twice (because it's processed more than once). This release fixes that bug by only iterating multiple times over imports, not exports. There should no longer be duplicate export errors for this case.
+
 ## 0.11.20
 
 * Omit warning about duplicate JSON keys from inside `node_modules` ([#1254](https://github.com/evanw/esbuild/issues/1254))
