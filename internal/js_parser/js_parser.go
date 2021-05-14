@@ -3048,9 +3048,14 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
 
 		// Parse an optional class name
-		if p.lexer.Token == js_lexer.TIdentifier && !js_lexer.StrictModeReservedWords[p.lexer.Identifier] {
-			name = &js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.newSymbol(js_ast.SymbolOther, p.lexer.Identifier)}
-			p.lexer.Next()
+		if p.lexer.Token == js_lexer.TIdentifier {
+			if nameText := p.lexer.Identifier; !p.options.ts.Parse || nameText != "implements" {
+				if p.fnOrArrowDataParse.await != allowIdent && nameText == "await" {
+					p.log.AddRangeError(&p.tracker, p.lexer.Range(), "Cannot use \"await\" as an identifier here")
+				}
+				name = &js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.newSymbol(js_ast.SymbolOther, nameText)}
+				p.lexer.Next()
+			}
 		}
 
 		// Even anonymous classes can have TypeScript type parameters
@@ -4691,7 +4696,8 @@ func (p *parser) parseBinding() js_ast.Binding {
 	switch p.lexer.Token {
 	case js_lexer.TIdentifier:
 		name := p.lexer.Identifier
-		if (p.fnOrArrowDataParse.await != allowIdent && name == "await") || (p.fnOrArrowDataParse.yield != allowIdent && name == "yield") {
+		if (p.fnOrArrowDataParse.await != allowIdent && name == "await") ||
+			(p.fnOrArrowDataParse.yield != allowIdent && name == "yield") {
 			p.log.AddRangeError(&p.tracker, p.lexer.Range(), fmt.Sprintf("Cannot use %q as an identifier here", name))
 		}
 		ref := p.storeNameInRef(name)
@@ -5002,15 +5008,13 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 		p.lexer.Expected(js_lexer.TClass)
 	}
 
-	isIdentifier := p.lexer.Token == js_lexer.TIdentifier
-	isStrictModeReservedWord := isIdentifier && js_lexer.StrictModeReservedWords[p.lexer.Identifier]
-	if !opts.isNameOptional || (isIdentifier && !isStrictModeReservedWord) {
+	if !opts.isNameOptional || (p.lexer.Token == js_lexer.TIdentifier && (!p.options.ts.Parse || p.lexer.Identifier != "implements")) {
 		nameLoc := p.lexer.Loc()
 		nameText := p.lexer.Identifier
-		if isStrictModeReservedWord {
-			p.lexer.Unexpected()
-		}
 		p.lexer.Expect(js_lexer.TIdentifier)
+		if p.fnOrArrowDataParse.await != allowIdent && nameText == "await" {
+			p.log.AddRangeError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, nameLoc), "Cannot use \"await\" as an identifier here")
+		}
 		name = &js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
 		if !opts.isTypeScriptDeclare {
 			name.Ref = p.declareSymbol(js_ast.SymbolClass, nameLoc, nameText)
@@ -9335,6 +9339,11 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 	oldEnclosingClassKeyword := p.enclosingClassKeyword
 	p.enclosingClassKeyword = class.ClassKeyword
 	p.currentScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeClass)
+	if class.Name != nil {
+		if name := p.symbols[class.Name.Ref.InnerIndex].OriginalName; js_lexer.StrictModeReservedWords[name] {
+			p.markStrictModeFeature(reservedWord, js_lexer.RangeOfIdentifier(p.source, class.Name.Loc), name)
+		}
+	}
 
 	classNameRef := js_ast.InvalidRef
 	if class.Name != nil {

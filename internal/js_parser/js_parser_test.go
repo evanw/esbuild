@@ -58,7 +58,7 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 				text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 			}
 		}
-		test.AssertEqual(t, text, "")
+		test.AssertEqualWithDiff(t, text, "")
 		if !ok {
 			t.Fatal("Parse error")
 		}
@@ -1273,10 +1273,18 @@ func TestClass(t *testing.T) {
 	expectParseError(t, "class Foo { `a`() {} }", "<stdin>: error: Expected identifier but found \"`a`\"\n")
 
 	// Strict mode reserved words cannot be used as class names
-	expectParseError(t, "class static {}", "<stdin>: error: Unexpected \"static\"\n")
-	expectParseError(t, "class implements {}", "<stdin>: error: Unexpected \"implements\"\n")
-	expectParseError(t, "(class static {})", "<stdin>: error: Expected \"{\" but found \"static\"\n")
-	expectParseError(t, "(class implements {})", "<stdin>: error: Expected \"{\" but found \"implements\"\n")
+	expectParseError(t, "class static {}",
+		"<stdin>: error: \"static\" is a reserved word and cannot be used in strict mode\n"+
+			"<stdin>: note: All code inside a class is implicitly in strict mode\n")
+	expectParseError(t, "(class static {})",
+		"<stdin>: error: \"static\" is a reserved word and cannot be used in strict mode\n"+
+			"<stdin>: note: All code inside a class is implicitly in strict mode\n")
+	expectParseError(t, "class implements {}",
+		"<stdin>: error: \"implements\" is a reserved word and cannot be used in strict mode\n"+
+			"<stdin>: note: All code inside a class is implicitly in strict mode\n")
+	expectParseError(t, "(class implements {})",
+		"<stdin>: error: \"implements\" is a reserved word and cannot be used in strict mode\n"+
+			"<stdin>: note: All code inside a class is implicitly in strict mode\n")
 
 	// The name "arguments" is forbidden in class bodies outside of computed properties
 	expectPrinted(t, "class Foo { [arguments] }", "class Foo {\n  [arguments];\n}\n")
@@ -1693,6 +1701,8 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "function foo() { let x = {await} }", "function foo() {\n  let x = {await};\n}\n")
 	expectParseError(t, "({await} = x)", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "let x = {await}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "class await {}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "(class await {})", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { ({await} = x) }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { let x = {await} }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 
