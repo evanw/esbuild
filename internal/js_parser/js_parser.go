@@ -6032,11 +6032,19 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					case js_lexer.TIdentifier:
 						if p.lexer.Identifier != "from" {
 							// "import type foo from 'bar';"
+							defaultName = p.lexer.Identifier
+							stmt.DefaultName = &js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(defaultName)}
 							p.lexer.Next()
-							p.lexer.ExpectContextualKeyword("from")
-							p.parsePath()
-							p.lexer.ExpectOrInsertSemicolon()
-							return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+
+							if p.lexer.Token == js_lexer.TEquals {
+								p.parseTypeScriptImportEqualsStmt(loc, opts, stmt.DefaultName.Loc, defaultName)
+								return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+							} else {
+								p.lexer.ExpectContextualKeyword("from")
+								p.parsePath()
+								p.lexer.ExpectOrInsertSemicolon()
+								return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+							}
 						}
 
 					case js_lexer.TAsterisk:
