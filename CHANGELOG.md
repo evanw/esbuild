@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.21
 
 * TypeScript `override` for parameter properties ([#1262](https://github.com/evanw/esbuild/pull/1262))
 
