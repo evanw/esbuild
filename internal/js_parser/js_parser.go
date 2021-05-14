@@ -5102,6 +5102,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 		allowTSDecorators: classOpts.allowTSDecorators,
 		classHasExtends:   extends != nil,
 	}
+	hasConstructor := false
 
 	for p.lexer.Token != js_lexer.TCloseBrace {
 		if p.lexer.Token == js_lexer.TSemicolon {
@@ -5122,9 +5123,16 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 			properties = append(properties, property)
 
 			// Forbid decorators on class constructors
-			if len(opts.tsDecorators) > 0 {
-				if key, ok := property.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(key.Value, "constructor") {
+			if key, ok := property.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(key.Value, "constructor") {
+				if len(opts.tsDecorators) > 0 {
 					p.log.AddError(&p.tracker, firstDecoratorLoc, "TypeScript does not allow decorators on class constructors")
+				}
+				if property.IsMethod && !property.IsStatic && !property.IsComputed {
+					if hasConstructor {
+						p.log.AddRangeError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, property.Key.Loc),
+							"Classes cannot contain more than one constructor")
+					}
+					hasConstructor = true
 				}
 			}
 		}
@@ -9380,12 +9388,8 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 							// "constructor" is an invalid name for both instance and static fields
 							isInvalidConstructor = true
 						} else if !property.IsStatic {
-							// The instance method "constructor" cannot be a getter, a setter, an async function, or a generator
-							if property.Kind == js_ast.PropertyGet || property.Kind == js_ast.PropertySet {
-								isInvalidConstructor = true
-							} else if fn := property.Value.Data.(*js_ast.EFunction).Fn; fn.IsAsync || fn.IsGenerator {
-								isInvalidConstructor = true
-							}
+							// Calling an instance method "constructor" is problematic so avoid that too
+							isInvalidConstructor = true
 						}
 					}
 

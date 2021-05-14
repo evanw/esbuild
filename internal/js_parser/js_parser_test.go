@@ -1339,7 +1339,7 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "({ async* prototype() {} })", "({async *prototype() {\n}});\n")
 
 	expectPrintedMangle(t, "class Foo { ['constructor'] = 0 }", "class Foo {\n  [\"constructor\"] = 0;\n}\n")
-	expectPrintedMangle(t, "class Foo { ['constructor']() {} }", "class Foo {\n  constructor() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { ['constructor']() {} }", "class Foo {\n  [\"constructor\"]() {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { *['constructor']() {} }", "class Foo {\n  *[\"constructor\"]() {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { get ['constructor']() {} }", "class Foo {\n  get [\"constructor\"]() {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { set ['constructor'](x) {} }", "class Foo {\n  set [\"constructor\"](x) {\n  }\n}\n")
@@ -1365,6 +1365,26 @@ func TestClass(t *testing.T) {
 	expectPrintedMangle(t, "class Foo { static get ['prototype']() {} }", "class Foo {\n  static get [\"prototype\"]() {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { static set ['prototype'](x) {} }", "class Foo {\n  static set [\"prototype\"](x) {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { static async ['prototype']() {} }", "class Foo {\n  static async [\"prototype\"]() {\n  }\n}\n")
+
+	dupCtor := "<stdin>: error: Classes cannot contain more than one constructor\n"
+
+	expectParseError(t, "class Foo { constructor() {} constructor() {} }", dupCtor)
+	expectParseError(t, "class Foo { constructor() {} 'constructor'() {} }", dupCtor)
+	expectParseError(t, "class Foo { constructor() {} ['constructor']() {} }", "")
+	expectParseError(t, "class Foo { 'constructor'() {} constructor() {} }", dupCtor)
+	expectParseError(t, "class Foo { ['constructor']() {} constructor() {} }", "")
+	expectParseError(t, "class Foo { constructor() {} static constructor() {} }", "")
+	expectParseError(t, "class Foo { static constructor() {} constructor() {} }", "")
+	expectParseError(t, "class Foo { static constructor() {} static constructor() {} }", "")
+	expectParseError(t, "class Foo { constructor = () => {}; constructor = () => {} }",
+		"<stdin>: error: Invalid field name \"constructor\"\n<stdin>: error: Invalid field name \"constructor\"\n")
+	expectParseError(t, "({ constructor() {}, constructor() {} })",
+		"<stdin>: warning: Duplicate key \"constructor\" in object literal\n<stdin>: note: The original \"constructor\" is here\n")
+	expectParseError(t, "(class { constructor() {} constructor() {} })", dupCtor)
+	expectPrintedMangle(t, "class Foo { constructor() {} ['constructor']() {} }",
+		"class Foo {\n  constructor() {\n  }\n  [\"constructor\"]() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static constructor() {} static ['constructor']() {} }",
+		"class Foo {\n  static constructor() {\n  }\n  static constructor() {\n  }\n}\n")
 }
 
 func TestSuperCall(t *testing.T) {
