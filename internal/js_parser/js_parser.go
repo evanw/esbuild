@@ -443,6 +443,7 @@ type fnOrArrowDataParse struct {
 	await               awaitOrYield
 	yield               awaitOrYield
 	allowSuperCall      bool
+	allowSuperProperty  bool
 	isTopLevel          bool
 	isConstructor       bool
 	isTypeScriptDeclare bool
@@ -1956,8 +1957,14 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 
 		if p.lexer.Token == js_lexer.TEquals {
 			p.lexer.Next()
+
+			// "super" property access is allowed in field initializers
+			p.fnOrArrowDataParse.allowSuperProperty = true
+
 			value := p.parseExpr(js_ast.LComma)
 			initializer = &value
+
+			p.fnOrArrowDataParse.allowSuperProperty = false
 		}
 
 		// Special-case private identifiers
@@ -2029,13 +2036,14 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 		}
 
 		fn, hadBody := p.parseFn(nil, fnOrArrowDataParse{
-			needsAsyncLoc:     key.Loc,
-			asyncRange:        opts.asyncRange,
-			await:             await,
-			yield:             yield,
-			allowSuperCall:    opts.classHasExtends && isConstructor,
-			allowTSDecorators: opts.allowTSDecorators,
-			isConstructor:     isConstructor,
+			needsAsyncLoc:      key.Loc,
+			asyncRange:         opts.asyncRange,
+			await:              await,
+			yield:              yield,
+			allowSuperCall:     opts.classHasExtends && isConstructor,
+			allowSuperProperty: true,
+			allowTSDecorators:  opts.allowTSDecorators,
+			isConstructor:      isConstructor,
 
 			// Only allow omitting the body if we're parsing TypeScript class
 			allowMissingBodyForTypeScript: p.options.ts.Parse && opts.isClass,
@@ -2233,8 +2241,9 @@ func (p *parser) parseArrowBody(args []js_ast.Arg, data fnOrArrowDataParse) *js_
 		p.declareBinding(js_ast.SymbolHoisted, arg.Binding, parseStmtOpts{})
 	}
 
-	// The ability to call "super()" is inherited by arrow functions
+	// The ability to use "super" is inherited by arrow functions
 	data.allowSuperCall = p.fnOrArrowDataParse.allowSuperCall
+	data.allowSuperProperty = p.fnOrArrowDataParse.allowSuperProperty
 
 	if p.lexer.Token == js_lexer.TOpenBrace {
 		body := p.parseFnBody(data)
@@ -2737,7 +2746,9 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			}
 
 		case js_lexer.TDot, js_lexer.TOpenBracket:
-			return js_ast.Expr{Loc: loc, Data: &js_ast.ESuper{}}
+			if p.fnOrArrowDataParse.allowSuperProperty {
+				return js_ast.Expr{Loc: loc, Data: &js_ast.ESuper{}}
+			}
 		}
 
 		p.log.AddRangeError(&p.tracker, superRange, "Unexpected \"super\"")
@@ -4846,8 +4857,9 @@ func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_as
 		p.fnOrArrowDataParse.yield = allowIdent
 	}
 
-	// If "super()" is allowed in the body, it's allowed in the arguments
+	// If "super" is allowed in the body, it's allowed in the arguments
 	p.fnOrArrowDataParse.allowSuperCall = data.allowSuperCall
+	p.fnOrArrowDataParse.allowSuperProperty = data.allowSuperProperty
 
 	for p.lexer.Token != js_lexer.TCloseParen {
 		// Skip over "this" type annotations

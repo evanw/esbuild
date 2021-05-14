@@ -1452,6 +1452,76 @@ func TestSuperCall(t *testing.T) {
 		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    throw c;\n  }\n}\n")
 }
 
+func TestSuperProp(t *testing.T) {
+	expectParseError(t, "super.x", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "super[x]", "<stdin>: error: Unexpected \"super\"\n")
+
+	expectPrinted(t, "class Foo { foo() { super.x } }", "class Foo {\n  foo() {\n    super.x;\n  }\n}\n")
+	expectPrinted(t, "class Foo { foo() { super[x] } }", "class Foo {\n  foo() {\n    super[x];\n  }\n}\n")
+	expectPrinted(t, "class Foo { foo(x = super.x) {} }", "class Foo {\n  foo(x = super.x) {\n  }\n}\n")
+	expectPrinted(t, "class Foo { foo(x = super[x]) {} }", "class Foo {\n  foo(x = super[x]) {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static foo() { super.x } }", "class Foo {\n  static foo() {\n    super.x;\n  }\n}\n")
+	expectPrinted(t, "class Foo { static foo() { super[x] } }", "class Foo {\n  static foo() {\n    super[x];\n  }\n}\n")
+	expectPrinted(t, "class Foo { static foo(x = super.x) {} }", "class Foo {\n  static foo(x = super.x) {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static foo(x = super[x]) {} }", "class Foo {\n  static foo(x = super[x]) {\n  }\n}\n")
+
+	expectPrinted(t, "(class { foo() { super.x } })", "(class {\n  foo() {\n    super.x;\n  }\n});\n")
+	expectPrinted(t, "(class { foo() { super[x] } })", "(class {\n  foo() {\n    super[x];\n  }\n});\n")
+	expectPrinted(t, "(class { foo(x = super.x) {} })", "(class {\n  foo(x = super.x) {\n  }\n});\n")
+	expectPrinted(t, "(class { foo(x = super[x]) {} })", "(class {\n  foo(x = super[x]) {\n  }\n});\n")
+	expectPrinted(t, "(class { static foo() { super.x } })", "(class {\n  static foo() {\n    super.x;\n  }\n});\n")
+	expectPrinted(t, "(class { static foo() { super[x] } })", "(class {\n  static foo() {\n    super[x];\n  }\n});\n")
+	expectPrinted(t, "(class { static foo(x = super.x) {} })", "(class {\n  static foo(x = super.x) {\n  }\n});\n")
+	expectPrinted(t, "(class { static foo(x = super[x]) {} })", "(class {\n  static foo(x = super[x]) {\n  }\n});\n")
+
+	expectPrinted(t, "class Foo { foo = super.x }", "class Foo {\n  foo = super.x;\n}\n")
+	expectPrinted(t, "class Foo { foo = super[x] }", "class Foo {\n  foo = super[x];\n}\n")
+	expectPrinted(t, "class Foo { foo = () => super.x }", "class Foo {\n  foo = () => super.x;\n}\n")
+	expectPrinted(t, "class Foo { foo = () => super[x] }", "class Foo {\n  foo = () => super[x];\n}\n")
+	expectParseError(t, "class Foo { foo = function () { super.x } }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { foo = function () { super[x] } }", "<stdin>: error: Unexpected \"super\"\n")
+
+	expectPrinted(t, "class Foo { static foo = super.x }", "class Foo {\n  static foo = super.x;\n}\n")
+	expectPrinted(t, "class Foo { static foo = super[x] }", "class Foo {\n  static foo = super[x];\n}\n")
+	expectPrinted(t, "class Foo { static foo = () => super.x }", "class Foo {\n  static foo = () => super.x;\n}\n")
+	expectPrinted(t, "class Foo { static foo = () => super[x] }", "class Foo {\n  static foo = () => super[x];\n}\n")
+	expectParseError(t, "class Foo { static foo = function () { super.x } }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { static foo = function () { super[x] } }", "<stdin>: error: Unexpected \"super\"\n")
+
+	expectPrinted(t, "(class { foo = super.x })", "(class {\n  foo = super.x;\n});\n")
+	expectPrinted(t, "(class { foo = super[x] })", "(class {\n  foo = super[x];\n});\n")
+	expectPrinted(t, "(class { foo = () => super.x })", "(class {\n  foo = () => super.x;\n});\n")
+	expectPrinted(t, "(class { foo = () => super[x] })", "(class {\n  foo = () => super[x];\n});\n")
+	expectParseError(t, "(class { foo = function () { super.x } })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { foo = function () { super[x] } })", "<stdin>: error: Unexpected \"super\"\n")
+
+	expectPrinted(t, "(class { static foo = super.x })", "(class {\n  static foo = super.x;\n});\n")
+	expectPrinted(t, "(class { static foo = super[x] })", "(class {\n  static foo = super[x];\n});\n")
+	expectPrinted(t, "(class { static foo = () => super.x })", "(class {\n  static foo = () => super.x;\n});\n")
+	expectPrinted(t, "(class { static foo = () => super[x] })", "(class {\n  static foo = () => super[x];\n});\n")
+	expectParseError(t, "(class { static foo = function () { super.x } })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { static foo = function () { super[x] } })", "<stdin>: error: Unexpected \"super\"\n")
+
+	expectParseError(t, "({ foo: super.x })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "({ foo: super[x] })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "({ foo: () => super.x })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "({ foo: () => super[x] })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "({ foo: function () { super.x } })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "({ foo: function () { super[x] } })", "<stdin>: error: Unexpected \"super\"\n")
+	expectPrinted(t, "({ foo() { super.x } })", "({foo() {\n  super.x;\n}});\n")
+	expectPrinted(t, "({ foo() { super[x] } })", "({foo() {\n  super[x];\n}});\n")
+	expectPrinted(t, "({ foo(x = super.x) {} })", "({foo(x = super.x) {\n}});\n")
+
+	expectParseError(t, "class Foo { [super.x] }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { [super[x]] }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { static [super.x] }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { static [super[x]] }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { [super.x] })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { [super[x]] })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { static [super.x] })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { static [super[x]] })", "<stdin>: error: Unexpected \"super\"\n")
+}
+
 func TestClassFields(t *testing.T) {
 	expectPrinted(t, "class Foo { a }", "class Foo {\n  a;\n}\n")
 	expectPrinted(t, "class Foo { a = 1 }", "class Foo {\n  a = 1;\n}\n")

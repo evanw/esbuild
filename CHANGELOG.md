@@ -8,6 +8,10 @@
 
     The ambiguity has been removed and the token sequence `for ( async of` is now forbidden by the specification when not followed by `=>`, so esbuild now forbids this as well. Note that the token sequence `for await (async of` is still allowed even when not followed by `=>`. Code such as `for ((async) of []) ;` is still allowed and will now be printed with parentheses to avoid the grammar ambiguity.
 
+* Restrict `super` property access to inside of methods
+
+    You can now only use `super.x` and `super[x]` expressions inside of methods. Previously these expressions were incorrectly allowed everywhere. This means esbuild now follows the JavaScript language specification more closely.
+
 ## 0.11.21
 
 * TypeScript `override` for parameter properties ([#1262](https://github.com/evanw/esbuild/pull/1262))
