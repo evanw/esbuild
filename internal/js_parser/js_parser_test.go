@@ -1698,6 +1698,13 @@ func TestAsync(t *testing.T) {
 	expectParseError(t, "export default async x => y, z", "<stdin>: error: Expected \";\" but found \",\"\n")
 	expectParseError(t, "export default async (x) => y, z", "<stdin>: error: Expected \";\" but found \",\"\n")
 
+	expectPrinted(t, "class Foo { async async() {} }", "class Foo {\n  async async() {\n  }\n}\n")
+	expectPrinted(t, "(class { async async() {} })", "(class {\n  async async() {\n  }\n});\n")
+	expectPrinted(t, "({ async async() {} })", "({async async() {\n}});\n")
+	expectParseError(t, "class Foo { async async }", "<stdin>: error: Expected \"(\" but found \"}\"\n")
+	expectParseError(t, "(class { async async })", "<stdin>: error: Expected \"(\" but found \"}\"\n")
+	expectParseError(t, "({ async async })", "<stdin>: error: Expected \"(\" but found \"}\"\n")
+
 	noAwait := "<stdin>: error: The keyword \"await\" cannot be used here\n"
 	expectParseError(t, "async function bar(x = await y) {}", noAwait+"<stdin>: error: Expected \")\" but found \"y\"\n")
 	expectParseError(t, "async (function(x = await y) {})", friendlyAwaitError)
