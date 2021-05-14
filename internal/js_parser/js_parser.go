@@ -1071,6 +1071,7 @@ func (p *parser) pushScopeForParsePass(kind js_ast.ScopeKind, loc logger.Loc) in
 	if parent != nil {
 		parent.Children = append(parent.Children, scope)
 		scope.StrictMode = parent.StrictMode
+		scope.UseStrictLoc = parent.UseStrictLoc
 	}
 	p.currentScope = scope
 
@@ -6509,6 +6510,7 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 					if js_lexer.UTF16EqualsString(str.Value, "use strict") {
 						// Track "use strict" directives
 						p.currentScope.StrictMode = js_ast.ExplicitStrictMode
+						p.currentScope.UseStrictLoc = expr.Value.Loc
 					} else if js_lexer.UTF16EqualsString(str.Value, "use asm") {
 						// Deliberately remove "use asm" directives. The asm.js subset of
 						// JavaScript has complicated validation rules that are triggered
@@ -12117,9 +12119,6 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 
 	if fn.Name != nil {
 		p.recordDeclaredSymbol(fn.Name.Ref)
-		if name := p.symbols[fn.Name.Ref.InnerIndex].OriginalName; isEvalOrArguments(name) {
-			p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, fn.Name.Loc), name)
-		}
 	}
 
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, scopeLoc)
@@ -12129,6 +12128,11 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 		isUniqueFormalParameters: fn.IsUniqueFormalParameters,
 	})
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, fn.Body.Loc)
+	if fn.Name != nil {
+		if name := p.symbols[fn.Name.Ref.InnerIndex].OriginalName; isEvalOrArguments(name) {
+			p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, fn.Name.Loc), name)
+		}
+	}
 	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts, prependTempRefsOpts{fnBodyLoc: &fn.Body.Loc, kind: stmtsFnBody})
 	p.popScope()
 	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil, &fn.HasRestArg, false /* isArrow */)

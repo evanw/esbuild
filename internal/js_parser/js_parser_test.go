@@ -26,7 +26,7 @@ func expectParseErrorCommon(t *testing.T, contents string, expected string, opti
 		for _, msg := range msgs {
 			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 		}
-		test.AssertEqual(t, text, expected)
+		test.AssertEqualWithDiff(t, text, expected)
 	})
 }
 
@@ -196,6 +196,8 @@ func TestComments(t *testing.T) {
 }
 
 func TestStrictMode(t *testing.T) {
+	useStrict := "<stdin>: note: Strict mode is triggered by the \"use strict\" directive here\n"
+
 	expectPrinted(t, "'use strict'", "\"use strict\";\n")
 	expectPrinted(t, "`use strict`", "`use strict`;\n")
 	expectPrinted(t, "//! @license comment\n 'use strict'", "\"use strict\";\n//! @license comment\n")
@@ -234,9 +236,9 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "let x = '\\00'", "let x = \"\\0\";\n")
 	expectPrinted(t, "'use strict'; let x = '\\0'", "\"use strict\";\nlet x = \"\\0\";\n")
 	expectPrinted(t, "let x = '\\0'; export {}", "let x = \"\\0\";\nexport {};\n")
-	expectParseError(t, "'use strict'; let x = '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let x = '\\08'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let x = '\\008'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; let x = '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let x = '\\08'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let x = '\\008'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "let x = '\\00'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 	expectParseError(t, "let x = '\\09'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 	expectParseError(t, "let x = '\\009'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
@@ -244,27 +246,29 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "'\\0'", "\"\\0\";\n")
 	expectPrinted(t, "'\\00'", "\"\\0\";\n")
 	expectPrinted(t, "'use strict'; '\\0'", "\"use strict\";\n\"\\0\";\n")
-	expectParseError(t, "'use strict'; '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; '\\08'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; '\\008'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'\\00'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'\\08'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'\\008'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; '\\08'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; '\\008'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'\\00'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'\\08'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'\\008'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'\\00'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 	expectParseError(t, "'\\09'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 	expectParseError(t, "'\\009'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "with (x) y", "with (x)\n  y;\n")
-	expectParseError(t, "'use strict'; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "with (x) y; export {}", "<stdin>: error: With statements cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "delete x", "delete x;\n")
-	expectParseError(t, "'use strict'; delete x", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; delete x", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "delete x; export {}", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "for (var x = y in z) ;", "x = y;\nfor (var x in z)\n  ;\n")
-	expectParseError(t, "'use strict'; for (var x = y in z) ;", "<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n")
-	expectParseError(t, "for (var x = y in z) ; export {}", "<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n"+why)
+	expectParseError(t, "'use strict'; for (var x = y in z) ;",
+		"<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "for (var x = y in z) ; export {}",
+		"<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "function f(a, a) {}", "function f(a, a) {\n}\n")
 	expectPrinted(t, "(function(a, a) {})", "(function(a, a) {\n});\n")
@@ -291,10 +295,14 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "({ async f(a, a) {} })", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
 	expectParseError(t, "(a, a) => {}", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
 
-	expectParseError(t, "'use strict'; if (0) function f() {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; if (0) ; else function f() {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n")
-	expectParseError(t, "if (0) function f() {} export {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+why)
-	expectParseError(t, "if (0) ; else function f() {} export {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+why)
+	expectParseError(t, "'use strict'; if (0) function f() {}",
+		"<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; if (0) ; else function f() {}",
+		"<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "if (0) function f() {} export {}",
+		"<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+why)
+	expectParseError(t, "if (0) ; else function f() {} export {}",
+		"<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "eval++", "eval++;\n")
 	expectPrinted(t, "eval = 0", "eval = 0;\n")
@@ -318,29 +326,40 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "function arguments() {}", "function arguments() {\n}\n")
 	expectPrinted(t, "function f(arguments) {}", "function f(arguments) {\n}\n")
 	expectParseError(t, "'use strict'; function eval() {}",
-		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n")
+		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; function f(eval) {}",
-		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n")
+		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; function arguments() {}",
-		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n")
+		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; function f(arguments) {}",
-		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n")
+		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "function eval() { 'use strict' }",
+		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "function arguments() { 'use strict' }",
+		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
 
 	expectPrinted(t, "let protected", "let protected;\n")
 	expectPrinted(t, "let protecte\\u0064", "let protected;\n")
 	expectPrinted(t, "let x = protected", "let x = protected;\n")
 	expectPrinted(t, "let x = protecte\\u0064", "let x = protected;\n")
-	expectParseError(t, "'use strict'; let protected", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let protecte\\u0064", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let x = protected", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let x = protecte\\u0064", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; let protected",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let protecte\\u0064",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let x = protected",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let x = protecte\\u0064",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
 
 	expectPrinted(t, "0123", "83;\n")
 	expectPrinted(t, "({0123: 4})", "({83: 4});\n")
 	expectPrinted(t, "let {0123: x} = y", "let {83: x} = y;\n")
-	expectParseError(t, "'use strict'; 0123", "<stdin>: error: Legacy octal literals cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; ({0123: 4})", "<stdin>: error: Legacy octal literals cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let {0123: x} = y", "<stdin>: error: Legacy octal literals cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; 0123",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; ({0123: 4})",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let {0123: x} = y",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
 
 	classNote := "<stdin>: note: All code inside a class is implicitly in strict mode\n"
 
@@ -349,9 +368,9 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "class f {} with (x) y", "class f {\n}\nwith (x)\n  y;\n")
 	expectPrinted(t, "with (x) y; class f {}", "with (x)\n  y;\nclass f {\n}\n")
 	expectPrinted(t, "`use strict`; with (x) y", "`use strict`;\nwith (x)\n  y;\n")
-	expectParseError(t, "\"use strict\"; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n")
-	expectParseError(t, "function f() { 'use strict'; with (x) y }", "<stdin>: error: With statements cannot be used in strict mode\n")
-	expectParseError(t, "function f() { 'use strict'; function y() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n")
+	expectParseError(t, "\"use strict\"; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "function f() { 'use strict'; with (x) y }", "<stdin>: error: With statements cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "function f() { 'use strict'; function y() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "class f { x() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
 	expectParseError(t, "class f { x() { function y() { with (x) y } } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
 

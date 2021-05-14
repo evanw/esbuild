@@ -179,6 +179,9 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		case js_ast.ImplicitStrictModeClass:
 			why = "All code inside a class is implicitly in strict mode"
 			where = p.enclosingClassKeyword
+		case js_ast.ExplicitStrictMode:
+			why = "Strict mode is triggered by the \"use strict\" directive here"
+			where = p.source.RangeOfString(p.currentScope.UseStrictLoc)
 		}
 		if where.Len > 0 {
 			if why == "" {

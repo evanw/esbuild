@@ -1584,6 +1584,9 @@ type Scope struct {
 	Members   map[string]ScopeMember
 	Generated []Ref
 
+	// The location of the "use strict" directive for ExplicitStrictMode
+	UseStrictLoc logger.Loc
+
 	// This is used to store the ref of the label symbol for ScopeLabel scopes.
 	LabelRef        Ref
 	LabelStmtIsLoop bool
