@@ -1450,6 +1450,7 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectPrintedTS(t, "import type {foo, bar as baz} from 'bar'; x", "x;\n")
 	expectPrintedTS(t, "import type {'foo' as bar} from 'bar'\nx", "x;\n")
 	expectPrintedTS(t, "import type foo = require('bar'); x", "x;\n")
+	expectPrintedTS(t, "import type foo = bar.baz; x", "x;\n")
 
 	expectPrintedTS(t, "import type = bar; type", "const type = bar;\ntype;\n")
 	expectPrintedTS(t, "import type = foo.bar; type", "const type = foo.bar;\ntype;\n")

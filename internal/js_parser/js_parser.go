@@ -6031,15 +6031,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					switch p.lexer.Token {
 					case js_lexer.TIdentifier:
 						if p.lexer.Identifier != "from" {
-							// "import type foo from 'bar';"
 							defaultName = p.lexer.Identifier
-							stmt.DefaultName = &js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(defaultName)}
+							stmt.DefaultName.Loc = p.lexer.Loc()
 							p.lexer.Next()
-
 							if p.lexer.Token == js_lexer.TEquals {
-								p.parseTypeScriptImportEqualsStmt(loc, opts, stmt.DefaultName.Loc, defaultName)
-								return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+								// "import type foo = require('bar');"
+								// "import type foo = bar.baz;"
+								opts.isTypeScriptDeclare = true
+								return p.parseTypeScriptImportEqualsStmt(loc, opts, stmt.DefaultName.Loc, defaultName)
 							} else {
+								// "import type foo from 'bar';"
 								p.lexer.ExpectContextualKeyword("from")
 								p.parsePath()
 								p.lexer.ExpectOrInsertSemicolon()

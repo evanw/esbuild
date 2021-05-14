@@ -956,6 +956,13 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 	}
 
 	p.lexer.ExpectOrInsertSemicolon()
+
+	if opts.isTypeScriptDeclare {
+		// "import type foo = require('bar');"
+		// "import type foo = bar.baz;"
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+	}
+
 	ref := p.declareSymbol(js_ast.SymbolConst, defaultNameLoc, defaultName)
 	decls := []js_ast.Decl{{
 		Binding: js_ast.Binding{Loc: defaultNameLoc, Data: &js_ast.BIdentifier{Ref: ref}},

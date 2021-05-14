@@ -44,6 +44,16 @@
 
     However, this had the side effect of making esbuild incorrectly think that a single export is exported twice (because it's processed more than once). This release fixes that bug by only iterating multiple times over imports, not exports. There should no longer be duplicate export errors for this case.
 
+* Add support for type-only TypeScript import-equals statements ([#1285](https://github.com/evanw/esbuild/pull/1285))
+
+    This adds support for the following new TypeScript syntax that was added in version 4.2:
+
+    ```ts
+    import type React = require('react')
+    ```
+
+    Unlike `import React = require('react')`, this statement is a type declaration instead of a value declaration and should be omitted from the generated code. See [microsoft/TypeScript#41573](https://github.com/microsoft/TypeScript/pull/41573) for details. This feature was contributed by [@g-plane](https://github.com/g-plane).
+
 ## 0.11.20
 
 * Omit warning about duplicate JSON keys from inside `node_modules` ([#1254](https://github.com/evanw/esbuild/issues/1254))
