@@ -743,6 +743,18 @@ func TestFor(t *testing.T) {
 	expectParseError(t, "for (var x of y) x++", "")
 	expectParseError(t, "for (let x of y) x++", "")
 	expectParseError(t, "for (const x of y) x++", errorText)
+
+	expectPrinted(t, "async of => {}", "async (of) => {\n};\n")
+	expectPrinted(t, "for ((async) of []) ;", "for ((async) of [])\n  ;\n")
+	expectPrinted(t, "for (async.x of []) ;", "for (async.x of [])\n  ;\n")
+	expectPrinted(t, "for (async of => {};;) ;", "for (async (of) => {\n}; ; )\n  ;\n")
+	expectPrinted(t, "for (\\u0061sync of []) ;", "for ((async) of [])\n  ;\n")
+	expectPrinted(t, "for await (async of []) ;", "for await (async of [])\n  ;\n")
+	expectParseError(t, "for (async of []) ;", "<stdin>: error: For loop initializers cannot start with \"async of\"\n")
+	expectParseError(t, "for (async o\\u0066 []) ;", "<stdin>: error: Expected \";\" but found \"o\\\\u0066\"\n")
+	expectParseError(t, "for await (async of => {}) ;", "<stdin>: error: Expected \"of\" but found \")\"\n")
+	expectParseError(t, "for await (async of => {} of []) ;", "<stdin>: error: Invalid assignment target\n")
+	expectParseError(t, "for await (async o\\u0066 []) ;", "<stdin>: error: Expected \"of\" but found \"o\\\\u0066\"\n")
 }
 
 func TestScope(t *testing.T) {

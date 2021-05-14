@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Forbid the token sequence `for ( async of` when not followed by `=>`
+
+    This follows a recently-fixed ambiguity in the JavaScript specification, which you can read about here: https://github.com/tc39/ecma262/pull/2256. Prior to this change in the specification, it was ambiguous whether this token sequence should be parsed as `for ( async of =>` or `for ( async of ;`. V8 and esbuild expected `=>` after `for ( async of` while SpiderMonkey and JavaScriptCore did something else.
+
+    The ambiguity has been removed and the token sequence `for ( async of` is now forbidden by the specification when not followed by `=>`, so esbuild now forbids this as well. Note that the token sequence `for await (async of` is still allowed even when not followed by `=>`. Code such as `for ((async) of []) ;` is still allowed and will now be printed with parentheses to avoid the grammar ambiguity.
+
 ## 0.11.21
 
 * TypeScript `override` for parameter properties ([#1262](https://github.com/evanw/esbuild/pull/1262))

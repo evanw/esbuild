@@ -2255,9 +2255,30 @@ func (p *parser) parseArrowBody(args []js_ast.Arg, data fnOrArrowDataParse) *js_
 	}
 }
 
+func (p *parser) checkForArrowAfterTheCurrentToken() bool {
+	oldLexer := p.lexer
+	p.lexer.IsLogDisabled = true
+
+	// Implement backtracking by restoring the lexer's memory to its original state
+	defer func() {
+		r := recover()
+		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
+			p.lexer = oldLexer
+		} else if r != nil {
+			panic(r)
+		}
+	}()
+
+	p.lexer.Next()
+	isArrowAfterThisToken := p.lexer.Token == js_lexer.TEqualsGreaterThan
+
+	p.lexer = oldLexer
+	return isArrowAfterThisToken
+}
+
 // This parses an expression. This assumes we've already parsed the "async"
 // keyword and are currently looking at the following token.
-func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L) js_ast.Expr {
+func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L, flags exprFlag) js_ast.Expr {
 	// "async function() {}"
 	if !p.lexer.HasNewlineBefore && p.lexer.Token == js_lexer.TFunction {
 		return p.parseFnExpr(asyncRange.Loc, true /* isAsync */, asyncRange)
@@ -2284,20 +2305,36 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L) j
 		// "async x => {}"
 		case js_lexer.TIdentifier:
 			if level <= js_ast.LAssign {
-				p.markLoweredSyntaxFeature(compat.AsyncAwait, asyncRange, compat.Generator)
-				ref := p.storeNameInRef(p.lexer.Identifier)
-				arg := js_ast.Arg{Binding: js_ast.Binding{Loc: p.lexer.Loc(), Data: &js_ast.BIdentifier{Ref: ref}}}
-				p.lexer.Next()
+				// See https://github.com/tc39/ecma262/issues/2034 for details
+				isArrowFn := true
+				if (flags&exprFlagForLoopInit) != 0 && p.lexer.Identifier == "of" {
+					// "for (async of" is only an arrow function if the next token is "=>"
+					isArrowFn = p.checkForArrowAfterTheCurrentToken()
 
-				p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, asyncRange.Loc)
-				defer p.popScope()
+					// Do not allow "for (async of []) ;" but do allow "for await (async of []) ;"
+					if !isArrowFn && (flags&exprFlagForAwaitLoopInit) == 0 && p.lexer.Raw() == "of" {
+						r := logger.Range{Loc: asyncRange.Loc, Len: p.lexer.Range().End() - asyncRange.Loc.Start}
+						p.log.AddRangeError(&p.tracker, r, "For loop initializers cannot start with \"async of\"")
+						panic(js_lexer.LexerPanic{})
+					}
+				}
 
-				arrow := p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{
-					needsAsyncLoc: arg.Binding.Loc,
-					await:         allowExpr,
-				})
-				arrow.IsAsync = true
-				return js_ast.Expr{Loc: asyncRange.Loc, Data: arrow}
+				if isArrowFn {
+					p.markLoweredSyntaxFeature(compat.AsyncAwait, asyncRange, compat.Generator)
+					ref := p.storeNameInRef(p.lexer.Identifier)
+					arg := js_ast.Arg{Binding: js_ast.Binding{Loc: p.lexer.Loc(), Data: &js_ast.BIdentifier{Ref: ref}}}
+					p.lexer.Next()
+
+					p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, asyncRange.Loc)
+					defer p.popScope()
+
+					arrow := p.parseArrowBody([]js_ast.Arg{arg}, fnOrArrowDataParse{
+						needsAsyncLoc: arg.Binding.Loc,
+						await:         allowExpr,
+					})
+					arrow.IsAsync = true
+					return js_ast.Expr{Loc: asyncRange.Loc, Data: arrow}
+				}
 			}
 
 		// "async()"
@@ -2680,6 +2717,8 @@ type exprFlag uint8
 
 const (
 	exprFlagTSDecorator exprFlag = 1 << iota
+	exprFlagForLoopInit
+	exprFlagForAwaitLoopInit
 )
 
 func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprFlag) js_ast.Expr {
@@ -2772,7 +2811,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		switch name {
 		case "async":
 			if raw == "async" {
-				return p.parseAsyncPrefixExpr(nameRange, level)
+				return p.parseAsyncPrefixExpr(nameRange, level, flags)
 			}
 
 		case "await":
@@ -4090,7 +4129,14 @@ func (p *parser) parseExprOrLetStmt(opts parseStmtOpts) (js_ast.Expr, js_ast.Stm
 	raw := p.lexer.Raw()
 
 	if p.lexer.Token != js_lexer.TIdentifier || raw != "let" {
-		return p.parseExpr(js_ast.LLowest), js_ast.Stmt{}, nil
+		var flags exprFlag
+		if opts.isForLoopInit {
+			flags |= exprFlagForLoopInit
+		}
+		if opts.isForAwaitLoopInit {
+			flags |= exprFlagForAwaitLoopInit
+		}
+		return p.parseExprCommon(js_ast.LLowest, nil, flags), js_ast.Stmt{}, nil
 	}
 
 	p.lexer.Next()
@@ -5259,6 +5305,8 @@ type parseStmtOpts struct {
 	isExport            bool
 	isNameOptional      bool // For "export default" pseudo-statements
 	isTypeScriptDeclare bool
+	isForLoopInit       bool
+	isForAwaitLoopInit  bool
 }
 
 func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
@@ -5421,7 +5469,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				}
 
 				defaultName := createDefaultName()
-				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange, js_ast.LComma), js_ast.LComma, nil, 0)
+				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange, js_ast.LComma, 0), js_ast.LComma, nil, 0)
 				p.lexer.ExpectOrInsertSemicolon()
 				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Expr: &expr}}}
 			}
@@ -5887,7 +5935,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		default:
 			var expr js_ast.Expr
 			var stmt js_ast.Stmt
-			expr, stmt, decls = p.parseExprOrLetStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowAll})
+			expr, stmt, decls = p.parseExprOrLetStmt(parseStmtOpts{
+				lexicalDecl:        lexicalDeclAllowAll,
+				isForLoopInit:      true,
+				isForAwaitLoopInit: isForAwait,
+			})
 			if stmt.Data != nil {
 				badLetRange = logger.Range{}
 				init = &stmt
@@ -6209,7 +6261,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.lexer.Next()
 				return p.parseFnStmt(asyncRange.Loc, opts, true /* isAsync */, asyncRange)
 			}
-			expr = p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange, js_ast.LLowest), js_ast.LLowest, nil, 0)
+			expr = p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange, js_ast.LLowest, 0), js_ast.LLowest, nil, 0)
 		} else {
 			var stmt js_ast.Stmt
 			expr, stmt, _ = p.parseExprOrLetStmt(opts)

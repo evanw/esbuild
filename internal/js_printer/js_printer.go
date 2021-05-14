@@ -1217,7 +1217,12 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	return c
 }
 
-func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []js_ast.Comment, level js_ast.L, flags int) {
+func (p *printer) printRequireOrImportExpr(
+	importRecordIndex uint32,
+	leadingInteriorComments []js_ast.Comment,
+	level js_ast.L,
+	flags printExprFlags,
+) {
 	record := &p.importRecords[importRecordIndex]
 
 	if level >= js_ast.LNew || (flags&forbidCall) != 0 {
@@ -1368,11 +1373,15 @@ func (p *printer) printDotThenSuffix() {
 	}
 }
 
+type printExprFlags uint8
+
 const (
-	forbidCall = 1 << iota
+	forbidCall printExprFlags = 1 << iota
 	forbidIn
 	hasNonOptionalChainParent
 	exprResultIsUnused
+	isFollowedByOf
+	isInsideForAwait
 )
 
 func (p *printer) printUndefined(level js_ast.L) {
@@ -1385,7 +1394,10 @@ func (p *printer) printUndefined(level js_ast.L) {
 	}
 }
 
-func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
+func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFlags) {
+	wasFollowedByOf := (flags & isFollowedByOf) != 0
+	flags &= ^isFollowedByOf
+
 	p.addSourceMapping(expr.Loc)
 
 	switch e := expr.Data.(type) {
@@ -1458,7 +1470,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 
 	case *js_ast.ECall:
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
-		targetFlags := 0
+		var targetFlags printExprFlags
 		if e.OptionalChain == js_ast.OptionalChainNone {
 			targetFlags = hasNonOptionalChainParent
 		} else if (flags & hasNonOptionalChainParent) != 0 {
@@ -1928,7 +1940,8 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 
 	case *js_ast.EIdentifier:
 		name := p.renamer.NameForSymbol(e.Ref)
-		wrap := len(p.js) == p.forOfInitStart && name == "let"
+		wrap := len(p.js) == p.forOfInitStart && (name == "let" ||
+			(wasFollowedByOf && (flags&isInsideForAwait) == 0 && name == "async"))
 
 		if wrap {
 			p.print("(")
@@ -2317,25 +2330,25 @@ func (p *printer) printDeclStmt(isExport bool, keyword string, decls []js_ast.De
 	p.printSemicolonAfterStatement()
 }
 
-func (p *printer) printForLoopInit(init js_ast.Stmt) {
+func (p *printer) printForLoopInit(init js_ast.Stmt, flags printExprFlags) {
 	switch s := init.Data.(type) {
 	case *js_ast.SExpr:
-		p.printExpr(s.Value, js_ast.LLowest, forbidIn|exprResultIsUnused)
+		p.printExpr(s.Value, js_ast.LLowest, flags|exprResultIsUnused)
 	case *js_ast.SLocal:
 		switch s.Kind {
 		case js_ast.LocalVar:
-			p.printDecls("var", s.Decls, forbidIn)
+			p.printDecls("var", s.Decls, flags)
 		case js_ast.LocalLet:
-			p.printDecls("let", s.Decls, forbidIn)
+			p.printDecls("let", s.Decls, flags)
 		case js_ast.LocalConst:
-			p.printDecls("const", s.Decls, forbidIn)
+			p.printDecls("const", s.Decls, flags)
 		}
 	default:
 		panic("Internal error")
 	}
 }
 
-func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags int) {
+func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags printExprFlags) {
 	p.print(keyword)
 	p.printSpace()
 
@@ -2757,7 +2770,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.print("for")
 		p.printSpace()
 		p.print("(")
-		p.printForLoopInit(s.Init)
+		p.printForLoopInit(s.Init, forbidIn)
 		p.printSpace()
 		p.printSpaceBeforeIdentifier()
 		p.print("in")
@@ -2776,7 +2789,11 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSpace()
 		p.print("(")
 		p.forOfInitStart = len(p.js)
-		p.printForLoopInit(s.Init)
+		flags := forbidIn | isFollowedByOf
+		if s.IsAwait {
+			flags |= isInsideForAwait
+		}
+		p.printForLoopInit(s.Init, flags)
 		p.printSpace()
 		p.printSpaceBeforeIdentifier()
 		p.print("of")
@@ -2847,7 +2864,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSpace()
 		p.print("(")
 		if s.Init != nil {
-			p.printForLoopInit(*s.Init)
+			p.printForLoopInit(*s.Init, forbidIn)
 		}
 		p.print(";")
 		p.printSpace()
