@@ -375,6 +375,10 @@ func IsTreeShakingEnabled(mode Mode, outputFormat Format) bool {
 	return mode == ModeBundle || (mode == ModeConvertFormat && outputFormat == FormatIIFE)
 }
 
+func ShouldCallRuntimeRequire(mode Mode, outputFormat Format) bool {
+	return mode == ModeBundle && outputFormat != FormatCommonJS
+}
+
 type InjectedDefine struct {
 	Source logger.Source
 	Data   js_ast.E

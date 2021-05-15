@@ -822,7 +822,7 @@ var mod = (() => {
   __export(entry_exports, {
     out: () => out
   });
-  var out = __toModule(require("foo"));
+  var out = __toModule(__require("foo"));
   return entry_exports;
 })();
 
@@ -868,7 +868,7 @@ TestReExportStarExternalIIFE
 var mod = (() => {
   // entry.js
   var entry_exports = {};
-  __reExport(entry_exports, __toModule(require("foo")));
+  __reExport(entry_exports, __toModule(__require("foo")));
   return entry_exports;
 })();
 

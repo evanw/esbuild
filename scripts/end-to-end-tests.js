@@ -592,6 +592,42 @@
         setTimeout(() => require('./a'), 0)
       `,
     }),
+
+    // Test the run-time value of "typeof require"
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=iife'], {
+      'in.js': `check(typeof require)`,
+      'node.js': `
+        const out = require('fs').readFileSync(__dirname + '/out.js', 'utf8')
+        const check = x => value = x
+        let value
+        new Function('check', 'require', out)(check)
+        if (value !== 'function') throw 'fail'
+      `,
+    }),
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm'], {
+      'in.js': `check(typeof require)`,
+      'node.js': `
+        import fs from 'fs'
+        import path from 'path'
+        import url from 'url'
+        const __dirname = path.dirname(url.fileURLToPath(import.meta.url))
+        const out = fs.readFileSync(__dirname + '/out.js', 'utf8')
+        const check = x => value = x
+        let value
+        new Function('check', 'require', out)(check)
+        if (value !== 'function') throw 'fail'
+      `,
+    }),
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `check(typeof require)`,
+      'node.js': `
+        const out = require('fs').readFileSync(__dirname + '/out.js', 'utf8')
+        const check = x => value = x
+        let value
+        new Function('check', 'require', out)(check)
+        if (value !== 'undefined') throw 'fail'
+      `,
+    }),
   )
 
   // Test internal CommonJS export

@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+* Add a shim function for unbundled uses of `require` ([#1202](https://github.com/evanw/esbuild/issues/1202))
+
+    Modules in CommonJS format automatically get three variables injected into their scope: `module`, `exports`, and `require`. These allow the code to import other modules and to export things from itself. The bundler automatically rewrites uses of `module` and `exports` to refer to the module's exports and certain uses of `require` to a helper function that loads the imported module.
+
+    Not all uses of `require` can be converted though, and un-converted uses of `require` will end up in the output. This is problematic because `require` is only present at run-time if the output is run as a CommonJS module. Otherwise `require` is undefined, which means esbuild's behavior is inconsistent between compile-time and run-time. The `module` and `exports` variables are objects at compile-time and run-time but `require` is a function at compile-time and undefined at run-time. This causes code that checks for `typeof require` to have inconsistent behavior:
+
+    ```js
+    if (typeof require === 'function' && typeof exports === 'object' && typeof module === 'object') {
+      console.log('CommonJS detected')
+    }
+    ```
+
+    In the above example, ideally `CommonJS detected` would always be printed since the code is being bundled with a CommonJS-aware bundler. To fix this, esbuild will now substitute references to `require` with a stub `__require` function when bundling if the output format is something other than CommonJS. This should ensure that `require` is now consistent between compile-time and run-time. When bundled, code that uses unbundled references to `require` will now look something like this:
+
+    ```js
+    var __require = (x) => {
+      if (typeof require !== "undefined")
+        return require(x);
+      throw new Error('Dynamic require of "' + x + '" is not supported');
+    };
+
+    var __commonJS = (cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports);
+
+    var require_example = __commonJS((exports, module) => {
+      if (typeof __require === "function" && typeof exports === "object" && typeof module === "object") {
+        console.log("CommonJS detected");
+      }
+    });
+
+    require_example();
+    ```
+
 ## 0.11.22
 
 * Add support for the "import assertions" proposal
