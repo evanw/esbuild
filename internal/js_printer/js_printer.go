@@ -256,7 +256,7 @@ func QuoteIdentifier(js []byte, name string, unsupportedFeatures compat.JSFeatur
 	return js
 }
 
-func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
+func (p *printer) printUnquotedUTF16(text []uint16, quote rune) {
 	temp := make([]byte, utf8.UTFMax)
 	js := p.js
 	i := 0
@@ -466,11 +466,7 @@ func (p *printer) printBytes(bytes []byte) {
 }
 
 func (p *printer) printQuotedUTF8(text string, allowBacktick bool) {
-	value := js_lexer.StringToUTF16(text)
-	c := p.bestQuoteCharForString(value, allowBacktick)
-	p.print(c)
-	p.printQuotedUTF16(value, rune(c[0]))
-	p.print(c)
+	p.printQuotedUTF16(js_lexer.StringToUTF16(text), allowBacktick)
 }
 
 func (p *printer) addSourceMapping(loc logger.Loc) {
@@ -1137,10 +1133,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 				}
 			}
 		} else {
-			c := p.bestQuoteCharForString(key.Value, false /* allowBacktick */)
-			p.print(c)
-			p.printQuotedUTF16(key.Value, rune(c[0]))
-			p.print(c)
+			p.printQuotedUTF16(key.Value, false /* allowBacktick */)
 		}
 
 	default:
@@ -1174,7 +1167,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 	}
 }
 
-func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) string {
+func (p *printer) printQuotedUTF16(data []uint16, allowBacktick bool) {
 	if p.options.UnsupportedFeatures.Has(compat.TemplateLiteral) {
 		allowBacktick = false
 	}
@@ -1214,7 +1207,10 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	} else if doubleCost > backtickCost && allowBacktick {
 		c = "`"
 	}
-	return c
+
+	p.print(c)
+	p.printUnquotedUTF16(data, rune(c[0]))
+	p.print(c)
 }
 
 func (p *printer) printRequireOrImportExpr(
@@ -1829,23 +1825,17 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		// If this was originally a template literal, print it as one as long as we're not minifying
 		if e.PreferTemplate && !p.options.MangleSyntax && !p.options.UnsupportedFeatures.Has(compat.TemplateLiteral) {
 			p.print("`")
-			p.printQuotedUTF16(e.Value, '`')
+			p.printUnquotedUTF16(e.Value, '`')
 			p.print("`")
 			return
 		}
 
-		c := p.bestQuoteCharForString(e.Value, true /* allowBacktick */)
-		p.print(c)
-		p.printQuotedUTF16(e.Value, rune(c[0]))
-		p.print(c)
+		p.printQuotedUTF16(e.Value, true /* allowBacktick */)
 
 	case *js_ast.ETemplate:
 		// Convert no-substitution template literals into strings if it's smaller
 		if p.options.MangleSyntax && e.Tag == nil && len(e.Parts) == 0 {
-			c := p.bestQuoteCharForString(e.Head, true /* allowBacktick */)
-			p.print(c)
-			p.printQuotedUTF16(e.Head, rune(c[0]))
-			p.print(c)
+			p.printQuotedUTF16(e.Head, true /* allowBacktick */)
 			return
 		}
 
@@ -1863,7 +1853,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if e.Tag != nil {
 			p.print(e.HeadRaw)
 		} else {
-			p.printQuotedUTF16(e.Head, '`')
+			p.printUnquotedUTF16(e.Head, '`')
 		}
 		for _, part := range e.Parts {
 			p.print("${")
@@ -1872,7 +1862,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if e.Tag != nil {
 				p.print(part.TailRaw)
 			} else {
-				p.printQuotedUTF16(part.Tail, '`')
+				p.printUnquotedUTF16(part.Tail, '`')
 			}
 		}
 		p.print("`")
@@ -2516,6 +2506,10 @@ func (p *printer) printIndentedComment(text string) {
 	}
 }
 
+func (p *printer) printPath(importRecordIndex uint32) {
+	p.printQuotedUTF8(p.importRecords[importRecordIndex].Path.Text, false /* allowBacktick */)
+}
+
 func (p *printer) printStmt(stmt js_ast.Stmt) {
 	p.addSourceMapping(stmt.Loc)
 
@@ -2636,7 +2630,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		}
 		p.print("from")
 		p.printSpace()
-		p.printQuotedUTF8(p.importRecords[s.ImportRecordIndex].Path.Text, false /* allowBacktick */)
+		p.printPath(s.ImportRecordIndex)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SExportClause:
@@ -2723,7 +2717,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSpace()
 		p.print("from")
 		p.printSpace()
-		p.printQuotedUTF8(p.importRecords[s.ImportRecordIndex].Path.Text, false /* allowBacktick */)
+		p.printPath(s.ImportRecordIndex)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SLocal:
@@ -3003,7 +2997,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			p.printSpace()
 		}
 
-		p.printQuotedUTF8(p.importRecords[s.ImportRecordIndex].Path.Text, false /* allowBacktick */)
+		p.printPath(s.ImportRecordIndex)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SBlock:
@@ -3018,12 +3012,9 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SDirective:
-		c := p.bestQuoteCharForString(s.Value, false /* allowBacktick */)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
-		p.print(c)
-		p.printQuotedUTF16(s.Value, rune(c[0]))
-		p.print(c)
+		p.printQuotedUTF16(s.Value, false /* allowBacktick */)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SBreak:
