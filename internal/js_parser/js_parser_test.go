@@ -2261,7 +2261,6 @@ func TestImport(t *testing.T) {
 	expectPrinted(t, "new (import('foo'))", "new (import(\"foo\"))();\n")
 	expectParseError(t, "import()", "<stdin>: error: Unexpected \")\"\n")
 	expectParseError(t, "import(...a)", "<stdin>: error: Unexpected \"...\"\n")
-	expectParseError(t, "import(a, b)", "<stdin>: error: Expected \")\" but found \",\"\n")
 	expectParseError(t, "new import('foo')", "<stdin>: error: Cannot use an \"import\" expression here without parentheses\n")
 
 	expectPrinted(t, "import.meta", "import.meta;\n")
@@ -4324,6 +4323,63 @@ func TestPrivateIdentifiers(t *testing.T) {
   }
 }
 `)
+}
+
+func TestImportAssertions(t *testing.T) {
+	expectPrinted(t, "import 'x' assert {}", "import \"x\" assert {};\n")
+	expectPrinted(t, "import 'x' assert {\n}", "import \"x\" assert {};\n")
+	expectPrinted(t, "import 'x' assert\n{}", "import \"x\" assert {};\n")
+	expectPrinted(t, "import 'x'\nassert\n{}", "import \"x\";\nassert;\n{\n}\n")
+	expectPrinted(t, "import 'x' assert {type: 'json'}", "import \"x\" assert {type: \"json\"};\n")
+	expectPrinted(t, "import 'x' assert {type: 'json',}", "import \"x\" assert {type: \"json\"};\n")
+	expectPrinted(t, "import 'x' assert {'type': 'json'}", "import \"x\" assert {\"type\": \"json\"};\n")
+	expectPrinted(t, "import 'x' assert {a: 'b', c: 'd'}", "import \"x\" assert {a: \"b\", c: \"d\"};\n")
+	expectPrinted(t, "import 'x' assert {a: 'b', c: 'd',}", "import \"x\" assert {a: \"b\", c: \"d\"};\n")
+	expectPrinted(t, "import 'x' assert {if: 'keyword'}", "import \"x\" assert {if: \"keyword\"};\n")
+	expectPrintedMangle(t, "import 'x' assert {'type': 'json'}", "import \"x\" assert {type: \"json\"};\n")
+	expectPrintedMangle(t, "import 'x' assert {'ty pe': 'json'}", "import \"x\" assert {\"ty pe\": \"json\"};\n")
+
+	expectParseError(t, "import 'x' assert {,}", "<stdin>: error: Expected identifier but found \",\"\n")
+	expectParseError(t, "import 'x' assert {x}", "<stdin>: error: Expected \":\" but found \"}\"\n")
+	expectParseError(t, "import 'x' assert {x 'y'}", "<stdin>: error: Expected \":\" but found \"'y'\"\n")
+	expectParseError(t, "import 'x' assert {x: y}", "<stdin>: error: Expected string but found \"y\"\n")
+	expectParseError(t, "import 'x' assert {x: 'y',,}", "<stdin>: error: Expected identifier but found \",\"\n")
+	expectParseError(t, "import 'x' assert {`x`: 'y'}", "<stdin>: error: Expected identifier but found \"`x`\"\n")
+	expectParseError(t, "import 'x' assert {x: `y`}", "<stdin>: error: Expected string but found \"`y`\"\n")
+	expectParseError(t, "import 'x' assert: {x: 'y'}", "<stdin>: error: Expected \"{\" but found \":\"\n")
+
+	expectParseError(t, "import 'x' assert {x: 'y', x: 'y'}",
+		"<stdin>: error: Duplicate import assertion \"x\"\n<stdin>: note: The first \"x\" was here\n")
+	expectParseError(t, "import 'x' assert {x: 'y', \\u0078: 'y'}",
+		"<stdin>: error: Duplicate import assertion \"x\"\n<stdin>: note: The first \"x\" was here\n")
+
+	expectPrinted(t, "import x from 'x' assert {x: 'y'}", "import x from \"x\" assert {x: \"y\"};\n")
+	expectPrinted(t, "import * as x from 'x' assert {x: 'y'}", "import * as x from \"x\" assert {x: \"y\"};\n")
+	expectPrinted(t, "import {} from 'x' assert {x: 'y'}", "import {} from \"x\" assert {x: \"y\"};\n")
+	expectPrinted(t, "export {} from 'x' assert {x: 'y'}", "export {} from \"x\" assert {x: \"y\"};\n")
+	expectPrinted(t, "export * from 'x' assert {x: 'y'}", "export * from \"x\" assert {x: \"y\"};\n")
+
+	expectPrinted(t, "import(x ? 'y' : 'z')", "x ? import(\"y\") : import(\"z\");\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {assert: {}})",
+		"x ? import(\"y\", {assert: {}}) : import(\"z\", {assert: {}});\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {assert: {a: 'b'}})",
+		"x ? import(\"y\", {assert: {a: \"b\"}}) : import(\"z\", {assert: {a: \"b\"}});\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {assert: {'a': 'b'}})",
+		"x ? import(\"y\", {assert: {\"a\": \"b\"}}) : import(\"z\", {assert: {\"a\": \"b\"}});\n")
+	expectPrintedMangle(t, "import(x ? 'y' : 'z', {assert: {'a': 'b'}})",
+		"x ? import(\"y\", {assert: {a: \"b\"}}) : import(\"z\", {assert: {a: \"b\"}});\n")
+	expectPrintedMangle(t, "import(x ? 'y' : 'z', {assert: {'a a': 'b'}})",
+		"x ? import(\"y\", {assert: {\"a a\": \"b\"}}) : import(\"z\", {assert: {\"a a\": \"b\"}});\n")
+
+	expectPrinted(t, "import(x ? 'y' : 'z', {})", "import(x ? \"y\" : \"z\", {});\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {assert: []})", "import(x ? \"y\" : \"z\", {assert: []});\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {asserts: {}})", "import(x ? \"y\" : \"z\", {asserts: {}});\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {assert: {x: 1}})", "import(x ? \"y\" : \"z\", {assert: {x: 1}});\n")
+
+	expectPrintedTarget(t, 2015, "import 'x' assert {x: 'y'}", "import \"x\";\n")
+	expectPrintedTarget(t, 2015, "import(x ? 'y' : 'z', {assert: {x: 1}})", "import(x ? \"y\" : \"z\");\n")
+	expectParseErrorTarget(t, 2015, "import(x ? 'y' : 'z', {assert: {x: foo()}})",
+		"<stdin>: error: Using an arbitrary value as the second argument to \"import()\" is not possible in the configured target environment\n")
 }
 
 func TestES5(t *testing.T) {

@@ -60,8 +60,9 @@ func (kind ImportKind) IsFromCSS() bool {
 }
 
 type ImportRecord struct {
-	Range logger.Range
-	Path  logger.Path
+	Range      logger.Range
+	Path       logger.Path
+	Assertions *[]AssertEntry
 
 	// The resolved source index for an internal import (within the bundle) or
 	// nil for an external import (not included in the bundle)
@@ -104,6 +105,14 @@ type ImportRecord struct {
 	WasOriginallyBareImport bool
 
 	Kind ImportKind
+}
+
+type AssertEntry struct {
+	Key             []uint16 // An identifier or a string
+	Value           []uint16 // Always a string
+	KeyLoc          logger.Loc
+	ValueLoc        logger.Loc
+	PreferQuotedKey bool
 }
 
 // This stores a 32-bit index where the zero value is an invalid index. This is

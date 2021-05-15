@@ -155,6 +155,7 @@ mergeVersions('NullishCoalescing', { es2020: true })
 mergeVersions('OptionalChain', { es2020: true })
 mergeVersions('TopLevelAwait', {})
 mergeVersions('ArbitraryModuleNamespaceNames', {})
+mergeVersions('ImportAssertions', {})
 
 // Manually copied from https://caniuse.com/?search=export%20*%20as
 mergeVersions('ExportStarAs', {
@@ -195,6 +196,11 @@ mergeVersions('DynamicImport', {
 mergeVersions('ArbitraryModuleNamespaceNames', {
   chrome90: true,
   node16: true,
+})
+
+// From https://www.chromestatus.com/feature/5765269513306112
+mergeVersions('ImportAssertions', {
+  chrome91: true,
 })
 
 for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests]) {

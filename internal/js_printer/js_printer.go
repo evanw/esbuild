@@ -1275,6 +1275,9 @@ func (p *printer) printRequireOrImportExpr(
 		}
 		p.addSourceMapping(record.Range.Loc)
 		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
+		if !p.options.UnsupportedFeatures.Has(compat.DynamicImport) {
+			p.printImportCallAssertions(record.Assertions)
+		}
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent--
@@ -1563,6 +1566,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.printIndent()
 		}
 		p.printExpr(e.Expr, js_ast.LComma, 0)
+		if e.Options != nil {
+			p.print(",")
+			p.printSpace()
+			p.printExpr(*e.Options, js_ast.LComma, 0)
+		}
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent--
@@ -2507,7 +2515,63 @@ func (p *printer) printIndentedComment(text string) {
 }
 
 func (p *printer) printPath(importRecordIndex uint32) {
-	p.printQuotedUTF8(p.importRecords[importRecordIndex].Path.Text, false /* allowBacktick */)
+	record := p.importRecords[importRecordIndex]
+	p.printQuotedUTF8(record.Path.Text, false /* allowBacktick */)
+
+	// Just omit import assertions if they aren't supported
+	if p.options.UnsupportedFeatures.Has(compat.ImportAssertions) {
+		return
+	}
+
+	if record.Assertions != nil {
+		p.printSpace()
+		p.print("assert")
+		p.printSpace()
+		p.printImportAssertionsClause(*record.Assertions)
+	}
+}
+
+func (p *printer) printImportCallAssertions(assertions *[]ast.AssertEntry) {
+	// Just omit import assertions if they aren't supported
+	if p.options.UnsupportedFeatures.Has(compat.ImportAssertions) {
+		return
+	}
+
+	if assertions != nil {
+		p.print(",")
+		p.printSpace()
+		p.print("{assert:")
+		p.printSpace()
+		p.printImportAssertionsClause(*assertions)
+		p.print("}")
+	}
+}
+
+func (p *printer) printImportAssertionsClause(assertions []ast.AssertEntry) {
+	p.print("{")
+
+	for i, entry := range assertions {
+		if i > 0 {
+			p.print(",")
+			p.printSpace()
+		}
+
+		p.addSourceMapping(entry.KeyLoc)
+		if !entry.PreferQuotedKey && p.canPrintIdentifierUTF16(entry.Key) {
+			p.printSpaceBeforeIdentifier()
+			p.printIdentifierUTF16(entry.Key)
+		} else {
+			p.printQuotedUTF16(entry.Key, false /* allowBacktick */)
+		}
+
+		p.print(":")
+		p.printSpace()
+
+		p.addSourceMapping(entry.ValueLoc)
+		p.printQuotedUTF16(entry.Value, false /* allowBacktick */)
+	}
+
+	p.print("}")
 }
 
 func (p *printer) printStmt(stmt js_ast.Stmt) {

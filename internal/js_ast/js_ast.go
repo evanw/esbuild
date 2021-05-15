@@ -646,7 +646,8 @@ type EImportString struct {
 }
 
 type EImportCall struct {
-	Expr Expr
+	Expr    Expr
+	Options *Expr
 
 	// See the comment for this same field on "EImportCall" for more information
 	LeadingInteriorComments []Comment

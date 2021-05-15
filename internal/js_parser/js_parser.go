@@ -3436,11 +3436,30 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 	p.lexer.PreserveAllCommentsBefore = false
 
 	value := p.parseExpr(js_ast.LComma)
+	var options *js_ast.Expr
+
+	if p.lexer.Token == js_lexer.TComma {
+		// "import('./foo.json', )"
+		p.lexer.Next()
+
+		if p.lexer.Token != js_lexer.TCloseParen {
+			// "import('./foo.json', { assert: { type: 'json' } })"
+			expr := p.parseExpr(js_ast.LComma)
+			options = &expr
+
+			if p.lexer.Token == js_lexer.TComma {
+				// "import('./foo.json', { assert: { type: 'json' } }, )"
+				p.lexer.Next()
+			}
+		}
+	}
+
 	p.lexer.Expect(js_lexer.TCloseParen)
 
 	p.allowIn = oldAllowIn
 	return js_ast.Expr{Loc: loc, Data: &js_ast.EImportCall{
 		Expr:                    value,
+		Options:                 options,
 		LeadingInteriorComments: comments,
 	}}
 }
@@ -5189,7 +5208,7 @@ func (p *parser) parseLabelName() *js_ast.LocRef {
 	return &name
 }
 
-func (p *parser) parsePath() (logger.Loc, string) {
+func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry) {
 	pathLoc := p.lexer.Loc()
 	pathText := js_lexer.UTF16ToString(p.lexer.StringLiteral)
 	if p.lexer.Token == js_lexer.TNoSubstitutionTemplateLiteral {
@@ -5197,7 +5216,64 @@ func (p *parser) parsePath() (logger.Loc, string) {
 	} else {
 		p.lexer.Expect(js_lexer.TStringLiteral)
 	}
-	return pathLoc, pathText
+
+	// See https://github.com/tc39/proposal-import-assertions for more info
+	var assertions *[]ast.AssertEntry
+	if !p.lexer.HasNewlineBefore && p.lexer.IsContextualKeyword("assert") {
+		// "import './foo.json' assert { type: 'json' }"
+		var entries []ast.AssertEntry
+		duplicates := make(map[string]logger.Range)
+		p.lexer.Next()
+		p.lexer.Expect(js_lexer.TOpenBrace)
+
+		for p.lexer.Token != js_lexer.TCloseBrace {
+			// Parse the key
+			keyLoc := p.lexer.Loc()
+			preferQuotedKey := false
+			var key []uint16
+			var keyText string
+			if p.lexer.IsIdentifierOrKeyword() {
+				keyText = p.lexer.Identifier
+				key = js_lexer.StringToUTF16(keyText)
+			} else if p.lexer.Token == js_lexer.TStringLiteral {
+				key = p.lexer.StringLiteral
+				keyText = js_lexer.UTF16ToString(key)
+				preferQuotedKey = !p.options.mangleSyntax
+			} else {
+				p.lexer.Expect(js_lexer.TIdentifier)
+			}
+			if prevRange, ok := duplicates[keyText]; ok {
+				p.log.AddRangeErrorWithNotes(&p.tracker, p.lexer.Range(), fmt.Sprintf("Duplicate import assertion %q", keyText),
+					[]logger.MsgData{logger.RangeData(&p.tracker, prevRange, fmt.Sprintf("The first %q was here", keyText))})
+			}
+			duplicates[keyText] = p.lexer.Range()
+			p.lexer.Next()
+			p.lexer.Expect(js_lexer.TColon)
+
+			// Parse the value
+			valueLoc := p.lexer.Loc()
+			value := p.lexer.StringLiteral
+			p.lexer.Expect(js_lexer.TStringLiteral)
+
+			entries = append(entries, ast.AssertEntry{
+				Key:             key,
+				KeyLoc:          keyLoc,
+				Value:           value,
+				ValueLoc:        valueLoc,
+				PreferQuotedKey: preferQuotedKey,
+			})
+
+			if p.lexer.Token != js_lexer.TComma {
+				break
+			}
+			p.lexer.Next()
+		}
+
+		p.lexer.Expect(js_lexer.TCloseBrace)
+		assertions = &entries
+	}
+
+	return pathLoc, pathText, assertions
 }
 
 // This assumes the "function" token has already been parsed
@@ -5572,6 +5648,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			var alias *js_ast.ExportStarAlias
 			var pathLoc logger.Loc
 			var pathText string
+			var assertions *[]ast.AssertEntry
 
 			if p.lexer.IsContextualKeyword("as") {
 				// "export * as ns from 'path'"
@@ -5581,15 +5658,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				alias = &js_ast.ExportStarAlias{Loc: p.lexer.Loc(), OriginalName: name}
 				p.lexer.Next()
 				p.lexer.ExpectContextualKeyword("from")
-				pathLoc, pathText = p.parsePath()
+				pathLoc, pathText, assertions = p.parsePath()
 			} else {
 				// "export * from 'path'"
 				p.lexer.ExpectContextualKeyword("from")
-				pathLoc, pathText = p.parsePath()
+				pathLoc, pathText, assertions = p.parsePath()
 				name := js_ast.GenerateNonUniqueNameFromPath(pathText) + "_star"
 				namespaceRef = p.storeNameInRef(name)
 			}
-			importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText)
+			importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertions)
 
 			p.lexer.ExpectOrInsertSemicolon()
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportStar{
@@ -5605,9 +5682,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 			items, isSingleLine := p.parseExportClause()
 			if p.lexer.IsContextualKeyword("from") {
+				// "export {} from 'path'"
 				p.lexer.Next()
-				pathLoc, pathText := p.parsePath()
-				importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText)
+				pathLoc, pathText, assertions := p.parsePath()
+				importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertions)
 				name := "import_" + js_ast.GenerateNonUniqueNameFromPath(pathText)
 				namespaceRef := p.storeNameInRef(name)
 				p.lexer.ExpectOrInsertSemicolon()
@@ -6185,8 +6263,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			return js_ast.Stmt{}
 		}
 
-		pathLoc, pathText := p.parsePath()
-		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText)
+		pathLoc, pathText, assertions := p.parsePath()
+		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertions)
 		p.importRecords[stmt.ImportRecordIndex].WasOriginallyBareImport = wasOriginallyBareImport
 		p.lexer.ExpectOrInsertSemicolon()
 
@@ -6450,12 +6528,13 @@ func extractDeclsForBinding(binding js_ast.Binding, decls []js_ast.Decl) []js_as
 	return decls
 }
 
-func (p *parser) addImportRecord(kind ast.ImportKind, loc logger.Loc, text string) uint32 {
+func (p *parser) addImportRecord(kind ast.ImportKind, loc logger.Loc, text string, assertions *[]ast.AssertEntry) uint32 {
 	index := uint32(len(p.importRecords))
 	p.importRecords = append(p.importRecords, ast.ImportRecord{
-		Kind:  kind,
-		Range: p.source.RangeOfString(loc),
-		Path:  logger.Path{Text: text},
+		Kind:       kind,
+		Range:      p.source.RangeOfString(loc),
+		Path:       logger.Path{Text: text},
+		Assertions: assertions,
 	})
 	return index
 }
@@ -11598,6 +11677,107 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		isThenCatchTarget := e == p.thenCatchChain.nextTarget && p.thenCatchChain.hasCatch
 		e.Expr = p.visitExpr(e.Expr)
 
+		var assertions *[]ast.AssertEntry
+		if e.Options != nil {
+			*e.Options = p.visitExpr(*e.Options)
+
+			// If there's an additional argument, this can't be split because the
+			// additional argument requires evaluation and our AST nodes can't be
+			// reused in different places in the AST (e.g. function scopes must be
+			// unique). Also the additional argument may have side effects and we
+			// don't currently account for that.
+			why := "the second argument was not an object literal"
+			whyLoc := e.Options.Loc
+
+			// However, make a special case for an additional argument that contains
+			// only an "assert" clause. In that case we can split this AST node.
+			if object, ok := e.Options.Data.(*js_ast.EObject); ok {
+				if len(object.Properties) == 1 {
+					if prop := object.Properties[0]; prop.Kind == js_ast.PropertyNormal && !prop.IsComputed && !prop.IsMethod {
+						if str, ok := prop.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(str.Value, "assert") {
+							if value, ok := prop.Value.Data.(*js_ast.EObject); ok {
+								entries := []ast.AssertEntry{}
+								for _, p := range value.Properties {
+									if p.Kind == js_ast.PropertyNormal && !p.IsComputed && !p.IsMethod {
+										if key, ok := p.Key.Data.(*js_ast.EString); ok {
+											if value, ok := p.Value.Data.(*js_ast.EString); ok {
+												entries = append(entries, ast.AssertEntry{
+													Key:             key.Value,
+													KeyLoc:          p.Key.Loc,
+													Value:           value.Value,
+													ValueLoc:        p.Value.Loc,
+													PreferQuotedKey: p.PreferQuotedKey,
+												})
+												continue
+											} else {
+												why = fmt.Sprintf("the value for the property %q was not a string literal",
+													js_lexer.UTF16ToString(key.Value))
+												whyLoc = p.Value.Loc
+											}
+										} else {
+											why = "this property was not a string literal"
+											whyLoc = p.Key.Loc
+										}
+									} else {
+										why = "this property was invalid"
+										whyLoc = p.Key.Loc
+									}
+									entries = nil
+									break
+								}
+								if entries != nil {
+									assertions = &entries
+									why = ""
+								}
+							} else {
+								why = "the value for \"assert\" was not an object literal"
+								whyLoc = prop.Value.Loc
+							}
+						} else {
+							why = "this property was not called \"assert\""
+							whyLoc = prop.Key.Loc
+						}
+					} else {
+						why = "this property was invalid"
+						whyLoc = prop.Key.Loc
+					}
+				} else {
+					why = "the second argument was not an object literal with a single property called \"assert\""
+					whyLoc = e.Options.Loc
+				}
+			}
+
+			// Handle the case that isn't just an import assertion clause
+			if why != "" {
+				// Only warn when bundling
+				if p.options.mode == config.ModeBundle {
+					text := "This \"import()\" was not recognized because " + why
+					if !p.suppressWarningsAboutWeirdCode {
+						p.log.AddWarning(&p.tracker, whyLoc, text)
+					} else {
+						p.log.AddDebug(&p.tracker, whyLoc, text)
+					}
+				}
+
+				// If import assertions aren't supported in the target platform, keeping
+				// them would be a syntax error so we need to get rid of them. We can't
+				// just not print them because they may have important side effects.
+				// Attempt to discard them without changing side effects and generate an
+				// error if that isn't possible.
+				if p.options.unsupportedJSFeatures.Has(compat.ImportAssertions) {
+					if p.exprCanBeRemovedIfUnused(*e.Options) {
+						e.Options = nil
+					} else {
+						p.markSyntaxFeature(compat.ImportAssertions, logger.Range{Loc: e.Options.Loc})
+					}
+				}
+
+				// Stop now so we don't try to split "?:" expressions below and
+				// potentially end up with an AST node reused multiple times
+				break
+			}
+		}
+
 		return p.maybeTransposeIfExprChain(e.Expr, func(arg js_ast.Expr) js_ast.Expr {
 			// The argument must be a string
 			if str, ok := arg.Data.(*js_ast.EString); ok {
@@ -11608,7 +11788,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ENull{}}
 				}
 
-				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, js_lexer.UTF16ToString(str.Value))
+				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, js_lexer.UTF16ToString(str.Value), assertions)
 				p.importRecords[importRecordIndex].HandlesImportErrors = (isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0) || isThenCatchTarget
 				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportString{
@@ -11667,6 +11847,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportCall{
 				Expr:                    arg,
+				Options:                 e.Options,
 				LeadingInteriorComments: e.LeadingInteriorComments,
 			}}
 		}), exprOut{}
@@ -11732,7 +11913,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ENull{}}
 							}
 
-							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value))
+							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value), nil)
 							p.importRecords[importRecordIndex].HandlesImportErrors = p.fnOrArrowDataVisit.tryBodyCount != 0
 							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
@@ -11864,7 +12045,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 									return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}}
 								}
 
-								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value))
+								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value), nil)
 								p.importRecords[importRecordIndex].HandlesImportErrors = p.fnOrArrowDataVisit.tryBodyCount != 0
 								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
@@ -13608,7 +13789,7 @@ func (p *parser) generateImportStmt(
 	p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
 	declaredSymbols := make([]js_ast.DeclaredSymbol, len(imports))
 	clauseItems := make([]js_ast.ClauseItem, len(imports))
-	importRecordIndex := p.addImportRecord(ast.ImportStmt, logger.Loc{}, path)
+	importRecordIndex := p.addImportRecord(ast.ImportStmt, logger.Loc{}, path, nil)
 	p.importRecords[importRecordIndex].SourceIndex = ast.MakeIndex32(sourceIndex)
 
 	// Create per-import information

@@ -87,6 +87,11 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	case compat.NestedRestBinding:
 		name = "non-identifier array rest patterns"
 
+	case compat.ImportAssertions:
+		p.log.AddRangeError(&p.tracker, r,
+			fmt.Sprintf("Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where))
+		return
+
 	case compat.TopLevelAwait:
 		p.log.AddRangeError(&p.tracker, r,
 			fmt.Sprintf("Top-level await is not available in %s", where))

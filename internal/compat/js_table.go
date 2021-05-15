@@ -63,6 +63,7 @@ const (
 	ForOf
 	Generator
 	Hashbang
+	ImportAssertions
 	ImportMeta
 	Let
 	LogicalAssignment
@@ -279,6 +280,9 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		IOS:     {13, 4},
 		Node:    {12, 0},
 		Safari:  {13, 1},
+	},
+	ImportAssertions: {
+		Chrome: {91},
 	},
 	ImportMeta: {
 		Chrome:  {64},
