@@ -3439,7 +3439,10 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 	p.lexer.Expect(js_lexer.TCloseParen)
 
 	p.allowIn = oldAllowIn
-	return js_ast.Expr{Loc: loc, Data: &js_ast.EImport{Expr: value, LeadingInteriorComments: comments}}
+	return js_ast.Expr{Loc: loc, Data: &js_ast.EImportCall{
+		Expr:                    value,
+		LeadingInteriorComments: comments,
+	}}
 }
 
 func (p *parser) parseExprOrBindings(level js_ast.L, errors *deferredErrors) js_ast.Expr {
@@ -7526,7 +7529,7 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 			}
 		}
 
-	case *js_ast.EImport:
+	case *js_ast.EImportCall:
 		if value, status := p.substituteSingleUseSymbolInExpr(e.Expr, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
 			e.Expr = value
 			return expr, status
@@ -11590,7 +11593,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			return p.lowerObjectSpread(expr.Loc, e), exprOut{}
 		}
 
-	case *js_ast.EImport:
+	case *js_ast.EImportCall:
 		isAwaitTarget := e == p.awaitTarget
 		isThenCatchTarget := e == p.thenCatchChain.nextTarget && p.thenCatchChain.hasCatch
 		e.Expr = p.visitExpr(e.Expr)
@@ -11608,9 +11611,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, js_lexer.UTF16ToString(str.Value))
 				p.importRecords[importRecordIndex].HandlesImportErrors = (isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0) || isThenCatchTarget
 				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
-				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImport{
-					Expr:                    arg,
-					ImportRecordIndex:       ast.MakeIndex32(importRecordIndex),
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportString{
+					ImportRecordIndex:       importRecordIndex,
 					LeadingInteriorComments: e.LeadingInteriorComments,
 				}}
 			}
@@ -11663,7 +11665,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}}
 			}
 
-			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImport{
+			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportCall{
 				Expr:                    arg,
 				LeadingInteriorComments: e.LeadingInteriorComments,
 			}}
@@ -11736,7 +11738,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 							// Create a new expression to represent the operation
 							p.ignoreUsage(p.requireRef)
-							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequireResolve{ImportRecordIndex: importRecordIndex}}
+							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequireResolveString{
+								ImportRecordIndex: importRecordIndex,
+							}}
 						}
 
 						// Otherwise just return a clone of the "require.resolve()" call
@@ -11866,7 +11870,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 								// Create a new expression to represent the operation
 								p.ignoreUsage(p.requireRef)
-								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}}
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireString{
+									ImportRecordIndex: importRecordIndex,
+								}}
 							}
 
 							// Use a debug log so people can see this if they want to

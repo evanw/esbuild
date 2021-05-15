@@ -1524,10 +1524,10 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.print(")")
 		}
 
-	case *js_ast.ERequire:
+	case *js_ast.ERequireString:
 		p.printRequireOrImportExpr(e.ImportRecordIndex, nil, level, flags)
 
-	case *js_ast.ERequireResolve:
+	case *js_ast.ERequireResolveString:
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
 		if wrap {
 			p.print("(")
@@ -1540,42 +1540,41 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.print(")")
 		}
 
-	case *js_ast.EImport:
+	case *js_ast.EImportString:
 		var leadingInteriorComments []js_ast.Comment
 		if !p.options.RemoveWhitespace {
 			leadingInteriorComments = e.LeadingInteriorComments
 		}
+		p.printRequireOrImportExpr(e.ImportRecordIndex, leadingInteriorComments, level, flags)
 
-		if e.ImportRecordIndex.IsValid() {
-			p.printRequireOrImportExpr(e.ImportRecordIndex.GetIndex(), leadingInteriorComments, level, flags)
-		} else {
-			// Handle non-string expressions
-			if !e.ImportRecordIndex.IsValid() {
-				wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
-				if wrap {
-					p.print("(")
-				}
-				p.printSpaceBeforeIdentifier()
-				p.print("import(")
-				if len(leadingInteriorComments) > 0 {
-					p.printNewline()
-					p.options.Indent++
-					for _, comment := range e.LeadingInteriorComments {
-						p.printIndentedComment(comment.Text)
-					}
-					p.printIndent()
-				}
-				p.printExpr(e.Expr, js_ast.LComma, 0)
-				if len(leadingInteriorComments) > 0 {
-					p.printNewline()
-					p.options.Indent--
-					p.printIndent()
-				}
-				p.print(")")
-				if wrap {
-					p.print(")")
-				}
+	case *js_ast.EImportCall:
+		var leadingInteriorComments []js_ast.Comment
+		if !p.options.RemoveWhitespace {
+			leadingInteriorComments = e.LeadingInteriorComments
+		}
+		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
+		if wrap {
+			p.print("(")
+		}
+		p.printSpaceBeforeIdentifier()
+		p.print("import(")
+		if len(leadingInteriorComments) > 0 {
+			p.printNewline()
+			p.options.Indent++
+			for _, comment := range leadingInteriorComments {
+				p.printIndentedComment(comment.Text)
 			}
+			p.printIndent()
+		}
+		p.printExpr(e.Expr, js_ast.LComma, 0)
+		if len(leadingInteriorComments) > 0 {
+			p.printNewline()
+			p.options.Indent--
+			p.printIndent()
+		}
+		p.print(")")
+		if wrap {
+			p.print(")")
 		}
 
 	case *js_ast.EDot:

@@ -2958,7 +2958,9 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 			Loc: loc,
 			Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
 				Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
-				Value:   &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}},
+				Value: &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequireString{
+					ImportRecordIndex: importRecordIndex,
+				}},
 			}}},
 		})
 		return true
@@ -2982,7 +2984,9 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 			Loc: loc,
 			Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
 				Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
-				Value:   &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}},
+				Value: &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequireString{
+					ImportRecordIndex: importRecordIndex,
+				}},
 			}}},
 		})
 
@@ -3107,7 +3111,9 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					}
 					if target == nil {
 						// Prefix this module with "__reExport(exports, require(path))"
-						target = &js_ast.ERequire{ImportRecordIndex: s.ImportRecordIndex}
+						target = &js_ast.ERequireString{
+							ImportRecordIndex: s.ImportRecordIndex,
+						}
 					}
 					exportStarRef := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.ModuleScope.Members["__reExport"].Ref
 					stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{

@@ -624,17 +624,16 @@ type EIf struct {
 	No   Expr
 }
 
-type ERequire struct {
+type ERequireString struct {
 	ImportRecordIndex uint32
 }
 
-type ERequireResolve struct {
+type ERequireResolveString struct {
 	ImportRecordIndex uint32
 }
 
-type EImport struct {
-	Expr              Expr
-	ImportRecordIndex ast.Index32
+type EImportString struct {
+	ImportRecordIndex uint32
 
 	// Comments inside "import()" expressions have special meaning for Webpack.
 	// Preserving comments inside these expressions makes it possible to use
@@ -646,41 +645,49 @@ type EImport struct {
 	LeadingInteriorComments []Comment
 }
 
-func (*EArray) isExpr()             {}
-func (*EUnary) isExpr()             {}
-func (*EBinary) isExpr()            {}
-func (*EBoolean) isExpr()           {}
-func (*ESuper) isExpr()             {}
-func (*ENull) isExpr()              {}
-func (*EUndefined) isExpr()         {}
-func (*EThis) isExpr()              {}
-func (*ENew) isExpr()               {}
-func (*ENewTarget) isExpr()         {}
-func (*EImportMeta) isExpr()        {}
-func (*ECall) isExpr()              {}
-func (*EDot) isExpr()               {}
-func (*EIndex) isExpr()             {}
-func (*EArrow) isExpr()             {}
-func (*EFunction) isExpr()          {}
-func (*EClass) isExpr()             {}
-func (*EIdentifier) isExpr()        {}
-func (*EImportIdentifier) isExpr()  {}
-func (*EPrivateIdentifier) isExpr() {}
-func (*EJSXElement) isExpr()        {}
-func (*EMissing) isExpr()           {}
-func (*ENumber) isExpr()            {}
-func (*EBigInt) isExpr()            {}
-func (*EObject) isExpr()            {}
-func (*ESpread) isExpr()            {}
-func (*EString) isExpr()            {}
-func (*ETemplate) isExpr()          {}
-func (*ERegExp) isExpr()            {}
-func (*EAwait) isExpr()             {}
-func (*EYield) isExpr()             {}
-func (*EIf) isExpr()                {}
-func (*ERequire) isExpr()           {}
-func (*ERequireResolve) isExpr()    {}
-func (*EImport) isExpr()            {}
+type EImportCall struct {
+	Expr Expr
+
+	// See the comment for this same field on "EImportCall" for more information
+	LeadingInteriorComments []Comment
+}
+
+func (*EArray) isExpr()                {}
+func (*EUnary) isExpr()                {}
+func (*EBinary) isExpr()               {}
+func (*EBoolean) isExpr()              {}
+func (*ESuper) isExpr()                {}
+func (*ENull) isExpr()                 {}
+func (*EUndefined) isExpr()            {}
+func (*EThis) isExpr()                 {}
+func (*ENew) isExpr()                  {}
+func (*ENewTarget) isExpr()            {}
+func (*EImportMeta) isExpr()           {}
+func (*ECall) isExpr()                 {}
+func (*EDot) isExpr()                  {}
+func (*EIndex) isExpr()                {}
+func (*EArrow) isExpr()                {}
+func (*EFunction) isExpr()             {}
+func (*EClass) isExpr()                {}
+func (*EIdentifier) isExpr()           {}
+func (*EImportIdentifier) isExpr()     {}
+func (*EPrivateIdentifier) isExpr()    {}
+func (*EJSXElement) isExpr()           {}
+func (*EMissing) isExpr()              {}
+func (*ENumber) isExpr()               {}
+func (*EBigInt) isExpr()               {}
+func (*EObject) isExpr()               {}
+func (*ESpread) isExpr()               {}
+func (*EString) isExpr()               {}
+func (*ETemplate) isExpr()             {}
+func (*ERegExp) isExpr()               {}
+func (*EAwait) isExpr()                {}
+func (*EYield) isExpr()                {}
+func (*EIf) isExpr()                   {}
+func (*ERequireString) isExpr()        {}
+func (*ERequireResolveString) isExpr() {}
+func (*EImportString) isExpr()         {}
+func (*EImportCall) isExpr()           {}
 
 func IsOptionalChain(value Expr) bool {
 	switch e := value.Data.(type) {
