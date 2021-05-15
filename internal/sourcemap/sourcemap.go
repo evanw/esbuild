@@ -259,6 +259,10 @@ type SourceMapPieces struct {
 	Suffix   []byte
 }
 
+func (pieces SourceMapPieces) HasContent() bool {
+	return len(pieces.Prefix)+len(pieces.Mappings)+len(pieces.Suffix) > 0
+}
+
 type SourceMapShift struct {
 	Before LineColumnOffset
 	After  LineColumnOffset

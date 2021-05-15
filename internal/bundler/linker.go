@@ -404,7 +404,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 			}
 
 			// Generate the optional source map for this chunk
-			if c.options.SourceMap != config.SourceMapNone && chunk.outputSourceMap.Suffix != nil {
+			if c.options.SourceMap != config.SourceMapNone && chunk.outputSourceMap.HasContent() {
 				outputSourceMap := chunk.outputSourceMap.Finalize(outputSourceMapShifts)
 				finalRelPathForSourceMap := chunk.finalRelPath + ".map"
 
@@ -4428,11 +4428,13 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 
 	// The JavaScript contents are done now that the source map comment is in
 	jsContents := j.Done()
+	chunk.outputPieces = c.breakOutputIntoPieces(jsContents, uint32(len(chunks)))
 	timer.End("Join JavaScript files")
 
 	if c.options.SourceMap != config.SourceMapNone {
 		timer.Begin("Generate source map")
-		chunk.outputSourceMap = c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps)
+		canHaveShifts := len(chunk.outputPieces) != 1 || chunk.outputPieces[0].chunkIndex.IsValid()
+		chunk.outputSourceMap = c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps, canHaveShifts)
 		timer.End("Generate source map")
 	}
 
@@ -4460,7 +4462,6 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		}
 	}
 
-	chunk.outputPieces = c.breakOutputIntoPieces(jsContents, uint32(len(chunks)))
 	c.generateIsolatedHashInParallel(chunk)
 	chunk.isExecutable = isExecutable
 	chunkWaitGroup.Done()
@@ -4971,6 +4972,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 	results []compileResultJS,
 	chunkAbsDir string,
 	dataForSourceMaps []dataForSourceMap,
+	canHaveShifts bool,
 ) (pieces sourcemap.SourceMapPieces) {
 	j := helpers.Joiner{}
 	j.AddString("{\n  \"version\": 3")
@@ -5073,10 +5075,9 @@ func (c *linkerContext) generateSourceMapForChunk(
 	}
 
 	j.AddString(",\n  \"mappings\": \"")
-	pieces.Prefix = j.Done()
 
 	// Write the mappings
-	jMappings := helpers.Joiner{}
+	mappingsStart := j.Length()
 	prevEndState := js_printer.SourceMapState{}
 	prevColumnOffset := 0
 	for _, result := range results {
@@ -5106,7 +5107,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 		}
 
 		// Append the precomputed source map chunk
-		js_printer.AppendSourceMapChunk(&jMappings, prevEndState, startState, chunk.Buffer)
+		js_printer.AppendSourceMapChunk(&j, prevEndState, startState, chunk.Buffer)
 
 		// Generate the relative offset to start from next time
 		prevEndState = chunk.EndState
@@ -5119,9 +5120,25 @@ func (c *linkerContext) generateSourceMapForChunk(
 			prevColumnOffset += startState.GeneratedColumn
 		}
 	}
-	pieces.Mappings = jMappings.Done()
+	mappingsEnd := j.Length()
 
 	// Finish the source map
-	pieces.Suffix = []byte("\",\n  \"names\": []\n}\n")
+	j.AddString("\",\n  \"names\": []\n}\n")
+	bytes := j.Done()
+
+	if !canHaveShifts {
+		// If there cannot be any shifts, then we can avoid doing extra work later
+		// on by preserving the source map as a single memory allocation throughout
+		// the pipeline. That way we won't need to reallocate it.
+		pieces.Prefix = bytes
+	} else {
+		// Otherwise if there can be shifts, then we need to split this into several
+		// slices so that the shifts in the mappings array can be processed. This is
+		// more expensive because everything will need to be recombined into a new
+		// memory allocation at the end.
+		pieces.Prefix = bytes[:mappingsStart]
+		pieces.Mappings = bytes[mappingsStart:mappingsEnd]
+		pieces.Suffix = bytes[mappingsEnd:]
+	}
 	return
 }
