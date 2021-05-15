@@ -288,8 +288,8 @@ var require_b = __commonJS({
 });
 
 // a.js
-x ? require("a") : y ? require_b() : require("c");
-x ? y ? require("a") : require_b() : require(c);
+x ? __require("a") : y ? require_b() : __require("c");
+x ? y ? __require("a") : require_b() : __require(c);
 
 ================================================================================
 TestConditionalRequireResolve
@@ -1964,7 +1964,7 @@ TestNestedRequireWithoutCall
 ---------- /out.js ----------
 // entry.js
 (() => {
-  const req = require;
+  const req = __require;
   req("./entry");
 })();
 
@@ -2202,11 +2202,11 @@ class Bar {
 TestRequireAndDynamicImportInvalidTemplate
 ---------- /out.js ----------
 // entry.js
-require(tag`./b`);
-require(`./${b}`);
+__require(tag`./b`);
+__require(`./${b}`);
 try {
-  require(tag`./b`);
-  require(`./${b}`);
+  __require(tag`./b`);
+  __require(`./${b}`);
 } catch {
 }
 (async () => {
@@ -2227,11 +2227,11 @@ try {
 TestRequireBadArgumentCount
 ---------- /out.js ----------
 // entry.js
-require();
-require("a", "b");
+__require();
+__require("a", "b");
 try {
-  require();
-  require("a", "b");
+  __require();
+  __require("a", "b");
 } catch {
 }
 
@@ -2360,6 +2360,32 @@ console.log(true);
 console.log(true);
 
 ================================================================================
+TestRequireShimSubstitution
+---------- /out/entry.js ----------
+// example.json
+var require_example = __commonJS({
+  "example.json"(exports, module) {
+    module.exports = {works: true};
+  }
+});
+
+// entry.js
+console.log([
+  __require,
+  typeof __require,
+  require_example(),
+  __require("./example.json", {type: "json"}),
+  __require(window.SOME_PATH),
+  require_example(),
+  __require("./example.json", {type: "json"}),
+  __require(window.SOME_PATH),
+  __require.resolve("some-path"),
+  __require.resolve(window.SOME_PATH),
+  Promise.resolve().then(() => __toModule(__require("some-path"))),
+  Promise.resolve().then(() => __toModule(__require(window.SOME_PATH)))
+]);
+
+================================================================================
 TestRequireTxt
 ---------- /out.js ----------
 // test.txt
@@ -2379,7 +2405,7 @@ TestRequireWithCallInsideTry
 var require_entry = __commonJS({
   "entry.js"(exports) {
     try {
-      const supportsColor = require("supports-color");
+      const supportsColor = __require("supports-color");
       if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
         exports.colors = [];
       }
@@ -2407,7 +2433,7 @@ console.log(require_b());
 TestRequireWithoutCall
 ---------- /out.js ----------
 // entry.js
-var req = require;
+var req = __require;
 req("./entry");
 
 ================================================================================
@@ -2416,7 +2442,7 @@ TestRequireWithoutCallInsideTry
 // entry.js
 try {
   oldLocale = globalLocale._abbr;
-  aliasedRequire = require;
+  aliasedRequire = __require;
   aliasedRequire("./locale/" + name);
   getSetGlobalLocale(oldLocale);
 } catch (e) {

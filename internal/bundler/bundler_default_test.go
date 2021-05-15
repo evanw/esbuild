@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
@@ -906,6 +907,8 @@ func TestConditionalRequireResolve(t *testing.T) {
 		entryPaths: []string{"/a.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 			ExternalModules: config.ExternalModules{
 				NodeModules: map[string]bool{
@@ -1155,6 +1158,7 @@ func TestRequirePropertyAccessCommonJS(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
@@ -3563,6 +3567,8 @@ func TestRequireResolve(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 			ExternalModules: config.ExternalModules{
 				AbsPaths: map[string]bool{
@@ -4120,6 +4126,7 @@ func TestRequireMainCacheCommonJS(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
 			AbsOutputFile: "/out.js",
 			OutputFormat:  config.FormatCommonJS,
 		},
@@ -4463,5 +4470,40 @@ outside-node-modules/index.js: note: The original "a" is here
 outside-node-modules/package.json: warning: Duplicate key "b" in object literal
 outside-node-modules/package.json: note: The original "b" is here
 `,
+	})
+}
+
+func TestRequireShimSubstitution(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log([
+					require,
+					typeof require,
+					require('./example.json'),
+					require('./example.json', { type: 'json' }),
+					require(window.SOME_PATH),
+					module.require('./example.json'),
+					module.require('./example.json', { type: 'json' }),
+					module.require(window.SOME_PATH),
+					require.resolve('some-path'),
+					require.resolve(window.SOME_PATH),
+					import('some-path'),
+					import(window.SOME_PATH),
+				])
+			`,
+			"/example.json": `{ "works": true }`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"some-path": true,
+				},
+			},
+			UnsupportedJSFeatures: compat.DynamicImport,
+		},
 	})
 }

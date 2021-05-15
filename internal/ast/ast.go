@@ -89,6 +89,9 @@ type ImportRecord struct {
 	// Tell the printer to wrap this call to "require()" in "__toModule(...)"
 	WrapWithToModule bool
 
+	// Tell the printer to use the runtime "__require()" instead of "require()"
+	CallRuntimeRequire bool
+
 	// True for the following cases:
 	//
 	//   try { require('x') } catch { handle }

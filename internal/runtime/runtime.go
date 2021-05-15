@@ -115,6 +115,12 @@ func code(isES6 bool) string {
 		// Tells importing modules that this can be considered an ES6 module
 		export var __name = (target, value) => __defProp(target, 'name', { value, configurable: true })
 
+		// This fallback "require" function exists so that "typeof require" can naturally be "function"
+		export var __require = x => {
+			if (typeof require !== 'undefined') return require(x)
+			throw new Error('Dynamic require of "' + x + '" is not supported')
+		}
+
 		// For object rest patterns
 		export var __restKey = key => typeof key === 'symbol' ? key : key + ''
 		export var __objRest = (source, exclude) => {

@@ -1570,7 +1570,7 @@ func (p *parser) ignoreUsage(ref js_ast.Ref) {
 	// the value is ignored because that's what the TypeScript compiler does.
 }
 
-func (p *parser) callRuntime(loc logger.Loc, name string, args []js_ast.Expr) js_ast.Expr {
+func (p *parser) importFromRuntime(loc logger.Loc, name string) js_ast.Expr {
 	ref, ok := p.runtimeImports[name]
 	if !ok {
 		ref = p.newSymbol(js_ast.SymbolOther, name)
@@ -1578,10 +1578,24 @@ func (p *parser) callRuntime(loc logger.Loc, name string, args []js_ast.Expr) js
 		p.runtimeImports[name] = ref
 	}
 	p.recordUsage(ref)
+	return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
+}
+
+func (p *parser) callRuntime(loc logger.Loc, name string, args []js_ast.Expr) js_ast.Expr {
 	return js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
-		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
+		Target: p.importFromRuntime(loc, name),
 		Args:   args,
 	}}
+}
+
+func (p *parser) valueToSubstituteForRequire(loc logger.Loc) js_ast.Expr {
+	if p.source.Index != runtime.SourceIndex &&
+		config.ShouldCallRuntimeRequire(p.options.mode, p.options.outputFormat) {
+		return p.importFromRuntime(loc, "__require")
+	}
+
+	p.recordUsage(p.requireRef)
+	return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.requireRef}}
 }
 
 func (p *parser) makePromiseRef() js_ast.Ref {
@@ -9701,7 +9715,7 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 
 			// Substitute user-specified defines
 			if define.Data.DefineFunc != nil {
-				return p.valueForDefine(loc, js_ast.AssignTargetNone, false, define.Data.DefineFunc)
+				return p.valueForDefine(loc, define.Data.DefineFunc, identifierOpts{})
 			}
 		}
 	}
@@ -9918,6 +9932,7 @@ func (p *parser) maybeRewritePropertyAccess(
 				p.recordUsage(item.Ref)
 				return p.handleIdentifier(nameLoc, &js_ast.EIdentifier{Ref: item.Ref}, identifierOpts{
 					assignTarget:    assignTarget,
+					isCallTarget:    isCallTarget,
 					isDeleteTarget:  isDeleteTarget,
 					preferQuotedKey: preferQuotedKey,
 
@@ -9931,6 +9946,10 @@ func (p *parser) maybeRewritePropertyAccess(
 			// See https://github.com/webpack/webpack/pull/7750 for more info.
 			if isCallTarget && id.Ref == p.moduleRef && name == "require" {
 				p.ignoreUsage(p.moduleRef)
+
+				// This uses "require" instead of a reference to our "__require"
+				// function so that the code coming up that detects calls to
+				// "require" will recognize it.
 				p.recordUsage(p.requireRef)
 				return js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: p.requireRef}}, true
 			}
@@ -10435,6 +10454,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EImportMeta:
 		isDeleteTarget := e == p.deleteTarget
+		isCallTarget := e == p.callTarget
 
 		// Check both user-specified defines and known globals
 		if defines, ok := p.options.defines.DotDefines["meta"]; ok {
@@ -10442,7 +10462,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.isDotDefineMatch(expr, define.Parts) {
 					// Substitute user-specified defines
 					if define.Data.DefineFunc != nil {
-						return p.valueForDefine(expr.Loc, in.assignTarget, isDeleteTarget, define.Data.DefineFunc), exprOut{}
+						return p.valueForDefine(expr.Loc, define.Data.DefineFunc, identifierOpts{
+							assignTarget:   in.assignTarget,
+							isCallTarget:   isCallTarget,
+							isDeleteTarget: isDeleteTarget,
+						}), exprOut{}
 					}
 				}
 			}
@@ -10458,6 +10482,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		e.Value = p.visitExpr(e.Value)
 
 	case *js_ast.EIdentifier:
+		isCallTarget := e == p.callTarget
 		isDeleteTarget := e == p.deleteTarget
 		name := p.loadNameFromRef(e.Ref)
 		if p.isStrictMode() && js_lexer.StrictModeReservedWords[name] {
@@ -10486,7 +10511,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if p.symbols[e.Ref.InnerIndex].Kind == js_ast.SymbolUnbound && !result.isInsideWithScope && e != p.deleteTarget {
 			if data, ok := p.options.defines.IdentifierDefines[name]; ok {
 				if data.DefineFunc != nil {
-					new := p.valueForDefine(expr.Loc, in.assignTarget, isDeleteTarget, data.DefineFunc)
+					new := p.valueForDefine(expr.Loc, data.DefineFunc, identifierOpts{
+						assignTarget:   in.assignTarget,
+						isCallTarget:   isCallTarget,
+						isDeleteTarget: isDeleteTarget,
+					})
 
 					// Don't substitute an identifier for a non-identifier if this is an
 					// assignment target, since it'll cause a syntax error
@@ -10507,6 +10536,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		return p.handleIdentifier(expr.Loc, e, identifierOpts{
 			assignTarget:            in.assignTarget,
+			isCallTarget:            isCallTarget,
 			isDeleteTarget:          isDeleteTarget,
 			wasOriginallyIdentifier: true,
 		}), exprOut{}
@@ -11345,7 +11375,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.isDotDefineMatch(expr, define.Parts) {
 					// Substitute user-specified defines
 					if define.Data.DefineFunc != nil {
-						return p.valueForDefine(expr.Loc, in.assignTarget, isDeleteTarget, define.Data.DefineFunc), exprOut{}
+						return p.valueForDefine(expr.Loc, define.Data.DefineFunc, identifierOpts{
+							assignTarget:   in.assignTarget,
+							isCallTarget:   isCallTarget,
+							isDeleteTarget: isDeleteTarget,
+						}), exprOut{}
 					}
 
 					// Copy the side effect flags over in case this expression is unused
@@ -11820,7 +11854,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if p.options.unsupportedJSFeatures.Has(compat.DynamicImport) {
 				var then js_ast.Expr
 				value := p.callRuntime(arg.Loc, "__toModule", []js_ast.Expr{{Loc: expr.Loc, Data: &js_ast.ECall{
-					Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.requireRef}},
+					Target: p.valueToSubstituteForRequire(expr.Loc),
 					Args:   []js_ast.Expr{arg},
 				}}})
 				body := js_ast.FnBody{Loc: expr.Loc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{Value: &value}}}}
@@ -11903,37 +11937,39 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Recognize "require.resolve()" calls
 		if couldBeRequireResolve {
 			if dot, ok := e.Target.Data.(*js_ast.EDot); ok {
-				if id, ok := dot.Target.Data.(*js_ast.EIdentifier); ok && id.Ref == p.requireRef {
-					return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
-						if str, ok := e.Args[0].Data.(*js_ast.EString); ok {
-							// Ignore calls to require.resolve() if the control flow is provably
-							// dead here. We don't want to spend time scanning the required files
-							// if they will never be used.
-							if p.isControlFlowDead {
-								return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ENull{}}
+				if id, ok := dot.Target.Data.(*js_ast.EIdentifier); ok {
+					if id.Ref == p.requireRef {
+						p.ignoreUsage(p.requireRef)
+						return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
+							if str, ok := e.Args[0].Data.(*js_ast.EString); ok {
+								// Ignore calls to require.resolve() if the control flow is provably
+								// dead here. We don't want to spend time scanning the required files
+								// if they will never be used.
+								if p.isControlFlowDead {
+									return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ENull{}}
+								}
+
+								importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value), nil)
+								p.importRecords[importRecordIndex].HandlesImportErrors = p.fnOrArrowDataVisit.tryBodyCount != 0
+								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+
+								// Create a new expression to represent the operation
+								return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequireResolveString{
+									ImportRecordIndex: importRecordIndex,
+								}}
 							}
 
-							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value), nil)
-							p.importRecords[importRecordIndex].HandlesImportErrors = p.fnOrArrowDataVisit.tryBodyCount != 0
-							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
-
-							// Create a new expression to represent the operation
-							p.ignoreUsage(p.requireRef)
-							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequireResolveString{
-								ImportRecordIndex: importRecordIndex,
+							// Otherwise just return a clone of the "require.resolve()" call
+							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
+								Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EDot{
+									Target:  p.valueToSubstituteForRequire(dot.Target.Loc),
+									Name:    dot.Name,
+									NameLoc: dot.NameLoc,
+								}},
+								Args: []js_ast.Expr{arg},
 							}}
-						}
-
-						// Otherwise just return a clone of the "require.resolve()" call
-						return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
-							Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EDot{
-								Target:  js_ast.Expr{Loc: dot.Target.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
-								Name:    dot.Name,
-								NameLoc: dot.NameLoc,
-							}},
-							Args: []js_ast.Expr{arg},
-						}}
-					}), exprOut{}
+						}), exprOut{}
+					}
 				}
 			}
 		}
@@ -12035,6 +12071,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.options.mode == config.ModeBundle {
 					// There must be one argument
 					if len(e.Args) == 1 {
+						p.ignoreUsage(p.requireRef)
 						return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
 							// The argument must be a string
 							if str, ok := arg.Data.(*js_ast.EString); ok {
@@ -12050,7 +12087,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 								// Create a new expression to represent the operation
-								p.ignoreUsage(p.requireRef)
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireString{
 									ImportRecordIndex: importRecordIndex,
 								}}
@@ -12063,7 +12099,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 							// Otherwise just return a clone of the "require()" call
 							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-								Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
+								Target: p.valueToSubstituteForRequire(e.Target.Loc),
 								Args:   []js_ast.Expr{arg},
 							}}
 						}), exprOut{}
@@ -12072,6 +12108,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						text := fmt.Sprintf("This call to \"require\" will not be bundled because it has %d arguments", len(e.Args))
 						p.log.AddRangeDebug(&p.tracker, r, text)
 					}
+
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+						Target: p.valueToSubstituteForRequire(e.Target.Loc),
+						Args:   e.Args,
+					}}, exprOut{}
 				} else if p.options.outputFormat == config.FormatESModule && !omitWarnings {
 					r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
 					p.log.AddRangeWarning(&p.tracker, r, "Converting \"require\" to \"esm\" is currently not supported")
@@ -12230,24 +12271,22 @@ func (p *parser) warnAboutImportNamespaceCallOrConstruct(target js_ast.Expr, isC
 	}
 }
 
-func (p *parser) valueForDefine(loc logger.Loc, assignTarget js_ast.AssignTarget, isDeleteTarget bool, defineFunc config.DefineFunc) js_ast.Expr {
+func (p *parser) valueForDefine(loc logger.Loc, defineFunc config.DefineFunc, opts identifierOpts) js_ast.Expr {
 	expr := js_ast.Expr{Loc: loc, Data: defineFunc(config.DefineArgs{
 		Loc:             loc,
 		FindSymbol:      p.findSymbolHelper,
 		SymbolForDefine: p.symbolForDefineHelper,
 	})}
 	if id, ok := expr.Data.(*js_ast.EIdentifier); ok {
-		return p.handleIdentifier(loc, id, identifierOpts{
-			assignTarget:            assignTarget,
-			isDeleteTarget:          isDeleteTarget,
-			wasOriginallyIdentifier: true,
-		})
+		opts.wasOriginallyIdentifier = true
+		return p.handleIdentifier(loc, id, opts)
 	}
 	return expr
 }
 
 type identifierOpts struct {
 	assignTarget            js_ast.AssignTarget
+	isCallTarget            bool
 	isDeleteTarget          bool
 	preferQuotedKey         bool
 	wasOriginallyIdentifier bool
@@ -12300,6 +12339,11 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 				NameLoc: loc,
 			}}
 		}
+	}
+
+	// Swap references to the global "require" function with our "__require" stub
+	if ref == p.requireRef && !opts.isCallTarget {
+		return p.valueToSubstituteForRequire(loc)
 	}
 
 	return js_ast.Expr{Loc: loc, Data: e}

@@ -1235,8 +1235,16 @@ func (p *printer) printRequireOrImportExpr(
 				p.print("(")
 				defer p.print(")")
 			}
-			p.printSpaceBeforeIdentifier()
-			p.print("require(")
+
+			// Potentially substitute our own "__require" stub for "require"
+			if record.CallRuntimeRequire {
+				p.printSymbol(p.options.RuntimeRequireRef)
+			} else {
+				p.printSpaceBeforeIdentifier()
+				p.print("require")
+			}
+
+			p.print("(")
 			p.addSourceMapping(record.Range.Loc)
 			p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 			p.print(")")
@@ -1261,8 +1269,15 @@ func (p *printer) printRequireOrImportExpr(
 				defer p.print(")")
 			}
 
-			p.printSpaceBeforeIdentifier()
-			p.print("require(")
+			// Potentially substitute our own "__require" stub for "require"
+			if record.CallRuntimeRequire {
+				p.printSymbol(p.options.RuntimeRequireRef)
+			} else {
+				p.printSpaceBeforeIdentifier()
+				p.print("require")
+			}
+
+			p.print("(")
 			defer p.print(")")
 		}
 		if len(leadingInteriorComments) > 0 {
@@ -3148,6 +3163,7 @@ type Options struct {
 	AddSourceMappings            bool
 	Indent                       int
 	ToModuleRef                  js_ast.Ref
+	RuntimeRequireRef            js_ast.Ref
 	UnsupportedFeatures          compat.JSFeature
 	RequireOrImportMetaForSource func(uint32) RequireOrImportMeta
 

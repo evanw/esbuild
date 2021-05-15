@@ -1967,11 +1967,10 @@ console.log("success");
       write: false,
       bundle: true,
       external: ['/assets/*.png'],
+      platform: 'node',
     })
-    assert.strictEqual(outputFiles[0].text, `(() => {
-  // <stdin>
-  require("/assets/file.png");
-})();
+    assert.strictEqual(outputFiles[0].text, `// <stdin>
+require("/assets/file.png");
 `)
   },
 

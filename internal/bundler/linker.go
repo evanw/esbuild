@@ -1398,6 +1398,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// Encode import-specific constraints in the dependency graph
 		for partIndex, part := range repr.AST.Parts {
 			toModuleUses := uint32(0)
+			runtimeRequireUses := uint32(0)
 
 			// Imports of wrapped files must depend on the wrapper
 			for _, importRecordIndex := range part.ImportRecordIndices {
@@ -1405,12 +1406,22 @@ func (c *linkerContext) scanImportsAndExports() {
 
 				// Don't follow external imports (this includes import() expressions)
 				if !record.SourceIndex.IsValid() || c.isExternalDynamicImport(record, sourceIndex) {
-					// This is an external import, so it needs the "__toModule" wrapper as
-					// long as it's not a bare "require()"
-					if record.Kind != ast.ImportRequire && (!c.options.OutputFormat.KeepES6ImportExportSyntax() ||
-						(record.Kind == ast.ImportDynamic && c.options.UnsupportedJSFeatures.Has(compat.DynamicImport))) {
-						record.WrapWithToModule = true
-						toModuleUses++
+					// This is an external import. Check if it will be a "require()" call.
+					if record.Kind == ast.ImportRequire || !c.options.OutputFormat.KeepES6ImportExportSyntax() ||
+						(record.Kind == ast.ImportDynamic && c.options.UnsupportedJSFeatures.Has(compat.DynamicImport)) {
+						// We should use "__require" instead of "require" if we're not
+						// generating a CommonJS output file, since it won't exist otherwise
+						if config.ShouldCallRuntimeRequire(c.options.Mode, c.options.OutputFormat) {
+							record.CallRuntimeRequire = true
+							runtimeRequireUses++
+						}
+
+						// It needs the "__toModule" wrapper if it wasn't originally a
+						// CommonJS import (i.e. it wasn't a "require()" call).
+						if record.Kind != ast.ImportRequire {
+							record.WrapWithToModule = true
+							toModuleUses++
+						}
 					}
 					continue
 				}
@@ -1451,6 +1462,10 @@ func (c *linkerContext) scanImportsAndExports() {
 			// If there's an ES6 import of a non-ES6 module, then we're going to need the
 			// "__toModule" symbol from the runtime to wrap the result of "require()"
 			c.graph.GenerateRuntimeSymbolImportAndUse(sourceIndex, uint32(partIndex), "__toModule", toModuleUses)
+
+			// If there are unbundled calls to "require()" and we're not generating
+			// code for node, then substitute a "__require" wrapper for "require".
+			c.graph.GenerateRuntimeSymbolImportAndUse(sourceIndex, uint32(partIndex), "__require", runtimeRequireUses)
 
 			// If there's an ES6 export star statement of a non-ES6 module, then we're
 			// going to need the "__reExport" symbol from the runtime
@@ -3317,6 +3332,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	commonJSRef js_ast.Ref,
 	esmRef js_ast.Ref,
 	toModuleRef js_ast.Ref,
+	runtimeRequireRef js_ast.Ref,
 	result *compileResultJS,
 	dataForSourceMaps []dataForSourceMap,
 ) {
@@ -3520,6 +3536,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		MangleSyntax:                 c.options.MangleSyntax,
 		ASCIIOnly:                    c.options.ASCIIOnly,
 		ToModuleRef:                  toModuleRef,
+		RuntimeRequireRef:            runtimeRequireRef,
 		LegalComments:                c.options.LegalComments,
 		UnsupportedFeatures:          c.options.UnsupportedJSFeatures,
 		AddSourceMappings:            addSourceMappings,
@@ -4059,6 +4076,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	commonJSRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__commonJS"].Ref)
 	esmRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__esm"].Ref)
 	toModuleRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__toModule"].Ref)
+	runtimeRequireRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__require"].Ref)
 	r := c.renameSymbolsInChunk(chunk, chunk.filesInChunkInOrder, timer)
 	dataForSourceMaps := c.dataForSourceMaps()
 
@@ -4093,6 +4111,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			commonJSRef,
 			esmRef,
 			toModuleRef,
+			runtimeRequireRef,
 			compileResult,
 			dataForSourceMaps,
 		)
