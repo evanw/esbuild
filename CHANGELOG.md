@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.22
 
 * Add support for the "import assertions" proposal
 
