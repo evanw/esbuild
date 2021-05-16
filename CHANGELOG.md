@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.23
 
 * Add a shim function for unbundled uses of `require` ([#1202](https://github.com/evanw/esbuild/issues/1202))
 
