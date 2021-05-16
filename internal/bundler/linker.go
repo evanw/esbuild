@@ -1871,7 +1871,6 @@ func (c *linkerContext) createWrapperForFile(sourceIndex uint32) {
 func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 	file := &c.graph.Files[sourceIndex]
 	repr := file.InputFile.Repr.(*graph.JSRepr)
-	tracker := logger.MakeLineColumnTracker(&file.InputFile.Source)
 
 	// Sort imports for determinism. Otherwise our unit tests will randomly
 	// fail sometimes when error messages are reordered.
@@ -1918,7 +1917,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 		case matchImportCycle:
 			namedImport := repr.AST.NamedImports[importRef]
-			c.log.AddRangeError(&tracker, js_lexer.RangeOfIdentifier(file.InputFile.Source, namedImport.AliasLoc),
+			c.log.AddRangeError(file.LineColumnTracker(), js_lexer.RangeOfIdentifier(file.InputFile.Source, namedImport.AliasLoc),
 				fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
 
 		case matchImportProbablyTypeScriptType:
@@ -1931,13 +1930,13 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 			// Provide the locations of both ambiguous exports if possible
 			if result.nameLoc.Start != 0 && result.otherNameLoc.Start != 0 {
-				a := c.graph.Files[result.sourceIndex].InputFile.Source
-				b := c.graph.Files[result.otherSourceIndex].InputFile.Source
-				trackerA := logger.MakeLineColumnTracker(&a)
-				trackerB := logger.MakeLineColumnTracker(&b)
+				a := c.graph.Files[result.sourceIndex]
+				b := c.graph.Files[result.otherSourceIndex]
+				ra := js_lexer.RangeOfIdentifier(a.InputFile.Source, result.nameLoc)
+				rb := js_lexer.RangeOfIdentifier(b.InputFile.Source, result.otherNameLoc)
 				notes = []logger.MsgData{
-					logger.RangeData(&trackerA, js_lexer.RangeOfIdentifier(a, result.nameLoc), "One matching export is here"),
-					logger.RangeData(&trackerB, js_lexer.RangeOfIdentifier(b, result.otherNameLoc), "Another matching export is here"),
+					logger.RangeData(a.LineColumnTracker(), ra, "One matching export is here"),
+					logger.RangeData(b.LineColumnTracker(), rb, "Another matching export is here"),
 				}
 			}
 
@@ -1952,10 +1951,10 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
 				msg := fmt.Sprintf("Import %q will always be undefined because there are multiple matching exports", namedImport.Alias)
-				c.log.AddRangeWarningWithNotes(&tracker, r, msg, notes)
+				c.log.AddRangeWarningWithNotes(file.LineColumnTracker(), r, msg, notes)
 			} else {
 				msg := fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias)
-				c.log.AddRangeErrorWithNotes(&tracker, r, msg, notes)
+				c.log.AddRangeErrorWithNotes(file.LineColumnTracker(), r, msg, notes)
 			}
 		}
 	}
@@ -2055,11 +2054,11 @@ loop:
 
 			// Warn about importing from a file that is known to not have any exports
 			if status == importCommonJSWithoutExports {
-				source := trackerFile.InputFile.Source
 				symbol := c.graph.Symbols.Get(tracker.importRef)
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
-				sourceTracker := logger.MakeLineColumnTracker(&source)
-				c.log.AddRangeWarning(&sourceTracker, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+				c.log.AddRangeWarning(
+					trackerFile.LineColumnTracker(),
+					js_lexer.RangeOfIdentifier(trackerFile.InputFile.Source, namedImport.AliasLoc),
 					fmt.Sprintf("Import %q will always be undefined because the file %q has no exports",
 						namedImport.Alias, c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath))
 			}
@@ -2083,10 +2082,8 @@ loop:
 		case importNoMatch:
 			symbol := c.graph.Symbols.Get(tracker.importRef)
 			trackerFile := &c.graph.Files[tracker.sourceIndex]
-			source := trackerFile.InputFile.Source
-			sourceTracker := logger.MakeLineColumnTracker(&source)
 			namedImport := trackerFile.InputFile.Repr.(*graph.JSRepr).AST.NamedImports[tracker.importRef]
-			r := js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
+			r := js_lexer.RangeOfIdentifier(trackerFile.InputFile.Source, namedImport.AliasLoc)
 
 			// Report mismatched imports and exports
 			if symbol.ImportItemStatus == js_ast.ImportItemGenerated {
@@ -2098,10 +2095,10 @@ loop:
 				// time, so we emit a warning and rewrite the value to the literal
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
-				c.log.AddRangeWarning(&sourceTracker, r, fmt.Sprintf(
+				c.log.AddRangeWarning(trackerFile.LineColumnTracker(), r, fmt.Sprintf(
 					"Import %q will always be undefined because there is no matching export", namedImport.Alias))
 			} else {
-				c.log.AddRangeError(&sourceTracker, r, fmt.Sprintf("No matching export in %q for import %q",
+				c.log.AddRangeError(trackerFile.LineColumnTracker(), r, fmt.Sprintf("No matching export in %q for import %q",
 					c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath, namedImport.Alias))
 			}
 

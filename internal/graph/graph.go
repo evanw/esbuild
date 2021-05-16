@@ -19,6 +19,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/runtime"
 )
 
@@ -36,6 +37,10 @@ type LinkerFile struct {
 	// This holds all entry points that can reach this file. It will be used to
 	// assign the parts in this file to a chunk.
 	EntryBits helpers.BitSet
+
+	// This is lazily-allocated because it's only needed if there are warnings
+	// logged, which should be relatively rare.
+	lazyLineColumnTracker *logger.LineColumnTracker
 
 	// The minimum number of links in the module graph to get from an entry point
 	// to this file
@@ -62,6 +67,16 @@ func (f *LinkerFile) IsEntryPoint() bool {
 
 func (f *LinkerFile) IsUserSpecifiedEntryPoint() bool {
 	return f.entryPointKind == entryPointUserSpecified
+}
+
+// Note: This is not guarded by a mutex. Make sure this isn't called from a
+// parallel part of the code.
+func (f *LinkerFile) LineColumnTracker() *logger.LineColumnTracker {
+	if f.lazyLineColumnTracker == nil {
+		tracker := logger.MakeLineColumnTracker(&f.InputFile.Source)
+		f.lazyLineColumnTracker = &tracker
+	}
+	return f.lazyLineColumnTracker
 }
 
 type EntryPoint struct {
