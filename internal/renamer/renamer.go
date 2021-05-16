@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/js_ast"
@@ -71,11 +72,10 @@ type symbolSlot struct {
 }
 
 type MinifyRenamer struct {
-	symbols       js_ast.SymbolMap
-	sortedBuffer  StableRefArray
-	reservedNames map[string]uint32
-	slots         [3][]symbolSlot
-	symbolToSlot  map[js_ast.Ref]ast.Index32
+	symbols              js_ast.SymbolMap
+	reservedNames        map[string]uint32
+	slots                [3][]symbolSlot
+	topLevelSymbolToSlot map[js_ast.Ref]uint32
 }
 
 func NewMinifyRenamer(symbols js_ast.SymbolMap, firstTopLevelSlots js_ast.SlotCounts, reservedNames map[string]uint32) *MinifyRenamer {
@@ -87,7 +87,7 @@ func NewMinifyRenamer(symbols js_ast.SymbolMap, firstTopLevelSlots js_ast.SlotCo
 			make([]symbolSlot, firstTopLevelSlots[1]),
 			make([]symbolSlot, firstTopLevelSlots[2]),
 		},
-		symbolToSlot: make(map[js_ast.Ref]ast.Index32),
+		topLevelSymbolToSlot: make(map[js_ast.Ref]uint32),
 	}
 }
 
@@ -107,8 +107,7 @@ func (r *MinifyRenamer) NameForSymbol(ref js_ast.Ref) string {
 
 	// If it's not (i.e. it's in a top-level scope), look up the slot
 	if !i.IsValid() {
-		var ok bool
-		i, ok = r.symbolToSlot[ref]
+		index, ok := r.topLevelSymbolToSlot[ref]
 		if !ok {
 			// If we get here, then we're printing a symbol that never had any
 			// recorded uses. This is odd but can happen in certain scenarios.
@@ -117,29 +116,67 @@ func (r *MinifyRenamer) NameForSymbol(ref js_ast.Ref) string {
 			// what name we use since it's dead code.
 			return symbol.OriginalName
 		}
+		i = ast.MakeIndex32(index)
 	}
 
 	return r.slots[ns][i.GetIndex()].name
 }
 
-func (r *MinifyRenamer) AccumulateSymbolUseCounts(symbolUses map[js_ast.Ref]js_ast.SymbolUse, stableSourceIndices []uint32) {
-	// Sort symbol uses for determinism, reusing a shared memory buffer
-	r.sortedBuffer = r.sortedBuffer[:0]
-	for ref := range symbolUses {
-		r.sortedBuffer = append(r.sortedBuffer, StableRef{
-			StableSourceIndex: stableSourceIndices[ref.SourceIndex],
-			Ref:               ref,
-		})
-	}
-	sort.Sort(r.sortedBuffer)
+// The sort order here is arbitrary but needs to be consistent between builds.
+// The InnerIndex should be stable because the parser for a single file is
+// single-threaded and deterministically assigns out InnerIndex values
+// sequentially. But the SourceIndex should be unstable because the main thread
+// assigns out source index values sequentially to newly-discovered dependencies
+// in a multi-threaded producer/consumer relationship. So instead we use the
+// index of the source in the DFS order over all entry points for stability.
+type DeferredTopLevelSymbol struct {
+	StableSourceIndex uint32
+	Ref               js_ast.Ref
+	Count             uint32
+}
 
-	// Accumulate symbol use counts
-	for _, stable := range r.sortedBuffer {
-		r.AccumulateSymbolCount(stable.Ref, symbolUses[stable.Ref].CountEstimate)
+// This type is just so we can use Go's native sort function
+type DeferredTopLevelSymbolArray []DeferredTopLevelSymbol
+
+func (a DeferredTopLevelSymbolArray) Len() int          { return len(a) }
+func (a DeferredTopLevelSymbolArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+func (a DeferredTopLevelSymbolArray) Less(i int, j int) bool {
+	ai, aj := a[i], a[j]
+	if ai.StableSourceIndex < aj.StableSourceIndex {
+		return true
+	}
+	if ai.StableSourceIndex > aj.StableSourceIndex {
+		return false
+	}
+	if ai.Ref.InnerIndex < aj.Ref.InnerIndex {
+		return true
+	}
+	if ai.Ref.InnerIndex > aj.Ref.InnerIndex {
+		return false
+	}
+	return ai.Count < aj.Count
+}
+
+func (r *MinifyRenamer) AccumulateSymbolUseCounts(
+	topLevelSymbols *DeferredTopLevelSymbolArray,
+	symbolUses map[js_ast.Ref]js_ast.SymbolUse,
+	stableSourceIndices []uint32,
+) {
+	// NOTE: This function is run in parallel. Make sure to avoid data races.
+
+	for ref, use := range symbolUses {
+		r.AccumulateSymbolCount(topLevelSymbols, ref, use.CountEstimate, stableSourceIndices)
 	}
 }
 
-func (r *MinifyRenamer) AccumulateSymbolCount(ref js_ast.Ref, count uint32) {
+func (r *MinifyRenamer) AccumulateSymbolCount(
+	topLevelSymbols *DeferredTopLevelSymbolArray,
+	ref js_ast.Ref,
+	count uint32,
+	stableSourceIndices []uint32,
+) {
+	// NOTE: This function is run in parallel. Make sure to avoid data races.
+
 	// Follow links to get to the underlying symbol
 	ref = js_ast.FollowSymbols(r.symbols, ref)
 	symbol := r.symbols.Get(ref)
@@ -156,20 +193,37 @@ func (r *MinifyRenamer) AccumulateSymbolCount(ref js_ast.Ref, count uint32) {
 
 	// Check if it's a nested scope symbol
 	slots := &r.slots[ns]
-	i := symbol.NestedScopeSlot
-
-	// If it's not (i.e. it's in a top-level scope), allocate a slot for it
-	if !i.IsValid() {
-		var ok bool
-		i, ok = r.symbolToSlot[ref]
-		if !ok {
-			i = ast.MakeIndex32(uint32(len(*slots)))
-			*slots = append(*slots, symbolSlot{})
-			r.symbolToSlot[ref] = i
-		}
+	if i := symbol.NestedScopeSlot; i.IsValid() {
+		// If it is, accumulate the count using a parallel-safe atomic increment
+		atomic.AddUint32(&(*slots)[i.GetIndex()].count, count)
+		return
 	}
 
-	(*slots)[i.GetIndex()].count += count
+	// If it's a top-level symbol, defer it to later since we have
+	// to allocate slots for these in serial instead of in parallel
+	*topLevelSymbols = append(*topLevelSymbols, DeferredTopLevelSymbol{
+		StableSourceIndex: stableSourceIndices[ref.SourceIndex],
+		Ref:               ref,
+		Count:             count,
+	})
+}
+
+// The parallel part of the symbol count accumulation algorithm above processes
+// nested symbols and generates on an array of top-level symbols to process later.
+// After the parallel part has finished, that array of top-level symbols is passed
+// to this function which processes them in serial.
+func (r *MinifyRenamer) AllocateTopLevelSymbolSlots(topLevelSymbols DeferredTopLevelSymbolArray) {
+	for _, stable := range topLevelSymbols {
+		symbol := r.symbols.Get(stable.Ref)
+		slots := &r.slots[symbol.SlotNamespace()]
+		if i, ok := r.topLevelSymbolToSlot[stable.Ref]; ok {
+			(*slots)[i].count += stable.Count
+		} else {
+			i = uint32(len(*slots))
+			*slots = append(*slots, symbolSlot{count: stable.Count})
+			r.topLevelSymbolToSlot[stable.Ref] = i
+		}
+	}
 }
 
 func (r *MinifyRenamer) AssignNamesByFrequency(minifier *js_ast.NameMinifier) {
@@ -301,28 +355,6 @@ func (a slotAndCountArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 func (a slotAndCountArray) Less(i int, j int) bool {
 	ai, aj := a[i], a[j]
 	return ai.count > aj.count || (ai.count == aj.count && ai.slot < aj.slot)
-}
-
-// The sort order here is arbitrary but needs to be consistent between builds.
-// The InnerIndex should be stable because the parser for a single file is
-// single-threaded and deterministically assigns out InnerIndex values
-// sequentially. But the SourceIndex should be unstable because the main thread
-// assigns out source index values sequentially to newly-discovered dependencies
-// in a multi-threaded producer/consumer relationship. So instead we use the
-// index of the source in the DFS order over all entry points for stability.
-type StableRef struct {
-	StableSourceIndex uint32
-	Ref               js_ast.Ref
-}
-
-// This type is just so we can use Go's native sort function
-type StableRefArray []StableRef
-
-func (a StableRefArray) Len() int          { return len(a) }
-func (a StableRefArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
-func (a StableRefArray) Less(i int, j int) bool {
-	ai, aj := a[i], a[j]
-	return ai.StableSourceIndex < aj.StableSourceIndex || (ai.StableSourceIndex == aj.StableSourceIndex && ai.Ref.InnerIndex < aj.Ref.InnerIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

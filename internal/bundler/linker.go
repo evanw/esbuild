@@ -1017,11 +1017,33 @@ func (a crossChunkImportItemArray) Less(i int, j int) bool {
 	return a[i].exportAlias < a[j].exportAlias
 }
 
+// The sort order here is arbitrary but needs to be consistent between builds.
+// The InnerIndex should be stable because the parser for a single file is
+// single-threaded and deterministically assigns out InnerIndex values
+// sequentially. But the SourceIndex should be unstable because the main thread
+// assigns out source index values sequentially to newly-discovered dependencies
+// in a multi-threaded producer/consumer relationship. So instead we use the
+// index of the source in the DFS order over all entry points for stability.
+type stableRef struct {
+	StableSourceIndex uint32
+	Ref               js_ast.Ref
+}
+
+// This type is just so we can use Go's native sort function
+type stableRefArray []stableRef
+
+func (a stableRefArray) Len() int          { return len(a) }
+func (a stableRefArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+func (a stableRefArray) Less(i int, j int) bool {
+	ai, aj := a[i], a[j]
+	return ai.StableSourceIndex < aj.StableSourceIndex || (ai.StableSourceIndex == aj.StableSourceIndex && ai.Ref.InnerIndex < aj.Ref.InnerIndex)
+}
+
 // Sort cross-chunk exports by chunk name for determinism
-func (c *linkerContext) sortedCrossChunkExportItems(exportRefs map[js_ast.Ref]bool) renamer.StableRefArray {
-	result := make(renamer.StableRefArray, 0, len(exportRefs))
+func (c *linkerContext) sortedCrossChunkExportItems(exportRefs map[js_ast.Ref]bool) stableRefArray {
+	result := make(stableRefArray, 0, len(exportRefs))
 	for ref := range exportRefs {
-		result = append(result, renamer.StableRef{
+		result = append(result, stableRef{
 			StableSourceIndex: c.graph.StableSourceIndices[ref.SourceIndex],
 			Ref:               ref,
 		})
@@ -3906,10 +3928,10 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	timer.End("Compute reserved names")
 
 	// Make sure imports get a chance to be renamed too
-	var sortedImportsFromOtherChunks renamer.StableRefArray
+	var sortedImportsFromOtherChunks stableRefArray
 	for _, imports := range chunk.chunkRepr.(*chunkReprJS).importsFromOtherChunks {
 		for _, item := range imports {
-			sortedImportsFromOtherChunks = append(sortedImportsFromOtherChunks, renamer.StableRef{
+			sortedImportsFromOtherChunks = append(sortedImportsFromOtherChunks, stableRef{
 				StableSourceIndex: c.graph.StableSourceIndices[item.ref.SourceIndex],
 				Ref:               item.ref,
 			})
@@ -3926,39 +3948,66 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		}
 		r := renamer.NewMinifyRenamer(c.graph.Symbols, firstTopLevelSlots, reservedNames)
 
-		// Accumulate symbol usage counts into their slots
+		// Accumulate nested symbol usage counts
 		timer.Begin("Accumulate symbol counts")
+		timer.Begin("Parallel phase")
+		allTopLevelSymbols := make([]renamer.DeferredTopLevelSymbolArray, len(filesInOrder))
+		stableSourceIndices := c.graph.StableSourceIndices
 		freq := js_ast.CharFreq{}
-		for _, stable := range sortedImportsFromOtherChunks {
-			r.AccumulateSymbolCount(stable.Ref, 1)
-		}
-		for _, sourceIndex := range filesInOrder {
+		waitGroup := sync.WaitGroup{}
+		waitGroup.Add(len(filesInOrder))
+		for i, sourceIndex := range filesInOrder {
 			repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr)
+
+			// Do this outside of the goroutine because it's not atomic
 			if repr.AST.CharFreq != nil {
 				freq.Include(repr.AST.CharFreq)
 			}
-			if repr.AST.UsesExportsRef {
-				r.AccumulateSymbolCount(repr.AST.ExportsRef, 1)
-			}
-			if repr.AST.UsesModuleRef {
-				r.AccumulateSymbolCount(repr.AST.ModuleRef, 1)
-			}
 
-			for partIndex, part := range repr.AST.Parts {
-				if !repr.AST.Parts[partIndex].IsLive {
-					// Skip the part if it's not in this chunk
-					continue
+			go func(topLevelSymbols *renamer.DeferredTopLevelSymbolArray, repr *graph.JSRepr) {
+				if repr.AST.UsesExportsRef {
+					r.AccumulateSymbolCount(topLevelSymbols, repr.AST.ExportsRef, 1, stableSourceIndices)
+				}
+				if repr.AST.UsesModuleRef {
+					r.AccumulateSymbolCount(topLevelSymbols, repr.AST.ModuleRef, 1, stableSourceIndices)
 				}
 
-				// Accumulate symbol use counts
-				r.AccumulateSymbolUseCounts(part.SymbolUses, c.graph.StableSourceIndices)
+				for partIndex, part := range repr.AST.Parts {
+					if !repr.AST.Parts[partIndex].IsLive {
+						// Skip the part if it's not in this chunk
+						continue
+					}
 
-				// Make sure to also count the declaration in addition to the uses
-				for _, declared := range part.DeclaredSymbols {
-					r.AccumulateSymbolCount(declared.Ref, 1)
+					// Accumulate symbol use counts
+					r.AccumulateSymbolUseCounts(topLevelSymbols, part.SymbolUses, stableSourceIndices)
+
+					// Make sure to also count the declaration in addition to the uses
+					for _, declared := range part.DeclaredSymbols {
+						r.AccumulateSymbolCount(topLevelSymbols, declared.Ref, 1, stableSourceIndices)
+					}
 				}
-			}
+				sort.Sort(topLevelSymbols)
+				waitGroup.Done()
+			}(&allTopLevelSymbols[i], repr)
 		}
+		waitGroup.Wait()
+		timer.End("Parallel phase")
+
+		// Accumulate top-level symbol usage counts
+		timer.Begin("Serial phase")
+		capacity := len(sortedImportsFromOtherChunks)
+		for _, array := range allTopLevelSymbols {
+			capacity += len(array)
+		}
+		topLevelSymbols := make(renamer.DeferredTopLevelSymbolArray, 0, capacity)
+		for _, stable := range sortedImportsFromOtherChunks {
+			r.AccumulateSymbolCount(&topLevelSymbols, stable.Ref, 1, stableSourceIndices)
+		}
+		for _, array := range allTopLevelSymbols {
+			topLevelSymbols = append(topLevelSymbols, array...)
+		}
+		r.AllocateTopLevelSymbolSlots(topLevelSymbols)
+		timer.End("Serial phase")
 		timer.End("Accumulate symbol counts")
 
 		// Add all of the character frequency histograms for all files in this
