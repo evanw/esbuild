@@ -100,7 +100,7 @@ type chunkInfo struct {
 	// When this chunk is initially generated in isolation, the output pieces
 	// will contain slices of the output with the unique keys of other chunks
 	// omitted.
-	outputPieces []outputPiece
+	intermediateOutput intermediateOutput
 
 	// This contains the hash for just this chunk without including information
 	// from the hashes of other chunks. Later on in the linking process, the
@@ -110,7 +110,7 @@ type chunkInfo struct {
 	waitForIsolatedHash func() []byte
 
 	// Other fields relating to the output file for this chunk
-	jsonMetadataChunkCallback func(finalOutputSize int) []byte
+	jsonMetadataChunkCallback func(finalOutputSize int) helpers.Joiner
 	outputSourceMap           sourcemap.SourceMapPieces
 	isExecutable              bool
 }
@@ -131,6 +131,18 @@ type outputPiece struct {
 	// Note: This may be invalid. For example, the chunk may not contain any
 	// imports, in which case there is one piece with data and no chunk index.
 	chunkIndex ast.Index32
+}
+
+type intermediateOutput struct {
+	// If the chunk doesn't have any references to other chunks, then "pieces" is
+	// nil and "joiner" contains the contents of the chunk. This is more efficient
+	// because it avoids doing a join operation twice.
+	joiner helpers.Joiner
+
+	// Otherwise, "pieces" contains the contents of the chunk and "joiner" should
+	// not be used. Another joiner will have to be constructed later when merging
+	// the pieces together.
+	pieces []outputPiece
 }
 
 type chunkRepr interface{ isChunk() }
@@ -376,9 +388,10 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 
 			// Path substitution for the chunk itself
 			finalRelDir := c.fs.Dir(chunk.finalRelPath)
-			outputContentsJoiner, outputSourceMapShifts := c.substituteFinalPaths(chunks, chunk.outputPieces, func(finalRelPathForImport string) string {
-				return c.pathBetweenChunks(finalRelDir, finalRelPathForImport)
-			})
+			outputContentsJoiner, outputSourceMapShifts := c.substituteFinalPaths(chunks, chunk.intermediateOutput,
+				func(finalRelPathForImport string) string {
+					return c.pathBetweenChunks(finalRelDir, finalRelPathForImport)
+				})
 
 			// Generate the optional legal comments file for this chunk
 			if chunk.externalLegalComments != nil {
@@ -482,14 +495,21 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 // everything into a single byte buffer.
 func (c *linkerContext) substituteFinalPaths(
 	chunks []chunkInfo,
-	pieces []outputPiece,
+	intermediateOutput intermediateOutput,
 	modifyPath func(string) string,
 ) (j helpers.Joiner, shifts []sourcemap.SourceMapShift) {
+	// Optimization: If there can be no substitutions, just reuse the initial
+	// joiner that was used when generating the intermediate chunk output
+	// instead of creating another one and copying the whole file into it.
+	if intermediateOutput.pieces == nil {
+		return intermediateOutput.joiner, []sourcemap.SourceMapShift{{}}
+	}
+
 	var shift sourcemap.SourceMapShift
-	shifts = make([]sourcemap.SourceMapShift, 0, len(pieces))
+	shifts = make([]sourcemap.SourceMapShift, 0, len(intermediateOutput.pieces))
 	shifts = append(shifts, shift)
 
-	for _, piece := range pieces {
+	for _, piece := range intermediateOutput.pieces {
 		var dataOffset sourcemap.LineColumnOffset
 		j.AddBytes(piece.data)
 		dataOffset.AdvanceBytes(piece.data)
@@ -4427,13 +4447,12 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	}
 
 	// The JavaScript contents are done now that the source map comment is in
-	jsContents := j.Done()
-	chunk.outputPieces = c.breakOutputIntoPieces(jsContents, uint32(len(chunks)))
+	chunk.intermediateOutput = c.breakOutputIntoPieces(j, uint32(len(chunks)))
 	timer.End("Join JavaScript files")
 
 	if c.options.SourceMap != config.SourceMapNone {
 		timer.Begin("Generate source map")
-		canHaveShifts := len(chunk.outputPieces) != 1 || chunk.outputPieces[0].chunkIndex.IsValid()
+		canHaveShifts := chunk.intermediateOutput.pieces != nil
 		chunk.outputSourceMap = c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps, canHaveShifts)
 		timer.End("Generate source map")
 	}
@@ -4441,7 +4460,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	// End the metadata lazily. The final output size is not known until the
 	// final import paths are substituted into the output pieces generated below.
 	if c.options.NeedsMetafile {
-		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) []byte {
+		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) helpers.Joiner {
 			isFirstMeta := true
 			for _, sourceIndex := range metaOrder {
 				if isFirstMeta {
@@ -4458,7 +4477,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 				jMeta.AddString("\n      ")
 			}
 			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
-			return jMeta.Done()
+			return jMeta
 		}
 	}
 
@@ -4687,22 +4706,21 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 	}
 
 	// The CSS contents are done now that the source map comment is in
-	cssContents := j.Done()
+	chunk.intermediateOutput = c.breakOutputIntoPieces(j, uint32(len(chunks)))
 	timer.End("Join CSS files")
 
 	// End the metadata lazily. The final output size is not known until the
 	// final import paths are substituted into the output pieces generated below.
 	if c.options.NeedsMetafile {
-		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) []byte {
+		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) helpers.Joiner {
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
 			}
 			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
-			return jMeta.Done()
+			return jMeta
 		}
 	}
 
-	chunk.outputPieces = c.breakOutputIntoPieces(cssContents, uint32(len(chunks)))
 	c.generateIsolatedHashInParallel(chunk)
 	chunkWaitGroup.Done()
 }
@@ -4733,8 +4751,16 @@ func appendIsolatedHashesForImportedChunks(
 	hash.Write(chunk.waitForIsolatedHash())
 }
 
-func (c *linkerContext) breakOutputIntoPieces(output []byte, chunkCount uint32) []outputPiece {
+func (c *linkerContext) breakOutputIntoPieces(j helpers.Joiner, chunkCount uint32) intermediateOutput {
+	// Optimization: If there can be no substitutions, just reuse the initial
+	// joiner that was used when generating the intermediate chunk output
+	// instead of creating another one and copying the whole file into it.
+	if !j.Contains(c.uniqueKeyPrefix, c.uniqueKeyPrefixBytes) {
+		return intermediateOutput{joiner: j}
+	}
+
 	var pieces []outputPiece
+	output := j.Done()
 	prefix := c.uniqueKeyPrefixBytes
 	for {
 		// Scan for the next chunk path
@@ -4775,7 +4801,7 @@ func (c *linkerContext) breakOutputIntoPieces(output []byte, chunkCount uint32) 
 		})
 		output = output[boundary+len(prefix)+8:]
 	}
-	return pieces
+	return intermediateOutput{pieces: pieces}
 }
 
 func (c *linkerContext) generateIsolatedHashInParallel(chunk *chunkInfo) {
@@ -4834,8 +4860,13 @@ func (c *linkerContext) generateIsolatedHash(chunk *chunkInfo, channel chan []by
 	// Include the generated output content in the hash. This excludes the
 	// randomly-generated import paths (the unique keys) and only includes the
 	// data in the spans between them.
-	for _, piece := range chunk.outputPieces {
-		hashWriteLengthPrefixed(hash, piece.data)
+	if chunk.intermediateOutput.pieces != nil {
+		for _, piece := range chunk.intermediateOutput.pieces {
+			hashWriteLengthPrefixed(hash, piece.data)
+		}
+	} else {
+		bytes := chunk.intermediateOutput.joiner.Done()
+		hashWriteLengthPrefixed(hash, bytes)
 	}
 
 	// Also include the source map data in the hash. The source map is named the
