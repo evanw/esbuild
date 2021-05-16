@@ -2158,12 +2158,17 @@ type runtimeCacheKey struct {
 	Platform          config.Platform
 }
 
+type definesCacheKey struct {
+	platform      config.Platform
+	profilerNames bool
+}
+
 type runtimeCache struct {
 	astMutex sync.Mutex
 	astMap   map[runtimeCacheKey]js_ast.AST
 
 	definesMutex sync.Mutex
-	definesMap   map[config.Platform]*config.ProcessedDefines
+	definesMap   map[definesCacheKey]*config.ProcessedDefines
 }
 
 var globalRuntimeCache runtimeCache
@@ -2210,7 +2215,10 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		MangleSyntax:      key.MangleSyntax,
 		MinifyIdentifiers: key.MinifyIdentifiers,
 		Platform:          key.Platform,
-		Defines:           cache.processedDefines(key.Platform, key.ProfilerNames),
+		Defines: cache.processedDefines(definesCacheKey{
+			platform:      key.Platform,
+			profilerNames: key.ProfilerNames,
+		}),
 		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(
 			map[compat.Engine][]int{compat.ES: {constraint}}),
 
@@ -2238,7 +2246,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 	return
 }
 
-func (cache *runtimeCache) processedDefines(key config.Platform, profilerNames bool) (defines *config.ProcessedDefines) {
+func (cache *runtimeCache) processedDefines(key definesCacheKey) (defines *config.ProcessedDefines) {
 	ok := false
 
 	// Cache hit?
@@ -2255,7 +2263,7 @@ func (cache *runtimeCache) processedDefines(key config.Platform, profilerNames b
 
 	// Cache miss
 	var platform string
-	switch key {
+	switch key.platform {
 	case config.PlatformBrowser:
 		platform = "browser"
 	case config.PlatformNode:
@@ -2271,7 +2279,7 @@ func (cache *runtimeCache) processedDefines(key config.Platform, profilerNames b
 		},
 		"__profiler": {
 			DefineFunc: func(da config.DefineArgs) js_ast.E {
-				return &js_ast.EBoolean{Value: profilerNames}
+				return &js_ast.EBoolean{Value: key.profilerNames}
 			},
 		},
 	})
@@ -2281,7 +2289,7 @@ func (cache *runtimeCache) processedDefines(key config.Platform, profilerNames b
 	cache.definesMutex.Lock()
 	defer cache.definesMutex.Unlock()
 	if cache.definesMap == nil {
-		cache.definesMap = make(map[config.Platform]*config.ProcessedDefines)
+		cache.definesMap = make(map[definesCacheKey]*config.ProcessedDefines)
 	}
 	cache.definesMap[key] = defines
 	return

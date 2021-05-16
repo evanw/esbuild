@@ -34,6 +34,10 @@
     require_example();
     ```
 
+* Fix incorrect caching of internal helper function library ([#1292](https://github.com/evanw/esbuild/issues/1292))
+
+    This release fixes a bug where running esbuild multiple times with different configurations sometimes resulted in code that would crash at run-time. The bug was introduced in version 0.11.19 and happened because esbuild's internal helper function library is parsed once and cached per configuration, but the new profiler name option was accidentally not included in the cache key. This option is now included in the cache key so this bug should now be fixed.
+
 ## 0.11.22
 
 * Add support for the "import assertions" proposal
