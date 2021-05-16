@@ -46,7 +46,7 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 
 	case js_lexer.TNull:
 		p.lexer.Next()
-		return js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}}
+		return js_ast.Expr{Loc: loc, Data: js_ast.ENullShared}
 
 	case js_lexer.TStringLiteral:
 		value := p.lexer.StringLiteral

@@ -307,7 +307,7 @@ func (p *parser) lowerFunction(
 		// Determine the value for "this"
 		thisValue, hasThisValue := p.valueForThis(bodyLoc, false /* shouldWarn */)
 		if !hasThisValue {
-			thisValue = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EThis{}}
+			thisValue = js_ast.Expr{Loc: bodyLoc, Data: js_ast.EThisShared}
 		}
 
 		// Move the code into a nested generator function
@@ -336,7 +336,7 @@ func (p *parser) lowerFunction(
 			// Simple case: the arguments can stay on the outer function. It's
 			// worth separating out the simple case because it's the common case
 			// and it generates smaller code.
-			forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.ENull{}}
+			forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: js_ast.ENullShared}
 		} else {
 			// If code uses "arguments" then we must move the arguments to the inner
 			// function. This is because you can modify arguments by assigning to
@@ -445,7 +445,7 @@ func (p *parser) lowerFunction(
 							Loc: bodyLoc,
 							Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
 								ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
-									Target: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.ESuper{}},
+									Target: js_ast.Expr{Loc: bodyLoc, Data: js_ast.ESuperShared},
 									Index:  js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: argRef}},
 								}},
 							}}},
@@ -463,7 +463,7 @@ func (p *parser) lowerFunction(
 }
 
 func (p *parser) lowerOptionalChain(expr js_ast.Expr, in exprIn, childOut exprOut) (js_ast.Expr, exprOut) {
-	valueWhenUndefined := js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EUndefined{}}
+	valueWhenUndefined := js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}
 	endsWithPropertyAccess := false
 	containsPrivateName := false
 	startsWithCall := false
@@ -583,7 +583,7 @@ flatten:
 					//
 					//   (_a = super.foo) == null ? void 0 : _a.call(this)
 					//
-					thisArg = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
+					thisArg = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 				} else {
 					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target, valueDefinitelyNotMutated)
 					expr = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
@@ -603,7 +603,7 @@ flatten:
 					}
 
 					// See the comment above about a similar special case for EDot
-					thisArg = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
+					thisArg = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 				} else {
 					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target, valueDefinitelyNotMutated)
 					targetWrapFunc = wrapFunc
@@ -740,7 +740,7 @@ flatten:
 		Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    js_ast.BinOpLooseEq,
 			Left:  expr,
-			Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
+			Right: js_ast.Expr{Loc: loc, Data: js_ast.ENullShared},
 		}},
 		Yes: valueWhenUndefined,
 		No:  result,
@@ -901,7 +901,7 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 		Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    js_ast.BinOpLooseNe,
 			Left:  leftFunc(),
-			Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
+			Right: js_ast.Expr{Loc: loc, Data: js_ast.ENullShared},
 		}},
 		Yes: leftFunc(),
 		No:  right,
@@ -2142,7 +2142,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				if prop.IsStatic {
 					target = nameFunc()
 				} else {
-					target = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
+					target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 				}
 
 				// Generate the assignment initializer
@@ -2150,7 +2150,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				if prop.InitializerOrNil.Data != nil {
 					init = prop.InitializerOrNil
 				} else {
-					init = js_ast.Expr{Loc: loc, Data: &js_ast.EUndefined{}}
+					init = js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}
 				}
 
 				// Generate the assignment target
@@ -2245,7 +2245,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					if prop.IsStatic {
 						target = nameFunc()
 					} else {
-						target = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
+						target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 					}
 
 					// Add every newly-constructed instance into this map
@@ -2296,7 +2296,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 								if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
 									parameterFields = append(parameterFields, js_ast.AssignStmt(
 										js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EDot{
-											Target:  js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EThis{}},
+											Target:  js_ast.Expr{Loc: arg.Binding.Loc, Data: js_ast.EThisShared},
 											Name:    p.symbols[id.Ref.InnerIndex].OriginalName,
 											NameLoc: arg.Binding.Loc,
 										}},
@@ -2336,7 +2336,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				argumentsRef := p.newSymbol(js_ast.SymbolUnbound, "arguments")
 				p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
 				ctor.Fn.Body.Stmts = append(ctor.Fn.Body.Stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.ECall{
-					Target: js_ast.Expr{Loc: classLoc, Data: &js_ast.ESuper{}},
+					Target: js_ast.Expr{Loc: classLoc, Data: js_ast.ESuperShared},
 					Args:   []js_ast.Expr{{Loc: classLoc, Data: &js_ast.ESpread{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: argumentsRef}}}}},
 				}}}})
 			}
@@ -2637,7 +2637,7 @@ func (p *parser) maybeLowerSuperPropertyAccessInsideCall(call *js_ast.ECall) {
 		NameLoc: key.Loc,
 		Name:    "call",
 	}
-	thisExpr := js_ast.Expr{Loc: call.Target.Loc, Data: &js_ast.EThis{}}
+	thisExpr := js_ast.Expr{Loc: call.Target.Loc, Data: js_ast.EThisShared}
 	call.Args = append([]js_ast.Expr{thisExpr}, call.Args...)
 }
 

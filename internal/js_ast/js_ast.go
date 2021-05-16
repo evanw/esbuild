@@ -404,6 +404,8 @@ type EBinary struct {
 
 type EBoolean struct{ Value bool }
 
+type EMissing struct{}
+
 type ESuper struct{}
 
 type ENull struct{}
@@ -411,6 +413,20 @@ type ENull struct{}
 type EUndefined struct{}
 
 type EThis struct{}
+
+type ENewTarget struct{}
+
+type EImportMeta struct{}
+
+// These help reduce unnecessary memory allocations
+var BMissingShared = &BMissing{}
+var EMissingShared = &EMissing{}
+var ESuperShared = &ESuper{}
+var ENullShared = &ENull{}
+var EUndefinedShared = &EUndefined{}
+var EThisShared = &EThis{}
+var ENewTargetShared = &ENewTarget{}
+var EImportMetaShared = &EImportMeta{}
 
 type ENew struct {
 	Target Expr
@@ -420,10 +436,6 @@ type ENew struct {
 	// this call expression. See the comment inside ECall for more details.
 	CanBeUnwrappedIfUnused bool
 }
-
-type ENewTarget struct{}
-
-type EImportMeta struct{}
 
 type OptionalChain uint8
 
@@ -568,8 +580,6 @@ type EJSXElement struct {
 	Properties []Property
 	Children   []Expr
 }
-
-type EMissing struct{}
 
 type ENumber struct{ Value float64 }
 

@@ -3718,7 +3718,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 					// "null" instead of something shorter like "0" because the library
 					// "cjs-module-lexer" only supports identifiers in this position, and
 					// it thinks "null" is an identifier.
-					valueOrNil = js_ast.Expr{Data: &js_ast.ENull{}}
+					valueOrNil = js_ast.Expr{Data: js_ast.ENullShared}
 				}
 
 				moduleExports = append(moduleExports, js_ast.Property{

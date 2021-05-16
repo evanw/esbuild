@@ -2665,7 +2665,7 @@ func (p *parser) convertExprToBindingAndInitializer(
 func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (js_ast.Binding, invalidLog) {
 	switch e := expr.Data.(type) {
 	case *js_ast.EMissing:
-		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BMissing{}}, invalidLog
+		return js_ast.Binding{Loc: expr.Loc, Data: js_ast.BMissingShared}, invalidLog
 
 	case *js_ast.EIdentifier:
 		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BIdentifier{Ref: e.Ref}}, invalidLog
@@ -2755,17 +2755,17 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		switch p.lexer.Token {
 		case js_lexer.TOpenParen:
 			if level < js_ast.LCall && p.fnOrArrowDataParse.allowSuperCall {
-				return js_ast.Expr{Loc: loc, Data: &js_ast.ESuper{}}
+				return js_ast.Expr{Loc: loc, Data: js_ast.ESuperShared}
 			}
 
 		case js_lexer.TDot, js_lexer.TOpenBracket:
 			if p.fnOrArrowDataParse.allowSuperProperty {
-				return js_ast.Expr{Loc: loc, Data: &js_ast.ESuper{}}
+				return js_ast.Expr{Loc: loc, Data: js_ast.ESuperShared}
 			}
 		}
 
 		p.log.AddRangeError(&p.tracker, superRange, "Unexpected \"super\"")
-		return js_ast.Expr{Loc: loc, Data: &js_ast.ESuper{}}
+		return js_ast.Expr{Loc: loc, Data: js_ast.ESuperShared}
 
 	case js_lexer.TOpenParen:
 		p.lexer.Next()
@@ -2797,11 +2797,11 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 	case js_lexer.TNull:
 		p.lexer.Next()
-		return js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}}
+		return js_ast.Expr{Loc: loc, Data: js_ast.ENullShared}
 
 	case js_lexer.TThis:
 		p.lexer.Next()
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
+		return js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 
 	case js_lexer.TPrivateIdentifier:
 		if !p.allowPrivateIdentifiers || !p.allowIn {
@@ -3104,7 +3104,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			r := logger.Range{Loc: loc, Len: p.lexer.Range().End() - loc.Start}
 			p.markSyntaxFeature(compat.NewTarget, r)
 			p.lexer.Next()
-			return js_ast.Expr{Loc: loc, Data: &js_ast.ENewTarget{}}
+			return js_ast.Expr{Loc: loc, Data: js_ast.ENewTargetShared}
 		}
 
 		target := p.parseExprWithFlags(js_ast.LMember, flags)
@@ -3142,7 +3142,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		for p.lexer.Token != js_lexer.TCloseBracket {
 			switch p.lexer.Token {
 			case js_lexer.TComma:
-				items = append(items, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EMissing{}})
+				items = append(items, js_ast.Expr{Loc: p.lexer.Loc(), Data: js_ast.EMissingShared})
 
 			case js_lexer.TDotDotDot:
 				if errors != nil {
@@ -3427,7 +3427,7 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 				r = logger.Range{Loc: loc, Len: r.End() - loc.Start}
 				p.markSyntaxFeature(compat.ImportMeta, r)
 			}
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EImportMeta{}}
+			return js_ast.Expr{Loc: loc, Data: js_ast.EImportMetaShared}
 		} else {
 			p.lexer.ExpectedString("\"meta\"")
 		}
@@ -4758,7 +4758,7 @@ func (p *parser) parseBinding() js_ast.Binding {
 
 		for p.lexer.Token != js_lexer.TCloseBracket {
 			if p.lexer.Token == js_lexer.TComma {
-				binding := js_ast.Binding{Loc: p.lexer.Loc(), Data: &js_ast.BMissing{}}
+				binding := js_ast.Binding{Loc: p.lexer.Loc(), Data: js_ast.BMissingShared}
 				items = append(items, js_ast.ArrayBinding{Binding: binding})
 			} else {
 				if p.lexer.Token == js_lexer.TDotDotDot {
@@ -6882,7 +6882,7 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 		if ref := p.fnOnlyDataVisit.thisCaptureRef; ref != nil {
 			p.tempRefsToDeclare = append(p.tempRefsToDeclare, tempRef{
 				ref:        *ref,
-				valueOrNil: js_ast.Expr{Loc: *opts.fnBodyLoc, Data: &js_ast.EThis{}},
+				valueOrNil: js_ast.Expr{Loc: *opts.fnBodyLoc, Data: js_ast.EThisShared},
 			})
 			p.currentScope.Generated = append(p.currentScope.Generated, *ref)
 		}
@@ -7415,11 +7415,11 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					right := lastReturn.ValueOrNil
 					if left.Data == nil {
 						// "if (a) return; return b;" => "return a ? void 0 : b;"
-						left = js_ast.Expr{Loc: prevS.Yes.Loc, Data: &js_ast.EUndefined{}}
+						left = js_ast.Expr{Loc: prevS.Yes.Loc, Data: js_ast.EUndefinedShared}
 					}
 					if right.Data == nil {
 						// "if (a) return a; return;" => "return a ? b : void 0;"
-						right = js_ast.Expr{Loc: lastStmt.Loc, Data: &js_ast.EUndefined{}}
+						right = js_ast.Expr{Loc: lastStmt.Loc, Data: js_ast.EUndefinedShared}
 					}
 
 					// "if (!a) return b; return c;" => "return a ? c : b;"
@@ -9038,7 +9038,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				value.ValueOrNil = js_ast.Expr{Loc: value.Loc, Data: &js_ast.ENumber{Value: nextNumericValue}}
 				nextNumericValue++
 			} else {
-				value.ValueOrNil = js_ast.Expr{Loc: value.Loc, Data: &js_ast.EUndefined{}}
+				value.ValueOrNil = js_ast.Expr{Loc: value.Loc, Data: js_ast.EUndefinedShared}
 			}
 
 			if p.options.mangleSyntax && js_lexer.IsIdentifier(name) {
@@ -9282,11 +9282,11 @@ func (p *parser) captureValueWithPossibleSideEffects(
 	var valueFunc func() js_ast.Expr
 	switch e := value.Data.(type) {
 	case *js_ast.ENull:
-		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}} }
+		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: js_ast.ENullShared} }
 	case *js_ast.EUndefined:
-		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: &js_ast.EUndefined{}} }
+		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared} }
 	case *js_ast.EThis:
-		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}} }
+		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: js_ast.EThisShared} }
 	case *js_ast.EBoolean:
 		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: &js_ast.EBoolean{Value: e.Value}} }
 	case *js_ast.ENumber:
@@ -10018,7 +10018,7 @@ func (p *parser) maybeRewritePropertyAccess(
 
 				// We can only return "undefined" when a key is missing if the prototype is null
 				if hasProtoNull {
-					return js_ast.Expr{Loc: target.Loc, Data: &js_ast.EUndefined{}}, true
+					return js_ast.Expr{Loc: target.Loc, Data: js_ast.EUndefinedShared}, true
 				}
 			}
 		}
@@ -10273,7 +10273,7 @@ func (p *parser) valueForThis(loc logger.Loc, shouldWarn bool) (js_ast.Expr, boo
 			// In an ES6 module, "this" is supposed to be undefined. Instead of
 			// doing this at runtime using "fn.call(undefined)", we do it at
 			// compile time using expression substitution here.
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EUndefined{}}, true
+			return js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}, true
 		} else {
 			// In a CommonJS module, "this" is supposed to be the same as "exports".
 			// Instead of doing this at runtime using "fn.call(module.exports)", we
@@ -10318,7 +10318,7 @@ func inlineSpreadsOfArrayLiterals(values []js_ast.Expr) (results []js_ast.Expr) 
 			if array, ok := spread.Value.Data.(*js_ast.EArray); ok {
 				for _, item := range array.Items {
 					if _, ok := item.Data.(*js_ast.EMissing); ok {
-						results = append(results, js_ast.Expr{Loc: item.Loc, Data: &js_ast.EUndefined{}})
+						results = append(results, js_ast.Expr{Loc: item.Loc, Data: js_ast.EUndefinedShared})
 					} else {
 						results = append(results, item)
 					}
@@ -10579,7 +10579,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				Properties: e.Properties,
 			}))
 		} else {
-			args = append(args, js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}})
+			args = append(args, js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared})
 		}
 		if len(e.Children) > 0 {
 			for _, child := range e.Children {
@@ -10719,7 +10719,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if p.options.mangleSyntax {
 				// "x == void 0" => "x == null"
 				if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
-					e.Right.Data = &js_ast.ENull{}
+					e.Right.Data = js_ast.ENullShared
 				}
 
 				if result, ok := maybeSimplifyEqualityComparison(e, false /* isNotEqual */); ok {
@@ -10761,7 +10761,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if p.options.mangleSyntax {
 				// "x != void 0" => "x != null"
 				if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
-					e.Right.Data = &js_ast.ENull{}
+					e.Right.Data = js_ast.ENullShared
 				}
 
 				if result, ok := maybeSimplifyEqualityComparison(e, true /* isNotEqual */); ok {
@@ -11312,7 +11312,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			case js_ast.UnOpVoid:
 				if p.exprCanBeRemovedIfUnused(e.Value) {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EUndefined{}}, exprOut{}
+					return js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}, exprOut{}
 				}
 
 			case js_ast.UnOpPos:
@@ -11817,7 +11817,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// We don't want to spend time scanning the required files if they will
 				// never be used.
 				if p.isControlFlowDead {
-					return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ENull{}}
+					return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
 				}
 
 				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, js_lexer.UTF16ToString(str.Value), assertions)
@@ -11944,7 +11944,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								// dead here. We don't want to spend time scanning the required files
 								// if they will never be used.
 								if p.isControlFlowDead {
-									return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ENull{}}
+									return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
 								}
 
 								importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value), nil)
@@ -12077,7 +12077,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								// We don't want to spend time scanning the required files if they will
 								// never be used.
 								if p.isControlFlowDead {
-									return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}}
+									return js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared}
 								}
 
 								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value), nil)

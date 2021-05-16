@@ -469,7 +469,7 @@ func validateDefines(
 		switch e := expr.Data.(type) {
 		// These values are inserted inline, and can participate in constant folding
 		case *js_ast.ENull:
-			fn = func(config.DefineArgs) js_ast.E { return &js_ast.ENull{} }
+			fn = func(config.DefineArgs) js_ast.E { return js_ast.ENullShared }
 		case *js_ast.EBoolean:
 			fn = func(config.DefineArgs) js_ast.E { return &js_ast.EBoolean{Value: e.Value} }
 		case *js_ast.EString:
