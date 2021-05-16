@@ -200,13 +200,6 @@ func CloneLinkerGraph(
 					}
 				}
 
-				// Clone the top-level symbol-to-parts map
-				topLevelSymbolToParts := make(map[js_ast.Ref][]uint32)
-				for ref, parts := range repr.AST.TopLevelSymbolToParts {
-					topLevelSymbolToParts[ref] = parts
-				}
-				repr.AST.TopLevelSymbolToParts = topLevelSymbolToParts
-
 				// Clone the top-level scope so we can generate more variables
 				{
 					new := &js_ast.Scope{}
@@ -284,9 +277,20 @@ func (g *LinkerGraph) AddPartToFile(sourceIndex uint32, part js_ast.Part) uint32
 	// Invariant: the parts for all top-level symbols can be found in the file-level map
 	for _, declaredSymbol := range part.DeclaredSymbols {
 		if declaredSymbol.IsTopLevel {
-			partIndices := repr.AST.TopLevelSymbolToParts[declaredSymbol.Ref]
+			// Check for an existing overlay
+			partIndices, ok := repr.Meta.TopLevelSymbolToPartsOverlay[declaredSymbol.Ref]
+
+			// If missing, initialize using the original values from the parser
+			if !ok {
+				partIndices = append(partIndices, repr.AST.TopLevelSymbolToPartsFromParser[declaredSymbol.Ref]...)
+			}
+
+			// Add this part to the overlay
 			partIndices = append(partIndices, partIndex)
-			repr.AST.TopLevelSymbolToParts[declaredSymbol.Ref] = partIndices
+			if repr.Meta.TopLevelSymbolToPartsOverlay == nil {
+				repr.Meta.TopLevelSymbolToPartsOverlay = make(map[js_ast.Ref][]uint32)
+			}
+			repr.Meta.TopLevelSymbolToPartsOverlay[declaredSymbol.Ref] = partIndices
 		}
 	}
 
@@ -349,7 +353,7 @@ func (g *LinkerGraph) GenerateSymbolImportAndUse(
 
 	// Pull in all parts that declare this symbol
 	targetRepr := g.Files[sourceIndexToImportFrom].InputFile.Repr.(*JSRepr)
-	for _, partIndex := range targetRepr.AST.TopLevelSymbolToParts[ref] {
+	for _, partIndex := range targetRepr.TopLevelSymbolToParts(ref) {
 		part.Dependencies = append(part.Dependencies, js_ast.Dependency{
 			SourceIndex: sourceIndexToImportFrom,
 			PartIndex:   partIndex,

@@ -579,17 +579,17 @@ let buildTests = {
     assert.deepStrictEqual(value.outputFiles.length, 3)
     assert.deepStrictEqual(value.outputFiles[0].path, path.join(outdir, 'a', 'in1.js'))
     assert.deepStrictEqual(value.outputFiles[1].path, path.join(outdir, 'b', 'in2.js'))
-    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk-JFWYZSOB.js'))
+    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk-22JQAFLY.js'))
     assert.deepStrictEqual(value.outputFiles[0].text, `import {
   foo
-} from "https://www.example.com/assets/chunk-JFWYZSOB.js";
+} from "https://www.example.com/assets/chunk-22JQAFLY.js";
 export {
   foo as input1
 };
 `)
     assert.deepStrictEqual(value.outputFiles[1].text, `import {
   foo
-} from "https://www.example.com/assets/chunk-JFWYZSOB.js";
+} from "https://www.example.com/assets/chunk-22JQAFLY.js";
 export {
   foo as input2
 };
@@ -826,7 +826,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk-LJJNJUOL.js';
+    const chunk = 'chunk-YNV25ITT.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
@@ -890,7 +890,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk-GIKHG2FZ.js';
+    const chunk = 'chunk-MDV3DDWZ.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
@@ -956,10 +956,10 @@ body {
     const inImport1 = makeInPath(import1);
     const inImport2 = makeInPath(import2);
     const inShared = makeInPath(shared);
-    const chunk = 'chunk-M3UIZNA6.js';
+    const chunk = 'chunk-3GRHLZ7X.js';
     const outEntry = makeOutPath(path.relative(testDir, entry));
-    const outImport1 = makeOutPath('import1-HDYVZ7NF.js');
-    const outImport2 = makeOutPath('import2-NBRXROVG.js');
+    const outImport1 = makeOutPath('import1-SELM3ZIG.js');
+    const outImport2 = makeOutPath('import2-3GSTEHBF.js');
     const outChunk = makeOutPath(chunk);
 
     assert.deepStrictEqual(json.inputs[inEntry], {
@@ -1344,7 +1344,7 @@ body {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunk-EUXSFQEB.js'
+    const chunk = 'chunk-P3NHLAOZ.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
 } from "./${chunk}";
@@ -1401,7 +1401,7 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunk-O2E3MTYM.js'
+    const chunk = 'chunk-BPDO6GL2.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
 } from "../${chunk}";
@@ -1459,7 +1459,7 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunks/name=chunk/hash=CHYWWIG3.js'
+    const chunk = 'chunks/name=chunk/hash=7RIY4OCQ.js'
     assert.strictEqual(value.outputFiles[0].text, `import {
   common_default
 } from "../${chunk}";
@@ -1518,7 +1518,7 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunks/name=chunk/hash=Q52CWN2F.js'
+    const chunk = 'chunks/name=chunk/hash=C7EIDTEZ.js'
     assert.strictEqual(value.outputFiles[0].text, `import {
   common_default
 } from "../../${chunk}";
@@ -1541,8 +1541,8 @@ export {
 };
 `)
 
-    const outputA = 'entry/name=demo/hash=XVIIHBIC.js'
-    const outputB = 'entry/name=demo/hash=VXSEQP3F.js'
+    const outputA = 'entry/name=demo/hash=RTWASI3B.js'
+    const outputB = 'entry/name=demo/hash=MYYILQ7S.js'
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, outputA))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, outputB))
     assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
@@ -2351,8 +2351,8 @@ require("/assets/file.png");
       write: false,
     })
     assert.strictEqual(outputFiles.length, 2)
-    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', 'LDM7WUFR-1.cjs.js'))
-    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', '74SLWWSF-2.mjs.js'))
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', '4UQMP3ZH-1.cjs.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'ACBA75F5-2.mjs.js'))
   },
 
   async customEntryPointOutputPathsAbs({ esbuild, testDir }) {
@@ -2372,8 +2372,8 @@ require("/assets/file.png");
       write: false,
     })
     assert.strictEqual(outputFiles.length, 2)
-    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', 'MQUIWIER-1.js'))
-    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'ATGPBOSJ-2.js'))
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', 'MYINLEYF-1.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'R2MEQS4G-2.js'))
   },
 }
 

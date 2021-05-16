@@ -88,6 +88,16 @@ func (repr *JSRepr) ImportRecords() *[]ast.ImportRecord {
 	return &repr.AST.ImportRecords
 }
 
+func (repr *JSRepr) TopLevelSymbolToParts(ref js_ast.Ref) []uint32 {
+	// Overlay the mutable map from the linker
+	if parts, ok := repr.Meta.TopLevelSymbolToPartsOverlay[ref]; ok {
+		return parts
+	}
+
+	// Fall back to the immutable map from the parser
+	return repr.AST.TopLevelSymbolToPartsFromParser[ref]
+}
+
 type CSSRepr struct {
 	AST css_ast.AST
 

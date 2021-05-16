@@ -18,7 +18,7 @@ TestCSSAndJavaScriptCodeSplittingIssue1064
 ---------- /out/a.js ----------
 import {
   shared_default
-} from "./chunk-JHSNRTG6.js";
+} from "./chunk-XTGNVFM6.js";
 
 // a.js
 console.log(shared_default() + 1);
@@ -26,12 +26,12 @@ console.log(shared_default() + 1);
 ---------- /out/b.js ----------
 import {
   shared_default
-} from "./chunk-JHSNRTG6.js";
+} from "./chunk-XTGNVFM6.js";
 
 // b.js
 console.log(shared_default() + 2);
 
----------- /out/chunk-JHSNRTG6.js ----------
+---------- /out/chunk-XTGNVFM6.js ----------
 // shared.js
 function shared_default() {
   return 3;

@@ -203,20 +203,20 @@ new c();
 TestCharFreqIgnoreComments
 ---------- /out/a.js ----------
 // a.js
-function o(e, t, n, r) {
+function u(e, t, n, r) {
   return "the argument names must be the same";
 }
 export {
-  o as default
+  u as default
 };
 
 ---------- /out/b.js ----------
 // b.js
-function o(e, t, n, r) {
+function u(e, t, n, r) {
   return "the argument names must be the same";
 }
 export {
-  o as default
+  u as default
 };
 
 ================================================================================
@@ -1770,7 +1770,7 @@ console.log(shared_default);
 ================================================================================
 TestMinifiedBundleCommonJS
 ---------- /out.js ----------
-var t=r(n=>{n.foo=function(){return 123}});var s=r((l,u)=>{u.exports={test:!0}});var{foo:c}=t();console.log(c(),s());
+var t=r(n=>{n.foo=function(){return 123}});var u=r((l,s)=>{s.exports={test:!0}});var{foo:c}=t();console.log(c(),u());
 
 ================================================================================
 TestMinifiedBundleES6
@@ -3080,26 +3080,26 @@ var import_es6_ns_export_abstract_class = __toModule(require_es6_ns_export_abstr
 TestTopLevelAwaitAllowedImportWithSplitting
 ---------- /out/entry.js ----------
 // entry.js
-import("./a-6SYMAPP6.js");
-import("./b-A7BBMSAV.js");
-import("./c-745DPZZ6.js");
+import("./a-3BAWOBN3.js");
+import("./b-2IGVSUS7.js");
+import("./c-DMBKURS2.js");
 require_entry();
 await 0;
 
----------- /out/a-6SYMAPP6.js ----------
+---------- /out/a-3BAWOBN3.js ----------
 import "./chunk-QJYGFXJG.js";
-import "./chunk-G3F22LPE.js";
+import "./chunk-GETF6B5C.js";
 
----------- /out/b-A7BBMSAV.js ----------
+---------- /out/b-2IGVSUS7.js ----------
 import "./chunk-QJYGFXJG.js";
-import "./chunk-G3F22LPE.js";
+import "./chunk-GETF6B5C.js";
 
 ---------- /out/chunk-QJYGFXJG.js ----------
 
----------- /out/c-745DPZZ6.js ----------
-import "./chunk-G3F22LPE.js";
+---------- /out/c-DMBKURS2.js ----------
+import "./chunk-GETF6B5C.js";
 
----------- /out/chunk-G3F22LPE.js ----------
+---------- /out/chunk-GETF6B5C.js ----------
 // c.js
 await 0;
 

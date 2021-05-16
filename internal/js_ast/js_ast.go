@@ -1688,6 +1688,13 @@ func (kind ExportsKind) IsDynamic() bool {
 	return kind == ExportsCommonJS || kind == ExportsESMWithDynamicFallback
 }
 
+// This is the index to the automatically-generated part containing code that
+// calls "__export(exports, { ... getters ... })". This is used to generate
+// getters on an exports object for ES6 export statements, and is both for
+// ES6 star imports and CommonJS-style modules. All files have one of these,
+// although it may contain no statements if there is nothing to export.
+const NSExportPartIndex = uint32(0)
+
 type AST struct {
 	ApproximateLineCount  int32
 	NestedScopeSlotCounts SlotCounts
@@ -1727,8 +1734,14 @@ type AST struct {
 	// is conveniently fully parallelized.
 	NamedImports            map[Ref]NamedImport
 	NamedExports            map[string]NamedExport
-	TopLevelSymbolToParts   map[Ref][]uint32
 	ExportStarImportRecords []uint32
+
+	// Note: If you're in the linker, do not use this map directly. This map is
+	// filled in by the parser and is considered immutable. For performance reasons,
+	// the linker doesn't mutate this map (cloning a map is slow in Go). Instead the
+	// linker super-imposes relevant information on top in a method call. You should
+	// call "TopLevelSymbolToParts" instead.
+	TopLevelSymbolToPartsFromParser map[Ref][]uint32
 
 	SourceMapComment Span
 }

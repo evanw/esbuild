@@ -43,7 +43,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 		sb.WriteString(fmt.Sprintf(`{"isLive":%v`, part.IsLive))
 		sb.WriteString(fmt.Sprintf(`,"canBeRemovedIfUnused":%v`, part.CanBeRemovedIfUnused))
 
-		if partIndex == int(repr.Meta.NSExportPartIndex) {
+		if partIndex == int(js_ast.NSExportPartIndex) {
 			sb.WriteString(`,"nsExportPartIndex":true`)
 		} else if ast.MakeIndex32(uint32(partIndex)) == repr.Meta.WrapperPartIndex {
 			sb.WriteString(`,"wrapperPartIndex":true`)

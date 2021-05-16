@@ -13528,7 +13528,13 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		stmts = append(append(make([]js_ast.Stmt, 0, len(stmts)+1), importMetaStmt), stmts...)
 	}
 
-	var before []js_ast.Part
+	// Add an empty part for the namespace export that we can fill in later
+	nsExportPart := js_ast.Part{
+		SymbolUses:           make(map[js_ast.Ref]js_ast.SymbolUse),
+		CanBeRemovedIfUnused: true,
+	}
+
+	var before = []js_ast.Part{nsExportPart}
 	var parts []js_ast.Part
 	var after []js_ast.Part
 
@@ -13614,6 +13620,12 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 		expr = p.callRuntime(expr.Loc, apiCall, []js_ast.Expr{expr})
 	}
 
+	// Add an empty part for the namespace export that we can fill in later
+	nsExportPart := js_ast.Part{
+		SymbolUses:           make(map[js_ast.Ref]js_ast.SymbolUse),
+		CanBeRemovedIfUnused: true,
+	}
+
 	// Defer the actual code generation until linking
 	part := js_ast.Part{
 		Stmts:      []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SLazyExport{Value: expr}}},
@@ -13621,7 +13633,7 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 	}
 	p.symbolUses = nil
 
-	ast := p.toAST([]js_ast.Part{part}, "", "")
+	ast := p.toAST([]js_ast.Part{nsExportPart, part}, "", "")
 	ast.HasLazyExport = true
 	return ast
 }
@@ -13875,7 +13887,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 	keptImportEquals := false
 	removedImportEquals := false
 	partsEnd := 0
-	for _, part := range parts {
+	for partIndex, part := range parts {
 		p.importRecordsForCurrentPart = nil
 		p.declaredSymbols = nil
 
@@ -13887,7 +13899,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		part.ImportRecordIndices = append(part.ImportRecordIndices, p.importRecordsForCurrentPart...)
 		part.DeclaredSymbols = append(part.DeclaredSymbols, p.declaredSymbols...)
 
-		if len(part.Stmts) > 0 {
+		if len(part.Stmts) > 0 || uint32(partIndex) == js_ast.NSExportPartIndex {
 			if p.moduleScope.ContainsDirectEval && len(part.DeclaredSymbols) > 0 {
 				// If this file contains a direct call to "eval()", all parts that
 				// declare top-level symbols must be kept since the eval'd code may
@@ -13922,12 +13934,12 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		keptImportEquals = false
 		removedImportEquals = false
 		partsEnd := 0
-		for _, part := range parts {
+		for partIndex, part := range parts {
 			result := p.scanForUnusedTSImportEquals(part.Stmts)
 			part.Stmts = result.stmts
 			keptImportEquals = keptImportEquals || result.keptImportEquals
 			removedImportEquals = removedImportEquals || result.removedImportEquals
-			if len(part.Stmts) > 0 {
+			if len(part.Stmts) > 0 || uint32(partIndex) == js_ast.NSExportPartIndex {
 				parts[partsEnd] = part
 				partsEnd++
 			}
@@ -13962,6 +13974,9 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 				}
 			}
 		}
+
+		// Pulling in the exports of this module always pulls in the export part
+		p.topLevelSymbolToParts[p.exportsRef] = []uint32{js_ast.NSExportPartIndex}
 
 		// Each part tracks the other parts it depends on within this file
 		localDependencies := make(map[uint32]uint32)
@@ -14031,22 +14046,22 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 	}
 
 	return js_ast.AST{
-		Parts:                   parts,
-		ModuleScope:             p.moduleScope,
-		CharFreq:                p.computeCharacterFrequency(),
-		Symbols:                 p.symbols,
-		ExportsRef:              p.exportsRef,
-		ModuleRef:               p.moduleRef,
-		WrapperRef:              wrapperRef,
-		Hashbang:                hashbang,
-		Directive:               directive,
-		NamedImports:            p.namedImports,
-		NamedExports:            p.namedExports,
-		NestedScopeSlotCounts:   nestedScopeSlotCounts,
-		TopLevelSymbolToParts:   p.topLevelSymbolToParts,
-		ExportStarImportRecords: p.exportStarImportRecords,
-		ImportRecords:           p.importRecords,
-		ApproximateLineCount:    int32(p.lexer.ApproximateNewlineCount) + 1,
+		Parts:                           parts,
+		ModuleScope:                     p.moduleScope,
+		CharFreq:                        p.computeCharacterFrequency(),
+		Symbols:                         p.symbols,
+		ExportsRef:                      p.exportsRef,
+		ModuleRef:                       p.moduleRef,
+		WrapperRef:                      wrapperRef,
+		Hashbang:                        hashbang,
+		Directive:                       directive,
+		NamedImports:                    p.namedImports,
+		NamedExports:                    p.namedExports,
+		NestedScopeSlotCounts:           nestedScopeSlotCounts,
+		TopLevelSymbolToPartsFromParser: p.topLevelSymbolToParts,
+		ExportStarImportRecords:         p.exportStarImportRecords,
+		ImportRecords:                   p.importRecords,
+		ApproximateLineCount:            int32(p.lexer.ApproximateNewlineCount) + 1,
 
 		// CommonJS features
 		HasTopLevelReturn: p.hasTopLevelReturn,

@@ -1211,11 +1211,6 @@ func (c *linkerContext) scanImportsAndExports() {
 			c.addExportsForExportStar(repr.Meta.ResolvedExports, sourceIndex, exportStarStack)
 		}
 
-		// Add an empty part for the namespace export that we can fill in later
-		repr.Meta.NSExportPartIndex = c.graph.AddPartToFile(sourceIndex, js_ast.Part{
-			CanBeRemovedIfUnused: true,
-		})
-
 		// Also add a special export so import stars can bind to it. This must be
 		// done in this step because it must come after CommonJS module discovery
 		// but before matching imports with exports.
@@ -1223,7 +1218,6 @@ func (c *linkerContext) scanImportsAndExports() {
 			Ref:         repr.AST.ExportsRef,
 			SourceIndex: sourceIndex,
 		}
-		repr.AST.TopLevelSymbolToParts[repr.AST.ExportsRef] = []uint32{repr.Meta.NSExportPartIndex}
 	}
 	c.timer.End("Step 3")
 
@@ -1365,17 +1359,17 @@ func (c *linkerContext) scanImportsAndExports() {
 			runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
 			if repr.Meta.NeedsExportSymbolFromRuntime {
 				exportRef := runtimeRepr.AST.ModuleScope.Members["__export"].Ref
-				c.graph.GenerateSymbolImportAndUse(sourceIndex, repr.Meta.NSExportPartIndex, exportRef, 1, runtime.SourceIndex)
+				c.graph.GenerateSymbolImportAndUse(sourceIndex, js_ast.NSExportPartIndex, exportRef, 1, runtime.SourceIndex)
 			}
 			if repr.Meta.NeedsMarkAsModuleSymbolFromRuntime {
 				markAsModuleRef := runtimeRepr.AST.ModuleScope.Members["__markAsModule"].Ref
-				c.graph.GenerateSymbolImportAndUse(sourceIndex, repr.Meta.NSExportPartIndex, markAsModuleRef, 1, runtime.SourceIndex)
+				c.graph.GenerateSymbolImportAndUse(sourceIndex, js_ast.NSExportPartIndex, markAsModuleRef, 1, runtime.SourceIndex)
 			}
 		}
 
 		for importRef, importData := range repr.Meta.ImportsToBind {
 			resolvedRepr := c.graph.Files[importData.SourceIndex].InputFile.Repr.(*graph.JSRepr)
-			partsDeclaringSymbol := resolvedRepr.AST.TopLevelSymbolToParts[importData.Ref]
+			partsDeclaringSymbol := resolvedRepr.TopLevelSymbolToParts(importData.Ref)
 
 			for _, partIndex := range repr.AST.NamedImports[importRef].LocalPartsWithUses {
 				part := &repr.AST.Parts[partIndex]
@@ -1416,7 +1410,7 @@ func (c *linkerContext) scanImportsAndExports() {
 				}
 
 				// Pull in all declarations of this symbol
-				for _, partIndex := range targetRepr.AST.TopLevelSymbolToParts[targetRef] {
+				for _, partIndex := range targetRepr.TopLevelSymbolToParts(targetRef) {
 					dependencies = append(dependencies, js_ast.Dependency{
 						SourceIndex: targetSourceIndex,
 						PartIndex:   partIndex,
@@ -1428,7 +1422,7 @@ func (c *linkerContext) scanImportsAndExports() {
 			if repr.Meta.ForceIncludeExportsForEntryPoint {
 				dependencies = append(dependencies, js_ast.Dependency{
 					SourceIndex: sourceIndex,
-					PartIndex:   repr.Meta.NSExportPartIndex,
+					PartIndex:   js_ast.NSExportPartIndex,
 				})
 			}
 
@@ -1564,7 +1558,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 	if len(repr.AST.Parts) < 1 {
 		panic("Internal error")
 	}
-	part := &repr.AST.Parts[0]
+	part := &repr.AST.Parts[1]
 	if len(part.Stmts) != 1 {
 		panic("Internal error")
 	}
@@ -1706,7 +1700,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		nsExportSymbolUses[export.Ref] = js_ast.SymbolUse{CountEstimate: 1}
 
 		// Make sure the part that declares the export is included
-		for _, partIndex := range c.graph.Files[export.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.TopLevelSymbolToParts[export.Ref] {
+		for _, partIndex := range c.graph.Files[export.SourceIndex].InputFile.Repr.(*graph.JSRepr).TopLevelSymbolToParts(export.Ref) {
 			// Use a non-local dependency since this is likely from a different
 			// file if it came in through an export star
 			nsExportDependencies = append(nsExportDependencies, js_ast.Dependency{
@@ -1744,7 +1738,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}}}})
 
 		// Make sure this file depends on the "__markAsModule" symbol
-		for _, partIndex := range runtimeRepr.AST.TopLevelSymbolToParts[markAsModuleRef] {
+		for _, partIndex := range runtimeRepr.TopLevelSymbolToParts(markAsModuleRef) {
 			nsExportDependencies = append(nsExportDependencies, js_ast.Dependency{
 				SourceIndex: runtime.SourceIndex,
 				PartIndex:   partIndex,
@@ -1773,7 +1767,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}}}})
 
 		// Make sure this file depends on the "__export" symbol
-		for _, partIndex := range runtimeRepr.AST.TopLevelSymbolToParts[exportRef] {
+		for _, partIndex := range runtimeRepr.TopLevelSymbolToParts(exportRef) {
 			nsExportDependencies = append(nsExportDependencies, js_ast.Dependency{
 				SourceIndex: runtime.SourceIndex,
 				PartIndex:   partIndex,
@@ -1788,7 +1782,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	if len(nsExportStmts) > 0 {
 		// Initialize the part that was allocated for us earlier. The information
 		// here will be used after this during tree shaking.
-		repr.AST.Parts[repr.Meta.NSExportPartIndex] = js_ast.Part{
+		repr.AST.Parts[js_ast.NSExportPartIndex] = js_ast.Part{
 			Stmts:           nsExportStmts,
 			SymbolUses:      nsExportSymbolUses,
 			Dependencies:    nsExportDependencies,
@@ -1829,7 +1823,7 @@ func (c *linkerContext) createWrapperForFile(sourceIndex uint32) {
 	case graph.WrapCJS:
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
 		commonJSRef := runtimeRepr.AST.NamedExports["__commonJS"].Ref
-		commonJSParts := runtimeRepr.AST.TopLevelSymbolToParts[commonJSRef]
+		commonJSParts := runtimeRepr.TopLevelSymbolToParts(commonJSRef)
 
 		// Generate the dummy part
 		dependencies := make([]js_ast.Dependency, len(commonJSParts))
@@ -1866,7 +1860,7 @@ func (c *linkerContext) createWrapperForFile(sourceIndex uint32) {
 	case graph.WrapESM:
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
 		esmRef := runtimeRepr.AST.NamedExports["__esm"].Ref
-		esmParts := runtimeRepr.AST.TopLevelSymbolToParts[esmRef]
+		esmParts := runtimeRepr.TopLevelSymbolToParts(esmRef)
 
 		// Generate the dummy part
 		dependencies := make([]js_ast.Dependency, len(esmParts))
@@ -2168,7 +2162,7 @@ loop:
 
 			// Depend on the statement(s) that declared this import symbol in the
 			// original file
-			for _, resolvedPartIndex := range c.graph.Files[tracker.sourceIndex].InputFile.Repr.(*graph.JSRepr).AST.TopLevelSymbolToParts[tracker.importRef] {
+			for _, resolvedPartIndex := range c.graph.Files[tracker.sourceIndex].InputFile.Repr.(*graph.JSRepr).TopLevelSymbolToParts(tracker.importRef) {
 				reExports = append(reExports, js_ast.Dependency{
 					SourceIndex: tracker.sourceIndex,
 					PartIndex:   resolvedPartIndex,
@@ -2933,8 +2927,8 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 
 			// Make sure the generated call to "__export(exports, ...)" comes first
 			// before anything else in this file
-			if canFileBeSplit && isFileInThisChunk && repr.AST.Parts[repr.Meta.NSExportPartIndex].IsLive {
-				jsParts = appendOrExtendPartRange(jsParts, sourceIndex, repr.Meta.NSExportPartIndex)
+			if canFileBeSplit && isFileInThisChunk && repr.AST.Parts[js_ast.NSExportPartIndex].IsLive {
+				jsParts = appendOrExtendPartRange(jsParts, sourceIndex, js_ast.NSExportPartIndex)
 			}
 
 			for partIndex, part := range repr.AST.Parts {
@@ -2955,7 +2949,7 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 				// Then include this part after the files it imports
 				if isPartInThisChunk {
 					isFileInThisChunk = true
-					if canFileBeSplit && uint32(partIndex) != repr.Meta.NSExportPartIndex && c.shouldIncludePart(repr, part) {
+					if canFileBeSplit && uint32(partIndex) != js_ast.NSExportPartIndex && c.shouldIncludePart(repr, part) {
 						if sourceIndex == runtime.SourceIndex {
 							jsPartsPrefix = appendOrExtendPartRange(jsPartsPrefix, sourceIndex, uint32(partIndex))
 						} else {
@@ -3388,7 +3382,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 ) {
 	file := &c.graph.Files[partRange.sourceIndex]
 	repr := file.InputFile.Repr.(*graph.JSRepr)
-	nsExportPartIndex := repr.Meta.NSExportPartIndex
+	nsExportPartIndex := js_ast.NSExportPartIndex
 	needsWrapper := false
 	stmtList := stmtList{}
 
