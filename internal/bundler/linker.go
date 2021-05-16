@@ -1035,6 +1035,7 @@ func (c *linkerContext) scanImportsAndExports() {
 	defer c.timer.End("Scan imports and exports")
 
 	// Step 1: Figure out what modules must be CommonJS
+	c.timer.Begin("Step 1")
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		file := &c.graph.Files[sourceIndex]
 		switch repr := file.InputFile.Repr.(type) {
@@ -1126,11 +1127,13 @@ func (c *linkerContext) scanImportsAndExports() {
 			}
 		}
 	}
+	c.timer.End("Step 1")
 
 	// Step 2: Propagate dynamic export status for export star statements that
 	// are re-exports from a module whose exports are not statically analyzable.
 	// In this case the export star must be evaluated at run time instead of at
 	// bundle time.
+	c.timer.Begin("Step 2")
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		repr, ok := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr)
 		if !ok {
@@ -1161,10 +1164,12 @@ func (c *linkerContext) scanImportsAndExports() {
 			}
 		}
 	}
+	c.timer.End("Step 2")
 
 	// Step 3: Resolve "export * from" statements. This must be done after we
 	// discover all modules that can have dynamic exports because export stars
 	// are ignored for those modules.
+	c.timer.Begin("Step 3")
 	exportStarStack := make([]uint32, 0, 32)
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		repr, ok := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr)
@@ -1198,9 +1203,11 @@ func (c *linkerContext) scanImportsAndExports() {
 		}
 		repr.AST.TopLevelSymbolToParts[repr.AST.ExportsRef] = []uint32{repr.Meta.NSExportPartIndex}
 	}
+	c.timer.End("Step 3")
 
 	// Step 4: Match imports with exports. This must be done after we process all
 	// export stars because imports can bind to export star re-exports.
+	c.timer.Begin("Step 4")
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		file := &c.graph.Files[sourceIndex]
 		repr, ok := file.InputFile.Repr.(*graph.JSRepr)
@@ -1227,10 +1234,12 @@ func (c *linkerContext) scanImportsAndExports() {
 		// Create the wrapper part for wrapped files. This is needed by a later step.
 		c.createWrapperForFile(uint32(sourceIndex))
 	}
+	c.timer.End("Step 4")
 
 	// Step 5: Create namespace exports for every file. This is always necessary
 	// for CommonJS files, and is also necessary for other files if they are
 	// imported using an import star statement.
+	c.timer.Begin("Step 5")
 	waitGroup := sync.WaitGroup{}
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		repr, ok := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr)
@@ -1286,10 +1295,12 @@ func (c *linkerContext) scanImportsAndExports() {
 		}(sourceIndex, repr)
 	}
 	waitGroup.Wait()
+	c.timer.End("Step 5")
 
 	// Step 6: Bind imports to exports. This adds non-local dependencies on the
 	// parts that declare the export to all parts that use the import. Also
 	// generate wrapper parts for wrapped files.
+	c.timer.Begin("Step 6")
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		file := &c.graph.Files[sourceIndex]
 		repr, ok := file.InputFile.Repr.(*graph.JSRepr)
@@ -1520,6 +1531,7 @@ func (c *linkerContext) scanImportsAndExports() {
 			c.graph.GenerateRuntimeSymbolImportAndUse(sourceIndex, uint32(partIndex), "__reExport", reExportUses)
 		}
 	}
+	c.timer.End("Step 6")
 }
 
 func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
