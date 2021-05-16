@@ -1571,14 +1571,14 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		if alias == "default" {
 			stmt = js_ast.Stmt{Loc: value.Loc, Data: &js_ast.SExportDefault{
 				DefaultName: js_ast.LocRef{Loc: value.Loc, Ref: ref},
-				Value:       js_ast.ExprOrStmt{Expr: &value},
+				Value:       js_ast.Stmt{Loc: value.Loc, Data: &js_ast.SExpr{Value: value}},
 			}}
 		} else {
 			stmt = js_ast.Stmt{Loc: value.Loc, Data: &js_ast.SLocal{
 				IsExport: true,
 				Decls: []js_ast.Decl{{
-					Binding: js_ast.Binding{Loc: value.Loc, Data: &js_ast.BIdentifier{Ref: ref}},
-					Value:   &value,
+					Binding:    js_ast.Binding{Loc: value.Loc, Data: &js_ast.BIdentifier{Ref: ref}},
+					ValueOrNil: value,
 				}},
 			}}
 		}
@@ -1605,9 +1605,9 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 				(!file.IsEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value) ||
 					!c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames)) {
 				name := js_lexer.UTF16ToString(str.Value)
-				exportRef := generateExport(name, name, *property.Value).ref
+				exportRef := generateExport(name, name, property.ValueOrNil).ref
 				prevExports = append(prevExports, exportRef)
-				clone.Properties[i].Value = &js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EIdentifier{Ref: exportRef}}
+				clone.Properties[i].ValueOrNil = js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EIdentifier{Ref: exportRef}}
 			}
 		}
 		jsonValue.Data = &clone
@@ -1659,15 +1659,15 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 		// Add a getter property
 		var getter js_ast.Expr
-		body := js_ast.FnBody{Stmts: []js_ast.Stmt{{Loc: value.Loc, Data: &js_ast.SReturn{Value: &value}}}}
+		body := js_ast.FnBody{Stmts: []js_ast.Stmt{{Loc: value.Loc, Data: &js_ast.SReturn{ValueOrNil: value}}}}
 		if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
 			getter = js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
 		} else {
 			getter = js_ast.Expr{Data: &js_ast.EArrow{PreferExpr: true, Body: body}}
 		}
 		properties = append(properties, js_ast.Property{
-			Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(alias)}},
-			Value: &getter,
+			Key:        js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(alias)}},
+			ValueOrNil: getter,
 		})
 		nsExportSymbolUses[export.Ref] = js_ast.SymbolUse{CountEstimate: 1}
 
@@ -1687,8 +1687,8 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	var nsExportStmts []js_ast.Stmt
 	if repr.AST.ExportsKind != js_ast.ExportsCommonJS && (!file.IsEntryPoint() || c.options.OutputFormat != config.FormatCommonJS) {
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
-			Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.ExportsRef}},
-			Value:   &js_ast.Expr{Data: &js_ast.EObject{}},
+			Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.ExportsRef}},
+			ValueOrNil: js_ast.Expr{Data: &js_ast.EObject{}},
 		}}}})
 		declaredSymbols = append(declaredSymbols, js_ast.DeclaredSymbol{
 			Ref:        repr.AST.ExportsRef,
@@ -2993,7 +2993,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 			Loc: loc,
 			Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
 				Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
-				Value: &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequireString{
+				ValueOrNil: js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequireString{
 					ImportRecordIndex: importRecordIndex,
 				}},
 			}}},
@@ -3019,7 +3019,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 			Loc: loc,
 			Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
 				Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
-				Value: &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequireString{
+				ValueOrNil: js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequireString{
 					ImportRecordIndex: importRecordIndex,
 				}},
 			}}},
@@ -3232,36 +3232,35 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 		case *js_ast.SExportDefault:
 			// If we're bundling, convert "export default" into a normal declaration
 			if shouldStripExports {
-				if s.Value.Expr != nil {
+				switch s2 := s.Value.Data.(type) {
+				case *js_ast.SExpr:
 					// "export default foo;" => "var default = foo;"
 					stmt = js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SLocal{Decls: []js_ast.Decl{
-						{Binding: js_ast.Binding{Loc: s.DefaultName.Loc, Data: &js_ast.BIdentifier{Ref: s.DefaultName.Ref}}, Value: s.Value.Expr},
+						{Binding: js_ast.Binding{Loc: s.DefaultName.Loc, Data: &js_ast.BIdentifier{Ref: s.DefaultName.Ref}}, ValueOrNil: s2.Value},
 					}}}
-				} else {
-					switch s2 := s.Value.Stmt.Data.(type) {
-					case *js_ast.SFunction:
-						// "export default function() {}" => "function default() {}"
-						// "export default function foo() {}" => "function foo() {}"
 
-						// Be careful to not modify the original statement
-						s2 = &js_ast.SFunction{Fn: s2.Fn}
-						s2.Fn.Name = &s.DefaultName
+				case *js_ast.SFunction:
+					// "export default function() {}" => "function default() {}"
+					// "export default function foo() {}" => "function foo() {}"
 
-						stmt = js_ast.Stmt{Loc: s.Value.Stmt.Loc, Data: s2}
+					// Be careful to not modify the original statement
+					s2 = &js_ast.SFunction{Fn: s2.Fn}
+					s2.Fn.Name = &s.DefaultName
 
-					case *js_ast.SClass:
-						// "export default class {}" => "class default {}"
-						// "export default class Foo {}" => "class Foo {}"
+					stmt = js_ast.Stmt{Loc: s.Value.Loc, Data: s2}
 
-						// Be careful to not modify the original statement
-						s2 = &js_ast.SClass{Class: s2.Class}
-						s2.Class.Name = &s.DefaultName
+				case *js_ast.SClass:
+					// "export default class {}" => "class default {}"
+					// "export default class Foo {}" => "class Foo {}"
 
-						stmt = js_ast.Stmt{Loc: s.Value.Stmt.Loc, Data: s2}
+					// Be careful to not modify the original statement
+					s2 = &js_ast.SClass{Class: s2.Class}
+					s2.Class.Name = &s.DefaultName
 
-					default:
-						panic("Internal error")
-					}
+					stmt = js_ast.Stmt{Loc: s.Value.Loc, Data: s2}
+
+				default:
+					panic("Internal error")
 				}
 			}
 		}
@@ -3430,9 +3429,9 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			if c.options.ProfilerNames {
 				// "__commonJS({ 'file.js'(exports, module) { ... } })"
 				cjsArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
-					IsMethod: !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
-					Key:      js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(file.InputFile.Source.PrettyPath)}},
-					Value:    &js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
+					IsMethod:   !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
+					Key:        js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(file.InputFile.Source.PrettyPath)}},
+					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
 				}}}}}
 			} else if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
 				// "__commonJS(function (exports, module) { ... })"
@@ -3449,8 +3448,8 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			// "var require_foo = __commonJS(...);"
 			stmts = append(stmtList.outsideWrapperPrefix, js_ast.Stmt{Data: &js_ast.SLocal{
 				Decls: []js_ast.Decl{{
-					Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.WrapperRef}},
-					Value:   &value,
+					Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.WrapperRef}},
+					ValueOrNil: value,
 				}},
 			}})
 
@@ -3475,8 +3474,8 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 					var value js_ast.Expr
 					for _, decl := range s.Decls {
 						binding := js_ast.ConvertBindingToExpr(decl.Binding, wrapIdentifier)
-						if decl.Value != nil {
-							value = js_ast.JoinWithComma(value, js_ast.Assign(binding, *decl.Value))
+						if decl.ValueOrNil.Data != nil {
+							value = js_ast.JoinWithComma(value, js_ast.Assign(binding, decl.ValueOrNil))
 						}
 					}
 					if value.Data == nil {
@@ -3498,9 +3497,9 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			if c.options.ProfilerNames {
 				// "__esm({ 'file.js'() { ... } })"
 				esmArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
-					IsMethod: !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
-					Key:      js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(file.InputFile.Source.PrettyPath)}},
-					Value:    &js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}},
+					IsMethod:   !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
+					Key:        js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(file.InputFile.Source.PrettyPath)}},
+					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}},
 				}}}}}
 			} else if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
 				// "__esm(function () { ... })"
@@ -3525,8 +3524,8 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			// "var init_foo = __esm(...);"
 			stmts = append(stmtList.outsideWrapperPrefix, js_ast.Stmt{Data: &js_ast.SLocal{
 				Decls: append(decls, js_ast.Decl{
-					Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.WrapperRef}},
-					Value:   &value,
+					Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.WrapperRef}},
+					ValueOrNil: value,
 				}),
 			}})
 		}
@@ -3598,7 +3597,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 		if repr.Meta.Wrap == graph.WrapCJS {
 			if len(c.options.GlobalName) > 0 {
 				// "return require_foo();"
-				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.ECall{
+				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SReturn{ValueOrNil: js_ast.Expr{Data: &js_ast.ECall{
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.AST.WrapperRef}},
 				}}}})
 			} else {
@@ -3617,7 +3616,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 			if repr.Meta.ForceIncludeExportsForEntryPoint && len(c.options.GlobalName) > 0 {
 				// "return exports;"
 				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SReturn{
-					Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
+					ValueOrNil: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
 				}})
 			}
 		}
@@ -3682,18 +3681,18 @@ func (c *linkerContext) generateEntryPointTailJS(
 				}
 
 				// "{if: null}"
-				var value *js_ast.Expr
+				var valueOrNil js_ast.Expr
 				if _, ok := js_lexer.Keywords[export]; ok {
 					// Make sure keywords don't cause a syntax error. This has to map to
 					// "null" instead of something shorter like "0" because the library
 					// "cjs-module-lexer" only supports identifiers in this position, and
 					// it thinks "null" is an identifier.
-					value = &js_ast.Expr{Data: &js_ast.ENull{}}
+					valueOrNil = js_ast.Expr{Data: &js_ast.ENull{}}
 				}
 
 				moduleExports = append(moduleExports, js_ast.Property{
-					Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(export)}},
-					Value: value,
+					Key:        js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(export)}},
+					ValueOrNil: valueOrNil,
 				})
 			}
 
@@ -3717,9 +3716,10 @@ func (c *linkerContext) generateEntryPointTailJS(
 		if repr.Meta.Wrap == graph.WrapCJS {
 			// "export default require_foo();"
 			stmts = append(stmts, js_ast.Stmt{
-				Data: &js_ast.SExportDefault{Value: js_ast.ExprOrStmt{Expr: &js_ast.Expr{
-					Data: &js_ast.ECall{Target: js_ast.Expr{
-						Data: &js_ast.EIdentifier{Ref: repr.AST.WrapperRef}}}}}}})
+				Data: &js_ast.SExportDefault{Value: js_ast.Stmt{
+					Data: &js_ast.SExpr{Value: js_ast.Expr{
+						Data: &js_ast.ECall{Target: js_ast.Expr{
+							Data: &js_ast.EIdentifier{Ref: repr.AST.WrapperRef}}}}}}}})
 		} else {
 			if repr.Meta.Wrap == graph.WrapESM {
 				if repr.Meta.IsAsyncOrHasAsyncDependency {
@@ -3799,8 +3799,8 @@ func (c *linkerContext) generateEntryPointTailJS(
 						tempRef := repr.Meta.CJSExportCopies[i]
 						stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SLocal{
 							Decls: []js_ast.Decl{{
-								Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: tempRef}},
-								Value:   &js_ast.Expr{Data: &js_ast.EImportIdentifier{Ref: export.Ref}},
+								Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: tempRef}},
+								ValueOrNil: js_ast.Expr{Data: &js_ast.EImportIdentifier{Ref: export.Ref}},
 							}},
 						}})
 						items = append(items, js_ast.ClauseItem{

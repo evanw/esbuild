@@ -849,8 +849,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 		// Parse the initializer
 		if p.lexer.Token == js_lexer.TEquals {
 			p.lexer.Next()
-			initializer := p.parseExpr(js_ast.LComma)
-			value.Value = &initializer
+			value.ValueOrNil = p.parseExpr(js_ast.LComma)
 		}
 
 		values = append(values, value)
@@ -965,8 +964,8 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 
 	ref := p.declareSymbol(js_ast.SymbolConst, defaultNameLoc, defaultName)
 	decls := []js_ast.Decl{{
-		Binding: js_ast.Binding{Loc: defaultNameLoc, Data: &js_ast.BIdentifier{Ref: ref}},
-		Value:   &value,
+		Binding:    js_ast.Binding{Loc: defaultNameLoc, Data: &js_ast.BIdentifier{Ref: ref}},
+		ValueOrNil: value,
 	}}
 
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{

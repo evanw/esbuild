@@ -1153,7 +1153,7 @@ func getProperty(json js_ast.Expr, name string) (js_ast.Expr, logger.Loc, bool) 
 		for _, prop := range obj.Properties {
 			if key, ok := prop.Key.Data.(*js_ast.EString); ok && key.Value != nil &&
 				len(key.Value) == len(name) && js_lexer.UTF16ToString(key.Value) == name {
-				return *prop.Value, prop.Key.Loc, true
+				return prop.ValueOrNil, prop.Key.Loc, true
 			}
 		}
 	}

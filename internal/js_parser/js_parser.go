@@ -407,8 +407,8 @@ func stringArraysEqual(a []string, b []string) bool {
 }
 
 type tempRef struct {
-	ref   js_ast.Ref
-	value *js_ast.Expr
+	ref        js_ast.Ref
+	valueOrNil js_ast.Expr
 }
 
 const (
@@ -1025,7 +1025,8 @@ func jumpStmtsLookTheSame(left js_ast.S, right js_ast.S) bool {
 
 	case *js_ast.SReturn:
 		b, ok := right.(*js_ast.SReturn)
-		return ok && (a.Value == nil) == (b.Value == nil) && (a.Value == nil || valuesLookTheSame(a.Value.Data, b.Value.Data))
+		return ok && (a.ValueOrNil.Data == nil) == (b.ValueOrNil.Data == nil) &&
+			(a.ValueOrNil.Data == nil || valuesLookTheSame(a.ValueOrNil.Data, b.ValueOrNil.Data))
 
 	case *js_ast.SThrow:
 		b, ok := right.(*js_ast.SThrow)
@@ -1920,20 +1921,19 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 			value := js_ast.Expr{Loc: key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
 
 			// Destructuring patterns have an optional default value
-			var initializer *js_ast.Expr = nil
+			var initializerOrNil js_ast.Expr
 			if errors != nil && p.lexer.Token == js_lexer.TEquals {
 				errors.invalidExprDefaultValue = p.lexer.Range()
 				p.lexer.Next()
-				value := p.parseExpr(js_ast.LComma)
-				initializer = &value
+				initializerOrNil = p.parseExpr(js_ast.LComma)
 			}
 
 			return js_ast.Property{
-				Kind:         kind,
-				Key:          key,
-				Value:        &value,
-				Initializer:  initializer,
-				WasShorthand: true,
+				Kind:             kind,
+				Key:              key,
+				ValueOrNil:       value,
+				InitializerOrNil: initializerOrNil,
+				WasShorthand:     true,
 			}, true
 		}
 	}
@@ -1953,7 +1953,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 	// Parse a class field with an optional initial value
 	if opts.isClass && kind == js_ast.PropertyNormal && !opts.isAsync &&
 		!opts.isGenerator && p.lexer.Token != js_lexer.TOpenParen {
-		var initializer *js_ast.Expr
+		var initializerOrNil js_ast.Expr
 
 		// Forbid the names "constructor" and "prototype" in some cases
 		if !isComputed {
@@ -1975,8 +1975,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 			// "super" property access is allowed in field initializers
 			p.fnOrArrowDataParse.allowSuperProperty = true
 
-			value := p.parseExpr(js_ast.LComma)
-			initializer = &value
+			initializerOrNil = p.parseExpr(js_ast.LComma)
 
 			p.fnOrArrowDataParse.allowSuperProperty = false
 		}
@@ -1998,13 +1997,13 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 
 		p.lexer.ExpectOrInsertSemicolon()
 		return js_ast.Property{
-			TSDecorators:    opts.tsDecorators,
-			Kind:            kind,
-			IsComputed:      isComputed,
-			PreferQuotedKey: preferQuotedKey,
-			IsStatic:        opts.isStatic,
-			Key:             key,
-			Initializer:     initializer,
+			TSDecorators:     opts.tsDecorators,
+			Kind:             kind,
+			IsComputed:       isComputed,
+			PreferQuotedKey:  preferQuotedKey,
+			IsStatic:         opts.isStatic,
+			Key:              key,
+			InitializerOrNil: initializerOrNil,
 		}, true
 	}
 
@@ -2142,7 +2141,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 			IsMethod:        true,
 			IsStatic:        opts.isStatic,
 			Key:             key,
-			Value:           &value,
+			ValueOrNil:      value,
 		}, true
 	}
 
@@ -2154,7 +2153,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 		IsComputed:      isComputed,
 		PreferQuotedKey: preferQuotedKey,
 		Key:             key,
-		Value:           &value,
+		ValueOrNil:      value,
 	}, true
 }
 
@@ -2206,17 +2205,16 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 			ref := p.storeNameInRef(name)
 			value := js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: ref}}
 
-			var defaultValue *js_ast.Expr
+			var defaultValueOrNil js_ast.Expr
 			if p.lexer.Token == js_lexer.TEquals {
 				p.lexer.Next()
-				init := p.parseExpr(js_ast.LComma)
-				defaultValue = &init
+				defaultValueOrNil = p.parseExpr(js_ast.LComma)
 			}
 
 			return js_ast.PropertyBinding{
-				Key:          key,
-				Value:        value,
-				DefaultValue: defaultValue,
+				Key:               key,
+				Value:             value,
+				DefaultValueOrNil: defaultValueOrNil,
 			}
 		}
 	}
@@ -2224,19 +2222,18 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 	p.lexer.Expect(js_lexer.TColon)
 	value := p.parseBinding()
 
-	var defaultValue *js_ast.Expr
+	var defaultValueOrNil js_ast.Expr
 	if p.lexer.Token == js_lexer.TEquals {
 		p.lexer.Next()
-		init := p.parseExpr(js_ast.LComma)
-		defaultValue = &init
+		defaultValueOrNil = p.parseExpr(js_ast.LComma)
 	}
 
 	return js_ast.PropertyBinding{
-		IsComputed:      isComputed,
-		PreferQuotedKey: preferQuotedKey,
-		Key:             key,
-		Value:           value,
-		DefaultValue:    defaultValue,
+		IsComputed:        isComputed,
+		PreferQuotedKey:   preferQuotedKey,
+		Key:               key,
+		Value:             value,
+		DefaultValueOrNil: defaultValueOrNil,
 	}
 }
 
@@ -2275,7 +2272,7 @@ func (p *parser) parseArrowBody(args []js_ast.Arg, data fnOrArrowDataParse) *js_
 	return &js_ast.EArrow{
 		Args:       args,
 		PreferExpr: true,
-		Body:       js_ast.FnBody{Loc: arrowLoc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{Value: &expr}}}},
+		Body:       js_ast.FnBody{Loc: arrowLoc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{ValueOrNil: expr}}}},
 	}
 }
 
@@ -2543,9 +2540,9 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 				item = spread.Value
 				isSpread = true
 			}
-			binding, initializer, log := p.convertExprToBindingAndInitializer(item, invalidLog, isSpread)
+			binding, initializerOrNil, log := p.convertExprToBindingAndInitializer(item, invalidLog, isSpread)
 			invalidLog = log
-			args = append(args, js_ast.Arg{Binding: binding, Default: initializer})
+			args = append(args, js_ast.Arg{Binding: binding, DefaultOrNil: initializerOrNil})
 		}
 
 		// Avoid parsing TypeScript code like "a ? (1 + 2) : (3 + 4)" as an arrow
@@ -2638,15 +2635,17 @@ type syntaxFeature struct {
 	token   logger.Range
 }
 
-func (p *parser) convertExprToBindingAndInitializer(expr js_ast.Expr, invalidLog invalidLog, isSpread bool) (js_ast.Binding, *js_ast.Expr, invalidLog) {
-	var initializer *js_ast.Expr
+func (p *parser) convertExprToBindingAndInitializer(
+	expr js_ast.Expr, invalidLog invalidLog, isSpread bool,
+) (js_ast.Binding, js_ast.Expr, invalidLog) {
+	var initializerOrNil js_ast.Expr
 	if assign, ok := expr.Data.(*js_ast.EBinary); ok && assign.Op == js_ast.BinOpAssign {
-		initializer = &assign.Right
+		initializerOrNil = assign.Right
 		expr = assign.Left
 	}
 	binding, invalidLog := p.convertExprToBinding(expr, invalidLog)
-	if initializer != nil {
-		equalsRange := p.source.RangeOfOperatorBefore(initializer.Loc, "=")
+	if initializerOrNil.Data != nil {
+		equalsRange := p.source.RangeOfOperatorBefore(initializerOrNil.Loc, "=")
 		if isSpread {
 			p.log.AddRangeError(&p.tracker, equalsRange, "A rest argument cannot have a default initializer")
 		} else {
@@ -2656,7 +2655,7 @@ func (p *parser) convertExprToBindingAndInitializer(expr js_ast.Expr, invalidLog
 			})
 		}
 	}
-	return binding, initializer, invalidLog
+	return binding, initializerOrNil, invalidLog
 }
 
 // Note: do not write to "p.log" in this function. Any errors due to conversion
@@ -2689,9 +2688,9 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 					p.markSyntaxFeature(compat.NestedRestBinding, p.source.RangeOfOperatorAfter(item.Loc, "["))
 				}
 			}
-			binding, initializer, log := p.convertExprToBindingAndInitializer(item, invalidLog, isSpread)
+			binding, initializerOrNil, log := p.convertExprToBindingAndInitializer(item, invalidLog, isSpread)
 			invalidLog = log
-			items = append(items, js_ast.ArrayBinding{Binding: binding, DefaultValue: initializer})
+			items = append(items, js_ast.ArrayBinding{Binding: binding, DefaultValueOrNil: initializerOrNil})
 		}
 		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BArray{
 			Items:        items,
@@ -2713,17 +2712,17 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 				invalidLog.invalidTokens = append(invalidLog.invalidTokens, js_lexer.RangeOfIdentifier(p.source, item.Key.Loc))
 				continue
 			}
-			binding, initializer, log := p.convertExprToBindingAndInitializer(*item.Value, invalidLog, false)
+			binding, initializerOrNil, log := p.convertExprToBindingAndInitializer(item.ValueOrNil, invalidLog, false)
 			invalidLog = log
-			if initializer == nil {
-				initializer = item.Initializer
+			if initializerOrNil.Data == nil {
+				initializerOrNil = item.InitializerOrNil
 			}
 			properties = append(properties, js_ast.PropertyBinding{
-				IsSpread:     item.Kind == js_ast.PropertySpread,
-				IsComputed:   item.IsComputed,
-				Key:          item.Key,
-				Value:        binding,
-				DefaultValue: initializer,
+				IsSpread:          item.Kind == js_ast.PropertySpread,
+				IsComputed:        item.IsComputed,
+				Key:               item.Key,
+				Value:             binding,
+				DefaultValueOrNil: initializerOrNil,
 			})
 		}
 		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BObject{
@@ -3216,8 +3215,8 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 				p.lexer.Next()
 				value := p.parseExpr(js_ast.LComma)
 				properties = append(properties, js_ast.Property{
-					Kind:  js_ast.PropertySpread,
-					Value: &value,
+					Kind:       js_ast.PropertySpread,
+					ValueOrNil: value,
 				})
 
 				// Commas are not allowed here when destructuring
@@ -3379,7 +3378,7 @@ func (p *parser) parseYieldExpr(loc logger.Loc) js_ast.Expr {
 		p.lexer.Next()
 	}
 
-	var value *js_ast.Expr
+	var valueOrNil js_ast.Expr
 
 	// The yield expression only has a value in certain cases
 	switch p.lexer.Token {
@@ -3388,12 +3387,11 @@ func (p *parser) parseYieldExpr(loc logger.Loc) js_ast.Expr {
 
 	default:
 		if isStar || !p.lexer.HasNewlineBefore {
-			expr := p.parseExpr(js_ast.LYield)
-			value = &expr
+			valueOrNil = p.parseExpr(js_ast.LYield)
 		}
 	}
 
-	return js_ast.Expr{Loc: loc, Data: &js_ast.EYield{Value: value, IsStar: isStar}}
+	return js_ast.Expr{Loc: loc, Data: &js_ast.EYield{ValueOrNil: valueOrNil, IsStar: isStar}}
 }
 
 func (p *parser) willNeedBindingPattern() bool {
@@ -3450,7 +3448,7 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 	p.lexer.PreserveAllCommentsBefore = false
 
 	value := p.parseExpr(js_ast.LComma)
-	var options *js_ast.Expr
+	var optionsOrNil js_ast.Expr
 
 	if p.lexer.Token == js_lexer.TComma {
 		// "import('./foo.json', )"
@@ -3458,8 +3456,7 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 
 		if p.lexer.Token != js_lexer.TCloseParen {
 			// "import('./foo.json', { assert: { type: 'json' } })"
-			expr := p.parseExpr(js_ast.LComma)
-			options = &expr
+			optionsOrNil = p.parseExpr(js_ast.LComma)
 
 			if p.lexer.Token == js_lexer.TComma {
 				// "import('./foo.json', { assert: { type: 'json' } }, )"
@@ -3473,7 +3470,7 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 	p.allowIn = oldAllowIn
 	return js_ast.Expr{Loc: loc, Data: &js_ast.EImportCall{
 		Expr:                    value,
-		Options:                 options,
+		OptionsOrNil:            optionsOrNil,
 		LeadingInteriorComments: comments,
 	}}
 }
@@ -3681,8 +3678,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()
 			p.lexer.Next()
-			tag := left
-			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{Tag: &tag, Head: head, HeadRaw: headRaw}}
+			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{TagOrNil: left, Head: head, HeadRaw: headRaw}}
 
 		case js_lexer.TTemplateHead:
 			if oldOptionalChain != js_ast.OptionalChainNone {
@@ -3692,8 +3688,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()
 			parts, _ := p.parseTemplateParts(true /* includeRaw */)
-			tag := left
-			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{Tag: &tag, Head: head, HeadRaw: headRaw, Parts: parts}}
+			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{TagOrNil: left, Head: head, HeadRaw: headRaw, Parts: parts}}
 
 		case js_lexer.TOpenBracket:
 			// When parsing a decorator, ignore EIndex expressions since they may be
@@ -4246,12 +4241,12 @@ func (p *parser) parseCallArgs() []js_ast.Expr {
 	return args
 }
 
-func (p *parser) parseJSXTag() (logger.Range, string, *js_ast.Expr) {
+func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 	loc := p.lexer.Loc()
 
 	// A missing tag is a fragment
 	if p.lexer.Token == js_lexer.TGreaterThan {
-		return logger.Range{Loc: loc, Len: 0}, "", nil
+		return logger.Range{Loc: loc, Len: 0}, "", js_ast.Expr{}
 	}
 
 	// The tag is an identifier
@@ -4261,11 +4256,11 @@ func (p *parser) parseJSXTag() (logger.Range, string, *js_ast.Expr) {
 
 	// Certain identifiers are strings
 	if strings.ContainsAny(name, "-:") || (p.lexer.Token != js_lexer.TDot && name[0] >= 'a' && name[0] <= 'z') {
-		return tagRange, name, &js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}}
+		return tagRange, name, js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}}
 	}
 
 	// Otherwise, this is an identifier
-	tag := &js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
+	tag := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
 
 	// Parse a member expression chain
 	for p.lexer.Token == js_lexer.TDot {
@@ -4282,8 +4277,8 @@ func (p *parser) parseJSXTag() (logger.Range, string, *js_ast.Expr) {
 		}
 
 		name += "." + member
-		tag = &js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
-			Target:  *tag,
+		tag = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+			Target:  tag,
 			Name:    member,
 			NameLoc: memberRange.Loc,
 		}}
@@ -4295,7 +4290,7 @@ func (p *parser) parseJSXTag() (logger.Range, string, *js_ast.Expr) {
 
 func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 	// Parse the tag
-	startRange, startText, startTag := p.parseJSXTag()
+	startRange, startText, startTagOrNil := p.parseJSXTag()
 
 	// The tag may have TypeScript type arguments: "<Foo<T>/>"
 	if p.options.ts.Parse {
@@ -4309,7 +4304,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 	// Parse attributes
 	var previousStringWithBackslashLoc logger.Loc
 	properties := []js_ast.Property{}
-	if startTag != nil {
+	if startTagOrNil.Data != nil {
 	parseAttributes:
 		for {
 			switch p.lexer.Token {
@@ -4344,8 +4339,8 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 
 				// Add a property
 				properties = append(properties, js_ast.Property{
-					Key:   key,
-					Value: &value,
+					Key:        key,
+					ValueOrNil: value,
 				})
 
 			case js_lexer.TOpenBrace:
@@ -4354,8 +4349,8 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 				p.lexer.Expect(js_lexer.TDotDotDot)
 				value := p.parseExpr(js_ast.LComma)
 				properties = append(properties, js_ast.Property{
-					Kind:  js_ast.PropertySpread,
-					Value: &value,
+					Kind:       js_ast.PropertySpread,
+					ValueOrNil: value,
 				})
 
 				// Use NextInsideJSXElement() not Next() so we can parse ">>" as ">"
@@ -4418,7 +4413,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 		if p.lexer.Token != js_lexer.TGreaterThan {
 			p.lexer.Expected(js_lexer.TGreaterThan)
 		}
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EJSXElement{Tag: startTag, Properties: properties}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EJSXElement{TagOrNil: startTagOrNil, Properties: properties}}
 	}
 
 	// Use ExpectJSXElementChild() so we parse child strings
@@ -4476,7 +4471,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 				p.lexer.Expected(js_lexer.TGreaterThan)
 			}
 
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EJSXElement{Tag: startTag, Properties: properties, Children: children}}
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EJSXElement{TagOrNil: startTagOrNil, Properties: properties, Children: children}}
 
 		default:
 			p.lexer.Unexpected()
@@ -4522,7 +4517,7 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 			p.log.AddRangeError(&p.tracker, p.lexer.Range(), "Cannot use \"let\" as an identifier here")
 		}
 
-		var value *js_ast.Expr
+		var valueOrNil js_ast.Expr
 		local := p.parseBinding()
 		p.declareBinding(kind, local, opts)
 
@@ -4543,11 +4538,10 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 
 		if p.lexer.Token == js_lexer.TEquals {
 			p.lexer.Next()
-			expr := p.parseExpr(js_ast.LComma)
-			value = &expr
+			valueOrNil = p.parseExpr(js_ast.LComma)
 		}
 
-		decls = append(decls, js_ast.Decl{Binding: local, Value: value})
+		decls = append(decls, js_ast.Decl{Binding: local, ValueOrNil: valueOrNil})
 
 		if p.lexer.Token != js_lexer.TComma {
 			break
@@ -4560,7 +4554,7 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 
 func (p *parser) requireInitializers(decls []js_ast.Decl) {
 	for _, d := range decls {
-		if d.Value == nil {
+		if d.ValueOrNil.Data == nil {
 			if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
 				r := js_lexer.RangeOfIdentifier(p.source, d.Binding.Loc)
 				p.log.AddRangeError(&p.tracker, r, fmt.Sprintf("The constant %q must be initialized",
@@ -4575,7 +4569,7 @@ func (p *parser) requireInitializers(decls []js_ast.Decl) {
 func (p *parser) forbidInitializers(decls []js_ast.Decl, loopType string, isVar bool) {
 	if len(decls) > 1 {
 		p.log.AddError(&p.tracker, decls[0].Binding.Loc, fmt.Sprintf("for-%s loops must have a single declaration", loopType))
-	} else if len(decls) == 1 && decls[0].Value != nil {
+	} else if len(decls) == 1 && decls[0].ValueOrNil.Data != nil {
 		if isVar {
 			if _, ok := decls[0].Binding.Data.(*js_ast.BIdentifier); ok {
 				// This is a weird special case. Initializers are allowed in "var"
@@ -4583,7 +4577,7 @@ func (p *parser) forbidInitializers(decls []js_ast.Decl, loopType string, isVar 
 				return
 			}
 		}
-		p.log.AddError(&p.tracker, decls[0].Value.Loc, fmt.Sprintf("for-%s loop variables cannot have an initializer", loopType))
+		p.log.AddError(&p.tracker, decls[0].ValueOrNil.Loc, fmt.Sprintf("for-%s loop variables cannot have an initializer", loopType))
 	}
 }
 
@@ -4779,14 +4773,13 @@ func (p *parser) parseBinding() js_ast.Binding {
 
 				binding := p.parseBinding()
 
-				var defaultValue *js_ast.Expr
+				var defaultValueOrNil js_ast.Expr
 				if !hasSpread && p.lexer.Token == js_lexer.TEquals {
 					p.lexer.Next()
-					value := p.parseExpr(js_ast.LComma)
-					defaultValue = &value
+					defaultValueOrNil = p.parseExpr(js_ast.LComma)
 				}
 
-				items = append(items, js_ast.ArrayBinding{Binding: binding, DefaultValue: defaultValue})
+				items = append(items, js_ast.ArrayBinding{Binding: binding, DefaultValueOrNil: defaultValueOrNil})
 
 				// Commas after spread elements are not allowed
 				if hasSpread && p.lexer.Token == js_lexer.TComma {
@@ -4964,18 +4957,17 @@ func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_as
 
 		p.declareBinding(js_ast.SymbolHoisted, arg, parseStmtOpts{})
 
-		var defaultValue *js_ast.Expr
+		var defaultValueOrNil js_ast.Expr
 		if !fn.HasRestArg && p.lexer.Token == js_lexer.TEquals {
 			p.markSyntaxFeature(compat.DefaultArgument, p.lexer.Range())
 			p.lexer.Next()
-			value := p.parseExpr(js_ast.LComma)
-			defaultValue = &value
+			defaultValueOrNil = p.parseExpr(js_ast.LComma)
 		}
 
 		fn.Args = append(fn.Args, js_ast.Arg{
 			TSDecorators: tsDecorators,
 			Binding:      arg,
-			Default:      defaultValue,
+			DefaultOrNil: defaultValueOrNil,
 
 			// We need to track this because it affects code generation
 			IsTypeScriptCtorField: isTypeScriptCtorField,
@@ -5107,12 +5099,11 @@ type parseClassOpts struct {
 // By the time we call this, the identifier and type parameters have already
 // been parsed. We need to start parsing from the "extends" clause.
 func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, classOpts parseClassOpts) js_ast.Class {
-	var extends *js_ast.Expr
+	var extendsOrNil js_ast.Expr
 
 	if p.lexer.Token == js_lexer.TExtends {
 		p.lexer.Next()
-		value := p.parseExpr(js_ast.LNew)
-		extends = &value
+		extendsOrNil = p.parseExpr(js_ast.LNew)
 
 		// TypeScript's type argument parser inside expressions backtracks if the
 		// first token after the end of the type parameter list is "{", so the
@@ -5153,7 +5144,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 	opts := propertyOpts{
 		isClass:           true,
 		allowTSDecorators: classOpts.allowTSDecorators,
-		classHasExtends:   extends != nil,
+		classHasExtends:   extendsOrNil.Data != nil,
 	}
 	hasConstructor := false
 
@@ -5206,7 +5197,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 		ClassKeyword: classKeyword,
 		TSDecorators: classOpts.tsDecorators,
 		Name:         name,
-		Extends:      extends,
+		ExtendsOrNil: extendsOrNil,
 		BodyLoc:      bodyLoc,
 		Properties:   properties,
 	}
@@ -5583,13 +5574,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						defaultName = createDefaultName()
 					}
 
-					return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Stmt: &stmt}}}
+					return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: stmt}}
 				}
 
 				defaultName := createDefaultName()
 				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange, js_ast.LComma, 0), js_ast.LComma, nil, 0)
 				p.lexer.ExpectOrInsertSemicolon()
-				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Expr: &expr}}}
+				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{
+					DefaultName: defaultName, Value: js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}}}}
 			}
 
 			if p.lexer.Token == js_lexer.TFunction || p.lexer.Token == js_lexer.TClass || p.lexer.IsContextualKeyword("interface") {
@@ -5621,7 +5613,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					panic("Internal error")
 				}
 
-				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Stmt: &stmt}}}
+				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: stmt}}
 			}
 
 			isIdentifier := p.lexer.Token == js_lexer.TIdentifier
@@ -5644,13 +5636,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						defaultName = createDefaultName()
 					}
 
-					return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Stmt: &stmt}}}
+					return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: stmt}}
 				}
 			}
 
 			p.lexer.ExpectOrInsertSemicolon()
 			defaultName := createDefaultName()
-			return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Expr: &expr}}}
+			return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{
+				DefaultName: defaultName, Value: js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}}}}
 
 		case js_lexer.TAsterisk:
 			if !opts.isModuleScope && (!opts.isNamespaceScope || !opts.isTypeScriptDeclare) {
@@ -5825,13 +5818,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		test := p.parseExpr(js_ast.LLowest)
 		p.lexer.Expect(js_lexer.TCloseParen)
 		yes := p.parseStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowFnInsideIf})
-		var no *js_ast.Stmt = nil
+		var noOrNil js_ast.Stmt
 		if p.lexer.Token == js_lexer.TElse {
 			p.lexer.Next()
-			stmt := p.parseStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowFnInsideIf})
-			no = &stmt
+			noOrNil = p.parseStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowFnInsideIf})
 		}
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.SIf{Test: test, Yes: yes, No: no}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.SIf{Test: test, Yes: yes, NoOrNil: noOrNil}}
 
 	case js_lexer.TDo:
 		p.lexer.Next()
@@ -5887,7 +5879,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		foundDefault := false
 
 		for p.lexer.Token != js_lexer.TCloseBrace {
-			var value *js_ast.Expr = nil
+			var value js_ast.Expr
 			body := []js_ast.Stmt{}
 
 			if p.lexer.Token == js_lexer.TDefault {
@@ -5900,8 +5892,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.lexer.Expect(js_lexer.TColon)
 			} else {
 				p.lexer.Expect(js_lexer.TCase)
-				expr := p.parseExpr(js_ast.LLowest)
-				value = &expr
+				value = p.parseExpr(js_ast.LLowest)
 				p.lexer.Expect(js_lexer.TColon)
 			}
 
@@ -5916,7 +5907,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				}
 			}
 
-			cases = append(cases, js_ast.Case{Value: value, Body: body})
+			cases = append(cases, js_ast.Case{ValueOrNil: value, Body: body})
 		}
 
 		p.lexer.Expect(js_lexer.TCloseBrace)
@@ -5942,7 +5933,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			catchLoc := p.lexer.Loc()
 			p.pushScopeForParsePass(js_ast.ScopeBlock, catchLoc)
 			p.lexer.Next()
-			var binding *js_ast.Binding
+			var bindingOrNil js_ast.Binding
 
 			// The catch binding is optional, and can be omitted
 			if p.lexer.Token == js_lexer.TOpenBrace {
@@ -5950,11 +5941,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					// Generate a new symbol for the catch binding for older browsers
 					ref := p.newSymbol(js_ast.SymbolOther, "e")
 					p.currentScope.Generated = append(p.currentScope.Generated, ref)
-					binding = &js_ast.Binding{Loc: p.lexer.Loc(), Data: &js_ast.BIdentifier{Ref: ref}}
+					bindingOrNil = js_ast.Binding{Loc: p.lexer.Loc(), Data: &js_ast.BIdentifier{Ref: ref}}
 				}
 			} else {
 				p.lexer.Expect(js_lexer.TOpenParen)
-				value := p.parseBinding()
+				bindingOrNil = p.parseBinding()
 
 				// Skip over types
 				if p.options.ts.Parse && p.lexer.Token == js_lexer.TColon {
@@ -5966,17 +5957,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 				// Bare identifiers are a special case
 				kind := js_ast.SymbolOther
-				if _, ok := value.Data.(*js_ast.BIdentifier); ok {
+				if _, ok := bindingOrNil.Data.(*js_ast.BIdentifier); ok {
 					kind = js_ast.SymbolCatchIdentifier
 				}
-				p.declareBinding(kind, value, parseStmtOpts{})
-				binding = &value
+				p.declareBinding(kind, bindingOrNil, parseStmtOpts{})
 			}
 
 			p.lexer.Expect(js_lexer.TOpenBrace)
 			stmts := p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{})
 			p.lexer.Next()
-			catch = &js_ast.Catch{Loc: catchLoc, Binding: binding, Body: stmts}
+			catch = &js_ast.Catch{Loc: catchLoc, BindingOrNil: bindingOrNil, Body: stmts}
 			p.popScope()
 		}
 
@@ -6023,9 +6013,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		p.lexer.Expect(js_lexer.TOpenParen)
 
-		var init *js_ast.Stmt = nil
-		var test *js_ast.Expr = nil
-		var update *js_ast.Expr = nil
+		var initOrNil js_ast.Stmt
+		var testOrNil js_ast.Expr
+		var updateOrNil js_ast.Expr
 
 		// "in" expressions aren't allowed here
 		p.allowIn = false
@@ -6042,13 +6032,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			isVar = true
 			p.lexer.Next()
 			decls = p.parseAndDeclareDecls(js_ast.SymbolHoisted, parseStmtOpts{})
-			init = &js_ast.Stmt{Loc: initLoc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: decls}}
+			initOrNil = js_ast.Stmt{Loc: initLoc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: decls}}
 
 		case js_lexer.TConst:
 			p.markSyntaxFeature(compat.Const, p.lexer.Range())
 			p.lexer.Next()
 			decls = p.parseAndDeclareDecls(js_ast.SymbolConst, parseStmtOpts{})
-			init = &js_ast.Stmt{Loc: initLoc, Data: &js_ast.SLocal{Kind: js_ast.LocalConst, Decls: decls}}
+			initOrNil = js_ast.Stmt{Loc: initLoc, Data: &js_ast.SLocal{Kind: js_ast.LocalConst, Decls: decls}}
 
 		case js_lexer.TSemicolon:
 
@@ -6062,9 +6052,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			})
 			if stmt.Data != nil {
 				badLetRange = logger.Range{}
-				init = &stmt
+				initOrNil = stmt
 			} else {
-				init = &js_ast.Stmt{Loc: initLoc, Data: &js_ast.SExpr{Value: expr}}
+				initOrNil = js_ast.Stmt{Loc: initLoc, Data: &js_ast.SExpr{Value: expr}}
 			}
 		}
 
@@ -6077,7 +6067,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.log.AddRangeError(&p.tracker, badLetRange, "\"let\" must be wrapped in parentheses to be used as an expression here")
 			}
 			if isForAwait && !p.lexer.IsContextualKeyword("of") {
-				if init != nil {
+				if initOrNil.Data != nil {
 					p.lexer.ExpectedString("\"of\"")
 				} else {
 					p.lexer.Unexpected()
@@ -6089,7 +6079,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			value := p.parseExpr(js_ast.LComma)
 			p.lexer.Expect(js_lexer.TCloseParen)
 			body := p.parseStmt(parseStmtOpts{})
-			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForOf{IsAwait: isForAwait, Init: *init, Value: value, Body: body}}
+			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForOf{IsAwait: isForAwait, Init: initOrNil, Value: value, Body: body}}
 		}
 
 		// Detect for-in loops
@@ -6099,33 +6089,34 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			value := p.parseExpr(js_ast.LLowest)
 			p.lexer.Expect(js_lexer.TCloseParen)
 			body := p.parseStmt(parseStmtOpts{})
-			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForIn{Init: *init, Value: value, Body: body}}
+			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForIn{Init: initOrNil, Value: value, Body: body}}
 		}
 
 		// Only require "const" statement initializers when we know we're a normal for loop
-		if init != nil {
-			if local, ok := init.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalConst {
-				p.requireInitializers(decls)
-			}
+		if local, ok := initOrNil.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalConst {
+			p.requireInitializers(decls)
 		}
 
 		p.lexer.Expect(js_lexer.TSemicolon)
 
 		if p.lexer.Token != js_lexer.TSemicolon {
-			expr := p.parseExpr(js_ast.LLowest)
-			test = &expr
+			testOrNil = p.parseExpr(js_ast.LLowest)
 		}
 
 		p.lexer.Expect(js_lexer.TSemicolon)
 
 		if p.lexer.Token != js_lexer.TCloseParen {
-			expr := p.parseExpr(js_ast.LLowest)
-			update = &expr
+			updateOrNil = p.parseExpr(js_ast.LLowest)
 		}
 
 		p.lexer.Expect(js_lexer.TCloseParen)
 		body := p.parseStmt(parseStmtOpts{})
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.SFor{Init: init, Test: test, Update: update, Body: body}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.SFor{
+			InitOrNil:   initOrNil,
+			TestOrNil:   testOrNil,
+			UpdateOrNil: updateOrNil,
+			Body:        body,
+		}}
 
 	case js_lexer.TImport:
 		previousImportKeyword := p.es6ImportKeyword
@@ -6332,17 +6323,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 	case js_lexer.TReturn:
 		p.lexer.Next()
-		var value *js_ast.Expr
+		var value js_ast.Expr
 		if p.lexer.Token != js_lexer.TSemicolon &&
 			!p.lexer.HasNewlineBefore &&
 			p.lexer.Token != js_lexer.TCloseBrace &&
 			p.lexer.Token != js_lexer.TEndOfFile {
-			expr := p.parseExpr(js_ast.LLowest)
-			value = &expr
+			value = p.parseExpr(js_ast.LLowest)
 		}
 		p.latestReturnHadSemicolon = p.lexer.Token == js_lexer.TSemicolon
 		p.lexer.ExpectOrInsertSemicolon()
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.SReturn{Value: value}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.SReturn{ValueOrNil: value}}
 
 	case js_lexer.TThrow:
 		p.lexer.Next()
@@ -6650,7 +6640,7 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 		// Warn about ASI and return statements. Here's an example of code with
 		// this problem: https://github.com/rollup/rollup/issues/3729
 		if !p.suppressWarningsAboutWeirdCode {
-			if s, ok := stmt.Data.(*js_ast.SReturn); ok && s.Value == nil && !p.latestReturnHadSemicolon {
+			if s, ok := stmt.Data.(*js_ast.SReturn); ok && s.ValueOrNil.Data == nil && !p.latestReturnHadSemicolon {
 				returnWithoutSemicolonStart = stmt.Loc.Start
 			} else {
 				if returnWithoutSemicolonStart != -1 {
@@ -6847,7 +6837,7 @@ func shouldKeepStmtInDeadControlFlow(stmt js_ast.Stmt) bool {
 		return false
 
 	case *js_ast.SIf:
-		return shouldKeepStmtInDeadControlFlow(s.Yes) || (s.No != nil && shouldKeepStmtInDeadControlFlow(*s.No))
+		return shouldKeepStmtInDeadControlFlow(s.Yes) || (s.NoOrNil.Data != nil && shouldKeepStmtInDeadControlFlow(s.NoOrNil))
 
 	case *js_ast.SWhile:
 		return shouldKeepStmtInDeadControlFlow(s.Body)
@@ -6856,7 +6846,7 @@ func shouldKeepStmtInDeadControlFlow(stmt js_ast.Stmt) bool {
 		return shouldKeepStmtInDeadControlFlow(s.Body)
 
 	case *js_ast.SFor:
-		return (s.Init != nil && shouldKeepStmtInDeadControlFlow(*s.Init)) || shouldKeepStmtInDeadControlFlow(s.Body)
+		return (s.InitOrNil.Data != nil && shouldKeepStmtInDeadControlFlow(s.InitOrNil)) || shouldKeepStmtInDeadControlFlow(s.Body)
 
 	case *js_ast.SForIn:
 		return shouldKeepStmtInDeadControlFlow(s.Init) || shouldKeepStmtInDeadControlFlow(s.Body)
@@ -6891,8 +6881,8 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 		// Capture "this"
 		if ref := p.fnOnlyDataVisit.thisCaptureRef; ref != nil {
 			p.tempRefsToDeclare = append(p.tempRefsToDeclare, tempRef{
-				ref:   *ref,
-				value: &js_ast.Expr{Loc: *opts.fnBodyLoc, Data: &js_ast.EThis{}},
+				ref:        *ref,
+				valueOrNil: js_ast.Expr{Loc: *opts.fnBodyLoc, Data: &js_ast.EThis{}},
 			})
 			p.currentScope.Generated = append(p.currentScope.Generated, *ref)
 		}
@@ -6900,8 +6890,8 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 		// Capture "arguments"
 		if ref := p.fnOnlyDataVisit.argumentsCaptureRef; ref != nil {
 			p.tempRefsToDeclare = append(p.tempRefsToDeclare, tempRef{
-				ref:   *ref,
-				value: &js_ast.Expr{Loc: *opts.fnBodyLoc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.argumentsRef}},
+				ref:        *ref,
+				valueOrNil: js_ast.Expr{Loc: *opts.fnBodyLoc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.argumentsRef}},
 			})
 			p.currentScope.Generated = append(p.currentScope.Generated, *ref)
 		}
@@ -6911,7 +6901,7 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 	if len(p.tempRefsToDeclare) > 0 {
 		decls := []js_ast.Decl{}
 		for _, temp := range p.tempRefsToDeclare {
-			decls = append(decls, js_ast.Decl{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: temp.ref}}, Value: temp.value})
+			decls = append(decls, js_ast.Decl{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: temp.ref}}, ValueOrNil: temp.valueOrNil})
 			p.recordDeclaredSymbol(temp.ref)
 		}
 
@@ -6992,15 +6982,15 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 				if hoistedRef, ok := p.hoistedRefForSloppyModeBlockFn[s.Fn.Name.Ref]; ok {
 					p.recordUsage(s.Fn.Name.Ref)
 					varDecls = append(varDecls, js_ast.Decl{
-						Binding: js_ast.Binding{Loc: s.Fn.Name.Loc, Data: &js_ast.BIdentifier{Ref: hoistedRef}},
-						Value:   &js_ast.Expr{Loc: s.Fn.Name.Loc, Data: &js_ast.EIdentifier{Ref: s.Fn.Name.Ref}},
+						Binding:    js_ast.Binding{Loc: s.Fn.Name.Loc, Data: &js_ast.BIdentifier{Ref: hoistedRef}},
+						ValueOrNil: js_ast.Expr{Loc: s.Fn.Name.Loc, Data: &js_ast.EIdentifier{Ref: s.Fn.Name.Ref}},
 					})
 				}
 			}
 
 			// The last function statement for a given symbol wins
 			s.Fn.Name = nil
-			letDecls[index].Value = &js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EFunction{Fn: s.Fn}}
+			letDecls[index].ValueOrNil = js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EFunction{Fn: s.Fn}}
 		}
 
 		// Reuse memory from "before"
@@ -7008,7 +6998,7 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 		if p.options.unsupportedJSFeatures.Has(compat.Let) {
 			kind = js_ast.LocalVar
 		}
-		before = append(before[:0], js_ast.Stmt{Loc: letDecls[0].Value.Loc, Data: &js_ast.SLocal{Kind: kind, Decls: letDecls}})
+		before = append(before[:0], js_ast.Stmt{Loc: letDecls[0].ValueOrNil.Loc, Data: &js_ast.SLocal{Kind: kind, Decls: letDecls}})
 		if len(varDecls) > 0 {
 			// Potentially relocate "var" declarations to the top level
 			if assign, ok := p.maybeRelocateVarsToTopLevel(varDecls, relocateVarsNormal); ok {
@@ -7016,7 +7006,7 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 					before = append(before, assign)
 				}
 			} else {
-				before = append(before, js_ast.Stmt{Loc: varDecls[0].Value.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: varDecls}})
+				before = append(before, js_ast.Stmt{Loc: varDecls[0].ValueOrNil.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: varDecls}})
 			}
 		}
 		before = append(before, nonFnStmts...)
@@ -7118,7 +7108,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 				if prevS, ok := result[len(result)-1].Data.(*js_ast.SLocal); ok && prevS.Kind != js_ast.LocalVar {
 					// The variable must be initialized, since we will be substituting
 					// the value into the usage.
-					if last := prevS.Decls[len(prevS.Decls)-1]; last.Value != nil {
+					if last := prevS.Decls[len(prevS.Decls)-1]; last.ValueOrNil.Data != nil {
 						// The binding must be an identifier that is only used once.
 						// Ignore destructuring bindings since that's not the simple case.
 						// Destructuring bindings could potentially execute side-effecting
@@ -7127,7 +7117,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 							// Try to substitute the identifier with the initializer. This will
 							// fail if something with side effects is in between the declaration
 							// and the usage.
-							if p.substituteSingleUseSymbolInStmt(stmt, id.Ref, *last.Value) {
+							if p.substituteSingleUseSymbolInStmt(stmt, id.Ref, last.ValueOrNil) {
 								// Remove the previous declaration, since the substitution was
 								// successful.
 								if len(prevS.Decls) == 1 {
@@ -7205,7 +7195,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 				// Absorb a previous if statement
 				if len(result) > 0 {
 					prevStmt := result[len(result)-1]
-					if prevS, ok := prevStmt.Data.(*js_ast.SIf); ok && prevS.No == nil && jumpStmtsLookTheSame(prevS.Yes.Data, s.Yes.Data) {
+					if prevS, ok := prevStmt.Data.(*js_ast.SIf); ok && prevS.NoOrNil.Data == nil && jumpStmtsLookTheSame(prevS.Yes.Data, s.Yes.Data) {
 						// "if (a) break c; if (b) break c;" => "if (a || b) break c;"
 						// "if (a) continue c; if (b) continue c;" => "if (a || b) continue c;"
 						// "if (a) return c; if (b) return c;" => "if (a || b) return c;"
@@ -7226,15 +7216,15 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 				// "let x = () => { if (y) return; z(); };" => "let x = () => { if (!y) z(); };"
 				// "let x = () => { if (y) return; else z(); w(); };" => "let x = () => { if (!y) { z(); w(); } };" => "let x = () => { !y && (z(), w()); };"
 				if kind == stmtsFnBody {
-					if returnS, ok := s.Yes.Data.(*js_ast.SReturn); ok && returnS.Value == nil {
+					if returnS, ok := s.Yes.Data.(*js_ast.SReturn); ok && returnS.ValueOrNil.Data == nil {
 						optimizeImplicitJump = true
 					}
 				}
 
 				if optimizeImplicitJump {
 					var body []js_ast.Stmt
-					if s.No != nil {
-						body = append(body, *s.No)
+					if s.NoOrNil.Data != nil {
+						body = append(body, s.NoOrNil)
 					}
 					body = append(body, stmts[i+1:]...)
 
@@ -7272,15 +7262,15 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					}
 				}
 
-				if s.No != nil {
+				if s.NoOrNil.Data != nil {
 					// "if (a) return b; else if (c) return d; else return e;" => "if (a) return b; if (c) return d; return e;"
 					for {
 						result = append(result, stmt)
-						stmt = *s.No
-						s.No = nil
+						stmt = s.NoOrNil
+						s.NoOrNil = js_ast.Stmt{}
 						var ok bool
 						s, ok = stmt.Data.(*js_ast.SIf)
-						if !ok || !isJumpStatement(s.Yes.Data) || s.No == nil {
+						if !ok || !isJumpStatement(s.Yes.Data) || s.NoOrNil.Data == nil {
 							break
 						}
 					}
@@ -7294,11 +7284,11 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 
 		case *js_ast.SReturn:
 			// Merge return statements with the previous expression statement
-			if len(result) > 0 && s.Value != nil {
+			if len(result) > 0 && s.ValueOrNil.Data != nil {
 				prevStmt := result[len(result)-1]
 				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
-					value := js_ast.JoinWithComma(prevS.Value, *s.Value)
-					result[len(result)-1] = js_ast.Stmt{Loc: prevStmt.Loc, Data: &js_ast.SReturn{Value: &value}}
+					result[len(result)-1] = js_ast.Stmt{Loc: prevStmt.Loc,
+						Data: &js_ast.SReturn{ValueOrNil: js_ast.JoinWithComma(prevS.Value, s.ValueOrNil)}}
 					continue
 				}
 			}
@@ -7325,30 +7315,30 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 				prevStmt := result[len(result)-1]
 				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
 					// Insert the previous expression into the for loop initializer
-					if s.Init == nil {
+					if s.InitOrNil.Data == nil {
 						result[len(result)-1] = stmt
-						s.Init = &js_ast.Stmt{Loc: prevStmt.Loc, Data: &js_ast.SExpr{Value: prevS.Value}}
+						s.InitOrNil = js_ast.Stmt{Loc: prevStmt.Loc, Data: &js_ast.SExpr{Value: prevS.Value}}
 						continue
-					} else if s2, ok := s.Init.Data.(*js_ast.SExpr); ok {
+					} else if s2, ok := s.InitOrNil.Data.(*js_ast.SExpr); ok {
 						result[len(result)-1] = stmt
-						s.Init = &js_ast.Stmt{Loc: prevStmt.Loc, Data: &js_ast.SExpr{Value: js_ast.JoinWithComma(prevS.Value, s2.Value)}}
+						s.InitOrNil = js_ast.Stmt{Loc: prevStmt.Loc, Data: &js_ast.SExpr{Value: js_ast.JoinWithComma(prevS.Value, s2.Value)}}
 						continue
 					}
 				} else {
 					// Insert the previous variable declaration into the for loop
 					// initializer if it's a "var" declaration, since the scope
 					// doesn't matter due to scope hoisting
-					if s.Init == nil {
+					if s.InitOrNil.Data == nil {
 						if s2, ok := prevStmt.Data.(*js_ast.SLocal); ok && s2.Kind == js_ast.LocalVar && !s2.IsExport {
 							result[len(result)-1] = stmt
-							s.Init = &prevStmt
+							s.InitOrNil = prevStmt
 							continue
 						}
 					} else {
 						if s2, ok := prevStmt.Data.(*js_ast.SLocal); ok && s2.Kind == js_ast.LocalVar && !s2.IsExport {
-							if s3, ok := s.Init.Data.(*js_ast.SLocal); ok && s3.Kind == js_ast.LocalVar {
+							if s3, ok := s.InitOrNil.Data.(*js_ast.SLocal); ok && s3.Kind == js_ast.LocalVar {
 								result[len(result)-1] = stmt
-								s.Init.Data = &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: append(s2.Decls, s3.Decls...)}
+								s.InitOrNil.Data = &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: append(s2.Decls, s3.Decls...)}
 								continue
 							}
 						}
@@ -7371,7 +7361,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 
 		case stmtsFnBody:
 			// "function f() { x(); return; }" => "function f() { x(); }"
-			if returnS, ok := result[len(result)-1].Data.(*js_ast.SReturn); ok && returnS.Value == nil {
+			if returnS, ok := result[len(result)-1].Data.(*js_ast.SReturn); ok && returnS.ValueOrNil.Data == nil {
 				result = result[:len(result)-1]
 			}
 		}
@@ -7391,7 +7381,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 				switch prevS := prevStmt.Data.(type) {
 				case *js_ast.SExpr:
 					// This return statement must have a value
-					if lastReturn.Value == nil {
+					if lastReturn.ValueOrNil.Data == nil {
 						break returnLoop
 					}
 
@@ -7401,8 +7391,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					}
 
 					// "a(); return b;" => "return a(), b;"
-					lastValue := js_ast.JoinWithComma(prevS.Value, *lastReturn.Value)
-					lastReturn = &js_ast.SReturn{Value: &lastValue}
+					lastReturn = &js_ast.SReturn{ValueOrNil: js_ast.JoinWithComma(prevS.Value, lastReturn.ValueOrNil)}
 
 					// Merge the last two statements
 					lastStmt = js_ast.Stmt{Loc: prevStmt.Loc, Data: lastReturn}
@@ -7411,7 +7400,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 
 				case *js_ast.SIf:
 					// The previous statement must be an if statement with no else clause
-					if prevS.No != nil {
+					if prevS.NoOrNil.Data != nil {
 						break returnLoop
 					}
 
@@ -7422,15 +7411,15 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					}
 
 					// Handle some or all of the values being undefined
-					left := prevReturn.Value
-					right := lastReturn.Value
-					if left == nil {
+					left := prevReturn.ValueOrNil
+					right := lastReturn.ValueOrNil
+					if left.Data == nil {
 						// "if (a) return; return b;" => "return a ? void 0 : b;"
-						left = &js_ast.Expr{Loc: prevS.Yes.Loc, Data: &js_ast.EUndefined{}}
+						left = js_ast.Expr{Loc: prevS.Yes.Loc, Data: &js_ast.EUndefined{}}
 					}
-					if right == nil {
+					if right.Data == nil {
 						// "if (a) return a; return;" => "return a ? b : void 0;"
-						right = &js_ast.Expr{Loc: lastStmt.Loc, Data: &js_ast.EUndefined{}}
+						right = js_ast.Expr{Loc: lastStmt.Loc, Data: &js_ast.EUndefined{}}
 					}
 
 					// "if (!a) return b; return c;" => "return a ? c : b;"
@@ -7442,17 +7431,16 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					// Handle the returned values being the same
 					if boolean, ok := checkEqualityIfNoSideEffects(left.Data, right.Data); ok && boolean {
 						// "if (a) return b; return b;" => "return a, b;"
-						lastValue := js_ast.JoinWithComma(prevS.Test, *left)
-						lastReturn = &js_ast.SReturn{Value: &lastValue}
+						lastReturn = &js_ast.SReturn{ValueOrNil: js_ast.JoinWithComma(prevS.Test, left)}
 					} else {
 						if comma, ok := prevS.Test.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma {
 							// "if (a, b) return c; return d;" => "return a, b ? c : d;"
-							value := js_ast.JoinWithComma(comma.Left, p.mangleIfExpr(comma.Right.Loc, &js_ast.EIf{Test: comma.Right, Yes: *left, No: *right}))
-							lastReturn = &js_ast.SReturn{Value: &value}
+							lastReturn = &js_ast.SReturn{ValueOrNil: js_ast.JoinWithComma(comma.Left,
+								p.mangleIfExpr(comma.Right.Loc, &js_ast.EIf{Test: comma.Right, Yes: left, No: right}))}
 						} else {
 							// "if (a) return b; return c;" => "return a ? b : c;"
-							value := p.mangleIfExpr(prevS.Test.Loc, &js_ast.EIf{Test: prevS.Test, Yes: *left, No: *right})
-							lastReturn = &js_ast.SReturn{Value: &value}
+							lastReturn = &js_ast.SReturn{ValueOrNil: p.mangleIfExpr(
+								prevS.Test.Loc, &js_ast.EIf{Test: prevS.Test, Yes: left, No: right})}
 						}
 					}
 
@@ -7489,7 +7477,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 
 				case *js_ast.SIf:
 					// The previous statement must be an if statement with no else clause
-					if prevS.No != nil {
+					if prevS.NoOrNil.Data != nil {
 						break throwLoop
 					}
 
@@ -7539,17 +7527,17 @@ func (p *parser) substituteSingleUseSymbolInStmt(stmt js_ast.Stmt, ref js_ast.Re
 	case *js_ast.SThrow:
 		expr = &s.Value
 	case *js_ast.SReturn:
-		expr = s.Value
+		expr = &s.ValueOrNil
 	case *js_ast.SIf:
 		expr = &s.Test
 	case *js_ast.SSwitch:
 		expr = &s.Test
 	case *js_ast.SLocal:
 		// Only try substituting into the initializer for the first declaration
-		if first := s.Decls[0]; first.Value != nil {
+		if first := &s.Decls[0]; first.ValueOrNil.Data != nil {
 			// Make sure there isn't destructuring, which could evaluate code
 			if _, ok := first.Binding.Data.(*js_ast.BIdentifier); ok {
-				expr = first.Value
+				expr = &first.ValueOrNil
 			}
 		}
 	}
@@ -7615,9 +7603,9 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 		}
 
 	case *js_ast.EYield:
-		if e.Value != nil {
-			if value, status := p.substituteSingleUseSymbolInExpr(*e.Value, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
-				e.Value = &value
+		if e.ValueOrNil.Data != nil {
+			if value, status := p.substituteSingleUseSymbolInExpr(e.ValueOrNil, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+				e.ValueOrNil = value
 				return expr, status
 			}
 		}
@@ -7763,18 +7751,18 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 			}
 
 			// Check the value
-			if property.Value != nil {
-				if value, status := p.substituteSingleUseSymbolInExpr(*property.Value, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
-					e.Properties[i].Value = &value
+			if property.ValueOrNil.Data != nil {
+				if value, status := p.substituteSingleUseSymbolInExpr(property.ValueOrNil, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+					e.Properties[i].ValueOrNil = value
 					return expr, status
 				}
 			}
 		}
 
 	case *js_ast.ETemplate:
-		if e.Tag != nil {
-			if value, status := p.substituteSingleUseSymbolInExpr(*e.Tag, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
-				e.Tag = &value
+		if e.TagOrNil.Data != nil {
+			if value, status := p.substituteSingleUseSymbolInExpr(e.TagOrNil, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+				e.TagOrNil = value
 				return expr, status
 			}
 		}
@@ -7857,10 +7845,11 @@ func (p *parser) visitForLoopInit(stmt js_ast.Stmt, isInOrOf bool) js_ast.Stmt {
 		s.Value, _ = p.visitExprInOut(s.Value, exprIn{assignTarget: assignTarget})
 
 	case *js_ast.SLocal:
-		for _, d := range s.Decls {
+		for i := range s.Decls {
+			d := &s.Decls[i]
 			p.visitBinding(d.Binding, bindingOpts{})
-			if d.Value != nil {
-				*d.Value = p.visitExpr(*d.Value)
+			if d.ValueOrNil.Data != nil {
+				d.ValueOrNil = p.visitExpr(d.ValueOrNil)
 			}
 		}
 		s.Decls = p.lowerObjectRestInDecls(s.Decls)
@@ -7903,16 +7892,17 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 		}
 
 	case *js_ast.BArray:
-		for _, item := range b.Items {
+		for i := range b.Items {
+			item := &b.Items[i]
 			p.visitBinding(item.Binding, opts)
-			if item.DefaultValue != nil {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*item.DefaultValue)
-				*item.DefaultValue = p.visitExpr(*item.DefaultValue)
+			if item.DefaultValueOrNil.Data != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(item.DefaultValueOrNil)
+				item.DefaultValueOrNil = p.visitExpr(item.DefaultValueOrNil)
 
 				// Optionally preserve the name
 				if id, ok := item.Binding.Data.(*js_ast.BIdentifier); ok {
-					*item.DefaultValue = p.maybeKeepExprSymbolName(
-						*item.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+					item.DefaultValueOrNil = p.maybeKeepExprSymbolName(
+						item.DefaultValueOrNil, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 				}
 			}
 		}
@@ -7923,14 +7913,14 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 				property.Key = p.visitExpr(property.Key)
 			}
 			p.visitBinding(property.Value, opts)
-			if property.DefaultValue != nil {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.DefaultValue)
-				*property.DefaultValue = p.visitExpr(*property.DefaultValue)
+			if property.DefaultValueOrNil.Data != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.DefaultValueOrNil)
+				property.DefaultValueOrNil = p.visitExpr(property.DefaultValueOrNil)
 
 				// Optionally preserve the name
 				if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok {
-					*property.DefaultValue = p.maybeKeepExprSymbolName(
-						*property.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+					property.DefaultValueOrNil = p.maybeKeepExprSymbolName(
+						property.DefaultValueOrNil, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 				}
 			}
 			b.Properties[i] = property
@@ -7957,10 +7947,10 @@ func statementCaresAboutScope(stmt js_ast.Stmt) bool {
 	}
 }
 
-func dropFirstStatement(body js_ast.Stmt, replace *js_ast.Stmt) js_ast.Stmt {
+func dropFirstStatement(body js_ast.Stmt, replaceOrNil js_ast.Stmt) js_ast.Stmt {
 	if block, ok := body.Data.(*js_ast.SBlock); ok && len(block.Stmts) > 0 {
-		if replace != nil {
-			block.Stmts[0] = *replace
+		if replaceOrNil.Data != nil {
+			block.Stmts[0] = replaceOrNil
 		} else if len(block.Stmts) == 2 && !statementCaresAboutScope(block.Stmts[1]) {
 			return block.Stmts[1]
 		} else {
@@ -7968,8 +7958,8 @@ func dropFirstStatement(body js_ast.Stmt, replace *js_ast.Stmt) js_ast.Stmt {
 		}
 		return body
 	}
-	if replace != nil {
-		return *replace
+	if replaceOrNil.Data != nil {
+		return replaceOrNil
 	}
 	return js_ast.Stmt{Loc: body.Loc, Data: &js_ast.SEmpty{}}
 }
@@ -7993,25 +7983,33 @@ func mangleFor(s *js_ast.SFor) {
 			} else {
 				not = js_ast.Not(ifS.Test)
 			}
-			if s.Test != nil {
-				s.Test = &js_ast.Expr{Loc: s.Test.Loc, Data: &js_ast.EBinary{Op: js_ast.BinOpLogicalAnd, Left: *s.Test, Right: not}}
+			if s.TestOrNil.Data != nil {
+				s.TestOrNil = js_ast.Expr{Loc: s.TestOrNil.Loc, Data: &js_ast.EBinary{
+					Op:    js_ast.BinOpLogicalAnd,
+					Left:  s.TestOrNil,
+					Right: not,
+				}}
 			} else {
-				s.Test = &not
+				s.TestOrNil = not
 			}
-			s.Body = dropFirstStatement(s.Body, ifS.No)
+			s.Body = dropFirstStatement(s.Body, ifS.NoOrNil)
 			return
 		}
 
 		// "for (;;) if (x) y(); else break;" => "for (; x;) y();"
 		// "for (; a;) if (x) y(); else break;" => "for (; a && x;) y();"
-		if ifS.No != nil {
-			if breakS, ok := ifS.No.Data.(*js_ast.SBreak); ok && breakS.Label == nil {
-				if s.Test != nil {
-					s.Test = &js_ast.Expr{Loc: s.Test.Loc, Data: &js_ast.EBinary{Op: js_ast.BinOpLogicalAnd, Left: *s.Test, Right: ifS.Test}}
+		if ifS.NoOrNil.Data != nil {
+			if breakS, ok := ifS.NoOrNil.Data.(*js_ast.SBreak); ok && breakS.Label == nil {
+				if s.TestOrNil.Data != nil {
+					s.TestOrNil = js_ast.Expr{Loc: s.TestOrNil.Loc, Data: &js_ast.EBinary{
+						Op:    js_ast.BinOpLogicalAnd,
+						Left:  s.TestOrNil,
+						Right: ifS.Test,
+					}}
 				} else {
-					s.Test = &ifS.Test
+					s.TestOrNil = ifS.Test
 				}
-				s.Body = dropFirstStatement(s.Body, &ifS.Yes)
+				s.Body = dropFirstStatement(s.Body, ifS.Yes)
 				return
 			}
 		}
@@ -8044,7 +8042,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 	if boolean, sideEffects, ok := toBooleanWithSideEffects(s.Test.Data); ok {
 		if boolean {
 			// The test is truthy
-			if s.No == nil || !shouldKeepStmtInDeadControlFlow(*s.No) {
+			if s.NoOrNil.Data == nil || !shouldKeepStmtInDeadControlFlow(s.NoOrNil) {
 				// We can drop the "no" branch
 				if sideEffects == couldHaveSideEffects {
 					// Keep the condition if it could have side effects (but is still known to be truthy)
@@ -8066,10 +8064,10 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 						stmts = append(stmts, js_ast.Stmt{Loc: s.Test.Loc, Data: &js_ast.SExpr{Value: test}})
 					}
 				}
-				if s.No == nil {
+				if s.NoOrNil.Data == nil {
 					return stmts
 				}
-				return appendIfBodyPreservingScope(stmts, *s.No)
+				return appendIfBodyPreservingScope(stmts, s.NoOrNil)
 			} else {
 				// We have to keep the "yes" branch
 			}
@@ -8078,7 +8076,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 
 	if yes, ok := s.Yes.Data.(*js_ast.SExpr); ok {
 		// "yes" is an expression
-		if s.No == nil {
+		if s.NoOrNil.Data == nil {
 			if not, ok := s.Test.Data.(*js_ast.EUnary); ok && not.Op == js_ast.UnOpNot {
 				// "if (!a) b();" => "a || b();"
 				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
@@ -8088,7 +8086,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
 					Value: js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, s.Test, yes.Value)}})
 			}
-		} else if no, ok := s.No.Data.(*js_ast.SExpr); ok {
+		} else if no, ok := s.NoOrNil.Data.(*js_ast.SExpr); ok {
 			// "if (a) b(); else c();" => "a ? b() : c();"
 			return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: p.mangleIfExpr(loc, &js_ast.EIf{
 				Test: s.Test,
@@ -8098,7 +8096,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 		}
 	} else if _, ok := s.Yes.Data.(*js_ast.SEmpty); ok {
 		// "yes" is missing
-		if s.No == nil {
+		if s.NoOrNil.Data == nil {
 			// "yes" and "no" are both missing
 			if p.exprCanBeRemovedIfUnused(s.Test) {
 				// "if (1) {}" => ""
@@ -8107,7 +8105,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 				// "if (a) {}" => "a;"
 				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: s.Test}})
 			}
-		} else if no, ok := s.No.Data.(*js_ast.SExpr); ok {
+		} else if no, ok := s.NoOrNil.Data.(*js_ast.SExpr); ok {
 			if not, ok := s.Test.Data.(*js_ast.EUnary); ok && not.Op == js_ast.UnOpNot {
 				// "if (!a) {} else b();" => "a && b();"
 				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
@@ -8122,27 +8120,27 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 			if not, ok := s.Test.Data.(*js_ast.EUnary); ok && not.Op == js_ast.UnOpNot {
 				// "if (!a) {} else throw b;" => "if (a) throw b;"
 				s.Test = not.Value
-				s.Yes = *s.No
-				s.No = nil
+				s.Yes = s.NoOrNil
+				s.NoOrNil = js_ast.Stmt{}
 			} else {
 				// "if (a) {} else throw b;" => "if (!a) throw b;"
 				s.Test = js_ast.Not(s.Test)
-				s.Yes = *s.No
-				s.No = nil
+				s.Yes = s.NoOrNil
+				s.NoOrNil = js_ast.Stmt{}
 			}
 		}
 	} else {
 		// "yes" is not missing (and is not an expression)
-		if s.No != nil {
+		if s.NoOrNil.Data != nil {
 			// "yes" is not missing (and is not an expression) and "no" is not missing
 			if not, ok := s.Test.Data.(*js_ast.EUnary); ok && not.Op == js_ast.UnOpNot {
 				// "if (!a) return b; else return c;" => "if (a) return c; else return b;"
 				s.Test = not.Value
-				s.Yes, *s.No = *s.No, s.Yes
+				s.Yes, s.NoOrNil = s.NoOrNil, s.Yes
 			}
 		} else {
 			// "no" is missing
-			if s2, ok := s.Yes.Data.(*js_ast.SIf); ok && s2.No == nil {
+			if s2, ok := s.Yes.Data.(*js_ast.SIf); ok && s2.NoOrNil.Data == nil {
 				// "if (a) if (b) return c;" => "if (a && b) return c;"
 				s.Test = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, s.Test, s2.Test)
 				s.Yes = s2.Yes
@@ -8473,17 +8471,17 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 	case *js_ast.SExportDefault:
 		p.recordDeclaredSymbol(s.DefaultName.Ref)
 
-		switch {
-		case s.Value.Expr != nil:
-			wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*s.Value.Expr)
-			*s.Value.Expr = p.visitExpr(*s.Value.Expr)
+		switch s2 := s.Value.Data.(type) {
+		case *js_ast.SExpr:
+			wasAnonymousNamedExpr := p.isAnonymousNamedExpr(s2.Value)
+			s2.Value = p.visitExpr(s2.Value)
 
 			// Optionally preserve the name
-			*s.Value.Expr = p.maybeKeepExprSymbolName(*s.Value.Expr, "default", wasAnonymousNamedExpr)
+			s2.Value = p.maybeKeepExprSymbolName(s2.Value, "default", wasAnonymousNamedExpr)
 
 			// Discard type-only export default statements
 			if p.options.ts.Parse {
-				if id, ok := (*s.Value.Expr).Data.(*js_ast.EIdentifier); ok {
+				if id, ok := s2.Value.Data.(*js_ast.EIdentifier); ok {
 					symbol := p.symbols[id.Ref.InnerIndex]
 					if symbol.Kind == js_ast.SymbolUnbound && p.localTypeNames[symbol.OriginalName] {
 						return stmts
@@ -8491,41 +8489,38 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				}
 			}
 
-		case s.Value.Stmt != nil:
-			switch s2 := s.Value.Stmt.Data.(type) {
-			case *js_ast.SFunction:
-				// If we need to preserve the name but there is no name, generate a name
-				var name string
-				if p.options.keepNames {
-					if s2.Fn.Name == nil {
-						clone := s.DefaultName
-						s2.Fn.Name = &clone
-						name = "default"
-					} else {
-						name = p.symbols[s2.Fn.Name.Ref.InnerIndex].OriginalName
-					}
+		case *js_ast.SFunction:
+			// If we need to preserve the name but there is no name, generate a name
+			var name string
+			if p.options.keepNames {
+				if s2.Fn.Name == nil {
+					clone := s.DefaultName
+					s2.Fn.Name = &clone
+					name = "default"
+				} else {
+					name = p.symbols[s2.Fn.Name.Ref.InnerIndex].OriginalName
 				}
-
-				p.visitFn(&s2.Fn, s2.Fn.OpenParenLoc)
-				stmts = append(stmts, stmt)
-
-				// Optionally preserve the name
-				if p.options.keepNames && s2.Fn.Name != nil {
-					stmts = append(stmts, p.keepStmtSymbolName(s2.Fn.Name.Loc, s2.Fn.Name.Ref, name))
-				}
-
-				return stmts
-
-			case *js_ast.SClass:
-				shadowRef := p.visitClass(s.Value.Stmt.Loc, &s2.Class)
-
-				// Lower class field syntax for browsers that don't support it
-				classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, shadowRef)
-				return append(stmts, classStmts...)
-
-			default:
-				panic("Internal error")
 			}
+
+			p.visitFn(&s2.Fn, s2.Fn.OpenParenLoc)
+			stmts = append(stmts, stmt)
+
+			// Optionally preserve the name
+			if p.options.keepNames && s2.Fn.Name != nil {
+				stmts = append(stmts, p.keepStmtSymbolName(s2.Fn.Name.Loc, s2.Fn.Name.Ref, name))
+			}
+
+			return stmts
+
+		case *js_ast.SClass:
+			shadowRef := p.visitClass(s.Value.Loc, &s2.Class)
+
+			// Lower class field syntax for browsers that don't support it
+			classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, shadowRef)
+			return append(stmts, classStmts...)
+
+		default:
+			panic("Internal error")
 		}
 
 	case *js_ast.SExportEquals:
@@ -8578,16 +8573,17 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.popScope()
 
 	case *js_ast.SLocal:
-		for i, d := range s.Decls {
+		for i := range s.Decls {
+			d := &s.Decls[i]
 			p.visitBinding(d.Binding, bindingOpts{})
-			if d.Value != nil {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*d.Value)
-				*d.Value = p.visitExpr(*d.Value)
+			if d.ValueOrNil.Data != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(d.ValueOrNil)
+				d.ValueOrNil = p.visitExpr(d.ValueOrNil)
 
 				// Optionally preserve the name
 				if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
-					*d.Value = p.maybeKeepExprSymbolName(
-						*d.Value, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+					d.ValueOrNil = p.maybeKeepExprSymbolName(
+						d.ValueOrNil, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 				}
 
 				// Initializing to undefined is implicit, but be careful to not
@@ -8605,8 +8601,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				//
 				if p.options.mangleSyntax && s.Kind == js_ast.LocalLet {
 					if _, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
-						if _, ok := d.Value.Data.(*js_ast.EUndefined); ok {
-							s.Decls[i].Value = nil
+						if _, ok := d.ValueOrNil.Data.(*js_ast.EUndefined); ok {
+							d.ValueOrNil = js_ast.Expr{}
 						}
 					}
 				}
@@ -8624,12 +8620,12 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				}}
 			}
 			for _, decl := range s.Decls {
-				if decl.Value != nil {
+				if decl.ValueOrNil.Data != nil {
 					target := js_ast.ConvertBindingToExpr(decl.Binding, wrapIdentifier)
-					if result, ok := p.lowerAssign(target, *decl.Value, objRestReturnValueIsUnused); ok {
+					if result, ok := p.lowerAssign(target, decl.ValueOrNil, objRestReturnValueIsUnused); ok {
 						target = result
 					} else {
-						target = js_ast.Assign(target, *decl.Value)
+						target = js_ast.Assign(target, decl.ValueOrNil)
 					}
 					stmts = append(stmts, js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExpr{Value: target}})
 				}
@@ -8683,13 +8679,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 		}
 
-		if s.Value != nil {
-			*s.Value = p.visitExpr(*s.Value)
+		if s.ValueOrNil.Data != nil {
+			s.ValueOrNil = p.visitExpr(s.ValueOrNil)
 
 			// Returning undefined is implicit
 			if p.options.mangleSyntax {
-				if _, ok := s.Value.Data.(*js_ast.EUndefined); ok {
-					s.Value = nil
+				if _, ok := s.ValueOrNil.Data.(*js_ast.EUndefined); ok {
+					s.ValueOrNil = js_ast.Expr{}
 				}
 			}
 		}
@@ -8733,13 +8729,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			s.Test = p.simplifyBooleanExpr(s.Test)
 
 			// A true value is implied
-			test := &s.Test
+			testOrNil := s.Test
 			if boolean, sideEffects, ok := toBooleanWithSideEffects(s.Test.Data); ok && boolean && sideEffects == noSideEffects {
-				test = nil
+				testOrNil = js_ast.Expr{}
 			}
 
 			// "while (a) {}" => "for (;a;) {}"
-			forS := &js_ast.SFor{Test: test, Body: s.Body}
+			forS := &js_ast.SFor{TestOrNil: testOrNil, Body: s.Body}
 			mangleFor(forS)
 			stmt = js_ast.Stmt{Loc: stmt.Loc, Data: forS}
 		}
@@ -8773,21 +8769,21 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		// The "else" clause is optional
-		if s.No != nil {
+		if s.NoOrNil.Data != nil {
 			// Mark the control flow as dead if the branch is never taken
 			if ok && boolean {
 				old := p.isControlFlowDead
 				p.isControlFlowDead = true
-				*s.No = p.visitSingleStmt(*s.No, stmtsNormal)
+				s.NoOrNil = p.visitSingleStmt(s.NoOrNil, stmtsNormal)
 				p.isControlFlowDead = old
 			} else {
-				*s.No = p.visitSingleStmt(*s.No, stmtsNormal)
+				s.NoOrNil = p.visitSingleStmt(s.NoOrNil, stmtsNormal)
 			}
 
 			// Trim unnecessary "else" clauses
 			if p.options.mangleSyntax {
-				if _, ok := s.No.Data.(*js_ast.SEmpty); ok {
-					s.No = nil
+				if _, ok := s.NoOrNil.Data.(*js_ast.SEmpty); ok {
+					s.NoOrNil = js_ast.Stmt{}
 				}
 			}
 		}
@@ -8798,37 +8794,37 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 	case *js_ast.SFor:
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)
-		if s.Init != nil {
-			p.visitForLoopInit(*s.Init, false)
+		if s.InitOrNil.Data != nil {
+			p.visitForLoopInit(s.InitOrNil, false)
 		}
 
-		if s.Test != nil {
-			*s.Test = p.visitExpr(*s.Test)
+		if s.TestOrNil.Data != nil {
+			s.TestOrNil = p.visitExpr(s.TestOrNil)
 
 			if p.options.mangleSyntax {
-				*s.Test = p.simplifyBooleanExpr(*s.Test)
+				s.TestOrNil = p.simplifyBooleanExpr(s.TestOrNil)
 
 				// A true value is implied
-				if boolean, sideEffects, ok := toBooleanWithSideEffects(s.Test.Data); ok && boolean && sideEffects == noSideEffects {
-					s.Test = nil
+				if boolean, sideEffects, ok := toBooleanWithSideEffects(s.TestOrNil.Data); ok && boolean && sideEffects == noSideEffects {
+					s.TestOrNil = js_ast.Expr{}
 				}
 			}
 		}
 
-		if s.Update != nil {
-			*s.Update = p.visitExpr(*s.Update)
+		if s.UpdateOrNil.Data != nil {
+			s.UpdateOrNil = p.visitExpr(s.UpdateOrNil)
 		}
 		s.Body = p.visitLoopBody(s.Body)
 		p.popScope()
 
 		// Potentially relocate "var" declarations to the top level
-		if s.Init != nil {
-			if init, ok := s.Init.Data.(*js_ast.SLocal); ok && init.Kind == js_ast.LocalVar {
+		if s.InitOrNil.Data != nil {
+			if init, ok := s.InitOrNil.Data.(*js_ast.SLocal); ok && init.Kind == js_ast.LocalVar {
 				if assign, ok := p.maybeRelocateVarsToTopLevel(init.Decls, relocateVarsNormal); ok {
 					if assign.Data != nil {
-						s.Init = &assign
+						s.InitOrNil = assign
 					} else {
-						s.Init = nil
+						s.InitOrNil = js_ast.Stmt{}
 					}
 				}
 			}
@@ -8849,15 +8845,15 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// Check for a variable initializer
 		if local, ok := s.Init.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalVar && len(local.Decls) == 1 {
 			decl := &local.Decls[0]
-			if id, ok := decl.Binding.Data.(*js_ast.BIdentifier); ok && decl.Value != nil {
-				p.markStrictModeFeature(forInVarInit, p.source.RangeOfOperatorBefore(decl.Value.Loc, "="), "")
+			if id, ok := decl.Binding.Data.(*js_ast.BIdentifier); ok && decl.ValueOrNil.Data != nil {
+				p.markStrictModeFeature(forInVarInit, p.source.RangeOfOperatorBefore(decl.ValueOrNil.Loc, "="), "")
 
 				// Lower for-in variable initializers in case the output is used in strict mode
 				stmts = append(stmts, js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExpr{Value: js_ast.Assign(
 					js_ast.Expr{Loc: decl.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
-					*decl.Value,
+					decl.ValueOrNil,
 				)}})
-				decl.Value = nil
+				decl.ValueOrNil = js_ast.Expr{}
 			}
 		}
 
@@ -8893,8 +8889,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		if s.Catch != nil {
 			p.pushScopeForVisitPass(js_ast.ScopeBlock, s.Catch.Loc)
-			if s.Catch.Binding != nil {
-				p.visitBinding(*s.Catch.Binding, bindingOpts{})
+			if s.Catch.BindingOrNil.Data != nil {
+				p.visitBinding(s.Catch.BindingOrNil, bindingOpts{})
 			}
 			s.Catch.Body = p.visitStmts(s.Catch.Body, stmtsNormal)
 			p.lowerObjectRestInCatchBinding(s.Catch)
@@ -8913,10 +8909,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		oldIsInsideSwitch := p.fnOrArrowDataVisit.isInsideSwitch
 		p.fnOrArrowDataVisit.isInsideSwitch = true
 		for i, c := range s.Cases {
-			if c.Value != nil {
-				*c.Value = p.visitExpr(*c.Value)
-				p.warnAboutEqualityCheck("case", *c.Value, c.Value.Loc)
-				p.warnAboutTypeofAndString(s.Test, *c.Value)
+			if c.ValueOrNil.Data != nil {
+				c.ValueOrNil = p.visitExpr(c.ValueOrNil)
+				p.warnAboutEqualityCheck("case", c.ValueOrNil, c.ValueOrNil.Loc)
+				p.warnAboutTypeofAndString(s.Test, c.ValueOrNil)
 			}
 			c.Body = p.visitStmts(c.Body, stmtsNormal)
 
@@ -8929,8 +8925,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// Check for duplicate case values
 		p.duplicateCaseChecker.reset()
 		for _, c := range s.Cases {
-			if c.Value != nil {
-				p.duplicateCaseChecker.check(p, *c.Value)
+			if c.ValueOrNil.Data != nil {
+				p.duplicateCaseChecker.check(p, c.ValueOrNil)
 			}
 		}
 
@@ -9026,10 +9022,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			var assignTarget js_ast.Expr
 			hasStringValue := false
 
-			if value.Value != nil {
-				*value.Value = p.visitExpr(*value.Value)
+			if value.ValueOrNil.Data != nil {
+				value.ValueOrNil = p.visitExpr(value.ValueOrNil)
 				hasNumericValue = false
-				switch e := value.Value.Data.(type) {
+				switch e := value.ValueOrNil.Data.(type) {
 				case *js_ast.ENumber:
 					valuesSoFar[name] = e.Value
 					hasNumericValue = true
@@ -9039,10 +9035,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				}
 			} else if hasNumericValue {
 				valuesSoFar[name] = nextNumericValue
-				value.Value = &js_ast.Expr{Loc: value.Loc, Data: &js_ast.ENumber{Value: nextNumericValue}}
+				value.ValueOrNil = js_ast.Expr{Loc: value.Loc, Data: &js_ast.ENumber{Value: nextNumericValue}}
 				nextNumericValue++
 			} else {
-				value.Value = &js_ast.Expr{Loc: value.Loc, Data: &js_ast.EUndefined{}}
+				value.ValueOrNil = js_ast.Expr{Loc: value.Loc, Data: &js_ast.EUndefined{}}
 			}
 
 			if p.options.mangleSyntax && js_lexer.IsIdentifier(name) {
@@ -9053,7 +9049,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 						Name:    name,
 						NameLoc: value.Loc,
 					}},
-					*value.Value,
+					value.ValueOrNil,
 				)
 			} else {
 				// "Enum['Name'] = value"
@@ -9062,7 +9058,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 						Target: js_ast.Expr{Loc: value.Loc, Data: &js_ast.EIdentifier{Ref: s.Arg}},
 						Index:  js_ast.Expr{Loc: value.Loc, Data: &js_ast.EString{Value: value.Name}},
 					}},
-					*value.Value,
+					value.ValueOrNil,
 				)
 			}
 			p.recordUsage(s.Arg)
@@ -9179,8 +9175,8 @@ func (p *parser) maybeRelocateVarsToTopLevel(decls []js_ast.Decl, mode relocateV
 	var value js_ast.Expr
 	for _, decl := range decls {
 		binding := js_ast.ConvertBindingToExpr(decl.Binding, wrapIdentifier)
-		if decl.Value != nil {
-			value = js_ast.JoinWithComma(value, js_ast.Assign(binding, *decl.Value))
+		if decl.ValueOrNil.Data != nil {
+			value = js_ast.JoinWithComma(value, js_ast.Assign(binding, decl.ValueOrNil))
 		} else if mode == relocateVarsForInOrForOf {
 			value = js_ast.JoinWithComma(value, binding)
 		}
@@ -9361,7 +9357,7 @@ func (p *parser) captureValueWithPossibleSideEffects(
 					Target: js_ast.Expr{Loc: loc, Data: &js_ast.EArrow{
 						Args:       []js_ast.Arg{{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: tempRef}}}},
 						PreferExpr: true,
-						Body:       js_ast.FnBody{Loc: loc, Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SReturn{Value: &expr}}}},
+						Body:       js_ast.FnBody{Loc: loc, Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SReturn{ValueOrNil: expr}}}},
 					}},
 					Args: []js_ast.Expr{},
 				}}
@@ -9479,15 +9475,16 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		}
 	}
 
-	if class.Extends != nil {
-		*class.Extends = p.visitExpr(*class.Extends)
+	if class.ExtendsOrNil.Data != nil {
+		class.ExtendsOrNil = p.visitExpr(class.ExtendsOrNil)
 	}
 
 	// A scope is needed for private identifiers
 	p.pushScopeForVisitPass(js_ast.ScopeClassBody, class.BodyLoc)
 	defer p.popScope()
 
-	for i, property := range class.Properties {
+	for i := range class.Properties {
+		property := &class.Properties[i]
 		property.TSDecorators = p.visitTSDecorators(property.TSDecorators)
 		private, isPrivate := property.Key.Data.(*js_ast.EPrivateIdentifier)
 
@@ -9496,7 +9493,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 			p.recordDeclaredSymbol(private.Ref)
 		} else {
 			key := p.visitExpr(property.Key)
-			class.Properties[i].Key = key
+			property.Key = key
 
 			// "class {['x'] = y}" => "class {x = y}"
 			if p.options.mangleSyntax && property.IsComputed {
@@ -9516,7 +9513,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 					isInvalidPrototype := property.IsStatic && js_lexer.UTF16EqualsString(str.Value, "prototype")
 
 					if !isInvalidConstructor && !isInvalidPrototype {
-						class.Properties[i].IsComputed = false
+						property.IsComputed = false
 					}
 				}
 			}
@@ -9544,25 +9541,25 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 			}
 		}
 
-		if property.Value != nil {
+		if property.ValueOrNil.Data != nil {
 			if nameToKeep != "" {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.Value)
-				*property.Value = p.maybeKeepExprSymbolName(p.visitExpr(*property.Value), nameToKeep, wasAnonymousNamedExpr)
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.ValueOrNil)
+				property.ValueOrNil = p.maybeKeepExprSymbolName(p.visitExpr(property.ValueOrNil), nameToKeep, wasAnonymousNamedExpr)
 			} else {
-				*property.Value = p.visitExpr(*property.Value)
+				property.ValueOrNil = p.visitExpr(property.ValueOrNil)
 			}
 		}
 
-		if property.Initializer != nil {
+		if property.InitializerOrNil.Data != nil {
 			if property.IsStatic && replaceThisInStaticFieldInit {
 				// Replace "this" with the class name inside static property initializers
 				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
 			}
 			if nameToKeep != "" {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.Initializer)
-				*property.Initializer = p.maybeKeepExprSymbolName(p.visitExpr(*property.Initializer), nameToKeep, wasAnonymousNamedExpr)
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.InitializerOrNil)
+				property.InitializerOrNil = p.maybeKeepExprSymbolName(p.visitExpr(property.InitializerOrNil), nameToKeep, wasAnonymousNamedExpr)
 			} else {
-				*property.Initializer = p.visitExpr(*property.Initializer)
+				property.InitializerOrNil = p.visitExpr(property.InitializerOrNil)
 			}
 		}
 
@@ -9599,7 +9596,7 @@ func isSimpleParameterList(args []js_ast.Arg, hasRestArg bool) bool {
 		return false
 	}
 	for _, arg := range args {
-		if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok || arg.Default != nil {
+		if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok || arg.DefaultOrNil.Data != nil {
 			return false
 		}
 	}
@@ -9651,13 +9648,14 @@ func (p *parser) visitArgs(args []js_ast.Arg, opts visitArgsOpts) {
 		duplicateArgCheck = make(map[string]bool)
 	}
 
-	for _, arg := range args {
+	for i := range args {
+		arg := &args[i]
 		arg.TSDecorators = p.visitTSDecorators(arg.TSDecorators)
 		p.visitBinding(arg.Binding, bindingOpts{
 			duplicateArgCheck: duplicateArgCheck,
 		})
-		if arg.Default != nil {
-			*arg.Default = p.visitExpr(*arg.Default)
+		if arg.DefaultOrNil.Data != nil {
+			arg.DefaultOrNil = p.visitExpr(arg.DefaultOrNil)
 		}
 	}
 }
@@ -9993,21 +9991,21 @@ func (p *parser) maybeRewritePropertyAccess(
 
 				// The "__proto__" key has special behavior
 				if js_lexer.UTF16EqualsString(key.Value, "__proto__") {
-					if _, ok := prop.Value.Data.(*js_ast.ENull); ok {
+					if _, ok := prop.ValueOrNil.Data.(*js_ast.ENull); ok {
 						// Replacing "{__proto__: null}.a" with undefined should be safe
 						hasProtoNull = true
 					}
 				}
 
 				// This entire object literal must have no side effects
-				if !p.exprCanBeRemovedIfUnused(*prop.Value) {
+				if !p.exprCanBeRemovedIfUnused(prop.ValueOrNil) {
 					isUnsafe = true
 					break
 				}
 
 				// Note that we need to take the last value if there are duplicate keys
 				if js_lexer.UTF16EqualsString(key.Value, name) {
-					replace = *prop.Value
+					replace = prop.ValueOrNil
 				}
 			}
 
@@ -10047,13 +10045,13 @@ func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
 			}}
 
 		case *js_ast.ETemplate:
-			if r.Tag == nil {
+			if r.TagOrNil.Data == nil {
 				return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{Head: joinStrings(l.Value, r.Head), Parts: r.Parts}}
 			}
 		}
 
 	case *js_ast.ETemplate:
-		if l.Tag == nil {
+		if l.TagOrNil.Data == nil {
 			switch r := right.Data.(type) {
 			case *js_ast.EString:
 				n := len(l.Parts)
@@ -10068,7 +10066,7 @@ func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
 				return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{Head: head, Parts: parts}}
 
 			case *js_ast.ETemplate:
-				if r.Tag == nil {
+				if r.TagOrNil.Data == nil {
 					n := len(l.Parts)
 					head := l.Head
 					parts := make([]js_ast.TemplatePart, n+len(r.Parts))
@@ -10384,7 +10382,7 @@ func (p *parser) isValidAssignmentTarget(expr js_ast.Expr) bool {
 // "`a${'b'}c`" => "`abc`"
 func (p *parser) mangleTemplate(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr {
 	// Can't inline strings if there's a custom template tag
-	if e.Tag == nil {
+	if e.TagOrNil.Data == nil {
 		end := 0
 		for _, part := range e.Parts {
 			if str, ok := part.Value.Data.(*js_ast.EString); ok {
@@ -10547,17 +10545,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EJSXElement:
 		// A missing tag is a fragment
-		tag := e.Tag
-		if tag == nil {
+		tag := e.TagOrNil
+		if tag.Data == nil {
 			var value js_ast.Expr
 			if len(p.options.jsx.Fragment.Parts) > 0 {
 				value = p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Fragment.Parts)
 			} else if constant := p.options.jsx.Fragment.Constant; constant != nil {
 				value = js_ast.Expr{Loc: expr.Loc, Data: constant}
 			}
-			tag = &value
+			tag = value
 		} else {
-			*tag = p.visitExpr(*tag)
+			tag = p.visitExpr(tag)
 		}
 
 		// Visit properties
@@ -10565,17 +10563,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if property.Kind != js_ast.PropertySpread {
 				property.Key = p.visitExpr(property.Key)
 			}
-			if property.Value != nil {
-				*property.Value = p.visitExpr(*property.Value)
+			if property.ValueOrNil.Data != nil {
+				property.ValueOrNil = p.visitExpr(property.ValueOrNil)
 			}
-			if property.Initializer != nil {
-				*property.Initializer = p.visitExpr(*property.Initializer)
+			if property.InitializerOrNil.Data != nil {
+				property.InitializerOrNil = p.visitExpr(property.InitializerOrNil)
 			}
 			e.Properties[i] = property
 		}
 
 		// Arguments to createElement()
-		args := []js_ast.Expr{*tag}
+		args := []js_ast.Expr{tag}
 		if len(e.Properties) > 0 {
 			args = append(args, p.lowerObjectSpread(expr.Loc, &js_ast.EObject{
 				Properties: e.Properties,
@@ -10603,8 +10601,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			p.log.AddRangeError(&p.tracker, p.source.RangeOfLegacyOctalEscape(e.LegacyOctalLoc),
 				"Legacy octal escape sequences cannot be used in template literals")
 		}
-		if e.Tag != nil {
-			*e.Tag = p.visitExpr(*e.Tag)
+		if e.TagOrNil.Data != nil {
+			e.TagOrNil = p.visitExpr(e.TagOrNil)
 		}
 		for i, part := range e.Parts {
 			e.Parts[i].Value = p.visitExpr(part.Value)
@@ -11517,12 +11515,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// "await" expressions turn into "yield" expressions when lowering
 		if p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
-			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EYield{Value: &e.Value}}, exprOut{}
+			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EYield{ValueOrNil: e.Value}}, exprOut{}
 		}
 
 	case *js_ast.EYield:
-		if e.Value != nil {
-			*e.Value = p.visitExpr(*e.Value)
+		if e.ValueOrNil.Data != nil {
+			e.ValueOrNil = p.visitExpr(e.ValueOrNil)
 		}
 
 	case *js_ast.EArray:
@@ -11602,25 +11600,25 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			// Extract the initializer for expressions like "({ a: b = c } = d)"
-			if in.assignTarget != js_ast.AssignTargetNone && property.Initializer == nil && property.Value != nil {
-				if binary, ok := property.Value.Data.(*js_ast.EBinary); ok && binary.Op == js_ast.BinOpAssign {
-					property.Initializer = &binary.Right
-					property.Value = &binary.Left
+			if in.assignTarget != js_ast.AssignTargetNone && property.InitializerOrNil.Data == nil && property.ValueOrNil.Data != nil {
+				if binary, ok := property.ValueOrNil.Data.(*js_ast.EBinary); ok && binary.Op == js_ast.BinOpAssign {
+					property.InitializerOrNil = binary.Right
+					property.ValueOrNil = binary.Left
 				}
 			}
 
-			if property.Value != nil {
-				*property.Value, _ = p.visitExprInOut(*property.Value, exprIn{assignTarget: in.assignTarget})
+			if property.ValueOrNil.Data != nil {
+				property.ValueOrNil, _ = p.visitExprInOut(property.ValueOrNil, exprIn{assignTarget: in.assignTarget})
 			}
-			if property.Initializer != nil {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.Initializer)
-				*property.Initializer = p.visitExpr(*property.Initializer)
+			if property.InitializerOrNil.Data != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.InitializerOrNil)
+				property.InitializerOrNil = p.visitExpr(property.InitializerOrNil)
 
 				// Optionally preserve the name
-				if property.Value != nil {
-					if id, ok := property.Value.Data.(*js_ast.EIdentifier); ok {
-						*property.Initializer = p.maybeKeepExprSymbolName(
-							*property.Initializer, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+				if property.ValueOrNil.Data != nil {
+					if id, ok := property.ValueOrNil.Data.(*js_ast.EIdentifier); ok {
+						property.InitializerOrNil = p.maybeKeepExprSymbolName(
+							property.InitializerOrNil, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 					}
 				}
 			}
@@ -11674,7 +11672,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				var properties []js_ast.Property
 				for _, property := range e.Properties {
 					if property.Kind == js_ast.PropertySpread {
-						switch v := property.Value.Data.(type) {
+						switch v := property.ValueOrNil.Data.(type) {
 						case *js_ast.EBoolean, *js_ast.ENull, *js_ast.EUndefined, *js_ast.ENumber,
 							*js_ast.EBigInt, *js_ast.ERegExp, *js_ast.EFunction, *js_ast.EArrow:
 							// This value is ignored because it doesn't have any of its own properties
@@ -11712,8 +11710,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		e.Expr = p.visitExpr(e.Expr)
 
 		var assertions *[]ast.AssertEntry
-		if e.Options != nil {
-			*e.Options = p.visitExpr(*e.Options)
+		if e.OptionsOrNil.Data != nil {
+			e.OptionsOrNil = p.visitExpr(e.OptionsOrNil)
 
 			// If there's an additional argument, this can't be split because the
 			// additional argument requires evaluation and our AST nodes can't be
@@ -11721,32 +11719,32 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// unique). Also the additional argument may have side effects and we
 			// don't currently account for that.
 			why := "the second argument was not an object literal"
-			whyLoc := e.Options.Loc
+			whyLoc := e.OptionsOrNil.Loc
 
 			// However, make a special case for an additional argument that contains
 			// only an "assert" clause. In that case we can split this AST node.
-			if object, ok := e.Options.Data.(*js_ast.EObject); ok {
+			if object, ok := e.OptionsOrNil.Data.(*js_ast.EObject); ok {
 				if len(object.Properties) == 1 {
 					if prop := object.Properties[0]; prop.Kind == js_ast.PropertyNormal && !prop.IsComputed && !prop.IsMethod {
 						if str, ok := prop.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(str.Value, "assert") {
-							if value, ok := prop.Value.Data.(*js_ast.EObject); ok {
+							if value, ok := prop.ValueOrNil.Data.(*js_ast.EObject); ok {
 								entries := []ast.AssertEntry{}
 								for _, p := range value.Properties {
 									if p.Kind == js_ast.PropertyNormal && !p.IsComputed && !p.IsMethod {
 										if key, ok := p.Key.Data.(*js_ast.EString); ok {
-											if value, ok := p.Value.Data.(*js_ast.EString); ok {
+											if value, ok := p.ValueOrNil.Data.(*js_ast.EString); ok {
 												entries = append(entries, ast.AssertEntry{
 													Key:             key.Value,
 													KeyLoc:          p.Key.Loc,
 													Value:           value.Value,
-													ValueLoc:        p.Value.Loc,
+													ValueLoc:        p.ValueOrNil.Loc,
 													PreferQuotedKey: p.PreferQuotedKey,
 												})
 												continue
 											} else {
 												why = fmt.Sprintf("the value for the property %q was not a string literal",
 													js_lexer.UTF16ToString(key.Value))
-												whyLoc = p.Value.Loc
+												whyLoc = p.ValueOrNil.Loc
 											}
 										} else {
 											why = "this property was not a string literal"
@@ -11765,7 +11763,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								}
 							} else {
 								why = "the value for \"assert\" was not an object literal"
-								whyLoc = prop.Value.Loc
+								whyLoc = prop.ValueOrNil.Loc
 							}
 						} else {
 							why = "this property was not called \"assert\""
@@ -11777,7 +11775,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}
 				} else {
 					why = "the second argument was not an object literal with a single property called \"assert\""
-					whyLoc = e.Options.Loc
+					whyLoc = e.OptionsOrNil.Loc
 				}
 			}
 
@@ -11799,10 +11797,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// Attempt to discard them without changing side effects and generate an
 				// error if that isn't possible.
 				if p.options.unsupportedJSFeatures.Has(compat.ImportAssertions) {
-					if p.exprCanBeRemovedIfUnused(*e.Options) {
-						e.Options = nil
+					if p.exprCanBeRemovedIfUnused(e.OptionsOrNil) {
+						e.OptionsOrNil = js_ast.Expr{}
 					} else {
-						p.markSyntaxFeature(compat.ImportAssertions, logger.Range{Loc: e.Options.Loc})
+						p.markSyntaxFeature(compat.ImportAssertions, logger.Range{Loc: e.OptionsOrNil.Loc})
 					}
 				}
 
@@ -11857,7 +11855,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					Target: p.valueToSubstituteForRequire(expr.Loc),
 					Args:   []js_ast.Expr{arg},
 				}}})
-				body := js_ast.FnBody{Loc: expr.Loc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{Value: &value}}}}
+				body := js_ast.FnBody{Loc: expr.Loc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{ValueOrNil: value}}}}
 				if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
 					then = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
 				} else {
@@ -11881,7 +11879,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportCall{
 				Expr:                    arg,
-				Options:                 e.Options,
+				OptionsOrNil:            e.OptionsOrNil,
 				LeadingInteriorComments: e.LeadingInteriorComments,
 			}}
 		}), exprOut{}
@@ -12169,7 +12167,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		if p.options.mangleSyntax && len(e.Body.Stmts) == 1 {
 			if s, ok := e.Body.Stmts[0].Data.(*js_ast.SReturn); ok {
-				if s.Value == nil {
+				if s.ValueOrNil.Data == nil {
 					// "() => { return }" => "() => {}"
 					e.Body.Stmts = []js_ast.Stmt{}
 				} else {
@@ -12439,7 +12437,7 @@ func (p *parser) checkForUnusedTSImportEquals(s *js_ast.SLocal, result *importsE
 		decl := s.Decls[0]
 
 		// Skip to the underlying reference
-		value := *s.Decls[0].Value
+		value := s.Decls[0].ValueOrNil
 		for {
 			if dot, ok := value.Data.(*js_ast.EDot); ok {
 				value = dot.Target
@@ -12942,7 +12940,7 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
 				if !p.bindingCanBeRemovedIfUnused(decl.Binding) {
 					return false
 				}
-				if decl.Value != nil && !p.exprCanBeRemovedIfUnused(*decl.Value) {
+				if decl.ValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(decl.ValueOrNil) {
 					return false
 				}
 			}
@@ -12951,25 +12949,22 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
 			// Exports are tracked separately, so this isn't necessary
 
 		case *js_ast.SExportDefault:
-			switch {
-			case s.Value.Expr != nil:
-				if !p.exprCanBeRemovedIfUnused(*s.Value.Expr) {
+			switch s2 := s.Value.Data.(type) {
+			case *js_ast.SExpr:
+				if !p.exprCanBeRemovedIfUnused(s2.Value) {
 					return false
 				}
 
-			case s.Value.Stmt != nil:
-				switch s2 := s.Value.Stmt.Data.(type) {
-				case *js_ast.SFunction:
-					// These never have side effects
+			case *js_ast.SFunction:
+				// These never have side effects
 
-				case *js_ast.SClass:
-					if !p.classCanBeRemovedIfUnused(s2.Class) {
-						return false
-					}
-
-				default:
-					panic("Internal error")
+			case *js_ast.SClass:
+				if !p.classCanBeRemovedIfUnused(s2.Class) {
+					return false
 				}
+
+			default:
+				panic("Internal error")
 			}
 
 		default:
@@ -12983,7 +12978,7 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
 }
 
 func (p *parser) classCanBeRemovedIfUnused(class js_ast.Class) bool {
-	if class.Extends != nil && !p.exprCanBeRemovedIfUnused(*class.Extends) {
+	if class.ExtendsOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(class.ExtendsOrNil) {
 		return false
 	}
 
@@ -12991,10 +12986,10 @@ func (p *parser) classCanBeRemovedIfUnused(class js_ast.Class) bool {
 		if !p.exprCanBeRemovedIfUnused(property.Key) {
 			return false
 		}
-		if property.Value != nil && !p.exprCanBeRemovedIfUnused(*property.Value) {
+		if property.ValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.ValueOrNil) {
 			return false
 		}
-		if property.Initializer != nil && !p.exprCanBeRemovedIfUnused(*property.Initializer) {
+		if property.InitializerOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.InitializerOrNil) {
 			return false
 		}
 	}
@@ -13009,7 +13004,7 @@ func (p *parser) bindingCanBeRemovedIfUnused(binding js_ast.Binding) bool {
 			if !p.bindingCanBeRemovedIfUnused(item.Binding) {
 				return false
 			}
-			if item.DefaultValue != nil && !p.exprCanBeRemovedIfUnused(*item.DefaultValue) {
+			if item.DefaultValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(item.DefaultValueOrNil) {
 				return false
 			}
 		}
@@ -13022,7 +13017,7 @@ func (p *parser) bindingCanBeRemovedIfUnused(binding js_ast.Binding) bool {
 			if !p.bindingCanBeRemovedIfUnused(property.Value) {
 				return false
 			}
-			if property.DefaultValue != nil && !p.exprCanBeRemovedIfUnused(*property.DefaultValue) {
+			if property.DefaultValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.DefaultValueOrNil) {
 				return false
 			}
 		}
@@ -13107,7 +13102,7 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 			if property.Kind == js_ast.PropertySpread || property.IsComputed {
 				return false
 			}
-			if property.Value != nil && !p.exprCanBeRemovedIfUnused(*property.Value) {
+			if property.ValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.ValueOrNil) {
 				return false
 			}
 		}
@@ -13180,7 +13175,7 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		}
 
 	case *js_ast.ETemplate:
-		if e.Tag == nil {
+		if e.TagOrNil.Data == nil {
 			var result js_ast.Expr
 			for _, part := range e.Parts {
 				// Make sure "ToString" is still evaluated on the value
@@ -13233,16 +13228,16 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 				for _, property := range e.Properties {
 					// Spread properties must always be evaluated
 					if property.Kind != js_ast.PropertySpread {
-						value := p.simplifyUnusedExpr(*property.Value)
+						value := p.simplifyUnusedExpr(property.ValueOrNil)
 						if value.Data != nil {
 							// Keep the value
-							*property.Value = value
+							property.ValueOrNil = value
 						} else if !property.IsComputed {
 							// Skip this property if the key doesn't need to be computed
 							continue
 						} else {
 							// Replace values without side effects with "0" because it's short
-							property.Value.Data = &js_ast.ENumber{}
+							property.ValueOrNil.Data = &js_ast.ENumber{}
 						}
 					}
 					e.Properties[end] = property
@@ -13265,7 +13260,7 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 					Right: js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EString{}},
 				}})
 			}
-			result = js_ast.JoinWithComma(result, p.simplifyUnusedExpr(*property.Value))
+			result = js_ast.JoinWithComma(result, p.simplifyUnusedExpr(property.ValueOrNil))
 		}
 		return result
 
@@ -13526,8 +13521,8 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		importMetaStmt := js_ast.Stmt{Data: &js_ast.SLocal{
 			Kind: p.selectLocalKind(js_ast.LocalConst),
 			Decls: []js_ast.Decl{{
-				Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: p.importMetaRef}},
-				Value:   &js_ast.Expr{Data: &js_ast.EObject{}},
+				Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: p.importMetaRef}},
+				ValueOrNil: js_ast.Expr{Data: &js_ast.EObject{}},
 			}},
 		}}
 		stmts = append(append(make([]js_ast.Stmt, 0, len(stmts)+1), importMetaStmt), stmts...)

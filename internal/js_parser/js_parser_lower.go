@@ -321,14 +321,16 @@ func (p *parser) lowerFunction(
 		// resulting promise, which needs more complex code to handle
 		couldThrowErrors := false
 		for _, arg := range *args {
-			if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok || (arg.Default != nil && couldPotentiallyThrow(arg.Default.Data)) {
+			if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok ||
+				(arg.DefaultOrNil.Data != nil && couldPotentiallyThrow(arg.DefaultOrNil.Data)) {
 				couldThrowErrors = true
 				break
 			}
 		}
 
 		// Forward the arguments to the wrapper function
-		usesArgumentsRef := !isArrow && p.fnOnlyDataVisit.argumentsRef != nil && p.symbolUses[*p.fnOnlyDataVisit.argumentsRef].CountEstimate > 0
+		usesArgumentsRef := !isArrow && p.fnOnlyDataVisit.argumentsRef != nil &&
+			p.symbolUses[*p.fnOnlyDataVisit.argumentsRef].CountEstimate > 0
 		var forwardedArgs js_ast.Expr
 		if !couldThrowErrors && !usesArgumentsRef {
 			// Simple case: the arguments can stay on the outer function. It's
@@ -368,7 +370,7 @@ func (p *parser) lowerFunction(
 			//
 			// The "_0" and "_1" are dummy variables to ensure "foo.length" is 2.
 			for i, arg := range fn.Args {
-				if arg.Default != nil || fn.HasRestArg && i+1 == len(fn.Args) {
+				if arg.DefaultOrNil.Data != nil || fn.HasRestArg && i+1 == len(fn.Args) {
 					// Arguments from here on don't add to the "length"
 					break
 				}
@@ -426,7 +428,7 @@ func (p *parser) lowerFunction(
 			forwardedArgs,
 			{Loc: bodyLoc, Data: &js_ast.EFunction{Fn: fn}},
 		})
-		returnStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SReturn{Value: &callAsync}}
+		returnStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SReturn{ValueOrNil: callAsync}}
 
 		// Prepend the "super" index function if necessary
 		if p.fnOrArrowDataVisit.superIndexRef != nil {
@@ -435,14 +437,14 @@ func (p *parser) lowerFunction(
 			superIndexStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SLocal{
 				Decls: []js_ast.Decl{{
 					Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: *p.fnOrArrowDataVisit.superIndexRef}},
-					Value: &js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArrow{
+					ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArrow{
 						Args: []js_ast.Arg{{
 							Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: argRef}},
 						}},
 						Body: js_ast.FnBody{
 							Loc: bodyLoc,
 							Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
-								Value: &js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
+								ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
 									Target: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.ESuper{}},
 									Index:  js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: argRef}},
 								}},
@@ -979,7 +981,7 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 		}
 
 		// "{a, ...b}" => "__spreadValues({a}, b)"
-		result = p.callRuntime(loc, "__spreadValues", []js_ast.Expr{result, *property.Value})
+		result = p.callRuntime(loc, "__spreadValues", []js_ast.Expr{result, property.ValueOrNil})
 	}
 
 	if len(properties) > 0 {
@@ -1146,7 +1148,7 @@ func exprHasObjectRest(expr js_ast.Expr) bool {
 		}
 	case *js_ast.EObject:
 		for _, property := range e.Properties {
-			if property.Kind == js_ast.PropertySpread || exprHasObjectRest(*property.Value) {
+			if property.Kind == js_ast.PropertySpread || exprHasObjectRest(property.ValueOrNil) {
 				return true
 			}
 		}
@@ -1162,12 +1164,12 @@ func (p *parser) lowerObjectRestInDecls(decls []js_ast.Decl) []js_ast.Decl {
 	// Don't do any allocations if there are no object rest patterns. We want as
 	// little overhead as possible in the common case.
 	for i, decl := range decls {
-		if decl.Value != nil && bindingHasObjectRest(decl.Binding) {
+		if decl.ValueOrNil.Data != nil && bindingHasObjectRest(decl.Binding) {
 			clone := append([]js_ast.Decl{}, decls[:i]...)
 			for _, decl := range decls[i:] {
-				if decl.Value != nil {
+				if decl.ValueOrNil.Data != nil {
 					target := js_ast.ConvertBindingToExpr(decl.Binding, nil)
-					if result, ok := p.lowerObjectRestToDecls(target, *decl.Value, clone); ok {
+					if result, ok := p.lowerObjectRestToDecls(target, decl.ValueOrNil, clone); ok {
 						clone = result
 						continue
 					}
@@ -1206,7 +1208,7 @@ func (p *parser) lowerObjectRestInForLoopInit(init js_ast.Stmt, body *js_ast.Stm
 		// "for (let {...x} of y) {}"
 		if len(s.Decls) == 1 && bindingHasObjectRest(s.Decls[0].Binding) {
 			ref := p.generateTempRef(tempRefNoDeclare, "")
-			decl := js_ast.Decl{Binding: s.Decls[0].Binding, Value: &js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}}
+			decl := js_ast.Decl{Binding: s.Decls[0].Binding, ValueOrNil: js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}}
 			p.recordUsage(ref)
 			decls := p.lowerObjectRestInDecls([]js_ast.Decl{decl})
 			s.Decls[0].Binding.Data = &js_ast.BIdentifier{Ref: ref}
@@ -1231,14 +1233,14 @@ func (p *parser) lowerObjectRestInCatchBinding(catch *js_ast.Catch) {
 		return
 	}
 
-	if catch.Binding != nil && bindingHasObjectRest(*catch.Binding) {
+	if catch.BindingOrNil.Data != nil && bindingHasObjectRest(catch.BindingOrNil) {
 		ref := p.generateTempRef(tempRefNoDeclare, "")
-		decl := js_ast.Decl{Binding: *catch.Binding, Value: &js_ast.Expr{Loc: catch.Binding.Loc, Data: &js_ast.EIdentifier{Ref: ref}}}
+		decl := js_ast.Decl{Binding: catch.BindingOrNil, ValueOrNil: js_ast.Expr{Loc: catch.BindingOrNil.Loc, Data: &js_ast.EIdentifier{Ref: ref}}}
 		p.recordUsage(ref)
 		decls := p.lowerObjectRestInDecls([]js_ast.Decl{decl})
-		catch.Binding.Data = &js_ast.BIdentifier{Ref: ref}
+		catch.BindingOrNil.Data = &js_ast.BIdentifier{Ref: ref}
 		stmts := make([]js_ast.Stmt, 0, 1+len(catch.Body))
-		stmts = append(stmts, js_ast.Stmt{Loc: catch.Binding.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalLet, Decls: decls}})
+		stmts = append(stmts, js_ast.Stmt{Loc: catch.BindingOrNil.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalLet, Decls: decls}})
 		catch.Body = append(stmts, catch.Body...)
 	}
 }
@@ -1321,10 +1323,10 @@ func (p *parser) lowerPrivateInAssign(expr js_ast.Expr) (js_ast.Expr, bool) {
 		}
 
 	case *js_ast.EObject:
-		for _, property := range e.Properties {
-			if property.Value != nil {
-				if value, ok := p.lowerPrivateInAssign(*property.Value); ok {
-					*property.Value = value
+		for i, property := range e.Properties {
+			if property.ValueOrNil.Data != nil {
+				if value, ok := p.lowerPrivateInAssign(property.ValueOrNil); ok {
+					e.Properties[i].ValueOrNil = value
 					didLower = true
 				}
 			}
@@ -1340,7 +1342,7 @@ func (p *parser) lowerObjectRestToDecls(rootExpr js_ast.Expr, rootInit js_ast.Ex
 		if len(invalidLog.invalidTokens) > 0 {
 			panic("Internal error")
 		}
-		decls = append(decls, js_ast.Decl{Binding: binding, Value: &right})
+		decls = append(decls, js_ast.Decl{Binding: binding, ValueOrNil: right})
 	}
 
 	if _, ok := p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNoDeclare, objRestReturnValueIsUnused); ok {
@@ -1386,7 +1388,7 @@ func (p *parser) lowerObjectRestHelper(
 			}
 		case *js_ast.EObject:
 			for _, property := range e.Properties {
-				if property.Kind == js_ast.PropertySpread || findRestBindings(*property.Value) {
+				if property.Kind == js_ast.PropertySpread || findRestBindings(property.ValueOrNil) {
 					found = true
 				}
 			}
@@ -1503,7 +1505,7 @@ func (p *parser) lowerObjectRestHelper(
 		}
 
 		split := &upToSplit[len(upToSplit)-1]
-		binding := split.Value
+		binding := &split.ValueOrNil
 
 		// Swap the binding with a temporary
 		splitRef := p.generateTempRef(declare, "")
@@ -1567,7 +1569,7 @@ func (p *parser) lowerObjectRestHelper(
 
 				// "let {a, ...b} = c"
 				if property.Kind == js_ast.PropertySpread {
-					lowerObjectRestPattern(e.Properties[:i], *property.Value, init, capturedKeys, e.IsSingleLine)
+					lowerObjectRestPattern(e.Properties[:i], property.ValueOrNil, init, capturedKeys, e.IsSingleLine)
 					return
 				}
 
@@ -1579,7 +1581,7 @@ func (p *parser) lowerObjectRestHelper(
 				}
 
 				// "let {a: {...b}, c} = d"
-				if containsRestBinding[property.Value.Data] {
+				if containsRestBinding[property.ValueOrNil.Data] {
 					splitObjectPattern(e.Properties[:i+1], e.Properties[i+1:], init, capturedKeys, e.IsSingleLine)
 					return
 				}
@@ -1907,7 +1909,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		nameToKeep = p.symbols[class.Name.Ref.InnerIndex].OriginalName
 	} else {
 		s, _ := stmt.Data.(*js_ast.SExportDefault)
-		s2, _ := s.Value.Stmt.Data.(*js_ast.SClass)
+		s2, _ := s.Value.Data.(*js_ast.SClass)
 		class = &s2.Class
 		defaultName = s.DefaultName
 		kind = classKindExportDefaultStmt
@@ -2002,7 +2004,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	for _, prop := range class.Properties {
 		// Merge parameter decorators with method decorators
 		if p.options.ts.Parse && prop.IsMethod {
-			if fn, ok := prop.Value.Data.(*js_ast.EFunction); ok {
+			if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
 				isConstructor := false
 				if key, ok := prop.Key.Data.(*js_ast.EString); ok {
 					isConstructor = js_lexer.UTF16EqualsString(key.Value, "constructor")
@@ -2032,7 +2034,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		// strict class field initialization, so we shouldn't either.
 		private, _ := prop.Key.Data.(*js_ast.EPrivateIdentifier)
 		mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
-		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.IsMethod && prop.Initializer == nil &&
+		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.IsMethod && prop.InitializerOrNil.Data == nil &&
 			!classLoweringInfo.useDefineForClassFields && !mustLowerPrivate
 
 		// Class fields must be lowered if the environment doesn't support them
@@ -2145,8 +2147,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 				// Generate the assignment initializer
 				var init js_ast.Expr
-				if prop.Initializer != nil {
-					init = *prop.Initializer
+				if prop.InitializerOrNil.Data != nil {
+					init = prop.InitializerOrNil
 				} else {
 					init = js_ast.Expr{Loc: loc, Data: &js_ast.EUndefined{}}
 				}
@@ -2214,7 +2216,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			}
 
 			// Keep the private field but remove the initializer
-			prop.Initializer = nil
+			prop.InitializerOrNil = js_ast.Expr{}
 		}
 
 		if prop.IsMethod {
@@ -2279,11 +2281,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				}
 				privateMembers = append(privateMembers, js_ast.Assign(
 					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: methodRef}},
-					*prop.Value,
+					prop.ValueOrNil,
 				))
 				continue
 			} else if key, ok := prop.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(key.Value, "constructor") {
-				if fn, ok := prop.Value.Data.(*js_ast.EFunction); ok {
+				if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
 					// Remember where the constructor is for later
 					ctor = fn
 
@@ -2324,13 +2326,13 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 			// Append it to the list to reuse existing allocation space
 			class.Properties = append(class.Properties, js_ast.Property{
-				IsMethod: true,
-				Key:      js_ast.Expr{Loc: classLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("constructor")}},
-				Value:    &js_ast.Expr{Loc: classLoc, Data: ctor},
+				IsMethod:   true,
+				Key:        js_ast.Expr{Loc: classLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("constructor")}},
+				ValueOrNil: js_ast.Expr{Loc: classLoc, Data: ctor},
 			})
 
 			// Make sure the constructor has a super() call if needed
-			if class.Extends != nil {
+			if class.ExtendsOrNil.Data != nil {
 				argumentsRef := p.newSymbol(js_ast.SymbolUnbound, "arguments")
 				p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
 				ctor.Fn.Body.Stmts = append(ctor.Fn.Body.Stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.ECall{
@@ -2357,7 +2359,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 		// Sort the constructor first to match the TypeScript compiler's output
 		for i := 0; i < len(class.Properties); i++ {
-			if class.Properties[i].Value != nil && class.Properties[i].Value.Data == ctor {
+			if class.Properties[i].ValueOrNil.Data == ctor {
 				ctorProp := class.Properties[i]
 				for j := i; j > 0; j-- {
 					class.Properties[j] = class.Properties[j-1]
@@ -2440,7 +2442,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		nameForClassDecorators = js_ast.LocRef{Loc: name.Loc, Ref: nameRef}
 		classExpr := js_ast.EClass{Class: *class}
 		class = &classExpr.Class
-		init := &js_ast.Expr{Loc: classLoc, Data: &classExpr}
+		init := js_ast.Expr{Loc: classLoc, Data: &classExpr}
 
 		if hasPotentialShadowCaptureEscape && len(class.TSDecorators) == 0 {
 			// If something captures the shadowing name and escapes the class body,
@@ -2482,11 +2484,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
 				Kind: p.selectLocalKind(js_ast.LocalConst),
 				Decls: []js_ast.Decl{{
-					Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: captureRef}},
-					Value:   init,
+					Binding:    js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: captureRef}},
+					ValueOrNil: init,
 				}},
 			}})
-			init = &js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: captureRef}}
+			init = js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: captureRef}}
 			p.recordUsage(captureRef)
 		} else {
 			// If there are class decorators, then we actually need to mutate the
@@ -2504,8 +2506,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			Kind:     p.selectLocalKind(js_ast.LocalLet),
 			IsExport: kind == classKindExportStmt,
 			Decls: []js_ast.Decl{{
-				Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: nameRef}},
-				Value:   init,
+				Binding:    js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: nameRef}},
+				ValueOrNil: init,
 			}},
 		}})
 	} else {
@@ -2517,7 +2519,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		case classKindExportDefaultStmt:
 			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExportDefault{
 				DefaultName: defaultName,
-				Value:       js_ast.ExprOrStmt{Stmt: &js_ast.Stmt{Loc: classLoc, Data: &js_ast.SClass{Class: *class}}},
+				Value:       js_ast.Stmt{Loc: classLoc, Data: &js_ast.SClass{Class: *class}},
 			}})
 		}
 
@@ -2571,7 +2573,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			name := nameFunc()
 			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExportDefault{
 				DefaultName: js_ast.LocRef{Loc: defaultName.Loc, Ref: defaultRef},
-				Value:       js_ast.ExprOrStmt{Expr: &name},
+				Value:       js_ast.Stmt{Loc: name.Loc, Data: &js_ast.SExpr{Value: name}},
 			}})
 		}
 

@@ -161,7 +161,7 @@ func ParseTSConfigJSON(
 						//
 						// Matching "folder1/file2" should first check "projectRoot/folder1/file2"
 						// and then, if that didn't work, also check "projectRoot/generated/folder1/file2".
-						if array, ok := prop.Value.Data.(*js_ast.EArray); ok {
+						if array, ok := prop.ValueOrNil.Data.(*js_ast.EArray); ok {
 							for _, item := range array.Items {
 								if str, ok := getString(item); ok {
 									if isValidTSConfigPathPattern(str, log, &source, &tracker, item.Loc) &&
@@ -171,7 +171,7 @@ func ParseTSConfigJSON(
 								}
 							}
 						} else {
-							log.AddRangeWarning(&tracker, source.RangeOfString(prop.Value.Loc), fmt.Sprintf(
+							log.AddRangeWarning(&tracker, source.RangeOfString(prop.ValueOrNil.Loc), fmt.Sprintf(
 								"Substitutions for pattern %q should be an array", key))
 						}
 					}

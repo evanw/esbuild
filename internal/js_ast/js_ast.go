@@ -272,7 +272,7 @@ type Property struct {
 	Key          Expr
 
 	// This is omitted for class fields
-	Value *Expr
+	ValueOrNil Expr
 
 	// This is used when parsing a pattern that uses default values:
 	//
@@ -283,7 +283,7 @@ type Property struct {
 	//
 	//   class Foo { a = 1 }
 	//
-	Initializer *Expr
+	InitializerOrNil Expr
 
 	Kind            PropertyKind
 	IsComputed      bool
@@ -294,18 +294,18 @@ type Property struct {
 }
 
 type PropertyBinding struct {
-	Key             Expr
-	Value           Binding
-	DefaultValue    *Expr
-	IsComputed      bool
-	IsSpread        bool
-	PreferQuotedKey bool
+	Key               Expr
+	Value             Binding
+	DefaultValueOrNil Expr
+	IsComputed        bool
+	IsSpread          bool
+	PreferQuotedKey   bool
 }
 
 type Arg struct {
 	TSDecorators []Expr
 	Binding      Binding
-	Default      *Expr
+	DefaultOrNil Expr
 
 	// "constructor(public x: boolean) {}"
 	IsTypeScriptCtorField bool
@@ -336,14 +336,14 @@ type Class struct {
 	ClassKeyword logger.Range
 	TSDecorators []Expr
 	Name         *LocRef
-	Extends      *Expr
+	ExtendsOrNil Expr
 	BodyLoc      logger.Loc
 	Properties   []Property
 }
 
 type ArrayBinding struct {
-	Binding      Binding
-	DefaultValue *Expr
+	Binding           Binding
+	DefaultValueOrNil Expr
 }
 
 type Binding struct {
@@ -564,7 +564,7 @@ type EPrivateIdentifier struct {
 }
 
 type EJSXElement struct {
-	Tag        *Expr
+	TagOrNil   Expr
 	Properties []Property
 	Children   []Expr
 }
@@ -600,7 +600,7 @@ type TemplatePart struct {
 }
 
 type ETemplate struct {
-	Tag            *Expr
+	TagOrNil       Expr
 	Head           []uint16
 	HeadRaw        string // This is only filled out for tagged template literals
 	Parts          []TemplatePart
@@ -614,8 +614,8 @@ type EAwait struct {
 }
 
 type EYield struct {
-	Value  *Expr
-	IsStar bool
+	ValueOrNil Expr
+	IsStar     bool
 }
 
 type EIf struct {
@@ -646,8 +646,8 @@ type EImportString struct {
 }
 
 type EImportCall struct {
-	Expr    Expr
-	Options *Expr
+	Expr         Expr
+	OptionsOrNil Expr
 
 	// See the comment for this same field on "EImportCall" for more information
 	LeadingInteriorComments []Comment
@@ -858,7 +858,7 @@ func IsStringValue(a Expr) bool {
 		return true
 
 	case *ETemplate:
-		return e.Tag == nil
+		return e.TagOrNil.Data == nil
 
 	case *EIf:
 		return IsStringValue(e.Yes) && IsStringValue(e.No)
@@ -924,11 +924,6 @@ func JoinAllWithComma(all []Expr) (result Expr) {
 	return
 }
 
-type ExprOrStmt struct {
-	Expr *Expr
-	Stmt *Stmt
-}
-
 type Stmt struct {
 	Loc  logger.Loc
 	Data S
@@ -973,7 +968,7 @@ type SExportFrom struct {
 
 type SExportDefault struct {
 	DefaultName LocRef
-	Value       ExprOrStmt // May be a SFunction or SClass
+	Value       Stmt // May be a SExpr or SFunction or SClass
 }
 
 type ExportStarAlias struct {
@@ -1012,10 +1007,10 @@ type SExpr struct {
 }
 
 type EnumValue struct {
-	Loc   logger.Loc
-	Ref   Ref
-	Name  []uint16
-	Value *Expr
+	Name       []uint16
+	ValueOrNil Expr
+	Ref        Ref
+	Loc        logger.Loc
 }
 
 type SEnum struct {
@@ -1048,16 +1043,16 @@ type SLabel struct {
 }
 
 type SIf struct {
-	Test Expr
-	Yes  Stmt
-	No   *Stmt
+	Test    Expr
+	Yes     Stmt
+	NoOrNil Stmt
 }
 
 type SFor struct {
-	Init   *Stmt // May be a SConst, SLet, SVar, or SExpr
-	Test   *Expr
-	Update *Expr
-	Body   Stmt
+	InitOrNil   Stmt // May be a SConst, SLet, SVar, or SExpr
+	TestOrNil   Expr
+	UpdateOrNil Expr
+	Body        Stmt
 }
 
 type SForIn struct {
@@ -1090,9 +1085,9 @@ type SWith struct {
 }
 
 type Catch struct {
-	Loc     logger.Loc
-	Binding *Binding
-	Body    []Stmt
+	Loc          logger.Loc
+	BindingOrNil Binding
+	Body         []Stmt
 }
 
 type Finally struct {
@@ -1108,8 +1103,8 @@ type STry struct {
 }
 
 type Case struct {
-	Value *Expr
-	Body  []Stmt
+	ValueOrNil Expr // If this is nil, this is "default" instead of "case"
+	Body       []Stmt
 }
 
 type SSwitch struct {
@@ -1145,7 +1140,7 @@ type SImport struct {
 }
 
 type SReturn struct {
-	Value *Expr
+	ValueOrNil Expr
 }
 
 type SThrow struct {
@@ -1240,8 +1235,8 @@ type ClauseItem struct {
 }
 
 type Decl struct {
-	Binding Binding
-	Value   *Expr
+	Binding    Binding
+	ValueOrNil Expr
 }
 
 type SymbolKind uint8
@@ -2038,8 +2033,8 @@ func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, Ref) 
 			expr := ConvertBindingToExpr(item.Binding, wrapIdentifier)
 			if b.HasSpread && i+1 == len(b.Items) {
 				expr = Expr{Loc: expr.Loc, Data: &ESpread{Value: expr}}
-			} else if item.DefaultValue != nil {
-				expr = Assign(expr, *item.DefaultValue)
+			} else if item.DefaultValueOrNil.Data != nil {
+				expr = Assign(expr, item.DefaultValueOrNil)
 			}
 			exprs[i] = expr
 		}
@@ -2057,11 +2052,11 @@ func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, Ref) 
 				kind = PropertySpread
 			}
 			properties[i] = Property{
-				Kind:        kind,
-				IsComputed:  property.IsComputed,
-				Key:         property.Key,
-				Value:       &value,
-				Initializer: property.DefaultValue,
+				Kind:             kind,
+				IsComputed:       property.IsComputed,
+				Key:              property.Key,
+				ValueOrNil:       value,
+				InitializerOrNil: property.DefaultValueOrNil,
 			}
 		}
 		return Expr{Loc: loc, Data: &EObject{

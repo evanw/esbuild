@@ -285,17 +285,17 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 
 			// Remap all files in the browser field
 			for _, prop := range browser.Properties {
-				if key, ok := getString(prop.Key); ok && prop.Value != nil {
-					if value, ok := getString(*prop.Value); ok {
+				if key, ok := getString(prop.Key); ok && prop.ValueOrNil.Data != nil {
+					if value, ok := getString(prop.ValueOrNil); ok {
 						// If this is a string, it's a replacement package
 						browserMap[key] = &value
-					} else if value, ok := getBool(*prop.Value); ok {
+					} else if value, ok := getBool(prop.ValueOrNil); ok {
 						// If this is false, it means the package is disabled
 						if !value {
 							browserMap[key] = nil
 						}
 					} else {
-						r.log.AddWarning(&tracker, prop.Value.Loc,
+						r.log.AddWarning(&tracker, prop.ValueOrNil.Loc,
 							"Each \"browser\" mapping must be a string or a boolean")
 					}
 				}
@@ -545,7 +545,7 @@ func parseExportsMap(source logger.Source, log logger.Log, json js_ast.Expr) *pe
 				entry := peMapEntry{
 					key:      key,
 					keyRange: keyRange,
-					value:    visit(*property.Value),
+					value:    visit(property.ValueOrNil),
 				}
 
 				if strings.HasSuffix(key, "/") || strings.HasSuffix(key, "*") {

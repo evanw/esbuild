@@ -797,11 +797,11 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 				}
 				p.printBinding(item.Binding)
 
-				if item.DefaultValue != nil {
+				if item.DefaultValueOrNil.Data != nil {
 					p.printSpace()
 					p.print("=")
 					p.printSpace()
-					p.printExpr(*item.DefaultValue, js_ast.LComma, 0)
+					p.printExpr(item.DefaultValueOrNil, js_ast.LComma, 0)
 				}
 
 				// Make sure there's a comma after trailing missing items
@@ -847,11 +847,11 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 						p.printSpace()
 						p.printBinding(property.Value)
 
-						if property.DefaultValue != nil {
+						if property.DefaultValueOrNil.Data != nil {
 							p.printSpace()
 							p.print("=")
 							p.printSpace()
-							p.printExpr(*property.DefaultValue, js_ast.LComma, 0)
+							p.printExpr(property.DefaultValueOrNil, js_ast.LComma, 0)
 						}
 						continue
 					}
@@ -863,11 +863,11 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 
 						// Use a shorthand property if the names are the same
 						if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok && js_lexer.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
-							if property.DefaultValue != nil {
+							if property.DefaultValueOrNil.Data != nil {
 								p.printSpace()
 								p.print("=")
 								p.printSpace()
-								p.printExpr(*property.DefaultValue, js_ast.LComma, 0)
+								p.printExpr(property.DefaultValueOrNil, js_ast.LComma, 0)
 							}
 							continue
 						}
@@ -880,11 +880,11 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 				}
 				p.printBinding(property.Value)
 
-				if property.DefaultValue != nil {
+				if property.DefaultValueOrNil.Data != nil {
 					p.printSpace()
 					p.print("=")
 					p.printSpace()
-					p.printExpr(*property.DefaultValue, js_ast.LComma, 0)
+					p.printExpr(property.DefaultValueOrNil, js_ast.LComma, 0)
 				}
 			}
 
@@ -961,7 +961,7 @@ func (p *printer) printFnArgs(args []js_ast.Arg, hasRestArg bool, isArrow bool) 
 
 	// Minify "(a) => {}" as "a=>{}"
 	if p.options.RemoveWhitespace && !hasRestArg && isArrow && len(args) == 1 {
-		if _, ok := args[0].Binding.Data.(*js_ast.BIdentifier); ok && args[0].Default == nil {
+		if _, ok := args[0].Binding.Data.(*js_ast.BIdentifier); ok && args[0].DefaultOrNil.Data == nil {
 			wrap = false
 		}
 	}
@@ -980,11 +980,11 @@ func (p *printer) printFnArgs(args []js_ast.Arg, hasRestArg bool, isArrow bool) 
 		}
 		p.printBinding(arg.Binding)
 
-		if arg.Default != nil {
+		if arg.DefaultOrNil.Data != nil {
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
-			p.printExpr(*arg.Default, js_ast.LComma, 0)
+			p.printExpr(arg.DefaultOrNil, js_ast.LComma, 0)
 		}
 	}
 
@@ -1000,10 +1000,10 @@ func (p *printer) printFn(fn js_ast.Fn) {
 }
 
 func (p *printer) printClass(class js_ast.Class) {
-	if class.Extends != nil {
+	if class.ExtendsOrNil.Data != nil {
 		p.print(" extends")
 		p.printSpace()
-		p.printExpr(*class.Extends, js_ast.LNew-1, 0)
+		p.printExpr(class.ExtendsOrNil, js_ast.LNew-1, 0)
 	}
 	p.printSpace()
 
@@ -1018,7 +1018,7 @@ func (p *printer) printClass(class js_ast.Class) {
 		p.printProperty(item)
 
 		// Need semicolons after class fields
-		if item.Value == nil {
+		if item.ValueOrNil.Data == nil {
 			p.printSemicolonAfterStatement()
 		} else {
 			p.printNewline()
@@ -1034,7 +1034,7 @@ func (p *printer) printClass(class js_ast.Class) {
 func (p *printer) printProperty(item js_ast.Property) {
 	if item.Kind == js_ast.PropertySpread {
 		p.print("...")
-		p.printExpr(*item.Value, js_ast.LComma, 0)
+		p.printExpr(item.ValueOrNil, js_ast.LComma, 0)
 		return
 	}
 
@@ -1055,16 +1055,14 @@ func (p *printer) printProperty(item js_ast.Property) {
 		p.printSpace()
 	}
 
-	if item.Value != nil {
-		if fn, ok := item.Value.Data.(*js_ast.EFunction); item.IsMethod && ok {
-			if fn.Fn.IsAsync {
-				p.printSpaceBeforeIdentifier()
-				p.print("async")
-				p.printSpace()
-			}
-			if fn.Fn.IsGenerator {
-				p.print("*")
-			}
+	if fn, ok := item.ValueOrNil.Data.(*js_ast.EFunction); item.IsMethod && ok {
+		if fn.Fn.IsAsync {
+			p.printSpaceBeforeIdentifier()
+			p.print("async")
+			p.printSpace()
+		}
+		if fn.Fn.IsGenerator {
+			p.print("*")
 		}
 	}
 
@@ -1073,22 +1071,22 @@ func (p *printer) printProperty(item js_ast.Property) {
 		p.printExpr(item.Key, js_ast.LComma, 0)
 		p.print("]")
 
-		if item.Value != nil {
-			if fn, ok := item.Value.Data.(*js_ast.EFunction); item.IsMethod && ok {
+		if item.ValueOrNil.Data != nil {
+			if fn, ok := item.ValueOrNil.Data.(*js_ast.EFunction); item.IsMethod && ok {
 				p.printFn(fn.Fn)
 				return
 			}
 
 			p.print(":")
 			p.printSpace()
-			p.printExpr(*item.Value, js_ast.LComma, 0)
+			p.printExpr(item.ValueOrNil, js_ast.LComma, 0)
 		}
 
-		if item.Initializer != nil {
+		if item.InitializerOrNil.Data != nil {
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
-			p.printExpr(*item.Initializer, js_ast.LComma, 0)
+			p.printExpr(item.InitializerOrNil, js_ast.LComma, 0)
 		}
 		return
 	}
@@ -1104,15 +1102,15 @@ func (p *printer) printProperty(item js_ast.Property) {
 			p.printIdentifierUTF16(key.Value)
 
 			// Use a shorthand property if the names are the same
-			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.Value != nil {
-				switch e := item.Value.Data.(type) {
+			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.ValueOrNil.Data != nil {
+				switch e := item.ValueOrNil.Data.(type) {
 				case *js_ast.EIdentifier:
 					if js_lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
-						if item.Initializer != nil {
+						if item.InitializerOrNil.Data != nil {
 							p.printSpace()
 							p.print("=")
 							p.printSpace()
-							p.printExpr(*item.Initializer, js_ast.LComma, 0)
+							p.printExpr(item.InitializerOrNil, js_ast.LComma, 0)
 						}
 						return
 					}
@@ -1122,11 +1120,11 @@ func (p *printer) printProperty(item js_ast.Property) {
 					ref := js_ast.FollowSymbols(p.symbols, e.Ref)
 					symbol := p.symbols.Get(ref)
 					if symbol.NamespaceAlias == nil && js_lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
-						if item.Initializer != nil {
+						if item.InitializerOrNil.Data != nil {
 							p.printSpace()
 							p.print("=")
 							p.printSpace()
-							p.printExpr(*item.Initializer, js_ast.LComma, 0)
+							p.printExpr(item.InitializerOrNil, js_ast.LComma, 0)
 						}
 						return
 					}
@@ -1141,29 +1139,29 @@ func (p *printer) printProperty(item js_ast.Property) {
 	}
 
 	if item.Kind != js_ast.PropertyNormal {
-		f, ok := item.Value.Data.(*js_ast.EFunction)
+		f, ok := item.ValueOrNil.Data.(*js_ast.EFunction)
 		if ok {
 			p.printFn(f.Fn)
 			return
 		}
 	}
 
-	if item.Value != nil {
-		if fn, ok := item.Value.Data.(*js_ast.EFunction); item.IsMethod && ok {
+	if item.ValueOrNil.Data != nil {
+		if fn, ok := item.ValueOrNil.Data.(*js_ast.EFunction); item.IsMethod && ok {
 			p.printFn(fn.Fn)
 			return
 		}
 
 		p.print(":")
 		p.printSpace()
-		p.printExpr(*item.Value, js_ast.LComma, 0)
+		p.printExpr(item.ValueOrNil, js_ast.LComma, 0)
 	}
 
-	if item.Initializer != nil {
+	if item.InitializerOrNil.Data != nil {
 		p.printSpace()
 		p.print("=")
 		p.printSpace()
-		p.printExpr(*item.Initializer, js_ast.LComma, 0)
+		p.printExpr(item.InitializerOrNil, js_ast.LComma, 0)
 	}
 }
 
@@ -1581,10 +1579,10 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.printIndent()
 		}
 		p.printExpr(e.Expr, js_ast.LComma, 0)
-		if e.Options != nil {
+		if e.OptionsOrNil.Data != nil {
 			p.print(",")
 			p.printSpace()
-			p.printExpr(*e.Options, js_ast.LComma, 0)
+			p.printExpr(e.OptionsOrNil, js_ast.LComma, 0)
 		}
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
@@ -1696,9 +1694,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		wasPrinted := false
 		if len(e.Body.Stmts) == 1 && e.PreferExpr {
-			if s, ok := e.Body.Stmts[0].Data.(*js_ast.SReturn); ok && s.Value != nil {
+			if s, ok := e.Body.Stmts[0].Data.(*js_ast.SReturn); ok && s.ValueOrNil.Data != nil {
 				p.arrowExprStart = len(p.js)
-				p.printExpr(*s.Value, js_ast.LComma, 0)
+				p.printExpr(s.ValueOrNil, js_ast.LComma, 0)
 				wasPrinted = true
 			}
 		}
@@ -1857,23 +1855,23 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 	case *js_ast.ETemplate:
 		// Convert no-substitution template literals into strings if it's smaller
-		if p.options.MangleSyntax && e.Tag == nil && len(e.Parts) == 0 {
+		if p.options.MangleSyntax && e.TagOrNil.Data == nil && len(e.Parts) == 0 {
 			p.printQuotedUTF16(e.Head, true /* allowBacktick */)
 			return
 		}
 
-		if e.Tag != nil {
+		if e.TagOrNil.Data != nil {
 			// Optional chains are forbidden in template tags
-			if js_ast.IsOptionalChain(*e.Tag) {
+			if js_ast.IsOptionalChain(e.TagOrNil) {
 				p.print("(")
-				p.printExpr(*e.Tag, js_ast.LLowest, 0)
+				p.printExpr(e.TagOrNil, js_ast.LLowest, 0)
 				p.print(")")
 			} else {
-				p.printExpr(*e.Tag, js_ast.LPostfix, 0)
+				p.printExpr(e.TagOrNil, js_ast.LPostfix, 0)
 			}
 		}
 		p.print("`")
-		if e.Tag != nil {
+		if e.TagOrNil.Data != nil {
 			p.print(e.HeadRaw)
 		} else {
 			p.printUnquotedUTF16(e.Head, '`')
@@ -1882,7 +1880,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.print("${")
 			p.printExpr(part.Value, js_ast.LLowest, 0)
 			p.print("}")
-			if e.Tag != nil {
+			if e.TagOrNil.Data != nil {
 				p.print(part.TailRaw)
 			} else {
 				p.printUnquotedUTF16(part.Tail, '`')
@@ -2025,12 +2023,12 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.printSpaceBeforeIdentifier()
 		p.print("yield")
 
-		if e.Value != nil {
+		if e.ValueOrNil.Data != nil {
 			if e.IsStar {
 				p.print("*")
 			}
 			p.printSpace()
-			p.printExpr(*e.Value, js_ast.LYield, 0)
+			p.printExpr(e.ValueOrNil, js_ast.LYield, 0)
 		}
 
 		if wrap {
@@ -2371,11 +2369,11 @@ func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags printExp
 		}
 		p.printBinding(decl.Binding)
 
-		if decl.Value != nil {
+		if decl.ValueOrNil.Data != nil {
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
-			p.printExpr(*decl.Value, js_ast.LComma, flags)
+			p.printExpr(decl.ValueOrNil, js_ast.LComma, flags)
 		}
 	}
 }
@@ -2414,10 +2412,10 @@ func wrapToAvoidAmbiguousElse(s js_ast.S) bool {
 	for {
 		switch current := s.(type) {
 		case *js_ast.SIf:
-			if current.No == nil {
+			if current.NoOrNil.Data == nil {
 				return true
 			}
-			s = current.No.Data
+			s = current.NoOrNil.Data
 
 		case *js_ast.SFor:
 			s = current.Body.Data
@@ -2452,7 +2450,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 		p.printSpace()
 		p.printBlock(s.Yes.Loc, yes.Stmts)
 
-		if s.No != nil {
+		if s.NoOrNil.Data != nil {
 			p.printSpace()
 		} else {
 			p.printNewline()
@@ -2470,7 +2468,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 		p.printIndent()
 		p.print("}")
 
-		if s.No != nil {
+		if s.NoOrNil.Data != nil {
 			p.printSpace()
 		} else {
 			p.printNewline()
@@ -2481,26 +2479,26 @@ func (p *printer) printIf(s *js_ast.SIf) {
 		p.printStmt(s.Yes)
 		p.options.Indent--
 
-		if s.No != nil {
+		if s.NoOrNil.Data != nil {
 			p.printIndent()
 		}
 	}
 
-	if s.No != nil {
+	if s.NoOrNil.Data != nil {
 		p.printSemicolonIfNeeded()
 		p.printSpaceBeforeIdentifier()
 		p.print("else")
 
-		if no, ok := s.No.Data.(*js_ast.SBlock); ok {
+		if no, ok := s.NoOrNil.Data.(*js_ast.SBlock); ok {
 			p.printSpace()
-			p.printBlock(s.No.Loc, no.Stmts)
+			p.printBlock(s.NoOrNil.Loc, no.Stmts)
 			p.printNewline()
-		} else if no, ok := s.No.Data.(*js_ast.SIf); ok {
+		} else if no, ok := s.NoOrNil.Data.(*js_ast.SIf); ok {
 			p.printIf(no)
 		} else {
 			p.printNewline()
 			p.options.Indent++
-			p.printStmt(*s.No)
+			p.printStmt(s.NoOrNil)
 			p.options.Indent--
 		}
 	}
@@ -2654,16 +2652,15 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.print("export default")
 		p.printSpace()
 
-		if s.Value.Expr != nil {
+		switch s2 := s.Value.Data.(type) {
+		case *js_ast.SExpr:
 			// Functions and classes must be wrapped to avoid confusion with their statement forms
 			p.exportDefaultStart = len(p.js)
 
-			p.printExpr(*s.Value.Expr, js_ast.LComma, 0)
+			p.printExpr(s2.Value, js_ast.LComma, 0)
 			p.printSemicolonAfterStatement()
 			return
-		}
 
-		switch s2 := s.Value.Stmt.Data.(type) {
 		case *js_ast.SFunction:
 			p.printSpaceBeforeIdentifier()
 			if s2.Fn.IsAsync {
@@ -2910,10 +2907,10 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		if s.Catch != nil {
 			p.printSpace()
 			p.print("catch")
-			if s.Catch.Binding != nil {
+			if s.Catch.BindingOrNil.Data != nil {
 				p.printSpace()
 				p.print("(")
-				p.printBinding(*s.Catch.Binding)
+				p.printBinding(s.Catch.BindingOrNil)
 				p.print(")")
 			}
 			p.printSpace()
@@ -2935,18 +2932,18 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.print("for")
 		p.printSpace()
 		p.print("(")
-		if s.Init != nil {
-			p.printForLoopInit(*s.Init, forbidIn)
+		if s.InitOrNil.Data != nil {
+			p.printForLoopInit(s.InitOrNil, forbidIn)
 		}
 		p.print(";")
 		p.printSpace()
-		if s.Test != nil {
-			p.printExpr(*s.Test, js_ast.LLowest, 0)
+		if s.TestOrNil.Data != nil {
+			p.printExpr(s.TestOrNil, js_ast.LLowest, 0)
 		}
 		p.print(";")
 		p.printSpace()
-		if s.Update != nil {
-			p.printExpr(*s.Update, js_ast.LLowest, 0)
+		if s.UpdateOrNil.Data != nil {
+			p.printExpr(s.UpdateOrNil, js_ast.LLowest, 0)
 		}
 		p.print(")")
 		p.printBody(s.Body)
@@ -2968,10 +2965,10 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			p.printSemicolonIfNeeded()
 			p.printIndent()
 
-			if c.Value != nil {
+			if c.ValueOrNil.Data != nil {
 				p.print("case")
 				p.printSpace()
-				p.printExpr(*c.Value, js_ast.LLogicalAnd, 0)
+				p.printExpr(c.ValueOrNil, js_ast.LLogicalAnd, 0)
 			} else {
 				p.print("default")
 			}
@@ -3120,9 +3117,9 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("return")
-		if s.Value != nil {
+		if s.ValueOrNil.Data != nil {
 			p.printSpace()
-			p.printExpr(*s.Value, js_ast.LLowest, 0)
+			p.printExpr(s.ValueOrNil, js_ast.LLowest, 0)
 		}
 		p.printSemicolonAfterStatement()
 

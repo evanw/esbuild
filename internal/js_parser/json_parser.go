@@ -134,9 +134,9 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 			value := p.parseExpr()
 
 			property := js_ast.Property{
-				Kind:  js_ast.PropertyNormal,
-				Key:   key,
-				Value: &value,
+				Kind:       js_ast.PropertyNormal,
+				Key:        key,
+				ValueOrNil: value,
 			}
 			properties = append(properties, property)
 		}
