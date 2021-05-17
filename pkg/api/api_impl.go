@@ -1535,6 +1535,7 @@ func (impl *pluginImpl) OnDynamicImport(options OnDynamicImportOptions, callback
 				Importer:   args.Importer.Text,
 				Namespace:  args.Namespace,
 				PluginData: args.PluginData,
+				ResolveDir: args.ResolveDir,
 			})
 			result.PluginName = response.PluginName
 			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")

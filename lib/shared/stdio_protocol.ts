@@ -198,6 +198,7 @@ export interface OnDynamicImportRequest {
   importer: string;
   namespace: string;
   pluginData: number;
+  resolveDir: string;
 }
 
 export interface OnDynamicImportResponse {

@@ -2429,6 +2429,7 @@ let syncTests = {
               assert.strictEqual(args.expression, '`./files/${name}.json`');
               assert.strictEqual(args.importer, input);
               assert.strictEqual(args.namespace, 'file');
+              assert.strictEqual(args.resolveDir, path.join(rootTestDir, 'onDynamicImportPluginInjectModule'))
 
               return {
                 contents: `module.exports = () => require('./supporting.json')`,
@@ -2472,6 +2473,7 @@ let syncTests = {
               assert.strictEqual(args.expression, '`./files/${name}.json`');
               assert.strictEqual(args.importer, input);
               assert.strictEqual(args.namespace, 'file');
+              assert.strictEqual(args.resolveDir, path.join(rootTestDir, 'onDynamicImportPluginIgnoreUnclaimed'))
 
               return;
             });

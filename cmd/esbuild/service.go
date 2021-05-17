@@ -831,6 +831,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 					"importer":   args.Importer,
 					"namespace":  args.Namespace,
 					"pluginData": args.PluginData,
+					"resolveDir": args.ResolveDir,
 				}).(map[string]interface{})
 
 				if value, ok := response["id"]; ok {
