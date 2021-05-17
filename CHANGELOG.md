@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add support for the `NO_COLOR` environment variable
+
+    The CLI will now omit color if the `NO_COLOR` environment variable is present, which is an existing convention that is followed by some other software. See https://no-color.org/ for more information.
+
 ## 0.11.23
 
 * Add a shim function for unbundled uses of `require` ([#1202](https://github.com/evanw/esbuild/issues/1202))

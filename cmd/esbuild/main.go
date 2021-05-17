@@ -13,6 +13,15 @@ import (
 )
 
 var helpText = func(colors logger.Colors) string {
+	// Read "NO_COLOR" from the environment. This is a convention that some
+	// software follows. See https://no-color.org/ for more information.
+	for _, key := range os.Environ() {
+		if strings.HasPrefix(key, "NO_COLOR=") {
+			colors = logger.Colors{}
+			break
+		}
+	}
+
 	return `
 ` + colors.Bold + `Usage:` + colors.Reset + `
   esbuild [options] [entry points]
