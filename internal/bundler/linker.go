@@ -71,8 +71,6 @@ type chunkInfo struct {
 	uniqueKey string
 
 	filesWithPartsInChunk map[uint32]bool
-	filesInChunkInOrder   []uint32
-	partsInChunkInOrder   []partRange
 	entryBits             helpers.BitSet
 
 	// This information is only useful if "isEntryPoint" is true
@@ -151,6 +149,9 @@ func (*chunkReprJS) isChunk()  {}
 func (*chunkReprCSS) isChunk() {}
 
 type chunkReprJS struct {
+	filesInChunkInOrder []uint32
+	partsInChunkInOrder []partRange
+
 	// For code splitting
 	crossChunkPrefixStmts  []js_ast.Stmt
 	crossChunkSuffixStmts  []js_ast.Stmt
@@ -159,6 +160,7 @@ type chunkReprJS struct {
 }
 
 type chunkReprCSS struct {
+	filesInChunkInOrder []uint32
 }
 
 // Returns a log where "log.HasErrors()" only returns true if any errors have
@@ -382,8 +384,16 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 
 			// Each file may optionally contain additional files to be copied to the
 			// output directory. This is used by the "file" loader.
-			for _, sourceIndex := range chunk.filesInChunkInOrder {
-				outputFiles = append(outputFiles, c.graph.Files[sourceIndex].InputFile.AdditionalFiles...)
+			switch chunkRepr := chunk.chunkRepr.(type) {
+			case *chunkReprJS:
+				for _, sourceIndex := range chunkRepr.filesInChunkInOrder {
+					outputFiles = append(outputFiles, c.graph.Files[sourceIndex].InputFile.AdditionalFiles...)
+				}
+
+			case *chunkReprCSS:
+				for _, sourceIndex := range chunkRepr.filesInChunkInOrder {
+					outputFiles = append(outputFiles, c.graph.Files[sourceIndex].InputFile.AdditionalFiles...)
+				}
 			}
 
 			// Path substitution for the chunk itself
@@ -2690,9 +2700,11 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			// Ignore this file if it's not included in the bundle
 			continue
 		}
+
 		key := file.EntryBits.String()
 		var chunk chunkInfo
 		var ok bool
+
 		switch file.InputFile.Repr.(type) {
 		case *graph.JSRepr:
 			chunk, ok = jsChunks[key]
@@ -2702,6 +2714,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 				chunk.chunkRepr = &chunkReprJS{}
 				jsChunks[key] = chunk
 			}
+
 		case *graph.CSSRepr:
 			chunk, ok = cssChunks[key]
 			if !ok {
@@ -2719,6 +2732,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 				cssChunks[key] = chunk
 			}
 		}
+
 		chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
 	}
 
@@ -2765,29 +2779,30 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	// Determine the order of files within the chunk ahead of time. This may
 	// generate additional CSS chunks from JS chunks that import CSS files.
 	{
-		for chunkIndex, chunk := range sortedChunks {
+		for _, chunk := range sortedChunks {
 			js, jsParts, css := c.chunkFileOrder(&chunk)
 
-			switch chunk.chunkRepr.(type) {
+			switch chunkRepr := chunk.chunkRepr.(type) {
 			case *chunkReprJS:
-				sortedChunks[chunkIndex].filesInChunkInOrder = js
-				sortedChunks[chunkIndex].partsInChunkInOrder = jsParts
+				chunkRepr.filesInChunkInOrder = js
+				chunkRepr.partsInChunkInOrder = jsParts
 
 				// If JS files include CSS files, make a sibling chunk for the CSS
 				if len(css) > 0 {
 					sortedChunks = append(sortedChunks, chunkInfo{
-						filesInChunkInOrder:   css,
 						entryBits:             chunk.entryBits,
 						isEntryPoint:          chunk.isEntryPoint,
 						sourceIndex:           chunk.sourceIndex,
 						entryPointBit:         chunk.entryPointBit,
 						filesWithPartsInChunk: make(map[uint32]bool),
-						chunkRepr:             &chunkReprCSS{},
+						chunkRepr: &chunkReprCSS{
+							filesInChunkInOrder: css,
+						},
 					})
 				}
 
 			case *chunkReprCSS:
-				sortedChunks[chunkIndex].filesInChunkInOrder = css
+				chunkRepr.filesInChunkInOrder = css
 			}
 		}
 	}
@@ -4143,13 +4158,13 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	}
 
 	chunkRepr := chunk.chunkRepr.(*chunkReprJS)
-	compileResults := make([]compileResultJS, 0, len(chunk.partsInChunkInOrder))
+	compileResults := make([]compileResultJS, 0, len(chunkRepr.partsInChunkInOrder))
 	runtimeMembers := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.ModuleScope.Members
 	commonJSRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__commonJS"].Ref)
 	esmRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__esm"].Ref)
 	toModuleRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__toModule"].Ref)
 	runtimeRequireRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__require"].Ref)
-	r := c.renameSymbolsInChunk(chunk, chunk.filesInChunkInOrder, timer)
+	r := c.renameSymbolsInChunk(chunk, chunkRepr.filesInChunkInOrder, timer)
 	dataForSourceMaps := c.dataForSourceMaps()
 
 	// Note: This contains placeholders instead of what the placeholders are
@@ -4164,7 +4179,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	// Generate JavaScript for each file in parallel
 	timer.Begin("Print JavaScript files")
 	waitGroup := sync.WaitGroup{}
-	for _, partRange := range chunk.partsInChunkInOrder {
+	for _, partRange := range chunkRepr.partsInChunkInOrder {
 		// Skip the runtime in test output
 		if partRange.sourceIndex == runtime.SourceIndex && c.options.OmitRuntimeForTests {
 			continue
@@ -4598,12 +4613,13 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 		defer timer.End(timeName)
 	}
 
-	compileResults := make([]compileResultCSS, 0, len(chunk.filesInChunkInOrder))
+	chunkRepr := chunk.chunkRepr.(*chunkReprCSS)
+	compileResults := make([]compileResultCSS, 0, len(chunkRepr.filesInChunkInOrder))
 
 	// Generate CSS for each file in parallel
 	timer.Begin("Print CSS files")
 	waitGroup := sync.WaitGroup{}
-	for _, sourceIndex := range chunk.filesInChunkInOrder {
+	for _, sourceIndex := range chunkRepr.filesInChunkInOrder {
 		// Create a goroutine for this file
 		compileResults = append(compileResults, compileResultCSS{})
 		compileResult := &compileResults[len(compileResults)-1]
@@ -4875,32 +4891,33 @@ func (c *linkerContext) generateIsolatedHash(chunk *chunkInfo, channel chan []by
 	// the hash. Objects that appear identical but that live in separate files or
 	// that live in separate parts in the same file must not be merged. This only
 	// needs to be done for JavaScript files, not CSS files.
-	for _, partRange := range chunk.partsInChunkInOrder {
-		var filePath string
-		file := &c.graph.Files[partRange.sourceIndex]
+	if chunkRepr, ok := chunk.chunkRepr.(*chunkReprJS); ok {
+		for _, partRange := range chunkRepr.partsInChunkInOrder {
+			var filePath string
+			file := &c.graph.Files[partRange.sourceIndex]
+			if file.InputFile.Source.KeyPath.Namespace == "file" {
+				// Use the pretty path as the file name since it should be platform-
+				// independent (relative paths and the "/" path separator)
+				filePath = file.InputFile.Source.PrettyPath
+			} else {
+				// If this isn't in the "file" namespace, just use the full path text
+				// verbatim. This could be a source of cross-platform differences if
+				// plugins are storing platform-specific information in here, but then
+				// that problem isn't caused by esbuild itself.
+				filePath = file.InputFile.Source.KeyPath.Text
+			}
 
-		if file.InputFile.Source.KeyPath.Namespace == "file" {
-			// Use the pretty path as the file name since it should be platform-
-			// independent (relative paths and the "/" path separator)
-			filePath = file.InputFile.Source.PrettyPath
-		} else {
-			// If this isn't in the "file" namespace, just use the full path text
-			// verbatim. This could be a source of cross-platform differences if
-			// plugins are storing platform-specific information in here, but then
-			// that problem isn't caused by esbuild itself.
-			filePath = file.InputFile.Source.KeyPath.Text
+			// Include the path namespace in the hash
+			hashWriteLengthPrefixed(hash, []byte(file.InputFile.Source.KeyPath.Namespace))
+
+			// Then include the file path
+			hashWriteLengthPrefixed(hash, []byte(filePath))
+
+			// Also write the part range. These numbers are deterministic and allocated
+			// per-file so this should be a well-behaved base for a hash.
+			hashWriteUint32(hash, partRange.partIndexBegin)
+			hashWriteUint32(hash, partRange.partIndexEnd)
 		}
-
-		// Include the path namespace in the hash
-		hashWriteLengthPrefixed(hash, []byte(file.InputFile.Source.KeyPath.Namespace))
-
-		// Then include the file path
-		hashWriteLengthPrefixed(hash, []byte(filePath))
-
-		// Also write the part range. These numbers are deterministic and allocated
-		// per-file so this should be a well-behaved base for a hash.
-		hashWriteUint32(hash, partRange.partIndexBegin)
-		hashWriteUint32(hash, partRange.partIndexEnd)
 	}
 
 	// Hash the output path template as part of the content hash because we want
