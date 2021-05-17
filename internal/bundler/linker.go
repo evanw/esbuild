@@ -160,7 +160,13 @@ type chunkReprJS struct {
 }
 
 type chunkReprCSS struct {
-	filesInChunkInOrder []uint32
+	externalImportsInOrder []externalImportCSS
+	filesInChunkInOrder    []uint32
+}
+
+type externalImportCSS struct {
+	path       logger.Path
+	conditions []css_ast.Token
 }
 
 // Returns a log where "log.HasErrors()" only returns true if any errors have
@@ -2659,6 +2665,165 @@ func sanitizeFilePathForVirtualModulePath(path string) string {
 	return sb.String()
 }
 
+// JavaScript modules are traversed in depth-first postorder. This is the
+// order that JavaScript modules were evaluated in before the top-level await
+// feature was introduced.
+//
+//     A
+//    / \
+//   B   C
+//    \ /
+//     D
+//
+// If A imports B and then C, B imports D, and C imports D, then the JavaScript
+// traversal order is D B C A.
+//
+// This function may deviate from ESM import order for dynamic imports (both
+// "require()" and "import()"). This is because the import order is impossible
+// to determine since the imports happen at run-time instead of compile-time.
+// In this case we just pick an arbitrary but consistent order.
+func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order []uint32) {
+	visited := make(map[uint32]bool)
+	var visit func(uint32, ast.Index32)
+
+	// Include this file and all files it imports
+	visit = func(sourceIndex uint32, importerIndex ast.Index32) {
+		if visited[sourceIndex] {
+			return
+		}
+		visited[sourceIndex] = true
+		file := &c.graph.Files[sourceIndex]
+		repr := file.InputFile.Repr.(*graph.JSRepr)
+
+		// Iterate over each part in the file in order
+		for _, part := range repr.AST.Parts {
+			// Ignore dead code that has been removed from the bundle. Any code
+			// that's reachable from the entry point, even through lazy dynamic
+			// imports, could end up being activated by the bundle and needs its
+			// CSS to be included. This may change if/when code splitting is
+			// supported for CSS.
+			if !part.IsLive {
+				continue
+			}
+
+			// Traverse any files imported by this part. Note that CommonJS calls
+			// to "require()" count as imports too, sort of as if the part has an
+			// ESM "import" statement in it. This may seem weird because ESM imports
+			// are a compile-time concept while CommonJS imports are a run-time
+			// concept. But we don't want to manipulate <style> tags at run-time so
+			// this is the only way to do it.
+			for _, importRecordIndex := range part.ImportRecordIndices {
+				if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() {
+					visit(record.SourceIndex.GetIndex(), ast.MakeIndex32(sourceIndex))
+				}
+			}
+		}
+
+		// Iterate over the associated CSS imports in postorder
+		if repr.CSSSourceIndex.IsValid() {
+			order = append(order, repr.CSSSourceIndex.GetIndex())
+		}
+	}
+
+	// Include all files reachable from the entry point
+	visit(entryPoint, ast.Index32{})
+
+	return
+}
+
+// CSS files are traversed in depth-first reversed reverse preorder. This is
+// because unlike JavaScript import statements, CSS "@import" rules are
+// evaluated every time instead of just the first time. However, evaluating a
+// CSS file multiple times is equivalent to evaluating it once at the last
+// location. So we drop all but the last evaluation in the order.
+//
+//     A
+//    / \
+//   B   C
+//    \ /
+//     D
+//
+// If A imports B and then C, B imports D, and C imports D, then the CSS
+// traversal order is B D C A.
+func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (externalOrder []externalImportCSS, internalOrder []uint32) {
+	type externalImportsCSS struct {
+		unconditional bool
+		conditions    [][]css_ast.Token
+	}
+
+	visited := make(map[uint32]bool)
+	externals := make(map[logger.Path]externalImportsCSS)
+	var visit func(uint32, ast.Index32)
+
+	// Include this file and all files it imports
+	visit = func(sourceIndex uint32, importerIndex ast.Index32) {
+		if !visited[sourceIndex] {
+			visited[sourceIndex] = true
+			repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.CSSRepr)
+			topLevelRules := repr.AST.Rules
+
+			// Iterate in reverse preorder (will be reversed again later)
+			internalOrder = append(internalOrder, sourceIndex)
+
+			// Iterate in the inverse order of top-level "@import" rules
+		outer:
+			for i := len(topLevelRules) - 1; i >= 0; i-- {
+				if atImport, ok := topLevelRules[i].(*css_ast.RAtImport); ok {
+					if record := &repr.AST.ImportRecords[atImport.ImportRecordIndex]; record.SourceIndex.IsValid() {
+						// Follow internal dependencies
+						visit(record.SourceIndex.GetIndex(), ast.MakeIndex32(sourceIndex))
+					} else {
+						// Record external dependencies
+						external := externals[record.Path]
+
+						// Check for an unconditional import. An unconditional import
+						// should always mask all conditional imports that are overridden
+						// by the unconditional import.
+						if external.unconditional {
+							continue
+						}
+
+						if len(atImport.ImportConditions) == 0 {
+							external.unconditional = true
+						} else {
+							// Check for a conditional import. A conditional import does not
+							// mask an earlier unconditional import because re-evaluating a
+							// CSS file can have observable results.
+							for _, tokens := range external.conditions {
+								if css_ast.TokensEqualIgnoringWhitespace(tokens, atImport.ImportConditions) {
+									continue outer
+								}
+							}
+							external.conditions = append(external.conditions, atImport.ImportConditions)
+						}
+
+						externals[record.Path] = external
+						externalOrder = append(externalOrder, externalImportCSS{
+							path:       record.Path,
+							conditions: atImport.ImportConditions,
+						})
+					}
+				}
+			}
+		}
+	}
+
+	// Include all files reachable from any entry point
+	for _, entryPoint := range entryPoints {
+		visit(entryPoint, ast.Index32{})
+	}
+
+	// Reverse the order afterward when traversing in CSS order
+	for i, j := 0, len(internalOrder)-1; i < j; i, j = i+1, j-1 {
+		internalOrder[i], internalOrder[j] = internalOrder[j], internalOrder[i]
+	}
+	for i, j := 0, len(externalOrder)-1; i < j; i, j = i+1, j-1 {
+		externalOrder[i], externalOrder[j] = externalOrder[j], externalOrder[i]
+	}
+
+	return
+}
+
 func (c *linkerContext) computeChunks() []chunkInfo {
 	c.timer.Begin("Compute chunks")
 	defer c.timer.End("Compute chunks")
@@ -2674,7 +2839,8 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		// always generated even if the resulting file is empty
 		entryBits := helpers.NewBitSet(uint(len(c.graph.EntryPoints())))
 		entryBits.SetBit(uint(i))
-		info := chunkInfo{
+		key := entryBits.String()
+		chunk := chunkInfo{
 			entryBits:             entryBits,
 			isEntryPoint:          true,
 			sourceIndex:           entryPoint.SourceIndex,
@@ -2684,56 +2850,62 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 
 		switch file.InputFile.Repr.(type) {
 		case *graph.JSRepr:
-			info.chunkRepr = &chunkReprJS{}
-			jsChunks[entryBits.String()] = info
+			chunk.chunkRepr = &chunkReprJS{}
+			jsChunks[key] = chunk
+
+			// If this JS entry point has an associated CSS entry point, generate it
+			// now. This is essentially done by generating a virtual CSS file that
+			// only contains "@import" statements in the order that the files were
+			// discovered in JS source order, where JS source order is arbitrary but
+			// consistent for dynamic imports. Then we run the CSS import order
+			// algorithm to determine the final CSS file order for the chunk.
+			if cssSourceIndices := c.findImportedCSSFilesInJSOrder(entryPoint.SourceIndex); len(cssSourceIndices) > 0 {
+				externalOrder, internalOrder := c.findImportedFilesInCSSOrder(cssSourceIndices)
+				cssFilesWithPartsInChunk := make(map[uint32]bool)
+				for _, sourceIndex := range internalOrder {
+					cssFilesWithPartsInChunk[uint32(sourceIndex)] = true
+				}
+				cssChunks[key] = chunkInfo{
+					entryBits:             entryBits,
+					isEntryPoint:          true,
+					sourceIndex:           entryPoint.SourceIndex,
+					entryPointBit:         uint(i),
+					filesWithPartsInChunk: cssFilesWithPartsInChunk,
+					chunkRepr: &chunkReprCSS{
+						externalImportsInOrder: externalOrder,
+						filesInChunkInOrder:    internalOrder,
+					},
+				}
+			}
 
 		case *graph.CSSRepr:
-			info.chunkRepr = &chunkReprCSS{}
-			cssChunks[entryBits.String()] = info
+			externalOrder, internalOrder := c.findImportedFilesInCSSOrder([]uint32{entryPoint.SourceIndex})
+			for _, sourceIndex := range internalOrder {
+				chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
+			}
+			chunk.chunkRepr = &chunkReprCSS{
+				externalImportsInOrder: externalOrder,
+				filesInChunkInOrder:    internalOrder,
+			}
+			cssChunks[key] = chunk
 		}
 	}
 
-	// Figure out which files are in which chunk
+	// Figure out which JS files are in which chunk
 	for _, sourceIndex := range c.graph.ReachableFiles {
-		file := &c.graph.Files[sourceIndex]
-		if !file.IsLive {
-			// Ignore this file if it's not included in the bundle
-			continue
-		}
-
-		key := file.EntryBits.String()
-		var chunk chunkInfo
-		var ok bool
-
-		switch file.InputFile.Repr.(type) {
-		case *graph.JSRepr:
-			chunk, ok = jsChunks[key]
-			if !ok {
-				chunk.entryBits = file.EntryBits
-				chunk.filesWithPartsInChunk = make(map[uint32]bool)
-				chunk.chunkRepr = &chunkReprJS{}
-				jsChunks[key] = chunk
-			}
-
-		case *graph.CSSRepr:
-			chunk, ok = cssChunks[key]
-			if !ok {
-				chunk.entryBits = file.EntryBits
-				chunk.filesWithPartsInChunk = make(map[uint32]bool)
-				chunk.chunkRepr = &chunkReprCSS{}
-
-				// Check whether this is the CSS file to go with a JS entry point
-				if jsChunk, ok := jsChunks[key]; ok && jsChunk.isEntryPoint {
-					chunk.isEntryPoint = true
-					chunk.sourceIndex = jsChunk.sourceIndex
-					chunk.entryPointBit = jsChunk.entryPointBit
+		if file := &c.graph.Files[sourceIndex]; file.IsLive {
+			if _, ok := file.InputFile.Repr.(*graph.JSRepr); ok {
+				key := file.EntryBits.String()
+				chunk, ok := jsChunks[key]
+				if !ok {
+					chunk.entryBits = file.EntryBits
+					chunk.filesWithPartsInChunk = make(map[uint32]bool)
+					chunk.chunkRepr = &chunkReprJS{}
+					jsChunks[key] = chunk
 				}
-
-				cssChunks[key] = chunk
+				chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
 			}
 		}
-
-		chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
 	}
 
 	// Sort the chunks for determinism. This matters because we use chunk indices
@@ -2776,34 +2948,10 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		}
 	}
 
-	// Determine the order of files within the chunk ahead of time. This may
-	// generate additional CSS chunks from JS chunks that import CSS files.
-	{
-		for _, chunk := range sortedChunks {
-			js, jsParts, css := c.chunkFileOrder(&chunk)
-
-			switch chunkRepr := chunk.chunkRepr.(type) {
-			case *chunkReprJS:
-				chunkRepr.filesInChunkInOrder = js
-				chunkRepr.partsInChunkInOrder = jsParts
-
-				// If JS files include CSS files, make a sibling chunk for the CSS
-				if len(css) > 0 {
-					sortedChunks = append(sortedChunks, chunkInfo{
-						entryBits:             chunk.entryBits,
-						isEntryPoint:          chunk.isEntryPoint,
-						sourceIndex:           chunk.sourceIndex,
-						entryPointBit:         chunk.entryPointBit,
-						filesWithPartsInChunk: make(map[uint32]bool),
-						chunkRepr: &chunkReprCSS{
-							filesInChunkInOrder: css,
-						},
-					})
-				}
-
-			case *chunkReprCSS:
-				chunkRepr.filesInChunkInOrder = css
-			}
+	// Determine the order of JS files (and parts) within the chunk ahead of time
+	for _, chunk := range sortedChunks {
+		if chunkRepr, ok := chunk.chunkRepr.(*chunkReprJS); ok {
+			chunkRepr.filesInChunkInOrder, chunkRepr.partsInChunkInOrder = c.findImportedPartsInJSOrder(&chunk)
 		}
 	}
 
@@ -2902,7 +3050,7 @@ func (c *linkerContext) shouldIncludePart(repr *graph.JSRepr, part js_ast.Part) 
 	return true
 }
 
-func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts []partRange, css []uint32) {
+func (c *linkerContext) findImportedPartsInJSOrder(chunk *chunkInfo) (js []uint32, jsParts []partRange) {
 	sorted := make(chunkOrderArray, 0, len(chunk.filesWithPartsInChunk))
 
 	// Attach information to the files for use with sorting
@@ -2933,10 +3081,10 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 
 		visited[sourceIndex] = true
 		file := &c.graph.Files[sourceIndex]
-		isFileInThisChunk := chunk.entryBits.Equals(file.EntryBits)
 
-		switch repr := file.InputFile.Repr.(type) {
-		case *graph.JSRepr:
+		if repr, ok := file.InputFile.Repr.(*graph.JSRepr); ok {
+			isFileInThisChunk := chunk.entryBits.Equals(file.EntryBits)
+
 			// Wrapped files can't be split because they are all inside the wrapper
 			canFileBeSplit := repr.Meta.Wrap == graph.WrapNone
 
@@ -2985,19 +3133,6 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 						partIndexEnd:   uint32(len(repr.AST.Parts)),
 					})
 				}
-			}
-
-		case *graph.CSSRepr:
-			if isFileInThisChunk {
-				// All imported files come first
-				for _, record := range repr.AST.ImportRecords {
-					if record.SourceIndex.IsValid() {
-						visit(record.SourceIndex.GetIndex())
-					}
-				}
-
-				// Then this file comes afterward
-				css = append(css, sourceIndex)
 			}
 		}
 	}
@@ -4591,15 +4726,9 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 }
 
 type compileResultCSS struct {
-	printedCSS      string
-	sourceIndex     uint32
-	hasCharset      bool
-	externalImports []externalImportCSS
-}
-
-type externalImportCSS struct {
-	record     ast.ImportRecord
-	conditions []css_ast.Token
+	printedCSS  string
+	sourceIndex uint32
+	hasCharset  bool
 }
 
 func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
@@ -4628,20 +4757,14 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			file := &c.graph.Files[sourceIndex]
 			ast := file.InputFile.Repr.(*graph.CSSRepr).AST
 
-			// Filter out "@import" rules
+			// Filter out "@charset" and "@import" rules
 			rules := make([]css_ast.R, 0, len(ast.Rules))
 			for _, rule := range ast.Rules {
-				switch r := rule.(type) {
+				switch rule.(type) {
 				case *css_ast.RAtCharset:
 					compileResult.hasCharset = true
 					continue
 				case *css_ast.RAtImport:
-					if record := ast.ImportRecords[r.ImportRecordIndex]; !record.SourceIndex.IsValid() {
-						compileResult.externalImports = append(compileResult.externalImports, externalImportCSS{
-							record:     record,
-							conditions: r.ImportConditions,
-						})
-					}
 					continue
 				}
 				rules = append(rules, rule)
@@ -4670,30 +4793,31 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 
 	// Generate any prefix rules now
 	{
-		ast := css_ast.AST{}
+		tree := css_ast.AST{}
 
 		// "@charset" is the only thing that comes before "@import"
 		for _, compileResult := range compileResults {
 			if compileResult.hasCharset {
-				ast.Rules = append(ast.Rules, &css_ast.RAtCharset{Encoding: "UTF-8"})
+				tree.Rules = append(tree.Rules, &css_ast.RAtCharset{Encoding: "UTF-8"})
 				break
 			}
 		}
 
 		// Insert all external "@import" rules at the front. In CSS, all "@import"
 		// rules must come first or the browser will just ignore them.
-		for _, compileResult := range compileResults {
-			for _, external := range compileResult.externalImports {
-				ast.Rules = append(ast.Rules, &css_ast.RAtImport{
-					ImportRecordIndex: uint32(len(ast.ImportRecords)),
-					ImportConditions:  external.conditions,
-				})
-				ast.ImportRecords = append(ast.ImportRecords, external.record)
-			}
+		for _, external := range chunkRepr.externalImportsInOrder {
+			tree.Rules = append(tree.Rules, &css_ast.RAtImport{
+				ImportRecordIndex: uint32(len(tree.ImportRecords)),
+				ImportConditions:  external.conditions,
+			})
+			tree.ImportRecords = append(tree.ImportRecords, ast.ImportRecord{
+				Kind: ast.ImportAt,
+				Path: external.path,
+			})
 		}
 
-		if len(ast.Rules) > 0 {
-			css := css_printer.Print(ast, css_printer.Options{
+		if len(tree.Rules) > 0 {
+			css := css_printer.Print(tree, css_printer.Options{
 				RemoveWhitespace: c.options.RemoveWhitespace,
 			})
 			if len(css) > 0 {

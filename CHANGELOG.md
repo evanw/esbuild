@@ -2,6 +2,78 @@
 
 ## Unreleased
 
+* Fix bundled CSS import order ([#465](https://github.com/evanw/esbuild/issues/465))
+
+    JS and CSS use different import ordering algorithms. In JS, importing a file that has already been imported is a no-op but in CSS, importing a file that has already been imported re-imports the file. A simple way to imagine this is to view each `@import` rule in CSS as being replaced by the contents of that file similar to `#include` in C/C++. However, this is incorrect in the case of `@import` cycles because it would cause infinite expansion. A more accurate way to imagine this is that in CSS, a file is evaluated at the *last* `@import` location while in JS, a file is evaluated at the *first* `import` location.
+
+    Previously esbuild followed JS import order rules for CSS but now esbuild will follow CSS import order rules. This is a breaking change because it means your CSS may behave differently when bundled. Note that CSS import order rules are somewhat unintuitive because evaluation order matters. In CSS, using `@import` multiple times can end up unintentionally erasing overriding styles. For example, consider the following files:
+
+    ```css
+    /* entry.css */
+    @import "./color.css";
+    @import "./background.css";
+    ```
+
+    ```css
+    /* color.css */
+    @import "./reset.css";
+    body {
+      color: white;
+    }
+    ```
+
+    ```css
+    /* background.css */
+    @import "./reset.css";
+    body {
+      background: black;
+    }
+    ```
+
+    ```css
+    /* reset.css */
+    body {
+      background: white;
+      color: black;
+    }
+    ```
+
+    Because of how CSS import order works, `entry.css` will now be bundled like this:
+
+    ```css
+    /* color.css */
+    body {
+      color: white;
+    }
+
+    /* reset.css */
+    body {
+      background: white;
+      color: black;
+    }
+
+    /* background.css */
+    body {
+      background: black;
+    }
+    ```
+
+    This means the body will unintuitively be all black! The file `reset.css` is evaluated at the location of the *last* `@import` instead of the *first* `@import`. The fix for this case is to remove the nested imports of `reset.css` and to import `reset.css` exactly once at the top of `entry.css`.
+
+    Note that while the evaluation order of external CSS imports is preserved with respect to other external CSS imports, the evaluation order of external CSS imports is *not* preserved with respect to other internal CSS imports. All external CSS imports are "hoisted" to the top of the bundle. The alternative would be to generate many smaller chunks which is usually undesirable. So in this case esbuild's CSS bundling behavior will not match the browser.
+
+* Fix bundled CSS when using JS code splitting ([#608](https://github.com/evanw/esbuild/issues/608))
+
+    Previously esbuild generated incorrect CSS output when JS code splitting was enabled and the JS code being bundled imported CSS files. CSS code that was reachable via multiple JS entry points was split off into a shared CSS chunk, but that chunk was not actually imported anywhere so the shared CSS was missing. This happened because both CSS and JS code splitting were experimental features that are still in progress and weren't tested together.
+
+    Now esbuild's CSS output should contain all reachable CSS code when JS code splitting is enabled. Note that this does *not* mean code splitting works for CSS files. Each CSS output file simply contains the transitive set of all CSS reachable from the JS entry point including through dynamic `import()` and `require()` expressions. Specifically, the bundler constructs a virtual CSS file for each JS entry point consisting only of `@import` rules for each CSS file imported into a JS file. These `@import` rules are constructed in JS source order, but then the bundler uses CSS import order from that point forward to bundle this virtual CSS file into the final CSS output file.
+
+    This model makes the most sense when CSS files are imported into JS files via JS `import` statements. Importing CSS via `import()` and `require()` (either directly or transitively through multiple intermediate JS files) should still "work" in the sense that all reachable CSS should be included in the output, but in this case esbuild will pick an arbitrary (but consistent) import order. The import order may not match the order that the JS files are evaluated in because JS evaluation order of dynamic imports is only determined at run-time while CSS bundling happens at compile-time.
+
+    It's possible to implement code splitting for CSS such that CSS code used between multiple entry points is shared. However, CSS lacks a mechanism for "lazily" importing code (i.e. disconnecting the import location with the evaluation location) so CSS code splitting could potentially need to generate a huge number of very small chunks to preserve import order. It's unclear if this would end up being a net win or not as far as browser download time. So sharing-based code splitting is currently not supported for CSS.
+
+    It's theoretically possible to implement code splitting for CSS such that CSS from a dynamically-imported JS file (e.g. via `import()`) is placed into a separate chunk. However, due to how `@import` order works this would in theory end up re-evaluating all shared dependencies which could overwrite overloaded styles and unintentionally change the way the page is rendered. For example, constructing a single-page app architecture such that each page is JS-driven and can transition to other JS-driven pages via `import()` could end up with pages that look different depending on what order you visit them in. This is clearly undesirable. The simple way to address this is to just not support dynamic-import code splitting for CSS either.
+
 * Add support for the `NO_COLOR` environment variable
 
     The CLI will now omit color if the `NO_COLOR` environment variable is present, which is an existing convention that is followed by some other software. See https://no-color.org/ for more information.
