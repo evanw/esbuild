@@ -74,6 +74,22 @@
 
     It's theoretically possible to implement code splitting for CSS such that CSS from a dynamically-imported JS file (e.g. via `import()`) is placed into a separate chunk. However, due to how `@import` order works this would in theory end up re-evaluating all shared dependencies which could overwrite overloaded styles and unintentionally change the way the page is rendered. For example, constructing a single-page app architecture such that each page is JS-driven and can transition to other JS-driven pages via `import()` could end up with pages that look different depending on what order you visit them in. This is clearly undesirable. The simple way to address this is to just not support dynamic-import code splitting for CSS either.
 
+* Change "define" to have higher priority than "inject" ([#660](https://github.com/evanw/esbuild/issues/660))
+
+    The "define" and "inject" features are both ways of replacing certain expressions in your source code with other things expressions. Previously esbuild's behavior ran "inject" before "define", which could lead to some undesirable behavior. For example (from the `react` npm package):
+
+    ```js
+    if (process.env.NODE_ENV === 'production') {
+      module.exports = require('./cjs/react.production.min.js');
+    } else {
+      module.exports = require('./cjs/react.development.js');
+    }
+    ```
+
+    If you use "define" to replace `process.env.NODE_ENV` with `"production"` and "inject" to replace `process` with a shim that emulates node's process API, then `process` was previously replaced first and then `process.env.NODE_ENV` wasn't matched because `process` referred to the injected shim. This wasn't ideal because it means esbuild didn't detect the branch condition as a constant (since it doesn't know how the shim behaves at run-time) and bundled both the development and production versions of the package.
+
+    With this release, esbuild will now run "define" before "inject". In the above example this means that `process.env.NODE_ENV` will now be replaced with `"production"`, the injected shim will not be included, and only the production version of the package will be bundled. This feature was contributed by [@rtsao](https://github.com/rtsao).
+
 * Add support for the `NO_COLOR` environment variable
 
     The CLI will now omit color if the `NO_COLOR` environment variable is present, which is an existing convention that is followed by some other software. See https://no-color.org/ for more information.

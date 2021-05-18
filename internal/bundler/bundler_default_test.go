@@ -3871,6 +3871,30 @@ func TestInjectImportOrder(t *testing.T) {
 	})
 }
 
+func TestInjectAssign(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				test = true
+			`,
+			"/inject.js": `
+				export let test = false
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			InjectAbsPaths: []string{
+				"/inject.js",
+			},
+		},
+		expectedScanLog: `entry.js: error: Cannot assign to "test" because it's an import from an injected file
+inject.js: note: "test" was exported from "inject.js" here
+`,
+	})
+}
+
 func TestOutbase(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

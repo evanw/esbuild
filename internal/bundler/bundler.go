@@ -131,7 +131,7 @@ func parseFile(args parseArgs) {
 		if !ok {
 			if args.inject != nil {
 				args.inject <- config.InjectedFile{
-					SourceIndex: source.Index,
+					Source: source,
 				}
 			}
 			args.results <- parseResult{}
@@ -327,18 +327,24 @@ func parseFile(args parseArgs) {
 
 	// This must come before we send on the "results" channel to avoid deadlock
 	if args.inject != nil {
-		var exports []string
+		var exports []config.InjectableExport
 		if repr, ok := result.file.inputFile.Repr.(*graph.JSRepr); ok {
-			exports = make([]string, 0, len(repr.AST.NamedExports))
+			aliases := make([]string, 0, len(repr.AST.NamedExports))
 			for alias := range repr.AST.NamedExports {
-				exports = append(exports, alias)
+				aliases = append(aliases, alias)
 			}
-			sort.Strings(exports) // Sort for determinism
+			sort.Strings(aliases) // Sort for determinism
+			exports = make([]config.InjectableExport, len(aliases))
+			for i, alias := range aliases {
+				exports[i] = config.InjectableExport{
+					Alias: alias,
+					Loc:   repr.AST.NamedExports[alias].AliasLoc,
+				}
+			}
 		}
 		args.inject <- config.InjectedFile{
-			Path:        source.PrettyPath,
-			SourceIndex: source.Index,
-			Exports:     exports,
+			Source:  source,
+			Exports: exports,
 		}
 	}
 
@@ -1167,9 +1173,8 @@ func (s *scanner) preprocessInjectedFiles() {
 		// with the injected defines by index. The index will be used to import
 		// references to them in the parser.
 		injectedFiles = append(injectedFiles, config.InjectedFile{
-			Path:        visitedKey.Text,
-			SourceIndex: sourceIndex,
-			IsDefine:    true,
+			Source:     source,
+			DefineName: define.Name,
 		})
 
 		// Generate the file inline here since it has already been parsed

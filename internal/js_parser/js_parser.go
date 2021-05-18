@@ -64,6 +64,7 @@ type parser struct {
 	findSymbolHelper         func(loc logger.Loc, name string) js_ast.Ref
 	symbolForDefineHelper    func(int) js_ast.Ref
 	injectedDefineSymbols    []js_ast.Ref
+	injectedSymbolSources    map[js_ast.Ref]injectedSymbolSource
 	symbolUses               map[js_ast.Ref]js_ast.SymbolUse
 	declaredSymbols          []js_ast.DeclaredSymbol
 	runtimeImports           map[string]js_ast.Ref
@@ -271,6 +272,11 @@ type parser struct {
 	suppressWarningsAboutWeirdCode bool
 }
 
+type injectedSymbolSource struct {
+	source logger.Source
+	loc    logger.Loc
+}
+
 type importNamespaceCallOrConstruct struct {
 	ref         js_ast.Ref
 	isConstruct bool
@@ -358,8 +364,13 @@ func (a *Options) Equal(b *Options) bool {
 	}
 	for i, x := range a.injectedFiles {
 		y := b.injectedFiles[i]
-		if x.SourceIndex != y.SourceIndex || x.Path != y.Path || !stringArraysEqual(x.Exports, y.Exports) {
+		if x.Source != y.Source || x.DefineName != y.DefineName || len(x.Exports) != len(y.Exports) {
 			return false
+		}
+		for j := range x.Exports {
+			if x.Exports[j] != y.Exports[j] {
+				return false
+			}
 		}
 	}
 
@@ -9685,12 +9696,17 @@ func (p *parser) isDotDefineMatch(expr js_ast.Expr, parts []string) bool {
 
 			result := p.findSymbol(expr.Loc, name)
 
+			// The "findSymbol" function also marks this symbol as used. But that's
+			// never what we want here because we're just peeking to see what kind of
+			// symbol it is to see if it's a match. If it's not a match, it will be
+			// re-resolved again later and marked as used there. So we don't want to
+			// mark it as used twice.
+			p.ignoreUsage(result.ref)
+
 			// We must not be in a "with" statement scope
 			if result.isInsideWithScope {
 				return false
 			}
-
-			p.ignoreUsage(result.ref)
 
 			// The last symbol must be unbound or injected
 			return p.symbols[result.ref.InnerIndex].Kind.IsUnboundOrInjected()
@@ -10493,17 +10509,29 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		e.Ref = result.ref
 
 		// Handle assigning to a constant
-		if in.assignTarget != js_ast.AssignTargetNone && p.symbols[result.ref.InnerIndex].Kind == js_ast.SymbolConst {
-			r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
-			notes := []logger.MsgData{logger.RangeData(&p.tracker, js_lexer.RangeOfIdentifier(p.source, result.declareLoc),
-				fmt.Sprintf("%q was declared a constant here", name))}
+		if in.assignTarget != js_ast.AssignTargetNone {
+			switch p.symbols[result.ref.InnerIndex].Kind {
+			case js_ast.SymbolConst:
+				r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
+				notes := []logger.MsgData{logger.RangeData(&p.tracker, js_lexer.RangeOfIdentifier(p.source, result.declareLoc),
+					fmt.Sprintf("%q was declared a constant here", name))}
 
-			// Make this an error when bundling because we may need to convert this
-			// "const" into a "var" during bundling.
-			if p.options.mode == config.ModeBundle {
-				p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf("Cannot assign to %q because it is a constant", name), notes)
-			} else {
-				p.log.AddRangeWarningWithNotes(&p.tracker, r, fmt.Sprintf("This assignment will throw because %q is a constant", name), notes)
+				// Make this an error when bundling because we may need to convert this
+				// "const" into a "var" during bundling.
+				if p.options.mode == config.ModeBundle {
+					p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf("Cannot assign to %q because it is a constant", name), notes)
+				} else {
+					p.log.AddRangeWarningWithNotes(&p.tracker, r, fmt.Sprintf("This assignment will throw because %q is a constant", name), notes)
+				}
+
+			case js_ast.SymbolInjected:
+				if where, ok := p.injectedSymbolSources[result.ref]; ok {
+					r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
+					tracker := logger.MakeLineColumnTracker(&where.source)
+					notes := []logger.MsgData{logger.RangeData(&tracker, js_lexer.RangeOfIdentifier(where.source, where.loc),
+						fmt.Sprintf("%q was exported from %q here", name, where.source.PrettyPath))}
+					p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf("Cannot assign to %q because it's an import from an injected file", name), notes)
+				}
 			}
 		}
 
@@ -13545,24 +13573,30 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	for _, file := range p.options.injectedFiles {
 		exportsNoConflict := make([]string, 0, len(file.Exports))
 		symbols := make(map[string]js_ast.Ref)
-		if file.IsDefine {
-			ref := p.newSymbol(js_ast.SymbolInjected, js_ast.GenerateNonUniqueNameFromPath(file.Path))
-
+		if file.DefineName != "" {
+			ref := p.newSymbol(js_ast.SymbolOther, file.DefineName)
 			p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
 			symbols["default"] = ref
 			exportsNoConflict = append(exportsNoConflict, "default")
 			p.injectedDefineSymbols = append(p.injectedDefineSymbols, ref)
 		} else {
-			for _, alias := range file.Exports {
-				if _, ok := p.moduleScope.Members[alias]; !ok {
-					ref := p.newSymbol(js_ast.SymbolInjected, alias)
-					p.moduleScope.Members[alias] = js_ast.ScopeMember{Ref: ref}
-					symbols[alias] = ref
-					exportsNoConflict = append(exportsNoConflict, alias)
+			for _, export := range file.Exports {
+				if _, ok := p.moduleScope.Members[export.Alias]; !ok {
+					ref := p.newSymbol(js_ast.SymbolInjected, export.Alias)
+					p.moduleScope.Members[export.Alias] = js_ast.ScopeMember{Ref: ref}
+					symbols[export.Alias] = ref
+					exportsNoConflict = append(exportsNoConflict, export.Alias)
+					if p.injectedSymbolSources == nil {
+						p.injectedSymbolSources = make(map[js_ast.Ref]injectedSymbolSource)
+					}
+					p.injectedSymbolSources[ref] = injectedSymbolSource{
+						source: file.Source,
+						loc:    export.Loc,
+					}
 				}
 			}
 		}
-		before = p.generateImportStmt(file.Path, exportsNoConflict, file.SourceIndex, before, symbols)
+		before = p.generateImportStmt(file.Source.KeyPath.Text, exportsNoConflict, file.Source.Index, before, symbols)
 	}
 
 	// Bind symbols in a second pass over the AST. I started off doing this in a

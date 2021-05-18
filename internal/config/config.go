@@ -386,10 +386,14 @@ type InjectedDefine struct {
 }
 
 type InjectedFile struct {
-	Path        string
-	SourceIndex uint32
-	Exports     []string
-	IsDefine    bool
+	Source     logger.Source
+	Exports    []InjectableExport
+	DefineName string
+}
+
+type InjectableExport struct {
+	Alias string
+	Loc   logger.Loc
 }
 
 var filterMutex sync.Mutex
