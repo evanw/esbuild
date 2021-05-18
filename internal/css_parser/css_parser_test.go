@@ -1058,3 +1058,41 @@ func TestDeduplicateRules(t *testing.T) {
 	expectPrintedMangle(t, "@media screen { a b { color: red } } @media screen { a + b { color: red } }",
 		"@media screen {\n  a b {\n    color: red;\n  }\n}\n@media screen {\n  a + b {\n    color: red;\n  }\n}\n")
 }
+
+func TestMangleTime(t *testing.T) {
+	expectPrintedMangle(t, "a { animation: b 1s }", "a {\n  animation: b 1s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 1.s }", "a {\n  animation: b 1s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 1.0s }", "a {\n  animation: b 1s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 1.02s }", "a {\n  animation: b 1.02s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b .1s }", "a {\n  animation: b .1s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b .01s }", "a {\n  animation: b .01s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b .001s }", "a {\n  animation: b 1ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b .0012s }", "a {\n  animation: b 1.2ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b -.001s }", "a {\n  animation: b -1ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b -.0012s }", "a {\n  animation: b -1.2ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b .0001s }", "a {\n  animation: b .1ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b .00012s }", "a {\n  animation: b .12ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b .000123s }", "a {\n  animation: b .123ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b .01S }", "a {\n  animation: b .01S;\n}\n")
+	expectPrintedMangle(t, "a { animation: b .001S }", "a {\n  animation: b 1ms;\n}\n")
+
+	expectPrintedMangle(t, "a { animation: b 1ms }", "a {\n  animation: b 1ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 10ms }", "a {\n  animation: b 10ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 100ms }", "a {\n  animation: b .1s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 120ms }", "a {\n  animation: b .12s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 123ms }", "a {\n  animation: b 123ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 1000ms }", "a {\n  animation: b 1s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 1200ms }", "a {\n  animation: b 1.2s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 1230ms }", "a {\n  animation: b 1.23s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 1234ms }", "a {\n  animation: b 1234ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b -100ms }", "a {\n  animation: b -.1s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b -120ms }", "a {\n  animation: b -.12s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 120mS }", "a {\n  animation: b .12s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 120Ms }", "a {\n  animation: b .12s;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 123mS }", "a {\n  animation: b 123mS;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 123Ms }", "a {\n  animation: b 123Ms;\n}\n")
+
+	// Mangling times with exponents is not currently supported
+	expectPrintedMangle(t, "a { animation: b 1e3ms }", "a {\n  animation: b 1e3ms;\n}\n")
+	expectPrintedMangle(t, "a { animation: b 1E3ms }", "a {\n  animation: b 1E3ms;\n}\n")
+}

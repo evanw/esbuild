@@ -719,6 +719,11 @@ loop:
 					token.Text = text + token.DimensionUnit()
 					token.UnitOffset = uint16(len(text))
 				}
+
+				if value, unit, ok := mangleDimension(token.DimensionValue(), token.DimensionUnit()); ok {
+					token.Text = value + unit
+					token.UnitOffset = uint16(len(value))
+				}
 			}
 
 		case css_lexer.TURL:
@@ -830,6 +835,78 @@ loop:
 	}
 
 	return result, tokens
+}
+
+func shiftDot(text string, dotOffset int) (string, bool) {
+	// This doesn't handle numbers with exponents
+	if strings.ContainsAny(text, "eE") {
+		return "", false
+	}
+
+	// Handle a leading sign
+	sign := ""
+	if len(text) > 0 && (text[0] == '-' || text[0] == '+') {
+		sign = text[:1]
+		text = text[1:]
+	}
+
+	// Remove the dot
+	dot := strings.IndexByte(text, '.')
+	if dot == -1 {
+		dot = len(text)
+	} else {
+		text = text[:dot] + text[dot+1:]
+	}
+
+	// Move the dot
+	dot += dotOffset
+
+	// Remove any leading zeros before the dot
+	for len(text) > 0 && dot > 0 && text[0] == '0' {
+		text = text[1:]
+		dot--
+	}
+
+	// Remove any trailing zeros after the dot
+	for len(text) > 0 && len(text) > dot && text[len(text)-1] == '0' {
+		text = text[:len(text)-1]
+	}
+
+	// Does this number have no fractional component?
+	if dot >= len(text) {
+		trailingZeros := strings.Repeat("0", dot-len(text))
+		return fmt.Sprintf("%s%s%s", sign, text, trailingZeros), true
+	}
+
+	// Potentially add leading zeros
+	if dot < 0 {
+		text = strings.Repeat("0", -dot) + text
+		dot = 0
+	}
+
+	// Insert the dot again
+	return fmt.Sprintf("%s%s.%s", sign, text[:dot], text[dot:]), true
+}
+
+func mangleDimension(value string, unit string) (string, string, bool) {
+	const msLen = 2
+	const sLen = 1
+
+	// Mangle times: https://developer.mozilla.org/en-US/docs/Web/CSS/time
+	if strings.EqualFold(unit, "ms") {
+		if shifted, ok := shiftDot(value, -3); ok && len(shifted)+sLen < len(value)+msLen {
+			// Convert "ms" to "s" if shorter
+			return shifted, "s", true
+		}
+	}
+	if strings.EqualFold(unit, "s") {
+		if shifted, ok := shiftDot(value, 3); ok && len(shifted)+msLen < len(value)+sLen {
+			// Convert "s" to "ms" if shorter
+			return shifted, "ms", true
+		}
+	}
+
+	return "", "", false
 }
 
 func mangleNumber(t string) (string, bool) {
