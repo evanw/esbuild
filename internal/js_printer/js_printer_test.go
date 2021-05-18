@@ -239,7 +239,7 @@ func TestArray(t *testing.T) {
 func TestSplat(t *testing.T) {
 	expectPrinted(t, "[...(a, b)]", "[...(a, b)];\n")
 	expectPrinted(t, "x(...(a, b))", "x(...(a, b));\n")
-	expectPrinted(t, "({...(a, b)})", "({...(a, b)});\n")
+	expectPrinted(t, "({...(a, b)})", "({ ...(a, b) });\n")
 }
 
 func TestNew(t *testing.T) {
@@ -427,7 +427,7 @@ func TestTemplate(t *testing.T) {
 }
 
 func TestObject(t *testing.T) {
-	expectPrinted(t, "let x = {'(':')'}", "let x = {\"(\": \")\"};\n")
+	expectPrinted(t, "let x = {'(':')'}", "let x = { \"(\": \")\" };\n")
 	expectPrinted(t, "({})", "({});\n")
 	expectPrinted(t, "({}.x)", "({}).x;\n")
 	expectPrinted(t, "({} = {})", "({} = {});\n")
@@ -465,7 +465,7 @@ func TestFunction(t *testing.T) {
 		"function foo(a = (b, c), ...d) {\n}\n")
 	expectPrinted(t,
 		"function foo({[1 + 2]: a = 3} = {[1 + 2]: 3}) {}",
-		"function foo({[1 + 2]: a = 3} = {[1 + 2]: 3}) {\n}\n")
+		"function foo({ [1 + 2]: a = 3 } = { [1 + 2]: 3 }) {\n}\n")
 	expectPrinted(t,
 		"function foo([a = (1, 2), ...[b, ...c]] = [1, [2, 3]]) {}",
 		"function foo([a = (1, 2), ...[b, ...c]] = [1, [2, 3]]) {\n}\n")
@@ -549,7 +549,7 @@ func TestArrow(t *testing.T) {
 		"(a = (b, c), ...d) => {\n};\n")
 	expectPrinted(t,
 		"({[1 + 2]: a = 3} = {[1 + 2]: 3}) => {}",
-		"({[1 + 2]: a = 3} = {[1 + 2]: 3}) => {\n};\n")
+		"({ [1 + 2]: a = 3 } = { [1 + 2]: 3 }) => {\n};\n")
 	expectPrinted(t,
 		"([a = (1, 2), ...[b, ...c]] = [1, [2, 3]]) => {}",
 		"([a = (1, 2), ...[b, ...c]] = [1, [2, 3]]) => {\n};\n")
@@ -570,21 +570,21 @@ func TestArrow(t *testing.T) {
 		"a || (() => {\n});\n")
 	expectPrinted(t,
 		"({a = b, c = d}) => {}",
-		"({a = b, c = d}) => {\n};\n")
+		"({ a = b, c = d }) => {\n};\n")
 	expectPrinted(t,
 		"([{a = b, c = d} = {}] = []) => {}",
-		"([{a = b, c = d} = {}] = []) => {\n};\n")
+		"([{ a = b, c = d } = {}] = []) => {\n};\n")
 	expectPrinted(t,
 		"({a: [b = c] = []} = {}) => {}",
-		"({a: [b = c] = []} = {}) => {\n};\n")
+		"({ a: [b = c] = [] } = {}) => {\n};\n")
 
 	// These are not arrow functions but initially look like one
 	expectPrinted(t, "(a = b, c)", "a = b, c;\n")
 	expectPrinted(t, "([...a = b])", "[...a = b];\n")
 	expectPrinted(t, "([...a, ...b])", "[...a, ...b];\n")
-	expectPrinted(t, "({a: b, c() {}})", "({a: b, c() {\n}});\n")
-	expectPrinted(t, "({a: b, get c() {}})", "({a: b, get c() {\n}});\n")
-	expectPrinted(t, "({a: b, set c(x) {}})", "({a: b, set c(x) {\n}});\n")
+	expectPrinted(t, "({a: b, c() {}})", "({ a: b, c() {\n} });\n")
+	expectPrinted(t, "({a: b, get c() {}})", "({ a: b, get c() {\n} });\n")
+	expectPrinted(t, "({a: b, set c(x) {}})", "({ a: b, set c(x) {\n} });\n")
 }
 
 func TestClass(t *testing.T) {
@@ -738,7 +738,7 @@ func TestMinify(t *testing.T) {
 	// Print some strings using template literals when minifying
 	expectPrinted(t, "x = '\\n'", "x = \"\\n\";\n")
 	expectPrintedMangle(t, "x = '\\n'", "x = `\n`;\n")
-	expectPrintedMangle(t, "x = {'\\n': 0}", "x = {\"\\n\": 0};\n")
+	expectPrintedMangle(t, "x = {'\\n': 0}", "x = { \"\\n\": 0 };\n")
 	expectPrintedMangle(t, "(class{'\\n' = 0})", "(class {\n  \"\\n\" = 0;\n});\n")
 	expectPrintedMangle(t, "class Foo{'\\n' = 0}", "class Foo {\n  \"\\n\" = 0;\n}\n")
 
@@ -756,8 +756,8 @@ func TestES5(t *testing.T) {
 	expectPrintedTargetMangle(t, 5, "foo('a\\n\\n\\nb')", "foo(\"a\\n\\n\\nb\");\n")
 	expectPrintedTargetMangle(t, 2015, "foo('a\\n\\n\\nb')", "foo(`a\n\n\nb`);\n")
 
-	expectPrintedTarget(t, 5, "foo({a, b})", "foo({a: a, b: b});\n")
-	expectPrintedTarget(t, 2015, "foo({a, b})", "foo({a, b});\n")
+	expectPrintedTarget(t, 5, "foo({a, b})", "foo({ a: a, b: b });\n")
+	expectPrintedTarget(t, 2015, "foo({a, b})", "foo({ a, b });\n")
 
 	expectPrintedTarget(t, 5, "x => x", "(function(x) {\n  return x;\n});\n")
 	expectPrintedTarget(t, 2015, "x => x", "(x) => x;\n")
@@ -798,8 +798,8 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedTargetASCII(t, 5, "x.𐀀", "x[\"\\uD800\\uDC00\"];\n")
 
 	// Escapes should use consistent case
-	expectPrintedASCII(t, "var \\u{100a} = {\\u100A: '\\u100A'}", "var \\u100A = {\\u100A: \"\\u100A\"};\n")
-	expectPrintedASCII(t, "var \\u{1000a} = {\\u{1000A}: '\\u{1000A}'}", "var \\u{1000A} = {\\u{1000A}: \"\\u{1000A}\"};\n")
+	expectPrintedASCII(t, "var \\u{100a} = {\\u100A: '\\u100A'}", "var \\u100A = { \\u100A: \"\\u100A\" };\n")
+	expectPrintedASCII(t, "var \\u{1000a} = {\\u{1000A}: '\\u{1000A}'}", "var \\u{1000A} = { \\u{1000A}: \"\\u{1000A}\" };\n")
 
 	// These characters should always be escaped
 	expectPrinted(t, "let x = '\u2028'", "let x = \"\\u2028\";\n")

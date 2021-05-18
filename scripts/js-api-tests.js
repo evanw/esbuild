@@ -1518,7 +1518,7 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunks/name=chunk/hash=C7EIDTEZ.js'
+    const chunk = 'chunks/name=chunk/hash=6VLJRT45.js'
     assert.strictEqual(value.outputFiles[0].text, `import {
   common_default
 } from "../../${chunk}";
@@ -1534,15 +1534,15 @@ console.log("a" + common_default.name);
 console.log("b" + common_default.name);
 `)
     assert.strictEqual(value.outputFiles[2].text, `// scripts/.js-api-tests/splittingWithEntryHashes/common.js
-var common_default = {name: "common"};
+var common_default = { name: "common" };
 
 export {
   common_default
 };
 `)
 
-    const outputA = 'entry/name=demo/hash=RTWASI3B.js'
-    const outputB = 'entry/name=demo/hash=MYYILQ7S.js'
+    const outputA = 'entry/name=demo/hash=ZKX5HN4L.js'
+    const outputB = 'entry/name=demo/hash=TYTZIN4P.js'
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, outputA))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, outputB))
     assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
@@ -3045,7 +3045,7 @@ let transformTests = {
       },
       loader: 'ts',
     })
-    assert.strictEqual(code, `import {T} from "path";\n`)
+    assert.strictEqual(code, `import { T } from "path";\n`)
   },
 
   async tsconfigRawPreserveUnusedImportsMinifyIdentifiers({ esbuild }) {
@@ -3070,7 +3070,7 @@ let transformTests = {
       },
       loader: 'js',
     })
-    assert.strictEqual(code, `import {T} from "path";\n`)
+    assert.strictEqual(code, `import { T } from "path";\n`)
   },
 
   async tsconfigRawCommentsInJSON({ esbuild }) {
@@ -3083,7 +3083,7 @@ let transformTests = {
       }`,
       loader: 'ts',
     })
-    assert.strictEqual(code5, `import {T} from "path";\n`)
+    assert.strictEqual(code5, `import { T } from "path";\n`)
   },
 
   async tsconfigRawImportsNotUsedAsValues({ esbuild }) {
@@ -3217,7 +3217,7 @@ let transformTests = {
 
   async cjs_require({ esbuild }) {
     const { code } = await esbuild.transform(`const {foo} = require('path')`, {})
-    assert.strictEqual(code, `const {foo} = require("path");\n`)
+    assert.strictEqual(code, `const { foo } = require("path");\n`)
   },
 
   async cjs_exports({ esbuild }) {
@@ -3227,7 +3227,7 @@ let transformTests = {
 
   async es6_import({ esbuild }) {
     const { code } = await esbuild.transform(`import {foo} from 'path'`, {})
-    assert.strictEqual(code, `import {foo} from "path";\n`)
+    assert.strictEqual(code, `import { foo } from "path";\n`)
   },
 
   async es6_export({ esbuild }) {
@@ -3296,7 +3296,7 @@ let transformTests = {
 
   async es6_import_to_esm({ esbuild }) {
     const { code } = await esbuild.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'esm' })
-    assert.strictEqual(code, `import {exists} from "fs";\nif (!exists)\n  throw "fail";\n`)
+    assert.strictEqual(code, `import { exists } from "fs";\nif (!exists)\n  throw "fail";\n`)
   },
 
   async es6_import_star_to_esm({ esbuild }) {
@@ -3306,7 +3306,7 @@ let transformTests = {
 
   async es6_export_to_esm({ esbuild }) {
     const { code } = await esbuild.transform(`export {exists} from "fs"`, { format: 'esm' })
-    assert.strictEqual(code, `import {exists} from "fs";\nexport {\n  exists\n};\n`)
+    assert.strictEqual(code, `import { exists } from "fs";\nexport {\n  exists\n};\n`)
   },
 
   async es6_export_star_to_esm({ esbuild }) {
@@ -3402,7 +3402,7 @@ let transformTests = {
 
   async json({ esbuild }) {
     const { code } = await esbuild.transform(`{ "x": "y" }`, { loader: 'json' })
-    assert.strictEqual(code, `module.exports = {x: "y"};\n`)
+    assert.strictEqual(code, `module.exports = { x: "y" };\n`)
   },
 
   async jsonMinified({ esbuild }) {
@@ -3414,13 +3414,13 @@ let transformTests = {
 
   async jsonESM({ esbuild }) {
     const { code } = await esbuild.transform(`{ "x": "y" }`, { loader: 'json', format: 'esm' })
-    assert.strictEqual(code, `var x = "y";\nvar stdin_default = {x};\nexport {\n  stdin_default as default,\n  x\n};\n`)
+    assert.strictEqual(code, `var x = "y";\nvar stdin_default = { x };\nexport {\n  stdin_default as default,\n  x\n};\n`)
   },
 
   async jsonInvalidIdentifierStart({ esbuild }) {
     // This character is a valid "ID_Continue" but not a valid "ID_Start" so it must be quoted
     const { code } = await esbuild.transform(`{ "\\uD835\\uDFCE": "y" }`, { loader: 'json' })
-    assert.strictEqual(code, `module.exports = {"\\u{1D7CE}": "y"};\n`)
+    assert.strictEqual(code, `module.exports = { "\\u{1D7CE}": "y" };\n`)
   },
 
   async text({ esbuild }) {

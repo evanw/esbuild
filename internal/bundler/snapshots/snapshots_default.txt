@@ -19,10 +19,10 @@ export let c = [
     var r;
     return o;
   },
-  {fn(o = foo) {
+  { fn(o = foo) {
     var r;
     return o;
-  }},
+  } },
   class {
     fn(o = foo) {
       var r;
@@ -42,9 +42,9 @@ TestArgumentsSpecialCaseNoBundle
   (function(n = arguments) {
     return arguments;
   });
-  ({foo(n = arguments) {
+  ({ foo(n = arguments) {
     return arguments;
-  }});
+  } });
   class u {
     foo(e = arguments) {
       return arguments;
@@ -63,10 +63,10 @@ TestArgumentsSpecialCaseNoBundle
     var arguments;
     return arguments;
   });
-  ({foo(n = arguments) {
+  ({ foo(n = arguments) {
     var arguments;
     return arguments;
-  }});
+  } });
   (n) => r;
   () => r;
   async () => r;
@@ -179,7 +179,7 @@ main("fs");
 TestCallImportNamespaceWarning
 ---------- /out/js.js ----------
 import * as a from "a";
-import {b} from "b";
+import { b } from "b";
 import c from "c";
 a();
 b();
@@ -190,7 +190,7 @@ new c();
 
 ---------- /out/ts.js ----------
 import * as a from "a";
-import {b} from "b";
+import { b } from "b";
 import c from "c";
 a();
 b();
@@ -249,9 +249,9 @@ var init_bar = __esm({
 });
 
 // entry.js
-var {foo: foo2} = (init_foo(), foo_exports);
+var { foo: foo2 } = (init_foo(), foo_exports);
 console.log(foo2(), bar2());
-var {bar: bar2} = (init_bar(), bar_exports);
+var { bar: bar2 } = (init_bar(), bar_exports);
 
 ================================================================================
 TestConditionalImport
@@ -414,10 +414,10 @@ console.log(123);
 TestDuplicatePropertyWarning
 ---------- /out/entry.js ----------
 // outside-node-modules/index.js
-console.log({a: 1, a: 2});
+console.log({ a: 1, a: 2 });
 
 // node_modules/inside-node-modules/index.js
-console.log({c: 1, c: 2});
+console.log({ c: 1, c: 2 });
 
 ================================================================================
 TestDynamicImportWithExpressionCJS
@@ -494,7 +494,7 @@ TestExportFSNode
 ---------- /out.js ----------
 // entry.js
 import * as fs from "fs";
-import {readFileSync} from "fs";
+import { readFileSync } from "fs";
 export {
   fs,
   readFileSync
@@ -505,7 +505,7 @@ TestExportFSNodeInCommonJSModule
 ---------- /out.js ----------
 // entry.js
 import * as fs from "fs";
-import {readFileSync} from "fs";
+import { readFileSync } from "fs";
 var require_entry = __commonJS({
   "entry.js"(exports) {
     exports.fs = fs;
@@ -740,7 +740,7 @@ function s() {
 }
 class t {
 }
-export {Class as Cls, s as Fn2, t as Cls2};
+export { Class as Cls, s as Fn2, t as Cls2 };
 export function Func() {
 }
 export class Class {
@@ -838,7 +838,7 @@ var d_exports = {};
 __export(d_exports, {
   ns: () => ns4
 });
-import {ns as ns4} from "x";
+import { ns as ns4 } from "x";
 var init_d = __esm({
   "d.js"() {
   }
@@ -864,8 +864,8 @@ init_e();
 TestExternalModuleExclusionPackage
 ---------- /out.js ----------
 // index.js
-import {S3} from "aws-sdk";
-import {DocumentClient} from "aws-sdk/clients/dynamodb";
+import { S3 } from "aws-sdk";
+import { DocumentClient } from "aws-sdk/clients/dynamodb";
 var s3 = new S3();
 var dynamodb = new DocumentClient();
 export {
@@ -961,7 +961,7 @@ TestImportFSNodeES6
 import "fs";
 import * as fs from "fs";
 import defaultValue from "fs";
-import {readFileSync} from "fs";
+import { readFileSync } from "fs";
 console.log(fs, readFileSync, defaultValue);
 
 ================================================================================
@@ -970,10 +970,10 @@ TestImportFormsWithMinifyIdentifiersAndNoBundle
 import "foo";
 import {} from "foo";
 import * as o from "foo";
-import {a as f, b as r} from "foo";
+import { a as f, b as r } from "foo";
 import m from "foo";
 import i, * as t from "foo";
-import p, {a2 as s, b as n} from "foo";
+import p, { a2 as s, b as n } from "foo";
 const a = [
   import("foo"),
   function() {
@@ -988,10 +988,10 @@ TestImportFormsWithNoBundle
 import "foo";
 import {} from "foo";
 import * as ns from "foo";
-import {a, b as c} from "foo";
+import { a, b as c } from "foo";
 import def from "foo";
 import def2, * as ns2 from "foo";
-import def3, {a2, b as c3} from "foo";
+import def3, { a2, b as c3 } from "foo";
 const imp = [
   import("foo"),
   function nested() {
@@ -1118,7 +1118,7 @@ console.log(new import_external.default(), new import_external.foo());
 TestImportReExportES6Issue149
 ---------- /out.js ----------
 // import.js
-import {h, render} from "preact";
+import { h, render } from "preact";
 var p = "p";
 
 // in2.jsx
@@ -1242,7 +1242,7 @@ var replace = {
   test() {
   }
 };
-import {re_export} from "external-pkg";
+import { re_export } from "external-pkg";
 let sideEffects2 = console.log("this should be renamed");
 let collide = 123;
 console.log(obj.prop);
@@ -1395,14 +1395,14 @@ var json_31_32_33_default = "123";
 
 // <data:application/json;base64,eyJ3b3JrcyI6dHJ1ZX0=>
 var works = true;
-var json_base64_eyJ3b3JrcyI6dHJ1ZX0_default = {works};
+var json_base64_eyJ3b3JrcyI6dHJ1ZX0_default = { works };
 
 // <data:application/json;charset=UTF-8,%31%32%33>
 var json_charset_UTF_8_31_32_33_default = 123;
 
 // <data:application/json;charset=UTF-8;base64,eyJ3b3JrcyI6dHJ1ZX0=>
 var works2 = true;
-var json_charset_UTF_8_base64_eyJ3b3JrcyI6dHJ1ZX0_default = {works: works2};
+var json_charset_UTF_8_base64_eyJ3b3JrcyI6dHJ1ZX0_default = { works: works2 };
 
 // entry.js
 console.log([
@@ -1995,7 +1995,7 @@ var require_foo = __commonJS({
   "foo.js"(exports, module) {
     var Foo = class {
     };
-    module.exports = {Foo};
+    module.exports = { Foo };
   }
 });
 
@@ -2089,10 +2089,10 @@ var import_bar = __toModule(require("bar"));
 TestReExportDefaultExternalES6
 ---------- /out.js ----------
 // entry.js
-import {default as default3} from "foo";
+import { default as default3 } from "foo";
 
 // bar.js
-import {default as default2} from "bar";
+import { default as default2 } from "bar";
 export {
   default2 as bar,
   default3 as foo
@@ -2114,8 +2114,8 @@ export {
 ================================================================================
 TestReExportDefaultNoBundle
 ---------- /out.js ----------
-export {default as foo} from "./foo";
-export {default as bar} from "./bar";
+export { default as foo } from "./foo";
+export { default as bar } from "./bar";
 
 ================================================================================
 TestReExportDefaultNoBundleCommonJS
@@ -2131,8 +2131,8 @@ var import_bar = __toModule(require("./bar"));
 ================================================================================
 TestReExportDefaultNoBundleES6
 ---------- /out.js ----------
-import {default as default2} from "./foo";
-import {default as default3} from "./bar";
+import { default as default2 } from "./foo";
+import { default as default3 } from "./bar";
 export {
   default3 as bar,
   default2 as foo
@@ -2143,7 +2143,7 @@ TestReExportFSNode
 ---------- /out.js ----------
 // foo.js
 import * as fs from "fs";
-import {readFileSync} from "fs";
+import { readFileSync } from "fs";
 export {
   fs as f,
   readFileSync as rfs
@@ -2369,7 +2369,7 @@ TestRequireShimSubstitution
 // example.json
 var require_example = __commonJS({
   "example.json"(exports, module) {
-    module.exports = {works: true};
+    module.exports = { works: true };
   }
 });
 
@@ -2378,10 +2378,10 @@ console.log([
   __require,
   typeof __require,
   require_example(),
-  __require("./example.json", {type: "json"}),
+  __require("./example.json", { type: "json" }),
   __require(window.SOME_PATH),
   require_example(),
-  __require("./example.json", {type: "json"}),
+  __require("./example.json", { type: "json" }),
   __require(window.SOME_PATH),
   __require.resolve("some-path"),
   __require.resolve(window.SOME_PATH),
@@ -2465,8 +2465,8 @@ console.log(__require());
 TestScopedExternalModuleExclusion
 ---------- /out.js ----------
 // index.js
-import {Foo} from "@scope/foo";
-import {Bar} from "@scope/foo/bar";
+import { Foo } from "@scope/foo";
+import { Bar } from "@scope/foo/bar";
 var foo = new Foo();
 var bar = new Bar();
 export {
@@ -2782,7 +2782,7 @@ var require_entry = __commonJS({
     if (shouldBeExportsNotThis) {
       console.log(exports);
       console.log((x = exports) => exports);
-      console.log({x: exports});
+      console.log({ x: exports });
       console.log(class extends exports.foo {
       });
       console.log(class {

@@ -828,11 +828,10 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 			for i, property := range b.Properties {
 				if i != 0 {
 					p.print(",")
-					if b.IsSingleLine {
-						p.printSpace()
-					}
 				}
-				if !b.IsSingleLine {
+				if b.IsSingleLine {
+					p.printSpace()
+				} else {
 					p.printNewline()
 					p.printIndent()
 				}
@@ -892,6 +891,8 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 				p.options.Indent--
 				p.printNewline()
 				p.printIndent()
+			} else if len(b.Properties) > 0 {
+				p.printSpace()
 			}
 		}
 		p.print("}")
@@ -1796,11 +1797,10 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			for i, item := range e.Properties {
 				if i != 0 {
 					p.print(",")
-					if e.IsSingleLine {
-						p.printSpace()
-					}
 				}
-				if !e.IsSingleLine {
+				if e.IsSingleLine {
+					p.printSpace()
+				} else {
 					p.printNewline()
 					p.printIndent()
 				}
@@ -1811,6 +1811,8 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				p.options.Indent--
 				p.printNewline()
 				p.printIndent()
+			} else if len(e.Properties) > 0 {
+				p.printSpace()
 			}
 		}
 		p.print("}")
@@ -2553,9 +2555,12 @@ func (p *printer) printImportCallAssertions(assertions *[]ast.AssertEntry) {
 	if assertions != nil {
 		p.print(",")
 		p.printSpace()
-		p.print("{assert:")
+		p.print("{")
+		p.printSpace()
+		p.print("assert:")
 		p.printSpace()
 		p.printImportAssertionsClause(*assertions)
+		p.printSpace()
 		p.print("}")
 	}
 }
@@ -2566,9 +2571,9 @@ func (p *printer) printImportAssertionsClause(assertions []ast.AssertEntry) {
 	for i, entry := range assertions {
 		if i > 0 {
 			p.print(",")
-			p.printSpace()
 		}
 
+		p.printSpace()
 		p.addSourceMapping(entry.KeyLoc)
 		if !entry.PreferQuotedKey && p.canPrintIdentifierUTF16(entry.Key) {
 			p.printSpaceBeforeIdentifier()
@@ -2584,6 +2589,9 @@ func (p *printer) printImportAssertionsClause(assertions []ast.AssertEntry) {
 		p.printQuotedUTF16(entry.Value, false /* allowBacktick */)
 	}
 
+	if len(assertions) > 0 {
+		p.printSpace()
+	}
 	p.print("}")
 }
 
@@ -2723,15 +2731,15 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		for i, item := range s.Items {
 			if i != 0 {
 				p.print(",")
-				if s.IsSingleLine {
-					p.printSpace()
-				}
 			}
 
-			if !s.IsSingleLine {
+			if s.IsSingleLine {
+				p.printSpace()
+			} else {
 				p.printNewline()
 				p.printIndent()
 			}
+
 			name := p.renamer.NameForSymbol(item.Name.Ref)
 			p.printIdentifier(name)
 			if name != item.Alias {
@@ -2745,6 +2753,8 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			p.options.Indent--
 			p.printNewline()
 			p.printIndent()
+		} else if len(s.Items) > 0 {
+			p.printSpace()
 		}
 
 		p.print("}")
@@ -2764,15 +2774,15 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		for i, item := range s.Items {
 			if i != 0 {
 				p.print(",")
-				if s.IsSingleLine {
-					p.printSpace()
-				}
 			}
 
-			if !s.IsSingleLine {
+			if s.IsSingleLine {
+				p.printSpace()
+			} else {
 				p.printNewline()
 				p.printIndent()
 			}
+
 			p.printClauseAlias(item.OriginalName)
 			if item.OriginalName != item.Alias {
 				p.printSpace()
@@ -2787,6 +2797,8 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			p.options.Indent--
 			p.printNewline()
 			p.printIndent()
+		} else if len(s.Items) > 0 {
+			p.printSpace()
 		}
 
 		p.print("}")
@@ -3025,15 +3037,15 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			for i, item := range *s.Items {
 				if i != 0 {
 					p.print(",")
-					if s.IsSingleLine {
-						p.printSpace()
-					}
 				}
 
-				if !s.IsSingleLine {
+				if s.IsSingleLine {
+					p.printSpace()
+				} else {
 					p.printNewline()
 					p.printIndent()
 				}
+
 				p.printClauseAlias(item.Alias)
 				name := p.renamer.NameForSymbol(item.Name.Ref)
 				if name != item.Alias {
@@ -3048,7 +3060,10 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 				p.options.Indent--
 				p.printNewline()
 				p.printIndent()
+			} else if len(*s.Items) > 0 {
+				p.printSpace()
 			}
+
 			p.print("}")
 			itemCount++
 		}

@@ -11,13 +11,13 @@ func TestLowerFunctionArgumentScope(t *testing.T) {
 		"(function(x = %s) {\n});\n",
 		"function foo(x = %s) {\n}\n",
 
-		"({[%s]: x}) => {\n};\n",
-		"(function({[%s]: x}) {\n});\n",
-		"function foo({[%s]: x}) {\n}\n",
+		"({ [%s]: x }) => {\n};\n",
+		"(function({ [%s]: x }) {\n});\n",
+		"function foo({ [%s]: x }) {\n}\n",
 
-		"({x = %s}) => {\n};\n",
-		"(function({x = %s}) {\n});\n",
-		"function foo({x = %s}) {\n}\n",
+		"({ x = %s }) => {\n};\n",
+		"(function({ x = %s }) {\n});\n",
+		"function foo({ x = %s }) {\n}\n",
 	}
 
 	for _, template := range templates {
@@ -553,5 +553,5 @@ func TestLowerOptionalCatchBinding(t *testing.T) {
 
 func TestLowerExportStarAs(t *testing.T) {
 	expectPrintedTarget(t, 2020, "export * as ns from 'path'", "export * as ns from \"path\";\n")
-	expectPrintedTarget(t, 2019, "export * as ns from 'path'", "import * as ns from \"path\";\nexport {ns};\n")
+	expectPrintedTarget(t, 2019, "export * as ns from 'path'", "import * as ns from \"path\";\nexport { ns };\n")
 }

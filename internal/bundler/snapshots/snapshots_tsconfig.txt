@@ -316,7 +316,7 @@ console.log((0, import_util.default)());
 ================================================================================
 TestTsconfigPreserveUnusedImportClause
 ---------- /Users/user/project/out.js ----------
-import {x, y} from "./foo";
+import { x, y } from "./foo";
 import z from "./foo";
 import * as ns from "./foo";
 console.log(1, 2, 3);

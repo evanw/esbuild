@@ -209,7 +209,7 @@ import {
 
 // entry.js
 var import_foo = __toModule(require_foo());
-import("./foo-3C7A5NJL.js").then(({default: {bar: b}}) => console.log(import_foo.bar, b));
+import("./foo-3C7A5NJL.js").then(({ default: { bar: b } }) => console.log(import_foo.bar, b));
 
 ---------- /out/foo-3C7A5NJL.js ----------
 import {
@@ -238,7 +238,7 @@ import {
 } from "./chunk-UDDKLWVZ.js";
 
 // entry.js
-import("./foo-BNHN4WV6.js").then(({bar: b}) => console.log(bar, b));
+import("./foo-BNHN4WV6.js").then(({ bar: b }) => console.log(bar, b));
 
 ---------- /out/foo-BNHN4WV6.js ----------
 import {
@@ -260,7 +260,7 @@ export {
 TestSplittingDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
 // entry.js
-import("./foo-ISRWD44C.js").then(({default: {bar}}) => console.log(bar));
+import("./foo-ISRWD44C.js").then(({ default: { bar } }) => console.log(bar));
 
 ---------- /out/foo-ISRWD44C.js ----------
 // foo.js
@@ -275,7 +275,7 @@ export default require_foo();
 TestSplittingDynamicES6IntoES6
 ---------- /out/entry.js ----------
 // entry.js
-import("./foo-R2VCCZUR.js").then(({bar}) => console.log(bar));
+import("./foo-R2VCCZUR.js").then(({ bar }) => console.log(bar));
 
 ---------- /out/foo-R2VCCZUR.js ----------
 // foo.js
@@ -488,7 +488,7 @@ import {
 } from "./chunk-DOXMVKX5.js";
 
 // a.js
-var {foo} = require_shared();
+var { foo } = require_shared();
 console.log(foo);
 
 ---------- /out/b.js ----------
@@ -497,7 +497,7 @@ import {
 } from "./chunk-DOXMVKX5.js";
 
 // b.js
-var {foo} = require_shared();
+var { foo } = require_shared();
 console.log(foo);
 
 ---------- /out/chunk-DOXMVKX5.js ----------
@@ -573,18 +573,18 @@ TestVarRelocatingBundle
 // top-level.js
 for (var b; 0; )
   ;
-for (var {c, x: [d]} = {}; 0; )
+for (var { c, x: [d] } = {}; 0; )
   ;
 for (var e of [])
   ;
-for (var {f, x: [g]} of [])
+for (var { f, x: [g] } of [])
   ;
 for (var h in {})
   ;
 i = 1;
 for (var i in {})
   ;
-for (var {j, x: [k]} in {})
+for (var { j, x: [k] } in {})
   ;
 
 ---------- /out/nested.js ----------
@@ -595,18 +595,18 @@ if (true) {
   l2 = l;
   for (; 0; )
     ;
-  for ({c, x: [d]} = {}; 0; )
+  for ({ c, x: [d] } = {}; 0; )
     ;
   for (e of [])
     ;
-  for ({f, x: [g]} of [])
+  for ({ f, x: [g] } of [])
     ;
   for (h in {})
     ;
   i = 1;
   for (i in {})
     ;
-  for ({j, x: [k]} in {})
+  for ({ j, x: [k] } in {})
     ;
 }
 var a;
@@ -628,15 +628,15 @@ if (true) {
   let a;
   for (let b; 0; )
     ;
-  for (let {c, x: [d]} = {}; 0; )
+  for (let { c, x: [d] } = {}; 0; )
     ;
   for (let e of [])
     ;
-  for (let {f, x: [g]} of [])
+  for (let { f, x: [g] } of [])
     ;
   for (let h in {})
     ;
-  for (let {j, x: [k]} in {})
+  for (let { j, x: [k] } in {})
     ;
 }
 
@@ -646,18 +646,18 @@ function x() {
   var a;
   for (var b; 0; )
     ;
-  for (var {c, x: [d]} = {}; 0; )
+  for (var { c, x: [d] } = {}; 0; )
     ;
   for (var e of [])
     ;
-  for (var {f, x: [g]} of [])
+  for (var { f, x: [g] } of [])
     ;
   for (var h in {})
     ;
   i = 1;
   for (var i in {})
     ;
-  for (var {j, x: [k]} in {})
+  for (var { j, x: [k] } in {})
     ;
   function l() {
   }
@@ -674,18 +674,18 @@ function x() {
     var a;
     for (var b; 0; )
       ;
-    for (var {c, x: [d]} = {}; 0; )
+    for (var { c, x: [d] } = {}; 0; )
       ;
     for (var e of [])
       ;
-    for (var {f, x: [g]} of [])
+    for (var { f, x: [g] } of [])
       ;
     for (var h in {})
       ;
     i = 1;
     for (var i in {})
       ;
-    for (var {j, x: [k]} in {})
+    for (var { j, x: [k] } in {})
       ;
   }
 }
@@ -697,18 +697,18 @@ TestVarRelocatingNoBundle
 var a;
 for (var b; 0; )
   ;
-for (var {c, x: [d]} = {}; 0; )
+for (var { c, x: [d] } = {}; 0; )
   ;
 for (var e of [])
   ;
-for (var {f, x: [g]} of [])
+for (var { f, x: [g] } of [])
   ;
 for (var h in {})
   ;
 i = 1;
 for (var i in {})
   ;
-for (var {j, x: [k]} in {})
+for (var { j, x: [k] } in {})
   ;
 function l() {
 }
@@ -721,18 +721,18 @@ if (true) {
   var a;
   for (var b; 0; )
     ;
-  for (var {c, x: [d]} = {}; 0; )
+  for (var { c, x: [d] } = {}; 0; )
     ;
   for (var e of [])
     ;
-  for (var {f, x: [g]} of [])
+  for (var { f, x: [g] } of [])
     ;
   for (var h in {})
     ;
   i = 1;
   for (var i in {})
     ;
-  for (var {j, x: [k]} in {})
+  for (var { j, x: [k] } in {})
     ;
 }
 
@@ -741,15 +741,15 @@ if (true) {
   let a;
   for (let b; 0; )
     ;
-  for (let {c, x: [d]} = {}; 0; )
+  for (let { c, x: [d] } = {}; 0; )
     ;
   for (let e of [])
     ;
-  for (let {f, x: [g]} of [])
+  for (let { f, x: [g] } of [])
     ;
   for (let h in {})
     ;
-  for (let {j, x: [k]} in {})
+  for (let { j, x: [k] } in {})
     ;
 }
 
@@ -758,18 +758,18 @@ function x() {
   var a;
   for (var b; 0; )
     ;
-  for (var {c, x: [d]} = {}; 0; )
+  for (var { c, x: [d] } = {}; 0; )
     ;
   for (var e of [])
     ;
-  for (var {f, x: [g]} of [])
+  for (var { f, x: [g] } of [])
     ;
   for (var h in {})
     ;
   i = 1;
   for (var i in {})
     ;
-  for (var {j, x: [k]} in {})
+  for (var { j, x: [k] } in {})
     ;
   function l() {
   }
@@ -785,18 +785,18 @@ function x() {
     var a;
     for (var b; 0; )
       ;
-    for (var {c, x: [d]} = {}; 0; )
+    for (var { c, x: [d] } = {}; 0; )
       ;
     for (var e of [])
       ;
-    for (var {f, x: [g]} of [])
+    for (var { f, x: [g] } of [])
       ;
     for (var h in {})
       ;
     i = 1;
     for (var i in {})
       ;
-    for (var {j, x: [k]} in {})
+    for (var { j, x: [k] } in {})
       ;
   }
 }

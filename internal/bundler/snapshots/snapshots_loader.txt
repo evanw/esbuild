@@ -114,14 +114,14 @@ TestLoaderJSONCommonJSAndES6
 // x.json
 var require_x = __commonJS({
   "x.json"(exports, module) {
-    module.exports = {x: true};
+    module.exports = { x: true };
   }
 });
 
 // y.json
 var y1 = true;
 var y2 = false;
-var y_default = {y1, y2};
+var y_default = { y1, y2 };
 
 // z.json
 var small = "some small text";
@@ -144,7 +144,7 @@ __export(test2_exports, {
   "invalid-identifier": () => invalid_identifier2
 });
 var invalid_identifier2 = true;
-var test2_default = {"invalid-identifier": invalid_identifier2};
+var test2_default = { "invalid-identifier": invalid_identifier2 };
 
 // entry.js
 console.log(invalid_identifier, test2_exports);
@@ -152,18 +152,18 @@ console.log(invalid_identifier, test2_exports);
 ================================================================================
 TestLoaderJSONNoBundle
 ---------- /out.js ----------
-module.exports = {test: 123, "invalid-identifier": true};
+module.exports = { test: 123, "invalid-identifier": true };
 
 ================================================================================
 TestLoaderJSONNoBundleCommonJS
 ---------- /out.js ----------
-module.exports = {test: 123, "invalid-identifier": true};
+module.exports = { test: 123, "invalid-identifier": true };
 
 ================================================================================
 TestLoaderJSONNoBundleES6
 ---------- /out.js ----------
 var test = 123;
-var test_default = {test, "invalid-identifier": true};
+var test_default = { test, "invalid-identifier": true };
 export {
   test_default as default,
   test
@@ -174,7 +174,7 @@ TestLoaderJSONNoBundleES6ArbitraryModuleNamespaceNames
 ---------- /out.js ----------
 var test = 123;
 var invalid_identifier = true;
-var test_default = {test, "invalid-identifier": invalid_identifier};
+var test_default = { test, "invalid-identifier": invalid_identifier };
 export {
   test_default as default,
   invalid_identifier as "invalid-identifier",
@@ -187,7 +187,7 @@ TestLoaderJSONNoBundleIIFE
 (() => {
   var require_test = __commonJS({
     "test.json"(exports, module) {
-      module.exports = {test: 123, "invalid-identifier": true};
+      module.exports = { test: 123, "invalid-identifier": true };
     }
   });
   require_test();
@@ -198,7 +198,7 @@ TestLoaderJSONSharedWithMultipleEntriesIssue413
 ---------- /out/a.js ----------
 // data.json
 var test = 123;
-var data_default = {test};
+var data_default = { test };
 
 // a.js
 console.log("a:", data_default);
@@ -206,7 +206,7 @@ console.log("a:", data_default);
 ---------- /out/b.js ----------
 // data.json
 var test = 123;
-var data_default = {test};
+var data_default = { test };
 
 // b.js
 console.log("b:", data_default);

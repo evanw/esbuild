@@ -119,7 +119,7 @@ TestExportSelfCommonJSMinified
 ---------- /out.js ----------
 // entry.js
 var l = n((c, r) => {
-  r.exports = {foo: 123};
+  r.exports = { foo: 123 };
   console.log(l());
 });
 module.exports = l();
@@ -170,7 +170,7 @@ var foo = "foo";
 TestImportDefaultNamespaceComboIssue446
 ---------- /out/external-default2.js ----------
 // external-default2.js
-import def, {default as default2} from "external";
+import def, { default as default2 } from "external";
 console.log(def, default2);
 
 ---------- /out/external-ns.js ----------
