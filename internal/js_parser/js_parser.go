@@ -9690,8 +9690,10 @@ func (p *parser) isDotDefineMatch(expr js_ast.Expr, parts []string) bool {
 				return false
 			}
 
-			// The last symbol must be unbound
-			return p.symbols[result.ref.InnerIndex].Kind == js_ast.SymbolUnbound
+			p.ignoreUsage(result.ref)
+
+			// The last symbol must be unbound or injected
+			return p.symbols[result.ref.InnerIndex].Kind.IsUnboundOrInjected()
 		}
 	}
 
@@ -10505,8 +10507,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		// Substitute user-specified defines for unbound symbols
-		if p.symbols[e.Ref.InnerIndex].Kind == js_ast.SymbolUnbound && !result.isInsideWithScope && e != p.deleteTarget {
+		// Substitute user-specified defines for unbound or injected symbols
+		if p.symbols[e.Ref.InnerIndex].Kind.IsUnboundOrInjected() && !result.isInsideWithScope && e != p.deleteTarget {
 			if data, ok := p.options.defines.IdentifierDefines[name]; ok {
 				if data.DefineFunc != nil {
 					new := p.valueForDefine(expr.Loc, data.DefineFunc, identifierOpts{
@@ -10518,6 +10520,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// Don't substitute an identifier for a non-identifier if this is an
 					// assignment target, since it'll cause a syntax error
 					if _, ok := new.Data.(*js_ast.EIdentifier); in.assignTarget == js_ast.AssignTargetNone || ok {
+						p.ignoreUsage(e.Ref)
 						return new, exprOut{}
 					}
 				}
@@ -13543,7 +13546,8 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		exportsNoConflict := make([]string, 0, len(file.Exports))
 		symbols := make(map[string]js_ast.Ref)
 		if file.IsDefine {
-			ref := p.newSymbol(js_ast.SymbolOther, js_ast.GenerateNonUniqueNameFromPath(file.Path))
+			ref := p.newSymbol(js_ast.SymbolInjected, js_ast.GenerateNonUniqueNameFromPath(file.Path))
+
 			p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
 			symbols["default"] = ref
 			exportsNoConflict = append(exportsNoConflict, "default")
@@ -13551,7 +13555,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		} else {
 			for _, alias := range file.Exports {
 				if _, ok := p.moduleScope.Members[alias]; !ok {
-					ref := p.newSymbol(js_ast.SymbolOther, alias)
+					ref := p.newSymbol(js_ast.SymbolInjected, alias)
 					p.moduleScope.Members[alias] = js_ast.ScopeMember{Ref: ref}
 					symbols[alias] = ref
 					exportsNoConflict = append(exportsNoConflict, alias)

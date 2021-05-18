@@ -3633,6 +3633,16 @@ func TestInject(t *testing.T) {
 				return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, "replace")}
 			},
 		},
+		"obj.defined": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EString{Value: js_lexer.StringToUTF16("defined")}
+			},
+		},
+		"injectedAndDefined": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EString{Value: js_lexer.StringToUTF16("should be used")}
+			},
+		},
 	})
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3640,6 +3650,8 @@ func TestInject(t *testing.T) {
 				let sideEffects = console.log('this should be renamed')
 				let collide = 123
 				console.log(obj.prop)
+				console.log(obj.defined)
+				console.log(injectedAndDefined)
 				console.log(chain.prop.test)
 				console.log(collide)
 				console.log(re_export)
@@ -3648,6 +3660,7 @@ func TestInject(t *testing.T) {
 				export let obj = {}
 				export let sideEffects = console.log('side effects')
 				export let noSideEffects = /* @__PURE__ */ console.log('side effects')
+				export let injectedAndDefined = 'should not be used'
 			`,
 			"/node_modules/unused/index.js": `
 				console.log('This is unused but still has side effects')
@@ -3700,6 +3713,16 @@ func TestInjectNoBundle(t *testing.T) {
 				return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, "replace")}
 			},
 		},
+		"obj.defined": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EString{Value: js_lexer.StringToUTF16("defined")}
+			},
+		},
+		"injectedAndDefined": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EString{Value: js_lexer.StringToUTF16("should be used")}
+			},
+		},
 	})
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3707,6 +3730,8 @@ func TestInjectNoBundle(t *testing.T) {
 				let sideEffects = console.log('this should be renamed')
 				let collide = 123
 				console.log(obj.prop)
+				console.log(obj.defined)
+				console.log(injectedAndDefined)
 				console.log(chain.prop.test)
 				console.log(collide)
 				console.log(re_export)
@@ -3715,6 +3740,7 @@ func TestInjectNoBundle(t *testing.T) {
 				export let obj = {}
 				export let sideEffects = console.log('side effects')
 				export let noSideEffects = /* @__PURE__ */ console.log('side effects')
+				export let injectedAndDefined = 'should not be used'
 			`,
 			"/node_modules/unused/index.js": `
 				console.log('This is unused but still has side effects')
