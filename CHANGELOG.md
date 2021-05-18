@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Update the list of built-in node modules ([#1294](https://github.com/evanw/esbuild/issues/1294))
+
+    The list of built-in modules that come with node was outdated, so it has been updated. It now includes new modules such as `wasi` and `_http_common`. Modules in this list are automatically marked as external when esbuild's platform is configured to `node`.
+
 ## 0.12.0
 
 **This release contains backwards-incompatible changes.** Since esbuild is before version 1.0.0, these changes have been released as a new minor version to reflect this (as [recommended by npm](https://docs.npmjs.com/cli/v6/using-npm/semver/)). You should either be pinning the exact version of `esbuild` in your `package.json` file or be using a version range syntax that only accepts patch upgrades such as `~0.11.0`. See the documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
