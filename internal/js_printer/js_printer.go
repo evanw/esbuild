@@ -398,6 +398,106 @@ func (p *printer) printUnquotedUTF16(text []uint16, quote rune) {
 	p.js = js
 }
 
+// Use JS strings for JSX attributes that need escape characters. Technically
+// the JSX specification doesn't say anything about using XML character escape
+// sequences, so JSX implementations may not be able to consume them. See
+// https://facebook.github.io/jsx/ for the specification.
+func (p *printer) canPrintTextAsJSXAttribute(text []uint16) (quote string, ok bool) {
+	single := true
+	double := true
+
+	for _, c := range text {
+		// Use JS strings for control characters
+		if c < firstASCII {
+			return "", false
+		}
+
+		// Use JS strings if we need to escape non-ASCII characters
+		if p.options.ASCIIOnly && c > lastASCII {
+			return "", false
+		}
+
+		switch c {
+		case '&':
+			// Use JS strings if the text would need to be escaped with "&amp;"
+			return "", false
+
+		case '"':
+			double = false
+			if !single {
+				break
+			}
+
+		case '\'':
+			single = false
+			if !double {
+				break
+			}
+		}
+	}
+
+	// Prefer duble quotes to single quotes
+	if double {
+		return "\"", true
+	}
+	if single {
+		return "'", true
+	}
+	return "", false
+}
+
+// Use JS strings for text inside JSX elements that need escape characters.
+// Technically the JSX specification doesn't say anything about using XML
+// character escape sequences, so JSX implementations may not be able to
+// consume them. See https://facebook.github.io/jsx/ for the specification.
+func (p *printer) canPrintTextAsJSXChild(text []uint16) bool {
+	for _, c := range text {
+		// Use JS strings for control characters
+		if c < firstASCII {
+			return false
+		}
+
+		// Use JS strings if we need to escape non-ASCII characters
+		if p.options.ASCIIOnly && c > lastASCII {
+			return false
+		}
+
+		switch c {
+		case '&', '<', '>', '{', '}':
+			// Use JS strings if the text would need to be escaped
+			return false
+		}
+	}
+
+	return true
+}
+
+// JSX tag syntax doesn't support character escapes so non-ASCII identifiers
+// must be printed as UTF-8 even when the charset is set to ASCII.
+func (p *printer) printJSXTag(tagOrNil js_ast.Expr) {
+	switch e := tagOrNil.Data.(type) {
+	case *js_ast.EString:
+		p.addSourceMapping(tagOrNil.Loc)
+		p.print(js_lexer.UTF16ToString(e.Value))
+
+	case *js_ast.EIdentifier:
+		name := p.renamer.NameForSymbol(e.Ref)
+		p.addSourceMapping(tagOrNil.Loc)
+		p.print(name)
+
+	case *js_ast.EDot:
+		p.printJSXTag(e.Target)
+		p.print(".")
+		p.addSourceMapping(e.NameLoc)
+		p.print(e.Name)
+
+	default:
+		if tagOrNil.Data != nil {
+			p.printExpr(tagOrNil, js_ast.LLowest, 0)
+		}
+	}
+}
+
 type printer struct {
 	symbols                js_ast.SymbolMap
 	renamer                renamer.Renamer
@@ -1442,6 +1542,100 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	case *js_ast.EImportMeta:
 		p.printSpaceBeforeIdentifier()
 		p.print("import.meta")
+
+	case *js_ast.EJSXElement:
+		// Start the opening tag
+		p.print("<")
+		p.printJSXTag(e.TagOrNil)
+
+		// Print the attributes
+		for _, property := range e.Properties {
+			p.printSpace()
+
+			if property.Kind == js_ast.PropertySpread {
+				p.print("{...")
+				p.printExpr(property.ValueOrNil, js_ast.LComma, 0)
+				p.print("}")
+				continue
+			}
+
+			p.printSpaceBeforeIdentifier()
+			p.addSourceMapping(property.Key.Loc)
+			p.print(js_lexer.UTF16ToString(property.Key.Data.(*js_ast.EString).Value))
+
+			// Special-case string values
+			if str, ok := property.ValueOrNil.Data.(*js_ast.EString); ok {
+				if quote, ok := p.canPrintTextAsJSXAttribute(str.Value); ok {
+					p.print("=")
+					p.addSourceMapping(property.ValueOrNil.Loc)
+					p.print(quote)
+					p.print(js_lexer.UTF16ToString(str.Value))
+					p.print(quote)
+					continue
+				}
+			}
+
+			// Implicit "true" value
+			if boolean, ok := property.ValueOrNil.Data.(*js_ast.EBoolean); ok && boolean.Value && property.WasShorthand {
+				continue
+			}
+
+			// Generic JS value
+			p.print("={")
+			p.printExpr(property.ValueOrNil, js_ast.LComma, 0)
+			p.print("}")
+		}
+
+		// End the opening tag
+		if e.TagOrNil.Data != nil && len(e.Children) == 0 {
+			p.printSpace()
+			p.addSourceMapping(e.CloseLoc)
+			p.print("/>")
+			break
+		}
+		p.print(">")
+
+		isSingleLine := true
+		if !p.options.RemoveWhitespace {
+			isSingleLine = len(e.Children) < 2
+			if len(e.Children) == 1 {
+				if _, ok := e.Children[0].Data.(*js_ast.EJSXElement); !ok {
+					isSingleLine = true
+				}
+			}
+		}
+		if !isSingleLine {
+			p.options.Indent++
+		}
+
+		// Print the children
+		for _, child := range e.Children {
+			if !isSingleLine {
+				p.printNewline()
+				p.printIndent()
+			}
+			if _, ok := child.Data.(*js_ast.EJSXElement); ok {
+				p.printExpr(child, js_ast.LLowest, 0)
+			} else if str, ok := child.Data.(*js_ast.EString); ok && isSingleLine && p.canPrintTextAsJSXChild(str.Value) {
+				p.addSourceMapping(child.Loc)
+				p.print(js_lexer.UTF16ToString(str.Value))
+			} else {
+				p.print("{")
+				p.printExpr(child, js_ast.LComma, 0)
+				p.print("}")
+			}
+		}
+
+		// Print the closing tag
+		if !isSingleLine {
+			p.options.Indent--
+			p.printNewline()
+			p.printIndent()
+		}
+		p.addSourceMapping(e.CloseLoc)
+		p.print("</")
+		p.printJSXTag(e.TagOrNil)
+		p.print(">")
 
 	case *js_ast.ENew:
 		wrap := level >= js_ast.LCall

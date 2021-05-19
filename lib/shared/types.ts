@@ -22,8 +22,10 @@ interface CommonOptions {
   charset?: Charset;
   treeShaking?: TreeShaking;
 
+  jsx?: 'transform' | 'preserve';
   jsxFactory?: string;
   jsxFragment?: string;
+
   define?: { [key: string]: string };
   pure?: string[];
   keepNames?: boolean;

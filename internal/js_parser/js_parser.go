@@ -4327,8 +4327,10 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 
 				// Parse the value
 				var value js_ast.Expr
+				wasShorthand := false
 				if p.lexer.Token != js_lexer.TEquals {
 					// Implicitly true value
+					wasShorthand = true
 					value = js_ast.Expr{Loc: logger.Loc{Start: keyRange.Loc.Start + keyRange.Len}, Data: &js_ast.EBoolean{Value: true}}
 				} else {
 					// Use NextInsideJSXElement() not Next() so we can parse a JSX-style string literal
@@ -4350,8 +4352,9 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 
 				// Add a property
 				properties = append(properties, js_ast.Property{
-					Key:        key,
-					ValueOrNil: value,
+					Key:          key,
+					ValueOrNil:   value,
+					WasShorthand: wasShorthand,
 				})
 
 			case js_lexer.TOpenBrace:
@@ -4420,11 +4423,16 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 	// A slash here is a self-closing element
 	if p.lexer.Token == js_lexer.TSlash {
 		// Use NextInsideJSXElement() not Next() so we can parse ">>" as ">"
+		closeLoc := p.lexer.Loc()
 		p.lexer.NextInsideJSXElement()
 		if p.lexer.Token != js_lexer.TGreaterThan {
 			p.lexer.Expected(js_lexer.TGreaterThan)
 		}
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EJSXElement{TagOrNil: startTagOrNil, Properties: properties}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EJSXElement{
+			TagOrNil:   startTagOrNil,
+			Properties: properties,
+			CloseLoc:   closeLoc,
+		}}
 	}
 
 	// Use ExpectJSXElementChild() so we parse child strings
@@ -4482,7 +4490,12 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 				p.lexer.Expected(js_lexer.TGreaterThan)
 			}
 
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EJSXElement{TagOrNil: startTagOrNil, Properties: properties, Children: children}}
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EJSXElement{
+				TagOrNil:   startTagOrNil,
+				Properties: properties,
+				Children:   children,
+				CloseLoc:   lessThanLoc,
+			}}
 
 		default:
 			p.lexer.Unexpected()
@@ -10575,18 +10588,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		panic("Internal error")
 
 	case *js_ast.EJSXElement:
-		// A missing tag is a fragment
-		tag := e.TagOrNil
-		if tag.Data == nil {
-			var value js_ast.Expr
-			if len(p.options.jsx.Fragment.Parts) > 0 {
-				value = p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Fragment.Parts)
-			} else if constant := p.options.jsx.Fragment.Constant; constant != nil {
-				value = js_ast.Expr{Loc: expr.Loc, Data: constant}
-			}
-			tag = value
-		} else {
-			tag = p.visitExpr(tag)
+		if e.TagOrNil.Data != nil {
+			e.TagOrNil = p.visitExpr(e.TagOrNil)
 		}
 
 		// Visit properties
@@ -10603,29 +10606,47 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			e.Properties[i] = property
 		}
 
-		// Arguments to createElement()
-		args := []js_ast.Expr{tag}
-		if len(e.Properties) > 0 {
-			args = append(args, p.lowerObjectSpread(expr.Loc, &js_ast.EObject{
-				Properties: e.Properties,
-			}))
-		} else {
-			args = append(args, js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared})
-		}
+		// Visit children
 		if len(e.Children) > 0 {
-			for _, child := range e.Children {
-				args = append(args, p.visitExpr(child))
+			for i, child := range e.Children {
+				e.Children[i] = p.visitExpr(child)
 			}
 		}
 
-		// Call createElement()
-		return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-			Target: p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Factory.Parts),
-			Args:   args,
+		if !p.options.jsx.Preserve {
+			// A missing tag is a fragment
+			if e.TagOrNil.Data == nil {
+				var value js_ast.Expr
+				if len(p.options.jsx.Fragment.Parts) > 0 {
+					value = p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Fragment.Parts)
+				} else if constant := p.options.jsx.Fragment.Constant; constant != nil {
+					value = js_ast.Expr{Loc: expr.Loc, Data: constant}
+				}
+				e.TagOrNil = value
+			}
 
-			// Enable tree shaking
-			CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations,
-		}}, exprOut{}
+			// Arguments to createElement()
+			args := []js_ast.Expr{e.TagOrNil}
+			if len(e.Properties) > 0 {
+				args = append(args, p.lowerObjectSpread(expr.Loc, &js_ast.EObject{
+					Properties: e.Properties,
+				}))
+			} else {
+				args = append(args, js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared})
+			}
+			if len(e.Children) > 0 {
+				args = append(args, e.Children...)
+			}
+
+			// Call createElement()
+			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+				Target: p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Factory.Parts),
+				Args:   args,
+
+				// Enable tree shaking
+				CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations,
+			}}, exprOut{}
+		}
 
 	case *js_ast.ETemplate:
 		if e.LegacyOctalLoc.Start > 0 {

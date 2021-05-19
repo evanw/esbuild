@@ -799,6 +799,7 @@ func rebuildImpl(
 		UnsupportedCSSFeatures: cssFeatures,
 		OriginalTargetEnv:      targetEnv,
 		JSX: config.JSXOptions{
+			Preserve: buildOpts.JSXMode == JSXModePreserve,
 			Factory:  validateJSXExpr(log, buildOpts.JSXFactory, "factory", js_parser.JSXFactory),
 			Fragment: validateJSXExpr(log, buildOpts.JSXFragment, "fragment", js_parser.JSXFragment),
 		},
@@ -1235,6 +1236,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	preserveUnusedImportsTS := false
 	useDefineForClassFieldsTS := config.Unspecified
 	jsx := config.JSXOptions{
+		Preserve: transformOpts.JSXMode == JSXModePreserve,
 		Factory:  validateJSXExpr(log, transformOpts.JSXFactory, "factory", js_parser.JSXFactory),
 		Fragment: validateJSXExpr(log, transformOpts.JSXFragment, "fragment", js_parser.JSXFragment),
 	}

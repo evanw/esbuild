@@ -390,6 +390,23 @@ func parseOptionsImpl(
 		case strings.HasPrefix(arg, "--inject:") && buildOpts != nil:
 			buildOpts.Inject = append(buildOpts.Inject, arg[len("--inject:"):])
 
+		case strings.HasPrefix(arg, "--jsx="):
+			value := arg[len("--jsx="):]
+			var mode api.JSXMode
+			switch value {
+			case "transform":
+				mode = api.JSXModeTransform
+			case "preserve":
+				mode = api.JSXModePreserve
+			default:
+				return fmt.Errorf("Invalid jsx: %q (valid: transform, preserve)", value), nil
+			}
+			if buildOpts != nil {
+				buildOpts.JSXMode = mode
+			} else {
+				transformOpts.JSXMode = mode
+			}
+
 		case strings.HasPrefix(arg, "--jsx-factory="):
 			value := arg[len("--jsx-factory="):]
 			if buildOpts != nil {

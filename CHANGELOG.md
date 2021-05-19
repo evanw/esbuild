@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Add the ability to preserve JSX syntax ([#735](https://github.com/evanw/esbuild/issues/735))
+
+    You can now pass `--jsx=preserve` to esbuild to prevent JSX from being transformed into JS. Instead, JSX syntax in all input files is preserved throughout the pipeline and is printed as JSX syntax in the generated output files. Note that this means the output files are no longer valid JavaScript code if you enable this setting. This feature is intended to be used when you want to transform the JSX syntax in esbuild's output files by another tool after bundling, usually one with a different JSX-to-JS transform than the one esbuild implements.
+
 * Update the list of built-in node modules ([#1294](https://github.com/evanw/esbuild/issues/1294))
 
     The list of built-in modules that come with node was outdated, so it has been updated. It now includes new modules such as `wasi` and `_http_common`. Modules in this list are automatically marked as external when esbuild's platform is configured to `node`.

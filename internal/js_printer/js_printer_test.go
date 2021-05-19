@@ -19,15 +19,12 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	}
 }
 
-func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options Options) {
+func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options config.Options) {
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
-		tree, ok := js_parser.Parse(log, test.SourceForTest(contents), js_parser.OptionsFromConfig(&config.Options{
-			MangleSyntax:          options.MangleSyntax,
-			UnsupportedJSFeatures: options.UnsupportedFeatures,
-		}))
+		tree, ok := js_parser.Parse(log, test.SourceForTest(contents), js_parser.OptionsFromConfig(&options))
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -40,33 +37,38 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		symbols := js_ast.NewSymbolMap(1)
 		symbols.SymbolsForSource[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
-		js := Print(tree, symbols, r, options).JS
+		js := Print(tree, symbols, r, Options{
+			ASCIIOnly:           options.ASCIIOnly,
+			MangleSyntax:        options.MangleSyntax,
+			RemoveWhitespace:    options.RemoveWhitespace,
+			UnsupportedFeatures: options.UnsupportedJSFeatures,
+		}).JS
 		assertEqual(t, string(js), expected)
 	})
 }
 
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents, contents, expected, Options{})
+	expectPrintedCommon(t, contents, contents, expected, config.Options{})
 }
 
 func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [minified]", contents, expected, Options{
+	expectPrintedCommon(t, contents+" [minified]", contents, expected, config.Options{
 		RemoveWhitespace: true,
 	})
 }
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [mangled]", contents, expected, Options{
+	expectPrintedCommon(t, contents+" [mangled]", contents, expected, config.Options{
 		MangleSyntax: true,
 	})
 }
 
 func expectPrintedMangleMinify(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [mangled, minified]", contents, expected, Options{
+	expectPrintedCommon(t, contents+" [mangled, minified]", contents, expected, config.Options{
 		MangleSyntax:     true,
 		RemoveWhitespace: true,
 	})
@@ -74,14 +76,14 @@ func expectPrintedMangleMinify(t *testing.T, contents string, expected string) {
 
 func expectPrintedASCII(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [ascii]", contents, expected, Options{
+	expectPrintedCommon(t, contents+" [ascii]", contents, expected, config.Options{
 		ASCIIOnly: true,
 	})
 }
 
 func expectPrintedMinifyASCII(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [ascii]", contents, expected, Options{
+	expectPrintedCommon(t, contents+" [ascii]", contents, expected, config.Options{
 		RemoveWhitespace: true,
 		ASCIIOnly:        true,
 	})
@@ -89,8 +91,8 @@ func expectPrintedMinifyASCII(t *testing.T, contents string, expected string) {
 
 func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents, contents, expected, Options{
-		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+	expectPrintedCommon(t, contents, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
 	})
@@ -98,8 +100,8 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 
 func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [minified]", contents, expected, Options{
-		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+	expectPrintedCommon(t, contents+" [minified]", contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
 		RemoveWhitespace: true,
@@ -108,8 +110,8 @@ func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, exp
 
 func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [mangled]", contents, expected, Options{
-		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+	expectPrintedCommon(t, contents+" [mangled]", contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
 		MangleSyntax: true,
@@ -118,11 +120,43 @@ func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, exp
 
 func expectPrintedTargetASCII(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [ascii]", contents, expected, Options{
-		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+	expectPrintedCommon(t, contents+" [ascii]", contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
 		ASCIIOnly: true,
+	})
+}
+
+func expectPrintedJSX(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, contents, expected, config.Options{
+		JSX: config.JSXOptions{
+			Parse:    true,
+			Preserve: true,
+		},
+	})
+}
+
+func expectPrintedJSXASCII(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, contents, expected, config.Options{
+		JSX: config.JSXOptions{
+			Parse:    true,
+			Preserve: true,
+		},
+		ASCIIOnly: true,
+	})
+}
+
+func expectPrintedJSXMinify(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [minified]", contents, expected, config.Options{
+		JSX: config.JSXOptions{
+			Parse:    true,
+			Preserve: true,
+		},
+		RemoveWhitespace: true,
 	})
 }
 
@@ -811,4 +845,62 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedASCII(t, "(class 𐀀 extends π {})", "(class \\u{10000} extends \\u03C0 {\n});\n")
 	expectPrintedMinifyASCII(t, "class 𐀀 extends π {}", "class \\u{10000} extends \\u03C0{}")
 	expectPrintedMinifyASCII(t, "(class 𐀀 extends π {})", "(class \\u{10000} extends \\u03C0{});")
+}
+
+func TestJSX(t *testing.T) {
+	expectPrintedJSX(t, "<a/>", "<a />;\n")
+	expectPrintedJSX(t, "<A/>", "<A />;\n")
+	expectPrintedJSX(t, "<a.b/>", "<a.b />;\n")
+	expectPrintedJSX(t, "<A.B/>", "<A.B />;\n")
+	expectPrintedJSX(t, "<a-b/>", "<a-b />;\n")
+	expectPrintedJSX(t, "<a:b/>", "<a:b />;\n")
+	expectPrintedJSX(t, "<a></a>", "<a />;\n")
+	expectPrintedJSX(t, "<a b></a>", "<a b />;\n")
+
+	expectPrintedJSX(t, "<a b={true}></a>", "<a b={true} />;\n")
+	expectPrintedJSX(t, "<a b={'x'}></a>", "<a b=\"x\" />;\n")
+	expectPrintedJSX(t, "<a b={`'`}></a>", "<a b=\"'\" />;\n")
+	expectPrintedJSX(t, "<a b={`\"`}></a>", "<a b='\"' />;\n")
+	expectPrintedJSX(t, "<a b={`'\"`}></a>", "<a b={`'\"`} />;\n")
+	expectPrintedJSX(t, "<a b=\"&quot;\"></a>", "<a b='\"' />;\n")
+	expectPrintedJSX(t, "<a b=\"&amp;\"></a>", "<a b={\"&\"} />;\n")
+
+	expectPrintedJSX(t, "<a>x</a>", "<a>x</a>;\n")
+	expectPrintedJSX(t, "<a>x\ny</a>", "<a>x y</a>;\n")
+	expectPrintedJSX(t, "<a>{'x'}{'y'}</a>", "<a>\n  {\"x\"}\n  {\"y\"}\n</a>;\n")
+	expectPrintedJSX(t, "<a> x</a>", "<a> x</a>;\n")
+	expectPrintedJSX(t, "<a>x </a>", "<a>x </a>;\n")
+	expectPrintedJSX(t, "<a>&#10;</a>", "<a>{\"\\n\"}</a>;\n")
+	expectPrintedJSX(t, "<a>&amp;</a>", "<a>{\"&\"}</a>;\n")
+	expectPrintedJSX(t, "<a>&lt;</a>", "<a>{\"<\"}</a>;\n")
+	expectPrintedJSX(t, "<a>&gt;</a>", "<a>{\">\"}</a>;\n")
+	expectPrintedJSX(t, "<a>&#123;</a>", "<a>{\"{\"}</a>;\n")
+	expectPrintedJSX(t, "<a>&#125;</a>", "<a>{\"}\"}</a>;\n")
+
+	expectPrintedJSX(t, "<a><x/></a>", "<a><x /></a>;\n")
+	expectPrintedJSX(t, "<a><x/><y/></a>", "<a>\n  <x />\n  <y />\n</a>;\n")
+	expectPrintedJSX(t, "<a>b<c/>d</a>", "<a>\n  {\"b\"}\n  <c />\n  {\"d\"}\n</a>;\n")
+
+	expectPrintedJSX(t, "<></>", "<></>;\n")
+	expectPrintedJSX(t, "<>x<y/>z</>", "<>\n  {\"x\"}\n  <y />\n  {\"z\"}\n</>;\n")
+
+	// These can't be escaped because JSX lacks a syntax for escapes
+	expectPrintedJSXASCII(t, "<π/>", "<π />;\n")
+	expectPrintedJSXASCII(t, "<π.𐀀/>", "<π.𐀀 />;\n")
+	expectPrintedJSXASCII(t, "<𐀀.π/>", "<𐀀.π />;\n")
+	expectPrintedJSXASCII(t, "<π>x</π>", "<π>x</π>;\n")
+	expectPrintedJSXASCII(t, "<𐀀>x</𐀀>", "<𐀀>x</𐀀>;\n")
+	expectPrintedJSXASCII(t, "<a π/>", "<a π />;\n")
+	expectPrintedJSXASCII(t, "<a 𐀀/>", "<a 𐀀 />;\n")
+
+	// These can be escaped but as JS strings (since XML entities in JSX aren't standard)
+	expectPrintedJSXASCII(t, "<a b='π'/>", "<a b={\"\\u03C0\"} />;\n")
+	expectPrintedJSXASCII(t, "<a b='𐀀'/>", "<a b={\"\\u{10000}\"} />;\n")
+	expectPrintedJSXASCII(t, "<a>π</a>", "<a>{\"\\u03C0\"}</a>;\n")
+	expectPrintedJSXASCII(t, "<a>𐀀</a>", "<a>{\"\\u{10000}\"}</a>;\n")
+
+	expectPrintedJSXMinify(t, "<a b c={x,y} d='true'/>", "<a b c={(x,y)}d=\"true\"/>;")
+	expectPrintedJSXMinify(t, "<a><b/><c/></a>", "<a><b/><c/></a>;")
+	expectPrintedJSXMinify(t, "<a> x <b/> y </a>", "<a> x <b/> y </a>;")
+	expectPrintedJSXMinify(t, "<a>{' x '}{'<b/>'}{' y '}</a>", "<a> x {\"<b/>\"} y </a>;")
 }

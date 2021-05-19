@@ -3373,6 +3373,16 @@ let transformTests = {
     assert.strictEqual(code, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)
   },
 
+  async jsxTransform({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'transform' })
+    assert.strictEqual(code, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)
+  },
+
+  async jsxPreserve({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'preserve' })
+    assert.strictEqual(code, `console.log(<div />);\n`)
+  },
+
   async ts({ esbuild }) {
     const { code } = await esbuild.transform(`enum Foo { FOO }`, { loader: 'ts' })
     assert.strictEqual(code, `var Foo;\n(function(Foo2) {\n  Foo2[Foo2["FOO"] = 0] = "FOO";\n})(Foo || (Foo = {}));\n`)

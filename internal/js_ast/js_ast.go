@@ -579,6 +579,7 @@ type EJSXElement struct {
 	TagOrNil   Expr
 	Properties []Property
 	Children   []Expr
+	CloseLoc   logger.Loc
 }
 
 type ENumber struct{ Value float64 }

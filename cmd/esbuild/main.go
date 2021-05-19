@@ -73,6 +73,7 @@ var helpText = func(colors logger.Colors) string {
                             automatically replace matching globals with imports
   --jsx-factory=...         What to use for JSX instead of React.createElement
   --jsx-fragment=...        What to use for JSX instead of React.Fragment
+  --jsx=...                 Set to "preserve" to disable transforming JSX to JS
   --keep-names              Preserve "name" on functions and classes
   --legal-comments=...      Where to place license comments (none | inline |
                             eof | linked | external, default eof when bundling

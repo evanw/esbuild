@@ -15,9 +15,10 @@ import (
 type LanguageTarget int8
 
 type JSXOptions struct {
-	Parse    bool
 	Factory  JSXExpr
 	Fragment JSXExpr
+	Parse    bool
+	Preserve bool
 }
 
 type JSXExpr struct {
