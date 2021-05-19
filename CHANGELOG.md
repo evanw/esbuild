@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.1
 
 * Add the ability to preserve JSX syntax ([#735](https://github.com/evanw/esbuild/issues/735))
 
