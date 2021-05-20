@@ -817,16 +817,12 @@ bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
 	# Inject aliases into "package.json" to fix Parcel 2 ignoring "tsconfig.json".
 	# Also inject "engines": "node" to avoid Parcel 2 mangling node globals.
 	cat require/parcel2/package.json | sed '/^\}/d' > bench/rome/parcel2/package.json
-	echo ', "engines": { "node": "0.0.0" }' >> bench/rome/parcel2/package.json
+	echo ', "engines": { "node": "14.0.0" }' >> bench/rome/parcel2/package.json
 	echo ', $(ROME_PARCEL_ALIASES) }' >> bench/rome/parcel2/package.json
 
-	# Work around a bug that causes the resulting bundle to crash when run.
-	# See https://github.com/parcel-bundler/parcel/issues/1762 for more info.
-	echo 'import "regenerator-runtime/runtime"; import "./entry.ts"' > bench/rome/parcel2/rome.parcel.ts
-
-	cd bench/rome/parcel2 && time -p node_modules/.bin/parcel build rome.parcel.ts --dist-dir . --cache-dir .cache
-	du -h bench/rome/parcel2/rome.parcel.js*
-	cd bench/rome-verify && rm -fr parcel2 && ROME_CACHE=0 node ../rome/parcel2/rome.parcel.js bundle packages/rome parcel2
+	cd bench/rome/parcel2 && time -p node_modules/.bin/parcel build entry.ts --dist-dir . --cache-dir .cache
+	du -h bench/rome/parcel2/entry.js*
+	cd bench/rome-verify && rm -fr parcel2 && ROME_CACHE=0 node ../rome/parcel2/entry.js bundle packages/rome parcel2
 
 ################################################################################
 # React admin benchmark (measures performance of an application-like setup)
