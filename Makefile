@@ -711,9 +711,11 @@ bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-webpack5 bench-rome
 bench-rome-esbuild: esbuild | bench/rome bench/rome-verify
 	rm -fr bench/rome/esbuild
 	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node --timing
-	du -h bench/rome/esbuild/rome.esbuild.js*
-	shasum bench/rome/esbuild/rome.esbuild.js*
-	cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
+	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node --timing
+	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node --timing
+	# du -h bench/rome/esbuild/rome.esbuild.js*
+	# shasum bench/rome/esbuild/rome.esbuild.js*
+	# cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
 
 ROME_WEBPACK_CONFIG += module.exports = {
 ROME_WEBPACK_CONFIG +=   entry: './src/entry.ts',
