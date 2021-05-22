@@ -1891,7 +1891,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if len(e.Body.Stmts) == 1 && e.PreferExpr {
 			if s, ok := e.Body.Stmts[0].Data.(*js_ast.SReturn); ok && s.ValueOrNil.Data != nil {
 				p.arrowExprStart = len(p.js)
-				p.printExpr(s.ValueOrNil, js_ast.LComma, 0)
+				p.printExpr(s.ValueOrNil, js_ast.LComma, flags&forbidIn)
 				wasPrinted = true
 			}
 		}

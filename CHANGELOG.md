@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+* Fix various code generation and minification issues ([#1305](https://github.com/evanw/esbuild/issues/1305))
+
+    This release fixes the following issues, which were all identified by running esbuild against the latest UglifyJS test suite:
+
+    * The `in` operator is now surrounded parentheses inside arrow function expression bodies inside `for` loop initializers:
+
+        ```js
+        // Before
+        for ((x) => y in z; 0; ) ;
+
+        // After
+        for ((x) => (y in z); 0; ) ;
+        ```
+
+        Without this, the `in` operator would cause the for loop to be considered a for-in loop instead.
+
 ## 0.12.1
 
 * Add the ability to preserve JSX syntax ([#735](https://github.com/evanw/esbuild/issues/735))
