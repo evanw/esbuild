@@ -10660,6 +10660,22 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if e.TagOrNil.Data != nil {
 			p.templateTag = e.TagOrNil.Data
 			e.TagOrNil = p.visitExpr(e.TagOrNil)
+
+			// The value of "this" must be manually preserved for private member
+			// accesses inside template tag expressions such as "this.#foo``".
+			// The private member "this.#foo" must see the value of "this".
+			if target, loc, private := p.extractPrivateIndex(e.TagOrNil); private != nil {
+				// "foo.#bar`123`" => "__privateGet(_a = foo, #bar).bind(_a)`123`"
+				targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target, valueCouldBeMutated)
+				e.TagOrNil = targetWrapFunc(js_ast.Expr{Loc: target.Loc, Data: &js_ast.ECall{
+					Target: js_ast.Expr{Loc: target.Loc, Data: &js_ast.EDot{
+						Target:  p.lowerPrivateGet(targetFunc(), loc, private),
+						Name:    "bind",
+						NameLoc: target.Loc,
+					}},
+					Args: []js_ast.Expr{targetFunc()},
+				}})
+			}
 		}
 		for i, part := range e.Parts {
 			e.Parts[i].Value = p.visitExpr(part.Value)
@@ -11161,6 +11177,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EIndex:
 		isCallTarget := e == p.callTarget
+		isTemplateTag := e == p.templateTag
 		isDeleteTarget := e == p.deleteTarget
 
 		// "a['b']" => "a.b"
@@ -11224,7 +11241,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// for the value of "this" for a call expression. All other cases will be
 			// taken care of by the enclosing call expression.
 			if p.privateSymbolNeedsToBeLowered(private) && e.OptionalChain == js_ast.OptionalChainNone &&
-				in.assignTarget == js_ast.AssignTargetNone && !isCallTarget {
+				in.assignTarget == js_ast.AssignTargetNone && !isCallTarget && !isTemplateTag {
 				// "foo.#bar" => "__privateGet(foo, #bar)"
 				return p.lowerPrivateGet(e.Target, e.Index.Loc, private), exprOut{}
 			}
@@ -12113,8 +12130,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// private member access in the call target now if there is one
 		if !containsOptionalChain {
 			if target, loc, private := p.extractPrivateIndex(e.Target); private != nil {
-				// "foo.#bar(123)" => "__privateGet(foo, #bar).call(foo, 123)"
-				targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target, valueDefinitelyNotMutated)
+				// "foo.#bar(123)" => "__privateGet(_a = foo, #bar).call(_a, 123)"
+				targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target, valueCouldBeMutated)
 				return targetWrapFunc(js_ast.Expr{Loc: target.Loc, Data: &js_ast.ECall{
 					Target: js_ast.Expr{Loc: target.Loc, Data: &js_ast.EDot{
 						Target:  p.lowerPrivateGet(targetFunc(), loc, private),

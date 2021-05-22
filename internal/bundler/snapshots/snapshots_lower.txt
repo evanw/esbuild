@@ -406,7 +406,7 @@ console.log(FooThis.bar === 123);
 ================================================================================
 TestLowerPrivateClassStaticMethodOrder
 ---------- /out.js ----------
-var _foo, foo_fn, _foo2, foo_fn2;
+var _a, _foo, foo_fn, _b, _foo2, foo_fn2;
 const _Foo = class {
 };
 let Foo = _Foo;
@@ -415,7 +415,7 @@ foo_fn = function() {
   return 123;
 };
 __privateAdd(Foo, _foo);
-__publicField(Foo, "bar", __privateMethod(_Foo, _foo, foo_fn).call(_Foo));
+__publicField(Foo, "bar", __privateMethod(_a = _Foo, _foo, foo_fn).call(_a));
 console.log(Foo.bar === 123);
 const _FooThis = class {
 };
@@ -425,7 +425,7 @@ foo_fn2 = function() {
   return 123;
 };
 __privateAdd(FooThis, _foo2);
-__publicField(FooThis, "bar", __privateMethod(_FooThis, _foo2, foo_fn2).call(_FooThis));
+__publicField(FooThis, "bar", __privateMethod(_b = _FooThis, _foo2, foo_fn2).call(_b));
 console.log(FooThis.bar === 123);
 
 ================================================================================
@@ -1250,9 +1250,10 @@ TestTSLowerPrivateStaticMembers2015NoBundle
 var _x, _y, y_get, y_set, _z, z_fn;
 const _Foo = class {
   foo() {
+    var _a;
     __privateSet(_Foo, _x, __privateGet(_Foo, _x) + 1);
     __privateSet(_Foo, _y, __privateGet(_Foo, _y, y_get) + 1, y_set);
-    __privateMethod(_Foo, _z, z_fn).call(_Foo);
+    __privateMethod(_a = _Foo, _z, z_fn).call(_a);
   }
 };
 let Foo = _Foo;

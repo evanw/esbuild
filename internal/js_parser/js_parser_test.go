@@ -3303,6 +3303,28 @@ func TestMangleTemplate(t *testing.T) {
 
 	expectPrintedMangle(t, "(1, x.y)``", "(0, x.y)``;\n")
 	expectPrintedMangle(t, "(1, x[y])``", "(0, x[y])``;\n")
+
+	expectPrintedMangleTarget(t, 2015, "class Foo { #foo() { return this.#foo`` } }", `var _foo, foo_fn;
+class Foo {
+  constructor() {
+    __privateAdd(this, _foo);
+  }
+}
+_foo = new WeakSet(), foo_fn = function() {
+  return __privateMethod(this, _foo, foo_fn).bind(this)`+"``"+`;
+};
+`)
+
+	expectPrintedMangleTarget(t, 2015, "class Foo { #foo() { return (0, this.#foo)`` } }", `var _foo, foo_fn;
+class Foo {
+  constructor() {
+    __privateAdd(this, _foo);
+  }
+}
+_foo = new WeakSet(), foo_fn = function() {
+  return __privateMethod(this, _foo, foo_fn)`+"``"+`;
+};
+`)
 }
 
 func TestMangleTypeofIdentifier(t *testing.T) {

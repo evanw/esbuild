@@ -66,6 +66,43 @@
 
         A verbatim (i.e. non-computed non-method) property called `__proto__` inside an object literal actually sets the prototype of the surrounding object literal. It does not add an "own property" called `__proto__` to that object literal, so inlining it into the parent object literal would be incorrect. The presence of a `__proto__` property now stops esbuild from applying the object spread inlining optimization when minifying.
 
+    * The value of `this` has now been fixed for lowered private class members that are used as template tags:
+
+        ```js
+        // Original code
+        x = (new (class {
+          a = this.#c``;
+          b = 1;
+          #c() { return this }
+        })).a.b;
+
+        // Old output
+        var _c, c_fn, _a;
+        x = new (_a = class {
+          constructor() {
+            __privateAdd(this, _c);
+            __publicField(this, "a", __privateMethod(this, _c, c_fn)``);
+            __publicField(this, "b", 1);
+          }
+        }, _c = new WeakSet(), c_fn = function() {
+          return this;
+        }, _a)().a.b;
+
+        // New output
+        var _c, c_fn, _a;
+        x = new (_a = class {
+          constructor() {
+            __privateAdd(this, _c);
+            __publicField(this, "a", __privateMethod(this, _c, c_fn).bind(this)``);
+            __publicField(this, "b", 1);
+          }
+        }, _c = new WeakSet(), c_fn = function() {
+          return this;
+        }, _a)().a.b;
+        ```
+
+        The value of `this` here should be an instance of the class because the template tag is a property access expression. However, it was previously the default value (the global object in non-strict mode or `undefined` in strict mode) instead due to the private member transformation, which is incorrect.
+
 ## 0.12.1
 
 * Add the ability to preserve JSX syntax ([#735](https://github.com/evanw/esbuild/issues/735))
