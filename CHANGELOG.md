@@ -36,6 +36,21 @@
 
         Using `return undefined;` inside an async generator function has the same effect as `return await undefined;` which schedules a task in the event loop and runs code in a different order than just `return;`, which doesn't hide an implicit `await` expression.
 
+    * Property access expressions are no longer inlined in template tag position:
+
+        ```js
+        // Original code
+        (null, a.b)``, (null, a[b])``;
+
+        // Old output
+        a.b``, a[b]``;
+
+        // New output
+        (0, a.b)``, (0, a[b])``;
+        ```
+
+        The expression `` a.b`c` `` is different than the expression `` (0, a.b)`c` ``. The first calls the function `a.b` with `a` as the value for `this` but the second calls the function `a.b` with the default value for `this` (the global object in non-strict mode or `undefined` in strict mode).
+
 ## 0.12.1
 
 * Add the ability to preserve JSX syntax ([#735](https://github.com/evanw/esbuild/issues/735))

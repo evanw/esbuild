@@ -3292,6 +3292,9 @@ func TestMangleTemplate(t *testing.T) {
 	expectPrintedMangle(t, "tag`a${x}b${'y'}c`", "tag`a${x}b${\"y\"}c`;\n")
 	expectPrintedMangle(t, "tag`a${'x'}b${y}c`", "tag`a${\"x\"}b${y}c`;\n")
 	expectPrintedMangle(t, "tag`a${'x'}b${'y'}c`", "tag`a${\"x\"}b${\"y\"}c`;\n")
+
+	expectPrintedMangle(t, "(1, x.y)``", "(0, x.y)``;\n")
+	expectPrintedMangle(t, "(1, x[y])``", "(0, x[y])``;\n")
 }
 
 func TestMangleTypeofIdentifier(t *testing.T) {

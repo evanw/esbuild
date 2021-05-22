@@ -142,6 +142,7 @@ type parser struct {
 	// syntactic constructs as appropriate.
 	stmtExprValue     js_ast.E
 	callTarget        js_ast.E
+	templateTag       js_ast.E
 	deleteTarget      js_ast.E
 	loopBody          js_ast.S
 	moduleScope       *js_ast.Scope
@@ -10657,6 +10658,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				"Legacy octal escape sequences cannot be used in template literals")
 		}
 		if e.TagOrNil.Data != nil {
+			p.templateTag = e.TagOrNil.Data
 			e.TagOrNil = p.visitExpr(e.TagOrNil)
 		}
 		for i, part := range e.Parts {
@@ -10690,6 +10692,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		isCallTarget := e == p.callTarget
+		isTemplateTag := e == p.templateTag
 		isStmtExpr := e == p.stmtExprValue
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{assignTarget: e.Op.BinaryAssignTarget()})
@@ -10754,7 +10757,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// "(1, fn)()" => "fn()"
 					// "(1, this.fn)" => "this.fn"
 					// "(1, this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Right) {
+					if (isCallTarget || isTemplateTag) && hasValueForThisInCall(e.Right) {
 						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
 					}
 					return e.Right, exprOut{}
