@@ -474,6 +474,7 @@ type fnOrArrowDataVisit struct {
 
 	isArrow            bool
 	isAsync            bool
+	isGenerator        bool
 	isInsideLoop       bool
 	isInsideSwitch     bool
 	isOutsideFnOrArrow bool
@@ -8706,8 +8707,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		if s.ValueOrNil.Data != nil {
 			s.ValueOrNil = p.visitExpr(s.ValueOrNil)
 
-			// Returning undefined is implicit
-			if p.options.mangleSyntax {
+			// Returning undefined is implicit except when inside an async generator
+			// function, where "return undefined" behaves like "return await undefined"
+			// but just "return" has no "await".
+			if p.options.mangleSyntax && (!p.fnOrArrowDataVisit.isAsync || !p.fnOrArrowDataVisit.isGenerator) {
 				if _, ok := s.ValueOrNil.Data.(*js_ast.EUndefined); ok {
 					s.ValueOrNil = js_ast.Expr{}
 				}
@@ -12412,7 +12415,8 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 	oldFnOrArrowData := p.fnOrArrowDataVisit
 	oldFnOnlyData := p.fnOnlyDataVisit
 	p.fnOrArrowDataVisit = fnOrArrowDataVisit{
-		isAsync: fn.IsAsync,
+		isAsync:     fn.IsAsync,
+		isGenerator: fn.IsGenerator,
 	}
 	p.fnOnlyDataVisit = fnOnlyDataVisit{
 		isThisNested: true,

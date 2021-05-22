@@ -1229,6 +1229,11 @@ func TestFunction(t *testing.T) {
 	expectPrinted(t, "(function arguments() {})", "(function arguments() {\n});\n")
 	expectPrinted(t, "function foo(arguments) {}", "function foo(arguments) {\n}\n")
 	expectPrinted(t, "(function foo(arguments) {})", "(function foo(arguments) {\n});\n")
+
+	expectPrintedMangle(t, "function foo() { return undefined }", "function foo() {\n}\n")
+	expectPrintedMangle(t, "function* foo() { return undefined }", "function* foo() {\n}\n")
+	expectPrintedMangle(t, "async function foo() { return undefined }", "async function foo() {\n}\n")
+	expectPrintedMangle(t, "async function* foo() { return undefined }", "async function* foo() {\n  return void 0;\n}\n")
 }
 
 func TestClass(t *testing.T) {

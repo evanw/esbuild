@@ -9,14 +9,32 @@
     * The `in` operator is now surrounded parentheses inside arrow function expression bodies inside `for` loop initializers:
 
         ```js
-        // Before
+        // Original code
+        for ((x => y in z); 0; ) ;
+
+        // Old output
         for ((x) => y in z; 0; ) ;
 
-        // After
+        // New output
         for ((x) => (y in z); 0; ) ;
         ```
 
         Without this, the `in` operator would cause the for loop to be considered a for-in loop instead.
+
+    * The statement `return undefined;` is no longer minified to `return;` inside async generator functions:
+
+        ```js
+        // Original code
+        return undefined;
+
+        // Old output
+        return;
+
+        // New output
+        return void 0;
+        ```
+
+        Using `return undefined;` inside an async generator function has the same effect as `return await undefined;` which schedules a task in the event loop and runs code in a different order than just `return;`, which doesn't hide an implicit `await` expression.
 
 ## 0.12.1
 
