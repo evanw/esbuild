@@ -11747,6 +11747,18 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 									properties = append(properties, property)
 									break
 								}
+
+								// Also bail if we hit a verbatim "__proto__" key. This will
+								// actually set the prototype of the object being spread so
+								// inlining it is not correct.
+								if p.Kind == js_ast.PropertyNormal && !p.IsComputed && !p.IsMethod {
+									if str, ok := p.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(str.Value, "__proto__") {
+										v.Properties = v.Properties[i:]
+										properties = append(properties, property)
+										break
+									}
+								}
+
 								properties = append(properties, p)
 							}
 							continue

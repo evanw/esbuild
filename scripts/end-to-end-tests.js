@@ -468,6 +468,10 @@
       p.y !== 10 || p.y !== 11 || p.y !== 12 ||
       p.z !== 100 || p.z !== 100 || p.z !== 100
     ) throw 'fail: 9'
+
+    // Inline prototype property
+    p = { ...{ __proto__: null } }
+    if (Object.prototype.hasOwnProperty.call(p, '__proto__') || Object.getPrototypeOf(p) === null) throw 'fail: 10'
   `
   tests.push(
     test(['in.js', '--outfile=node.js'], {
@@ -477,6 +481,9 @@
       'in.js': objectAssignSemantics,
     }),
     test(['in.js', '--outfile=node.js', '--target=es5'], {
+      'in.js': objectAssignSemantics,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify-syntax'], {
       'in.js': objectAssignSemantics,
     }),
   )

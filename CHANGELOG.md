@@ -51,6 +51,21 @@
 
         The expression `` a.b`c` `` is different than the expression `` (0, a.b)`c` ``. The first calls the function `a.b` with `a` as the value for `this` but the second calls the function `a.b` with the default value for `this` (the global object in non-strict mode or `undefined` in strict mode).
 
+    * Verbatim `__proto__` properties inside object spread are no longer inlined when minifying:
+
+        ```js
+        // Original code
+        x = { ...{ __proto__: { y: true } } }.y;
+
+        // Old output
+        x = { __proto__: { y: !0 } }.y;
+
+        // New output
+        x = { ...{ __proto__: { y: !0 } } }.y;
+        ```
+
+        A verbatim (i.e. non-computed non-method) property called `__proto__` inside an object literal actually sets the prototype of the surrounding object literal. It does not add an "own property" called `__proto__` to that object literal, so inlining it into the parent object literal would be incorrect. The presence of a `__proto__` property now stops esbuild from applying the object spread inlining optimization when minifying.
+
 ## 0.12.1
 
 * Add the ability to preserve JSX syntax ([#735](https://github.com/evanw/esbuild/issues/735))

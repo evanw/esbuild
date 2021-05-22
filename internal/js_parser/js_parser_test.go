@@ -3234,6 +3234,14 @@ func TestMangleObject(t *testing.T) {
 	expectPrintedMangle(t, "x = {a, ...{b, set c(_) { throw _ }, d}, e}",
 		"x = { a, b, ...{ set c(_) {\n  throw _;\n}, d }, e };\n")
 
+	// "__proto__" is not supported
+	expectPrintedMangle(t, "x = {a, ...{b, __proto__: c, d}, e}",
+		"x = { a, b, ...{ __proto__: c, d }, e };\n")
+	expectPrintedMangle(t, "x = {a, ...{b, ['__proto__']: c, d}, e}",
+		"x = { a, b, [\"__proto__\"]: c, d, e };\n")
+	expectPrintedMangle(t, "x = {a, ...{b, __proto__() {}, c}, d}",
+		"x = { a, b, __proto__() {\n}, c, d };\n")
+
 	// Spread is ignored for certain values
 	expectPrintedMangle(t, "x = {a, ...true, b}", "x = { a, b };\n")
 	expectPrintedMangle(t, "x = {a, ...null, b}", "x = { a, b };\n")
