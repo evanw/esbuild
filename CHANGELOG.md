@@ -108,7 +108,7 @@
         This implements the template literal revision feature: https://github.com/tc39/proposal-template-literal-revision. It allows you to process tagged template literals using custom semantics that don't follow JavaScript escape sequence rules without causing a syntax error:
 
         ```js
-        console.log((x => x.raw)`\some \invalid \escape \sequences`)
+        console.log((x => x.raw)`invalid \unicode escape sequence`)
         ```
 
 ## 0.12.1
