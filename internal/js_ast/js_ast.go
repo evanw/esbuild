@@ -604,15 +604,15 @@ type EString struct {
 }
 
 type TemplatePart struct {
-	Value   Expr
-	TailLoc logger.Loc
-	Tail    []uint16
-	TailRaw string // This is only filled out for tagged template literals
+	Value      Expr
+	TailLoc    logger.Loc
+	TailCooked []uint16
+	TailRaw    string // This is only filled out for tagged template literals
 }
 
 type ETemplate struct {
 	TagOrNil       Expr
-	Head           []uint16
+	HeadCooked     []uint16
 	HeadRaw        string // This is only filled out for tagged template literals
 	Parts          []TemplatePart
 	LegacyOctalLoc logger.Loc

@@ -2950,7 +2950,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 					Op:   js_ast.BinOpAdd,
 					Left: part.Value,
 					Right: js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{
-						Value:          part.Tail,
+						Value:          part.TailCooked,
 						LegacyOctalLoc: legacyOctalLoc,
 					}},
 				}}
@@ -2968,18 +2968,18 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 					Left:  value,
 					Right: part.Value,
 				}}
-				if len(part.Tail) > 0 {
+				if len(part.TailCooked) > 0 {
 					value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 						Op:    js_ast.BinOpAdd,
 						Left:  value,
-						Right: js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: part.Tail}},
+						Right: js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: part.TailCooked}},
 					}}
 				}
 			}
 			return value
 		}
 		return js_ast.Expr{Loc: loc, Data: &js_ast.ETemplate{
-			Head:           head,
+			HeadCooked:     head,
 			Parts:          parts,
 			LegacyOctalLoc: legacyOctalLoc,
 		}}
@@ -3691,7 +3691,11 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()
 			p.lexer.Next()
-			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{TagOrNil: left, Head: head, HeadRaw: headRaw}}
+			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
+				TagOrNil:   left,
+				HeadCooked: head,
+				HeadRaw:    headRaw,
+			}}
 
 		case js_lexer.TTemplateHead:
 			if oldOptionalChain != js_ast.OptionalChainNone {
@@ -3701,7 +3705,12 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()
 			parts, _ := p.parseTemplateParts(true /* includeRaw */)
-			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{TagOrNil: left, Head: head, HeadRaw: headRaw, Parts: parts}}
+			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
+				TagOrNil:   left,
+				HeadCooked: head,
+				HeadRaw:    headRaw,
+				Parts:      parts,
+			}}
 
 		case js_lexer.TOpenBracket:
 			// When parsing a decorator, ignore EIndex expressions since they may be
@@ -4515,14 +4524,19 @@ func (p *parser) parseTemplateParts(includeRaw bool) (parts []js_ast.TemplatePar
 		value := p.parseExpr(js_ast.LLowest)
 		tailLoc := p.lexer.Loc()
 		p.lexer.RescanCloseBraceAsTemplateToken()
-		tail := p.lexer.StringLiteral
+		tailCooked := p.lexer.StringLiteral
 		tailRaw := ""
 		if includeRaw {
 			tailRaw = p.lexer.RawTemplateContents()
 		} else if p.lexer.LegacyOctalLoc.Start > tailLoc.Start {
 			legacyOctalLoc = p.lexer.LegacyOctalLoc
 		}
-		parts = append(parts, js_ast.TemplatePart{Value: value, TailLoc: tailLoc, Tail: tail, TailRaw: tailRaw})
+		parts = append(parts, js_ast.TemplatePart{
+			Value:      value,
+			TailLoc:    tailLoc,
+			TailCooked: tailCooked,
+			TailRaw:    tailRaw,
+		})
 		if p.lexer.Token == js_lexer.TTemplateTail {
 			p.lexer.Next()
 			break
@@ -10081,7 +10095,10 @@ func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
 
 		case *js_ast.ETemplate:
 			if r.TagOrNil.Data == nil {
-				return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{Head: joinStrings(l.Value, r.Head), Parts: r.Parts}}
+				return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
+					HeadCooked: joinStrings(l.Value, r.HeadCooked),
+					Parts:      r.Parts,
+				}}
 			}
 		}
 
@@ -10090,29 +10107,35 @@ func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
 			switch r := right.Data.(type) {
 			case *js_ast.EString:
 				n := len(l.Parts)
-				head := l.Head
+				head := l.HeadCooked
 				parts := make([]js_ast.TemplatePart, n)
 				if n == 0 {
 					head = joinStrings(head, r.Value)
 				} else {
 					copy(parts, l.Parts)
-					parts[n-1].Tail = joinStrings(parts[n-1].Tail, r.Value)
+					parts[n-1].TailCooked = joinStrings(parts[n-1].TailCooked, r.Value)
 				}
-				return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{Head: head, Parts: parts}}
+				return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
+					HeadCooked: head,
+					Parts:      parts,
+				}}
 
 			case *js_ast.ETemplate:
 				if r.TagOrNil.Data == nil {
 					n := len(l.Parts)
-					head := l.Head
+					head := l.HeadCooked
 					parts := make([]js_ast.TemplatePart, n+len(r.Parts))
 					copy(parts[n:], r.Parts)
 					if n == 0 {
-						head = joinStrings(head, r.Head)
+						head = joinStrings(head, r.HeadCooked)
 					} else {
 						copy(parts[:n], l.Parts)
-						parts[n-1].Tail = joinStrings(parts[n-1].Tail, r.Head)
+						parts[n-1].TailCooked = joinStrings(parts[n-1].TailCooked, r.HeadCooked)
 					}
-					return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{Head: head, Parts: parts}}
+					return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
+						HeadCooked: head,
+						Parts:      parts,
+					}}
 				}
 			}
 		}
@@ -10422,10 +10445,10 @@ func (p *parser) mangleTemplate(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr
 		for _, part := range e.Parts {
 			if str, ok := part.Value.Data.(*js_ast.EString); ok {
 				if end == 0 {
-					e.Head = append(append(e.Head, str.Value...), part.Tail...)
+					e.HeadCooked = append(append(e.HeadCooked, str.Value...), part.TailCooked...)
 				} else {
 					prevPart := &e.Parts[end-1]
-					prevPart.Tail = append(append(prevPart.Tail, str.Value...), part.Tail...)
+					prevPart.TailCooked = append(append(prevPart.TailCooked, str.Value...), part.TailCooked...)
 				}
 			} else {
 				e.Parts[end] = part
@@ -10437,7 +10460,7 @@ func (p *parser) mangleTemplate(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr
 		// Become a plain string if there are no substitutions
 		if len(e.Parts) == 0 {
 			return js_ast.Expr{Loc: loc, Data: &js_ast.EString{
-				Value:          e.Head,
+				Value:          e.HeadCooked,
 				PreferTemplate: true,
 			}}
 		}

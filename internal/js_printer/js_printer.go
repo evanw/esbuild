@@ -2052,7 +2052,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	case *js_ast.ETemplate:
 		// Convert no-substitution template literals into strings if it's smaller
 		if p.options.MangleSyntax && e.TagOrNil.Data == nil && len(e.Parts) == 0 {
-			p.printQuotedUTF16(e.Head, true /* allowBacktick */)
+			p.printQuotedUTF16(e.HeadCooked, true /* allowBacktick */)
 			return
 		}
 
@@ -2070,7 +2070,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if e.TagOrNil.Data != nil {
 			p.print(e.HeadRaw)
 		} else {
-			p.printUnquotedUTF16(e.Head, '`')
+			p.printUnquotedUTF16(e.HeadCooked, '`')
 		}
 		for _, part := range e.Parts {
 			p.print("${")
@@ -2079,7 +2079,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if e.TagOrNil.Data != nil {
 				p.print(part.TailRaw)
 			} else {
-				p.printUnquotedUTF16(part.Tail, '`')
+				p.printUnquotedUTF16(part.TailCooked, '`')
 			}
 		}
 		p.print("`")
