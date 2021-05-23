@@ -236,7 +236,6 @@ type Lexer struct {
 	CommentsToPreserveBefore        []js_ast.Comment
 	AllOriginalComments             []js_ast.Comment
 	codePoint                       rune
-	StringLiteral                   []uint16
 	Identifier                      string
 	JSXFactoryPragmaComment         js_ast.Span
 	JSXFragmentPragmaComment        js_ast.Span
@@ -246,6 +245,14 @@ type Lexer struct {
 	forGlobalName                   bool
 	json                            json
 	prevErrorLoc                    logger.Loc
+
+	// Escape sequences in string literals are decoded lazily because they are
+	// not interpreted inside tagged templates, and tagged templates can contain
+	// invalid escape sequences. If the decoded array is nil, the encoded value
+	// should be passed to "decodeEscapeSequences" first.
+	decodedStringLiteralOrNil []uint16
+	encodedStringLiteralStart int
+	encodedStringLiteralText  string
 
 	// The log is disabled during speculative scans that may backtrack
 	IsLogDisabled bool
@@ -307,6 +314,17 @@ func (lexer *Lexer) Range() logger.Range {
 
 func (lexer *Lexer) Raw() string {
 	return lexer.source.Contents[lexer.start:lexer.end]
+}
+
+func (lexer *Lexer) StringLiteral() []uint16 {
+	if lexer.decodedStringLiteralOrNil == nil {
+		// Lazily decode escape sequences if needed
+		lexer.decodedStringLiteralOrNil = lexer.decodeEscapeSequences(
+			lexer.encodedStringLiteralStart,
+			lexer.encodedStringLiteralText,
+		)
+	}
+	return lexer.decodedStringLiteralOrNil
 }
 
 func (lexer *Lexer) RawTemplateContents() string {
@@ -792,10 +810,10 @@ func (lexer *Lexer) NextJSXElementChild() {
 
 			if needsFixing {
 				// Slow path
-				lexer.StringLiteral = fixWhitespaceAndDecodeJSXEntities(text)
+				lexer.decodedStringLiteralOrNil = fixWhitespaceAndDecodeJSXEntities(text)
 
 				// Skip this token if it turned out to be empty after trimming
-				if len(lexer.StringLiteral) == 0 {
+				if len(lexer.decodedStringLiteralOrNil) == 0 {
 					lexer.HasNewlineBefore = true
 					continue
 				}
@@ -806,7 +824,7 @@ func (lexer *Lexer) NextJSXElementChild() {
 				for i := 0; i < n; i++ {
 					copy[i] = uint16(text[i])
 				}
-				lexer.StringLiteral = copy
+				lexer.decodedStringLiteralOrNil = copy
 			}
 		}
 
@@ -960,7 +978,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 
 			if needsDecode {
 				// Slow path
-				lexer.StringLiteral = decodeJSXEntities([]uint16{}, text)
+				lexer.decodedStringLiteralOrNil = decodeJSXEntities([]uint16{}, text)
 			} else {
 				// Fast path
 				n := len(text)
@@ -968,7 +986,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 				for i := 0; i < n; i++ {
 					copy[i] = uint16(text[i])
 				}
-				lexer.StringLiteral = copy
+				lexer.decodedStringLiteralOrNil = copy
 			}
 
 		default:
@@ -1544,7 +1562,9 @@ func (lexer *Lexer) Next() {
 
 			if needsSlowPath {
 				// Slow path
-				lexer.StringLiteral = lexer.decodeEscapeSequences(lexer.start+1, text)
+				lexer.decodedStringLiteralOrNil = nil
+				lexer.encodedStringLiteralStart = lexer.start + 1
+				lexer.encodedStringLiteralText = text
 			} else {
 				// Fast path
 				n := len(text)
@@ -1552,7 +1572,7 @@ func (lexer *Lexer) Next() {
 				for i := 0; i < n; i++ {
 					copy[i] = uint16(text[i])
 				}
-				lexer.StringLiteral = copy
+				lexer.decodedStringLiteralOrNil = copy
 			}
 
 			if quote == '\'' && lexer.json.parse {

@@ -833,7 +833,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 
 		// Parse the name
 		if p.lexer.Token == js_lexer.TStringLiteral {
-			value.Name = p.lexer.StringLiteral
+			value.Name = p.lexer.StringLiteral()
 		} else if p.lexer.IsIdentifierOrKeyword() {
 			value.Name = js_lexer.StringToUTF16(p.lexer.Identifier)
 		} else {
@@ -933,7 +933,7 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 	if name == "require" && p.lexer.Token == js_lexer.TOpenParen {
 		// "import ns = require('x')"
 		p.lexer.Next()
-		path := js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral}}
+		path := js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral()}}
 		p.lexer.Expect(js_lexer.TStringLiteral)
 		p.lexer.Expect(js_lexer.TCloseParen)
 		value.Data = &js_ast.ECall{

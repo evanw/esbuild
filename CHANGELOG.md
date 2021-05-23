@@ -103,6 +103,14 @@
 
         The value of `this` here should be an instance of the class because the template tag is a property access expression. However, it was previously the default value (the global object in non-strict mode or `undefined` in strict mode) instead due to the private member transformation, which is incorrect.
 
+    * Invalid escape sequences are now allowed in tagged template literals
+
+        This implements the template literal revision feature: https://github.com/tc39/proposal-template-literal-revision. It allows you to process tagged template literals using custom semantics that don't follow JavaScript escape sequence rules without causing a syntax error:
+
+        ```js
+        console.log((x => x.raw)`\some \invalid \escape \sequences`)
+        ```
+
 ## 0.12.1
 
 * Add the ability to preserve JSX syntax ([#735](https://github.com/evanw/esbuild/issues/735))

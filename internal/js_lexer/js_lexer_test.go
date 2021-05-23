@@ -409,10 +409,35 @@ func expectString(t *testing.T, contents string, expected string) {
 			}()
 			return NewLexer(log, test.SourceForTest(contents))
 		}()
+		text := lexer.StringLiteral()
 		msgs := log.Done()
 		test.AssertEqual(t, len(msgs), 0)
 		test.AssertEqual(t, lexer.Token, TStringLiteral)
-		assertEqualStrings(t, UTF16ToString(lexer.StringLiteral), expected)
+		assertEqualStrings(t, UTF16ToString(text), expected)
+	})
+}
+
+func expectLexerErrorString(t *testing.T, contents string, expected string) {
+	t.Helper()
+	t.Run(contents, func(t *testing.T) {
+		t.Helper()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+		func() {
+			defer func() {
+				r := recover()
+				if _, isLexerPanic := r.(LexerPanic); r != nil && !isLexerPanic {
+					panic(r)
+				}
+			}()
+			lexer := NewLexer(log, test.SourceForTest(contents))
+			lexer.StringLiteral()
+		}()
+		msgs := log.Done()
+		text := ""
+		for _, msg := range msgs {
+			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+		}
+		test.AssertEqual(t, text, expected)
 	})
 }
 
@@ -475,14 +500,14 @@ func TestStringLiteral(t *testing.T) {
 
 	expectString(t, "'\\u{100000}'", "\U00100000")
 	expectString(t, "'\\u{10FFFF}'", "\U0010FFFF")
-	expectLexerError(t, "'\\u{110000}'", "<stdin>: error: Unicode escape sequence is out of range\n")
-	expectLexerError(t, "'\\u{FFFFFFFF}'", "<stdin>: error: Unicode escape sequence is out of range\n")
+	expectLexerErrorString(t, "'\\u{110000}'", "<stdin>: error: Unicode escape sequence is out of range\n")
+	expectLexerErrorString(t, "'\\u{FFFFFFFF}'", "<stdin>: error: Unicode escape sequence is out of range\n")
 
 	// Line continuation
-	expectLexerError(t, "'\n'", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "'\r'", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "\"\n\"", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "\"\r\"", "<stdin>: error: Unterminated string literal\n")
+	expectLexerErrorString(t, "'\n'", "<stdin>: error: Unterminated string literal\n")
+	expectLexerErrorString(t, "'\r'", "<stdin>: error: Unterminated string literal\n")
+	expectLexerErrorString(t, "\"\n\"", "<stdin>: error: Unterminated string literal\n")
+	expectLexerErrorString(t, "\"\r\"", "<stdin>: error: Unterminated string literal\n")
 
 	expectString(t, "'\u2028'", "\u2028")
 	expectString(t, "'\u2029'", "\u2029")
@@ -494,24 +519,24 @@ func TestStringLiteral(t *testing.T) {
 	expectString(t, "'1\\\r\n2'", "12")
 	expectString(t, "'1\\\u20282'", "12")
 	expectString(t, "'1\\\u20292'", "12")
-	expectLexerError(t, "'1\\\n\r2'", "<stdin>: error: Unterminated string literal\n")
+	expectLexerErrorString(t, "'1\\\n\r2'", "<stdin>: error: Unterminated string literal\n")
 
-	expectLexerError(t, "\"'", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "'\"", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "'\\", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "'\\'", "<stdin>: error: Unterminated string literal\n")
+	expectLexerErrorString(t, "\"'", "<stdin>: error: Unterminated string literal\n")
+	expectLexerErrorString(t, "'\"", "<stdin>: error: Unterminated string literal\n")
+	expectLexerErrorString(t, "'\\", "<stdin>: error: Unterminated string literal\n")
+	expectLexerErrorString(t, "'\\'", "<stdin>: error: Unterminated string literal\n")
 
-	expectLexerError(t, "'\\x", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "'\\x'", "<stdin>: error: Syntax error \"'\"\n")
-	expectLexerError(t, "'\\xG'", "<stdin>: error: Syntax error \"G\"\n")
-	expectLexerError(t, "'\\xF'", "<stdin>: error: Syntax error \"'\"\n")
-	expectLexerError(t, "'\\xFG'", "<stdin>: error: Syntax error \"G\"\n")
+	expectLexerErrorString(t, "'\\x", "<stdin>: error: Unterminated string literal\n")
+	expectLexerErrorString(t, "'\\x'", "<stdin>: error: Syntax error \"'\"\n")
+	expectLexerErrorString(t, "'\\xG'", "<stdin>: error: Syntax error \"G\"\n")
+	expectLexerErrorString(t, "'\\xF'", "<stdin>: error: Syntax error \"'\"\n")
+	expectLexerErrorString(t, "'\\xFG'", "<stdin>: error: Syntax error \"G\"\n")
 
-	expectLexerError(t, "'\\u", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "'\\u'", "<stdin>: error: Syntax error \"'\"\n")
-	expectLexerError(t, "'\\u0'", "<stdin>: error: Syntax error \"'\"\n")
-	expectLexerError(t, "'\\u00'", "<stdin>: error: Syntax error \"'\"\n")
-	expectLexerError(t, "'\\u000'", "<stdin>: error: Syntax error \"'\"\n")
+	expectLexerErrorString(t, "'\\u", "<stdin>: error: Unterminated string literal\n")
+	expectLexerErrorString(t, "'\\u'", "<stdin>: error: Syntax error \"'\"\n")
+	expectLexerErrorString(t, "'\\u0'", "<stdin>: error: Syntax error \"'\"\n")
+	expectLexerErrorString(t, "'\\u00'", "<stdin>: error: Syntax error \"'\"\n")
+	expectLexerErrorString(t, "'\\u000'", "<stdin>: error: Syntax error \"'\"\n")
 }
 
 func TestTokens(t *testing.T) {

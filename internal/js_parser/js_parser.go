@@ -1765,11 +1765,12 @@ func (p *parser) checkForLegacyOctalLiteral(e js_ast.E) {
 func (p *parser) parseStringLiteral() js_ast.Expr {
 	var legacyOctalLoc logger.Loc
 	loc := p.lexer.Loc()
+	text := p.lexer.StringLiteral()
 	if p.lexer.LegacyOctalLoc.Start > loc.Start {
 		legacyOctalLoc = p.lexer.LegacyOctalLoc
 	}
 	value := js_ast.Expr{Loc: loc, Data: &js_ast.EString{
-		Value:          p.lexer.StringLiteral,
+		Value:          text,
 		LegacyOctalLoc: legacyOctalLoc,
 		PreferTemplate: p.lexer.Token == js_lexer.TNoSubstitutionTemplateLiteral,
 	}}
@@ -2933,7 +2934,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 	case js_lexer.TTemplateHead:
 		var legacyOctalLoc logger.Loc
-		head := p.lexer.StringLiteral
+		head := p.lexer.StringLiteral()
 		if p.lexer.LegacyOctalLoc.Start > loc.Start {
 			legacyOctalLoc = p.lexer.LegacyOctalLoc
 		}
@@ -3688,13 +3689,11 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				p.log.AddRangeError(&p.tracker, p.lexer.Range(), "Template literals cannot have an optional chain as a tag")
 			}
 			p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
-			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()
 			p.lexer.Next()
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
-				TagOrNil:   left,
-				HeadCooked: head,
-				HeadRaw:    headRaw,
+				TagOrNil: left,
+				HeadRaw:  headRaw,
 			}}
 
 		case js_lexer.TTemplateHead:
@@ -3702,14 +3701,12 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				p.log.AddRangeError(&p.tracker, p.lexer.Range(), "Template literals cannot have an optional chain as a tag")
 			}
 			p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
-			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()
 			parts, _ := p.parseTemplateParts(true /* includeRaw */)
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
-				TagOrNil:   left,
-				HeadCooked: head,
-				HeadRaw:    headRaw,
-				Parts:      parts,
+				TagOrNil: left,
+				HeadRaw:  headRaw,
+				Parts:    parts,
 			}}
 
 		case js_lexer.TOpenBracket:
@@ -4351,7 +4348,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 						if p.lexer.PreviousBackslashQuoteInJSX.Loc.Start > stringLoc.Start {
 							previousStringWithBackslashLoc = stringLoc
 						}
-						value = js_ast.Expr{Loc: stringLoc, Data: &js_ast.EString{Value: p.lexer.StringLiteral}}
+						value = js_ast.Expr{Loc: stringLoc, Data: &js_ast.EString{Value: p.lexer.StringLiteral()}}
 						p.lexer.NextInsideJSXElement()
 					} else {
 						// Use Expect() not ExpectInsideJSXElement() so we can parse expression tokens
@@ -4454,7 +4451,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 	for {
 		switch p.lexer.Token {
 		case js_lexer.TStringLiteral:
-			children = append(children, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral}})
+			children = append(children, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral()}})
 			p.lexer.NextJSXElementChild()
 
 		case js_lexer.TOpenBrace:
@@ -4524,19 +4521,22 @@ func (p *parser) parseTemplateParts(includeRaw bool) (parts []js_ast.TemplatePar
 		value := p.parseExpr(js_ast.LLowest)
 		tailLoc := p.lexer.Loc()
 		p.lexer.RescanCloseBraceAsTemplateToken()
-		tailCooked := p.lexer.StringLiteral
-		tailRaw := ""
 		if includeRaw {
-			tailRaw = p.lexer.RawTemplateContents()
-		} else if p.lexer.LegacyOctalLoc.Start > tailLoc.Start {
-			legacyOctalLoc = p.lexer.LegacyOctalLoc
+			parts = append(parts, js_ast.TemplatePart{
+				Value:   value,
+				TailLoc: tailLoc,
+				TailRaw: p.lexer.RawTemplateContents(),
+			})
+		} else {
+			parts = append(parts, js_ast.TemplatePart{
+				Value:      value,
+				TailLoc:    tailLoc,
+				TailCooked: p.lexer.StringLiteral(),
+			})
+			if p.lexer.LegacyOctalLoc.Start > tailLoc.Start {
+				legacyOctalLoc = p.lexer.LegacyOctalLoc
+			}
 		}
-		parts = append(parts, js_ast.TemplatePart{
-			Value:      value,
-			TailLoc:    tailLoc,
-			TailCooked: tailCooked,
-			TailRaw:    tailRaw,
-		})
 		if p.lexer.Token == js_lexer.TTemplateTail {
 			p.lexer.Next()
 			break
@@ -4627,7 +4627,7 @@ func (p *parser) parseClauseAlias(kind string) string {
 	// The alias may now be a string (see https://github.com/tc39/ecma262/pull/2154)
 	if p.lexer.Token == js_lexer.TStringLiteral {
 		r := p.source.RangeOfString(loc)
-		alias, problem, ok := js_lexer.UTF16ToStringWithValidation(p.lexer.StringLiteral)
+		alias, problem, ok := js_lexer.UTF16ToStringWithValidation(p.lexer.StringLiteral())
 		if !ok {
 			p.log.AddRangeError(&p.tracker, r,
 				fmt.Sprintf("This %s alias is invalid because it contains the unpaired Unicode surrogate U+%X", kind, problem))
@@ -5255,7 +5255,7 @@ func (p *parser) parseLabelName() *js_ast.LocRef {
 
 func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry) {
 	pathLoc := p.lexer.Loc()
-	pathText := js_lexer.UTF16ToString(p.lexer.StringLiteral)
+	pathText := js_lexer.UTF16ToString(p.lexer.StringLiteral())
 	if p.lexer.Token == js_lexer.TNoSubstitutionTemplateLiteral {
 		p.lexer.Next()
 	} else {
@@ -5281,7 +5281,7 @@ func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry) {
 				keyText = p.lexer.Identifier
 				key = js_lexer.StringToUTF16(keyText)
 			} else if p.lexer.Token == js_lexer.TStringLiteral {
-				key = p.lexer.StringLiteral
+				key = p.lexer.StringLiteral()
 				keyText = js_lexer.UTF16ToString(key)
 				preferQuotedKey = !p.options.mangleSyntax
 			} else {
@@ -5297,7 +5297,7 @@ func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry) {
 
 			// Parse the value
 			valueLoc := p.lexer.Loc()
-			value := p.lexer.StringLiteral
+			value := p.lexer.StringLiteral()
 			p.lexer.Expect(js_lexer.TStringLiteral)
 
 			entries = append(entries, ast.AssertEntry{

@@ -49,7 +49,7 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 		return js_ast.Expr{Loc: loc, Data: js_ast.ENullShared}
 
 	case js_lexer.TStringLiteral:
-		value := p.lexer.StringLiteral
+		value := p.lexer.StringLiteral()
 		p.lexer.Next()
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: value}}
 
@@ -114,7 +114,7 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 				}
 			}
 
-			keyString := p.lexer.StringLiteral
+			keyString := p.lexer.StringLiteral()
 			keyRange := p.lexer.Range()
 			key := js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: keyString}}
 			p.lexer.Expect(js_lexer.TStringLiteral)

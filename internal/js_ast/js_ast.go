@@ -606,14 +606,14 @@ type EString struct {
 type TemplatePart struct {
 	Value      Expr
 	TailLoc    logger.Loc
-	TailCooked []uint16
-	TailRaw    string // This is only filled out for tagged template literals
+	TailCooked []uint16 // Only use when "TagOrNil" is nil
+	TailRaw    string   // Only use when "TagOrNil" is not nil
 }
 
 type ETemplate struct {
 	TagOrNil       Expr
-	HeadCooked     []uint16
-	HeadRaw        string // This is only filled out for tagged template literals
+	HeadCooked     []uint16 // Only use when "TagOrNil" is nil
+	HeadRaw        string   // Only use when "TagOrNil" is not nil
 	Parts          []TemplatePart
 	LegacyOctalLoc logger.Loc
 }
