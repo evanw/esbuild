@@ -225,7 +225,6 @@ func TestEscapes(t *testing.T) {
 	expectPrinted(t, ":pseudo(cl\\,ss) {}", ":pseudo(cl\\,ss) {\n}\n")
 
 	// SSAttribute
-	expectPrinted(t, "[attr=\"-\"] {}", "[attr=\"-\"] {\n}\n")
 	expectPrinted(t, "[\\61ttr] {}", "[attr] {\n}\n")
 	expectPrinted(t, "[\\2c attr] {}", "[\\,attr] {\n}\n")
 	expectPrinted(t, "[\\,attr] {}", "[\\,attr] {\n}\n")
@@ -233,6 +232,9 @@ func TestEscapes(t *testing.T) {
 	expectPrinted(t, "[attr\\~=x] {}", "[attr\\~=x] {\n}\n")
 	expectPrinted(t, "[attr=\\2c] {}", "[attr=\",\"] {\n}\n")
 	expectPrinted(t, "[attr=\\,] {}", "[attr=\",\"] {\n}\n")
+	expectPrinted(t, "[attr=\"-\"] {}", "[attr=\"-\"] {\n}\n")
+	expectPrinted(t, "[attr=\"--\"] {}", "[attr=--] {\n}\n")
+	expectPrinted(t, "[attr=\"-a\"] {}", "[attr=-a] {\n}\n")
 	expectPrinted(t, "[\\6es|attr] {}", "[ns|attr] {\n}\n")
 	expectPrinted(t, "[ns|\\61ttr] {}", "[ns|attr] {\n}\n")
 	expectPrinted(t, "[\\2cns|attr] {}", "[\\,ns|attr] {\n}\n")
