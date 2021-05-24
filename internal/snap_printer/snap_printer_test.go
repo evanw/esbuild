@@ -1255,6 +1255,32 @@ if ((function () { throw new Error("[SNAPSHOT_CACHE_FAILURE] Cannot probe 'proce
 	}
 }
 
+func TestTwoInOneVarAssignment(t *testing.T) {
+	expectPrinted(t, `
+let first, second;
+first = second = require('./base')
+`, `
+let __get_first__, __get_second__;
+let first, second;
+
+__get_first__ = function() {
+  return first = first || (require("./base"))
+}
+__get_second__ = function() {
+  return second = second || (require("./base"))
+};
+`, ReplaceAll)
+}
+
+func TestTwoInOneExportsAssignment(t *testing.T) {
+	expectPrinted(t, `
+exports.Base = exports.base = require('./base');
+`, `
+Object.defineProperty(exports, "Base", { get: () => require("./base") });
+Object.defineProperty(exports, "base", { get: () => require("./base") });
+`, ReplaceAll)
+}
+
 func TestDebug(t *testing.T) {
 	debugPrinted(t, `
 const { v4: uuidv4 } = require('uuid')

@@ -100,13 +100,54 @@ func (p *printer) handleEBinary(e *js_ast.EBinary) (handled bool) {
 		return false
 	}
 
-	require, isRequire := p.extractRequireExpression(e.Right, 0, 0, 0)
+	if handled := p.handleEBinaryRequireCall(e); handled {
+		return true
+	}
+	if handled = p.handleEBinaryGlobalReference(e); handled {
+		return true
+	}
+
+	return false
+}
+
+func (p *printer) handleEBinaryRequireCall(e *js_ast.EBinary) (handled bool) {
+	var hasExtraIdentifiers bool
+	var extraIdentifiers []RequireBinding
+
+	var isExport bool
+	var export ExportAssignment
+	var hasExtraExport bool
+	var extraExport ExportAssignment
+
+	var require *RequireExpr
+	var isRequire bool
+
+	switch right := e.Right.Data.(type) {
+	case *js_ast.EBinary:
+		// Two in one assignments:
+		//  `first = second = require('./base')`
+		//  `exports.Base = exports.base = require('./base')`
+		require, isRequire = p.extractRequireExpression(right.Right, 0, 0, 0)
+		if isRequire {
+			extraIdentifiers, hasExtraIdentifiers = p.extractIdentifiers(right.Left.Data)
+			export, isExport = p.extractExport(&e.Left, &right.Right)
+			extraExport, hasExtraExport = p.extractExport(&right.Left, &right.Right)
+		}
+	default:
+		require, isRequire = p.extractRequireExpression(e.Right, 0, 0, 0)
+		export, isExport = p.extractExport(&e.Left, &e.Right)
+	}
 	if isRequire {
-		export, isExport := p.extractExport(&e.Left, &e.Right)
 		if isExport {
 			p.printExportGetter(&export)
+			if hasExtraExport {
+				p.printSemicolonAfterStatement()
+				p.printIndent()
+				p.printExportGetter(&extraExport)
+			}
 			return true
 		}
+
 		identifiers, ok := p.extractIdentifiers(e.Left.Data)
 		if !ok {
 			return false
@@ -117,9 +158,20 @@ func (p *printer) handleEBinary(e *js_ast.EBinary) (handled bool) {
 			fnName string) {
 			p.printRequireReplacementFunctionAssign(require, bindingId, isDestructuring, fnName)
 		})
+		if hasExtraIdentifiers {
+			p.printBindings(extraIdentifiers, func(
+				bindingId string,
+				isDestructuring bool,
+				fnName string) {
+				p.printRequireReplacementFunctionAssign(require, bindingId, isDestructuring, fnName)
+			})
+		}
 		return true
 	}
+	return false
+}
 
+func (p *printer) handleEBinaryGlobalReference(e *js_ast.EBinary) (handled bool) {
 	expr := &e.Right
 	hasRequireOrGlobalReference := p.expressionHasRequireOrGlobalReference(expr)
 	if hasRequireOrGlobalReference {
