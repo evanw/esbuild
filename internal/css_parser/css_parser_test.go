@@ -225,6 +225,7 @@ func TestEscapes(t *testing.T) {
 	expectPrinted(t, ":pseudo(cl\\,ss) {}", ":pseudo(cl\\,ss) {\n}\n")
 
 	// SSAttribute
+	expectPrinted(t, "[attr=\"-\"] {}", "[attr=\"-\"] {\n}\n")
 	expectPrinted(t, "[\\61ttr] {}", "[attr] {\n}\n")
 	expectPrinted(t, "[\\2c attr] {}", "[\\,attr] {\n}\n")
 	expectPrinted(t, "[\\,attr] {}", "[\\,attr] {\n}\n")
