@@ -7,6 +7,7 @@ const fs = require('fs');
 const repoDir = path.dirname(__dirname);
 const testDir = path.join(repoDir, 'scripts', '.uglify-tests');
 const uglifyDir = path.join(repoDir, 'demo', 'uglify');
+const SKIP = {};
 let U;
 
 main().catch(e => setTimeout(() => { throw e }));
@@ -34,17 +35,19 @@ async function main() {
   // Run all tests concurrently
   let passedTotal = 0;
   let failedTotal = 0;
+  let skippedTotal = 0;
   const runTest = file => test_file(esbuild, path.join(compressDir, file))
-    .then(({ passed, failed }) => {
+    .then(({ passed, failed, skipped }) => {
       passedTotal += passed;
       failedTotal += failed;
+      skippedTotal += skipped;
     });
   await Promise.all(files.map(runTest));
 
   // Clean up test output
   childProcess.execSync(`rm -fr "${testDir}"`);
 
-  console.log(`${failedTotal} failed out of ${passedTotal + failedTotal}`);
+  console.log(`${failedTotal} failed out of ${passedTotal + failedTotal}, with ${skippedTotal} skipped`);
   if (failedTotal) {
     process.exit(1);
   }
@@ -53,16 +56,23 @@ async function main() {
 async function test_file(esbuild, file) {
   let passed = 0;
   let failed = 0;
+  let skipped = 0;
   const tests = parse_test(file);
   const runTest = name => test_case(esbuild, tests[name])
-    .then(() => passed++)
+    .then(x => {
+      if (x === SKIP) {
+        skipped++;
+      } else {
+        passed++;
+      }
+    })
     .catch(e => {
       failed++;
       console.error(`❌ ${file}: ${name}: ${(e && e.message || e).trim()}\n`);
       pass = false;
     });
   await Promise.all(Object.keys(tests).map(runTest));
-  return { passed, failed };
+  return { passed, failed, skipped };
 }
 
 // Modified from "uglify/demo/test/compress.js"
@@ -108,7 +118,7 @@ async function test_case(esbuild, test) {
   //
   if (test.node_version && !semver.satisfies(process.version, test.node_version)) {
     console.error("*** skipping test %j with node_version %j", test.name, test.node_version);
-    return;
+    return SKIP;
   }
 
   // Run esbuild as a minifier
@@ -127,7 +137,7 @@ async function test_case(esbuild, test) {
     //
     if (test.name === 'unsafe_object_accessor' || test.name === 'keep_name_of_setter') {
       console.error("*** skipping test with known syntax error:", test.name);
-      return;
+      return SKIP;
     }
 
     const formatError = ({ text, location }) => {
