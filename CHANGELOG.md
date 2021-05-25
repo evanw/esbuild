@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.2
 
 * Fix various code generation and minification issues ([#1305](https://github.com/evanw/esbuild/issues/1305))
 
