@@ -1462,6 +1462,13 @@ type Symbol struct {
 	// Renaming can also break any identifier used inside a "with" statement.
 	MustNotBeRenamed bool
 
+	// In React's version of JSX, lower-case names are strings while upper-case
+	// names are identifiers. If we are preserving JSX syntax (i.e. not
+	// transforming it), then we need to be careful to name the identifiers
+	// something with a capital letter so further JSX processing doesn't treat
+	// them as strings instead.
+	MustStartWithCapitalLetterForJSX bool
+
 	// We automatically generate import items for property accesses off of
 	// namespace imports. This lets us remove the expensive namespace imports
 	// while bundling in many cases, replacing them with a cheap import item
@@ -1987,6 +1994,9 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	if oldSymbol.MustNotBeRenamed {
 		newSymbol.OriginalName = oldSymbol.OriginalName
 		newSymbol.MustNotBeRenamed = true
+	}
+	if oldSymbol.MustStartWithCapitalLetterForJSX {
+		newSymbol.MustStartWithCapitalLetterForJSX = true
 	}
 	return new
 }

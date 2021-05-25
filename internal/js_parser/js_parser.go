@@ -10640,7 +10640,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		if !p.options.jsx.Preserve {
+		if p.options.jsx.Preserve {
+			// If the tag is an identifier, mark it as needing to be upper-case
+			switch tag := e.TagOrNil.Data.(type) {
+			case *js_ast.EIdentifier:
+				p.symbols[tag.Ref.InnerIndex].MustStartWithCapitalLetterForJSX = true
+
+			case *js_ast.EImportIdentifier:
+				p.symbols[tag.Ref.InnerIndex].MustStartWithCapitalLetterForJSX = true
+			}
+		} else {
 			// A missing tag is a fragment
 			if e.TagOrNil.Data == nil {
 				var value js_ast.Expr

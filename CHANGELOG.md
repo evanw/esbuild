@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* Ensure JSX element names start with a capital letter ([#1309](https://github.com/evanw/esbuild/issues/1309))
+
+    The JSX specification only describes the syntax and says nothing about how to interpret it. But React (and therefore esbuild) treats JSX tags that start with a lower-case ASCII character as strings instead of identifiers. That way the tag `<i/>` always refers to the italic HTML element `i` and never to a local variable named `i`.
+
+    However, esbuild may rename identifiers for any number of reasons such as when minification is enabled. Previously esbuild could sometimes rename identifiers used as tag names such that they start with a lower-case ASCII character. This is problematic when JSX syntax preservation is enabled since subsequent JSX processing would then turn these identifier references into strings.
+
+    With this release, esbuild will now make sure identifiers used in tag names start with an upper-case ASCII character instead when JSX syntax preservation is enabled. This should avoid problems when using esbuild with JSX transformation tools.
+
 ## 0.12.2
 
 * Fix various code generation and minification issues ([#1305](https://github.com/evanw/esbuild/issues/1305))
