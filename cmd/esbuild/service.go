@@ -715,6 +715,9 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				if value, ok := response["external"]; ok {
 					result.External = value.(bool)
 				}
+				if value, ok := response["sideEffectFree"]; ok {
+					result.SideEffectFree = value.(bool)
+				}
 				if value, ok := response["pluginData"]; ok {
 					result.PluginData = value.(int)
 				}

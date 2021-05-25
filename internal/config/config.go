@@ -490,9 +490,10 @@ type OnResolveArgs struct {
 type OnResolveResult struct {
 	PluginName string
 
-	Path       logger.Path
-	External   bool
-	PluginData interface{}
+	Path           logger.Path
+	External       bool
+	SideEffectFree bool
+	PluginData     interface{}
 
 	Msgs        []logger.Msg
 	ThrownError error

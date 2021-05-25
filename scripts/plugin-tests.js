@@ -709,6 +709,61 @@ let pluginTests = {
     assert.strictEqual(result.default, 123)
   },
 
+  async resolveWithSideEffectFree({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const cmp1 = path.join(testDir, 'cmp1.js')
+    const cmp2 = path.join(testDir, 'cmp2.js')
+    const cmpIndex = path.join(testDir, 'cmpIndex.js')
+    const helper = path.join(testDir, 'helper.js')
+
+    await writeFileAsync(input, `
+      import {Cmp2} from "./cmpIndex"
+			console.log(Cmp2);
+    `)
+    await writeFileAsync(cmp1, `
+      import {__decorate} from './helper';
+			let Something = {}
+			__decorate(Something);
+			export default Something;
+    `)
+    await writeFileAsync(cmp2, `
+      import {__decorate} from './helper';
+			let Something2 = {}
+			__decorate(Something2);
+			export default Something2;
+    `)
+    await writeFileAsync(cmpIndex, `
+      export {default as Cmp1} from './cmp1.vue';
+      export {default as Cmp2} from './cmp2';
+    `)
+    await writeFileAsync(helper, `
+      export function __decorate(s) {
+			}
+    `)
+
+    const result = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      write: false,
+      format: 'cjs',
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /\.vue$/ }, async (args) => {
+            return {
+              path: path.join(args.resolveDir, args.path.replace('.vue', '.js')),
+              sideEffectFree: true,
+            };
+          });
+        },
+      }],
+    })
+
+    const output = result.outputFiles[0].text;
+
+    assert.doesNotMatch(output, /cmp1.js/);
+  },
+
   async noResolveDirInFileModule({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')

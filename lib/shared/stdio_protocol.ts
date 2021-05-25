@@ -157,6 +157,7 @@ export interface OnResolveResponse {
 
   path?: string;
   external?: boolean;
+  sideEffectFree?: boolean;
   namespace?: string;
   pluginData?: number;
 

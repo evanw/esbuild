@@ -734,10 +734,18 @@ func runOnResolvePlugins(
 				return nil, true, resolver.DebugMeta{}
 			}
 
+			var sideEffectsData *resolver.SideEffectsData
+			if result.SideEffectFree {
+				sideEffectsData = &resolver.SideEffectsData{
+					IsSideEffectsArrayInJSON: false,
+				}
+			}
+
 			return &resolver.ResolveResult{
-				PathPair:   resolver.PathPair{Primary: result.Path},
-				IsExternal: result.External,
-				PluginData: result.PluginData,
+				PathPair:               resolver.PathPair{Primary: result.Path},
+				IsExternal:             result.External,
+				PluginData:             result.PluginData,
+				PrimarySideEffectsData: sideEffectsData,
 			}, false, resolver.DebugMeta{}
 		}
 	}

@@ -464,10 +464,11 @@ type OnResolveResult struct {
 	Errors   []Message
 	Warnings []Message
 
-	Path       string
-	External   bool
-	Namespace  string
-	PluginData interface{}
+	Path           string
+	External       bool
+	SideEffectFree bool
+	Namespace      string
+	PluginData     interface{}
 
 	WatchFiles []string
 	WatchDirs  []string
