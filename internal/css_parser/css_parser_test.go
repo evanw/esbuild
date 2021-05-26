@@ -101,6 +101,10 @@ func TestEscapes(t *testing.T) {
 	expectPrinted(t, "a { value: \\,x }", "a {\n  value: \\,x;\n}\n")
 	expectPrinted(t, "a { value: x\\2c }", "a {\n  value: x\\,;\n}\n")
 	expectPrinted(t, "a { value: x\\, }", "a {\n  value: x\\,;\n}\n")
+	expectPrinted(t, "a { value: x\\0 }", "a {\n  value: x\uFFFD;\n}\n")
+	expectPrinted(t, "a { value: x\\1 }", "a {\n  value: x\\\x01;\n}\n")
+	expectPrinted(t, "a { value: x\x00 }", "a {\n  value: x\uFFFD;\n}\n")
+	expectPrinted(t, "a { value: x\x01 }", "a {\n  value: x\x01;\n}\n")
 
 	// THash
 	expectPrinted(t, "a { value: #0h\\61sh }", "a {\n  value: #0hash;\n}\n")
@@ -130,6 +134,10 @@ func TestEscapes(t *testing.T) {
 	expectPrinted(t, "a { value: '\\61bc' }", "a {\n  value: \"\u61BC\";\n}\n")
 	expectPrinted(t, "a { value: '\\2c' }", "a {\n  value: \",\";\n}\n")
 	expectPrinted(t, "a { value: '\\,' }", "a {\n  value: \",\";\n}\n")
+	expectPrinted(t, "a { value: '\\0' }", "a {\n  value: \"\uFFFD\";\n}\n")
+	expectPrinted(t, "a { value: '\\1' }", "a {\n  value: \"\x01\";\n}\n")
+	expectPrinted(t, "a { value: '\x00' }", "a {\n  value: \"\uFFFD\";\n}\n")
+	expectPrinted(t, "a { value: '\x01' }", "a {\n  value: \"\x01\";\n}\n")
 
 	// TURL
 	expectPrinted(t, "a { value: url(a\\62 c) }", "a {\n  value: url(abc);\n}\n")

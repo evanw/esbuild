@@ -445,7 +445,7 @@ func (p *printer) printQuotedWithQuote(text string, quote rune) {
 		escape := escapeNone
 
 		switch c {
-		case '\r', '\n', '\f':
+		case '\x00', '\r', '\n', '\f':
 			// Use a hexadecimal escape for characters that would be invalid escapes
 			escape = escapeHex
 
@@ -459,7 +459,7 @@ func (p *printer) printQuotedWithQuote(text string, quote rune) {
 			}
 
 		default:
-			if p.options.ASCIIOnly && c >= 0x80 || c == '\uFEFF' {
+			if (p.options.ASCIIOnly && c >= 0x80) || c == '\uFEFF' {
 				escape = escapeHex
 			}
 		}

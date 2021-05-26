@@ -730,7 +730,7 @@ func (lexer *lexer) consumeNumeric() T {
 }
 
 func IsNameStart(c rune) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c >= 0x80
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c >= 0x80 || c == '\x00'
 }
 
 func IsNameContinue(c rune) bool {
@@ -774,7 +774,7 @@ func decodeEscapesInToken(inner string) string {
 	i := 0
 
 	for i < len(inner) {
-		if inner[i] == '\\' {
+		if c := inner[i]; c == '\\' || c == '\x00' {
 			break
 		}
 		i++
@@ -793,6 +793,9 @@ func decodeEscapesInToken(inner string) string {
 		inner = inner[width:]
 
 		if c != '\\' {
+			if c == '\x00' {
+				c = replacementCharacter
+			}
 			sb.WriteRune(c)
 			continue
 		}
