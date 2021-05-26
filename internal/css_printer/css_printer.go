@@ -275,15 +275,13 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 				p.print(s.MatcherOp)
 				printAsIdent := false
 
-				if s.MatcherValue != "-" {
-					// Print the value as an identifier if it's possible
-					if css_lexer.WouldStartIdentifierWithoutEscapes(s.MatcherValue) {
-						printAsIdent = true
-						for _, c := range s.MatcherValue {
-							if !css_lexer.IsNameContinue(c) {
-								printAsIdent = false
-								break
-							}
+				// Print the value as an identifier if it's possible
+				if css_lexer.WouldStartIdentifierWithoutEscapes(s.MatcherValue) {
+					printAsIdent = true
+					for _, c := range s.MatcherValue {
+						if !css_lexer.IsNameContinue(c) {
+							printAsIdent = false
+							break
 						}
 					}
 				}
