@@ -14,7 +14,6 @@ import (
 type T uint8
 
 const eof = -1
-const replacementCharacter = 0xFFFD
 
 const (
 	TEndOfFile T = iota
@@ -439,13 +438,16 @@ func (lexer *lexer) wouldStartIdentifier() bool {
 	}
 
 	if lexer.codePoint == '-' {
-		c, w := utf8.DecodeRuneInString(lexer.source.Contents[lexer.current:])
+		c, width := utf8.DecodeRuneInString(lexer.source.Contents[lexer.current:])
+		if c == utf8.RuneError && width <= 1 {
+			return false // Decoding error
+		}
 		if IsNameStart(c) || c == '-' {
 			return true
 		}
 		if c == '\\' {
-			c, _ = utf8.DecodeRuneInString(lexer.source.Contents[lexer.current+w:])
-			return !isNewline(c)
+			c2, _ := utf8.DecodeRuneInString(lexer.source.Contents[lexer.current+width:])
+			return !isNewline(c2)
 		}
 		return false
 	}
@@ -454,14 +456,21 @@ func (lexer *lexer) wouldStartIdentifier() bool {
 }
 
 func WouldStartIdentifierWithoutEscapes(text string) bool {
-	if len(text) > 0 {
-		c, width := utf8.DecodeRuneInString(text)
-		if IsNameStart(c) {
+	c, width := utf8.DecodeRuneInString(text)
+	if c == utf8.RuneError && width <= 1 {
+		return false // Decoding error
+	}
+	if IsNameStart(c) {
+		return true
+	}
+
+	if c == '-' {
+		c2, width2 := utf8.DecodeRuneInString(text[width:])
+		if c2 == utf8.RuneError && width2 <= 1 {
+			return false // Decoding error
+		}
+		if IsNameStart(c2) || c2 == '-' {
 			return true
-		} else if c == '-' {
-			if c, _ := utf8.DecodeRuneInString(text[width:]); IsNameStart(c) || c == '-' {
-				return true
-			}
 		}
 	}
 	return false
@@ -538,13 +547,13 @@ func (lexer *lexer) consumeEscape() rune {
 			lexer.step()
 		}
 		if hex == 0 || (hex >= 0xD800 && hex <= 0xDFFF) || hex > 0x10FFFF {
-			return replacementCharacter
+			return utf8.RuneError
 		}
 		return rune(hex)
 	}
 
 	if c == eof {
-		return replacementCharacter
+		return utf8.RuneError
 	}
 
 	lexer.step()
@@ -794,14 +803,14 @@ func decodeEscapesInToken(inner string) string {
 
 		if c != '\\' {
 			if c == '\x00' {
-				c = replacementCharacter
+				c = utf8.RuneError
 			}
 			sb.WriteRune(c)
 			continue
 		}
 
 		if len(inner) == 0 {
-			sb.WriteRune(replacementCharacter)
+			sb.WriteRune(utf8.RuneError)
 			continue
 		}
 
@@ -848,7 +857,7 @@ func decodeEscapesInToken(inner string) string {
 		}
 
 		if hex == 0 || (hex >= 0xD800 && hex <= 0xDFFF) || hex > 0x10FFFF {
-			sb.WriteRune(replacementCharacter)
+			sb.WriteRune(utf8.RuneError)
 			continue
 		}
 
