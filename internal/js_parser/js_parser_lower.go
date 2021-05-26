@@ -2381,6 +2381,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			nameToJoin = nameFunc()
 		}
 
+		// Optionally preserve the name
+		if p.options.keepNames && nameToKeep != "" {
+			expr = p.keepExprSymbolName(expr, nameToKeep)
+		}
+
 		// Then join "expr" with any other expressions that apply
 		if computedPropertyCache.Data != nil {
 			expr = js_ast.JoinWithComma(expr, computedPropertyCache)
@@ -2401,11 +2406,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		}
 		if wrapFunc != nil {
 			expr = wrapFunc(expr)
-		}
-
-		// Optionally preserve the name
-		if p.options.keepNames && nameToKeep != "" {
-			expr = p.keepExprSymbolName(expr, nameToKeep)
 		}
 		return nil, expr
 	}
@@ -2529,6 +2529,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			p.mergeSymbols(shadowRef, class.Name.Ref)
 		}
 	}
+	if keepNameStmt.Data != nil {
+		stmts = append(stmts, keepNameStmt)
+	}
 
 	// The official TypeScript compiler adds generated code after the class body
 	// in this exact order. Matching this order is important for correctness.
@@ -2582,9 +2585,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		// into a "const" symbol above. Reset it back to empty here now that we
 		// know we won't call "nameFunc" after this point.
 		class.Name = nil
-	}
-	if keepNameStmt.Data != nil {
-		stmts = append(stmts, keepNameStmt)
 	}
 	return stmts, js_ast.Expr{}
 }

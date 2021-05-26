@@ -711,6 +711,23 @@ func TestTypeScriptDecorators(t *testing.T) {
 	})
 }
 
+func TestTypeScriptDecoratorsKeepNames(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				@decoratorMustComeAfterName
+				class Foo {}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			KeepNames:     true,
+		},
+	})
+}
+
 func TestTSExportDefaultTypeIssue316(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Reorder name preservation before TypeScript decorator evaluation ([#1316](https://github.com/evanw/esbuild/issues/1316))
+
+    The `--keep-names` option ensures the `.name` property on functions and classes remains the same after bundling. However, this was being enforced after TypeScript decorator evaluation which meant that the decorator could observe the incorrect name. This has been fixed and now `.name` preservation happens before decorator evaluation instead.
+
 ## 0.12.3
 
 * Ensure JSX element names start with a capital letter ([#1309](https://github.com/evanw/esbuild/issues/1309))
