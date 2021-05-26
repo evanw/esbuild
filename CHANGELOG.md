@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.3
 
 * Ensure JSX element names start with a capital letter ([#1309](https://github.com/evanw/esbuild/issues/1309))
 
