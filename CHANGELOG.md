@@ -6,6 +6,10 @@
 
     The `--keep-names` option ensures the `.name` property on functions and classes remains the same after bundling. However, this was being enforced after TypeScript decorator evaluation which meant that the decorator could observe the incorrect name. This has been fixed and now `.name` preservation happens before decorator evaluation instead.
 
+* Potential fix for a determinism issue ([#1304](https://github.com/evanw/esbuild/issues/1304))
+
+    This release contains a potential fix for an unverified issue with non-determinism in esbuild. The regression was apparently introduced in 0.11.13 and may be related to parallelism that was introduced around the point where dynamic `import()` expressions are added to the list of entry points. Hopefully this fix should resolve the regression.
+
 ## 0.12.3
 
 * Ensure JSX element names start with a capital letter ([#1309](https://github.com/evanw/esbuild/issues/1309))
