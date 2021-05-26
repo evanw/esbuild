@@ -118,7 +118,7 @@ type parser struct {
 	namedImports            map[js_ast.Ref]js_ast.NamedImport
 	namedExports            map[string]js_ast.NamedExport
 	topLevelSymbolToParts   map[js_ast.Ref][]uint32
-	importNamespaceCCMap    map[importNamespaceCallOrConstruct]bool
+	importNamespaceCCMap    map[importNamespaceCall]bool
 
 	// The parser does two passes and we need to pass the scope tree information
 	// from the first pass to the second pass. That's done by tracking the calls
@@ -278,9 +278,17 @@ type injectedSymbolSource struct {
 	loc    logger.Loc
 }
 
-type importNamespaceCallOrConstruct struct {
-	ref         js_ast.Ref
-	isConstruct bool
+type importNamespaceCallKind uint8
+
+const (
+	exprKindCall importNamespaceCallKind = iota
+	exprKindNew
+	exprKindJSXTag
+)
+
+type importNamespaceCall struct {
+	ref  js_ast.Ref
+	kind importNamespaceCallKind
 }
 
 type thenCatchChain struct {
@@ -10617,6 +10625,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	case *js_ast.EJSXElement:
 		if e.TagOrNil.Data != nil {
 			e.TagOrNil = p.visitExpr(e.TagOrNil)
+			p.warnAboutImportNamespaceCall(e.TagOrNil, exprKindJSXTag)
 		}
 
 		// Visit properties
@@ -10675,8 +10684,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			// Call createElement()
+			target := p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Factory.Parts)
+			p.warnAboutImportNamespaceCall(target, exprKindCall)
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-				Target: p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Factory.Parts),
+				Target: target,
 				Args:   args,
 
 				// Enable tree shaking
@@ -12040,7 +12051,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			storeThisArgForParentOptionalChain: e.OptionalChain == js_ast.OptionalChainStart || isParenthesizedOptionalChain,
 		})
 		e.Target = target
-		p.warnAboutImportNamespaceCallOrConstruct(e.Target, false /* isConstruct */)
+		p.warnAboutImportNamespaceCall(e.Target, exprKindCall)
 
 		hasSpread := false
 		for i, arg := range e.Args {
@@ -12250,7 +12261,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.ENew:
 		e.Target = p.visitExpr(e.Target)
-		p.warnAboutImportNamespaceCallOrConstruct(e.Target, true /* isConstruct */)
+		p.warnAboutImportNamespaceCall(e.Target, exprKindNew)
 
 		for i, arg := range e.Args {
 			e.Args[i] = p.visitExpr(arg)
@@ -12337,26 +12348,29 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	return expr, exprOut{}
 }
 
-func (p *parser) warnAboutImportNamespaceCallOrConstruct(target js_ast.Expr, isConstruct bool) {
+func (p *parser) warnAboutImportNamespaceCall(target js_ast.Expr, kind importNamespaceCallKind) {
 	if p.options.outputFormat != config.FormatPreserve {
 		if id, ok := target.Data.(*js_ast.EIdentifier); ok && p.importItemsForNamespace[id.Ref] != nil {
-			key := importNamespaceCallOrConstruct{
-				ref:         id.Ref,
-				isConstruct: isConstruct,
+			key := importNamespaceCall{
+				ref:  id.Ref,
+				kind: kind,
 			}
 			if p.importNamespaceCCMap == nil {
-				p.importNamespaceCCMap = make(map[importNamespaceCallOrConstruct]bool)
+				p.importNamespaceCCMap = make(map[importNamespaceCall]bool)
 			}
+
+			// Don't log a warning for the same identifier more than once
 			if _, ok := p.importNamespaceCCMap[key]; ok {
-				// Don't log a warning for the same identifier more than once
 				return
 			}
+
 			p.importNamespaceCCMap[key] = true
 			r := js_lexer.RangeOfIdentifier(p.source, target.Loc)
 			hint := ""
 			if p.options.ts.Parse {
 				hint = " (make sure to enable TypeScript's \"esModuleInterop\" setting)"
 			}
+
 			var notes []logger.MsgData
 			name := p.symbols[id.Ref.InnerIndex].OriginalName
 			if member, ok := p.moduleScope.Members[name]; ok && member.Ref == id.Ref {
@@ -12370,16 +12384,31 @@ func (p *parser) warnAboutImportNamespaceCallOrConstruct(target js_ast.Expr, isC
 					}
 				}
 			}
-			verb := "Calling"
-			noun := "function"
-			if isConstruct {
+
+			var verb string
+			var where string
+			var noun string
+
+			switch kind {
+			case exprKindCall:
+				verb = "Calling"
+				noun = "function"
+
+			case exprKindNew:
 				verb = "Constructing"
 				noun = "constructor"
+
+			case exprKindJSXTag:
+				verb = "Using"
+				where = " in a JSX expression"
+				noun = "component"
 			}
+
 			p.log.AddRangeWarningWithNotes(&p.tracker, r, fmt.Sprintf(
-				"%s %q will crash at run-time because it's an import namespace object, not a %s%s",
+				"%s %q%s will crash at run-time because it's an import namespace object, not a %s%s",
 				verb,
 				p.symbols[id.Ref.InnerIndex].OriginalName,
+				where,
 				noun,
 				hint),
 				notes,
