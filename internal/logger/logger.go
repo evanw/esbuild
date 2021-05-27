@@ -1022,59 +1022,164 @@ type MsgDetail struct {
 	ContentAfter string
 }
 
-func computeLineAndColumn(contents string, offset int) (lineCount int, columnCount int, lineStart int, lineEnd int) {
-	var prevCodePoint rune
-	if offset > len(contents) {
-		offset = len(contents)
-	}
-
-	// Scan up to the offset and count lines
-	for i, codePoint := range contents[:offset] {
-		switch codePoint {
-		case '\n':
-			lineStart = i + 1
-			if prevCodePoint != '\r' {
-				lineCount++
-			}
-		case '\r':
-			lineStart = i + 1
-			lineCount++
-		case '\u2028', '\u2029':
-			lineStart = i + 3 // These take three bytes to encode in UTF-8
-			lineCount++
-		}
-		prevCodePoint = codePoint
-	}
-
-	// Scan to the end of the line (or end of file if this is the last line)
-	lineEnd = len(contents)
-loop:
-	for i, codePoint := range contents[offset:] {
-		switch codePoint {
-		case '\r', '\n', '\u2028', '\u2029':
-			lineEnd = offset + i
-			break loop
-		}
-	}
-
-	columnCount = offset - lineStart
-	return
+// It's not common for large files to have many warnings. But when it happens,
+// we want to make sure that it's not too slow. Source code locations are
+// represented as byte offsets for compactness but transforming these to
+// line/column locations for warning messages requires scanning through the
+// file. A naive approach for this would cause O(n^2) scanning time for n
+// warnings distributed throughout the file.
+//
+// Warnings are typically generated sequentially as the file is scanned. So
+// one way of optimizing this is to just start scanning from where we left
+// off last time instead of always starting from the beginning of the file.
+// That's what this object does.
+//
+// Another option could be to eagerly populate an array of line/column offsets
+// and then use binary search for each query. This might slow down the common
+// case of a file with only at most a few warnings though, so think before
+// optimizing too much. Performance in the zero or one warning case is by far
+// the most important.
+type LineColumnTracker struct {
+	contents     string
+	prettyPath   string
+	offset       int32
+	line         int32
+	lineStart    int32
+	lineEnd      int32
+	hasLineStart bool
+	hasLineEnd   bool
+	hasSource    bool
 }
 
-func LocationOrNil(source *Source, r Range) *MsgLocation {
+func MakeLineColumnTracker(source *Source) LineColumnTracker {
 	if source == nil {
+		return LineColumnTracker{
+			hasSource: false,
+		}
+	}
+
+	return LineColumnTracker{
+		contents:     source.Contents,
+		prettyPath:   source.PrettyPath,
+		hasLineStart: true,
+		hasSource:    true,
+	}
+}
+
+func (t *LineColumnTracker) scanTo(offset int32) {
+	contents := t.contents
+	i := t.offset
+
+	// Scan forward
+	if i < offset {
+		for {
+			r, size := utf8.DecodeRuneInString(contents[i:])
+			i += int32(size)
+
+			switch r {
+			case '\n':
+				t.hasLineStart = true
+				t.hasLineEnd = false
+				t.lineStart = i
+				if i == int32(size) || contents[i-int32(size)-1] != '\r' {
+					t.line++
+				}
+
+			case '\r', '\u2028', '\u2029':
+				t.hasLineStart = true
+				t.hasLineEnd = false
+				t.lineStart = i
+				t.line++
+			}
+
+			if i >= offset {
+				t.offset = i
+				return
+			}
+		}
+	}
+
+	// Scan backward
+	if i > offset {
+		for {
+			r, size := utf8.DecodeLastRuneInString(contents[:i])
+			i -= int32(size)
+
+			switch r {
+			case '\n':
+				t.hasLineStart = false
+				t.hasLineEnd = true
+				t.lineEnd = i
+				if i == 0 || contents[i-1] != '\r' {
+					t.line--
+				}
+
+			case '\r', '\u2028', '\u2029':
+				t.hasLineStart = false
+				t.hasLineEnd = true
+				t.lineEnd = i
+				t.line--
+			}
+
+			if i <= offset {
+				t.offset = i
+				return
+			}
+		}
+	}
+}
+
+func (t *LineColumnTracker) computeLineAndColumn(offset int) (lineCount int, columnCount int, lineStart int, lineEnd int) {
+	t.scanTo(int32(offset))
+
+	// Scan for the start of the line
+	if !t.hasLineStart {
+		contents := t.contents
+		i := t.offset
+		for i > 0 {
+			r, size := utf8.DecodeLastRuneInString(contents[:i])
+			if r == '\n' || r == '\r' || r == '\u2028' || r == '\u2029' {
+				break
+			}
+			i -= int32(size)
+		}
+		t.hasLineStart = true
+		t.lineStart = i
+	}
+
+	// Scan for the end of the line
+	if !t.hasLineEnd {
+		contents := t.contents
+		i := t.offset
+		n := int32(len(contents))
+		for i < n {
+			r, size := utf8.DecodeRuneInString(contents[i:])
+			if r == '\n' || r == '\r' || r == '\u2028' || r == '\u2029' {
+				break
+			}
+			i += int32(size)
+		}
+		t.hasLineEnd = true
+		t.lineEnd = i
+	}
+
+	return int(t.line), offset - int(t.lineStart), int(t.lineStart), int(t.lineEnd)
+}
+
+func LocationOrNil(tracker *LineColumnTracker, r Range) *MsgLocation {
+	if tracker == nil || !tracker.hasSource {
 		return nil
 	}
 
 	// Convert the index into a line and column number
-	lineCount, columnCount, lineStart, lineEnd := computeLineAndColumn(source.Contents, int(r.Loc.Start))
+	lineCount, columnCount, lineStart, lineEnd := tracker.computeLineAndColumn(int(r.Loc.Start))
 
 	return &MsgLocation{
-		File:     source.PrettyPath,
+		File:     tracker.prettyPath,
 		Line:     lineCount + 1, // 0-based to 1-based
 		Column:   columnCount,
 		Length:   int(r.Len),
-		LineText: source.Contents[lineStart:lineEnd],
+		LineText: tracker.contents[lineStart:lineEnd],
 	}
 }
 
@@ -1261,106 +1366,106 @@ func renderTabStops(withTabs string, spacesPerTab int) string {
 	return withoutTabs.String()
 }
 
-func (log Log) AddError(source *Source, loc Loc, text string) {
+func (log Log) AddError(tracker *LineColumnTracker, loc Loc, text string) {
 	log.AddMsg(Msg{
 		Kind: Error,
-		Data: RangeData(source, Range{Loc: loc}, text),
+		Data: RangeData(tracker, Range{Loc: loc}, text),
 	})
 }
 
-func (log Log) AddErrorWithNotes(source *Source, loc Loc, text string, notes []MsgData) {
+func (log Log) AddErrorWithNotes(tracker *LineColumnTracker, loc Loc, text string, notes []MsgData) {
 	log.AddMsg(Msg{
 		Kind:  Error,
-		Data:  RangeData(source, Range{Loc: loc}, text),
+		Data:  RangeData(tracker, Range{Loc: loc}, text),
 		Notes: notes,
 	})
 }
 
-func (log Log) AddWarning(source *Source, loc Loc, text string) {
-	log.AddMsg(Msg{
-		Kind: Warning,
-		Data: RangeData(source, Range{Loc: loc}, text),
-	})
-}
-
-func (log Log) AddDebug(source *Source, loc Loc, text string) {
-	log.AddMsg(Msg{
-		Kind: Debug,
-		Data: RangeData(source, Range{Loc: loc}, text),
-	})
-}
-
-func (log Log) AddDebugWithNotes(source *Source, loc Loc, text string, notes []MsgData) {
-	log.AddMsg(Msg{
-		Kind:  Debug,
-		Data:  RangeData(source, Range{Loc: loc}, text),
-		Notes: notes,
-	})
-}
-
-func (log Log) AddVerbose(source *Source, loc Loc, text string) {
-	log.AddMsg(Msg{
-		Kind: Verbose,
-		Data: RangeData(source, Range{Loc: loc}, text),
-	})
-}
-
-func (log Log) AddVerboseWithNotes(source *Source, loc Loc, text string, notes []MsgData) {
-	log.AddMsg(Msg{
-		Kind:  Verbose,
-		Data:  RangeData(source, Range{Loc: loc}, text),
-		Notes: notes,
-	})
-}
-
-func (log Log) AddRangeDebug(source *Source, r Range, text string) {
-	log.AddMsg(Msg{
-		Kind: Debug,
-		Data: RangeData(source, r, text),
-	})
-}
-
-func (log Log) AddRangeDebugWithNotes(source *Source, r Range, text string, notes []MsgData) {
-	log.AddMsg(Msg{
-		Kind:  Debug,
-		Data:  RangeData(source, r, text),
-		Notes: notes,
-	})
-}
-
-func (log Log) AddRangeError(source *Source, r Range, text string) {
+func (log Log) AddRangeError(tracker *LineColumnTracker, r Range, text string) {
 	log.AddMsg(Msg{
 		Kind: Error,
-		Data: RangeData(source, r, text),
+		Data: RangeData(tracker, r, text),
 	})
 }
 
-func (log Log) AddRangeErrorWithNotes(source *Source, r Range, text string, notes []MsgData) {
+func (log Log) AddRangeErrorWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
 	log.AddMsg(Msg{
 		Kind:  Error,
-		Data:  RangeData(source, r, text),
+		Data:  RangeData(tracker, r, text),
 		Notes: notes,
 	})
 }
 
-func (log Log) AddRangeWarning(source *Source, r Range, text string) {
+func (log Log) AddWarning(tracker *LineColumnTracker, loc Loc, text string) {
 	log.AddMsg(Msg{
 		Kind: Warning,
-		Data: RangeData(source, r, text),
+		Data: RangeData(tracker, Range{Loc: loc}, text),
 	})
 }
 
-func (log Log) AddRangeWarningWithNotes(source *Source, r Range, text string, notes []MsgData) {
+func (log Log) AddRangeWarning(tracker *LineColumnTracker, r Range, text string) {
+	log.AddMsg(Msg{
+		Kind: Warning,
+		Data: RangeData(tracker, r, text),
+	})
+}
+
+func (log Log) AddRangeWarningWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
 	log.AddMsg(Msg{
 		Kind:  Warning,
-		Data:  RangeData(source, r, text),
+		Data:  RangeData(tracker, r, text),
 		Notes: notes,
 	})
 }
 
-func RangeData(source *Source, r Range, text string) MsgData {
+func (log Log) AddDebug(tracker *LineColumnTracker, loc Loc, text string) {
+	log.AddMsg(Msg{
+		Kind: Debug,
+		Data: RangeData(tracker, Range{Loc: loc}, text),
+	})
+}
+
+func (log Log) AddDebugWithNotes(tracker *LineColumnTracker, loc Loc, text string, notes []MsgData) {
+	log.AddMsg(Msg{
+		Kind:  Debug,
+		Data:  RangeData(tracker, Range{Loc: loc}, text),
+		Notes: notes,
+	})
+}
+
+func (log Log) AddRangeDebug(tracker *LineColumnTracker, r Range, text string) {
+	log.AddMsg(Msg{
+		Kind: Debug,
+		Data: RangeData(tracker, r, text),
+	})
+}
+
+func (log Log) AddRangeDebugWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
+	log.AddMsg(Msg{
+		Kind:  Debug,
+		Data:  RangeData(tracker, r, text),
+		Notes: notes,
+	})
+}
+
+func (log Log) AddVerbose(tracker *LineColumnTracker, loc Loc, text string) {
+	log.AddMsg(Msg{
+		Kind: Verbose,
+		Data: RangeData(tracker, Range{Loc: loc}, text),
+	})
+}
+
+func (log Log) AddVerboseWithNotes(tracker *LineColumnTracker, loc Loc, text string, notes []MsgData) {
+	log.AddMsg(Msg{
+		Kind:  Verbose,
+		Data:  RangeData(tracker, Range{Loc: loc}, text),
+		Notes: notes,
+	})
+}
+
+func RangeData(tracker *LineColumnTracker, r Range, text string) MsgData {
 	return MsgData{
 		Text:     text,
-		Location: LocationOrNil(source, r),
+		Location: LocationOrNil(tracker, r),
 	}
 }

@@ -67,11 +67,13 @@ func code(isES6 bool) string {
 	text := `
 		var __create = Object.create
 		var __defProp = Object.defineProperty
+		var __defProps = Object.defineProperties
+		var __getOwnPropDesc = Object.getOwnPropertyDescriptor // Note: can return "undefined" due to a Safari bug
+		var __getOwnPropDescs = Object.getOwnPropertyDescriptors
+		var __getOwnPropNames = Object.getOwnPropertyNames
+		var __getOwnPropSymbols = Object.getOwnPropertySymbols
 		var __getProtoOf = Object.getPrototypeOf
 		var __hasOwnProp = Object.prototype.hasOwnProperty
-		var __getOwnPropNames = Object.getOwnPropertyNames
-		var __getOwnPropDesc = Object.getOwnPropertyDescriptor // Note: can return "undefined" due to a Safari bug
-		var __getOwnPropSymbols = Object.getOwnPropertySymbols
 		var __propIsEnum = Object.prototype.propertyIsEnumerable
 
 		export var __pow = Math.pow
@@ -80,7 +82,7 @@ func code(isES6 bool) string {
 			? __defProp(obj, key, {enumerable: true, configurable: true, writable: true, value})
 			: obj[key] = value
 
-		export var __objSpread = (a, b) => {
+		export var __spreadValues = (a, b) => {
 			for (var prop in b ||= {})
 				if (__hasOwnProp.call(b, prop))
 					__defNormalProp(a, prop, b[prop])
@@ -105,12 +107,19 @@ func code(isES6 bool) string {
 				}
 			return a
 		}
+		export var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b))
 
 		// Tells importing modules that this can be considered an ES6 module
 		var __markAsModule = target => __defProp(target, '__esModule', { value: true })
 
 		// Tells importing modules that this can be considered an ES6 module
 		export var __name = (target, value) => __defProp(target, 'name', { value, configurable: true })
+
+		// This fallback "require" function exists so that "typeof require" can naturally be "function"
+		export var __require = x => {
+			if (typeof require !== 'undefined') return require(x)
+			throw new Error('Dynamic require of "' + x + '" is not supported')
+		}
 
 		// For object rest patterns
 		export var __restKey = key => typeof key === 'symbol' ? key : key + ''
@@ -141,11 +150,23 @@ func code(isES6 bool) string {
 			return target
 		}
 
-		// This is for lazily-initialized ESM code
-		export var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res)
+		// This is for lazily-initialized ESM code. This has two implementations, a
+		// compact one for minified code and a verbose one that generates friendly
+		// names in V8's profiler and in stack traces.
+		export var __esm = __profiler
+			&& ((fn, res) => function __init() {
+				return fn && (res = (0, fn[Object.keys(fn)[0]])(fn = 0)), res
+			})
+			|| ((fn, res) => () => (fn && (res = fn(fn = 0)), res))
 
-		// Wraps a CommonJS closure and returns a require() function
-		export var __commonJS = (cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports)
+		// Wraps a CommonJS closure and returns a require() function. This has two
+		// implementations, a compact one for minified code and a verbose one that
+		// generates friendly names in V8's profiler and in stack traces.
+		export var __commonJS = __profiler
+			&& ((cb, mod) => function __require() {
+				return mod || (0, cb[Object.keys(cb)[0]])((mod = {exports: {}}).exports, mod), mod.exports
+			})
+			|| ((cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports))
 
 		// Used to implement ES6 exports to CommonJS
 		export var __export = (target, all) => {
@@ -226,6 +247,10 @@ func code(isES6 bool) string {
 			__accessCheck(obj, member, 'read from private field')
 			return getter ? getter.call(obj) : member.get(obj)
 		}
+		export var __privateAdd = (obj, member, value) => {
+			if (member.has(obj)) throw TypeError('Cannot add the same private member more than once')
+			member instanceof WeakSet ? member.add(obj) : member.set(obj, value)
+		}
 		export var __privateSet = (obj, member, value, setter) => {
 			__accessCheck(obj, member, 'write to private field')
 			setter ? setter.call(obj, value) : member.set(obj, value)
@@ -263,8 +288,8 @@ func code(isES6 bool) string {
 
 		// This is for the "binary" loader (custom code is ~2x faster than "atob")
 		export var __toBinary = __platform === 'node'
-			? base64 => new Uint8Array(Buffer.from(base64, 'base64'))
-			: /* @__PURE__ */ (() => {
+			&& (base64 => new Uint8Array(Buffer.from(base64, 'base64')))
+			|| /* @__PURE__ */ (() => {
 				var table = new Uint8Array(128)
 				for (var i = 0; i < 64; i++) table[i < 26 ? i + 65 : i < 52 ? i + 71 : i < 62 ? i - 4 : i * 4 - 205] = i
 				return base64 => {

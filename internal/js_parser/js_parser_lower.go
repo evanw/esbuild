@@ -19,7 +19,7 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 
 	if !p.options.unsupportedJSFeatures.Has(feature) {
 		if feature == compat.TopLevelAwait && !p.options.outputFormat.KeepES6ImportExportSyntax() {
-			p.log.AddRangeError(&p.source, r, fmt.Sprintf(
+			p.log.AddRangeError(&p.tracker, r, fmt.Sprintf(
 				"Top-level await is currently not supported with the %q output format", p.options.outputFormat.String()))
 			return
 		}
@@ -29,9 +29,15 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	}
 
 	var name string
+	var notes []logger.MsgData
 	where := "the configured target environment"
 
-	if p.options.originalTargetEnv != "" {
+	if tsTarget := p.options.tsTarget; tsTarget != nil && tsTarget.UnsupportedJSFeatures.Has(feature) {
+		tracker := logger.MakeLineColumnTracker(&tsTarget.Source)
+		where = fmt.Sprintf("%s (%q)", where, tsTarget.Target)
+		notes = []logger.MsgData{logger.RangeData(&tracker, tsTarget.Range, fmt.Sprintf(
+			"The target environment was set to %q here", tsTarget.Target))}
+	} else if p.options.originalTargetEnv != "" {
 		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
 	}
 
@@ -87,36 +93,41 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	case compat.NestedRestBinding:
 		name = "non-identifier array rest patterns"
 
+	case compat.ImportAssertions:
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where), notes)
+		return
+
 	case compat.TopLevelAwait:
-		p.log.AddRangeError(&p.source, r,
-			fmt.Sprintf("Top-level await is not available in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Top-level await is not available in %s", where), notes)
 		return
 
 	case compat.ArbitraryModuleNamespaceNames:
-		p.log.AddRangeError(&p.source, r,
-			fmt.Sprintf("Using a string as a module namespace identifier name is not supported in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Using a string as a module namespace identifier name is not supported in %s", where), notes)
 		return
 
 	case compat.BigInt:
 		// Transforming these will never be supported
-		p.log.AddRangeError(&p.source, r,
-			fmt.Sprintf("Big integer literals are not available in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Big integer literals are not available in %s", where), notes)
 		return
 
 	case compat.ImportMeta:
 		// This can't be polyfilled
-		p.log.AddRangeWarning(&p.source, r,
-			fmt.Sprintf("\"import.meta\" is not available in %s and will be empty", where))
+		p.log.AddRangeWarningWithNotes(&p.tracker, r, fmt.Sprintf(
+			"\"import.meta\" is not available in %s and will be empty", where), notes)
 		return
 
 	default:
-		p.log.AddRangeError(&p.source, r,
-			fmt.Sprintf("This feature is not available in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"This feature is not available in %s", where), notes)
 		return
 	}
 
-	p.log.AddRangeError(&p.source, r,
-		fmt.Sprintf("Transforming %s to %s is not supported yet", name, where))
+	p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+		"Transforming %s to %s is not supported yet", name, where), notes)
 	return
 }
 
@@ -179,17 +190,20 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		case js_ast.ImplicitStrictModeClass:
 			why = "All code inside a class is implicitly in strict mode"
 			where = p.enclosingClassKeyword
+		case js_ast.ExplicitStrictMode:
+			why = "Strict mode is triggered by the \"use strict\" directive here"
+			where = p.source.RangeOfString(p.currentScope.UseStrictLoc)
 		}
 		if where.Len > 0 {
 			if why == "" {
 				why = fmt.Sprintf("This file is implicitly in strict mode because of the %q keyword here", p.source.TextForRange(where))
 			}
-			notes = []logger.MsgData{logger.RangeData(&p.source, where, why)}
+			notes = []logger.MsgData{logger.RangeData(&p.tracker, where, why)}
 		}
-		p.log.AddRangeErrorWithNotes(&p.source, r,
+		p.log.AddRangeErrorWithNotes(&p.tracker, r,
 			fmt.Sprintf("%s cannot be used in strict mode", text), notes)
 	} else if !canBeTransformed && p.isStrictModeOutputFormat() {
-		p.log.AddRangeError(&p.source, r,
+		p.log.AddRangeError(&p.tracker, r,
 			fmt.Sprintf("%s cannot be used with the \"esm\" output format due to strict mode", text))
 	}
 }
@@ -299,7 +313,7 @@ func (p *parser) lowerFunction(
 		// Determine the value for "this"
 		thisValue, hasThisValue := p.valueForThis(bodyLoc, false /* shouldWarn */)
 		if !hasThisValue {
-			thisValue = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EThis{}}
+			thisValue = js_ast.Expr{Loc: bodyLoc, Data: js_ast.EThisShared}
 		}
 
 		// Move the code into a nested generator function
@@ -313,20 +327,22 @@ func (p *parser) lowerFunction(
 		// resulting promise, which needs more complex code to handle
 		couldThrowErrors := false
 		for _, arg := range *args {
-			if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok || (arg.Default != nil && couldPotentiallyThrow(arg.Default.Data)) {
+			if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok ||
+				(arg.DefaultOrNil.Data != nil && couldPotentiallyThrow(arg.DefaultOrNil.Data)) {
 				couldThrowErrors = true
 				break
 			}
 		}
 
 		// Forward the arguments to the wrapper function
-		usesArgumentsRef := !isArrow && p.fnOnlyDataVisit.argumentsRef != nil && p.symbolUses[*p.fnOnlyDataVisit.argumentsRef].CountEstimate > 0
+		usesArgumentsRef := !isArrow && p.fnOnlyDataVisit.argumentsRef != nil &&
+			p.symbolUses[*p.fnOnlyDataVisit.argumentsRef].CountEstimate > 0
 		var forwardedArgs js_ast.Expr
 		if !couldThrowErrors && !usesArgumentsRef {
 			// Simple case: the arguments can stay on the outer function. It's
 			// worth separating out the simple case because it's the common case
 			// and it generates smaller code.
-			forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.ENull{}}
+			forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: js_ast.ENullShared}
 		} else {
 			// If code uses "arguments" then we must move the arguments to the inner
 			// function. This is because you can modify arguments by assigning to
@@ -360,7 +376,7 @@ func (p *parser) lowerFunction(
 			//
 			// The "_0" and "_1" are dummy variables to ensure "foo.length" is 2.
 			for i, arg := range fn.Args {
-				if arg.Default != nil || fn.HasRestArg && i+1 == len(fn.Args) {
+				if arg.DefaultOrNil.Data != nil || fn.HasRestArg && i+1 == len(fn.Args) {
 					// Arguments from here on don't add to the "length"
 					break
 				}
@@ -418,7 +434,7 @@ func (p *parser) lowerFunction(
 			forwardedArgs,
 			{Loc: bodyLoc, Data: &js_ast.EFunction{Fn: fn}},
 		})
-		returnStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SReturn{Value: &callAsync}}
+		returnStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SReturn{ValueOrNil: callAsync}}
 
 		// Prepend the "super" index function if necessary
 		if p.fnOrArrowDataVisit.superIndexRef != nil {
@@ -427,15 +443,15 @@ func (p *parser) lowerFunction(
 			superIndexStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SLocal{
 				Decls: []js_ast.Decl{{
 					Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: *p.fnOrArrowDataVisit.superIndexRef}},
-					Value: &js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArrow{
+					ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArrow{
 						Args: []js_ast.Arg{{
 							Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: argRef}},
 						}},
 						Body: js_ast.FnBody{
 							Loc: bodyLoc,
 							Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
-								Value: &js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
-									Target: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.ESuper{}},
+								ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
+									Target: js_ast.Expr{Loc: bodyLoc, Data: js_ast.ESuperShared},
 									Index:  js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: argRef}},
 								}},
 							}}},
@@ -453,7 +469,7 @@ func (p *parser) lowerFunction(
 }
 
 func (p *parser) lowerOptionalChain(expr js_ast.Expr, in exprIn, childOut exprOut) (js_ast.Expr, exprOut) {
-	valueWhenUndefined := js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EUndefined{}}
+	valueWhenUndefined := js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}
 	endsWithPropertyAccess := false
 	containsPrivateName := false
 	startsWithCall := false
@@ -573,7 +589,7 @@ flatten:
 					//
 					//   (_a = super.foo) == null ? void 0 : _a.call(this)
 					//
-					thisArg = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
+					thisArg = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 				} else {
 					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target, valueDefinitelyNotMutated)
 					expr = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
@@ -593,7 +609,7 @@ flatten:
 					}
 
 					// See the comment above about a similar special case for EDot
-					thisArg = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
+					thisArg = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 				} else {
 					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target, valueDefinitelyNotMutated)
 					targetWrapFunc = wrapFunc
@@ -730,7 +746,7 @@ flatten:
 		Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    js_ast.BinOpLooseEq,
 			Left:  expr,
-			Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
+			Right: js_ast.Expr{Loc: loc, Data: js_ast.ENullShared},
 		}},
 		Yes: valueWhenUndefined,
 		No:  result,
@@ -891,7 +907,7 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 		Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    js_ast.BinOpLooseNe,
 			Left:  leftFunc(),
-			Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
+			Right: js_ast.Expr{Loc: loc, Data: js_ast.ENullShared},
 		}},
 		Yes: leftFunc(),
 		No:  right,
@@ -899,19 +915,19 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 }
 
 // Lower object spread for environments that don't support them. Non-spread
-// properties are grouped into object literals and then passed to "__objSpread"
-// like this:
+// properties are grouped into object literals and then passed to the
+// "__spreadValues" and "__spreadProps" functions like this:
 //
-//   "{a, b, ...c, d, e}" => "__objSpread(__objSpread(__objSpread({a, b}, c), {d, e})"
+//   "{a, b, ...c, d, e}" => "__spreadProps(__spreadValues(__spreadProps({a, b}, c), {d, e})"
 //
 // If the object literal starts with a spread, then we pass an empty object
-// literal to "__objSpread" to make sure we clone the object:
+// literal to "__spreadValues" to make sure we clone the object:
 //
-//   "{...a, b}" => "__objSpread(__objSpread({}, a), {b})"
+//   "{...a, b}" => "__spreadProps(__spreadValues({}, a), {b})"
 //
 // It's not immediately obvious why we don't compile everything to a single
-// call to "Object.assign". After all, "Object.assign" can take any number of
-// arguments. The reason is to preserve the order of side effects. Consider
+// call to a function that takes any number of arguments, since that would be
+// shorter. The reason is to preserve the order of side effects. Consider
 // this code:
 //
 //   let a = {
@@ -923,9 +939,9 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 //   let b = {}
 //   let c = {...a, ...b}
 //
-// Converting the above code to "let c = Object.assign({}, a, b)" means "c"
+// Converting the above code to "let c = __spreadFn({}, a, null, b)" means "c"
 // becomes "{x: 1}" which is incorrect. Converting the above code instead to
-// "let c = Object.assign(Object.assign({}, a), b)" means "c" becomes
+// "let c = __spreadProps(__spreadProps({}, a), b)" means "c" becomes
 // "{x: 1, y: 2}" which is correct.
 func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Expr {
 	needsLowering := false
@@ -954,14 +970,14 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 
 		if len(properties) > 0 || result.Data == nil {
 			if result.Data == nil {
-				// "{a, ...b}" => "__objSpread({a}, b)"
+				// "{a, ...b}" => "__spreadValues({a}, b)"
 				result = js_ast.Expr{Loc: loc, Data: &js_ast.EObject{
 					Properties:   properties,
 					IsSingleLine: e.IsSingleLine,
 				}}
 			} else {
-				// "{...a, b, ...c}" => "__objSpread(__objSpread(__objSpread({}, a), {b}), c)"
-				result = p.callRuntime(loc, "__objSpread",
+				// "{...a, b, ...c}" => "__spreadValues(__spreadProps(__spreadValues({}, a), {b}), c)"
+				result = p.callRuntime(loc, "__spreadProps",
 					[]js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
 						Properties:   properties,
 						IsSingleLine: e.IsSingleLine,
@@ -970,13 +986,13 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 			properties = []js_ast.Property{}
 		}
 
-		// "{a, ...b}" => "__objSpread({a}, b)"
-		result = p.callRuntime(loc, "__objSpread", []js_ast.Expr{result, *property.Value})
+		// "{a, ...b}" => "__spreadValues({a}, b)"
+		result = p.callRuntime(loc, "__spreadValues", []js_ast.Expr{result, property.ValueOrNil})
 	}
 
 	if len(properties) > 0 {
-		// "{...a, b}" => "__objSpread(__objSpread({}, a), {b})"
-		result = p.callRuntime(loc, "__objSpread", []js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
+		// "{...a, b}" => "__spreadProps(__spreadValues({}, a), {b})"
+		result = p.callRuntime(loc, "__spreadProps", []js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
 			Properties:   properties,
 			IsSingleLine: e.IsSingleLine,
 		}}})
@@ -1138,7 +1154,7 @@ func exprHasObjectRest(expr js_ast.Expr) bool {
 		}
 	case *js_ast.EObject:
 		for _, property := range e.Properties {
-			if property.Kind == js_ast.PropertySpread || exprHasObjectRest(*property.Value) {
+			if property.Kind == js_ast.PropertySpread || exprHasObjectRest(property.ValueOrNil) {
 				return true
 			}
 		}
@@ -1154,12 +1170,12 @@ func (p *parser) lowerObjectRestInDecls(decls []js_ast.Decl) []js_ast.Decl {
 	// Don't do any allocations if there are no object rest patterns. We want as
 	// little overhead as possible in the common case.
 	for i, decl := range decls {
-		if decl.Value != nil && bindingHasObjectRest(decl.Binding) {
+		if decl.ValueOrNil.Data != nil && bindingHasObjectRest(decl.Binding) {
 			clone := append([]js_ast.Decl{}, decls[:i]...)
 			for _, decl := range decls[i:] {
-				if decl.Value != nil {
+				if decl.ValueOrNil.Data != nil {
 					target := js_ast.ConvertBindingToExpr(decl.Binding, nil)
-					if result, ok := p.lowerObjectRestToDecls(target, *decl.Value, clone); ok {
+					if result, ok := p.lowerObjectRestToDecls(target, decl.ValueOrNil, clone); ok {
 						clone = result
 						continue
 					}
@@ -1198,7 +1214,7 @@ func (p *parser) lowerObjectRestInForLoopInit(init js_ast.Stmt, body *js_ast.Stm
 		// "for (let {...x} of y) {}"
 		if len(s.Decls) == 1 && bindingHasObjectRest(s.Decls[0].Binding) {
 			ref := p.generateTempRef(tempRefNoDeclare, "")
-			decl := js_ast.Decl{Binding: s.Decls[0].Binding, Value: &js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}}
+			decl := js_ast.Decl{Binding: s.Decls[0].Binding, ValueOrNil: js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}}
 			p.recordUsage(ref)
 			decls := p.lowerObjectRestInDecls([]js_ast.Decl{decl})
 			s.Decls[0].Binding.Data = &js_ast.BIdentifier{Ref: ref}
@@ -1223,14 +1239,14 @@ func (p *parser) lowerObjectRestInCatchBinding(catch *js_ast.Catch) {
 		return
 	}
 
-	if catch.Binding != nil && bindingHasObjectRest(*catch.Binding) {
+	if catch.BindingOrNil.Data != nil && bindingHasObjectRest(catch.BindingOrNil) {
 		ref := p.generateTempRef(tempRefNoDeclare, "")
-		decl := js_ast.Decl{Binding: *catch.Binding, Value: &js_ast.Expr{Loc: catch.Binding.Loc, Data: &js_ast.EIdentifier{Ref: ref}}}
+		decl := js_ast.Decl{Binding: catch.BindingOrNil, ValueOrNil: js_ast.Expr{Loc: catch.BindingOrNil.Loc, Data: &js_ast.EIdentifier{Ref: ref}}}
 		p.recordUsage(ref)
 		decls := p.lowerObjectRestInDecls([]js_ast.Decl{decl})
-		catch.Binding.Data = &js_ast.BIdentifier{Ref: ref}
+		catch.BindingOrNil.Data = &js_ast.BIdentifier{Ref: ref}
 		stmts := make([]js_ast.Stmt, 0, 1+len(catch.Body))
-		stmts = append(stmts, js_ast.Stmt{Loc: catch.Binding.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalLet, Decls: decls}})
+		stmts = append(stmts, js_ast.Stmt{Loc: catch.BindingOrNil.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalLet, Decls: decls}})
 		catch.Body = append(stmts, catch.Body...)
 	}
 }
@@ -1313,10 +1329,10 @@ func (p *parser) lowerPrivateInAssign(expr js_ast.Expr) (js_ast.Expr, bool) {
 		}
 
 	case *js_ast.EObject:
-		for _, property := range e.Properties {
-			if property.Value != nil {
-				if value, ok := p.lowerPrivateInAssign(*property.Value); ok {
-					*property.Value = value
+		for i, property := range e.Properties {
+			if property.ValueOrNil.Data != nil {
+				if value, ok := p.lowerPrivateInAssign(property.ValueOrNil); ok {
+					e.Properties[i].ValueOrNil = value
 					didLower = true
 				}
 			}
@@ -1332,7 +1348,7 @@ func (p *parser) lowerObjectRestToDecls(rootExpr js_ast.Expr, rootInit js_ast.Ex
 		if len(invalidLog.invalidTokens) > 0 {
 			panic("Internal error")
 		}
-		decls = append(decls, js_ast.Decl{Binding: binding, Value: &right})
+		decls = append(decls, js_ast.Decl{Binding: binding, ValueOrNil: right})
 	}
 
 	if _, ok := p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNoDeclare, objRestReturnValueIsUnused); ok {
@@ -1378,7 +1394,7 @@ func (p *parser) lowerObjectRestHelper(
 			}
 		case *js_ast.EObject:
 			for _, property := range e.Properties {
-				if property.Kind == js_ast.PropertySpread || findRestBindings(*property.Value) {
+				if property.Kind == js_ast.PropertySpread || findRestBindings(property.ValueOrNil) {
 					found = true
 				}
 			}
@@ -1495,7 +1511,7 @@ func (p *parser) lowerObjectRestHelper(
 		}
 
 		split := &upToSplit[len(upToSplit)-1]
-		binding := split.Value
+		binding := &split.ValueOrNil
 
 		// Swap the binding with a temporary
 		splitRef := p.generateTempRef(declare, "")
@@ -1559,7 +1575,7 @@ func (p *parser) lowerObjectRestHelper(
 
 				// "let {a, ...b} = c"
 				if property.Kind == js_ast.PropertySpread {
-					lowerObjectRestPattern(e.Properties[:i], *property.Value, init, capturedKeys, e.IsSingleLine)
+					lowerObjectRestPattern(e.Properties[:i], property.ValueOrNil, init, capturedKeys, e.IsSingleLine)
 					return
 				}
 
@@ -1571,7 +1587,7 @@ func (p *parser) lowerObjectRestHelper(
 				}
 
 				// "let {a: {...b}, c} = d"
-				if containsRestBinding[property.Value.Data] {
+				if containsRestBinding[property.ValueOrNil.Data] {
 					splitObjectPattern(e.Properties[:i+1], e.Properties[i+1:], init, capturedKeys, e.IsSingleLine)
 					return
 				}
@@ -1899,7 +1915,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		nameToKeep = p.symbols[class.Name.Ref.InnerIndex].OriginalName
 	} else {
 		s, _ := stmt.Data.(*js_ast.SExportDefault)
-		s2, _ := s.Value.Stmt.Data.(*js_ast.SClass)
+		s2, _ := s.Value.Data.(*js_ast.SClass)
 		class = &s2.Class
 		defaultName = s.DefaultName
 		kind = classKindExportDefaultStmt
@@ -1994,7 +2010,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	for _, prop := range class.Properties {
 		// Merge parameter decorators with method decorators
 		if p.options.ts.Parse && prop.IsMethod {
-			if fn, ok := prop.Value.Data.(*js_ast.EFunction); ok {
+			if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
 				isConstructor := false
 				if key, ok := prop.Key.Data.(*js_ast.EString); ok {
 					isConstructor = js_lexer.UTF16EqualsString(key.Value, "constructor")
@@ -2024,7 +2040,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		// strict class field initialization, so we shouldn't either.
 		private, _ := prop.Key.Data.(*js_ast.EPrivateIdentifier)
 		mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
-		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.IsMethod && prop.Initializer == nil &&
+		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.IsMethod && prop.InitializerOrNil.Data == nil &&
 			!classLoweringInfo.useDefineForClassFields && !mustLowerPrivate
 
 		// Class fields must be lowered if the environment doesn't support them
@@ -2132,15 +2148,15 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				if prop.IsStatic {
 					target = nameFunc()
 				} else {
-					target = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
+					target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 				}
 
 				// Generate the assignment initializer
 				var init js_ast.Expr
-				if prop.Initializer != nil {
-					init = *prop.Initializer
+				if prop.InitializerOrNil.Data != nil {
+					init = prop.InitializerOrNil
 				} else {
-					init = js_ast.Expr{Loc: loc, Data: &js_ast.EUndefined{}}
+					init = js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}
 				}
 
 				// Generate the assignment target
@@ -2162,17 +2178,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					p.recordUsage(ref)
 
 					// Add every newly-constructed instance into this map
-					expr = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
-						Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
-							Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
-							Name:    "set",
-							NameLoc: loc,
-						}},
-						Args: []js_ast.Expr{
-							target,
-							init,
-						},
-					}}
+					expr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
+						target,
+						{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
+						init,
+					})
 					p.recordUsage(ref)
 				} else if private == nil && classLoweringInfo.useDefineForClassFields {
 					if _, ok := init.Data.(*js_ast.EUndefined); ok {
@@ -2212,7 +2222,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			}
 
 			// Keep the private field but remove the initializer
-			prop.Initializer = nil
+			prop.InitializerOrNil = js_ast.Expr{}
 		}
 
 		if prop.IsMethod {
@@ -2241,20 +2251,14 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					if prop.IsStatic {
 						target = nameFunc()
 					} else {
-						target = js_ast.Expr{Loc: loc, Data: &js_ast.EThis{}}
+						target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 					}
 
 					// Add every newly-constructed instance into this map
-					expr := js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
-						Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
-							Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
-							Name:    "add",
-							NameLoc: loc,
-						}},
-						Args: []js_ast.Expr{
-							target,
-						},
-					}}
+					expr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
+						target,
+						{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
+					})
 					p.recordUsage(ref)
 
 					// Make sure that adding to the map happens before any field
@@ -2283,11 +2287,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				}
 				privateMembers = append(privateMembers, js_ast.Assign(
 					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: methodRef}},
-					*prop.Value,
+					prop.ValueOrNil,
 				))
 				continue
 			} else if key, ok := prop.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(key.Value, "constructor") {
-				if fn, ok := prop.Value.Data.(*js_ast.EFunction); ok {
+				if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
 					// Remember where the constructor is for later
 					ctor = fn
 
@@ -2298,7 +2302,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 								if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
 									parameterFields = append(parameterFields, js_ast.AssignStmt(
 										js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EDot{
-											Target:  js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EThis{}},
+											Target:  js_ast.Expr{Loc: arg.Binding.Loc, Data: js_ast.EThisShared},
 											Name:    p.symbols[id.Ref.InnerIndex].OriginalName,
 											NameLoc: arg.Binding.Loc,
 										}},
@@ -2328,17 +2332,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 			// Append it to the list to reuse existing allocation space
 			class.Properties = append(class.Properties, js_ast.Property{
-				IsMethod: true,
-				Key:      js_ast.Expr{Loc: classLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("constructor")}},
-				Value:    &js_ast.Expr{Loc: classLoc, Data: ctor},
+				IsMethod:   true,
+				Key:        js_ast.Expr{Loc: classLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("constructor")}},
+				ValueOrNil: js_ast.Expr{Loc: classLoc, Data: ctor},
 			})
 
 			// Make sure the constructor has a super() call if needed
-			if class.Extends != nil {
+			if class.ExtendsOrNil.Data != nil {
 				argumentsRef := p.newSymbol(js_ast.SymbolUnbound, "arguments")
 				p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
 				ctor.Fn.Body.Stmts = append(ctor.Fn.Body.Stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.ECall{
-					Target: js_ast.Expr{Loc: classLoc, Data: &js_ast.ESuper{}},
+					Target: js_ast.Expr{Loc: classLoc, Data: js_ast.ESuperShared},
 					Args:   []js_ast.Expr{{Loc: classLoc, Data: &js_ast.ESpread{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: argumentsRef}}}}},
 				}}}})
 			}
@@ -2361,7 +2365,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 		// Sort the constructor first to match the TypeScript compiler's output
 		for i := 0; i < len(class.Properties); i++ {
-			if class.Properties[i].Value != nil && class.Properties[i].Value.Data == ctor {
+			if class.Properties[i].ValueOrNil.Data == ctor {
 				ctorProp := class.Properties[i]
 				for j := i; j > 0; j-- {
 					class.Properties[j] = class.Properties[j-1]
@@ -2381,6 +2385,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		if didCaptureClassExpr || computedPropertyCache.Data != nil ||
 			len(privateMembers) > 0 || len(staticPrivateMethods) > 0 || len(staticMembers) > 0 {
 			nameToJoin = nameFunc()
+		}
+
+		// Optionally preserve the name
+		if p.options.keepNames && nameToKeep != "" {
+			expr = p.keepExprSymbolName(expr, nameToKeep)
 		}
 
 		// Then join "expr" with any other expressions that apply
@@ -2403,11 +2412,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		}
 		if wrapFunc != nil {
 			expr = wrapFunc(expr)
-		}
-
-		// Optionally preserve the name
-		if p.options.keepNames && nameToKeep != "" {
-			expr = p.keepExprSymbolName(expr, nameToKeep)
 		}
 		return nil, expr
 	}
@@ -2444,7 +2448,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		nameForClassDecorators = js_ast.LocRef{Loc: name.Loc, Ref: nameRef}
 		classExpr := js_ast.EClass{Class: *class}
 		class = &classExpr.Class
-		init := &js_ast.Expr{Loc: classLoc, Data: &classExpr}
+		init := js_ast.Expr{Loc: classLoc, Data: &classExpr}
 
 		if hasPotentialShadowCaptureEscape && len(class.TSDecorators) == 0 {
 			// If something captures the shadowing name and escapes the class body,
@@ -2486,11 +2490,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
 				Kind: p.selectLocalKind(js_ast.LocalConst),
 				Decls: []js_ast.Decl{{
-					Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: captureRef}},
-					Value:   init,
+					Binding:    js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: captureRef}},
+					ValueOrNil: init,
 				}},
 			}})
-			init = &js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: captureRef}}
+			init = js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: captureRef}}
 			p.recordUsage(captureRef)
 		} else {
 			// If there are class decorators, then we actually need to mutate the
@@ -2508,8 +2512,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			Kind:     p.selectLocalKind(js_ast.LocalLet),
 			IsExport: kind == classKindExportStmt,
 			Decls: []js_ast.Decl{{
-				Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: nameRef}},
-				Value:   init,
+				Binding:    js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: nameRef}},
+				ValueOrNil: init,
 			}},
 		}})
 	} else {
@@ -2521,7 +2525,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		case classKindExportDefaultStmt:
 			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExportDefault{
 				DefaultName: defaultName,
-				Value:       js_ast.ExprOrStmt{Stmt: &js_ast.Stmt{Loc: classLoc, Data: &js_ast.SClass{Class: *class}}},
+				Value:       js_ast.Stmt{Loc: classLoc, Data: &js_ast.SClass{Class: *class}},
 			}})
 		}
 
@@ -2530,6 +2534,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		if class.Name != nil && shadowRef != js_ast.InvalidRef {
 			p.mergeSymbols(shadowRef, class.Name.Ref)
 		}
+	}
+	if keepNameStmt.Data != nil {
+		stmts = append(stmts, keepNameStmt)
 	}
 
 	// The official TypeScript compiler adds generated code after the class body
@@ -2575,7 +2582,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			name := nameFunc()
 			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExportDefault{
 				DefaultName: js_ast.LocRef{Loc: defaultName.Loc, Ref: defaultRef},
-				Value:       js_ast.ExprOrStmt{Expr: &name},
+				Value:       js_ast.Stmt{Loc: name.Loc, Data: &js_ast.SExpr{Value: name}},
 			}})
 		}
 
@@ -2584,9 +2591,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		// into a "const" symbol above. Reset it back to empty here now that we
 		// know we won't call "nameFunc" after this point.
 		class.Name = nil
-	}
-	if keepNameStmt.Data != nil {
-		stmts = append(stmts, keepNameStmt)
 	}
 	return stmts, js_ast.Expr{}
 }
@@ -2639,7 +2643,7 @@ func (p *parser) maybeLowerSuperPropertyAccessInsideCall(call *js_ast.ECall) {
 		NameLoc: key.Loc,
 		Name:    "call",
 	}
-	thisExpr := js_ast.Expr{Loc: call.Target.Loc, Data: &js_ast.EThis{}}
+	thisExpr := js_ast.Expr{Loc: call.Target.Loc, Data: js_ast.EThisShared}
 	call.Args = append([]js_ast.Expr{thisExpr}, call.Args...)
 }
 

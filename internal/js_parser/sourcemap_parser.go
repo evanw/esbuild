@@ -18,8 +18,9 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	}
 
 	obj, ok := expr.Data.(*js_ast.EObject)
+	tracker := logger.MakeLineColumnTracker(&source)
 	if !ok {
-		log.AddError(&source, expr.Loc, "Invalid source map")
+		log.AddError(&tracker, expr.Loc, "Invalid source map")
 		return nil
 	}
 
@@ -34,22 +35,22 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 
 		switch js_lexer.UTF16ToString(prop.Key.Data.(*js_ast.EString).Value) {
 		case "sections":
-			log.AddRangeWarning(&source, keyRange, "Source maps with \"sections\" are not supported")
+			log.AddRangeWarning(&tracker, keyRange, "Source maps with \"sections\" are not supported")
 			return nil
 
 		case "version":
-			if value, ok := prop.Value.Data.(*js_ast.ENumber); ok && value.Value == 3 {
+			if value, ok := prop.ValueOrNil.Data.(*js_ast.ENumber); ok && value.Value == 3 {
 				hasVersion = true
 			}
 
 		case "mappings":
-			if value, ok := prop.Value.Data.(*js_ast.EString); ok {
+			if value, ok := prop.ValueOrNil.Data.(*js_ast.EString); ok {
 				mappingsRaw = value.Value
-				mappingsStart = prop.Value.Loc.Start + 1
+				mappingsStart = prop.ValueOrNil.Loc.Start + 1
 			}
 
 		case "sources":
-			if value, ok := prop.Value.Data.(*js_ast.EArray); ok {
+			if value, ok := prop.ValueOrNil.Data.(*js_ast.EArray); ok {
 				sources = nil
 				for _, item := range value.Items {
 					if element, ok := item.Data.(*js_ast.EString); ok {
@@ -61,7 +62,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 			}
 
 		case "sourcesContent":
-			if value, ok := prop.Value.Data.(*js_ast.EArray); ok {
+			if value, ok := prop.ValueOrNil.Data.(*js_ast.EArray); ok {
 				sourcesContent = nil
 				for _, item := range value.Items {
 					if element, ok := item.Data.(*js_ast.EString); ok {
@@ -217,7 +218,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 
 	if errorText != "" {
 		r := logger.Range{Loc: logger.Loc{Start: mappingsStart + int32(current)}, Len: int32(errorLen)}
-		log.AddRangeWarning(&source, r,
+		log.AddRangeWarning(&tracker, r,
 			fmt.Sprintf("Bad \"mappings\" data in source map at character %d: %s", current, errorText))
 		return nil
 	}

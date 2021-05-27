@@ -579,17 +579,17 @@ let buildTests = {
     assert.deepStrictEqual(value.outputFiles.length, 3)
     assert.deepStrictEqual(value.outputFiles[0].path, path.join(outdir, 'a', 'in1.js'))
     assert.deepStrictEqual(value.outputFiles[1].path, path.join(outdir, 'b', 'in2.js'))
-    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk-JFWYZSOB.js'))
+    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk-22JQAFLY.js'))
     assert.deepStrictEqual(value.outputFiles[0].text, `import {
   foo
-} from "https://www.example.com/assets/chunk-JFWYZSOB.js";
+} from "https://www.example.com/assets/chunk-22JQAFLY.js";
 export {
   foo as input1
 };
 `)
     assert.deepStrictEqual(value.outputFiles[1].text, `import {
   foo
-} from "https://www.example.com/assets/chunk-JFWYZSOB.js";
+} from "https://www.example.com/assets/chunk-22JQAFLY.js";
 export {
   foo as input2
 };
@@ -826,7 +826,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk-LJJNJUOL.js';
+    const chunk = 'chunk-YNV25ITT.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
@@ -890,7 +890,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk-GIKHG2FZ.js';
+    const chunk = 'chunk-MDV3DDWZ.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
@@ -956,10 +956,10 @@ body {
     const inImport1 = makeInPath(import1);
     const inImport2 = makeInPath(import2);
     const inShared = makeInPath(shared);
-    const chunk = 'chunk-M3UIZNA6.js';
+    const chunk = 'chunk-3GRHLZ7X.js';
     const outEntry = makeOutPath(path.relative(testDir, entry));
-    const outImport1 = makeOutPath('import1-HDYVZ7NF.js');
-    const outImport2 = makeOutPath('import2-NBRXROVG.js');
+    const outImport1 = makeOutPath('import1-SELM3ZIG.js');
+    const outImport2 = makeOutPath('import2-3GSTEHBF.js');
     const outChunk = makeOutPath(chunk);
 
     assert.deepStrictEqual(json.inputs[inEntry], {
@@ -1344,7 +1344,7 @@ body {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunk-EUXSFQEB.js'
+    const chunk = 'chunk-P3NHLAOZ.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
 } from "./${chunk}";
@@ -1401,7 +1401,7 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunk-O2E3MTYM.js'
+    const chunk = 'chunk-BPDO6GL2.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
 } from "../${chunk}";
@@ -1459,7 +1459,7 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunks/name=chunk/hash=CHYWWIG3.js'
+    const chunk = 'chunks/name=chunk/hash=7RIY4OCQ.js'
     assert.strictEqual(value.outputFiles[0].text, `import {
   common_default
 } from "../${chunk}";
@@ -1518,7 +1518,7 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunks/name=chunk/hash=Q52CWN2F.js'
+    const chunk = 'chunks/name=chunk/hash=6VLJRT45.js'
     assert.strictEqual(value.outputFiles[0].text, `import {
   common_default
 } from "../../${chunk}";
@@ -1534,15 +1534,15 @@ console.log("a" + common_default.name);
 console.log("b" + common_default.name);
 `)
     assert.strictEqual(value.outputFiles[2].text, `// scripts/.js-api-tests/splittingWithEntryHashes/common.js
-var common_default = {name: "common"};
+var common_default = { name: "common" };
 
 export {
   common_default
 };
 `)
 
-    const outputA = 'entry/name=demo/hash=XVIIHBIC.js'
-    const outputB = 'entry/name=demo/hash=VXSEQP3F.js'
+    const outputA = 'entry/name=demo/hash=ZKX5HN4L.js'
+    const outputB = 'entry/name=demo/hash=TYTZIN4P.js'
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, outputA))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, outputB))
     assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
@@ -1967,11 +1967,10 @@ console.log("success");
       write: false,
       bundle: true,
       external: ['/assets/*.png'],
+      platform: 'node',
     })
-    assert.strictEqual(outputFiles[0].text, `(() => {
-  // <stdin>
-  require("/assets/file.png");
-})();
+    assert.strictEqual(outputFiles[0].text, `// <stdin>
+require("/assets/file.png");
 `)
   },
 
@@ -2352,8 +2351,8 @@ console.log("success");
       write: false,
     })
     assert.strictEqual(outputFiles.length, 2)
-    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', 'LDM7WUFR-1.cjs.js'))
-    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', '74SLWWSF-2.mjs.js'))
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', '4UQMP3ZH-1.cjs.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'ACBA75F5-2.mjs.js'))
   },
 
   async customEntryPointOutputPathsAbs({ esbuild, testDir }) {
@@ -2373,8 +2372,8 @@ console.log("success");
       write: false,
     })
     assert.strictEqual(outputFiles.length, 2)
-    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', 'MQUIWIER-1.js'))
-    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'ATGPBOSJ-2.js'))
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', 'MYINLEYF-1.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'R2MEQS4G-2.js'))
   },
 }
 
@@ -3046,7 +3045,7 @@ let transformTests = {
       },
       loader: 'ts',
     })
-    assert.strictEqual(code, `import {T} from "path";\n`)
+    assert.strictEqual(code, `import { T } from "path";\n`)
   },
 
   async tsconfigRawPreserveUnusedImportsMinifyIdentifiers({ esbuild }) {
@@ -3071,7 +3070,7 @@ let transformTests = {
       },
       loader: 'js',
     })
-    assert.strictEqual(code, `import {T} from "path";\n`)
+    assert.strictEqual(code, `import { T } from "path";\n`)
   },
 
   async tsconfigRawCommentsInJSON({ esbuild }) {
@@ -3084,7 +3083,7 @@ let transformTests = {
       }`,
       loader: 'ts',
     })
-    assert.strictEqual(code5, `import {T} from "path";\n`)
+    assert.strictEqual(code5, `import { T } from "path";\n`)
   },
 
   async tsconfigRawImportsNotUsedAsValues({ esbuild }) {
@@ -3218,7 +3217,7 @@ let transformTests = {
 
   async cjs_require({ esbuild }) {
     const { code } = await esbuild.transform(`const {foo} = require('path')`, {})
-    assert.strictEqual(code, `const {foo} = require("path");\n`)
+    assert.strictEqual(code, `const { foo } = require("path");\n`)
   },
 
   async cjs_exports({ esbuild }) {
@@ -3228,7 +3227,7 @@ let transformTests = {
 
   async es6_import({ esbuild }) {
     const { code } = await esbuild.transform(`import {foo} from 'path'`, {})
-    assert.strictEqual(code, `import {foo} from "path";\n`)
+    assert.strictEqual(code, `import { foo } from "path";\n`)
   },
 
   async es6_export({ esbuild }) {
@@ -3297,7 +3296,7 @@ let transformTests = {
 
   async es6_import_to_esm({ esbuild }) {
     const { code } = await esbuild.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'esm' })
-    assert.strictEqual(code, `import {exists} from "fs";\nif (!exists)\n  throw "fail";\n`)
+    assert.strictEqual(code, `import { exists } from "fs";\nif (!exists)\n  throw "fail";\n`)
   },
 
   async es6_import_star_to_esm({ esbuild }) {
@@ -3307,7 +3306,7 @@ let transformTests = {
 
   async es6_export_to_esm({ esbuild }) {
     const { code } = await esbuild.transform(`export {exists} from "fs"`, { format: 'esm' })
-    assert.strictEqual(code, `import {exists} from "fs";\nexport {\n  exists\n};\n`)
+    assert.strictEqual(code, `import { exists } from "fs";\nexport {\n  exists\n};\n`)
   },
 
   async es6_export_star_to_esm({ esbuild }) {
@@ -3374,6 +3373,16 @@ let transformTests = {
     assert.strictEqual(code, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)
   },
 
+  async jsxTransform({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'transform' })
+    assert.strictEqual(code, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)
+  },
+
+  async jsxPreserve({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'preserve' })
+    assert.strictEqual(code, `console.log(<div />);\n`)
+  },
+
   async ts({ esbuild }) {
     const { code } = await esbuild.transform(`enum Foo { FOO }`, { loader: 'ts' })
     assert.strictEqual(code, `var Foo;\n(function(Foo2) {\n  Foo2[Foo2["FOO"] = 0] = "FOO";\n})(Foo || (Foo = {}));\n`)
@@ -3403,7 +3412,7 @@ let transformTests = {
 
   async json({ esbuild }) {
     const { code } = await esbuild.transform(`{ "x": "y" }`, { loader: 'json' })
-    assert.strictEqual(code, `module.exports = {x: "y"};\n`)
+    assert.strictEqual(code, `module.exports = { x: "y" };\n`)
   },
 
   async jsonMinified({ esbuild }) {
@@ -3415,13 +3424,13 @@ let transformTests = {
 
   async jsonESM({ esbuild }) {
     const { code } = await esbuild.transform(`{ "x": "y" }`, { loader: 'json', format: 'esm' })
-    assert.strictEqual(code, `var x = "y";\nvar stdin_default = {x};\nexport {\n  stdin_default as default,\n  x\n};\n`)
+    assert.strictEqual(code, `var x = "y";\nvar stdin_default = { x };\nexport {\n  stdin_default as default,\n  x\n};\n`)
   },
 
   async jsonInvalidIdentifierStart({ esbuild }) {
     // This character is a valid "ID_Continue" but not a valid "ID_Start" so it must be quoted
     const { code } = await esbuild.transform(`{ "\\uD835\\uDFCE": "y" }`, { loader: 'json' })
-    assert.strictEqual(code, `module.exports = {"\\u{1D7CE}": "y"};\n`)
+    assert.strictEqual(code, `module.exports = { "\\u{1D7CE}": "y" };\n`)
   },
 
   async text({ esbuild }) {

@@ -223,6 +223,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 		PrettyPath: r.PrettyPath(keyPath),
 		Contents:   contents,
 	}
+	tracker := logger.MakeLineColumnTracker(&jsonSource)
 
 	json, ok := r.caches.JSONCache.Parse(r.log, jsonSource, js_parser.JSONOptions{})
 	if !ok {
@@ -240,11 +241,11 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 			case "module":
 				packageJSON.moduleType = config.ModuleESM
 			default:
-				r.log.AddRangeWarning(&jsonSource, jsonSource.RangeOfString(typeJSON.Loc),
+				r.log.AddRangeWarning(&tracker, jsonSource.RangeOfString(typeJSON.Loc),
 					fmt.Sprintf("%q is not a valid value for the \"type\" field (must be either \"commonjs\" or \"module\")", typeValue))
 			}
 		} else {
-			r.log.AddWarning(&jsonSource, typeJSON.Loc,
+			r.log.AddWarning(&tracker, typeJSON.Loc,
 				"The value for \"type\" must be a string")
 		}
 	}
@@ -284,17 +285,17 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 
 			// Remap all files in the browser field
 			for _, prop := range browser.Properties {
-				if key, ok := getString(prop.Key); ok && prop.Value != nil {
-					if value, ok := getString(*prop.Value); ok {
+				if key, ok := getString(prop.Key); ok && prop.ValueOrNil.Data != nil {
+					if value, ok := getString(prop.ValueOrNil); ok {
 						// If this is a string, it's a replacement package
 						browserMap[key] = &value
-					} else if value, ok := getBool(*prop.Value); ok {
+					} else if value, ok := getBool(prop.ValueOrNil); ok {
 						// If this is false, it means the package is disabled
 						if !value {
 							browserMap[key] = nil
 						}
 					} else {
-						r.log.AddWarning(&jsonSource, prop.Value.Loc,
+						r.log.AddWarning(&tracker, prop.ValueOrNil.Loc,
 							"Each \"browser\" mapping must be a string or a boolean")
 					}
 				}
@@ -331,7 +332,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 			for _, itemJSON := range data.Items {
 				item, ok := itemJSON.Data.(*js_ast.EString)
 				if !ok || item.Value == nil {
-					r.log.AddWarning(&jsonSource, itemJSON.Loc,
+					r.log.AddWarning(&tracker, itemJSON.Loc,
 						"Expected string in array for \"sideEffects\"")
 					continue
 				}
@@ -355,7 +356,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 			}
 
 		default:
-			r.log.AddWarning(&jsonSource, sideEffectsJSON.Loc,
+			r.log.AddWarning(&tracker, sideEffectsJSON.Loc,
 				"The value for \"sideEffects\" must be a boolean or an array")
 		}
 	}
@@ -483,6 +484,7 @@ func (entry peEntry) valueForKey(key string) (peEntry, bool) {
 
 func parseExportsMap(source logger.Source, log logger.Log, json js_ast.Expr) *peMap {
 	var visit func(expr js_ast.Expr) peEntry
+	tracker := logger.MakeLineColumnTracker(&source)
 
 	visit = func(expr js_ast.Expr) peEntry {
 		var firstToken logger.Range
@@ -530,9 +532,9 @@ func parseExportsMap(source logger.Source, log logger.Log, json js_ast.Expr) *pe
 					isConditionalSugar = curIsConditionalSugar
 				} else if isConditionalSugar != curIsConditionalSugar {
 					prevEntry := mapData[i-1]
-					log.AddRangeWarningWithNotes(&source, keyRange,
+					log.AddRangeWarningWithNotes(&tracker, keyRange,
 						"This object cannot contain keys that both start with \".\" and don't start with \".\"",
-						[]logger.MsgData{logger.RangeData(&source, prevEntry.keyRange,
+						[]logger.MsgData{logger.RangeData(&tracker, prevEntry.keyRange,
 							fmt.Sprintf("The previous key %q is incompatible with the current key %q", prevEntry.key, key))})
 					return peEntry{
 						kind:       peInvalid,
@@ -543,7 +545,7 @@ func parseExportsMap(source logger.Source, log logger.Log, json js_ast.Expr) *pe
 				entry := peMapEntry{
 					key:      key,
 					keyRange: keyRange,
-					value:    visit(*property.Value),
+					value:    visit(property.ValueOrNil),
 				}
 
 				if strings.HasSuffix(key, "/") || strings.HasSuffix(key, "*") {
@@ -574,7 +576,7 @@ func parseExportsMap(source logger.Source, log logger.Log, json js_ast.Expr) *pe
 			firstToken.Loc = expr.Loc
 		}
 
-		log.AddRangeWarning(&source, firstToken, "This value must be a string, an object, an array, or null")
+		log.AddRangeWarning(&tracker, firstToken, "This value must be a string, an object, an array, or null")
 		return peEntry{
 			kind:       peInvalid,
 			firstToken: firstToken,

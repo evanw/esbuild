@@ -60,8 +60,9 @@ func (kind ImportKind) IsFromCSS() bool {
 }
 
 type ImportRecord struct {
-	Range logger.Range
-	Path  logger.Path
+	Range      logger.Range
+	Path       logger.Path
+	Assertions *[]AssertEntry
 
 	// The resolved source index for an internal import (within the bundle) or
 	// nil for an external import (not included in the bundle)
@@ -88,6 +89,9 @@ type ImportRecord struct {
 	// Tell the printer to wrap this call to "require()" in "__toModule(...)"
 	WrapWithToModule bool
 
+	// Tell the printer to use the runtime "__require()" instead of "require()"
+	CallRuntimeRequire bool
+
 	// True for the following cases:
 	//
 	//   try { require('x') } catch { handle }
@@ -112,6 +116,14 @@ type ImportRecord struct {
 	DynamicExpressionModulePath string
 
 	Kind ImportKind
+}
+
+type AssertEntry struct {
+	Key             []uint16 // An identifier or a string
+	Value           []uint16 // Always a string
+	KeyLoc          logger.Loc
+	ValueLoc        logger.Loc
+	PreferQuotedKey bool
 }
 
 // This stores a 32-bit index where the zero value is an invalid index. This is

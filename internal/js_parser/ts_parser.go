@@ -833,7 +833,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 
 		// Parse the name
 		if p.lexer.Token == js_lexer.TStringLiteral {
-			value.Name = p.lexer.StringLiteral
+			value.Name = p.lexer.StringLiteral()
 		} else if p.lexer.IsIdentifierOrKeyword() {
 			value.Name = js_lexer.StringToUTF16(p.lexer.Identifier)
 		} else {
@@ -849,8 +849,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 		// Parse the initializer
 		if p.lexer.Token == js_lexer.TEquals {
 			p.lexer.Next()
-			initializer := p.parseExpr(js_ast.LComma)
-			value.Value = &initializer
+			value.ValueOrNil = p.parseExpr(js_ast.LComma)
 		}
 
 		values = append(values, value)
@@ -934,7 +933,7 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 	if name == "require" && p.lexer.Token == js_lexer.TOpenParen {
 		// "import ns = require('x')"
 		p.lexer.Next()
-		path := js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral}}
+		path := js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral()}}
 		p.lexer.Expect(js_lexer.TStringLiteral)
 		p.lexer.Expect(js_lexer.TCloseParen)
 		value.Data = &js_ast.ECall{
@@ -956,10 +955,17 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 	}
 
 	p.lexer.ExpectOrInsertSemicolon()
+
+	if opts.isTypeScriptDeclare {
+		// "import type foo = require('bar');"
+		// "import type foo = bar.baz;"
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+	}
+
 	ref := p.declareSymbol(js_ast.SymbolConst, defaultNameLoc, defaultName)
 	decls := []js_ast.Decl{{
-		Binding: js_ast.Binding{Loc: defaultNameLoc, Data: &js_ast.BIdentifier{Ref: ref}},
-		Value:   &value,
+		Binding:    js_ast.Binding{Loc: defaultNameLoc, Data: &js_ast.BIdentifier{Ref: ref}},
+		ValueOrNil: value,
 	}}
 
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{

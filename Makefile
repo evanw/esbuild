@@ -52,7 +52,7 @@ test-wasm-browser: platform-wasm | scripts/browser/node_modules
 	cd scripts/browser && node browser-tests.js
 
 test-deno: esbuild platform-deno
-	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno run --allow-run --allow-env --allow-net --allow-read --allow-write scripts/deno-tests.js
+	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno test --allow-run --allow-env --allow-net --allow-read --allow-write --no-check scripts/deno-tests.js
 
 register-test: cmd/esbuild/version.go | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
@@ -273,8 +273,8 @@ publish-neutral: platform-neutral
 	test -n "$(OTP)" && cd npm/esbuild && npm publish --otp="$(OTP)"
 
 publish-deno:
-	test -f deno/.git || (rm -fr deno && git clone git@github.com:esbuild/deno-esbuild.git deno)
-	cd deno && git fetch && git reset --hard origin/main
+	test -d deno/.git || (rm -fr deno && git clone git@github.com:esbuild/deno-esbuild.git deno)
+	cd deno && git fetch && git checkout main && git reset --hard origin/main
 	make platform-deno
 	cd deno && git commit -am "publish $(ESBUILD_VERSION) to deno"
 	cd deno && git tag "v$(ESBUILD_VERSION)"
@@ -398,7 +398,7 @@ TEST_ROLLUP_FLAGS += src/node-entry.ts
 
 github/rollup:
 	mkdir -p github
-	git clone --depth 1 --branch v2.15.0 https://github.com/rollup/rollup.git github/rollup
+	git clone --depth 1 --branch v2.50.1 https://github.com/rollup/rollup.git github/rollup
 
 demo/rollup: | github/rollup
 	mkdir -p demo
@@ -478,8 +478,9 @@ demo/esprima: | github/esprima
 	cd demo/esprima && npm ci
 
 test-esprima: esbuild | demo/esprima
-	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node && npm run all-tests
-	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node --minify && npm run all-tests
+	echo {} > demo/esprima/ts.json # Avoid "target: ES5" in "tsconfig.json"
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node --tsconfig=ts.json && npm run all-tests
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node --tsconfig=ts.json --minify && npm run all-tests
 
 ################################################################################
 # This runs terser's test suite through esbuild
@@ -711,9 +712,11 @@ bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-webpack5 bench-rome
 bench-rome-esbuild: esbuild | bench/rome bench/rome-verify
 	rm -fr bench/rome/esbuild
 	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node --timing
-	du -h bench/rome/esbuild/rome.esbuild.js*
-	shasum bench/rome/esbuild/rome.esbuild.js*
-	cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
+	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node --timing
+	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node --timing
+	# du -h bench/rome/esbuild/rome.esbuild.js*
+	# shasum bench/rome/esbuild/rome.esbuild.js*
+	# cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
 
 ROME_WEBPACK_CONFIG += module.exports = {
 ROME_WEBPACK_CONFIG +=   entry: './src/entry.ts',
@@ -817,16 +820,12 @@ bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
 	# Inject aliases into "package.json" to fix Parcel 2 ignoring "tsconfig.json".
 	# Also inject "engines": "node" to avoid Parcel 2 mangling node globals.
 	cat require/parcel2/package.json | sed '/^\}/d' > bench/rome/parcel2/package.json
-	echo ', "engines": { "node": "0.0.0" }' >> bench/rome/parcel2/package.json
+	echo ', "engines": { "node": "14.0.0" }' >> bench/rome/parcel2/package.json
 	echo ', $(ROME_PARCEL_ALIASES) }' >> bench/rome/parcel2/package.json
 
-	# Work around a bug that causes the resulting bundle to crash when run.
-	# See https://github.com/parcel-bundler/parcel/issues/1762 for more info.
-	echo 'import "regenerator-runtime/runtime"; import "./entry.ts"' > bench/rome/parcel2/rome.parcel.ts
-
-	cd bench/rome/parcel2 && time -p node_modules/.bin/parcel build rome.parcel.ts --dist-dir . --cache-dir .cache
-	du -h bench/rome/parcel2/rome.parcel.js*
-	cd bench/rome-verify && rm -fr parcel2 && ROME_CACHE=0 node ../rome/parcel2/rome.parcel.js bundle packages/rome parcel2
+	cd bench/rome/parcel2 && time -p node_modules/.bin/parcel build entry.ts --dist-dir . --cache-dir .cache
+	du -h bench/rome/parcel2/entry.js*
+	cd bench/rome-verify && rm -fr parcel2 && ROME_CACHE=0 node ../rome/parcel2/entry.js bundle packages/rome parcel2
 
 ################################################################################
 # React admin benchmark (measures performance of an application-like setup)

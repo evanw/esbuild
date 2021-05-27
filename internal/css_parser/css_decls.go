@@ -1,279 +1,9 @@
 package css_parser
 
 import (
-	"fmt"
-	"math"
-	"strconv"
-	"strings"
-
-	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
-
-// These names are shorter than their hex codes
-var shortColorName = map[uint32]string{
-	0x000080ff: "navy",
-	0x008000ff: "green",
-	0x008080ff: "teal",
-	0x4b0082ff: "indigo",
-	0x800000ff: "maroon",
-	0x800080ff: "purple",
-	0x808000ff: "olive",
-	0x808080ff: "gray",
-	0xa0522dff: "sienna",
-	0xa52a2aff: "brown",
-	0xc0c0c0ff: "silver",
-	0xcd853fff: "peru",
-	0xd2b48cff: "tan",
-	0xda70d6ff: "orchid",
-	0xdda0ddff: "plum",
-	0xee82eeff: "violet",
-	0xf0e68cff: "khaki",
-	0xf0ffffff: "azure",
-	0xf5deb3ff: "wheat",
-	0xf5f5dcff: "beige",
-	0xfa8072ff: "salmon",
-	0xfaf0e6ff: "linen",
-	0xff0000ff: "red",
-	0xff6347ff: "tomato",
-	0xff7f50ff: "coral",
-	0xffa500ff: "orange",
-	0xffc0cbff: "pink",
-	0xffd700ff: "gold",
-	0xffe4c4ff: "bisque",
-	0xfffafaff: "snow",
-	0xfffff0ff: "ivory",
-}
-
-var colorNameToHex = map[string]uint32{
-	"black":                0x000000ff,
-	"silver":               0xc0c0c0ff,
-	"gray":                 0x808080ff,
-	"white":                0xffffffff,
-	"maroon":               0x800000ff,
-	"red":                  0xff0000ff,
-	"purple":               0x800080ff,
-	"fuchsia":              0xff00ffff,
-	"green":                0x008000ff,
-	"lime":                 0x00ff00ff,
-	"olive":                0x808000ff,
-	"yellow":               0xffff00ff,
-	"navy":                 0x000080ff,
-	"blue":                 0x0000ffff,
-	"teal":                 0x008080ff,
-	"aqua":                 0x00ffffff,
-	"orange":               0xffa500ff,
-	"aliceblue":            0xf0f8ffff,
-	"antiquewhite":         0xfaebd7ff,
-	"aquamarine":           0x7fffd4ff,
-	"azure":                0xf0ffffff,
-	"beige":                0xf5f5dcff,
-	"bisque":               0xffe4c4ff,
-	"blanchedalmond":       0xffebcdff,
-	"blueviolet":           0x8a2be2ff,
-	"brown":                0xa52a2aff,
-	"burlywood":            0xdeb887ff,
-	"cadetblue":            0x5f9ea0ff,
-	"chartreuse":           0x7fff00ff,
-	"chocolate":            0xd2691eff,
-	"coral":                0xff7f50ff,
-	"cornflowerblue":       0x6495edff,
-	"cornsilk":             0xfff8dcff,
-	"crimson":              0xdc143cff,
-	"cyan":                 0x00ffffff,
-	"darkblue":             0x00008bff,
-	"darkcyan":             0x008b8bff,
-	"darkgoldenrod":        0xb8860bff,
-	"darkgray":             0xa9a9a9ff,
-	"darkgreen":            0x006400ff,
-	"darkgrey":             0xa9a9a9ff,
-	"darkkhaki":            0xbdb76bff,
-	"darkmagenta":          0x8b008bff,
-	"darkolivegreen":       0x556b2fff,
-	"darkorange":           0xff8c00ff,
-	"darkorchid":           0x9932ccff,
-	"darkred":              0x8b0000ff,
-	"darksalmon":           0xe9967aff,
-	"darkseagreen":         0x8fbc8fff,
-	"darkslateblue":        0x483d8bff,
-	"darkslategray":        0x2f4f4fff,
-	"darkslategrey":        0x2f4f4fff,
-	"darkturquoise":        0x00ced1ff,
-	"darkviolet":           0x9400d3ff,
-	"deeppink":             0xff1493ff,
-	"deepskyblue":          0x00bfffff,
-	"dimgray":              0x696969ff,
-	"dimgrey":              0x696969ff,
-	"dodgerblue":           0x1e90ffff,
-	"firebrick":            0xb22222ff,
-	"floralwhite":          0xfffaf0ff,
-	"forestgreen":          0x228b22ff,
-	"gainsboro":            0xdcdcdcff,
-	"ghostwhite":           0xf8f8ffff,
-	"gold":                 0xffd700ff,
-	"goldenrod":            0xdaa520ff,
-	"greenyellow":          0xadff2fff,
-	"grey":                 0x808080ff,
-	"honeydew":             0xf0fff0ff,
-	"hotpink":              0xff69b4ff,
-	"indianred":            0xcd5c5cff,
-	"indigo":               0x4b0082ff,
-	"ivory":                0xfffff0ff,
-	"khaki":                0xf0e68cff,
-	"lavender":             0xe6e6faff,
-	"lavenderblush":        0xfff0f5ff,
-	"lawngreen":            0x7cfc00ff,
-	"lemonchiffon":         0xfffacdff,
-	"lightblue":            0xadd8e6ff,
-	"lightcoral":           0xf08080ff,
-	"lightcyan":            0xe0ffffff,
-	"lightgoldenrodyellow": 0xfafad2ff,
-	"lightgray":            0xd3d3d3ff,
-	"lightgreen":           0x90ee90ff,
-	"lightgrey":            0xd3d3d3ff,
-	"lightpink":            0xffb6c1ff,
-	"lightsalmon":          0xffa07aff,
-	"lightseagreen":        0x20b2aaff,
-	"lightskyblue":         0x87cefaff,
-	"lightslategray":       0x778899ff,
-	"lightslategrey":       0x778899ff,
-	"lightsteelblue":       0xb0c4deff,
-	"lightyellow":          0xffffe0ff,
-	"limegreen":            0x32cd32ff,
-	"linen":                0xfaf0e6ff,
-	"magenta":              0xff00ffff,
-	"mediumaquamarine":     0x66cdaaff,
-	"mediumblue":           0x0000cdff,
-	"mediumorchid":         0xba55d3ff,
-	"mediumpurple":         0x9370dbff,
-	"mediumseagreen":       0x3cb371ff,
-	"mediumslateblue":      0x7b68eeff,
-	"mediumspringgreen":    0x00fa9aff,
-	"mediumturquoise":      0x48d1ccff,
-	"mediumvioletred":      0xc71585ff,
-	"midnightblue":         0x191970ff,
-	"mintcream":            0xf5fffaff,
-	"mistyrose":            0xffe4e1ff,
-	"moccasin":             0xffe4b5ff,
-	"navajowhite":          0xffdeadff,
-	"oldlace":              0xfdf5e6ff,
-	"olivedrab":            0x6b8e23ff,
-	"orangered":            0xff4500ff,
-	"orchid":               0xda70d6ff,
-	"palegoldenrod":        0xeee8aaff,
-	"palegreen":            0x98fb98ff,
-	"paleturquoise":        0xafeeeeff,
-	"palevioletred":        0xdb7093ff,
-	"papayawhip":           0xffefd5ff,
-	"peachpuff":            0xffdab9ff,
-	"peru":                 0xcd853fff,
-	"pink":                 0xffc0cbff,
-	"plum":                 0xdda0ddff,
-	"powderblue":           0xb0e0e6ff,
-	"rosybrown":            0xbc8f8fff,
-	"royalblue":            0x4169e1ff,
-	"saddlebrown":          0x8b4513ff,
-	"salmon":               0xfa8072ff,
-	"sandybrown":           0xf4a460ff,
-	"seagreen":             0x2e8b57ff,
-	"seashell":             0xfff5eeff,
-	"sienna":               0xa0522dff,
-	"skyblue":              0x87ceebff,
-	"slateblue":            0x6a5acdff,
-	"slategray":            0x708090ff,
-	"slategrey":            0x708090ff,
-	"snow":                 0xfffafaff,
-	"springgreen":          0x00ff7fff,
-	"steelblue":            0x4682b4ff,
-	"tan":                  0xd2b48cff,
-	"thistle":              0xd8bfd8ff,
-	"tomato":               0xff6347ff,
-	"turquoise":            0x40e0d0ff,
-	"violet":               0xee82eeff,
-	"wheat":                0xf5deb3ff,
-	"whitesmoke":           0xf5f5f5ff,
-	"yellowgreen":          0x9acd32ff,
-	"rebeccapurple":        0x663399ff,
-}
-
-func parseHex(text string) (uint32, bool) {
-	hex := uint32(0)
-	for _, c := range text {
-		hex <<= 4
-		switch {
-		case c >= '0' && c <= '9':
-			hex |= uint32(c) - '0'
-		case c >= 'a' && c <= 'f':
-			hex |= uint32(c) - ('a' - 10)
-		case c >= 'A' && c <= 'F':
-			hex |= uint32(c) - ('A' - 10)
-		default:
-			return 0, false
-		}
-	}
-	return hex, true
-}
-
-// 0xAABBCCDD => 0xABCD
-func compactHex(v uint32) uint32 {
-	return ((v & 0x0FF00000) >> 12) | ((v & 0x00000FF0) >> 4)
-}
-
-// 0xABCD => 0xAABBCCDD
-func expandHex(v uint32) uint32 {
-	return ((v & 0xF000) << 16) | ((v & 0xFF00) << 12) | ((v & 0x0FF0) << 8) | ((v & 0x00FF) << 4) | (v & 0x000F)
-}
-
-func hexR(v uint32) int { return int(v >> 24) }
-func hexG(v uint32) int { return int((v >> 16) & 255) }
-func hexB(v uint32) int { return int((v >> 8) & 255) }
-func hexA(v uint32) int { return int(v & 255) }
-
-func floatToString(a float64) string {
-	text := fmt.Sprintf("%.03f", a)
-	for text[len(text)-1] == '0' {
-		text = text[:len(text)-1]
-	}
-	if text[len(text)-1] == '.' {
-		text = text[:len(text)-1]
-	}
-	return text
-}
-
-func degreesForAngle(token css_ast.Token) (float64, bool) {
-	switch token.Kind {
-	case css_lexer.TNumber:
-		if value, err := strconv.ParseFloat(token.Text, 64); err == nil {
-			return value, true
-		}
-
-	case css_lexer.TDimension:
-		if value, err := strconv.ParseFloat(token.DimensionValue(), 64); err == nil {
-			switch token.DimensionUnit() {
-			case "deg":
-				return value, true
-			case "grad":
-				return value * (360.0 / 400.0), true
-			case "rad":
-				return value * (180.0 / math.Pi), true
-			case "turn":
-				return value * 360.0, true
-			}
-		}
-	}
-	return 0, false
-}
-
-func lowerAlphaPercentageToNumber(token css_ast.Token) css_ast.Token {
-	if token.Kind == css_lexer.TPercentage {
-		if value, err := strconv.ParseFloat(token.Text[:len(token.Text)-1], 64); err == nil {
-			token.Kind = css_lexer.TNumber
-			token.Text = floatToString(value / 100.0)
-		}
-	}
-	return token
-}
 
 func (p *parser) commaToken() css_ast.Token {
 	t := css_ast.Token{
@@ -286,390 +16,59 @@ func (p *parser) commaToken() css_ast.Token {
 	return t
 }
 
-// Convert newer color syntax to older color syntax for older browsers
-func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
-	text := token.Text
-
-	switch token.Kind {
-	case css_lexer.THash:
-		if p.options.UnsupportedCSSFeatures.Has(compat.HexRGBA) {
-			switch len(text) {
-			case 4:
-				// "#1234" => "rgba(1, 2, 3, 0.004)"
-				if hex, ok := parseHex(text); ok {
-					hex = expandHex(hex)
-					token.Kind = css_lexer.TFunction
-					token.Text = "rgba"
-					commaToken := p.commaToken()
-					token.Children = &[]css_ast.Token{
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexB(hex))}, commaToken,
-						{Kind: css_lexer.TNumber, Text: floatToString(float64(hexA(hex)) / 255)},
-					}
-				}
-
-			case 8:
-				// "#12345678" => "rgba(18, 52, 86, 0.47)"
-				if hex, ok := parseHex(text); ok {
-					token.Kind = css_lexer.TFunction
-					token.Text = "rgba"
-					commaToken := p.commaToken()
-					token.Children = &[]css_ast.Token{
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexB(hex))}, commaToken,
-						{Kind: css_lexer.TNumber, Text: floatToString(float64(hexA(hex)) / 255)},
-					}
-				}
-			}
-		}
-
-	case css_lexer.TIdent:
-		if text == "rebeccapurple" && p.options.UnsupportedCSSFeatures.Has(compat.RebeccaPurple) {
-			token.Kind = css_lexer.THash
-			token.Text = "663399"
-		}
-
-	case css_lexer.TFunction:
-		switch text {
-		case "rgb", "rgba", "hsl", "hsla":
-			if p.options.UnsupportedCSSFeatures.Has(compat.Modern_RGB_HSL) {
-				args := *token.Children
-				removeAlpha := false
-				addAlpha := false
-
-				// "hsl(1deg, 2%, 3%)" => "hsl(1, 2%, 3%)"
-				if (text == "hsl" || text == "hsla") && len(args) > 0 {
-					if degrees, ok := degreesForAngle(args[0]); ok {
-						args[0].Kind = css_lexer.TNumber
-						args[0].Text = floatToString(degrees)
-					}
-				}
-
-				switch len(args) {
-				case 3:
-					// "rgba(1 2 3)" => "rgb(1, 2, 3)"
-					// "hsla(1 2% 3%)" => "rgb(1, 2%, 3%)"
-					removeAlpha = true
-					args[0].Whitespace = 0
-					args[1].Whitespace = 0
-					commaToken := p.commaToken()
-					token.Children = &[]css_ast.Token{
-						args[0], commaToken,
-						args[1], commaToken,
-						args[2],
-					}
-
-				case 5:
-					// "rgba(1, 2, 3)" => "rgb(1, 2, 3)"
-					// "hsla(1, 2%, 3%)" => "hsl(1%, 2%, 3%)"
-					if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma {
-						removeAlpha = true
-						break
-					}
-
-					// "rgb(1 2 3 / 4%)" => "rgba(1, 2, 3, 0.04)"
-					// "hsl(1 2% 3% / 4%)" => "hsla(1, 2%, 3%, 0.04)"
-					if args[3].Kind == css_lexer.TDelimSlash {
-						addAlpha = true
-						args[0].Whitespace = 0
-						args[1].Whitespace = 0
-						args[2].Whitespace = 0
-						commaToken := p.commaToken()
-						token.Children = &[]css_ast.Token{
-							args[0], commaToken,
-							args[1], commaToken,
-							args[2], commaToken,
-							lowerAlphaPercentageToNumber(args[4]),
-						}
-					}
-
-				case 7:
-					// "rgb(1%, 2%, 3%, 4%)" => "rgba(1%, 2%, 3%, 0.04)"
-					// "hsl(1, 2%, 3%, 4%)" => "hsla(1, 2%, 3%, 0.04)"
-					if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma && args[5].Kind == css_lexer.TComma {
-						addAlpha = true
-						args[6] = lowerAlphaPercentageToNumber(args[6])
-					}
-				}
-
-				if removeAlpha {
-					if text == "rgba" {
-						token.Text = "rgb"
-					} else if text == "hsla" {
-						token.Text = "hsl"
-					}
-				} else if addAlpha {
-					if text == "rgb" {
-						token.Text = "rgba"
-					} else if text == "hsl" {
-						token.Text = "hsla"
-					}
-				}
-			}
-		}
-	}
-
-	return token
-}
-
-func parseColor(token css_ast.Token) (uint32, bool) {
-	text := token.Text
-
-	switch token.Kind {
-	case css_lexer.TIdent:
-		if hex, ok := colorNameToHex[strings.ToLower(text)]; ok {
-			return hex, true
-		}
-
-	case css_lexer.THash:
-		switch len(text) {
-		case 3:
-			// "#123"
-			if hex, ok := parseHex(text); ok {
-				return (expandHex(hex) << 8) | 0xFF, true
-			}
-
-		case 4:
-			// "#1234"
-			if hex, ok := parseHex(text); ok {
-				return expandHex(hex), true
-			}
-
-		case 6:
-			// "#112233"
-			if hex, ok := parseHex(text); ok {
-				return (hex << 8) | 0xFF, true
-			}
-
-		case 8:
-			// "#11223344"
-			if hex, ok := parseHex(text); ok {
-				return hex, true
-			}
-		}
-
-	case css_lexer.TFunction:
-		switch text {
-		case "rgb", "rgba":
-			args := *token.Children
-			var r, g, b, a css_ast.Token
-
-			switch len(args) {
-			case 3:
-				// "rgb(1 2 3)"
-				r, g, b = args[0], args[1], args[2]
-
-			case 5:
-				// "rgba(1, 2, 3)"
-				if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma {
-					r, g, b = args[0], args[2], args[4]
-					break
-				}
-
-				// "rgb(1 2 3 / 4%)"
-				if args[3].Kind == css_lexer.TDelimSlash {
-					r, g, b, a = args[0], args[1], args[2], args[4]
-				}
-
-			case 7:
-				// "rgb(1%, 2%, 3%, 4%)"
-				if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma && args[5].Kind == css_lexer.TComma {
-					r, g, b, a = args[0], args[2], args[4], args[6]
-				}
-			}
-
-			if r, ok := parseColorByte(r, 1); ok {
-				if g, ok := parseColorByte(g, 1); ok {
-					if b, ok := parseColorByte(b, 1); ok {
-						if a, ok := parseAlphaByte(a); ok {
-							return uint32((r << 24) | (g << 16) | (b << 8) | a), true
-						}
-					}
-				}
-			}
-
-		case "hsl", "hsla":
-			args := *token.Children
-			var h, s, l, a css_ast.Token
-
-			switch len(args) {
-			case 3:
-				// "hsl(1 2 3)"
-				h, s, l = args[0], args[1], args[2]
-
-			case 5:
-				// "hsla(1, 2, 3)"
-				if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma {
-					h, s, l = args[0], args[2], args[4]
-					break
-				}
-
-				// "hsl(1 2 3 / 4%)"
-				if args[3].Kind == css_lexer.TDelimSlash {
-					h, s, l, a = args[0], args[1], args[2], args[4]
-				}
-
-			case 7:
-				// "hsl(1%, 2%, 3%, 4%)"
-				if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma && args[5].Kind == css_lexer.TComma {
-					h, s, l, a = args[0], args[2], args[4], args[6]
-				}
-			}
-
-			// Convert from HSL to RGB. The algorithm is from the section
-			// "Converting HSL colors to sRGB colors" in the specification.
-			if h, ok := degreesForAngle(h); ok {
-				if s, ok := fractionForPercentage(s); ok {
-					if l, ok := fractionForPercentage(l); ok {
-						if a, ok := parseAlphaByte(a); ok {
-							h /= 360.0
-							var t2 float64
-							if l <= 0.5 {
-								t2 = l * (s + 1)
-							} else {
-								t2 = l + s - (l * s)
-							}
-							t1 := l*2 - t2
-							r := hueToRgb(t1, t2, h+1.0/3.0)
-							g := hueToRgb(t1, t2, h)
-							b := hueToRgb(t1, t2, h-1.0/3.0)
-							return uint32((r << 24) | (g << 16) | (b << 8) | a), true
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return 0, false
-}
-
-func hueToRgb(t1 float64, t2 float64, hue float64) uint32 {
-	hue -= math.Floor(hue)
-	hue *= 6.0
-	var f float64
-	if hue < 1 {
-		f = (t2-t1)*hue + t1
-	} else if hue < 3 {
-		f = t2
-	} else if hue < 4 {
-		f = (t2-t1)*(4-hue) + t1
+func expandTokenQuad(tokens []css_ast.Token) (result [4]css_ast.Token) {
+	n := len(tokens)
+	result[0] = tokens[0]
+	if n > 1 {
+		result[1] = tokens[1]
 	} else {
-		f = t1
+		result[1] = result[0]
 	}
-	i := int(math.Round(f * 255))
-	if i < 0 {
-		i = 0
-	} else if i > 255 {
-		i = 255
+	if n > 2 {
+		result[2] = tokens[2]
+	} else {
+		result[2] = result[0]
 	}
-	return uint32(i)
+	if n > 3 {
+		result[3] = tokens[3]
+	} else {
+		result[3] = result[1]
+	}
+	return
 }
 
-func fractionForPercentage(token css_ast.Token) (float64, bool) {
-	if token.Kind == css_lexer.TPercentage {
-		if f, err := strconv.ParseFloat(token.PercentValue(), 64); err == nil {
-			if f < 0 {
-				return 0, true
-			}
-			if f > 100 {
-				return 1, true
-			}
-			return f / 100.0, true
-		}
-	}
-	return 0, false
-}
-
-func parseAlphaByte(token css_ast.Token) (uint32, bool) {
-	if token.Kind == css_lexer.T(0) {
-		return 255, true
-	}
-	return parseColorByte(token, 255)
-}
-
-func parseColorByte(token css_ast.Token, scale float64) (uint32, bool) {
-	var i int
-	var ok bool
-
-	switch token.Kind {
-	case css_lexer.TNumber:
-		if f, err := strconv.ParseFloat(token.Text, 64); err == nil {
-			i = int(math.Round(f * scale))
-			ok = true
-		}
-
-	case css_lexer.TPercentage:
-		if f, err := strconv.ParseFloat(token.PercentValue(), 64); err == nil {
-			i = int(math.Round(f * (255.0 / 100.0)))
-			ok = true
-		}
-	}
-
-	if i < 0 {
-		i = 0
-	} else if i > 255 {
-		i = 255
-	}
-	return uint32(i), ok
-}
-
-func (p *parser) mangleColor(token css_ast.Token) css_ast.Token {
-	// Note: Do NOT remove color information from fully transparent colors.
-	// Safari behaves differently than other browsers for color interpolation:
-	// https://css-tricks.com/thing-know-gradients-transparent-black/
-
-	if hex, ok := parseColor(token); ok {
-		if hexA(hex) == 255 {
-			token.Children = nil
-			if name, ok := shortColorName[hex]; ok {
-				token.Kind = css_lexer.TIdent
-				token.Text = name
+func compactTokenQuad(a css_ast.Token, b css_ast.Token, c css_ast.Token, d css_ast.Token, removeWhitespace bool) []css_ast.Token {
+	tokens := []css_ast.Token{a, b, c, d}
+	if tokens[3].EqualIgnoringWhitespace(tokens[1]) {
+		if tokens[2].EqualIgnoringWhitespace(tokens[0]) {
+			if tokens[1].EqualIgnoringWhitespace(tokens[0]) {
+				tokens = tokens[:1]
 			} else {
-				token.Kind = css_lexer.THash
-				hex >>= 8
-				compact := compactHex(hex)
-				if hex == expandHex(compact) {
-					token.Text = fmt.Sprintf("%03x", compact)
-				} else {
-					token.Text = fmt.Sprintf("%06x", hex)
-				}
-			}
-		} else if !p.options.UnsupportedCSSFeatures.Has(compat.HexRGBA) {
-			token.Children = nil
-			token.Kind = css_lexer.THash
-			compact := compactHex(hex)
-			if hex == expandHex(compact) {
-				token.Text = fmt.Sprintf("%04x", compact)
-			} else {
-				token.Text = fmt.Sprintf("%08x", hex)
+				tokens = tokens[:2]
 			}
 		} else {
-			token.Kind = css_lexer.TFunction
-			token.Text = "rgba"
-			commaToken := p.commaToken()
-			alpha := floatToString(float64(hexA(hex)) / 255)
-			if p.options.MangleSyntax {
-				if text, ok := mangleNumber(alpha); ok {
-					alpha = text
-				}
-			}
-			token.Children = &[]css_ast.Token{
-				{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
-				{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
-				{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexB(hex))}, commaToken,
-				{Kind: css_lexer.TNumber, Text: alpha},
-			}
+			tokens = tokens[:3]
 		}
 	}
-
-	return token
+	for i := range tokens {
+		var whitespace css_ast.WhitespaceFlags
+		if !removeWhitespace || i > 0 {
+			whitespace |= css_ast.WhitespaceBefore
+		}
+		if i+1 < len(tokens) {
+			whitespace |= css_ast.WhitespaceAfter
+		}
+		tokens[i].Whitespace = whitespace
+	}
+	return tokens
 }
 
-func (p *parser) processDeclarations(rules []css_ast.R) {
-	for _, rule := range rules {
+func (p *parser) processDeclarations(rules []css_ast.R) []css_ast.R {
+	margin := boxTracker{}
+	padding := boxTracker{}
+	borderRadius := borderRadiusTracker{}
+
+	for i, rule := range rules {
 		decl, ok := rule.(*css_ast.RDeclaration)
 		if !ok {
 			continue
@@ -689,10 +88,12 @@ func (p *parser) processDeclarations(rules []css_ast.R) {
 			css_ast.DCaretColor,
 			css_ast.DColor,
 			css_ast.DColumnRuleColor,
+			css_ast.DFill,
 			css_ast.DFloodColor,
 			css_ast.DLightingColor,
 			css_ast.DOutlineColor,
 			css_ast.DStopColor,
+			css_ast.DStroke,
 			css_ast.DTextDecorationColor,
 			css_ast.DTextEmphasisColor:
 
@@ -703,6 +104,88 @@ func (p *parser) processDeclarations(rules []css_ast.R) {
 					decl.Value[0] = p.mangleColor(decl.Value[0])
 				}
 			}
+
+		case css_ast.DBoxShadow:
+			if p.options.MangleSyntax {
+				decl.Value = p.mangleBoxShadows(decl.Value)
+			}
+
+		case css_ast.DPadding:
+			if p.options.MangleSyntax {
+				padding.mangleSides(rules, decl, i, p.options.RemoveWhitespace)
+			}
+		case css_ast.DPaddingTop:
+			if p.options.MangleSyntax {
+				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxTop)
+			}
+		case css_ast.DPaddingRight:
+			if p.options.MangleSyntax {
+				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxRight)
+			}
+		case css_ast.DPaddingBottom:
+			if p.options.MangleSyntax {
+				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxBottom)
+			}
+		case css_ast.DPaddingLeft:
+			if p.options.MangleSyntax {
+				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxLeft)
+			}
+
+		case css_ast.DMargin:
+			if p.options.MangleSyntax {
+				margin.mangleSides(rules, decl, i, p.options.RemoveWhitespace)
+			}
+		case css_ast.DMarginTop:
+			if p.options.MangleSyntax {
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxTop)
+			}
+		case css_ast.DMarginRight:
+			if p.options.MangleSyntax {
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxRight)
+			}
+		case css_ast.DMarginBottom:
+			if p.options.MangleSyntax {
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxBottom)
+			}
+		case css_ast.DMarginLeft:
+			if p.options.MangleSyntax {
+				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxLeft)
+			}
+
+		case css_ast.DBorderRadius:
+			if p.options.MangleSyntax {
+				borderRadius.mangleCorners(rules, decl, i, p.options.RemoveWhitespace)
+			}
+		case css_ast.DBorderTopLeftRadius:
+			if p.options.MangleSyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusTopLeft)
+			}
+		case css_ast.DBorderTopRightRadius:
+			if p.options.MangleSyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusTopRight)
+			}
+		case css_ast.DBorderBottomRightRadius:
+			if p.options.MangleSyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusBottomRight)
+			}
+		case css_ast.DBorderBottomLeftRadius:
+			if p.options.MangleSyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusBottomLeft)
+			}
 		}
 	}
+
+	// Compact removed rules
+	if p.options.MangleSyntax {
+		end := 0
+		for _, rule := range rules {
+			if rule != nil {
+				rules[end] = rule
+				end++
+			}
+		}
+		rules = rules[:end]
+	}
+
+	return rules
 }

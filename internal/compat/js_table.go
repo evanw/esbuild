@@ -63,6 +63,7 @@ const (
 	ForOf
 	Generator
 	Hashbang
+	ImportAssertions
 	ImportMeta
 	Let
 	LogicalAssignment
@@ -152,39 +153,45 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Safari:  {14},
 	},
 	ClassPrivateAccessor: {
-		Chrome: {84},
-		Edge:   {84},
-		Node:   {14, 6},
+		Chrome:  {84},
+		Edge:    {84},
+		Firefox: {90},
+		Node:    {14, 6},
 	},
 	ClassPrivateBrandCheck: {
 		Chrome: {91},
 	},
 	ClassPrivateField: {
-		Chrome: {84},
-		Edge:   {84},
-		Node:   {14, 6},
-		Safari: {14, 1},
+		Chrome:  {84},
+		Edge:    {84},
+		Firefox: {90},
+		Node:    {14, 6},
+		Safari:  {14, 1},
 	},
 	ClassPrivateMethod: {
-		Chrome: {84},
-		Edge:   {84},
-		Node:   {14, 6},
+		Chrome:  {84},
+		Edge:    {84},
+		Firefox: {90},
+		Node:    {14, 6},
 	},
 	ClassPrivateStaticAccessor: {
-		Chrome: {84},
-		Edge:   {84},
-		Node:   {14, 6},
+		Chrome:  {84},
+		Edge:    {84},
+		Firefox: {90},
+		Node:    {14, 6},
 	},
 	ClassPrivateStaticField: {
-		Chrome: {74},
-		Edge:   {79},
-		Node:   {12, 0},
-		Safari: {14, 1},
+		Chrome:  {74},
+		Edge:    {79},
+		Firefox: {90},
+		Node:    {12, 0},
+		Safari:  {14, 1},
 	},
 	ClassPrivateStaticMethod: {
-		Chrome: {84},
-		Edge:   {84},
-		Node:   {14, 6},
+		Chrome:  {84},
+		Edge:    {84},
+		Firefox: {90},
+		Node:    {14, 6},
 	},
 	ClassStaticField: {
 		Chrome:  {73},
@@ -279,6 +286,9 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		IOS:     {13, 4},
 		Node:    {12, 0},
 		Safari:  {13, 1},
+	},
+	ImportAssertions: {
+		Chrome: {91},
 	},
 	ImportMeta: {
 		Chrome:  {64},

@@ -35,7 +35,7 @@ func ParseGlobalName(log logger.Log, source logger.Source) (result []string, ok 
 
 		case js_lexer.TOpenBracket:
 			lexer.Next()
-			result = append(result, js_lexer.UTF16ToString(lexer.StringLiteral))
+			result = append(result, js_lexer.UTF16ToString(lexer.StringLiteral()))
 			lexer.Expect(js_lexer.TStringLiteral)
 			lexer.Expect(js_lexer.TCloseBracket)
 

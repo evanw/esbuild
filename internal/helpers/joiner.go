@@ -1,5 +1,10 @@
 package helpers
 
+import (
+	"bytes"
+	"strings"
+)
+
 // This provides an efficient way to join lots of big string and byte slices
 // together. It avoids the cost of repeatedly reallocating as the buffer grows
 // by measuring exactly how big the buffer should be and then allocating once.
@@ -64,4 +69,18 @@ func (j *Joiner) Done() []byte {
 		copy(buffer[item.offset:], item.data)
 	}
 	return buffer
+}
+
+func (j *Joiner) Contains(s string, b []byte) bool {
+	for _, item := range j.strings {
+		if strings.Contains(item.data, s) {
+			return true
+		}
+	}
+	for _, item := range j.bytes {
+		if bytes.Contains(item.data, b) {
+			return true
+		}
+	}
+	return false
 }

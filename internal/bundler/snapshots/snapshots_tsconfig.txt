@@ -1,10 +1,12 @@
 TestJsconfigJsonBaseUrl
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
+var require_util = __commonJS({
+  "Users/user/project/src/lib/util.js"(exports, module) {
+    module.exports = function() {
+      return 123;
+    };
+  }
 });
 
 // Users/user/project/src/app/entry.js
@@ -200,10 +202,12 @@ console.log(test_default);
 TestTsconfigJsonAbsoluteBaseUrl
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
+var require_util = __commonJS({
+  "Users/user/project/src/lib/util.js"(exports, module) {
+    module.exports = function() {
+      return 123;
+    };
+  }
 });
 
 // Users/user/project/src/app/entry.js
@@ -214,10 +218,12 @@ console.log((0, import_util.default)());
 TestTsconfigJsonBaseUrl
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
+var require_util = __commonJS({
+  "Users/user/project/src/lib/util.js"(exports, module) {
+    module.exports = function() {
+      return 123;
+    };
+  }
 });
 
 // Users/user/project/src/app/entry.js
@@ -228,10 +234,12 @@ console.log((0, import_util.default)());
 TestTsconfigJsonCommentAllowed
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
+var require_util = __commonJS({
+  "Users/user/project/src/lib/util.js"(exports, module) {
+    module.exports = function() {
+      return 123;
+    };
+  }
 });
 
 // Users/user/project/src/app/entry.js
@@ -293,10 +301,12 @@ console.log("good");
 TestTsconfigJsonTrailingCommaAllowed
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
+var require_util = __commonJS({
+  "Users/user/project/src/lib/util.js"(exports, module) {
+    module.exports = function() {
+      return 123;
+    };
+  }
 });
 
 // Users/user/project/src/app/entry.js
@@ -306,7 +316,7 @@ console.log((0, import_util.default)());
 ================================================================================
 TestTsconfigPreserveUnusedImportClause
 ---------- /Users/user/project/out.js ----------
-import {x, y} from "./foo";
+import { x, y } from "./foo";
 import z from "./foo";
 import * as ns from "./foo";
 console.log(1, 2, 3);
@@ -323,6 +333,51 @@ TestTsconfigRemoveUnusedImports
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/entry.ts
 console.log(1);
+
+================================================================================
+TestTsconfigTarget
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/es2018/index.ts
+var x = { ...y };
+try {
+  y;
+} catch (e) {
+}
+x == null ? void 0 : x.y();
+
+// Users/user/project/src/es2019/index.ts
+var x2 = { ...y };
+try {
+  y;
+} catch {
+}
+x2 == null ? void 0 : x2.y();
+
+// Users/user/project/src/es2020/index.ts
+var x3 = { ...y };
+try {
+  y;
+} catch {
+}
+x3?.y();
+
+================================================================================
+TestTsconfigUseDefineForClassFieldsES2020
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+Foo = class {
+  constructor() {
+    this.useDefine = false;
+  }
+};
+
+================================================================================
+TestTsconfigUseDefineForClassFieldsESNext
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+Foo = class {
+  useDefine = true;
+};
 
 ================================================================================
 TestTsconfigWarningsInsideNodeModules

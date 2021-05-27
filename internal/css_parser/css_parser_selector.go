@@ -130,10 +130,32 @@ subclassSelectors:
 
 		case css_lexer.TColon:
 			if p.next().Kind == css_lexer.TColon {
-				// Stop if this is the start of the pseudo-element selector section
+				// Special-case the start of the pseudo-element selector section
+				for p.current().Kind == css_lexer.TColon {
+					isElement := p.next().Kind == css_lexer.TColon
+					if isElement {
+						p.advance()
+					}
+					pseudo := p.parsePseudoClassSelector()
+
+					// https://www.w3.org/TR/selectors-4/#single-colon-pseudos
+					// The four Level 2 pseudo-elements (::before, ::after, ::first-line,
+					// and ::first-letter) may, for legacy reasons, be represented using
+					// the <pseudo-class-selector> grammar, with only a single ":"
+					// character at their start.
+					if p.options.MangleSyntax && isElement && len(pseudo.Args) == 0 {
+						switch pseudo.Name {
+						case "before", "after", "first-line", "first-letter":
+							isElement = false
+						}
+					}
+
+					pseudo.IsElement = isElement
+					sel.SubclassSelectors = append(sel.SubclassSelectors, &pseudo)
+				}
 				break subclassSelectors
 			}
-			pseudo := p.parsePseudoElementSelector()
+			pseudo := p.parsePseudoClassSelector()
 			sel.SubclassSelectors = append(sel.SubclassSelectors, &pseudo)
 
 		default:
@@ -141,18 +163,8 @@ subclassSelectors:
 		}
 	}
 
-	// Parse the pseudo-element selectors
-	if p.eat(css_lexer.TColon) {
-		pseudo := p.parsePseudoElementSelector()
-		sel.PseudoClassSelectors = append(sel.PseudoClassSelectors, pseudo)
-		for p.peek(css_lexer.TColon) {
-			pseudo := p.parsePseudoElementSelector()
-			sel.PseudoClassSelectors = append(sel.PseudoClassSelectors, pseudo)
-		}
-	}
-
 	// The compound selector must be non-empty
-	if !sel.HasNestPrefix && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0 && len(sel.PseudoClassSelectors) == 0 {
+	if !sel.HasNestPrefix && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0 {
 		p.unexpected()
 		return
 	}
@@ -250,7 +262,7 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 	return
 }
 
-func (p *parser) parsePseudoElementSelector() css_ast.SSPseudoClass {
+func (p *parser) parsePseudoClassSelector() css_ast.SSPseudoClass {
 	p.advance()
 
 	if p.peek(css_lexer.TFunction) {

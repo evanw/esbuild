@@ -17,6 +17,7 @@ import (
 type parser struct {
 	log           logger.Log
 	source        logger.Source
+	tracker       logger.LineColumnTracker
 	options       Options
 	tokens        []css_lexer.Token
 	stack         []css_lexer.T
@@ -36,6 +37,7 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 	p := parser{
 		log:       log,
 		source:    source,
+		tracker:   logger.MakeLineColumnTracker(&source),
 		options:   options,
 		tokens:    css_lexer.Tokenize(log, source),
 		prevError: logger.Loc{Start: -1},
@@ -124,7 +126,7 @@ func (p *parser) expect(kind css_lexer.T) bool {
 		}
 	}
 	if t.Range.Loc.Start > p.prevError.Start {
-		p.log.AddRangeWarning(&p.source, t.Range, text)
+		p.log.AddRangeWarning(&p.tracker, t.Range, text)
 		p.prevError = t.Range.Loc
 	}
 	return false
@@ -142,7 +144,7 @@ func (p *parser) unexpected() {
 		default:
 			text = fmt.Sprintf("Unexpected %q", p.raw())
 		}
-		p.log.AddRangeWarning(&p.source, t.Range, text)
+		p.log.AddRangeWarning(&p.tracker, t.Range, text)
 		p.prevError = t.Range.Loc
 	}
 }
@@ -177,8 +179,8 @@ loop:
 				switch rule.(type) {
 				case *css_ast.RAtCharset:
 					if !didWarnAboutCharset && len(rules) > 0 {
-						p.log.AddRangeWarningWithNotes(&p.source, first, "\"@charset\" must be the first rule in the file",
-							[]logger.MsgData{logger.RangeData(&p.source, logger.Range{Loc: locs[len(locs)-1]},
+						p.log.AddRangeWarningWithNotes(&p.tracker, first, "\"@charset\" must be the first rule in the file",
+							[]logger.MsgData{logger.RangeData(&p.tracker, logger.Range{Loc: locs[len(locs)-1]},
 								"This rule cannot come before a \"@charset\" rule")})
 						didWarnAboutCharset = true
 					}
@@ -190,8 +192,8 @@ loop:
 							switch before.(type) {
 							case *css_ast.RAtCharset, *css_ast.RAtImport:
 							default:
-								p.log.AddRangeWarningWithNotes(&p.source, first, "All \"@import\" rules must come first",
-									[]logger.MsgData{logger.RangeData(&p.source, logger.Range{Loc: locs[i]},
+								p.log.AddRangeWarningWithNotes(&p.tracker, first, "All \"@import\" rules must come first",
+									[]logger.MsgData{logger.RangeData(&p.tracker, logger.Range{Loc: locs[i]},
 										"This rule cannot come before an \"@import\" rule")})
 								didWarnAboutImport = true
 								break importLoop
@@ -225,7 +227,7 @@ loop:
 	}
 
 	if p.options.MangleSyntax {
-		rules = removeEmptyRules(rules)
+		rules = removeEmptyAndDuplicateRules(rules)
 	}
 	return rules
 }
@@ -237,9 +239,9 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 			p.advance()
 
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
-			p.processDeclarations(list)
+			list = p.processDeclarations(list)
 			if p.options.MangleSyntax {
-				list = removeEmptyRules(list)
+				list = removeEmptyAndDuplicateRules(list)
 			}
 			return
 
@@ -258,9 +260,20 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 	}
 }
 
-func removeEmptyRules(rules []css_ast.R) []css_ast.R {
-	end := 0
-	for _, rule := range rules {
+func removeEmptyAndDuplicateRules(rules []css_ast.R) []css_ast.R {
+	type hashEntry struct {
+		indices []uint32
+	}
+
+	n := len(rules)
+	start := n
+	entries := make(map[uint32]hashEntry)
+
+	// Scan from the back so we keep the last rule
+skipRule:
+	for i := n - 1; i >= 0; i-- {
+		rule := rules[i]
+
 		switch r := rule.(type) {
 		case *css_ast.RAtKeyframes:
 			if len(r.Blocks) == 0 {
@@ -278,10 +291,25 @@ func removeEmptyRules(rules []css_ast.R) []css_ast.R {
 			}
 		}
 
-		rules[end] = rule
-		end++
+		if hash, ok := rule.Hash(); ok {
+			entry := entries[hash]
+
+			// For duplicate rules, omit all but the last copy
+			for _, index := range entry.indices {
+				if rule.Equal(rules[index]) {
+					continue skipRule
+				}
+			}
+
+			entry.indices = append(entry.indices, uint32(i))
+			entries[hash] = entry
+		}
+
+		start--
+		rules[start] = rule
 	}
-	return rules[:end]
+
+	return rules[start:]
 }
 
 func (p *parser) parseURLOrString() (string, logger.Range, bool) {
@@ -396,7 +424,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		if p.peek(css_lexer.TString) {
 			encoding := p.decoded()
 			if encoding != "UTF-8" {
-				p.log.AddRangeWarning(&p.source, p.current().Range,
+				p.log.AddRangeWarning(&p.tracker, p.current().Range,
 					fmt.Sprintf("\"UTF-8\" will be used instead of unsupported charset %q", encoding))
 			}
 			p.advance()
@@ -561,9 +589,9 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 				//
 				// Instead of implementing all of that for an extremely obscure feature,
 				// CSS namespaces are just explicitly not supported.
-				p.log.AddRangeWarning(&p.source, atRange, "\"@namespace\" rules are not supported")
+				p.log.AddRangeWarning(&p.tracker, atRange, "\"@namespace\" rules are not supported")
 			} else {
-				p.log.AddRangeWarning(&p.source, atRange, fmt.Sprintf("%q is not a known rule name", "@"+atToken))
+				p.log.AddRangeWarning(&p.tracker, atRange, fmt.Sprintf("%q is not a known rule name", "@"+atToken))
 			}
 		}
 	}
@@ -678,7 +706,7 @@ loop:
 
 		case css_lexer.TPercentage:
 			if p.options.MangleSyntax {
-				if text, ok := mangleNumber(token.PercentValue()); ok {
+				if text, ok := mangleNumber(token.PercentageValue()); ok {
 					token.Text = text + "%"
 				}
 			}
@@ -690,6 +718,11 @@ loop:
 				if text, ok := mangleNumber(token.DimensionValue()); ok {
 					token.Text = text + token.DimensionUnit()
 					token.UnitOffset = uint16(len(text))
+				}
+
+				if value, unit, ok := mangleDimension(token.DimensionValue(), token.DimensionUnit()); ok {
+					token.Text = value + unit
+					token.UnitOffset = uint16(len(value))
 				}
 			}
 
@@ -802,6 +835,78 @@ loop:
 	}
 
 	return result, tokens
+}
+
+func shiftDot(text string, dotOffset int) (string, bool) {
+	// This doesn't handle numbers with exponents
+	if strings.ContainsAny(text, "eE") {
+		return "", false
+	}
+
+	// Handle a leading sign
+	sign := ""
+	if len(text) > 0 && (text[0] == '-' || text[0] == '+') {
+		sign = text[:1]
+		text = text[1:]
+	}
+
+	// Remove the dot
+	dot := strings.IndexByte(text, '.')
+	if dot == -1 {
+		dot = len(text)
+	} else {
+		text = text[:dot] + text[dot+1:]
+	}
+
+	// Move the dot
+	dot += dotOffset
+
+	// Remove any leading zeros before the dot
+	for len(text) > 0 && dot > 0 && text[0] == '0' {
+		text = text[1:]
+		dot--
+	}
+
+	// Remove any trailing zeros after the dot
+	for len(text) > 0 && len(text) > dot && text[len(text)-1] == '0' {
+		text = text[:len(text)-1]
+	}
+
+	// Does this number have no fractional component?
+	if dot >= len(text) {
+		trailingZeros := strings.Repeat("0", dot-len(text))
+		return fmt.Sprintf("%s%s%s", sign, text, trailingZeros), true
+	}
+
+	// Potentially add leading zeros
+	if dot < 0 {
+		text = strings.Repeat("0", -dot) + text
+		dot = 0
+	}
+
+	// Insert the dot again
+	return fmt.Sprintf("%s%s.%s", sign, text[:dot], text[dot:]), true
+}
+
+func mangleDimension(value string, unit string) (string, string, bool) {
+	const msLen = 2
+	const sLen = 1
+
+	// Mangle times: https://developer.mozilla.org/en-US/docs/Web/CSS/time
+	if strings.EqualFold(unit, "ms") {
+		if shifted, ok := shiftDot(value, -3); ok && len(shifted)+sLen < len(value)+msLen {
+			// Convert "ms" to "s" if shorter
+			return shifted, "s", true
+		}
+	}
+	if strings.EqualFold(unit, "s") {
+		if shifted, ok := shiftDot(value, 3); ok && len(shifted)+msLen < len(value)+sLen {
+			// Convert "s" to "ms" if shorter
+			return shifted, "ms", true
+		}
+	}
+
+	return "", "", false
 }
 
 func mangleNumber(t string) (string, bool) {

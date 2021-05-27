@@ -90,7 +90,7 @@ function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys,
   let logLevel = getFlag(options, keys, 'logLevel', mustBeString);
   let logLimit = getFlag(options, keys, 'logLimit', mustBeInteger);
 
-  if (color) flags.push(`--color=${color}`);
+  if (color !== void 0) flags.push(`--color=${color}`);
   else if (isTTY) flags.push(`--color=true`); // This is needed to fix "execFileSync" which buffers stderr
   flags.push(`--log-level=${logLevel || logLevelDefault}`);
   flags.push(`--log-limit=${logLimit || 0}`);
@@ -109,6 +109,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let minifyIdentifiers = getFlag(options, keys, 'minifyIdentifiers', mustBeBoolean);
   let charset = getFlag(options, keys, 'charset', mustBeString);
   let treeShaking = getFlag(options, keys, 'treeShaking', mustBeStringOrBoolean);
+  let jsx = getFlag(options, keys, 'jsx', mustBeString);
   let jsxFactory = getFlag(options, keys, 'jsxFactory', mustBeString);
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
   let define = getFlag(options, keys, 'define', mustBeObject);
@@ -132,8 +133,10 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (charset) flags.push(`--charset=${charset}`);
   if (treeShaking !== void 0 && treeShaking !== true) flags.push(`--tree-shaking=${treeShaking}`);
 
+  if (jsx) flags.push(`--jsx=${jsx}`);
   if (jsxFactory) flags.push(`--jsx-factory=${jsxFactory}`);
   if (jsxFragment) flags.push(`--jsx-fragment=${jsxFragment}`);
+
   if (define) {
     for (let key in define) {
       if (key.indexOf('=') >= 0) throw new Error(`Invalid define: ${key}`);
@@ -618,7 +621,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
-  type RunOnEndCallbacks = (result: types.BuildResult, done: () => void) => void;
+  type RunOnEndCallbacks = (result: types.BuildResult, logPluginError: LogPluginErrorCallback, done: () => void) => void;
+  type LogPluginErrorCallback = (e: any, pluginName: string, note: types.Note | undefined, done: (message: types.Message) => void) => void;
 
   let handlePlugins = async (
     initialOptions: types.BuildOptions,
@@ -925,16 +929,16 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       }
     }
 
-    let runOnEndCallbacks: RunOnEndCallbacks = (result, done) => done();
+    let runOnEndCallbacks: RunOnEndCallbacks = (result, logPluginError, done) => done();
 
     if (onEndCallbacks.length > 0) {
-      runOnEndCallbacks = (result, done) => {
+      runOnEndCallbacks = (result, logPluginError, done) => {
         (async () => {
           for (const { name, callback, note } of onEndCallbacks) {
             try {
               await callback(result)
             } catch (e) {
-              result.errors.push(extractErrorMessageV8(e, streamIn, stash, note && note(), name))
+              result.errors.push(await new Promise<types.Message>(resolve => logPluginError(e, name, note && note(), resolve)))
             }
           }
         })().then(done)
@@ -1007,14 +1011,19 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         plugins = value;
       }
     }
-    let handleError = (e: any, pluginName: string) => {
+    let logPluginError: LogPluginErrorCallback = (e, pluginName, note, done) => {
       let flags: string[] = [];
       try { pushLogFlags(flags, options, {}, isTTY, buildLogLevelDefault) } catch { }
-      const error = extractErrorMessageV8(e, streamIn, details, void 0, pluginName)
-      sendRequest(refs, { command: 'error', flags, error }, () => {
-        error.detail = details.load(error.detail);
-        callback(failureErrorWithLog('Build failed', [error], []), null);
+      const message = extractErrorMessageV8(e, streamIn, details, note, pluginName)
+      sendRequest(refs, { command: 'error', flags, error: message }, () => {
+        message.detail = details.load(message.detail);
+        done(message)
       });
+    };
+    let handleError = (e: any, pluginName: string) => {
+      logPluginError(e, pluginName, void 0, error => {
+        callback(failureErrorWithLog('Build failed', [error], []), null);
+      })
     };
     if (plugins && plugins.length > 0) {
       if (streamIn.isSync) return handleError(new Error('Cannot use plugins in synchronous API calls'), '');
@@ -1030,6 +1039,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 ...args,
                 key,
                 details,
+                logPluginError,
                 requestPlugins: result.requestPlugins,
                 runOnEndCallbacks: result.runOnEndCallbacks,
                 pluginRefs: result.pluginRefs,
@@ -1047,8 +1057,9 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           ...args,
           key,
           details,
+          logPluginError,
           requestPlugins: null,
-          runOnEndCallbacks: (result, done) => done(),
+          runOnEndCallbacks: (result, logPluginError, done) => done(),
           pluginRefs: null,
         });
       } catch (e) {
@@ -1072,6 +1083,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     callback,
     key,
     details,
+    logPluginError,
     requestPlugins,
     runOnEndCallbacks,
     pluginRefs,
@@ -1085,6 +1097,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     callback: (err: Error | null, res: types.BuildResult | types.ServeResult | null) => void,
     key: number,
     details: ObjectStash,
+    logPluginError: LogPluginErrorCallback,
     requestPlugins: protocol.BuildPlugin[] | null,
     runOnEndCallbacks: RunOnEndCallbacks,
     pluginRefs: Refs | null,
@@ -1143,7 +1156,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         warnings: replaceDetailsInMessages(response!.warnings, details),
       };
       copyResponseToResult(response!, result);
-      runOnEndCallbacks(result, () => {
+      runOnEndCallbacks(result, logPluginError, () => {
         if (result.errors.length > 0) {
           return callback(failureErrorWithLog('Build failed', result.errors, result.warnings), null);
         }
@@ -1206,7 +1219,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
                 // Note: "onEnd" callbacks should run even when there is no "onRebuild" callback
                 copyResponseToResult(watchResponse, result2);
-                runOnEndCallbacks(result2, () => {
+                runOnEndCallbacks(result2, logPluginError, () => {
                   if (result2.errors.length > 0) {
                     if (watch!.onRebuild) watch!.onRebuild(failureErrorWithLog('Build failed', result2.errors, result2.warnings), null);
                     return;

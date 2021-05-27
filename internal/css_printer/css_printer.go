@@ -240,7 +240,7 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 
 	if sel.TypeSelector != nil {
 		whitespace := mayNeedWhitespaceAfter
-		if len(sel.SubclassSelectors) > 0 || len(sel.PseudoClassSelectors) > 0 {
+		if len(sel.SubclassSelectors) > 0 {
 			// There is no chance of whitespace before a subclass selector or pseudo
 			// class selector
 			whitespace = canDiscardWhitespaceAfter
@@ -252,7 +252,7 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		whitespace := mayNeedWhitespaceAfter
 
 		// There is no chance of whitespace between subclass selectors
-		if i+1 < len(sel.SubclassSelectors) || len(sel.PseudoClassSelectors) > 0 {
+		if i+1 < len(sel.SubclassSelectors) {
 			whitespace = canDiscardWhitespaceAfter
 		}
 
@@ -302,17 +302,6 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 			p.printPseudoClassSelector(*s, whitespace)
 		}
 	}
-
-	if len(sel.PseudoClassSelectors) > 0 {
-		p.print(":")
-		for i, pseudo := range sel.PseudoClassSelectors {
-			whitespace := mayNeedWhitespaceAfter
-			if i+1 < len(sel.PseudoClassSelectors) || isLast {
-				whitespace = canDiscardWhitespaceAfter
-			}
-			p.printPseudoClassSelector(pseudo, whitespace)
-		}
-	}
 }
 
 func (p *printer) printNamespacedName(nsName css_ast.NamespacedName, whitespace trailingWhitespace) {
@@ -342,7 +331,11 @@ func (p *printer) printNamespacedName(nsName css_ast.NamespacedName, whitespace 
 }
 
 func (p *printer) printPseudoClassSelector(pseudo css_ast.SSPseudoClass, whitespace trailingWhitespace) {
-	p.print(":")
+	if pseudo.IsElement {
+		p.print("::")
+	} else {
+		p.print(":")
+	}
 
 	if len(pseudo.Args) > 0 {
 		p.printIdent(pseudo.Name, identNormal, canDiscardWhitespaceAfter)
@@ -452,7 +445,7 @@ func (p *printer) printQuotedWithQuote(text string, quote rune) {
 		escape := escapeNone
 
 		switch c {
-		case '\r', '\n', '\f':
+		case '\x00', '\r', '\n', '\f':
 			// Use a hexadecimal escape for characters that would be invalid escapes
 			escape = escapeHex
 
@@ -466,7 +459,7 @@ func (p *printer) printQuotedWithQuote(text string, quote rune) {
 			}
 
 		default:
-			if p.options.ASCIIOnly && c >= 0x80 || c == '\uFEFF' {
+			if (p.options.ASCIIOnly && c >= 0x80) || c == '\uFEFF' {
 				escape = escapeHex
 			}
 		}

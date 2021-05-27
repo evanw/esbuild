@@ -26,7 +26,7 @@ func expectParseErrorCommon(t *testing.T, contents string, expected string, opti
 		for _, msg := range msgs {
 			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 		}
-		test.AssertEqual(t, text, expected)
+		test.AssertEqualWithDiff(t, text, expected)
 	})
 }
 
@@ -58,7 +58,7 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 				text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 			}
 		}
-		test.AssertEqual(t, text, "")
+		test.AssertEqualWithDiff(t, text, "")
 		if !ok {
 			t.Fatal("Parse error")
 		}
@@ -183,6 +183,16 @@ func TestComments(t *testing.T) {
 `)
 	expectParseError(t, "throw -->\n x", "<stdin>: error: Unexpected \">\"\n")
 
+	expectParseError(t, "export {}\n<!--", `<stdin>: error: Legacy HTML single-line comments are not allowed in ECMAScript modules
+<stdin>: note: This file is considered an ECMAScript module because of the "export" keyword here
+<stdin>: warning: Treating "<!--" as the start of a legacy HTML single-line comment
+`)
+
+	expectParseError(t, "export {}\n-->", `<stdin>: error: Legacy HTML single-line comments are not allowed in ECMAScript modules
+<stdin>: note: This file is considered an ECMAScript module because of the "export" keyword here
+<stdin>: warning: Treating "-->" as the start of a legacy HTML single-line comment
+`)
+
 	expectPrinted(t, "return //\n x", "return;\nx;\n")
 	expectPrinted(t, "return /**/\n x", "return;\nx;\n")
 	expectPrinted(t, "return <!--\n x", "return;\nx;\n")
@@ -196,6 +206,8 @@ func TestComments(t *testing.T) {
 }
 
 func TestStrictMode(t *testing.T) {
+	useStrict := "<stdin>: note: Strict mode is triggered by the \"use strict\" directive here\n"
+
 	expectPrinted(t, "'use strict'", "\"use strict\";\n")
 	expectPrinted(t, "`use strict`", "`use strict`;\n")
 	expectPrinted(t, "//! @license comment\n 'use strict'", "\"use strict\";\n//! @license comment\n")
@@ -234,9 +246,9 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "let x = '\\00'", "let x = \"\\0\";\n")
 	expectPrinted(t, "'use strict'; let x = '\\0'", "\"use strict\";\nlet x = \"\\0\";\n")
 	expectPrinted(t, "let x = '\\0'; export {}", "let x = \"\\0\";\nexport {};\n")
-	expectParseError(t, "'use strict'; let x = '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let x = '\\08'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let x = '\\008'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; let x = '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let x = '\\08'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let x = '\\008'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "let x = '\\00'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 	expectParseError(t, "let x = '\\09'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 	expectParseError(t, "let x = '\\009'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
@@ -244,33 +256,35 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "'\\0'", "\"\\0\";\n")
 	expectPrinted(t, "'\\00'", "\"\\0\";\n")
 	expectPrinted(t, "'use strict'; '\\0'", "\"use strict\";\n\"\\0\";\n")
-	expectParseError(t, "'use strict'; '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; '\\08'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; '\\008'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'\\00'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'\\08'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
-	expectParseError(t, "'\\008'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; '\\00'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; '\\08'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; '\\008'", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'\\00'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'\\08'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'\\008'; 'use strict';", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'\\00'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 	expectParseError(t, "'\\09'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 	expectParseError(t, "'\\009'; export {}", "<stdin>: error: Legacy octal escape sequences cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "with (x) y", "with (x)\n  y;\n")
-	expectParseError(t, "'use strict'; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "with (x) y; export {}", "<stdin>: error: With statements cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "delete x", "delete x;\n")
-	expectParseError(t, "'use strict'; delete x", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; delete x", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "delete x; export {}", "<stdin>: error: Delete of a bare identifier cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "for (var x = y in z) ;", "x = y;\nfor (var x in z)\n  ;\n")
-	expectParseError(t, "'use strict'; for (var x = y in z) ;", "<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n")
-	expectParseError(t, "for (var x = y in z) ; export {}", "<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n"+why)
+	expectParseError(t, "'use strict'; for (var x = y in z) ;",
+		"<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "for (var x = y in z) ; export {}",
+		"<stdin>: error: Variable initializers inside for-in loops cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "function f(a, a) {}", "function f(a, a) {\n}\n")
 	expectPrinted(t, "(function(a, a) {})", "(function(a, a) {\n});\n")
-	expectPrinted(t, "({ f: function(a, a) {} })", "({f: function(a, a) {\n}});\n")
-	expectPrinted(t, "({ f: function*(a, a) {} })", "({f: function* (a, a) {\n}});\n")
-	expectPrinted(t, "({ f: async function(a, a) {} })", "({f: async function(a, a) {\n}});\n")
+	expectPrinted(t, "({ f: function(a, a) {} })", "({ f: function(a, a) {\n} });\n")
+	expectPrinted(t, "({ f: function*(a, a) {} })", "({ f: function* (a, a) {\n} });\n")
+	expectPrinted(t, "({ f: async function(a, a) {} })", "({ f: async function(a, a) {\n} });\n")
 
 	expectParseError(t, "function f(a, a) { 'use strict' }", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
 	expectParseError(t, "function *f(a, a) { 'use strict' }", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
@@ -291,10 +305,14 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "({ async f(a, a) {} })", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
 	expectParseError(t, "(a, a) => {}", "<stdin>: error: \"a\" cannot be bound multiple times in the same parameter list\n")
 
-	expectParseError(t, "'use strict'; if (0) function f() {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; if (0) ; else function f() {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n")
-	expectParseError(t, "if (0) function f() {} export {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+why)
-	expectParseError(t, "if (0) ; else function f() {} export {}", "<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+why)
+	expectParseError(t, "'use strict'; if (0) function f() {}",
+		"<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; if (0) ; else function f() {}",
+		"<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "if (0) function f() {} export {}",
+		"<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+why)
+	expectParseError(t, "if (0) ; else function f() {} export {}",
+		"<stdin>: error: Function declarations inside if statements cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "eval++", "eval++;\n")
 	expectPrinted(t, "eval = 0", "eval = 0;\n")
@@ -318,29 +336,50 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "function arguments() {}", "function arguments() {\n}\n")
 	expectPrinted(t, "function f(arguments) {}", "function f(arguments) {\n}\n")
 	expectParseError(t, "'use strict'; function eval() {}",
-		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n")
+		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; function f(eval) {}",
-		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n")
+		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; function arguments() {}",
-		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n")
+		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; function f(arguments) {}",
-		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n")
+		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "function eval() { 'use strict' }",
+		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "function arguments() { 'use strict' }",
+		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
 
 	expectPrinted(t, "let protected", "let protected;\n")
 	expectPrinted(t, "let protecte\\u0064", "let protected;\n")
 	expectPrinted(t, "let x = protected", "let x = protected;\n")
 	expectPrinted(t, "let x = protecte\\u0064", "let x = protected;\n")
-	expectParseError(t, "'use strict'; let protected", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let protecte\\u0064", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let x = protected", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let x = protecte\\u0064", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n")
+	expectParseError(t, "'use strict'; let protected",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let protecte\\u0064",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let x = protected",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let x = protecte\\u0064",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; protected: 0",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; protecte\\u0064: 0",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
 
 	expectPrinted(t, "0123", "83;\n")
-	expectPrinted(t, "({0123: 4})", "({83: 4});\n")
-	expectPrinted(t, "let {0123: x} = y", "let {83: x} = y;\n")
-	expectParseError(t, "'use strict'; 0123", "<stdin>: error: Legacy octal literals cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; ({0123: 4})", "<stdin>: error: Legacy octal literals cannot be used in strict mode\n")
-	expectParseError(t, "'use strict'; let {0123: x} = y", "<stdin>: error: Legacy octal literals cannot be used in strict mode\n")
+	expectPrinted(t, "({0123: 4})", "({ 83: 4 });\n")
+	expectPrinted(t, "let {0123: x} = y", "let { 83: x } = y;\n")
+	expectParseError(t, "'use strict'; 0123",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; ({0123: 4})",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let {0123: x} = y",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; 08",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; ({08: 4})",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let {08: x} = y",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
 
 	classNote := "<stdin>: note: All code inside a class is implicitly in strict mode\n"
 
@@ -349,9 +388,9 @@ func TestStrictMode(t *testing.T) {
 	expectPrinted(t, "class f {} with (x) y", "class f {\n}\nwith (x)\n  y;\n")
 	expectPrinted(t, "with (x) y; class f {}", "with (x)\n  y;\nclass f {\n}\n")
 	expectPrinted(t, "`use strict`; with (x) y", "`use strict`;\nwith (x)\n  y;\n")
-	expectParseError(t, "\"use strict\"; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n")
-	expectParseError(t, "function f() { 'use strict'; with (x) y }", "<stdin>: error: With statements cannot be used in strict mode\n")
-	expectParseError(t, "function f() { 'use strict'; function y() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n")
+	expectParseError(t, "\"use strict\"; with (x) y", "<stdin>: error: With statements cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "function f() { 'use strict'; with (x) y }", "<stdin>: error: With statements cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "function f() { 'use strict'; function y() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "class f { x() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
 	expectParseError(t, "class f { x() { function y() { with (x) y } } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
 
@@ -482,6 +521,11 @@ func TestRegExp(t *testing.T) {
 	expectPrinted(t, "/x/s", "/x/s;\n")
 	expectPrinted(t, "/x/u", "/x/u;\n")
 	expectPrinted(t, "/x/y", "/x/y;\n")
+
+	expectParseError(t, "/x/msuygig",
+		`<stdin>: error: Duplicate flag "g" in regular expression
+<stdin>: note: The first "g" was here
+`)
 }
 
 func TestIdentifierEscapes(t *testing.T) {
@@ -529,14 +573,14 @@ func TestDecls(t *testing.T) {
 	expectParseError(t, "for (const [];;) ;", "<stdin>: error: This constant must be initialized\n")
 
 	// Make sure bindings are visited during parsing
-	expectPrinted(t, "var {[x]: y} = {}", "var {[x]: y} = {};\n")
-	expectPrinted(t, "var {...x} = {}", "var {...x} = {};\n")
+	expectPrinted(t, "var {[x]: y} = {}", "var { [x]: y } = {};\n")
+	expectPrinted(t, "var {...x} = {}", "var { ...x } = {};\n")
 
 	// Test destructuring patterns
 	expectPrinted(t, "var [...x] = []", "var [...x] = [];\n")
-	expectPrinted(t, "var {...x} = {}", "var {...x} = {};\n")
+	expectPrinted(t, "var {...x} = {}", "var { ...x } = {};\n")
 	expectPrinted(t, "([...x] = []) => {}", "([...x] = []) => {\n};\n")
-	expectPrinted(t, "({...x} = {}) => {}", "({...x} = {}) => {\n};\n")
+	expectPrinted(t, "({...x} = {}) => {}", "({ ...x } = {}) => {\n};\n")
 
 	expectParseError(t, "var [...x,] = []", "<stdin>: error: Unexpected \",\" after rest pattern\n")
 	expectParseError(t, "var {...x,} = {}", "<stdin>: error: Unexpected \",\" after rest pattern\n")
@@ -545,25 +589,25 @@ func TestDecls(t *testing.T) {
 
 	expectPrinted(t, "[b, ...c] = d", "[b, ...c] = d;\n")
 	expectPrinted(t, "([b, ...c] = d)", "[b, ...c] = d;\n")
-	expectPrinted(t, "({b, ...c} = d)", "({b, ...c} = d);\n")
-	expectPrinted(t, "({a = b} = c)", "({a = b} = c);\n")
-	expectPrinted(t, "({a: b = c} = d)", "({a: b = c} = d);\n")
-	expectPrinted(t, "({a: b.c} = d)", "({a: b.c} = d);\n")
+	expectPrinted(t, "({b, ...c} = d)", "({ b, ...c } = d);\n")
+	expectPrinted(t, "({a = b} = c)", "({ a = b } = c);\n")
+	expectPrinted(t, "({a: b = c} = d)", "({ a: b = c } = d);\n")
+	expectPrinted(t, "({a: b.c} = d)", "({ a: b.c } = d);\n")
 	expectPrinted(t, "[a = {}] = b", "[a = {}] = b;\n")
 	expectPrinted(t, "[[...a, b].x] = c", "[[...a, b].x] = c;\n")
-	expectPrinted(t, "[{...a, b}.x] = c", "[{...a, b}.x] = c;\n")
-	expectPrinted(t, "({x: [...a, b].x} = c)", "({x: [...a, b].x} = c);\n")
-	expectPrinted(t, "({x: {...a, b}.x} = c)", "({x: {...a, b}.x} = c);\n")
+	expectPrinted(t, "[{...a, b}.x] = c", "[{ ...a, b }.x] = c;\n")
+	expectPrinted(t, "({x: [...a, b].x} = c)", "({ x: [...a, b].x } = c);\n")
+	expectPrinted(t, "({x: {...a, b}.x} = c)", "({ x: { ...a, b }.x } = c);\n")
 	expectPrinted(t, "[x = [...a, b]] = c", "[x = [...a, b]] = c;\n")
-	expectPrinted(t, "[x = {...a, b}] = c", "[x = {...a, b}] = c;\n")
-	expectPrinted(t, "({x = [...a, b]} = c)", "({x = [...a, b]} = c);\n")
-	expectPrinted(t, "({x = {...a, b}} = c)", "({x = {...a, b}} = c);\n")
+	expectPrinted(t, "[x = {...a, b}] = c", "[x = { ...a, b }] = c;\n")
+	expectPrinted(t, "({x = [...a, b]} = c)", "({ x = [...a, b] } = c);\n")
+	expectPrinted(t, "({x = {...a, b}} = c)", "({ x = { ...a, b } } = c);\n")
 
 	expectPrinted(t, "(x = y)", "x = y;\n")
 	expectPrinted(t, "([] = [])", "[] = [];\n")
 	expectPrinted(t, "({} = {})", "({} = {});\n")
 	expectPrinted(t, "([[]] = [[]])", "[[]] = [[]];\n")
-	expectPrinted(t, "({x: {}} = {x: {}})", "({x: {}} = {x: {}});\n")
+	expectPrinted(t, "({x: {}} = {x: {}})", "({ x: {} } = { x: {} });\n")
 	expectPrinted(t, "(x) = y", "x = y;\n")
 	expectParseError(t, "([]) = []", "<stdin>: error: Invalid assignment target\n")
 	expectParseError(t, "({}) = {}", "<stdin>: error: Invalid assignment target\n")
@@ -599,10 +643,10 @@ func TestDecls(t *testing.T) {
 	expectParseError(t, "({x = {a = b}} = c)", "<stdin>: error: Unexpected \"=\"\n")
 	expectParseError(t, "[a = {b = c}] = d", "<stdin>: error: Unexpected \"=\"\n")
 
-	expectPrinted(t, "for ([{a = {}}] in b) {}", "for ([{a = {}}] in b) {\n}\n")
-	expectPrinted(t, "for ([{a = {}}] of b) {}", "for ([{a = {}}] of b) {\n}\n")
-	expectPrinted(t, "for ({a = {}} in b) {}", "for ({a = {}} in b) {\n}\n")
-	expectPrinted(t, "for ({a = {}} of b) {}", "for ({a = {}} of b) {\n}\n")
+	expectPrinted(t, "for ([{a = {}}] in b) {}", "for ([{ a = {} }] in b) {\n}\n")
+	expectPrinted(t, "for ([{a = {}}] of b) {}", "for ([{ a = {} }] of b) {\n}\n")
+	expectPrinted(t, "for ({a = {}} in b) {}", "for ({ a = {} } in b) {\n}\n")
+	expectPrinted(t, "for ({a = {}} of b) {}", "for ({ a = {} } of b) {\n}\n")
 
 	expectParseError(t, "({a = {}} in b)", "<stdin>: error: Unexpected \"=\"\n")
 	expectParseError(t, "[{a = {}}]\nof()", "<stdin>: error: Unexpected \"=\"\n")
@@ -704,14 +748,14 @@ func TestFor(t *testing.T) {
 
 	// Make sure "in" rules are disabled
 	expectPrinted(t, "for (var x = `${y in z}`;;);", "for (var x = `${y in z}`; ; )\n  ;\n")
-	expectPrinted(t, "for (var {[x in y]: z} = {};;);", "for (var {[x in y]: z} = {}; ; )\n  ;\n")
-	expectPrinted(t, "for (var {x = y in z} = {};;);", "for (var {x = y in z} = {}; ; )\n  ;\n")
+	expectPrinted(t, "for (var {[x in y]: z} = {};;);", "for (var { [x in y]: z } = {}; ; )\n  ;\n")
+	expectPrinted(t, "for (var {x = y in z} = {};;);", "for (var { x = y in z } = {}; ; )\n  ;\n")
 	expectPrinted(t, "for (var [x = y in z] = {};;);", "for (var [x = y in z] = {}; ; )\n  ;\n")
-	expectPrinted(t, "for (var {x: y = z in w} = {};;);", "for (var {x: y = z in w} = {}; ; )\n  ;\n")
+	expectPrinted(t, "for (var {x: y = z in w} = {};;);", "for (var { x: y = z in w } = {}; ; )\n  ;\n")
 	expectPrinted(t, "for (var x = (a in b);;);", "for (var x = (a in b); ; )\n  ;\n")
 	expectPrinted(t, "for (var x = [a in b];;);", "for (var x = [a in b]; ; )\n  ;\n")
 	expectPrinted(t, "for (var x = y(a in b);;);", "for (var x = y(a in b); ; )\n  ;\n")
-	expectPrinted(t, "for (var x = {y: a in b};;);", "for (var x = {y: a in b}; ; )\n  ;\n")
+	expectPrinted(t, "for (var x = {y: a in b};;);", "for (var x = { y: a in b }; ; )\n  ;\n")
 	expectPrinted(t, "for (a ? b in c : d;;);", "for (a ? b in c : d; ; )\n  ;\n")
 	expectPrinted(t, "for (var x = () => { a in b };;);", "for (var x = () => {\n  a in b;\n}; ; )\n  ;\n")
 	expectPrinted(t, "for (var x = async () => { a in b };;);", "for (var x = async () => {\n  a in b;\n}; ; )\n  ;\n")
@@ -743,6 +787,18 @@ func TestFor(t *testing.T) {
 	expectParseError(t, "for (var x of y) x++", "")
 	expectParseError(t, "for (let x of y) x++", "")
 	expectParseError(t, "for (const x of y) x++", errorText)
+
+	expectPrinted(t, "async of => {}", "async (of) => {\n};\n")
+	expectPrinted(t, "for ((async) of []) ;", "for ((async) of [])\n  ;\n")
+	expectPrinted(t, "for (async.x of []) ;", "for (async.x of [])\n  ;\n")
+	expectPrinted(t, "for (async of => {};;) ;", "for (async (of) => {\n}; ; )\n  ;\n")
+	expectPrinted(t, "for (\\u0061sync of []) ;", "for ((async) of [])\n  ;\n")
+	expectPrinted(t, "for await (async of []) ;", "for await (async of [])\n  ;\n")
+	expectParseError(t, "for (async of []) ;", "<stdin>: error: For loop initializers cannot start with \"async of\"\n")
+	expectParseError(t, "for (async o\\u0066 []) ;", "<stdin>: error: Expected \";\" but found \"o\\\\u0066\"\n")
+	expectParseError(t, "for await (async of => {}) ;", "<stdin>: error: Expected \"of\" but found \")\"\n")
+	expectParseError(t, "for await (async of => {} of []) ;", "<stdin>: error: Invalid assignment target\n")
+	expectParseError(t, "for await (async o\\u0066 []) ;", "<stdin>: error: Expected \"of\" but found \"o\\\\u0066\"\n")
 }
 
 func TestScope(t *testing.T) {
@@ -930,7 +986,7 @@ func TestASI(t *testing.T) {
 	expectPrinted(t, "async function foo() { if (0) let\nawait 0 }", "async function foo() {\n  if (0)\n    let;\n  await 0;\n}\n")
 
 	expectPrinted(t, "let\nx = 0", "let x = 0;\n")
-	expectPrinted(t, "let\n{x} = 0", "let {x} = 0;\n")
+	expectPrinted(t, "let\n{x} = 0", "let { x } = 0;\n")
 	expectPrinted(t, "let\n[x] = 0", "let [x] = 0;\n")
 	expectParseError(t, "function *foo() { let\nyield 0 }",
 		"<stdin>: error: Cannot use \"yield\" as an identifier here\n<stdin>: error: Expected \";\" but found \"0\"\n")
@@ -985,11 +1041,11 @@ func TestArrays(t *testing.T) {
 }
 
 func TestPattern(t *testing.T) {
-	expectPrinted(t, "let {if: x} = y", "let {if: x} = y;\n")
+	expectPrinted(t, "let {if: x} = y", "let { if: x } = y;\n")
 	expectParseError(t, "let {x: if} = y", "<stdin>: error: Expected identifier but found \"if\"\n")
 
-	expectPrinted(t, "let {1_2_3n: x} = y", "let {123n: x} = y;\n")
-	expectPrinted(t, "let {0x1_2_3n: x} = y", "let {0x123n: x} = y;\n")
+	expectPrinted(t, "let {1_2_3n: x} = y", "let { 123n: x } = y;\n")
+	expectPrinted(t, "let {0x1_2_3n: x} = y", "let { 0x123n: x } = y;\n")
 }
 
 func TestAssignTarget(t *testing.T) {
@@ -1014,21 +1070,21 @@ func TestAssignTarget(t *testing.T) {
 }
 
 func TestObject(t *testing.T) {
-	expectPrinted(t, "({foo})", "({foo});\n")
-	expectPrinted(t, "({foo:0})", "({foo: 0});\n")
-	expectPrinted(t, "({1e9:0})", "({1e9: 0});\n")
-	expectPrinted(t, "({1_2_3n:0})", "({123n: 0});\n")
-	expectPrinted(t, "({0x1_2_3n:0})", "({0x123n: 0});\n")
-	expectPrinted(t, "({foo() {}})", "({foo() {\n}});\n")
-	expectPrinted(t, "({*foo() {}})", "({*foo() {\n}});\n")
-	expectPrinted(t, "({get foo() {}})", "({get foo() {\n}});\n")
-	expectPrinted(t, "({set foo(x) {}})", "({set foo(x) {\n}});\n")
+	expectPrinted(t, "({foo})", "({ foo });\n")
+	expectPrinted(t, "({foo:0})", "({ foo: 0 });\n")
+	expectPrinted(t, "({1e9:0})", "({ 1e9: 0 });\n")
+	expectPrinted(t, "({1_2_3n:0})", "({ 123n: 0 });\n")
+	expectPrinted(t, "({0x1_2_3n:0})", "({ 0x123n: 0 });\n")
+	expectPrinted(t, "({foo() {}})", "({ foo() {\n} });\n")
+	expectPrinted(t, "({*foo() {}})", "({ *foo() {\n} });\n")
+	expectPrinted(t, "({get foo() {}})", "({ get foo() {\n} });\n")
+	expectPrinted(t, "({set foo(x) {}})", "({ set foo(x) {\n} });\n")
 
-	expectPrinted(t, "({if:0})", "({if: 0});\n")
-	expectPrinted(t, "({if() {}})", "({if() {\n}});\n")
-	expectPrinted(t, "({*if() {}})", "({*if() {\n}});\n")
-	expectPrinted(t, "({get if() {}})", "({get if() {\n}});\n")
-	expectPrinted(t, "({set if(x) {}})", "({set if(x) {\n}});\n")
+	expectPrinted(t, "({if:0})", "({ if: 0 });\n")
+	expectPrinted(t, "({if() {}})", "({ if() {\n} });\n")
+	expectPrinted(t, "({*if() {}})", "({ *if() {\n} });\n")
+	expectPrinted(t, "({get if() {}})", "({ get if() {\n} });\n")
+	expectPrinted(t, "({set if(x) {}})", "({ set if(x) {\n} });\n")
 
 	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
 	expectParseError(t, "({`a`})", "<stdin>: error: Expected identifier but found \"`a`\"\n")
@@ -1043,8 +1099,8 @@ func TestObject(t *testing.T) {
 	expectParseError(t, "({__proto__, __proto__: 2})", "")
 	expectParseError(t, "({__proto__: x, __proto__: y} = z)", "")
 
-	expectPrintedMangle(t, "x = {['_proto_']: x}", "x = {_proto_: x};\n")
-	expectPrintedMangle(t, "x = {['__proto__']: x}", "x = {[\"__proto__\"]: x};\n")
+	expectPrintedMangle(t, "x = {['_proto_']: x}", "x = { _proto_: x };\n")
+	expectPrintedMangle(t, "x = {['__proto__']: x}", "x = { [\"__proto__\"]: x };\n")
 
 	expectParseError(t, "({set foo() {}})", "<stdin>: error: Setter \"foo\" must have exactly one argument\n")
 	expectParseError(t, "({get foo(x) {}})", "<stdin>: error: Getter \"foo\" must have zero arguments\n")
@@ -1070,21 +1126,43 @@ func TestObject(t *testing.T) {
 }
 
 func TestComputedProperty(t *testing.T) {
-	expectPrinted(t, "({[a]: foo})", "({[a]: foo});\n")
-	expectPrinted(t, "({[(a, b)]: foo})", "({[(a, b)]: foo});\n")
+	expectPrinted(t, "({[a]: foo})", "({ [a]: foo });\n")
+	expectPrinted(t, "({[(a, b)]: foo})", "({ [(a, b)]: foo });\n")
 	expectParseError(t, "({[a, b]: foo})", "<stdin>: error: Expected \"]\" but found \",\"\n")
 
-	expectPrinted(t, "({[a]: foo}) => {}", "({[a]: foo}) => {\n};\n")
-	expectPrinted(t, "({[(a, b)]: foo}) => {}", "({[(a, b)]: foo}) => {\n};\n")
+	expectPrinted(t, "({[a]: foo}) => {}", "({ [a]: foo }) => {\n};\n")
+	expectPrinted(t, "({[(a, b)]: foo}) => {}", "({ [(a, b)]: foo }) => {\n};\n")
 	expectParseError(t, "({[a, b]: foo}) => {}", "<stdin>: error: Expected \"]\" but found \",\"\n")
 
-	expectPrinted(t, "var {[a]: foo} = bar", "var {[a]: foo} = bar;\n")
-	expectPrinted(t, "var {[(a, b)]: foo} = bar", "var {[(a, b)]: foo} = bar;\n")
+	expectPrinted(t, "var {[a]: foo} = bar", "var { [a]: foo } = bar;\n")
+	expectPrinted(t, "var {[(a, b)]: foo} = bar", "var { [(a, b)]: foo } = bar;\n")
 	expectParseError(t, "var {[a, b]: foo} = bar", "<stdin>: error: Expected \"]\" but found \",\"\n")
 
 	expectPrinted(t, "class Foo {[a] = foo}", "class Foo {\n  [a] = foo;\n}\n")
 	expectPrinted(t, "class Foo {[(a, b)] = foo}", "class Foo {\n  [(a, b)] = foo;\n}\n")
 	expectParseError(t, "class Foo {[a, b] = foo}", "<stdin>: error: Expected \"]\" but found \",\"\n")
+}
+
+func TestQuotedProperty(t *testing.T) {
+	expectPrinted(t, "x.x; y['y']", "x.x;\ny[\"y\"];\n")
+	expectPrinted(t, "({y: y, 'z': z} = x)", "({ y, \"z\": z } = x);\n")
+	expectPrinted(t, "var {y: y, 'z': z} = x", "var { y, \"z\": z } = x;\n")
+	expectPrinted(t, "x = {y: 1, 'z': 2}", "x = { y: 1, \"z\": 2 };\n")
+	expectPrinted(t, "x = {y() {}, 'z'() {}}", "x = { y() {\n}, \"z\"() {\n} };\n")
+	expectPrinted(t, "x = {get y() {}, set 'z'(z) {}}", "x = { get y() {\n}, set \"z\"(z) {\n} };\n")
+	expectPrinted(t, "x = class {y = 1; 'z' = 2}", "x = class {\n  y = 1;\n  \"z\" = 2;\n};\n")
+	expectPrinted(t, "x = class {y() {}; 'z'() {}}", "x = class {\n  y() {\n  }\n  \"z\"() {\n  }\n};\n")
+	expectPrinted(t, "x = class {get y() {}; set 'z'(z) {}}", "x = class {\n  get y() {\n  }\n  set \"z\"(z) {\n  }\n};\n")
+
+	expectPrintedMangle(t, "x.x; y['y']", "x.x, y.y;\n")
+	expectPrintedMangle(t, "({y: y, 'z': z} = x)", "({ y, z } = x);\n")
+	expectPrintedMangle(t, "var {y: y, 'z': z} = x", "var { y, z } = x;\n")
+	expectPrintedMangle(t, "x = {y: 1, 'z': 2}", "x = { y: 1, z: 2 };\n")
+	expectPrintedMangle(t, "x = {y() {}, 'z'() {}}", "x = { y() {\n}, z() {\n} };\n")
+	expectPrintedMangle(t, "x = {get y() {}, set 'z'(z) {}}", "x = { get y() {\n}, set z(z) {\n} };\n")
+	expectPrintedMangle(t, "x = class {y = 1; 'z' = 2}", "x = class {\n  y = 1;\n  z = 2;\n};\n")
+	expectPrintedMangle(t, "x = class {y() {}; 'z'() {}}", "x = class {\n  y() {\n  }\n  z() {\n  }\n};\n")
+	expectPrintedMangle(t, "x = class {get y() {}; set 'z'(z) {}}", "x = class {\n  get y() {\n  }\n  set z(z) {\n  }\n};\n")
 }
 
 func TestLexicalDecl(t *testing.T) {
@@ -1176,6 +1254,11 @@ func TestFunction(t *testing.T) {
 	expectPrinted(t, "(function arguments() {})", "(function arguments() {\n});\n")
 	expectPrinted(t, "function foo(arguments) {}", "function foo(arguments) {\n}\n")
 	expectPrinted(t, "(function foo(arguments) {})", "(function foo(arguments) {\n});\n")
+
+	expectPrintedMangle(t, "function foo() { return undefined }", "function foo() {\n}\n")
+	expectPrintedMangle(t, "function* foo() { return undefined }", "function* foo() {\n}\n")
+	expectPrintedMangle(t, "async function foo() { return undefined }", "async function foo() {\n}\n")
+	expectPrintedMangle(t, "async function* foo() { return undefined }", "async function* foo() {\n  return void 0;\n}\n")
 }
 
 func TestClass(t *testing.T) {
@@ -1220,10 +1303,18 @@ func TestClass(t *testing.T) {
 	expectParseError(t, "class Foo { `a`() {} }", "<stdin>: error: Expected identifier but found \"`a`\"\n")
 
 	// Strict mode reserved words cannot be used as class names
-	expectParseError(t, "class static {}", "<stdin>: error: Unexpected \"static\"\n")
-	expectParseError(t, "class implements {}", "<stdin>: error: Unexpected \"implements\"\n")
-	expectParseError(t, "(class static {})", "<stdin>: error: Expected \"{\" but found \"static\"\n")
-	expectParseError(t, "(class implements {})", "<stdin>: error: Expected \"{\" but found \"implements\"\n")
+	expectParseError(t, "class static {}",
+		"<stdin>: error: \"static\" is a reserved word and cannot be used in strict mode\n"+
+			"<stdin>: note: All code inside a class is implicitly in strict mode\n")
+	expectParseError(t, "(class static {})",
+		"<stdin>: error: \"static\" is a reserved word and cannot be used in strict mode\n"+
+			"<stdin>: note: All code inside a class is implicitly in strict mode\n")
+	expectParseError(t, "class implements {}",
+		"<stdin>: error: \"implements\" is a reserved word and cannot be used in strict mode\n"+
+			"<stdin>: note: All code inside a class is implicitly in strict mode\n")
+	expectParseError(t, "(class implements {})",
+		"<stdin>: error: \"implements\" is a reserved word and cannot be used in strict mode\n"+
+			"<stdin>: note: All code inside a class is implicitly in strict mode\n")
 
 	// The name "arguments" is forbidden in class bodies outside of computed properties
 	expectPrinted(t, "class Foo { [arguments] }", "class Foo {\n  [arguments];\n}\n")
@@ -1255,33 +1346,33 @@ func TestClass(t *testing.T) {
 	expectParseError(t, "class Foo { async *constructor() {} }", "<stdin>: error: Class constructor cannot be an async function\n")
 	expectParseError(t, "class Foo { async *'constructor'() {} }", "<stdin>: error: Class constructor cannot be an async function\n")
 	expectPrinted(t, "class Foo { static get constructor() {} }", "class Foo {\n  static get constructor() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static get 'constructor'() {} }", "class Foo {\n  static get constructor() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static get 'constructor'() {} }", "class Foo {\n  static get \"constructor\"() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static set constructor(x) {} }", "class Foo {\n  static set constructor(x) {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static set 'constructor'(x) {} }", "class Foo {\n  static set constructor(x) {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static set 'constructor'(x) {} }", "class Foo {\n  static set \"constructor\"(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static *constructor() {} }", "class Foo {\n  static *constructor() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static *'constructor'() {} }", "class Foo {\n  static *constructor() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static *'constructor'() {} }", "class Foo {\n  static *\"constructor\"() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static async constructor() {} }", "class Foo {\n  static async constructor() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static async 'constructor'() {} }", "class Foo {\n  static async constructor() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static async 'constructor'() {} }", "class Foo {\n  static async \"constructor\"() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static async *constructor() {} }", "class Foo {\n  static async *constructor() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static async *'constructor'() {} }", "class Foo {\n  static async *constructor() {\n  }\n}\n")
-	expectPrinted(t, "({ constructor: 1 })", "({constructor: 1});\n")
-	expectPrinted(t, "({ get constructor() {} })", "({get constructor() {\n}});\n")
-	expectPrinted(t, "({ set constructor(x) {} })", "({set constructor(x) {\n}});\n")
-	expectPrinted(t, "({ *constructor() {} })", "({*constructor() {\n}});\n")
-	expectPrinted(t, "({ async constructor() {} })", "({async constructor() {\n}});\n")
-	expectPrinted(t, "({ async* constructor() {} })", "({async *constructor() {\n}});\n")
+	expectPrinted(t, "class Foo { static async *'constructor'() {} }", "class Foo {\n  static async *\"constructor\"() {\n  }\n}\n")
+	expectPrinted(t, "({ constructor: 1 })", "({ constructor: 1 });\n")
+	expectPrinted(t, "({ get constructor() {} })", "({ get constructor() {\n} });\n")
+	expectPrinted(t, "({ set constructor(x) {} })", "({ set constructor(x) {\n} });\n")
+	expectPrinted(t, "({ *constructor() {} })", "({ *constructor() {\n} });\n")
+	expectPrinted(t, "({ async constructor() {} })", "({ async constructor() {\n} });\n")
+	expectPrinted(t, "({ async* constructor() {} })", "({ async *constructor() {\n} });\n")
 
 	// The name "prototype" is sometimes forbidden
 	expectPrinted(t, "class Foo { get prototype() {} }", "class Foo {\n  get prototype() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { get 'prototype'() {} }", "class Foo {\n  get prototype() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { get 'prototype'() {} }", "class Foo {\n  get \"prototype\"() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { set prototype(x) {} }", "class Foo {\n  set prototype(x) {\n  }\n}\n")
-	expectPrinted(t, "class Foo { set 'prototype'(x) {} }", "class Foo {\n  set prototype(x) {\n  }\n}\n")
+	expectPrinted(t, "class Foo { set 'prototype'(x) {} }", "class Foo {\n  set \"prototype\"(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { *prototype() {} }", "class Foo {\n  *prototype() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { *'prototype'() {} }", "class Foo {\n  *prototype() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { *'prototype'() {} }", "class Foo {\n  *\"prototype\"() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { async prototype() {} }", "class Foo {\n  async prototype() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { async 'prototype'() {} }", "class Foo {\n  async prototype() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { async 'prototype'() {} }", "class Foo {\n  async \"prototype\"() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { async *prototype() {} }", "class Foo {\n  async *prototype() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { async *'prototype'() {} }", "class Foo {\n  async *prototype() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { async *'prototype'() {} }", "class Foo {\n  async *\"prototype\"() {\n  }\n}\n")
 	expectParseError(t, "class Foo { static get prototype() {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
 	expectParseError(t, "class Foo { static get 'prototype'() {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
 	expectParseError(t, "class Foo { static set prototype(x) {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
@@ -1297,15 +1388,15 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "class Foo { static *['prototype']() {} }", "class Foo {\n  static *[\"prototype\"]() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static async ['prototype']() {} }", "class Foo {\n  static async [\"prototype\"]() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static async *['prototype']() {} }", "class Foo {\n  static async *[\"prototype\"]() {\n  }\n}\n")
-	expectPrinted(t, "({ prototype: 1 })", "({prototype: 1});\n")
-	expectPrinted(t, "({ get prototype() {} })", "({get prototype() {\n}});\n")
-	expectPrinted(t, "({ set prototype(x) {} })", "({set prototype(x) {\n}});\n")
-	expectPrinted(t, "({ *prototype() {} })", "({*prototype() {\n}});\n")
-	expectPrinted(t, "({ async prototype() {} })", "({async prototype() {\n}});\n")
-	expectPrinted(t, "({ async* prototype() {} })", "({async *prototype() {\n}});\n")
+	expectPrinted(t, "({ prototype: 1 })", "({ prototype: 1 });\n")
+	expectPrinted(t, "({ get prototype() {} })", "({ get prototype() {\n} });\n")
+	expectPrinted(t, "({ set prototype(x) {} })", "({ set prototype(x) {\n} });\n")
+	expectPrinted(t, "({ *prototype() {} })", "({ *prototype() {\n} });\n")
+	expectPrinted(t, "({ async prototype() {} })", "({ async prototype() {\n} });\n")
+	expectPrinted(t, "({ async* prototype() {} })", "({ async *prototype() {\n} });\n")
 
 	expectPrintedMangle(t, "class Foo { ['constructor'] = 0 }", "class Foo {\n  [\"constructor\"] = 0;\n}\n")
-	expectPrintedMangle(t, "class Foo { ['constructor']() {} }", "class Foo {\n  constructor() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { ['constructor']() {} }", "class Foo {\n  [\"constructor\"]() {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { *['constructor']() {} }", "class Foo {\n  *[\"constructor\"]() {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { get ['constructor']() {} }", "class Foo {\n  get [\"constructor\"]() {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { set ['constructor'](x) {} }", "class Foo {\n  set [\"constructor\"](x) {\n  }\n}\n")
@@ -1331,6 +1422,26 @@ func TestClass(t *testing.T) {
 	expectPrintedMangle(t, "class Foo { static get ['prototype']() {} }", "class Foo {\n  static get [\"prototype\"]() {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { static set ['prototype'](x) {} }", "class Foo {\n  static set [\"prototype\"](x) {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { static async ['prototype']() {} }", "class Foo {\n  static async [\"prototype\"]() {\n  }\n}\n")
+
+	dupCtor := "<stdin>: error: Classes cannot contain more than one constructor\n"
+
+	expectParseError(t, "class Foo { constructor() {} constructor() {} }", dupCtor)
+	expectParseError(t, "class Foo { constructor() {} 'constructor'() {} }", dupCtor)
+	expectParseError(t, "class Foo { constructor() {} ['constructor']() {} }", "")
+	expectParseError(t, "class Foo { 'constructor'() {} constructor() {} }", dupCtor)
+	expectParseError(t, "class Foo { ['constructor']() {} constructor() {} }", "")
+	expectParseError(t, "class Foo { constructor() {} static constructor() {} }", "")
+	expectParseError(t, "class Foo { static constructor() {} constructor() {} }", "")
+	expectParseError(t, "class Foo { static constructor() {} static constructor() {} }", "")
+	expectParseError(t, "class Foo { constructor = () => {}; constructor = () => {} }",
+		"<stdin>: error: Invalid field name \"constructor\"\n<stdin>: error: Invalid field name \"constructor\"\n")
+	expectParseError(t, "({ constructor() {}, constructor() {} })",
+		"<stdin>: warning: Duplicate key \"constructor\" in object literal\n<stdin>: note: The original \"constructor\" is here\n")
+	expectParseError(t, "(class { constructor() {} constructor() {} })", dupCtor)
+	expectPrintedMangle(t, "class Foo { constructor() {} ['constructor']() {} }",
+		"class Foo {\n  constructor() {\n  }\n  [\"constructor\"]() {\n  }\n}\n")
+	expectPrintedMangle(t, "class Foo { static constructor() {} static ['constructor']() {} }",
+		"class Foo {\n  static constructor() {\n  }\n  static constructor() {\n  }\n}\n")
 }
 
 func TestSuperCall(t *testing.T) {
@@ -1369,6 +1480,76 @@ func TestSuperCall(t *testing.T) {
 		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    return c;\n  }\n}\n")
 	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); throw c } }",
 		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    throw c;\n  }\n}\n")
+}
+
+func TestSuperProp(t *testing.T) {
+	expectParseError(t, "super.x", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "super[x]", "<stdin>: error: Unexpected \"super\"\n")
+
+	expectPrinted(t, "class Foo { foo() { super.x } }", "class Foo {\n  foo() {\n    super.x;\n  }\n}\n")
+	expectPrinted(t, "class Foo { foo() { super[x] } }", "class Foo {\n  foo() {\n    super[x];\n  }\n}\n")
+	expectPrinted(t, "class Foo { foo(x = super.x) {} }", "class Foo {\n  foo(x = super.x) {\n  }\n}\n")
+	expectPrinted(t, "class Foo { foo(x = super[x]) {} }", "class Foo {\n  foo(x = super[x]) {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static foo() { super.x } }", "class Foo {\n  static foo() {\n    super.x;\n  }\n}\n")
+	expectPrinted(t, "class Foo { static foo() { super[x] } }", "class Foo {\n  static foo() {\n    super[x];\n  }\n}\n")
+	expectPrinted(t, "class Foo { static foo(x = super.x) {} }", "class Foo {\n  static foo(x = super.x) {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static foo(x = super[x]) {} }", "class Foo {\n  static foo(x = super[x]) {\n  }\n}\n")
+
+	expectPrinted(t, "(class { foo() { super.x } })", "(class {\n  foo() {\n    super.x;\n  }\n});\n")
+	expectPrinted(t, "(class { foo() { super[x] } })", "(class {\n  foo() {\n    super[x];\n  }\n});\n")
+	expectPrinted(t, "(class { foo(x = super.x) {} })", "(class {\n  foo(x = super.x) {\n  }\n});\n")
+	expectPrinted(t, "(class { foo(x = super[x]) {} })", "(class {\n  foo(x = super[x]) {\n  }\n});\n")
+	expectPrinted(t, "(class { static foo() { super.x } })", "(class {\n  static foo() {\n    super.x;\n  }\n});\n")
+	expectPrinted(t, "(class { static foo() { super[x] } })", "(class {\n  static foo() {\n    super[x];\n  }\n});\n")
+	expectPrinted(t, "(class { static foo(x = super.x) {} })", "(class {\n  static foo(x = super.x) {\n  }\n});\n")
+	expectPrinted(t, "(class { static foo(x = super[x]) {} })", "(class {\n  static foo(x = super[x]) {\n  }\n});\n")
+
+	expectPrinted(t, "class Foo { foo = super.x }", "class Foo {\n  foo = super.x;\n}\n")
+	expectPrinted(t, "class Foo { foo = super[x] }", "class Foo {\n  foo = super[x];\n}\n")
+	expectPrinted(t, "class Foo { foo = () => super.x }", "class Foo {\n  foo = () => super.x;\n}\n")
+	expectPrinted(t, "class Foo { foo = () => super[x] }", "class Foo {\n  foo = () => super[x];\n}\n")
+	expectParseError(t, "class Foo { foo = function () { super.x } }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { foo = function () { super[x] } }", "<stdin>: error: Unexpected \"super\"\n")
+
+	expectPrinted(t, "class Foo { static foo = super.x }", "class Foo {\n  static foo = super.x;\n}\n")
+	expectPrinted(t, "class Foo { static foo = super[x] }", "class Foo {\n  static foo = super[x];\n}\n")
+	expectPrinted(t, "class Foo { static foo = () => super.x }", "class Foo {\n  static foo = () => super.x;\n}\n")
+	expectPrinted(t, "class Foo { static foo = () => super[x] }", "class Foo {\n  static foo = () => super[x];\n}\n")
+	expectParseError(t, "class Foo { static foo = function () { super.x } }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { static foo = function () { super[x] } }", "<stdin>: error: Unexpected \"super\"\n")
+
+	expectPrinted(t, "(class { foo = super.x })", "(class {\n  foo = super.x;\n});\n")
+	expectPrinted(t, "(class { foo = super[x] })", "(class {\n  foo = super[x];\n});\n")
+	expectPrinted(t, "(class { foo = () => super.x })", "(class {\n  foo = () => super.x;\n});\n")
+	expectPrinted(t, "(class { foo = () => super[x] })", "(class {\n  foo = () => super[x];\n});\n")
+	expectParseError(t, "(class { foo = function () { super.x } })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { foo = function () { super[x] } })", "<stdin>: error: Unexpected \"super\"\n")
+
+	expectPrinted(t, "(class { static foo = super.x })", "(class {\n  static foo = super.x;\n});\n")
+	expectPrinted(t, "(class { static foo = super[x] })", "(class {\n  static foo = super[x];\n});\n")
+	expectPrinted(t, "(class { static foo = () => super.x })", "(class {\n  static foo = () => super.x;\n});\n")
+	expectPrinted(t, "(class { static foo = () => super[x] })", "(class {\n  static foo = () => super[x];\n});\n")
+	expectParseError(t, "(class { static foo = function () { super.x } })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { static foo = function () { super[x] } })", "<stdin>: error: Unexpected \"super\"\n")
+
+	expectParseError(t, "({ foo: super.x })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "({ foo: super[x] })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "({ foo: () => super.x })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "({ foo: () => super[x] })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "({ foo: function () { super.x } })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "({ foo: function () { super[x] } })", "<stdin>: error: Unexpected \"super\"\n")
+	expectPrinted(t, "({ foo() { super.x } })", "({ foo() {\n  super.x;\n} });\n")
+	expectPrinted(t, "({ foo() { super[x] } })", "({ foo() {\n  super[x];\n} });\n")
+	expectPrinted(t, "({ foo(x = super.x) {} })", "({ foo(x = super.x) {\n} });\n")
+
+	expectParseError(t, "class Foo { [super.x] }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { [super[x]] }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { static [super.x] }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "class Foo { static [super[x]] }", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { [super.x] })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { [super[x]] })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { static [super.x] })", "<stdin>: error: Unexpected \"super\"\n")
+	expectParseError(t, "(class { static [super[x]] })", "<stdin>: error: Unexpected \"super\"\n")
 }
 
 func TestClassFields(t *testing.T) {
@@ -1419,9 +1600,9 @@ func TestClassFields(t *testing.T) {
 
 	// The name "prototype" is sometimes forbidden
 	expectPrinted(t, "class Foo { prototype }", "class Foo {\n  prototype;\n}\n")
-	expectPrinted(t, "class Foo { 'prototype' }", "class Foo {\n  prototype;\n}\n")
+	expectPrinted(t, "class Foo { 'prototype' }", "class Foo {\n  \"prototype\";\n}\n")
 	expectPrinted(t, "class Foo { prototype = 1 }", "class Foo {\n  prototype = 1;\n}\n")
-	expectPrinted(t, "class Foo { 'prototype' = 1 }", "class Foo {\n  prototype = 1;\n}\n")
+	expectPrinted(t, "class Foo { 'prototype' = 1 }", "class Foo {\n  \"prototype\" = 1;\n}\n")
 	expectParseError(t, "class Foo { static prototype }", "<stdin>: error: Invalid field name \"prototype\"\n")
 	expectParseError(t, "class Foo { static 'prototype' }", "<stdin>: error: Invalid field name \"prototype\"\n")
 	expectParseError(t, "class Foo { static prototype = 1 }", "<stdin>: error: Invalid field name \"prototype\"\n")
@@ -1466,22 +1647,22 @@ func TestYield(t *testing.T) {
 	expectParseError(t, "function *foo() { (x = \\u0079ield) }", "<stdin>: error: The keyword \"yield\" cannot be escaped\n")
 
 	// Yield as an identifier
-	expectPrinted(t, "({yield} = x)", "({yield} = x);\n")
-	expectPrinted(t, "let x = {yield}", "let x = {yield};\n")
-	expectPrinted(t, "function foo() { ({yield} = x) }", "function foo() {\n  ({yield} = x);\n}\n")
-	expectPrinted(t, "function foo() { let x = {yield} }", "function foo() {\n  let x = {yield};\n}\n")
+	expectPrinted(t, "({yield} = x)", "({ yield } = x);\n")
+	expectPrinted(t, "let x = {yield}", "let x = { yield };\n")
+	expectPrinted(t, "function foo() { ({yield} = x) }", "function foo() {\n  ({ yield } = x);\n}\n")
+	expectPrinted(t, "function foo() { let x = {yield} }", "function foo() {\n  let x = { yield };\n}\n")
 	expectParseError(t, "function *foo() { ({yield} = x) }", "<stdin>: error: Cannot use \"yield\" as an identifier here\n")
 	expectParseError(t, "function *foo() { let x = {yield} }", "<stdin>: error: Cannot use \"yield\" as an identifier here\n")
 
 	// Yield as a declaration
-	expectPrinted(t, "({ *yield() {} })", "({*yield() {\n}});\n")
+	expectPrinted(t, "({ *yield() {} })", "({ *yield() {\n} });\n")
 	expectPrinted(t, "(class { *yield() {} })", "(class {\n  *yield() {\n  }\n});\n")
 	expectPrinted(t, "class Foo { *yield() {} }", "class Foo {\n  *yield() {\n  }\n}\n")
 	expectPrinted(t, "function* yield() {}", "function* yield() {\n}\n")
 	expectParseError(t, "(function* yield() {})", "<stdin>: error: A generator function expression cannot be named \"yield\"\n")
 
 	// Yield as an async declaration
-	expectPrinted(t, "({ async *yield() {} })", "({async *yield() {\n}});\n")
+	expectPrinted(t, "({ async *yield() {} })", "({ async *yield() {\n} });\n")
 	expectPrinted(t, "(class { async *yield() {} })", "(class {\n  async *yield() {\n  }\n});\n")
 	expectPrinted(t, "class Foo { async *yield() {} }", "class Foo {\n  async *yield() {\n  }\n}\n")
 	expectPrinted(t, "async function* yield() {}", "async function* yield() {\n}\n")
@@ -1547,6 +1728,13 @@ func TestAsync(t *testing.T) {
 	expectParseError(t, "export default async x => y, z", "<stdin>: error: Expected \";\" but found \",\"\n")
 	expectParseError(t, "export default async (x) => y, z", "<stdin>: error: Expected \";\" but found \",\"\n")
 
+	expectPrinted(t, "class Foo { async async() {} }", "class Foo {\n  async async() {\n  }\n}\n")
+	expectPrinted(t, "(class { async async() {} })", "(class {\n  async async() {\n  }\n});\n")
+	expectPrinted(t, "({ async async() {} })", "({ async async() {\n} });\n")
+	expectParseError(t, "class Foo { async async }", "<stdin>: error: Expected \"(\" but found \"}\"\n")
+	expectParseError(t, "(class { async async })", "<stdin>: error: Expected \"(\" but found \"}\"\n")
+	expectParseError(t, "({ async async })", "<stdin>: error: Expected \"(\" but found \"}\"\n")
+
 	noAwait := "<stdin>: error: The keyword \"await\" cannot be used here\n"
 	expectParseError(t, "async function bar(x = await y) {}", noAwait+"<stdin>: error: Expected \")\" but found \"y\"\n")
 	expectParseError(t, "async (function(x = await y) {})", friendlyAwaitError)
@@ -1578,7 +1766,7 @@ func TestAsync(t *testing.T) {
 	expectParseError(t, "function foo(x = await y) {}", friendlyAwaitError)
 	expectPrinted(t, "(function(x = await) {})", "(function(x = await) {\n});\n")
 	expectParseError(t, "(function(x = await y) {})", friendlyAwaitError)
-	expectPrinted(t, "({ foo(x = await) {} })", "({foo(x = await) {\n}});\n")
+	expectPrinted(t, "({ foo(x = await) {} })", "({ foo(x = await) {\n} });\n")
 	expectParseError(t, "({ foo(x = await y) {} })", friendlyAwaitError)
 	expectPrinted(t, "class Foo { foo(x = await) {} }", "class Foo {\n  foo(x = await) {\n  }\n}\n")
 	expectParseError(t, "class Foo { foo(x = await y) {} }", friendlyAwaitError)
@@ -1616,22 +1804,24 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "async function foo(){for await(let x of y);}", "async function foo() {\n  for await (let x of y)\n    ;\n}\n")
 
 	// Await as an identifier
-	expectPrinted(t, "function foo() { ({await} = x) }", "function foo() {\n  ({await} = x);\n}\n")
-	expectPrinted(t, "function foo() { let x = {await} }", "function foo() {\n  let x = {await};\n}\n")
+	expectPrinted(t, "function foo() { ({await} = x) }", "function foo() {\n  ({ await } = x);\n}\n")
+	expectPrinted(t, "function foo() { let x = {await} }", "function foo() {\n  let x = { await };\n}\n")
 	expectParseError(t, "({await} = x)", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "let x = {await}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "class await {}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "(class await {})", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { ({await} = x) }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { let x = {await} }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 
 	// Await as a declaration
-	expectPrinted(t, "({ async await() {} })", "({async await() {\n}});\n")
+	expectPrinted(t, "({ async await() {} })", "({ async await() {\n} });\n")
 	expectPrinted(t, "(class { async await() {} })", "(class {\n  async await() {\n  }\n});\n")
 	expectPrinted(t, "class Foo { async await() {} }", "class Foo {\n  async await() {\n  }\n}\n")
 	expectParseError(t, "async function await() {}", "<stdin>: error: An async function cannot be named \"await\"\n")
 	expectParseError(t, "(async function await() {})", "<stdin>: error: An async function cannot be named \"await\"\n")
 
 	// Await as a generator declaration
-	expectPrinted(t, "({ async *await() {} })", "({async *await() {\n}});\n")
+	expectPrinted(t, "({ async *await() {} })", "({ async *await() {\n} });\n")
 	expectPrinted(t, "(class { async *await() {} })", "(class {\n  async *await() {\n  }\n});\n")
 	expectPrinted(t, "class Foo { async *await() {} }", "class Foo {\n  async *await() {\n  }\n}\n")
 	expectParseError(t, "async function* await() {}", "<stdin>: error: An async function cannot be named \"await\"\n")
@@ -1640,7 +1830,7 @@ func TestAsync(t *testing.T) {
 
 func TestLabels(t *testing.T) {
 	expectPrinted(t, "{a:b}", "{\n  a:\n    b;\n}\n")
-	expectPrinted(t, "({a:b})", "({a: b});\n")
+	expectPrinted(t, "({a:b})", "({ a: b });\n")
 
 	expectParseError(t, "while (1) break x", "<stdin>: error: There is no containing label named \"x\"\n")
 	expectParseError(t, "while (1) continue x", "<stdin>: error: There is no containing label named \"x\"\n")
@@ -1820,14 +2010,20 @@ func TestTemplate(t *testing.T) {
 	expectParseError(t, "`\\00${x}`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
 	expectParseError(t, "`${x}\\00`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
 	expectParseError(t, "`${x}\\00${y}`", "<stdin>: error: Legacy octal escape sequences cannot be used in template literals\n")
+	expectParseError(t, "`\\unicode`", "<stdin>: error: Syntax error \"n\"\n")
+	expectParseError(t, "`\\unicode${x}`", "<stdin>: error: Syntax error \"n\"\n")
+	expectParseError(t, "`${x}\\unicode`", "<stdin>: error: Syntax error \"n\"\n")
 
-	expectParseError(t, "tag`\\7`", "")
-	expectParseError(t, "tag`\\8`", "")
-	expectParseError(t, "tag`\\9`", "")
-	expectParseError(t, "tag`\\00`", "")
-	expectParseError(t, "tag`\\00${x}`", "")
-	expectParseError(t, "tag`${x}\\00`", "")
-	expectParseError(t, "tag`${x}\\00${y}`", "")
+	expectPrinted(t, "tag`\\7`", "tag`\\7`;\n")
+	expectPrinted(t, "tag`\\8`", "tag`\\8`;\n")
+	expectPrinted(t, "tag`\\9`", "tag`\\9`;\n")
+	expectPrinted(t, "tag`\\00`", "tag`\\00`;\n")
+	expectPrinted(t, "tag`\\00${x}`", "tag`\\00${x}`;\n")
+	expectPrinted(t, "tag`${x}\\00`", "tag`${x}\\00`;\n")
+	expectPrinted(t, "tag`${x}\\00${y}`", "tag`${x}\\00${y}`;\n")
+	expectPrinted(t, "tag`\\unicode`", "tag`\\unicode`;\n")
+	expectPrinted(t, "tag`\\unicode${x}`", "tag`\\unicode${x}`;\n")
+	expectPrinted(t, "tag`${x}\\unicode`", "tag`${x}\\unicode`;\n")
 
 	expectPrinted(t, "tag``", "tag``;\n")
 	expectPrinted(t, "(a?.b)``", "(a?.b)``;\n")
@@ -2082,11 +2278,11 @@ func TestConstantFoldingScopes(t *testing.T) {
 func TestImport(t *testing.T) {
 	expectPrinted(t, "import \"foo\"", "import \"foo\";\n")
 	expectPrinted(t, "import {} from \"foo\"", "import {} from \"foo\";\n")
-	expectPrinted(t, "import {x} from \"foo\";x", "import {x} from \"foo\";\nx;\n")
-	expectPrinted(t, "import {x as y} from \"foo\";y", "import {x as y} from \"foo\";\ny;\n")
-	expectPrinted(t, "import {x as y, z} from \"foo\";y;z", "import {x as y, z} from \"foo\";\ny;\nz;\n")
-	expectPrinted(t, "import {x as y, z,} from \"foo\";y;z", "import {x as y, z} from \"foo\";\ny;\nz;\n")
-	expectPrinted(t, "import z, {x as y} from \"foo\";y;z", "import z, {x as y} from \"foo\";\ny;\nz;\n")
+	expectPrinted(t, "import {x} from \"foo\";x", "import { x } from \"foo\";\nx;\n")
+	expectPrinted(t, "import {x as y} from \"foo\";y", "import { x as y } from \"foo\";\ny;\n")
+	expectPrinted(t, "import {x as y, z} from \"foo\";y;z", "import { x as y, z } from \"foo\";\ny;\nz;\n")
+	expectPrinted(t, "import {x as y, z,} from \"foo\";y;z", "import { x as y, z } from \"foo\";\ny;\nz;\n")
+	expectPrinted(t, "import z, {x as y} from \"foo\";y;z", "import z, { x as y } from \"foo\";\ny;\nz;\n")
 	expectPrinted(t, "import z from \"foo\";z", "import z from \"foo\";\nz;\n")
 	expectPrinted(t, "import * as ns from \"foo\";ns;ns.x", "import * as ns from \"foo\";\nns;\nns.x;\n")
 	expectPrinted(t, "import z, * as ns from \"foo\";z;ns;ns.x", "import z, * as ns from \"foo\";\nz;\nns;\nns.x;\n")
@@ -2101,7 +2297,6 @@ func TestImport(t *testing.T) {
 	expectPrinted(t, "new (import('foo'))", "new (import(\"foo\"))();\n")
 	expectParseError(t, "import()", "<stdin>: error: Unexpected \")\"\n")
 	expectParseError(t, "import(...a)", "<stdin>: error: Unexpected \"...\"\n")
-	expectParseError(t, "import(a, b)", "<stdin>: error: Expected \")\" but found \",\"\n")
 	expectParseError(t, "new import('foo')", "<stdin>: error: Cannot use an \"import\" expression here without parentheses\n")
 
 	expectPrinted(t, "import.meta", "import.meta;\n")
@@ -2111,16 +2306,16 @@ func TestImport(t *testing.T) {
 	expectPrinted(t, "import x from \"foo\"; x = 1", "import x from \"foo\";\nx = 1;\n")
 	expectPrinted(t, "import x from \"foo\"; x++", "import x from \"foo\";\nx++;\n")
 	expectPrinted(t, "import x from \"foo\"; ([x] = 1)", "import x from \"foo\";\n[x] = 1;\n")
-	expectPrinted(t, "import x from \"foo\"; ({x} = 1)", "import x from \"foo\";\n({x} = 1);\n")
-	expectPrinted(t, "import x from \"foo\"; ({y: x} = 1)", "import x from \"foo\";\n({y: x} = 1);\n")
-	expectPrinted(t, "import {x} from \"foo\"; x++", "import {x} from \"foo\";\nx++;\n")
+	expectPrinted(t, "import x from \"foo\"; ({x} = 1)", "import x from \"foo\";\n({ x } = 1);\n")
+	expectPrinted(t, "import x from \"foo\"; ({y: x} = 1)", "import x from \"foo\";\n({ y: x } = 1);\n")
+	expectPrinted(t, "import {x} from \"foo\"; x++", "import { x } from \"foo\";\nx++;\n")
 	expectPrinted(t, "import * as x from \"foo\"; x++", "import * as x from \"foo\";\nx++;\n")
 	expectPrinted(t, "import * as x from \"foo\"; x.y = 1", "import * as x from \"foo\";\nx.y = 1;\n")
 	expectPrinted(t, "import * as x from \"foo\"; x[y] = 1", "import * as x from \"foo\";\nx[y] = 1;\n")
 	expectPrinted(t, "import * as x from \"foo\"; x['y'] = 1", "import * as x from \"foo\";\nx[\"y\"] = 1;\n")
 	expectPrinted(t, "import * as x from \"foo\"; x['y z'] = 1", "import * as x from \"foo\";\nx[\"y z\"] = 1;\n")
-	expectPrinted(t, "import x from \"foo\"; ({y = x} = 1)", "import x from \"foo\";\n({y = x} = 1);\n")
-	expectPrinted(t, "import x from \"foo\"; ({[x]: y} = 1)", "import x from \"foo\";\n({[x]: y} = 1);\n")
+	expectPrinted(t, "import x from \"foo\"; ({y = x} = 1)", "import x from \"foo\";\n({ y = x } = 1);\n")
+	expectPrinted(t, "import x from \"foo\"; ({[x]: y} = 1)", "import x from \"foo\";\n({ [x]: y } = 1);\n")
 	expectPrinted(t, "import x from \"foo\"; x.y = 1", "import x from \"foo\";\nx.y = 1;\n")
 	expectPrinted(t, "import x from \"foo\"; x[y] = 1", "import x from \"foo\";\nx[y] = 1;\n")
 	expectPrinted(t, "import x from \"foo\"; x['y'] = 1", "import x from \"foo\";\nx[\"y\"] = 1;\n")
@@ -2130,20 +2325,20 @@ func TestImport(t *testing.T) {
 	expectParseError(t, "import {ev\\u0061l} from 'foo'", "<stdin>: error: Cannot use \"eval\" as an identifier here\n")
 	expectParseError(t, "import {x as eval} from 'foo'", "<stdin>: error: Cannot use \"eval\" as an identifier here\n")
 	expectParseError(t, "import {x as ev\\u0061l} from 'foo'", "<stdin>: error: Cannot use \"eval\" as an identifier here\n")
-	expectPrinted(t, "import {eval as x} from 'foo'", "import {eval as x} from \"foo\";\n")
-	expectPrinted(t, "import {ev\\u0061l as x} from 'foo'", "import {eval as x} from \"foo\";\n")
+	expectPrinted(t, "import {eval as x} from 'foo'", "import { eval as x } from \"foo\";\n")
+	expectPrinted(t, "import {ev\\u0061l as x} from 'foo'", "import { eval as x } from \"foo\";\n")
 	expectParseError(t, "import {arguments} from 'foo'", "<stdin>: error: Cannot use \"arguments\" as an identifier here\n")
 	expectParseError(t, "import {\\u0061rguments} from 'foo'", "<stdin>: error: Cannot use \"arguments\" as an identifier here\n")
 	expectParseError(t, "import {x as arguments} from 'foo'", "<stdin>: error: Cannot use \"arguments\" as an identifier here\n")
 	expectParseError(t, "import {x as \\u0061rguments} from 'foo'", "<stdin>: error: Cannot use \"arguments\" as an identifier here\n")
-	expectPrinted(t, "import {arguments as x} from 'foo'", "import {arguments as x} from \"foo\";\n")
-	expectPrinted(t, "import {\\u0061rguments as x} from 'foo'", "import {arguments as x} from \"foo\";\n")
+	expectPrinted(t, "import {arguments as x} from 'foo'", "import { arguments as x } from \"foo\";\n")
+	expectPrinted(t, "import {\\u0061rguments as x} from 'foo'", "import { arguments as x } from \"foo\";\n")
 
 	// String import alias with "import {} from"
-	expectPrinted(t, "import {'' as x} from 'foo'", "import {\"\" as x} from \"foo\";\n")
-	expectPrinted(t, "import {'🍕' as x} from 'foo'", "import {\"🍕\" as x} from \"foo\";\n")
-	expectPrinted(t, "import {'a b' as x} from 'foo'", "import {\"a b\" as x} from \"foo\";\n")
-	expectPrinted(t, "import {'\\uD800\\uDC00' as x} from 'foo'", "import {𐀀 as x} from \"foo\";\n")
+	expectPrinted(t, "import {'' as x} from 'foo'", "import { \"\" as x } from \"foo\";\n")
+	expectPrinted(t, "import {'🍕' as x} from 'foo'", "import { \"🍕\" as x } from \"foo\";\n")
+	expectPrinted(t, "import {'a b' as x} from 'foo'", "import { \"a b\" as x } from \"foo\";\n")
+	expectPrinted(t, "import {'\\uD800\\uDC00' as x} from 'foo'", "import { 𐀀 as x } from \"foo\";\n")
 	expectParseError(t, "import {'x'} from 'foo'", "<stdin>: error: Expected \"as\" but found \"}\"\n")
 	expectParseError(t, "import {'\\uD800' as x} from 'foo'",
 		"<stdin>: error: This import alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
@@ -2167,14 +2362,14 @@ func TestExport(t *testing.T) {
 	expectPrinted(t, "export * from \"foo\"", "export * from \"foo\";\n")
 	expectPrinted(t, "export * as ns from \"foo\"", "export * as ns from \"foo\";\n")
 	expectPrinted(t, "export * as if from \"foo\"", "export * as if from \"foo\";\n")
-	expectPrinted(t, "let x; export {x}", "let x;\nexport {x};\n")
-	expectPrinted(t, "let x; export {x as y}", "let x;\nexport {x as y};\n")
-	expectPrinted(t, "let x, z; export {x as y, z}", "let x, z;\nexport {x as y, z};\n")
-	expectPrinted(t, "let x, z; export {x as y, z,}", "let x, z;\nexport {x as y, z};\n")
-	expectPrinted(t, "let x; export {x} from \"foo\"", "let x;\nexport {x} from \"foo\";\n")
-	expectPrinted(t, "let x; export {x as y} from \"foo\"", "let x;\nexport {x as y} from \"foo\";\n")
-	expectPrinted(t, "let x, z; export {x as y, z} from \"foo\"", "let x, z;\nexport {x as y, z} from \"foo\";\n")
-	expectPrinted(t, "let x, z; export {x as y, z,} from \"foo\"", "let x, z;\nexport {x as y, z} from \"foo\";\n")
+	expectPrinted(t, "let x; export {x}", "let x;\nexport { x };\n")
+	expectPrinted(t, "let x; export {x as y}", "let x;\nexport { x as y };\n")
+	expectPrinted(t, "let x, z; export {x as y, z}", "let x, z;\nexport { x as y, z };\n")
+	expectPrinted(t, "let x, z; export {x as y, z,}", "let x, z;\nexport { x as y, z };\n")
+	expectPrinted(t, "let x; export {x} from \"foo\"", "let x;\nexport { x } from \"foo\";\n")
+	expectPrinted(t, "let x; export {x as y} from \"foo\"", "let x;\nexport { x as y } from \"foo\";\n")
+	expectPrinted(t, "let x, z; export {x as y, z} from \"foo\"", "let x, z;\nexport { x as y, z } from \"foo\";\n")
+	expectPrinted(t, "let x, z; export {x as y, z,} from \"foo\"", "let x, z;\nexport { x as y, z } from \"foo\";\n")
 
 	expectParseError(t, "export x from \"foo\"", "<stdin>: error: Unexpected \"x\"\n")
 	expectParseError(t, "export async", "<stdin>: error: Expected \"function\" but found end of file\n")
@@ -2182,10 +2377,10 @@ func TestExport(t *testing.T) {
 	expectParseError(t, "export async () => {}", "<stdin>: error: Expected \"function\" but found \"(\"\n")
 
 	// String export alias with "export {}"
-	expectPrinted(t, "let x; export {x as ''}", "let x;\nexport {x as \"\"};\n")
-	expectPrinted(t, "let x; export {x as '🍕'}", "let x;\nexport {x as \"🍕\"};\n")
-	expectPrinted(t, "let x; export {x as 'a b'}", "let x;\nexport {x as \"a b\"};\n")
-	expectPrinted(t, "let x; export {x as '\\uD800\\uDC00'}", "let x;\nexport {x as 𐀀};\n")
+	expectPrinted(t, "let x; export {x as ''}", "let x;\nexport { x as \"\" };\n")
+	expectPrinted(t, "let x; export {x as '🍕'}", "let x;\nexport { x as \"🍕\" };\n")
+	expectPrinted(t, "let x; export {x as 'a b'}", "let x;\nexport { x as \"a b\" };\n")
+	expectPrinted(t, "let x; export {x as '\\uD800\\uDC00'}", "let x;\nexport { x as 𐀀 };\n")
 	expectParseError(t, "let x; export {'x'}", "<stdin>: error: Expected identifier but found \"'x'\"\n")
 	expectParseError(t, "let x; export {'x' as 'y'}", "<stdin>: error: Expected identifier but found \"'x'\"\n")
 	expectParseError(t, "let x; export {x as '\\uD800'}",
@@ -2196,10 +2391,10 @@ func TestExport(t *testing.T) {
 		"<stdin>: error: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
 
 	// String import alias with "export {} from"
-	expectPrinted(t, "export {'' as x} from 'foo'", "export {\"\" as x} from \"foo\";\n")
-	expectPrinted(t, "export {'🍕' as x} from 'foo'", "export {\"🍕\" as x} from \"foo\";\n")
-	expectPrinted(t, "export {'a b' as x} from 'foo'", "export {\"a b\" as x} from \"foo\";\n")
-	expectPrinted(t, "export {'\\uD800\\uDC00' as x} from 'foo'", "export {𐀀 as x} from \"foo\";\n")
+	expectPrinted(t, "export {'' as x} from 'foo'", "export { \"\" as x } from \"foo\";\n")
+	expectPrinted(t, "export {'🍕' as x} from 'foo'", "export { \"🍕\" as x } from \"foo\";\n")
+	expectPrinted(t, "export {'a b' as x} from 'foo'", "export { \"a b\" as x } from \"foo\";\n")
+	expectPrinted(t, "export {'\\uD800\\uDC00' as x} from 'foo'", "export { 𐀀 as x } from \"foo\";\n")
 	expectParseError(t, "export {'\\uD800' as x} from 'foo'",
 		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
 	expectParseError(t, "export {'\\uDC00' as x} from 'foo'",
@@ -2208,10 +2403,10 @@ func TestExport(t *testing.T) {
 		"<stdin>: error: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
 
 	// String export alias with "export {} from"
-	expectPrinted(t, "export {x as ''} from 'foo'", "export {x as \"\"} from \"foo\";\n")
-	expectPrinted(t, "export {x as '🍕'} from 'foo'", "export {x as \"🍕\"} from \"foo\";\n")
-	expectPrinted(t, "export {x as 'a b'} from 'foo'", "export {x as \"a b\"} from \"foo\";\n")
-	expectPrinted(t, "export {x as '\\uD800\\uDC00'} from 'foo'", "export {x as 𐀀} from \"foo\";\n")
+	expectPrinted(t, "export {x as ''} from 'foo'", "export { x as \"\" } from \"foo\";\n")
+	expectPrinted(t, "export {x as '🍕'} from 'foo'", "export { x as \"🍕\" } from \"foo\";\n")
+	expectPrinted(t, "export {x as 'a b'} from 'foo'", "export { x as \"a b\" } from \"foo\";\n")
+	expectPrinted(t, "export {x as '\\uD800\\uDC00'} from 'foo'", "export { x as 𐀀 } from \"foo\";\n")
 	expectParseError(t, "export {x as '\\uD800'} from 'foo'",
 		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
 	expectParseError(t, "export {x as '\\uDC00'} from 'foo'",
@@ -2220,10 +2415,10 @@ func TestExport(t *testing.T) {
 		"<stdin>: error: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
 
 	// String import and export alias with "export {} from"
-	expectPrinted(t, "export {'x'} from 'foo'", "export {x} from \"foo\";\n")
-	expectPrinted(t, "export {'a b'} from 'foo'", "export {\"a b\"} from \"foo\";\n")
-	expectPrinted(t, "export {'x' as 'y'} from 'foo'", "export {x as y} from \"foo\";\n")
-	expectPrinted(t, "export {'a b' as 'c d'} from 'foo'", "export {\"a b\" as \"c d\"} from \"foo\";\n")
+	expectPrinted(t, "export {'x'} from 'foo'", "export { x } from \"foo\";\n")
+	expectPrinted(t, "export {'a b'} from 'foo'", "export { \"a b\" } from \"foo\";\n")
+	expectPrinted(t, "export {'x' as 'y'} from 'foo'", "export { x as y } from \"foo\";\n")
+	expectPrinted(t, "export {'a b' as 'c d'} from 'foo'", "export { \"a b\" as \"c d\" } from \"foo\";\n")
 
 	// String export alias with "export * as"
 	expectPrinted(t, "export * as '' from 'foo'", "export * as \"\" from \"foo\";\n")
@@ -2239,11 +2434,11 @@ func TestExport(t *testing.T) {
 }
 
 func TestExportDuplicates(t *testing.T) {
-	expectPrinted(t, "export {x};let x", "export {x};\nlet x;\n")
-	expectPrinted(t, "export {x, x as y};let x", "export {x, x as y};\nlet x;\n")
-	expectPrinted(t, "export {x};export {x as y} from 'foo';let x", "export {x};\nexport {x as y} from \"foo\";\nlet x;\n")
-	expectPrinted(t, "export {x};export default function x() {}", "export {x};\nexport default function x() {\n}\n")
-	expectPrinted(t, "export {x};export default class x {}", "export {x};\nexport default class x {\n}\n")
+	expectPrinted(t, "export {x};let x", "export { x };\nlet x;\n")
+	expectPrinted(t, "export {x, x as y};let x", "export { x, x as y };\nlet x;\n")
+	expectPrinted(t, "export {x};export {x as y} from 'foo';let x", "export { x };\nexport { x as y } from \"foo\";\nlet x;\n")
+	expectPrinted(t, "export {x};export default function x() {}", "export { x };\nexport default function x() {\n}\n")
+	expectPrinted(t, "export {x};export default class x {}", "export { x };\nexport default class x {\n}\n")
 
 	errorTextX := `<stdin>: error: Multiple exports with the same name "x"
 <stdin>: note: "x" was originally exported here
@@ -2299,11 +2494,11 @@ func TestExportDefault(t *testing.T) {
 }
 
 func TestExportClause(t *testing.T) {
-	expectPrinted(t, "export {x, y};let x, y", "export {x, y};\nlet x, y;\n")
-	expectPrinted(t, "export {x, y as z,};let x, y", "export {x, y as z};\nlet x, y;\n")
-	expectPrinted(t, "export {x, y} from 'path'", "export {x, y} from \"path\";\n")
-	expectPrinted(t, "export {default, if} from 'path'", "export {default, if} from \"path\";\n")
-	expectPrinted(t, "export {default as foo, if as bar} from 'path'", "export {default as foo, if as bar} from \"path\";\n")
+	expectPrinted(t, "export {x, y};let x, y", "export { x, y };\nlet x, y;\n")
+	expectPrinted(t, "export {x, y as z,};let x, y", "export { x, y as z };\nlet x, y;\n")
+	expectPrinted(t, "export {x, y} from 'path'", "export { x, y } from \"path\";\n")
+	expectPrinted(t, "export {default, if} from 'path'", "export { default, if } from \"path\";\n")
+	expectPrinted(t, "export {default as foo, if as bar} from 'path'", "export { default as foo, if as bar } from \"path\";\n")
 	expectParseError(t, "export {default}", "<stdin>: error: Expected identifier but found \"default\"\n")
 	expectParseError(t, "export {default as foo}", "<stdin>: error: Expected identifier but found \"default\"\n")
 	expectParseError(t, "export {if}", "<stdin>: error: Expected identifier but found \"if\"\n")
@@ -2526,7 +2721,7 @@ func TestMangleUndefined(t *testing.T) {
 	expectPrintedMangle(t, "++undefined", "++undefined;\n")
 	expectPrintedMangle(t, "undefined = 1", "undefined = 1;\n")
 	expectPrintedMangle(t, "[undefined] = 1", "[undefined] = 1;\n")
-	expectPrintedMangle(t, "({x: undefined} = 1)", "({x: undefined} = 1);\n")
+	expectPrintedMangle(t, "({x: undefined} = 1)", "({ x: undefined } = 1);\n")
 	expectPrintedMangle(t, "with (x) y(undefined); z(undefined)", "with (x)\n  y(undefined);\nz(void 0);\n")
 	expectPrintedMangle(t, "with (x) while (i) y(undefined); z(undefined)", "with (x)\n  for (; i; )\n    y(undefined);\nz(void 0);\n")
 }
@@ -2906,7 +3101,7 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 	}
 
 	falsyHasSideEffects := []string{"void foo()"}
-	truthyHasSideEffects := []string{"typeof foo()", "[foo()]", "{[foo()]: 0}"}
+	truthyHasSideEffects := []string{"typeof foo()", "[foo()]", "{ [foo()]: 0 }"}
 
 	for _, value := range falsyHasSideEffects {
 		expectPrintedMangle(t, "y(x && "+value+")", "y(x && "+value+");\n")
@@ -3026,7 +3221,7 @@ func TestMangleCall(t *testing.T) {
 	expectPrintedMangle(t, "x = foo(1, ...[2], 3)", "x = foo(1, 2, 3);\n")
 	expectPrintedMangle(t, "x = foo(1, ...[2, 3], 4)", "x = foo(1, 2, 3, 4);\n")
 	expectPrintedMangle(t, "x = foo(1, ...[2, ...y, 3], 4)", "x = foo(1, 2, ...y, 3, 4);\n")
-	expectPrintedMangle(t, "x = foo(1, ...{a, b}, 4)", "x = foo(1, ...{a, b}, 4);\n")
+	expectPrintedMangle(t, "x = foo(1, ...{a, b}, 4)", "x = foo(1, ...{ a, b }, 4);\n")
 
 	// Holes must become undefined
 	expectPrintedMangle(t, "x = foo(1, ...[,2,,], 3)", "x = foo(1, void 0, 2, void 0, 3);\n")
@@ -3038,74 +3233,82 @@ func TestMangleArray(t *testing.T) {
 	expectPrintedMangle(t, "x = [1, ...[2], 3]", "x = [1, 2, 3];\n")
 	expectPrintedMangle(t, "x = [1, ...[2, 3], 4]", "x = [1, 2, 3, 4];\n")
 	expectPrintedMangle(t, "x = [1, ...[2, ...y, 3], 4]", "x = [1, 2, ...y, 3, 4];\n")
-	expectPrintedMangle(t, "x = [1, ...{a, b}, 4]", "x = [1, ...{a, b}, 4];\n")
+	expectPrintedMangle(t, "x = [1, ...{a, b}, 4]", "x = [1, ...{ a, b }, 4];\n")
 
 	// Holes must become undefined, which is different than a hole
 	expectPrintedMangle(t, "x = [1, ...[,2,,], 3]", "x = [1, void 0, 2, void 0, 3];\n")
 }
 
 func TestMangleObject(t *testing.T) {
-	expectPrintedMangle(t, "x = {['y']: z}", "x = {y: z};\n")
-	expectPrintedMangle(t, "x = {['y']() {}}", "x = {y() {\n}};\n")
-	expectPrintedMangle(t, "x = {get ['y']() {}}", "x = {get y() {\n}};\n")
-	expectPrintedMangle(t, "x = {set ['y'](z) {}}", "x = {set y(z) {\n}};\n")
-	expectPrintedMangle(t, "x = {async ['y']() {}}", "x = {async y() {\n}};\n")
-	expectPrintedMangle(t, "({['y']: z} = x)", "({y: z} = x);\n")
+	expectPrintedMangle(t, "x = {['y']: z}", "x = { y: z };\n")
+	expectPrintedMangle(t, "x = {['y']() {}}", "x = { y() {\n} };\n")
+	expectPrintedMangle(t, "x = {get ['y']() {}}", "x = { get y() {\n} };\n")
+	expectPrintedMangle(t, "x = {set ['y'](z) {}}", "x = { set y(z) {\n} };\n")
+	expectPrintedMangle(t, "x = {async ['y']() {}}", "x = { async y() {\n} };\n")
+	expectPrintedMangle(t, "({['y']: z} = x)", "({ y: z } = x);\n")
 
-	expectPrintedMangle(t, "x = {a, ...{}, b}", "x = {a, b};\n")
-	expectPrintedMangle(t, "x = {a, ...b, c}", "x = {a, ...b, c};\n")
-	expectPrintedMangle(t, "x = {a, ...{b}, c}", "x = {a, b, c};\n")
-	expectPrintedMangle(t, "x = {a, ...{b() {}}, c}", "x = {a, b() {\n}, c};\n")
-	expectPrintedMangle(t, "x = {a, ...{b, c}, d}", "x = {a, b, c, d};\n")
-	expectPrintedMangle(t, "x = {a, ...{b, ...y, c}, d}", "x = {a, b, ...y, c, d};\n")
-	expectPrintedMangle(t, "x = {a, ...[b, c], d}", "x = {a, ...[b, c], d};\n")
+	expectPrintedMangle(t, "x = {a, ...{}, b}", "x = { a, b };\n")
+	expectPrintedMangle(t, "x = {a, ...b, c}", "x = { a, ...b, c };\n")
+	expectPrintedMangle(t, "x = {a, ...{b}, c}", "x = { a, b, c };\n")
+	expectPrintedMangle(t, "x = {a, ...{b() {}}, c}", "x = { a, b() {\n}, c };\n")
+	expectPrintedMangle(t, "x = {a, ...{b, c}, d}", "x = { a, b, c, d };\n")
+	expectPrintedMangle(t, "x = {a, ...{b, ...y, c}, d}", "x = { a, b, ...y, c, d };\n")
+	expectPrintedMangle(t, "x = {a, ...[b, c], d}", "x = { a, ...[b, c], d };\n")
 
 	// Computed properties should be ok
-	expectPrintedMangle(t, "x = {a, ...{[b]: c}, d}", "x = {a, [b]: c, d};\n")
-	expectPrintedMangle(t, "x = {a, ...{[b]() {}}, c}", "x = {a, [b]() {\n}, c};\n")
+	expectPrintedMangle(t, "x = {a, ...{[b]: c}, d}", "x = { a, [b]: c, d };\n")
+	expectPrintedMangle(t, "x = {a, ...{[b]() {}}, c}", "x = { a, [b]() {\n}, c };\n")
 
 	// Getters and setters are not supported
 	expectPrintedMangle(t, "x = {a, ...{b, get c() { return y++ }, d}, e}",
-		"x = {a, b, ...{get c() {\n  return y++;\n}, d}, e};\n")
+		"x = { a, b, ...{ get c() {\n  return y++;\n}, d }, e };\n")
 	expectPrintedMangle(t, "x = {a, ...{b, set c(_) { throw _ }, d}, e}",
-		"x = {a, b, ...{set c(_) {\n  throw _;\n}, d}, e};\n")
+		"x = { a, b, ...{ set c(_) {\n  throw _;\n}, d }, e };\n")
+
+	// "__proto__" is not supported
+	expectPrintedMangle(t, "x = {a, ...{b, __proto__: c, d}, e}",
+		"x = { a, b, ...{ __proto__: c, d }, e };\n")
+	expectPrintedMangle(t, "x = {a, ...{b, ['__proto__']: c, d}, e}",
+		"x = { a, b, [\"__proto__\"]: c, d, e };\n")
+	expectPrintedMangle(t, "x = {a, ...{b, __proto__() {}, c}, d}",
+		"x = { a, b, __proto__() {\n}, c, d };\n")
 
 	// Spread is ignored for certain values
-	expectPrintedMangle(t, "x = {a, ...true, b}", "x = {a, b};\n")
-	expectPrintedMangle(t, "x = {a, ...null, b}", "x = {a, b};\n")
-	expectPrintedMangle(t, "x = {a, ...void 0, b}", "x = {a, b};\n")
-	expectPrintedMangle(t, "x = {a, ...123, b}", "x = {a, b};\n")
-	expectPrintedMangle(t, "x = {a, ...123n, b}", "x = {a, b};\n")
-	expectPrintedMangle(t, "x = {a, .../x/, b}", "x = {a, b};\n")
-	expectPrintedMangle(t, "x = {a, ...function(){}, b}", "x = {a, b};\n")
-	expectPrintedMangle(t, "x = {a, ...()=>{}, b}", "x = {a, b};\n")
-	expectPrintedMangle(t, "x = {a, ...'123', b}", "x = {a, ...\"123\", b};\n")
-	expectPrintedMangle(t, "x = {a, ...[1, 2, 3], b}", "x = {a, ...[1, 2, 3], b};\n")
-	expectPrintedMangle(t, "x = {a, ...(()=>{})(), b}", "x = {a, ...(() => {\n})(), b};\n")
+	expectPrintedMangle(t, "x = {a, ...true, b}", "x = { a, b };\n")
+	expectPrintedMangle(t, "x = {a, ...null, b}", "x = { a, b };\n")
+	expectPrintedMangle(t, "x = {a, ...void 0, b}", "x = { a, b };\n")
+	expectPrintedMangle(t, "x = {a, ...123, b}", "x = { a, b };\n")
+	expectPrintedMangle(t, "x = {a, ...123n, b}", "x = { a, b };\n")
+	expectPrintedMangle(t, "x = {a, .../x/, b}", "x = { a, b };\n")
+	expectPrintedMangle(t, "x = {a, ...function(){}, b}", "x = { a, b };\n")
+	expectPrintedMangle(t, "x = {a, ...()=>{}, b}", "x = { a, b };\n")
+	expectPrintedMangle(t, "x = {a, ...'123', b}", "x = { a, ...\"123\", b };\n")
+	expectPrintedMangle(t, "x = {a, ...[1, 2, 3], b}", "x = { a, ...[1, 2, 3], b };\n")
+	expectPrintedMangle(t, "x = {a, ...(()=>{})(), b}", "x = { a, ...(() => {\n})(), b };\n")
 
 	// Check simple cases of object simplification (advanced cases are checked in end-to-end tests)
-	expectPrintedMangle(t, "x = {['y']: z}.y", "x = {y: z}.y;\n")
+	expectPrintedMangle(t, "x = {['y']: z}.y", "x = { y: z }.y;\n")
 	expectPrintedMangle(t, "x = {['y']: z}.y; var z", "x = z;\nvar z;\n")
-	expectPrintedMangle(t, "x = {foo: foo(), y: 1}.y", "x = {foo: foo(), y: 1}.y;\n")
+	expectPrintedMangle(t, "x = {foo: foo(), y: 1}.y", "x = { foo: foo(), y: 1 }.y;\n")
 	expectPrintedMangle(t, "x = {foo: /* @__PURE__ */ foo(), y: 1}.y", "x = 1;\n")
 	expectPrintedMangle(t, "x = {__proto__: null}.y", "x = void 0;\n")
 	expectPrintedMangle(t, "x = {__proto__: null, y: 1}.y", "x = 1;\n")
 	expectPrintedMangle(t, "x = {__proto__: null}.__proto__", "x = void 0;\n")
-	expectPrintedMangle(t, "x = {['__proto__']: null}.y", "x = {[\"__proto__\"]: null}.y;\n")
-	expectPrintedMangle(t, "x = {['__proto__']: null, y: 1}.y", "x = {[\"__proto__\"]: null, y: 1}.y;\n")
-	expectPrintedMangle(t, "x = {['__proto__']: null}.__proto__", "x = {[\"__proto__\"]: null}.__proto__;\n")
+	expectPrintedMangle(t, "x = {['__proto__']: null}.y", "x = { [\"__proto__\"]: null }.y;\n")
+	expectPrintedMangle(t, "x = {['__proto__']: null, y: 1}.y", "x = { [\"__proto__\"]: null, y: 1 }.y;\n")
+	expectPrintedMangle(t, "x = {['__proto__']: null}.__proto__", "x = { [\"__proto__\"]: null }.__proto__;\n")
 
-	expectPrinted(t, "x = {y: 1}?.y", "x = {y: 1}?.y;\n")
-	expectPrinted(t, "x = {y: 1}?.['y']", "x = {y: 1}?.[\"y\"];\n")
-	expectPrinted(t, "x = {y: {z: 1}}?.y.z", "x = {y: {z: 1}}?.y.z;\n")
-	expectPrinted(t, "x = {y: {z: 1}}?.y?.z", "x = {y: {z: 1}}?.y?.z;\n")
-	expectPrinted(t, "x = {y() {}}?.y()", "x = {y() {\n}}?.y();\n")
+	expectPrinted(t, "x = {y: 1}?.y", "x = { y: 1 }?.y;\n")
+	expectPrinted(t, "x = {y: 1}?.['y']", "x = { y: 1 }?.[\"y\"];\n")
+	expectPrinted(t, "x = {y: {z: 1}}?.y.z", "x = { y: { z: 1 } }?.y.z;\n")
+	expectPrinted(t, "x = {y: {z: 1}}?.y?.z", "x = { y: { z: 1 } }?.y?.z;\n")
+	expectPrinted(t, "x = {y() {}}?.y()", "x = { y() {\n} }?.y();\n")
 
 	expectPrintedMangle(t, "x = {y: 1}?.y", "x = 1;\n")
 	expectPrintedMangle(t, "x = {y: 1}?.['y']", "x = 1;\n")
 	expectPrintedMangle(t, "x = {y: {z: 1}}?.y.z", "x = 1;\n")
-	expectPrintedMangle(t, "x = {y: {z: 1}}?.y?.z", "x = {z: 1}?.z;\n")
-	expectPrintedMangle(t, "x = {y() {}}?.y()", "x = {y() {\n}}.y();\n")
+	expectPrintedMangle(t, "x = {y: {z: 1}}?.y?.z", "x = { z: 1 }?.z;\n")
+	expectPrintedMangle(t, "x = {y() {}}?.y()", "x = { y() {\n} }.y();\n")
 }
 
 func TestMangleArrow(t *testing.T) {
@@ -3128,6 +3331,31 @@ func TestMangleTemplate(t *testing.T) {
 	expectPrintedMangle(t, "tag`a${x}b${'y'}c`", "tag`a${x}b${\"y\"}c`;\n")
 	expectPrintedMangle(t, "tag`a${'x'}b${y}c`", "tag`a${\"x\"}b${y}c`;\n")
 	expectPrintedMangle(t, "tag`a${'x'}b${'y'}c`", "tag`a${\"x\"}b${\"y\"}c`;\n")
+
+	expectPrintedMangle(t, "(1, x.y)``", "(0, x.y)``;\n")
+	expectPrintedMangle(t, "(1, x[y])``", "(0, x[y])``;\n")
+
+	expectPrintedMangleTarget(t, 2015, "class Foo { #foo() { return this.#foo`` } }", `var _foo, foo_fn;
+class Foo {
+  constructor() {
+    __privateAdd(this, _foo);
+  }
+}
+_foo = new WeakSet(), foo_fn = function() {
+  return __privateMethod(this, _foo, foo_fn).bind(this)`+"``"+`;
+};
+`)
+
+	expectPrintedMangleTarget(t, 2015, "class Foo { #foo() { return (0, this.#foo)`` } }", `var _foo, foo_fn;
+class Foo {
+  constructor() {
+    __privateAdd(this, _foo);
+  }
+}
+_foo = new WeakSet(), foo_fn = function() {
+  return __privateMethod(this, _foo, foo_fn)`+"``"+`;
+};
+`)
 }
 
 func TestMangleTypeofIdentifier(t *testing.T) {
@@ -3360,9 +3588,9 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "var bound; [123, bound, ...bound, 234]", "var bound;\n[...bound];\n")
 
 	expectPrintedMangle(t, "({foo, x: 123, [y]: 123, z: z, bar})", "foo, y + \"\", z, bar;\n")
-	expectPrintedMangle(t, "var bound; ({x: 123, unbound, ...unbound, [unbound]: null, y: 234})", "var bound;\n({unbound, ...unbound, [unbound]: 0});\n")
-	expectPrintedMangle(t, "var bound; ({x: 123, bound, ...bound, [bound]: null, y: 234})", "var bound;\n({...bound, [bound]: 0});\n")
-	expectPrintedMangle(t, "var bound; ({x: 123, bound, ...bound, [bound]: foo(), y: 234})", "var bound;\n({...bound, [bound]: foo()});\n")
+	expectPrintedMangle(t, "var bound; ({x: 123, unbound, ...unbound, [unbound]: null, y: 234})", "var bound;\n({ unbound, ...unbound, [unbound]: 0 });\n")
+	expectPrintedMangle(t, "var bound; ({x: 123, bound, ...bound, [bound]: null, y: 234})", "var bound;\n({ ...bound, [bound]: 0 });\n")
+	expectPrintedMangle(t, "var bound; ({x: 123, bound, ...bound, [bound]: foo(), y: 234})", "var bound;\n({ ...bound, [bound]: foo() });\n")
 
 	expectPrintedMangle(t, "console.log(1, foo(), bar())", "console.log(1, foo(), bar());\n")
 	expectPrintedMangle(t, "/* @__PURE__ */ console.log(1, foo(), bar())", "foo(), bar();\n")
@@ -3547,7 +3775,7 @@ func TestMangleInlineLocals(t *testing.T) {
 
 	// Cannot substitute an initializer without side effects past an expression with side effects
 	check("let x = 0; let y = {valueOf() { x = 1 }}; let z = x; return [y == 1, z]",
-		"let x = 0, y = {valueOf() {\n  x = 1;\n}}, z = x;\nreturn [y == 1, z];")
+		"let x = 0, y = { valueOf() {\n  x = 1;\n} }, z = x;\nreturn [y == 1, z];")
 
 	// Cannot inline past a spread operator, since that evaluates code
 	check("let x = arg0; return [...x];", "return [...arg0];")
@@ -3594,18 +3822,18 @@ func TestMangleInlineLocals(t *testing.T) {
 	// Can substitute into an object as long as there are no side effects
 	// beforehand. Note that computed properties must call "toString()" which
 	// can have side effects.
-	check("let x = arg0; return {x};", "return {x: arg0};")
-	check("let x = arg0; return {x: y, y: x};", "let x = arg0;\nreturn {x: y, y: x};")
-	check("let x = arg0; return {x: arg1, y: x};", "return {x: arg1, y: arg0};")
-	check("let x = arg0; return {[x]: 0};", "return {[arg0]: 0};")
-	check("let x = arg0; return {[y]: x};", "let x = arg0;\nreturn {[y]: x};")
-	check("let x = arg0; return {[arg1]: x};", "let x = arg0;\nreturn {[arg1]: x};")
-	check("let x = arg0; return {y() {}, x};", "return {y() {\n}, x: arg0};")
-	check("let x = arg0; return {[y]() {}, x};", "let x = arg0;\nreturn {[y]() {\n}, x};")
-	check("let x = arg0; return {...x};", "return {...arg0};")
-	check("let x = arg0; return {...x, y};", "return {...arg0, y};")
-	check("let x = arg0; return {x, ...y};", "return {x: arg0, ...y};")
-	check("let x = arg0; return {...y, x};", "let x = arg0;\nreturn {...y, x};")
+	check("let x = arg0; return {x};", "return { x: arg0 };")
+	check("let x = arg0; return {x: y, y: x};", "let x = arg0;\nreturn { x: y, y: x };")
+	check("let x = arg0; return {x: arg1, y: x};", "return { x: arg1, y: arg0 };")
+	check("let x = arg0; return {[x]: 0};", "return { [arg0]: 0 };")
+	check("let x = arg0; return {[y]: x};", "let x = arg0;\nreturn { [y]: x };")
+	check("let x = arg0; return {[arg1]: x};", "let x = arg0;\nreturn { [arg1]: x };")
+	check("let x = arg0; return {y() {}, x};", "return { y() {\n}, x: arg0 };")
+	check("let x = arg0; return {[y]() {}, x};", "let x = arg0;\nreturn { [y]() {\n}, x };")
+	check("let x = arg0; return {...x};", "return { ...arg0 };")
+	check("let x = arg0; return {...x, y};", "return { ...arg0, y };")
+	check("let x = arg0; return {x, ...y};", "return { x: arg0, ...y };")
+	check("let x = arg0; return {...y, x};", "let x = arg0;\nreturn { ...y, x };")
 
 	// Check substitutions into template literals
 	check("let x = arg0; return `a${x}b${y}c`;", "return `a${arg0}b${y}c`;")
@@ -4166,6 +4394,63 @@ func TestPrivateIdentifiers(t *testing.T) {
 `)
 }
 
+func TestImportAssertions(t *testing.T) {
+	expectPrinted(t, "import 'x' assert {}", "import \"x\" assert {};\n")
+	expectPrinted(t, "import 'x' assert {\n}", "import \"x\" assert {};\n")
+	expectPrinted(t, "import 'x' assert\n{}", "import \"x\" assert {};\n")
+	expectPrinted(t, "import 'x'\nassert\n{}", "import \"x\";\nassert;\n{\n}\n")
+	expectPrinted(t, "import 'x' assert {type: 'json'}", "import \"x\" assert { type: \"json\" };\n")
+	expectPrinted(t, "import 'x' assert {type: 'json',}", "import \"x\" assert { type: \"json\" };\n")
+	expectPrinted(t, "import 'x' assert {'type': 'json'}", "import \"x\" assert { \"type\": \"json\" };\n")
+	expectPrinted(t, "import 'x' assert {a: 'b', c: 'd'}", "import \"x\" assert { a: \"b\", c: \"d\" };\n")
+	expectPrinted(t, "import 'x' assert {a: 'b', c: 'd',}", "import \"x\" assert { a: \"b\", c: \"d\" };\n")
+	expectPrinted(t, "import 'x' assert {if: 'keyword'}", "import \"x\" assert { if: \"keyword\" };\n")
+	expectPrintedMangle(t, "import 'x' assert {'type': 'json'}", "import \"x\" assert { type: \"json\" };\n")
+	expectPrintedMangle(t, "import 'x' assert {'ty pe': 'json'}", "import \"x\" assert { \"ty pe\": \"json\" };\n")
+
+	expectParseError(t, "import 'x' assert {,}", "<stdin>: error: Expected identifier but found \",\"\n")
+	expectParseError(t, "import 'x' assert {x}", "<stdin>: error: Expected \":\" but found \"}\"\n")
+	expectParseError(t, "import 'x' assert {x 'y'}", "<stdin>: error: Expected \":\" but found \"'y'\"\n")
+	expectParseError(t, "import 'x' assert {x: y}", "<stdin>: error: Expected string but found \"y\"\n")
+	expectParseError(t, "import 'x' assert {x: 'y',,}", "<stdin>: error: Expected identifier but found \",\"\n")
+	expectParseError(t, "import 'x' assert {`x`: 'y'}", "<stdin>: error: Expected identifier but found \"`x`\"\n")
+	expectParseError(t, "import 'x' assert {x: `y`}", "<stdin>: error: Expected string but found \"`y`\"\n")
+	expectParseError(t, "import 'x' assert: {x: 'y'}", "<stdin>: error: Expected \"{\" but found \":\"\n")
+
+	expectParseError(t, "import 'x' assert {x: 'y', x: 'y'}",
+		"<stdin>: error: Duplicate import assertion \"x\"\n<stdin>: note: The first \"x\" was here\n")
+	expectParseError(t, "import 'x' assert {x: 'y', \\u0078: 'y'}",
+		"<stdin>: error: Duplicate import assertion \"x\"\n<stdin>: note: The first \"x\" was here\n")
+
+	expectPrinted(t, "import x from 'x' assert {x: 'y'}", "import x from \"x\" assert { x: \"y\" };\n")
+	expectPrinted(t, "import * as x from 'x' assert {x: 'y'}", "import * as x from \"x\" assert { x: \"y\" };\n")
+	expectPrinted(t, "import {} from 'x' assert {x: 'y'}", "import {} from \"x\" assert { x: \"y\" };\n")
+	expectPrinted(t, "export {} from 'x' assert {x: 'y'}", "export {} from \"x\" assert { x: \"y\" };\n")
+	expectPrinted(t, "export * from 'x' assert {x: 'y'}", "export * from \"x\" assert { x: \"y\" };\n")
+
+	expectPrinted(t, "import(x ? 'y' : 'z')", "x ? import(\"y\") : import(\"z\");\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {assert: {}})",
+		"x ? import(\"y\", { assert: {} }) : import(\"z\", { assert: {} });\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {assert: {a: 'b'}})",
+		"x ? import(\"y\", { assert: { a: \"b\" } }) : import(\"z\", { assert: { a: \"b\" } });\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {assert: {'a': 'b'}})",
+		"x ? import(\"y\", { assert: { \"a\": \"b\" } }) : import(\"z\", { assert: { \"a\": \"b\" } });\n")
+	expectPrintedMangle(t, "import(x ? 'y' : 'z', {assert: {'a': 'b'}})",
+		"x ? import(\"y\", { assert: { a: \"b\" } }) : import(\"z\", { assert: { a: \"b\" } });\n")
+	expectPrintedMangle(t, "import(x ? 'y' : 'z', {assert: {'a a': 'b'}})",
+		"x ? import(\"y\", { assert: { \"a a\": \"b\" } }) : import(\"z\", { assert: { \"a a\": \"b\" } });\n")
+
+	expectPrinted(t, "import(x ? 'y' : 'z', {})", "import(x ? \"y\" : \"z\", {});\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {assert: []})", "import(x ? \"y\" : \"z\", { assert: [] });\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {asserts: {}})", "import(x ? \"y\" : \"z\", { asserts: {} });\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {assert: {x: 1}})", "import(x ? \"y\" : \"z\", { assert: { x: 1 } });\n")
+
+	expectPrintedTarget(t, 2015, "import 'x' assert {x: 'y'}", "import \"x\";\n")
+	expectPrintedTarget(t, 2015, "import(x ? 'y' : 'z', {assert: {x: 1}})", "import(x ? \"y\" : \"z\");\n")
+	expectParseErrorTarget(t, 2015, "import(x ? 'y' : 'z', {assert: {x: foo()}})",
+		"<stdin>: error: Using an arbitrary value as the second argument to \"import()\" is not possible in the configured target environment\n")
+}
+
 func TestES5(t *testing.T) {
 	// Do not generate "let" when emulating block-level function declarations and targeting ES5
 	expectPrintedTarget(t, 2015, "if (1) function f() {}", "if (1) {\n  let f = function() {\n  };\n  var f = f;\n}\n")
@@ -4189,7 +4474,7 @@ func TestES5(t *testing.T) {
 		"<stdin>: error: Transforming array spread to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "for (var x of y) ;",
 		"<stdin>: error: Transforming for-of loops to the configured target environment is not supported yet\n")
-	expectPrintedTarget(t, 5, "({ x })", "({x: x});\n")
+	expectPrintedTarget(t, 5, "({ x })", "({ x: x });\n")
 	expectParseErrorTarget(t, 5, "({ [x]: y })",
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "({ x() {} });",
@@ -4346,18 +4631,18 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedTargetASCII(t, 5, "import 'π'", "import \"\\u03C0\";\n")
 	expectPrintedTargetASCII(t, 5, "import '𐀀'", "import \"\\uD800\\uDC00\";\n")
 
-	expectPrinted(t, "({π: 0})", "({π: 0});\n")
-	expectPrinted(t, "({𐀀: 0})", "({𐀀: 0});\n")
-	expectPrintedASCII(t, "({π: 0})", "({\\u03C0: 0});\n")
-	expectPrintedASCII(t, "({𐀀: 0})", "({\\u{10000}: 0});\n")
-	expectPrintedTargetASCII(t, 5, "({π: 0})", "({\\u03C0: 0});\n")
-	expectPrintedTargetASCII(t, 5, "({𐀀: 0})", "({\"\\uD800\\uDC00\": 0});\n")
+	expectPrinted(t, "({π: 0})", "({ π: 0 });\n")
+	expectPrinted(t, "({𐀀: 0})", "({ 𐀀: 0 });\n")
+	expectPrintedASCII(t, "({π: 0})", "({ \\u03C0: 0 });\n")
+	expectPrintedASCII(t, "({𐀀: 0})", "({ \\u{10000}: 0 });\n")
+	expectPrintedTargetASCII(t, 5, "({π: 0})", "({ \\u03C0: 0 });\n")
+	expectPrintedTargetASCII(t, 5, "({𐀀: 0})", "({ \"\\uD800\\uDC00\": 0 });\n")
 
-	expectPrinted(t, "({π})", "({π});\n")
-	expectPrinted(t, "({𐀀})", "({𐀀});\n")
-	expectPrintedASCII(t, "({π})", "({\\u03C0});\n")
-	expectPrintedASCII(t, "({𐀀})", "({\\u{10000}});\n")
-	expectPrintedTargetASCII(t, 5, "({π})", "({\\u03C0: \\u03C0});\n")
+	expectPrinted(t, "({π})", "({ π });\n")
+	expectPrinted(t, "({𐀀})", "({ 𐀀 });\n")
+	expectPrintedASCII(t, "({π})", "({ \\u03C0 });\n")
+	expectPrintedASCII(t, "({𐀀})", "({ \\u{10000} });\n")
+	expectPrintedTargetASCII(t, 5, "({π})", "({ \\u03C0: \\u03C0 });\n")
 	expectParseErrorTargetASCII(t, 5, "({𐀀})", es5)
 
 	expectPrinted(t, "import * as π from 'path'; π", "import * as π from \"path\";\nπ;\n")
@@ -4367,60 +4652,60 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedTargetASCII(t, 5, "import * as π from 'path'; π", "import * as \\u03C0 from \"path\";\n\\u03C0;\n")
 	expectParseErrorTargetASCII(t, 5, "import * as 𐀀 from 'path'", es5)
 
-	expectPrinted(t, "import {π} from 'path'; π", "import {π} from \"path\";\nπ;\n")
-	expectPrinted(t, "import {𐀀} from 'path'; 𐀀", "import {𐀀} from \"path\";\n𐀀;\n")
-	expectPrintedASCII(t, "import {π} from 'path'; π", "import {\\u03C0} from \"path\";\n\\u03C0;\n")
-	expectPrintedASCII(t, "import {𐀀} from 'path'; 𐀀", "import {\\u{10000}} from \"path\";\n\\u{10000};\n")
-	expectPrintedTargetASCII(t, 5, "import {π} from 'path'; π", "import {\\u03C0} from \"path\";\n\\u03C0;\n")
+	expectPrinted(t, "import {π} from 'path'; π", "import { π } from \"path\";\nπ;\n")
+	expectPrinted(t, "import {𐀀} from 'path'; 𐀀", "import { 𐀀 } from \"path\";\n𐀀;\n")
+	expectPrintedASCII(t, "import {π} from 'path'; π", "import { \\u03C0 } from \"path\";\n\\u03C0;\n")
+	expectPrintedASCII(t, "import {𐀀} from 'path'; 𐀀", "import { \\u{10000} } from \"path\";\n\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "import {π} from 'path'; π", "import { \\u03C0 } from \"path\";\n\\u03C0;\n")
 	expectParseErrorTargetASCII(t, 5, "import {𐀀} from 'path'", es5)
 
-	expectPrinted(t, "import {π as x} from 'path'", "import {π as x} from \"path\";\n")
-	expectPrinted(t, "import {𐀀 as x} from 'path'", "import {𐀀 as x} from \"path\";\n")
-	expectPrintedASCII(t, "import {π as x} from 'path'", "import {\\u03C0 as x} from \"path\";\n")
-	expectPrintedASCII(t, "import {𐀀 as x} from 'path'", "import {\\u{10000} as x} from \"path\";\n")
-	expectPrintedTargetASCII(t, 5, "import {π as x} from 'path'", "import {\\u03C0 as x} from \"path\";\n")
+	expectPrinted(t, "import {π as x} from 'path'", "import { π as x } from \"path\";\n")
+	expectPrinted(t, "import {𐀀 as x} from 'path'", "import { 𐀀 as x } from \"path\";\n")
+	expectPrintedASCII(t, "import {π as x} from 'path'", "import { \\u03C0 as x } from \"path\";\n")
+	expectPrintedASCII(t, "import {𐀀 as x} from 'path'", "import { \\u{10000} as x } from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "import {π as x} from 'path'", "import { \\u03C0 as x } from \"path\";\n")
 	expectParseErrorTargetASCII(t, 5, "import {𐀀 as x} from 'path'", es5)
 
-	expectPrinted(t, "import {x as π} from 'path'", "import {x as π} from \"path\";\n")
-	expectPrinted(t, "import {x as 𐀀} from 'path'", "import {x as 𐀀} from \"path\";\n")
-	expectPrintedASCII(t, "import {x as π} from 'path'", "import {x as \\u03C0} from \"path\";\n")
-	expectPrintedASCII(t, "import {x as 𐀀} from 'path'", "import {x as \\u{10000}} from \"path\";\n")
-	expectPrintedTargetASCII(t, 5, "import {x as π} from 'path'", "import {x as \\u03C0} from \"path\";\n")
+	expectPrinted(t, "import {x as π} from 'path'", "import { x as π } from \"path\";\n")
+	expectPrinted(t, "import {x as 𐀀} from 'path'", "import { x as 𐀀 } from \"path\";\n")
+	expectPrintedASCII(t, "import {x as π} from 'path'", "import { x as \\u03C0 } from \"path\";\n")
+	expectPrintedASCII(t, "import {x as 𐀀} from 'path'", "import { x as \\u{10000} } from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "import {x as π} from 'path'", "import { x as \\u03C0 } from \"path\";\n")
 	expectParseErrorTargetASCII(t, 5, "import {x as 𐀀} from 'path'", es5)
 
 	expectPrinted(t, "export * as π from 'path'; π", "export * as π from \"path\";\nπ;\n")
 	expectPrinted(t, "export * as 𐀀 from 'path'; 𐀀", "export * as 𐀀 from \"path\";\n𐀀;\n")
 	expectPrintedASCII(t, "export * as π from 'path'; π", "export * as \\u03C0 from \"path\";\n\\u03C0;\n")
 	expectPrintedASCII(t, "export * as 𐀀 from 'path'; 𐀀", "export * as \\u{10000} from \"path\";\n\\u{10000};\n")
-	expectPrintedTargetASCII(t, 5, "export * as π from 'path'", "import * as \\u03C0 from \"path\";\nexport {\\u03C0};\n")
+	expectPrintedTargetASCII(t, 5, "export * as π from 'path'", "import * as \\u03C0 from \"path\";\nexport { \\u03C0 };\n")
 	expectParseErrorTargetASCII(t, 5, "export * as 𐀀 from 'path'", es5)
 
-	expectPrinted(t, "export {π} from 'path'; π", "export {π} from \"path\";\nπ;\n")
-	expectPrinted(t, "export {𐀀} from 'path'; 𐀀", "export {𐀀} from \"path\";\n𐀀;\n")
-	expectPrintedASCII(t, "export {π} from 'path'; π", "export {\\u03C0} from \"path\";\n\\u03C0;\n")
-	expectPrintedASCII(t, "export {𐀀} from 'path'; 𐀀", "export {\\u{10000}} from \"path\";\n\\u{10000};\n")
-	expectPrintedTargetASCII(t, 5, "export {π} from 'path'; π", "export {\\u03C0} from \"path\";\n\\u03C0;\n")
+	expectPrinted(t, "export {π} from 'path'; π", "export { π } from \"path\";\nπ;\n")
+	expectPrinted(t, "export {𐀀} from 'path'; 𐀀", "export { 𐀀 } from \"path\";\n𐀀;\n")
+	expectPrintedASCII(t, "export {π} from 'path'; π", "export { \\u03C0 } from \"path\";\n\\u03C0;\n")
+	expectPrintedASCII(t, "export {𐀀} from 'path'; 𐀀", "export { \\u{10000} } from \"path\";\n\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "export {π} from 'path'; π", "export { \\u03C0 } from \"path\";\n\\u03C0;\n")
 	expectParseErrorTargetASCII(t, 5, "export {𐀀} from 'path'", es5)
 
-	expectPrinted(t, "export {π as x} from 'path'", "export {π as x} from \"path\";\n")
-	expectPrinted(t, "export {𐀀 as x} from 'path'", "export {𐀀 as x} from \"path\";\n")
-	expectPrintedASCII(t, "export {π as x} from 'path'", "export {\\u03C0 as x} from \"path\";\n")
-	expectPrintedASCII(t, "export {𐀀 as x} from 'path'", "export {\\u{10000} as x} from \"path\";\n")
-	expectPrintedTargetASCII(t, 5, "export {π as x} from 'path'", "export {\\u03C0 as x} from \"path\";\n")
+	expectPrinted(t, "export {π as x} from 'path'", "export { π as x } from \"path\";\n")
+	expectPrinted(t, "export {𐀀 as x} from 'path'", "export { 𐀀 as x } from \"path\";\n")
+	expectPrintedASCII(t, "export {π as x} from 'path'", "export { \\u03C0 as x } from \"path\";\n")
+	expectPrintedASCII(t, "export {𐀀 as x} from 'path'", "export { \\u{10000} as x } from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "export {π as x} from 'path'", "export { \\u03C0 as x } from \"path\";\n")
 	expectParseErrorTargetASCII(t, 5, "export {𐀀 as x} from 'path'", es5)
 
-	expectPrinted(t, "export {x as π} from 'path'", "export {x as π} from \"path\";\n")
-	expectPrinted(t, "export {x as 𐀀} from 'path'", "export {x as 𐀀} from \"path\";\n")
-	expectPrintedASCII(t, "export {x as π} from 'path'", "export {x as \\u03C0} from \"path\";\n")
-	expectPrintedASCII(t, "export {x as 𐀀} from 'path'", "export {x as \\u{10000}} from \"path\";\n")
-	expectPrintedTargetASCII(t, 5, "export {x as π} from 'path'", "export {x as \\u03C0} from \"path\";\n")
+	expectPrinted(t, "export {x as π} from 'path'", "export { x as π } from \"path\";\n")
+	expectPrinted(t, "export {x as 𐀀} from 'path'", "export { x as 𐀀 } from \"path\";\n")
+	expectPrintedASCII(t, "export {x as π} from 'path'", "export { x as \\u03C0 } from \"path\";\n")
+	expectPrintedASCII(t, "export {x as 𐀀} from 'path'", "export { x as \\u{10000} } from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "export {x as π} from 'path'", "export { x as \\u03C0 } from \"path\";\n")
 	expectParseErrorTargetASCII(t, 5, "export {x as 𐀀} from 'path'", es5)
 
-	expectPrinted(t, "export {π}; var π", "export {π};\nvar π;\n")
-	expectPrinted(t, "export {𐀀}; var 𐀀", "export {𐀀};\nvar 𐀀;\n")
-	expectPrintedASCII(t, "export {π}; var π", "export {\\u03C0};\nvar \\u03C0;\n")
-	expectPrintedASCII(t, "export {𐀀}; var 𐀀", "export {\\u{10000}};\nvar \\u{10000};\n")
-	expectPrintedTargetASCII(t, 5, "export {π}; var π", "export {\\u03C0};\nvar \\u03C0;\n")
+	expectPrinted(t, "export {π}; var π", "export { π };\nvar π;\n")
+	expectPrinted(t, "export {𐀀}; var 𐀀", "export { 𐀀 };\nvar 𐀀;\n")
+	expectPrintedASCII(t, "export {π}; var π", "export { \\u03C0 };\nvar \\u03C0;\n")
+	expectPrintedASCII(t, "export {𐀀}; var 𐀀", "export { \\u{10000} };\nvar \\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "export {π}; var π", "export { \\u03C0 };\nvar \\u03C0;\n")
 	expectParseErrorTargetASCII(t, 5, "export {𐀀}; var 𐀀", es5)
 
 	expectPrinted(t, "export var π", "export var π;\n")

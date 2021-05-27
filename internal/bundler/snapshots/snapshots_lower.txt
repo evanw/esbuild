@@ -6,7 +6,7 @@ export class A {
 export class B extends A {
   constructor(c) {
     super();
-    _e.set(this, void 0);
+    __privateAdd(this, _e, void 0);
     var _a;
     __privateSet(this, _e, (_a = c.d) != null ? _a : "test");
   }
@@ -40,10 +40,10 @@ export default [
   },
   () => __async(this, null, function* () {
   }),
-  {foo() {
+  { foo() {
     return __async(this, null, function* () {
     });
-  }},
+  } },
   class {
     foo() {
       return __async(this, null, function* () {
@@ -77,8 +77,8 @@ export default [
   },
   async () => {
   },
-  {async foo() {
-  }},
+  { async foo() {
+  } },
   class {
     async foo() {
     }
@@ -119,10 +119,12 @@ class Derived extends Base {
 TestLowerAsyncThis2016CommonJS
 ---------- /out.js ----------
 // entry.js
-var require_entry = __commonJS((exports) => {
-  exports.foo = () => __async(exports, null, function* () {
-    return exports;
-  });
+var require_entry = __commonJS({
+  "entry.js"(exports) {
+    exports.foo = () => __async(exports, null, function* () {
+      return exports;
+    });
+  }
 });
 export default require_entry();
 
@@ -148,8 +150,8 @@ TestLowerClassField2020NoBundle
 var _foo, _bar, _s_foo, _s_bar;
 class Foo {
   constructor() {
-    _foo.set(this, 123);
-    _bar.set(this, void 0);
+    __privateAdd(this, _foo, 123);
+    __privateAdd(this, _bar, void 0);
     __publicField(this, "foo", 123);
     __publicField(this, "bar");
   }
@@ -158,8 +160,8 @@ _foo = new WeakMap();
 _bar = new WeakMap();
 _s_foo = new WeakMap();
 _s_bar = new WeakMap();
-_s_foo.set(Foo, 123);
-_s_bar.set(Foo, void 0);
+__privateAdd(Foo, _s_foo, 123);
+__privateAdd(Foo, _s_bar, void 0);
 __publicField(Foo, "s_foo", 123);
 __publicField(Foo, "s_bar");
 
@@ -219,36 +221,36 @@ export {
 TestLowerExportStarAsNameCollisionNoBundle
 ---------- /out.js ----------
 import * as ns from "path";
-export {ns};
+export { ns };
 let ns2 = 123;
-export {ns2 as sn};
+export { ns2 as sn };
 
 ================================================================================
 TestLowerObjectSpreadNoBundle
 ---------- /out.js ----------
 let tests = [
-  __objSpread(__objSpread({}, a), b),
-  __objSpread({a, b}, c),
-  __objSpread(__objSpread({}, a), {b, c}),
-  __objSpread(__objSpread({a}, b), {c}),
-  __objSpread(__objSpread(__objSpread(__objSpread(__objSpread(__objSpread({a, b}, c), d), {e, f}), g), h), {i, j})
+  __spreadValues(__spreadValues({}, a), b),
+  __spreadValues({ a, b }, c),
+  __spreadProps(__spreadValues({}, a), { b, c }),
+  __spreadProps(__spreadValues({ a }, b), { c }),
+  __spreadProps(__spreadValues(__spreadValues(__spreadProps(__spreadValues(__spreadValues({ a, b }, c), d), { e, f }), g), h), { i, j })
 ];
 let jsx = [
-  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread({}, a), b)),
-  /* @__PURE__ */ React.createElement("div", __objSpread({
+  /* @__PURE__ */ React.createElement("div", __spreadValues(__spreadValues({}, a), b)),
+  /* @__PURE__ */ React.createElement("div", __spreadValues({
     a: true,
     b: true
   }, c)),
-  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread({}, a), {
+  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues({}, a), {
     b: true,
     c: true
   })),
-  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread({
+  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues({
     a: true
   }, b), {
     c: true
   })),
-  /* @__PURE__ */ React.createElement("div", __objSpread(__objSpread(__objSpread(__objSpread(__objSpread(__objSpread({
+  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues(__spreadValues(__spreadProps(__spreadValues(__spreadValues({
     a: true,
     b: true
   }, c), d), {
@@ -275,7 +277,7 @@ TestLowerPrivateClassAccessorOrder
 var _foo, foo_get;
 class Foo {
   constructor() {
-    _foo.add(this);
+    __privateAdd(this, _foo);
     __publicField(this, "bar", __privateGet(this, _foo, foo_get));
   }
 }
@@ -306,7 +308,7 @@ TestLowerPrivateClassBrandCheckUnsupported
 var _foo;
 class Foo {
   constructor() {
-    _foo.set(this, void 0);
+    __privateAdd(this, _foo, void 0);
     this.#bar = void 0;
   }
   #bar;
@@ -324,18 +326,9 @@ _foo = new WeakMap();
 TestLowerPrivateClassExpr2020NoBundle
 ---------- /out.js ----------
 var _field, _method, method_fn, _a, _staticField, _staticMethod, staticMethod_fn;
-export let Foo = (_a = class {
-  constructor() {
-    _method.add(this);
-    _field.set(this, void 0);
-  }
-  foo() {
-    __privateSet(this, _field, __privateMethod(this, _method, method_fn).call(this));
-    __privateSet(Foo, _staticField, __privateMethod(Foo, _staticMethod, staticMethod_fn).call(Foo));
-  }
-}, _field = new WeakMap(), _method = new WeakSet(), method_fn = function() {
+export let Foo = (__privateAdd(_a, _staticMethod), _field = new WeakMap(), _method = new WeakSet(), method_fn = function() {
 }, _staticField = new WeakMap(), _staticMethod = new WeakSet(), staticMethod_fn = function() {
-}, _staticMethod.add(_a), _staticField.set(_a, void 0), _a);
+}, __privateAdd(_a, _staticMethod), __privateAdd(_a, _staticField, void 0), _a);
 
 ================================================================================
 TestLowerPrivateClassFieldOrder
@@ -343,7 +336,7 @@ TestLowerPrivateClassFieldOrder
 var _foo;
 class Foo {
   constructor() {
-    _foo.set(this, 123);
+    __privateAdd(this, _foo, 123);
     __publicField(this, "bar", __privateGet(this, _foo));
   }
 }
@@ -356,7 +349,7 @@ TestLowerPrivateClassMethodOrder
 var _foo, foo_fn;
 class Foo {
   constructor() {
-    _foo.add(this);
+    __privateAdd(this, _foo);
     __publicField(this, "bar", __privateMethod(this, _foo, foo_fn).call(this));
   }
 }
@@ -377,7 +370,7 @@ _foo = new WeakSet();
 foo_get = function() {
   return 123;
 };
-_foo.add(Foo);
+__privateAdd(Foo, _foo);
 __publicField(Foo, "bar", __privateGet(_Foo, _foo, foo_get));
 console.log(Foo.bar === 123);
 const _FooThis = class {
@@ -387,7 +380,7 @@ _foo2 = new WeakSet();
 foo_get2 = function() {
   return 123;
 };
-_foo2.add(FooThis);
+__privateAdd(FooThis, _foo2);
 __publicField(FooThis, "bar", __privateGet(_FooThis, _foo2, foo_get2));
 console.log(FooThis.bar === 123);
 
@@ -399,21 +392,21 @@ const _Foo = class {
 };
 let Foo = _Foo;
 _foo = new WeakMap();
-_foo.set(Foo, 123);
+__privateAdd(Foo, _foo, 123);
 __publicField(Foo, "bar", __privateGet(_Foo, _foo));
 console.log(Foo.bar === 123);
 const _FooThis = class {
 };
 let FooThis = _FooThis;
 _foo2 = new WeakMap();
-_foo2.set(FooThis, 123);
+__privateAdd(FooThis, _foo2, 123);
 __publicField(FooThis, "bar", __privateGet(_FooThis, _foo2));
 console.log(FooThis.bar === 123);
 
 ================================================================================
 TestLowerPrivateClassStaticMethodOrder
 ---------- /out.js ----------
-var _foo, foo_fn, _foo2, foo_fn2;
+var _a, _foo, foo_fn, _b, _foo2, foo_fn2;
 const _Foo = class {
 };
 let Foo = _Foo;
@@ -421,8 +414,8 @@ _foo = new WeakSet();
 foo_fn = function() {
   return 123;
 };
-_foo.add(Foo);
-__publicField(Foo, "bar", __privateMethod(_Foo, _foo, foo_fn).call(_Foo));
+__privateAdd(Foo, _foo);
+__publicField(Foo, "bar", __privateMethod(_a = _Foo, _foo, foo_fn).call(_a));
 console.log(Foo.bar === 123);
 const _FooThis = class {
 };
@@ -431,8 +424,8 @@ _foo2 = new WeakSet();
 foo_fn2 = function() {
   return 123;
 };
-_foo2.add(FooThis);
-__publicField(FooThis, "bar", __privateMethod(_FooThis, _foo2, foo_fn2).call(_FooThis));
+__privateAdd(FooThis, _foo2);
+__publicField(FooThis, "bar", __privateMethod(_b = _FooThis, _foo2, foo_fn2).call(_b));
 console.log(FooThis.bar === 123);
 
 ================================================================================
@@ -441,7 +434,7 @@ TestLowerPrivateFieldAssignments2015NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   unary() {
     var _a, _b;
@@ -478,7 +471,7 @@ TestLowerPrivateFieldAssignments2019NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   unary() {
     var _a, _b;
@@ -515,7 +508,7 @@ TestLowerPrivateFieldAssignments2020NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   unary() {
     var _a, _b;
@@ -582,7 +575,7 @@ TestLowerPrivateFieldOptionalChain2019NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   foo() {
     var _a;
@@ -599,7 +592,7 @@ TestLowerPrivateFieldOptionalChain2020NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   foo() {
     this == null ? void 0 : __privateGet(this, _x).y;
@@ -628,9 +621,9 @@ TestLowerPrivateGetterSetter2015
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
 var Foo = class {
   constructor() {
-    _foo.add(this);
-    _bar.add(this);
-    _prop.add(this);
+    __privateAdd(this, _foo);
+    __privateAdd(this, _bar);
+    __privateAdd(this, _prop);
   }
   foo(fn) {
     __privateGet(fn(), _foo, foo_get);
@@ -688,9 +681,9 @@ TestLowerPrivateGetterSetter2019
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
 var Foo = class {
   constructor() {
-    _foo.add(this);
-    _bar.add(this);
-    _prop.add(this);
+    __privateAdd(this, _foo);
+    __privateAdd(this, _bar);
+    __privateAdd(this, _prop);
   }
   foo(fn) {
     __privateGet(fn(), _foo, foo_get);
@@ -748,9 +741,9 @@ TestLowerPrivateGetterSetter2020
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
 var Foo = class {
   constructor() {
-    _foo.add(this);
-    _bar.add(this);
-    _prop.add(this);
+    __privateAdd(this, _foo);
+    __privateAdd(this, _bar);
+    __privateAdd(this, _prop);
   }
   foo(fn) {
     __privateGet(fn(), _foo, foo_get);
@@ -857,8 +850,8 @@ TestLowerPrivateMethod2019
 var _field, _method, method_fn;
 var Foo = class {
   constructor() {
-    _method.add(this);
-    _field.set(this, void 0);
+    __privateAdd(this, _method);
+    __privateAdd(this, _field, void 0);
   }
   baseline() {
     var _a, _b, _c, _d, _e;
@@ -899,8 +892,8 @@ TestLowerPrivateMethod2020
 var _field, _method, method_fn;
 var Foo = class {
   constructor() {
-    _method.add(this);
-    _field.set(this, void 0);
+    __privateAdd(this, _method);
+    __privateAdd(this, _field, void 0);
   }
   baseline() {
     a().foo;
@@ -973,9 +966,9 @@ TestLowerPrivateMethodWithModifiers2020
 var _g, g_fn, _a, a_fn, _ag, ag_fn, _sg, sg_fn, _sa, sa_fn, _sag, sag_fn;
 var Foo = class {
   constructor() {
-    _g.add(this);
-    _a.add(this);
-    _ag.add(this);
+    __privateAdd(this, _g);
+    __privateAdd(this, _a);
+    __privateAdd(this, _ag);
   }
 };
 _g = new WeakSet();
@@ -996,9 +989,9 @@ sa_fn = async function() {
 _sag = new WeakSet();
 sag_fn = async function* () {
 };
-_sg.add(Foo);
-_sa.add(Foo);
-_sag.add(Foo);
+__privateAdd(Foo, _sg);
+__privateAdd(Foo, _sa);
+__privateAdd(Foo, _sag);
 
 ================================================================================
 TestLowerStrictModeSyntax
@@ -1019,8 +1012,8 @@ TestTSLowerClassField2020NoBundle
 var _foo, _bar, _s_foo, _s_bar;
 class Foo {
   constructor() {
-    _foo.set(this, 123);
-    _bar.set(this, void 0);
+    __privateAdd(this, _foo, 123);
+    __privateAdd(this, _bar, void 0);
     this.foo = 123;
   }
 }
@@ -1028,8 +1021,8 @@ _foo = new WeakMap();
 _bar = new WeakMap();
 _s_foo = new WeakMap();
 _s_bar = new WeakMap();
-_s_foo.set(Foo, 123);
-_s_bar.set(Foo, void 0);
+__privateAdd(Foo, _s_foo, 123);
+__privateAdd(Foo, _s_bar, void 0);
 Foo.s_foo = 123;
 
 ================================================================================
@@ -1057,8 +1050,8 @@ TestTSLowerClassPrivateFieldNextNoBundle
 var _foo, _bar, _s_foo, _s_bar;
 class Foo {
   constructor() {
-    _foo.set(this, 123);
-    _bar.set(this, void 0);
+    __privateAdd(this, _foo, 123);
+    __privateAdd(this, _bar, void 0);
     this.foo = 123;
   }
 }
@@ -1066,8 +1059,8 @@ _foo = new WeakMap();
 _bar = new WeakMap();
 _s_foo = new WeakMap();
 _s_bar = new WeakMap();
-_s_foo.set(Foo, 123);
-_s_bar.set(Foo, void 0);
+__privateAdd(Foo, _s_foo, 123);
+__privateAdd(Foo, _s_bar, void 0);
 Foo.s_foo = 123;
 
 ================================================================================
@@ -1089,8 +1082,8 @@ let class_expr = class {
   }
 };
 function fn_stmt(_e, _g) {
-  var _f = _e, {a = b()} = _f, x2 = __objRest(_f, ["a"]);
-  var _h = _g, {c = d()} = _h, y = __objRest(_h, ["c"]);
+  var _f = _e, { a = b() } = _f, x2 = __objRest(_f, ["a"]);
+  var _h = _g, { c = d() } = _h, y = __objRest(_h, ["c"]);
 }
 class class_stmt {
   method(_i) {
@@ -1105,13 +1098,13 @@ try {
 } catch (_j) {
   let catch_clause = __objRest(_j, []);
 }
-for (const _k in {abc}) {
+for (const _k in { abc }) {
   const for_in_const = __objRest(_k, []);
 }
-for (let _l in {abc}) {
+for (let _l in { abc }) {
   let for_in_let = __objRest(_l, []);
 }
-for (var _m in {abc}) {
+for (var _m in { abc }) {
   var for_in_var = __objRest(_m, []);
   ;
 }
@@ -1133,7 +1126,7 @@ for (let for_let = __objRest({}, []); x; x = null) {
 }
 for (var for_var = __objRest({}, []); x; x = null) {
 }
-for (_q in {abc}) {
+for (_q in { abc }) {
   x = __objRest(_q, []);
 }
 for (_r of [{}]) {
@@ -1142,76 +1135,76 @@ for (_r of [{}]) {
 for (x = __objRest({}, []); x; x = null) {
 }
 assign = __objRest({}, []);
-({obj_method(_s) {
+({ obj_method(_s) {
   var x2 = __objRest(_s, []);
-}});
+} });
 x = __objRest(x, []);
 for (x = __objRest(x, []); 0; )
   ;
 console.log((x = __objRest(_t = x, []), _t));
-console.log((_v = _u = {x}, {x} = _v, xx = __objRest(_v, ["x"]), _u));
-console.log(({x: _x} = _w = {x}, xx = __objRest(_x, []), _w));
+console.log((_v = _u = { x }, { x } = _v, xx = __objRest(_v, ["x"]), _u));
+console.log(({ x: _x } = _w = { x }, xx = __objRest(_x, []), _w));
 
 ================================================================================
 TestTSLowerObjectRest2018NoBundle
 ---------- /out.js ----------
-const {...local_const} = {};
-let {...local_let} = {};
-var {...local_var} = {};
-let arrow_fn = ({...x2}) => {
+const { ...local_const } = {};
+let { ...local_let } = {};
+var { ...local_var } = {};
+let arrow_fn = ({ ...x2 }) => {
 };
-let fn_expr = function({...x2} = default_value) {
+let fn_expr = function({ ...x2 } = default_value) {
 };
 let class_expr = class {
-  method(x2, ...[y, {...z}]) {
+  method(x2, ...[y, { ...z }]) {
   }
 };
-function fn_stmt({a = b(), ...x2}, {c = d(), ...y}) {
+function fn_stmt({ a = b(), ...x2 }, { c = d(), ...y }) {
 }
 class class_stmt {
-  method({...x2}) {
+  method({ ...x2 }) {
   }
 }
 var ns;
 (function(ns2) {
-  ({...ns2.x} = {});
+  ({ ...ns2.x } = {});
 })(ns || (ns = {}));
 try {
-} catch ({...catch_clause}) {
+} catch ({ ...catch_clause }) {
 }
-for (const {...for_in_const} in {abc}) {
+for (const { ...for_in_const } in { abc }) {
 }
-for (let {...for_in_let} in {abc}) {
+for (let { ...for_in_let } in { abc }) {
 }
-for (var {...for_in_var} in {abc})
+for (var { ...for_in_var } in { abc })
   ;
-for (const {...for_of_const} of [{}])
+for (const { ...for_of_const } of [{}])
   ;
-for (let {...for_of_let} of [{}])
+for (let { ...for_of_let } of [{}])
   x();
-for (var {...for_of_var} of [{}])
+for (var { ...for_of_var } of [{}])
   x();
-for (const {...for_const} = {}; x; x = null) {
+for (const { ...for_const } = {}; x; x = null) {
 }
-for (let {...for_let} = {}; x; x = null) {
+for (let { ...for_let } = {}; x; x = null) {
 }
-for (var {...for_var} = {}; x; x = null) {
+for (var { ...for_var } = {}; x; x = null) {
 }
-for ({...x} in {abc}) {
+for ({ ...x } in { abc }) {
 }
-for ({...x} of [{}]) {
+for ({ ...x } of [{}]) {
 }
-for ({...x} = {}; x; x = null) {
+for ({ ...x } = {}; x; x = null) {
 }
-({...assign} = {});
-({obj_method({...x2}) {
-}});
-({...x} = x);
-for ({...x} = x; 0; )
+({ ...assign } = {});
+({ obj_method({ ...x2 }) {
+} });
+({ ...x } = x);
+for ({ ...x } = x; 0; )
   ;
-console.log({...x} = x);
-console.log({x, ...xx} = {x});
-console.log({x: {...xx}} = {x});
+console.log({ ...x } = x);
+console.log({ x, ...xx } = { x });
+console.log({ x: { ...xx } } = { x });
 
 ================================================================================
 TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015
@@ -1220,14 +1213,14 @@ TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015
 var _x;
 var WeakMap2 = class {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
 };
 _x = new WeakMap();
 var _y, y_fn;
 var WeakSet2 = class {
   constructor() {
-    _y.add(this);
+    __privateAdd(this, _y);
   }
 };
 _y = new WeakSet();
@@ -1240,7 +1233,7 @@ TestTSLowerPrivateFieldOptionalChain2015NoBundle
 var _x;
 class Foo {
   constructor() {
-    _x.set(this, void 0);
+    __privateAdd(this, _x, void 0);
   }
   foo() {
     var _a;
@@ -1257,9 +1250,10 @@ TestTSLowerPrivateStaticMembers2015NoBundle
 var _x, _y, y_get, y_set, _z, z_fn;
 const _Foo = class {
   foo() {
+    var _a;
     __privateSet(_Foo, _x, __privateGet(_Foo, _x) + 1);
     __privateSet(_Foo, _y, __privateGet(_Foo, _y, y_get) + 1, y_set);
-    __privateMethod(_Foo, _z, z_fn).call(_Foo);
+    __privateMethod(_a = _Foo, _z, z_fn).call(_a);
   }
 };
 let Foo = _Foo;
@@ -1272,6 +1266,6 @@ y_set = function(x) {
 _z = new WeakSet();
 z_fn = function() {
 };
-_y.add(Foo);
-_z.add(Foo);
-_x.set(Foo, void 0);
+__privateAdd(Foo, _y);
+__privateAdd(Foo, _z);
+__privateAdd(Foo, _x, void 0);

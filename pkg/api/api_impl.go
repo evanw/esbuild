@@ -469,7 +469,7 @@ func validateDefines(
 		switch e := expr.Data.(type) {
 		// These values are inserted inline, and can participate in constant folding
 		case *js_ast.ENull:
-			fn = func(config.DefineArgs) js_ast.E { return &js_ast.ENull{} }
+			fn = func(config.DefineArgs) js_ast.E { return js_ast.ENullShared }
 		case *js_ast.EBoolean:
 			fn = func(config.DefineArgs) js_ast.E { return &js_ast.EBoolean{Value: e.Value} }
 		case *js_ast.EString:
@@ -799,6 +799,7 @@ func rebuildImpl(
 		UnsupportedCSSFeatures: cssFeatures,
 		OriginalTargetEnv:      targetEnv,
 		JSX: config.JSXOptions{
+			Preserve: buildOpts.JSXMode == JSXModePreserve,
 			Factory:  validateJSXExpr(log, buildOpts.JSXFactory, "factory", js_parser.JSXFactory),
 			Fragment: validateJSXExpr(log, buildOpts.JSXFragment, "fragment", js_parser.JSXFragment),
 		},
@@ -1235,11 +1236,13 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	preserveUnusedImportsTS := false
 	useDefineForClassFieldsTS := config.Unspecified
 	jsx := config.JSXOptions{
+		Preserve: transformOpts.JSXMode == JSXModePreserve,
 		Factory:  validateJSXExpr(log, transformOpts.JSXFactory, "factory", js_parser.JSXFactory),
 		Fragment: validateJSXExpr(log, transformOpts.JSXFragment, "fragment", js_parser.JSXFragment),
 	}
 
 	// Settings from "tsconfig.json" override those
+	var tsTarget *config.TSTarget
 	caches := cache.MakeCacheSet()
 	if transformOpts.TsconfigRaw != "" {
 		source := logger.Source{
@@ -1260,6 +1263,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			if result.PreserveImportsNotUsedAsValues {
 				preserveUnusedImportsTS = true
 			}
+			tsTarget = result.TSTarget
 		}
 	}
 
@@ -1278,6 +1282,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		UnsupportedJSFeatures:   jsFeatures,
 		UnsupportedCSSFeatures:  cssFeatures,
 		OriginalTargetEnv:       targetEnv,
+		TSTarget:                tsTarget,
 		JSX:                     jsx,
 		Defines:                 defines,
 		InjectedDefines:         injectedDefines,

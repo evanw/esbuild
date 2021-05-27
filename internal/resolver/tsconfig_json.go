@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/internal/cache"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
@@ -35,6 +36,7 @@ type TSConfigJSON struct {
 
 	JSXFactory                     []string
 	JSXFragmentFactory             []string
+	TSTarget                       *config.TSTarget
 	UseDefineForClassFields        config.MaybeBool
 	PreserveImportsNotUsedAsValues bool
 }
@@ -63,6 +65,7 @@ func ParseTSConfigJSON(
 
 	var result TSConfigJSON
 	result.AbsPath = source.KeyPath.Text
+	tracker := logger.MakeLineColumnTracker(&source)
 
 	// Parse "extends"
 	if extends != nil {
@@ -87,14 +90,14 @@ func ParseTSConfigJSON(
 		// Parse "jsxFactory"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsxFactory"); ok {
 			if value, ok := getString(valueJSON); ok {
-				result.JSXFactory = parseMemberExpressionForJSX(log, source, valueJSON.Loc, value)
+				result.JSXFactory = parseMemberExpressionForJSX(log, &source, &tracker, valueJSON.Loc, value)
 			}
 		}
 
 		// Parse "jsxFragmentFactory"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsxFragmentFactory"); ok {
 			if value, ok := getString(valueJSON); ok {
-				result.JSXFragmentFactory = parseMemberExpressionForJSX(log, source, valueJSON.Loc, value)
+				result.JSXFragmentFactory = parseMemberExpressionForJSX(log, &source, &tracker, valueJSON.Loc, value)
 			}
 		}
 
@@ -109,6 +112,49 @@ func ParseTSConfigJSON(
 			}
 		}
 
+		// Parse "target"
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "target"); ok {
+			if value, ok := getString(valueJSON); ok {
+				constraints := make(map[compat.Engine][]int)
+				r := source.RangeOfString(valueJSON.Loc)
+				ok := true
+
+				// See https://www.typescriptlang.org/tsconfig#target
+				switch strings.ToLower(value) {
+				case "es5":
+					constraints[compat.ES] = []int{5}
+				case "es6", "es2015":
+					constraints[compat.ES] = []int{2015}
+				case "es7", "es2016":
+					constraints[compat.ES] = []int{2016}
+				case "es2017":
+					constraints[compat.ES] = []int{2017}
+				case "es2018":
+					constraints[compat.ES] = []int{2018}
+				case "es2019":
+					constraints[compat.ES] = []int{2019}
+				case "es2020":
+					constraints[compat.ES] = []int{2020}
+				case "esnext":
+					// Nothing to do in this case
+				default:
+					ok = false
+					log.AddRangeWarning(&tracker, r,
+						fmt.Sprintf("Unrecognized target environment %q", value))
+				}
+
+				// These feature restrictions are merged with esbuild's own restrictions
+				if ok {
+					result.TSTarget = &config.TSTarget{
+						Source:                source,
+						Range:                 r,
+						Target:                value,
+						UnsupportedJSFeatures: compat.UnsupportedJSFeatures(constraints),
+					}
+				}
+			}
+		}
+
 		// Parse "importsNotUsedAsValues"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "importsNotUsedAsValues"); ok {
 			if value, ok := getString(valueJSON); ok {
@@ -117,7 +163,7 @@ func ParseTSConfigJSON(
 					result.PreserveImportsNotUsedAsValues = true
 				case "remove":
 				default:
-					log.AddRangeWarning(&source, source.RangeOfString(valueJSON.Loc),
+					log.AddRangeWarning(&tracker, source.RangeOfString(valueJSON.Loc),
 						fmt.Sprintf("Invalid value %q for \"importsNotUsedAsValues\"", value))
 				}
 			}
@@ -135,7 +181,7 @@ func ParseTSConfigJSON(
 				result.Paths = make(map[string][]string)
 				for _, prop := range paths.Properties {
 					if key, ok := getString(prop.Key); ok {
-						if !isValidTSConfigPathPattern(key, log, source, prop.Key.Loc) {
+						if !isValidTSConfigPathPattern(key, log, &source, &tracker, prop.Key.Loc) {
 							continue
 						}
 
@@ -160,17 +206,17 @@ func ParseTSConfigJSON(
 						//
 						// Matching "folder1/file2" should first check "projectRoot/folder1/file2"
 						// and then, if that didn't work, also check "projectRoot/generated/folder1/file2".
-						if array, ok := prop.Value.Data.(*js_ast.EArray); ok {
+						if array, ok := prop.ValueOrNil.Data.(*js_ast.EArray); ok {
 							for _, item := range array.Items {
 								if str, ok := getString(item); ok {
-									if isValidTSConfigPathPattern(str, log, source, item.Loc) &&
-										(hasBaseURL || isValidTSConfigPathNoBaseURLPattern(str, log, source, item.Loc)) {
+									if isValidTSConfigPathPattern(str, log, &source, &tracker, item.Loc) &&
+										(hasBaseURL || isValidTSConfigPathNoBaseURLPattern(str, log, &source, &tracker, item.Loc)) {
 										result.Paths[key] = append(result.Paths[key], str)
 									}
 								}
 							}
 						} else {
-							log.AddRangeWarning(&source, source.RangeOfString(prop.Value.Loc), fmt.Sprintf(
+							log.AddRangeWarning(&tracker, source.RangeOfString(prop.ValueOrNil.Loc), fmt.Sprintf(
 								"Substitutions for pattern %q should be an array", key))
 						}
 					}
@@ -182,7 +228,7 @@ func ParseTSConfigJSON(
 	return &result
 }
 
-func parseMemberExpressionForJSX(log logger.Log, source logger.Source, loc logger.Loc, text string) []string {
+func parseMemberExpressionForJSX(log logger.Log, source *logger.Source, tracker *logger.LineColumnTracker, loc logger.Loc, text string) []string {
 	if text == "" {
 		return nil
 	}
@@ -190,20 +236,20 @@ func parseMemberExpressionForJSX(log logger.Log, source logger.Source, loc logge
 	for _, part := range parts {
 		if !js_lexer.IsIdentifier(part) {
 			warnRange := source.RangeOfString(loc)
-			log.AddRangeWarning(&source, warnRange, fmt.Sprintf("Invalid JSX member expression: %q", text))
+			log.AddRangeWarning(tracker, warnRange, fmt.Sprintf("Invalid JSX member expression: %q", text))
 			return nil
 		}
 	}
 	return parts
 }
 
-func isValidTSConfigPathPattern(text string, log logger.Log, source logger.Source, loc logger.Loc) bool {
+func isValidTSConfigPathPattern(text string, log logger.Log, source *logger.Source, tracker *logger.LineColumnTracker, loc logger.Loc) bool {
 	foundAsterisk := false
 	for i := 0; i < len(text); i++ {
 		if text[i] == '*' {
 			if foundAsterisk {
 				r := source.RangeOfString(loc)
-				log.AddRangeWarning(&source, r, fmt.Sprintf(
+				log.AddRangeWarning(tracker, r, fmt.Sprintf(
 					"Invalid pattern %q, must have at most one \"*\" character", text))
 				return false
 			}
@@ -217,7 +263,7 @@ func isSlash(c byte) bool {
 	return c == '/' || c == '\\'
 }
 
-func isValidTSConfigPathNoBaseURLPattern(text string, log logger.Log, source logger.Source, loc logger.Loc) bool {
+func isValidTSConfigPathNoBaseURLPattern(text string, log logger.Log, source *logger.Source, tracker *logger.LineColumnTracker, loc logger.Loc) bool {
 	var c0 byte
 	var c1 byte
 	var c2 byte
@@ -254,7 +300,7 @@ func isValidTSConfigPathNoBaseURLPattern(text string, log logger.Log, source log
 	}
 
 	r := source.RangeOfString(loc)
-	log.AddRangeWarning(&source, r, fmt.Sprintf(
+	log.AddRangeWarning(tracker, r, fmt.Sprintf(
 		"Non-relative path %q is not allowed when \"baseUrl\" is not set (did you forget a leading \"./\"?)", text))
 	return false
 }

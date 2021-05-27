@@ -1,7 +1,7 @@
 {
   "dependencies": {
-    "@parcel/transformer-typescript-tsc": "2.0.0-nightly.534",
-    "parcel": "2.0.0-nightly.532",
-    "typescript": "4.1.2"
+    "@parcel/transformer-typescript-tsc": "2.0.0-beta.3.1",
+    "parcel": "2.0.0-beta.3.1",
+    "typescript": "4.2.4"
   }
 }

@@ -889,7 +889,7 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 
 	// Swap in certain literal values because those can be constant folded
 	result.IdentifierDefines["undefined"] = DefineData{
-		DefineFunc: func(DefineArgs) js_ast.E { return &js_ast.EUndefined{} },
+		DefineFunc: func(DefineArgs) js_ast.E { return js_ast.EUndefinedShared },
 	}
 	result.IdentifierDefines["NaN"] = DefineData{
 		DefineFunc: func(DefineArgs) js_ast.E { return &js_ast.ENumber{Value: math.NaN()} },

@@ -3,16 +3,19 @@ package js_parser
 import (
 	"fmt"
 
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
 type jsonParser struct {
-	log     logger.Log
-	source  logger.Source
-	lexer   js_lexer.Lexer
-	options JSONOptions
+	log                            logger.Log
+	source                         logger.Source
+	tracker                        logger.LineColumnTracker
+	lexer                          js_lexer.Lexer
+	options                        JSONOptions
+	suppressWarningsAboutWeirdCode bool
 }
 
 func (p *jsonParser) parseMaybeTrailingComma(closeToken js_lexer.T) bool {
@@ -21,7 +24,7 @@ func (p *jsonParser) parseMaybeTrailingComma(closeToken js_lexer.T) bool {
 
 	if p.lexer.Token == closeToken {
 		if !p.options.AllowTrailingCommas {
-			p.log.AddRangeError(&p.source, commaRange, "JSON does not support trailing commas")
+			p.log.AddRangeError(&p.tracker, commaRange, "JSON does not support trailing commas")
 		}
 		return false
 	}
@@ -43,10 +46,10 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 
 	case js_lexer.TNull:
 		p.lexer.Next()
-		return js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}}
+		return js_ast.Expr{Loc: loc, Data: js_ast.ENullShared}
 
 	case js_lexer.TStringLiteral:
-		value := p.lexer.StringLiteral
+		value := p.lexer.StringLiteral()
 		p.lexer.Next()
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: value}}
 
@@ -96,7 +99,7 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 		p.lexer.Next()
 		isSingleLine := !p.lexer.HasNewlineBefore
 		properties := []js_ast.Property{}
-		duplicates := make(map[string]bool)
+		duplicates := make(map[string]logger.Range)
 
 		for p.lexer.Token != js_lexer.TCloseBrace {
 			if len(properties) > 0 {
@@ -111,26 +114,29 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 				}
 			}
 
-			keyString := p.lexer.StringLiteral
+			keyString := p.lexer.StringLiteral()
 			keyRange := p.lexer.Range()
 			key := js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: keyString}}
 			p.lexer.Expect(js_lexer.TStringLiteral)
 
 			// Warn about duplicate keys
-			keyText := js_lexer.UTF16ToString(keyString)
-			if duplicates[keyText] {
-				p.log.AddRangeWarning(&p.source, keyRange, fmt.Sprintf("Duplicate key %q in object literal", keyText))
-			} else {
-				duplicates[keyText] = true
+			if !p.suppressWarningsAboutWeirdCode {
+				keyText := js_lexer.UTF16ToString(keyString)
+				if prevRange, ok := duplicates[keyText]; ok {
+					p.log.AddRangeWarningWithNotes(&p.tracker, keyRange, fmt.Sprintf("Duplicate key %q in object literal", keyText),
+						[]logger.MsgData{logger.RangeData(&p.tracker, prevRange, fmt.Sprintf("The original %q is here", keyText))})
+				} else {
+					duplicates[keyText] = keyRange
+				}
 			}
 
 			p.lexer.Expect(js_lexer.TColon)
 			value := p.parseExpr()
 
 			property := js_ast.Property{
-				Kind:  js_ast.PropertyNormal,
-				Key:   key,
-				Value: &value,
+				Kind:       js_ast.PropertyNormal,
+				Key:        key,
+				ValueOrNil: value,
 			}
 			properties = append(properties, property)
 		}
@@ -167,10 +173,12 @@ func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (resul
 	}()
 
 	p := &jsonParser{
-		log:     log,
-		source:  source,
-		options: options,
-		lexer:   js_lexer.NewLexerJSON(log, source, options.AllowComments),
+		log:                            log,
+		source:                         source,
+		tracker:                        logger.MakeLineColumnTracker(&source),
+		options:                        options,
+		lexer:                          js_lexer.NewLexerJSON(log, source, options.AllowComments),
+		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
 	}
 
 	result = p.parseExpr()

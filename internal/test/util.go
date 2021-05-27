@@ -9,23 +9,23 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
-func AssertEqual(t *testing.T, a interface{}, b interface{}) {
+func AssertEqual(t *testing.T, observed interface{}, expected interface{}) {
 	t.Helper()
-	if a != b {
-		t.Fatalf("%s != %s", a, b)
+	if observed != expected {
+		t.Fatalf("%s != %s", observed, expected)
 	}
 }
 
-func AssertEqualWithDiff(t *testing.T, a interface{}, b interface{}) {
+func AssertEqualWithDiff(t *testing.T, observed interface{}, expected interface{}) {
 	t.Helper()
-	if a != b {
-		stringA := fmt.Sprintf("%v", a)
-		stringB := fmt.Sprintf("%v", b)
+	if observed != expected {
+		stringA := fmt.Sprintf("%v", observed)
+		stringB := fmt.Sprintf("%v", expected)
 		if strings.Contains(stringA, "\n") {
 			color := !fs.CheckIfWindows()
 			t.Fatal(diff(stringB, stringA, color))
 		} else {
-			t.Fatalf("%s != %s", a, b)
+			t.Fatalf("%s != %s", observed, expected)
 		}
 	}
 }

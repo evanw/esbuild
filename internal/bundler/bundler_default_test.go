@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
@@ -906,6 +907,8 @@ func TestConditionalRequireResolve(t *testing.T) {
 		entryPaths: []string{"/a.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 			ExternalModules: config.ExternalModules{
 				NodeModules: map[string]bool{
@@ -1155,6 +1158,7 @@ func TestRequirePropertyAccessCommonJS(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
@@ -3563,6 +3567,8 @@ func TestRequireResolve(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 			ExternalModules: config.ExternalModules{
 				AbsPaths: map[string]bool{
@@ -3627,6 +3633,16 @@ func TestInject(t *testing.T) {
 				return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, "replace")}
 			},
 		},
+		"obj.defined": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EString{Value: js_lexer.StringToUTF16("defined")}
+			},
+		},
+		"injectedAndDefined": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EString{Value: js_lexer.StringToUTF16("should be used")}
+			},
+		},
 	})
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3634,6 +3650,8 @@ func TestInject(t *testing.T) {
 				let sideEffects = console.log('this should be renamed')
 				let collide = 123
 				console.log(obj.prop)
+				console.log(obj.defined)
+				console.log(injectedAndDefined)
 				console.log(chain.prop.test)
 				console.log(collide)
 				console.log(re_export)
@@ -3642,6 +3660,7 @@ func TestInject(t *testing.T) {
 				export let obj = {}
 				export let sideEffects = console.log('side effects')
 				export let noSideEffects = /* @__PURE__ */ console.log('side effects')
+				export let injectedAndDefined = 'should not be used'
 			`,
 			"/node_modules/unused/index.js": `
 				console.log('This is unused but still has side effects')
@@ -3694,6 +3713,16 @@ func TestInjectNoBundle(t *testing.T) {
 				return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, "replace")}
 			},
 		},
+		"obj.defined": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EString{Value: js_lexer.StringToUTF16("defined")}
+			},
+		},
+		"injectedAndDefined": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EString{Value: js_lexer.StringToUTF16("should be used")}
+			},
+		},
 	})
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3701,6 +3730,8 @@ func TestInjectNoBundle(t *testing.T) {
 				let sideEffects = console.log('this should be renamed')
 				let collide = 123
 				console.log(obj.prop)
+				console.log(obj.defined)
+				console.log(injectedAndDefined)
 				console.log(chain.prop.test)
 				console.log(collide)
 				console.log(re_export)
@@ -3709,6 +3740,7 @@ func TestInjectNoBundle(t *testing.T) {
 				export let obj = {}
 				export let sideEffects = console.log('side effects')
 				export let noSideEffects = /* @__PURE__ */ console.log('side effects')
+				export let injectedAndDefined = 'should not be used'
 			`,
 			"/node_modules/unused/index.js": `
 				console.log('This is unused but still has side effects')
@@ -3836,6 +3868,30 @@ func TestInjectImportOrder(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestInjectAssign(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				test = true
+			`,
+			"/inject.js": `
+				export let test = false
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			InjectAbsPaths: []string{
+				"/inject.js",
+			},
+		},
+		expectedScanLog: `entry.js: error: Cannot assign to "test" because it's an import from an injected file
+inject.js: note: "test" was exported from "inject.js" here
+`,
 	})
 }
 
@@ -4120,6 +4176,7 @@ func TestRequireMainCacheCommonJS(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
 			AbsOutputFile: "/out.js",
 			OutputFormat:  config.FormatCommonJS,
 		},
@@ -4193,8 +4250,38 @@ func TestCallImportNamespaceWarning(t *testing.T) {
 				new b()
 				new c()
 			`,
+			"/jsx-components.jsx": `
+				import * as A from "a"
+				import {B} from "b"
+				import C from "c"
+				<A/>;
+				<B/>;
+				<C/>;
+			`,
+			"/jsx-a.jsx": `
+				// @jsx a
+				import * as a from "a"
+				<div/>
+			`,
+			"/jsx-b.jsx": `
+				// @jsx b
+				import {b} from "b"
+				<div/>
+			`,
+			"/jsx-c.jsx": `
+				// @jsx c
+				import c from "c"
+				<div/>
+			`,
 		},
-		entryPaths: []string{"/js.js", "/ts.ts"},
+		entryPaths: []string{
+			"/js.js",
+			"/ts.ts",
+			"/jsx-components.jsx",
+			"/jsx-a.jsx",
+			"/jsx-b.jsx",
+			"/jsx-c.jsx",
+		},
 		options: config.Options{
 			Mode:         config.ModeConvertFormat,
 			AbsOutputDir: "/out",
@@ -4204,6 +4291,10 @@ func TestCallImportNamespaceWarning(t *testing.T) {
 js.js: note: Consider changing "a" to a default import instead
 js.js: warning: Constructing "a" will crash at run-time because it's an import namespace object, not a constructor
 js.js: note: Consider changing "a" to a default import instead
+jsx-a.jsx: warning: Calling "a" will crash at run-time because it's an import namespace object, not a function
+jsx-a.jsx: note: Consider changing "a" to a default import instead
+jsx-components.jsx: warning: Using "A" in a JSX expression will crash at run-time because it's an import namespace object, not a component
+jsx-components.jsx: note: Consider changing "A" to a default import instead
 ts.ts: warning: Calling "a" will crash at run-time because it's an import namespace object, not a function (make sure to enable TypeScript's "esModuleInterop" setting)
 ts.ts: note: Consider changing "a" to a default import instead
 ts.ts: warning: Constructing "a" will crash at run-time because it's an import namespace object, not a constructor (make sure to enable TypeScript's "esModuleInterop" setting)
@@ -4385,5 +4476,118 @@ func TestThisUndefinedWarningESM(t *testing.T) {
 		expectedScanLog: `file1.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
 file1.js: note: This file is considered an ECMAScript module because of the "export" keyword here
 `,
+	})
+}
+
+func TestQuotedProperty(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from 'ext'
+				console.log(ns.mustBeUnquoted, ns['mustBeQuoted'])
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			OutputFormat: config.FormatCommonJS,
+			AbsOutputDir: "/out",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"ext": true,
+				},
+			},
+		},
+	})
+}
+
+func TestQuotedPropertyMangle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from 'ext'
+				console.log(ns.mustBeUnquoted, ns['mustBeUnquoted2'])
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			OutputFormat: config.FormatCommonJS,
+			AbsOutputDir: "/out",
+			MangleSyntax: true,
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"ext": true,
+				},
+			},
+		},
+	})
+}
+
+func TestDuplicatePropertyWarning(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './outside-node-modules'
+				import 'inside-node-modules'
+			`,
+			"/outside-node-modules/index.js": `
+				console.log({ a: 1, a: 2 })
+			`,
+			"/outside-node-modules/package.json": `
+				{ "b": 1, "b": 2 }
+			`,
+			"/node_modules/inside-node-modules/index.js": `
+				console.log({ c: 1, c: 2 })
+			`,
+			"/node_modules/inside-node-modules/package.json": `
+				{ "d": 1, "d": 2 }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `outside-node-modules/index.js: warning: Duplicate key "a" in object literal
+outside-node-modules/index.js: note: The original "a" is here
+outside-node-modules/package.json: warning: Duplicate key "b" in object literal
+outside-node-modules/package.json: note: The original "b" is here
+`,
+	})
+}
+
+func TestRequireShimSubstitution(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log([
+					require,
+					typeof require,
+					require('./example.json'),
+					require('./example.json', { type: 'json' }),
+					require(window.SOME_PATH),
+					module.require('./example.json'),
+					module.require('./example.json', { type: 'json' }),
+					module.require(window.SOME_PATH),
+					require.resolve('some-path'),
+					require.resolve(window.SOME_PATH),
+					import('some-path'),
+					import(window.SOME_PATH),
+				])
+			`,
+			"/example.json": `{ "works": true }`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"some-path": true,
+				},
+			},
+			UnsupportedJSFeatures: compat.DynamicImport,
+		},
 	})
 }

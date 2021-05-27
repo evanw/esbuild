@@ -14,11 +14,13 @@ package graph
 // manually enforced. Please be careful.
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/runtime"
 )
 
@@ -36,6 +38,10 @@ type LinkerFile struct {
 	// This holds all entry points that can reach this file. It will be used to
 	// assign the parts in this file to a chunk.
 	EntryBits helpers.BitSet
+
+	// This is lazily-allocated because it's only needed if there are warnings
+	// logged, which should be relatively rare.
+	lazyLineColumnTracker *logger.LineColumnTracker
 
 	// The minimum number of links in the module graph to get from an entry point
 	// to this file
@@ -62,6 +68,16 @@ func (f *LinkerFile) IsEntryPoint() bool {
 
 func (f *LinkerFile) IsUserSpecifiedEntryPoint() bool {
 	return f.entryPointKind == entryPointUserSpecified
+}
+
+// Note: This is not guarded by a mutex. Make sure this isn't called from a
+// parallel part of the code.
+func (f *LinkerFile) LineColumnTracker() *logger.LineColumnTracker {
+	if f.lazyLineColumnTracker == nil {
+		tracker := logger.MakeLineColumnTracker(&f.InputFile.Source)
+		f.lazyLineColumnTracker = &tracker
+	}
+	return f.lazyLineColumnTracker
 }
 
 type EntryPoint struct {
@@ -123,7 +139,11 @@ func CloneLinkerGraph(
 	var dynamicImportEntryPointsMutex sync.Mutex
 	waitGroup := sync.WaitGroup{}
 	waitGroup.Add(len(reachableFiles))
-	for _, sourceIndex := range reachableFiles {
+	stableSourceIndices := make([]uint32, len(inputFiles))
+	for stableIndex, sourceIndex := range reachableFiles {
+		// Create a way to convert source indices to a stable ordering
+		stableSourceIndices[sourceIndex] = uint32(stableIndex)
+
 		go func(sourceIndex uint32) {
 			file := &files[sourceIndex]
 			file.InputFile = inputFiles[sourceIndex]
@@ -185,13 +205,6 @@ func CloneLinkerGraph(
 					}
 				}
 
-				// Clone the top-level symbol-to-parts map
-				topLevelSymbolToParts := make(map[js_ast.Ref][]uint32)
-				for ref, parts := range repr.AST.TopLevelSymbolToParts {
-					topLevelSymbolToParts[ref] = parts
-				}
-				repr.AST.TopLevelSymbolToParts = topLevelSymbolToParts
-
 				// Clone the top-level scope so we can generate more variables
 				{
 					new := &js_ast.Scope{}
@@ -225,20 +238,23 @@ func CloneLinkerGraph(
 	waitGroup.Wait()
 
 	// Process dynamic entry points after merging control flow again
+	stableEntryPoints := make([]int, 0, len(dynamicImportEntryPoints))
 	for _, sourceIndex := range dynamicImportEntryPoints {
 		if otherFile := &files[sourceIndex]; otherFile.entryPointKind == entryPointNone {
-			entryPoints = append(entryPoints, EntryPoint{SourceIndex: sourceIndex})
+			stableEntryPoints = append(stableEntryPoints, int(stableSourceIndices[sourceIndex]))
 			otherFile.entryPointKind = entryPointDynamicImport
 		}
 	}
 
-	// Create a way to convert source indices to a stable ordering
-	bitCount := uint(len(entryPoints))
-	stableSourceIndices := make([]uint32, len(inputFiles))
-	for stableIndex, sourceIndex := range reachableFiles {
-		stableSourceIndices[sourceIndex] = uint32(stableIndex)
+	// Make sure to add dynamic entry points in a deterministic order
+	sort.Ints(stableEntryPoints)
+	for _, stableIndex := range stableEntryPoints {
+		entryPoints = append(entryPoints, EntryPoint{SourceIndex: reachableFiles[stableIndex]})
+	}
 
-		// Allocate the entry bit set now that the number of entry points is known
+	// Allocate the entry bit set now that the number of entry points is known
+	bitCount := uint(len(entryPoints))
+	for _, sourceIndex := range reachableFiles {
 		files[sourceIndex].EntryBits = helpers.NewBitSet(bitCount)
 	}
 
@@ -269,9 +285,20 @@ func (g *LinkerGraph) AddPartToFile(sourceIndex uint32, part js_ast.Part) uint32
 	// Invariant: the parts for all top-level symbols can be found in the file-level map
 	for _, declaredSymbol := range part.DeclaredSymbols {
 		if declaredSymbol.IsTopLevel {
-			partIndices := repr.AST.TopLevelSymbolToParts[declaredSymbol.Ref]
+			// Check for an existing overlay
+			partIndices, ok := repr.Meta.TopLevelSymbolToPartsOverlay[declaredSymbol.Ref]
+
+			// If missing, initialize using the original values from the parser
+			if !ok {
+				partIndices = append(partIndices, repr.AST.TopLevelSymbolToPartsFromParser[declaredSymbol.Ref]...)
+			}
+
+			// Add this part to the overlay
 			partIndices = append(partIndices, partIndex)
-			repr.AST.TopLevelSymbolToParts[declaredSymbol.Ref] = partIndices
+			if repr.Meta.TopLevelSymbolToPartsOverlay == nil {
+				repr.Meta.TopLevelSymbolToPartsOverlay = make(map[js_ast.Ref][]uint32)
+			}
+			repr.Meta.TopLevelSymbolToPartsOverlay[declaredSymbol.Ref] = partIndices
 		}
 	}
 
@@ -334,7 +361,7 @@ func (g *LinkerGraph) GenerateSymbolImportAndUse(
 
 	// Pull in all parts that declare this symbol
 	targetRepr := g.Files[sourceIndexToImportFrom].InputFile.Repr.(*JSRepr)
-	for _, partIndex := range targetRepr.AST.TopLevelSymbolToParts[ref] {
+	for _, partIndex := range targetRepr.TopLevelSymbolToParts(ref) {
 		part.Dependencies = append(part.Dependencies, js_ast.Dependency{
 			SourceIndex: sourceIndexToImportFrom,
 			PartIndex:   partIndex,

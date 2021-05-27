@@ -1772,6 +1772,7 @@ let pluginTests = {
         bundle: true,
         write: false,
         logLevel: 'silent',
+        platform: 'node',
         plugins: [{
           name: 'plugin',
           setup(build) {

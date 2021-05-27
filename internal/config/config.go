@@ -15,9 +15,10 @@ import (
 type LanguageTarget int8
 
 type JSXOptions struct {
-	Parse    bool
 	Factory  JSXExpr
 	Fragment JSXExpr
+	Parse    bool
+	Preserve bool
 }
 
 type JSXExpr struct {
@@ -202,22 +203,11 @@ type Options struct {
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
 	MangleSyntax      bool
+	ProfilerNames     bool
 	CodeSplitting     bool
 	WatchMode         bool
 	AllowOverwrite    bool
 	LegalComments     LegalComments
-
-	// Setting this to true disables warnings about code that is very likely to
-	// be a bug. This is used to ignore issues inside "node_modules" directories.
-	// This has caught real issues in the past. However, it's not esbuild's job
-	// to find bugs in other libraries, and these warnings are problematic for
-	// people using these libraries with esbuild. The only fix is to either
-	// disable all esbuild warnings and not get warnings about your own code, or
-	// to try to get the warning fixed in the affected library. This is
-	// especially annoying if the warning is a false positive as was the case in
-	// https://github.com/firebase/firebase-js-sdk/issues/3814. So these warnings
-	// are now disabled for code inside "node_modules" directories.
-	SuppressWarningsAboutWeirdCode bool
 
 	// If true, make sure to generate a single file that can be written to stdout
 	WriteToStdout bool
@@ -236,6 +226,7 @@ type Options struct {
 
 	UnsupportedJSFeatures  compat.JSFeature
 	UnsupportedCSSFeatures compat.CSSFeature
+	TSTarget               *TSTarget
 
 	// This is the original information that was used to generate the
 	// unsupported feature sets above. It's used for error messages.
@@ -280,6 +271,13 @@ type Options struct {
 	ExcludeSourcesContent bool
 
 	Stdin *StdinInfo
+}
+
+type TSTarget struct {
+	Source                logger.Source
+	Range                 logger.Range
+	Target                string
+	UnsupportedJSFeatures compat.JSFeature
 }
 
 type PathPlaceholder uint8
@@ -387,6 +385,10 @@ func IsTreeShakingEnabled(mode Mode, outputFormat Format) bool {
 	return mode == ModeBundle || (mode == ModeConvertFormat && outputFormat == FormatIIFE)
 }
 
+func ShouldCallRuntimeRequire(mode Mode, outputFormat Format) bool {
+	return mode == ModeBundle && outputFormat != FormatCommonJS
+}
+
 type InjectedDefine struct {
 	Source logger.Source
 	Data   js_ast.E
@@ -394,10 +396,14 @@ type InjectedDefine struct {
 }
 
 type InjectedFile struct {
-	Path        string
-	SourceIndex uint32
-	Exports     []string
-	IsDefine    bool
+	Source     logger.Source
+	Exports    []InjectableExport
+	DefineName string
+}
+
+type InjectableExport struct {
+	Alias string
+	Loc   logger.Loc
 }
 
 var filterMutex sync.Mutex

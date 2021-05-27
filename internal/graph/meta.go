@@ -106,12 +106,10 @@ type JSReprMeta struct {
 	// These may be needed to store copies of CommonJS re-exports in ESM.
 	CJSExportCopies []js_ast.Ref
 
-	// This is the index to the automatically-generated part containing code that
-	// calls "__export(exports, { ... getters ... })". This is used to generate
-	// getters on an exports object for ES6 export statements, and is both for
-	// ES6 star imports and CommonJS-style modules. All files have one of these,
-	// although it may contain no statements if there is nothing to export.
-	NSExportPartIndex uint32
+	// This is merged on top of the corresponding map from the parser in the AST.
+	// You should call "TopLevelSymbolToParts" to access this instead of accessing
+	// it directly.
+	TopLevelSymbolToPartsOverlay map[js_ast.Ref][]uint32
 
 	// The index of the automatically-generated part used to represent the
 	// CommonJS or ESM wrapper. This part is empty and is only useful for tree

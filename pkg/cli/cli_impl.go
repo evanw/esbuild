@@ -390,6 +390,23 @@ func parseOptionsImpl(
 		case strings.HasPrefix(arg, "--inject:") && buildOpts != nil:
 			buildOpts.Inject = append(buildOpts.Inject, arg[len("--inject:"):])
 
+		case strings.HasPrefix(arg, "--jsx="):
+			value := arg[len("--jsx="):]
+			var mode api.JSXMode
+			switch value {
+			case "transform":
+				mode = api.JSXModeTransform
+			case "preserve":
+				mode = api.JSXModePreserve
+			default:
+				return fmt.Errorf("Invalid jsx: %q (valid: transform, preserve)", value), nil
+			}
+			if buildOpts != nil {
+				buildOpts.JSXMode = mode
+			} else {
+				transformOpts.JSXMode = mode
+			}
+
 		case strings.HasPrefix(arg, "--jsx-factory="):
 			value := arg[len("--jsx-factory="):]
 			if buildOpts != nil {
@@ -626,10 +643,10 @@ func runImpl(osArgs []string) int {
 
 	switch {
 	case buildOptions != nil:
-		// Read the "NODE_PATH" from the environment. This is part of node's
-		// module resolution algorithm. Documentation for this can be found here:
-		// https://nodejs.org/api/modules.html#modules_loading_from_the_global_folders
 		for _, key := range os.Environ() {
+			// Read the "NODE_PATH" from the environment. This is part of node's
+			// module resolution algorithm. Documentation for this can be found here:
+			// https://nodejs.org/api/modules.html#modules_loading_from_the_global_folders
 			if strings.HasPrefix(key, "NODE_PATH=") {
 				value := key[len("NODE_PATH="):]
 				separator := ":"
@@ -639,6 +656,12 @@ func runImpl(osArgs []string) int {
 				}
 				buildOptions.NodePaths = strings.Split(value, separator)
 				break
+			}
+
+			// Read "NO_COLOR" from the environment. This is a convention that some
+			// software follows. See https://no-color.org/ for more information.
+			if buildOptions.Color == api.ColorIfTerminal && strings.HasPrefix(key, "NO_COLOR=") {
+				buildOptions.Color = api.ColorNever
 			}
 		}
 

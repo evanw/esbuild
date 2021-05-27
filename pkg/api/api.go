@@ -105,6 +105,13 @@ const (
 	LegalCommentsExternal
 )
 
+type JSXMode uint8
+
+const (
+	JSXModeTransform JSXMode = iota
+	JSXModePreserve
+)
+
 type Target uint8
 
 const (
@@ -251,6 +258,7 @@ type BuildOptions struct {
 	TreeShaking       TreeShaking
 	LegalComments     LegalComments
 
+	JSXMode     JSXMode
 	JSXFactory  string
 	JSXFragment string
 
@@ -358,8 +366,10 @@ type TransformOptions struct {
 	TreeShaking       TreeShaking
 	LegalComments     LegalComments
 
+	JSXMode     JSXMode
 	JSXFactory  string
 	JSXFragment string
+
 	TsconfigRaw string
 	Footer      string
 	Banner      string
