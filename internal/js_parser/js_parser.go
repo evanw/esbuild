@@ -12221,7 +12221,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							// representation of the expression as the import path and flag
 							// the import record as containing a dynamic expression.
 							r := js_lexer.RangeOfCallArgs(p.source, arg.Loc)
-							importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, p.source.TextForRange(r))
+							importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, p.source.TextForRange(r), nil)
 							p.importRecords[importRecordIndex].IsDynamicExpression = true
 
 							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireString{ImportRecordIndex: importRecordIndex}}
