@@ -507,6 +507,11 @@ func TestRegExp(t *testing.T) {
 	expectPrinted(t, "/x/s", "/x/s;\n")
 	expectPrinted(t, "/x/u", "/x/u;\n")
 	expectPrinted(t, "/x/y", "/x/y;\n")
+
+	expectParseError(t, "/x/msuygig",
+		`<stdin>: error: Duplicate flag "g" in regular expression
+<stdin>: note: The first "g" was here
+`)
 }
 
 func TestIdentifierEscapes(t *testing.T) {

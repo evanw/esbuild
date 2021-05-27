@@ -2045,9 +2045,25 @@ func (lexer *Lexer) ScanRegExp() {
 		switch lexer.codePoint {
 		case '/':
 			lexer.step()
+			bits := uint32(0)
 			for IsIdentifierContinue(lexer.codePoint) {
 				switch lexer.codePoint {
 				case 'g', 'i', 'm', 's', 'u', 'y':
+					bit := uint32(1) << uint32(lexer.codePoint-'a')
+					if (bit & bits) != 0 {
+						// Reject duplicate flags
+						r1 := logger.Range{Loc: logger.Loc{Start: int32(lexer.start)}, Len: 1}
+						r2 := logger.Range{Loc: logger.Loc{Start: int32(lexer.end)}, Len: 1}
+						for r1.Loc.Start < r2.Loc.Start && lexer.source.Contents[r1.Loc.Start] != byte(lexer.codePoint) {
+							r1.Loc.Start++
+						}
+						lexer.log.AddRangeErrorWithNotes(&lexer.tracker, r2,
+							fmt.Sprintf("Duplicate flag \"%c\" in regular expression", lexer.codePoint),
+							[]logger.MsgData{logger.RangeData(&lexer.tracker, r1,
+								fmt.Sprintf("The first \"%c\" was here", lexer.codePoint))})
+					} else {
+						bits |= bit
+					}
 					lexer.step()
 
 				default:
