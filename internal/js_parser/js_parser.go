@@ -1101,10 +1101,10 @@ func (p *parser) selectLocalKind(kind js_ast.LocalKind) js_ast.LocalKind {
 func (p *parser) pushScopeForParsePass(kind js_ast.ScopeKind, loc logger.Loc) int {
 	parent := p.currentScope
 	scope := &js_ast.Scope{
-		Kind:     kind,
-		Parent:   parent,
-		Members:  make(map[string]js_ast.ScopeMember),
-		LabelRef: js_ast.InvalidRef,
+		Kind:    kind,
+		Parent:  parent,
+		Members: make(map[string]js_ast.ScopeMember),
+		Label:   js_ast.LocRef{Ref: js_ast.InvalidRef},
 	}
 	if parent != nil {
 		parent.Children = append(parent.Children, scope)
@@ -6819,10 +6819,10 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 
 func (p *parser) findLabelSymbol(loc logger.Loc, name string) (ref js_ast.Ref, isLoop bool, ok bool) {
 	for s := p.currentScope; s != nil && !s.Kind.StopsHoisting(); s = s.Parent {
-		if s.Kind == js_ast.ScopeLabel && name == p.symbols[s.LabelRef.InnerIndex].OriginalName {
+		if s.Kind == js_ast.ScopeLabel && name == p.symbols[s.Label.Ref.InnerIndex].OriginalName {
 			// Track how many times we've referenced this symbol
-			p.recordUsage(s.LabelRef)
-			ref = s.LabelRef
+			p.recordUsage(s.Label.Ref)
+			ref = s.Label.Ref
 			isLoop = s.LabelStmtIsLoop
 			ok = true
 			return
@@ -8630,7 +8630,19 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 		ref := p.newSymbol(js_ast.SymbolLabel, name)
 		s.Name.Ref = ref
-		p.currentScope.LabelRef = ref
+
+		// Duplicate labels are an error
+		for scope := p.currentScope.Parent; scope != nil; scope = scope.Parent {
+			if scope.Label.Ref != js_ast.InvalidRef && name == p.symbols[scope.Label.Ref.InnerIndex].OriginalName {
+				p.log.AddRangeErrorWithNotes(&p.tracker, js_lexer.RangeOfIdentifier(p.source, s.Name.Loc),
+					fmt.Sprintf("Duplicate label %q", name),
+					[]logger.MsgData{logger.RangeData(&p.tracker, js_lexer.RangeOfIdentifier(p.source, scope.Label.Loc),
+						fmt.Sprintf("The original label %q is here", name))})
+				break
+			}
+		}
+
+		p.currentScope.Label = js_ast.LocRef{Loc: s.Name.Loc, Ref: ref}
 		switch s.Stmt.Data.(type) {
 		case *js_ast.SFor, *js_ast.SForIn, *js_ast.SForOf, *js_ast.SWhile, *js_ast.SDoWhile:
 			p.currentScope.LabelStmtIsLoop = true
@@ -14009,8 +14021,8 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 				charFreq.Scan(symbol.OriginalName, -int32(symbol.UseCountEstimate))
 			}
 		}
-		if scope.LabelRef != js_ast.InvalidRef {
-			symbol := &p.symbols[scope.LabelRef.InnerIndex]
+		if scope.Label.Ref != js_ast.InvalidRef {
+			symbol := &p.symbols[scope.Label.Ref.InnerIndex]
 			if symbol.SlotNamespace() != js_ast.SlotMustNotBeRenamed {
 				charFreq.Scan(symbol.OriginalName, -int32(symbol.UseCountEstimate)-1)
 			}

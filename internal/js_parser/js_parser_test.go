@@ -1834,6 +1834,10 @@ func TestLabels(t *testing.T) {
 
 	expectParseError(t, "while (1) break x", "<stdin>: error: There is no containing label named \"x\"\n")
 	expectParseError(t, "while (1) continue x", "<stdin>: error: There is no containing label named \"x\"\n")
+
+	expectPrinted(t, "x: y: z: 1", "x:\n  y:\n    z:\n      1;\n")
+	expectPrinted(t, "x: 1; y: 2; x: 3", "x:\n  1;\ny:\n  2;\nx:\n  3;\n")
+	expectParseError(t, "x: y: x: 1", "<stdin>: error: Duplicate label \"x\"\n<stdin>: note: The original label \"x\" is here\n")
 }
 
 func TestArrow(t *testing.T) {

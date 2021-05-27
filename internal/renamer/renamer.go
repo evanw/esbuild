@@ -353,8 +353,8 @@ func assignNestedScopeSlotsHelper(scope *js_ast.Scope, symbols []js_ast.Symbol, 
 	}
 
 	// Labels are always declared in a nested scope, so we don't need to check.
-	if scope.LabelRef != js_ast.InvalidRef {
-		symbol := &symbols[scope.LabelRef.InnerIndex]
+	if scope.Label.Ref != js_ast.InvalidRef {
+		symbol := &symbols[scope.Label.Ref.InnerIndex]
 		symbol.NestedScopeSlot = ast.MakeIndex32(slot[js_ast.SlotLabel])
 		slot[js_ast.SlotLabel]++
 	}

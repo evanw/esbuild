@@ -1617,7 +1617,7 @@ type Scope struct {
 	UseStrictLoc logger.Loc
 
 	// This is used to store the ref of the label symbol for ScopeLabel scopes.
-	LabelRef        Ref
+	Label           LocRef
 	LabelStmtIsLoop bool
 
 	// If a scope contains a direct eval() expression, then none of the symbols
