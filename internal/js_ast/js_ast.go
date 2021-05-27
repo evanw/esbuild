@@ -613,6 +613,7 @@ type TemplatePart struct {
 
 type ETemplate struct {
 	TagOrNil       Expr
+	HeadLoc        logger.Loc
 	HeadCooked     []uint16 // Only use when "TagOrNil" is nil
 	HeadRaw        string   // Only use when "TagOrNil" is not nil
 	Parts          []TemplatePart

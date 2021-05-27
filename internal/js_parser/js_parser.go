@@ -2952,6 +2952,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 	case js_lexer.TTemplateHead:
 		var legacyOctalLoc logger.Loc
+		headLoc := p.lexer.Loc()
 		head := p.lexer.StringLiteral()
 		if p.lexer.LegacyOctalLoc.Start > loc.Start {
 			legacyOctalLoc = p.lexer.LegacyOctalLoc
@@ -2960,44 +2961,8 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		if tailLegacyOctalLoc.Start > 0 {
 			legacyOctalLoc = tailLegacyOctalLoc
 		}
-		if p.options.unsupportedJSFeatures.Has(compat.TemplateLiteral) {
-			var value js_ast.Expr
-			if len(head) == 0 {
-				// "`${x}y`" => "x + 'y'"
-				part := parts[0]
-				value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:   js_ast.BinOpAdd,
-					Left: part.Value,
-					Right: js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{
-						Value:          part.TailCooked,
-						LegacyOctalLoc: legacyOctalLoc,
-					}},
-				}}
-				parts = parts[1:]
-			} else {
-				// "`x${y}`" => "'x' + y"
-				value = js_ast.Expr{Loc: loc, Data: &js_ast.EString{
-					Value:          head,
-					LegacyOctalLoc: legacyOctalLoc,
-				}}
-			}
-			for _, part := range parts {
-				value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpAdd,
-					Left:  value,
-					Right: part.Value,
-				}}
-				if len(part.TailCooked) > 0 {
-					value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-						Op:    js_ast.BinOpAdd,
-						Left:  value,
-						Right: js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: part.TailCooked}},
-					}}
-				}
-			}
-			return value
-		}
 		return js_ast.Expr{Loc: loc, Data: &js_ast.ETemplate{
+			HeadLoc:        headLoc,
 			HeadCooked:     head,
 			Parts:          parts,
 			LegacyOctalLoc: legacyOctalLoc,
@@ -3706,25 +3671,29 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			if oldOptionalChain != js_ast.OptionalChainNone {
 				p.log.AddRangeError(&p.tracker, p.lexer.Range(), "Template literals cannot have an optional chain as a tag")
 			}
-			p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
-			headRaw := p.lexer.RawTemplateContents()
+			headLoc := p.lexer.Loc()
+			headCooked, headRaw := p.lexer.CookedAndRawTemplateContents()
 			p.lexer.Next()
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
-				TagOrNil: left,
-				HeadRaw:  headRaw,
+				TagOrNil:   left,
+				HeadLoc:    headLoc,
+				HeadCooked: headCooked,
+				HeadRaw:    headRaw,
 			}}
 
 		case js_lexer.TTemplateHead:
 			if oldOptionalChain != js_ast.OptionalChainNone {
 				p.log.AddRangeError(&p.tracker, p.lexer.Range(), "Template literals cannot have an optional chain as a tag")
 			}
-			p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
-			headRaw := p.lexer.RawTemplateContents()
+			headLoc := p.lexer.Loc()
+			headCooked, headRaw := p.lexer.CookedAndRawTemplateContents()
 			parts, _ := p.parseTemplateParts(true /* includeRaw */)
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
-				TagOrNil: left,
-				HeadRaw:  headRaw,
-				Parts:    parts,
+				TagOrNil:   left,
+				HeadLoc:    headLoc,
+				HeadCooked: headCooked,
+				HeadRaw:    headRaw,
+				Parts:      parts,
 			}}
 
 		case js_lexer.TOpenBracket:
@@ -4540,10 +4509,12 @@ func (p *parser) parseTemplateParts(includeRaw bool) (parts []js_ast.TemplatePar
 		tailLoc := p.lexer.Loc()
 		p.lexer.RescanCloseBraceAsTemplateToken()
 		if includeRaw {
+			tailCooked, tailRaw := p.lexer.CookedAndRawTemplateContents()
 			parts = append(parts, js_ast.TemplatePart{
-				Value:   value,
-				TailLoc: tailLoc,
-				TailRaw: p.lexer.RawTemplateContents(),
+				Value:      value,
+				TailLoc:    tailLoc,
+				TailCooked: tailCooked,
+				TailRaw:    tailRaw,
 			})
 		} else {
 			parts = append(parts, js_ast.TemplatePart{
@@ -10130,6 +10101,7 @@ func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
 		case *js_ast.ETemplate:
 			if r.TagOrNil.Data == nil {
 				return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
+					HeadLoc:    left.Loc,
 					HeadCooked: joinStrings(l.Value, r.HeadCooked),
 					Parts:      r.Parts,
 				}}
@@ -10150,6 +10122,7 @@ func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
 					parts[n-1].TailCooked = joinStrings(parts[n-1].TailCooked, r.Value)
 				}
 				return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
+					HeadLoc:    l.HeadLoc,
 					HeadCooked: head,
 					Parts:      parts,
 				}}
@@ -10167,6 +10140,7 @@ func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
 						parts[n-1].TailCooked = joinStrings(parts[n-1].TailCooked, r.HeadCooked)
 					}
 					return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
+						HeadLoc:    l.HeadLoc,
 						HeadCooked: head,
 						Parts:      parts,
 					}}
@@ -10484,6 +10458,7 @@ func (p *parser) mangleTemplate(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr
 			}}
 		}
 	}
+
 	return js_ast.Expr{Loc: loc, Data: e}
 }
 
@@ -10716,6 +10691,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			p.log.AddRangeError(&p.tracker, p.source.RangeOfLegacyOctalEscape(e.LegacyOctalLoc),
 				"Legacy octal escape sequences cannot be used in template literals")
 		}
+
 		if e.TagOrNil.Data != nil {
 			p.templateTag = e.TagOrNil.Data
 			e.TagOrNil = p.visitExpr(e.TagOrNil)
@@ -10736,12 +10712,23 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}})
 			}
 		}
+
 		for i, part := range e.Parts {
 			e.Parts[i].Value = p.visitExpr(part.Value)
 		}
 
+		// When mangling, inline string values into the template literal. Note that
+		// it may no longer be a template literal after this point (it may turn into
+		// a plain string literal instead).
 		if p.options.mangleSyntax {
-			return p.mangleTemplate(expr.Loc, e), exprOut{}
+			expr = p.mangleTemplate(expr.Loc, e)
+		}
+
+		// Convert template literals to older syntax if this is still a template literal
+		if p.options.unsupportedJSFeatures.Has(compat.TemplateLiteral) {
+			if e, ok := expr.Data.(*js_ast.ETemplate); ok {
+				return p.lowerTemplateLiteral(expr.Loc, e), exprOut{}
+			}
 		}
 
 	case *js_ast.EBinary:

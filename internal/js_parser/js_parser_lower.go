@@ -60,9 +60,6 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	case compat.ObjectExtensions:
 		name = "object literal extensions"
 
-	case compat.TemplateLiteral:
-		name = "tagged template literals"
-
 	case compat.Destructuring:
 		name = "destructuring"
 
@@ -2593,6 +2590,88 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		class.Name = nil
 	}
 	return stmts, js_ast.Expr{}
+}
+
+func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr {
+	// If there is no tag, turn this into normal string concatenation
+	if e.TagOrNil.Data == nil {
+		var value js_ast.Expr
+
+		// Handle the head
+		if len(e.HeadCooked) == 0 {
+			// "`${x}y`" => "x + 'y'"
+			part := e.Parts[0]
+			value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+				Op:   js_ast.BinOpAdd,
+				Left: part.Value,
+				Right: js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{
+					Value:          part.TailCooked,
+					LegacyOctalLoc: e.LegacyOctalLoc,
+				}},
+			}}
+			e.Parts = e.Parts[1:]
+		} else {
+			// "`x${y}`" => "'x' + y"
+			value = js_ast.Expr{Loc: loc, Data: &js_ast.EString{
+				Value:          e.HeadCooked,
+				LegacyOctalLoc: e.LegacyOctalLoc,
+			}}
+		}
+
+		// Handle the tail
+		for _, part := range e.Parts {
+			value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+				Op:    js_ast.BinOpAdd,
+				Left:  value,
+				Right: part.Value,
+			}}
+			if len(part.TailCooked) > 0 {
+				value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+					Op:    js_ast.BinOpAdd,
+					Left:  value,
+					Right: js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: part.TailCooked}},
+				}}
+			}
+		}
+
+		return value
+	}
+
+	// Otherwise, call the tag with the template object
+	cooked := []js_ast.Expr{}
+	raw := []js_ast.Expr{}
+	args := make([]js_ast.Expr, 0, 1+len(e.Parts))
+	args = append(args, js_ast.Expr{})
+
+	// Handle the head
+	if e.HeadCooked == nil {
+		cooked = append(cooked, js_ast.Expr{Loc: e.HeadLoc, Data: js_ast.EUndefinedShared})
+	} else {
+		cooked = append(cooked, js_ast.Expr{Loc: e.HeadLoc, Data: &js_ast.EString{Value: e.HeadCooked}})
+	}
+	raw = append(raw, js_ast.Expr{Loc: e.HeadLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(e.HeadRaw)}})
+
+	// Handle the tail
+	for _, part := range e.Parts {
+		args = append(args, part.Value)
+		if part.TailCooked == nil {
+			cooked = append(cooked, js_ast.Expr{Loc: part.TailLoc, Data: js_ast.EUndefinedShared})
+		} else {
+			cooked = append(cooked, js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: part.TailCooked}})
+		}
+		raw = append(raw, js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(part.TailRaw)}})
+	}
+
+	// Construct the template object
+	args[0] = p.callRuntime(e.HeadLoc, "__template", []js_ast.Expr{
+		{Loc: e.HeadLoc, Data: &js_ast.EArray{Items: cooked, IsSingleLine: true}},
+		{Loc: e.HeadLoc, Data: &js_ast.EArray{Items: raw, IsSingleLine: true}},
+	})
+
+	return js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+		Target: e.TagOrNil,
+		Args:   args,
+	}}
 }
 
 func (p *parser) shouldLowerSuperPropertyAccess(expr js_ast.Expr) bool {

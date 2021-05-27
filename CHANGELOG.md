@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* Add support for lowering tagged template literals to ES5 ([#297](https://github.com/evanw/esbuild/issues/297))
+
+    This release adds support for lowering tagged template literals such as `` String.raw`\unicode` `` to target environments that don't support them such as `--target=es5` (non-tagged template literals were already supported). Each literal turns into a function call to a helper function:
+
+    ```js
+    // Original code
+    console.log(String.raw`\unicode`)
+
+    // Lowered code
+    console.log(String.raw(__template([void 0], ["\\unicode"])));
+    ```
+
 * Change class field behavior to match TypeScript 4.3
 
     TypeScript 4.3 includes a subtle breaking change that wasn't mentioned in the [TypeScript 4.3 blog post](https://devblogs.microsoft.com/typescript/announcing-typescript-4-3/): class fields will now be compiled with different semantics if `"target": "ESNext"` is present in `tsconfig.json`. Specifically in this case `useDefineForClassFields` will default to `true` when not specified instead of `false`. This means class field behavior in TypeScript code will now match JavaScript instead of doing something else:

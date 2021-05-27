@@ -4575,10 +4575,14 @@ func TestES5(t *testing.T) {
 	expectPrintedTarget(t, 5, "`a${b}${c}d`;", "\"a\" + b + c + \"d\";\n")
 	expectPrintedTarget(t, 5, "`a${b}c${d}`;", "\"a\" + b + \"c\" + d;\n")
 	expectPrintedTarget(t, 5, "`a${b}c${d}e`;", "\"a\" + b + \"c\" + d + \"e\";\n")
-	expectParseErrorTarget(t, 5, "tag`abc`;",
-		"<stdin>: error: Transforming tagged template literals to the configured target environment is not supported yet\n")
-	expectParseErrorTarget(t, 5, "tag`a${b}c`;",
-		"<stdin>: error: Transforming tagged template literals to the configured target environment is not supported yet\n")
+	expectPrintedTarget(t, 5, "tag``;", "tag(__template([\"\"], [\"\"]));\n")
+	expectPrintedTarget(t, 5, "tag`abc`;", "tag(__template([\"abc\"], [\"abc\"]));\n")
+	expectPrintedTarget(t, 5, "tag`\\utf`;", "tag(__template([void 0], [\"\\\\utf\"]));\n")
+	expectPrintedTarget(t, 5, "tag`${a}b`;", "tag(__template([\"\", \"b\"], [\"\", \"b\"]), a);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}`;", "tag(__template([\"a\", \"\"], [\"a\", \"\"]), b);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}c`;", "tag(__template([\"a\", \"c\"], [\"a\", \"c\"]), b);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}\\u`;", "tag(__template([\"a\", void 0], [\"a\", \"\\\\u\"]), b);\n")
+	expectPrintedTarget(t, 5, "tag`\\u${b}c`;", "tag(__template([void 0, \"c\"], [\"\\\\u\", \"c\"]), b);\n")
 	expectParseErrorTarget(t, 5, "class Foo { constructor() { new.target } }",
 		"<stdin>: error: Transforming class syntax to the configured target environment is not supported yet\n"+
 			"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n"+
