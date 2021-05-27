@@ -4022,10 +4022,15 @@ func TestReplacementCharacter(t *testing.T) {
 }
 
 func TestNewTarget(t *testing.T) {
-	expectPrinted(t, "new.target", "new.target;\n")
-	expectPrinted(t, "(new.target)", "new.target;\n")
+	expectPrinted(t, "function f() { new.target }", "function f() {\n  new.target;\n}\n")
+	expectPrinted(t, "function f() { (new.target) }", "function f() {\n  new.target;\n}\n")
+	expectPrinted(t, "function f() { () => new.target }", "function f() {\n  () => new.target;\n}\n")
+	expectPrinted(t, "class Foo { x = new.target }", "class Foo {\n  x = new.target;\n}\n")
 
 	expectParseError(t, "new.t\\u0061rget", "<stdin>: error: Unexpected \"t\\\\u0061rget\"\n")
+	expectParseError(t, "new.target", "<stdin>: error: Cannot use \"new.target\" here\n")
+	expectParseError(t, "() => new.target", "<stdin>: error: Cannot use \"new.target\" here\n")
+	expectParseError(t, "class Foo { [new.target] }", "<stdin>: error: Cannot use \"new.target\" here\n")
 }
 
 func TestJSX(t *testing.T) {

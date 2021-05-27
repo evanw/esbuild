@@ -528,6 +528,13 @@ type fnOnlyDataVisit struct {
 	// will have to reference a captured variable instead of the real variable.
 	isInsideAsyncArrowFn bool
 
+	// If false, disallow "new.target" expressions. We disallow all "new.target"
+	// expressions at the top-level of the file (i.e. not inside a function or
+	// a class field). Technically since CommonJS files are wrapped in a function
+	// you can use "new.target" in node as an alias for "undefined" but we don't
+	// support that.
+	isNewTargetAllowed bool
+
 	// If false, the value for "this" is the top-level module scope "this" value.
 	// That means it's "undefined" for ECMAScript modules and "exports" for
 	// CommonJS modules. We track this information so that we can substitute the
@@ -3134,7 +3141,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			r := logger.Range{Loc: loc, Len: p.lexer.Range().End() - loc.Start}
 			p.markSyntaxFeature(compat.NewTarget, r)
 			p.lexer.Next()
-			return js_ast.Expr{Loc: loc, Data: js_ast.ENewTargetShared}
+			return js_ast.Expr{Loc: loc, Data: &js_ast.ENewTarget{Range: r}}
 		}
 
 		target := p.parseExprWithFlags(js_ast.LMember, flags)
@@ -9580,6 +9587,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		oldIsThisCaptured := p.fnOnlyDataVisit.isThisNested
 		oldThis := p.fnOnlyDataVisit.thisClassStaticRef
 		p.fnOnlyDataVisit.isThisNested = true
+		p.fnOnlyDataVisit.isNewTargetAllowed = true
 		p.fnOnlyDataVisit.thisClassStaticRef = nil
 
 		// We need to explicitly assign the name to the property initializer if it
@@ -10475,7 +10483,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	switch e := expr.Data.(type) {
 	case *js_ast.ENull, *js_ast.ESuper,
 		*js_ast.EBoolean, *js_ast.EBigInt,
-		*js_ast.ERegExp, *js_ast.ENewTarget, *js_ast.EUndefined:
+		*js_ast.ERegExp, *js_ast.EUndefined:
+
+	case *js_ast.ENewTarget:
+		if !p.fnOnlyDataVisit.isNewTargetAllowed {
+			p.log.AddRangeError(&p.tracker, e.Range, "Cannot use \"new.target\" here")
+		}
 
 	case *js_ast.EString:
 		if e.LegacyOctalLoc.Start > 0 {
@@ -12501,8 +12514,9 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 		isGenerator: fn.IsGenerator,
 	}
 	p.fnOnlyDataVisit = fnOnlyDataVisit{
-		isThisNested: true,
-		argumentsRef: &fn.ArgumentsRef,
+		isThisNested:       true,
+		isNewTargetAllowed: true,
+		argumentsRef:       &fn.ArgumentsRef,
 	}
 
 	if fn.Name != nil {

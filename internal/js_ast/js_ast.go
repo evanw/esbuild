@@ -414,7 +414,9 @@ type EUndefined struct{}
 
 type EThis struct{}
 
-type ENewTarget struct{}
+type ENewTarget struct {
+	Range logger.Range
+}
 
 type EImportMeta struct{}
 
@@ -425,7 +427,6 @@ var ESuperShared = &ESuper{}
 var ENullShared = &ENull{}
 var EUndefinedShared = &EUndefined{}
 var EThisShared = &EThis{}
-var ENewTargetShared = &ENewTarget{}
 var EImportMetaShared = &EImportMeta{}
 
 type ENew struct {

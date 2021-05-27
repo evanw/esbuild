@@ -71,10 +71,6 @@ async function main() {
     'language/statements/return/S12.9_A1_T9.js', // Checking if execution of "return", placed into a catch Block, fails
     'language/global-code/return.js',      // ReturnStatement may not be used directly within global code
 
-    // "new.target" is actually supported in CommonJS code, so we support it too.
-    'language/global-code/new.target-arrow.js', // An ArrowFunction in global code may not contain `new.target`
-    'language/global-code/new.target.js', // Global code may not contain `new.target`
-
     // Skip these tests because we deliberately support parsing top-level await
     // in all files. Files containing top-level await are always interpreted as
     // ESM, never as CommonJS.
