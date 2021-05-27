@@ -77,6 +77,7 @@ async function main() {
 
     if (yaml.flags) {
       if (yaml.flags.includes('onlyStrict')) content = '"use strict";\n' + content
+      if (yaml.flags.includes('module')) content = 'export {};\n' + content
     }
 
     const result = await esbuildFile(content, { minify: false });
