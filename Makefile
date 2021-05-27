@@ -478,8 +478,9 @@ demo/esprima: | github/esprima
 	cd demo/esprima && npm ci
 
 test-esprima: esbuild | demo/esprima
-	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node && npm run all-tests
-	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node --minify && npm run all-tests
+	echo {} > demo/esprima/ts.json # Avoid "target: "ES5" in "tsconfig.json"
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node --tsconfig=ts.json && npm run all-tests
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node --tsconfig=ts.json --minify && npm run all-tests
 
 ################################################################################
 # This runs terser's test suite through esbuild
