@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+* Change class field behavior to match TypeScript 4.3
+
+    TypeScript 4.3 includes a subtle breaking change that wasn't mentioned in the [TypeScript 4.3 blog post](https://devblogs.microsoft.com/typescript/announcing-typescript-4-3/): class fields will now be compiled with different semantics if `"target": "ESNext"` is present in `tsconfig.json`. Specifically in this case `useDefineForClassFields` will default to `true` when not specified instead of `false`. This means class field behavior in TypeScript code will now match JavaScript instead of doing something else:
+
+    ```js
+    class Base {
+      set foo(value) { console.log('set', value) }
+    }
+    class Derived extends Base {
+      foo = 123
+    }
+    new Derived()
+    ```
+
+    In TypeScript 4.2 and below, the TypeScript compiler would generate code that prints `set 123` when `tsconfig.json` contains `"target": "ESNext"` but in TypeScript 4.3, the TypeScript compiler will now generate code that doesn't print anything. This is the difference between "assign" semantics and "define" semantics. With this release, esbuild has been changed to follow the TypeScript 4.3 behavior.
+
 ## 0.12.4
 
 * Reorder name preservation before TypeScript decorator evaluation ([#1316](https://github.com/evanw/esbuild/issues/1316))

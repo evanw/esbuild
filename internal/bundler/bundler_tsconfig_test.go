@@ -1178,3 +1178,47 @@ Users/user/project/src/tsconfig.json: note: The target environment was set to "E
 `,
 	})
 }
+
+func TestTsconfigUseDefineForClassFieldsES2020(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				Foo = class {
+					useDefine = false
+				}
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ES2020"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsconfigUseDefineForClassFieldsESNext(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				Foo = class {
+					useDefine = true
+				}
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ESNext"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}

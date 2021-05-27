@@ -117,6 +117,7 @@ func ParseTSConfigJSON(
 			if value, ok := getString(valueJSON); ok {
 				constraints := make(map[compat.Engine][]int)
 				r := source.RangeOfString(valueJSON.Loc)
+				ok := true
 
 				// See https://www.typescriptlang.org/tsconfig#target
 				switch strings.ToLower(value) {
@@ -137,12 +138,13 @@ func ParseTSConfigJSON(
 				case "esnext":
 					// Nothing to do in this case
 				default:
+					ok = false
 					log.AddRangeWarning(&tracker, r,
 						fmt.Sprintf("Unrecognized target environment %q", value))
 				}
 
 				// These feature restrictions are merged with esbuild's own restrictions
-				if len(constraints) > 0 {
+				if ok {
 					result.TSTarget = &config.TSTarget{
 						Source:                source,
 						Range:                 r,

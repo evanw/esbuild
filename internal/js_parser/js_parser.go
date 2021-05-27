@@ -13622,14 +13622,21 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		// Non-TypeScript files always get the real JavaScript class field behavior
 		options.useDefineForClassFields = config.True
 	} else if options.useDefineForClassFields == config.Unspecified {
-		// TypeScript files always get the incorrect TypeScript-specific class field behavior
+		// The default behavior for TypeScript files depends on the value of the
+		// "target" field and on the version of TypeScript:
 		//
-		// Note: This may be changing soon. https://github.com/microsoft/TypeScript/pull/42663
-		// appears to change this behavior to default to "true" if the target is "esnext" and
-		// "false" otherwise. In that case, perhaps esbuild should change its behavior for this
-		// too. If that happens, it will go into TypeScript version 4.3 which is supposed to
-		// come out on May 25th, 2021: https://github.com/microsoft/TypeScript/issues/42762.
-		options.useDefineForClassFields = config.False
+		//   * TypeScript ≥4.3 and "target": "ESNext" => "useDefineForClassFields": true
+		//   * Otherwise => "useDefineForClassFields": false
+		//
+		// Context: https://github.com/microsoft/TypeScript/pull/42663. This was
+		// silently changed in TypeScript 4.3. It's a breaking change even though
+		// it wasn't mentioned in the announcement blog post for TypeScript 4.3:
+		// https://devblogs.microsoft.com/typescript/announcing-typescript-4-3/.
+		if options.tsTarget != nil && strings.EqualFold(options.tsTarget.Target, "ESNext") {
+			options.useDefineForClassFields = config.True
+		} else {
+			options.useDefineForClassFields = config.False
+		}
 	}
 
 	// Include unsupported JavaScript features from the TypeScript "target" setting

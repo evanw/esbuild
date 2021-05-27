@@ -362,5 +362,23 @@ try {
 x3?.y();
 
 ================================================================================
+TestTsconfigUseDefineForClassFieldsES2020
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+Foo = class {
+  constructor() {
+    this.useDefine = false;
+  }
+};
+
+================================================================================
+TestTsconfigUseDefineForClassFieldsESNext
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+Foo = class {
+  useDefine = true;
+};
+
+================================================================================
 TestTsconfigWarningsInsideNodeModules
 ---------- /Users/user/project/out.js ----------
