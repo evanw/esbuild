@@ -89,6 +89,39 @@ async function main() {
     'language/statements/class/class-name-ident-await.js', // `await` is a valid class-name identifier.
     'language/statements/labeled/value-await-non-module-escaped.js', // `await` is not a reserved identifier in non-module code and may be used as a label.
     'language/statements/labeled/value-await-non-module.js', // `await` is not a reserved identifier in non-module code and may be used as a label.
+
+    // Skip these tests because we don't currently validate the contents of
+    // regular expressions. We could do this but it's not necessary to parse
+    // JavaScript successfully since we parse enough of it to be able to
+    // determine where the regular expression ends (just "\" and "[]" pairs).
+    'language/literals/regexp/early-err-pattern.js', // It is a Syntax Error if BodyText of RegularExpressionLiteral cannot be recognized using the goal symbol Pattern of the ECMAScript RegExp grammar specified in #sec-patterns.
+    'language/literals/regexp/invalid-braced-quantifier-exact.js', // Braced quantifier in an Atom position (exact count)
+    'language/literals/regexp/invalid-braced-quantifier-lower.js', // Braced quantifier in an Atom position (lower-bounds)
+    'language/literals/regexp/invalid-braced-quantifier-range.js', // Braced quantifier in an Atom position (range)
+    'language/literals/regexp/invalid-optional-lookbehind.js', // Lookbehinds are not treated as a QuantifiableAssertion
+    'language/literals/regexp/invalid-optional-negative-lookbehind.js', // Lookbehinds are not treated as a QuantifiableAssertion
+    'language/literals/regexp/invalid-range-lookbehind.js', // Lookbehinds are not treated as a QuantifiableAssertion
+    'language/literals/regexp/invalid-range-negative-lookbehind.js', // Lookbehinds are not treated as a QuantifiableAssertion
+    'language/literals/regexp/u-invalid-class-escape.js', // ClassEscape does not recognize "class control" patterns
+    'language/literals/regexp/u-invalid-extended-pattern-char.js', // Quantifiable assertions disallowed with `u` flag
+    'language/literals/regexp/u-invalid-identity-escape.js', // Support for UnicodeIDContinue in IdentityEscape
+    'language/literals/regexp/u-invalid-legacy-octal-escape.js', // Legacy Octal Escape Sequence not supported with `u` flag
+    'language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-a.js', // NonEmptyClassRangesNoDash production cannot specify a multi-character set ("A" parameter)
+    'language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-ab.js', // NonEmptyClassRangesNoDash production cannot specify a multi-character set (both "A" and "B" parameters)
+    'language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-b.js', // NonEmptyClassRangesNoDash production cannot specify a multi-character set ("B" parameter)
+    'language/literals/regexp/u-invalid-non-empty-class-ranges.js', // NonEmptyClassRangesNoDash production cannot specify a multi-character set
+    'language/literals/regexp/u-invalid-oob-decimal-escape.js', // Out-of-bounds decimal escapes
+    'language/literals/regexp/u-invalid-optional-lookahead.js', // Quantifiable assertions disallowed with `u` flag
+    'language/literals/regexp/u-invalid-optional-lookbehind.js', // Lookbehinds are not treated as a QuantifiableAssertion
+    'language/literals/regexp/u-invalid-optional-negative-lookahead.js', // Quantifiable assertions disallowed with `u` flag
+    'language/literals/regexp/u-invalid-optional-negative-lookbehind.js', // Lookbehinds are not treated as a QuantifiableAssertion
+    'language/literals/regexp/u-invalid-range-lookahead.js', // Quantifiable assertions disallowed with `u` flag
+    'language/literals/regexp/u-invalid-range-lookbehind.js', // Lookbehinds are not treated as a QuantifiableAssertion
+    'language/literals/regexp/u-invalid-range-negative-lookahead.js', // Quantifiable assertions disallowed with `u` flag
+    'language/literals/regexp/u-invalid-range-negative-lookbehind.js', // Lookbehinds are not treated as a QuantifiableAssertion
+    'language/literals/regexp/u-unicode-esc-bounds.js', // Out-of-range value of hexadecimal digits in UnicodeEscapeSequence
+    'language/literals/regexp/u-unicode-esc-non-hex.js', // Non-hexadecimal value within the delimiters of a UnicodeEscapeSequence
+    'language/literals/regexp/unicode-escape-nls-err.js', // NumericLiteralSeperator disallowed in unicode CodePoint sequence
   ]
 
   async function processFile(file) {
