@@ -183,6 +183,16 @@ func TestComments(t *testing.T) {
 `)
 	expectParseError(t, "throw -->\n x", "<stdin>: error: Unexpected \">\"\n")
 
+	expectParseError(t, "export {}\n<!--", `<stdin>: error: Legacy HTML single-line comments are not allowed in ECMAScript modules
+<stdin>: note: This file is considered an ECMAScript module because of the "export" keyword here
+<stdin>: warning: Treating "<!--" as the start of a legacy HTML single-line comment
+`)
+
+	expectParseError(t, "export {}\n-->", `<stdin>: error: Legacy HTML single-line comments are not allowed in ECMAScript modules
+<stdin>: note: This file is considered an ECMAScript module because of the "export" keyword here
+<stdin>: warning: Treating "-->" as the start of a legacy HTML single-line comment
+`)
+
 	expectPrinted(t, "return //\n x", "return;\nx;\n")
 	expectPrinted(t, "return /**/\n x", "return;\nx;\n")
 	expectPrinted(t, "return <!--\n x", "return;\nx;\n")

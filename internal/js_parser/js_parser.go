@@ -10322,22 +10322,7 @@ func (p *parser) valueForThis(loc logger.Loc, shouldWarn bool) (js_ast.Expr, boo
 				p.warnedThisIsUndefined = true
 				r := js_lexer.RangeOfIdentifier(p.source, loc)
 				text := "Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module"
-
-				// Say why this is being considered ESM
-				var notes []logger.MsgData
-				var where logger.Range
-				switch {
-				case p.es6ImportKeyword.Len > 0:
-					where = p.es6ImportKeyword
-				case p.es6ExportKeyword.Len > 0:
-					where = p.es6ExportKeyword
-				case p.topLevelAwaitKeyword.Len > 0:
-					where = p.topLevelAwaitKeyword
-				}
-				if where.Len > 0 {
-					notes = []logger.MsgData{logger.RangeData(&p.tracker, where,
-						fmt.Sprintf("This file is considered an ECMAScript module because of the %q keyword here", p.source.TextForRange(where)))}
-				}
+				notes := p.whyESModule()
 
 				// Show the warning as a debug message if we're in "node_modules"
 				if !p.suppressWarningsAboutWeirdCode {
@@ -13859,11 +13844,35 @@ func ParseJSXExpr(text string, kind JSXExprKind) (config.JSXExpr, bool) {
 	return config.JSXExpr{}, false
 }
 
+// Say why this the current file is being considered an ES module
+func (p *parser) whyESModule() (notes []logger.MsgData) {
+	var where logger.Range
+	switch {
+	case p.es6ImportKeyword.Len > 0:
+		where = p.es6ImportKeyword
+	case p.es6ExportKeyword.Len > 0:
+		where = p.es6ExportKeyword
+	case p.topLevelAwaitKeyword.Len > 0:
+		where = p.topLevelAwaitKeyword
+	}
+	if where.Len > 0 {
+		notes = []logger.MsgData{logger.RangeData(&p.tracker, where,
+			fmt.Sprintf("This file is considered an ECMAScript module because of the %q keyword here", p.source.TextForRange(where)))}
+	}
+	return
+}
+
 func (p *parser) prepareForVisitPass() {
 	p.pushScopeForVisitPass(js_ast.ScopeEntry, logger.Loc{Start: locModuleScope})
 	p.fnOrArrowDataVisit.isOutsideFnOrArrow = true
 	p.moduleScope = p.currentScope
 	p.hasESModuleSyntax = p.es6ImportKeyword.Len > 0 || p.es6ExportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0
+
+	// Legacy HTML comments are not allowed in ESM files
+	if p.hasESModuleSyntax && p.lexer.LegacyHTMLCommentRange.Len > 0 {
+		p.log.AddRangeErrorWithNotes(&p.tracker, p.lexer.LegacyHTMLCommentRange,
+			"Legacy HTML single-line comments are not allowed in ECMAScript modules", p.whyESModule())
+	}
 
 	// ECMAScript modules are always interpreted as strict mode. This has to be
 	// done before "hoistSymbols" because strict mode can alter hoisting (!).

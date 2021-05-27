@@ -227,6 +227,7 @@ type Lexer struct {
 	AwaitKeywordLoc                 logger.Loc
 	FnOrArrowStartLoc               logger.Loc
 	PreviousBackslashQuoteInJSX     logger.Range
+	LegacyHTMLCommentRange          logger.Range
 	Token                           T
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
@@ -1256,6 +1257,7 @@ func (lexer *Lexer) Next() {
 				// Handle legacy HTML-style comments
 				if lexer.codePoint == '>' && lexer.HasNewlineBefore {
 					lexer.step()
+					lexer.LegacyHTMLCommentRange = lexer.Range()
 					lexer.log.AddRangeWarning(&lexer.tracker, lexer.Range(),
 						"Treating \"-->\" as the start of a legacy HTML single-line comment")
 				singleLineHTMLCloseComment:
@@ -1410,6 +1412,7 @@ func (lexer *Lexer) Next() {
 					lexer.step()
 					lexer.step()
 					lexer.step()
+					lexer.LegacyHTMLCommentRange = lexer.Range()
 					lexer.log.AddRangeWarning(&lexer.tracker, lexer.Range(),
 						"Treating \"<!--\" as the start of a legacy HTML single-line comment")
 				singleLineHTMLOpenComment:
