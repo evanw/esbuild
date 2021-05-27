@@ -8618,6 +8618,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 	case *js_ast.SLabel:
 		p.pushScopeForVisitPass(js_ast.ScopeLabel, stmt.Loc)
 		name := p.loadNameFromRef(s.Name.Ref)
+		if js_lexer.StrictModeReservedWords[name] {
+			p.markStrictModeFeature(reservedWord, js_lexer.RangeOfIdentifier(p.source, s.Name.Loc), name)
+		}
 		ref := p.newSymbol(js_ast.SymbolLabel, name)
 		s.Name.Ref = ref
 		p.currentScope.LabelRef = ref

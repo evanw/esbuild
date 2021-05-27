@@ -350,6 +350,10 @@ func TestStrictMode(t *testing.T) {
 		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; let x = protecte\\u0064",
 		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; protected: 0",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; protecte\\u0064: 0",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
 
 	expectPrinted(t, "0123", "83;\n")
 	expectPrinted(t, "({0123: 4})", "({ 83: 4 });\n")
