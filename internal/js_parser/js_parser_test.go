@@ -360,6 +360,12 @@ func TestStrictMode(t *testing.T) {
 		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; let {0123: x} = y",
 		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; 08",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; ({08: 4})",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let {08: x} = y",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
 
 	classNote := "<stdin>: note: All code inside a class is implicitly in strict mode\n"
 
