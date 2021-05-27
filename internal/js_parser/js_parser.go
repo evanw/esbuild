@@ -1379,11 +1379,6 @@ func (p *parser) canMergeSymbols(scope *js_ast.Scope, existing js_ast.SymbolKind
 func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name string) js_ast.Ref {
 	p.checkForNonBMPCodePoint(loc, name)
 
-	// Forbid declaring a symbol with a reserved word in strict mode
-	if p.isStrictMode() && js_lexer.StrictModeReservedWords[name] {
-		p.markStrictModeFeature(reservedWord, js_lexer.RangeOfIdentifier(p.source, loc), name)
-	}
-
 	// Allocate a new symbol
 	ref := p.newSymbol(kind, name)
 
@@ -5101,6 +5096,14 @@ func (p *parser) validateFunctionName(fn js_ast.Fn, kind fnKind) {
 	}
 }
 
+func (p *parser) validateDeclaredSymbolName(loc logger.Loc, name string) {
+	if js_lexer.StrictModeReservedWords[name] {
+		p.markStrictModeFeature(reservedWord, js_lexer.RangeOfIdentifier(p.source, loc), name)
+	} else if isEvalOrArguments(name) {
+		p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, loc), name)
+	}
+}
+
 func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
 	var name *js_ast.LocRef
 	classKeyword := p.lexer.Range()
@@ -7946,9 +7949,7 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 	case *js_ast.BIdentifier:
 		p.recordDeclaredSymbol(b.Ref)
 		name := p.symbols[b.Ref.InnerIndex].OriginalName
-		if isEvalOrArguments(name) {
-			p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, binding.Loc), name)
-		}
+		p.validateDeclaredSymbolName(binding.Loc, name)
 		if opts.duplicateArgCheck != nil {
 			if opts.duplicateArgCheck[name] {
 				p.log.AddRangeError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, binding.Loc),
@@ -9520,9 +9521,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 	p.enclosingClassKeyword = class.ClassKeyword
 	p.currentScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeClass)
 	if class.Name != nil {
-		if name := p.symbols[class.Name.Ref.InnerIndex].OriginalName; js_lexer.StrictModeReservedWords[name] {
-			p.markStrictModeFeature(reservedWord, js_lexer.RangeOfIdentifier(p.source, class.Name.Loc), name)
-		}
+		p.validateDeclaredSymbolName(class.Name.Loc, p.symbols[class.Name.Ref.InnerIndex].OriginalName)
 	}
 
 	classNameRef := js_ast.InvalidRef
@@ -12546,9 +12545,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 	})
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, fn.Body.Loc)
 	if fn.Name != nil {
-		if name := p.symbols[fn.Name.Ref.InnerIndex].OriginalName; isEvalOrArguments(name) {
-			p.markStrictModeFeature(evalOrArguments, js_lexer.RangeOfIdentifier(p.source, fn.Name.Loc), name)
-		}
+		p.validateDeclaredSymbolName(fn.Name.Loc, p.symbols[fn.Name.Ref.InnerIndex].OriginalName)
 	}
 	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts, prependTempRefsOpts{fnBodyLoc: &fn.Body.Loc, kind: stmtsFnBody})
 	p.popScope()

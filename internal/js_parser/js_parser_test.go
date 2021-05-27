@@ -347,6 +347,10 @@ func TestStrictMode(t *testing.T) {
 		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "function arguments() { 'use strict' }",
 		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; class eval {}",
+		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; class arguments {}",
+		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
 
 	expectPrinted(t, "let protected", "let protected;\n")
 	expectPrinted(t, "let protecte\\u0064", "let protected;\n")
@@ -363,6 +367,14 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "'use strict'; protected: 0",
 		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; protecte\\u0064: 0",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; function protected() {}",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; function protecte\\u0064() {}",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; (function protected() {})",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; (function protecte\\u0064() {})",
 		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
 
 	expectPrinted(t, "0123", "83;\n")
@@ -393,6 +405,16 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "function f() { 'use strict'; function y() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "class f { x() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
 	expectParseError(t, "class f { x() { function y() { with (x) y } } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
+	expectParseError(t, "class f { x() { function protected() {} } }", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+classNote)
+
+	reservedWordExport := "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n" +
+		"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n"
+
+	expectParseError(t, "var protected; export {}", reservedWordExport)
+	expectParseError(t, "class protected {} export {}", reservedWordExport)
+	expectParseError(t, "(class protected {}); export {}", reservedWordExport)
+	expectParseError(t, "function protected() {} export {}", reservedWordExport)
+	expectParseError(t, "(function protected() {}); export {}", reservedWordExport)
 
 	importKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
 		"<stdin>: note: This file is implicitly in strict mode because of the \"import\" keyword here\n"
@@ -1649,6 +1671,7 @@ func TestYield(t *testing.T) {
 	// Yield as an identifier
 	expectPrinted(t, "({yield} = x)", "({ yield } = x);\n")
 	expectPrinted(t, "let x = {yield}", "let x = { yield };\n")
+	expectPrinted(t, "function* yield() {}", "function* yield() {\n}\n")
 	expectPrinted(t, "function foo() { ({yield} = x) }", "function foo() {\n  ({ yield } = x);\n}\n")
 	expectPrinted(t, "function foo() { let x = {yield} }", "function foo() {\n  let x = { yield };\n}\n")
 	expectParseError(t, "function *foo() { ({yield} = x) }", "<stdin>: error: Cannot use \"yield\" as an identifier here\n")
