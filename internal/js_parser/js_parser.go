@@ -5372,6 +5372,9 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 	if !opts.isNameOptional || p.lexer.Token == js_lexer.TIdentifier {
 		nameLoc := p.lexer.Loc()
 		nameText = p.lexer.Identifier
+		if !isAsync && p.fnOrArrowDataParse.await != allowIdent && nameText == "await" {
+			p.log.AddRangeError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, nameLoc), "Cannot use \"await\" as an identifier here")
+		}
 		p.lexer.Expect(js_lexer.TIdentifier)
 		name = &js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
 	}

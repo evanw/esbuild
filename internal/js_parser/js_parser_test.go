@@ -1804,12 +1804,14 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "async function foo(){for await(let x of y);}", "async function foo() {\n  for await (let x of y)\n    ;\n}\n")
 
 	// Await as an identifier
+	expectPrinted(t, "(function await() {})", "(function await() {\n});\n")
 	expectPrinted(t, "function foo() { ({await} = x) }", "function foo() {\n  ({ await } = x);\n}\n")
 	expectPrinted(t, "function foo() { let x = {await} }", "function foo() {\n  let x = { await };\n}\n")
 	expectParseError(t, "({await} = x)", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "let x = {await}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "class await {}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "(class await {})", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "function await() {}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { ({await} = x) }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { let x = {await} }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 
