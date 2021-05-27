@@ -1717,11 +1717,11 @@ type AST struct {
 
 	// This is a list of CommonJS features. When a file uses CommonJS features,
 	// it's not a candidate for "flat bundling" and must be wrapped in its own
-	// closure.
-	HasTopLevelReturn bool
-	UsesExportsRef    bool
-	UsesModuleRef     bool
-	ExportsKind       ExportsKind
+	// closure. Note that this also includes top-level "return" but these aren't
+	// here because only the parser checks those.
+	UsesExportsRef bool
+	UsesModuleRef  bool
+	ExportsKind    ExportsKind
 
 	// This is a list of ES6 features. They are ranges instead of booleans so
 	// that they can be used in log messages. Check to see if "Len > 0".

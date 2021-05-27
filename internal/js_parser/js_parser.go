@@ -8721,20 +8721,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Value = p.visitExpr(s.Value)
 
 	case *js_ast.SReturn:
-		// Forbid top-level return inside modules with ECMAScript-style exports
+		// Forbid top-level return inside modules with ECMAScript syntax
 		if p.fnOrArrowDataVisit.isOutsideFnOrArrow {
-			var where logger.Range
-			if p.es6ExportKeyword.Len > 0 {
-				where = p.es6ExportKeyword
-			} else if p.topLevelAwaitKeyword.Len > 0 {
-				where = p.topLevelAwaitKeyword
+			if p.hasESModuleSyntax {
+				p.log.AddRangeErrorWithNotes(&p.tracker, js_lexer.RangeOfIdentifier(p.source, stmt.Loc),
+					"Top-level return cannot be used inside an ECMAScript module", p.whyESModule())
 			} else {
 				p.hasTopLevelReturn = true
-			}
-			if where.Len > 0 {
-				p.log.AddRangeErrorWithNotes(&p.tracker, js_lexer.RangeOfIdentifier(p.source, stmt.Loc),
-					"Top-level return cannot be used inside an ECMAScript module", []logger.MsgData{logger.RangeData(&p.tracker, where,
-						fmt.Sprintf("This file is considered an ECMAScript module because of the %q keyword here", p.source.TextForRange(where)))})
 			}
 		}
 
@@ -14252,10 +14245,9 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		ApproximateLineCount:            int32(p.lexer.ApproximateNewlineCount) + 1,
 
 		// CommonJS features
-		HasTopLevelReturn: p.hasTopLevelReturn,
-		UsesExportsRef:    usesExportsRef,
-		UsesModuleRef:     usesModuleRef,
-		ExportsKind:       exportsKind,
+		UsesExportsRef: usesExportsRef,
+		UsesModuleRef:  usesModuleRef,
+		ExportsKind:    exportsKind,
 
 		// ES6 features
 		ImportKeyword:        p.es6ImportKeyword,

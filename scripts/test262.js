@@ -59,35 +59,40 @@ async function main() {
     // Skip these tests because we deliberately support top-level return (input
     // files are treated as CommonJS and/or ESM but never as global code, and
     // top-level return is allowed in CommonJS)
-    'S12.9_A1_T1.js', // Checking if execution of "return" with no function fails
-    'S12.9_A1_T10.js', // Checking if execution of "return (0)" with no function fails
-    'S12.9_A1_T2.js', // Checking if execution of "return x" with no function fails
-    'S12.9_A1_T3.js', // Checking if execution of "return" within "try" statement fails
-    'S12.9_A1_T4.js', // Checking if execution of "return" with no function fails
-    'S12.9_A1_T5.js', // Checking if execution of "return" with no function, placed into a Block, fails
-    'S12.9_A1_T6.js', // Checking if execution of "return" with no function, placed into a loop, fails
-    'S12.9_A1_T7.js', // Checking if execution of "return x" with no function, placed inside Block, fails
-    'S12.9_A1_T8.js', // Checking if execution of "return x" with no function, placed into a loop, fails
-    'S12.9_A1_T9.js', // Checking if execution of "return", placed into a catch Block, fails
+    'language/statements/return/S12.9_A1_T1.js', // Checking if execution of "return" with no function fails
+    'language/statements/return/S12.9_A1_T10.js', // Checking if execution of "return (0)" with no function fails
+    'language/statements/return/S12.9_A1_T2.js', // Checking if execution of "return x" with no function fails
+    'language/statements/return/S12.9_A1_T3.js', // Checking if execution of "return" within "try" statement fails
+    'language/statements/return/S12.9_A1_T4.js', // Checking if execution of "return" with no function fails
+    'language/statements/return/S12.9_A1_T5.js', // Checking if execution of "return" with no function, placed into a Block, fails
+    'language/statements/return/S12.9_A1_T6.js', // Checking if execution of "return" with no function, placed into a loop, fails
+    'language/statements/return/S12.9_A1_T7.js', // Checking if execution of "return x" with no function, placed inside Block, fails
+    'language/statements/return/S12.9_A1_T8.js', // Checking if execution of "return x" with no function, placed into a loop, fails
+    'language/statements/return/S12.9_A1_T9.js', // Checking if execution of "return", placed into a catch Block, fails
+    'language/global-code/return.js',      // ReturnStatement may not be used directly within global code
+
+    // "new.target" is actually supported in CommonJS code, so we support it too.
+    'language/global-code/new.target-arrow.js', // An ArrowFunction in global code may not contain `new.target`
+    'language/global-code/new.target.js', // Global code may not contain `new.target`
 
     // Skip these tests because we deliberately support parsing top-level await
     // in all files. Files containing top-level await are always interpreted as
     // ESM, never as CommonJS.
-    'simple-basic-identifierreference-await.js', // IdentifierReference  await Return simple. (Simple Direct assignment)
-    'identifier-shorthand-await-strict-mode.js', // Object literal shorthands are limited to valid identifier references. await is valid in non-module strict mode code.
-    'await-BindingIdentifier-in-global.js', // Await is allowed as a binding identifier in global scope
-    'await-in-global.js', // Await is an identifier in global scope
-    'await-in-nested-function.js', // Await is allowed as an identifier in functions nested in async functions
-    'await-in-nested-generator.js', // Await is allowed as an identifier in generator functions nested in async functions
-    'class-name-ident-await-escaped.js', // `await` with escape sequence is a valid class-name identifier.
-    'class-name-ident-await.js', // `await` is a valid class-name identifier.
-    'await-identifier.js', // Dynamic Import receives an AssignmentExpression (IdentifierReference: await)
-    'new-await-script-code.js', // await is not a keyword in script code
-    'await-script.js', // The `await` token is permitted as an identifier in script code
-    'class-name-ident-await-escaped.js', // `await` with escape sequence is a valid class-name identifier.
-    'class-name-ident-await.js', // `await` is a valid class-name identifier.
-    'value-await-non-module-escaped.js', // `await` is not a reserved identifier in non-module code and may be used as a label.
-    'value-await-non-module.js', // `await` is not a reserved identifier in non-module code and may be used as a label.
+    'language/expressions/assignmenttargettype/simple-basic-identifierreference-await.js', // IdentifierReference  await Return simple. (Simple Direct assignment)
+    'language/expressions/await/await-BindingIdentifier-in-global.js', // Object literal shorthands are limited to valid identifier references. await is valid in non-module strict mode code.
+    'language/expressions/await/await-in-global.js', // Await is allowed as a binding identifier in global scope
+    'language/expressions/await/await-in-nested-function.js', // Await is an identifier in global scope
+    'language/expressions/await/await-in-nested-generator.js', // Await is allowed as an identifier in functions nested in async functions
+    'language/expressions/class/class-name-ident-await-escaped.js', // Await is allowed as an identifier in generator functions nested in async functions
+    'language/expressions/class/class-name-ident-await.js', // `await` with escape sequence is a valid class-name identifier.
+    'language/expressions/dynamic-import/assignment-expression/await-identifier.js', // `await` is a valid class-name identifier.
+    'language/expressions/object/identifier-shorthand-await-strict-mode.js', // Dynamic Import receives an AssignmentExpression (IdentifierReference: await)
+    'language/module-code/top-level-await/new-await-script-code.js', // await is not a keyword in script code
+    'language/reserved-words/await-script.js', // The `await` token is permitted as an identifier in script code
+    'language/statements/class/class-name-ident-await-escaped.js', // `await` with escape sequence is a valid class-name identifier.
+    'language/statements/class/class-name-ident-await.js', // `await` is a valid class-name identifier.
+    'language/statements/labeled/value-await-non-module-escaped.js', // `await` is not a reserved identifier in non-module code and may be used as a label.
+    'language/statements/labeled/value-await-non-module.js', // `await` is not a reserved identifier in non-module code and may be used as a label.
   ]
 
   async function processFile(file) {
@@ -115,7 +120,9 @@ async function main() {
       if (yaml.flags.includes('module')) content = 'export {};\n' + content
     }
 
-    if (skipList.includes(path.basename(file))) return
+    if (skipList.includes(path.relative(test262Dir, file).replace(/\\/g, '/'))) {
+      return
+    }
 
     const result = await esbuildFile(content, { minify: false });
 

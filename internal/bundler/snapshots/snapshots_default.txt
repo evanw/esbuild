@@ -3190,12 +3190,6 @@ for await (foo of bar)
   ;
 
 ================================================================================
-TestTopLevelReturnAllowedImport
----------- /out.js ----------
-return;
-import "foo";
-
-================================================================================
 TestUseStrictDirectiveMinifyNoBundle
 ---------- /out.js ----------
 "use strict";a,b;
