@@ -29,9 +29,15 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	}
 
 	var name string
+	var notes []logger.MsgData
 	where := "the configured target environment"
 
-	if p.options.originalTargetEnv != "" {
+	if tsTarget := p.options.tsTarget; tsTarget != nil && tsTarget.UnsupportedJSFeatures.Has(feature) {
+		tracker := logger.MakeLineColumnTracker(&tsTarget.Source)
+		where = fmt.Sprintf("%s (%q)", where, tsTarget.Target)
+		notes = []logger.MsgData{logger.RangeData(&tracker, tsTarget.Range, fmt.Sprintf(
+			"The target environment was set to %q here", tsTarget.Target))}
+	} else if p.options.originalTargetEnv != "" {
 		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
 	}
 
@@ -88,40 +94,40 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 		name = "non-identifier array rest patterns"
 
 	case compat.ImportAssertions:
-		p.log.AddRangeError(&p.tracker, r,
-			fmt.Sprintf("Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where), notes)
 		return
 
 	case compat.TopLevelAwait:
-		p.log.AddRangeError(&p.tracker, r,
-			fmt.Sprintf("Top-level await is not available in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Top-level await is not available in %s", where), notes)
 		return
 
 	case compat.ArbitraryModuleNamespaceNames:
-		p.log.AddRangeError(&p.tracker, r,
-			fmt.Sprintf("Using a string as a module namespace identifier name is not supported in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Using a string as a module namespace identifier name is not supported in %s", where), notes)
 		return
 
 	case compat.BigInt:
 		// Transforming these will never be supported
-		p.log.AddRangeError(&p.tracker, r,
-			fmt.Sprintf("Big integer literals are not available in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Big integer literals are not available in %s", where), notes)
 		return
 
 	case compat.ImportMeta:
 		// This can't be polyfilled
-		p.log.AddRangeWarning(&p.tracker, r,
-			fmt.Sprintf("\"import.meta\" is not available in %s and will be empty", where))
+		p.log.AddRangeWarningWithNotes(&p.tracker, r, fmt.Sprintf(
+			"\"import.meta\" is not available in %s and will be empty", where), notes)
 		return
 
 	default:
-		p.log.AddRangeError(&p.tracker, r,
-			fmt.Sprintf("This feature is not available in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"This feature is not available in %s", where), notes)
 		return
 	}
 
-	p.log.AddRangeError(&p.tracker, r,
-		fmt.Sprintf("Transforming %s to %s is not supported yet", name, where))
+	p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+		"Transforming %s to %s is not supported yet", name, where), notes)
 	return
 }
 

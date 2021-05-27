@@ -103,6 +103,8 @@ type ResolveResult struct {
 	// effects. This means they should be removed if unused.
 	PrimarySideEffectsData *SideEffectsData
 
+	TSTarget *config.TSTarget
+
 	IsExternal bool
 
 	// If true, the class field transform should use Object.defineProperty().
@@ -501,6 +503,7 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 					result.JSXFragment = dirInfo.enclosingTSConfigJSON.JSXFragmentFactory
 					result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
 					result.PreserveUnusedImportsTS = dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues
+					result.TSTarget = dirInfo.enclosingTSConfigJSON.TSTarget
 
 					if r.debugLogs != nil {
 						r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",

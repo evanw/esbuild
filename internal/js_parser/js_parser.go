@@ -304,6 +304,7 @@ type thenCatchChain struct {
 type Options struct {
 	injectedFiles []config.InjectedFile
 	jsx           config.JSXOptions
+	tsTarget      *config.TSTarget
 
 	// This pointer will always be different for each build but the contents
 	// shouldn't ever behave different semantically. We ignore this field for the
@@ -341,6 +342,7 @@ func OptionsFromConfig(options *config.Options) Options {
 		injectedFiles: options.InjectedFiles,
 		jsx:           options.JSX,
 		defines:       options.Defines,
+		tsTarget:      options.TSTarget,
 		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
 			unsupportedJSFeatures:   options.UnsupportedJSFeatures,
 			originalTargetEnv:       options.OriginalTargetEnv,
@@ -364,6 +366,12 @@ func OptionsFromConfig(options *config.Options) Options {
 func (a *Options) Equal(b *Options) bool {
 	// Compare "optionsThatSupportStructuralEquality"
 	if a.optionsThatSupportStructuralEquality != b.optionsThatSupportStructuralEquality {
+		return false
+	}
+
+	// Compare "TSTarget"
+	if (a.tsTarget == nil && b.tsTarget != nil) || (a.tsTarget != nil && b.tsTarget == nil) ||
+		(a.tsTarget != nil && b.tsTarget != nil && *a.tsTarget != *b.tsTarget) {
 		return false
 	}
 
@@ -13622,6 +13630,11 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		// too. If that happens, it will go into TypeScript version 4.3 which is supposed to
 		// come out on May 25th, 2021: https://github.com/microsoft/TypeScript/issues/42762.
 		options.useDefineForClassFields = config.False
+	}
+
+	// Include unsupported JavaScript features from the TypeScript "target" setting
+	if options.tsTarget != nil {
+		options.unsupportedJSFeatures |= options.tsTarget.UnsupportedJSFeatures
 	}
 
 	p := newParser(log, source, js_lexer.NewLexer(log, source), &options)

@@ -226,6 +226,7 @@ type Options struct {
 
 	UnsupportedJSFeatures  compat.JSFeature
 	UnsupportedCSSFeatures compat.CSSFeature
+	TSTarget               *TSTarget
 
 	// This is the original information that was used to generate the
 	// unsupported feature sets above. It's used for error messages.
@@ -269,6 +270,13 @@ type Options struct {
 	ExcludeSourcesContent bool
 
 	Stdin *StdinInfo
+}
+
+type TSTarget struct {
+	Source                logger.Source
+	Range                 logger.Range
+	Target                string
+	UnsupportedJSFeatures compat.JSFeature
 }
 
 type PathPlaceholder uint8

@@ -1242,6 +1242,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Settings from "tsconfig.json" override those
+	var tsTarget *config.TSTarget
 	caches := cache.MakeCacheSet()
 	if transformOpts.TsconfigRaw != "" {
 		source := logger.Source{
@@ -1262,6 +1263,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			if result.PreserveImportsNotUsedAsValues {
 				preserveUnusedImportsTS = true
 			}
+			tsTarget = result.TSTarget
 		}
 	}
 
@@ -1280,6 +1282,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		UnsupportedJSFeatures:   jsFeatures,
 		UnsupportedCSSFeatures:  cssFeatures,
 		OriginalTargetEnv:       targetEnv,
+		TSTarget:                tsTarget,
 		JSX:                     jsx,
 		Defines:                 defines,
 		InjectedDefines:         injectedDefines,

@@ -10,6 +10,10 @@
 
     This release contains a potential fix for an unverified issue with non-determinism in esbuild. The regression was apparently introduced in 0.11.13 and may be related to parallelism that was introduced around the point where dynamic `import()` expressions are added to the list of entry points. Hopefully this fix should resolve the regression.
 
+* Respect `target` in `tsconfig.json` ([#277](https://github.com/evanw/esbuild/issues/277))
+
+    Each JavaScript file that esbuild bundles will now be transformed according to the [`target`](https://www.typescriptlang.org/tsconfig#target) language level from the nearest enclosing `tsconfig.json` file. This is in addition to esbuild's own `--target` setting; the two settings are merged by transforming any JavaScript language feature that is unsupported in either esbuild's configured `--target` value or the `target` property in the `tsconfig.json` file.
+
 ## 0.12.3
 
 * Ensure JSX element names start with a capital letter ([#1309](https://github.com/evanw/esbuild/issues/1309))
