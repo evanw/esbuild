@@ -18,6 +18,26 @@
 
     In TypeScript 4.2 and below, the TypeScript compiler would generate code that prints `set 123` when `tsconfig.json` contains `"target": "ESNext"` but in TypeScript 4.3, the TypeScript compiler will now generate code that doesn't print anything. This is the difference between "assign" semantics and "define" semantics. With this release, esbuild has been changed to follow the TypeScript 4.3 behavior.
 
+* Avoid generating the character sequence `</script>` ([#1322](https://github.com/evanw/esbuild/issues/1322))
+
+    If the output of esbuild is inlined into a `<script>...</script>` tag inside an HTML file, the character sequence `</script>` inside the JavaScript code will accidentally cause the script tag to be terminated early. There are at least three such cases where this can happen:
+
+    ```js
+    console.log('</script>')
+    console.log(1</script>/.exec(x).length)
+    // @license </script>
+    ```
+
+    With this release, esbuild will now handle all of these cases and avoid generating the problematic character sequence:
+
+    ```js
+    console.log('<\/script>');
+    console.log(1< /script>/.exec(x).length);
+    // @license <∕script>
+    ```
+
+    The `@license` comment uses a different slash character. I'm not sure how to handle that one since it's meant for humans but that seemed like the least intrusive method. I expect this case to not ever come up in practice anyway.
+
 ## 0.12.4
 
 * Reorder name preservation before TypeScript decorator evaluation ([#1316](https://github.com/evanw/esbuild/issues/1316))
