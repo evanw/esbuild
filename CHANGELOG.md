@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.4
 
 * Reorder name preservation before TypeScript decorator evaluation ([#1316](https://github.com/evanw/esbuild/issues/1316))
 
