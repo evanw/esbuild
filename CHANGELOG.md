@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.5
 
 * Add support for lowering tagged template literals to ES5 ([#297](https://github.com/evanw/esbuild/issues/297))
 
