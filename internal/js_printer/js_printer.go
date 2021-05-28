@@ -2710,7 +2710,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 
 func (p *printer) printIndentedComment(text string) {
 	// Avoid generating a comment containing the character sequence "</script>"
-	text = strings.ReplaceAll(text, "</script>", "<\u2215script>")
+	text = strings.ReplaceAll(text, "</script>", "<\\/script>")
 
 	if strings.HasPrefix(text, "/*") {
 		// Re-indent multi-line comments

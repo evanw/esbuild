@@ -914,7 +914,9 @@ func TestAvoidSlashScript(t *testing.T) {
 	expectPrinted(t, "x = `${y}</script>`", "x = `${y}<\\/script>`;\n")
 	expectPrintedMinify(t, "x = 1 < /script>/.exec(y).length", "x=1< /script>/.exec(y).length;")
 	expectPrintedMinify(t, "x = 1 << /script>/.exec(y).length", "x=1<< /script>/.exec(y).length;")
-	expectPrinted(t, "//! </script>", "//! <\u2215script>\n")
+	expectPrinted(t, "//! </script>", "//! <\\/script>\n")
+	expectPrinted(t, "String.raw`</script>`",
+		"String.raw(__template([\"<\\/script>\"], [\"<\\/script>\"]));\nimport {\n  __template\n} from \"<runtime>\";\n")
 
 	// Negative cases
 	expectPrinted(t, "x = '</'", "x = \"</\";\n")

@@ -32,11 +32,12 @@
 
 * Avoid generating the character sequence `</script>` ([#1322](https://github.com/evanw/esbuild/issues/1322))
 
-    If the output of esbuild is inlined into a `<script>...</script>` tag inside an HTML file, the character sequence `</script>` inside the JavaScript code will accidentally cause the script tag to be terminated early. There are at least three such cases where this can happen:
+    If the output of esbuild is inlined into a `<script>...</script>` tag inside an HTML file, the character sequence `</script>` inside the JavaScript code will accidentally cause the script tag to be terminated early. There are at least four such cases where this can happen:
 
     ```js
     console.log('</script>')
     console.log(1</script>/.exec(x).length)
+    console.log(String.raw`</script>`)
     // @license </script>
     ```
 
@@ -45,10 +46,9 @@
     ```js
     console.log('<\/script>');
     console.log(1< /script>/.exec(x).length);
-    // @license <∕script>
+    console.log(String.raw(__template(["<\/script>"], ["<\/script>"])));
+    // @license <\/script>
     ```
-
-    The `@license` comment uses a different slash character. I'm not sure how to handle that one since it's meant for humans but that seemed like the least intrusive method. I expect this case to not ever come up in practice anyway.
 
 ## 0.12.4
 
