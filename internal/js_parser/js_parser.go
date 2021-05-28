@@ -10726,14 +10726,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		shouldLowerTemplateLiteral := p.options.unsupportedJSFeatures.Has(compat.TemplateLiteral)
 
-		// Lower tagged template literals that include "</script>"
+		// Lower tagged template literals that include "</script"
 		// since we won't be able to escape it without lowering it
 		if !shouldLowerTemplateLiteral && e.TagOrNil.Data != nil {
-			if strings.Contains(e.HeadRaw, "</script>") {
+			if strings.Contains(e.HeadRaw, "</script") {
 				shouldLowerTemplateLiteral = true
 			} else {
 				for _, part := range e.Parts {
-					if strings.Contains(part.TailRaw, "</script>") {
+					if strings.Contains(part.TailRaw, "</script") {
 						shouldLowerTemplateLiteral = true
 						break
 					}

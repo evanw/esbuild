@@ -908,25 +908,26 @@ func TestJSX(t *testing.T) {
 
 func TestAvoidSlashScript(t *testing.T) {
 	// Positive cases
-	expectPrinted(t, "x = '</script>'", "x = \"<\\/script>\";\n")
-	expectPrinted(t, "x = `</script>`", "x = `<\\/script>`;\n")
-	expectPrinted(t, "x = `</script>${y}`", "x = `<\\/script>${y}`;\n")
-	expectPrinted(t, "x = `${y}</script>`", "x = `${y}<\\/script>`;\n")
-	expectPrintedMinify(t, "x = 1 < /script>/.exec(y).length", "x=1< /script>/.exec(y).length;")
-	expectPrintedMinify(t, "x = 1 << /script>/.exec(y).length", "x=1<< /script>/.exec(y).length;")
-	expectPrinted(t, "//! </script>", "//! <\\/script>\n")
-	expectPrinted(t, "String.raw`</script>`",
-		"String.raw(__template([\"<\\/script>\"], [\"<\\/script>\"]));\nimport {\n  __template\n} from \"<runtime>\";\n")
+	expectPrinted(t, "x = '</script'", "x = \"<\\/script\";\n")
+	expectPrinted(t, "x = `</script`", "x = `<\\/script`;\n")
+	expectPrinted(t, "x = `</script${y}`", "x = `<\\/script${y}`;\n")
+	expectPrinted(t, "x = `${y}</script`", "x = `${y}<\\/script`;\n")
+	expectPrintedMinify(t, "x = 1 < /script/.exec(y).length", "x=1< /script/.exec(y).length;")
+	expectPrintedMinify(t, "x = 1 << /script/.exec(y).length", "x=1<< /script/.exec(y).length;")
+	expectPrinted(t, "//! </script", "//! <\\/script\n")
+	expectPrinted(t, "String.raw`</script`",
+		"String.raw(__template([\"<\\/script\"], [\"<\\/script\"]));\nimport {\n  __template\n} from \"<runtime>\";\n")
+	expectPrinted(t, "String.raw`</script${a}`",
+		"String.raw(__template([\"<\\/script\", \"\"], [\"<\\/script\", \"\"]), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
+	expectPrinted(t, "String.raw`${a}</script`",
+		"String.raw(__template([\"\", \"<\\/script\"], [\"\", \"<\\/script\"]), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
 
 	// Negative cases
 	expectPrinted(t, "x = '</'", "x = \"</\";\n")
-	expectPrinted(t, "x = '</script'", "x = \"</script\";\n")
+	expectPrinted(t, "x = '</ script'", "x = \"</ script\";\n")
+	expectPrinted(t, "x = '< /script'", "x = \"< /script\";\n")
 	expectPrinted(t, "x = '/script>'", "x = \"/script>\";\n")
 	expectPrinted(t, "x = '<script>'", "x = \"<script>\";\n")
-	expectPrinted(t, "x = '</script<'", "x = \"</script<\";\n")
-	expectPrintedMinify(t, "x = 1 < /script/.exec(y).length", "x=1</script/.exec(y).length;")
-	expectPrintedMinify(t, "x = 1 < /script</.exec(y).length", "x=1</script</.exec(y).length;")
-	expectPrintedMinify(t, "x = 1 << /script/.exec(y).length", "x=1<</script/.exec(y).length;")
-	expectPrintedMinify(t, "x = 1 << /script</.exec(y).length", "x=1<</script</.exec(y).length;")
-	expectPrintedMinify(t, "x = 1 <= /script>/.exec(y).length", "x=1<=/script>/.exec(y).length;")
+	expectPrintedMinify(t, "x = 1 < / script/.exec(y).length", "x=1</ script/.exec(y).length;")
+	expectPrintedMinify(t, "x = 1 << / script/.exec(y).length", "x=1<</ script/.exec(y).length;")
 }
