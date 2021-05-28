@@ -1744,6 +1744,9 @@ type AST struct {
 	// they can be manipulated efficiently without a full AST traversal
 	ImportRecords []ast.ImportRecord
 
+	// import() and require() statements with a dynamic expression as argument.
+	DynamicExpressionImportRecords []ast.DynamicExpressionImportRecord
+
 	// These are used when bundling. They are filled in during the parser pass
 	// since we already have to traverse the AST then anyway and the parser pass
 	// is conveniently fully parallelized.

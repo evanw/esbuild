@@ -499,23 +499,24 @@ func (p *printer) printJSXTag(tagOrNil js_ast.Expr) {
 }
 
 type printer struct {
-	symbols                js_ast.SymbolMap
-	renamer                renamer.Renamer
-	importRecords          []ast.ImportRecord
-	options                Options
-	extractedLegalComments map[string]bool
-	needsSemicolon         bool
-	js                     []byte
-	stmtStart              int
-	exportDefaultStart     int
-	arrowExprStart         int
-	forOfInitStart         int
-	prevOp                 js_ast.OpCode
-	prevOpEnd              int
-	prevNumEnd             int
-	prevRegExpEnd          int
-	callTarget             js_ast.E
-	intToBytesBuffer       [64]byte
+	symbols                        js_ast.SymbolMap
+	renamer                        renamer.Renamer
+	importRecords                  []ast.ImportRecord
+	dynamicExpressionImportRecords map[int32]ast.DynamicExpressionImportRecord
+	options                        Options
+	extractedLegalComments         map[string]bool
+	needsSemicolon                 bool
+	js                             []byte
+	stmtStart                      int
+	exportDefaultStart             int
+	arrowExprStart                 int
+	forOfInitStart                 int
+	prevOp                         js_ast.OpCode
+	prevOpEnd                      int
+	prevNumEnd                     int
+	prevRegExpEnd                  int
+	callTarget                     js_ast.E
+	intToBytesBuffer               [64]byte
 
 	// For source maps
 	sourceMap           []byte
@@ -1327,24 +1328,6 @@ func (p *printer) printRequireOrImportExpr(
 	}
 
 	if !record.SourceIndex.IsValid() {
-		// "require()" with a dynamic expression
-		if record.IsDynamicExpression {
-			p.printSpaceBeforeIdentifier()
-			p.print("require(")
-			p.addSourceMapping(record.Range.Loc)
-
-			// If the dynamic expression E has a module path P associated with it, we
-			// write "require(P)(E)". If not, write "require(E)".
-			if record.DynamicExpressionModulePath != "" {
-				p.printQuotedUTF8("./"+record.DynamicExpressionModulePath, false)
-				p.print(")(")
-			}
-
-			p.print(record.Path.Text)
-			p.print(")")
-			return
-		}
-
 		// External "require()"
 		if record.Kind != ast.ImportDynamic {
 			if record.WrapWithToModule {
@@ -1737,6 +1720,14 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.print("?.")
 		}
 		p.print("(")
+
+		importRecord, isImportRecord := p.dynamicExpressionImportRecords[e.Target.Loc.Start]
+
+		if isImportRecord && importRecord.ModulePath != "" {
+			p.printQuotedUTF8("./"+importRecord.ModulePath, false)
+			p.print(")(")
+		}
+
 		for i, arg := range e.Args {
 			if i != 0 {
 				p.print(",")
@@ -3436,20 +3427,29 @@ type PrintResult struct {
 }
 
 func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
+	dynamicExpressionImportRecords := make(map[int32]ast.DynamicExpressionImportRecord)
+
+	// Converting the array of dynamic expression import records to a map for
+	// easier lookup.
+	for _, record := range tree.DynamicExpressionImportRecords {
+		dynamicExpressionImportRecords[record.Range.Loc.Start] = record
+	}
+
 	p := &printer{
-		symbols:            symbols,
-		renamer:            r,
-		importRecords:      tree.ImportRecords,
-		options:            options,
-		stmtStart:          -1,
-		exportDefaultStart: -1,
-		arrowExprStart:     -1,
-		forOfInitStart:     -1,
-		prevOpEnd:          -1,
-		prevNumEnd:         -1,
-		prevRegExpEnd:      -1,
-		prevLoc:            logger.Loc{Start: -1},
-		lineOffsetTables:   options.LineOffsetTables,
+		symbols:                        symbols,
+		renamer:                        r,
+		importRecords:                  tree.ImportRecords,
+		dynamicExpressionImportRecords: dynamicExpressionImportRecords,
+		options:                        options,
+		stmtStart:                      -1,
+		exportDefaultStart:             -1,
+		arrowExprStart:                 -1,
+		forOfInitStart:                 -1,
+		prevOpEnd:                      -1,
+		prevNumEnd:                     -1,
+		prevRegExpEnd:                  -1,
+		prevLoc:                        logger.Loc{Start: -1},
+		lineOffsetTables:               options.LineOffsetTables,
 
 		// We automatically repeat the previous source mapping if we ever generate
 		// a line that doesn't start with a mapping. This helps give files more

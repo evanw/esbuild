@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -325,11 +326,6 @@ func parseFile(args parseArgs) {
 		args.log.AddRangeError(&tracker, args.importPathRange, message)
 	}
 
-	// Setting up the "onDynamicImport" plugin hooks. We'll run them in parallel
-	// and collect the results at the end
-	onDynamicImportGroup := sync.WaitGroup{}
-	onDynamicImportResults := OnDynamicImportResults{}
-
 	// This must come before we send on the "results" channel to avoid deadlock
 	if args.inject != nil {
 		var exports []config.InjectableExport
@@ -372,7 +368,7 @@ func parseFile(args parseArgs) {
 			resolverCache := make(map[ast.ImportKind]map[string]*resolver.ResolveResult)
 			tracker := logger.MakeLineColumnTracker(&source)
 
-			for importRecordIndex, importRecord := range records {
+			for importRecordIndex := range records {
 				// Don't try to resolve imports that are already resolved
 				record := &records[importRecordIndex]
 				if record.SourceIndex.IsValid() {
@@ -382,33 +378,6 @@ func parseFile(args parseArgs) {
 				// Ignore records that the parser has discarded. This is used to remove
 				// type-only imports in TypeScript files.
 				if record.IsUnused {
-					continue
-				}
-
-				// If the import contains a dynamic expression, run "onDynamicImport"
-				// plugin hooks in a separate thread
-				if record.IsDynamicExpression {
-					onDynamicImportGroup.Add(1)
-					go func(record ast.ImportRecord, index int) {
-						result := runOnDynamicImportPlugins(
-							args.options.Plugins,
-							args.res,
-							args.log,
-							args.importSource,
-							args.importPathRange,
-							args.pluginData,
-							record,
-							result.file.inputFile.Source.KeyPath,
-							absResolveDir,
-						)
-
-						onDynamicImportResults.Insert(OnDynamicImportResult{
-							index:  index,
-							result: result,
-						})
-						onDynamicImportGroup.Done()
-					}(importRecord, importRecordIndex)
-
 					continue
 				}
 
@@ -497,6 +466,65 @@ func parseFile(args parseArgs) {
 				result.resolveResults[importRecordIndex] = resolveResult
 			}
 		}
+
+		// Setting up the "onDynamicImport" plugin hooks. We'll run them in parallel
+		// and collect the results at the end
+		onDynamicImportGroup := sync.WaitGroup{}
+		onDynamicImportResults := OnDynamicImportResults{}
+
+		// Running `onDynamicImport` plugins.
+		dynamicExpressionImportRecordsPtr := result.file.inputFile.Repr.DynamicExpressionImportRecords()
+		dynamicExpressionImportRecords := append([]ast.DynamicExpressionImportRecord{}, *dynamicExpressionImportRecordsPtr...)
+
+		if len(dynamicExpressionImportRecords) > 0 {
+			for recordIndex, record := range dynamicExpressionImportRecords {
+				onDynamicImportGroup.Add(1)
+				go func(record ast.DynamicExpressionImportRecord, index int) {
+					result := runOnDynamicImportPlugins(
+						args.options.Plugins,
+						args.res,
+						args.log,
+						args.importSource,
+						args.importPathRange,
+						args.pluginData,
+						record,
+						result.file.inputFile.Source.KeyPath,
+						absResolveDir,
+					)
+
+					onDynamicImportResults.Insert(OnDynamicImportResult{
+						index:  index,
+						result: result,
+					})
+					onDynamicImportGroup.Done()
+				}(record, recordIndex)
+			}
+		}
+
+		onDynamicImportGroup.Wait()
+
+		for dynamicImportIndex, dynamicImport := range onDynamicImportResults.data {
+			// Ignore by dynamic imports that haven't been claimed by a plugin
+			if dynamicImport.result == nil {
+				continue
+			}
+
+			fileContents := []byte(*dynamicImport.result)
+			modulePath := getDynamicExpressionModulePath(args.options.DynamicImportPathTemplate, fileContents, base, ext, dynamicImportIndex)
+
+			// Add the generated module file to the list of additional files
+			result.file.inputFile.AdditionalFiles = append(result.file.inputFile.AdditionalFiles, graph.OutputFile{
+				AbsPath:  args.fs.Join(args.options.AbsOutputDir, modulePath),
+				Contents: fileContents,
+			})
+
+			// Add the path of the generated module to the AST so that the printer can
+			// rewrite the import statement later on
+			result.file.inputFile.Repr.SetClaimedDynamicImport(graph.ClaimedDynamicImport{
+				Index:      dynamicImport.index,
+				ModulePath: modulePath,
+			})
+		}
 	}
 
 	// Attempt to parse the source map if present
@@ -513,35 +541,10 @@ func parseFile(args parseArgs) {
 		}
 	}
 
-	onDynamicImportGroup.Wait()
-
-	for _, dynamicImport := range onDynamicImportResults.data {
-		// Ignore by dynamic imports that haven't been claimed by a plugin
-		if dynamicImport.result == nil {
-			continue
-		}
-
-		fileContents := []byte(*dynamicImport.result)
-		modulePath := getDynamicExpressionModulePath(args.options.DynamicImportPathTemplate, fileContents, base, ext)
-
-		// Add the generated module file to the list of additional files
-		result.file.inputFile.AdditionalFiles = append(result.file.inputFile.AdditionalFiles, graph.OutputFile{
-			AbsPath:  args.fs.Join(args.options.AbsOutputDir, modulePath),
-			Contents: fileContents,
-		})
-
-		// Add the path of the generated module to the AST so that the printer can
-		// rewrite the import statement later on
-		result.file.inputFile.Repr.SetClaimedDynamicImport(graph.ClaimedDynamicImport{
-			Index:      dynamicImport.index,
-			ModulePath: modulePath,
-		})
-	}
-
 	args.results <- result
 }
 
-func getDynamicExpressionModulePath(pathTemplate []config.PathTemplate, contents []byte, base string, ext string) string {
+func getDynamicExpressionModulePath(pathTemplate []config.PathTemplate, contents []byte, base string, ext string, importIndex int) string {
 	var hash string
 	if config.HasPlaceholder(pathTemplate, config.HashPlaceholder) {
 		h := xxhash.New()
@@ -553,7 +556,7 @@ func getDynamicExpressionModulePath(pathTemplate []config.PathTemplate, contents
 		Dir:  &dir,
 		Name: &base,
 		Hash: &hash,
-	})) + ext
+	})) + "-" + strconv.Itoa(importIndex) + ext
 
 	return relPath
 }
@@ -994,7 +997,7 @@ func runOnDynamicImportPlugins(
 	importSource *logger.Source,
 	importPathRange logger.Range,
 	pluginData interface{},
-	importRecord ast.ImportRecord,
+	importRecord ast.DynamicExpressionImportRecord,
 	importerPath logger.Path,
 	resolveDir string,
 ) *string {
@@ -1645,10 +1648,6 @@ func (s *scanner) scanAllDependencies() {
 			for importRecordIndex := range records {
 				record := &records[importRecordIndex]
 
-				if record.IsDynamicExpression {
-					continue
-				}
-
 				// Skip this import record if the previous resolver call failed
 				resolveResult := result.resolveResults[importRecordIndex]
 				if resolveResult == nil {
@@ -1712,10 +1711,6 @@ func (s *scanner) processScannedFiles() []scannerFile {
 
 			for importRecordIndex := range records {
 				record := &records[importRecordIndex]
-
-				if record.IsDynamicExpression {
-					continue
-				}
 
 				// Skip this import record if the previous resolver call failed
 				resolveResult := result.resolveResults[importRecordIndex]
@@ -1894,10 +1889,6 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 			}
 
 			for importRecordIndex, record := range repr.AST.ImportRecords {
-				if record.IsDynamicExpression {
-					continue
-				}
-
 				if record.SourceIndex.IsValid() && (record.Kind == ast.ImportRequire || record.Kind == ast.ImportStmt) {
 					parent := s.validateTLA(record.SourceIndex.GetIndex())
 					if !parent.parent.IsValid() {
@@ -2174,7 +2165,7 @@ func findReachableFiles(files []graph.InputFile, entryPoints []graph.EntryPoint)
 				visit(repr.CSSSourceIndex.GetIndex())
 			}
 			for _, record := range *file.Repr.ImportRecords() {
-				if record.SourceIndex.IsValid() && !record.IsDynamicExpression {
+				if record.SourceIndex.IsValid() {
 					visit(record.SourceIndex.GetIndex())
 				}
 			}

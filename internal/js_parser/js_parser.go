@@ -109,6 +109,8 @@ type parser struct {
 	importRecordsForCurrentPart []uint32
 	exportStarImportRecords     []uint32
 
+	dynamicExpressionImportRecords []ast.DynamicExpressionImportRecord
+
 	// These are for handling ES6 imports and exports
 	es6ImportKeyword        logger.Range
 	es6ExportKeyword        logger.Range
@@ -6599,6 +6601,13 @@ func (p *parser) addImportRecord(kind ast.ImportKind, loc logger.Loc, text strin
 	return index
 }
 
+func (p *parser) addDynamicExpressionImportRecord(loc logger.Loc, text string) {
+	p.dynamicExpressionImportRecords = append(p.dynamicExpressionImportRecords, ast.DynamicExpressionImportRecord{
+		Range: p.source.RangeOfString(loc),
+		Path:  logger.Path{Text: text},
+	})
+}
+
 func (p *parser) parseFnBody(data fnOrArrowDataParse) js_ast.FnBody {
 	oldFnOrArrowData := p.fnOrArrowDataParse
 	oldAllowIn := p.allowIn
@@ -12218,13 +12227,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							}
 
 							// This is a require with a dynamic expression. Use the string
-							// representation of the expression as the import path and flag
-							// the import record as containing a dynamic expression.
+							// representation of the expression as the import path.
 							r := js_lexer.RangeOfCallArgs(p.source, arg.Loc)
-							importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, p.source.TextForRange(r), nil)
-							p.importRecords[importRecordIndex].IsDynamicExpression = true
+							p.addDynamicExpressionImportRecord(expr.Loc, p.source.TextForRange(r))
 
-							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireString{ImportRecordIndex: importRecordIndex}}
+							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+								Target: p.valueToSubstituteForRequire(e.Target.Loc),
+								Args:   []js_ast.Expr{arg},
+							}}
 						}), exprOut{}
 					} else {
 						r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
@@ -14248,6 +14258,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		TopLevelSymbolToPartsFromParser: p.topLevelSymbolToParts,
 		ExportStarImportRecords:         p.exportStarImportRecords,
 		ImportRecords:                   p.importRecords,
+		DynamicExpressionImportRecords:  p.dynamicExpressionImportRecords,
 		ApproximateLineCount:            int32(p.lexer.ApproximateNewlineCount) + 1,
 
 		// CommonJS features
