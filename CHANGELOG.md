@@ -50,6 +50,10 @@
     // @license <\/script>
     ```
 
+* Change the triple-slash reference comment for Deno ([#1325](https://github.com/evanw/esbuild/issues/1325))
+
+    The comment in esbuild's JavaScript API implementation for Deno that references the TypeScript type declarations has been changed from `/// <reference path="./mod.d.ts" />` to `/// <reference types="./mod.d.ts" />`. This comment was copied from Deno's documentation but apparently Deno's documentation was incorrect. The comment in esbuild's Deno bundle has been changed to reflect Deno's latest documentation.
+
 ## 0.12.4
 
 * Reorder name preservation before TypeScript decorator evaluation ([#1316](https://github.com/evanw/esbuild/issues/1316))
