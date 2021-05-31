@@ -1,6 +1,7 @@
 package renamer
 
 import (
+	"fmt"
 	"sort"
 	"strconv"
 	"sync"
@@ -67,8 +68,9 @@ func (r *noOpRenamer) NameForSymbol(ref js_ast.Ref) string {
 // MinifyRenamer
 
 type symbolSlot struct {
-	name  string
-	count uint32
+	name               string
+	count              uint32
+	needsCapitalForJSX uint32 // This is really a bool but needs to be atomic
 }
 
 type MinifyRenamer struct {
@@ -192,10 +194,13 @@ func (r *MinifyRenamer) AccumulateSymbolCount(
 	}
 
 	// Check if it's a nested scope symbol
-	slots := &r.slots[ns]
 	if i := symbol.NestedScopeSlot; i.IsValid() {
 		// If it is, accumulate the count using a parallel-safe atomic increment
-		atomic.AddUint32(&(*slots)[i.GetIndex()].count, count)
+		slot := &r.slots[ns][i.GetIndex()]
+		atomic.AddUint32(&slot.count, count)
+		if symbol.MustStartWithCapitalLetterForJSX {
+			atomic.StoreUint32(&slot.needsCapitalForJSX, 1)
+		}
 		return
 	}
 
@@ -217,10 +222,21 @@ func (r *MinifyRenamer) AllocateTopLevelSymbolSlots(topLevelSymbols DeferredTopL
 		symbol := r.symbols.Get(stable.Ref)
 		slots := &r.slots[symbol.SlotNamespace()]
 		if i, ok := r.topLevelSymbolToSlot[stable.Ref]; ok {
-			(*slots)[i].count += stable.Count
+			slot := &(*slots)[i]
+			slot.count += stable.Count
+			if symbol.MustStartWithCapitalLetterForJSX {
+				slot.needsCapitalForJSX = 1
+			}
 		} else {
+			needsCapitalForJSX := uint32(0)
+			if symbol.MustStartWithCapitalLetterForJSX {
+				needsCapitalForJSX = 1
+			}
 			i = uint32(len(*slots))
-			*slots = append(*slots, symbolSlot{count: stable.Count})
+			*slots = append(*slots, symbolSlot{
+				count:              stable.Count,
+				needsCapitalForJSX: needsCapitalForJSX,
+			})
 			r.topLevelSymbolToSlot[stable.Ref] = i
 		}
 	}
@@ -238,6 +254,7 @@ func (r *MinifyRenamer) AssignNamesByFrequency(minifier *js_ast.NameMinifier) {
 		// Assign names to symbols
 		nextName := 0
 		for _, data := range sorted {
+			slot := &slots[data.slot]
 			name := minifier.NumberToMinifiedName(nextName)
 			nextName++
 
@@ -253,6 +270,14 @@ func (r *MinifyRenamer) AssignNamesByFrequency(minifier *js_ast.NameMinifier) {
 					nextName++
 				}
 
+				// Make sure names of symbols used in JSX elements start with a capital letter
+				if slot.needsCapitalForJSX != 0 {
+					for name[0] >= 'a' && name[0] <= 'z' {
+						name = minifier.NumberToMinifiedName(nextName)
+						nextName++
+					}
+				}
+
 			case js_ast.SlotLabel:
 				for js_lexer.Keywords[name] != 0 {
 					name = minifier.NumberToMinifiedName(nextName)
@@ -265,7 +290,7 @@ func (r *MinifyRenamer) AssignNamesByFrequency(minifier *js_ast.NameMinifier) {
 				name = "#" + name
 			}
 
-			slots[data.slot].name = name
+			slot.name = name
 		}
 	}
 }
@@ -328,8 +353,8 @@ func assignNestedScopeSlotsHelper(scope *js_ast.Scope, symbols []js_ast.Symbol, 
 	}
 
 	// Labels are always declared in a nested scope, so we don't need to check.
-	if scope.LabelRef != js_ast.InvalidRef {
-		symbol := &symbols[scope.LabelRef.InnerIndex]
+	if scope.Label.Ref != js_ast.InvalidRef {
+		symbol := &symbols[scope.Label.Ref.InnerIndex]
 		symbol.NestedScopeSlot = ast.MakeIndex32(slot[js_ast.SlotLabel])
 		slot[js_ast.SlotLabel]++
 	}
@@ -403,8 +428,16 @@ func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
 		return
 	}
 
+	// Make sure names of symbols used in JSX elements start with a capital letter
+	originalName := symbol.OriginalName
+	if symbol.MustStartWithCapitalLetterForJSX {
+		if first := rune(originalName[0]); first >= 'a' && first <= 'z' {
+			originalName = fmt.Sprintf("%c%s", first+('A'-'a'), originalName[1:])
+		}
+	}
+
 	// Compute a new name
-	name := scope.findUnusedName(symbol.OriginalName)
+	name := scope.findUnusedName(originalName)
 
 	// Store the new name
 	if inner == nil {

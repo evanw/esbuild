@@ -398,7 +398,7 @@ TEST_ROLLUP_FLAGS += src/node-entry.ts
 
 github/rollup:
 	mkdir -p github
-	git clone --depth 1 --branch v2.15.0 https://github.com/rollup/rollup.git github/rollup
+	git clone --depth 1 --branch v2.50.1 https://github.com/rollup/rollup.git github/rollup
 
 demo/rollup: | github/rollup
 	mkdir -p demo
@@ -478,8 +478,9 @@ demo/esprima: | github/esprima
 	cd demo/esprima && npm ci
 
 test-esprima: esbuild | demo/esprima
-	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node && npm run all-tests
-	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node --minify && npm run all-tests
+	echo {} > demo/esprima/ts.json # Avoid "target: ES5" in "tsconfig.json"
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node --tsconfig=ts.json && npm run all-tests
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node --tsconfig=ts.json --minify && npm run all-tests
 
 ################################################################################
 # This runs terser's test suite through esbuild

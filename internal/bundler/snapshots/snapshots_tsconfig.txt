@@ -335,5 +335,50 @@ TestTsconfigRemoveUnusedImports
 console.log(1);
 
 ================================================================================
+TestTsconfigTarget
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/es2018/index.ts
+var x = { ...y };
+try {
+  y;
+} catch (e) {
+}
+x == null ? void 0 : x.y();
+
+// Users/user/project/src/es2019/index.ts
+var x2 = { ...y };
+try {
+  y;
+} catch {
+}
+x2 == null ? void 0 : x2.y();
+
+// Users/user/project/src/es2020/index.ts
+var x3 = { ...y };
+try {
+  y;
+} catch {
+}
+x3?.y();
+
+================================================================================
+TestTsconfigUseDefineForClassFieldsES2020
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+Foo = class {
+  constructor() {
+    this.useDefine = false;
+  }
+};
+
+================================================================================
+TestTsconfigUseDefineForClassFieldsESNext
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+Foo = class {
+  useDefine = true;
+};
+
+================================================================================
 TestTsconfigWarningsInsideNodeModules
 ---------- /Users/user/project/out.js ----------

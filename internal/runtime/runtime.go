@@ -66,6 +66,7 @@ func code(isES6 bool) string {
 	// transforming destructuring to ES5 isn't even supported so it's ok.
 	text := `
 		var __create = Object.create
+		var __freeze = Object.freeze
 		var __defProp = Object.defineProperty
 		var __defProps = Object.defineProperties
 		var __getOwnPropDesc = Object.getOwnPropertyDescriptor // Note: can return "undefined" due to a Safari bug
@@ -263,6 +264,9 @@ func code(isES6 bool) string {
 			__accessCheck(obj, member, 'access private method')
 			return method
 		}
+
+		// For lowering tagged template literals
+		export var __template = (cooked, raw) => __defProp(cooked, 'raw', { value: __freeze(raw) })
 
 		// This helps for lowering async functions
 		export var __async = (__this, __arguments, generator) => {

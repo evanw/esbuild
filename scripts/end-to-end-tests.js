@@ -1726,11 +1726,6 @@
   // https://github.com/evanw/esbuild/issues/1080
   tests.push(
     // Various CommonJS cases
-    test(['in.js', '--outfile=node.js', '--bundle', '--log-level=error'], {
-      'in.js': `import "pkg"; return`,
-      'node_modules/pkg/package.json': `{ "sideEffects": false }`,
-      'node_modules/pkg/index.js': `module.exports = null; throw 'fail'`,
-    }),
     test(['in.js', '--outfile=node.js', '--define:foo={"x":0}', '--bundle'], {
       'in.js': `if (foo.x !== 0) throw 'fail'; return`,
     }),

@@ -603,3 +603,14 @@ function fn(x2) {
 
 // entry.js
 console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default2, h_default, i, j, k_default2, fn);
+
+================================================================================
+TestTypeScriptDecoratorsKeepNames
+---------- /out.js ----------
+// entry.ts
+var Foo = class {
+};
+__name(Foo, "Foo");
+Foo = __decorateClass([
+  decoratorMustComeAfterName
+], Foo);

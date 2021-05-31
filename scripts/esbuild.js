@@ -204,7 +204,7 @@ exports.buildDenoLib = (esbuildPath) => {
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
     '--platform=neutral',
     '--log-level=warning',
-    '--banner:js=/// <reference path="./mod.d.ts" />',
+    '--banner:js=/// <reference types="./mod.d.ts" />',
   ], { cwd: repoDir })
 
   // Generate "deno/esbuild/mod.d.ts"

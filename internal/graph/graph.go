@@ -14,6 +14,7 @@ package graph
 // manually enforced. Please be careful.
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -138,7 +139,11 @@ func CloneLinkerGraph(
 	var dynamicImportEntryPointsMutex sync.Mutex
 	waitGroup := sync.WaitGroup{}
 	waitGroup.Add(len(reachableFiles))
-	for _, sourceIndex := range reachableFiles {
+	stableSourceIndices := make([]uint32, len(inputFiles))
+	for stableIndex, sourceIndex := range reachableFiles {
+		// Create a way to convert source indices to a stable ordering
+		stableSourceIndices[sourceIndex] = uint32(stableIndex)
+
 		go func(sourceIndex uint32) {
 			file := &files[sourceIndex]
 			file.InputFile = inputFiles[sourceIndex]
@@ -233,20 +238,23 @@ func CloneLinkerGraph(
 	waitGroup.Wait()
 
 	// Process dynamic entry points after merging control flow again
+	stableEntryPoints := make([]int, 0, len(dynamicImportEntryPoints))
 	for _, sourceIndex := range dynamicImportEntryPoints {
 		if otherFile := &files[sourceIndex]; otherFile.entryPointKind == entryPointNone {
-			entryPoints = append(entryPoints, EntryPoint{SourceIndex: sourceIndex})
+			stableEntryPoints = append(stableEntryPoints, int(stableSourceIndices[sourceIndex]))
 			otherFile.entryPointKind = entryPointDynamicImport
 		}
 	}
 
-	// Create a way to convert source indices to a stable ordering
-	bitCount := uint(len(entryPoints))
-	stableSourceIndices := make([]uint32, len(inputFiles))
-	for stableIndex, sourceIndex := range reachableFiles {
-		stableSourceIndices[sourceIndex] = uint32(stableIndex)
+	// Make sure to add dynamic entry points in a deterministic order
+	sort.Ints(stableEntryPoints)
+	for _, stableIndex := range stableEntryPoints {
+		entryPoints = append(entryPoints, EntryPoint{SourceIndex: reachableFiles[stableIndex]})
+	}
 
-		// Allocate the entry bit set now that the number of entry points is known
+	// Allocate the entry bit set now that the number of entry points is known
+	bitCount := uint(len(entryPoints))
+	for _, sourceIndex := range reachableFiles {
 		files[sourceIndex].EntryBits = helpers.NewBitSet(bitCount)
 	}
 

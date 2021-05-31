@@ -306,6 +306,12 @@ func (p *printer) printUnquotedUTF16(text []uint16, quote rune) {
 		case '\\':
 			js = append(js, "\\\\"...)
 
+		case '/':
+			if i >= 2 && text[i-2] == '<' && i+6 <= len(text) && js_lexer.UTF16EqualsString(text[i:i+6], "script") {
+				js = append(js, '\\')
+			}
+			js = append(js, '/')
+
 		case '\'':
 			if quote == '\'' {
 				js = append(js, '\\')
@@ -2088,9 +2094,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		buffer := p.js
 		n := len(buffer)
 
-		// Avoid forming a single-line comment
-		if n > 0 && buffer[n-1] == '/' {
-			p.print(" ")
+		if n > 0 {
+			// Avoid forming a single-line comment or "</script" sequence
+			if last := buffer[n-1]; last == '/' || (last == '<' && strings.HasPrefix(e.Value, "/script")) {
+				p.print(" ")
+			}
 		}
 		p.print(e.Value)
 
@@ -2701,6 +2709,9 @@ func (p *printer) printIf(s *js_ast.SIf) {
 }
 
 func (p *printer) printIndentedComment(text string) {
+	// Avoid generating a comment containing the character sequence "</script"
+	text = strings.ReplaceAll(text, "</script", "<\\/script")
+
 	if strings.HasPrefix(text, "/*") {
 		// Re-indent multi-line comments
 		for {

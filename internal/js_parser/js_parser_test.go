@@ -183,6 +183,16 @@ func TestComments(t *testing.T) {
 `)
 	expectParseError(t, "throw -->\n x", "<stdin>: error: Unexpected \">\"\n")
 
+	expectParseError(t, "export {}\n<!--", `<stdin>: error: Legacy HTML single-line comments are not allowed in ECMAScript modules
+<stdin>: note: This file is considered an ECMAScript module because of the "export" keyword here
+<stdin>: warning: Treating "<!--" as the start of a legacy HTML single-line comment
+`)
+
+	expectParseError(t, "export {}\n-->", `<stdin>: error: Legacy HTML single-line comments are not allowed in ECMAScript modules
+<stdin>: note: This file is considered an ECMAScript module because of the "export" keyword here
+<stdin>: warning: Treating "-->" as the start of a legacy HTML single-line comment
+`)
+
 	expectPrinted(t, "return //\n x", "return;\nx;\n")
 	expectPrinted(t, "return /**/\n x", "return;\nx;\n")
 	expectPrinted(t, "return <!--\n x", "return;\nx;\n")
@@ -337,6 +347,10 @@ func TestStrictMode(t *testing.T) {
 		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "function arguments() { 'use strict' }",
 		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; class eval {}",
+		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; class arguments {}",
+		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
 
 	expectPrinted(t, "let protected", "let protected;\n")
 	expectPrinted(t, "let protecte\\u0064", "let protected;\n")
@@ -350,6 +364,18 @@ func TestStrictMode(t *testing.T) {
 		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; let x = protecte\\u0064",
 		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; protected: 0",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; protecte\\u0064: 0",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; function protected() {}",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; function protecte\\u0064() {}",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; (function protected() {})",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; (function protecte\\u0064() {})",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
 
 	expectPrinted(t, "0123", "83;\n")
 	expectPrinted(t, "({0123: 4})", "({ 83: 4 });\n")
@@ -359,6 +385,12 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "'use strict'; ({0123: 4})",
 		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; let {0123: x} = y",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; 08",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; ({08: 4})",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let {08: x} = y",
 		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
 
 	classNote := "<stdin>: note: All code inside a class is implicitly in strict mode\n"
@@ -373,6 +405,16 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "function f() { 'use strict'; function y() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "class f { x() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
 	expectParseError(t, "class f { x() { function y() { with (x) y } } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
+	expectParseError(t, "class f { x() { function protected() {} } }", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+classNote)
+
+	reservedWordExport := "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n" +
+		"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n"
+
+	expectParseError(t, "var protected; export {}", reservedWordExport)
+	expectParseError(t, "class protected {} export {}", reservedWordExport)
+	expectParseError(t, "(class protected {}); export {}", reservedWordExport)
+	expectParseError(t, "function protected() {} export {}", reservedWordExport)
+	expectParseError(t, "(function protected() {}); export {}", reservedWordExport)
 
 	importKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
 		"<stdin>: note: This file is implicitly in strict mode because of the \"import\" keyword here\n"
@@ -501,6 +543,11 @@ func TestRegExp(t *testing.T) {
 	expectPrinted(t, "/x/s", "/x/s;\n")
 	expectPrinted(t, "/x/u", "/x/u;\n")
 	expectPrinted(t, "/x/y", "/x/y;\n")
+
+	expectParseError(t, "/x/msuygig",
+		`<stdin>: error: Duplicate flag "g" in regular expression
+<stdin>: note: The first "g" was here
+`)
 }
 
 func TestIdentifierEscapes(t *testing.T) {
@@ -1624,6 +1671,7 @@ func TestYield(t *testing.T) {
 	// Yield as an identifier
 	expectPrinted(t, "({yield} = x)", "({ yield } = x);\n")
 	expectPrinted(t, "let x = {yield}", "let x = { yield };\n")
+	expectPrinted(t, "function* yield() {}", "function* yield() {\n}\n")
 	expectPrinted(t, "function foo() { ({yield} = x) }", "function foo() {\n  ({ yield } = x);\n}\n")
 	expectPrinted(t, "function foo() { let x = {yield} }", "function foo() {\n  let x = { yield };\n}\n")
 	expectParseError(t, "function *foo() { ({yield} = x) }", "<stdin>: error: Cannot use \"yield\" as an identifier here\n")
@@ -1779,12 +1827,14 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "async function foo(){for await(let x of y);}", "async function foo() {\n  for await (let x of y)\n    ;\n}\n")
 
 	// Await as an identifier
+	expectPrinted(t, "(function await() {})", "(function await() {\n});\n")
 	expectPrinted(t, "function foo() { ({await} = x) }", "function foo() {\n  ({ await } = x);\n}\n")
 	expectPrinted(t, "function foo() { let x = {await} }", "function foo() {\n  let x = { await };\n}\n")
 	expectParseError(t, "({await} = x)", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "let x = {await}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "class await {}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "(class await {})", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "function await() {}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { ({await} = x) }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { let x = {await} }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 
@@ -1809,6 +1859,10 @@ func TestLabels(t *testing.T) {
 
 	expectParseError(t, "while (1) break x", "<stdin>: error: There is no containing label named \"x\"\n")
 	expectParseError(t, "while (1) continue x", "<stdin>: error: There is no containing label named \"x\"\n")
+
+	expectPrinted(t, "x: y: z: 1", "x:\n  y:\n    z:\n      1;\n")
+	expectPrinted(t, "x: 1; y: 2; x: 3", "x:\n  1;\ny:\n  2;\nx:\n  3;\n")
+	expectParseError(t, "x: y: x: 1", "<stdin>: error: Duplicate label \"x\"\n<stdin>: note: The original label \"x\" is here\n")
 }
 
 func TestArrow(t *testing.T) {
@@ -3997,10 +4051,15 @@ func TestReplacementCharacter(t *testing.T) {
 }
 
 func TestNewTarget(t *testing.T) {
-	expectPrinted(t, "new.target", "new.target;\n")
-	expectPrinted(t, "(new.target)", "new.target;\n")
+	expectPrinted(t, "function f() { new.target }", "function f() {\n  new.target;\n}\n")
+	expectPrinted(t, "function f() { (new.target) }", "function f() {\n  new.target;\n}\n")
+	expectPrinted(t, "function f() { () => new.target }", "function f() {\n  () => new.target;\n}\n")
+	expectPrinted(t, "class Foo { x = new.target }", "class Foo {\n  x = new.target;\n}\n")
 
 	expectParseError(t, "new.t\\u0061rget", "<stdin>: error: Unexpected \"t\\\\u0061rget\"\n")
+	expectParseError(t, "new.target", "<stdin>: error: Cannot use \"new.target\" here\n")
+	expectParseError(t, "() => new.target", "<stdin>: error: Cannot use \"new.target\" here\n")
+	expectParseError(t, "class Foo { [new.target] }", "<stdin>: error: Cannot use \"new.target\" here\n")
 }
 
 func TestJSX(t *testing.T) {
@@ -4516,10 +4575,14 @@ func TestES5(t *testing.T) {
 	expectPrintedTarget(t, 5, "`a${b}${c}d`;", "\"a\" + b + c + \"d\";\n")
 	expectPrintedTarget(t, 5, "`a${b}c${d}`;", "\"a\" + b + \"c\" + d;\n")
 	expectPrintedTarget(t, 5, "`a${b}c${d}e`;", "\"a\" + b + \"c\" + d + \"e\";\n")
-	expectParseErrorTarget(t, 5, "tag`abc`;",
-		"<stdin>: error: Transforming tagged template literals to the configured target environment is not supported yet\n")
-	expectParseErrorTarget(t, 5, "tag`a${b}c`;",
-		"<stdin>: error: Transforming tagged template literals to the configured target environment is not supported yet\n")
+	expectPrintedTarget(t, 5, "tag``;", "tag(__template([\"\"], [\"\"]));\n")
+	expectPrintedTarget(t, 5, "tag`abc`;", "tag(__template([\"abc\"], [\"abc\"]));\n")
+	expectPrintedTarget(t, 5, "tag`\\utf`;", "tag(__template([void 0], [\"\\\\utf\"]));\n")
+	expectPrintedTarget(t, 5, "tag`${a}b`;", "tag(__template([\"\", \"b\"], [\"\", \"b\"]), a);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}`;", "tag(__template([\"a\", \"\"], [\"a\", \"\"]), b);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}c`;", "tag(__template([\"a\", \"c\"], [\"a\", \"c\"]), b);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}\\u`;", "tag(__template([\"a\", void 0], [\"a\", \"\\\\u\"]), b);\n")
+	expectPrintedTarget(t, 5, "tag`\\u${b}c`;", "tag(__template([void 0, \"c\"], [\"\\\\u\", \"c\"]), b);\n")
 	expectParseErrorTarget(t, 5, "class Foo { constructor() { new.target } }",
 		"<stdin>: error: Transforming class syntax to the configured target environment is not supported yet\n"+
 			"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n"+

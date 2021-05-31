@@ -1648,7 +1648,7 @@ func TestRuntimeNameCollisionNoBundle(t *testing.T) {
 	})
 }
 
-func TestTopLevelReturnAllowedImport(t *testing.T) {
+func TestTopLevelReturnForbiddenImport(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1661,6 +1661,9 @@ func TestTopLevelReturnAllowedImport(t *testing.T) {
 			Mode:          config.ModePassThrough,
 			AbsOutputFile: "/out.js",
 		},
+		expectedScanLog: `entry.js: error: Top-level return cannot be used inside an ECMAScript module
+entry.js: note: This file is considered an ECMAScript module because of the "import" keyword here
+`,
 	})
 }
 
@@ -4315,8 +4318,38 @@ func TestCallImportNamespaceWarning(t *testing.T) {
 				new b()
 				new c()
 			`,
+			"/jsx-components.jsx": `
+				import * as A from "a"
+				import {B} from "b"
+				import C from "c"
+				<A/>;
+				<B/>;
+				<C/>;
+			`,
+			"/jsx-a.jsx": `
+				// @jsx a
+				import * as a from "a"
+				<div/>
+			`,
+			"/jsx-b.jsx": `
+				// @jsx b
+				import {b} from "b"
+				<div/>
+			`,
+			"/jsx-c.jsx": `
+				// @jsx c
+				import c from "c"
+				<div/>
+			`,
 		},
-		entryPaths: []string{"/js.js", "/ts.ts"},
+		entryPaths: []string{
+			"/js.js",
+			"/ts.ts",
+			"/jsx-components.jsx",
+			"/jsx-a.jsx",
+			"/jsx-b.jsx",
+			"/jsx-c.jsx",
+		},
 		options: config.Options{
 			Mode:         config.ModeConvertFormat,
 			AbsOutputDir: "/out",
@@ -4326,6 +4359,10 @@ func TestCallImportNamespaceWarning(t *testing.T) {
 js.js: note: Consider changing "a" to a default import instead
 js.js: warning: Constructing "a" will crash at run-time because it's an import namespace object, not a constructor
 js.js: note: Consider changing "a" to a default import instead
+jsx-a.jsx: warning: Calling "a" will crash at run-time because it's an import namespace object, not a function
+jsx-a.jsx: note: Consider changing "a" to a default import instead
+jsx-components.jsx: warning: Using "A" in a JSX expression will crash at run-time because it's an import namespace object, not a component
+jsx-components.jsx: note: Consider changing "A" to a default import instead
 ts.ts: warning: Calling "a" will crash at run-time because it's an import namespace object, not a function (make sure to enable TypeScript's "esModuleInterop" setting)
 ts.ts: note: Consider changing "a" to a default import instead
 ts.ts: warning: Constructing "a" will crash at run-time because it's an import namespace object, not a constructor (make sure to enable TypeScript's "esModuleInterop" setting)

@@ -2,7 +2,6 @@ package test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/fs"
@@ -21,12 +20,8 @@ func AssertEqualWithDiff(t *testing.T, observed interface{}, expected interface{
 	if observed != expected {
 		stringA := fmt.Sprintf("%v", observed)
 		stringB := fmt.Sprintf("%v", expected)
-		if strings.Contains(stringA, "\n") {
-			color := !fs.CheckIfWindows()
-			t.Fatal(diff(stringB, stringA, color))
-		} else {
-			t.Fatalf("%s != %s", observed, expected)
-		}
+		color := !fs.CheckIfWindows()
+		t.Fatal(diff(stringB, stringA, color))
 	}
 }
 

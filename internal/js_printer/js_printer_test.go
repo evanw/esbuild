@@ -30,7 +30,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		for _, msg := range msgs {
 			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 		}
-		assertEqual(t, text, "")
+		test.AssertEqualWithDiff(t, text, "")
 		if !ok {
 			t.Fatal("Parse error")
 		}
@@ -43,7 +43,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 			RemoveWhitespace:    options.RemoveWhitespace,
 			UnsupportedFeatures: options.UnsupportedJSFeatures,
 		}).JS
-		assertEqual(t, string(js), expected)
+		test.AssertEqualWithDiff(t, string(js), expected)
 	})
 }
 
@@ -904,4 +904,30 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSXMinify(t, "<a><b/><c/></a>", "<a><b/><c/></a>;")
 	expectPrintedJSXMinify(t, "<a> x <b/> y </a>", "<a> x <b/> y </a>;")
 	expectPrintedJSXMinify(t, "<a>{' x '}{'<b/>'}{' y '}</a>", "<a> x {\"<b/>\"} y </a>;")
+}
+
+func TestAvoidSlashScript(t *testing.T) {
+	// Positive cases
+	expectPrinted(t, "x = '</script'", "x = \"<\\/script\";\n")
+	expectPrinted(t, "x = `</script`", "x = `<\\/script`;\n")
+	expectPrinted(t, "x = `</script${y}`", "x = `<\\/script${y}`;\n")
+	expectPrinted(t, "x = `${y}</script`", "x = `${y}<\\/script`;\n")
+	expectPrintedMinify(t, "x = 1 < /script/.exec(y).length", "x=1< /script/.exec(y).length;")
+	expectPrintedMinify(t, "x = 1 << /script/.exec(y).length", "x=1<< /script/.exec(y).length;")
+	expectPrinted(t, "//! </script", "//! <\\/script\n")
+	expectPrinted(t, "String.raw`</script`",
+		"String.raw(__template([\"<\\/script\"], [\"<\\/script\"]));\nimport {\n  __template\n} from \"<runtime>\";\n")
+	expectPrinted(t, "String.raw`</script${a}`",
+		"String.raw(__template([\"<\\/script\", \"\"], [\"<\\/script\", \"\"]), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
+	expectPrinted(t, "String.raw`${a}</script`",
+		"String.raw(__template([\"\", \"<\\/script\"], [\"\", \"<\\/script\"]), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
+
+	// Negative cases
+	expectPrinted(t, "x = '</'", "x = \"</\";\n")
+	expectPrinted(t, "x = '</ script'", "x = \"</ script\";\n")
+	expectPrinted(t, "x = '< /script'", "x = \"< /script\";\n")
+	expectPrinted(t, "x = '/script>'", "x = \"/script>\";\n")
+	expectPrinted(t, "x = '<script>'", "x = \"<script>\";\n")
+	expectPrintedMinify(t, "x = 1 < / script/.exec(y).length", "x=1</ script/.exec(y).length;")
+	expectPrintedMinify(t, "x = 1 << / script/.exec(y).length", "x=1<</ script/.exec(y).length;")
 }
