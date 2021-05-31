@@ -372,6 +372,26 @@ func isDirectFunctionInvocation(e *js_ast.ECall) bool {
 	return false
 }
 
+func (p *printer) assignsToExports(e *js_ast.EBinary) bool {
+	switch left := e.Left.Data.(type) {
+	case *js_ast.EDot:
+		if left.Name != "exports" {
+			return false
+		}
+		switch target := left.Target.Data.(type) {
+		case *js_ast.EIdentifier:
+			if p.renamer.IsModule(target.Ref) {
+				return true
+			}
+		}
+	case *js_ast.EIdentifier:
+		if p.renamer.IsExport(left.Ref) {
+			return true
+		}
+	}
+	return false
+}
+
 //
 // Printers
 //

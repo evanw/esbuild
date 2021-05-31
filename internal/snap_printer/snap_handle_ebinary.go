@@ -122,8 +122,17 @@ func (p *printer) handleEBinaryRequireCall(e *js_ast.EBinary) (handled bool) {
 	var require *RequireExpr
 	var isRequire bool
 
+	// module.exports = require('./foo')
+	if p.assignsToExports(e) {
+		return false
+	}
+
 	switch right := e.Right.Data.(type) {
 	case *js_ast.EBinary:
+		// exports [= module.exports ]= require('./foo')
+		if p.assignsToExports(right) {
+			return false
+		}
 		// Two in one assignments:
 		//  `first = second = require('./base')`
 		//  `exports.Base = exports.base = require('./base')`

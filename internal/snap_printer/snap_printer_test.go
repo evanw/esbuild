@@ -1281,6 +1281,33 @@ Object.defineProperty(exports, "base", { get: () => require("./base") });
 `, ReplaceAll)
 }
 
+func TestModuleExportsAssignment(t *testing.T) {
+	// We should never rewrite a direct assignment to module.exports
+	expectPrinted(t, `
+module.exports = require('./lib/_stream_readable.js');
+`, `
+module.exports = require("./lib/_stream_readable.js");
+`, ReplaceAll)
+
+	expectPrinted(t, `
+exports = require('./lib/_stream_readable.js');
+`, `
+exports = require("./lib/_stream_readable.js");
+`, ReplaceAll)
+
+	expectPrinted(t, `
+exports = module.exports = require('./lib/_stream_readable.js');
+`, `
+exports = module.exports = require("./lib/_stream_readable.js");
+`, ReplaceAll)
+
+	expectPrinted(t, `
+module.exports = exports = require('./lib/_stream_readable.js');
+`, `
+module.exports = exports = require("./lib/_stream_readable.js");
+`, ReplaceAll)
+}
+
 func TestDebug(t *testing.T) {
 	debugPrinted(t, `
 const { v4: uuidv4 } = require('uuid')
