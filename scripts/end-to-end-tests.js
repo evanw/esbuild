@@ -648,11 +648,11 @@
       'foo.js': `module.exports = 123`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `const out = require('./foo'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
+      'in.js': `const out = require('./foo'); if (out.foo !== 123) throw 'fail'`,
       'foo.js': `export const foo = 123`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `const out = require('./foo'); if (out.__esModule || out.default !== 123) throw 'fail'`,
+      'in.js': `const out = require('./foo'); if (out.default !== 123) throw 'fail'`,
       'foo.js': `export default 123`,
     }),
 
@@ -673,13 +673,13 @@
       'in.js': `export default 123; const out = require('./in'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'], {
-      'in.js': `export const foo = 123; const out = require('./in'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
+      'in.js': `export const foo = 123; const out = require('./in'); if (out.foo !== 123) throw 'fail'`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm', '--minify'], {
-      'in.js': `export const foo = 123; const out = require('./in'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
+      'in.js': `export const foo = 123; const out = require('./in'); if (out.foo !== 123) throw 'fail'`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'], {
-      'in.js': `export default 123; const out = require('./in'); if (out.__esModule || out.default !== 123) throw 'fail'`,
+      'in.js': `export default 123; const out = require('./in'); if (out.default !== 123) throw 'fail'`,
     }),
 
     // Test bundled and non-bundled double export star
