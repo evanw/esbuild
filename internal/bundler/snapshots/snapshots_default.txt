@@ -244,6 +244,7 @@ TestCommonJSFromES6
 ---------- /out.js ----------
 // foo.js
 var foo_exports = {};
+__markAsModule(foo_exports);
 __export(foo_exports, {
   foo: () => foo
 });
@@ -257,6 +258,7 @@ var init_foo = __esm({
 
 // bar.js
 var bar_exports = {};
+__markAsModule(bar_exports);
 __export(bar_exports, {
   bar: () => bar
 });
@@ -492,6 +494,7 @@ TestEmptyExportClauseBundleAsCommonJSIssue910
 ---------- /out.js ----------
 // types.mjs
 var types_exports = {};
+__markAsModule(types_exports);
 var init_types = __esm({
   "types.mjs"() {
   }
@@ -548,6 +551,7 @@ var init_a = __esm({
 
 // b.js
 var b_exports = {};
+__markAsModule(b_exports);
 __export(b_exports, {
   xyz: () => xyz
 });
@@ -560,6 +564,7 @@ var init_b = __esm({
 
 // commonjs.js
 var commonjs_exports = {};
+__markAsModule(commonjs_exports);
 __export(commonjs_exports, {
   C: () => Class,
   Class: () => Class,
@@ -589,6 +594,7 @@ var init_commonjs = __esm({
 
 // c.js
 var c_exports = {};
+__markAsModule(c_exports);
 __export(c_exports, {
   default: () => c_default2
 });
@@ -603,6 +609,7 @@ var init_c = __esm({
 
 // d.js
 var d_exports = {};
+__markAsModule(d_exports);
 __export(d_exports, {
   default: () => d_default
 });
@@ -618,6 +625,7 @@ var init_d = __esm({
 
 // e.js
 var e_exports = {};
+__markAsModule(e_exports);
 __export(e_exports, {
   default: () => e_default
 });
@@ -630,6 +638,7 @@ var init_e = __esm({
 
 // f.js
 var f_exports = {};
+__markAsModule(f_exports);
 __export(f_exports, {
   default: () => foo
 });
@@ -643,6 +652,7 @@ var init_f = __esm({
 
 // g.js
 var g_exports = {};
+__markAsModule(g_exports);
 __export(g_exports, {
   default: () => g_default
 });
@@ -655,6 +665,7 @@ var init_g = __esm({
 
 // h.js
 var h_exports = {};
+__markAsModule(h_exports);
 __export(h_exports, {
   default: () => foo2
 });
@@ -683,6 +694,7 @@ var abc = void 0;
 
 // b.js
 var b_exports = {};
+__markAsModule(b_exports);
 __export(b_exports, {
   xyz: () => xyz
 });
@@ -715,6 +727,7 @@ TestExportFormsIIFE
 var globalName = (() => {
   // entry.js
   var entry_exports = {};
+  __markAsModule(entry_exports);
   __export(entry_exports, {
     C: () => Class,
     Class: () => Class,
@@ -732,6 +745,7 @@ var globalName = (() => {
 
   // b.js
   var b_exports = {};
+  __markAsModule(b_exports);
   __export(b_exports, {
     xyz: () => xyz
   });
@@ -802,6 +816,7 @@ TestExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
 // foo/test.js
 var test_exports = {};
+__markAsModule(test_exports);
 __export(test_exports, {
   foo: () => foo
 });
@@ -809,6 +824,7 @@ var foo = 123;
 
 // bar/test.js
 var test_exports2 = {};
+__markAsModule(test_exports2);
 __export(test_exports2, {
   bar: () => bar
 });
@@ -822,6 +838,7 @@ TestExternalES6ConvertedToCommonJS
 ---------- /out.js ----------
 // a.js
 var a_exports = {};
+__markAsModule(a_exports);
 __export(a_exports, {
   ns: () => ns
 });
@@ -833,6 +850,7 @@ var init_a = __esm({
 
 // b.js
 var b_exports = {};
+__markAsModule(b_exports);
 __export(b_exports, {
   ns: () => ns2
 });
@@ -844,6 +862,7 @@ var init_b = __esm({
 
 // c.js
 var c_exports = {};
+__markAsModule(c_exports);
 __export(c_exports, {
   ns: () => ns3
 });
@@ -855,6 +874,7 @@ var init_c = __esm({
 
 // d.js
 var d_exports = {};
+__markAsModule(d_exports);
 __export(d_exports, {
   ns: () => ns4
 });
@@ -866,6 +886,7 @@ var init_d = __esm({
 
 // e.js
 var e_exports = {};
+__markAsModule(e_exports);
 import * as x_star from "x";
 var init_e = __esm({
   "e.js"() {
@@ -1815,21 +1836,23 @@ import("foo");import(foo());
 TestMinifiedExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
 // foo/test.js
-var o = {};
-s(o, {
-  foo: () => p
-});
-var p = 123;
-
-// bar/test.js
 var t = {};
-s(t, {
-  bar: () => l
+f(t);
+p(t, {
+  foo: () => l
 });
 var l = 123;
 
+// bar/test.js
+var r = {};
+f(r);
+p(r, {
+  bar: () => m
+});
+var m = 123;
+
 // entry.js
-console.log(exports, module.exports, o, t);
+console.log(exports, module.exports, t, r);
 
 ================================================================================
 TestMinifyArguments
@@ -2866,6 +2889,7 @@ var require_cjs = __commonJS({
 
 // dummy.js
 var dummy_exports = {};
+__markAsModule(dummy_exports);
 __export(dummy_exports, {
   dummy: () => dummy
 });
@@ -3132,6 +3156,7 @@ TestTopLevelAwaitAllowedImportWithoutSplitting
 ---------- /out.js ----------
 // c.js
 var c_exports = {};
+__markAsModule(c_exports);
 var init_c = __esm({
   async "c.js"() {
     await 0;
@@ -3140,6 +3165,7 @@ var init_c = __esm({
 
 // b.js
 var b_exports = {};
+__markAsModule(b_exports);
 var init_b = __esm({
   async "b.js"() {
     await init_c();
@@ -3148,6 +3174,7 @@ var init_b = __esm({
 
 // a.js
 var a_exports = {};
+__markAsModule(a_exports);
 var init_a = __esm({
   async "a.js"() {
     await init_b();
@@ -3156,6 +3183,7 @@ var init_a = __esm({
 
 // entry.js
 var entry_exports = {};
+__markAsModule(entry_exports);
 var init_entry = __esm({
   async "entry.js"() {
     init_a();

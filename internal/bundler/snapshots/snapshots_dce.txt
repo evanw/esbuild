@@ -145,6 +145,7 @@ TestPackageJsonSideEffectsArrayKeepMainImplicitMain
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/index-main.js
 var index_main_exports = {};
+__markAsModule(index_main_exports);
 __export(index_main_exports, {
   foo: () => foo
 });
@@ -191,6 +192,7 @@ TestPackageJsonSideEffectsArrayKeepModuleImplicitMain
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/index-main.js
 var index_main_exports = {};
+__markAsModule(index_main_exports);
 __export(index_main_exports, {
   foo: () => foo
 });
@@ -258,6 +260,7 @@ var init_b = __esm({
 
 // Users/user/project/node_modules/a/index.js
 var a_exports = {};
+__markAsModule(a_exports);
 __export(a_exports, {
   foo: () => foo
 });
@@ -345,6 +348,7 @@ TestPackageJsonSideEffectsFalseKeepBareImportAndRequireES6
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js
 var demo_pkg_exports = {};
+__markAsModule(demo_pkg_exports);
 __export(demo_pkg_exports, {
   foo: () => foo
 });
@@ -405,6 +409,7 @@ TestPackageJsonSideEffectsFalseKeepStarImportES6
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js
 var demo_pkg_exports = {};
+__markAsModule(demo_pkg_exports);
 __export(demo_pkg_exports, {
   foo: () => foo
 });
@@ -450,6 +455,7 @@ var init_b = __esm({
 
 // Users/user/project/node_modules/a/index.js
 var a_exports = {};
+__markAsModule(a_exports);
 __export(a_exports, {
   foo: () => foo
 });
@@ -678,6 +684,7 @@ var init_lib = __esm({
 
 // cjs.js
 var cjs_exports = {};
+__markAsModule(cjs_exports);
 __export(cjs_exports, {
   default: () => cjs_default
 });

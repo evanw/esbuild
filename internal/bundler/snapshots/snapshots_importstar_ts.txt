@@ -2,6 +2,7 @@ TestTSImportStarAndCommonJS
 ---------- /out.js ----------
 // foo.ts
 var foo_exports = {};
+__markAsModule(foo_exports);
 __export(foo_exports, {
   foo: () => foo
 });
@@ -22,6 +23,7 @@ TestTSImportStarCapture
 ---------- /out.js ----------
 // foo.ts
 var foo_exports = {};
+__markAsModule(foo_exports);
 __export(foo_exports, {
   foo: () => foo
 });
@@ -73,6 +75,7 @@ TestTSImportStarExportImportStarCapture
 ---------- /out.js ----------
 // foo.ts
 var foo_exports = {};
+__markAsModule(foo_exports);
 __export(foo_exports, {
   foo: () => foo
 });
@@ -87,6 +90,7 @@ TestTSImportStarExportImportStarNoCapture
 ---------- /out.js ----------
 // foo.ts
 var foo_exports = {};
+__markAsModule(foo_exports);
 __export(foo_exports, {
   foo: () => foo
 });
@@ -108,6 +112,7 @@ TestTSImportStarExportStarAsCapture
 ---------- /out.js ----------
 // foo.ts
 var foo_exports = {};
+__markAsModule(foo_exports);
 __export(foo_exports, {
   foo: () => foo
 });
@@ -122,6 +127,7 @@ TestTSImportStarExportStarAsNoCapture
 ---------- /out.js ----------
 // foo.ts
 var foo_exports = {};
+__markAsModule(foo_exports);
 __export(foo_exports, {
   foo: () => foo
 });
@@ -143,6 +149,7 @@ TestTSImportStarExportStarCapture
 ---------- /out.js ----------
 // bar.ts
 var bar_exports = {};
+__markAsModule(bar_exports);
 __export(bar_exports, {
   foo: () => foo
 });

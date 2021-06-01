@@ -1726,10 +1726,11 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}
 	}
 
-	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
+	// Prefix this part with "var exports = { __esModule: true }" if this isn't a CommonJS module
 	declaredSymbols := []js_ast.DeclaredSymbol{}
 	var nsExportStmts []js_ast.Stmt
-	if repr.AST.ExportsKind != js_ast.ExportsCommonJS && (!file.IsEntryPoint() || c.options.OutputFormat != config.FormatCommonJS) {
+	isNotCommonJSAndEntry := repr.AST.ExportsKind != js_ast.ExportsCommonJS && (!file.IsEntryPoint() || c.options.OutputFormat != config.FormatCommonJS)
+	if isNotCommonJSAndEntry {
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
 			Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.ExportsRef}},
 			ValueOrNil: js_ast.Expr{Data: &js_ast.EObject{}},
@@ -1744,8 +1745,9 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// "__markAsModule" which sets the "__esModule" property to true. This must
 	// be done before any to "require()" or circular imports of multiple modules
 	// that have been each converted from ESM to CommonJS may not work correctly.
-	if repr.AST.ExportKeyword.Len > 0 && (repr.AST.ExportsKind == js_ast.ExportsCommonJS ||
-		(file.IsEntryPoint() && c.options.OutputFormat == config.FormatCommonJS)) {
+	if (repr.AST.ExportKeyword.Len > 0 && (repr.AST.ExportsKind == js_ast.ExportsCommonJS ||
+		(file.IsEntryPoint() && c.options.OutputFormat == config.FormatCommonJS))) ||
+		isNotCommonJSAndEntry {
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
 		markAsModuleRef := runtimeRepr.AST.ModuleScope.Members["__markAsModule"].Ref
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{

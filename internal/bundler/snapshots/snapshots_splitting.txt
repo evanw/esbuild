@@ -259,10 +259,16 @@ export {
 ================================================================================
 TestSplittingDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
-// entry.js
-import("./foo-KZX24I45.js").then(({ default: { bar } }) => console.log(bar));
+import "./chunk-VD7MAPBT.js";
 
----------- /out/foo-KZX24I45.js ----------
+// entry.js
+import("./foo-YGPNXO73.js").then(({ default: { bar } }) => console.log(bar));
+
+---------- /out/foo-YGPNXO73.js ----------
+import {
+  __commonJS
+} from "./chunk-VD7MAPBT.js";
+
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports) {
@@ -270,6 +276,11 @@ var require_foo = __commonJS({
   }
 });
 export default require_foo();
+
+---------- /out/chunk-VD7MAPBT.js ----------
+export {
+  __commonJS
+};
 
 ================================================================================
 TestSplittingDynamicES6IntoES6
@@ -317,7 +328,7 @@ TestSplittingHybridESMAndCJSIssue617
 import {
   foo,
   init_a
-} from "./chunk-V7Q4P7WA.js";
+} from "./chunk-T3MG3LRV.js";
 init_a();
 export {
   foo
@@ -327,7 +338,7 @@ export {
 import {
   a_exports,
   init_a
-} from "./chunk-V7Q4P7WA.js";
+} from "./chunk-T3MG3LRV.js";
 
 // b.js
 var bar = (init_a(), a_exports);
@@ -335,9 +346,10 @@ export {
   bar
 };
 
----------- /out/chunk-V7Q4P7WA.js ----------
+---------- /out/chunk-T3MG3LRV.js ----------
 // a.js
 var a_exports = {};
+__markAsModule(a_exports);
 __export(a_exports, {
   foo: () => foo
 });
@@ -388,7 +400,7 @@ TestSplittingMissingLazyExport
 ---------- /out/a.js ----------
 import {
   foo
-} from "./chunk-QVTGQSXT.js";
+} from "./chunk-KFPHQBDL.js";
 
 // a.js
 console.log(foo());
@@ -396,14 +408,15 @@ console.log(foo());
 ---------- /out/b.js ----------
 import {
   bar
-} from "./chunk-QVTGQSXT.js";
+} from "./chunk-KFPHQBDL.js";
 
 // b.js
 console.log(bar());
 
----------- /out/chunk-QVTGQSXT.js ----------
+---------- /out/chunk-KFPHQBDL.js ----------
 // empty.js
 var empty_exports = {};
+__markAsModule(empty_exports);
 
 // common.js
 function foo() {
