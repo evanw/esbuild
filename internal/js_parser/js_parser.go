@@ -327,6 +327,7 @@ type optionsThatSupportStructuralEquality struct {
 	platform                config.Platform
 	outputFormat            config.Format
 	moduleType              config.ModuleType
+	isTargetUnconfigured    bool
 	asciiOnly               bool
 	keepNames               bool
 	mangleSyntax            bool
@@ -351,6 +352,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			platform:                options.Platform,
 			outputFormat:            options.OutputFormat,
 			moduleType:              options.ModuleType,
+			isTargetUnconfigured:    options.IsTargetUnconfigured,
 			asciiOnly:               options.ASCIIOnly,
 			keepNames:               options.KeepNames,
 			mangleSyntax:            options.MangleSyntax,
@@ -13650,8 +13652,10 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		}
 	}
 
-	// Include unsupported JavaScript features from the TypeScript "target" setting
-	if options.tsTarget != nil {
+	// If there is no top-level esbuild "target" setting, include unsupported
+	// JavaScript features from the TypeScript "target" setting. Otherwise the
+	// TypeScript "target" setting is ignored.
+	if options.isTargetUnconfigured && options.tsTarget != nil {
 		options.unsupportedJSFeatures |= options.tsTarget.UnsupportedJSFeatures
 	}
 
