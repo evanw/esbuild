@@ -466,6 +466,10 @@ type ECall struct {
 	// call itself is removed due to this annotation, the arguments must remain
 	// if they have side effects.
 	CanBeUnwrappedIfUnused bool
+
+	// If this call represents a require() with a dynamic expression, this field
+	// stores the index of its record.
+	DynamicExpressionImportIndex *uint32
 }
 
 func (a *ECall) HasSameFlagsAs(b *ECall) bool {
@@ -662,6 +666,10 @@ type EImportCall struct {
 
 	// See the comment for this same field on "EImportCall" for more information
 	LeadingInteriorComments []Comment
+
+	// If this call represents an import() with a dynamic expression, this field
+	// stores the index of its record.
+	DynamicExpressionImportIndex *uint32
 }
 
 func (*EArray) isExpr()                {}
@@ -1150,6 +1158,11 @@ type SImport struct {
 	IsSingleLine      bool
 }
 
+type SImportDynamicExpressionShim struct {
+	ImportRecordIndex uint32
+	Kind              ast.ImportKind
+}
+
 type SReturn struct {
 	ValueOrNil Expr
 }
@@ -1184,39 +1197,40 @@ type SContinue struct {
 	Label *LocRef
 }
 
-func (*SBlock) isStmt()         {}
-func (*SComment) isStmt()       {}
-func (*SDebugger) isStmt()      {}
-func (*SDirective) isStmt()     {}
-func (*SEmpty) isStmt()         {}
-func (*STypeScript) isStmt()    {}
-func (*SExportClause) isStmt()  {}
-func (*SExportFrom) isStmt()    {}
-func (*SExportDefault) isStmt() {}
-func (*SExportStar) isStmt()    {}
-func (*SExportEquals) isStmt()  {}
-func (*SLazyExport) isStmt()    {}
-func (*SExpr) isStmt()          {}
-func (*SEnum) isStmt()          {}
-func (*SNamespace) isStmt()     {}
-func (*SFunction) isStmt()      {}
-func (*SClass) isStmt()         {}
-func (*SLabel) isStmt()         {}
-func (*SIf) isStmt()            {}
-func (*SFor) isStmt()           {}
-func (*SForIn) isStmt()         {}
-func (*SForOf) isStmt()         {}
-func (*SDoWhile) isStmt()       {}
-func (*SWhile) isStmt()         {}
-func (*SWith) isStmt()          {}
-func (*STry) isStmt()           {}
-func (*SSwitch) isStmt()        {}
-func (*SImport) isStmt()        {}
-func (*SReturn) isStmt()        {}
-func (*SThrow) isStmt()         {}
-func (*SLocal) isStmt()         {}
-func (*SBreak) isStmt()         {}
-func (*SContinue) isStmt()      {}
+func (*SBlock) isStmt()                       {}
+func (*SComment) isStmt()                     {}
+func (*SDebugger) isStmt()                    {}
+func (*SDirective) isStmt()                   {}
+func (*SEmpty) isStmt()                       {}
+func (*STypeScript) isStmt()                  {}
+func (*SExportClause) isStmt()                {}
+func (*SExportFrom) isStmt()                  {}
+func (*SExportDefault) isStmt()               {}
+func (*SExportStar) isStmt()                  {}
+func (*SExportEquals) isStmt()                {}
+func (*SLazyExport) isStmt()                  {}
+func (*SExpr) isStmt()                        {}
+func (*SEnum) isStmt()                        {}
+func (*SNamespace) isStmt()                   {}
+func (*SFunction) isStmt()                    {}
+func (*SClass) isStmt()                       {}
+func (*SLabel) isStmt()                       {}
+func (*SIf) isStmt()                          {}
+func (*SFor) isStmt()                         {}
+func (*SForIn) isStmt()                       {}
+func (*SForOf) isStmt()                       {}
+func (*SDoWhile) isStmt()                     {}
+func (*SWhile) isStmt()                       {}
+func (*SWith) isStmt()                        {}
+func (*STry) isStmt()                         {}
+func (*SSwitch) isStmt()                      {}
+func (*SImport) isStmt()                      {}
+func (*SReturn) isStmt()                      {}
+func (*SThrow) isStmt()                       {}
+func (*SLocal) isStmt()                       {}
+func (*SBreak) isStmt()                       {}
+func (*SContinue) isStmt()                    {}
+func (*SImportDynamicExpressionShim) isStmt() {}
 
 func IsSuperCall(stmt Stmt) bool {
 	if expr, ok := stmt.Data.(*SExpr); ok {
@@ -1746,6 +1760,7 @@ type AST struct {
 
 	// import() and require() statements with a dynamic expression as argument.
 	DynamicExpressionImportRecords []ast.DynamicExpressionImportRecord
+	DynamicExpressionImportRefs    []Ref
 
 	// These are used when bundling. They are filled in during the parser pass
 	// since we already have to traverse the AST then anyway and the parser pass

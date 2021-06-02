@@ -502,7 +502,8 @@ type printer struct {
 	symbols                        js_ast.SymbolMap
 	renamer                        renamer.Renamer
 	importRecords                  []ast.ImportRecord
-	dynamicExpressionImportRecords map[int32]ast.DynamicExpressionImportRecord
+	dynamicExpressionImportRecords []ast.DynamicExpressionImportRecord
+	dynamicExpressionImportRefs    []js_ast.Ref
 	options                        Options
 	extractedLegalComments         map[string]bool
 	needsSemicolon                 bool
@@ -1721,11 +1722,13 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 		p.print("(")
 
-		importRecord, isImportRecord := p.dynamicExpressionImportRecords[e.Target.Loc.Start]
+		if e.DynamicExpressionImportIndex != nil {
+			importRecord := p.dynamicExpressionImportRecords[*e.DynamicExpressionImportIndex]
 
-		if isImportRecord && importRecord.ModulePath != "" {
-			p.printQuotedUTF8("./"+importRecord.ModulePath, false)
-			p.print(")(")
+			if importRecord.ShimPath != "" {
+				p.printQuotedUTF8(importRecord.ShimPath, false)
+				p.print(")(")
+			}
 		}
 
 		for i, arg := range e.Args {
@@ -1773,7 +1776,18 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.print("(")
 		}
 		p.printSpaceBeforeIdentifier()
-		p.print("import(")
+
+		// If this is a dynamic expression import and the import has been claimed
+		// (i.e. it has a shim path), we replace the import() with the shim symbol.
+		if e.DynamicExpressionImportIndex != nil && p.dynamicExpressionImportRecords[*e.DynamicExpressionImportIndex].ShimPath != "" {
+			dynamicExpressionImportRef := p.dynamicExpressionImportRefs[*e.DynamicExpressionImportIndex]
+
+			p.printSymbol(dynamicExpressionImportRef)
+			p.print("(")
+		} else {
+			p.print("import(")
+		}
+
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent++
@@ -3355,6 +3369,19 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printExpr(s.Value, js_ast.LLowest, exprResultIsUnused)
 		p.printSemicolonAfterStatement()
 
+	case *js_ast.SImportDynamicExpressionShim:
+		importRecord := p.dynamicExpressionImportRecords[s.ImportRecordIndex]
+
+		if importRecord.ShimPath != "" {
+			importRef := p.dynamicExpressionImportRefs[s.ImportRecordIndex]
+
+			p.print("import ")
+			p.printSymbol(importRef)
+			p.print(" from ")
+			p.printQuotedUTF8(importRecord.ShimPath, false)
+			p.printSemicolonAfterStatement()
+		}
+
 	default:
 		panic(fmt.Sprintf("Unexpected statement of type %T", stmt.Data))
 	}
@@ -3427,19 +3454,12 @@ type PrintResult struct {
 }
 
 func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
-	dynamicExpressionImportRecords := make(map[int32]ast.DynamicExpressionImportRecord)
-
-	// Converting the array of dynamic expression import records to a map for
-	// easier lookup.
-	for _, record := range tree.DynamicExpressionImportRecords {
-		dynamicExpressionImportRecords[record.Range.Loc.Start] = record
-	}
-
 	p := &printer{
 		symbols:                        symbols,
 		renamer:                        r,
 		importRecords:                  tree.ImportRecords,
-		dynamicExpressionImportRecords: dynamicExpressionImportRecords,
+		dynamicExpressionImportRecords: tree.DynamicExpressionImportRecords,
+		dynamicExpressionImportRefs:    tree.DynamicExpressionImportRefs,
 		options:                        options,
 		stmtStart:                      -1,
 		exportDefaultStart:             -1,

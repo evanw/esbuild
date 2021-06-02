@@ -109,7 +109,12 @@ type parser struct {
 	importRecordsForCurrentPart []uint32
 	exportStarImportRecords     []uint32
 
+	// These are for handling imports with dynamic expressions. The two arrays
+	// should be kept in sync, i.e. the Ref on index N should match the record
+	// on index N. We could have a single field, but we don't want to have the
+	// refs on the general AST level since they are specific to JS.
 	dynamicExpressionImportRecords []ast.DynamicExpressionImportRecord
+	dynamicExpressionImportRefs    []js_ast.Ref
 
 	// These are for handling ES6 imports and exports
 	es6ImportKeyword        logger.Range
@@ -6601,11 +6606,20 @@ func (p *parser) addImportRecord(kind ast.ImportKind, loc logger.Loc, text strin
 	return index
 }
 
-func (p *parser) addDynamicExpressionImportRecord(loc logger.Loc, text string) {
+func (p *parser) addDynamicExpressionImportRecord(kind ast.ImportKind, loc logger.Loc, text string) uint32 {
+	index := uint32(len(p.dynamicExpressionImportRecords))
 	p.dynamicExpressionImportRecords = append(p.dynamicExpressionImportRecords, ast.DynamicExpressionImportRecord{
-		Range: p.source.RangeOfString(loc),
-		Path:  logger.Path{Text: text},
+		Kind:       kind,
+		Expression: text,
+		Range:      p.source.RangeOfString(loc),
 	})
+
+	importRef := p.generateTempRef(tempRefNoDeclare, "")
+	p.recordUsage(importRef)
+
+	p.dynamicExpressionImportRefs = append(p.dynamicExpressionImportRefs, importRef)
+
+	return index
 }
 
 func (p *parser) parseFnBody(data fnOrArrowDataParse) js_ast.FnBody {
@@ -8432,7 +8446,7 @@ func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string)
 
 func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_ast.Stmt {
 	switch s := stmt.Data.(type) {
-	case *js_ast.SDebugger, *js_ast.SEmpty, *js_ast.SComment:
+	case *js_ast.SDebugger, *js_ast.SEmpty, *js_ast.SComment, *js_ast.SImportDynamicExpressionShim:
 		// These don't contain anything to traverse
 
 	case *js_ast.STypeScript:
@@ -11964,11 +11978,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}}
 			}
 
-			// Use a debug log so people can see this if they want to
-			r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
-			p.log.AddRangeDebug(&p.tracker, r,
-				"This \"import\" expression will not be bundled because the argument is not a string literal")
-
 			// We need to convert this into a call to "require()" if ES6 syntax is
 			// not supported in the current output format. The full conversion:
 			//
@@ -12012,10 +12021,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}}
 			}
 
+			// This is a require with a dynamic expression. Use the string
+			// representation of the expression as the import path.
+			r := js_lexer.RangeOfCallExpr(p.source, expr.Loc)
+			importRecordIndex := p.addDynamicExpressionImportRecord(ast.ImportDynamic, expr.Loc, p.source.TextForRange(r))
+
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportCall{
-				Expr:                    arg,
-				OptionsOrNil:            e.OptionsOrNil,
-				LeadingInteriorComments: e.LeadingInteriorComments,
+				Expr:                         arg,
+				OptionsOrNil:                 e.OptionsOrNil,
+				LeadingInteriorComments:      e.LeadingInteriorComments,
+				DynamicExpressionImportIndex: &importRecordIndex,
 			}}
 		}), exprOut{}
 
@@ -12228,12 +12243,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 							// This is a require with a dynamic expression. Use the string
 							// representation of the expression as the import path.
-							r := js_lexer.RangeOfCallArgs(p.source, arg.Loc)
-							p.addDynamicExpressionImportRecord(expr.Loc, p.source.TextForRange(r))
+							r := js_lexer.RangeOfCallExpr(p.source, expr.Loc)
+							importRecordIndex := p.addDynamicExpressionImportRecord(ast.ImportRequire, expr.Loc, p.source.TextForRange(r))
 
 							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-								Target: p.valueToSubstituteForRequire(e.Target.Loc),
-								Args:   []js_ast.Expr{arg},
+								Target:                       p.valueToSubstituteForRequire(e.Target.Loc),
+								Args:                         []js_ast.Expr{arg},
+								DynamicExpressionImportIndex: &importRecordIndex,
 							}}
 						}), exprOut{}
 					} else {
@@ -13771,6 +13787,18 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		}
 	}
 
+	// Importing the shims that handle the dynamic expression imports.
+	for importIndex, importRecord := range p.dynamicExpressionImportRecords {
+		// Unlike require() calls, for which the shim is inlined by the printer,
+		// import() calls need the shim to be imported using an import statement.
+		if importRecord.Kind == ast.ImportDynamic {
+			before = p.appendPart(before, []js_ast.Stmt{{Data: &js_ast.SImportDynamicExpressionShim{
+				ImportRecordIndex: uint32(importIndex),
+				Kind:              importRecord.Kind,
+			}}})
+		}
+	}
+
 	// Pop the module scope to apply the "ContainsDirectEval" rules
 	p.popScope()
 
@@ -14259,6 +14287,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		ExportStarImportRecords:         p.exportStarImportRecords,
 		ImportRecords:                   p.importRecords,
 		DynamicExpressionImportRecords:  p.dynamicExpressionImportRecords,
+		DynamicExpressionImportRefs:     p.dynamicExpressionImportRefs,
 		ApproximateLineCount:            int32(p.lexer.ApproximateNewlineCount) + 1,
 
 		// CommonJS features

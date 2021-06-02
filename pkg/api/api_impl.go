@@ -1536,7 +1536,7 @@ func (impl *pluginImpl) OnDynamicImport(options OnDynamicImportOptions, callback
 		Namespace: options.Namespace,
 		Callback: func(args config.OnDynamicImportArgs) (result config.OnDynamicImportResult) {
 			response, err := callback(OnDynamicImportArgs{
-				Expression: args.Expression.Text,
+				Expression: args.Expression,
 				Importer:   args.Importer.Text,
 				Namespace:  args.Namespace,
 				PluginData: args.PluginData,

@@ -470,7 +470,9 @@ func parseFile(args parseArgs) {
 		// Setting up the "onDynamicImport" plugin hooks. We'll run them in parallel
 		// and collect the results at the end
 		onDynamicImportGroup := sync.WaitGroup{}
-		onDynamicImportResults := OnDynamicImportResults{}
+		onDynamicImportResults := OnDynamicImportResults{
+			Data: make(map[int]*string),
+		}
 
 		// Running `onDynamicImport` plugins.
 		dynamicExpressionImportRecordsPtr := result.file.inputFile.Repr.DynamicExpressionImportRecords()
@@ -480,7 +482,7 @@ func parseFile(args parseArgs) {
 			for recordIndex, record := range dynamicExpressionImportRecords {
 				onDynamicImportGroup.Add(1)
 				go func(record ast.DynamicExpressionImportRecord, index int) {
-					result := runOnDynamicImportPlugins(
+					contents := runOnDynamicImportPlugins(
 						args.options.Plugins,
 						args.res,
 						args.log,
@@ -492,10 +494,7 @@ func parseFile(args parseArgs) {
 						absResolveDir,
 					)
 
-					onDynamicImportResults.Insert(OnDynamicImportResult{
-						index:  index,
-						result: result,
-					})
+					onDynamicImportResults.Insert(index, contents)
 					onDynamicImportGroup.Done()
 				}(record, recordIndex)
 			}
@@ -503,27 +502,24 @@ func parseFile(args parseArgs) {
 
 		onDynamicImportGroup.Wait()
 
-		for dynamicImportIndex, dynamicImport := range onDynamicImportResults.data {
-			// Ignore by dynamic imports that haven't been claimed by a plugin
-			if dynamicImport.result == nil {
+		for importRecordIndex, contents := range onDynamicImportResults.Data {
+			// Ignore dynamic expression imports that haven't been claimed.
+			if contents == nil {
 				continue
 			}
 
-			fileContents := []byte(*dynamicImport.result)
-			modulePath := getDynamicExpressionModulePath(args.options.DynamicImportPathTemplate, fileContents, base, ext, dynamicImportIndex)
+			fileContents := []byte(*contents)
+			shimPath := getDynamicExpressionModulePath(args.options.DynamicImportPathTemplate, fileContents, base, ext, importRecordIndex)
 
-			// Add the generated module file to the list of additional files
+			// Add the shim to the list of additional files
 			result.file.inputFile.AdditionalFiles = append(result.file.inputFile.AdditionalFiles, graph.OutputFile{
-				AbsPath:  args.fs.Join(args.options.AbsOutputDir, modulePath),
+				AbsPath:  args.fs.Join(args.options.AbsOutputDir, shimPath),
 				Contents: fileContents,
 			})
 
-			// Add the path of the generated module to the AST so that the printer can
-			// rewrite the import statement later on
-			result.file.inputFile.Repr.SetClaimedDynamicImport(graph.ClaimedDynamicImport{
-				Index:      dynamicImport.index,
-				ModulePath: modulePath,
-			})
+			// Add the shim path to the AST so that the printer can rewrite the
+			// import statement later on.
+			result.file.inputFile.Repr.ClaimDynamicExpressionImport(importRecordIndex, shimPath)
 		}
 	}
 
@@ -974,20 +970,15 @@ func runOnLoadPlugins(
 	return loaderPluginResult{loader: config.LoaderNone}, true
 }
 
-type OnDynamicImportResult struct {
-	index  int
-	result *string
-}
-
 type OnDynamicImportResults struct {
 	mu   sync.Mutex
-	data []OnDynamicImportResult
+	Data map[int]*string
 }
 
-func (o *OnDynamicImportResults) Insert(result OnDynamicImportResult) {
+func (o *OnDynamicImportResults) Insert(importIndex int, contents *string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.data = append(o.data, result)
+	o.Data[importIndex] = contents
 }
 
 func runOnDynamicImportPlugins(
@@ -1007,7 +998,7 @@ func runOnDynamicImportPlugins(
 	for _, plugin := range plugins {
 		for _, onDynamicImport := range plugin.OnDynamicImport {
 			onDynamicImportArgs := config.OnDynamicImportArgs{
-				Expression: importRecord.Path,
+				Expression: importRecord.Expression,
 				Importer:   importerPath,
 				Namespace:  "file",
 				PluginData: pluginData,

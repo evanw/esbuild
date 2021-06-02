@@ -4,6 +4,7 @@ const path = require('path')
 const util = require('util')
 const url = require('url')
 const fs = require('fs')
+const childProcess = require('child_process')
 
 const readFileAsync = util.promisify(fs.readFile)
 const writeFileAsync = util.promisify(fs.writeFile)
@@ -2396,11 +2397,11 @@ let syncTests = {
     }
   },
 
-  async onDynamicImportPluginInjectModule({ esbuild, testDir }) {
+  async onDynamicImportPluginRequire({ esbuild, testDir }) {
     const input = path.join(testDir, "in.js");
-    const supportingJson = path.join(testDir, 'supporting.json')
+    const shim = path.join(testDir, 'shim.json')
     const output = path.join(testDir, "out.js");
-    const supportingJsonData = { foo: 'bar' }
+    const shimData = { foo: 'bar' }
     await writeFileAsync(
       input,
       `
@@ -2414,9 +2415,9 @@ let syncTests = {
     `
     );
     await writeFileAsync(
-      supportingJson,
-      JSON.stringify(supportingJsonData)
-    );
+      shim,
+      JSON.stringify(shimData)
+    )
     await esbuild.build({
       entryPoints: [input],
       bundle: true,
@@ -2427,26 +2428,76 @@ let syncTests = {
           name: "name",
           setup(build) {
             build.onDynamicImport({}, (args) => {
-              assert.strictEqual(args.expression, '`./files/${name}.json`');
+              assert.strictEqual(args.expression, 'require(`./files/${name}.json`)');
               assert.strictEqual(args.importer, input);
               assert.strictEqual(args.namespace, 'file');
-              assert.strictEqual(args.resolveDir, path.join(rootTestDir, 'onDynamicImportPluginInjectModule'))
+              assert.strictEqual(args.resolveDir, path.join(rootTestDir, 'onDynamicImportPluginRequire'))
 
               return {
-                contents: `module.exports = () => require('./supporting.json')`,
+                contents: `module.exports = () => require('./shim.json')`,
               };
             });
           },
         },
       ],
-    });
+    })
     const bundle = require(output)
     const result = bundle()
 
-    assert.deepStrictEqual(result, supportingJsonData)
+    assert.deepStrictEqual(result, shimData)
   },
 
-  async onDynamicImportPluginIgnoreUnclaimed({ esbuild, testDir }) {
+  async onDynamicImportPluginImport({ esbuild, testDir }) {
+    const input = path.join(testDir, "in.js");
+    const shimData = "From shim"
+    const output = path.join(testDir, "out.js");
+    const testPath = path.join(rootTestDir, 'onDynamicImportPluginImport')
+    await writeFileAsync(
+      input,
+      `
+      const loadFile = name => {
+        const file = import(\`./files/\${name}.json\`)
+
+        return file
+      }
+
+      console.log(loadFile())
+    `
+    );
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: "esm",
+      plugins: [
+        {
+          name: "name",
+          setup(build) {
+            build.onDynamicImport({}, (args) => {
+              assert.strictEqual(args.expression, 'import(`./files/${name}.json`)');
+              assert.strictEqual(args.importer, input);
+              assert.strictEqual(args.namespace, 'file');
+              assert.strictEqual(args.resolveDir, testPath)
+
+              return {
+                contents: `module.exports = function () { return ${JSON.stringify(shimData)} }`,
+              };
+            });
+          },
+        },
+      ],
+    })
+
+    const outputSource = await readFileAsync(output, 'utf8')
+    const sanitizedSource = outputSource.replace(/"/g, '\"')
+
+    // Spawning a new process so that we can run an ESM file.
+    const result = childProcess.spawnSync('node', ['--input-type=module', '--eval', sanitizedSource], { cwd: testPath, encoding: 'utf8' })
+    
+    assert.strictEqual(result.stdout.trim(), shimData)
+  },
+
+  async onDynamicImportPluginRequireUnclaimed({ esbuild, testDir }) {
     const input = path.join(testDir, "in.js");
     const output = path.join(testDir, "out.js");
     await writeFileAsync(
@@ -2471,10 +2522,10 @@ let syncTests = {
           name: "name",
           setup(build) {
             build.onDynamicImport({}, (args) => {
-              assert.strictEqual(args.expression, '`./files/${name}.json`');
+              assert.strictEqual(args.expression, 'require(`./files/${name}.json`)');
               assert.strictEqual(args.importer, input);
               assert.strictEqual(args.namespace, 'file');
-              assert.strictEqual(args.resolveDir, path.join(rootTestDir, 'onDynamicImportPluginIgnoreUnclaimed'))
+              assert.strictEqual(args.resolveDir, path.join(rootTestDir, 'onDynamicImportPluginRequireUnclaimed'))
 
               return;
             });

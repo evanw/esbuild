@@ -546,7 +546,7 @@ type OnDynamicImport struct {
 }
 
 type OnDynamicImportArgs struct {
-	Expression logger.Path
+	Expression string
 	Importer   logger.Path
 	Namespace  string
 	PluginData interface{}
