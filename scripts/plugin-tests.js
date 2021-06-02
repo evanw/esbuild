@@ -2497,6 +2497,52 @@ let syncTests = {
     assert.strictEqual(result.stdout.trim(), shimData)
   },
 
+  async onDynamicImportPluginImportES5({ esbuild, testDir }) {
+    const input = path.join(testDir, "in.js")
+    const output = path.join(testDir, "out.js")
+    const shimData = { foo: 'bar' }
+    await writeFileAsync(
+      input,
+      `
+      var loadFile = name => {
+        var file = import(\`./files/\${name}.json\`)
+
+        return file
+      }
+
+      module.exports = loadFile
+    `
+    )
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: "cjs",
+      target: "es5",
+      plugins: [
+        {
+          name: "name",
+          setup(build) {
+            build.onDynamicImport({}, (args) => {
+              assert.strictEqual(args.expression, 'import(`./files/${name}.json`)');
+              assert.strictEqual(args.importer, input);
+              assert.strictEqual(args.namespace, 'file');
+              assert.strictEqual(args.resolveDir, path.join(rootTestDir, 'onDynamicImportPluginImportES5'))
+
+              return {
+                contents: `module.exports = () => (${JSON.stringify(shimData)})`,
+              };
+            });
+          },
+        },
+      ],
+    })
+    const bundle = require(output)
+    const result = await bundle()
+
+    assert.deepStrictEqual(result.default, shimData)
+  },
+
   async onDynamicImportPluginRequireUnclaimed({ esbuild, testDir }) {
     const input = path.join(testDir, "in.js");
     const output = path.join(testDir, "out.js");

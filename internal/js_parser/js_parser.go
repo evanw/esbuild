@@ -11978,6 +11978,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}}
 			}
 
+			// This is an import with a dynamic expression. Use the string
+			// representation of the expression as the import path.
+			r := js_lexer.RangeOfCallExpr(p.source, expr.Loc)
+
 			// We need to convert this into a call to "require()" if ES6 syntax is
 			// not supported in the current output format. The full conversion:
 			//
@@ -11994,10 +11998,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// and the linker currently need an import record to handle this case
 			// correctly, and you need a string literal to get an import record.
 			if p.options.unsupportedJSFeatures.Has(compat.DynamicImport) {
+				importRecordIndex := p.addDynamicExpressionImportRecord(ast.ImportRequire, expr.Loc, p.source.TextForRange(r))
+
 				var then js_ast.Expr
 				value := p.callRuntime(arg.Loc, "__toModule", []js_ast.Expr{{Loc: expr.Loc, Data: &js_ast.ECall{
-					Target: p.valueToSubstituteForRequire(expr.Loc),
-					Args:   []js_ast.Expr{arg},
+					Target:                       p.valueToSubstituteForRequire(expr.Loc),
+					Args:                         []js_ast.Expr{arg},
+					DynamicExpressionImportIndex: &importRecordIndex,
 				}}})
 				body := js_ast.FnBody{Loc: expr.Loc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{ValueOrNil: value}}}}
 				if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
@@ -12021,9 +12028,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}}
 			}
 
-			// This is a require with a dynamic expression. Use the string
-			// representation of the expression as the import path.
-			r := js_lexer.RangeOfCallExpr(p.source, expr.Loc)
 			importRecordIndex := p.addDynamicExpressionImportRecord(ast.ImportDynamic, expr.Loc, p.source.TextForRange(r))
 
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportCall{
