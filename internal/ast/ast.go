@@ -111,12 +111,14 @@ type ImportRecord struct {
 }
 
 type DynamicExpressionImportRecord struct {
-	Range logger.Range
-	Path  logger.Path
+	Range      logger.Range
+	Expression string
 
 	// Path to the generated module that replaces the dynamic expression import.
 	// If empty, the import statement will be left as is
-	ModulePath string
+	ShimPath string
+
+	Kind ImportKind
 }
 
 type AssertEntry struct {
