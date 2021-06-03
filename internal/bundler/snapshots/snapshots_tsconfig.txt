@@ -362,6 +362,12 @@ try {
 x3?.y();
 
 ================================================================================
+TestTsconfigTargetIgnored
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+x = 123n;
+
+================================================================================
 TestTsconfigUseDefineForClassFieldsES2020
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/entry.ts

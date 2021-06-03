@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Only respect `target` in `tsconfig.json` when esbuild's target is not configured ([#1332](https://github.com/evanw/esbuild/issues/1332))
+
+    In version 0.12.4, esbuild began respecting the `target` setting in `tsconfig.json`. However, sometimes `tsconfig.json` contains target values that should not be used. With this release, esbuild will now only use the `target` value in `tsconfig.json` as the language level when esbuild's `target` setting is not configured. If esbuild's `target` setting is configured then the `target` value in `tsconfig.json` is now ignored.
+
 ## 0.12.5
 
 * Add support for lowering tagged template literals to ES5 ([#297](https://github.com/evanw/esbuild/issues/297))
