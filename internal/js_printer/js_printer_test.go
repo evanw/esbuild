@@ -916,11 +916,11 @@ func TestAvoidSlashScript(t *testing.T) {
 	expectPrintedMinify(t, "x = 1 << /script/.exec(y).length", "x=1<< /script/.exec(y).length;")
 	expectPrinted(t, "//! </script", "//! <\\/script\n")
 	expectPrinted(t, "String.raw`</script`",
-		"String.raw(__template([\"<\\/script\"], [\"<\\/script\"]));\nimport {\n  __template\n} from \"<runtime>\";\n")
+		"var _a;\nString.raw(_a || (_a = __template([\"<\\/script\"])));\nimport {\n  __template\n} from \"<runtime>\";\n")
 	expectPrinted(t, "String.raw`</script${a}`",
-		"String.raw(__template([\"<\\/script\", \"\"], [\"<\\/script\", \"\"]), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
+		"var _a;\nString.raw(_a || (_a = __template([\"<\\/script\", \"\"])), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
 	expectPrinted(t, "String.raw`${a}</script`",
-		"String.raw(__template([\"\", \"<\\/script\"], [\"\", \"<\\/script\"]), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
+		"var _a;\nString.raw(_a || (_a = __template([\"\", \"<\\/script\"])), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
 
 	// Negative cases
 	expectPrinted(t, "x = '</'", "x = \"</\";\n")

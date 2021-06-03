@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+* Improve template literal lowering transformation conformance ([#1327](https://github.com/evanw/esbuild/issues/1327))
+
+    This release contains the following improvements to template literal lowering for environments that don't support tagged template literals natively (such as `--target=es5`):
+
+    * For tagged template literals, the arrays of strings that are passed to the tag function are now frozen and immutable. They are also now cached so they should now compare identical between multiple template evaluations:
+
+        ```js
+        // Original code
+        console.log(tag`\u{10000}`)
+
+        // Old output
+        console.log(tag(__template(["𐀀"], ["\\u{10000}"])));
+
+        // New output
+        var _a;
+        console.log(tag(_a || (_a = __template(["𐀀"], ["\\u{10000}"]))));
+        ```
+
+    * For tagged template literals, the generated code size is now smaller in the common case where there are no escape sequences, since in that case there is no distinction between "raw" and "cooked" values:
+
+        ```js
+        // Original code
+        console.log(tag`some text without escape sequences`)
+
+        // Old output
+        console.log(tag(__template(["some text without escape sequences"], ["some text without escape sequences"])));
+
+        // New output
+        var _a;
+        console.log(tag(_a || (_a = __template(["some text without escape sequences"]))));
+        ```
+
+    * For non-tagged template literals, the generated code now uses chains of `.concat()` calls instead of string addition:
+
+        ```js
+        // Original code
+        console.log(`an ${example} template ${literal}`)
+
+        // Old output
+        console.log("an " + example + " template " + literal);
+
+        // New output
+        console.log("an ".concat(example, " template ").concat(literal));
+        ```
+
+        The old output was incorrect for several reasons including that `toString` must be called instead of `valueOf` for objects and that passing a `Symbol` instance should throw instead of converting the symbol to a string. Using `.concat()` instead of string addition fixes both of those correctness issues. And you can't use a single `.concat()` call because side effects must happen inline instead of at the end.
+
 * Only respect `target` in `tsconfig.json` when esbuild's target is not configured ([#1332](https://github.com/evanw/esbuild/issues/1332))
 
     In version 0.12.4, esbuild began respecting the `target` setting in `tsconfig.json`. However, sometimes `tsconfig.json` contains target values that should not be used. With this release, esbuild will now only use the `target` value in `tsconfig.json` as the language level when esbuild's `target` setting is not configured. If esbuild's `target` setting is configured then the `target` value in `tsconfig.json` is now ignored.

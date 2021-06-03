@@ -2598,46 +2598,40 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 		var value js_ast.Expr
 
 		// Handle the head
-		if len(e.HeadCooked) == 0 {
-			// "`${x}y`" => "x + 'y'"
-			part := e.Parts[0]
-			value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-				Op:   js_ast.BinOpAdd,
-				Left: part.Value,
-				Right: js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{
-					Value:          part.TailCooked,
-					LegacyOctalLoc: e.LegacyOctalLoc,
-				}},
-			}}
-			e.Parts = e.Parts[1:]
-		} else {
-			// "`x${y}`" => "'x' + y"
-			value = js_ast.Expr{Loc: loc, Data: &js_ast.EString{
-				Value:          e.HeadCooked,
-				LegacyOctalLoc: e.LegacyOctalLoc,
-			}}
-		}
+		value = js_ast.Expr{Loc: loc, Data: &js_ast.EString{
+			Value:          e.HeadCooked,
+			LegacyOctalLoc: e.LegacyOctalLoc,
+		}}
 
-		// Handle the tail
+		// Handle the tail. Each one is handled with a separate call to ".concat()"
+		// to handle various corner cases in the specification including:
+		//
+		//   * For objects, "toString" must be called instead of "valueOf"
+		//   * Side effects must happen inline instead of at the end
+		//   * Passing a "Symbol" instance should throw
+		//
 		for _, part := range e.Parts {
-			value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-				Op:    js_ast.BinOpAdd,
-				Left:  value,
-				Right: part.Value,
-			}}
+			var args []js_ast.Expr
 			if len(part.TailCooked) > 0 {
-				value = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpAdd,
-					Left:  value,
-					Right: js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: part.TailCooked}},
-				}}
+				args = []js_ast.Expr{part.Value, {Loc: part.TailLoc, Data: &js_ast.EString{Value: part.TailCooked}}}
+			} else {
+				args = []js_ast.Expr{part.Value}
 			}
+			value = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+				Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+					Target:  value,
+					Name:    "concat",
+					NameLoc: part.Value.Loc,
+				}},
+				Args: args,
+			}}
 		}
 
 		return value
 	}
 
 	// Otherwise, call the tag with the template object
+	needsRaw := false
 	cooked := []js_ast.Expr{}
 	raw := []js_ast.Expr{}
 	args := make([]js_ast.Expr, 0, 1+len(e.Parts))
@@ -2646,8 +2640,12 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 	// Handle the head
 	if e.HeadCooked == nil {
 		cooked = append(cooked, js_ast.Expr{Loc: e.HeadLoc, Data: js_ast.EUndefinedShared})
+		needsRaw = true
 	} else {
 		cooked = append(cooked, js_ast.Expr{Loc: e.HeadLoc, Data: &js_ast.EString{Value: e.HeadCooked}})
+		if !js_lexer.UTF16EqualsString(e.HeadCooked, e.HeadRaw) {
+			needsRaw = true
+		}
 	}
 	raw = append(raw, js_ast.Expr{Loc: e.HeadLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(e.HeadRaw)}})
 
@@ -2656,18 +2654,39 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 		args = append(args, part.Value)
 		if part.TailCooked == nil {
 			cooked = append(cooked, js_ast.Expr{Loc: part.TailLoc, Data: js_ast.EUndefinedShared})
+			needsRaw = true
 		} else {
 			cooked = append(cooked, js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: part.TailCooked}})
+			if !js_lexer.UTF16EqualsString(part.TailCooked, part.TailRaw) {
+				needsRaw = true
+			}
 		}
 		raw = append(raw, js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(part.TailRaw)}})
 	}
 
 	// Construct the template object
-	args[0] = p.callRuntime(e.HeadLoc, "__template", []js_ast.Expr{
-		{Loc: e.HeadLoc, Data: &js_ast.EArray{Items: cooked, IsSingleLine: true}},
-		{Loc: e.HeadLoc, Data: &js_ast.EArray{Items: raw, IsSingleLine: true}},
-	})
+	cookedArray := js_ast.Expr{Loc: e.HeadLoc, Data: &js_ast.EArray{Items: cooked, IsSingleLine: true}}
+	var arrays []js_ast.Expr
+	if needsRaw {
+		arrays = []js_ast.Expr{cookedArray, {Loc: e.HeadLoc, Data: &js_ast.EArray{Items: raw, IsSingleLine: true}}}
+	} else {
+		arrays = []js_ast.Expr{cookedArray}
+	}
+	templateObj := p.callRuntime(e.HeadLoc, "__template", arrays)
 
+	// Cache it in a temporary object (required by the specification)
+	tempRef := p.generateTopLevelTempRef()
+	args[0] = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+		Op:   js_ast.BinOpLogicalOr,
+		Left: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}},
+		Right: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+			Op:    js_ast.BinOpAssign,
+			Left:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}},
+			Right: templateObj,
+		}},
+	}}
+
+	// Call the tag function
 	return js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
 		Target: e.TagOrNil,
 		Args:   args,

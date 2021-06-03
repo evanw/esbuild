@@ -266,7 +266,7 @@ func code(isES6 bool) string {
 		}
 
 		// For lowering tagged template literals
-		export var __template = (cooked, raw) => __defProp(cooked, 'raw', { value: __freeze(raw) })
+		export var __template = (cooked, raw) => __freeze(__defProp(cooked, 'raw', { value: __freeze(raw || cooked.slice()) }))
 
 		// This helps for lowering async functions
 		export var __async = (__this, __arguments, generator) => {

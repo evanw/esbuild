@@ -213,8 +213,10 @@ type parser struct {
 	thenCatchChain thenCatchChain
 
 	// Temporary variables used for lowering
-	tempRefsToDeclare []tempRef
-	tempRefCount      int
+	tempRefsToDeclare         []tempRef
+	tempRefCount              int
+	topLevelTempRefsToDeclare []tempRef
+	topLevelTempRefCount      int
 
 	// When bundling, hoisted top-level local variables declared with "var" in
 	// nested scopes are moved up to be declared in the top-level scope instead.
@@ -6723,6 +6725,14 @@ func (p *parser) generateTempRef(declare generateTempRefArg, optionalName string
 	return ref
 }
 
+func (p *parser) generateTopLevelTempRef() js_ast.Ref {
+	ref := p.newSymbol(js_ast.SymbolOther, "_"+js_ast.DefaultNameMinifier.NumberToMinifiedName(p.topLevelTempRefCount))
+	p.topLevelTempRefsToDeclare = append(p.topLevelTempRefsToDeclare, tempRef{ref: ref})
+	p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
+	p.topLevelTempRefCount++
+	return ref
+}
+
 func (p *parser) pushScopeForVisitPass(kind js_ast.ScopeKind, loc logger.Loc) {
 	order := p.scopesInOrder[0]
 
@@ -6937,6 +6947,12 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 			})
 			p.currentScope.Generated = append(p.currentScope.Generated, *ref)
 		}
+	}
+
+	// There may also be special top-level-only temporaries to declare
+	if p.currentScope == p.moduleScope && p.topLevelTempRefsToDeclare != nil {
+		p.tempRefsToDeclare = append(p.tempRefsToDeclare, p.topLevelTempRefsToDeclare...)
+		p.topLevelTempRefsToDeclare = nil
 	}
 
 	// Prepend the generated temporary variables to the beginning of the statement list
@@ -13037,7 +13053,8 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 	p.importRecordsForCurrentPart = nil
 	p.scopesForCurrentPart = nil
 	part := js_ast.Part{
-		Stmts:      p.visitStmtsAndPrependTempRefs(stmts, prependTempRefsOpts{}),
+		Stmts: p.visitStmtsAndPrependTempRefs(stmts, prependTempRefsOpts{}),
+
 		SymbolUses: p.symbolUses,
 	}
 
