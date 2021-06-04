@@ -53,6 +53,10 @@
 
     In version 0.12.4, esbuild began respecting the `target` setting in `tsconfig.json`. However, sometimes `tsconfig.json` contains target values that should not be used. With this release, esbuild will now only use the `target` value in `tsconfig.json` as the language level when esbuild's `target` setting is not configured. If esbuild's `target` setting is configured then the `target` value in `tsconfig.json` is now ignored.
 
+* Fix the order of CSS imported from JS ([#1342](https://github.com/evanw/esbuild/pull/1342))
+
+    Importing CSS from JS when bundling causes esbuild to generate a sibling CSS output file next to the resulting JS output file containing the bundled CSS. The order of the imported CSS files in the output was accidentally the inverse order of the order in which the JS files were evaluated. Instead the order of the imported CSS files should match the order in which the JS files were evaluated. This fix was contributed by [@dmitrage](https://github.com/dmitrage).
+
 ## 0.12.5
 
 * Add support for lowering tagged template literals to ES5 ([#297](https://github.com/evanw/esbuild/issues/297))
