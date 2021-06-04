@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.6
 
 * Improve template literal lowering transformation conformance ([#1327](https://github.com/evanw/esbuild/issues/1327))
 
