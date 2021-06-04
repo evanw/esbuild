@@ -1994,7 +1994,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				if kind == classKindExportDefaultStmt {
 					class.Name = &defaultName
 				} else {
-					class.Name = &js_ast.LocRef{Loc: classLoc, Ref: p.generateTempRef(tempRefNoDeclare, "zomzomz")}
+					class.Name = &js_ast.LocRef{Loc: classLoc, Ref: p.generateTempRef(tempRefNoDeclare, "")}
 				}
 			}
 			p.recordUsage(class.Name.Ref)
@@ -2568,25 +2568,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		p.recordUsage(nameForClassDecorators.Ref)
 	}
 	if generatedLocalStmt {
+		// "export default class x {}" => "class x {} export {x as default}"
 		if kind == classKindExportDefaultStmt {
-			// Generate a new default name symbol since the current one is being used
-			// by the class. If this SExportDefault turns into a variable declaration,
-			// we don't want it to accidentally use the same variable as the class and
-			// cause a name collision.
-			defaultRef := p.generateTempRef(tempRefNoDeclare, p.source.IdentifierName+"_default")
-			p.recordDeclaredSymbol(defaultRef)
-
-			name := nameFunc()
-			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExportDefault{
-				DefaultName: js_ast.LocRef{Loc: defaultName.Loc, Ref: defaultRef},
-				Value:       js_ast.Stmt{Loc: name.Loc, Data: &js_ast.SExpr{Value: name}},
+			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExportClause{
+				Items: []js_ast.ClauseItem{{Alias: "default", Name: defaultName}},
 			}})
 		}
 
 		// Calling "nameFunc" will set the class name, but we don't want it to have
 		// one. If the class name was necessary, we would have already split it off
-		// into a "const" symbol above. Reset it back to empty here now that we
-		// know we won't call "nameFunc" after this point.
+		// into a variable above. Reset it back to empty here now that we know we
+		// won't call "nameFunc" after this point.
 		class.Name = nil
 	}
 	return stmts, js_ast.Expr{}

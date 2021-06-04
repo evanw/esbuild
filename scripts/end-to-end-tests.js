@@ -761,6 +761,14 @@
       'in.js': `const out = require('./foo'); if (out.__esModule || out.default !== 123) throw 'fail'`,
       'foo.js': `export default 123`,
     }),
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `const out = require('./foo'); if (out.__esModule || out.default !== null) throw 'fail'`,
+      'foo.js': `export default function x() {} x = null`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `const out = require('./foo'); if (out.__esModule || out.default !== null) throw 'fail'`,
+      'foo.js': `export default class x {} x = null`,
+    }),
 
     // Self export
     test(['--bundle', 'in.js', '--outfile=node.js'], {

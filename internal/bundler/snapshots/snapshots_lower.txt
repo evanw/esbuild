@@ -188,7 +188,6 @@ var loose_default = class {
     __publicField(this, "foo");
   }
 };
-var loose_default2 = loose_default;
 
 // strict/index.js
 var strict_default = class {
@@ -196,10 +195,9 @@ var strict_default = class {
     __publicField(this, "foo");
   }
 };
-var strict_default2 = strict_default;
 
 // entry.js
-console.log(loose_default2, strict_default2);
+console.log(loose_default, strict_default);
 
 ================================================================================
 TestLowerExportStarAsNameCollision
@@ -1048,7 +1046,6 @@ TestTSLowerClassFieldStrictTsconfigJson2020
 // loose/index.ts
 var loose_default = class {
 };
-var loose_default2 = loose_default;
 
 // strict/index.ts
 var strict_default = class {
@@ -1056,10 +1053,9 @@ var strict_default = class {
     __publicField(this, "foo");
   }
 };
-var strict_default2 = strict_default;
 
 // entry.js
-console.log(loose_default2, strict_default2);
+console.log(loose_default, strict_default);
 
 ================================================================================
 TestTSLowerClassPrivateFieldNextNoBundle

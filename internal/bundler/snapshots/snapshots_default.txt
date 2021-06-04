@@ -590,28 +590,26 @@ var init_commonjs = __esm({
 // c.js
 var c_exports = {};
 __export(c_exports, {
-  default: () => c_default2
+  default: () => c_default
 });
-var c_default, c_default2;
+var c_default;
 var init_c = __esm({
   "c.js"() {
     c_default = class {
     };
-    c_default2 = c_default;
   }
 });
 
 // d.js
 var d_exports = {};
 __export(d_exports, {
-  default: () => d_default
+  default: () => Foo
 });
-var Foo, d_default;
+var Foo;
 var init_d = __esm({
   "d.js"() {
     Foo = class {
     };
-    d_default = Foo;
     Foo.prop = 123;
   }
 });

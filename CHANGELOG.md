@@ -57,6 +57,10 @@
 
     Importing CSS from JS when bundling causes esbuild to generate a sibling CSS output file next to the resulting JS output file containing the bundled CSS. The order of the imported CSS files in the output was accidentally the inverse order of the order in which the JS files were evaluated. Instead the order of the imported CSS files should match the order in which the JS files were evaluated. This fix was contributed by [@dmitrage](https://github.com/dmitrage).
 
+* Fix an edge case with transforming `export default class` ([#1346](https://github.com/evanw/esbuild/issues/1346))
+
+    Statements of the form `export default class x {}` were incorrectly transformed to `class x {} var y = x; export {y as default}` instead of `class x {} export {x as default}`. Transforming these statements like this is incorrect in the rare case that the class is later reassigned by name within the same file such as `export default class x {} x = null`. Here the imported value should be `null` but was incorrectly the class object instead. This is unlikely to matter in real-world code but it has still been fixed to improve correctness.
+
 ## 0.12.5
 
 * Add support for lowering tagged template literals to ES5 ([#297](https://github.com/evanw/esbuild/issues/297))
