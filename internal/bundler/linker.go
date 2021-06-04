@@ -2809,8 +2809,8 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 	}
 
 	// Include all files reachable from any entry point
-	for _, entryPoint := range entryPoints {
-		visit(entryPoint, ast.Index32{})
+	for i := len(entryPoints) - 1; i >= 0; i = i - 1 {
+		visit(entryPoints[i], ast.Index32{})
 	}
 
 	// Reverse the order afterward when traversing in CSS order
