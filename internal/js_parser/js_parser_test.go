@@ -149,6 +149,30 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectParseErrorTargetJSX(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
+	})
+}
+
+func expectPrintedTargetJSX(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
+	})
+}
+
 func TestBinOp(t *testing.T) {
 	for code, entry := range js_ast.OpTable {
 		opCode := js_ast.OpCode(code)
@@ -4606,8 +4630,8 @@ func TestES5(t *testing.T) {
 }
 
 func TestASCIIOnly(t *testing.T) {
-	es5 := "<stdin>: error: \"𐀀\" cannot be escaped in the target environment " +
-		"(consider setting the charset to \"utf8\" or changing the target)\n"
+	es5 := "<stdin>: error: \"𐀀\" cannot be escaped in the configured target environment " +
+		"but you can set the charset to \"utf8\" to allow unescaped Unicode characters\n"
 
 	// Some context: "π" is in the BMP (i.e. has a code point ≤0xFFFF) and "𐀀" is
 	// not in the BMP (i.e. has a code point >0xFFFF). This distinction matters
@@ -4752,4 +4776,25 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedASCII(t, "export var 𐀀", "export var \\u{10000};\n")
 	expectPrintedTargetASCII(t, 5, "export var π", "export var \\u03C0;\n")
 	expectParseErrorTargetASCII(t, 5, "export var 𐀀", es5)
+}
+
+func TestUpdatedIdentifiers(t *testing.T) {
+	// Some context: The text "ꓷꓶꓲꓵꓭꓢꓱ" is all non-BMP code points and is a valid
+	// identifier in ES6+ but not in ES5. It must either be quoted or forbidden
+	// when it's used in ES5.
+
+	expectPrinted(t, "x.ꓷꓶꓲꓵꓭꓢꓱ", "x.ꓷꓶꓲꓵꓭꓢꓱ;\n")
+	expectPrinted(t, "var ꓷꓶꓲꓵꓭꓢꓱ", "var ꓷꓶꓲꓵꓭꓢꓱ;\n")
+	expectPrintedTarget(t, 5, "x.ꓷꓶꓲꓵꓭꓢꓱ", "x[\"ꓷꓶꓲꓵꓭꓢꓱ\"];\n")
+	expectPrintedTarget(t, 5, "x = {ꓷꓶꓲꓵꓭꓢꓱ: 0}", "x = { \"ꓷꓶꓲꓵꓭꓢꓱ\": 0 };\n")
+	expectParseErrorTarget(t, 5, "ꓷꓶꓲꓵꓭꓢꓱ",
+		"<stdin>: error: \"ꓷꓶꓲꓵꓭꓢꓱ\" is not considered a valid identifier in the configured target environment\n")
+	expectParseErrorTarget(t, 5, "var ꓷꓶꓲꓵꓭꓢꓱ",
+		"<stdin>: error: \"ꓷꓶꓲꓵꓭꓢꓱ\" is not considered a valid identifier in the configured target environment\n")
+
+	expectPrintedJSX(t, "<x ꓷꓶꓲꓵꓭꓢꓱ/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  ꓷꓶꓲꓵꓭꓢꓱ: true\n});\n")
+	expectPrintedJSX(t, "<ꓷꓶꓲꓵꓭꓢꓱ/>", "/* @__PURE__ */ React.createElement(ꓷꓶꓲꓵꓭꓢꓱ, null);\n")
+	expectPrintedTargetJSX(t, 5, "<x ꓷꓶꓲꓵꓭꓢꓱ/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  \"ꓷꓶꓲꓵꓭꓢꓱ\": true\n});\n")
+	expectParseErrorTargetJSX(t, 5, "<ꓷꓶꓲꓵꓭꓢꓱ/>",
+		"<stdin>: error: \"ꓷꓶꓲꓵꓭꓢꓱ\" is not considered a valid identifier in the configured target environment\n")
 }

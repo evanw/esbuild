@@ -33,44 +33,44 @@ import (
 // to have at least two separate passes to handle variable hoisting. See the
 // comment about scopesInOrder below for more information.
 type parser struct {
-	options                  Options
-	log                      logger.Log
-	source                   logger.Source
-	tracker                  logger.LineColumnTracker
-	lexer                    js_lexer.Lexer
-	allowIn                  bool
-	allowPrivateIdentifiers  bool
-	hasTopLevelReturn        bool
-	latestReturnHadSemicolon bool
-	hasImportMeta            bool
-	hasESModuleSyntax        bool
-	warnedThisIsUndefined    bool
-	topLevelAwaitKeyword     logger.Range
-	fnOrArrowDataParse       fnOrArrowDataParse
-	fnOrArrowDataVisit       fnOrArrowDataVisit
-	fnOnlyDataVisit          fnOnlyDataVisit
-	allocatedNames           []string
-	latestArrowArgLoc        logger.Loc
-	forbidSuffixAfterAsLoc   logger.Loc
-	currentScope             *js_ast.Scope
-	scopesForCurrentPart     []*js_ast.Scope
-	symbols                  []js_ast.Symbol
-	tsUseCounts              []uint32
-	exportsRef               js_ast.Ref
-	requireRef               js_ast.Ref
-	moduleRef                js_ast.Ref
-	importMetaRef            js_ast.Ref
-	promiseRef               js_ast.Ref
-	findSymbolHelper         func(loc logger.Loc, name string) js_ast.Ref
-	symbolForDefineHelper    func(int) js_ast.Ref
-	injectedDefineSymbols    []js_ast.Ref
-	injectedSymbolSources    map[js_ast.Ref]injectedSymbolSource
-	symbolUses               map[js_ast.Ref]js_ast.SymbolUse
-	declaredSymbols          []js_ast.DeclaredSymbol
-	runtimeImports           map[string]js_ast.Ref
-	duplicateCaseChecker     duplicateCaseChecker
-	nonBMPIdentifiers        map[string]bool
-	legacyOctalLiterals      map[js_ast.E]logger.Range
+	options                    Options
+	log                        logger.Log
+	source                     logger.Source
+	tracker                    logger.LineColumnTracker
+	lexer                      js_lexer.Lexer
+	allowIn                    bool
+	allowPrivateIdentifiers    bool
+	hasTopLevelReturn          bool
+	latestReturnHadSemicolon   bool
+	hasImportMeta              bool
+	hasESModuleSyntax          bool
+	warnedThisIsUndefined      bool
+	topLevelAwaitKeyword       logger.Range
+	fnOrArrowDataParse         fnOrArrowDataParse
+	fnOrArrowDataVisit         fnOrArrowDataVisit
+	fnOnlyDataVisit            fnOnlyDataVisit
+	allocatedNames             []string
+	latestArrowArgLoc          logger.Loc
+	forbidSuffixAfterAsLoc     logger.Loc
+	currentScope               *js_ast.Scope
+	scopesForCurrentPart       []*js_ast.Scope
+	symbols                    []js_ast.Symbol
+	tsUseCounts                []uint32
+	exportsRef                 js_ast.Ref
+	requireRef                 js_ast.Ref
+	moduleRef                  js_ast.Ref
+	importMetaRef              js_ast.Ref
+	promiseRef                 js_ast.Ref
+	findSymbolHelper           func(loc logger.Loc, name string) js_ast.Ref
+	symbolForDefineHelper      func(int) js_ast.Ref
+	injectedDefineSymbols      []js_ast.Ref
+	injectedSymbolSources      map[js_ast.Ref]injectedSymbolSource
+	symbolUses                 map[js_ast.Ref]js_ast.SymbolUse
+	declaredSymbols            []js_ast.DeclaredSymbol
+	runtimeImports             map[string]js_ast.Ref
+	duplicateCaseChecker       duplicateCaseChecker
+	unrepresentableIdentifiers map[string]bool
+	legacyOctalLiterals        map[js_ast.E]logger.Range
 
 	// For strict mode handling
 	hoistedRefForSloppyModeBlockFn map[js_ast.Ref]js_ast.Ref
@@ -1381,7 +1381,7 @@ func (p *parser) canMergeSymbols(scope *js_ast.Scope, existing js_ast.SymbolKind
 }
 
 func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name string) js_ast.Ref {
-	p.checkForNonBMPCodePoint(loc, name)
+	p.checkForUnrepresentableIdentifier(loc, name)
 
 	// Allocate a new symbol
 	ref := p.newSymbol(kind, name)
@@ -4636,7 +4636,7 @@ func (p *parser) parseClauseAlias(kind string) string {
 	}
 
 	alias := p.lexer.Identifier
-	p.checkForNonBMPCodePoint(loc, alias)
+	p.checkForUnrepresentableIdentifier(loc, alias)
 	return alias
 }
 
@@ -6341,7 +6341,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			for i, item := range *stmt.Items {
 				name := p.loadNameFromRef(item.Name.Ref)
 				ref := p.declareSymbol(js_ast.SymbolImport, item.Name.Loc, name)
-				p.checkForNonBMPCodePoint(item.AliasLoc, item.Alias)
+				p.checkForUnrepresentableIdentifier(item.AliasLoc, item.Alias)
 				p.isImportItem[ref] = true
 				(*stmt.Items)[i].Name.Ref = ref
 				itemRefs[item.Alias] = js_ast.LocRef{Loc: item.Name.Loc, Ref: ref}
@@ -6785,7 +6785,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 		s = s.Parent
 		if s == nil {
 			// Allocate an "unbound" symbol
-			p.checkForNonBMPCodePoint(loc, name)
+			p.checkForUnrepresentableIdentifier(loc, name)
 			ref = p.newSymbol(js_ast.SymbolUnbound, name)
 			declareLoc = loc
 			p.moduleScope.Members[name] = js_ast.ScopeMember{Ref: ref, Loc: logger.Loc{Start: -1}}
@@ -9107,7 +9107,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				value.ValueOrNil = js_ast.Expr{Loc: value.Loc, Data: js_ast.EUndefinedShared}
 			}
 
-			if p.options.mangleSyntax && js_lexer.IsIdentifier(name) {
+			if p.options.mangleSyntax && js_lexer.IsIdentifier(name, 0) {
 				// "Enum.Name = value"
 				assignTarget = js_ast.Assign(
 					js_ast.Expr{Loc: value.Loc, Data: &js_ast.EDot{
@@ -9561,7 +9561,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 
 			// "class {['x'] = y}" => "class {x = y}"
 			if p.options.mangleSyntax && property.IsComputed {
-				if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
+				if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value, 0) {
 					isInvalidConstructor := false
 					if js_lexer.UTF16EqualsString(str.Value, "constructor") {
 						if !property.IsMethod {
@@ -9821,17 +9821,29 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 	return value
 }
 
-func (p *parser) checkForNonBMPCodePoint(loc logger.Loc, name string) {
+func (p *parser) checkForUnrepresentableIdentifier(loc logger.Loc, name string) {
 	if p.options.asciiOnly && p.options.unsupportedJSFeatures.Has(compat.UnicodeEscapes) &&
 		js_lexer.ContainsNonBMPCodePoint(name) {
-		if p.nonBMPIdentifiers == nil {
-			p.nonBMPIdentifiers = make(map[string]bool)
+		if p.unrepresentableIdentifiers == nil {
+			p.unrepresentableIdentifiers = make(map[string]bool)
 		}
-		if !p.nonBMPIdentifiers[name] {
-			p.nonBMPIdentifiers[name] = true
+		if !p.unrepresentableIdentifiers[name] {
+			p.unrepresentableIdentifiers[name] = true
+			where, notes := p.prettyPrintTargetEnvironment(compat.UpdatedIdentifiers)
 			r := js_lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddRangeError(&p.tracker, r, fmt.Sprintf("%q cannot be escaped in the target environment ("+
-				"consider setting the charset to \"utf8\" or changing the target)", name))
+			p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf("%q cannot be escaped in %s but you "+
+				"can set the charset to \"utf8\" to allow unescaped Unicode characters", name, where), notes)
+		}
+	} else if p.options.unsupportedJSFeatures.Has(compat.UpdatedIdentifiers) && !strings.HasPrefix(name, "#") &&
+		!js_lexer.IsIdentifier(name, p.options.unsupportedJSFeatures) {
+		if p.unrepresentableIdentifiers == nil {
+			p.unrepresentableIdentifiers = make(map[string]bool)
+		}
+		if !p.unrepresentableIdentifiers[name] {
+			p.unrepresentableIdentifiers[name] = true
+			where, notes := p.prettyPrintTargetEnvironment(compat.UpdatedIdentifiers)
+			r := js_lexer.RangeOfIdentifier(p.source, loc)
+			p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf("%q is not considered a valid identifier in %s", name, where), notes)
 		}
 	}
 }
@@ -11263,7 +11275,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// "a['b']" => "a.b"
 		if p.options.mangleSyntax {
-			if str, ok := e.Index.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
+			if str, ok := e.Index.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value, 0) {
 				dot := &js_ast.EDot{
 					Target:        e.Target,
 					Name:          js_lexer.UTF16ToString(str.Value),
@@ -11747,7 +11759,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				// "{['x']: y}" => "{x: y}"
 				if p.options.mangleSyntax && property.IsComputed {
-					if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) && !js_lexer.UTF16EqualsString(str.Value, "__proto__") {
+					if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value, 0) && !js_lexer.UTF16EqualsString(str.Value, "__proto__") {
 						property.IsComputed = false
 					}
 				}
@@ -13861,7 +13873,7 @@ func ParseJSXExpr(text string, kind JSXExprKind) (config.JSXExpr, bool) {
 	// Try a property chain
 	parts := strings.Split(text, ".")
 	for _, part := range parts {
-		if !js_lexer.IsIdentifier(part) {
+		if !js_lexer.IsIdentifier(part, 0) {
 			parts = nil
 			break
 		}

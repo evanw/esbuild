@@ -1646,7 +1646,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		clone.Properties = append(make([]js_ast.Property, 0, len(clone.Properties)), clone.Properties...)
 		for i, property := range clone.Properties {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok &&
-				(!file.IsEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value) ||
+				(!file.IsEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value, 0) ||
 					!c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames)) {
 				name := js_lexer.UTF16ToString(str.Value)
 				exportRef := generateExport(name, name, property.ValueOrNil).ref
@@ -4168,7 +4168,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	}
 
 	// When we're not minifying, just append numbers to symbol names to avoid collisions
-	r := renamer.NewNumberRenamer(c.graph.Symbols, reservedNames)
+	r := renamer.NewNumberRenamer(c.graph.Symbols, reservedNames, c.options.UnsupportedJSFeatures)
 	nestedScopes := make(map[uint32][]*js_ast.Scope)
 
 	timer.Begin("Add top-level symbols")

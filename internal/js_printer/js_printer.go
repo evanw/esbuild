@@ -805,7 +805,7 @@ func (p *printer) printSymbol(ref js_ast.Ref) {
 }
 
 func (p *printer) printClauseAlias(alias string) {
-	if js_lexer.IsIdentifier(alias) {
+	if js_lexer.IsIdentifier(alias, p.options.UnsupportedFeatures) {
 		p.printSpaceBeforeIdentifier()
 		p.printIdentifier(alias)
 	} else {
@@ -814,19 +814,19 @@ func (p *printer) printClauseAlias(alias string) {
 }
 
 func CanQuoteIdentifier(name string, unsupportedJSFeatures compat.JSFeature, asciiOnly bool) bool {
-	return js_lexer.IsIdentifier(name) && (!asciiOnly ||
+	return js_lexer.IsIdentifier(name, unsupportedJSFeatures) && (!asciiOnly ||
 		!unsupportedJSFeatures.Has(compat.UnicodeEscapes) ||
 		!js_lexer.ContainsNonBMPCodePoint(name))
 }
 
 func (p *printer) canPrintIdentifier(name string) bool {
-	return js_lexer.IsIdentifier(name) && (!p.options.ASCIIOnly ||
+	return js_lexer.IsIdentifier(name, p.options.UnsupportedFeatures) && (!p.options.ASCIIOnly ||
 		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
 		!js_lexer.ContainsNonBMPCodePoint(name))
 }
 
 func (p *printer) canPrintIdentifierUTF16(name []uint16) bool {
-	return js_lexer.IsIdentifierUTF16(name) && (!p.options.ASCIIOnly ||
+	return js_lexer.IsIdentifierUTF16(name, p.options.UnsupportedFeatures) && (!p.options.ASCIIOnly ||
 		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
 		!js_lexer.ContainsNonBMPCodePointUTF16(name))
 }
@@ -1058,7 +1058,7 @@ func (p *printer) printSemicolonIfNeeded() {
 func (p *printer) printSpaceBeforeIdentifier() {
 	buffer := p.js
 	n := len(buffer)
-	if n > 0 && (js_lexer.IsIdentifierContinue(rune(buffer[n-1])) || n == p.prevRegExpEnd) {
+	if n > 0 && (js_lexer.IsIdentifierContinue(rune(buffer[n-1]), 0) || n == p.prevRegExpEnd) {
 		p.print(" ")
 	}
 }

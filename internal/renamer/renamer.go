@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 )
@@ -386,12 +387,13 @@ func (a slotAndCountArray) Less(i int, j int) bool {
 // NumberRenamer
 
 type NumberRenamer struct {
-	symbols js_ast.SymbolMap
-	names   [][]string
-	root    numberScope
+	symbols               js_ast.SymbolMap
+	names                 [][]string
+	root                  numberScope
+	unsupportedJSFeatures compat.JSFeature
 }
 
-func NewNumberRenamer(symbols js_ast.SymbolMap, reservedNames map[string]uint32) *NumberRenamer {
+func NewNumberRenamer(symbols js_ast.SymbolMap, reservedNames map[string]uint32, unsupportedJSFeatures compat.JSFeature) *NumberRenamer {
 	return &NumberRenamer{
 		symbols: symbols,
 		names:   make([][]string, len(symbols.SymbolsForSource)),
@@ -437,7 +439,7 @@ func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
 	}
 
 	// Compute a new name
-	name := scope.findUnusedName(originalName)
+	name := scope.findUnusedName(originalName, r.unsupportedJSFeatures)
 
 	// Store the new name
 	if inner == nil {
@@ -534,8 +536,8 @@ func (s *numberScope) findNameUse(name string) nameUse {
 	}
 }
 
-func (s *numberScope) findUnusedName(name string) string {
-	name = js_lexer.ForceValidIdentifier(name)
+func (s *numberScope) findUnusedName(name string, unsupportedJSFeatures compat.JSFeature) string {
+	name = js_lexer.ForceValidIdentifier(name, unsupportedJSFeatures)
 
 	if use := s.findNameUse(name); use != nameUnused {
 		// If the name is already in use, generate a new name by appending a number

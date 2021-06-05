@@ -842,7 +842,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 		p.lexer.Next()
 
 		// Identifiers can be referenced by other values
-		if !opts.isTypeScriptDeclare && js_lexer.IsIdentifierUTF16(value.Name) {
+		if !opts.isTypeScriptDeclare && js_lexer.IsIdentifierUTF16(value.Name, 0) {
 			value.Ref = p.declareSymbol(js_ast.SymbolOther, value.Loc, js_lexer.UTF16ToString(value.Name))
 		}
 

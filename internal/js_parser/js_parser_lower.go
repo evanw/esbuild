@@ -14,6 +14,19 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
+func (p *parser) prettyPrintTargetEnvironment(feature compat.JSFeature) (where string, notes []logger.MsgData) {
+	where = "the configured target environment"
+	if tsTarget := p.options.tsTarget; tsTarget != nil && tsTarget.UnsupportedJSFeatures.Has(feature) {
+		tracker := logger.MakeLineColumnTracker(&tsTarget.Source)
+		where = fmt.Sprintf("%s (%q)", where, tsTarget.Target)
+		notes = []logger.MsgData{logger.RangeData(&tracker, tsTarget.Range, fmt.Sprintf(
+			"The target environment was set to %q here", tsTarget.Target))}
+	} else if p.options.originalTargetEnv != "" {
+		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
+	}
+	return
+}
+
 func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (didGenerateError bool) {
 	didGenerateError = true
 
@@ -29,17 +42,7 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	}
 
 	var name string
-	var notes []logger.MsgData
-	where := "the configured target environment"
-
-	if tsTarget := p.options.tsTarget; tsTarget != nil && tsTarget.UnsupportedJSFeatures.Has(feature) {
-		tracker := logger.MakeLineColumnTracker(&tsTarget.Source)
-		where = fmt.Sprintf("%s (%q)", where, tsTarget.Target)
-		notes = []logger.MsgData{logger.RangeData(&tracker, tsTarget.Range, fmt.Sprintf(
-			"The target environment was set to %q here", tsTarget.Target))}
-	} else if p.options.originalTargetEnv != "" {
-		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
-	}
+	where, notes := p.prettyPrintTargetEnvironment(feature)
 
 	switch feature {
 	case compat.DefaultArgument:

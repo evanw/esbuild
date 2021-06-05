@@ -438,7 +438,7 @@ func validateDefines(
 	for key, value := range defines {
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
-			if !js_lexer.IsIdentifier(part) {
+			if !js_lexer.IsIdentifier(part, 0) {
 				if part == key {
 					log.AddError(nil, logger.Loc{}, fmt.Sprintf("The define key %q must be a valid identifier", key))
 				} else {
@@ -449,7 +449,7 @@ func validateDefines(
 		}
 
 		// Allow substituting for an identifier
-		if js_lexer.IsIdentifier(value) {
+		if js_lexer.IsIdentifier(value, 0) {
 			if _, ok := js_lexer.Keywords[value]; !ok {
 				name := value // The closure must close over a variable inside the loop
 				rawDefines[key] = config.DefineData{
@@ -538,7 +538,7 @@ func validateDefines(
 	for _, key := range pureFns {
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
-			if !js_lexer.IsIdentifier(part) {
+			if !js_lexer.IsIdentifier(part, 0) {
 				log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid pure function: %q", key))
 				continue
 			}

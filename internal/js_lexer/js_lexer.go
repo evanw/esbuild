@@ -20,6 +20,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
 )
@@ -559,17 +560,17 @@ func (lexer *Lexer) maybeExpandEquals() {
 	}
 }
 
-func IsIdentifier(text string) bool {
+func IsIdentifier(text string, unsupportedJSFeatures compat.JSFeature) bool {
 	if len(text) == 0 {
 		return false
 	}
 	for i, codePoint := range text {
 		if i == 0 {
-			if !IsIdentifierStart(codePoint) {
+			if !IsIdentifierStart(codePoint, unsupportedJSFeatures) {
 				return false
 			}
 		} else {
-			if !IsIdentifierContinue(codePoint) {
+			if !IsIdentifierContinue(codePoint, unsupportedJSFeatures) {
 				return false
 			}
 		}
@@ -577,8 +578,8 @@ func IsIdentifier(text string) bool {
 	return true
 }
 
-func ForceValidIdentifier(text string) string {
-	if IsIdentifier(text) {
+func ForceValidIdentifier(text string, unsupportedJSFeatures compat.JSFeature) string {
+	if IsIdentifier(text, unsupportedJSFeatures) {
 		return text
 	}
 	sb := strings.Builder{}
@@ -586,7 +587,7 @@ func ForceValidIdentifier(text string) string {
 	// Identifier start
 	c, width := utf8.DecodeRuneInString(text)
 	text = text[width:]
-	if IsIdentifierStart(c) {
+	if IsIdentifierStart(c, unsupportedJSFeatures) {
 		sb.WriteRune(c)
 	} else {
 		sb.WriteRune('_')
@@ -596,7 +597,7 @@ func ForceValidIdentifier(text string) string {
 	for text != "" {
 		c, width := utf8.DecodeRuneInString(text)
 		text = text[width:]
-		if IsIdentifierContinue(c) {
+		if IsIdentifierContinue(c, unsupportedJSFeatures) {
 			sb.WriteRune(c)
 		} else {
 			sb.WriteRune('_')
@@ -607,7 +608,7 @@ func ForceValidIdentifier(text string) string {
 }
 
 // This does "IsIdentifier(UTF16ToString(text))" without any allocations
-func IsIdentifierUTF16(text []uint16) bool {
+func IsIdentifierUTF16(text []uint16, unsupportedJSFeatures compat.JSFeature) bool {
 	n := len(text)
 	if n == 0 {
 		return false
@@ -622,11 +623,11 @@ func IsIdentifierUTF16(text []uint16) bool {
 			}
 		}
 		if isStart {
-			if !IsIdentifierStart(r1) {
+			if !IsIdentifierStart(r1, unsupportedJSFeatures) {
 				return false
 			}
 		} else {
-			if !IsIdentifierContinue(r1) {
+			if !IsIdentifierContinue(r1, unsupportedJSFeatures) {
 				return false
 			}
 		}
@@ -634,7 +635,7 @@ func IsIdentifierUTF16(text []uint16) bool {
 	return true
 }
 
-func IsIdentifierStart(codePoint rune) bool {
+func IsIdentifierStart(codePoint rune, unsupportedJSFeatures compat.JSFeature) bool {
 	switch codePoint {
 	case '_', '$',
 		'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
@@ -649,10 +650,14 @@ func IsIdentifierStart(codePoint rune) bool {
 		return false
 	}
 
-	return unicode.Is(idStart, codePoint)
+	if unsupportedJSFeatures.Has(compat.UpdatedIdentifiers) {
+		return unicode.Is(idStartES5, codePoint)
+	} else {
+		return unicode.Is(idStart, codePoint)
+	}
 }
 
-func IsIdentifierContinue(codePoint rune) bool {
+func IsIdentifierContinue(codePoint rune, unsupportedJSFeatures compat.JSFeature) bool {
 	switch codePoint {
 	case '_', '$', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 		'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
@@ -672,7 +677,11 @@ func IsIdentifierContinue(codePoint rune) bool {
 		return true
 	}
 
-	return unicode.Is(idContinue, codePoint)
+	if unsupportedJSFeatures.Has(compat.UpdatedIdentifiers) {
+		return unicode.Is(idContinueES5, codePoint)
+	} else {
+		return unicode.Is(idContinue, codePoint)
+	}
 }
 
 // See the "White Space Code Points" table in the ECMAScript standard
@@ -725,7 +734,7 @@ func RangeOfIdentifier(source logger.Source, loc logger.Loc) logger.Range {
 		c, _ = utf8.DecodeRuneInString(text[i:])
 	}
 
-	if IsIdentifierStart(c) || c == '\\' {
+	if IsIdentifierStart(c, 0) || c == '\\' {
 		// Search for the end of the identifier
 		for i < len(text) {
 			c2, width2 := utf8.DecodeRuneInString(text[i:])
@@ -743,7 +752,7 @@ func RangeOfIdentifier(source logger.Source, loc logger.Loc) logger.Range {
 						i++
 					}
 				}
-			} else if !IsIdentifierContinue(c2) {
+			} else if !IsIdentifierContinue(c2, 0) {
 				return logger.Range{Loc: loc, Len: int32(i)}
 			} else {
 				i += width2
@@ -1001,9 +1010,9 @@ func (lexer *Lexer) NextInsideJSXElement() {
 				continue
 			}
 
-			if IsIdentifierStart(lexer.codePoint) {
+			if IsIdentifierStart(lexer.codePoint, 0) {
 				lexer.step()
-				for IsIdentifierContinue(lexer.codePoint) || lexer.codePoint == '-' {
+				for IsIdentifierContinue(lexer.codePoint, 0) || lexer.codePoint == '-' {
 					lexer.step()
 				}
 
@@ -1013,9 +1022,9 @@ func (lexer *Lexer) NextInsideJSXElement() {
 				// can't use this feature to reference JavaScript identifiers.
 				if lexer.codePoint == ':' {
 					lexer.step()
-					if IsIdentifierStart(lexer.codePoint) {
+					if IsIdentifierStart(lexer.codePoint, 0) {
 						lexer.step()
-						for IsIdentifierContinue(lexer.codePoint) || lexer.codePoint == '-' {
+						for IsIdentifierContinue(lexer.codePoint, 0) || lexer.codePoint == '-' {
 							lexer.step()
 						}
 					} else {
@@ -1073,11 +1082,11 @@ func (lexer *Lexer) Next() {
 				if lexer.codePoint == '\\' {
 					lexer.Identifier, _ = lexer.scanIdentifierWithEscapes(privateIdentifier)
 				} else {
-					if !IsIdentifierStart(lexer.codePoint) {
+					if !IsIdentifierStart(lexer.codePoint, 0) {
 						lexer.SyntaxError()
 					}
 					lexer.step()
-					for IsIdentifierContinue(lexer.codePoint) {
+					for IsIdentifierContinue(lexer.codePoint, 0) {
 						lexer.step()
 					}
 					if lexer.codePoint == '\\' {
@@ -1592,7 +1601,7 @@ func (lexer *Lexer) Next() {
 			'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
 			'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z':
 			lexer.step()
-			for IsIdentifierContinue(lexer.codePoint) {
+			for IsIdentifierContinue(lexer.codePoint, 0) {
 				lexer.step()
 			}
 			if lexer.codePoint == '\\' {
@@ -1619,9 +1628,9 @@ func (lexer *Lexer) Next() {
 				continue
 			}
 
-			if IsIdentifierStart(lexer.codePoint) {
+			if IsIdentifierStart(lexer.codePoint, 0) {
 				lexer.step()
-				for IsIdentifierContinue(lexer.codePoint) {
+				for IsIdentifierContinue(lexer.codePoint, 0) {
 					lexer.step()
 				}
 				if lexer.codePoint == '\\' {
@@ -1692,7 +1701,7 @@ func (lexer *Lexer) scanIdentifierWithEscapes(kind identifierKind) (string, T) {
 		}
 
 		// Stop when we reach the end of the identifier
-		if !IsIdentifierContinue(lexer.codePoint) {
+		if !IsIdentifierContinue(lexer.codePoint, 0) {
 			break
 		}
 		lexer.step()
@@ -1711,7 +1720,7 @@ func (lexer *Lexer) scanIdentifierWithEscapes(kind identifierKind) (string, T) {
 	if kind == privateIdentifier {
 		identifier = identifier[1:] // Skip over the "#"
 	}
-	if !IsIdentifier(identifier) {
+	if !IsIdentifier(identifier, 0) {
 		lexer.addRangeError(logger.Range{Loc: logger.Loc{Start: int32(lexer.start)}, Len: int32(lexer.end - lexer.start)},
 			fmt.Sprintf("Invalid identifier: %q", text))
 	}
@@ -2029,7 +2038,7 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 	}
 
 	// Identifiers can't occur immediately after numbers
-	if IsIdentifierStart(lexer.codePoint) {
+	if IsIdentifierStart(lexer.codePoint, 0) {
 		lexer.SyntaxError()
 	}
 }
@@ -2058,7 +2067,7 @@ func (lexer *Lexer) ScanRegExp() {
 		case '/':
 			lexer.step()
 			bits := uint32(0)
-			for IsIdentifierContinue(lexer.codePoint) {
+			for IsIdentifierContinue(lexer.codePoint, 0) {
 				switch lexer.codePoint {
 				case 'g', 'i', 'm', 's', 'u', 'y':
 					bit := uint32(1) << uint32(lexer.codePoint-'a')
@@ -2528,7 +2537,7 @@ func hasPrefixWithWordBoundary(text string, prefix string) bool {
 			return true
 		}
 		c, _ := utf8.DecodeRuneInString(text[p:])
-		if !IsIdentifierContinue(c) {
+		if !IsIdentifierContinue(c, 0) {
 			return true
 		}
 	}

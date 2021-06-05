@@ -79,6 +79,7 @@ const (
 	TemplateLiteral
 	TopLevelAwait
 	UnicodeEscapes
+	UpdatedIdentifiers
 )
 
 func (features JSFeature) Has(feature JSFeature) bool {
@@ -416,6 +417,15 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		IOS:     {9},
 		Node:    {4},
 		Safari:  {9},
+	},
+	UpdatedIdentifiers: {
+		Chrome:  {58},
+		Edge:    {14},
+		ES:      {2015},
+		Firefox: {52},
+		IOS:     {14},
+		Node:    {8},
+		Safari:  {14},
 	},
 }
 
