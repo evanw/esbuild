@@ -2163,20 +2163,12 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 type runtimeCacheKey struct {
 	MangleSyntax      bool
 	MinifyIdentifiers bool
-	ProfilerNames     bool
 	ES6               bool
-}
-
-type definesCacheKey struct {
-	profilerNames bool
 }
 
 type runtimeCache struct {
 	astMutex sync.Mutex
 	astMap   map[runtimeCacheKey]js_ast.AST
-
-	definesMutex sync.Mutex
-	definesMap   map[definesCacheKey]*config.ProcessedDefines
 }
 
 var globalRuntimeCache runtimeCache
@@ -2186,7 +2178,6 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		// All configuration options that the runtime code depends on must go here
 		MangleSyntax:      options.MangleSyntax,
 		MinifyIdentifiers: options.MinifyIdentifiers,
-		ProfilerNames:     options.ProfilerNames,
 		ES6:               runtime.CanUseES6(options.UnsupportedJSFeatures),
 	}
 
@@ -2221,9 +2212,6 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		// These configuration options must only depend on the key
 		MangleSyntax:      key.MangleSyntax,
 		MinifyIdentifiers: key.MinifyIdentifiers,
-		Defines: cache.processedDefines(definesCacheKey{
-			profilerNames: key.ProfilerNames,
-		}),
 		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(
 			map[compat.Engine][]int{compat.ES: {constraint}}),
 
@@ -2248,40 +2236,5 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		}
 		cache.astMap[key] = runtimeAST
 	}
-	return
-}
-
-func (cache *runtimeCache) processedDefines(key definesCacheKey) (defines *config.ProcessedDefines) {
-	ok := false
-
-	// Cache hit?
-	(func() {
-		cache.definesMutex.Lock()
-		defer cache.definesMutex.Unlock()
-		if cache.definesMap != nil {
-			defines, ok = cache.definesMap[key]
-		}
-	})()
-	if ok {
-		return
-	}
-
-	// Cache miss
-	result := config.ProcessDefines(map[string]config.DefineData{
-		"__profiler": {
-			DefineFunc: func(da config.DefineArgs) js_ast.E {
-				return &js_ast.EBoolean{Value: key.profilerNames}
-			},
-		},
-	})
-	defines = &result
-
-	// Cache for next time
-	cache.definesMutex.Lock()
-	defer cache.definesMutex.Unlock()
-	if cache.definesMap == nil {
-		cache.definesMap = make(map[definesCacheKey]*config.ProcessedDefines)
-	}
-	cache.definesMap[key] = defines
 	return
 }
