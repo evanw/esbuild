@@ -9107,7 +9107,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				value.ValueOrNil = js_ast.Expr{Loc: value.Loc, Data: js_ast.EUndefinedShared}
 			}
 
-			if p.options.mangleSyntax && js_lexer.IsIdentifier(name, 0) {
+			if p.options.mangleSyntax && js_lexer.IsIdentifier(name) {
 				// "Enum.Name = value"
 				assignTarget = js_ast.Assign(
 					js_ast.Expr{Loc: value.Loc, Data: &js_ast.EDot{
@@ -9561,7 +9561,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 
 			// "class {['x'] = y}" => "class {x = y}"
 			if p.options.mangleSyntax && property.IsComputed {
-				if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value, 0) {
+				if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
 					isInvalidConstructor := false
 					if js_lexer.UTF16EqualsString(str.Value, "constructor") {
 						if !property.IsMethod {
@@ -9829,21 +9829,10 @@ func (p *parser) checkForUnrepresentableIdentifier(loc logger.Loc, name string) 
 		}
 		if !p.unrepresentableIdentifiers[name] {
 			p.unrepresentableIdentifiers[name] = true
-			where, notes := p.prettyPrintTargetEnvironment(compat.UpdatedIdentifiers)
+			where, notes := p.prettyPrintTargetEnvironment(compat.UnicodeEscapes)
 			r := js_lexer.RangeOfIdentifier(p.source, loc)
 			p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf("%q cannot be escaped in %s but you "+
 				"can set the charset to \"utf8\" to allow unescaped Unicode characters", name, where), notes)
-		}
-	} else if p.options.unsupportedJSFeatures.Has(compat.UpdatedIdentifiers) && !strings.HasPrefix(name, "#") &&
-		!js_lexer.IsIdentifier(name, p.options.unsupportedJSFeatures) {
-		if p.unrepresentableIdentifiers == nil {
-			p.unrepresentableIdentifiers = make(map[string]bool)
-		}
-		if !p.unrepresentableIdentifiers[name] {
-			p.unrepresentableIdentifiers[name] = true
-			where, notes := p.prettyPrintTargetEnvironment(compat.UpdatedIdentifiers)
-			r := js_lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf("%q is not considered a valid identifier in %s", name, where), notes)
 		}
 	}
 }
@@ -11275,7 +11264,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// "a['b']" => "a.b"
 		if p.options.mangleSyntax {
-			if str, ok := e.Index.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value, 0) {
+			if str, ok := e.Index.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
 				dot := &js_ast.EDot{
 					Target:        e.Target,
 					Name:          js_lexer.UTF16ToString(str.Value),
@@ -11759,7 +11748,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				// "{['x']: y}" => "{x: y}"
 				if p.options.mangleSyntax && property.IsComputed {
-					if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value, 0) && !js_lexer.UTF16EqualsString(str.Value, "__proto__") {
+					if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) && !js_lexer.UTF16EqualsString(str.Value, "__proto__") {
 						property.IsComputed = false
 					}
 				}
@@ -13873,7 +13862,7 @@ func ParseJSXExpr(text string, kind JSXExprKind) (config.JSXExpr, bool) {
 	// Try a property chain
 	parts := strings.Split(text, ".")
 	for _, part := range parts {
-		if !js_lexer.IsIdentifier(part, 0) {
+		if !js_lexer.IsIdentifier(part) {
 			parts = nil
 			break
 		}

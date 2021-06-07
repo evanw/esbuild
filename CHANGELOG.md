@@ -2,21 +2,26 @@
 
 ## Unreleased
 
-* Add support for ES5-style identifiers ([#1349](https://github.com/evanw/esbuild/issues/1349))
+* Quote object properties that are modern Unicode identifiers ([#1349](https://github.com/evanw/esbuild/issues/1349))
 
     In ES6 and above, an identifier is a character sequence starting with a character in the `ID_Start` Unicode category and followed by zero or more characters in the `ID_Continue` Unicode category, and these categories must be drawn from Unicode version 5.1 or above.
 
-    But in ES5, an identifier is a character sequence starting with a character in one of the `Lu, Ll, Lt, Lm, Lo, Nl` Unicode categories and followed by zero or more characters in the `Lu, Ll, Lt, Lm, Lo, Nl, Mn, Mc, Nd, Pc` Unicode categories, and these categories must be drawn from Unicode version 3.0.
+    But in ES5, an identifier is a character sequence starting with a character in one of the `Lu, Ll, Lt, Lm, Lo, Nl` Unicode categories and followed by zero or more characters in the `Lu, Ll, Lt, Lm, Lo, Nl, Mn, Mc, Nd, Pc` Unicode categories, and these categories must be drawn from Unicode version 3.0 or above.
 
-    Previously esbuild always used the ES6+ identifier validation test but with this release, it will use the ES5 validation test when the target environment doesn't support ES6+ identifiers. This identifier validation test is used in decisions related to code printing. For example:
+    Previously esbuild always used the ES6+ identifier validation test when deciding whether to use an identifier or a quoted string to encode an object property but with this release, it will use the ES5 validation test instead:
 
+    ```js
+    // Original code
+    x.ꓷꓶꓲꓵꓭꓢꓱ = { ꓷꓶꓲꓵꓭꓢꓱ: y };
+
+    // Old output
+    x.ꓷꓶꓲꓵꓭꓢꓱ = { ꓷꓶꓲꓵꓭꓢꓱ: y };
+
+    // New output
+    x["ꓷꓶꓲꓵꓭꓢꓱ"] = { "ꓷꓶꓲꓵꓭꓢꓱ": y };
     ```
-    $ echo x.ꓷꓶꓲꓵꓭꓢꓱ | ./esbuild --charset=utf8
-    x.ꓷꓶꓲꓵꓭꓢꓱ;
 
-    $ echo x.ꓷꓶꓲꓵꓭꓢꓱ | ./esbuild --charset=utf8 --target=es5
-    x["ꓷꓶꓲꓵꓭꓢꓱ"];
-    ```
+    This approach should ensure maximum compatibility with all JavaScript environments that support ES5 and above. Note that this means minified files containing Unicode properties may be slightly larger than before.
 
 ## 0.12.6
 

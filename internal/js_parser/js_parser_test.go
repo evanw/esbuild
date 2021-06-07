@@ -4237,7 +4237,7 @@ func TestJSX(t *testing.T) {
 	// Unicode tests
 	expectPrintedJSX(t, "<\U00020000/>", "/* @__PURE__ */ React.createElement(\U00020000, null);\n")
 	expectPrintedJSX(t, "<a>\U00020000</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"\U00020000\");\n")
-	expectPrintedJSX(t, "<a \U00020000={0}/>", "/* @__PURE__ */ React.createElement(\"a\", {\n  \U00020000: 0\n});\n")
+	expectPrintedJSX(t, "<a \U00020000={0}/>", "/* @__PURE__ */ React.createElement(\"a\", {\n  \"\U00020000\": 0\n});\n")
 
 	// Comment tests
 	expectParseErrorJSX(t, "<a /* />", "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
@@ -4659,30 +4659,30 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedTargetASCII(t, 5, "'𐀀'", "\"\\uD800\\uDC00\";\n")
 
 	expectPrinted(t, "x.π", "x.π;\n")
-	expectPrinted(t, "x.𐀀", "x.𐀀;\n")
+	expectPrinted(t, "x.𐀀", "x[\"𐀀\"];\n")
 	expectPrintedASCII(t, "x.π", "x.\\u03C0;\n")
-	expectPrintedASCII(t, "x.𐀀", "x.\\u{10000};\n")
+	expectPrintedASCII(t, "x.𐀀", "x[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "x.π", "x.\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "x.𐀀", "x[\"\\uD800\\uDC00\"];\n")
 
 	expectPrinted(t, "x?.π", "x?.π;\n")
-	expectPrinted(t, "x?.𐀀", "x?.𐀀;\n")
+	expectPrinted(t, "x?.𐀀", "x?.[\"𐀀\"];\n")
 	expectPrintedASCII(t, "x?.π", "x?.\\u03C0;\n")
-	expectPrintedASCII(t, "x?.𐀀", "x?.\\u{10000};\n")
+	expectPrintedASCII(t, "x?.𐀀", "x?.[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "x?.π", "x == null ? void 0 : x.\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "x?.𐀀", "x == null ? void 0 : x[\"\\uD800\\uDC00\"];\n")
 
 	expectPrinted(t, "0 .π", "0 .π;\n")
-	expectPrinted(t, "0 .𐀀", "0 .𐀀;\n")
+	expectPrinted(t, "0 .𐀀", "0[\"𐀀\"];\n")
 	expectPrintedASCII(t, "0 .π", "0 .\\u03C0;\n")
-	expectPrintedASCII(t, "0 .𐀀", "0 .\\u{10000};\n")
+	expectPrintedASCII(t, "0 .𐀀", "0[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "0 .π", "0 .\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "0 .𐀀", "0[\"\\uD800\\uDC00\"];\n")
 
 	expectPrinted(t, "0?.π", "0?.π;\n")
-	expectPrinted(t, "0?.𐀀", "0?.𐀀;\n")
+	expectPrinted(t, "0?.𐀀", "0?.[\"𐀀\"];\n")
 	expectPrintedASCII(t, "0?.π", "0?.\\u03C0;\n")
-	expectPrintedASCII(t, "0?.𐀀", "0?.\\u{10000};\n")
+	expectPrintedASCII(t, "0?.𐀀", "0?.[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "0?.π", "0 == null ? void 0 : 0 .\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "0?.𐀀", "0 == null ? void 0 : 0[\"\\uD800\\uDC00\"];\n")
 
@@ -4694,16 +4694,16 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedTargetASCII(t, 5, "import '𐀀'", "import \"\\uD800\\uDC00\";\n")
 
 	expectPrinted(t, "({π: 0})", "({ π: 0 });\n")
-	expectPrinted(t, "({𐀀: 0})", "({ 𐀀: 0 });\n")
+	expectPrinted(t, "({𐀀: 0})", "({ \"𐀀\": 0 });\n")
 	expectPrintedASCII(t, "({π: 0})", "({ \\u03C0: 0 });\n")
-	expectPrintedASCII(t, "({𐀀: 0})", "({ \\u{10000}: 0 });\n")
+	expectPrintedASCII(t, "({𐀀: 0})", "({ \"\\u{10000}\": 0 });\n")
 	expectPrintedTargetASCII(t, 5, "({π: 0})", "({ \\u03C0: 0 });\n")
 	expectPrintedTargetASCII(t, 5, "({𐀀: 0})", "({ \"\\uD800\\uDC00\": 0 });\n")
 
 	expectPrinted(t, "({π})", "({ π });\n")
-	expectPrinted(t, "({𐀀})", "({ 𐀀 });\n")
+	expectPrinted(t, "({𐀀})", "({ \"𐀀\": 𐀀 });\n")
 	expectPrintedASCII(t, "({π})", "({ \\u03C0 });\n")
-	expectPrintedASCII(t, "({𐀀})", "({ \\u{10000} });\n")
+	expectPrintedASCII(t, "({𐀀})", "({ \"\\u{10000}\": \\u{10000} });\n")
 	expectPrintedTargetASCII(t, 5, "({π})", "({ \\u03C0: \\u03C0 });\n")
 	expectParseErrorTargetASCII(t, 5, "({𐀀})", es5)
 
@@ -4776,25 +4776,4 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedASCII(t, "export var 𐀀", "export var \\u{10000};\n")
 	expectPrintedTargetASCII(t, 5, "export var π", "export var \\u03C0;\n")
 	expectParseErrorTargetASCII(t, 5, "export var 𐀀", es5)
-}
-
-func TestUpdatedIdentifiers(t *testing.T) {
-	// Some context: The text "ꓷꓶꓲꓵꓭꓢꓱ" is all non-BMP code points and is a valid
-	// identifier in ES6+ but not in ES5. It must either be quoted or forbidden
-	// when it's used in ES5.
-
-	expectPrinted(t, "x.ꓷꓶꓲꓵꓭꓢꓱ", "x.ꓷꓶꓲꓵꓭꓢꓱ;\n")
-	expectPrinted(t, "var ꓷꓶꓲꓵꓭꓢꓱ", "var ꓷꓶꓲꓵꓭꓢꓱ;\n")
-	expectPrintedTarget(t, 5, "x.ꓷꓶꓲꓵꓭꓢꓱ", "x[\"ꓷꓶꓲꓵꓭꓢꓱ\"];\n")
-	expectPrintedTarget(t, 5, "x = {ꓷꓶꓲꓵꓭꓢꓱ: 0}", "x = { \"ꓷꓶꓲꓵꓭꓢꓱ\": 0 };\n")
-	expectParseErrorTarget(t, 5, "ꓷꓶꓲꓵꓭꓢꓱ",
-		"<stdin>: error: \"ꓷꓶꓲꓵꓭꓢꓱ\" is not considered a valid identifier in the configured target environment\n")
-	expectParseErrorTarget(t, 5, "var ꓷꓶꓲꓵꓭꓢꓱ",
-		"<stdin>: error: \"ꓷꓶꓲꓵꓭꓢꓱ\" is not considered a valid identifier in the configured target environment\n")
-
-	expectPrintedJSX(t, "<x ꓷꓶꓲꓵꓭꓢꓱ/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  ꓷꓶꓲꓵꓭꓢꓱ: true\n});\n")
-	expectPrintedJSX(t, "<ꓷꓶꓲꓵꓭꓢꓱ/>", "/* @__PURE__ */ React.createElement(ꓷꓶꓲꓵꓭꓢꓱ, null);\n")
-	expectPrintedTargetJSX(t, 5, "<x ꓷꓶꓲꓵꓭꓢꓱ/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  \"ꓷꓶꓲꓵꓭꓢꓱ\": true\n});\n")
-	expectParseErrorTargetJSX(t, 5, "<ꓷꓶꓲꓵꓭꓢꓱ/>",
-		"<stdin>: error: \"ꓷꓶꓲꓵꓭꓢꓱ\" is not considered a valid identifier in the configured target environment\n")
 }

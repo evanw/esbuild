@@ -18,7 +18,12 @@ const idStartES5 = [].concat(
   require('@unicode/unicode-3.0.0/General_Category/Titlecase_Letter/code-points'),
   require('@unicode/unicode-3.0.0/General_Category/Modifier_Letter/code-points'),
   require('@unicode/unicode-3.0.0/General_Category/Other_Letter/code-points'),
-  require('@unicode/unicode-3.0.0/General_Category/Letter_Number/code-points'),
+
+  // The "letter number" category is not included because old versions of Safari
+  // had a bug where they didn't include it. This means it does not match ES5.
+  // We need to make sure we escape these characters so Safari can read them.
+  // See https://github.com/evanw/esbuild/issues/1349 for more information.
+  // require('@unicode/unicode-3.0.0/General_Category/Letter_Number/code-points'),
 ).sort((a, b) => a - b)
 
 // UnicodeCombiningMark: any character in the Unicode categories “Non-spacing mark (Mn)”

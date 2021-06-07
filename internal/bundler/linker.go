@@ -1660,7 +1660,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		clone.Properties = append(make([]js_ast.Property, 0, len(clone.Properties)), clone.Properties...)
 		for i, property := range clone.Properties {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok &&
-				(!file.IsEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value, 0) ||
+				(!file.IsEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value) ||
 					!c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames)) {
 				name := js_lexer.UTF16ToString(str.Value)
 				exportRef := generateExport(name, name, property.ValueOrNil).ref
@@ -4178,7 +4178,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	}
 
 	// When we're not minifying, just append numbers to symbol names to avoid collisions
-	r := renamer.NewNumberRenamer(c.graph.Symbols, reservedNames, c.options.UnsupportedJSFeatures)
+	r := renamer.NewNumberRenamer(c.graph.Symbols, reservedNames)
 	nestedScopes := make(map[uint32][]*js_ast.Scope)
 
 	timer.Begin("Add top-level symbols")
@@ -4705,7 +4705,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 		join = ";"
 	}
 
-	if js_printer.CanQuoteIdentifier(prefix, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
+	if js_printer.CanEscapeIdentifier(prefix, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
 		if c.options.ASCIIOnly {
 			prefix = string(js_printer.QuoteIdentifier(nil, prefix, c.options.UnsupportedJSFeatures))
 		}
@@ -4717,7 +4717,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 
 	for _, name := range c.options.GlobalName[1:] {
 		oldPrefix := prefix
-		if js_printer.CanQuoteIdentifier(name, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
+		if js_printer.CanEscapeIdentifier(name, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
 			if c.options.ASCIIOnly {
 				name = string(js_printer.QuoteIdentifier(nil, name, c.options.UnsupportedJSFeatures))
 			}
