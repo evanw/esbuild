@@ -23,6 +23,12 @@
 
     This approach should ensure maximum compatibility with all JavaScript environments that support ES5 and above. Note that this means minified files containing Unicode properties may be slightly larger than before.
 
+* Ignore `tsconfig.json` files inside `node_modules` ([#1355](https://github.com/evanw/esbuild/issues/1355))
+
+    Package authors often publish their `tsconfig.json` files to npm because of npm's default-include publishing model and because these authors probably don't know about `.npmignore` files. People trying to use these packages with esbuild have historically complained that esbuild is respecting `tsconfig.json` in these cases. The assumption is that the package author published these files by accident.
+
+    With this release, esbuild will no longer respect `tsconfig.json` files when the source file is inside a `node_modules` folder. Note that `tsconfig.json` files inside `node_modules` are still parsed, and extending `tsconfig.json` files from inside a package is still supported.
+
 ## 0.12.6
 
 * Improve template literal lowering transformation conformance ([#1327](https://github.com/evanw/esbuild/issues/1327))

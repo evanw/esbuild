@@ -994,6 +994,31 @@ func TestTsconfigJsonNodeModulesImplicitFile(t *testing.T) {
 	})
 }
 
+func TestTsconfigJsonInsideNodeModules(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.tsx": `
+				import 'foo'
+			`,
+			"/Users/user/project/src/node_modules/foo/index.tsx": `
+				console.log(<div/>)
+			`,
+			"/Users/user/project/src/node_modules/foo/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "TEST_FAILED"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.tsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestTsconfigWarningsInsideNodeModules(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
