@@ -169,7 +169,6 @@ var invalid_identifier = true;
 
 // test2.json
 var test2_exports = {};
-__markAsModule(test2_exports);
 __export(test2_exports, {
   default: () => test2_default,
   "invalid-identifier": () => invalid_identifier2

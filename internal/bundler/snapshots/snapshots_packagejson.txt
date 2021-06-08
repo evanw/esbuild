@@ -371,7 +371,6 @@ TestPackageJsonDualPackageHazardImportAndRequireForceModuleBeforeMain
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/module.js
 var module_exports = {};
-__markAsModule(module_exports);
 __export(module_exports, {
   default: () => module_default
 });
@@ -411,7 +410,6 @@ TestPackageJsonDualPackageHazardImportAndRequireImplicitMainForceModuleBeforeMai
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/module.js
 var module_exports = {};
-__markAsModule(module_exports);
 __export(module_exports, {
   default: () => module_default
 });

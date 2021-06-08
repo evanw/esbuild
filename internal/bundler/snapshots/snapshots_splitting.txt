@@ -328,7 +328,7 @@ TestSplittingHybridESMAndCJSIssue617
 import {
   foo,
   init_a
-} from "./chunk-E2H5IDUU.js";
+} from "./chunk-NCWNCRTK.js";
 init_a();
 export {
   foo
@@ -338,7 +338,7 @@ export {
 import {
   a_exports,
   init_a
-} from "./chunk-E2H5IDUU.js";
+} from "./chunk-NCWNCRTK.js";
 
 // b.js
 var bar = (init_a(), a_exports);
@@ -346,10 +346,9 @@ export {
   bar
 };
 
----------- /out/chunk-E2H5IDUU.js ----------
+---------- /out/chunk-NCWNCRTK.js ----------
 // a.js
 var a_exports = {};
-__markAsModule(a_exports);
 __export(a_exports, {
   foo: () => foo
 });
