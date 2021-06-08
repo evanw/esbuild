@@ -1544,3 +1544,30 @@ func TestLowerPrivateClassBrandCheckSupported(t *testing.T) {
 		},
 	})
 }
+
+func TestLowerTemplateObject(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				x = () => [
+					tag` + "`x`" + `,
+					tag` + "`\\xFF`" + `,
+					tag` + "`\\x`" + `,
+					tag` + "`\\u`" + `,
+				]
+				y = () => [
+					tag` + "`x${y}z`" + `,
+					tag` + "`\\xFF${y}z`" + `,
+					tag` + "`x${y}\\z`" + `,
+					tag` + "`x${y}\\u`" + `,
+				]
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.TemplateLiteral,
+		},
+	})
+}

@@ -3382,8 +3382,8 @@ let transformTests = {
     assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
     assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `var \\u03C0 = \\u03C0 || {};
 \\u03C0["\\u03C0 \\uD800\\uDC00"] = \\u03C0["\\u03C0 \\uD800\\uDC00"] || {};
-\\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000} = \\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000} || {};
-\\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000}["\\uD800\\uDC00 \\u03C0"] = `)
+\\u03C0["\\u03C0 \\uD800\\uDC00"]["\\uD800\\uDC00"] = \\u03C0["\\u03C0 \\uD800\\uDC00"]["\\uD800\\uDC00"] || {};
+\\u03C0["\\u03C0 \\uD800\\uDC00"]["\\uD800\\uDC00"]["\\uD800\\uDC00 \\u03C0"] = `)
   },
 
   async iifeGlobalNameUnicodeNoEscape({ esbuild }) {
@@ -3395,8 +3395,8 @@ let transformTests = {
     assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')),
       `var π = π || {};
 π["π 𐀀"] = π["π 𐀀"] || {};
-π["π 𐀀"].𐀀 = π["π 𐀀"].𐀀 || {};
-π["π 𐀀"].𐀀["𐀀 π"] = `)
+π["π 𐀀"]["𐀀"] = π["π 𐀀"]["𐀀"] || {};
+π["π 𐀀"]["𐀀"]["𐀀 π"] = `)
   },
 
   async umdGlobalName({ service }) {

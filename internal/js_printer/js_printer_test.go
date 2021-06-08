@@ -829,12 +829,12 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedASCII(t, "var \\u{10000}", "var \\u{10000};\n")
 	expectPrintedTargetASCII(t, 2015, "'𐀀'", "\"\\u{10000}\";\n")
 	expectPrintedTargetASCII(t, 5, "'𐀀'", "\"\\uD800\\uDC00\";\n")
-	expectPrintedTargetASCII(t, 2015, "x.𐀀", "x.\\u{10000};\n")
+	expectPrintedTargetASCII(t, 2015, "x.𐀀", "x[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "x.𐀀", "x[\"\\uD800\\uDC00\"];\n")
 
 	// Escapes should use consistent case
 	expectPrintedASCII(t, "var \\u{100a} = {\\u100A: '\\u100A'}", "var \\u100A = { \\u100A: \"\\u100A\" };\n")
-	expectPrintedASCII(t, "var \\u{1000a} = {\\u{1000A}: '\\u{1000A}'}", "var \\u{1000A} = { \\u{1000A}: \"\\u{1000A}\" };\n")
+	expectPrintedASCII(t, "var \\u{1000a} = {\\u{1000A}: '\\u{1000A}'}", "var \\u{1000A} = { \"\\u{1000A}\": \"\\u{1000A}\" };\n")
 
 	// These characters should always be escaped
 	expectPrinted(t, "let x = '\u2028'", "let x = \"\\u2028\";\n")
@@ -916,11 +916,11 @@ func TestAvoidSlashScript(t *testing.T) {
 	expectPrintedMinify(t, "x = 1 << /script/.exec(y).length", "x=1<< /script/.exec(y).length;")
 	expectPrinted(t, "//! </script", "//! <\\/script\n")
 	expectPrinted(t, "String.raw`</script`",
-		"String.raw(__template([\"<\\/script\"], [\"<\\/script\"]));\nimport {\n  __template\n} from \"<runtime>\";\n")
+		"var _a;\nString.raw(_a || (_a = __template([\"<\\/script\"])));\nimport {\n  __template\n} from \"<runtime>\";\n")
 	expectPrinted(t, "String.raw`</script${a}`",
-		"String.raw(__template([\"<\\/script\", \"\"], [\"<\\/script\", \"\"]), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
+		"var _a;\nString.raw(_a || (_a = __template([\"<\\/script\", \"\"])), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
 	expectPrinted(t, "String.raw`${a}</script`",
-		"String.raw(__template([\"\", \"<\\/script\"], [\"\", \"<\\/script\"]), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
+		"var _a;\nString.raw(_a || (_a = __template([\"\", \"<\\/script\"])), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
 
 	// Negative cases
 	expectPrinted(t, "x = '</'", "x = \"</\";\n")

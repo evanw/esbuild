@@ -16,7 +16,7 @@ import (
 const SourceIndex = uint32(0)
 
 func CanUseES6(unsupportedFeatures compat.JSFeature) bool {
-	return !unsupportedFeatures.Has(compat.Let) && !unsupportedFeatures.Has(compat.Arrow)
+	return !unsupportedFeatures.Has(compat.Let) && !unsupportedFeatures.Has(compat.ForOf)
 }
 
 func code(isES6 bool) string {
@@ -154,23 +154,22 @@ func code(isES6 bool) string {
 		// This is for lazily-initialized ESM code. This has two implementations, a
 		// compact one for minified code and a verbose one that generates friendly
 		// names in V8's profiler and in stack traces.
-		export var __esm = __profiler
-			&& ((fn, res) => function __init() {
-				return fn && (res = (0, fn[Object.keys(fn)[0]])(fn = 0)), res
-			})
-			|| ((fn, res) => () => (fn && (res = fn(fn = 0)), res))
+		export var __esm = (fn, res) => function __init() {
+			return fn && (res = (0, fn[Object.keys(fn)[0]])(fn = 0)), res
+		}
+		export var __esmMin = (fn, res) => () => (fn && (res = fn(fn = 0)), res)
 
 		// Wraps a CommonJS closure and returns a require() function. This has two
 		// implementations, a compact one for minified code and a verbose one that
 		// generates friendly names in V8's profiler and in stack traces.
-		export var __commonJS = __profiler
-			&& ((cb, mod) => function __require() {
-				return mod || (0, cb[Object.keys(cb)[0]])((mod = {exports: {}}).exports, mod), mod.exports
-			})
-			|| ((cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports))
+		export var __commonJS = (cb, mod) => function __require() {
+			return mod || (0, cb[Object.keys(cb)[0]])((mod = {exports: {}}).exports, mod), mod.exports
+		}
+		export var __commonJSMin = (cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports)
 
 		// Used to implement ES6 exports to CommonJS
 		export var __export = (target, all) => {
+			__markAsModule(target)
 			for (var name in all)
 				__defProp(target, name, { get: all[name], enumerable: true })
 		}
@@ -266,7 +265,7 @@ func code(isES6 bool) string {
 		}
 
 		// For lowering tagged template literals
-		export var __template = (cooked, raw) => __defProp(cooked, 'raw', { value: __freeze(raw) })
+		export var __template = (cooked, raw) => __freeze(__defProp(cooked, 'raw', { value: __freeze(raw || cooked.slice()) }))
 
 		// This helps for lowering async functions
 		export var __async = (__this, __arguments, generator) => {
@@ -291,23 +290,22 @@ func code(isES6 bool) string {
 		}
 
 		// This is for the "binary" loader (custom code is ~2x faster than "atob")
-		export var __toBinary = __platform === 'node'
-			&& (base64 => new Uint8Array(Buffer.from(base64, 'base64')))
-			|| /* @__PURE__ */ (() => {
-				var table = new Uint8Array(128)
-				for (var i = 0; i < 64; i++) table[i < 26 ? i + 65 : i < 52 ? i + 71 : i < 62 ? i - 4 : i * 4 - 205] = i
-				return base64 => {
-					var n = base64.length, bytes = new Uint8Array((n - (base64[n - 1] == '=') - (base64[n - 2] == '=')) * 3 / 4 | 0)
-					for (var i = 0, j = 0; i < n;) {
-						var c0 = table[base64.charCodeAt(i++)], c1 = table[base64.charCodeAt(i++)]
-						var c2 = table[base64.charCodeAt(i++)], c3 = table[base64.charCodeAt(i++)]
-						bytes[j++] = (c0 << 2) | (c1 >> 4)
-						bytes[j++] = (c1 << 4) | (c2 >> 2)
-						bytes[j++] = (c2 << 6) | c3
-					}
-					return bytes
+		export var __toBinaryNode = base64 => new Uint8Array(Buffer.from(base64, 'base64'))
+		export var __toBinary = /* @__PURE__ */ (() => {
+			var table = new Uint8Array(128)
+			for (var i = 0; i < 64; i++) table[i < 26 ? i + 65 : i < 52 ? i + 71 : i < 62 ? i - 4 : i * 4 - 205] = i
+			return base64 => {
+				var n = base64.length, bytes = new Uint8Array((n - (base64[n - 1] == '=') - (base64[n - 2] == '=')) * 3 / 4 | 0)
+				for (var i = 0, j = 0; i < n;) {
+					var c0 = table[base64.charCodeAt(i++)], c1 = table[base64.charCodeAt(i++)]
+					var c2 = table[base64.charCodeAt(i++)], c3 = table[base64.charCodeAt(i++)]
+					bytes[j++] = (c0 << 2) | (c1 >> 4)
+					bytes[j++] = (c1 << 4) | (c2 >> 2)
+					bytes[j++] = (c2 << 6) | c3
 				}
-			})()
+				return bytes
+			}
+		})()
 	`
 
 	return text

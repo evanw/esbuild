@@ -499,24 +499,46 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 
 				// Copy various fields from the nearest enclosing "tsconfig.json" file if present
 				if path == &result.PathPair.Primary && dirInfo.enclosingTSConfigJSON != nil {
-					result.JSXFactory = dirInfo.enclosingTSConfigJSON.JSXFactory
-					result.JSXFragment = dirInfo.enclosingTSConfigJSON.JSXFragmentFactory
-					result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
-					result.PreserveUnusedImportsTS = dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues
-					result.TSTarget = dirInfo.enclosingTSConfigJSON.TSTarget
-
-					if r.debugLogs != nil {
-						r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
-							dirInfo.enclosingTSConfigJSON.AbsPath))
-						if result.JSXFactory != nil {
-							r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
-								strings.Join(result.JSXFactory, "."),
-								dirInfo.enclosingTSConfigJSON.AbsPath))
+					// Except don't do this if we're inside a "node_modules" directory. Package
+					// authors often publish their "tsconfig.json" files to npm because of
+					// npm's default-include publishing model and because these authors
+					// probably don't know about ".npmignore" files.
+					//
+					// People trying to use these packages with esbuild have historically
+					// complained that esbuild is respecting "tsconfig.json" in these cases.
+					// The assumption is that the package author published these files by
+					// accident.
+					//
+					// Ignoring "tsconfig.json" files inside "node_modules" directories breaks
+					// the use case of publishing TypeScript code and having it be transpiled
+					// for you, but that's the uncommon case and likely doesn't work with
+					// many other tools anyway. So now these files are ignored.
+					if helpers.IsInsideNodeModules(result.PathPair.Primary.Text) {
+						if r.debugLogs != nil {
+							r.debugLogs.addNote(fmt.Sprintf("Ignoring %q because %q is inside \"node_modules\"",
+								dirInfo.enclosingTSConfigJSON.AbsPath,
+								result.PathPair.Primary.Text))
 						}
-						if result.JSXFragment != nil {
-							r.debugLogs.addNote(fmt.Sprintf("\"jsxFragment\" is %q due to %q",
-								strings.Join(result.JSXFragment, "."),
+					} else {
+						result.JSXFactory = dirInfo.enclosingTSConfigJSON.JSXFactory
+						result.JSXFragment = dirInfo.enclosingTSConfigJSON.JSXFragmentFactory
+						result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
+						result.PreserveUnusedImportsTS = dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues
+						result.TSTarget = dirInfo.enclosingTSConfigJSON.TSTarget
+
+						if r.debugLogs != nil {
+							r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
 								dirInfo.enclosingTSConfigJSON.AbsPath))
+							if result.JSXFactory != nil {
+								r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
+									strings.Join(result.JSXFactory, "."),
+									dirInfo.enclosingTSConfigJSON.AbsPath))
+							}
+							if result.JSXFragment != nil {
+								r.debugLogs.addNote(fmt.Sprintf("\"jsxFragment\" is %q due to %q",
+									strings.Join(result.JSXFragment, "."),
+									dirInfo.enclosingTSConfigJSON.AbsPath))
+							}
 						}
 					}
 				}

@@ -962,10 +962,11 @@ func rebuildImpl(
 		if !log.HasErrors() {
 			// Compile the bundle
 			results, metafile := bundle.Compile(log, options, timer)
-			metafileJSON = metafile
 
 			// Stop now if there were errors
 			if !log.HasErrors() {
+				metafileJSON = metafile
+
 				// Flush any deferred warnings now
 				log.AlmostDone()
 

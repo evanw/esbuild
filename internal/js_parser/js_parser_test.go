@@ -149,6 +149,30 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectParseErrorTargetJSX(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
+	})
+}
+
+func expectPrintedTargetJSX(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
+	})
+}
+
 func TestBinOp(t *testing.T) {
 	for code, entry := range js_ast.OpTable {
 		opCode := js_ast.OpCode(code)
@@ -2460,6 +2484,13 @@ func TestExport(t *testing.T) {
 		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
 	expectParseErrorTarget(t, 2020, "export * as '' from 'foo'",
 		"<stdin>: error: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
+
+	// Exports with the name "__esModule" are forbidden
+	esModuleError := "<stdin>: error: The export name \"__esModule\" is reserved and cannot be used " +
+		"(it's needed as an export marker when converting ES module syntax to CommonJS)\n"
+	expectParseError(t, "export var __esModule", esModuleError)
+	expectParseError(t, "export {__esModule}; var __esModule", esModuleError)
+	expectParseError(t, "export {__esModule} from 'foo'", esModuleError)
 }
 
 func TestExportDuplicates(t *testing.T) {
@@ -4213,7 +4244,7 @@ func TestJSX(t *testing.T) {
 	// Unicode tests
 	expectPrintedJSX(t, "<\U00020000/>", "/* @__PURE__ */ React.createElement(\U00020000, null);\n")
 	expectPrintedJSX(t, "<a>\U00020000</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"\U00020000\");\n")
-	expectPrintedJSX(t, "<a \U00020000={0}/>", "/* @__PURE__ */ React.createElement(\"a\", {\n  \U00020000: 0\n});\n")
+	expectPrintedJSX(t, "<a \U00020000={0}/>", "/* @__PURE__ */ React.createElement(\"a\", {\n  \"\U00020000\": 0\n});\n")
 
 	// Comment tests
 	expectParseErrorJSX(t, "<a /* />", "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
@@ -4567,22 +4598,22 @@ func TestES5(t *testing.T) {
 	expectParseErrorTarget(t, 5, "([...[x]])",
 		"<stdin>: error: Transforming array spread to the configured target environment is not supported yet\n")
 	expectPrintedTarget(t, 5, "`abc`;", "\"abc\";\n")
-	expectPrintedTarget(t, 5, "`a${b}`;", "\"a\" + b;\n")
-	expectPrintedTarget(t, 5, "`${a}b`;", "a + \"b\";\n")
-	expectPrintedTarget(t, 5, "`${a}${b}`;", "a + \"\" + b;\n")
-	expectPrintedTarget(t, 5, "`a${b}c`;", "\"a\" + b + \"c\";\n")
-	expectPrintedTarget(t, 5, "`a${b}${c}`;", "\"a\" + b + c;\n")
-	expectPrintedTarget(t, 5, "`a${b}${c}d`;", "\"a\" + b + c + \"d\";\n")
-	expectPrintedTarget(t, 5, "`a${b}c${d}`;", "\"a\" + b + \"c\" + d;\n")
-	expectPrintedTarget(t, 5, "`a${b}c${d}e`;", "\"a\" + b + \"c\" + d + \"e\";\n")
-	expectPrintedTarget(t, 5, "tag``;", "tag(__template([\"\"], [\"\"]));\n")
-	expectPrintedTarget(t, 5, "tag`abc`;", "tag(__template([\"abc\"], [\"abc\"]));\n")
-	expectPrintedTarget(t, 5, "tag`\\utf`;", "tag(__template([void 0], [\"\\\\utf\"]));\n")
-	expectPrintedTarget(t, 5, "tag`${a}b`;", "tag(__template([\"\", \"b\"], [\"\", \"b\"]), a);\n")
-	expectPrintedTarget(t, 5, "tag`a${b}`;", "tag(__template([\"a\", \"\"], [\"a\", \"\"]), b);\n")
-	expectPrintedTarget(t, 5, "tag`a${b}c`;", "tag(__template([\"a\", \"c\"], [\"a\", \"c\"]), b);\n")
-	expectPrintedTarget(t, 5, "tag`a${b}\\u`;", "tag(__template([\"a\", void 0], [\"a\", \"\\\\u\"]), b);\n")
-	expectPrintedTarget(t, 5, "tag`\\u${b}c`;", "tag(__template([void 0, \"c\"], [\"\\\\u\", \"c\"]), b);\n")
+	expectPrintedTarget(t, 5, "`a${b}`;", "\"a\".concat(b);\n")
+	expectPrintedTarget(t, 5, "`${a}b`;", "\"\".concat(a, \"b\");\n")
+	expectPrintedTarget(t, 5, "`${a}${b}`;", "\"\".concat(a).concat(b);\n")
+	expectPrintedTarget(t, 5, "`a${b}c`;", "\"a\".concat(b, \"c\");\n")
+	expectPrintedTarget(t, 5, "`a${b}${c}`;", "\"a\".concat(b).concat(c);\n")
+	expectPrintedTarget(t, 5, "`a${b}${c}d`;", "\"a\".concat(b).concat(c, \"d\");\n")
+	expectPrintedTarget(t, 5, "`a${b}c${d}`;", "\"a\".concat(b, \"c\").concat(d);\n")
+	expectPrintedTarget(t, 5, "`a${b}c${d}e`;", "\"a\".concat(b, \"c\").concat(d, \"e\");\n")
+	expectPrintedTarget(t, 5, "tag``;", "var _a;\ntag(_a || (_a = __template([\"\"])));\n")
+	expectPrintedTarget(t, 5, "tag`abc`;", "var _a;\ntag(_a || (_a = __template([\"abc\"])));\n")
+	expectPrintedTarget(t, 5, "tag`\\utf`;", "var _a;\ntag(_a || (_a = __template([void 0], [\"\\\\utf\"])));\n")
+	expectPrintedTarget(t, 5, "tag`${a}b`;", "var _a;\ntag(_a || (_a = __template([\"\", \"b\"])), a);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}`;", "var _a;\ntag(_a || (_a = __template([\"a\", \"\"])), b);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}c`;", "var _a;\ntag(_a || (_a = __template([\"a\", \"c\"])), b);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}\\u`;", "var _a;\ntag(_a || (_a = __template([\"a\", void 0], [\"a\", \"\\\\u\"])), b);\n")
+	expectPrintedTarget(t, 5, "tag`\\u${b}c`;", "var _a;\ntag(_a || (_a = __template([void 0, \"c\"], [\"\\\\u\", \"c\"])), b);\n")
 	expectParseErrorTarget(t, 5, "class Foo { constructor() { new.target } }",
 		"<stdin>: error: Transforming class syntax to the configured target environment is not supported yet\n"+
 			"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n"+
@@ -4606,8 +4637,8 @@ func TestES5(t *testing.T) {
 }
 
 func TestASCIIOnly(t *testing.T) {
-	es5 := "<stdin>: error: \"𐀀\" cannot be escaped in the target environment " +
-		"(consider setting the charset to \"utf8\" or changing the target)\n"
+	es5 := "<stdin>: error: \"𐀀\" cannot be escaped in the configured target environment " +
+		"but you can set the charset to \"utf8\" to allow unescaped Unicode characters\n"
 
 	// Some context: "π" is in the BMP (i.e. has a code point ≤0xFFFF) and "𐀀" is
 	// not in the BMP (i.e. has a code point >0xFFFF). This distinction matters
@@ -4635,30 +4666,30 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedTargetASCII(t, 5, "'𐀀'", "\"\\uD800\\uDC00\";\n")
 
 	expectPrinted(t, "x.π", "x.π;\n")
-	expectPrinted(t, "x.𐀀", "x.𐀀;\n")
+	expectPrinted(t, "x.𐀀", "x[\"𐀀\"];\n")
 	expectPrintedASCII(t, "x.π", "x.\\u03C0;\n")
-	expectPrintedASCII(t, "x.𐀀", "x.\\u{10000};\n")
+	expectPrintedASCII(t, "x.𐀀", "x[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "x.π", "x.\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "x.𐀀", "x[\"\\uD800\\uDC00\"];\n")
 
 	expectPrinted(t, "x?.π", "x?.π;\n")
-	expectPrinted(t, "x?.𐀀", "x?.𐀀;\n")
+	expectPrinted(t, "x?.𐀀", "x?.[\"𐀀\"];\n")
 	expectPrintedASCII(t, "x?.π", "x?.\\u03C0;\n")
-	expectPrintedASCII(t, "x?.𐀀", "x?.\\u{10000};\n")
+	expectPrintedASCII(t, "x?.𐀀", "x?.[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "x?.π", "x == null ? void 0 : x.\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "x?.𐀀", "x == null ? void 0 : x[\"\\uD800\\uDC00\"];\n")
 
 	expectPrinted(t, "0 .π", "0 .π;\n")
-	expectPrinted(t, "0 .𐀀", "0 .𐀀;\n")
+	expectPrinted(t, "0 .𐀀", "0[\"𐀀\"];\n")
 	expectPrintedASCII(t, "0 .π", "0 .\\u03C0;\n")
-	expectPrintedASCII(t, "0 .𐀀", "0 .\\u{10000};\n")
+	expectPrintedASCII(t, "0 .𐀀", "0[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "0 .π", "0 .\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "0 .𐀀", "0[\"\\uD800\\uDC00\"];\n")
 
 	expectPrinted(t, "0?.π", "0?.π;\n")
-	expectPrinted(t, "0?.𐀀", "0?.𐀀;\n")
+	expectPrinted(t, "0?.𐀀", "0?.[\"𐀀\"];\n")
 	expectPrintedASCII(t, "0?.π", "0?.\\u03C0;\n")
-	expectPrintedASCII(t, "0?.𐀀", "0?.\\u{10000};\n")
+	expectPrintedASCII(t, "0?.𐀀", "0?.[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "0?.π", "0 == null ? void 0 : 0 .\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "0?.𐀀", "0 == null ? void 0 : 0[\"\\uD800\\uDC00\"];\n")
 
@@ -4670,16 +4701,16 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedTargetASCII(t, 5, "import '𐀀'", "import \"\\uD800\\uDC00\";\n")
 
 	expectPrinted(t, "({π: 0})", "({ π: 0 });\n")
-	expectPrinted(t, "({𐀀: 0})", "({ 𐀀: 0 });\n")
+	expectPrinted(t, "({𐀀: 0})", "({ \"𐀀\": 0 });\n")
 	expectPrintedASCII(t, "({π: 0})", "({ \\u03C0: 0 });\n")
-	expectPrintedASCII(t, "({𐀀: 0})", "({ \\u{10000}: 0 });\n")
+	expectPrintedASCII(t, "({𐀀: 0})", "({ \"\\u{10000}\": 0 });\n")
 	expectPrintedTargetASCII(t, 5, "({π: 0})", "({ \\u03C0: 0 });\n")
 	expectPrintedTargetASCII(t, 5, "({𐀀: 0})", "({ \"\\uD800\\uDC00\": 0 });\n")
 
 	expectPrinted(t, "({π})", "({ π });\n")
-	expectPrinted(t, "({𐀀})", "({ 𐀀 });\n")
+	expectPrinted(t, "({𐀀})", "({ \"𐀀\": 𐀀 });\n")
 	expectPrintedASCII(t, "({π})", "({ \\u03C0 });\n")
-	expectPrintedASCII(t, "({𐀀})", "({ \\u{10000} });\n")
+	expectPrintedASCII(t, "({𐀀})", "({ \"\\u{10000}\": \\u{10000} });\n")
 	expectPrintedTargetASCII(t, 5, "({π})", "({ \\u03C0: \\u03C0 });\n")
 	expectParseErrorTargetASCII(t, 5, "({𐀀})", es5)
 
