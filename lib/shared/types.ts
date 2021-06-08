@@ -241,7 +241,7 @@ export interface OnResolveResult {
 
   path?: string;
   external?: boolean;
-  sideEffectFree?: boolean;
+  sideEffects?: boolean;
   namespace?: string;
   pluginData?: any;
 

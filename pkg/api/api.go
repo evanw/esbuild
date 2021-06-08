@@ -426,6 +426,13 @@ func Serve(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResult, e
 ////////////////////////////////////////////////////////////////////////////////
 // Plugin API
 
+type SideEffects uint8
+
+const (
+	SideEffectsTrue SideEffects = iota
+	SideEffectsFalse
+)
+
 type Plugin struct {
 	Name  string
 	Setup func(PluginBuild)
@@ -464,11 +471,11 @@ type OnResolveResult struct {
 	Errors   []Message
 	Warnings []Message
 
-	Path           string
-	External       bool
-	SideEffectFree bool
-	Namespace      string
-	PluginData     interface{}
+	Path        string
+	External    bool
+	SideEffects SideEffects
+	Namespace   string
+	PluginData  interface{}
 
 	WatchFiles []string
 	WatchDirs  []string

@@ -83,6 +83,9 @@ type SideEffectsData struct {
 	Source *logger.Source
 	Range  logger.Range
 
+	// If non-empty, this false value came from a plugin
+	PluginName string
+
 	// If true, "sideEffects" was an array. If false, "sideEffects" was false.
 	IsSideEffectsArrayInJSON bool
 }

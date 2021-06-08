@@ -1721,8 +1721,8 @@ func testPackageJsonSideEffectsFalsePluginResolver(t *testing.T, pkg2Index strin
 							Filter: regexp.MustCompile("\\.vue$"),
 							Callback: func(ora config.OnResolveArgs) config.OnResolveResult {
 								return config.OnResolveResult{
-									Path:           logger.Path{Text: "/Users/user/project/node_modules/demo-pkg2/cmp1.js"},
-									SideEffectFree: true,
+									Path:             logger.Path{Text: "/Users/user/project/node_modules/demo-pkg2/cmp1.js"},
+									IsSideEffectFree: true,
 								}
 							},
 						},

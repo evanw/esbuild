@@ -735,9 +735,9 @@ func runOnResolvePlugins(
 			}
 
 			var sideEffectsData *resolver.SideEffectsData
-			if result.SideEffectFree {
+			if result.IsSideEffectFree {
 				sideEffectsData = &resolver.SideEffectsData{
-					IsSideEffectsArrayInJSON: false,
+					PluginName: pluginName,
 				}
 			}
 
@@ -1704,19 +1704,24 @@ func (s *scanner) processScannedFiles() []scannerFile {
 						// effect.
 						otherModule.SideEffects.Kind != graph.NoSideEffects_PureData_FromPlugin {
 						var notes []logger.MsgData
+						var by string
 						if data := otherModule.SideEffects.Data; data != nil {
-							var text string
-							if data.IsSideEffectsArrayInJSON {
-								text = "It was excluded from the \"sideEffects\" array in the enclosing \"package.json\" file"
+							if data.PluginName != "" {
+								by = fmt.Sprintf(" by plugin %q", data.PluginName)
 							} else {
-								text = "\"sideEffects\" is false in the enclosing \"package.json\" file"
+								var text string
+								if data.IsSideEffectsArrayInJSON {
+									text = "It was excluded from the \"sideEffects\" array in the enclosing \"package.json\" file"
+								} else {
+									text = "\"sideEffects\" is false in the enclosing \"package.json\" file"
+								}
+								tracker := logger.MakeLineColumnTracker(data.Source)
+								notes = append(notes, logger.RangeData(&tracker, data.Range, text))
 							}
-							tracker := logger.MakeLineColumnTracker(data.Source)
-							notes = append(notes, logger.RangeData(&tracker, data.Range, text))
 						}
 						s.log.AddRangeWarningWithNotes(&tracker, record.Range,
-							fmt.Sprintf("Ignoring this import because %q was marked as having no side effects",
-								otherModule.Source.PrettyPath), notes)
+							fmt.Sprintf("Ignoring this import because %q was marked as having no side effects%s",
+								otherModule.Source.PrettyPath, by), notes)
 					}
 				}
 			}

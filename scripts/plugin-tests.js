@@ -752,7 +752,7 @@ let pluginTests = {
           build.onResolve({ filter: /\.vue$/ }, async (args) => {
             return {
               path: path.join(args.resolveDir, args.path.replace('.vue', '.js')),
-              sideEffectFree: true,
+              sideEffects: false,
             };
           });
         },
