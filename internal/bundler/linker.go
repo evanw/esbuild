@@ -1740,10 +1740,13 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}
 	}
 
-	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
 	declaredSymbols := []js_ast.DeclaredSymbol{}
 	var nsExportStmts []js_ast.Stmt
-	if repr.AST.ExportsKind != js_ast.ExportsCommonJS && (!file.IsEntryPoint() || c.options.OutputFormat != config.FormatCommonJS) {
+
+	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
+	needsExportsVariable := repr.AST.ExportsKind != js_ast.ExportsCommonJS &&
+		(!file.IsEntryPoint() || c.options.OutputFormat != config.FormatCommonJS)
+	if needsExportsVariable {
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
 			Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.ExportsRef}},
 			ValueOrNil: js_ast.Expr{Data: &js_ast.EObject{}},
@@ -1758,8 +1761,20 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// "__markAsModule" which sets the "__esModule" property to true. This must
 	// be done before any to "require()" or circular imports of multiple modules
 	// that have been each converted from ESM to CommonJS may not work correctly.
-	if repr.AST.ExportKeyword.Len > 0 && (repr.AST.ExportsKind == js_ast.ExportsCommonJS ||
-		(file.IsEntryPoint() && c.options.OutputFormat == config.FormatCommonJS)) {
+	needsMarkAsModule :=
+		(repr.AST.ExportKeyword.Len > 0 && (repr.AST.ExportsKind == js_ast.ExportsCommonJS ||
+			(file.IsEntryPoint() && c.options.OutputFormat == config.FormatCommonJS))) ||
+			needsExportsVariable
+
+	// Avoid calling "__markAsModule" if we call "__export" since the function
+	// "__export" already calls "__markAsModule". This is an optimization to
+	// reduce generated code size.
+	needsExportCall := len(properties) > 0
+	if needsMarkAsModule && needsExportCall {
+		needsMarkAsModule = false
+	}
+
+	if needsMarkAsModule {
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
 		markAsModuleRef := runtimeRepr.AST.ModuleScope.Members["__markAsModule"].Ref
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
@@ -1783,7 +1798,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 	// "__export(exports, { foo: () => foo })"
 	exportRef := js_ast.InvalidRef
-	if len(properties) > 0 {
+	if needsExportCall {
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
 		exportRef = runtimeRepr.AST.ModuleScope.Members["__export"].Ref
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{

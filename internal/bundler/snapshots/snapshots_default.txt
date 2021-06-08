@@ -492,6 +492,7 @@ TestEmptyExportClauseBundleAsCommonJSIssue910
 ---------- /out.js ----------
 // types.mjs
 var types_exports = {};
+__markAsModule(types_exports);
 var init_types = __esm({
   "types.mjs"() {
   }
@@ -864,6 +865,7 @@ var init_d = __esm({
 
 // e.js
 var e_exports = {};
+__markAsModule(e_exports);
 import * as x_star from "x";
 var init_e = __esm({
   "e.js"() {
@@ -1813,21 +1815,21 @@ import("foo");import(foo());
 TestMinifiedExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
 // foo/test.js
-var o = {};
-s(o, {
-  foo: () => p
-});
-var p = 123;
-
-// bar/test.js
 var t = {};
-s(t, {
-  bar: () => l
+f(t, {
+  foo: () => l
 });
 var l = 123;
 
+// bar/test.js
+var r = {};
+f(r, {
+  bar: () => m
+});
+var m = 123;
+
 // entry.js
-console.log(exports, module.exports, o, t);
+console.log(exports, module.exports, t, r);
 
 ================================================================================
 TestMinifyArguments
@@ -2093,7 +2095,6 @@ export {
 TestReExportDefaultExternalCommonJS
 ---------- /out.js ----------
 // entry.js
-__markAsModule(exports);
 __export(exports, {
   bar: () => import_bar.default,
   foo: () => import_foo.default
@@ -2138,7 +2139,6 @@ export { default as bar } from "./bar";
 ================================================================================
 TestReExportDefaultNoBundleCommonJS
 ---------- /out.js ----------
-__markAsModule(exports);
 __export(exports, {
   bar: () => import_bar.default,
   foo: () => import_foo.default
@@ -3130,6 +3130,7 @@ TestTopLevelAwaitAllowedImportWithoutSplitting
 ---------- /out.js ----------
 // c.js
 var c_exports = {};
+__markAsModule(c_exports);
 var init_c = __esm({
   async "c.js"() {
     await 0;
@@ -3138,6 +3139,7 @@ var init_c = __esm({
 
 // b.js
 var b_exports = {};
+__markAsModule(b_exports);
 var init_b = __esm({
   async "b.js"() {
     await init_c();
@@ -3146,6 +3148,7 @@ var init_b = __esm({
 
 // a.js
 var a_exports = {};
+__markAsModule(a_exports);
 var init_a = __esm({
   async "a.js"() {
     await init_b();
@@ -3154,6 +3157,7 @@ var init_a = __esm({
 
 // entry.js
 var entry_exports = {};
+__markAsModule(entry_exports);
 var init_entry = __esm({
   async "entry.js"() {
     init_a();

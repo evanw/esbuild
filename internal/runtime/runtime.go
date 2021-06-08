@@ -169,6 +169,7 @@ func code(isES6 bool) string {
 
 		// Used to implement ES6 exports to CommonJS
 		export var __export = (target, all) => {
+			__markAsModule(target)
 			for (var name in all)
 				__defProp(target, name, { get: all[name], enumerable: true })
 		}

@@ -12586,6 +12586,9 @@ func (p *parser) recordExport(loc logger.Loc, alias string, ref js_ast.Ref) {
 			fmt.Sprintf("Multiple exports with the same name %q", alias),
 			[]logger.MsgData{logger.RangeData(&p.tracker, js_lexer.RangeOfIdentifier(p.source, name.AliasLoc),
 				fmt.Sprintf("%q was originally exported here", alias))})
+	} else if alias == "__esModule" {
+		p.log.AddRangeError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, loc),
+			"The export name \"__esModule\" is reserved and cannot be used (it's needed as an export marker when converting ES module syntax to CommonJS)")
 	} else {
 		p.namedExports[alias] = js_ast.NamedExport{AliasLoc: loc, Ref: ref}
 	}

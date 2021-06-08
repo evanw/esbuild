@@ -212,6 +212,7 @@ TestTSExportMissingES6
 ---------- /out.js ----------
 // foo.ts
 var foo_exports = {};
+__markAsModule(foo_exports);
 
 // entry.js
 console.log(foo_exports);
