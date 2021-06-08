@@ -709,6 +709,80 @@ let pluginTests = {
     assert.strictEqual(result.default, 123)
   },
 
+  async resolveWithSideEffectsFalse({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+
+    await writeFileAsync(input, `
+      import './re-export-unused'
+      import {a, b, c} from './re-export-used'
+      import './import-unused'
+      use([a, b, c])
+    `)
+    await writeFileAsync(path.join(testDir, 're-export-unused.js'), `
+      export {default as a} from 'plugin:unused-false'
+      export {default as b} from 'plugin:unused-true'
+      export {default as c} from 'plugin:unused-none'
+    `)
+    await writeFileAsync(path.join(testDir, 're-export-used.js'), `
+      export {default as a} from 'plugin:used-false'
+      export {default as b} from 'plugin:used-true'
+      export {default as c} from 'plugin:used-none'
+    `)
+    await writeFileAsync(path.join(testDir, 'import-unused.js'), `
+      import 'plugin:ignored-false'
+      import 'plugin:ignored-true'
+      import 'plugin:ignored-none'
+    `)
+
+    const result = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      write: false,
+      format: 'cjs',
+      logLevel: 'error',
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /^plugin:/ }, args => {
+            return {
+              path: args.path,
+              namespace: 'ns',
+              sideEffects:
+                args.path.endsWith('-true') ? true :
+                  args.path.endsWith('-false') ? false :
+                    undefined,
+            };
+          });
+          build.onLoad({ filter: /^plugin:/ }, args => {
+            return { contents: `export default use(${JSON.stringify(args.path)})` };
+          });
+        },
+      }],
+    })
+
+    // Validate that the unused "sideEffects: false" files were omitted
+    const used = [];
+    new Function('use', result.outputFiles[0].text)(x => used.push(x));
+    assert.deepStrictEqual(used, [
+      'plugin:unused-true',
+      'plugin:unused-none',
+
+      'plugin:used-false',
+      'plugin:used-true',
+      'plugin:used-none',
+
+      'plugin:ignored-true',
+      'plugin:ignored-none',
+
+      [3, 4, 5],
+    ])
+
+    // Check that the warning for "sideEffect: false" imports mentions the plugin
+    assert.strictEqual(result.warnings.length, 1)
+    assert.strictEqual(result.warnings[0].text,
+      'Ignoring this import because "ns:plugin:ignored-false" was marked as having no side effects by plugin "name"')
+  },
+
   async noResolveDirInFileModule({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
