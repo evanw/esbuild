@@ -29,6 +29,10 @@
 
     With this release, esbuild will no longer respect `tsconfig.json` files when the source file is inside a `node_modules` folder. Note that `tsconfig.json` files inside `node_modules` are still parsed, and extending `tsconfig.json` files from inside a package is still supported.
 
+* Fix missing `--metafile` when using `--watch` ([#1357](https://github.com/evanw/esbuild/issues/1357))
+
+    Due to an oversight, the `--metafile` setting didn't work when `--watch` was also specified. This only affected the command-line interface. With this release, the `--metafile` setting should now work in this case.
+
 ## 0.12.6
 
 * Improve template literal lowering transformation conformance ([#1327](https://github.com/evanw/esbuild/issues/1327))

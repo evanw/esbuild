@@ -692,9 +692,11 @@ func runImpl(osArgs []string) int {
 		// Validate the metafile absolute path and directory ahead of time so we
 		// don't write any output files if it's incorrect. That makes this API
 		// option consistent with how we handle all other API options.
-		var metafileAbsPath string
-		var metafileAbsDir string
+		var writeMetafile func(string)
 		if metafile != nil {
+			var metafileAbsPath string
+			var metafileAbsDir string
+
 			if buildOptions.Outfile == "" && buildOptions.Outdir == "" {
 				// Cannot use "metafile" when writing to stdout
 				logger.PrintErrorToStderr(osArgs, "Cannot use \"metafile\" without an output path")
@@ -711,10 +713,43 @@ func runImpl(osArgs []string) int {
 			} else {
 				// Don't fail in this case since the error will be reported by "api.Build"
 			}
+
+			writeMetafile = func(json string) {
+				if json == "" {
+					return // Don't write out the metafile on build errors
+				}
+				if err != nil {
+					// This should already have been checked above
+					panic(err.Error())
+				}
+				fs.BeforeFileOpen()
+				defer fs.AfterFileClose()
+				if err := os.MkdirAll(metafileAbsDir, 0755); err != nil {
+					logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
+						"Failed to create output directory: %s", err.Error()))
+				} else {
+					if err := ioutil.WriteFile(metafileAbsPath, []byte(json), 0644); err != nil {
+						logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
+							"Failed to write to output file: %s", err.Error()))
+					}
+				}
+			}
+
+			// Write out the metafile whenever we rebuild
+			if buildOptions.Watch != nil {
+				buildOptions.Watch.OnRebuild = func(result api.BuildResult) {
+					writeMetafile(result.Metafile)
+				}
+			}
 		}
 
 		// Run the build
 		result := api.Build(*buildOptions)
+
+		// Write the metafile to the file system
+		if writeMetafile != nil {
+			writeMetafile(result.Metafile)
+		}
 
 		// Do not exit if we're in watch mode
 		if buildOptions.Watch != nil {
@@ -724,25 +759,6 @@ func runImpl(osArgs []string) int {
 		// Stop if there were errors
 		if len(result.Errors) > 0 {
 			return 1
-		}
-
-		// Write the metafile to the file system
-		if metafile != nil {
-			if err != nil {
-				// This should already have been checked above
-				panic(err.Error())
-			}
-			fs.BeforeFileOpen()
-			defer fs.AfterFileClose()
-			if err := os.MkdirAll(metafileAbsDir, 0755); err != nil {
-				logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
-					"Failed to create output directory: %s", err.Error()))
-			} else {
-				if err := ioutil.WriteFile(metafileAbsPath, []byte(result.Metafile), 0644); err != nil {
-					logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
-						"Failed to write to output file: %s", err.Error()))
-				}
-			}
 		}
 
 	case transformOptions != nil:
