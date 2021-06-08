@@ -115,7 +115,8 @@ const (
 type Target uint8
 
 const (
-	ESNext Target = iota
+	DefaultTarget Target = iota
+	ESNext
 	ES5
 	ES2015
 	ES2016

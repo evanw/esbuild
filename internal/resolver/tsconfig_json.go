@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/internal/cache"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
@@ -35,6 +36,7 @@ type TSConfigJSON struct {
 
 	JSXFactory                     []string
 	JSXFragmentFactory             []string
+	TSTarget                       *config.TSTarget
 	UseDefineForClassFields        config.MaybeBool
 	PreserveImportsNotUsedAsValues bool
 }
@@ -106,6 +108,49 @@ func ParseTSConfigJSON(
 					result.UseDefineForClassFields = config.True
 				} else {
 					result.UseDefineForClassFields = config.False
+				}
+			}
+		}
+
+		// Parse "target"
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "target"); ok {
+			if value, ok := getString(valueJSON); ok {
+				constraints := make(map[compat.Engine][]int)
+				r := source.RangeOfString(valueJSON.Loc)
+				ok := true
+
+				// See https://www.typescriptlang.org/tsconfig#target
+				switch strings.ToLower(value) {
+				case "es5":
+					constraints[compat.ES] = []int{5}
+				case "es6", "es2015":
+					constraints[compat.ES] = []int{2015}
+				case "es7", "es2016":
+					constraints[compat.ES] = []int{2016}
+				case "es2017":
+					constraints[compat.ES] = []int{2017}
+				case "es2018":
+					constraints[compat.ES] = []int{2018}
+				case "es2019":
+					constraints[compat.ES] = []int{2019}
+				case "es2020":
+					constraints[compat.ES] = []int{2020}
+				case "esnext":
+					// Nothing to do in this case
+				default:
+					ok = false
+					log.AddRangeWarning(&tracker, r,
+						fmt.Sprintf("Unrecognized target environment %q", value))
+				}
+
+				// These feature restrictions are merged with esbuild's own restrictions
+				if ok {
+					result.TSTarget = &config.TSTarget{
+						Source:                source,
+						Range:                 r,
+						Target:                value,
+						UnsupportedJSFeatures: compat.UnsupportedJSFeatures(constraints),
+					}
 				}
 			}
 		}

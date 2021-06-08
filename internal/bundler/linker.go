@@ -46,6 +46,10 @@ type linkerContext struct {
 	// We may need to refer to the CommonJS "module" symbol for exports
 	unboundModuleRef js_ast.Ref
 
+	// We may need to refer to the "__esm" and/or "__commonJS" runtime symbols
+	cjsRuntimeRef js_ast.Ref
+	esmRuntimeRef js_ast.Ref
+
 	// This represents the parallel computation of source map related data.
 	// Calling this will block until the computation is done. The resulting value
 	// is shared between threads and must be treated as immutable.
@@ -227,6 +231,16 @@ func link(
 		),
 	}
 	timer.End("Clone linker graph")
+
+	// Use a smaller version of these functions if we don't need profiler names
+	runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
+	if c.options.ProfilerNames {
+		c.cjsRuntimeRef = runtimeRepr.AST.NamedExports["__commonJS"].Ref
+		c.esmRuntimeRef = runtimeRepr.AST.NamedExports["__esm"].Ref
+	} else {
+		c.cjsRuntimeRef = runtimeRepr.AST.NamedExports["__commonJSMin"].Ref
+		c.esmRuntimeRef = runtimeRepr.AST.NamedExports["__esmMin"].Ref
+	}
 
 	for _, entryPoint := range entryPoints {
 		if repr, ok := c.graph.Files[entryPoint.SourceIndex].InputFile.Repr.(*graph.JSRepr); ok {
@@ -1726,10 +1740,13 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}
 	}
 
-	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
 	declaredSymbols := []js_ast.DeclaredSymbol{}
 	var nsExportStmts []js_ast.Stmt
-	if repr.AST.ExportsKind != js_ast.ExportsCommonJS && (!file.IsEntryPoint() || c.options.OutputFormat != config.FormatCommonJS) {
+
+	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
+	needsExportsVariable := repr.AST.ExportsKind != js_ast.ExportsCommonJS &&
+		(!file.IsEntryPoint() || c.options.OutputFormat != config.FormatCommonJS)
+	if needsExportsVariable {
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
 			Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.ExportsRef}},
 			ValueOrNil: js_ast.Expr{Data: &js_ast.EObject{}},
@@ -1744,8 +1761,20 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// "__markAsModule" which sets the "__esModule" property to true. This must
 	// be done before any to "require()" or circular imports of multiple modules
 	// that have been each converted from ESM to CommonJS may not work correctly.
-	if repr.AST.ExportKeyword.Len > 0 && (repr.AST.ExportsKind == js_ast.ExportsCommonJS ||
-		(file.IsEntryPoint() && c.options.OutputFormat == config.FormatCommonJS)) {
+	needsMarkAsModule :=
+		(repr.AST.ExportKeyword.Len > 0 && (repr.AST.ExportsKind == js_ast.ExportsCommonJS ||
+			(file.IsEntryPoint() && c.options.OutputFormat == config.FormatCommonJS))) ||
+			needsExportsVariable
+
+	// Avoid calling "__markAsModule" if we call "__export" since the function
+	// "__export" already calls "__markAsModule". This is an optimization to
+	// reduce generated code size.
+	needsExportCall := len(properties) > 0
+	if needsMarkAsModule && needsExportCall {
+		needsMarkAsModule = false
+	}
+
+	if needsMarkAsModule {
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
 		markAsModuleRef := runtimeRepr.AST.ModuleScope.Members["__markAsModule"].Ref
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
@@ -1769,7 +1798,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 	// "__export(exports, { foo: () => foo })"
 	exportRef := js_ast.InvalidRef
-	if len(properties) > 0 {
+	if needsExportCall {
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
 		exportRef = runtimeRepr.AST.ModuleScope.Members["__export"].Ref
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
@@ -1838,8 +1867,7 @@ func (c *linkerContext) createWrapperForFile(sourceIndex uint32) {
 	// of it.
 	case graph.WrapCJS:
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
-		commonJSRef := runtimeRepr.AST.NamedExports["__commonJS"].Ref
-		commonJSParts := runtimeRepr.TopLevelSymbolToParts(commonJSRef)
+		commonJSParts := runtimeRepr.TopLevelSymbolToParts(c.cjsRuntimeRef)
 
 		// Generate the dummy part
 		dependencies := make([]js_ast.Dependency, len(commonJSParts))
@@ -1861,7 +1889,7 @@ func (c *linkerContext) createWrapperForFile(sourceIndex uint32) {
 			Dependencies: dependencies,
 		})
 		repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
-		c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, commonJSRef, 1, runtime.SourceIndex)
+		c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, c.cjsRuntimeRef, 1, runtime.SourceIndex)
 
 	// If this is a lazily-initialized ESM file, we're going to need to
 	// generate a wrapper for the ESM closure. That will end up looking
@@ -1875,8 +1903,7 @@ func (c *linkerContext) createWrapperForFile(sourceIndex uint32) {
 	// for similar reasons to the CommonJS closure above.
 	case graph.WrapESM:
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
-		esmRef := runtimeRepr.AST.NamedExports["__esm"].Ref
-		esmParts := runtimeRepr.TopLevelSymbolToParts(esmRef)
+		esmParts := runtimeRepr.TopLevelSymbolToParts(c.esmRuntimeRef)
 
 		// Generate the dummy part
 		dependencies := make([]js_ast.Dependency, len(esmParts))
@@ -1896,7 +1923,7 @@ func (c *linkerContext) createWrapperForFile(sourceIndex uint32) {
 			Dependencies: dependencies,
 		})
 		repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
-		c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, esmRef, 1, runtime.SourceIndex)
+		c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, c.esmRuntimeRef, 1, runtime.SourceIndex)
 	}
 }
 
@@ -2809,8 +2836,8 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 	}
 
 	// Include all files reachable from any entry point
-	for _, entryPoint := range entryPoints {
-		visit(entryPoint, ast.Index32{})
+	for i := len(entryPoints) - 1; i >= 0; i-- {
+		visit(entryPoints[i], ast.Index32{})
 	}
 
 	// Reverse the order afterward when traversing in CSS order
@@ -3523,8 +3550,6 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	partRange partRange,
 	entryBits helpers.BitSet,
 	chunkAbsDir string,
-	commonJSRef js_ast.Ref,
-	esmRef js_ast.Ref,
 	toModuleRef js_ast.Ref,
 	runtimeRequireRef js_ast.Ref,
 	result *compileResultJS,
@@ -3616,7 +3641,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				cjsArgs = []js_ast.Expr{{Data: &js_ast.EArrow{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}}
 			}
 			value := js_ast.Expr{Data: &js_ast.ECall{
-				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.cjsRuntimeRef}},
 				Args:   cjsArgs,
 			}}
 
@@ -3684,7 +3709,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				esmArgs = []js_ast.Expr{{Data: &js_ast.EArrow{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}}
 			}
 			value := js_ast.Expr{Data: &js_ast.ECall{
-				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: esmRef}},
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.esmRuntimeRef}},
 				Args:   esmArgs,
 			}}
 
@@ -4295,8 +4320,6 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	chunkRepr := chunk.chunkRepr.(*chunkReprJS)
 	compileResults := make([]compileResultJS, 0, len(chunkRepr.partsInChunkInOrder))
 	runtimeMembers := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.ModuleScope.Members
-	commonJSRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__commonJS"].Ref)
-	esmRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__esm"].Ref)
 	toModuleRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__toModule"].Ref)
 	runtimeRequireRef := js_ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__require"].Ref)
 	r := c.renameSymbolsInChunk(chunk, chunkRepr.filesInChunkInOrder, timer)
@@ -4330,8 +4353,6 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			partRange,
 			chunk.entryBits,
 			chunkAbsDir,
-			commonJSRef,
-			esmRef,
 			toModuleRef,
 			runtimeRequireRef,
 			compileResult,
@@ -4699,7 +4720,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 		join = ";"
 	}
 
-	if js_printer.CanQuoteIdentifier(prefix, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
+	if js_printer.CanEscapeIdentifier(prefix, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
 		if c.options.ASCIIOnly {
 			prefix = string(js_printer.QuoteIdentifier(nil, prefix, c.options.UnsupportedJSFeatures))
 		}
@@ -4711,7 +4732,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 
 	for _, name := range c.options.GlobalName[1:] {
 		oldPrefix := prefix
-		if js_printer.CanQuoteIdentifier(name, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
+		if js_printer.CanEscapeIdentifier(name, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
 			if c.options.ASCIIOnly {
 				name = string(js_printer.QuoteIdentifier(nil, name, c.options.UnsupportedJSFeatures))
 			}

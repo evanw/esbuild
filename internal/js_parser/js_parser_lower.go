@@ -14,6 +14,19 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
+func (p *parser) prettyPrintTargetEnvironment(feature compat.JSFeature) (where string, notes []logger.MsgData) {
+	where = "the configured target environment"
+	if tsTarget := p.options.tsTarget; tsTarget != nil && tsTarget.UnsupportedJSFeatures.Has(feature) {
+		tracker := logger.MakeLineColumnTracker(&tsTarget.Source)
+		where = fmt.Sprintf("%s (%q)", where, tsTarget.Target)
+		notes = []logger.MsgData{logger.RangeData(&tracker, tsTarget.Range, fmt.Sprintf(
+			"The target environment was set to %q here", tsTarget.Target))}
+	} else if p.options.originalTargetEnv != "" {
+		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
+	}
+	return
+}
+
 func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (didGenerateError bool) {
 	didGenerateError = true
 
@@ -29,11 +42,7 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	}
 
 	var name string
-	where := "the configured target environment"
-
-	if p.options.originalTargetEnv != "" {
-		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
-	}
+	where, notes := p.prettyPrintTargetEnvironment(feature)
 
 	switch feature {
 	case compat.DefaultArgument:
@@ -53,9 +62,6 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 
 	case compat.ObjectExtensions:
 		name = "object literal extensions"
-
-	case compat.TemplateLiteral:
-		name = "tagged template literals"
 
 	case compat.Destructuring:
 		name = "destructuring"
@@ -88,40 +94,40 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 		name = "non-identifier array rest patterns"
 
 	case compat.ImportAssertions:
-		p.log.AddRangeError(&p.tracker, r,
-			fmt.Sprintf("Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where), notes)
 		return
 
 	case compat.TopLevelAwait:
-		p.log.AddRangeError(&p.tracker, r,
-			fmt.Sprintf("Top-level await is not available in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Top-level await is not available in %s", where), notes)
 		return
 
 	case compat.ArbitraryModuleNamespaceNames:
-		p.log.AddRangeError(&p.tracker, r,
-			fmt.Sprintf("Using a string as a module namespace identifier name is not supported in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Using a string as a module namespace identifier name is not supported in %s", where), notes)
 		return
 
 	case compat.BigInt:
 		// Transforming these will never be supported
-		p.log.AddRangeError(&p.tracker, r,
-			fmt.Sprintf("Big integer literals are not available in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"Big integer literals are not available in %s", where), notes)
 		return
 
 	case compat.ImportMeta:
 		// This can't be polyfilled
-		p.log.AddRangeWarning(&p.tracker, r,
-			fmt.Sprintf("\"import.meta\" is not available in %s and will be empty", where))
+		p.log.AddRangeWarningWithNotes(&p.tracker, r, fmt.Sprintf(
+			"\"import.meta\" is not available in %s and will be empty", where), notes)
 		return
 
 	default:
-		p.log.AddRangeError(&p.tracker, r,
-			fmt.Sprintf("This feature is not available in %s", where))
+		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+			"This feature is not available in %s", where), notes)
 		return
 	}
 
-	p.log.AddRangeError(&p.tracker, r,
-		fmt.Sprintf("Transforming %s to %s is not supported yet", name, where))
+	p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+		"Transforming %s to %s is not supported yet", name, where), notes)
 	return
 }
 
@@ -1991,7 +1997,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				if kind == classKindExportDefaultStmt {
 					class.Name = &defaultName
 				} else {
-					class.Name = &js_ast.LocRef{Loc: classLoc, Ref: p.generateTempRef(tempRefNoDeclare, "zomzomz")}
+					class.Name = &js_ast.LocRef{Loc: classLoc, Ref: p.generateTempRef(tempRefNoDeclare, "")}
 				}
 			}
 			p.recordUsage(class.Name.Ref)
@@ -2381,6 +2387,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			nameToJoin = nameFunc()
 		}
 
+		// Optionally preserve the name
+		if p.options.keepNames && nameToKeep != "" {
+			expr = p.keepExprSymbolName(expr, nameToKeep)
+		}
+
 		// Then join "expr" with any other expressions that apply
 		if computedPropertyCache.Data != nil {
 			expr = js_ast.JoinWithComma(expr, computedPropertyCache)
@@ -2401,11 +2412,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		}
 		if wrapFunc != nil {
 			expr = wrapFunc(expr)
-		}
-
-		// Optionally preserve the name
-		if p.options.keepNames && nameToKeep != "" {
-			expr = p.keepExprSymbolName(expr, nameToKeep)
 		}
 		return nil, expr
 	}
@@ -2529,6 +2535,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			p.mergeSymbols(shadowRef, class.Name.Ref)
 		}
 	}
+	if keepNameStmt.Data != nil {
+		stmts = append(stmts, keepNameStmt)
+	}
 
 	// The official TypeScript compiler adds generated code after the class body
 	// in this exact order. Matching this order is important for correctness.
@@ -2562,31 +2571,121 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		p.recordUsage(nameForClassDecorators.Ref)
 	}
 	if generatedLocalStmt {
+		// "export default class x {}" => "class x {} export {x as default}"
 		if kind == classKindExportDefaultStmt {
-			// Generate a new default name symbol since the current one is being used
-			// by the class. If this SExportDefault turns into a variable declaration,
-			// we don't want it to accidentally use the same variable as the class and
-			// cause a name collision.
-			defaultRef := p.generateTempRef(tempRefNoDeclare, p.source.IdentifierName+"_default")
-			p.recordDeclaredSymbol(defaultRef)
-
-			name := nameFunc()
-			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExportDefault{
-				DefaultName: js_ast.LocRef{Loc: defaultName.Loc, Ref: defaultRef},
-				Value:       js_ast.Stmt{Loc: name.Loc, Data: &js_ast.SExpr{Value: name}},
+			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExportClause{
+				Items: []js_ast.ClauseItem{{Alias: "default", Name: defaultName}},
 			}})
 		}
 
 		// Calling "nameFunc" will set the class name, but we don't want it to have
 		// one. If the class name was necessary, we would have already split it off
-		// into a "const" symbol above. Reset it back to empty here now that we
-		// know we won't call "nameFunc" after this point.
+		// into a variable above. Reset it back to empty here now that we know we
+		// won't call "nameFunc" after this point.
 		class.Name = nil
 	}
-	if keepNameStmt.Data != nil {
-		stmts = append(stmts, keepNameStmt)
-	}
 	return stmts, js_ast.Expr{}
+}
+
+func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr {
+	// If there is no tag, turn this into normal string concatenation
+	if e.TagOrNil.Data == nil {
+		var value js_ast.Expr
+
+		// Handle the head
+		value = js_ast.Expr{Loc: loc, Data: &js_ast.EString{
+			Value:          e.HeadCooked,
+			LegacyOctalLoc: e.LegacyOctalLoc,
+		}}
+
+		// Handle the tail. Each one is handled with a separate call to ".concat()"
+		// to handle various corner cases in the specification including:
+		//
+		//   * For objects, "toString" must be called instead of "valueOf"
+		//   * Side effects must happen inline instead of at the end
+		//   * Passing a "Symbol" instance should throw
+		//
+		for _, part := range e.Parts {
+			var args []js_ast.Expr
+			if len(part.TailCooked) > 0 {
+				args = []js_ast.Expr{part.Value, {Loc: part.TailLoc, Data: &js_ast.EString{Value: part.TailCooked}}}
+			} else {
+				args = []js_ast.Expr{part.Value}
+			}
+			value = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+				Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+					Target:  value,
+					Name:    "concat",
+					NameLoc: part.Value.Loc,
+				}},
+				Args: args,
+			}}
+		}
+
+		return value
+	}
+
+	// Otherwise, call the tag with the template object
+	needsRaw := false
+	cooked := []js_ast.Expr{}
+	raw := []js_ast.Expr{}
+	args := make([]js_ast.Expr, 0, 1+len(e.Parts))
+	args = append(args, js_ast.Expr{})
+
+	// Handle the head
+	if e.HeadCooked == nil {
+		cooked = append(cooked, js_ast.Expr{Loc: e.HeadLoc, Data: js_ast.EUndefinedShared})
+		needsRaw = true
+	} else {
+		cooked = append(cooked, js_ast.Expr{Loc: e.HeadLoc, Data: &js_ast.EString{Value: e.HeadCooked}})
+		if !js_lexer.UTF16EqualsString(e.HeadCooked, e.HeadRaw) {
+			needsRaw = true
+		}
+	}
+	raw = append(raw, js_ast.Expr{Loc: e.HeadLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(e.HeadRaw)}})
+
+	// Handle the tail
+	for _, part := range e.Parts {
+		args = append(args, part.Value)
+		if part.TailCooked == nil {
+			cooked = append(cooked, js_ast.Expr{Loc: part.TailLoc, Data: js_ast.EUndefinedShared})
+			needsRaw = true
+		} else {
+			cooked = append(cooked, js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: part.TailCooked}})
+			if !js_lexer.UTF16EqualsString(part.TailCooked, part.TailRaw) {
+				needsRaw = true
+			}
+		}
+		raw = append(raw, js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(part.TailRaw)}})
+	}
+
+	// Construct the template object
+	cookedArray := js_ast.Expr{Loc: e.HeadLoc, Data: &js_ast.EArray{Items: cooked, IsSingleLine: true}}
+	var arrays []js_ast.Expr
+	if needsRaw {
+		arrays = []js_ast.Expr{cookedArray, {Loc: e.HeadLoc, Data: &js_ast.EArray{Items: raw, IsSingleLine: true}}}
+	} else {
+		arrays = []js_ast.Expr{cookedArray}
+	}
+	templateObj := p.callRuntime(e.HeadLoc, "__template", arrays)
+
+	// Cache it in a temporary object (required by the specification)
+	tempRef := p.generateTopLevelTempRef()
+	args[0] = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+		Op:   js_ast.BinOpLogicalOr,
+		Left: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}},
+		Right: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+			Op:    js_ast.BinOpAssign,
+			Left:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}},
+			Right: templateObj,
+		}},
+	}}
+
+	// Call the tag function
+	return js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+		Target: e.TagOrNil,
+		Args:   args,
+	}}
 }
 
 func (p *parser) shouldLowerSuperPropertyAccess(expr js_ast.Expr) bool {

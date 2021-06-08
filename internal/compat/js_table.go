@@ -159,7 +159,8 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Node:    {14, 6},
 	},
 	ClassPrivateBrandCheck: {
-		Chrome: {91},
+		Chrome:  {91},
+		Firefox: {90},
 	},
 	ClassPrivateField: {
 		Chrome:  {84},

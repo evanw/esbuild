@@ -1,5 +1,207 @@
 # Changelog
 
+## Unreleased
+
+* Quote object properties that are modern Unicode identifiers ([#1349](https://github.com/evanw/esbuild/issues/1349))
+
+    In ES6 and above, an identifier is a character sequence starting with a character in the `ID_Start` Unicode category and followed by zero or more characters in the `ID_Continue` Unicode category, and these categories must be drawn from Unicode version 5.1 or above.
+
+    But in ES5, an identifier is a character sequence starting with a character in one of the `Lu, Ll, Lt, Lm, Lo, Nl` Unicode categories and followed by zero or more characters in the `Lu, Ll, Lt, Lm, Lo, Nl, Mn, Mc, Nd, Pc` Unicode categories, and these categories must be drawn from Unicode version 3.0 or above.
+
+    Previously esbuild always used the ES6+ identifier validation test when deciding whether to use an identifier or a quoted string to encode an object property but with this release, it will use the ES5 validation test instead:
+
+    ```js
+    // Original code
+    x.ꓷꓶꓲꓵꓭꓢꓱ = { ꓷꓶꓲꓵꓭꓢꓱ: y };
+
+    // Old output
+    x.ꓷꓶꓲꓵꓭꓢꓱ = { ꓷꓶꓲꓵꓭꓢꓱ: y };
+
+    // New output
+    x["ꓷꓶꓲꓵꓭꓢꓱ"] = { "ꓷꓶꓲꓵꓭꓢꓱ": y };
+    ```
+
+    This approach should ensure maximum compatibility with all JavaScript environments that support ES5 and above. Note that this means minified files containing Unicode properties may be slightly larger than before.
+
+* Ignore `tsconfig.json` files inside `node_modules` ([#1355](https://github.com/evanw/esbuild/issues/1355))
+
+    Package authors often publish their `tsconfig.json` files to npm because of npm's default-include publishing model and because these authors probably don't know about `.npmignore` files. People trying to use these packages with esbuild have historically complained that esbuild is respecting `tsconfig.json` in these cases. The assumption is that the package author published these files by accident.
+
+    With this release, esbuild will no longer respect `tsconfig.json` files when the source file is inside a `node_modules` folder. Note that `tsconfig.json` files inside `node_modules` are still parsed, and extending `tsconfig.json` files from inside a package is still supported.
+
+* Fix missing `--metafile` when using `--watch` ([#1357](https://github.com/evanw/esbuild/issues/1357))
+
+    Due to an oversight, the `--metafile` setting didn't work when `--watch` was also specified. This only affected the command-line interface. With this release, the `--metafile` setting should now work in this case.
+
+* Add a hidden `__esModule` property to modules in ESM format ([#1338](https://github.com/evanw/esbuild/pull/1338))
+
+    Module namespace objects from ESM files will now have a hidden `__esModule` property. This improves compatibility with code that has been converted from ESM syntax to CommonJS by Babel or TypeScript. For example:
+
+    ```js
+    // Input TypeScript code
+    import x from "y"
+    console.log(x)
+
+    // Output JavaScript code from the TypeScript compiler
+    var __importDefault = (this && this.__importDefault) || function (mod) {
+        return (mod && mod.__esModule) ? mod : { "default": mod };
+    };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    const y_1 = __importDefault(require("y"));
+    console.log(y_1.default);
+    ```
+
+    If the object returned by `require("y")` doesn't have an `__esModule` property, then `y_1` will be the object `{ "default": require("y") }`. If the file `"y"` is in ESM format and has a default export of, say, the value `null`, that means `y_1` will now be `{ "default": { "default": null } }` and you will need to use `y_1.default.default` to access the default value. Adding an automatically-generated `__esModule` property when converting files in ESM format to CommonJS is required to make this code work correctly (i.e. for the value to be accessible via just `y_1.default` instead).
+
+    With this release, code in ESM format will now have an automatically-generated `__esModule` property to satisfy this convention. The property is non-enumerable so it shouldn't show up when iterating over the properties of the object. As a result, the export name `__esModule` is now reserved for use with esbuild. It's now an error to create an export with the name `__esModule`.
+
+    This fix was contributed by [@lbwa](https://github.com/lbwa).
+
+## 0.12.6
+
+* Improve template literal lowering transformation conformance ([#1327](https://github.com/evanw/esbuild/issues/1327))
+
+    This release contains the following improvements to template literal lowering for environments that don't support tagged template literals natively (such as `--target=es5`):
+
+    * For tagged template literals, the arrays of strings that are passed to the tag function are now frozen and immutable. They are also now cached so they should now compare identical between multiple template evaluations:
+
+        ```js
+        // Original code
+        console.log(tag`\u{10000}`)
+
+        // Old output
+        console.log(tag(__template(["𐀀"], ["\\u{10000}"])));
+
+        // New output
+        var _a;
+        console.log(tag(_a || (_a = __template(["𐀀"], ["\\u{10000}"]))));
+        ```
+
+    * For tagged template literals, the generated code size is now smaller in the common case where there are no escape sequences, since in that case there is no distinction between "raw" and "cooked" values:
+
+        ```js
+        // Original code
+        console.log(tag`some text without escape sequences`)
+
+        // Old output
+        console.log(tag(__template(["some text without escape sequences"], ["some text without escape sequences"])));
+
+        // New output
+        var _a;
+        console.log(tag(_a || (_a = __template(["some text without escape sequences"]))));
+        ```
+
+    * For non-tagged template literals, the generated code now uses chains of `.concat()` calls instead of string addition:
+
+        ```js
+        // Original code
+        console.log(`an ${example} template ${literal}`)
+
+        // Old output
+        console.log("an " + example + " template " + literal);
+
+        // New output
+        console.log("an ".concat(example, " template ").concat(literal));
+        ```
+
+        The old output was incorrect for several reasons including that `toString` must be called instead of `valueOf` for objects and that passing a `Symbol` instance should throw instead of converting the symbol to a string. Using `.concat()` instead of string addition fixes both of those correctness issues. And you can't use a single `.concat()` call because side effects must happen inline instead of at the end.
+
+* Only respect `target` in `tsconfig.json` when esbuild's target is not configured ([#1332](https://github.com/evanw/esbuild/issues/1332))
+
+    In version 0.12.4, esbuild began respecting the `target` setting in `tsconfig.json`. However, sometimes `tsconfig.json` contains target values that should not be used. With this release, esbuild will now only use the `target` value in `tsconfig.json` as the language level when esbuild's `target` setting is not configured. If esbuild's `target` setting is configured then the `target` value in `tsconfig.json` is now ignored.
+
+* Fix the order of CSS imported from JS ([#1342](https://github.com/evanw/esbuild/pull/1342))
+
+    Importing CSS from JS when bundling causes esbuild to generate a sibling CSS output file next to the resulting JS output file containing the bundled CSS. The order of the imported CSS files in the output was accidentally the inverse order of the order in which the JS files were evaluated. Instead the order of the imported CSS files should match the order in which the JS files were evaluated. This fix was contributed by [@dmitrage](https://github.com/dmitrage).
+
+* Fix an edge case with transforming `export default class` ([#1346](https://github.com/evanw/esbuild/issues/1346))
+
+    Statements of the form `export default class x {}` were incorrectly transformed to `class x {} var y = x; export {y as default}` instead of `class x {} export {x as default}`. Transforming these statements like this is incorrect in the rare case that the class is later reassigned by name within the same file such as `export default class x {} x = null`. Here the imported value should be `null` but was incorrectly the class object instead. This is unlikely to matter in real-world code but it has still been fixed to improve correctness.
+
+## 0.12.5
+
+* Add support for lowering tagged template literals to ES5 ([#297](https://github.com/evanw/esbuild/issues/297))
+
+    This release adds support for lowering tagged template literals such as `` String.raw`\unicode` `` to target environments that don't support them such as `--target=es5` (non-tagged template literals were already supported). Each literal turns into a function call to a helper function:
+
+    ```js
+    // Original code
+    console.log(String.raw`\unicode`)
+
+    // Lowered code
+    console.log(String.raw(__template([void 0], ["\\unicode"])));
+    ```
+
+* Change class field behavior to match TypeScript 4.3
+
+    TypeScript 4.3 includes a subtle breaking change that wasn't mentioned in the [TypeScript 4.3 blog post](https://devblogs.microsoft.com/typescript/announcing-typescript-4-3/): class fields will now be compiled with different semantics if `"target": "ESNext"` is present in `tsconfig.json`. Specifically in this case `useDefineForClassFields` will default to `true` when not specified instead of `false`. This means class field behavior in TypeScript code will now match JavaScript instead of doing something else:
+
+    ```js
+    class Base {
+      set foo(value) { console.log('set', value) }
+    }
+    class Derived extends Base {
+      foo = 123
+    }
+    new Derived()
+    ```
+
+    In TypeScript 4.2 and below, the TypeScript compiler would generate code that prints `set 123` when `tsconfig.json` contains `"target": "ESNext"` but in TypeScript 4.3, the TypeScript compiler will now generate code that doesn't print anything. This is the difference between "assign" semantics and "define" semantics. With this release, esbuild has been changed to follow the TypeScript 4.3 behavior.
+
+* Avoid generating the character sequence `</script>` ([#1322](https://github.com/evanw/esbuild/issues/1322))
+
+    If the output of esbuild is inlined into a `<script>...</script>` tag inside an HTML file, the character sequence `</script>` inside the JavaScript code will accidentally cause the script tag to be terminated early. There are at least four such cases where this can happen:
+
+    ```js
+    console.log('</script>')
+    console.log(1</script>/.exec(x).length)
+    console.log(String.raw`</script>`)
+    // @license </script>
+    ```
+
+    With this release, esbuild will now handle all of these cases and avoid generating the problematic character sequence:
+
+    ```js
+    console.log('<\/script>');
+    console.log(1< /script>/.exec(x).length);
+    console.log(String.raw(__template(["<\/script>"], ["<\/script>"])));
+    // @license <\/script>
+    ```
+
+* Change the triple-slash reference comment for Deno ([#1325](https://github.com/evanw/esbuild/issues/1325))
+
+    The comment in esbuild's JavaScript API implementation for Deno that references the TypeScript type declarations has been changed from `/// <reference path="./mod.d.ts" />` to `/// <reference types="./mod.d.ts" />`. This comment was copied from Deno's documentation but apparently Deno's documentation was incorrect. The comment in esbuild's Deno bundle has been changed to reflect Deno's latest documentation.
+
+## 0.12.4
+
+* Reorder name preservation before TypeScript decorator evaluation ([#1316](https://github.com/evanw/esbuild/issues/1316))
+
+    The `--keep-names` option ensures the `.name` property on functions and classes remains the same after bundling. However, this was being enforced after TypeScript decorator evaluation which meant that the decorator could observe the incorrect name. This has been fixed and now `.name` preservation happens before decorator evaluation instead.
+
+* Potential fix for a determinism issue ([#1304](https://github.com/evanw/esbuild/issues/1304))
+
+    This release contains a potential fix for an unverified issue with non-determinism in esbuild. The regression was apparently introduced in 0.11.13 and may be related to parallelism that was introduced around the point where dynamic `import()` expressions are added to the list of entry points. Hopefully this fix should resolve the regression.
+
+* Respect `target` in `tsconfig.json` ([#277](https://github.com/evanw/esbuild/issues/277))
+
+    Each JavaScript file that esbuild bundles will now be transformed according to the [`target`](https://www.typescriptlang.org/tsconfig#target) language level from the nearest enclosing `tsconfig.json` file. This is in addition to esbuild's own `--target` setting; the two settings are merged by transforming any JavaScript language feature that is unsupported in either esbuild's configured `--target` value or the `target` property in the `tsconfig.json` file.
+
+## 0.12.3
+
+* Ensure JSX element names start with a capital letter ([#1309](https://github.com/evanw/esbuild/issues/1309))
+
+    The JSX specification only describes the syntax and says nothing about how to interpret it. But React (and therefore esbuild) treats JSX tags that start with a lower-case ASCII character as strings instead of identifiers. That way the tag `<i/>` always refers to the italic HTML element `i` and never to a local variable named `i`.
+
+    However, esbuild may rename identifiers for any number of reasons such as when minification is enabled. Previously esbuild could sometimes rename identifiers used as tag names such that they start with a lower-case ASCII character. This is problematic when JSX syntax preservation is enabled since subsequent JSX processing would then turn these identifier references into strings.
+
+    With this release, esbuild will now make sure identifiers used in tag names start with an upper-case ASCII character instead when JSX syntax preservation is enabled. This should avoid problems when using esbuild with JSX transformation tools.
+
+* Fix a single hyphen being treated as a CSS name ([#1310](https://github.com/evanw/esbuild/pull/1310))
+
+    CSS identifiers are allowed to start with a `-` character if (approximately) the following character is a letter, an escape sequence, a non-ASCII character, the character `_`, or another `-` character. This check is used in certain places when printing CSS to determine whether a token is a valid identifier and can be printed as such or whether it's an invalid identifier and needs to be quoted as a string. One such place is in attribute selectors such as `[a*=b]`.
+
+    However, esbuild had a bug where a single `-` character was incorrectly treated as a valid identifier in this case. This is because the end of string became U+FFFD (the Unicode replacement character) which is a non-ASCII character and a valid name-start code point. With this release a single `-` character is no longer treated as a valid identifier. This fix was contributed by [@lbwa](https://github.com/lbwa).
+
 ## 0.12.2
 
 * Fix various code generation and minification issues ([#1305](https://github.com/evanw/esbuild/issues/1305))

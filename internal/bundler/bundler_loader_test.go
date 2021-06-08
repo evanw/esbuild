@@ -75,6 +75,76 @@ func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
 	})
 }
 
+func TestJSXPreserveCapitalLetter(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				import { mustStartWithUpperCaseLetter as Test } from './foo'
+				console.log(<Test/>)
+			`,
+			"/foo.js": `
+				export class mustStartWithUpperCaseLetter {}
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			JSX: config.JSXOptions{
+				Parse:    true,
+				Preserve: true,
+			},
+		},
+	})
+}
+
+func TestJSXPreserveCapitalLetterMinify(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				import { mustStartWithUpperCaseLetter as XYYYY } from './foo'
+				console.log(<XYYYY tag-must-start-with-capital-letter />)
+			`,
+			"/foo.js": `
+				export class mustStartWithUpperCaseLetter {}
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:              config.ModeBundle,
+			AbsOutputFile:     "/out.js",
+			MinifyIdentifiers: true,
+			JSX: config.JSXOptions{
+				Parse:    true,
+				Preserve: true,
+			},
+		},
+	})
+}
+
+func TestJSXPreserveCapitalLetterMinifyNested(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				x = () => {
+					class XYYYYY {} // This should be named "Y" due to frequency analysis
+					return <XYYYYY tag-must-start-with-capital-letter />
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:              config.ModeBundle,
+			AbsOutputFile:     "/out.js",
+			MinifyIdentifiers: true,
+			JSX: config.JSXOptions{
+				Parse:    true,
+				Preserve: true,
+			},
+		},
+	})
+}
+
 func TestRequireCustomExtensionString(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{

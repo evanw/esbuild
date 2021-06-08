@@ -488,6 +488,112 @@
     }),
   )
 
+  // Check template literal lowering
+  for (const target of ['--target=es5', '--target=es6']) {
+    tests.push(
+      // Untagged template literals
+      test(['in.js', '--outfile=node.js', target], {
+        'in.js': `
+          var obj = {
+            toString: () => 'b',
+            valueOf: () => 0,
+          }
+          if (\`\${obj}\` !== 'b') throw 'fail'
+          if (\`a\${obj}\` !== 'ab') throw 'fail'
+          if (\`\${obj}c\` !== 'bc') throw 'fail'
+          if (\`a\${obj}c\` !== 'abc') throw 'fail'
+        `,
+        'in.js': `
+          var obj = {}
+          obj[Symbol.toPrimitive] = hint => {
+            if (hint !== 'string') throw 'fail'
+            return 'b'
+          }
+          if (\`\${obj}\` !== 'b') throw 'fail'
+          if (\`a\${obj}\` !== 'ab') throw 'fail'
+          if (\`\${obj}c\` !== 'bc') throw 'fail'
+          if (\`a\${obj}c\` !== 'abc') throw 'fail'
+        `,
+        'in.js': `
+          var list = []
+          var trace = x => list.push(x)
+          var obj2 = { toString: () => trace(2) }
+          var obj4 = { toString: () => trace(4) }
+          \`\${trace(1), obj2}\${trace(3), obj4}\`
+          if (list.join('') !== '1234') throw 'fail'
+        `,
+        'in.js': `
+          x: {
+            try {
+              \`\${Symbol('y')}\`
+            } catch {
+              break x
+            }
+            throw 'fail'
+          }
+        `,
+      }),
+
+      // Tagged template literals
+      test(['in.js', '--outfile=node.js', target], {
+        'in.js': `
+          if ((x => x[0] === 'y' && x.raw[0] === 'y')\`y\` !== true) throw 'fail'
+          if ((x => x[0] === 'y' && x.raw[0] === 'y')\`y\${0}\` !== true) throw 'fail'
+          if ((x => x[1] === 'y' && x.raw[1] === 'y')\`\${0}y\` !== true) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', target], {
+        'in.js': `
+          if ((x => x[0] === '\\xFF' && x.raw[0] === '\\\\xFF')\`\\xFF\` !== true) throw 'fail'
+          if ((x => x[0] === '\\xFF' && x.raw[0] === '\\\\xFF')\`\\xFF\${0}\` !== true) throw 'fail'
+          if ((x => x[1] === '\\xFF' && x.raw[1] === '\\\\xFF')\`\${0}\\xFF\` !== true) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', target], {
+        'in.js': `
+          if ((x => x[0] === void 0 && x.raw[0] === '\\\\u')\`\\u\` !== true) throw 'fail'
+          if ((x => x[0] === void 0 && x.raw[0] === '\\\\u')\`\\u\${0}\` !== true) throw 'fail'
+          if ((x => x[1] === void 0 && x.raw[1] === '\\\\u')\`\${0}\\u\` !== true) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', target], {
+        'in.js': `
+          if ((x => x !== x.raw)\`y\` !== true) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', target], {
+        'in.js': `
+          if ((x => (x.length = 2, x.length))\`y\` !== 1) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', target], {
+        'in.js': `
+          if ((x => (x.raw.length = 2, x.raw.length))\`y\` !== 1) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', target], {
+        'in.js': `
+          var count = 0
+          var foo = () => (() => ++count)\`y\`;
+          if (foo() !== 1 || foo() !== 2) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', target], {
+        'in.js': `
+          var foo = () => (x => x)\`y\`;
+          if (foo() !== foo()) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', target], {
+        'in.js': `
+          var foo = () => (x => x)\`y\`;
+          var bar = () => (x => x)\`y\`;
+          if (foo() === bar()) throw 'fail'
+        `,
+      }),
+    )
+  }
+
   let simpleCyclicImportTestCase542 = {
     'in.js': `
       import {Test} from './lib';
@@ -648,12 +754,38 @@
       'foo.js': `module.exports = 123`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `const out = require('./foo'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
+      'in.js': `const out = require('./foo'); if (!out.__esModule || out.foo !== 123) throw 'fail'`,
       'foo.js': `export const foo = 123`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `const out = require('./foo'); if (out.__esModule || out.default !== 123) throw 'fail'`,
+      'in.js': `const out = require('./foo'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
       'foo.js': `export default 123`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `const out = require('./foo'); if (!out.__esModule || out.default !== null) throw 'fail'`,
+      'foo.js': `export default function x() {} x = null`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `const out = require('./foo'); if (!out.__esModule || out.default !== null) throw 'fail'`,
+      'foo.js': `export default class x {} x = null`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `
+        // This is the JavaScript generated by "tsc" for the following TypeScript:
+        //
+        //   import fn from './foo'
+        //   if (typeof fn !== 'function') throw 'fail'
+        //
+        "use strict";
+        var __importDefault = (this && this.__importDefault) || function (mod) {
+          return (mod && mod.__esModule) ? mod : { "default": mod };
+        };
+        Object.defineProperty(exports, "__esModule", { value: true });
+        const foo_1 = __importDefault(require("./foo"));
+        if (typeof foo_1.default !== 'function')
+          throw 'fail';
+      `,
+      'foo.js': `export default function fn() {}`,
     }),
 
     // Self export
@@ -673,13 +805,13 @@
       'in.js': `export default 123; const out = require('./in'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'], {
-      'in.js': `export const foo = 123; const out = require('./in'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
+      'in.js': `export const foo = 123; const out = require('./in'); if (!out.__esModule || out.foo !== 123) throw 'fail'`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm', '--minify'], {
-      'in.js': `export const foo = 123; const out = require('./in'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
+      'in.js': `export const foo = 123; const out = require('./in'); if (!out.__esModule || out.foo !== 123) throw 'fail'`,
     }),
     test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'], {
-      'in.js': `export default 123; const out = require('./in'); if (out.__esModule || out.default !== 123) throw 'fail'`,
+      'in.js': `export default 123; const out = require('./in'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
     }),
 
     // Test bundled and non-bundled double export star
@@ -1726,11 +1858,6 @@
   // https://github.com/evanw/esbuild/issues/1080
   tests.push(
     // Various CommonJS cases
-    test(['in.js', '--outfile=node.js', '--bundle', '--log-level=error'], {
-      'in.js': `import "pkg"; return`,
-      'node_modules/pkg/package.json': `{ "sideEffects": false }`,
-      'node_modules/pkg/index.js': `module.exports = null; throw 'fail'`,
-    }),
     test(['in.js', '--outfile=node.js', '--define:foo={"x":0}', '--bundle'], {
       'in.js': `if (foo.x !== 0) throw 'fail'; return`,
     }),

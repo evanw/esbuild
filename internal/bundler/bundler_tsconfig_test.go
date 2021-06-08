@@ -994,6 +994,31 @@ func TestTsconfigJsonNodeModulesImplicitFile(t *testing.T) {
 	})
 }
 
+func TestTsconfigJsonInsideNodeModules(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.tsx": `
+				import 'foo'
+			`,
+			"/Users/user/project/src/node_modules/foo/index.tsx": `
+				console.log(<div/>)
+			`,
+			"/Users/user/project/src/node_modules/foo/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "TEST_FAILED"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.tsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestTsconfigWarningsInsideNodeModules(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1094,6 +1119,153 @@ func TestTsconfigPreserveUnusedImportClause(t *testing.T) {
 					"/Users/user/project/src/foo": true,
 				},
 			},
+		},
+	})
+}
+
+func TestTsconfigTarget(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import "./es2018"
+				import "./es2019"
+				import "./es2020"
+				import "./es4"
+			`,
+			"/Users/user/project/src/es2018/index.ts": `
+				let x = { ...y }   // es2018 syntax
+				try { y } catch {} // es2019 syntax
+				x?.y()             // es2020 syntax
+			`,
+			"/Users/user/project/src/es2019/index.ts": `
+				let x = { ...y }   // es2018 syntax
+				try { y } catch {} // es2019 syntax
+				x?.y()             // es2020 syntax
+			`,
+			"/Users/user/project/src/es2020/index.ts": `
+				let x = { ...y }   // es2018 syntax
+				try { y } catch {} // es2019 syntax
+				x?.y()             // es2020 syntax
+			`,
+			"/Users/user/project/src/es4/index.ts": `
+			`,
+			"/Users/user/project/src/es2018/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ES2018"
+				}
+			}`,
+			"/Users/user/project/src/es2019/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "es2019"
+				}
+			}`,
+			"/Users/user/project/src/es2020/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ESNext"
+				}
+			}`,
+			"/Users/user/project/src/es4/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ES4"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:                 config.ModeBundle,
+			AbsOutputFile:        "/Users/user/project/out.js",
+			IsTargetUnconfigured: true,
+		},
+		expectedScanLog: `Users/user/project/src/es4/tsconfig.json: warning: Unrecognized target environment "ES4"
+`,
+	})
+}
+
+func TestTsconfigTargetError(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				x = 123n
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ES2019"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:                 config.ModeBundle,
+			AbsOutputFile:        "/Users/user/project/out.js",
+			IsTargetUnconfigured: true,
+		},
+		expectedScanLog: `Users/user/project/src/entry.ts: error: Big integer literals are not available in the configured target environment ("ES2019")
+Users/user/project/src/tsconfig.json: note: The target environment was set to "ES2019" here
+`,
+	})
+}
+
+func TestTsconfigTargetIgnored(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				x = 123n
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ES2019"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:                 config.ModeBundle,
+			AbsOutputFile:        "/Users/user/project/out.js",
+			IsTargetUnconfigured: false,
+		},
+	})
+}
+
+func TestTsconfigUseDefineForClassFieldsES2020(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				Foo = class {
+					useDefine = false
+				}
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ES2020"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsconfigUseDefineForClassFieldsESNext(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				Foo = class {
+					useDefine = true
+				}
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ESNext"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
 }

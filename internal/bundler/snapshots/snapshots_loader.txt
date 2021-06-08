@@ -11,6 +11,36 @@ var require_test = __commonJS({
 console.log(require_test());
 
 ================================================================================
+TestJSXPreserveCapitalLetter
+---------- /out.js ----------
+// foo.js
+var MustStartWithUpperCaseLetter = class {
+};
+
+// entry.jsx
+console.log(<MustStartWithUpperCaseLetter />);
+
+================================================================================
+TestJSXPreserveCapitalLetterMinify
+---------- /out.js ----------
+// foo.js
+var Y = class {
+};
+
+// entry.jsx
+console.log(<Y tag-must-start-with-capital-letter />);
+
+================================================================================
+TestJSXPreserveCapitalLetterMinifyNested
+---------- /out.js ----------
+// entry.jsx
+x = () => {
+  class Y {
+  }
+  return <Y tag-must-start-with-capital-letter />;
+};
+
+================================================================================
 TestJSXSyntaxInJSWithJSXLoader
 ---------- /out.js ----------
 // entry.js

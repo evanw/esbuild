@@ -149,6 +149,30 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectParseErrorTargetJSX(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
+	})
+}
+
+func expectPrintedTargetJSX(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
+	})
+}
+
 func TestBinOp(t *testing.T) {
 	for code, entry := range js_ast.OpTable {
 		opCode := js_ast.OpCode(code)
@@ -182,6 +206,16 @@ func TestComments(t *testing.T) {
 <stdin>: warning: Treating "<!--" as the start of a legacy HTML single-line comment
 `)
 	expectParseError(t, "throw -->\n x", "<stdin>: error: Unexpected \">\"\n")
+
+	expectParseError(t, "export {}\n<!--", `<stdin>: error: Legacy HTML single-line comments are not allowed in ECMAScript modules
+<stdin>: note: This file is considered an ECMAScript module because of the "export" keyword here
+<stdin>: warning: Treating "<!--" as the start of a legacy HTML single-line comment
+`)
+
+	expectParseError(t, "export {}\n-->", `<stdin>: error: Legacy HTML single-line comments are not allowed in ECMAScript modules
+<stdin>: note: This file is considered an ECMAScript module because of the "export" keyword here
+<stdin>: warning: Treating "-->" as the start of a legacy HTML single-line comment
+`)
 
 	expectPrinted(t, "return //\n x", "return;\nx;\n")
 	expectPrinted(t, "return /**/\n x", "return;\nx;\n")
@@ -337,6 +371,10 @@ func TestStrictMode(t *testing.T) {
 		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "function arguments() { 'use strict' }",
 		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; class eval {}",
+		"<stdin>: error: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; class arguments {}",
+		"<stdin>: error: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
 
 	expectPrinted(t, "let protected", "let protected;\n")
 	expectPrinted(t, "let protecte\\u0064", "let protected;\n")
@@ -350,6 +388,18 @@ func TestStrictMode(t *testing.T) {
 		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; let x = protecte\\u0064",
 		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; protected: 0",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; protecte\\u0064: 0",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; function protected() {}",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; function protecte\\u0064() {}",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; (function protected() {})",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; (function protecte\\u0064() {})",
+		"<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+useStrict)
 
 	expectPrinted(t, "0123", "83;\n")
 	expectPrinted(t, "({0123: 4})", "({ 83: 4 });\n")
@@ -359,6 +409,12 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "'use strict'; ({0123: 4})",
 		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; let {0123: x} = y",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; 08",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; ({08: 4})",
+		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; let {08: x} = y",
 		"<stdin>: error: Legacy octal literals cannot be used in strict mode\n"+useStrict)
 
 	classNote := "<stdin>: note: All code inside a class is implicitly in strict mode\n"
@@ -373,6 +429,16 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "function f() { 'use strict'; function y() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "class f { x() { with (x) y } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
 	expectParseError(t, "class f { x() { function y() { with (x) y } } }", "<stdin>: error: With statements cannot be used in strict mode\n"+classNote)
+	expectParseError(t, "class f { x() { function protected() {} } }", "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n"+classNote)
+
+	reservedWordExport := "<stdin>: error: \"protected\" is a reserved word and cannot be used in strict mode\n" +
+		"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n"
+
+	expectParseError(t, "var protected; export {}", reservedWordExport)
+	expectParseError(t, "class protected {} export {}", reservedWordExport)
+	expectParseError(t, "(class protected {}); export {}", reservedWordExport)
+	expectParseError(t, "function protected() {} export {}", reservedWordExport)
+	expectParseError(t, "(function protected() {}); export {}", reservedWordExport)
 
 	importKeyword := "<stdin>: error: With statements cannot be used in strict mode\n" +
 		"<stdin>: note: This file is implicitly in strict mode because of the \"import\" keyword here\n"
@@ -501,6 +567,11 @@ func TestRegExp(t *testing.T) {
 	expectPrinted(t, "/x/s", "/x/s;\n")
 	expectPrinted(t, "/x/u", "/x/u;\n")
 	expectPrinted(t, "/x/y", "/x/y;\n")
+
+	expectParseError(t, "/x/msuygig",
+		`<stdin>: error: Duplicate flag "g" in regular expression
+<stdin>: note: The first "g" was here
+`)
 }
 
 func TestIdentifierEscapes(t *testing.T) {
@@ -1624,6 +1695,7 @@ func TestYield(t *testing.T) {
 	// Yield as an identifier
 	expectPrinted(t, "({yield} = x)", "({ yield } = x);\n")
 	expectPrinted(t, "let x = {yield}", "let x = { yield };\n")
+	expectPrinted(t, "function* yield() {}", "function* yield() {\n}\n")
 	expectPrinted(t, "function foo() { ({yield} = x) }", "function foo() {\n  ({ yield } = x);\n}\n")
 	expectPrinted(t, "function foo() { let x = {yield} }", "function foo() {\n  let x = { yield };\n}\n")
 	expectParseError(t, "function *foo() { ({yield} = x) }", "<stdin>: error: Cannot use \"yield\" as an identifier here\n")
@@ -1779,12 +1851,14 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "async function foo(){for await(let x of y);}", "async function foo() {\n  for await (let x of y)\n    ;\n}\n")
 
 	// Await as an identifier
+	expectPrinted(t, "(function await() {})", "(function await() {\n});\n")
 	expectPrinted(t, "function foo() { ({await} = x) }", "function foo() {\n  ({ await } = x);\n}\n")
 	expectPrinted(t, "function foo() { let x = {await} }", "function foo() {\n  let x = { await };\n}\n")
 	expectParseError(t, "({await} = x)", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "let x = {await}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "class await {}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "(class await {})", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "function await() {}", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { ({await} = x) }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 	expectParseError(t, "async function foo() { let x = {await} }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
 
@@ -1809,6 +1883,10 @@ func TestLabels(t *testing.T) {
 
 	expectParseError(t, "while (1) break x", "<stdin>: error: There is no containing label named \"x\"\n")
 	expectParseError(t, "while (1) continue x", "<stdin>: error: There is no containing label named \"x\"\n")
+
+	expectPrinted(t, "x: y: z: 1", "x:\n  y:\n    z:\n      1;\n")
+	expectPrinted(t, "x: 1; y: 2; x: 3", "x:\n  1;\ny:\n  2;\nx:\n  3;\n")
+	expectParseError(t, "x: y: x: 1", "<stdin>: error: Duplicate label \"x\"\n<stdin>: note: The original label \"x\" is here\n")
 }
 
 func TestArrow(t *testing.T) {
@@ -2406,6 +2484,13 @@ func TestExport(t *testing.T) {
 		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
 	expectParseErrorTarget(t, 2020, "export * as '' from 'foo'",
 		"<stdin>: error: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
+
+	// Exports with the name "__esModule" are forbidden
+	esModuleError := "<stdin>: error: The export name \"__esModule\" is reserved and cannot be used " +
+		"(it's needed as an export marker when converting ES module syntax to CommonJS)\n"
+	expectParseError(t, "export var __esModule", esModuleError)
+	expectParseError(t, "export {__esModule}; var __esModule", esModuleError)
+	expectParseError(t, "export {__esModule} from 'foo'", esModuleError)
 }
 
 func TestExportDuplicates(t *testing.T) {
@@ -3997,10 +4082,15 @@ func TestReplacementCharacter(t *testing.T) {
 }
 
 func TestNewTarget(t *testing.T) {
-	expectPrinted(t, "new.target", "new.target;\n")
-	expectPrinted(t, "(new.target)", "new.target;\n")
+	expectPrinted(t, "function f() { new.target }", "function f() {\n  new.target;\n}\n")
+	expectPrinted(t, "function f() { (new.target) }", "function f() {\n  new.target;\n}\n")
+	expectPrinted(t, "function f() { () => new.target }", "function f() {\n  () => new.target;\n}\n")
+	expectPrinted(t, "class Foo { x = new.target }", "class Foo {\n  x = new.target;\n}\n")
 
 	expectParseError(t, "new.t\\u0061rget", "<stdin>: error: Unexpected \"t\\\\u0061rget\"\n")
+	expectParseError(t, "new.target", "<stdin>: error: Cannot use \"new.target\" here\n")
+	expectParseError(t, "() => new.target", "<stdin>: error: Cannot use \"new.target\" here\n")
+	expectParseError(t, "class Foo { [new.target] }", "<stdin>: error: Cannot use \"new.target\" here\n")
 }
 
 func TestJSX(t *testing.T) {
@@ -4154,7 +4244,7 @@ func TestJSX(t *testing.T) {
 	// Unicode tests
 	expectPrintedJSX(t, "<\U00020000/>", "/* @__PURE__ */ React.createElement(\U00020000, null);\n")
 	expectPrintedJSX(t, "<a>\U00020000</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"\U00020000\");\n")
-	expectPrintedJSX(t, "<a \U00020000={0}/>", "/* @__PURE__ */ React.createElement(\"a\", {\n  \U00020000: 0\n});\n")
+	expectPrintedJSX(t, "<a \U00020000={0}/>", "/* @__PURE__ */ React.createElement(\"a\", {\n  \"\U00020000\": 0\n});\n")
 
 	// Comment tests
 	expectParseErrorJSX(t, "<a /* />", "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
@@ -4508,18 +4598,22 @@ func TestES5(t *testing.T) {
 	expectParseErrorTarget(t, 5, "([...[x]])",
 		"<stdin>: error: Transforming array spread to the configured target environment is not supported yet\n")
 	expectPrintedTarget(t, 5, "`abc`;", "\"abc\";\n")
-	expectPrintedTarget(t, 5, "`a${b}`;", "\"a\" + b;\n")
-	expectPrintedTarget(t, 5, "`${a}b`;", "a + \"b\";\n")
-	expectPrintedTarget(t, 5, "`${a}${b}`;", "a + \"\" + b;\n")
-	expectPrintedTarget(t, 5, "`a${b}c`;", "\"a\" + b + \"c\";\n")
-	expectPrintedTarget(t, 5, "`a${b}${c}`;", "\"a\" + b + c;\n")
-	expectPrintedTarget(t, 5, "`a${b}${c}d`;", "\"a\" + b + c + \"d\";\n")
-	expectPrintedTarget(t, 5, "`a${b}c${d}`;", "\"a\" + b + \"c\" + d;\n")
-	expectPrintedTarget(t, 5, "`a${b}c${d}e`;", "\"a\" + b + \"c\" + d + \"e\";\n")
-	expectParseErrorTarget(t, 5, "tag`abc`;",
-		"<stdin>: error: Transforming tagged template literals to the configured target environment is not supported yet\n")
-	expectParseErrorTarget(t, 5, "tag`a${b}c`;",
-		"<stdin>: error: Transforming tagged template literals to the configured target environment is not supported yet\n")
+	expectPrintedTarget(t, 5, "`a${b}`;", "\"a\".concat(b);\n")
+	expectPrintedTarget(t, 5, "`${a}b`;", "\"\".concat(a, \"b\");\n")
+	expectPrintedTarget(t, 5, "`${a}${b}`;", "\"\".concat(a).concat(b);\n")
+	expectPrintedTarget(t, 5, "`a${b}c`;", "\"a\".concat(b, \"c\");\n")
+	expectPrintedTarget(t, 5, "`a${b}${c}`;", "\"a\".concat(b).concat(c);\n")
+	expectPrintedTarget(t, 5, "`a${b}${c}d`;", "\"a\".concat(b).concat(c, \"d\");\n")
+	expectPrintedTarget(t, 5, "`a${b}c${d}`;", "\"a\".concat(b, \"c\").concat(d);\n")
+	expectPrintedTarget(t, 5, "`a${b}c${d}e`;", "\"a\".concat(b, \"c\").concat(d, \"e\");\n")
+	expectPrintedTarget(t, 5, "tag``;", "var _a;\ntag(_a || (_a = __template([\"\"])));\n")
+	expectPrintedTarget(t, 5, "tag`abc`;", "var _a;\ntag(_a || (_a = __template([\"abc\"])));\n")
+	expectPrintedTarget(t, 5, "tag`\\utf`;", "var _a;\ntag(_a || (_a = __template([void 0], [\"\\\\utf\"])));\n")
+	expectPrintedTarget(t, 5, "tag`${a}b`;", "var _a;\ntag(_a || (_a = __template([\"\", \"b\"])), a);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}`;", "var _a;\ntag(_a || (_a = __template([\"a\", \"\"])), b);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}c`;", "var _a;\ntag(_a || (_a = __template([\"a\", \"c\"])), b);\n")
+	expectPrintedTarget(t, 5, "tag`a${b}\\u`;", "var _a;\ntag(_a || (_a = __template([\"a\", void 0], [\"a\", \"\\\\u\"])), b);\n")
+	expectPrintedTarget(t, 5, "tag`\\u${b}c`;", "var _a;\ntag(_a || (_a = __template([void 0, \"c\"], [\"\\\\u\", \"c\"])), b);\n")
 	expectParseErrorTarget(t, 5, "class Foo { constructor() { new.target } }",
 		"<stdin>: error: Transforming class syntax to the configured target environment is not supported yet\n"+
 			"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n"+
@@ -4543,8 +4637,8 @@ func TestES5(t *testing.T) {
 }
 
 func TestASCIIOnly(t *testing.T) {
-	es5 := "<stdin>: error: \"𐀀\" cannot be escaped in the target environment " +
-		"(consider setting the charset to \"utf8\" or changing the target)\n"
+	es5 := "<stdin>: error: \"𐀀\" cannot be escaped in the configured target environment " +
+		"but you can set the charset to \"utf8\" to allow unescaped Unicode characters\n"
 
 	// Some context: "π" is in the BMP (i.e. has a code point ≤0xFFFF) and "𐀀" is
 	// not in the BMP (i.e. has a code point >0xFFFF). This distinction matters
@@ -4572,30 +4666,30 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedTargetASCII(t, 5, "'𐀀'", "\"\\uD800\\uDC00\";\n")
 
 	expectPrinted(t, "x.π", "x.π;\n")
-	expectPrinted(t, "x.𐀀", "x.𐀀;\n")
+	expectPrinted(t, "x.𐀀", "x[\"𐀀\"];\n")
 	expectPrintedASCII(t, "x.π", "x.\\u03C0;\n")
-	expectPrintedASCII(t, "x.𐀀", "x.\\u{10000};\n")
+	expectPrintedASCII(t, "x.𐀀", "x[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "x.π", "x.\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "x.𐀀", "x[\"\\uD800\\uDC00\"];\n")
 
 	expectPrinted(t, "x?.π", "x?.π;\n")
-	expectPrinted(t, "x?.𐀀", "x?.𐀀;\n")
+	expectPrinted(t, "x?.𐀀", "x?.[\"𐀀\"];\n")
 	expectPrintedASCII(t, "x?.π", "x?.\\u03C0;\n")
-	expectPrintedASCII(t, "x?.𐀀", "x?.\\u{10000};\n")
+	expectPrintedASCII(t, "x?.𐀀", "x?.[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "x?.π", "x == null ? void 0 : x.\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "x?.𐀀", "x == null ? void 0 : x[\"\\uD800\\uDC00\"];\n")
 
 	expectPrinted(t, "0 .π", "0 .π;\n")
-	expectPrinted(t, "0 .𐀀", "0 .𐀀;\n")
+	expectPrinted(t, "0 .𐀀", "0[\"𐀀\"];\n")
 	expectPrintedASCII(t, "0 .π", "0 .\\u03C0;\n")
-	expectPrintedASCII(t, "0 .𐀀", "0 .\\u{10000};\n")
+	expectPrintedASCII(t, "0 .𐀀", "0[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "0 .π", "0 .\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "0 .𐀀", "0[\"\\uD800\\uDC00\"];\n")
 
 	expectPrinted(t, "0?.π", "0?.π;\n")
-	expectPrinted(t, "0?.𐀀", "0?.𐀀;\n")
+	expectPrinted(t, "0?.𐀀", "0?.[\"𐀀\"];\n")
 	expectPrintedASCII(t, "0?.π", "0?.\\u03C0;\n")
-	expectPrintedASCII(t, "0?.𐀀", "0?.\\u{10000};\n")
+	expectPrintedASCII(t, "0?.𐀀", "0?.[\"\\u{10000}\"];\n")
 	expectPrintedTargetASCII(t, 5, "0?.π", "0 == null ? void 0 : 0 .\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "0?.𐀀", "0 == null ? void 0 : 0[\"\\uD800\\uDC00\"];\n")
 
@@ -4607,16 +4701,16 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedTargetASCII(t, 5, "import '𐀀'", "import \"\\uD800\\uDC00\";\n")
 
 	expectPrinted(t, "({π: 0})", "({ π: 0 });\n")
-	expectPrinted(t, "({𐀀: 0})", "({ 𐀀: 0 });\n")
+	expectPrinted(t, "({𐀀: 0})", "({ \"𐀀\": 0 });\n")
 	expectPrintedASCII(t, "({π: 0})", "({ \\u03C0: 0 });\n")
-	expectPrintedASCII(t, "({𐀀: 0})", "({ \\u{10000}: 0 });\n")
+	expectPrintedASCII(t, "({𐀀: 0})", "({ \"\\u{10000}\": 0 });\n")
 	expectPrintedTargetASCII(t, 5, "({π: 0})", "({ \\u03C0: 0 });\n")
 	expectPrintedTargetASCII(t, 5, "({𐀀: 0})", "({ \"\\uD800\\uDC00\": 0 });\n")
 
 	expectPrinted(t, "({π})", "({ π });\n")
-	expectPrinted(t, "({𐀀})", "({ 𐀀 });\n")
+	expectPrinted(t, "({𐀀})", "({ \"𐀀\": 𐀀 });\n")
 	expectPrintedASCII(t, "({π})", "({ \\u03C0 });\n")
-	expectPrintedASCII(t, "({𐀀})", "({ \\u{10000} });\n")
+	expectPrintedASCII(t, "({𐀀})", "({ \"\\u{10000}\": \\u{10000} });\n")
 	expectPrintedTargetASCII(t, 5, "({π})", "({ \\u03C0: \\u03C0 });\n")
 	expectParseErrorTargetASCII(t, 5, "({𐀀})", es5)
 
