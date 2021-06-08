@@ -1,11 +1,9 @@
 package bundler
 
 import (
-	"regexp"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/logger"
 )
 
 var dce_suite = suite{
@@ -1654,81 +1652,6 @@ func TestTreeShakingInESMWrapper(t *testing.T) {
 			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
-		},
-	})
-}
-
-func TestPackageJsonSideEffectsFalsePluginResolver(t *testing.T) {
-	pk2Index := `
-		export {default as Cmp1} from './cmp1.vue';
-		export {default as Cmp2} from './cmp2';
-	`
-
-	testPackageJsonSideEffectsFalsePluginResolver(t, pk2Index)
-}
-
-func TestPackageJsonSideEffectsFalseNoPlugins(t *testing.T) {
-	pk2Index := `
-		export {default as Cmp1} from './cmp1';
-		export {default as Cmp2} from './cmp2';
-	`
-
-	testPackageJsonSideEffectsFalsePluginResolver(t, pk2Index)
-}
-
-func testPackageJsonSideEffectsFalsePluginResolver(t *testing.T, pkg2Index string) {
-	t.Helper()
-
-	mockFiles := map[string]string{
-		"/Users/user/project/src/entry.js": `
-			import {Cmp2} from "demo-pkg2"
-			console.log(Cmp2);
-		`,
-		"/Users/user/project/node_modules/demo-pkg2/cmp1.js": `
-			import {__decorate} from './helper';
-			let Something = {}
-			__decorate(Something);
-			export default Something;
-		`,
-		"/Users/user/project/node_modules/demo-pkg2/cmp2.js": `
-			import {__decorate} from './helper';
-			class Something2 {}
-			__decorate(Something2);
-			export default Something2;
-		`,
-		"/Users/user/project/node_modules/demo-pkg2/helper.js": `
-			export function __decorate(s) {
-			}
-		`,
-		"/Users/user/project/node_modules/demo-pkg2/package.json": `
-			{
-				"sideEffects": false
-			}
-		`,
-		"/Users/user/project/node_modules/demo-pkg2/index.js": pkg2Index,
-	}
-
-	dce_suite.expectBundled(t, bundled{
-		files:      mockFiles,
-		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-			Plugins: []config.Plugin{
-				{
-					OnResolve: []config.OnResolve{
-						{
-							Filter: regexp.MustCompile("\\.vue$"),
-							Callback: func(ora config.OnResolveArgs) config.OnResolveResult {
-								return config.OnResolveResult{
-									Path:             logger.Path{Text: "/Users/user/project/node_modules/demo-pkg2/cmp1.js"},
-									IsSideEffectFree: true,
-								}
-							},
-						},
-					},
-				},
-			},
 		},
 	})
 }

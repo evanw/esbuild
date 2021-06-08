@@ -415,22 +415,6 @@ console.log("hello");
 console.log(demo_pkg_exports);
 
 ================================================================================
-TestPackageJsonSideEffectsFalseNoPlugins
----------- /out.js ----------
-// Users/user/project/node_modules/demo-pkg2/helper.js
-function __decorate(s) {
-}
-
-// Users/user/project/node_modules/demo-pkg2/cmp2.js
-var Something2 = class {
-};
-__decorate(Something2);
-var cmp2_default = Something2;
-
-// Users/user/project/src/entry.js
-console.log(cmp2_default);
-
-================================================================================
 TestPackageJsonSideEffectsFalseNoWarningInNodeModulesIssue999
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js
@@ -477,22 +461,6 @@ var init_a = __esm({
 
 // Users/user/project/src/entry.js
 Promise.resolve().then(() => (init_a(), a_exports)).then((x) => assert(x.foo === "foo"));
-
-================================================================================
-TestPackageJsonSideEffectsFalsePluginResolver
----------- /out.js ----------
-// Users/user/project/node_modules/demo-pkg2/helper.js
-function __decorate(s) {
-}
-
-// Users/user/project/node_modules/demo-pkg2/cmp2.js
-var Something2 = class {
-};
-__decorate(Something2);
-var cmp2_default = Something2;
-
-// Users/user/project/src/entry.js
-console.log(cmp2_default);
 
 ================================================================================
 TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS
