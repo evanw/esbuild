@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.7
 
 * Quote object properties that are modern Unicode identifiers ([#1349](https://github.com/evanw/esbuild/issues/1349))
 
