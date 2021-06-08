@@ -1470,6 +1470,7 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 
 			result.Path = logger.Path{Text: response.Path, Namespace: response.Namespace}
 			result.External = response.External
+			result.IsSideEffectFree = response.SideEffects == SideEffectsFalse
 			result.PluginData = response.PluginData
 
 			// Convert log messages

@@ -780,6 +780,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 let path = getFlag(result, keys, 'path', mustBeString);
                 let namespace = getFlag(result, keys, 'namespace', mustBeString);
                 let external = getFlag(result, keys, 'external', mustBeBoolean);
+                let sideEffects = getFlag(result, keys, 'sideEffects', mustBeBoolean);
                 let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
                 let errors = getFlag(result, keys, 'errors', mustBeArray);
                 let warnings = getFlag(result, keys, 'warnings', mustBeArray);
@@ -792,6 +793,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (path != null) response.path = path;
                 if (namespace != null) response.namespace = namespace;
                 if (external != null) response.external = external;
+                if (sideEffects != null) response.sideEffects = sideEffects;
                 if (pluginData != null) response.pluginData = stash.store(pluginData);
                 if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash, name);
                 if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash, name);
