@@ -577,7 +577,6 @@ func extractSourceMapFromComment(
 	}
 
 	// Anything else is unsupported
-	log.AddRangeWarning(&tracker, comment.Range, "Unsupported source map comment")
 	return logger.Path{}, nil
 }
 

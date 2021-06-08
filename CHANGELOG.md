@@ -32,6 +32,10 @@
 
     This feature was contributed by [@chriscasola](https://github.com/chriscasola).
 
+* Remove a warning about unsupported source map comments ([#1358](https://github.com/evanw/esbuild/issues/1358))
+
+    This removes a warning that indicated when a source map comment couldn't be supported. Specifically, this happens when you enable source map generation and esbuild encounters a file with a source map comment pointing to an external file but doesn't have enough information to know where to look for that external file (basically when the source file doesn't have an associated directory to use for path resolution). In this case esbuild can't respect the input source map because it cannot be located. The warning was annoying so it has been removed. Source maps still won't work, however.
+
 ## 0.12.7
 
 * Quote object properties that are modern Unicode identifiers ([#1349](https://github.com/evanw/esbuild/issues/1349))
