@@ -33,6 +33,30 @@
 
     Due to an oversight, the `--metafile` setting didn't work when `--watch` was also specified. This only affected the command-line interface. With this release, the `--metafile` setting should now work in this case.
 
+* Add a hidden `__esModule` property to modules in ESM format ([#1338](https://github.com/evanw/esbuild/pull/1338))
+
+    Module namespace objects from ESM files will now have a hidden `__esModule` property. This improves compatibility with code that has been converted from ESM syntax to CommonJS by Babel or TypeScript. For example:
+
+    ```js
+    // Input TypeScript code
+    import x from "y"
+    console.log(x)
+
+    // Output JavaScript code from the TypeScript compiler
+    var __importDefault = (this && this.__importDefault) || function (mod) {
+        return (mod && mod.__esModule) ? mod : { "default": mod };
+    };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    const y_1 = __importDefault(require("y"));
+    console.log(y_1.default);
+    ```
+
+    If the object returned by `require("y")` doesn't have an `__esModule` property, then `y_1` will be the object `{ "default": require("y") }`. If the file `"y"` is in ESM format and has a default export of, say, the value `null`, that means `y_1` will now be `{ "default": { "default": null } }` and you will need to use `y_1.default.default` to access the default value. Adding an automatically-generated `__esModule` property when converting files in ESM format to CommonJS is required to make this code work correctly (i.e. for the value to be accessible via just `y_1.default` instead).
+
+    With this release, code in ESM format will now have an automatically-generated `__esModule` property to satisfy this convention. The property is non-enumerable so it shouldn't show up when iterating over the properties of the object. As a result, the export name `__esModule` is now reserved for use with esbuild. It's now an error to create an export with the name `__esModule`.
+
+    This fix was contributed by [@lbwa](https://github.com/lbwa).
+
 ## 0.12.6
 
 * Improve template literal lowering transformation conformance ([#1327](https://github.com/evanw/esbuild/issues/1327))

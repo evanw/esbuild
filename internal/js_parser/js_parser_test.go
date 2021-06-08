@@ -2484,6 +2484,13 @@ func TestExport(t *testing.T) {
 		"<stdin>: error: This export alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
 	expectParseErrorTarget(t, 2020, "export * as '' from 'foo'",
 		"<stdin>: error: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
+
+	// Exports with the name "__esModule" are forbidden
+	esModuleError := "<stdin>: error: The export name \"__esModule\" is reserved and cannot be used " +
+		"(it's needed as an export marker when converting ES module syntax to CommonJS)\n"
+	expectParseError(t, "export var __esModule", esModuleError)
+	expectParseError(t, "export {__esModule}; var __esModule", esModuleError)
+	expectParseError(t, "export {__esModule} from 'foo'", esModuleError)
 }
 
 func TestExportDuplicates(t *testing.T) {
