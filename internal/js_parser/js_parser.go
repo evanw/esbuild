@@ -33,44 +33,44 @@ import (
 // to have at least two separate passes to handle variable hoisting. See the
 // comment about scopesInOrder below for more information.
 type parser struct {
-	options                  Options
-	log                      logger.Log
-	source                   logger.Source
-	tracker                  logger.LineColumnTracker
-	lexer                    js_lexer.Lexer
-	allowIn                  bool
-	allowPrivateIdentifiers  bool
-	hasTopLevelReturn        bool
-	latestReturnHadSemicolon bool
-	hasImportMeta            bool
-	hasESModuleSyntax        bool
-	warnedThisIsUndefined    bool
-	topLevelAwaitKeyword     logger.Range
-	fnOrArrowDataParse       fnOrArrowDataParse
-	fnOrArrowDataVisit       fnOrArrowDataVisit
-	fnOnlyDataVisit          fnOnlyDataVisit
-	allocatedNames           []string
-	latestArrowArgLoc        logger.Loc
-	forbidSuffixAfterAsLoc   logger.Loc
-	currentScope             *js_ast.Scope
-	scopesForCurrentPart     []*js_ast.Scope
-	symbols                  []js_ast.Symbol
-	tsUseCounts              []uint32
-	exportsRef               js_ast.Ref
-	requireRef               js_ast.Ref
-	moduleRef                js_ast.Ref
-	importMetaRef            js_ast.Ref
-	promiseRef               js_ast.Ref
-	findSymbolHelper         func(loc logger.Loc, name string) js_ast.Ref
-	symbolForDefineHelper    func(int) js_ast.Ref
-	injectedDefineSymbols    []js_ast.Ref
-	injectedSymbolSources    map[js_ast.Ref]injectedSymbolSource
-	symbolUses               map[js_ast.Ref]js_ast.SymbolUse
-	declaredSymbols          []js_ast.DeclaredSymbol
-	runtimeImports           map[string]js_ast.Ref
-	duplicateCaseChecker     duplicateCaseChecker
-	nonBMPIdentifiers        map[string]bool
-	legacyOctalLiterals      map[js_ast.E]logger.Range
+	options                    Options
+	log                        logger.Log
+	source                     logger.Source
+	tracker                    logger.LineColumnTracker
+	lexer                      js_lexer.Lexer
+	allowIn                    bool
+	allowPrivateIdentifiers    bool
+	hasTopLevelReturn          bool
+	latestReturnHadSemicolon   bool
+	hasImportMeta              bool
+	hasESModuleSyntax          bool
+	warnedThisIsUndefined      bool
+	topLevelAwaitKeyword       logger.Range
+	fnOrArrowDataParse         fnOrArrowDataParse
+	fnOrArrowDataVisit         fnOrArrowDataVisit
+	fnOnlyDataVisit            fnOnlyDataVisit
+	allocatedNames             []string
+	latestArrowArgLoc          logger.Loc
+	forbidSuffixAfterAsLoc     logger.Loc
+	currentScope               *js_ast.Scope
+	scopesForCurrentPart       []*js_ast.Scope
+	symbols                    []js_ast.Symbol
+	tsUseCounts                []uint32
+	exportsRef                 js_ast.Ref
+	requireRef                 js_ast.Ref
+	moduleRef                  js_ast.Ref
+	importMetaRef              js_ast.Ref
+	promiseRef                 js_ast.Ref
+	findSymbolHelper           func(loc logger.Loc, name string) js_ast.Ref
+	symbolForDefineHelper      func(int) js_ast.Ref
+	injectedDefineSymbols      []js_ast.Ref
+	injectedSymbolSources      map[js_ast.Ref]injectedSymbolSource
+	symbolUses                 map[js_ast.Ref]js_ast.SymbolUse
+	declaredSymbols            []js_ast.DeclaredSymbol
+	runtimeImports             map[string]js_ast.Ref
+	duplicateCaseChecker       duplicateCaseChecker
+	unrepresentableIdentifiers map[string]bool
+	legacyOctalLiterals        map[js_ast.E]logger.Range
 
 	// For strict mode handling
 	hoistedRefForSloppyModeBlockFn map[js_ast.Ref]js_ast.Ref
@@ -213,8 +213,10 @@ type parser struct {
 	thenCatchChain thenCatchChain
 
 	// Temporary variables used for lowering
-	tempRefsToDeclare []tempRef
-	tempRefCount      int
+	tempRefsToDeclare         []tempRef
+	tempRefCount              int
+	topLevelTempRefsToDeclare []tempRef
+	topLevelTempRefCount      int
 
 	// When bundling, hoisted top-level local variables declared with "var" in
 	// nested scopes are moved up to be declared in the top-level scope instead.
@@ -327,6 +329,7 @@ type optionsThatSupportStructuralEquality struct {
 	platform                config.Platform
 	outputFormat            config.Format
 	moduleType              config.ModuleType
+	isTargetUnconfigured    bool
 	asciiOnly               bool
 	keepNames               bool
 	mangleSyntax            bool
@@ -351,6 +354,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			platform:                options.Platform,
 			outputFormat:            options.OutputFormat,
 			moduleType:              options.ModuleType,
+			isTargetUnconfigured:    options.IsTargetUnconfigured,
 			asciiOnly:               options.ASCIIOnly,
 			keepNames:               options.KeepNames,
 			mangleSyntax:            options.MangleSyntax,
@@ -1377,7 +1381,7 @@ func (p *parser) canMergeSymbols(scope *js_ast.Scope, existing js_ast.SymbolKind
 }
 
 func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name string) js_ast.Ref {
-	p.checkForNonBMPCodePoint(loc, name)
+	p.checkForUnrepresentableIdentifier(loc, name)
 
 	// Allocate a new symbol
 	ref := p.newSymbol(kind, name)
@@ -4632,7 +4636,7 @@ func (p *parser) parseClauseAlias(kind string) string {
 	}
 
 	alias := p.lexer.Identifier
-	p.checkForNonBMPCodePoint(loc, alias)
+	p.checkForUnrepresentableIdentifier(loc, alias)
 	return alias
 }
 
@@ -6337,7 +6341,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			for i, item := range *stmt.Items {
 				name := p.loadNameFromRef(item.Name.Ref)
 				ref := p.declareSymbol(js_ast.SymbolImport, item.Name.Loc, name)
-				p.checkForNonBMPCodePoint(item.AliasLoc, item.Alias)
+				p.checkForUnrepresentableIdentifier(item.AliasLoc, item.Alias)
 				p.isImportItem[ref] = true
 				(*stmt.Items)[i].Name.Ref = ref
 				itemRefs[item.Alias] = js_ast.LocRef{Loc: item.Name.Loc, Ref: ref}
@@ -6721,6 +6725,14 @@ func (p *parser) generateTempRef(declare generateTempRefArg, optionalName string
 	return ref
 }
 
+func (p *parser) generateTopLevelTempRef() js_ast.Ref {
+	ref := p.newSymbol(js_ast.SymbolOther, "_"+js_ast.DefaultNameMinifier.NumberToMinifiedName(p.topLevelTempRefCount))
+	p.topLevelTempRefsToDeclare = append(p.topLevelTempRefsToDeclare, tempRef{ref: ref})
+	p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
+	p.topLevelTempRefCount++
+	return ref
+}
+
 func (p *parser) pushScopeForVisitPass(kind js_ast.ScopeKind, loc logger.Loc) {
 	order := p.scopesInOrder[0]
 
@@ -6773,7 +6785,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 		s = s.Parent
 		if s == nil {
 			// Allocate an "unbound" symbol
-			p.checkForNonBMPCodePoint(loc, name)
+			p.checkForUnrepresentableIdentifier(loc, name)
 			ref = p.newSymbol(js_ast.SymbolUnbound, name)
 			declareLoc = loc
 			p.moduleScope.Members[name] = js_ast.ScopeMember{Ref: ref, Loc: logger.Loc{Start: -1}}
@@ -6935,6 +6947,12 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 			})
 			p.currentScope.Generated = append(p.currentScope.Generated, *ref)
 		}
+	}
+
+	// There may also be special top-level-only temporaries to declare
+	if p.currentScope == p.moduleScope && p.topLevelTempRefsToDeclare != nil {
+		p.tempRefsToDeclare = append(p.tempRefsToDeclare, p.topLevelTempRefsToDeclare...)
+		p.topLevelTempRefsToDeclare = nil
 	}
 
 	// Prepend the generated temporary variables to the beginning of the statement list
@@ -9803,17 +9821,18 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 	return value
 }
 
-func (p *parser) checkForNonBMPCodePoint(loc logger.Loc, name string) {
+func (p *parser) checkForUnrepresentableIdentifier(loc logger.Loc, name string) {
 	if p.options.asciiOnly && p.options.unsupportedJSFeatures.Has(compat.UnicodeEscapes) &&
 		js_lexer.ContainsNonBMPCodePoint(name) {
-		if p.nonBMPIdentifiers == nil {
-			p.nonBMPIdentifiers = make(map[string]bool)
+		if p.unrepresentableIdentifiers == nil {
+			p.unrepresentableIdentifiers = make(map[string]bool)
 		}
-		if !p.nonBMPIdentifiers[name] {
-			p.nonBMPIdentifiers[name] = true
+		if !p.unrepresentableIdentifiers[name] {
+			p.unrepresentableIdentifiers[name] = true
+			where, notes := p.prettyPrintTargetEnvironment(compat.UnicodeEscapes)
 			r := js_lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddRangeError(&p.tracker, r, fmt.Sprintf("%q cannot be escaped in the target environment ("+
-				"consider setting the charset to \"utf8\" or changing the target)", name))
+			p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf("%q cannot be escaped in %s but you "+
+				"can set the charset to \"utf8\" to allow unescaped Unicode characters", name, where), notes)
 		}
 	}
 }
@@ -13035,7 +13054,8 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 	p.importRecordsForCurrentPart = nil
 	p.scopesForCurrentPart = nil
 	part := js_ast.Part{
-		Stmts:      p.visitStmtsAndPrependTempRefs(stmts, prependTempRefsOpts{}),
+		Stmts: p.visitStmtsAndPrependTempRefs(stmts, prependTempRefsOpts{}),
+
 		SymbolUses: p.symbolUses,
 	}
 
@@ -13650,8 +13670,10 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		}
 	}
 
-	// Include unsupported JavaScript features from the TypeScript "target" setting
-	if options.tsTarget != nil {
+	// If there is no top-level esbuild "target" setting, include unsupported
+	// JavaScript features from the TypeScript "target" setting. Otherwise the
+	// TypeScript "target" setting is ignored.
+	if options.isTargetUnconfigured && options.tsTarget != nil {
 		options.unsupportedJSFeatures |= options.tsTarget.UnsupportedJSFeatures
 	}
 

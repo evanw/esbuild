@@ -577,6 +577,24 @@ func IsIdentifier(text string) bool {
 	return true
 }
 
+func IsIdentifierES5(text string) bool {
+	if len(text) == 0 {
+		return false
+	}
+	for i, codePoint := range text {
+		if i == 0 {
+			if !IsIdentifierStartES5(codePoint) {
+				return false
+			}
+		} else {
+			if !IsIdentifierContinueES5(codePoint) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func ForceValidIdentifier(text string) string {
 	if IsIdentifier(text) {
 		return text
@@ -634,6 +652,34 @@ func IsIdentifierUTF16(text []uint16) bool {
 	return true
 }
 
+// This does "IsIdentifierES5(UTF16ToString(text))" without any allocations
+func IsIdentifierES5UTF16(text []uint16) bool {
+	n := len(text)
+	if n == 0 {
+		return false
+	}
+	for i := 0; i < n; i++ {
+		isStart := i == 0
+		r1 := rune(text[i])
+		if r1 >= 0xD800 && r1 <= 0xDBFF && i+1 < n {
+			if r2 := rune(text[i+1]); r2 >= 0xDC00 && r2 <= 0xDFFF {
+				r1 = (r1 << 10) + r2 + (0x10000 - (0xD800 << 10) - 0xDC00)
+				i++
+			}
+		}
+		if isStart {
+			if !IsIdentifierStartES5(r1) {
+				return false
+			}
+		} else {
+			if !IsIdentifierContinueES5(r1) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func IsIdentifierStart(codePoint rune) bool {
 	switch codePoint {
 	case '_', '$',
@@ -673,6 +719,47 @@ func IsIdentifierContinue(codePoint rune) bool {
 	}
 
 	return unicode.Is(idContinue, codePoint)
+}
+
+func IsIdentifierStartES5(codePoint rune) bool {
+	switch codePoint {
+	case '_', '$',
+		'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+		'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+		'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z':
+		return true
+	}
+
+	// All ASCII identifier start code points are listed above
+	if codePoint < 0x7F {
+		return false
+	}
+
+	return unicode.Is(idStartES5, codePoint)
+}
+
+func IsIdentifierContinueES5(codePoint rune) bool {
+	switch codePoint {
+	case '_', '$', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+		'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+		'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+		'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z':
+		return true
+	}
+
+	// All ASCII identifier start code points are listed above
+	if codePoint < 0x7F {
+		return false
+	}
+
+	// ZWNJ and ZWJ are allowed in identifiers
+	if codePoint == 0x200C || codePoint == 0x200D {
+		return true
+	}
+
+	return unicode.Is(idContinueES5, codePoint)
 }
 
 // See the "White Space Code Points" table in the ECMAScript standard

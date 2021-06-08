@@ -813,20 +813,31 @@ func (p *printer) printClauseAlias(alias string) {
 	}
 }
 
-func CanQuoteIdentifier(name string, unsupportedJSFeatures compat.JSFeature, asciiOnly bool) bool {
-	return js_lexer.IsIdentifier(name) && (!asciiOnly ||
+// Note: The functions below check whether something can be printed as an
+// identifier or if it needs to be quoted (e.g. "x.y" vs. "x['y']") using the
+// ES5 identifier validity test to maximize cross-platform portability. Even
+// though newer JavaScript environments can handle more Unicode characters,
+// there isn't a published document that says which Unicode versions are
+// supported by which browsers. Even if a character is considered valid in the
+// latest version of Unicode, we don't know if the browser we're targeting
+// contains an older version of Unicode or not. So for safety, we quote
+// anything that isn't guaranteed to be compatible with ES5, the oldest
+// JavaScript language target that we support.
+
+func CanEscapeIdentifier(name string, unsupportedJSFeatures compat.JSFeature, asciiOnly bool) bool {
+	return js_lexer.IsIdentifierES5(name) && (!asciiOnly ||
 		!unsupportedJSFeatures.Has(compat.UnicodeEscapes) ||
 		!js_lexer.ContainsNonBMPCodePoint(name))
 }
 
 func (p *printer) canPrintIdentifier(name string) bool {
-	return js_lexer.IsIdentifier(name) && (!p.options.ASCIIOnly ||
+	return js_lexer.IsIdentifierES5(name) && (!p.options.ASCIIOnly ||
 		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
 		!js_lexer.ContainsNonBMPCodePoint(name))
 }
 
 func (p *printer) canPrintIdentifierUTF16(name []uint16) bool {
-	return js_lexer.IsIdentifierUTF16(name) && (!p.options.ASCIIOnly ||
+	return js_lexer.IsIdentifierES5UTF16(name) && (!p.options.ASCIIOnly ||
 		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
 		!js_lexer.ContainsNonBMPCodePointUTF16(name))
 }
@@ -1807,18 +1818,22 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			flags &= ^hasNonOptionalChainParent
 		}
 		p.printExpr(e.Target, js_ast.LPostfix, flags)
-		if e.OptionalChain == js_ast.OptionalChainStart {
-			p.print("?")
-		}
 		if p.canPrintIdentifier(e.Name) {
 			if e.OptionalChain != js_ast.OptionalChainStart && p.prevNumEnd == len(p.js) {
 				// "1.toString" is a syntax error, so print "1 .toString" instead
 				p.print(" ")
 			}
-			p.print(".")
+			if e.OptionalChain == js_ast.OptionalChainStart {
+				p.print("?.")
+			} else {
+				p.print(".")
+			}
 			p.addSourceMapping(e.NameLoc)
 			p.printIdentifier(e.Name)
 		} else {
+			if e.OptionalChain == js_ast.OptionalChainStart {
+				p.print("?.")
+			}
 			p.print("[")
 			p.addSourceMapping(e.NameLoc)
 			p.printQuotedUTF8(e.Name, true /* allowBacktick */)

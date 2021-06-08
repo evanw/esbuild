@@ -280,6 +280,12 @@ console.log("works");
 console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactory(derivedFragment, null));
 
 ================================================================================
+TestTsconfigJsonInsideNodeModules
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/node_modules/foo/index.tsx
+console.log(/* @__PURE__ */ React.createElement("div", null));
+
+================================================================================
 TestTsconfigJsonNodeModulesImplicitFile
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/app/entry.tsx
@@ -360,6 +366,12 @@ try {
 } catch {
 }
 x3?.y();
+
+================================================================================
+TestTsconfigTargetIgnored
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+x = 123n;
 
 ================================================================================
 TestTsconfigUseDefineForClassFieldsES2020

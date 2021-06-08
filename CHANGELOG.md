@@ -1,5 +1,99 @@
 # Changelog
 
+## Unreleased
+
+* Quote object properties that are modern Unicode identifiers ([#1349](https://github.com/evanw/esbuild/issues/1349))
+
+    In ES6 and above, an identifier is a character sequence starting with a character in the `ID_Start` Unicode category and followed by zero or more characters in the `ID_Continue` Unicode category, and these categories must be drawn from Unicode version 5.1 or above.
+
+    But in ES5, an identifier is a character sequence starting with a character in one of the `Lu, Ll, Lt, Lm, Lo, Nl` Unicode categories and followed by zero or more characters in the `Lu, Ll, Lt, Lm, Lo, Nl, Mn, Mc, Nd, Pc` Unicode categories, and these categories must be drawn from Unicode version 3.0 or above.
+
+    Previously esbuild always used the ES6+ identifier validation test when deciding whether to use an identifier or a quoted string to encode an object property but with this release, it will use the ES5 validation test instead:
+
+    ```js
+    // Original code
+    x.ꓷꓶꓲꓵꓭꓢꓱ = { ꓷꓶꓲꓵꓭꓢꓱ: y };
+
+    // Old output
+    x.ꓷꓶꓲꓵꓭꓢꓱ = { ꓷꓶꓲꓵꓭꓢꓱ: y };
+
+    // New output
+    x["ꓷꓶꓲꓵꓭꓢꓱ"] = { "ꓷꓶꓲꓵꓭꓢꓱ": y };
+    ```
+
+    This approach should ensure maximum compatibility with all JavaScript environments that support ES5 and above. Note that this means minified files containing Unicode properties may be slightly larger than before.
+
+* Ignore `tsconfig.json` files inside `node_modules` ([#1355](https://github.com/evanw/esbuild/issues/1355))
+
+    Package authors often publish their `tsconfig.json` files to npm because of npm's default-include publishing model and because these authors probably don't know about `.npmignore` files. People trying to use these packages with esbuild have historically complained that esbuild is respecting `tsconfig.json` in these cases. The assumption is that the package author published these files by accident.
+
+    With this release, esbuild will no longer respect `tsconfig.json` files when the source file is inside a `node_modules` folder. Note that `tsconfig.json` files inside `node_modules` are still parsed, and extending `tsconfig.json` files from inside a package is still supported.
+
+* Fix missing `--metafile` when using `--watch` ([#1357](https://github.com/evanw/esbuild/issues/1357))
+
+    Due to an oversight, the `--metafile` setting didn't work when `--watch` was also specified. This only affected the command-line interface. With this release, the `--metafile` setting should now work in this case.
+
+## 0.12.6
+
+* Improve template literal lowering transformation conformance ([#1327](https://github.com/evanw/esbuild/issues/1327))
+
+    This release contains the following improvements to template literal lowering for environments that don't support tagged template literals natively (such as `--target=es5`):
+
+    * For tagged template literals, the arrays of strings that are passed to the tag function are now frozen and immutable. They are also now cached so they should now compare identical between multiple template evaluations:
+
+        ```js
+        // Original code
+        console.log(tag`\u{10000}`)
+
+        // Old output
+        console.log(tag(__template(["𐀀"], ["\\u{10000}"])));
+
+        // New output
+        var _a;
+        console.log(tag(_a || (_a = __template(["𐀀"], ["\\u{10000}"]))));
+        ```
+
+    * For tagged template literals, the generated code size is now smaller in the common case where there are no escape sequences, since in that case there is no distinction between "raw" and "cooked" values:
+
+        ```js
+        // Original code
+        console.log(tag`some text without escape sequences`)
+
+        // Old output
+        console.log(tag(__template(["some text without escape sequences"], ["some text without escape sequences"])));
+
+        // New output
+        var _a;
+        console.log(tag(_a || (_a = __template(["some text without escape sequences"]))));
+        ```
+
+    * For non-tagged template literals, the generated code now uses chains of `.concat()` calls instead of string addition:
+
+        ```js
+        // Original code
+        console.log(`an ${example} template ${literal}`)
+
+        // Old output
+        console.log("an " + example + " template " + literal);
+
+        // New output
+        console.log("an ".concat(example, " template ").concat(literal));
+        ```
+
+        The old output was incorrect for several reasons including that `toString` must be called instead of `valueOf` for objects and that passing a `Symbol` instance should throw instead of converting the symbol to a string. Using `.concat()` instead of string addition fixes both of those correctness issues. And you can't use a single `.concat()` call because side effects must happen inline instead of at the end.
+
+* Only respect `target` in `tsconfig.json` when esbuild's target is not configured ([#1332](https://github.com/evanw/esbuild/issues/1332))
+
+    In version 0.12.4, esbuild began respecting the `target` setting in `tsconfig.json`. However, sometimes `tsconfig.json` contains target values that should not be used. With this release, esbuild will now only use the `target` value in `tsconfig.json` as the language level when esbuild's `target` setting is not configured. If esbuild's `target` setting is configured then the `target` value in `tsconfig.json` is now ignored.
+
+* Fix the order of CSS imported from JS ([#1342](https://github.com/evanw/esbuild/pull/1342))
+
+    Importing CSS from JS when bundling causes esbuild to generate a sibling CSS output file next to the resulting JS output file containing the bundled CSS. The order of the imported CSS files in the output was accidentally the inverse order of the order in which the JS files were evaluated. Instead the order of the imported CSS files should match the order in which the JS files were evaluated. This fix was contributed by [@dmitrage](https://github.com/dmitrage).
+
+* Fix an edge case with transforming `export default class` ([#1346](https://github.com/evanw/esbuild/issues/1346))
+
+    Statements of the form `export default class x {}` were incorrectly transformed to `class x {} var y = x; export {y as default}` instead of `class x {} export {x as default}`. Transforming these statements like this is incorrect in the rare case that the class is later reassigned by name within the same file such as `export default class x {} x = null`. Here the imported value should be `null` but was incorrectly the class object instead. This is unlikely to matter in real-world code but it has still been fixed to improve correctness.
+
 ## 0.12.5
 
 * Add support for lowering tagged template literals to ES5 ([#297](https://github.com/evanw/esbuild/issues/297))

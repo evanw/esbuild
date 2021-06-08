@@ -994,6 +994,31 @@ func TestTsconfigJsonNodeModulesImplicitFile(t *testing.T) {
 	})
 }
 
+func TestTsconfigJsonInsideNodeModules(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.tsx": `
+				import 'foo'
+			`,
+			"/Users/user/project/src/node_modules/foo/index.tsx": `
+				console.log(<div/>)
+			`,
+			"/Users/user/project/src/node_modules/foo/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "TEST_FAILED"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.tsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestTsconfigWarningsInsideNodeModules(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1147,8 +1172,9 @@ func TestTsconfigTarget(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.ts"},
 		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
+			Mode:                 config.ModeBundle,
+			AbsOutputFile:        "/Users/user/project/out.js",
+			IsTargetUnconfigured: true,
 		},
 		expectedScanLog: `Users/user/project/src/es4/tsconfig.json: warning: Unrecognized target environment "ES4"
 `,
@@ -1169,13 +1195,34 @@ func TestTsconfigTargetError(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.ts"},
 		options: config.Options{
-			Mode:              config.ModeBundle,
-			AbsOutputFile:     "/Users/user/project/out.js",
-			OriginalTargetEnv: "\"esnext\"", // This should not be reported as the cause of the error
+			Mode:                 config.ModeBundle,
+			AbsOutputFile:        "/Users/user/project/out.js",
+			IsTargetUnconfigured: true,
 		},
 		expectedScanLog: `Users/user/project/src/entry.ts: error: Big integer literals are not available in the configured target environment ("ES2019")
 Users/user/project/src/tsconfig.json: note: The target environment was set to "ES2019" here
 `,
+	})
+}
+
+func TestTsconfigTargetIgnored(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				x = 123n
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ES2019"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:                 config.ModeBundle,
+			AbsOutputFile:        "/Users/user/project/out.js",
+			IsTargetUnconfigured: false,
+		},
 	})
 }
 

@@ -320,7 +320,7 @@ console.log(a, b, c, d, e, real);
 ================================================================================
 TestTSMinifiedBundleCommonJS
 ---------- /out.js ----------
-var t=r(n=>{n.foo=function(){return 123}});var u=r((l,s)=>{s.exports={test:!0}});var{foo:c}=t();console.log(c(),u());
+var n=e(r=>{r.foo=function(){return 123}});var t=e((j,s)=>{s.exports={test:!0}});var{foo:c}=n();console.log(c(),t());
 
 ================================================================================
 TestTSMinifiedBundleES6
@@ -411,7 +411,6 @@ Foo = __decorateClass([
   __decorateParam(1, x1),
   __decorateParam(1, y1)
 ], Foo);
-var all_default = Foo;
 
 // all_computed.ts
 var _a, _b, _c, _d, _e, _f, _g, _h;
@@ -465,7 +464,6 @@ Foo2 = __decorateClass([
   x?.[_ + "y"](),
   new y?.[_ + "x"]()
 ], Foo2);
-var all_computed_default = Foo2;
 
 // a.ts
 var a_class = class {
@@ -524,7 +522,6 @@ e_default = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], e_default);
-var e_default2 = e_default;
 
 // f.ts
 var f = class {
@@ -537,7 +534,6 @@ f = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], f);
-var f_default = f;
 
 // g.ts
 var g_default = class {
@@ -546,7 +542,6 @@ g_default = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], g_default);
-var g_default2 = g_default;
 
 // h.ts
 var h = class {
@@ -559,7 +554,6 @@ h = __decorateClass([
   x(() => 0),
   y(() => 1)
 ], h);
-var h_default = h;
 
 // i.ts
 var i_class = class {
@@ -589,7 +583,6 @@ __decorateClass([
   __decorateParam(0, x2(() => 0)),
   __decorateParam(0, y(() => 1))
 ], k_default.prototype, "foo", 1);
-var k_default2 = k_default;
 
 // arguments.ts
 function dec(x2) {
@@ -607,7 +600,7 @@ function fn(x2) {
 }
 
 // entry.js
-console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default2, h_default, i, j, k_default2, fn);
+console.log(Foo, Foo2, a, b, c, d, e_default, f, g_default, h, i, j, k_default, fn);
 
 ================================================================================
 TestTypeScriptDecoratorsKeepNames
