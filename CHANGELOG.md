@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.8
 
 * Plugins can now specify `sideEffects: false` ([#1009](https://github.com/evanw/esbuild/issues/1009))
 
