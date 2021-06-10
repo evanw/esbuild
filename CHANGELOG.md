@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Allow `this` with `--define` ([#1361](https://github.com/evanw/esbuild/issues/1361))
+
+    You can now override the default value of top-level `this` with the `--define` feature. Top-level `this` defaults to being `undefined` in ECMAScript modules and `exports` in CommonJS modules. For example:
+
+    ```js
+    // Original code
+    ((obj) => {
+      ...
+    })(this);
+
+    // Output with "--define:this=window"
+    ((obj) => {
+      ...
+    })(window);
+    ```
+
+    Note that overriding what top-level `this` is will likely break code that uses it correctly. So this new feature is only useful in certain cases.
+
 ## 0.12.8
 
 * Plugins can now specify `sideEffects: false` ([#1009](https://github.com/evanw/esbuild/issues/1009))

@@ -4003,6 +4003,72 @@ func TestDefineImportMeta(t *testing.T) {
 	})
 }
 
+func TestDefineThis(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"this": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.ENumber{Value: 1}
+			},
+		},
+		"this.foo": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.ENumber{Value: 2}
+			},
+		},
+		"this.foo.bar": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.ENumber{Value: 3}
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				ok(
+					// These should be fully substituted
+					this,
+					this.foo,
+					this.foo.bar,
+
+					// Should just substitute "this.foo"
+					this.foo.baz,
+
+					// This should not be substituted
+					this.bar,
+				);
+
+				// This code should be the same as above
+				(() => {
+					ok(
+						this,
+						this.foo,
+						this.foo.bar,
+						this.foo.baz,
+						this.bar,
+					);
+				})();
+
+				// Nothing should be substituted in this code
+				(function() {
+					doNotSubstitute(
+						this,
+						this.foo,
+						this.foo.bar,
+						this.foo.baz,
+						this.bar,
+					);
+				})();
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			Defines:       &defines,
+		},
+	})
+}
+
 func TestKeepNamesTreeShaking(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

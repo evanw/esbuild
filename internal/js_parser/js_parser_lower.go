@@ -311,7 +311,13 @@ func (p *parser) lowerFunction(
 		}
 
 		// Determine the value for "this"
-		thisValue, hasThisValue := p.valueForThis(bodyLoc, false /* shouldWarn */)
+		thisValue, hasThisValue := p.valueForThis(
+			bodyLoc,
+			false, /* shouldWarn */
+			js_ast.AssignTargetNone,
+			false, /* isCallTarget */
+			false, /* isDeleteTarget */
+		)
 		if !hasThisValue {
 			thisValue = js_ast.Expr{Loc: bodyLoc, Data: js_ast.EThisShared}
 		}
