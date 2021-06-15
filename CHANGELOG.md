@@ -20,6 +20,19 @@
 
     Note that overriding what top-level `this` is will likely break code that uses it correctly. So this new feature is only useful in certain cases.
 
+* Fix CSS minification issue with `!important` and duplicate declarations ([#1372](https://github.com/evanw/esbuild/issues/1372))
+
+    Previously CSS with duplicate declarations for the same property where the first one was marked with `!important` was sometimes minified incorrectly. For example:
+
+    ```css
+    .selector {
+      padding: 10px !important;
+      padding: 0;
+    }
+    ```
+
+    This was incorrectly minified as `.selector{padding:0}`. The bug affected three properties: `padding`, `margin`, and `border-radius`. With this release, this code will now be minified as `.selector{padding:10px!important;padding:0}` instead which means there is no longer a difference between minified and non-minified code in this case.
+
 ## 0.12.8
 
 * Plugins can now specify `sideEffects: false` ([#1009](https://github.com/evanw/esbuild/issues/1009))
