@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.9
 
 * Allow `this` with `--define` ([#1361](https://github.com/evanw/esbuild/issues/1361))
 
