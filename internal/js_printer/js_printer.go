@@ -2129,18 +2129,23 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		value := e.Value
 		absValue := math.Abs(value)
 
+		infinity := "Infinity"
+		if p.options.MangleSyntax {
+			infinity = "1/0"
+		}
+
 		if value != value {
 			p.printSpaceBeforeIdentifier()
 			p.print("NaN")
 		} else if value == positiveInfinity {
 			p.printSpaceBeforeIdentifier()
-			p.print("Infinity")
+			p.print(infinity)
 		} else if value == negativeInfinity {
 			if level >= js_ast.LPrefix {
-				p.print("(-Infinity)")
+				p.print("(-" + infinity + ")")
 			} else {
 				p.printSpaceBeforeOperator(js_ast.UnOpNeg)
-				p.print("-Infinity")
+				p.print("-" + infinity)
 			}
 		} else {
 			if !math.Signbit(value) {

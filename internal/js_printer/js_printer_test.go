@@ -931,3 +931,14 @@ func TestAvoidSlashScript(t *testing.T) {
 	expectPrintedMinify(t, "x = 1 < / script/.exec(y).length", "x=1</ script/.exec(y).length;")
 	expectPrintedMinify(t, "x = 1 << / script/.exec(y).length", "x=1<</ script/.exec(y).length;")
 }
+
+func TestMangledENumber(t *testing.T) {
+	expectPrintedMangle(t, "x = Infinity", "x = 1/0;\n")
+	expectPrintedMangle(t, "x = -Infinity+2", "x = -1/0 + 2;\n")
+	expectPrintedMangle(t, "x = (-Infinity+2) / 3", "x = (-1/0 + 2) / 3;\n")
+	expectPrintedMangleMinify(t, "x = Infinity", "x=1/0;")
+	expectPrintedMangleMinify(t, "x = -Infinity+2", "x=-1/0+2;")
+	expectPrintedMangleMinify(t, "x = (-Infinity+2) / 3", "x=(-1/0+2)/3;")
+	expectPrintedMangleMinify(t, "1 + -Infinity", "1+-1/0;")
+	expectPrintedMangleMinify(t, "1 - -Infinity", "1- -1/0;")
+}
