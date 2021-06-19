@@ -7,7 +7,7 @@
 	`--minify-syntax` will now minify the `Infinity` keyword to `1/0` which is less in bytes.
 
 	```js
-	// Orginial code
+	// Original code
 	const a = Infinity;
 
 	const b = 0 * Infinity;
