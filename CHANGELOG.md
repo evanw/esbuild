@@ -2,9 +2,21 @@
 
 ## Unreleased
 
-* Mangle Syntax `Infinity` to `1/0`
+* Minify Syntax `Infinity` to `1/0`
 
-	MinifySyntax will now mangle the `Infinty` keywoard to `1/0` which is less in bytes.
+	`--minify-syntax` will now minify the `Infinity` keyword to `1/0` which is less in bytes.
+
+	```js
+	// Orginial code
+	const a = Infinity;
+
+	const b = 0 * Infinity;
+
+	// Output with "--mangle-syntax"
+	const a = 1/0;
+
+	const b = 0 * 1/0;
+	```
 
 ## 0.12.9
 
