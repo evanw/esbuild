@@ -172,6 +172,10 @@ func (p *parser) processDeclarations(rules []css_ast.R) []css_ast.R {
 			if p.options.MangleSyntax {
 				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusBottomLeft)
 			}
+		case css_ast.DTransform:
+			if p.options.MangleSyntax {
+				decl.Value = p.mangleTransforms(decl.Value)
+			}
 		}
 	}
 
