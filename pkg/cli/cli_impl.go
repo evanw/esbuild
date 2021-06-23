@@ -544,6 +544,7 @@ func parseTargets(targets []string) (target api.Target, engines []api.Engine, er
 		"es2018": api.ES2018,
 		"es2019": api.ES2019,
 		"es2020": api.ES2020,
+		"es2021": api.ES2021,
 	}
 
 	validEngines := map[string]api.EngineName{

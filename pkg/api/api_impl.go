@@ -290,6 +290,8 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (bool, co
 		constraints[compat.ES] = []int{2019}
 	case ES2020:
 		constraints[compat.ES] = []int{2020}
+	case ES2021:
+		constraints[compat.ES] = []int{2021}
 	case ESNext, DefaultTarget:
 	default:
 		panic("Invalid target")

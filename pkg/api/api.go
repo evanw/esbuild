@@ -124,6 +124,7 @@ const (
 	ES2018
 	ES2019
 	ES2020
+	ES2021
 )
 
 type Loader uint8
