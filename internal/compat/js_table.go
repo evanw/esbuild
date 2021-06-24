@@ -157,6 +157,7 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Edge:    {84},
 		Firefox: {90},
 		Node:    {14, 6},
+		Safari:  {15},
 	},
 	ClassPrivateBrandCheck: {
 		Chrome:  {91},
@@ -174,12 +175,14 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Edge:    {84},
 		Firefox: {90},
 		Node:    {14, 6},
+		Safari:  {15},
 	},
 	ClassPrivateStaticAccessor: {
 		Chrome:  {84},
 		Edge:    {84},
 		Firefox: {90},
 		Node:    {14, 6},
+		Safari:  {15},
 	},
 	ClassPrivateStaticField: {
 		Chrome:  {74},
@@ -193,6 +196,7 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Edge:    {84},
 		Firefox: {90},
 		Node:    {14, 6},
+		Safari:  {15},
 	},
 	ClassStaticField: {
 		Chrome:  {73},
@@ -312,6 +316,7 @@ var jsTable = map[JSFeature]map[Engine][]int{
 	LogicalAssignment: {
 		Chrome:  {85},
 		Edge:    {85},
+		ES:      {2021},
 		Firefox: {79},
 		IOS:     {14},
 		Node:    {15, 0},

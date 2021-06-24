@@ -3306,7 +3306,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					// Turn this statement into "import * as ns from 'path'"
 					stmt.Data = &js_ast.SImport{
 						NamespaceRef:      s.NamespaceRef,
-						StarNameLoc:       &stmt.Loc,
+						StarNameLoc:       &logger.Loc{Start: stmt.Loc.Start},
 						ImportRecordIndex: s.ImportRecordIndex,
 					}
 

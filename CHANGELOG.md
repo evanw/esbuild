@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Add a target for ES2021
+
+    It's now possible to use `--target=es2021` to target the newly-released JavaScript version ES2021. The only difference between that and `--target=es2020` is that logical assignment operators such as `a ||= b` are not converted to regular assignment operators such as `a || (a = b)`.
+
 * Minify Syntax `Infinity` to `1/0`
 
 	`--minify-syntax` will now minify the `Infinity` keyword to `1/0` which is less in bytes.

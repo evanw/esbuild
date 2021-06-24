@@ -70,6 +70,12 @@ func TestLowerNullishCoalescingAssign(t *testing.T) {
 	expectPrintedTarget(t, 2020, "a().b ??= c", "var _a;\n(_a = a()).b ?? (_a.b = c);\n")
 	expectPrintedTarget(t, 2020, "a[b] ??= c", "a[b] ?? (a[b] = c);\n")
 	expectPrintedTarget(t, 2020, "a()[b()] ??= c", "var _a, _b;\n(_a = a())[_b = b()] ?? (_a[_b] = c);\n")
+
+	expectPrintedTarget(t, 2021, "a ??= b", "a ??= b;\n")
+	expectPrintedTarget(t, 2021, "a.b ??= c", "a.b ??= c;\n")
+	expectPrintedTarget(t, 2021, "a().b ??= c", "a().b ??= c;\n")
+	expectPrintedTarget(t, 2021, "a[b] ??= c", "a[b] ??= c;\n")
+	expectPrintedTarget(t, 2021, "a()[b()] ??= c", "a()[b()] ??= c;\n")
 }
 
 func TestLowerLogicalAssign(t *testing.T) {
@@ -87,6 +93,12 @@ func TestLowerLogicalAssign(t *testing.T) {
 	expectPrintedTarget(t, 2020, "a().b ||= c", "var _a;\n(_a = a()).b || (_a.b = c);\n")
 	expectPrintedTarget(t, 2020, "a[b] ||= c", "a[b] || (a[b] = c);\n")
 	expectPrintedTarget(t, 2020, "a()[b()] ||= c", "var _a, _b;\n(_a = a())[_b = b()] || (_a[_b] = c);\n")
+
+	expectPrintedTarget(t, 2021, "a ||= b", "a ||= b;\n")
+	expectPrintedTarget(t, 2021, "a.b ||= c", "a.b ||= c;\n")
+	expectPrintedTarget(t, 2021, "a().b ||= c", "a().b ||= c;\n")
+	expectPrintedTarget(t, 2021, "a[b] ||= c", "a[b] ||= c;\n")
+	expectPrintedTarget(t, 2021, "a()[b()] ||= c", "a()[b()] ||= c;\n")
 }
 
 func TestLowerAsyncFunctions(t *testing.T) {
