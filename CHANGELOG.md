@@ -6,6 +6,20 @@
 
     It's now possible to use `--target=es2021` to target the newly-released JavaScript version ES2021. The only difference between that and `--target=es2020` is that logical assignment operators such as `a ||= b` are not converted to regular assignment operators such as `a || (a = b)`.
 
+* Minify the syntax `Infinity` to `1 / 0` ([#1385](https://github.com/evanw/esbuild/pull/1385))
+
+	The `--minify-syntax` flag (automatically enabled by `--minify`) will now minify the expression `Infinity` to `1 / 0`, which uses fewer bytes:
+
+	```js
+	// Original code
+	const a = Infinity;
+
+	// Output with "--minify-syntax"
+	const a = 1 / 0;
+	```
+
+    This change was contributed by [@Gusted](https://github.com/Gusted).
+
 ## 0.12.9
 
 * Allow `this` with `--define` ([#1361](https://github.com/evanw/esbuild/issues/1361))
