@@ -1116,3 +1116,12 @@ func TestMangleTime(t *testing.T) {
 	expectPrintedMangle(t, "a { animation: b 1e3ms }", "a {\n  animation: b 1e3ms;\n}\n")
 	expectPrintedMangle(t, "a { animation: b 1E3ms }", "a {\n  animation: b 1E3ms;\n}\n")
 }
+
+func TestTransform(t *testing.T) {
+	expectPrintedMangle(t, "a { transform:translate3d(0, 0, 2px) }", "a {\n  transform: translateZ(2px);\n}\n")
+	expectPrintedMangle(t, "a { transform:TRANSLATE3D(0, 0, 2) }", "a {\n  transform: translateZ(2);\n}\n")
+	expectPrintedMangle(t, "a { transform:translate3d(1.5,1.5,3) }", "a {\n  transform: translate3d(1.5, 1.5, 3);\n}\n")
+	expectPrintedMangle(t, "a { transform:translate3d(var(--foo)) }", "a {\n  transform: translate3d(var(--foo));\n}\n")
+	expectPrintedMangle(t, "a { transform:perspective(500px) translate3d(0, 0, 2px) rotateY(3deg); }",
+		"a {\n  transform: perspective(500px) translateZ(2px) rotateY(3deg);\n}\n")
+}
