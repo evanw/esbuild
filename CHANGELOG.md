@@ -20,6 +20,24 @@
 
     This change was contributed by [@Gusted](https://github.com/Gusted).
 
+* Minify syntax in the CSS `transform` property ([#1390](https://github.com/evanw/esbuild/pull/1390))
+
+    This release includes various size reductions for CSS transform matrix syntax when minification is enabled:
+
+    ```css
+    /* Original code */
+    div {
+      transform: translate3d(0, 0, 10px) scale3d(200%, 200%, 1) rotate3d(0, 0, 1, 45deg);
+    }
+
+    /* Output with "--minify-syntax" */
+    div {
+      transform: translateZ(10px) scale(2) rotate(45deg);
+    }
+    ```
+
+    The `translate3d` to `translateZ` conversion was contributed by [@steambap](https://github.com/steambap).
+
 ## 0.12.9
 
 * Allow `this` with `--define` ([#1361](https://github.com/evanw/esbuild/issues/1361))
