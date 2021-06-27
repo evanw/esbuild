@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.10
 
 * Add a target for ES2021
 
