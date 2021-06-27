@@ -2,8 +2,10 @@ package fs
 
 import (
 	"errors"
+	"os"
 	"strings"
 	"sync"
+	"syscall"
 )
 
 type EntryKind uint8
@@ -159,4 +161,41 @@ func BeforeFileOpen() {
 
 func AfterFileClose() {
 	<-fileOpenLimit
+}
+
+// This is a fork of "os.MkdirAll" to work around bugs with the WebAssembly
+// build target. More information here: https://github.com/golang/go/issues/43768.
+func MkdirAll(fs FS, path string, perm os.FileMode) error {
+	// Run "Join" once to run "Clean" on the path, which removes trailing slashes
+	return mkdirAll(fs, fs.Join(path), perm)
+}
+
+func mkdirAll(fs FS, path string, perm os.FileMode) error {
+	// Fast path: if we can tell whether path is a directory or file, stop with success or error.
+	if dir, err := os.Stat(path); err == nil {
+		if dir.IsDir() {
+			return nil
+		}
+		return &os.PathError{Op: "mkdir", Path: path, Err: syscall.ENOTDIR}
+	}
+
+	// Slow path: make sure parent exists and then call Mkdir for path.
+	if parent := fs.Dir(path); parent != path {
+		// Create parent.
+		if err := mkdirAll(fs, parent, perm); err != nil {
+			return err
+		}
+	}
+
+	// Parent now exists; invoke Mkdir and use its result.
+	if err := os.Mkdir(path, perm); err != nil {
+		// Handle arguments like "foo/." by
+		// double-checking that directory doesn't exist.
+		dir, err1 := os.Lstat(path)
+		if err1 == nil && dir.IsDir() {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
