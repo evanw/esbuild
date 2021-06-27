@@ -249,7 +249,7 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 		p.eat(css_lexer.TWhitespace)
 		if p.peek(css_lexer.TIdent) {
 			if modifier := p.decoded(); len(modifier) == 1 {
-				if c := modifier[0]; c == 'i' || c == 'I' {
+				if c := modifier[0]; c == 'i' || c == 'I' || c == 's' || c == 'S' {
 					attr.MatcherModifier = c
 					p.advance()
 				}

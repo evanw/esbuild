@@ -38,6 +38,10 @@
 
     The `translate3d` to `translateZ` conversion was contributed by [@steambap](https://github.com/steambap).
 
+* Support for the case-sensitive flag in CSS attribute selectors ([#1397](https://github.com/evanw/esbuild/issues/1397))
+
+    You can now use the case-sensitive CSS attribute selector flag `s` such as in `[type="a" s] { list-style: lower-alpha; }`. Previously doing this caused a warning about unrecognized syntax.
+
 ## 0.12.9
 
 * Allow `this` with `--define` ([#1361](https://github.com/evanw/esbuild/issues/1361))
