@@ -63,12 +63,12 @@ jobs:
     - name: npm ci
       run: cd scripts && npm ci
 
-    - name: Register Test
-      run: node scripts/register-test.js
+    - name: Register Test (ESBUILD_WORKER_THREADS=0)
+      run: ESBUILD_WORKER_THREADS=0 node scripts/register-test.js
 
-    - name: Register Test (ESBUILD_WORKER_THREADS)
+    - name: Register Test
       if: matrix.os != 'windows-latest'
-      run: ESBUILD_WORKER_THREADS=1 node scripts/register-test.js
+      run: node scripts/register-test.js
 
     - name: Verify Source Map
       run: node scripts/verify-source-map.js
@@ -76,12 +76,12 @@ jobs:
     - name: E2E Tests
       run: node scripts/end-to-end-tests.js
 
-    - name: JS API Tests
-      run: node scripts/js-api-tests.js
+    - name: JS API Tests (ESBUILD_WORKER_THREADS=0)
+      run: ESBUILD_WORKER_THREADS=0 node scripts/js-api-tests.js
 
-    - name: JS API Tests (ESBUILD_WORKER_THREADS)
+    - name: JS API Tests
       if: matrix.os != 'windows-latest'
-      run: ESBUILD_WORKER_THREADS=1 node scripts/js-api-tests.js
+      run: node scripts/js-api-tests.js
 
     - name: NodeJS Unref Tests
       run: node scripts/node-unref-tests.js

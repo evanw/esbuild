@@ -16,12 +16,7 @@ declare const WASM: boolean;
 
 let worker_threads: typeof import('worker_threads') | undefined;
 
-// This optimization is opt-in for now because it could break if node has bugs
-// with "worker_threads", and node has had such bugs in the past.
-//
-// TODO: Determine under which conditions this is safe to enable, and then
-// replace this check with a check for those conditions.
-if (process.env.ESBUILD_WORKER_THREADS) {
+if (process.env.ESBUILD_WORKER_THREADS !== '0') {
   // Don't crash if the "worker_threads" library isn't present
   try {
     worker_threads = require('worker_threads');

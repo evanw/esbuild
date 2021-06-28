@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Enable faster synchronous transforms by default a flag ([#1000](https://github.com/evanw/esbuild/issues/1000))
+
+    Currently the synchronous JavaScript API calls `transformSync` and `buildSync` spawn a new child process on every call. This is due to limitations with node's `child_process` API. Doing this means `transformSync` and `buildSync` are much slower than `transform` and `build`, which share the same child process across calls.
+
+    This release improves the performance of `transformSync` and `buildSync` by up to 20x. It enables a hack where node's `worker_threads` API and atomics are used to block the main thread while asynchronous communication with a single long-lived child process happens in a worker. Previously this was only enabled when the `ESBUILD_WORKER_THREADS` environment variable was set to `1`. But this experiment has been available for a while (since version 0.9.6) without any reported issues. Now this hack will be enabled by default. It can be disabled by setting `ESBUILD_WORKER_THREADS` to `0`.
+
 * Fix nested output directories with WebAssembly on Windows ([#1399](https://github.com/evanw/esbuild/issues/1399))
 
     Many functions in Go's standard library have a bug where they do not work on Windows when using Go with WebAssembly. This is a long-standing bug and is a fault with the design of the standard library, so it's unlikely to be fixed. Basically Go's standard library is designed to bake "Windows or not" decision into the compiled executable, but WebAssembly is platform-independent which makes "Windows or not" is a run-time decision instead of a compile-time decision. Oops.
