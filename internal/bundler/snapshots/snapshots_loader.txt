@@ -139,6 +139,128 @@ var require_test2 = __commonJS({
 console.log(require_test(), require_test2());
 
 ================================================================================
+TestLoaderFileOneSourceTwoDifferentOutputPathsCSS
+---------- /out/common-LSAMBFUD.png ----------
+x
+---------- /out/entries/entry.css ----------
+/* src/shared/common.css */
+div {
+  background: url(../common-LSAMBFUD.png);
+}
+
+/* src/entries/entry.css */
+
+---------- /out/entries/other/entry.css ----------
+/* src/shared/common.css */
+div {
+  background: url(../../common-LSAMBFUD.png);
+}
+
+/* src/entries/other/entry.css */
+
+================================================================================
+TestLoaderFileOneSourceTwoDifferentOutputPathsJS
+---------- /out/common-LSAMBFUD.png ----------
+x
+---------- /out/entries/entry.js ----------
+// src/shared/common.png
+var common_default = "../common-LSAMBFUD.png";
+
+// src/shared/common.js
+console.log(common_default);
+
+---------- /out/entries/other/entry.js ----------
+// src/shared/common.png
+var common_default = "../../common-LSAMBFUD.png";
+
+// src/shared/common.js
+console.log(common_default);
+
+================================================================================
+TestLoaderFilePublicPathAssetNamesCSS
+---------- /out/images/image-LSAMBFUD.png ----------
+x
+---------- /out/entries/entry.css ----------
+/* src/entries/entry.css */
+div {
+  background: url(https://example.com/images/image-LSAMBFUD.png);
+}
+
+================================================================================
+TestLoaderFilePublicPathAssetNamesJS
+---------- /out/images/image-LSAMBFUD.png ----------
+x
+---------- /out/entries/entry.js ----------
+// src/images/image.png
+var image_default = "https://example.com/images/image-LSAMBFUD.png";
+
+// src/entries/entry.js
+console.log(image_default);
+
+================================================================================
+TestLoaderFilePublicPathCSS
+---------- /out/image-LSAMBFUD.png ----------
+x
+---------- /out/entries/entry.css ----------
+/* src/entries/entry.css */
+div {
+  background: url(https://example.com/image-LSAMBFUD.png);
+}
+
+================================================================================
+TestLoaderFilePublicPathJS
+---------- /out/image-LSAMBFUD.png ----------
+x
+---------- /out/entries/entry.js ----------
+// src/images/image.png
+var image_default = "https://example.com/image-LSAMBFUD.png";
+
+// src/entries/entry.js
+console.log(image_default);
+
+================================================================================
+TestLoaderFileRelativePathAssetNamesCSS
+---------- /out/images/image-LSAMBFUD.png ----------
+x
+---------- /out/entries/entry.css ----------
+/* src/entries/entry.css */
+div {
+  background: url(../images/image-LSAMBFUD.png);
+}
+
+================================================================================
+TestLoaderFileRelativePathAssetNamesJS
+---------- /out/images/image-LSAMBFUD.png ----------
+x
+---------- /out/entries/entry.js ----------
+// src/images/image.png
+var image_default = "../images/image-LSAMBFUD.png";
+
+// src/entries/entry.js
+console.log(image_default);
+
+================================================================================
+TestLoaderFileRelativePathCSS
+---------- /out/image-LSAMBFUD.png ----------
+x
+---------- /out/entries/entry.css ----------
+/* src/entries/entry.css */
+div {
+  background: url(../image-LSAMBFUD.png);
+}
+
+================================================================================
+TestLoaderFileRelativePathJS
+---------- /out/image-LSAMBFUD.png ----------
+x
+---------- /out/entries/entry.js ----------
+// src/images/image.png
+var image_default = "../image-LSAMBFUD.png";
+
+// src/entries/entry.js
+console.log(image_default);
+
+================================================================================
 TestLoaderJSONCommonJSAndES6
 ---------- /out.js ----------
 // x.json

@@ -121,6 +121,7 @@ type outputPieceIndexKind uint8
 
 const (
 	outputPieceNone outputPieceIndexKind = iota
+	outputPieceAssetIndex
 	outputPieceChunkIndex
 )
 
@@ -537,6 +538,18 @@ func (c *linkerContext) substituteFinalPaths(
 		shift.After.Add(dataOffset)
 
 		switch piece.kind {
+		case outputPieceAssetIndex:
+			file := c.graph.Files[piece.index]
+			if len(file.InputFile.AdditionalFiles) != 1 {
+				panic("Internal error")
+			}
+			relPath, _ := c.fs.Rel(c.options.AbsOutputDir, file.InputFile.AdditionalFiles[0].AbsPath)
+			importPath := modifyPath(relPath)
+			j.AddString(importPath)
+			shift.Before.AdvanceString(file.InputFile.UniqueKey)
+			shift.After.AdvanceString(importPath)
+			shifts = append(shifts, shift)
+
 		case outputPieceChunkIndex:
 			chunk := chunks[piece.index]
 			importPath := modifyPath(chunk.finalRelPath)
@@ -1057,7 +1070,8 @@ func (a stableRefArray) Len() int          { return len(a) }
 func (a stableRefArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 func (a stableRefArray) Less(i int, j int) bool {
 	ai, aj := a[i], a[j]
-	return ai.StableSourceIndex < aj.StableSourceIndex || (ai.StableSourceIndex == aj.StableSourceIndex && ai.Ref.InnerIndex < aj.Ref.InnerIndex)
+	return ai.StableSourceIndex < aj.StableSourceIndex ||
+		(ai.StableSourceIndex == aj.StableSourceIndex && ai.Ref.InnerIndex < aj.Ref.InnerIndex)
 }
 
 // Sort cross-chunk exports by chunk name for determinism
@@ -4978,6 +4992,8 @@ func (c *linkerContext) breakOutputIntoPieces(j helpers.Joiner, chunkCount uint3
 				boundary = -1
 			} else {
 				switch output[start] {
+				case 'A':
+					kind = outputPieceAssetIndex
 				case 'C':
 					kind = outputPieceChunkIndex
 				}
@@ -4994,10 +5010,16 @@ func (c *linkerContext) breakOutputIntoPieces(j helpers.Joiner, chunkCount uint3
 
 		// Validate the boundary
 		switch kind {
+		case outputPieceAssetIndex:
+			if index >= uint32(len(c.graph.Files)) {
+				boundary = -1
+			}
+
 		case outputPieceChunkIndex:
 			if index >= chunkCount {
 				boundary = -1
 			}
+
 		default:
 			boundary = -1
 		}

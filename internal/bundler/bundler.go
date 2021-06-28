@@ -87,6 +87,7 @@ type parseArgs struct {
 	results         chan parseResult
 	inject          chan config.InjectedFile
 	skipResolve     bool
+	uniqueKeyPrefix string
 }
 
 type parseResult struct {
@@ -274,28 +275,11 @@ func parseFile(args parseArgs) {
 		result.ok = true
 
 	case config.LoaderFile:
-		// Add a hash to the file name to prevent multiple files with the same name
-		// but different contents from colliding
-		var hash string
-		if config.HasPlaceholder(args.options.AssetPathTemplate, config.HashPlaceholder) {
-			h := xxhash.New()
-			h.Write([]byte(source.Contents))
-			hash = hashForFileName(h.Sum(nil))
-		}
-		dir := "/"
-		relPath := config.TemplateToString(config.SubstituteTemplate(args.options.AssetPathTemplate, config.PathPlaceholders{
-			Dir:  &dir,
-			Name: &base,
-			Hash: &hash,
-		})) + ext
-
-		// Determine the final path that this asset will have in the output directory
-		publicPath := joinWithPublicPath(args.options.PublicPath, relPath+source.KeyPath.IgnoredSuffix)
-
-		// Export the resulting relative path as a string
-		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(publicPath)}}
+		uniqueKey := fmt.Sprintf("%sA%08d", args.uniqueKeyPrefix, args.sourceIndex)
+		uniqueKeyPath := uniqueKey + source.KeyPath.IgnoredSuffix
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(uniqueKeyPath)}}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
-		ast.URLForCSS = publicPath
+		ast.URLForCSS = uniqueKeyPath
 		if pluginName != "" {
 			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_PureData_FromPlugin
 		} else {
@@ -320,8 +304,9 @@ func parseFile(args parseArgs) {
 
 		// Copy the file using an additional file payload to make sure we only copy
 		// the file if the module isn't removed due to tree shaking.
+		result.file.inputFile.UniqueKey = uniqueKey
 		result.file.inputFile.AdditionalFiles = []graph.OutputFile{{
-			AbsPath:           args.fs.Join(args.options.AbsOutputDir, relPath),
+			AbsPath:           source.KeyPath.Text,
 			Contents:          []byte(source.Contents),
 			JSONMetadataChunk: jsonMetadataChunk,
 		}}
@@ -945,12 +930,13 @@ func hashForFileName(hashBytes []byte) string {
 }
 
 type scanner struct {
-	log     logger.Log
-	fs      fs.FS
-	res     resolver.Resolver
-	caches  *cache.CacheSet
-	options config.Options
-	timer   *helpers.Timer
+	log             logger.Log
+	fs              fs.FS
+	res             resolver.Resolver
+	caches          *cache.CacheSet
+	options         config.Options
+	timer           *helpers.Timer
+	uniqueKeyPrefix string
 
 	// This is not guarded by a mutex because it's only ever modified by a single
 	// thread. Note that not all results in the "results" array are necessarily
@@ -1005,22 +991,23 @@ func ScanBundle(
 		}
 	}
 
-	s := scanner{
-		log:           log,
-		fs:            fs,
-		res:           res,
-		caches:        caches,
-		options:       options,
-		timer:         timer,
-		results:       make([]parseResult, 0, caches.SourceIndexCache.LenHint()),
-		visited:       make(map[logger.Path]uint32),
-		resultChannel: make(chan parseResult),
-	}
-
 	// Each bundling operation gets a separate unique key
 	uniqueKeyPrefix, err := generateUniqueKeyPrefix()
 	if err != nil {
 		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
+	}
+
+	s := scanner{
+		log:             log,
+		fs:              fs,
+		res:             res,
+		caches:          caches,
+		options:         options,
+		timer:           timer,
+		results:         make([]parseResult, 0, caches.SourceIndexCache.LenHint()),
+		visited:         make(map[logger.Path]uint32),
+		resultChannel:   make(chan parseResult),
+		uniqueKeyPrefix: uniqueKeyPrefix,
 	}
 
 	// Always start by parsing the runtime file
@@ -1160,6 +1147,7 @@ func (s *scanner) maybeParseFile(
 		results:         s.resultChannel,
 		inject:          inject,
 		skipResolve:     skipResolve,
+		uniqueKeyPrefix: s.uniqueKeyPrefix,
 	})
 
 	return sourceIndex
@@ -1763,6 +1751,30 @@ func (s *scanner) processScannedFiles() []scannerFile {
 				sb.WriteString("\n      ")
 			}
 			sb.WriteString("]\n    }")
+		}
+
+		// Turn all additional file paths from input paths into output paths by
+		// rewriting the output base directory to the output directory
+		for j, additionalFile := range result.file.inputFile.AdditionalFiles {
+			if relPath, ok := s.fs.Rel(s.options.AbsOutputBase, additionalFile.AbsPath); ok {
+				var hash string
+
+				// Add a hash to the file name to prevent multiple files with the same name
+				// but different contents from colliding
+				if config.HasPlaceholder(s.options.AssetPathTemplate, config.HashPlaceholder) {
+					h := xxhash.New()
+					h.Write(additionalFile.Contents)
+					hash = hashForFileName(h.Sum(nil))
+				}
+
+				dir, base, ext := logger.PlatformIndependentPathDirBaseExt(relPath)
+				relPath = config.TemplateToString(config.SubstituteTemplate(s.options.AssetPathTemplate, config.PathPlaceholders{
+					Dir:  &dir,
+					Name: &base,
+					Hash: &hash,
+				})) + ext
+				result.file.inputFile.AdditionalFiles[j].AbsPath = s.fs.Join(s.options.AbsOutputDir, relPath)
+			}
 		}
 
 		s.results[i].file.jsonMetadataChunk = sb.String()

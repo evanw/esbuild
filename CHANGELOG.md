@@ -1,5 +1,64 @@
 # Changelog
 
+## Unreleased
+
+* Fix `file` loader import paths when subdirectories are present ([#1044](https://github.com/evanw/esbuild/issues/1044))
+
+    Using the `file` loader for a file type causes importing affected files to copy the file into the output directory and to embed the path to the copied file into the code that imported it. However, esbuild previously always embedded the path relative to the output directory itself. This is problematic when the importing code is generated within a subdirectory inside the output directory, since then the relative path is wrong. For example:
+
+    ```
+    $ cat src/example/entry.css
+    div { background: url(../images/image.png) }
+
+    $ esbuild --bundle src/example/entry.css --outdir=out --outbase=src --loader:.png=file
+
+    $ find out -type f
+    out/example/entry.css
+    out/image-55DNWN2R.png
+
+    $ cat out/example/entry.css
+    /* src/example/entry.css */
+    div {
+      background: url(./image-55DNWN2R.png);
+    }
+    ```
+
+    This is output from the previous version of esbuild. The above asset reference in `out/example/entry.css` is wrong. The path should start with `../` because the two files are in different directories.
+
+    With this release, the asset references present in output files will now be the full relative path from the output file to the asset, so imports should now work correctly when the entry point is in a subdirectory within the output directory. This change affects asset reference paths in both CSS and JS output files.
+
+    Note that if you want asset reference paths to be independent of the subdirectory in which they reside, you can use the `--public-path` setting to provide the common path that all asset reference paths should be constructed relative to.
+
+* Add support for `[dir]` in `--asset-names` ([#1196](https://github.com/evanw/esbuild/pull/1196))
+
+    You can now use path templates such as `--asset-names=[dir]/[name]-[hash]` to copy the input directory structure of your asset files (i.e. input files loaded with the `file` loader) to the output directory. Here's an example:
+
+    ```
+    $ cat entry.css
+    header {
+      background: url(images/common/header.png);
+    }
+    main {
+      background: url(images/home/hero.png);
+    }
+
+    $ esbuild --bundle entry.css --outdir=out --asset-names=[dir]/[name]-[hash] --loader:.png=file
+
+    $ find out -type f
+    out/images/home/hero-55DNWN2R.png
+    out/images/common/header-55DNWN2R.png
+    out/entry.css
+
+    $ cat out/entry.css
+    /* entry.css */
+    header {
+      background: url(./images/common/header-55DNWN2R.png);
+    }
+    main {
+      background: url(./images/home/hero-55DNWN2R.png);
+    }
+    ```
+
 ## 0.12.11
 
 * Enable faster synchronous transforms with the JS API by default ([#1000](https://github.com/evanw/esbuild/issues/1000))
