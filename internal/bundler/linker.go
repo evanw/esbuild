@@ -544,6 +544,10 @@ func (c *linkerContext) substituteFinalPaths(
 				panic("Internal error")
 			}
 			relPath, _ := c.fs.Rel(c.options.AbsOutputDir, file.InputFile.AdditionalFiles[0].AbsPath)
+
+			// Make sure to always use forward slashes, even on Windows
+			relPath = strings.ReplaceAll(relPath, "\\", "/")
+
 			importPath := modifyPath(relPath)
 			j.AddString(importPath)
 			shift.Before.AdvanceString(file.InputFile.UniqueKey)
