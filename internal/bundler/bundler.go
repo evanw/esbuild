@@ -5,11 +5,13 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"sort"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -61,6 +63,12 @@ type Bundle struct {
 	res         resolver.Resolver
 	files       []scannerFile
 	entryPoints []graph.EntryPoint
+
+	// The unique key prefix is a random string that is unique to every bundling
+	// operation. It is used as a prefix for the unique keys assigned to every
+	// chunk during linking. These unique keys are used to identify each chunk
+	// before the final output paths have been computed.
+	uniqueKeyPrefix string
 }
 
 type parseArgs struct {
@@ -959,6 +967,17 @@ type EntryPoint struct {
 	IsFile     bool
 }
 
+func generateUniqueKeyPrefix() (string, error) {
+	var data [12]byte
+	rand.Seed(time.Now().UnixNano())
+	if _, err := rand.Read(data[:]); err != nil {
+		return "", err
+	}
+
+	// This is 16 bytes and shouldn't generate escape characters when put into strings
+	return base64.URLEncoding.EncodeToString(data[:]), nil
+}
+
 func ScanBundle(
 	log logger.Log,
 	fs fs.FS,
@@ -998,6 +1017,12 @@ func ScanBundle(
 		resultChannel: make(chan parseResult),
 	}
 
+	// Each bundling operation gets a separate unique key
+	uniqueKeyPrefix, err := generateUniqueKeyPrefix()
+	if err != nil {
+		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
+	}
+
 	// Always start by parsing the runtime file
 	s.results = append(s.results, parseResult{})
 	s.remaining++
@@ -1021,10 +1046,11 @@ func ScanBundle(
 
 	onStartWaitGroup.Wait()
 	return Bundle{
-		fs:          fs,
-		res:         res,
-		files:       files,
-		entryPoints: entryPointMeta,
+		fs:              fs,
+		res:             res,
+		files:           files,
+		entryPoints:     entryPointMeta,
+		uniqueKeyPrefix: uniqueKeyPrefix,
 	}
 }
 
@@ -1917,7 +1943,8 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 	var resultGroups [][]graph.OutputFile
 	if options.CodeSplitting || len(b.entryPoints) == 1 {
 		// If code splitting is enabled or if there's only one entry point, link all entry points together
-		resultGroups = [][]graph.OutputFile{link(&options, timer, log, b.fs, b.res, files, b.entryPoints, allReachableFiles, dataForSourceMaps)}
+		resultGroups = [][]graph.OutputFile{link(
+			&options, timer, log, b.fs, b.res, files, b.entryPoints, b.uniqueKeyPrefix, allReachableFiles, dataForSourceMaps)}
 	} else {
 		// Otherwise, link each entry point with the runtime file separately
 		waitGroup := sync.WaitGroup{}
@@ -1928,7 +1955,8 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 				entryPoints := []graph.EntryPoint{entryPoint}
 				forked := timer.Fork()
 				reachableFiles := findReachableFiles(files, entryPoints)
-				resultGroups[i] = link(&options, forked, log, b.fs, b.res, files, entryPoints, reachableFiles, dataForSourceMaps)
+				resultGroups[i] = link(
+					&options, forked, log, b.fs, b.res, files, entryPoints, b.uniqueKeyPrefix, reachableFiles, dataForSourceMaps)
 				timer.Join(forked)
 				waitGroup.Done()
 			}(i, entryPoint)

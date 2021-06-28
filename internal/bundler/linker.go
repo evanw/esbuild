@@ -6,12 +6,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash"
-	"math/rand"
 	"path"
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
@@ -55,10 +53,7 @@ type linkerContext struct {
 	// is shared between threads and must be treated as immutable.
 	dataForSourceMaps func() []dataForSourceMap
 
-	// The unique key prefix is a random string that is unique to every linking
-	// operation. It is used as a prefix for the unique keys assigned to every
-	// chunk. These unique keys are used to identify each chunk before the final
-	// output paths have been computed.
+	// This is passed to us from the bundling phase
 	uniqueKeyPrefix      string
 	uniqueKeyPrefixBytes []byte // This is just "uniqueKeyPrefix" in byte form
 }
@@ -207,6 +202,7 @@ func link(
 	res resolver.Resolver,
 	inputFiles []graph.InputFile,
 	entryPoints []graph.EntryPoint,
+	uniqueKeyPrefix string,
 	reachableFiles []uint32,
 	dataForSourceMaps func() []dataForSourceMap,
 ) []graph.OutputFile {
@@ -217,12 +213,14 @@ func link(
 
 	timer.Begin("Clone linker graph")
 	c := linkerContext{
-		options:           options,
-		timer:             timer,
-		log:               log,
-		fs:                fs,
-		res:               res,
-		dataForSourceMaps: dataForSourceMaps,
+		options:              options,
+		timer:                timer,
+		log:                  log,
+		fs:                   fs,
+		res:                  res,
+		dataForSourceMaps:    dataForSourceMaps,
+		uniqueKeyPrefix:      uniqueKeyPrefix,
+		uniqueKeyPrefixBytes: []byte(uniqueKeyPrefix),
 		graph: graph.CloneLinkerGraph(
 			inputFiles,
 			reachableFiles,
@@ -271,9 +269,6 @@ func link(
 		c.unboundModuleRef = js_ast.InvalidRef
 	}
 
-	if !c.generateUniqueKeyPrefix() {
-		return nil
-	}
 	c.scanImportsAndExports()
 
 	// Stop now if there were errors
@@ -297,20 +292,6 @@ func link(
 	js_ast.FollowAllSymbols(c.graph.Symbols)
 
 	return c.generateChunksInParallel(chunks)
-}
-
-func (c *linkerContext) generateUniqueKeyPrefix() bool {
-	var data [12]byte
-	rand.Seed(time.Now().UnixNano())
-	if _, err := rand.Read(data[:]); err != nil {
-		c.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
-		return false
-	}
-
-	// This is 16 bytes and shouldn't generate escape characters when put into strings
-	c.uniqueKeyPrefix = base64.URLEncoding.EncodeToString(data[:])
-	c.uniqueKeyPrefixBytes = []byte(c.uniqueKeyPrefix)
-	return true
 }
 
 // Currently the automatic chunk generation algorithm should by construction
