@@ -117,6 +117,13 @@ type chunkImport struct {
 	importKind ast.ImportKind
 }
 
+type outputPieceIndexKind uint8
+
+const (
+	outputPieceNone outputPieceIndexKind = iota
+	outputPieceChunkIndex
+)
+
 // This is a chunk of source code followed by a reference to another chunk. For
 // example, the file "@import 'CHUNK0001'; body { color: black; }" would be
 // represented by two pieces, one with the data "@import '" and another with the
@@ -125,9 +132,11 @@ type chunkImport struct {
 type outputPiece struct {
 	data []byte
 
-	// Note: This may be invalid. For example, the chunk may not contain any
-	// imports, in which case there is one piece with data and no chunk index.
-	chunkIndex ast.Index32
+	// Note: The "kind" may be "outputPieceNone" in which case there is one piece
+	// with data and no chunk index. For example, the chunk may not contain any
+	// imports.
+	index uint32
+	kind  outputPieceIndexKind
 }
 
 type intermediateOutput struct {
@@ -527,8 +536,9 @@ func (c *linkerContext) substituteFinalPaths(
 		shift.Before.Add(dataOffset)
 		shift.After.Add(dataOffset)
 
-		if piece.chunkIndex.IsValid() {
-			chunk := chunks[piece.chunkIndex.GetIndex()]
+		switch piece.kind {
+		case outputPieceChunkIndex:
+			chunk := chunks[piece.index]
 			importPath := modifyPath(chunk.finalRelPath)
 			j.AddString(importPath)
 			shift.Before.AdvanceString(chunk.uniqueKey)
@@ -2970,7 +2980,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		// Assign a unique key to each chunk. This key encodes the index directly so
 		// we can easily recover it later without needing to look it up in a map. The
 		// last 8 numbers of the key are the chunk index.
-		chunk.uniqueKey = fmt.Sprintf("%s%08d", c.uniqueKeyPrefix, chunkIndex)
+		chunk.uniqueKey = fmt.Sprintf("%sC%08d", c.uniqueKeyPrefix, chunkIndex)
 
 		// Determine the standard file extension
 		var stdExt string
@@ -4957,27 +4967,39 @@ func (c *linkerContext) breakOutputIntoPieces(j helpers.Joiner, chunkCount uint3
 	output := j.Done()
 	prefix := c.uniqueKeyPrefixBytes
 	for {
-		// Scan for the next chunk path
+		// Scan for the next piece boundary
 		boundary := bytes.Index(output, prefix)
 
-		// Try to parse the chunk index
-		var chunkIndex uint32
+		// Try to parse the piece boundary
+		var kind outputPieceIndexKind
+		var index uint32
 		if boundary != -1 {
-			if start := boundary + len(prefix); start+8 > len(output) {
+			if start := boundary + len(prefix); start+9 > len(output) {
 				boundary = -1
 			} else {
-				for j := 0; j < 8; j++ {
+				switch output[start] {
+				case 'C':
+					kind = outputPieceChunkIndex
+				}
+				for j := 1; j < 9; j++ {
 					c := output[start+j]
 					if c < '0' || c > '9' {
 						boundary = -1
 						break
 					}
-					chunkIndex = chunkIndex*10 + uint32(c) - '0'
+					index = index*10 + uint32(c) - '0'
 				}
 			}
-			if chunkIndex >= chunkCount {
+		}
+
+		// Validate the boundary
+		switch kind {
+		case outputPieceChunkIndex:
+			if index >= chunkCount {
 				boundary = -1
 			}
+		default:
+			boundary = -1
 		}
 
 		// If we're at the end, generate one final piece
@@ -4990,10 +5012,11 @@ func (c *linkerContext) breakOutputIntoPieces(j helpers.Joiner, chunkCount uint3
 
 		// Otherwise, generate an interior piece and continue
 		pieces = append(pieces, outputPiece{
-			data:       output[:boundary],
-			chunkIndex: ast.MakeIndex32(chunkIndex),
+			data:  output[:boundary],
+			index: index,
+			kind:  kind,
 		})
-		output = output[boundary+len(prefix)+8:]
+		output = output[boundary+len(prefix)+9:]
 	}
 	return intermediateOutput{pieces: pieces}
 }
