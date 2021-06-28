@@ -779,6 +779,13 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				if value, ok := response["pluginName"]; ok {
 					result.PluginName = value.(string)
 				}
+				if value, ok := response["loader"]; ok {
+					loader, err := cli_helpers.ParseLoader(value.(string))
+					if err != nil {
+						return result, err
+					}
+					result.Loader = loader
+				}
 				if value, ok := response["contents"]; ok {
 					contents := string(value.([]byte))
 					result.Contents = &contents
@@ -800,13 +807,6 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				}
 				if value, ok := response["watchDirs"]; ok {
 					result.WatchDirs = decodeStringArray(value.([]interface{}))
-				}
-				if value, ok := response["loader"]; ok {
-					loader, err := cli_helpers.ParseLoader(value.(string))
-					if err != nil {
-						return api.OnLoadResult{}, err
-					}
-					result.Loader = loader
 				}
 
 				return result, nil
