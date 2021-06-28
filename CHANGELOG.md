@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.12
 
 * Fix `file` loader import paths when subdirectories are present ([#1044](https://github.com/evanw/esbuild/issues/1044))
 
@@ -8,7 +8,9 @@
 
     ```
     $ cat src/example/entry.css
-    div { background: url(../images/image.png) }
+    div {
+      background: url(../images/image.png);
+    }
 
     $ esbuild --bundle src/example/entry.css --outdir=out --outbase=src --loader:.png=file
 
@@ -27,7 +29,7 @@
 
     With this release, the asset references present in output files will now be the full relative path from the output file to the asset, so imports should now work correctly when the entry point is in a subdirectory within the output directory. This change affects asset reference paths in both CSS and JS output files.
 
-    Note that if you want asset reference paths to be independent of the subdirectory in which they reside, you can use the `--public-path` setting to provide the common path that all asset reference paths should be constructed relative to.
+    Note that if you want asset reference paths to be independent of the subdirectory in which they reside, you can use the `--public-path` setting to provide the common path that all asset reference paths should be constructed relative to. Specifically `--public-path=.` should bring back the old problematic behavior in case you need it.
 
 * Add support for `[dir]` in `--asset-names` ([#1196](https://github.com/evanw/esbuild/pull/1196))
 
