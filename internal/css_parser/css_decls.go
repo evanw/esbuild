@@ -105,6 +105,11 @@ func (p *parser) processDeclarations(rules []css_ast.R) []css_ast.R {
 				}
 			}
 
+		case css_ast.DTransform:
+			if p.options.MangleSyntax {
+				decl.Value = p.mangleTransforms(decl.Value)
+			}
+
 		case css_ast.DBoxShadow:
 			if p.options.MangleSyntax {
 				decl.Value = p.mangleBoxShadows(decl.Value)

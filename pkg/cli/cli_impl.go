@@ -550,6 +550,7 @@ func parseTargets(targets []string) (target api.Target, engines []api.Engine, er
 		"es2018": api.ES2018,
 		"es2019": api.ES2019,
 		"es2020": api.ES2020,
+		"es2021": api.ES2021,
 	}
 
 	validEngines := map[string]api.EngineName{
@@ -708,7 +709,8 @@ func runImpl(osArgs []string) int {
 				logger.PrintErrorToStderr(osArgs, "Cannot use \"metafile\" without an output path")
 				return 1
 			}
-			if realFS, err := fs.RealFS(fs.RealFSOptions{AbsWorkingDir: buildOptions.AbsWorkingDir}); err == nil {
+			realFS, realFSErr := fs.RealFS(fs.RealFSOptions{AbsWorkingDir: buildOptions.AbsWorkingDir})
+			if realFSErr == nil {
 				absPath, ok := realFS.Abs(*metafile)
 				if !ok {
 					logger.PrintErrorToStderr(osArgs, fmt.Sprintf("Invalid metafile path: %s", *metafile))
@@ -721,7 +723,7 @@ func runImpl(osArgs []string) int {
 			}
 
 			writeMetafile = func(json string) {
-				if json == "" {
+				if json == "" || realFSErr != nil {
 					return // Don't write out the metafile on build errors
 				}
 				if err != nil {
@@ -730,7 +732,7 @@ func runImpl(osArgs []string) int {
 				}
 				fs.BeforeFileOpen()
 				defer fs.AfterFileClose()
-				if err := os.MkdirAll(metafileAbsDir, 0755); err != nil {
+				if err := fs.MkdirAll(realFS, metafileAbsDir, 0755); err != nil {
 					logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 						"Failed to create output directory: %s", err.Error()))
 				} else {

@@ -397,6 +397,273 @@ func TestLoaderFileCommonJSAndES6(t *testing.T) {
 	})
 }
 
+func TestLoaderFileRelativePathJS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entries/entry.js": `
+				import x from '../images/image.png'
+				console.log(x)
+			`,
+			"/src/images/image.png": "x",
+		},
+		entryPaths: []string{"/src/entries/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/src",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".png": config.LoaderFile,
+			},
+		},
+	})
+}
+
+func TestLoaderFileRelativePathCSS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entries/entry.css": `
+				div {
+					background: url(../images/image.png);
+				}
+			`,
+			"/src/images/image.png": "x",
+		},
+		entryPaths: []string{"/src/entries/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/src",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderFile,
+			},
+		},
+	})
+}
+
+func TestLoaderFileRelativePathAssetNamesJS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entries/entry.js": `
+				import x from '../images/image.png'
+				console.log(x)
+			`,
+			"/src/images/image.png": "x",
+		},
+		entryPaths: []string{"/src/entries/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/src",
+			AbsOutputDir:  "/out",
+			AssetPathTemplate: []config.PathTemplate{
+				{Data: "", Placeholder: config.DirPlaceholder},
+				{Data: "/", Placeholder: config.NamePlaceholder},
+				{Data: "-", Placeholder: config.HashPlaceholder},
+			},
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".png": config.LoaderFile,
+			},
+		},
+	})
+}
+
+func TestLoaderFileRelativePathAssetNamesCSS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entries/entry.css": `
+				div {
+					background: url(../images/image.png);
+				}
+			`,
+			"/src/images/image.png": "x",
+		},
+		entryPaths: []string{"/src/entries/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/src",
+			AbsOutputDir:  "/out",
+			AssetPathTemplate: []config.PathTemplate{
+				{Data: "", Placeholder: config.DirPlaceholder},
+				{Data: "/", Placeholder: config.NamePlaceholder},
+				{Data: "-", Placeholder: config.HashPlaceholder},
+			},
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderFile,
+			},
+		},
+	})
+}
+
+func TestLoaderFilePublicPathJS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entries/entry.js": `
+				import x from '../images/image.png'
+				console.log(x)
+			`,
+			"/src/images/image.png": "x",
+		},
+		entryPaths: []string{"/src/entries/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/src",
+			AbsOutputDir:  "/out",
+			PublicPath:    "https://example.com",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".png": config.LoaderFile,
+			},
+		},
+	})
+}
+
+func TestLoaderFilePublicPathCSS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entries/entry.css": `
+				div {
+					background: url(../images/image.png);
+				}
+			`,
+			"/src/images/image.png": "x",
+		},
+		entryPaths: []string{"/src/entries/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/src",
+			AbsOutputDir:  "/out",
+			PublicPath:    "https://example.com",
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderFile,
+			},
+		},
+	})
+}
+
+func TestLoaderFilePublicPathAssetNamesJS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entries/entry.js": `
+				import x from '../images/image.png'
+				console.log(x)
+			`,
+			"/src/images/image.png": "x",
+		},
+		entryPaths: []string{"/src/entries/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/src",
+			AbsOutputDir:  "/out",
+			PublicPath:    "https://example.com",
+			AssetPathTemplate: []config.PathTemplate{
+				{Data: "", Placeholder: config.DirPlaceholder},
+				{Data: "/", Placeholder: config.NamePlaceholder},
+				{Data: "-", Placeholder: config.HashPlaceholder},
+			},
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".png": config.LoaderFile,
+			},
+		},
+	})
+}
+
+func TestLoaderFilePublicPathAssetNamesCSS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entries/entry.css": `
+				div {
+					background: url(../images/image.png);
+				}
+			`,
+			"/src/images/image.png": "x",
+		},
+		entryPaths: []string{"/src/entries/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/src",
+			AbsOutputDir:  "/out",
+			PublicPath:    "https://example.com",
+			AssetPathTemplate: []config.PathTemplate{
+				{Data: "", Placeholder: config.DirPlaceholder},
+				{Data: "/", Placeholder: config.NamePlaceholder},
+				{Data: "-", Placeholder: config.HashPlaceholder},
+			},
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderFile,
+			},
+		},
+	})
+}
+
+func TestLoaderFileOneSourceTwoDifferentOutputPathsJS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entries/entry.js": `
+				import '../shared/common.js'
+			`,
+			"/src/entries/other/entry.js": `
+				import '../../shared/common.js'
+			`,
+			"/src/shared/common.js": `
+				import x from './common.png'
+				console.log(x)
+			`,
+			"/src/shared/common.png": "x",
+		},
+		entryPaths: []string{
+			"/src/entries/entry.js",
+			"/src/entries/other/entry.js",
+		},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/src",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".png": config.LoaderFile,
+			},
+		},
+	})
+}
+
+func TestLoaderFileOneSourceTwoDifferentOutputPathsCSS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entries/entry.css": `
+				@import "../shared/common.css";
+			`,
+			"/src/entries/other/entry.css": `
+				@import "../../shared/common.css";
+			`,
+			"/src/shared/common.css": `
+				div {
+					background: url(common.png);
+				}
+			`,
+			"/src/shared/common.png": "x",
+		},
+		entryPaths: []string{
+			"/src/entries/entry.css",
+			"/src/entries/other/entry.css",
+		},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/src",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderFile,
+			},
+		},
+	})
+}
+
 func TestLoaderJSONNoBundle(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{

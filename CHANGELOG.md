@@ -1,6 +1,194 @@
 # Changelog
 
-## Unreleased
+## 0.12.12
+
+* Fix `file` loader import paths when subdirectories are present ([#1044](https://github.com/evanw/esbuild/issues/1044))
+
+    Using the `file` loader for a file type causes importing affected files to copy the file into the output directory and to embed the path to the copied file into the code that imported it. However, esbuild previously always embedded the path relative to the output directory itself. This is problematic when the importing code is generated within a subdirectory inside the output directory, since then the relative path is wrong. For example:
+
+    ```
+    $ cat src/example/entry.css
+    div {
+      background: url(../images/image.png);
+    }
+
+    $ esbuild --bundle src/example/entry.css --outdir=out --outbase=src --loader:.png=file
+
+    $ find out -type f
+    out/example/entry.css
+    out/image-55DNWN2R.png
+
+    $ cat out/example/entry.css
+    /* src/example/entry.css */
+    div {
+      background: url(./image-55DNWN2R.png);
+    }
+    ```
+
+    This is output from the previous version of esbuild. The above asset reference in `out/example/entry.css` is wrong. The path should start with `../` because the two files are in different directories.
+
+    With this release, the asset references present in output files will now be the full relative path from the output file to the asset, so imports should now work correctly when the entry point is in a subdirectory within the output directory. This change affects asset reference paths in both CSS and JS output files.
+
+    Note that if you want asset reference paths to be independent of the subdirectory in which they reside, you can use the `--public-path` setting to provide the common path that all asset reference paths should be constructed relative to. Specifically `--public-path=.` should bring back the old problematic behavior in case you need it.
+
+* Add support for `[dir]` in `--asset-names` ([#1196](https://github.com/evanw/esbuild/pull/1196))
+
+    You can now use path templates such as `--asset-names=[dir]/[name]-[hash]` to copy the input directory structure of your asset files (i.e. input files loaded with the `file` loader) to the output directory. Here's an example:
+
+    ```
+    $ cat entry.css
+    header {
+      background: url(images/common/header.png);
+    }
+    main {
+      background: url(images/home/hero.png);
+    }
+
+    $ esbuild --bundle entry.css --outdir=out --asset-names=[dir]/[name]-[hash] --loader:.png=file
+
+    $ find out -type f
+    out/images/home/hero-55DNWN2R.png
+    out/images/common/header-55DNWN2R.png
+    out/entry.css
+
+    $ cat out/entry.css
+    /* entry.css */
+    header {
+      background: url(./images/common/header-55DNWN2R.png);
+    }
+    main {
+      background: url(./images/home/hero-55DNWN2R.png);
+    }
+    ```
+
+## 0.12.11
+
+* Enable faster synchronous transforms with the JS API by default ([#1000](https://github.com/evanw/esbuild/issues/1000))
+
+    Currently the synchronous JavaScript API calls `transformSync` and `buildSync` spawn a new child process on every call. This is due to limitations with node's `child_process` API. Doing this means `transformSync` and `buildSync` are much slower than `transform` and `build`, which share the same child process across calls.
+
+    This release improves the performance of `transformSync` and `buildSync` by up to 20x. It enables a hack where node's `worker_threads` API and atomics are used to block the main thread while asynchronous communication with a single long-lived child process happens in a worker. Previously this was only enabled when the `ESBUILD_WORKER_THREADS` environment variable was set to `1`. But this experiment has been available for a while (since version 0.9.6) without any reported issues. Now this hack will be enabled by default. It can be disabled by setting `ESBUILD_WORKER_THREADS` to `0` before running node.
+
+* Fix nested output directories with WebAssembly on Windows ([#1399](https://github.com/evanw/esbuild/issues/1399))
+
+    Many functions in Go's standard library have a bug where they do not work on Windows when using Go with WebAssembly. This is a long-standing bug and is a fault with the design of the standard library, so it's unlikely to be fixed. Basically Go's standard library is designed to bake "Windows or not" decision into the compiled executable, but WebAssembly is platform-independent which makes "Windows or not" is a run-time decision instead of a compile-time decision. Oops.
+
+    I have been working around this by trying to avoid using path-related functions in the Go standard library and doing all path manipulation by myself instead. This involved completely replacing Go's `path/filepath` library. However, I missed the `os.MkdirAll` function which is also does path manipulation but is outside of the `path/filepath` package. This meant that nested output directories failed to be created on Windows, which caused a build error. This problem only affected the `esbuild-wasm` package.
+
+    This release manually reimplements nested output directory creation to work around this bug in the Go standard library. So nested output directories should now work on Windows with the `esbuild-wasm` package.
+
+## 0.12.10
+
+* Add a target for ES2021
+
+    It's now possible to use `--target=es2021` to target the newly-released JavaScript version ES2021. The only difference between that and `--target=es2020` is that logical assignment operators such as `a ||= b` are not converted to regular assignment operators such as `a || (a = b)`.
+
+* Minify the syntax `Infinity` to `1 / 0` ([#1385](https://github.com/evanw/esbuild/pull/1385))
+
+	The `--minify-syntax` flag (automatically enabled by `--minify`) will now minify the expression `Infinity` to `1 / 0`, which uses fewer bytes:
+
+	```js
+	// Original code
+	const a = Infinity;
+
+	// Output with "--minify-syntax"
+	const a = 1 / 0;
+	```
+
+    This change was contributed by [@Gusted](https://github.com/Gusted).
+
+* Minify syntax in the CSS `transform` property ([#1390](https://github.com/evanw/esbuild/pull/1390))
+
+    This release includes various size reductions for CSS transform matrix syntax when minification is enabled:
+
+    ```css
+    /* Original code */
+    div {
+      transform: translate3d(0, 0, 10px) scale3d(200%, 200%, 1) rotate3d(0, 0, 1, 45deg);
+    }
+
+    /* Output with "--minify-syntax" */
+    div {
+      transform: translateZ(10px) scale(2) rotate(45deg);
+    }
+    ```
+
+    The `translate3d` to `translateZ` conversion was contributed by [@steambap](https://github.com/steambap).
+
+* Support for the case-sensitive flag in CSS attribute selectors ([#1397](https://github.com/evanw/esbuild/issues/1397))
+
+    You can now use the case-sensitive CSS attribute selector flag `s` such as in `[type="a" s] { list-style: lower-alpha; }`. Previously doing this caused a warning about unrecognized syntax.
+
+## 0.12.9
+
+* Allow `this` with `--define` ([#1361](https://github.com/evanw/esbuild/issues/1361))
+
+    You can now override the default value of top-level `this` with the `--define` feature. Top-level `this` defaults to being `undefined` in ECMAScript modules and `exports` in CommonJS modules. For example:
+
+    ```js
+    // Original code
+    ((obj) => {
+      ...
+    })(this);
+
+    // Output with "--define:this=window"
+    ((obj) => {
+      ...
+    })(window);
+    ```
+
+    Note that overriding what top-level `this` is will likely break code that uses it correctly. So this new feature is only useful in certain cases.
+
+* Fix CSS minification issue with `!important` and duplicate declarations ([#1372](https://github.com/evanw/esbuild/issues/1372))
+
+    Previously CSS with duplicate declarations for the same property where the first one was marked with `!important` was sometimes minified incorrectly. For example:
+
+    ```css
+    .selector {
+      padding: 10px !important;
+      padding: 0;
+    }
+    ```
+
+    This was incorrectly minified as `.selector{padding:0}`. The bug affected three properties: `padding`, `margin`, and `border-radius`. With this release, this code will now be minified as `.selector{padding:10px!important;padding:0}` instead which means there is no longer a difference between minified and non-minified code in this case.
+
+## 0.12.8
+
+* Plugins can now specify `sideEffects: false` ([#1009](https://github.com/evanw/esbuild/issues/1009))
+
+    The default path resolution behavior in esbuild determines if a given file can be considered side-effect free (in the [Webpack-specific sense](https://webpack.js.org/guides/tree-shaking/#mark-the-file-as-side-effect-free)) by reading the contents of the nearest enclosing `package.json` file and looking for `"sideEffects": false`. However, up until now this was impossible to achieve in an esbuild plugin because there was no way of returning this metadata back to esbuild.
+
+    With this release, esbuild plugins can now return `sideEffects: false` to mark a file as having no side effects. Here's an example:
+
+    ```js
+    esbuild.build({
+      entryPoints: ['app.js'],
+      bundle: true,
+      plugins: [{
+        name: 'env-plugin',
+        setup(build) {
+          build.onResolve({ filter: /^env$/ }, args => ({
+            path: args.path,
+            namespace: 'some-ns',
+            sideEffects: false,
+          }))
+          build.onLoad({ filter: /.*/, namespace: 'some-ns' }, () => ({
+            contents: `export default self.env || (self.env = getEnv())`,
+          }))
+        },
+      }],
+    })
+    ```
+
+    This plugin creates a virtual module that can be generated by importing the string `env`. However, since the plugin returns `sideEffects: false`, the generated virtual module will not be included in the bundle if all of the imported values from the module `env` end up being unused.
+
+    This feature was contributed by [@chriscasola](https://github.com/chriscasola).
+
+* Remove a warning about unsupported source map comments ([#1358](https://github.com/evanw/esbuild/issues/1358))
+
+    This removes a warning that indicated when a source map comment couldn't be supported. Specifically, this happens when you enable source map generation and esbuild encounters a file with a source map comment pointing to an external file but doesn't have enough information to know where to look for that external file (basically when the source file doesn't have an associated directory to use for path resolution). In this case esbuild can't respect the input source map because it cannot be located. The warning was annoying so it has been removed. Source maps still won't work, however.
+
+## 0.12.7
 
 * Quote object properties that are modern Unicode identifiers ([#1349](https://github.com/evanw/esbuild/issues/1349))
 

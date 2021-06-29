@@ -292,6 +292,8 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (bool, co
 		constraints[compat.ES] = []int{2019}
 	case ES2020:
 		constraints[compat.ES] = []int{2020}
+	case ES2021:
+		constraints[compat.ES] = []int{2021}
 	case ESNext, DefaultTarget:
 	default:
 		panic("Invalid target")
@@ -989,7 +991,7 @@ func rebuildImpl(
 							go func(result graph.OutputFile) {
 								fs.BeforeFileOpen()
 								defer fs.AfterFileClose()
-								if err := os.MkdirAll(realFS.Dir(result.AbsPath), 0755); err != nil {
+								if err := fs.MkdirAll(realFS, realFS.Dir(result.AbsPath), 0755); err != nil {
 									log.AddError(nil, logger.Loc{}, fmt.Sprintf(
 										"Failed to create output directory: %s", err.Error()))
 								} else {
@@ -1472,6 +1474,7 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 
 			result.Path = logger.Path{Text: response.Path, Namespace: response.Namespace}
 			result.External = response.External
+			result.IsSideEffectFree = response.SideEffects == SideEffectsFalse
 			result.PluginData = response.PluginData
 
 			// Convert log messages

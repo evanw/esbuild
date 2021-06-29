@@ -70,6 +70,13 @@ type Token struct {
 	Whitespace WhitespaceFlags // 1 byte
 }
 
+type WhitespaceFlags uint8
+
+const (
+	WhitespaceBefore WhitespaceFlags = 1 << iota
+	WhitespaceAfter
+)
+
 func (a Token) Equal(b Token) bool {
 	if a.Kind == b.Kind && a.Text == b.Text && a.ImportRecordIndex == b.ImportRecordIndex && a.Whitespace == b.Whitespace {
 		if a.Children == nil && b.Children == nil {
@@ -136,6 +143,18 @@ func TokensEqualIgnoringWhitespace(a []Token, b []Token) bool {
 	return true
 }
 
+func TokensAreCommaSeparated(tokens []Token) bool {
+	if n := len(tokens); (n & 1) != 0 {
+		for i := 1; i < n; i += 2 {
+			if tokens[i].Kind != css_lexer.TComma {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
 func (t Token) FractionForPercentage() (float64, bool) {
 	if t.Kind == css_lexer.TPercentage {
 		if f, err := strconv.ParseFloat(t.PercentageValue(), 64); err == nil {
@@ -163,12 +182,14 @@ func (t *Token) TurnLengthIntoNumberIfZero() bool {
 	return false
 }
 
-type WhitespaceFlags uint8
-
-const (
-	WhitespaceBefore WhitespaceFlags = 1 << iota
-	WhitespaceAfter
-)
+func (t *Token) TurnLengthOrPercentageIntoNumberIfZero() bool {
+	if t.Kind == css_lexer.TPercentage && t.PercentageValue() == "0" {
+		t.Kind = css_lexer.TNumber
+		t.Text = "0"
+		return true
+	}
+	return t.TurnLengthIntoNumberIfZero()
+}
 
 func (t Token) PercentageValue() string {
 	return t.Text[:len(t.Text)-1]
@@ -180,6 +201,14 @@ func (t Token) DimensionValue() string {
 
 func (t Token) DimensionUnit() string {
 	return t.Text[t.UnitOffset:]
+}
+
+func (t Token) IsZero() bool {
+	return t.Kind == css_lexer.TNumber && t.Text == "0"
+}
+
+func (t Token) IsOne() bool {
+	return t.Kind == css_lexer.TNumber && t.Text == "1"
 }
 
 type R interface {

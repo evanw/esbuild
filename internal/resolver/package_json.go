@@ -73,6 +73,11 @@ const (
 )
 
 func (r resolverQuery) checkBrowserMap(resolveDirInfo *dirInfo, inputPath string, kind browserPathKind) (remapped *string, ok bool) {
+	// This only applies if the current platform is "browser"
+	if r.options.Platform != config.PlatformBrowser {
+		return nil, false
+	}
+
 	// There must be an enclosing directory with a "package.json" file with a "browser" map
 	if resolveDirInfo.enclosingBrowserScope == nil {
 		if r.debugLogs != nil {

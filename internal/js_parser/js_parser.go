@@ -9735,6 +9735,12 @@ func (p *parser) isDotDefineMatch(expr js_ast.Expr, parts []string) bool {
 				p.isDotDefineMatch(e.Target, parts[:last])
 		}
 
+	case *js_ast.EThis:
+		// Allow matching on top-level "this"
+		if !p.fnOnlyDataVisit.isThisNested {
+			return len(parts) == 1 && parts[0] == "this"
+		}
+
 	case *js_ast.EImportMeta:
 		// Allow matching on "import.meta"
 		return len(parts) == 2 && parts[0] == "import" && parts[1] == "meta"
@@ -10316,40 +10322,61 @@ func (p *parser) visitExpr(expr js_ast.Expr) js_ast.Expr {
 	return expr
 }
 
-func (p *parser) valueForThis(loc logger.Loc, shouldWarn bool) (js_ast.Expr, bool) {
+func (p *parser) valueForThis(
+	loc logger.Loc,
+	shouldWarn bool,
+	assignTarget js_ast.AssignTarget,
+	isCallTarget bool,
+	isDeleteTarget bool,
+) (js_ast.Expr, bool) {
 	// Substitute "this" if we're inside a static class property initializer
 	if p.fnOnlyDataVisit.thisClassStaticRef != nil {
 		p.recordUsage(*p.fnOnlyDataVisit.thisClassStaticRef)
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.thisClassStaticRef}}, true
 	}
 
-	if p.options.mode != config.ModePassThrough && !p.fnOnlyDataVisit.isThisNested {
-		if p.hasESModuleSyntax {
-			// Warn about "this" becoming undefined, but only once per file
-			if shouldWarn && !p.warnedThisIsUndefined {
-				p.warnedThisIsUndefined = true
-				r := js_lexer.RangeOfIdentifier(p.source, loc)
-				text := "Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module"
-				notes := p.whyESModule()
-
-				// Show the warning as a debug message if we're in "node_modules"
-				if !p.suppressWarningsAboutWeirdCode {
-					p.log.AddRangeWarningWithNotes(&p.tracker, r, text, notes)
-				} else {
-					p.log.AddRangeDebugWithNotes(&p.tracker, r, text, notes)
-				}
+	// Is this a top-level use of "this"?
+	if !p.fnOnlyDataVisit.isThisNested {
+		// Substitute user-specified defines
+		if data, ok := p.options.defines.IdentifierDefines["this"]; ok {
+			if data.DefineFunc != nil {
+				return p.valueForDefine(loc, data.DefineFunc, identifierOpts{
+					assignTarget:   assignTarget,
+					isCallTarget:   isCallTarget,
+					isDeleteTarget: isDeleteTarget,
+				}), true
 			}
+		}
 
-			// In an ES6 module, "this" is supposed to be undefined. Instead of
-			// doing this at runtime using "fn.call(undefined)", we do it at
-			// compile time using expression substitution here.
-			return js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}, true
-		} else {
-			// In a CommonJS module, "this" is supposed to be the same as "exports".
-			// Instead of doing this at runtime using "fn.call(module.exports)", we
-			// do it at compile time using expression substitution here.
-			p.recordUsage(p.exportsRef)
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.exportsRef}}, true
+		// Otherwise, replace top-level "this" with either "undefined" or "exports"
+		if p.options.mode != config.ModePassThrough {
+			if p.hasESModuleSyntax {
+				// Warn about "this" becoming undefined, but only once per file
+				if shouldWarn && !p.warnedThisIsUndefined {
+					p.warnedThisIsUndefined = true
+					r := js_lexer.RangeOfIdentifier(p.source, loc)
+					text := "Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module"
+					notes := p.whyESModule()
+
+					// Show the warning as a debug message if we're in "node_modules"
+					if !p.suppressWarningsAboutWeirdCode {
+						p.log.AddRangeWarningWithNotes(&p.tracker, r, text, notes)
+					} else {
+						p.log.AddRangeDebugWithNotes(&p.tracker, r, text, notes)
+					}
+				}
+
+				// In an ES6 module, "this" is supposed to be undefined. Instead of
+				// doing this at runtime using "fn.call(undefined)", we do it at
+				// compile time using expression substitution here.
+				return js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}, true
+			} else {
+				// In a CommonJS module, "this" is supposed to be the same as "exports".
+				// Instead of doing this at runtime using "fn.call(module.exports)", we
+				// do it at compile time using expression substitution here.
+				p.recordUsage(p.exportsRef)
+				return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.exportsRef}}, true
+			}
 		}
 	}
 
@@ -10516,7 +10543,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EThis:
-		if value, ok := p.valueForThis(expr.Loc, true /* shouldWarn */); ok {
+		isDeleteTarget := e == p.deleteTarget
+		isCallTarget := e == p.callTarget
+
+		if value, ok := p.valueForThis(expr.Loc, true /* shouldWarn */, in.assignTarget, isDeleteTarget, isCallTarget); ok {
 			return value, exprOut{}
 		}
 

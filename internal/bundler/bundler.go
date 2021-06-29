@@ -5,11 +5,13 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"sort"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -61,6 +63,12 @@ type Bundle struct {
 	res         resolver.Resolver
 	files       []scannerFile
 	entryPoints []graph.EntryPoint
+
+	// The unique key prefix is a random string that is unique to every bundling
+	// operation. It is used as a prefix for the unique keys assigned to every
+	// chunk during linking. These unique keys are used to identify each chunk
+	// before the final output paths have been computed.
+	uniqueKeyPrefix string
 }
 
 type parseArgs struct {
@@ -79,6 +87,7 @@ type parseArgs struct {
 	results         chan parseResult
 	inject          chan config.InjectedFile
 	skipResolve     bool
+	uniqueKeyPrefix string
 }
 
 type parseResult struct {
@@ -266,28 +275,11 @@ func parseFile(args parseArgs) {
 		result.ok = true
 
 	case config.LoaderFile:
-		// Add a hash to the file name to prevent multiple files with the same name
-		// but different contents from colliding
-		var hash string
-		if config.HasPlaceholder(args.options.AssetPathTemplate, config.HashPlaceholder) {
-			h := xxhash.New()
-			h.Write([]byte(source.Contents))
-			hash = hashForFileName(h.Sum(nil))
-		}
-		dir := "/"
-		relPath := config.TemplateToString(config.SubstituteTemplate(args.options.AssetPathTemplate, config.PathPlaceholders{
-			Dir:  &dir,
-			Name: &base,
-			Hash: &hash,
-		})) + ext
-
-		// Determine the final path that this asset will have in the output directory
-		publicPath := joinWithPublicPath(args.options.PublicPath, relPath+source.KeyPath.IgnoredSuffix)
-
-		// Export the resulting relative path as a string
-		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(publicPath)}}
+		uniqueKey := fmt.Sprintf("%sA%08d", args.uniqueKeyPrefix, args.sourceIndex)
+		uniqueKeyPath := uniqueKey + source.KeyPath.IgnoredSuffix
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(uniqueKeyPath)}}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
-		ast.URLForCSS = publicPath
+		ast.URLForCSS = uniqueKeyPath
 		if pluginName != "" {
 			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_PureData_FromPlugin
 		} else {
@@ -312,8 +304,9 @@ func parseFile(args parseArgs) {
 
 		// Copy the file using an additional file payload to make sure we only copy
 		// the file if the module isn't removed due to tree shaking.
+		result.file.inputFile.UniqueKey = uniqueKey
 		result.file.inputFile.AdditionalFiles = []graph.OutputFile{{
-			AbsPath:           args.fs.Join(args.options.AbsOutputDir, relPath),
+			AbsPath:           source.KeyPath.Text,
 			Contents:          []byte(source.Contents),
 			JSONMetadataChunk: jsonMetadataChunk,
 		}}
@@ -577,7 +570,6 @@ func extractSourceMapFromComment(
 	}
 
 	// Anything else is unsupported
-	log.AddRangeWarning(&tracker, comment.Range, "Unsupported source map comment")
 	return logger.Path{}, nil
 }
 
@@ -738,10 +730,18 @@ func runOnResolvePlugins(
 				return nil, true, resolver.DebugMeta{}
 			}
 
+			var sideEffectsData *resolver.SideEffectsData
+			if result.IsSideEffectFree {
+				sideEffectsData = &resolver.SideEffectsData{
+					PluginName: pluginName,
+				}
+			}
+
 			return &resolver.ResolveResult{
-				PathPair:   resolver.PathPair{Primary: result.Path},
-				IsExternal: result.External,
-				PluginData: result.PluginData,
+				PathPair:               resolver.PathPair{Primary: result.Path},
+				IsExternal:             result.External,
+				PluginData:             result.PluginData,
+				PrimarySideEffectsData: sideEffectsData,
 			}, false, resolver.DebugMeta{}
 		}
 	}
@@ -930,12 +930,13 @@ func hashForFileName(hashBytes []byte) string {
 }
 
 type scanner struct {
-	log     logger.Log
-	fs      fs.FS
-	res     resolver.Resolver
-	caches  *cache.CacheSet
-	options config.Options
-	timer   *helpers.Timer
+	log             logger.Log
+	fs              fs.FS
+	res             resolver.Resolver
+	caches          *cache.CacheSet
+	options         config.Options
+	timer           *helpers.Timer
+	uniqueKeyPrefix string
 
 	// This is not guarded by a mutex because it's only ever modified by a single
 	// thread. Note that not all results in the "results" array are necessarily
@@ -950,6 +951,17 @@ type EntryPoint struct {
 	InputPath  string
 	OutputPath string
 	IsFile     bool
+}
+
+func generateUniqueKeyPrefix() (string, error) {
+	var data [12]byte
+	rand.Seed(time.Now().UnixNano())
+	if _, err := rand.Read(data[:]); err != nil {
+		return "", err
+	}
+
+	// This is 16 bytes and shouldn't generate escape characters when put into strings
+	return base64.URLEncoding.EncodeToString(data[:]), nil
 }
 
 func ScanBundle(
@@ -979,16 +991,23 @@ func ScanBundle(
 		}
 	}
 
+	// Each bundling operation gets a separate unique key
+	uniqueKeyPrefix, err := generateUniqueKeyPrefix()
+	if err != nil {
+		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
+	}
+
 	s := scanner{
-		log:           log,
-		fs:            fs,
-		res:           res,
-		caches:        caches,
-		options:       options,
-		timer:         timer,
-		results:       make([]parseResult, 0, caches.SourceIndexCache.LenHint()),
-		visited:       make(map[logger.Path]uint32),
-		resultChannel: make(chan parseResult),
+		log:             log,
+		fs:              fs,
+		res:             res,
+		caches:          caches,
+		options:         options,
+		timer:           timer,
+		results:         make([]parseResult, 0, caches.SourceIndexCache.LenHint()),
+		visited:         make(map[logger.Path]uint32),
+		resultChannel:   make(chan parseResult),
+		uniqueKeyPrefix: uniqueKeyPrefix,
 	}
 
 	// Always start by parsing the runtime file
@@ -1014,10 +1033,11 @@ func ScanBundle(
 
 	onStartWaitGroup.Wait()
 	return Bundle{
-		fs:          fs,
-		res:         res,
-		files:       files,
-		entryPoints: entryPointMeta,
+		fs:              fs,
+		res:             res,
+		files:           files,
+		entryPoints:     entryPointMeta,
+		uniqueKeyPrefix: uniqueKeyPrefix,
 	}
 }
 
@@ -1127,6 +1147,7 @@ func (s *scanner) maybeParseFile(
 		results:         s.resultChannel,
 		inject:          inject,
 		skipResolve:     skipResolve,
+		uniqueKeyPrefix: s.uniqueKeyPrefix,
 	})
 
 	return sourceIndex
@@ -1701,19 +1722,24 @@ func (s *scanner) processScannedFiles() []scannerFile {
 						// effect.
 						otherModule.SideEffects.Kind != graph.NoSideEffects_PureData_FromPlugin {
 						var notes []logger.MsgData
+						var by string
 						if data := otherModule.SideEffects.Data; data != nil {
-							var text string
-							if data.IsSideEffectsArrayInJSON {
-								text = "It was excluded from the \"sideEffects\" array in the enclosing \"package.json\" file"
+							if data.PluginName != "" {
+								by = fmt.Sprintf(" by plugin %q", data.PluginName)
 							} else {
-								text = "\"sideEffects\" is false in the enclosing \"package.json\" file"
+								var text string
+								if data.IsSideEffectsArrayInJSON {
+									text = "It was excluded from the \"sideEffects\" array in the enclosing \"package.json\" file"
+								} else {
+									text = "\"sideEffects\" is false in the enclosing \"package.json\" file"
+								}
+								tracker := logger.MakeLineColumnTracker(data.Source)
+								notes = append(notes, logger.RangeData(&tracker, data.Range, text))
 							}
-							tracker := logger.MakeLineColumnTracker(data.Source)
-							notes = append(notes, logger.RangeData(&tracker, data.Range, text))
 						}
 						s.log.AddRangeWarningWithNotes(&tracker, record.Range,
-							fmt.Sprintf("Ignoring this import because %q was marked as having no side effects",
-								otherModule.Source.PrettyPath), notes)
+							fmt.Sprintf("Ignoring this import because %q was marked as having no side effects%s",
+								otherModule.Source.PrettyPath, by), notes)
 					}
 				}
 			}
@@ -1725,6 +1751,30 @@ func (s *scanner) processScannedFiles() []scannerFile {
 				sb.WriteString("\n      ")
 			}
 			sb.WriteString("]\n    }")
+		}
+
+		// Turn all additional file paths from input paths into output paths by
+		// rewriting the output base directory to the output directory
+		for j, additionalFile := range result.file.inputFile.AdditionalFiles {
+			if relPath, ok := s.fs.Rel(s.options.AbsOutputBase, additionalFile.AbsPath); ok {
+				var hash string
+
+				// Add a hash to the file name to prevent multiple files with the same name
+				// but different contents from colliding
+				if config.HasPlaceholder(s.options.AssetPathTemplate, config.HashPlaceholder) {
+					h := xxhash.New()
+					h.Write(additionalFile.Contents)
+					hash = hashForFileName(h.Sum(nil))
+				}
+
+				dir, base, ext := logger.PlatformIndependentPathDirBaseExt(relPath)
+				relPath = config.TemplateToString(config.SubstituteTemplate(s.options.AssetPathTemplate, config.PathPlaceholders{
+					Dir:  &dir,
+					Name: &base,
+					Hash: &hash,
+				})) + ext
+				result.file.inputFile.AdditionalFiles[j].AbsPath = s.fs.Join(s.options.AbsOutputDir, relPath)
+			}
 		}
 
 		s.results[i].file.jsonMetadataChunk = sb.String()
@@ -1905,7 +1955,8 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 	var resultGroups [][]graph.OutputFile
 	if options.CodeSplitting || len(b.entryPoints) == 1 {
 		// If code splitting is enabled or if there's only one entry point, link all entry points together
-		resultGroups = [][]graph.OutputFile{link(&options, timer, log, b.fs, b.res, files, b.entryPoints, allReachableFiles, dataForSourceMaps)}
+		resultGroups = [][]graph.OutputFile{link(
+			&options, timer, log, b.fs, b.res, files, b.entryPoints, b.uniqueKeyPrefix, allReachableFiles, dataForSourceMaps)}
 	} else {
 		// Otherwise, link each entry point with the runtime file separately
 		waitGroup := sync.WaitGroup{}
@@ -1916,7 +1967,8 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 				entryPoints := []graph.EntryPoint{entryPoint}
 				forked := timer.Fork()
 				reachableFiles := findReachableFiles(files, entryPoints)
-				resultGroups[i] = link(&options, forked, log, b.fs, b.res, files, entryPoints, reachableFiles, dataForSourceMaps)
+				resultGroups[i] = link(
+					&options, forked, log, b.fs, b.res, files, entryPoints, b.uniqueKeyPrefix, reachableFiles, dataForSourceMaps)
 				timer.Join(forked)
 				waitGroup.Done()
 			}(i, entryPoint)

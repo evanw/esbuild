@@ -26,6 +26,7 @@ type InputFile struct {
 	// that must be written to the output directory. It's used by the "file"
 	// loader.
 	AdditionalFiles []OutputFile
+	UniqueKey       string
 
 	SideEffects SideEffects
 	Loader      config.Loader

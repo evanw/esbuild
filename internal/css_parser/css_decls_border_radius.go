@@ -17,12 +17,12 @@ type borderRadiusCorner struct {
 	firstToken  css_ast.Token
 	secondToken css_ast.Token
 	index       uint32
-	important   bool
 	single      bool
 }
 
 type borderRadiusTracker struct {
-	corners [4]borderRadiusCorner
+	corners   [4]borderRadiusCorner
+	important bool
 }
 
 func (borderRadius *borderRadiusTracker) updateCorner(rules []css_ast.R, corner int, new borderRadiusCorner) {
@@ -33,6 +33,12 @@ func (borderRadius *borderRadiusTracker) updateCorner(rules []css_ast.R, corner 
 }
 
 func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.R, decl *css_ast.RDeclaration, index int, removeWhitespace bool) {
+	// Reset if we see a change in the "!important" flag
+	if borderRadius.important != decl.Important {
+		borderRadius.corners = [4]borderRadiusCorner{}
+		borderRadius.important = decl.Important
+	}
+
 	tokens := decl.Value
 	split := len(tokens)
 
@@ -60,7 +66,6 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.R, decl *
 			firstToken:  t,
 			secondToken: t,
 			index:       uint32(index),
-			important:   decl.Important,
 		})
 	}
 
@@ -82,6 +87,12 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.R, decl *
 }
 
 func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.R, decl *css_ast.RDeclaration, index int, removeWhitespace bool, corner int) {
+	// Reset if we see a change in the "!important" flag
+	if borderRadius.important != decl.Important {
+		borderRadius.corners = [4]borderRadiusCorner{}
+		borderRadius.important = decl.Important
+	}
+
 	if tokens := decl.Value; len(tokens) == 1 || len(tokens) == 2 {
 		firstToken := tokens[0]
 		if firstToken.TurnLengthIntoNumberIfZero() {
@@ -102,7 +113,6 @@ func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.R, decl *c
 			firstToken:  firstToken,
 			secondToken: secondToken,
 			index:       uint32(index),
-			important:   decl.Important,
 			single:      true,
 		})
 		borderRadius.compactRules(rules, decl.KeyRange, removeWhitespace)
@@ -115,12 +125,6 @@ func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.R, keyRang
 	// All tokens must be present
 	if eof := css_lexer.TEndOfFile; borderRadius.corners[0].firstToken.Kind == eof || borderRadius.corners[1].firstToken.Kind == eof ||
 		borderRadius.corners[2].firstToken.Kind == eof || borderRadius.corners[3].firstToken.Kind == eof {
-		return
-	}
-
-	// All declarations must have the same "!important" state
-	if i := borderRadius.corners[0].important; i != borderRadius.corners[1].important ||
-		i != borderRadius.corners[2].important || i != borderRadius.corners[3].important {
 		return
 	}
 
@@ -164,6 +168,6 @@ func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.R, keyRang
 		KeyText:   "border-radius",
 		Value:     tokens,
 		KeyRange:  keyRange,
-		Important: borderRadius.corners[0].important,
+		Important: borderRadius.important,
 	}
 }

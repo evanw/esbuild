@@ -6,12 +6,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash"
-	"math/rand"
 	"path"
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
@@ -55,10 +53,7 @@ type linkerContext struct {
 	// is shared between threads and must be treated as immutable.
 	dataForSourceMaps func() []dataForSourceMap
 
-	// The unique key prefix is a random string that is unique to every linking
-	// operation. It is used as a prefix for the unique keys assigned to every
-	// chunk. These unique keys are used to identify each chunk before the final
-	// output paths have been computed.
+	// This is passed to us from the bundling phase
 	uniqueKeyPrefix      string
 	uniqueKeyPrefixBytes []byte // This is just "uniqueKeyPrefix" in byte form
 }
@@ -122,6 +117,14 @@ type chunkImport struct {
 	importKind ast.ImportKind
 }
 
+type outputPieceIndexKind uint8
+
+const (
+	outputPieceNone outputPieceIndexKind = iota
+	outputPieceAssetIndex
+	outputPieceChunkIndex
+)
+
 // This is a chunk of source code followed by a reference to another chunk. For
 // example, the file "@import 'CHUNK0001'; body { color: black; }" would be
 // represented by two pieces, one with the data "@import '" and another with the
@@ -130,9 +133,11 @@ type chunkImport struct {
 type outputPiece struct {
 	data []byte
 
-	// Note: This may be invalid. For example, the chunk may not contain any
-	// imports, in which case there is one piece with data and no chunk index.
-	chunkIndex ast.Index32
+	// Note: The "kind" may be "outputPieceNone" in which case there is one piece
+	// with data and no chunk index. For example, the chunk may not contain any
+	// imports.
+	index uint32
+	kind  outputPieceIndexKind
 }
 
 type intermediateOutput struct {
@@ -207,6 +212,7 @@ func link(
 	res resolver.Resolver,
 	inputFiles []graph.InputFile,
 	entryPoints []graph.EntryPoint,
+	uniqueKeyPrefix string,
 	reachableFiles []uint32,
 	dataForSourceMaps func() []dataForSourceMap,
 ) []graph.OutputFile {
@@ -217,12 +223,14 @@ func link(
 
 	timer.Begin("Clone linker graph")
 	c := linkerContext{
-		options:           options,
-		timer:             timer,
-		log:               log,
-		fs:                fs,
-		res:               res,
-		dataForSourceMaps: dataForSourceMaps,
+		options:              options,
+		timer:                timer,
+		log:                  log,
+		fs:                   fs,
+		res:                  res,
+		dataForSourceMaps:    dataForSourceMaps,
+		uniqueKeyPrefix:      uniqueKeyPrefix,
+		uniqueKeyPrefixBytes: []byte(uniqueKeyPrefix),
 		graph: graph.CloneLinkerGraph(
 			inputFiles,
 			reachableFiles,
@@ -271,9 +279,6 @@ func link(
 		c.unboundModuleRef = js_ast.InvalidRef
 	}
 
-	if !c.generateUniqueKeyPrefix() {
-		return nil
-	}
 	c.scanImportsAndExports()
 
 	// Stop now if there were errors
@@ -297,20 +302,6 @@ func link(
 	js_ast.FollowAllSymbols(c.graph.Symbols)
 
 	return c.generateChunksInParallel(chunks)
-}
-
-func (c *linkerContext) generateUniqueKeyPrefix() bool {
-	var data [12]byte
-	rand.Seed(time.Now().UnixNano())
-	if _, err := rand.Read(data[:]); err != nil {
-		c.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
-		return false
-	}
-
-	// This is 16 bytes and shouldn't generate escape characters when put into strings
-	c.uniqueKeyPrefix = base64.URLEncoding.EncodeToString(data[:])
-	c.uniqueKeyPrefixBytes = []byte(c.uniqueKeyPrefix)
-	return true
 }
 
 // Currently the automatic chunk generation algorithm should by construction
@@ -546,8 +537,25 @@ func (c *linkerContext) substituteFinalPaths(
 		shift.Before.Add(dataOffset)
 		shift.After.Add(dataOffset)
 
-		if piece.chunkIndex.IsValid() {
-			chunk := chunks[piece.chunkIndex.GetIndex()]
+		switch piece.kind {
+		case outputPieceAssetIndex:
+			file := c.graph.Files[piece.index]
+			if len(file.InputFile.AdditionalFiles) != 1 {
+				panic("Internal error")
+			}
+			relPath, _ := c.fs.Rel(c.options.AbsOutputDir, file.InputFile.AdditionalFiles[0].AbsPath)
+
+			// Make sure to always use forward slashes, even on Windows
+			relPath = strings.ReplaceAll(relPath, "\\", "/")
+
+			importPath := modifyPath(relPath)
+			j.AddString(importPath)
+			shift.Before.AdvanceString(file.InputFile.UniqueKey)
+			shift.After.AdvanceString(importPath)
+			shifts = append(shifts, shift)
+
+		case outputPieceChunkIndex:
+			chunk := chunks[piece.index]
 			importPath := modifyPath(chunk.finalRelPath)
 			j.AddString(importPath)
 			shift.Before.AdvanceString(chunk.uniqueKey)
@@ -1066,7 +1074,8 @@ func (a stableRefArray) Len() int          { return len(a) }
 func (a stableRefArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 func (a stableRefArray) Less(i int, j int) bool {
 	ai, aj := a[i], a[j]
-	return ai.StableSourceIndex < aj.StableSourceIndex || (ai.StableSourceIndex == aj.StableSourceIndex && ai.Ref.InnerIndex < aj.Ref.InnerIndex)
+	return ai.StableSourceIndex < aj.StableSourceIndex ||
+		(ai.StableSourceIndex == aj.StableSourceIndex && ai.Ref.InnerIndex < aj.Ref.InnerIndex)
 }
 
 // Sort cross-chunk exports by chunk name for determinism
@@ -2989,7 +2998,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		// Assign a unique key to each chunk. This key encodes the index directly so
 		// we can easily recover it later without needing to look it up in a map. The
 		// last 8 numbers of the key are the chunk index.
-		chunk.uniqueKey = fmt.Sprintf("%s%08d", c.uniqueKeyPrefix, chunkIndex)
+		chunk.uniqueKey = fmt.Sprintf("%sC%08d", c.uniqueKeyPrefix, chunkIndex)
 
 		// Determine the standard file extension
 		var stdExt string
@@ -3306,7 +3315,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					// Turn this statement into "import * as ns from 'path'"
 					stmt.Data = &js_ast.SImport{
 						NamespaceRef:      s.NamespaceRef,
-						StarNameLoc:       &stmt.Loc,
+						StarNameLoc:       &logger.Loc{Start: stmt.Loc.Start},
 						ImportRecordIndex: s.ImportRecordIndex,
 					}
 
@@ -5047,27 +5056,47 @@ func (c *linkerContext) breakOutputIntoPieces(j helpers.Joiner, chunkCount uint3
 	output := j.Done()
 	prefix := c.uniqueKeyPrefixBytes
 	for {
-		// Scan for the next chunk path
+		// Scan for the next piece boundary
 		boundary := bytes.Index(output, prefix)
 
-		// Try to parse the chunk index
-		var chunkIndex uint32
+		// Try to parse the piece boundary
+		var kind outputPieceIndexKind
+		var index uint32
 		if boundary != -1 {
-			if start := boundary + len(prefix); start+8 > len(output) {
+			if start := boundary + len(prefix); start+9 > len(output) {
 				boundary = -1
 			} else {
-				for j := 0; j < 8; j++ {
+				switch output[start] {
+				case 'A':
+					kind = outputPieceAssetIndex
+				case 'C':
+					kind = outputPieceChunkIndex
+				}
+				for j := 1; j < 9; j++ {
 					c := output[start+j]
 					if c < '0' || c > '9' {
 						boundary = -1
 						break
 					}
-					chunkIndex = chunkIndex*10 + uint32(c) - '0'
+					index = index*10 + uint32(c) - '0'
 				}
 			}
-			if chunkIndex >= chunkCount {
+		}
+
+		// Validate the boundary
+		switch kind {
+		case outputPieceAssetIndex:
+			if index >= uint32(len(c.graph.Files)) {
 				boundary = -1
 			}
+
+		case outputPieceChunkIndex:
+			if index >= chunkCount {
+				boundary = -1
+			}
+
+		default:
+			boundary = -1
 		}
 
 		// If we're at the end, generate one final piece
@@ -5080,10 +5109,11 @@ func (c *linkerContext) breakOutputIntoPieces(j helpers.Joiner, chunkCount uint3
 
 		// Otherwise, generate an interior piece and continue
 		pieces = append(pieces, outputPiece{
-			data:       output[:boundary],
-			chunkIndex: ast.MakeIndex32(chunkIndex),
+			data:  output[:boundary],
+			index: index,
+			kind:  kind,
 		})
-		output = output[boundary+len(prefix)+8:]
+		output = output[boundary+len(prefix)+9:]
 	}
 	return intermediateOutput{pieces: pieces}
 }
