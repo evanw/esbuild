@@ -2481,7 +2481,7 @@ async function main() {
   // Time out these tests after 5 minutes. This exists to help debug test hangs in CI.
   let minutes = 5
   let timeout = setTimeout(() => {
-    console.error(`❌ js api tests timed out after ${minutes} minutes, exiting...`)
+    console.error(`❌ plugin tests timed out after ${minutes} minutes, exiting...`)
     process.exit(1)
   }, minutes * 60 * 1000)
 
