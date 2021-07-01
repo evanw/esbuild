@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix using JS synchronous API from from non-main threads ([#1406](https://github.com/evanw/esbuild/issues/1406))
+
+    This release fixes an issue with the new implementation of the synchronous JS API calls (`transformSync` and `buildSync`) when they are used from a thread other than the main thread. The problem happened because esbuild's new implementation uses node's `worker_threads` library internally and non-main threads were incorrectly assumed to be esbuild's internal thread instead of potentially another unrelated thread. Now esbuild's synchronous JS APIs should work correctly when called from non-main threads.
+
 ## 0.12.12
 
 * Fix `file` loader import paths when subdirectories are present ([#1044](https://github.com/evanw/esbuild/issues/1044))
