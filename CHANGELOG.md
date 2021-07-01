@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.13
 
 * Fix using JS synchronous API from from non-main threads ([#1406](https://github.com/evanw/esbuild/issues/1406))
 
