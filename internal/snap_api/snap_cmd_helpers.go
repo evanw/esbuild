@@ -54,16 +54,30 @@ func warningsJSON(result api.BuildResult) string {
 }
 
 func outputFilesToJSON(result api.BuildResult) string {
-	if len(result.OutputFiles) != 1 {
-		panic(fmt.Sprintf("Expected exactly one OutputFile, got %d", len(result.OutputFiles)))
+	includedSourceMap := len(result.OutputFiles) == 2
+	if !includedSourceMap && len(result.OutputFiles) != 1 {
+		panic(fmt.Sprintf("Expected exactly one Bundle OutputFile and optionally one SourceMap, got %d", len(result.OutputFiles)))
+	}
+	bundleIdx := 0
+	if includedSourceMap {
+		bundleIdx = 1
 	}
 
 	outputFiles := "["
 	outputFiles += fmt.Sprintf(`
     { 
-      "path": "<stdout>",
+      "path": "<%s>",
       "contents": "%v"
-    }`, hex.EncodeToString(result.OutputFiles[0].Contents))
+    }`, result.OutputFiles[bundleIdx].Path, hex.EncodeToString(result.OutputFiles[bundleIdx].Contents))
+	if includedSourceMap {
+		sourcemapIdx := 0
+		outputFiles += fmt.Sprintf(`
+    ,
+    { 
+      "path": "<%s>",
+      "contents": "%v"
+    }`, result.OutputFiles[sourcemapIdx].Path, hex.EncodeToString(result.OutputFiles[sourcemapIdx].Contents))
+	}
 	outputFiles += "\n  ]"
 	return outputFiles
 }

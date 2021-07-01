@@ -22,6 +22,7 @@ Options:
   --norewrite=...  Comma separated list of relative paths to files we should not rewrite
                    which are also automatically deferred
   --doctor         When set stricter validations are performed to detect problematic code
+  --sourcemap      When set sourcemaps will be generated and included with the second outfile
 
 Examples:
   snapshot entry_point.js --outfile=out.js --metafile --basedir /dev/foo/snap --deferred='./foo,./bar'
@@ -38,6 +39,7 @@ type SnapCmdArgs struct {
 	NorewriteRx []*regexp.Regexp
 	RegexMode   RegexMode
 	Doctor      bool
+	Sourcemap   bool
 }
 
 type ProcessCmdArgs = func(args *SnapCmdArgs) api.BuildResult
@@ -138,6 +140,9 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 
 		case strings.HasPrefix(arg, "--doctor"):
 			cmdArgs.Doctor = true
+
+		case strings.HasPrefix(arg, "--sourcemap"):
+			cmdArgs.Sourcemap = true
 
 		case !strings.HasPrefix(arg, "-"):
 			cmdArgs.EntryPoint = arg
