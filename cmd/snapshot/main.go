@@ -65,6 +65,11 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		outdir = "/"
 	}
 
+	sourcemap := api.SourceMapNone
+	if args.Sourcemap {
+		sourcemap = api.SourceMapExternal
+	}
+
 	return api.Build(api.BuildOptions{
 		// https://esbuild.github.io/api/#log-level
 		LogLevel: api.LogLevelInfo,
@@ -147,7 +152,7 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		// only matters when the format setting is iife
 		GlobalName: "",
 
-		Sourcemap: 0,
+		Sourcemap: sourcemap,
 
 		// Only works with ESM modules
 		// https://esbuild.github.io/api/#splitting
