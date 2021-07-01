@@ -40,6 +40,36 @@ let tests = {
     }))
     assert.strictEqual(result, `in entry.ts\nin other.ts\n`)
   },
+
+  async fromChildThread({ testDir }) {
+    const startThread = path.join(testDir, 'startThread.js')
+    fs.writeFileSync(startThread, `
+      const worker_threads = require('worker_threads')
+      if (worker_threads.isMainThread) {
+        console.log('in startThread.js')
+        const worker = new worker_threads.Worker(__filename)
+        worker.postMessage(null)
+        worker.on('message', logs => {
+          for (const log of logs) console.log(log)
+          worker.terminate()
+        })
+      } else {
+        worker_threads.parentPort.on('message', () => {
+          console.log('in worker')
+          let logs = []
+          console.log = x => logs.push(x)
+          require('../entry.ts')
+          worker_threads.parentPort.postMessage(logs)
+        })
+      }
+    `)
+
+    let result = await new Promise((resolve, reject) => child_process.execFile('node', ['-r', register, startThread], (err, stdout) => {
+      if (err) reject(err)
+      else resolve(stdout)
+    }))
+    assert.strictEqual(result, `in startThread.js\nin worker\nin entry.ts\nin other.ts\n`)
+  },
 }
 
 async function main() {
