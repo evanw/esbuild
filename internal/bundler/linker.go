@@ -610,24 +610,6 @@ func (c *linkerContext) pathRelativeToOutbase(
 	file := &c.graph.Files[sourceIndex]
 	relDir = "/"
 	baseExt = stdExt
-
-	// If the output path was configured explicitly, use it verbatim
-	if c.options.AbsOutputFile != "" {
-		baseName = c.fs.Base(c.options.AbsOutputFile)
-
-		// Strip off the extension
-		ext := c.fs.Ext(baseName)
-		baseName = baseName[:len(baseName)-len(ext)]
-
-		// Use the extension from the explicit output file path. However, don't do
-		// that if this is a CSS chunk but the entry point file is not CSS. In that
-		// case use the standard extension. This happens when importing CSS into JS.
-		if _, ok := file.InputFile.Repr.(*graph.CSSRepr); ok || stdExt != c.options.OutputExtensionCSS {
-			baseExt = ext
-		}
-		return
-	}
-
 	absPath := file.InputFile.Source.KeyPath.Text
 	isCustomOutputPath := false
 
@@ -3013,12 +2995,36 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		var dir, base, ext string
 		var template []config.PathTemplate
 		if chunk.isEntryPoint {
-			if c.graph.Files[chunk.sourceIndex].IsUserSpecifiedEntryPoint() {
-				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, chunk.entryPointBit, stdExt, false /* avoidIndex */)
+			// Only use the entry path template for user-specified entry points
+			file := &c.graph.Files[chunk.sourceIndex]
+			if file.IsUserSpecifiedEntryPoint() {
 				template = c.options.EntryPathTemplate
 			} else {
-				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, chunk.entryPointBit, stdExt, true /* avoidIndex */)
 				template = c.options.ChunkPathTemplate
+			}
+
+			if c.options.AbsOutputFile != "" {
+				// If the output path was configured explicitly, use it verbatim
+				dir = "/"
+				base = c.fs.Base(c.options.AbsOutputFile)
+				originalExt := c.fs.Ext(base)
+				base = base[:len(base)-len(originalExt)]
+
+				// Use the extension from the explicit output file path. However, don't do
+				// that if this is a CSS chunk but the entry point file is not CSS. In that
+				// case use the standard extension. This happens when importing CSS into JS.
+				if _, ok := file.InputFile.Repr.(*graph.CSSRepr); ok || stdExt != c.options.OutputExtensionCSS {
+					ext = originalExt
+				} else {
+					ext = stdExt
+				}
+			} else {
+				// Otherwise, derive the output path from the input path
+				if file.IsUserSpecifiedEntryPoint() {
+					dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, chunk.entryPointBit, stdExt, false /* avoidIndex */)
+				} else {
+					dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, chunk.entryPointBit, stdExt, true /* avoidIndex */)
+				}
 			}
 		} else {
 			dir = "/"
