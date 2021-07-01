@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.14
 
 * Fix the `file` loader with custom namespaces ([#1404](https://github.com/evanw/esbuild/issues/1404))
 
