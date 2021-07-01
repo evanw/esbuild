@@ -25,8 +25,8 @@ type InputFile struct {
 	// If this file ends up being used in the bundle, these are additional files
 	// that must be written to the output directory. It's used by the "file"
 	// loader.
-	AdditionalFiles []OutputFile
-	UniqueKey       string
+	AdditionalFiles        []OutputFile
+	UniqueKeyForFileLoader string
 
 	SideEffects SideEffects
 	Loader      config.Loader

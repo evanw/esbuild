@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix the `file` loader with custom namespaces ([#1404](https://github.com/evanw/esbuild/issues/1404))
+
+    This fixes a regression from version 0.12.12 where using a plugin to load an input file with the `file` loader in a custom namespace caused esbuild to write the contents of that input file to the path associated with that namespace instead of to a path inside of the output directory. With this release, the `file` loader should now always copy the file somewhere inside of the output directory.
+
 ## 0.12.13
 
 * Fix using JS synchronous API from from non-main threads ([#1406](https://github.com/evanw/esbuild/issues/1406))

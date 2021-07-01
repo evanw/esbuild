@@ -550,7 +550,7 @@ func (c *linkerContext) substituteFinalPaths(
 
 			importPath := modifyPath(relPath)
 			j.AddString(importPath)
-			shift.Before.AdvanceString(file.InputFile.UniqueKey)
+			shift.Before.AdvanceString(file.InputFile.UniqueKeyForFileLoader)
 			shift.After.AdvanceString(importPath)
 			shifts = append(shifts, shift)
 
