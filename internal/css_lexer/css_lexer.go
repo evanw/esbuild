@@ -100,6 +100,10 @@ func (t T) String() string {
 	return tokenToString[t]
 }
 
+func (t T) IsNumeric() bool {
+	return t == TNumber || t == TPercentage || t == TDimension
+}
+
 // This token struct is designed to be memory-efficient. It just references a
 // range in the input file instead of directly containing the substring of text
 // since a range takes up less memory than a string.

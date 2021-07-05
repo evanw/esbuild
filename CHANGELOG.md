@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+* Fix a bug with `var()` in CSS color lowering ([#1421](https://github.com/evanw/esbuild/issues/1421))
+
+    This release fixes a bug with esbuild's handling of the `rgb` and `hsl` color functions when they contain `var()`. Each `var()` token sequence can be substituted for any number of tokens including zero or more than one, but previously esbuild's output was only correct if each `var()` inside of `rgb` or `hsl` contained exactly one token. With this release, esbuild will now not attempt to transform newer CSS color syntax to older CSS color syntax if it contains `var()`:
+
+    ```
+    /* Original code */
+    a {
+      color: hsl(var(--hs), var(--l));
+    }
+
+    /* Old output */
+    a {
+      color: hsl(var(--hs), ,, var(--l));
+    }
+
+    /* New output */
+    a {
+      color: hsl(var(--hs), var(--l));
+    }
+    ```
+
+    The bug with the old output above happened because esbuild considered the arguments to `hsl` as matching the pattern `hsl(h s l)` which is the new space-separated form allowed by [CSS Color Module Level 4](https://drafts.csswg.org/css-color/#the-hsl-notation). Then esbuild tried to convert this to the form `hsl(h, s, l)` which is more widely supported by older browsers. But this substitution doesn't work in the presence of `var()`, so it has now been disabled in that case.
+
 ## 0.12.14
 
 * Fix the `file` loader with custom namespaces ([#1404](https://github.com/evanw/esbuild/issues/1404))
