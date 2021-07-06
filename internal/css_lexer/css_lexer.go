@@ -104,6 +104,10 @@ func (t T) IsNumeric() bool {
 	return t == TNumber || t == TPercentage || t == TDimension
 }
 
+func (t T) IsNumericOrIdent() bool {
+	return t.IsNumeric() || t == TIdent
+}
+
 // This token struct is designed to be memory-efficient. It just references a
 // range in the input file instead of directly containing the substring of text
 // since a range takes up less memory than a string.

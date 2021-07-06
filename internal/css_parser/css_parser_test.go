@@ -975,11 +975,14 @@ func TestMarginAndPadding(t *testing.T) {
 
 		expectPrintedMangle(t, "a { "+x+"-top: 1; "+x+"-top: }", "a {\n  "+x+"-top: 1;\n  "+x+"-top:;\n}\n")
 		expectPrintedMangle(t, "a { "+x+"-top: 1; "+x+"-top: 2 3 }", "a {\n  "+x+"-top: 1;\n  "+x+"-top: 2 3;\n}\n")
-		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-right: calc(1 + var(--x)) }", "a {\n  "+x+": 1 calc(1 + var(--x)) 3 4;\n}\n")
 		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-left: -4; "+x+"-right: -2 }", "a {\n  "+x+": 1 -2 3 -4;\n}\n")
 		expectPrintedMangle(t, "a { "+x+": 1 auto 3 4; "+x+"-left: auto }", "a {\n  "+x+": 1 auto 3;\n}\n")
 		expectPrintedMangle(t, "a { "+x+": 1 2; "+x+"-top: 5 }", "a {\n  "+x+": 5 2 1;\n}\n")
 		expectPrintedMangle(t, "a { "+x+": 1; "+x+"-top: 5 }", "a {\n  "+x+": 5 1 1;\n}\n")
+
+		// This doesn't collapse because if the "calc" has an error it
+		// will be ignored and the original rule will show through
+		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-right: calc(1 + var(--x)) }", "a {\n  "+x+": 1 2 3 4;\n  "+x+"-right: calc(1 + var(--x));\n}\n")
 
 		expectPrintedMangle(t, "a { "+x+"-left: 1; "+x+"-right: 2; "+x+"-top: 3; "+x+"-bottom: 4 }", "a {\n  "+x+": 3 2 4 1;\n}\n")
 		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-right: 5 !important }",
@@ -988,6 +991,9 @@ func TestMarginAndPadding(t *testing.T) {
 			"a {\n  "+x+": 1 2 3 4 !important;\n  "+x+"-right: 5;\n}\n")
 		expectPrintedMangle(t, "a { "+x+"-left: 1 !important; "+x+"-right: 2; "+x+"-top: 3 !important; "+x+"-bottom: 4 }",
 			"a {\n  "+x+"-left: 1 !important;\n  "+x+"-right: 2;\n  "+x+"-top: 3 !important;\n  "+x+"-bottom: 4;\n}\n")
+
+		// This should not be changed because "--x" and "--z" could be empty
+		expectPrintedMangle(t, "a { "+x+": var(--x) var(--y) var(--z) var(--y) }", "a {\n  "+x+": var(--x) var(--y) var(--z) var(--y);\n}\n")
 	}
 }
 
@@ -1041,6 +1047,10 @@ func TestBorderRadius(t *testing.T) {
 
 	expectPrintedMangleMinify(t, "a { border-radius: 1 2 3 4; border-top-right-radius: 5; }", "a{border-radius:1 5 3 4}")
 	expectPrintedMangleMinify(t, "a { border-radius: 1 2 3 4; border-top-right-radius: 5 6; }", "a{border-radius:1 5 3 4/1 6 3 4}")
+
+	// These should not be changed because "--x" and "--z" could be empty
+	expectPrintedMangle(t, "a { border-radius: var(--x) var(--y) var(--z) var(--y) }", "a {\n  border-radius: var(--x) var(--y) var(--z) var(--y);\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 0 / var(--x) var(--y) var(--z) var(--y) }", "a {\n  border-radius: 0 / var(--x) var(--y) var(--z) var(--y);\n}\n")
 }
 
 func TestBoxShadow(t *testing.T) {
