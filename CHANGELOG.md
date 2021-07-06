@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.15
 
 * Fix a bug with `var()` in CSS color lowering ([#1421](https://github.com/evanw/esbuild/issues/1421))
 
