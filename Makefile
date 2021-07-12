@@ -3,9 +3,6 @@ ESBUILD_VERSION = $(shell cat version.txt)
 esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
 	go build "-ldflags=-s -w" ./cmd/esbuild
 
-snapshot: cmd/esbuild/version.go cmd/esbuild/*.go cmd/snapshot/*.go pkg/*/*.go internal/*/*.go go.mod 
-	go build "-ldflags=-s -w" ./cmd/snapshot
-
 test:
 	make -j6 test-common
 
@@ -836,3 +833,5 @@ bench-readmin-eswasm: platform-wasm | bench/readmin
 	echo "$(READMIN_HTML)" > bench/readmin/eswasm/index.html
 	du -h bench/readmin/eswasm/main.js*
 	shasum bench/readmin/eswasm/main.js*
+
+include snapshot.mk
