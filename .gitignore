@@ -16,4 +16,5 @@
 /scripts/.*/
 bin
 esbuild.exe
+snapshot.exe
 node_modules/

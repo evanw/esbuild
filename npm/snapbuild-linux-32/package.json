@@ -1,0 +1,17 @@
+{
+	"name": "snapbuild-linux-32",
+	"version": "0.0.116",
+	"main": "bin/snapshot",
+	"description": "The Linux 32-bit binary for snapbuild, a snapshot bundler.",
+	"repository": "https://github.com/cypress-io/esbuild",
+	"license": "MIT",
+	"os": [
+		"linux"
+	],
+	"cpu": [
+		"ia32"
+	],
+	"directories": {
+		"bin": "bin"
+	}
+}
