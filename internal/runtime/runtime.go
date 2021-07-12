@@ -171,7 +171,7 @@ func code(isES6 bool) string {
 		export var __export = (target, all) => {
 			__markAsModule(target)
 			for (var name in all)
-				__defProp(target, name, { get: all[name], enumerable: true })
+				__defProp(target, name, { get: all[name], enumerable: true, configurable: true })
 		}
 		export var __reExport = (target, module, desc) => {
 			if (module && typeof module === 'object' || typeof module === 'function')
