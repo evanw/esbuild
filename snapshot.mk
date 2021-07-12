@@ -7,17 +7,17 @@ SNAP_ESBUILD_VERSION = $(shell cat version.txt)
 # We don't build nor publish the following:
 # - snap-platform-wasm
 # - snap-platform-neutral
+# - snap-platform-darwin-arm64 (M1)
 
 snapshot: cmd/esbuild/version.go cmd/esbuild/*.go cmd/snapshot/*.go pkg/*/*.go internal/*/*.go go.mod 
 	go build "-ldflags=-s -w" ./cmd/snapshot
 
-snap-platform-all: cmd/esbuild/version.go test-all
+snap-platform-all: cmd/esbuild/version.go
 	make -j8 \
 		snap-platform-windows \
 		snap-platform-windows-32 \
 		snap-platform-android-arm64 \
 		snap-platform-darwin \
-		snap-platform-darwin-arm64 \
 		snap-platform-freebsd \
 		snap-platform-freebsd-arm64 \
 		snap-platform-linux \
@@ -85,8 +85,7 @@ snap-publish-all: cmd/esbuild/version.go snap-test-prepublish
 		snap-publish-windows-32 \
 		snap-publish-freebsd \
 		snap-publish-freebsd-arm64 \
-		snap-publish-darwin \
-		snap-publish-darwin-arm64
+		snap-publish-darwin
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j4 \
 		snap-publish-android-arm64 \
