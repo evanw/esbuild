@@ -1,4 +1,4 @@
-SNAP_ESBUILD_VERSION = $(shell cat version.txt)
+SNAP_ESBUILD_VERSION = $(shell cat version.snap.txt)
 
 ########
 # NOTE #
