@@ -17,7 +17,7 @@ test-all:
 test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
 
 check-go-version:
-	@go version | grep ' go1\.16\.3 ' || (echo 'Please install Go version 1.16.3' && false)
+	@go version | grep ' go1\.16\.5 ' || (echo 'Please install Go version 1.16.5' && false)
 
 # This "ESBUILD_RACE" variable exists at the request of a user on GitHub who
 # wants to run "make test" on an unsupported version of macOS (version 10.9).
