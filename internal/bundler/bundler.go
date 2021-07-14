@@ -288,28 +288,8 @@ func parseFile(args parseArgs) {
 		result.file.inputFile.Repr = &graph.JSRepr{AST: ast}
 		result.ok = true
 
-		// Optionally add metadata about the file
-		var jsonMetadataChunk string
-		if args.options.NeedsMetafile {
-			inputs := fmt.Sprintf("{\n        %s: {\n          \"bytesInOutput\": %d\n        }\n      }",
-				js_printer.QuoteForJSON(source.PrettyPath, args.options.ASCIIOnly),
-				len(source.Contents),
-			)
-			jsonMetadataChunk = fmt.Sprintf(
-				"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": %s,\n      \"bytes\": %d\n    }",
-				inputs,
-				len(source.Contents),
-			)
-		}
-
-		// Copy the file using an additional file payload to make sure we only copy
-		// the file if the module isn't removed due to tree shaking.
-		result.file.inputFile.UniqueKey = uniqueKey
-		result.file.inputFile.AdditionalFiles = []graph.OutputFile{{
-			AbsPath:           source.KeyPath.Text,
-			Contents:          []byte(source.Contents),
-			JSONMetadataChunk: jsonMetadataChunk,
-		}}
+		// Mark that this file is from the "file" loader
+		result.file.inputFile.UniqueKeyForFileLoader = uniqueKey
 
 	default:
 		var message string
@@ -1753,31 +1733,62 @@ func (s *scanner) processScannedFiles() []scannerFile {
 			sb.WriteString("]\n    }")
 		}
 
-		// Turn all additional file paths from input paths into output paths by
-		// rewriting the output base directory to the output directory
-		for j, additionalFile := range result.file.inputFile.AdditionalFiles {
-			if relPath, ok := s.fs.Rel(s.options.AbsOutputBase, additionalFile.AbsPath); ok {
-				var hash string
+		result.file.jsonMetadataChunk = sb.String()
 
-				// Add a hash to the file name to prevent multiple files with the same name
-				// but different contents from colliding
-				if config.HasPlaceholder(s.options.AssetPathTemplate, config.HashPlaceholder) {
-					h := xxhash.New()
-					h.Write(additionalFile.Contents)
-					hash = hashForFileName(h.Sum(nil))
-				}
+		// If this file is from the "file" loader, generate an additional file
+		if result.file.inputFile.UniqueKeyForFileLoader != "" {
+			bytes := []byte(result.file.inputFile.Source.Contents)
 
-				dir, base, ext := logger.PlatformIndependentPathDirBaseExt(relPath)
-				relPath = config.TemplateToString(config.SubstituteTemplate(s.options.AssetPathTemplate, config.PathPlaceholders{
-					Dir:  &dir,
-					Name: &base,
-					Hash: &hash,
-				})) + ext
-				result.file.inputFile.AdditionalFiles[j].AbsPath = s.fs.Join(s.options.AbsOutputDir, relPath)
+			// Add a hash to the file name to prevent multiple files with the same name
+			// but different contents from colliding
+			var hash string
+			if config.HasPlaceholder(s.options.AssetPathTemplate, config.HashPlaceholder) {
+				h := xxhash.New()
+				h.Write(bytes)
+				hash = hashForFileName(h.Sum(nil))
 			}
+
+			// Generate the input for the template
+			_, _, originalExt := logger.PlatformIndependentPathDirBaseExt(result.file.inputFile.Source.KeyPath.Text)
+			dir, base, ext := pathRelativeToOutbase(
+				&result.file.inputFile,
+				&s.options,
+				s.fs,
+				originalExt,
+				/* avoidIndex */ false,
+				/* customFilePath */ "",
+			)
+
+			// Apply the asset path template
+			relPath := config.TemplateToString(config.SubstituteTemplate(s.options.AssetPathTemplate, config.PathPlaceholders{
+				Dir:  &dir,
+				Name: &base,
+				Hash: &hash,
+			})) + ext
+
+			// Optionally add metadata about the file
+			var jsonMetadataChunk string
+			if s.options.NeedsMetafile {
+				inputs := fmt.Sprintf("{\n        %s: {\n          \"bytesInOutput\": %d\n        }\n      }",
+					js_printer.QuoteForJSON(result.file.inputFile.Source.PrettyPath, s.options.ASCIIOnly),
+					len(bytes),
+				)
+				jsonMetadataChunk = fmt.Sprintf(
+					"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": %s,\n      \"bytes\": %d\n    }",
+					inputs,
+					len(bytes),
+				)
+			}
+
+			// Generate the additional file to copy into the output directory
+			result.file.inputFile.AdditionalFiles = []graph.OutputFile{{
+				AbsPath:           s.fs.Join(s.options.AbsOutputDir, relPath),
+				Contents:          bytes,
+				JSONMetadataChunk: jsonMetadataChunk,
+			}}
 		}
 
-		s.results[i].file.jsonMetadataChunk = sb.String()
+		s.results[i] = result
 	}
 
 	// The linker operates on an array of files, so construct that now. This

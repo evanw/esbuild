@@ -2004,6 +2004,39 @@ let pluginTests = {
       }],
     })
   },
+
+  async fileLoaderCustomNamespaceIssue1404({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.data')
+    const outdir = path.join(testDir, 'out')
+    await writeFileAsync(input, `some data`)
+    await esbuild.build({
+      entryPoints: [path.basename(input)],
+      absWorkingDir: testDir,
+      logLevel: 'silent',
+      outdir,
+      assetNames: '[name]',
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /\.data$/ }, args => {
+            return {
+              path: args.path,
+              namespace: 'ns',
+            }
+          })
+          build.onLoad({ filter: /.*/, namespace: 'ns' }, async (args) => {
+            const data = await readFileAsync(path.join(testDir, args.path), 'utf8')
+            return {
+              contents: data.split('').reverse().join(''),
+              loader: 'file',
+            }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(await readFileAsync(input, 'utf8'), `some data`)
+    assert.strictEqual(require(path.join(outdir, 'in.js')), `./in.data`)
+  },
 }
 
 // These tests have to run synchronously
@@ -2481,7 +2514,7 @@ async function main() {
   // Time out these tests after 5 minutes. This exists to help debug test hangs in CI.
   let minutes = 5
   let timeout = setTimeout(() => {
-    console.error(`❌ js api tests timed out after ${minutes} minutes, exiting...`)
+    console.error(`❌ plugin tests timed out after ${minutes} minutes, exiting...`)
     process.exit(1)
   }, minutes * 60 * 1000)
 

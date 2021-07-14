@@ -24,6 +24,11 @@ if (process.env.ESBUILD_WORKER_THREADS !== '0') {
   }
 }
 
+// This should only be true if this is our internal worker thread. We want this
+// library to be usable from other people's worker threads, so we should not be
+// checking for "isMainThread".
+let isInternalWorkerThread = worker_threads?.workerData?.esbuildVersion === ESBUILD_VERSION;
+
 let esbuildCommandAndArgs = (): [string, string[]] => {
   // This feature was added to give external code a way to modify the binary
   // path without modifying the code itself. Do not remove this because
@@ -149,7 +154,7 @@ export let formatMessages: typeof types.formatMessages = (messages, options) =>
 
 export let buildSync: typeof types.buildSync = (options: types.BuildOptions): any => {
   // Try using a long-lived worker thread to avoid repeated start-up overhead
-  if (worker_threads) {
+  if (worker_threads && !isInternalWorkerThread) {
     if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
     return workerThreadService.buildSync(options);
   }
@@ -169,7 +174,7 @@ export let buildSync: typeof types.buildSync = (options: types.BuildOptions): an
 
 export let transformSync: typeof types.transformSync = (input, options) => {
   // Try using a long-lived worker thread to avoid repeated start-up overhead
-  if (worker_threads) {
+  if (worker_threads && !isInternalWorkerThread) {
     if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
     return workerThreadService.transformSync(input, options);
   }
@@ -189,7 +194,7 @@ export let transformSync: typeof types.transformSync = (input, options) => {
 
 export let formatMessagesSync: typeof types.formatMessagesSync = (messages, options) => {
   // Try using a long-lived worker thread to avoid repeated start-up overhead
-  if (worker_threads) {
+  if (worker_threads && !isInternalWorkerThread) {
     if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
     return workerThreadService.formatMessagesSync(messages, options);
   }
@@ -367,7 +372,7 @@ let workerThreadService: WorkerThreadService | null = null;
 let startWorkerThreadService = (worker_threads: typeof import('worker_threads')): WorkerThreadService => {
   let { port1: mainPort, port2: workerPort } = new worker_threads.MessageChannel();
   let worker = new worker_threads.Worker(__filename, {
-    workerData: { workerPort, defaultWD },
+    workerData: { workerPort, defaultWD, esbuildVersion: ESBUILD_VERSION },
     transferList: [workerPort],
 
     // From node's documentation: https://nodejs.org/api/worker_threads.html
@@ -520,6 +525,6 @@ let startSyncServiceWorker = () => {
 };
 
 // If we're in the worker thread, start the worker code
-if (worker_threads && !worker_threads.isMainThread) {
+if (isInternalWorkerThread) {
   startSyncServiceWorker();
 }

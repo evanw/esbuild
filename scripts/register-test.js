@@ -32,32 +32,84 @@ fs.writeFileSync(register, `
   };
 `)
 
-async function main() {
-  let result
-  let promise = new Promise((resolve, reject) => child_process.execFile('node', ['-r', register, entry], (err, stdout) => {
-    if (err) {
-      reject(err)
-    } else {
-      result = stdout
-      resolve()
-    }
-  }))
-  let timeout
-  let wait = new Promise((_, reject) => {
-    timeout = setTimeout(() => reject(new Error('This test timed out')), 60 * 1000)
-  })
-  await Promise.race([promise, wait])
-  clearTimeout(timeout)
-  assert.strictEqual(result, `in entry.ts\nin other.ts\n`)
+let tests = {
+  async fromMainThread() {
+    let result = await new Promise((resolve, reject) => child_process.execFile('node', ['-r', register, entry], (err, stdout) => {
+      if (err) reject(err)
+      else resolve(stdout)
+    }))
+    assert.strictEqual(result, `in entry.ts\nin other.ts\n`)
+  },
+
+  async fromChildThread({ testDir }) {
+    const startThread = path.join(testDir, 'startThread.js')
+    fs.writeFileSync(startThread, `
+      const worker_threads = require('worker_threads')
+      if (worker_threads.isMainThread) {
+        console.log('in startThread.js')
+        const worker = new worker_threads.Worker(__filename)
+        worker.postMessage(null)
+        worker.on('message', logs => {
+          for (const log of logs) console.log(log)
+          worker.terminate()
+        })
+      } else {
+        worker_threads.parentPort.on('message', () => {
+          console.log('in worker')
+          let logs = []
+          console.log = x => logs.push(x)
+          require('../entry.ts')
+          worker_threads.parentPort.postMessage(logs)
+        })
+      }
+    `)
+
+    let result = await new Promise((resolve, reject) => child_process.execFile('node', ['-r', register, startThread], (err, stdout) => {
+      if (err) reject(err)
+      else resolve(stdout)
+    }))
+    assert.strictEqual(result, `in startThread.js\nin worker\nin entry.ts\nin other.ts\n`)
+  },
 }
 
-main().then(
-  () => {
-    console.log(`✅ register test passed`)
-    removeRecursiveSync(rootTestDir)
-  },
-  e => {
-    console.error(`❌ register test failed: ${e && e.message || e}`)
+async function main() {
+  // Time out these tests after 5 minutes. This exists to help debug test hangs in CI.
+  let minutes = 5
+  let timeout = setTimeout(() => {
+    console.error(`❌ register tests timed out after ${minutes} minutes, exiting...`)
     process.exit(1)
-  },
-)
+  }, minutes * 60 * 1000)
+
+  const runTest = async ([name, fn]) => {
+    let testDir = path.join(rootTestDir, name)
+    try {
+      fs.mkdirSync(testDir)
+      await fn({ esbuild, testDir })
+      removeRecursiveSync(testDir)
+      return true
+    } catch (e) {
+      console.error(`❌ ${name}: ${e && e.message || e}`)
+      return false
+    }
+  }
+
+  // Run all tests in serial
+  let allTestsPassed = true
+  for (let test of Object.entries(tests)) {
+    if (!await runTest(test)) {
+      allTestsPassed = false
+    }
+  }
+
+  if (!allTestsPassed) {
+    console.error(`❌ register tests failed`)
+    process.exit(1)
+  } else {
+    console.log(`✅ register tests passed`)
+    removeRecursiveSync(rootTestDir)
+  }
+
+  clearTimeout(timeout);
+}
+
+main().catch(e => setTimeout(() => { throw e }))

@@ -16,8 +16,19 @@ func (p *parser) commaToken() css_ast.Token {
 	return t
 }
 
-func expandTokenQuad(tokens []css_ast.Token) (result [4]css_ast.Token) {
+func expandTokenQuad(tokens []css_ast.Token) (result [4]css_ast.Token, ok bool) {
 	n := len(tokens)
+	if n < 1 || n > 4 {
+		return
+	}
+
+	// Don't do this if we encounter any unexpected tokens such as "var()"
+	for i := 0; i < n; i++ {
+		if !tokens[i].Kind.IsNumericOrIdent() {
+			return
+		}
+	}
+
 	result[0] = tokens[0]
 	if n > 1 {
 		result[1] = tokens[1]
@@ -34,6 +45,8 @@ func expandTokenQuad(tokens []css_ast.Token) (result [4]css_ast.Token) {
 	} else {
 		result[3] = result[1]
 	}
+
+	ok = true
 	return
 }
 

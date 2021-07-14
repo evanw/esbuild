@@ -38,9 +38,9 @@ func (box *boxTracker) mangleSides(rules []css_ast.R, decl *css_ast.RDeclaration
 		box.important = decl.Important
 	}
 
-	if n := len(decl.Value); n >= 1 && n <= 4 {
+	if quad, ok := expandTokenQuad(decl.Value); ok {
 		isMargin := decl.Key == css_ast.DMargin
-		for side, t := range expandTokenQuad(decl.Value) {
+		for side, t := range quad {
 			t.TurnLengthIntoNumberIfZero()
 			box.updateSide(rules, side, boxSide{token: t, index: uint32(index)})
 		}
@@ -57,7 +57,7 @@ func (box *boxTracker) mangleSide(rules []css_ast.R, decl *css_ast.RDeclaration,
 		box.important = decl.Important
 	}
 
-	if tokens := decl.Value; len(tokens) == 1 {
+	if tokens := decl.Value; len(tokens) == 1 && tokens[0].Kind.IsNumericOrIdent() {
 		isMargin := false
 		switch decl.Key {
 		case css_ast.DMarginTop, css_ast.DMarginRight, css_ast.DMarginBottom, css_ast.DMarginLeft:

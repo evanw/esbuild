@@ -550,7 +550,7 @@ func (c *linkerContext) substituteFinalPaths(
 
 			importPath := modifyPath(relPath)
 			j.AddString(importPath)
-			shift.Before.AdvanceString(file.InputFile.UniqueKey)
+			shift.Before.AdvanceString(file.InputFile.UniqueKeyForFileLoader)
 			shift.After.AdvanceString(importPath)
 			shifts = append(shifts, shift)
 
@@ -601,44 +601,25 @@ func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) s
 // substituted into a path template without necessarily having a "/" after it.
 // Extra slashes should get cleaned up automatically when we join it with the
 // output directory.
-func (c *linkerContext) pathRelativeToOutbase(
-	sourceIndex uint32,
-	entryPointBit uint,
+func pathRelativeToOutbase(
+	inputFile *graph.InputFile,
+	options *config.Options,
+	fs fs.FS,
 	stdExt string,
 	avoidIndex bool,
+	customFilePath string,
 ) (relDir string, baseName string, baseExt string) {
-	file := &c.graph.Files[sourceIndex]
 	relDir = "/"
 	baseExt = stdExt
+	absPath := inputFile.Source.KeyPath.Text
 
-	// If the output path was configured explicitly, use it verbatim
-	if c.options.AbsOutputFile != "" {
-		baseName = c.fs.Base(c.options.AbsOutputFile)
-
-		// Strip off the extension
-		ext := c.fs.Ext(baseName)
-		baseName = baseName[:len(baseName)-len(ext)]
-
-		// Use the extension from the explicit output file path. However, don't do
-		// that if this is a CSS chunk but the entry point file is not CSS. In that
-		// case use the standard extension. This happens when importing CSS into JS.
-		if _, ok := file.InputFile.Repr.(*graph.CSSRepr); ok || stdExt != c.options.OutputExtensionCSS {
-			baseExt = ext
-		}
-		return
-	}
-
-	absPath := file.InputFile.Source.KeyPath.Text
-	isCustomOutputPath := false
-
-	if outPath := c.graph.EntryPoints()[entryPointBit].OutputPath; outPath != "" {
+	if customFilePath != "" {
 		// Use the configured output path if present
-		absPath = outPath
-		if !c.fs.IsAbs(absPath) {
-			absPath = c.fs.Join(c.options.AbsOutputBase, absPath)
+		absPath = customFilePath
+		if !fs.IsAbs(absPath) {
+			absPath = fs.Join(options.AbsOutputBase, absPath)
 		}
-		isCustomOutputPath = true
-	} else if file.InputFile.Source.KeyPath.Namespace != "file" {
+	} else if inputFile.Source.KeyPath.Namespace != "file" {
 		// Come up with a path for virtual paths (i.e. non-file-system paths)
 		dir, base, _ := logger.PlatformIndependentPathDirBaseExt(absPath)
 		if avoidIndex && base == "index" {
@@ -653,24 +634,24 @@ func (c *linkerContext) pathRelativeToOutbase(
 		// dynamically-importing npm packages that make use of node's implicit
 		// "index" file name feature.
 		if avoidIndex {
-			base := c.fs.Base(absPath)
-			base = base[:len(base)-len(c.fs.Ext(base))]
+			base := fs.Base(absPath)
+			base = base[:len(base)-len(fs.Ext(base))]
 			if base == "index" {
-				absPath = c.fs.Dir(absPath)
+				absPath = fs.Dir(absPath)
 			}
 		}
 	}
 
 	// Try to get a relative path to the base directory
-	relPath, ok := c.fs.Rel(c.options.AbsOutputBase, absPath)
+	relPath, ok := fs.Rel(options.AbsOutputBase, absPath)
 	if !ok {
 		// This can fail in some situations such as on different drives on
 		// Windows. In that case we just use the file name.
-		baseName = c.fs.Base(absPath)
+		baseName = fs.Base(absPath)
 	} else {
 		// Now we finally have a relative path
-		relDir = c.fs.Dir(relPath) + "/"
-		baseName = c.fs.Base(relPath)
+		relDir = fs.Dir(relPath) + "/"
+		baseName = fs.Base(relPath)
 
 		// Use platform-independent slashes
 		relDir = strings.ReplaceAll(relDir, "\\", "/")
@@ -698,8 +679,8 @@ func (c *linkerContext) pathRelativeToOutbase(
 	}
 
 	// Strip the file extension if the output path is an input file
-	if !isCustomOutputPath {
-		ext := c.fs.Ext(baseName)
+	if customFilePath == "" {
+		ext := fs.Ext(baseName)
 		baseName = baseName[:len(baseName)-len(ext)]
 	}
 	return
@@ -3013,12 +2994,39 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		var dir, base, ext string
 		var template []config.PathTemplate
 		if chunk.isEntryPoint {
-			if c.graph.Files[chunk.sourceIndex].IsUserSpecifiedEntryPoint() {
-				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, chunk.entryPointBit, stdExt, false /* avoidIndex */)
+			// Only use the entry path template for user-specified entry points
+			file := &c.graph.Files[chunk.sourceIndex]
+			if file.IsUserSpecifiedEntryPoint() {
 				template = c.options.EntryPathTemplate
 			} else {
-				dir, base, ext = c.pathRelativeToOutbase(chunk.sourceIndex, chunk.entryPointBit, stdExt, true /* avoidIndex */)
 				template = c.options.ChunkPathTemplate
+			}
+
+			if c.options.AbsOutputFile != "" {
+				// If the output path was configured explicitly, use it verbatim
+				dir = "/"
+				base = c.fs.Base(c.options.AbsOutputFile)
+				originalExt := c.fs.Ext(base)
+				base = base[:len(base)-len(originalExt)]
+
+				// Use the extension from the explicit output file path. However, don't do
+				// that if this is a CSS chunk but the entry point file is not CSS. In that
+				// case use the standard extension. This happens when importing CSS into JS.
+				if _, ok := file.InputFile.Repr.(*graph.CSSRepr); ok || stdExt != c.options.OutputExtensionCSS {
+					ext = originalExt
+				} else {
+					ext = stdExt
+				}
+			} else {
+				// Otherwise, derive the output path from the input path
+				dir, base, ext = pathRelativeToOutbase(
+					&c.graph.Files[chunk.sourceIndex].InputFile,
+					c.options,
+					c.fs,
+					stdExt,
+					!file.IsUserSpecifiedEntryPoint(),
+					c.graph.EntryPoints()[chunk.entryPointBit].OutputPath,
+				)
 			}
 		} else {
 			dir = "/"

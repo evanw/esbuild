@@ -154,7 +154,7 @@ const tests = {
   },
 
   outfileNestedTest({ testDir, esbuildPathWASM }) {
-    const outfile = path.join(__dirname, 'a', 'b', 'c', 'd', 'out.js');
+    const outfile = path.join(testDir, 'a', 'b', 'c', 'd', 'out.js');
     child_process.execFileSync('node', [
       esbuildPathWASM,
       '--bundle',
@@ -173,8 +173,10 @@ const tests = {
   },
 
   metafileNestedTest({ testDir, esbuildPathWASM }) {
-    const outfile = path.join(__dirname, 'out.js');
-    const metafile = path.join(__dirname, 'a', 'b', 'c', 'd', 'meta.json');
+    const outfile = path.join(testDir, 'out.js');
+    const metafile = path.join(testDir, 'a', 'b', 'c', 'd', 'meta.json');
+    const cwd = path.join(testDir, 'a', 'b')
+    fs.mkdirSync(cwd, { recursive: true })
     child_process.execFileSync('node', [
       esbuildPathWASM,
       '--bundle',
@@ -184,7 +186,7 @@ const tests = {
       '--log-level=warning',
     ], {
       stdio: ['pipe', 'pipe', 'inherit'],
-      cwd: testDir,
+      cwd,
       input: `export default 123`,
     }).toString();
 

@@ -336,31 +336,38 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 					}
 				}
 
+				// These check for "IsNumeric" to reject "var()" since a single "var()"
+				// can substitute for multiple tokens and that messes up pattern matching
 				switch len(args) {
 				case 3:
 					// "rgba(1 2 3)" => "rgb(1, 2, 3)"
-					// "hsla(1 2% 3%)" => "rgb(1, 2%, 3%)"
-					removeAlpha = true
-					args[0].Whitespace = 0
-					args[1].Whitespace = 0
-					commaToken := p.commaToken()
-					token.Children = &[]css_ast.Token{
-						args[0], commaToken,
-						args[1], commaToken,
-						args[2],
+					// "hsla(1 2% 3%)" => "hsl(1, 2%, 3%)"
+					if args[0].Kind.IsNumeric() && args[1].Kind.IsNumeric() && args[2].Kind.IsNumeric() {
+						removeAlpha = true
+						args[0].Whitespace = 0
+						args[1].Whitespace = 0
+						commaToken := p.commaToken()
+						token.Children = &[]css_ast.Token{
+							args[0], commaToken,
+							args[1], commaToken,
+							args[2],
+						}
 					}
 
 				case 5:
 					// "rgba(1, 2, 3)" => "rgb(1, 2, 3)"
 					// "hsla(1, 2%, 3%)" => "hsl(1%, 2%, 3%)"
-					if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma {
+					if args[0].Kind.IsNumeric() && args[1].Kind == css_lexer.TComma &&
+						args[2].Kind.IsNumeric() && args[3].Kind == css_lexer.TComma &&
+						args[4].Kind.IsNumeric() {
 						removeAlpha = true
 						break
 					}
 
 					// "rgb(1 2 3 / 4%)" => "rgba(1, 2, 3, 0.04)"
 					// "hsl(1 2% 3% / 4%)" => "hsla(1, 2%, 3%, 0.04)"
-					if args[3].Kind == css_lexer.TDelimSlash {
+					if args[0].Kind.IsNumeric() && args[1].Kind.IsNumeric() && args[2].Kind.IsNumeric() &&
+						args[3].Kind == css_lexer.TDelimSlash && args[4].Kind.IsNumeric() {
 						addAlpha = true
 						args[0].Whitespace = 0
 						args[1].Whitespace = 0
@@ -377,7 +384,10 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 				case 7:
 					// "rgb(1%, 2%, 3%, 4%)" => "rgba(1%, 2%, 3%, 0.04)"
 					// "hsl(1, 2%, 3%, 4%)" => "hsla(1, 2%, 3%, 0.04)"
-					if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma && args[5].Kind == css_lexer.TComma {
+					if args[0].Kind.IsNumeric() && args[1].Kind == css_lexer.TComma &&
+						args[2].Kind.IsNumeric() && args[3].Kind == css_lexer.TComma &&
+						args[4].Kind.IsNumeric() && args[5].Kind == css_lexer.TComma &&
+						args[6].Kind.IsNumeric() {
 						addAlpha = true
 						args[6] = lowerAlphaPercentageToNumber(args[6])
 					}

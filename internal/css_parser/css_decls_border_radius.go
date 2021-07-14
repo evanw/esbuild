@@ -40,13 +40,15 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.R, decl *
 	}
 
 	tokens := decl.Value
-	split := len(tokens)
+	beforeSplit := len(tokens)
+	afterSplit := len(tokens)
 
 	// Search for the single slash if present
 	for i, t := range tokens {
 		if t.Kind == css_lexer.TDelimSlash {
-			if split == len(tokens) {
-				split = i
+			if beforeSplit == len(tokens) {
+				beforeSplit = i
+				afterSplit = i + 1
 			} else {
 				// Multiple slashes are an error
 				borderRadius.corners = [4]borderRadiusCorner{}
@@ -55,12 +57,17 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.R, decl *
 		}
 	}
 
-	// Handle the first radii
-	if split < 1 || split > 4 {
+	firstRadii, firstRadiiOk := expandTokenQuad(tokens[:beforeSplit])
+	lastRadii, lastRadiiOk := expandTokenQuad(tokens[afterSplit:])
+
+	// Stop now if the pattern wasn't matched
+	if !firstRadiiOk || (beforeSplit < afterSplit && !lastRadiiOk) {
 		borderRadius.corners = [4]borderRadiusCorner{}
 		return
 	}
-	for corner, t := range expandTokenQuad(tokens[:split]) {
+
+	// Handle the first radii
+	for corner, t := range firstRadii {
 		t.TurnLengthIntoNumberIfZero()
 		borderRadius.updateCorner(rules, corner, borderRadiusCorner{
 			firstToken:  t,
@@ -70,13 +77,8 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.R, decl *
 	}
 
 	// Handle the last radii
-	if split < len(tokens) {
-		last := tokens[split+1:]
-		if n := len(last); n < 1 || n > 4 {
-			borderRadius.corners = [4]borderRadiusCorner{}
-			return
-		}
-		for corner, t := range expandTokenQuad(last) {
+	if lastRadiiOk {
+		for corner, t := range lastRadii {
 			t.TurnLengthIntoNumberIfZero()
 			borderRadius.corners[corner].secondToken = t
 		}
@@ -93,7 +95,8 @@ func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.R, decl *c
 		borderRadius.important = decl.Important
 	}
 
-	if tokens := decl.Value; len(tokens) == 1 || len(tokens) == 2 {
+	if tokens := decl.Value; (len(tokens) == 1 && tokens[0].Kind.IsNumericOrIdent()) ||
+		(len(tokens) == 2 && tokens[0].Kind.IsNumericOrIdent() && tokens[1].Kind.IsNumericOrIdent()) {
 		firstToken := tokens[0]
 		if firstToken.TurnLengthIntoNumberIfZero() {
 			tokens[0] = firstToken
