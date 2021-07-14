@@ -29,11 +29,11 @@ snap-platform-all: cmd/esbuild/version.go
 
 snap-platform-windows:
 	cd npm/snapbuild-windows-64 && npm version "$(SNAP_ESBUILD_VERSION)" --allow-same-version
-	GOOS=windows GOARCH=amd64 go build "-ldflags=-s -w" -o npm/snapbuild-windows-64/snapshot.exe ./cmd/snapshot
+	GOOS=windows GOARCH=amd64 go build "-ldflags=-s -w" -o npm/snapbuild-windows-64/bin/snapshot.exe ./cmd/snapshot
 
 snap-platform-windows-32:
 	cd npm/snapbuild-windows-32 && npm version "$(SNAP_ESBUILD_VERSION)" --allow-same-version
-	GOOS=windows GOARCH=386 go build "-ldflags=-s -w" -o npm/snapbuild-windows-32/snapshot.exe ./cmd/snapshot
+	GOOS=windows GOARCH=386 go build "-ldflags=-s -w" -o npm/snapbuild-windows-32/bin/snapshot.exe ./cmd/snapshot
 
 snap-platform-unixlike:
 	test -n "$(GOOS)" && test -n "$(GOARCH)" && test -n "$(NPMDIR)"

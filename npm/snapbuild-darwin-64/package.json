@@ -1,6 +1,6 @@
 {
 	"name": "snapbuild-darwin-64",
-	"version": "0.0.116",
+	"version": "0.0.121",
 	"main": "bin/snapshot",
 	"description": "The macOS 64-bit binary for snapbuild, a snapshot bundler.",
 	"repository": "https://github.com/cypress-io/esbuild",

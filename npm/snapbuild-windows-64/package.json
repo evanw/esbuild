@@ -1,7 +1,7 @@
 {
 	"name": "snapbuild-windows-64",
-	"version": "0.0.116",
-	"main": "bin/snapshot",
+	"version": "0.0.121",
+	"main": "bin/snapshot.exe",
 	"description": "The Windows 64-bit binary for snapbuild, a snapshot bundler.",
 	"repository": "https://github.com/cypress-io/esbuild",
 	"license": "MIT",
