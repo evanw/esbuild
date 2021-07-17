@@ -564,35 +564,24 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		}
 
 	default:
-		// Warn about unsupported at-rules since they will be passed through
-		// unmodified and may be part of a CSS preprocessor syntax that should
-		// have been compiled away but wasn't.
-		//
-		// The list of supported at-rules that esbuild draws from is here:
-		// https://developer.mozilla.org/en-US/docs/Web/CSS/At-rule. Deprecated
-		// and Firefox-only at-rules have been removed.
-		if kind == atRuleUnknown {
-			if atToken == "namespace" {
-				// CSS namespaces are a weird feature that appears to only really be
-				// useful for styling XML. And the world has moved on from XHTML to
-				// HTML5 so pretty much no one uses CSS namespaces anymore. They are
-				// also complicated to support in a bundler because CSS namespaces are
-				// file-scoped, which means:
-				//
-				// * Default namespaces can be different in different files, in which
-				//   case some default namespaces would have to be converted to prefixed
-				//   namespaces to avoid collisions.
-				//
-				// * Prefixed namespaces from different files can use the same name, in
-				//   which case some prefixed namespaces would need to be renamed to
-				//   avoid collisions.
-				//
-				// Instead of implementing all of that for an extremely obscure feature,
-				// CSS namespaces are just explicitly not supported.
-				p.log.AddRangeWarning(&p.tracker, atRange, "\"@namespace\" rules are not supported")
-			} else {
-				p.log.AddRangeWarning(&p.tracker, atRange, fmt.Sprintf("%q is not a known rule name", "@"+atToken))
-			}
+		if kind == atRuleUnknown && atToken == "namespace" {
+			// CSS namespaces are a weird feature that appears to only really be
+			// useful for styling XML. And the world has moved on from XHTML to
+			// HTML5 so pretty much no one uses CSS namespaces anymore. They are
+			// also complicated to support in a bundler because CSS namespaces are
+			// file-scoped, which means:
+			//
+			// * Default namespaces can be different in different files, in which
+			//   case some default namespaces would have to be converted to prefixed
+			//   namespaces to avoid collisions.
+			//
+			// * Prefixed namespaces from different files can use the same name, in
+			//   which case some prefixed namespaces would need to be renamed to
+			//   avoid collisions.
+			//
+			// Instead of implementing all of that for an extremely obscure feature,
+			// CSS namespaces are just explicitly not supported.
+			p.log.AddRangeWarning(&p.tracker, atRange, "\"@namespace\" rules are not supported")
 		}
 	}
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Remove warning about bad CSS `@`-rules ([#1426](https://github.com/evanw/esbuild/issues/1426))
+
+    The CSS bundler built in to esbuild is only designed with real CSS in mind. Running other languages that compile down to CSS through esbuild without compiling them down to CSS first can be a bad idea since esbuild applies browser-style error recovery to invalid syntax and uses browser-style import order that other languages might not be expecting. This is why esbuild previously generated warnings when it encountered unknown CSS `@`-rules.
+
+    However, some people want to run other non-CSS languages through esbuild's CSS bundler anyway. So with this release, esbuild will no longer generate any warnings if you do this. But keep in mind that doing this is still potentially unsafe. Depending on the input language, using esbuild's CSS bundler to bundle non-CSS code can still potentially alter the semantics of your code.
+
 ## 0.12.15
 
 * Fix a bug with `var()` in CSS color lowering ([#1421](https://github.com/evanw/esbuild/issues/1421))

@@ -706,12 +706,13 @@ func TestBadQualifiedRules(t *testing.T) {
 }
 
 func TestAtRule(t *testing.T) {
+	expectPrinted(t, "@unknown", "@unknown;\n")
 	expectPrinted(t, "@unknown;", "@unknown;\n")
 	expectPrinted(t, "@unknown{}", "@unknown {}\n")
 	expectPrinted(t, "@unknown x;", "@unknown x;\n")
 	expectPrinted(t, "@unknown{\na: b;\nc: d;\n}", "@unknown { a: b; c: d; }\n")
 
-	expectParseError(t, "@unknown", "<stdin>: warning: \"@unknown\" is not a known rule name\n<stdin>: warning: Expected \"{\" but found end of file\n")
+	expectParseError(t, "@unknown", "<stdin>: warning: Expected \"{\" but found end of file\n")
 	expectParseError(t, "@", "<stdin>: warning: Unexpected \"@\"\n")
 	expectParseError(t, "@;", "<stdin>: warning: Unexpected \"@\"\n")
 	expectParseError(t, "@{}", "<stdin>: warning: Unexpected \"@\"\n")
