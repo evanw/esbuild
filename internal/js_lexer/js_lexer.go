@@ -319,7 +319,7 @@ func (lexer *Lexer) Raw() string {
 func (lexer *Lexer) StringLiteral() []uint16 {
 	if lexer.decodedStringLiteralOrNil == nil {
 		// Lazily decode escape sequences if needed
-		if decoded, ok, end := lexer.tryToDecodeEscapeSequences(lexer.encodedStringLiteralStart, lexer.encodedStringLiteralText); !ok {
+		if decoded, ok, end := lexer.tryToDecodeEscapeSequences(lexer.encodedStringLiteralStart, lexer.encodedStringLiteralText, true /* reportErrors */); !ok {
 			lexer.end = end
 			lexer.SyntaxError()
 		} else {
@@ -378,7 +378,7 @@ func (lexer *Lexer) CookedAndRawTemplateContents() ([]uint16, string) {
 	}
 
 	// This will return nil on failure, which will become "undefined" for the tag
-	cooked, _, _ := lexer.tryToDecodeEscapeSequences(lexer.start+1, raw)
+	cooked, _, _ := lexer.tryToDecodeEscapeSequences(lexer.start+1, raw, false /* reportErrors */)
 	return cooked, raw
 }
 
@@ -1786,7 +1786,7 @@ func (lexer *Lexer) scanIdentifierWithEscapes(kind identifierKind) (string, T) {
 	}
 
 	// Second pass: re-use our existing escape sequence parser
-	decoded, ok, end := lexer.tryToDecodeEscapeSequences(lexer.start, lexer.Raw())
+	decoded, ok, end := lexer.tryToDecodeEscapeSequences(lexer.start, lexer.Raw(), true /* reportErrors */)
 	if !ok {
 		lexer.end = end
 		lexer.SyntaxError()
@@ -2281,7 +2281,7 @@ func fixWhitespaceAndDecodeJSXEntities(text string) []uint16 {
 
 // If this fails, this returns "nil, false, end" where "end" is the value to
 // store to "lexer.end" before calling "lexer.SyntaxError()" if relevant
-func (lexer *Lexer) tryToDecodeEscapeSequences(start int, text string) ([]uint16, bool, int) {
+func (lexer *Lexer) tryToDecodeEscapeSequences(start int, text string, reportErrors bool) ([]uint16, bool, int) {
 	decoded := []uint16{}
 	i := 0
 
@@ -2451,7 +2451,7 @@ func (lexer *Lexer) tryToDecodeEscapeSequences(start int, text string) ([]uint16
 						isFirst = false
 					}
 
-					if isOutOfRange {
+					if isOutOfRange && reportErrors {
 						lexer.addRangeError(logger.Range{Loc: logger.Loc{Start: int32(start + hexStart)}, Len: int32(i - hexStart)},
 							"Unicode escape sequence is out of range")
 						panic(LexerPanic{})

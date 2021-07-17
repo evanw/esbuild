@@ -2066,6 +2066,7 @@ func TestTemplate(t *testing.T) {
 	expectParseError(t, "`\\unicode`", "<stdin>: error: Syntax error \"n\"\n")
 	expectParseError(t, "`\\unicode${x}`", "<stdin>: error: Syntax error \"n\"\n")
 	expectParseError(t, "`${x}\\unicode`", "<stdin>: error: Syntax error \"n\"\n")
+	expectParseError(t, "`\\u{10FFFFF}`", "<stdin>: error: Unicode escape sequence is out of range\n")
 
 	expectPrinted(t, "tag`\\7`", "tag`\\7`;\n")
 	expectPrinted(t, "tag`\\8`", "tag`\\8`;\n")
@@ -2077,6 +2078,7 @@ func TestTemplate(t *testing.T) {
 	expectPrinted(t, "tag`\\unicode`", "tag`\\unicode`;\n")
 	expectPrinted(t, "tag`\\unicode${x}`", "tag`\\unicode${x}`;\n")
 	expectPrinted(t, "tag`${x}\\unicode`", "tag`${x}\\unicode`;\n")
+	expectPrinted(t, "tag`\\u{10FFFFF}`", "tag`\\u{10FFFFF}`;\n")
 
 	expectPrinted(t, "tag``", "tag``;\n")
 	expectPrinted(t, "(a?.b)``", "(a?.b)``;\n")
