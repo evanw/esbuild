@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 
 	"github.com/evanw/esbuild/pkg/api"
 )
@@ -63,20 +64,22 @@ func outputFilesToJSON(result api.BuildResult) string {
 		bundleIdx = 1
 	}
 
+	p := result.OutputFiles[bundleIdx].Path
 	outputFiles := "["
 	outputFiles += fmt.Sprintf(`
     { 
       "path": "<%s>",
       "contents": "%v"
-    }`, result.OutputFiles[bundleIdx].Path, hex.EncodeToString(result.OutputFiles[bundleIdx].Contents))
+    }`, filepath.ToSlash(p), hex.EncodeToString(result.OutputFiles[bundleIdx].Contents))
 	if includedSourceMap {
 		sourcemapIdx := 0
+		p := result.OutputFiles[sourcemapIdx].Path
 		outputFiles += fmt.Sprintf(`
     ,
     { 
       "path": "<%s>",
       "contents": "%v"
-    }`, result.OutputFiles[sourcemapIdx].Path, hex.EncodeToString(result.OutputFiles[sourcemapIdx].Contents))
+    }`, filepath.ToSlash(p), hex.EncodeToString(result.OutputFiles[sourcemapIdx].Contents))
 	}
 	outputFiles += "\n  ]"
 	return outputFiles

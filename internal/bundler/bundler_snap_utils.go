@@ -14,7 +14,7 @@ func fileInfoJSON(f *file) string {
 	return fmt.Sprintf(`{
         "fullPath": "%s"
      }`,
-		f.source.KeyPath.Text,
+		filepath.ToSlash(f.source.KeyPath.Text),
 	)
 }
 
