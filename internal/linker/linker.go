@@ -2901,10 +2901,10 @@ func (c *linkerContext) markPartLiveForTreeShaking(sourceIndex uint32, partIndex
 // In this case we just pick an arbitrary but consistent order.
 func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order []uint32) {
 	visited := make(map[uint32]bool)
-	var visit func(uint32)
+	var visit func(uint32, bool)
 
 	// Include this file and all files it imports
-	visit = func(sourceIndex uint32) {
+	visit = func(sourceIndex uint32, parentIsLive bool) {
 		if visited[sourceIndex] {
 			return
 		}
@@ -2919,9 +2919,15 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 			// imports, could end up being activated by the bundle and needs its
 			// CSS to be included. This may change if/when code splitting is
 			// supported for CSS.
-			if !part.IsLive {
-				continue
-			}
+			//
+			// Note that for a CSS file imported by a JS file, liveness of the CSS file
+			// is actually determined by the JS file. CSS imports (except for pure
+			// CSS modules, which are not currently supported by esbuild) are always
+			// side-effect imports, so if the importing module is live, it's safe to
+			// assume that the CSS file it imports must also be live. Strictly speaking,
+			// the imported CSS might not actually be used, but there is no way to
+			// statically determine that.
+			importIsLive := part.IsLive
 
 			// Traverse any files imported by this part. Note that CommonJS calls
 			// to "require()" count as imports too, sort of as if the part has an
@@ -2931,19 +2937,23 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 			// this is the only way to do it.
 			for _, importRecordIndex := range part.ImportRecordIndices {
 				if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() {
-					visit(record.SourceIndex.GetIndex())
+					visit(record.SourceIndex.GetIndex(), importIsLive)
 				}
 			}
 		}
 
 		// Iterate over the associated CSS imports in postorder
 		if repr.CSSSourceIndex.IsValid() {
-			order = append(order, repr.CSSSourceIndex.GetIndex())
+			cssIndex := repr.CSSSourceIndex.GetIndex()
+			cssFile := c.graph.Files[cssIndex]
+			if parentIsLive && cssFile.IsLive {
+				order = append(order, cssIndex)
+			}
 		}
 	}
 
 	// Include all files reachable from the entry point
-	visit(entryPoint)
+	visit(entryPoint, true)
 
 	return
 }

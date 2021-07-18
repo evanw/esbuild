@@ -399,6 +399,77 @@ console.log("b");
 }
 
 ================================================================================
+TestImportCSSFromJSInPackageWithArraySideEffects
+---------- /out/entry.js ----------
+// Users/user/project/node_modules/a/a.js
+function a() {
+  console.log("a");
+}
+
+// Users/user/project/src/entry.js
+a();
+
+---------- /out/entry.css ----------
+/* Users/user/project/node_modules/z/z.css */
+.z {
+  color: black;
+}
+
+/* Users/user/project/node_modules/a/a.css */
+.a {
+  color: red;
+}
+
+================================================================================
+TestImportCSSFromJSInPackageWithEmptySideEffects
+---------- /out/entry.js ----------
+// Users/user/project/node_modules/b/b.js
+function b() {
+  console.log("b");
+}
+
+// Users/user/project/src/entry.js
+b();
+
+---------- /out/entry.css ----------
+/* Users/user/project/node_modules/b/b.css */
+.b {
+  color: blue;
+}
+
+/* Users/user/project/node_modules/z/z.css */
+.z {
+  color: black;
+}
+
+/* Users/user/project/node_modules/b/bb.css */
+.bb {
+  color: skyblue;
+}
+
+================================================================================
+TestImportCSSFromJSInPackageWithFalseSideEffects
+---------- /out/entry.js ----------
+// Users/user/project/node_modules/c/c.js
+function c() {
+  console.log("c");
+}
+
+// Users/user/project/src/entry.js
+c();
+
+---------- /out/entry.css ----------
+/* Users/user/project/node_modules/z/z.css */
+.z {
+  color: black;
+}
+
+/* Users/user/project/node_modules/c/c.css */
+.c {
+  color: yellow;
+}
+
+================================================================================
 TestMetafileCSSBundleTwoToOne
 ---------- /out/js/UOATE6K4.js ----------
 // foo/entry.js

@@ -746,6 +746,54 @@ func TestMetafileCSSBundleTwoToOne(t *testing.T) {
 	})
 }
 
+// CSS from JS via re-export where '.css' files are marked as sideEffects
+func TestImportCSSFromJSInPackageWithArraySideEffects(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import { a } from "a";
+				a();
+			`,
+			// "a.css" should get included because "a.js" is imported,
+			// but "aa.css" should not get included
+			"/Users/user/project/node_modules/a/package.json": `
+				{ "sideEffects": ["*.css"] }
+			`,
+			"/Users/user/project/node_modules/a/index.js": `
+				export * from './a';
+				export * from './aa';
+			`,
+			"/Users/user/project/node_modules/a/a.js": `
+				import "./a.css";
+				export function a() { console.log("a") }
+			`,
+			"/Users/user/project/node_modules/a/a.css": `
+				@import "z/z.css";
+				.a { color: red }
+			`,
+			"/Users/user/project/node_modules/a/aa.js": `
+				import "./aa.css";
+				export function aa() { console.log("aa") }
+			`,
+			"/Users/user/project/node_modules/a/aa.css": `
+				@import "z/z.css";
+				.aa { color: darkred }
+			`,
+			"/Users/user/project/node_modules/z/package.json": `
+				{}
+			`,
+			"/Users/user/project/node_modules/z/z.css": `
+				.z { color: black }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
 func TestDeduplicateRules(t *testing.T) {
 	// These are done as bundler tests instead of parser tests because rule
 	// deduplication now happens during linking (so that it has effects across files)
@@ -789,5 +837,102 @@ func TestDeduplicateRules(t *testing.T) {
 			MinifySyntax: true,
 		},
 		expectedScanLog: "no0.css: WARNING: CSS nesting syntax cannot be used outside of a style rule\n",
+	})
+}
+
+// CSS from JS via re-export where sideEffects is not specified
+func TestImportCSSFromJSInPackageWithEmptySideEffects(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import { b } from "b";
+				b();
+			`,
+			// Both "b.css" and "bb.css" should get included because
+			// not specifying "sideEffects" will conservatively mark
+			// any side-effect import for inclusion
+			"/Users/user/project/node_modules/b/package.json": `
+				{}
+			`,
+			"/Users/user/project/node_modules/b/index.js": `
+				export * from './b';
+				export * from './bb';
+			`,
+			"/Users/user/project/node_modules/b/b.js": `
+				import "./b.css";
+				export function b() { console.log("b") }
+			`,
+			"/Users/user/project/node_modules/b/b.css": `
+				@import "z/z.css";
+				.b { color: blue }
+			`,
+			"/Users/user/project/node_modules/b/bb.js": `
+				import "./bb.css";
+				export function bb() { console.log("bb") }
+			`,
+			"/Users/user/project/node_modules/b/bb.css": `
+				@import "z/z.css";
+				.bb { color: skyblue }
+			`,
+			"/Users/user/project/node_modules/z/package.json": `
+				{}
+			`,
+			"/Users/user/project/node_modules/z/z.css": `
+				.z { color: black }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+// CSS from JS via re-export where sideEffects is false
+func TestImportCSSFromJSInPackageWithFalseSideEffects(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import { c } from "c";
+				c();
+			`,
+			// Even though we specify "sideEffects": false, "c.css" should get
+			// included because its importing module "c.js" is included
+			"/Users/user/project/node_modules/c/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/c/index.js": `
+				export * from './c';
+				export * from './cc';
+			`,
+			"/Users/user/project/node_modules/c/c.js": `
+				import "./c.css";
+				export function c() { console.log("c") }
+			`,
+			"/Users/user/project/node_modules/c/c.css": `
+				@import "z/z.css";
+				.c { color: yellow }
+			`,
+			"/Users/user/project/node_modules/c/cc.js": `
+				import "./cc.css";
+				export function cc() { console.log("cc") }
+			`,
+			"/Users/user/project/node_modules/c/cc.css": `
+				@import "z/z.css";
+				.cc { color: goldenrod }
+			`,
+			"/Users/user/project/node_modules/z/package.json": `
+				{}
+			`,
+			"/Users/user/project/node_modules/z/z.css": `
+				.z { color: black }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
 	})
 }
