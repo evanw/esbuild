@@ -110,6 +110,7 @@ export interface OutputFile {
   path: string;
   contents: Uint8Array; // "text" as bytes
   text: string; // "contents" as text
+  isEntryPoint?: boolean;
 }
 
 export interface BuildInvalidate {
@@ -313,7 +314,8 @@ export interface Metafile {
       exports: string[]
       entryPoint?: string
     }
-  }
+  },
+  entryPoints: string[]
 }
 
 export interface FormatMessagesOptions {

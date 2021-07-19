@@ -603,6 +603,9 @@ export {
   foo
 };
 `)
+    assert.strictEqual(value.outputFiles[0].isEntryPoint, true)
+    assert.strictEqual(value.outputFiles[1].isEntryPoint, true)
+    assert.strictEqual(value.outputFiles[2].isEntryPoint, undefined)
   },
 
   async fileLoaderPublicPath({ esbuild, testDir }) {
@@ -753,6 +756,12 @@ body {
     const cwd = process.cwd()
     const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
 
+    // Check entry points
+    assert.deepStrictEqual(json.entryPoints, [
+      makePath(outputJS),
+      makePath(outputCSS)
+    ])
+
     // Check inputs
     assert.deepStrictEqual(json.inputs[makePath(entry)].bytes, 144)
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [
@@ -830,6 +839,8 @@ body {
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
+
+    assert.deepStrictEqual(json.entryPoints, [outEntry1, outEntry2])
 
     assert.deepStrictEqual(json.inputs[inEntry1], { bytes: 94, imports: [{ path: inImported, kind: 'import-statement' }] })
     assert.deepStrictEqual(json.inputs[inEntry2], { bytes: 107, imports: [{ path: inImported, kind: 'import-statement' }] })
@@ -961,6 +972,8 @@ body {
     const outImport1 = makeOutPath('import1-SELM3ZIG.js');
     const outImport2 = makeOutPath('import2-3GSTEHBF.js');
     const outChunk = makeOutPath(chunk);
+
+    assert.deepStrictEqual(json.entryPoints, [outEntry])
 
     assert.deepStrictEqual(json.inputs[inEntry], {
       bytes: 112,
@@ -1197,6 +1210,9 @@ body {
 
     // Check inputs
     assert.deepStrictEqual(json, {
+      entryPoints: [
+        makePath(output),
+      ],
       inputs: {
         [makePath(entry)]: { bytes: 98, imports: [{ path: makePath(imported), kind: 'import-rule' }] },
         [makePath(image)]: { bytes: 8, imports: [] },
@@ -1242,6 +1258,10 @@ body {
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
     const fileName = require(path.join(outdir, 'entry1.js')).default
     const fileKey = makePath(path.join(outdir, fileName))
+    assert.deepStrictEqual(json.entryPoints, [
+      makePath(path.join(outdir, 'entry1.js')),
+      makePath(path.join(outdir, 'entry2.js')),
+    ])
     assert.deepStrictEqual(json.outputs[fileKey].imports, [])
     assert.deepStrictEqual(json.outputs[fileKey].exports, [])
     assert.deepStrictEqual(json.outputs[fileKey].inputs, { [makePath(file)]: { bytesInOutput: 14 } })
@@ -1269,8 +1289,10 @@ body {
     assert.strictEqual(value.outputFiles.length, 2)
     assert.strictEqual(value.outputFiles[0].path, output + '.map')
     assert.strictEqual(value.outputFiles[0].contents.constructor, Uint8Array)
+    assert.strictEqual(value.outputFiles[0].isEntryPoint, undefined)
     assert.strictEqual(value.outputFiles[1].path, output)
     assert.strictEqual(value.outputFiles[1].contents.constructor, Uint8Array)
+    assert.strictEqual(value.outputFiles[1].isEntryPoint, true)
 
     const sourceMap = JSON.parse(Buffer.from(value.outputFiles[0].contents).toString())
     const js = Buffer.from(value.outputFiles[1].contents).toString()
@@ -1370,6 +1392,9 @@ export {
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.basename(inputA)))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.basename(inputB)))
     assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
+    assert.strictEqual(value.outputFiles[0].isEntryPoint, true)
+    assert.strictEqual(value.outputFiles[1].isEntryPoint, true)
+    assert.strictEqual(value.outputFiles[2].isEntryPoint, undefined)
   },
 
   async splittingRelativeNestedDir({ esbuild, testDir }) {
@@ -1427,6 +1452,9 @@ export {
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.relative(testDir, inputA)))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.relative(testDir, inputB)))
     assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
+    assert.strictEqual(value.outputFiles[0].isEntryPoint, true)
+    assert.strictEqual(value.outputFiles[1].isEntryPoint, true)
+    assert.strictEqual(value.outputFiles[2].isEntryPoint, undefined)
   },
 
   async splittingWithChunkPath({ esbuild, testDir }) {
@@ -1485,6 +1513,9 @@ export {
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.relative(testDir, inputA)))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.relative(testDir, inputB)))
     assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
+    assert.strictEqual(value.outputFiles[0].isEntryPoint, true)
+    assert.strictEqual(value.outputFiles[1].isEntryPoint, true)
+    assert.strictEqual(value.outputFiles[2].isEntryPoint, undefined)
   },
 
   async splittingWithEntryHashes({ esbuild, testDir }) {
@@ -1546,6 +1577,9 @@ export {
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, outputA))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, outputB))
     assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
+    assert.strictEqual(value.outputFiles[0].isEntryPoint, true)
+    assert.strictEqual(value.outputFiles[1].isEntryPoint, true)
+    assert.strictEqual(value.outputFiles[2].isEntryPoint, undefined)
   },
 
   async splittingWithChunkPathAndCrossChunkImportsIssue899({ esbuild, testDir }) {
@@ -1716,6 +1750,7 @@ export {
     })
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].path, '<stdout>')
+    assert.strictEqual(value.outputFiles[0].isEntryPoint, true)
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `(() => {
   // scripts/.js-api-tests/stdinStdoutBundle/auxiliary.js
   var auxiliary_default = 123;

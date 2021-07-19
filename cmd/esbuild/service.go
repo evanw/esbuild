@@ -929,6 +929,9 @@ func encodeOutputFiles(outputFiles []api.OutputFile) []interface{} {
 		values[i] = value
 		value["path"] = outputFile.Path
 		value["contents"] = outputFile.Contents
+		if outputFile.IsEntryPoint {
+			value["isEntryPoint"] = true
+		}
 	}
 	return values
 }

@@ -1017,8 +1017,9 @@ func rebuildImpl(
 						result.AbsPath = "<stdout>"
 					}
 					outputFiles[i] = OutputFile{
-						Path:     result.AbsPath,
-						Contents: result.Contents,
+						Path:         result.AbsPath,
+						Contents:     result.Contents,
+						IsEntryPoint: result.IsEntryPoint,
 					}
 				}
 			}

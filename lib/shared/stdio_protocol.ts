@@ -57,6 +57,7 @@ export interface BuildResponse {
 export interface BuildOutputFile {
   path: string;
   contents: Uint8Array;
+  isEntryPoint?: boolean;
 }
 
 export interface PingRequest {

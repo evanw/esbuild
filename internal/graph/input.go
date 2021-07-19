@@ -42,6 +42,7 @@ type OutputFile struct {
 	JSONMetadataChunk string
 
 	IsExecutable bool
+	IsEntryPoint bool
 }
 
 type SideEffects struct {

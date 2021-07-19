@@ -73,9 +73,10 @@ type chunkInfo struct {
 	entryBits             helpers.BitSet
 
 	// This information is only useful if "isEntryPoint" is true
-	isEntryPoint  bool
-	sourceIndex   uint32 // An index into "c.sources"
-	entryPointBit uint   // An index into "c.graph.EntryPoints"
+	isEntryPoint              bool
+	sourceIndex               uint32 // An index into "c.sources"
+	entryPointBit             uint   // An index into "c.graph.EntryPoints"
+	isUserSpecifiedEntryPoint bool
 
 	// For code splitting
 	crossChunkImports []chunkImport
@@ -490,6 +491,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 				Contents:          outputContents,
 				JSONMetadataChunk: jsonMetadataChunk,
 				IsExecutable:      chunk.isExecutable,
+				IsEntryPoint:      chunk.isUserSpecifiedEntryPoint,
 			})
 
 			results[chunkIndex] = outputFiles
@@ -2858,11 +2860,12 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		entryBits.SetBit(uint(i))
 		key := entryBits.String()
 		chunk := chunkInfo{
-			entryBits:             entryBits,
-			isEntryPoint:          true,
-			sourceIndex:           entryPoint.SourceIndex,
-			entryPointBit:         uint(i),
-			filesWithPartsInChunk: make(map[uint32]bool),
+			entryBits:                 entryBits,
+			isEntryPoint:              true,
+			isUserSpecifiedEntryPoint: file.IsUserSpecifiedEntryPoint(),
+			sourceIndex:               entryPoint.SourceIndex,
+			entryPointBit:             uint(i),
+			filesWithPartsInChunk:     make(map[uint32]bool),
 		}
 
 		switch file.InputFile.Repr.(type) {
@@ -2883,11 +2886,12 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 					cssFilesWithPartsInChunk[uint32(sourceIndex)] = true
 				}
 				cssChunks[key] = chunkInfo{
-					entryBits:             entryBits,
-					isEntryPoint:          true,
-					sourceIndex:           entryPoint.SourceIndex,
-					entryPointBit:         uint(i),
-					filesWithPartsInChunk: cssFilesWithPartsInChunk,
+					entryBits:                 entryBits,
+					isEntryPoint:              true,
+					isUserSpecifiedEntryPoint: file.IsUserSpecifiedEntryPoint(),
+					sourceIndex:               entryPoint.SourceIndex,
+					entryPointBit:             uint(i),
+					filesWithPartsInChunk:     cssFilesWithPartsInChunk,
 					chunkRepr: &chunkReprCSS{
 						externalImportsInOrder: externalOrder,
 						filesInChunkInOrder:    internalOrder,

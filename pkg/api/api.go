@@ -336,8 +336,9 @@ type BuildResult struct {
 }
 
 type OutputFile struct {
-	Path     string
-	Contents []byte
+	Path         string
+	Contents     []byte
+	IsEntryPoint bool
 }
 
 func Build(options BuildOptions) BuildResult {

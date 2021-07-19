@@ -2200,6 +2200,7 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 	// Write outputs
 	isFirst = true
 	paths := make(map[string]bool)
+	var entryPoints []string
 	for _, result := range results {
 		if len(result.JSONMetadataChunk) > 0 {
 			path := b.res.PrettyPath(logger.Path{Text: result.AbsPath, Namespace: "file"})
@@ -2216,10 +2217,26 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 			paths[path] = true
 			sb.WriteString(fmt.Sprintf("%s: ", js_printer.QuoteForJSON(path, asciiOnly)))
 			sb.WriteString(result.JSONMetadataChunk)
+			if result.IsEntryPoint {
+				entryPoints = append(entryPoints, path)
+			}
 		}
 	}
 
-	sb.WriteString("\n  }\n}\n")
+	sb.WriteString("\n  },\n  \"entryPoints\": [")
+	if len(entryPoints) > 0 {
+		isFirst = true
+		for _, entryPoint := range entryPoints {
+			if isFirst {
+				isFirst = false
+				sb.WriteString("\n    ")
+			} else {
+				sb.WriteString(",\n    ")
+			}
+			sb.WriteString(fmt.Sprintf("%s", js_printer.QuoteForJSON(entryPoint, asciiOnly)))
+		}
+	}
+	sb.WriteString("\n  ]\n}\n")
 	return sb.String()
 }
 

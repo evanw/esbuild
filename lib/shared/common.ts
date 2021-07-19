@@ -1532,7 +1532,7 @@ function sanitizeStringArray(values: any[], property: string): string[] {
   return result;
 }
 
-function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types.OutputFile {
+function convertOutputFiles({ path, contents, isEntryPoint }: protocol.BuildOutputFile): types.OutputFile {
   let text: string | null = null;
   return {
     path,
@@ -1541,5 +1541,6 @@ function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types
       if (text === null) text = protocol.decodeUTF8(contents);
       return text;
     },
+    isEntryPoint,
   }
 }
