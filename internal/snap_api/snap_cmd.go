@@ -45,7 +45,15 @@ type SnapCmdArgs struct {
 type ProcessCmdArgs = func(args *SnapCmdArgs) api.BuildResult
 
 func extractArray(arr string) []string {
-	return strings.Split(arr, ",")
+	return trimQuotes(strings.Split(arr, ","))
+}
+
+func trimQuotes(paths []string) []string {
+	replaced := make([]string, len(paths))
+	for i, p := range paths {
+		replaced[i] = strings.Trim(p, "'")
+	}
+	return replaced
 }
 
 var rx = regexp.MustCompile(`^[.]?[.]?[/]`)
@@ -130,10 +138,11 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 			cmdArgs.Basedir = arg[len("--basedir="):]
 
 		case strings.HasPrefix(arg, "--deferred="):
-			cmdArgs.Deferred = extractArray(arg[len("--deferred="):])
+			// --deferred='./foo,./bar' will include both `'` on windows, so we ensure to remove it
+			cmdArgs.Deferred = extractArray(strings.Trim(arg[len("--deferred="):], "'"))
 
 		case strings.HasPrefix(arg, "--norewrite="):
-			plains, regexs, regexMode := extractRewriteDefs(extractArray(arg[len("--norewrite="):]))
+			plains, regexs, regexMode := extractRewriteDefs(extractArray(strings.Trim(arg[len("--norewrite="):], "'")))
 			cmdArgs.Norewrite = plains
 			cmdArgs.NorewriteRx = regexs
 			cmdArgs.RegexMode = regexMode
