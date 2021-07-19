@@ -1,6 +1,6 @@
 {
 	"name": "snapbuild-linux-64",
-	"version": "0.0.122",
+	"version": "0.0.123",
 	"main": "bin/snapshot",
 	"description": "The Linux 64-bit binary for snapbuild, a snapshot bundler.",
 	"repository": "https://github.com/cypress-io/esbuild",
