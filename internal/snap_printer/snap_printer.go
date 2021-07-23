@@ -316,6 +316,10 @@ func (p *printer) addSourceMapping(loc logger.Loc) {
 // Scan over the printed text since the last source mapping and update the
 // generated line and column numbers
 func (p *printer) updateGeneratedLineAndColumn() {
+	// I don't know why this could ever be the case but encountered it when bundling the Cypress app
+	if p.lastGeneratedUpdate >= len(p.js) {
+		return
+	}
 	for i, c := range string(p.js[p.lastGeneratedUpdate:]) {
 		switch c {
 		case '\r', '\n', '\u2028', '\u2029':
