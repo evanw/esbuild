@@ -247,6 +247,7 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 	switch options.Platform {
 	case config.PlatformBrowser:
 		esmConditionsDefault["browser"] = true
+		esmConditionsDefault["module"] = true;
 	case config.PlatformNode:
 		esmConditionsDefault["node"] = true
 	}
