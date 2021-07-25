@@ -8,6 +8,10 @@
 
     However, some people want to run other non-CSS languages through esbuild's CSS bundler anyway. So with this release, esbuild will no longer generate any warnings if you do this. But keep in mind that doing this is still potentially unsafe. Depending on the input language, using esbuild's CSS bundler to bundle non-CSS code can still potentially alter the semantics of your code.
 
+* Allow `ES2021` in `tsconfig.json` ([#1470](https://github.com/evanw/esbuild/issues/1470))
+
+    TypeScript recently [added support for `ES2021`](https://github.com/microsoft/TypeScript/pull/41239) in `tsconfig.json` so esbuild now supports this too. This has the same effect as if you passed `--target=es2021` to esbuild. Keep in mind that the value of `target` in `tsconfig.json` is only respected if you did not pass a `--target=` value to esbuild.
+
 ## 0.12.15
 
 * Fix a bug with `var()` in CSS color lowering ([#1421](https://github.com/evanw/esbuild/issues/1421))
