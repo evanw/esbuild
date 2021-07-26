@@ -22,6 +22,21 @@ if (process.env.ESBUILD_WORKER_THREADS !== '0') {
     worker_threads = require('worker_threads');
   } catch {
   }
+
+  // Creating a worker in certain node versions doesn't work. The specific
+  // error is "TypeError: MessagePort was found in message but not listed
+  // in transferList". See: https://github.com/nodejs/node/issues/32250.
+  // We just pretend worker threads are unavailable in these cases.
+  let [major, minor] = process.versions.node.split('.');
+  if (
+    // <v12.17.0 does not work
+    +major < 12 || (+major === 12 && +minor < 17)
+
+    // >=v13.0.0 && <v13.13.0 also does not work
+    || (+major === 13 && +minor < 13)
+  ) {
+    worker_threads = void 0;
+  }
 }
 
 // This should only be true if this is our internal worker thread. We want this

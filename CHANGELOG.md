@@ -12,6 +12,12 @@
 
     TypeScript recently [added support for `ES2021`](https://github.com/microsoft/TypeScript/pull/41239) in `tsconfig.json` so esbuild now supports this too. This has the same effect as if you passed `--target=es2021` to esbuild. Keep in mind that the value of `target` in `tsconfig.json` is only respected if you did not pass a `--target=` value to esbuild.
 
+* Avoid using the `worker_threads` optimization in certain old node versions ([#1462](https://github.com/evanw/esbuild/issues/1462))
+
+    The `worker_threads` optimization makes esbuild's synchronous API calls go much faster than they would otherwise. However, it turns out this optimization cannot be used in certain node versions older than `v12.17.0`, where node throws an error when trying to create the worker. This optimization is now disabled in these scenarios.
+
+    Note that these old node versions are [currently in maintenance](https://nodejs.org/en/about/releases/). I recommend upgrading to a modern version of node if run-time performance is important to you.
+
 ## 0.12.15
 
 * Fix a bug with `var()` in CSS color lowering ([#1421](https://github.com/evanw/esbuild/issues/1421))
