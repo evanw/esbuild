@@ -150,6 +150,7 @@ type Bundle struct {
 	res         resolver.Resolver
 	files       []file
 	entryPoints []entryMeta
+	resolverMap map[string]string
 }
 
 type parseArgs struct {
@@ -174,6 +175,7 @@ type parseArgs struct {
 type parseResult struct {
 	file           file
 	resolveResults []*resolver.ResolveResult
+	resolveMap     *map[string]string
 	tlaCheck       tlaCheck
 	ok             bool
 }
@@ -432,6 +434,8 @@ func parseFile(args parseArgs) {
 
 		if len(records) > 0 {
 			resolverCache := make(map[ast.ImportKind]map[string]*resolver.ResolveResult)
+			resolveMap := make(map[string]string)
+			result.resolveMap = &resolveMap
 
 			for importRecordIndex := range records {
 				// Don't try to resolve imports that are already resolved
@@ -457,6 +461,7 @@ func parseFile(args parseArgs) {
 					continue
 				}
 				var resolveResult *resolver.ResolveResult
+				var resolveKeyVal *ResolveKeyVal
 				var didLogError bool
 				var debug resolver.DebugMeta
 
@@ -485,7 +490,7 @@ func parseFile(args parseArgs) {
 					debug = resolver.DebugMeta{}
 				} else {
 					// Run the resolver and log an error if the path couldn't be resolved
-					resolveResult, didLogError, debug = runOnResolvePlugins(
+					resolveResult, didLogError, debug, resolveKeyVal = runOnResolvePlugins(
 						args.options.Plugins,
 						args.res,
 						args.log,
@@ -501,6 +506,9 @@ func parseFile(args parseArgs) {
 					)
 				}
 				cache[record.Path.Text] = resolveResult
+				if resolveKeyVal != nil {
+					(*result.resolveMap)[resolveKeyVal.key] = resolveKeyVal.val
+				}
 
 				// All "require.resolve()" imports should be external because we don't
 				// want to waste effort traversing into them
@@ -731,6 +739,11 @@ func logPluginMessages(
 	return didLogError
 }
 
+type ResolveKeyVal struct {
+	key string
+	val string
+}
+
 func runOnResolvePlugins(
 	plugins []config.Plugin,
 	res resolver.Resolver,
@@ -744,7 +757,7 @@ func runOnResolvePlugins(
 	kind ast.ImportKind,
 	absResolveDir string,
 	pluginData interface{},
-) (*resolver.ResolveResult, bool, resolver.DebugMeta) {
+) (*resolver.ResolveResult, bool, resolver.DebugMeta, *ResolveKeyVal) {
 	resolverArgs := config.OnResolveArgs{
 		Path:       path,
 		ResolveDir: absResolveDir,
@@ -785,7 +798,7 @@ func runOnResolvePlugins(
 
 			// Stop now if there was an error
 			if didLogError {
-				return nil, true, resolver.DebugMeta{}
+				return nil, true, resolver.DebugMeta{}, nil
 			}
 
 			// The "file" namespace is the default for non-external paths, but not
@@ -814,14 +827,17 @@ func runOnResolvePlugins(
 					log.AddRangeError(importSource, importPathRange,
 						fmt.Sprintf("Plugin %q returned a non-absolute path: %s (set a namespace if this is not a file path)", pluginName, result.Path.Text))
 				}
-				return nil, true, resolver.DebugMeta{}
+				return nil, true, resolver.DebugMeta{}, nil
 			}
+
+			key := fmt.Sprintf("%s:%s", absResolveDir, path)
+			val := result.Path.Text
 
 			return &resolver.ResolveResult{
 				PathPair:   resolver.PathPair{Primary: result.Path},
 				IsExternal: result.External,
 				PluginData: result.PluginData,
-			}, false, resolver.DebugMeta{}
+			}, false, resolver.DebugMeta{}, &ResolveKeyVal{key, val}
 		}
 	}
 
@@ -840,7 +856,23 @@ func runOnResolvePlugins(
 		))
 	}
 
-	return result, false, debug
+	if result == nil {
+		return result, false, debug, nil
+	}
+
+	// Collect resolver information to use at runtime
+	main := result.PathPair.Primary
+	if result.PathPair.HasSecondary() {
+		main = result.PathPair.Secondary
+	}
+	if filepath.IsAbs(path) || resolver.BuiltInNodeModules[path] || !filepath.IsAbs(main.Text) {
+		return result, false, debug, nil
+	} else {
+		relResolveDir, _ := filepath.Rel(res.SnapshotAbsBaseDir(), absResolveDir)
+		key := fmt.Sprintf("%s***%s", relResolveDir, path)
+		val, _ := filepath.Rel(res.SnapshotAbsBaseDir(), main.Text)
+		return result, false, debug, &ResolveKeyVal{key, val}
+	}
 }
 
 type loaderPluginResult struct {
@@ -1072,11 +1104,22 @@ func ScanBundle(
 		log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Ended the scan phase (%dms)", time.Since(start).Milliseconds()))
 	}
 
+	resolverMap := make(map[string]string)
+	for _, result := range s.results {
+		if result.resolveMap == nil {
+			continue
+		}
+		for key, val := range *result.resolveMap {
+			resolverMap[key] = val
+		}
+	}
+
 	return Bundle{
 		fs:          fs,
 		res:         res,
 		files:       files,
 		entryPoints: entryPointMeta,
+		resolverMap: resolverMap,
 	}
 }
 
@@ -1373,7 +1416,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []entryMeta {
 			}
 
 			// Run the resolver and log an error if the path couldn't be resolved
-			resolveResult, didLogError, debug := runOnResolvePlugins(
+			resolveResult, didLogError, debug, _ := runOnResolvePlugins(
 				s.options.Plugins,
 				s.res,
 				s.log,
@@ -2190,7 +2233,22 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile, allReachableFiles []
 		}
 	}
 
-	sb.WriteString("\n  }\n}\n")
+	sb.WriteString("\n  },\n")
+
+	// Write resolver mappings
+	lastIdx := len(b.resolverMap) - 1
+	idx := 0
+	comma := ","
+	sb.WriteString("\"resolverMap\": {\n")
+	for key, val := range b.resolverMap {
+		if idx == lastIdx {
+			comma = ""
+		}
+		sb.WriteString(fmt.Sprintf("    \"%s\": \"%s\"%s\n", key, val, comma))
+		idx++
+
+	}
+	sb.WriteString("  }\n}\n")
 	return sb.String()
 }
 
