@@ -2351,6 +2351,23 @@ func TestAutoExternal(t *testing.T) {
 	})
 }
 
+func TestAutoExternalNode(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// These URLs should be external automatically
+				import fs from "node:fs/promises";
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			Platform:     config.PlatformNode,
+		},
+	})
+}
+
 func TestExternalWithWildcard(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

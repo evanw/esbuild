@@ -134,6 +134,12 @@ import "//example.com/code.js";
 import "data:application/javascript;base64,ZXhwb3J0IGRlZmF1bHQgMTIz";
 
 ================================================================================
+TestAutoExternalNode
+---------- /out/entry.js ----------
+// entry.js
+import fs from "node:fs/promises";
+
+================================================================================
 TestAvoidTDZ
 ---------- /out.js ----------
 // entry.js

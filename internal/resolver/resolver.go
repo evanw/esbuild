@@ -292,7 +292,10 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		strings.HasPrefix(importPath, "https://") ||
 
 		// "background: url(//example.com/images/image.png);"
-		strings.HasPrefix(importPath, "//") {
+		strings.HasPrefix(importPath, "//") ||
+
+		// "import fs from 'node:fs'"
+		(r.options.Platform == config.PlatformNode && strings.HasPrefix(importPath, "node:")) {
 
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Marking this path as implicitly external")
