@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.16
 
 * Remove warning about bad CSS `@`-rules ([#1426](https://github.com/evanw/esbuild/issues/1426))
 
