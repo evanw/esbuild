@@ -26,6 +26,12 @@
 
     With this release, esbuild's built-in resolver will now automatically consider all import paths starting with `node:` as external. This new behavior is only active when the current platform is set to node such as with `--platform=node`. If you need to customize this behavior, you can write a plugin to intercept these paths and treat them differently.
 
+* Consider `\` and `/` to be the same in file paths ([#1459](https://github.com/evanw/esbuild/issues/1459))
+
+    On Windows, there are many different file paths that can refer to the same underlying file. Windows uses a case-insensitive file system so for example `foo.js` and `Foo.js` are the same file. When bundling, esbuild needs to treat both of these paths as the same to avoid incorrectly bundling the file twice. This is case is already handled by identifying files by their lower-case file path.
+
+    The case that wasn't being handled is the fact that Windows supports two different path separators, `/` and `\`, both of which mean the same thing. For example `foo/bar.js` and `foo\bar.js` are the same file. With this release, this case is also handled by esbuild. Files that are imported in multiple places with inconsistent path separators will now be considered the same file instead of bundling the file multiple times.
+
 ## 0.12.15
 
 * Fix a bug with `var()` in CSS color lowering ([#1421](https://github.com/evanw/esbuild/issues/1421))

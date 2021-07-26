@@ -898,11 +898,12 @@ func loaderFromFileExtension(extensionToLoader map[string]config.Loader, base st
 	return config.LoaderNone
 }
 
-// Identify the path by its lowercase absolute path name. This should
-// hopefully avoid path case issues on Windows, which has case-insensitive
-// file system paths.
-func lowerCaseAbsPathForWindows(absPath string) string {
-	return strings.ToLower(absPath)
+// Identify the path by its lowercase absolute path name with Windows-specific
+// slashes substituted for standard slashes. This should hopefully avoid path
+// issues on Windows where multiple different paths can refer to the same
+// underlying file.
+func canonicalFileSystemPathForWindows(absPath string) string {
+	return strings.ReplaceAll(strings.ToLower(absPath), "\\", "/")
 }
 
 func hashForFileName(hashBytes []byte) string {
@@ -1042,7 +1043,7 @@ func (s *scanner) maybeParseFile(
 	path := resolveResult.PathPair.Primary
 	visitedKey := path
 	if visitedKey.Namespace == "file" {
-		visitedKey.Text = lowerCaseAbsPathForWindows(visitedKey.Text)
+		visitedKey.Text = canonicalFileSystemPathForWindows(visitedKey.Text)
 	}
 
 	// Only parse a given file path once
@@ -1209,14 +1210,14 @@ func (s *scanner) preprocessInjectedFiles() {
 	j := 0
 	for _, absPath := range s.options.InjectAbsPaths {
 		prettyPath := s.res.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
-		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
+		absPathKey := canonicalFileSystemPathForWindows(absPath)
 
-		if duplicateInjectedFiles[lowerAbsPath] {
+		if duplicateInjectedFiles[absPathKey] {
 			s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate injected file %q", prettyPath))
 			continue
 		}
 
-		duplicateInjectedFiles[lowerAbsPath] = true
+		duplicateInjectedFiles[absPathKey] = true
 		resolveResult := s.res.ResolveAbs(absPath)
 
 		if resolveResult == nil {
@@ -1596,7 +1597,7 @@ func (s *scanner) processScannedFiles() []scannerFile {
 				if resolveResult.PathPair.HasSecondary() {
 					secondaryKey := resolveResult.PathPair.Secondary
 					if secondaryKey.Namespace == "file" {
-						secondaryKey.Text = lowerCaseAbsPathForWindows(secondaryKey.Text)
+						secondaryKey.Text = canonicalFileSystemPathForWindows(secondaryKey.Text)
 					}
 					if secondarySourceIndex, ok := s.visited[secondaryKey]; ok {
 						record.SourceIndex = ast.MakeIndex32(secondarySourceIndex)
@@ -1656,7 +1657,7 @@ func (s *scanner) processScannedFiles() []scannerFile {
 						} else if !css.JSSourceIndex.IsValid() {
 							stubKey := otherFile.inputFile.Source.KeyPath
 							if stubKey.Namespace == "file" {
-								stubKey.Text = lowerCaseAbsPathForWindows(stubKey.Text)
+								stubKey.Text = canonicalFileSystemPathForWindows(stubKey.Text)
 							}
 							sourceIndex := s.allocateSourceIndex(stubKey, cache.SourceIndexJSStubForCSS)
 							source := logger.Source{
@@ -2008,13 +2009,13 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 			for _, sourceIndex := range allReachableFiles {
 				keyPath := b.files[sourceIndex].inputFile.Source.KeyPath
 				if keyPath.Namespace == "file" {
-					lowerAbsPath := lowerCaseAbsPathForWindows(keyPath.Text)
-					sourceAbsPaths[lowerAbsPath] = sourceIndex
+					absPathKey := canonicalFileSystemPathForWindows(keyPath.Text)
+					sourceAbsPaths[absPathKey] = sourceIndex
 				}
 			}
 			for _, outputFile := range outputFiles {
-				lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
-				if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
+				absPathKey := canonicalFileSystemPathForWindows(outputFile.AbsPath)
+				if sourceIndex, ok := sourceAbsPaths[absPathKey]; ok {
 					hint := ""
 					switch logger.API {
 					case logger.CLIAPI:
@@ -2040,12 +2041,12 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 		outputFileMap := make(map[string][]byte)
 		end := 0
 		for _, outputFile := range outputFiles {
-			lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
-			contents, ok := outputFileMap[lowerAbsPath]
+			absPathKey := canonicalFileSystemPathForWindows(outputFile.AbsPath)
+			contents, ok := outputFileMap[absPathKey]
 
 			// If this isn't a duplicate, keep the output file
 			if !ok {
-				outputFileMap[lowerAbsPath] = outputFile.Contents
+				outputFileMap[absPathKey] = outputFile.Contents
 				outputFiles[end] = outputFile
 				end++
 				continue

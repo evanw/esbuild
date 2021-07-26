@@ -60,6 +60,30 @@ let buildTests = {
     }
   },
 
+  async windowsBackslashPathTest({ esbuild, testDir }) {
+    let entry = path.join(testDir, 'entry.js');
+    let nested = path.join(testDir, 'nested.js');
+    let outfile = path.join(testDir, 'out.js');
+
+    // On Windows, backslash and forward slash should be treated the same
+    fs.writeFileSync(entry, `
+      import ${JSON.stringify(nested)}
+      import ${JSON.stringify(nested.split(path.sep).join('/'))}
+    `);
+    fs.writeFileSync(nested, `console.log('once')`);
+
+    const result = await esbuild.build({
+      entryPoints: [entry],
+      outfile,
+      bundle: true,
+      write: false,
+      minify: true,
+      format: 'esm',
+    })
+
+    assert.strictEqual(result.outputFiles[0].text, 'console.log("once");\n')
+  },
+
   async workingDirTest({ esbuild, testDir }) {
     let aDir = path.join(testDir, 'a');
     let bDir = path.join(testDir, 'b');
