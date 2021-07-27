@@ -149,6 +149,7 @@ type Resolver interface {
 	// This tries to run "Resolve" on a package path as a relative path. If
 	// successful, the user just forgot a leading "./" in front of the path.
 	ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult
+	SnapshotAbsBaseDir() string
 }
 
 type resolver struct {
@@ -260,6 +261,10 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 		esmConditionsImport:    esmConditionsImport,
 		esmConditionsRequire:   esmConditionsRequire,
 	}
+}
+
+func (rr *resolver) SnapshotAbsBaseDir() string {
+	return rr.options.SnapshotAbsBaseDir
 }
 
 func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) (*ResolveResult, DebugMeta) {
