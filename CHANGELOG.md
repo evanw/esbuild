@@ -1,5 +1,65 @@
 # Changelog
 
+## Unreleased
+
+* Fix a hoisting bug in the bundler ([#1455](https://github.com/evanw/esbuild/issues/1455))
+
+    This release fixes a bug where variables declared using `var` inside of top-level `for` loop initializers were not hoisted inside lazily-initialized ES modules (such as those that are generated when bundling code that loads an ES module using `require`). This meant that hoisted function declarations incorrectly didn't have access to these loop variables:
+
+    ```js
+    // entry.js
+    console.log(require('./esm-file').test())
+
+    // esm-file.js
+    for (var i = 0; i < 10; i++) ;
+    export function test() { return i }
+    ```
+
+    Old output (incorrect):
+
+    ```js
+    // esm-file.js
+    var esm_file_exports = {};
+    __export(esm_file_exports, {
+      test: () => test
+    });
+    function test() {
+      return i;
+    }
+    var init_esm_file = __esm({
+      "esm-file.js"() {
+        for (var i = 0; i < 10; i++)
+          ;
+      }
+    });
+
+    // entry.js
+    console.log((init_esm_file(), esm_file_exports).test());
+    ```
+
+    New output (correct):
+
+    ```js
+    // esm-file.js
+    var esm_file_exports = {};
+    __export(esm_file_exports, {
+      test: () => test
+    });
+    function test() {
+      return i;
+    }
+    var i;
+    var init_esm_file = __esm({
+      "esm-file.js"() {
+        for (i = 0; i < 10; i++)
+          ;
+      }
+    });
+
+    // entry.js
+    console.log((init_esm_file(), esm_file_exports).test());
+    ```
+
 ## 0.12.16
 
 * Remove warning about bad CSS `@`-rules ([#1426](https://github.com/evanw/esbuild/issues/1426))

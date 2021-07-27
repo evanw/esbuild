@@ -2553,6 +2553,67 @@
     }),
   )
 
+  // Test hoisting variables inside for loop initializers outside of lazy ESM
+  // wrappers. Previously this didn't work due to a bug that considered for
+  // loop initializers to already be in the top-level scope. For more info
+  // see: https://github.com/evanw/esbuild/issues/1455.
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        if (require('./nested').foo() !== 10) throw 'fail'
+      `,
+      'nested.js': `
+        for (var i = 0; i < 10; i++) ;
+        export function foo() { return i }
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        if (require('./nested').foo() !== 'c') throw 'fail'
+      `,
+      'nested.js': `
+        for (var i in {a: 1, b: 2, c: 3}) ;
+        export function foo() { return i }
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        if (require('./nested').foo() !== 3) throw 'fail'
+      `,
+      'nested.js': `
+        for (var i of [1, 2, 3]) ;
+        export function foo() { return i }
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle', '--target=es6'], {
+      'in.js': `
+        if (JSON.stringify(require('./nested').foo()) !== '{"b":2,"c":3}') throw 'fail'
+      `,
+      'nested.js': `
+        for (var {a, ...i} = {a: 1, b: 2, c: 3}; 0; ) ;
+        export function foo() { return i }
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle', '--target=es6'], {
+      'in.js': `
+        if (JSON.stringify(require('./nested').foo()) !== '{"0":"c"}') throw 'fail'
+      `,
+      'nested.js': `
+        for (var {a, ...i} in {a: 1, b: 2, c: 3}) ;
+        export function foo() { return i }
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle', '--target=es6'], {
+      'in.js': `
+        if (JSON.stringify(require('./nested').foo()) !== '{"b":2,"c":3}') throw 'fail'
+      `,
+      'nested.js': `
+        for (var {a, ...i} of [{a: 1, b: 2, c: 3}]) ;
+        export function foo() { return i }
+      `,
+    }),
+  )
+
   // Test tree shaking
   tests.push(
     // Keep because used (ES6)

@@ -997,12 +997,14 @@ TestLowerStrictModeSyntax
 // for-in.js
 if (test) {
   a = b;
-  for (var a in {})
+  for (a in {})
     ;
 }
+var a;
 x = y;
-for (var x in {})
+for (x in {})
   ;
+var x;
 
 ================================================================================
 TestLowerTemplateObject

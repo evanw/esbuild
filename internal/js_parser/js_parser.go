@@ -8881,9 +8881,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			s.UpdateOrNil = p.visitExpr(s.UpdateOrNil)
 		}
 		s.Body = p.visitLoopBody(s.Body)
-		p.popScope()
 
-		// Potentially relocate "var" declarations to the top level
+		// Potentially relocate "var" declarations to the top level. Note that this
+		// must be done inside the scope of the for loop or they won't be relocated.
 		if s.InitOrNil.Data != nil {
 			if init, ok := s.InitOrNil.Data.(*js_ast.SLocal); ok && init.Kind == js_ast.LocalVar {
 				if assign, ok := p.maybeRelocateVarsToTopLevel(init.Decls, relocateVarsNormal); ok {
@@ -8896,6 +8896,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 		}
 
+		p.popScope()
+
 		if p.options.mangleSyntax {
 			mangleFor(s)
 		}
@@ -8905,8 +8907,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.visitForLoopInit(s.Init, true)
 		s.Value = p.visitExpr(s.Value)
 		s.Body = p.visitLoopBody(s.Body)
-		p.popScope()
-		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 
 		// Check for a variable initializer
 		if local, ok := s.Init.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalVar && len(local.Decls) == 1 {
@@ -8923,26 +8923,33 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 		}
 
-		// Potentially relocate "var" declarations to the top level
+		// Potentially relocate "var" declarations to the top level. Note that this
+		// must be done inside the scope of the for loop or they won't be relocated.
 		if init, ok := s.Init.Data.(*js_ast.SLocal); ok && init.Kind == js_ast.LocalVar {
 			if replacement, ok := p.maybeRelocateVarsToTopLevel(init.Decls, relocateVarsForInOrForOf); ok {
 				s.Init = replacement
 			}
 		}
+
+		p.popScope()
+
+		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 
 	case *js_ast.SForOf:
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)
 		p.visitForLoopInit(s.Init, true)
 		s.Value = p.visitExpr(s.Value)
 		s.Body = p.visitLoopBody(s.Body)
-		p.popScope()
 
-		// Potentially relocate "var" declarations to the top level
+		// Potentially relocate "var" declarations to the top level. Note that this
+		// must be done inside the scope of the for loop or they won't be relocated.
 		if init, ok := s.Init.Data.(*js_ast.SLocal); ok && init.Kind == js_ast.LocalVar {
 			if replacement, ok := p.maybeRelocateVarsToTopLevel(init.Decls, relocateVarsForInOrForOf); ok {
 				s.Init = replacement
 			}
 		}
+
+		p.popScope()
 
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 

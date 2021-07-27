@@ -583,21 +583,31 @@ export {
 TestVarRelocatingBundle
 ---------- /out/top-level.js ----------
 // top-level.js
-for (var b; 0; )
+for (; 0; )
   ;
-for (var { c, x: [d] } = {}; 0; )
+var b;
+for ({ c, x: [d] } = {}; 0; )
   ;
-for (var e of [])
+var c;
+var d;
+for (e of [])
   ;
-for (var { f, x: [g] } of [])
+var e;
+for ({ f, x: [g] } of [])
   ;
-for (var h in {})
+var f;
+var g;
+for (h in {})
   ;
+var h;
 i = 1;
-for (var i in {})
+for (i in {})
   ;
-for (var { j, x: [k] } in {})
+var i;
+for ({ j, x: [k] } in {})
   ;
+var j;
+var k;
 
 ---------- /out/nested.js ----------
 // nested.js
