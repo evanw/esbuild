@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"runtime/debug"
 	"strings"
@@ -201,7 +202,8 @@ func main() {
 	}
 
 	// Print help text when there are no arguments
-	if len(osArgs) == 0 && logger.GetTerminalInfo(os.Stdin).IsTTY {
+	isStdinTTY := logger.GetTerminalInfo(os.Stdin).IsTTY
+	if len(osArgs) == 0 && isStdinTTY {
 		logger.PrintText(os.Stdout, logger.LevelSilent, osArgs, helpText)
 		os.Exit(0)
 	}
@@ -253,20 +255,46 @@ func main() {
 			}
 		} else {
 			// Don't disable the GC if this is a long-running process
-			isServe := false
+			isServeOrWatch := false
 			for _, arg := range osArgs {
 				if arg == "--serve" || arg == "--watch" || strings.HasPrefix(arg, "--serve=") {
-					isServe = true
+					isServeOrWatch = true
 					break
 				}
 			}
 
-			// Disable the GC since we're just going to allocate a bunch of memory
-			// and then exit anyway. This speedup is not insignificant. Make sure to
-			// only do this here once we know that we're not going to be a long-lived
-			// process though.
-			if !isServe {
+			if !isServeOrWatch {
+				// Disable the GC since we're just going to allocate a bunch of memory
+				// and then exit anyway. This speedup is not insignificant. Make sure to
+				// only do this here once we know that we're not going to be a long-lived
+				// process though.
 				debug.SetGCPercent(-1)
+			} else if !isStdinTTY {
+				// If stdin isn't a TTY, watch stdin and abort in case it is closed.
+				// This is necessary when the esbuild binary executable is invoked via
+				// the Erlang VM, which doesn't provide a way to exit a child process.
+				// See: https://github.com/brunch/brunch/issues/920.
+				//
+				// We don't do this when stdin is a TTY because that interferes with
+				// the Unix background job system. If we read from stdin then Ctrl+Z
+				// to move the process to the background will incorrectly cause the
+				// job to stop. See: https://github.com/brunch/brunch/issues/998.
+				go func() {
+					// This just discards information from stdin because we don't use
+					// it and we can avoid unnecessarily allocating space for it
+					buffer := make([]byte, 512)
+					for {
+						_, err := os.Stdin.Read(buffer)
+						if err != nil {
+							// Only exit cleanly if stdin was closed cleanly
+							if err == io.EOF {
+								os.Exit(0)
+							} else {
+								os.Exit(1)
+							}
+						}
+					}
+				}()
 			}
 
 			exitCode = cli.Run(osArgs)
