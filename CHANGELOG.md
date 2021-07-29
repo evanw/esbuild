@@ -104,6 +104,14 @@
     console.log((init_esm_file(), esm_file_exports).test());
     ```
 
+* The CLI now stops watch and serve mode when stdin is closed ([#1449](https://github.com/evanw/esbuild/pull/1449))
+
+    To facilitate esbuild being called from the Erlang VM, esbuild's command-line interface will now exit when in `--watch` or `--serve` mode if stdin is closed. This change is necessary because the Erlang VM doesn't have an API for terminating a child process, so it instead closes stdin to indicate that the process is no longer needed.
+
+    Note that this only happens when stdin is not a TTY (i.e. only when the CLI is being used non-interactively) to avoid disrupting the use case of manually moving esbuild to a background job using a Unix terminal.
+
+    This change was contributed by [@josevalim](https://github.com/josevalim).
+
 ## 0.12.16
 
 * Remove warning about bad CSS `@`-rules ([#1426](https://github.com/evanw/esbuild/issues/1426))
