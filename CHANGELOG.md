@@ -104,6 +104,55 @@
     console.log((init_esm_file(), esm_file_exports).test());
     ```
 
+* Fix a code generation bug for private methods ([#1424](https://github.com/evanw/esbuild/issues/1424))
+
+    This release fixes a bug where when private methods are transformed and the target environment is one that supports private methods (such as `esnext`), the member function name was uninitialized and took on the zero value by default. This resulted in the member function name becoming `__create` instead of the correct name since that's the name of the symbol at index 0. Now esbuild always generates a private method symbol even when private methods are supported, so this is no longer an issue:
+
+    ```js
+    // Original code
+    class Foo {
+      #a() { return 'a' }
+      #b() { return 'b' }
+      static c
+    }
+
+    // Old output
+    var _a, __create, _b, __create;
+    var Foo = class {
+      constructor() {
+        __privateAdd(this, _a);
+        __privateAdd(this, _b);
+      }
+    };
+    _a = new WeakSet();
+    __create = function() {
+      return "a";
+    };
+    _b = new WeakSet();
+    __create = function() {
+      return "b";
+    };
+    __publicField(Foo, "c");
+
+    // New output
+    var _a, a_fn, _b, b_fn;
+    var Foo = class {
+      constructor() {
+        __privateAdd(this, _a);
+        __privateAdd(this, _b);
+      }
+    };
+    _a = new WeakSet();
+    a_fn = function() {
+      return "a";
+    };
+    _b = new WeakSet();
+    b_fn = function() {
+      return "b";
+    };
+    __publicField(Foo, "c");
+    ```
+
 * The CLI now stops watch and serve mode when stdin is closed ([#1449](https://github.com/evanw/esbuild/pull/1449))
 
     To facilitate esbuild being called from the Erlang VM, esbuild's command-line interface will now exit when in `--watch` or `--serve` mode if stdin is closed. This change is necessary because the Erlang VM doesn't have an API for terminating a child process, so it instead closes stdin to indicate that the process is no longer needed.

@@ -1571,3 +1571,25 @@ func TestLowerTemplateObject(t *testing.T) {
 		},
 	})
 }
+
+// See https://github.com/evanw/esbuild/issues/1424 for more information
+func TestLowerPrivateClassFieldStaticIssue1424(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class T {
+					#a() { return 'a'; }
+					#b() { return 'b'; }
+					static c;
+					d() { console.log(this.#a()); }
+				}
+				new T().d();
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

@@ -342,6 +342,31 @@ _foo = new WeakMap();
 console.log(new Foo().bar === 123);
 
 ================================================================================
+TestLowerPrivateClassFieldStaticIssue1424
+---------- /out.js ----------
+// entry.js
+var _a, a_fn, _b, b_fn;
+var T = class {
+  constructor() {
+    __privateAdd(this, _a);
+    __privateAdd(this, _b);
+  }
+  d() {
+    console.log(__privateMethod(this, _a, a_fn).call(this));
+  }
+};
+_a = new WeakSet();
+a_fn = function() {
+  return "a";
+};
+_b = new WeakSet();
+b_fn = function() {
+  return "b";
+};
+__publicField(T, "c");
+new T().d();
+
+================================================================================
 TestLowerPrivateClassMethodOrder
 ---------- /out.js ----------
 var _foo, foo_fn;

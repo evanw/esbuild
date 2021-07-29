@@ -2159,13 +2159,11 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 				p.log.AddRangeError(&p.tracker, keyRange, fmt.Sprintf("Invalid method name %q", name))
 			}
 			private.Ref = p.declareSymbol(declare, key.Loc, name)
-			if p.options.unsupportedJSFeatures.Has(declare.Feature()) {
-				methodRef := p.newSymbol(js_ast.SymbolOther, name[1:]+suffix)
-				if kind == js_ast.PropertySet {
-					p.privateSetters[private.Ref] = methodRef
-				} else {
-					p.privateGetters[private.Ref] = methodRef
-				}
+			methodRef := p.newSymbol(js_ast.SymbolOther, name[1:]+suffix)
+			if kind == js_ast.PropertySet {
+				p.privateSetters[private.Ref] = methodRef
+			} else {
+				p.privateGetters[private.Ref] = methodRef
 			}
 		}
 
