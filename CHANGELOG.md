@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.17
 
 * Fix a bug with private fields and logical assignment operators ([#1418](https://github.com/evanw/esbuild/issues/1418))
 
