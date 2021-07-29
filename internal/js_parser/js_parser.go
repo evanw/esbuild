@@ -11265,18 +11265,18 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpNullishCoalescingAssign:
-			if p.options.unsupportedJSFeatures.Has(compat.LogicalAssignment) {
-				return p.lowerNullishCoalescingAssignmentOperator(expr.Loc, e), exprOut{}
+			if value, ok := p.lowerNullishCoalescingAssignmentOperator(expr.Loc, e); ok {
+				return value, exprOut{}
 			}
 
 		case js_ast.BinOpLogicalAndAssign:
-			if p.options.unsupportedJSFeatures.Has(compat.LogicalAssignment) {
-				return p.lowerLogicalAssignmentOperator(expr.Loc, e, js_ast.BinOpLogicalAnd), exprOut{}
+			if value, ok := p.lowerLogicalAssignmentOperator(expr.Loc, e, js_ast.BinOpLogicalAnd); ok {
+				return value, exprOut{}
 			}
 
 		case js_ast.BinOpLogicalOrAssign:
-			if p.options.unsupportedJSFeatures.Has(compat.LogicalAssignment) {
-				return p.lowerLogicalAssignmentOperator(expr.Loc, e, js_ast.BinOpLogicalOr), exprOut{}
+			if value, ok := p.lowerLogicalAssignmentOperator(expr.Loc, e, js_ast.BinOpLogicalOr); ok {
+				return value, exprOut{}
 			}
 		}
 

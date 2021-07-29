@@ -65,17 +65,48 @@ func TestLowerNullishCoalescingAssign(t *testing.T) {
 	expectPrintedTarget(t, 2019, "a[b] ??= c", "var _a;\n(_a = a[b]) != null ? _a : a[b] = c;\n")
 	expectPrintedTarget(t, 2019, "a()[b()] ??= c", "var _a, _b, _c;\n(_c = (_a = a())[_b = b()]) != null ? _c : _a[_b] = c;\n")
 
+	expectPrintedTarget(t, 2019, "class Foo { #x; constructor() { this.#x ??= 2 } }", `var _x;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, void 0);
+    var _a;
+    (_a = __privateGet(this, _x)) != null ? _a : __privateSet(this, _x, 2);
+  }
+}
+_x = new WeakMap();
+`)
+
 	expectPrintedTarget(t, 2020, "a ??= b", "a ?? (a = b);\n")
 	expectPrintedTarget(t, 2020, "a.b ??= c", "a.b ?? (a.b = c);\n")
 	expectPrintedTarget(t, 2020, "a().b ??= c", "var _a;\n(_a = a()).b ?? (_a.b = c);\n")
 	expectPrintedTarget(t, 2020, "a[b] ??= c", "a[b] ?? (a[b] = c);\n")
 	expectPrintedTarget(t, 2020, "a()[b()] ??= c", "var _a, _b;\n(_a = a())[_b = b()] ?? (_a[_b] = c);\n")
 
+	expectPrintedTarget(t, 2020, "class Foo { #x; constructor() { this.#x ??= 2 } }", `var _x;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, void 0);
+    __privateGet(this, _x) ?? __privateSet(this, _x, 2);
+  }
+}
+_x = new WeakMap();
+`)
+
 	expectPrintedTarget(t, 2021, "a ??= b", "a ??= b;\n")
 	expectPrintedTarget(t, 2021, "a.b ??= c", "a.b ??= c;\n")
 	expectPrintedTarget(t, 2021, "a().b ??= c", "a().b ??= c;\n")
 	expectPrintedTarget(t, 2021, "a[b] ??= c", "a[b] ??= c;\n")
 	expectPrintedTarget(t, 2021, "a()[b()] ??= c", "a()[b()] ??= c;\n")
+
+	expectPrintedTarget(t, 2021, "class Foo { #x; constructor() { this.#x ??= 2 } }", `var _x;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, void 0);
+    __privateGet(this, _x) ?? __privateSet(this, _x, 2);
+  }
+}
+_x = new WeakMap();
+`)
 }
 
 func TestLowerLogicalAssign(t *testing.T) {
@@ -88,17 +119,63 @@ func TestLowerLogicalAssign(t *testing.T) {
 	expectPrintedTarget(t, 2020, "a[b] &&= c", "a[b] && (a[b] = c);\n")
 	expectPrintedTarget(t, 2020, "a()[b()] &&= c", "var _a, _b;\n(_a = a())[_b = b()] && (_a[_b] = c);\n")
 
+	expectPrintedTarget(t, 2020, "class Foo { #x; constructor() { this.#x &&= 2 } }", `var _x;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, void 0);
+    __privateGet(this, _x) && __privateSet(this, _x, 2);
+  }
+}
+_x = new WeakMap();
+`)
+
+	expectPrintedTarget(t, 2021, "a &&= b", "a &&= b;\n")
+	expectPrintedTarget(t, 2021, "a.b &&= c", "a.b &&= c;\n")
+	expectPrintedTarget(t, 2021, "a().b &&= c", "a().b &&= c;\n")
+	expectPrintedTarget(t, 2021, "a[b] &&= c", "a[b] &&= c;\n")
+	expectPrintedTarget(t, 2021, "a()[b()] &&= c", "a()[b()] &&= c;\n")
+
+	expectPrintedTarget(t, 2021, "class Foo { #x; constructor() { this.#x &&= 2 } }", `var _x;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, void 0);
+    __privateGet(this, _x) && __privateSet(this, _x, 2);
+  }
+}
+_x = new WeakMap();
+`)
+
 	expectPrintedTarget(t, 2020, "a ||= b", "a || (a = b);\n")
 	expectPrintedTarget(t, 2020, "a.b ||= c", "a.b || (a.b = c);\n")
 	expectPrintedTarget(t, 2020, "a().b ||= c", "var _a;\n(_a = a()).b || (_a.b = c);\n")
 	expectPrintedTarget(t, 2020, "a[b] ||= c", "a[b] || (a[b] = c);\n")
 	expectPrintedTarget(t, 2020, "a()[b()] ||= c", "var _a, _b;\n(_a = a())[_b = b()] || (_a[_b] = c);\n")
 
+	expectPrintedTarget(t, 2020, "class Foo { #x; constructor() { this.#x ||= 2 } }", `var _x;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, void 0);
+    __privateGet(this, _x) || __privateSet(this, _x, 2);
+  }
+}
+_x = new WeakMap();
+`)
+
 	expectPrintedTarget(t, 2021, "a ||= b", "a ||= b;\n")
 	expectPrintedTarget(t, 2021, "a.b ||= c", "a.b ||= c;\n")
 	expectPrintedTarget(t, 2021, "a().b ||= c", "a().b ||= c;\n")
 	expectPrintedTarget(t, 2021, "a[b] ||= c", "a[b] ||= c;\n")
 	expectPrintedTarget(t, 2021, "a()[b()] ||= c", "a()[b()] ||= c;\n")
+
+	expectPrintedTarget(t, 2021, "class Foo { #x; constructor() { this.#x ||= 2 } }", `var _x;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, void 0);
+    __privateGet(this, _x) || __privateSet(this, _x, 2);
+  }
+}
+_x = new WeakMap();
+`)
 }
 
 func TestLowerAsyncFunctions(t *testing.T) {

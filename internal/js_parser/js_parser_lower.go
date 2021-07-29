@@ -848,14 +848,14 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc logger.Loc, e *js_ast
 	})
 }
 
-func (p *parser) lowerNullishCoalescingAssignmentOperator(loc logger.Loc, e *js_ast.EBinary) js_ast.Expr {
+func (p *parser) lowerNullishCoalescingAssignmentOperator(loc logger.Loc, e *js_ast.EBinary) (js_ast.Expr, bool) {
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
 		if p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) {
 			// "a.#b ??= c" => "(_a = __privateGet(a, #b)) != null ? _a : __privateSet(a, #b, c)"
 			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target, valueDefinitelyNotMutated)
 			left := p.lowerPrivateGet(targetFunc(), privateLoc, private)
 			right := p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right)
-			return targetWrapFunc(p.lowerNullishCoalescing(loc, left, right))
+			return targetWrapFunc(p.lowerNullishCoalescing(loc, left, right)), true
 		}
 
 		// "a.#b ??= c" => "__privateGet(a, #b) ?? __privateSet(a, #b, c)"
@@ -864,25 +864,29 @@ func (p *parser) lowerNullishCoalescingAssignmentOperator(loc logger.Loc, e *js_
 			Op:    js_ast.BinOpNullishCoalescing,
 			Left:  p.lowerPrivateGet(targetFunc(), privateLoc, private),
 			Right: p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right),
-		}})
+		}}), true
 	}
 
-	return p.lowerAssignmentOperator(e.Left, func(a js_ast.Expr, b js_ast.Expr) js_ast.Expr {
-		if p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) {
-			// "a ??= b" => "(_a = a) != null ? _a : a = b"
-			return p.lowerNullishCoalescing(loc, a, js_ast.Assign(b, e.Right))
-		}
+	if p.options.unsupportedJSFeatures.Has(compat.LogicalAssignment) {
+		return p.lowerAssignmentOperator(e.Left, func(a js_ast.Expr, b js_ast.Expr) js_ast.Expr {
+			if p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) {
+				// "a ??= b" => "(_a = a) != null ? _a : a = b"
+				return p.lowerNullishCoalescing(loc, a, js_ast.Assign(b, e.Right))
+			}
 
-		// "a ??= b" => "a ?? (a = b)"
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-			Op:    js_ast.BinOpNullishCoalescing,
-			Left:  a,
-			Right: js_ast.Assign(b, e.Right),
-		}}
-	})
+			// "a ??= b" => "a ?? (a = b)"
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+				Op:    js_ast.BinOpNullishCoalescing,
+				Left:  a,
+				Right: js_ast.Assign(b, e.Right),
+			}}
+		}), true
+	}
+
+	return js_ast.Expr{}, false
 }
 
-func (p *parser) lowerLogicalAssignmentOperator(loc logger.Loc, e *js_ast.EBinary, op js_ast.OpCode) js_ast.Expr {
+func (p *parser) lowerLogicalAssignmentOperator(loc logger.Loc, e *js_ast.EBinary, op js_ast.OpCode) (js_ast.Expr, bool) {
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
 		// "a.#b &&= c" => "__privateGet(a, #b) && __privateSet(a, #b, c)"
 		// "a.#b ||= c" => "__privateGet(a, #b) || __privateSet(a, #b, c)"
@@ -891,18 +895,22 @@ func (p *parser) lowerLogicalAssignmentOperator(loc logger.Loc, e *js_ast.EBinar
 			Op:    op,
 			Left:  p.lowerPrivateGet(targetFunc(), privateLoc, private),
 			Right: p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right),
-		}})
+		}}), true
 	}
 
-	return p.lowerAssignmentOperator(e.Left, func(a js_ast.Expr, b js_ast.Expr) js_ast.Expr {
-		// "a &&= b" => "a && (a = b)"
-		// "a ||= b" => "a || (a = b)"
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-			Op:    op,
-			Left:  a,
-			Right: js_ast.Assign(b, e.Right),
-		}}
-	})
+	if p.options.unsupportedJSFeatures.Has(compat.LogicalAssignment) {
+		return p.lowerAssignmentOperator(e.Left, func(a js_ast.Expr, b js_ast.Expr) js_ast.Expr {
+			// "a &&= b" => "a && (a = b)"
+			// "a ||= b" => "a || (a = b)"
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+				Op:    op,
+				Left:  a,
+				Right: js_ast.Assign(b, e.Right),
+			}}
+		}), true
+	}
+
+	return js_ast.Expr{}, false
 }
 
 func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right js_ast.Expr) js_ast.Expr {

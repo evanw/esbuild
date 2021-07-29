@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+* Fix a bug with private fields and logical assignment operators ([#1418](https://github.com/evanw/esbuild/issues/1418))
+
+    This release fixes a bug where code using private fields in combination with [logical assignment operators](https://github.com/tc39/proposal-logical-assignment) was transformed incorrectly if the target environment supported logical assignment operators but not private fields. Since logical assignment operators are assignment operators, the entire operator must be transformed even if the operator is supported. This should now work correctly:
+
+    ```js
+    // Original code
+    class Foo {
+      #x
+      foo() {
+        this.#x &&= 2
+        this.#x ||= 2
+        this.#x ??= 2
+      }
+    }
+
+    // Old output
+    var _x;
+    class Foo {
+      constructor() {
+        __privateAdd(this, _x, void 0);
+      }
+      foo() {
+        this._x &&= 2;
+        this._x ||= 2;
+        this._x ??= 2;
+      }
+    }
+    _x = new WeakMap();
+
+    // New output
+    var _x, _a;
+    class Foo {
+      constructor() {
+        __privateAdd(this, _x, void 0);
+      }
+      foo() {
+        __privateGet(this, _x) && __privateSet(this, _x, 2);
+        __privateGet(this, _x) || __privateSet(this, _x, 2);
+        __privateGet(this, _x) ?? __privateSet(this, _x, 2);
+      }
+    }
+    _x = new WeakMap();
+    ```
+
 * Fix a hoisting bug in the bundler ([#1455](https://github.com/evanw/esbuild/issues/1455))
 
     This release fixes a bug where variables declared using `var` inside of top-level `for` loop initializers were not hoisted inside lazily-initialized ES modules (such as those that are generated when bundling code that loads an ES module using `require`). This meant that hoisted function declarations incorrectly didn't have access to these loop variables:
