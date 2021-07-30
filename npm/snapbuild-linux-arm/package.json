@@ -1,6 +1,6 @@
 {
 	"name": "snapbuild-linux-arm",
-	"version": "0.0.125",
+	"version": "0.0.126",
 	"main": "bin/snapshot",
 	"description": "The Linux ARM binary for snapbuild, a snapshot bundler.",
 	"repository": "https://github.com/cypress-io/esbuild",
