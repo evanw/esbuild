@@ -2244,6 +2244,9 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile, allReachableFiles []
 		if idx == lastIdx {
 			comma = ""
 		}
+		// Platform independent paths and avoid creating invalid JSON
+		key = strings.ReplaceAll(key, "\\", "/")
+		val = strings.ReplaceAll(val, "\\", "/")
 		sb.WriteString(fmt.Sprintf("    \"%s\": \"%s\"%s\n", key, val, comma))
 		idx++
 
