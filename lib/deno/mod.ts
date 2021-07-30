@@ -1,6 +1,6 @@
 import * as types from "../shared/types"
 import * as common from "../shared/common"
-import * as compress from "https://deno.land/x/compress@v0.3.3/mod.ts"
+import * as denoflate from "https://deno.land/x/denoflate@1.2.1/mod.ts"
 
 declare const ESBUILD_VERSION: string
 
@@ -108,7 +108,7 @@ function getCachePath(name: string): { finalPath: string, finalDir: string } {
 
 function extractFileFromTarGzip(buffer: Uint8Array, file: string): Uint8Array {
   try {
-    buffer = compress.gunzip(buffer)
+    buffer = denoflate.gunzip(buffer)
   } catch (err) {
     throw new Error(`Invalid gzip data in archive: ${err && err.message || err}`)
   }
