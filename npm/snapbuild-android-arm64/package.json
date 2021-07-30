@@ -1,6 +1,6 @@
 {
 	"name": "snapbuild-android-arm64",
-	"version": "0.0.124",
+	"version": "0.0.125",
 	"main": "bin/snapshot",
 	"description": "The Android ARM 64-bit binary for snapbuild, a snapshot bundler.",
 	"repository": "https://github.com/cypress-io/esbuild",
