@@ -423,7 +423,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		p.expect(css_lexer.TWhitespace)
 		if p.peek(css_lexer.TString) {
 			encoding := p.decoded()
-			if encoding != "UTF-8" {
+			if !strings.EqualFold(encoding, "UTF-8") {
 				p.log.AddRangeWarning(&p.tracker, p.current().Range,
 					fmt.Sprintf("\"UTF-8\" will be used instead of unsupported charset %q", encoding))
 			}
