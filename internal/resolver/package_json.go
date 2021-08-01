@@ -896,6 +896,9 @@ func (r resolverQuery) esmPackageTargetResolve(
 			defer r.debugLogs.decreaseIndent()
 		}
 
+		var didFindMapEntry bool
+		var lastMapEntry peMapEntry
+
 		for _, p := range target.mapData {
 			if p.key == "default" || conditions[p.key] {
 				if r.debugLogs != nil {
@@ -903,6 +906,8 @@ func (r resolverQuery) esmPackageTargetResolve(
 				}
 				resolved, status, debug := r.esmPackageTargetResolve(packageURL, p.value, subpath, pattern, conditions)
 				if status.isUndefined() {
+					didFindMapEntry = true
+					lastMapEntry = p
 					continue
 				}
 				return resolved, status, debug
@@ -918,6 +923,35 @@ func (r resolverQuery) esmPackageTargetResolve(
 
 		// ALGORITHM DEVIATION: Provide a friendly error message if no conditions matched
 		if len(target.mapData) > 0 && !target.keysStartWithDot() {
+			if didFindMapEntry && lastMapEntry.value.kind == peObject &&
+				len(lastMapEntry.value.mapData) > 0 && !lastMapEntry.value.keysStartWithDot() {
+				// If a top-level condition did match but no sub-condition matched,
+				// complain about the sub-condition instead of the top-level condition.
+				// This leads to a less confusing error message. For example:
+				//
+				//   "exports": {
+				//     "node": {
+				//       "require": "./dist/bwip-js-node.js"
+				//     }
+				//   },
+				//
+				// We want the warning to say this:
+				//
+				//   note: None of the conditions provided ("require") match any of the
+				//         currently active conditions ("default", "import", "node")
+				//   14 |       "node": {
+				//      |               ^
+				//
+				// We don't want the warning to say this:
+				//
+				//   note: None of the conditions provided ("browser", "electron", "node")
+				//         match any of the currently active conditions ("default", "import", "node")
+				//   7 |   "exports": {
+				//     |              ^
+				//
+				// More information: https://github.com/evanw/esbuild/issues/1484
+				target = lastMapEntry.value
+			}
 			keys := make([]string, len(target.mapData))
 			for i, p := range target.mapData {
 				keys[i] = p.key
