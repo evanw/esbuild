@@ -1,5 +1,6 @@
 import * as types from "../shared/types";
 import * as common from "../shared/common";
+import { extractedBinPath } from "./node-platform";
 
 import child_process = require('child_process');
 import crypto = require('crypto');
@@ -45,13 +46,6 @@ if (process.env.ESBUILD_WORKER_THREADS !== '0') {
 let isInternalWorkerThread = worker_threads?.workerData?.esbuildVersion === ESBUILD_VERSION;
 
 let esbuildCommandAndArgs = (): [string, string[]] => {
-  // This feature was added to give external code a way to modify the binary
-  // path without modifying the code itself. Do not remove this because
-  // external code relies on this.
-  if (process.env.ESBUILD_BINARY_PATH) {
-    return [path.resolve(process.env.ESBUILD_BINARY_PATH), []];
-  }
-
   // Try to have a nice error message when people accidentally bundle esbuild
   if (path.basename(__filename) !== 'main.js' || path.basename(__dirname) !== 'lib') {
     throw new Error(
@@ -72,33 +66,7 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
     return ['node', [path.join(__dirname, '..', 'bin', 'esbuild')]];
   }
 
-  if (process.platform === 'win32') {
-    return [path.join(__dirname, '..', 'esbuild.exe'), []];
-  }
-
-  // Yarn 2 is deliberately incompatible with binary modules because the
-  // developers of Yarn 2 don't think they should be used. See this thread for
-  // details: https://github.com/yarnpkg/berry/issues/882.
-  //
-  // As a compatibility hack we replace the binary with a wrapper script only
-  // for Yarn 2. The wrapper script is avoided for other platforms because
-  // running the binary directly without going through node first is faster.
-  // However, this will make using the JavaScript API with Yarn 2 unnecessarily
-  // slow because the wrapper means running the binary will now start another
-  // nested node process just to call "spawnSync" and run the actual binary.
-  //
-  // To work around this workaround, we query for the place the binary is moved
-  // to if the original location is replaced by our Yarn 2 compatibility hack.
-  // If it exists, we can infer that we are running within Yarn 2 and the
-  // JavaScript API should invoke the binary here instead to avoid a slowdown.
-  // Calling the binary directly can be over 6x faster than calling the wrapper
-  // script instead.
-  let pathForYarn2 = path.join(__dirname, '..', 'esbuild');
-  if (fs.existsSync(pathForYarn2)) {
-    return [pathForYarn2, []];
-  }
-
-  return [path.join(__dirname, '..', 'bin', 'esbuild'), []];
+  return [extractedBinPath(), []];
 };
 
 // Return true if stderr is a TTY

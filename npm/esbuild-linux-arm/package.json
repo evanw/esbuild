@@ -9,8 +9,5 @@
   ],
   "cpu": [
     "arm"
-  ],
-  "directories": {
-    "bin": "bin"
-  }
+  ]
 }
