@@ -472,10 +472,13 @@ func TestPackageURLsInCSS(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
+			  @import "test.css";
+
 				a { background: url(a/1.png); }
 				b { background: url(b/2.png); }
 				c { background: url(c/3.png); }
 			`,
+			"/test.css":             `.css { color: red }`,
 			"/a/1.png":              `a-1`,
 			"/node_modules/b/2.png": `b-2-node_modules`,
 			"/c/3.png":              `c-3`,
