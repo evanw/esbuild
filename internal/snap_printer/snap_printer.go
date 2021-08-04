@@ -1201,34 +1201,32 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			}
 		}
 
-		if handled := p.handleECall(e); !handled {
-			// We don't ever want to accidentally generate a direct eval expression here
-			p.callTarget = e.Target.Data
-			if !e.IsDirectEval && p.isUnboundEvalIdentifier(e.Target) {
-				if p.options.RemoveWhitespace {
-					p.print("(0,")
-				} else {
-					p.print("(0, ")
-				}
-				p.printExpr(e.Target, js_ast.LPostfix, 0)
-				p.print(")")
+		// We don't ever want to accidentally generate a direct eval expression here
+		p.callTarget = e.Target.Data
+		if !e.IsDirectEval && p.isUnboundEvalIdentifier(e.Target) {
+			if p.options.RemoveWhitespace {
+				p.print("(0,")
 			} else {
-				p.printExpr(e.Target, js_ast.LPostfix, targetFlags)
+				p.print("(0, ")
 			}
-
-			if e.OptionalChain == js_ast.OptionalChainStart {
-				p.print("?.")
-			}
-			p.print("(")
-			for i, arg := range e.Args {
-				if i != 0 {
-					p.print(",")
-					p.printSpace()
-				}
-				p.printExpr(arg, js_ast.LComma, 0)
-			}
+			p.printExpr(e.Target, js_ast.LPostfix, 0)
 			p.print(")")
-		} // end handleECall
+		} else {
+			p.printExpr(e.Target, js_ast.LPostfix, targetFlags)
+		}
+
+		if e.OptionalChain == js_ast.OptionalChainStart {
+			p.print("?.")
+		}
+		p.print("(")
+		for i, arg := range e.Args {
+			if i != 0 {
+				p.print(",")
+				p.printSpace()
+			}
+			p.printExpr(arg, js_ast.LComma, 0)
+		}
+		p.print(")")
 
 		if wrap {
 			p.print(")")

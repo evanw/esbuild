@@ -1308,38 +1308,6 @@ module.exports = exports = require("./lib/_stream_readable.js");
 `, ReplaceAll)
 }
 
-func TestRequireResolveRewrite(t *testing.T) {
-	expectPrinted(t, `
-const fooPath = require.resolve('./foo')
-`, `
-const fooPath = require.resolve("./foo", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname);
-`, ReplaceAll)
-
-	expectPrinted(t, `
-require.resolve('./foo')
-`, `
-require.resolve("./foo", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname);
-`, ReplaceAll)
-
-	expectPrinted(t, `
-delete require.cache[require.resolve('./fixtures/sync-deps.js')]
-`, `
-delete require.cache[require.resolve("./fixtures/sync-deps.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname)];
-`, ReplaceAll)
-
-	expectPrinted(t, `
-function toBeResolved(prefix) {
-  return prefix + 'foo'
-}
-require.resolve(toBeResolved('./'))
-`, `
-function toBeResolved(prefix) {
-  return prefix + "foo";
-}
-require.resolve(toBeResolved("./"), (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname);
-`, ReplaceAll)
-}
-
 func TestDebug(t *testing.T) {
 	debugPrinted(t, `
 function runTests() {

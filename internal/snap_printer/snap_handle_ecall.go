@@ -2,6 +2,7 @@ package snap_printer
 
 import "github.com/evanw/esbuild/internal/js_ast"
 
+// require.resolve
 func (p *printer) handleRequireResolve(ecall *js_ast.ECall) (handled bool) {
 	switch tgt := ecall.Target.Data.(type) {
 	case *js_ast.EDot:
@@ -24,7 +25,7 @@ func (p *printer) handleRequireResolve(ecall *js_ast.ECall) (handled bool) {
 	return false
 }
 
-// require.resolve
+// NOTE: currently not used as when bundling the ERequireResolve case is hit instead
 func (p *printer) handleECall(ecall *js_ast.ECall) (handled bool) {
 	return p.handleRequireResolve(ecall)
 }
