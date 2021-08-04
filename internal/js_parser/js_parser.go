@@ -9366,6 +9366,8 @@ func (p *parser) captureValueWithPossibleSideEffects(
 		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: &js_ast.EBigInt{Value: e.Value}} }
 	case *js_ast.EString:
 		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: e.Value}} }
+	case *js_ast.EPrivateIdentifier:
+		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: e.Ref}} }
 	case *js_ast.EIdentifier:
 		if mode == valueDefinitelyNotMutated {
 			valueFunc = func() js_ast.Expr {

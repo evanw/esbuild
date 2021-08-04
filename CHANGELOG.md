@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+* Fix lowering of nullish coalescing assignment edge case ([#1493](https://github.com/evanw/esbuild/issues/1493))
+
+    This release fixes a bug where lowering of the `??=` nullish coalescing assignment operator failed when the target environment supported nullish coalescing and private class fields but not nullish coalescing assignment. An example target environment with this specific feature support matrix combination is node 14.8. This edge case is now lowered correctly:
+
+    ```js
+    // Original code
+    class A {
+      #a;
+      f() {
+        this.#a ??= 1;
+      }
+    }
+
+    // Old output (with --target=node14.8)
+    panic: Unexpected expression of type *js_ast.EPrivateIdentifier
+
+    // New output (with --target=node14.8)
+    class A {
+      #a;
+      f() {
+        this.#a ?? (this.#a = 1);
+      }
+    }
+    ```
+
 ## 0.12.17
 
 * Fix a bug with private fields and logical assignment operators ([#1418](https://github.com/evanw/esbuild/issues/1418))

@@ -1593,3 +1593,25 @@ func TestLowerPrivateClassFieldStaticIssue1424(t *testing.T) {
 		},
 	})
 }
+
+// See https://github.com/evanw/esbuild/issues/1493 for more information
+func TestLowerNullishCoalescingAssignmentIssue1493(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class A {
+					#a;
+					f() {
+						this.#a ??= 1;
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.LogicalAssignment,
+		},
+	})
+}

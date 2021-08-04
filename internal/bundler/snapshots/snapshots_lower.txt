@@ -224,6 +224,17 @@ let ns2 = 123;
 export { ns2 as sn };
 
 ================================================================================
+TestLowerNullishCoalescingAssignmentIssue1493
+---------- /out.js ----------
+// entry.js
+var A = class {
+  #a;
+  f() {
+    this.#a ?? (this.#a = 1);
+  }
+};
+
+================================================================================
 TestLowerObjectSpreadNoBundle
 ---------- /out.js ----------
 let tests = [
