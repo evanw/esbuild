@@ -1248,6 +1248,8 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		p.printSpaceBeforeIdentifier()
 		p.print("require.resolve(")
 		p.printQuotedUTF8(p.importRecords[e.ImportRecordIndex].Path.Text, true /* allowBacktick */)
+		p.print(", (typeof __filename2 !== 'undefined' ? __filename2 : __filename)")
+		p.print(", (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname)")
 		p.print(")")
 		if wrap {
 			p.print(")")
