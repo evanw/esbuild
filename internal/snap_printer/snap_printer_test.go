@@ -1310,7 +1310,8 @@ module.exports = exports = require("./lib/_stream_readable.js");
 
 func TestDebug(t *testing.T) {
 	debugPrinted(t, `
-const { v4: uuidv4 } = require('uuid')
-var x = uuidv4()
+function runTests() {
+	delete require.cache[require.resolve("./fixtures/sync-deps.js")];
+}
 `, ReplaceAll)
 }

@@ -390,6 +390,39 @@ process.emitWarning = override
 	)
 }
 
+func TestRequireResolveRewrite(t *testing.T) {
+	snapApiSuite.expectBuild(t, built{
+		files: map[string]string{
+			ProjectBaseDir + "/fixtures/sync-deps.js": `module.exports = 1`,
+			ProjectBaseDir + "/foo.js":                `module.exports = 1`,
+			ProjectBaseDir + "/entry.js": `
+const fooPath = require.resolve('./foo')
+require.resolve('./foo')
+delete require.cache[require.resolve('./fixtures/sync-deps.js')]
+function toBeResolved(prefix) {
+  return prefix + 'foo'
+}
+require.resolve(toBeResolved('./'))
+`,
+		},
+		entryPoints: []string{ProjectBaseDir + "/entry.js"},
+	},
+		buildResult{
+			files: map[string]string{
+				`dev/entry.js`: `
+__commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
+  var fooPath = require.resolve("./foo", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
+  require.resolve("./foo", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
+  delete require.cache[require.resolve("./fixtures/sync-deps.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname))];
+  function toBeResolved(prefix) {
+    return prefix + "foo";
+  }
+  require.resolve(toBeResolved("./"), (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname);
+};`,
+			},
+		},
+	)
+}
 func TestDebug(t *testing.T) {
 	snapApiSuite.debugBuild(t, built{
 		files: map[string]string{
