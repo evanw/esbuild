@@ -7,6 +7,7 @@ import (
 	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
@@ -141,8 +142,10 @@ func ParseTSConfigJSON(
 					// Nothing to do in this case
 				default:
 					ok = false
-					log.AddRangeWarning(&tracker, r,
-						fmt.Sprintf("Unrecognized target environment %q", value))
+					if !helpers.IsInsideNodeModules(source.KeyPath.Text) {
+						log.AddRangeWarning(&tracker, r,
+							fmt.Sprintf("Unrecognized target environment %q", value))
+					}
 				}
 
 				// These feature restrictions are merged with esbuild's own restrictions

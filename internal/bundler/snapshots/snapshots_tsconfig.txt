@@ -374,6 +374,10 @@ TestTsconfigTargetIgnored
 x = 123n;
 
 ================================================================================
+TestTsconfigUnrecognizedTargetWarning
+---------- /Users/user/project/out.js ----------
+
+================================================================================
 TestTsconfigUseDefineForClassFieldsES2020
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/entry.ts

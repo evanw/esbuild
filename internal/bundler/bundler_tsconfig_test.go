@@ -1269,3 +1269,33 @@ func TestTsconfigUseDefineForClassFieldsESNext(t *testing.T) {
 		},
 	})
 }
+
+func TestTsconfigUnrecognizedTargetWarning(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import "./a"
+				import "b"
+			`,
+			"/Users/user/project/src/a/index.ts": ``,
+			"/Users/user/project/src/a/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "es3"
+				}
+			}`,
+			"/Users/user/project/src/node_modules/b/index.ts": ``,
+			"/Users/user/project/src/node_modules/b/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "es3"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/a/tsconfig.json: warning: Unrecognized target environment "es3"
+`,
+	})
+}
