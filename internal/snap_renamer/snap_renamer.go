@@ -232,31 +232,31 @@ func (r *SnapRenamer) IsUnwrappable(ref js_ast.Ref) bool {
 	if symbol.Kind == js_ast.SymbolUnbound {
 		return true
 	}
-	return r.isExportSymbol(symbol)
+	return r.isSymbolNamed(symbol, "exports")
 }
 
-func (r *SnapRenamer) isExportSymbol(symbol *js_ast.Symbol) bool {
+func (r *SnapRenamer) isSymbolNamed(symbol *js_ast.Symbol, name string) bool {
 	matchesKind := symbol.Kind == js_ast.SymbolHoisted ||
 		symbol.Kind == js_ast.SymbolUnbound
-	return matchesKind && symbol.OriginalName == "exports"
+	return matchesKind && symbol.OriginalName == name
 }
 
 func (r *SnapRenamer) IsExport(ref js_ast.Ref) bool {
 	ref = r.resolveRefFromSymbols(ref)
 	symbol := r.symbols.Get(ref)
-	return r.isExportSymbol(symbol)
-}
-
-func (r *SnapRenamer) isModuleSymbol(symbol *js_ast.Symbol) bool {
-	matchesKind := symbol.Kind == js_ast.SymbolHoisted ||
-		symbol.Kind == js_ast.SymbolUnbound
-	return matchesKind && symbol.OriginalName == "module"
+	return r.isSymbolNamed(symbol, "exports")
 }
 
 func (r *SnapRenamer) IsModule(ref js_ast.Ref) bool {
 	ref = r.resolveRefFromSymbols(ref)
 	symbol := r.symbols.Get(ref)
-	return r.isModuleSymbol(symbol)
+	return r.isSymbolNamed(symbol, "module")
+}
+
+func (r *SnapRenamer) IsRequire(ref js_ast.Ref) bool {
+	ref = r.resolveRefFromSymbols(ref)
+	symbol := r.symbols.Get(ref)
+	return r.isSymbolNamed(symbol, "require")
 }
 
 // NOTE: esbuild renames __dirname/__filename to __dirname2/__filename2 in some cases and
