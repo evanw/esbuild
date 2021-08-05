@@ -59,6 +59,28 @@
     }
     ```
 
+* Fix lowering of static private methods in class expressions ([#1498](https://github.com/evanw/esbuild/issues/1498))
+
+    Previously static private methods were lowered incorrectly when present in class expressions. The class expression itself was missing in the output due to an oversight (variable shadowing). This issue has been fixed:
+
+    ```js
+    // Original code
+    (class {
+      static #x() {}
+    });
+
+    // Old output (with --target=es6)
+    var _x, _a, x_fn;
+    __privateAdd(_a, _x), _x = new WeakSet(), x_fn = function() {
+    }, __privateAdd(_a, _x), _a;
+
+    // New output (with --target=es6)
+    var _x, _a, x_fn;
+    _a = class {
+    }, _x = new WeakSet(), x_fn = function() {
+    }, __privateAdd(_a, _x), _a;
+    ```
+
 ## 0.12.17
 
 * Fix a bug with private fields and logical assignment operators ([#1418](https://github.com/evanw/esbuild/issues/1418))

@@ -2269,7 +2269,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					}
 
 					// Add every newly-constructed instance into this map
-					expr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
+					methodExpr := p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
 						target,
 						{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
 					})
@@ -2285,10 +2285,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					//
 					if prop.IsStatic {
 						// Move this property to an assignment after the class ends
-						staticPrivateMethods = append(staticPrivateMethods, expr)
+						staticPrivateMethods = append(staticPrivateMethods, methodExpr)
 					} else {
 						// Move this property to an assignment inside the class constructor
-						instancePrivateMethods = append(instancePrivateMethods, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}})
+						instancePrivateMethods = append(instancePrivateMethods, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: methodExpr}})
 					}
 				}
 

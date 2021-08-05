@@ -335,7 +335,17 @@ _foo = new WeakMap();
 TestLowerPrivateClassExpr2020NoBundle
 ---------- /out.js ----------
 var _field, _method, method_fn, _a, _staticField, _staticMethod, staticMethod_fn;
-export let Foo = (__privateAdd(_a, _staticMethod), _field = new WeakMap(), _method = new WeakSet(), method_fn = function() {
+export let Foo = (_a = class {
+  constructor() {
+    __privateAdd(this, _method);
+    __privateAdd(this, _field, void 0);
+  }
+  foo() {
+    var _a2;
+    __privateSet(this, _field, __privateMethod(this, _method, method_fn).call(this));
+    __privateSet(Foo, _staticField, __privateMethod(_a2 = Foo, _staticMethod, staticMethod_fn).call(_a2));
+  }
+}, _field = new WeakMap(), _method = new WeakSet(), method_fn = function() {
 }, _staticField = new WeakMap(), _staticMethod = new WeakSet(), staticMethod_fn = function() {
 }, __privateAdd(_a, _staticMethod), __privateAdd(_a, _staticField, void 0), _a);
 
