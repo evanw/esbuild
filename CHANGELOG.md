@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Allow implicit `./` in CSS `@import` paths ([#1494](https://github.com/evanw/esbuild/pull/1494))
+
+    In the browser, the paths inside CSS `@import` rules are implicitly relative to the path of the current CSS style sheet. Previously esbuild used node's JS path resolution rules in CSS as well, which required a `./` or `../` prefix for a path to be considered a relative path. Paths without that prefix are considered package paths and are searched for inside `node_modules` instead.
+
+    With this release, esbuild will now first try to interpret the path as a relative path and then fall back to interpreting it as a package path if nothing exists at that relative path. This feature was originally added in version 0.7.18 but only worked for CSS `url()` tokens. In this release it now also works for `@import` rules.
+
+    This feature was contributed by [@pd4d10](https://github.com/pd4d10).
+
 * Fix lowering of nullish coalescing assignment edge case ([#1493](https://github.com/evanw/esbuild/issues/1493))
 
     This release fixes a bug where lowering of the `??=` nullish coalescing assignment operator failed when the target environment supported nullish coalescing and private class fields but not nullish coalescing assignment. An example target environment with this specific feature support matrix combination is node 14.8. This edge case is now lowered correctly:
