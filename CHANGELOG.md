@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.18
 
 * Allow implicit `./` in CSS `@import` paths ([#1494](https://github.com/evanw/esbuild/pull/1494))
 
