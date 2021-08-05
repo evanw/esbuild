@@ -2174,7 +2174,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				}
 
 				// Generate the assignment target
-				var expr js_ast.Expr
+				var memberExpr js_ast.Expr
 				if mustLowerPrivate {
 					// Generate a new symbol for this private field
 					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
@@ -2192,7 +2192,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					p.recordUsage(ref)
 
 					// Add every newly-constructed instance into this map
-					expr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
+					memberExpr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
 						target,
 						{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
 						init,
@@ -2200,9 +2200,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					p.recordUsage(ref)
 				} else if private == nil && classLoweringInfo.useDefineForClassFields {
 					if _, ok := init.Data.(*js_ast.EUndefined); ok {
-						expr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key})
+						memberExpr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key})
 					} else {
-						expr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key, init})
+						memberExpr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key, init})
 					}
 				} else {
 					if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.IsComputed {
@@ -2218,15 +2218,15 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 						}}
 					}
 
-					expr = js_ast.Assign(target, init)
+					memberExpr = js_ast.Assign(target, init)
 				}
 
 				if prop.IsStatic {
 					// Move this property to an assignment after the class ends
-					staticMembers = append(staticMembers, expr)
+					staticMembers = append(staticMembers, memberExpr)
 				} else {
 					// Move this property to an assignment inside the class constructor
-					instanceMembers = append(instanceMembers, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}})
+					instanceMembers = append(instanceMembers, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}})
 				}
 			}
 
