@@ -242,6 +242,11 @@ console.log("b");
 ================================================================================
 TestPackageURLsInCSS
 ---------- /out/entry.css ----------
+/* test.css */
+.css {
+  color: red;
+}
+
 /* entry.css */
 a {
   background: url(data:image/png;base64,YS0x);
