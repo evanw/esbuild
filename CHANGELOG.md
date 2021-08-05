@@ -27,6 +27,38 @@
     }
     ```
 
+* Fix public fields being inserted before `super()` call ([#1497](https://github.com/evanw/esbuild/issues/1497))
+
+    The helper function that esbuild uses to emulate the new public class field syntax can potentially be inserted into the class constructor before the `super()` call. That is problematic because the helper function makes use of `this`, and `this` must only be used after the `super()` call. This release fixes a case where this happens when minification is enabled:
+
+    ```js
+    // Original code
+    class A extends B {
+      x;
+      constructor() {
+        f();
+        super();
+      }
+    }
+
+    // Old output (with --minify-syntax --target=es6)
+    class A extends B {
+      constructor() {
+        __publicField(this, "x");
+        f(), super();
+      }
+    }
+
+    // New output (with --minify-syntax --target=es6)
+    class A extends B {
+      constructor() {
+        f();
+        super();
+        __publicField(this, "x");
+      }
+    }
+    ```
+
 ## 0.12.17
 
 * Fix a bug with private fields and logical assignment operators ([#1418](https://github.com/evanw/esbuild/issues/1418))

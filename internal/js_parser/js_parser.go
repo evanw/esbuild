@@ -7218,7 +7218,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			// Merge adjacent expression statements
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
+				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) && !js_ast.IsSuperCall(stmt) {
 					prevS.Value = js_ast.JoinWithComma(prevS.Value, s.Value)
 					prevS.DoesNotAffectTreeShaking = prevS.DoesNotAffectTreeShaking && s.DoesNotAffectTreeShaking
 					continue
