@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.19
 
 * Add support for CSS source maps ([#519](https://github.com/evanw/esbuild/issues/519))
 
