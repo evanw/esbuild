@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add support for CSS source maps ([#519](https://github.com/evanw/esbuild/issues/519))
+
+    With this release, esbuild will now generate source maps for CSS output files when `--sourcemap` is enabled. This supports all of the same options as JS source maps including `--sourcemap=inline` and `--sourcemap=external`. In addition, CSS input files with embedded `/*# sourceMappingURL=... */` comments will cause the CSS output file source map to map all the way back to the original inputs. CSS source maps are used by the browser's style inspector to link back to the original source code instead of linking to the bundled source code.
+
 ## 0.12.18
 
 * Allow implicit `./` in CSS `@import` paths ([#1494](https://github.com/evanw/esbuild/pull/1494))
