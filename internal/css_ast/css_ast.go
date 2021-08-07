@@ -24,8 +24,10 @@ import (
 // representation that helps provide good parsing and printing performance.
 
 type AST struct {
-	ImportRecords []ast.ImportRecord
-	Rules         []Rule
+	ImportRecords        []ast.ImportRecord
+	Rules                []Rule
+	SourceMapComment     logger.Span
+	ApproximateLineCount int32
 }
 
 // We create a lot of tokens, so make sure this layout is memory-efficient.

@@ -773,7 +773,7 @@ body {
 
     const json = result.metafile
     assert.strictEqual(Object.keys(json.inputs).length, 4)
-    assert.strictEqual(Object.keys(json.outputs).length, 4)
+    assert.strictEqual(Object.keys(json.outputs).length, 5)
     const cwd = process.cwd()
     const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
 
@@ -793,12 +793,17 @@ body {
 
     // Check outputs
     assert.strictEqual(typeof json.outputs[makePath(outputJS)].bytes, 'number')
+    assert.strictEqual(typeof json.outputs[makePath(outputCSS)].bytes, 'number')
     assert.strictEqual(typeof json.outputs[makePath(outputJS) + '.map'].bytes, 'number')
+    assert.strictEqual(typeof json.outputs[makePath(outputCSS) + '.map'].bytes, 'number')
     assert.strictEqual(json.outputs[makePath(outputJS)].entryPoint, makePath(entry))
     assert.strictEqual(json.outputs[makePath(outputCSS)].entryPoint, undefined) // This is deliberately undefined
     assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].exports, [])
     assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].inputs, {})
+    assert.deepStrictEqual(json.outputs[makePath(outputCSS) + '.map'].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outputCSS) + '.map'].exports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outputCSS) + '.map'].inputs, {})
 
     // Check inputs for main output
     const outputInputs = json.outputs[makePath(outputJS)].inputs
@@ -1215,7 +1220,7 @@ body {
 
     const json = result.metafile
     assert.strictEqual(Object.keys(json.inputs).length, 3)
-    assert.strictEqual(Object.keys(json.outputs).length, 1)
+    assert.strictEqual(Object.keys(json.outputs).length, 2)
     const cwd = process.cwd()
     const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
 
@@ -1228,13 +1233,19 @@ body {
       },
       outputs: {
         [makePath(output)]: {
-          bytes: 227,
+          bytes: 263,
           entryPoint: makePath(entry),
           imports: [],
           inputs: {
             [makePath(entry)]: { bytesInOutput: 62 },
             [makePath(imported)]: { bytesInOutput: 61 },
           },
+        },
+        [makePath(output + '.map')]: {
+          bytes: 312,
+          exports: [],
+          imports: [],
+          inputs: {},
         },
       },
     })

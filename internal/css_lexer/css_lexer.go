@@ -153,15 +153,23 @@ func (token Token) DecodedText(contents string) string {
 }
 
 type lexer struct {
-	log       logger.Log
-	source    logger.Source
-	tracker   logger.LineColumnTracker
-	current   int
-	codePoint rune
-	Token     Token
+	log                     logger.Log
+	source                  logger.Source
+	tracker                 logger.LineColumnTracker
+	current                 int
+	codePoint               rune
+	Token                   Token
+	approximateNewlineCount int
+	sourceMappingURL        logger.Span
 }
 
-func Tokenize(log logger.Log, source logger.Source) (tokens []Token) {
+type TokenizeResult struct {
+	Tokens               []Token
+	ApproximateLineCount int32
+	SourceMapComment     logger.Span
+}
+
+func Tokenize(log logger.Log, source logger.Source) TokenizeResult {
 	lexer := lexer{
 		log:     log,
 		source:  source,
@@ -180,11 +188,16 @@ func Tokenize(log logger.Log, source logger.Source) (tokens []Token) {
 	}
 
 	lexer.next()
+	var tokens []Token
 	for lexer.Token.Kind != TEndOfFile {
 		tokens = append(tokens, lexer.Token)
 		lexer.next()
 	}
-	return
+	return TokenizeResult{
+		Tokens:               tokens,
+		ApproximateLineCount: int32(lexer.approximateNewlineCount) + 1,
+		SourceMapComment:     lexer.sourceMappingURL,
+	}
 }
 
 func (lexer *lexer) step() {
@@ -193,6 +206,16 @@ func (lexer *lexer) step() {
 	// Use -1 to indicate the end of the file
 	if width == 0 {
 		codePoint = eof
+	}
+
+	// Track the approximate number of newlines in the file so we can preallocate
+	// the line offset table in the printer for source maps. The line offset table
+	// is the #1 highest allocation in the heap profile, so this is worth doing.
+	// This count is approximate because it handles "\n" and "\r\n" (the common
+	// cases) but not "\r" or "\u2028" or "\u2029". Getting this wrong is harmless
+	// because it's only a preallocation. The array will just grow if it's too small.
+	if codePoint == '\n' {
+		lexer.approximateNewlineCount++
 	}
 
 	lexer.codePoint = codePoint
@@ -405,6 +428,18 @@ func (lexer *lexer) next() {
 }
 
 func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
+	// Keep track of the contents of the "sourceMappingURL=" comment
+	switch lexer.codePoint {
+	case '#', '@':
+		if strings.HasPrefix(lexer.source.Contents[lexer.current:], " sourceMappingURL=") {
+			r := logger.Range{Loc: logger.Loc{Start: int32(lexer.current + len(" sourceMappingURL="))}}
+			for int(r.End()) < len(lexer.source.Contents) && !isWhitespace(rune(lexer.source.Contents[r.End()])) {
+				r.Len++
+			}
+			lexer.sourceMappingURL = logger.Span{Text: lexer.source.TextForRange(r), Range: r}
+		}
+	}
+
 	for {
 		switch lexer.codePoint {
 		case '*':

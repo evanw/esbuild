@@ -2699,7 +2699,7 @@ func (lexer *Lexer) scanCommentText() {
 			rest := text[i+1 : endOfCommentText]
 			if hasPrefixWithWordBoundary(rest, "__PURE__") {
 				lexer.HasPureCommentBefore = true
-			} else if strings.HasPrefix(rest, " sourceMappingURL=") {
+			} else if i == 2 && strings.HasPrefix(rest, " sourceMappingURL=") {
 				if arg, ok := scanForPragmaArg(pragmaNoSpaceFirst, lexer.start+i+1, " sourceMappingURL=", rest); ok {
 					lexer.SourceMappingURL = arg
 				}
@@ -2719,7 +2719,7 @@ func (lexer *Lexer) scanCommentText() {
 				if arg, ok := scanForPragmaArg(pragmaSkipSpaceFirst, lexer.start+i+1, "jsxFrag", rest); ok {
 					lexer.JSXFragmentPragmaComment = arg
 				}
-			} else if strings.HasPrefix(rest, " sourceMappingURL=") {
+			} else if i == 2 && strings.HasPrefix(rest, " sourceMappingURL=") {
 				if arg, ok := scanForPragmaArg(pragmaNoSpaceFirst, lexer.start+i+1, " sourceMappingURL=", rest); ok {
 					lexer.SourceMappingURL = arg
 				}

@@ -7,6 +7,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
+	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
 const quoteForURL byte = 0
@@ -15,31 +16,48 @@ type printer struct {
 	options       Options
 	importRecords []ast.ImportRecord
 	css           []byte
+	builder       sourcemap.ChunkBuilder
 }
 
 type Options struct {
-	RemoveWhitespace bool
-	ASCIIOnly        bool
+	RemoveWhitespace  bool
+	ASCIIOnly         bool
+	AddSourceMappings bool
+
+	// If we're writing out a source map, this table of line start indices lets
+	// us do binary search on to figure out what line a given AST node came from
+	LineOffsetTables []sourcemap.LineOffsetTable
+
+	// This will be present if the input file had a source map. In that case we
+	// want to map all the way back to the original input file(s).
+	InputSourceMap *sourcemap.SourceMap
 }
 
 type PrintResult struct {
-	CSS []byte
+	CSS            []byte
+	SourceMapChunk sourcemap.Chunk
 }
 
 func Print(tree css_ast.AST, options Options) PrintResult {
 	p := printer{
 		options:       options,
 		importRecords: tree.ImportRecords,
+		builder:       sourcemap.MakeChunkBuilder(options.InputSourceMap, options.LineOffsetTables),
 	}
 	for _, rule := range tree.Rules {
 		p.printRule(rule, 0, false)
 	}
 	return PrintResult{
-		CSS: p.css,
+		CSS:            p.css,
+		SourceMapChunk: p.builder.GenerateChunk(p.css),
 	}
 }
 
 func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicolon bool) {
+	if p.options.AddSourceMappings {
+		p.builder.AddSourceMapping(rule.Loc, p.css)
+	}
+
 	if !p.options.RemoveWhitespace {
 		p.printIndent(indent)
 	}

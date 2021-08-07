@@ -447,9 +447,16 @@ func parseFile(args parseArgs) {
 
 	// Attempt to parse the source map if present
 	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone {
-		if repr, ok := result.file.inputFile.Repr.(*graph.JSRepr); ok && repr.AST.SourceMapComment.Text != "" {
+		var sourceMapComment logger.Span
+		switch repr := result.file.inputFile.Repr.(type) {
+		case *graph.JSRepr:
+			sourceMapComment = repr.AST.SourceMapComment
+		case *graph.CSSRepr:
+			sourceMapComment = repr.AST.SourceMapComment
+		}
+		if sourceMapComment.Text != "" {
 			if path, contents := extractSourceMapFromComment(args.log, args.fs, &args.caches.FSCache,
-				args.res, &source, repr.AST.SourceMapComment, absResolveDir); contents != nil {
+				args.res, &source, sourceMapComment, absResolveDir); contents != nil {
 				result.file.inputFile.InputSourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
 					KeyPath:    path,
 					PrettyPath: args.res.PrettyPath(path),
@@ -2132,41 +2139,46 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 
 	for _, sourceIndex := range reachableFiles {
 		if f := &b.files[sourceIndex]; f.inputFile.Loader.CanHaveSourceMap() {
-			if repr, ok := f.inputFile.Repr.(*graph.JSRepr); ok {
-				waitGroup.Add(1)
-				go func(sourceIndex uint32, f *scannerFile, repr *graph.JSRepr) {
-					result := &results[sourceIndex]
-					result.lineOffsetTables = sourcemap.GenerateLineOffsetTables(f.inputFile.Source.Contents, repr.AST.ApproximateLineCount)
-					sm := f.inputFile.InputSourceMap
-					if !options.ExcludeSourcesContent {
-						if sm == nil {
-							// Simple case: no nested source map
-							result.quotedContents = [][]byte{js_printer.QuoteForJSON(f.inputFile.Source.Contents, options.ASCIIOnly)}
-						} else {
-							// Complex case: nested source map
-							result.quotedContents = make([][]byte, len(sm.Sources))
-							nullContents := []byte("null")
-							for i := range sm.Sources {
-								// Missing contents become a "null" literal
-								quotedContents := nullContents
-								if i < len(sm.SourcesContent) {
-									if value := sm.SourcesContent[i]; value.Quoted != "" {
-										if options.ASCIIOnly && !isASCIIOnly(value.Quoted) {
-											// Re-quote non-ASCII values if output is ASCII-only
-											quotedContents = js_printer.QuoteForJSON(js_lexer.UTF16ToString(value.Value), options.ASCIIOnly)
-										} else {
-											// Otherwise just use the value directly from the input file
-											quotedContents = []byte(value.Quoted)
-										}
+			var approximateLineCount int32
+			switch repr := f.inputFile.Repr.(type) {
+			case *graph.JSRepr:
+				approximateLineCount = repr.AST.ApproximateLineCount
+			case *graph.CSSRepr:
+				approximateLineCount = repr.AST.ApproximateLineCount
+			}
+			waitGroup.Add(1)
+			go func(sourceIndex uint32, f *scannerFile, approximateLineCount int32) {
+				result := &results[sourceIndex]
+				result.lineOffsetTables = sourcemap.GenerateLineOffsetTables(f.inputFile.Source.Contents, approximateLineCount)
+				sm := f.inputFile.InputSourceMap
+				if !options.ExcludeSourcesContent {
+					if sm == nil {
+						// Simple case: no nested source map
+						result.quotedContents = [][]byte{js_printer.QuoteForJSON(f.inputFile.Source.Contents, options.ASCIIOnly)}
+					} else {
+						// Complex case: nested source map
+						result.quotedContents = make([][]byte, len(sm.Sources))
+						nullContents := []byte("null")
+						for i := range sm.Sources {
+							// Missing contents become a "null" literal
+							quotedContents := nullContents
+							if i < len(sm.SourcesContent) {
+								if value := sm.SourcesContent[i]; value.Quoted != "" {
+									if options.ASCIIOnly && !isASCIIOnly(value.Quoted) {
+										// Re-quote non-ASCII values if output is ASCII-only
+										quotedContents = js_printer.QuoteForJSON(js_lexer.UTF16ToString(value.Value), options.ASCIIOnly)
+									} else {
+										// Otherwise just use the value directly from the input file
+										quotedContents = []byte(value.Quoted)
 									}
 								}
-								result.quotedContents[i] = quotedContents
 							}
+							result.quotedContents[i] = quotedContents
 						}
 					}
-					waitGroup.Done()
-				}(sourceIndex, f, repr)
-			}
+				}
+				waitGroup.Done()
+			}(sourceIndex, f, approximateLineCount)
 		}
 	}
 

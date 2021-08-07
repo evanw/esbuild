@@ -9,9 +9,9 @@ import (
 
 func lexToken(contents string) (T, string) {
 	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
-	tokens := Tokenize(log, test.SourceForTest(contents))
-	if len(tokens) > 0 {
-		t := tokens[0]
+	result := Tokenize(log, test.SourceForTest(contents))
+	if len(result.Tokens) > 0 {
+		t := result.Tokens[0]
 		return t.Kind, t.DecodedText(contents)
 	}
 	return TEndOfFile, ""

@@ -395,16 +395,21 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 
 			// Each file may optionally contain additional files to be copied to the
 			// output directory. This is used by the "file" loader.
+			var commentPrefix string
+			var commentSuffix string
 			switch chunkRepr := chunk.chunkRepr.(type) {
 			case *chunkReprJS:
 				for _, sourceIndex := range chunkRepr.filesInChunkInOrder {
 					outputFiles = append(outputFiles, c.graph.Files[sourceIndex].InputFile.AdditionalFiles...)
 				}
+				commentPrefix = "//"
 
 			case *chunkReprCSS:
 				for _, sourceIndex := range chunkRepr.filesInChunkInOrder {
 					outputFiles = append(outputFiles, c.graph.Files[sourceIndex].InputFile.AdditionalFiles...)
 				}
+				commentPrefix = "/*"
+				commentSuffix = " */"
 			}
 
 			// Path substitution for the chunk itself
@@ -448,14 +453,18 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 					importPath := c.pathBetweenChunks(finalRelDir, finalRelPathForSourceMap)
 					importPath = strings.TrimPrefix(importPath, "./")
 					outputContentsJoiner.EnsureNewlineAtEnd()
-					outputContentsJoiner.AddString("//# sourceMappingURL=")
+					outputContentsJoiner.AddString(commentPrefix)
+					outputContentsJoiner.AddString("# sourceMappingURL=")
 					outputContentsJoiner.AddString(importPath)
+					outputContentsJoiner.AddString(commentSuffix)
 					outputContentsJoiner.AddString("\n")
 
 				case config.SourceMapInline, config.SourceMapInlineAndExternal:
 					outputContentsJoiner.EnsureNewlineAtEnd()
-					outputContentsJoiner.AddString("//# sourceMappingURL=data:application/json;base64,")
+					outputContentsJoiner.AddString(commentPrefix)
+					outputContentsJoiner.AddString("# sourceMappingURL=data:application/json;base64,")
 					outputContentsJoiner.AddString(base64.StdEncoding.EncodeToString(outputSourceMap))
+					outputContentsJoiner.AddString(commentSuffix)
 					outputContentsJoiner.AddString("\n")
 				}
 
@@ -4552,7 +4561,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	}
 
 	// Concatenate the generated JavaScript chunks together
-	var compileResultsForSourceMap []compileResultJS
+	var compileResultsForSourceMap []compileResultForSourceMap
 	var legalCommentList []string
 	var metaOrder []uint32
 	var metaByteCount map[string]int
@@ -4612,7 +4621,11 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 
 				// Include this file in the source map
 				if c.options.SourceMap != config.SourceMapNone {
-					compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
+					compileResultsForSourceMap = append(compileResultsForSourceMap, compileResultForSourceMap{
+						sourceMapChunk:  compileResult.SourceMapChunk,
+						generatedOffset: compileResult.generatedOffset,
+						sourceIndex:     compileResult.sourceIndex,
+					})
 				}
 			}
 
@@ -4764,9 +4777,15 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 }
 
 type compileResultCSS struct {
-	printedCSS  []byte
+	css_printer.PrintResult
+
 	sourceIndex uint32
-	hasCharset  bool
+
+	// This is the line and column offset since the previous CSS string
+	// or the start of the file if this is the first CSS string.
+	generatedOffset sourcemap.LineColumnOffset
+
+	hasCharset bool
 }
 
 func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
@@ -4781,15 +4800,23 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 	}
 
 	chunkRepr := chunk.chunkRepr.(*chunkReprCSS)
-	compileResults := make([]compileResultCSS, 0, len(chunkRepr.filesInChunkInOrder))
+	compileResults := make([]compileResultCSS, len(chunkRepr.filesInChunkInOrder))
+	dataForSourceMaps := c.dataForSourceMaps()
+
+	// Note: This contains placeholders instead of what the placeholders are
+	// substituted with. That should be fine though because this should only
+	// ever be used for figuring out how many "../" to add to a relative path
+	// from a chunk whose final path hasn't been calculated yet to a chunk
+	// whose final path has already been calculated. That and placeholders are
+	// never substituted with something containing a "/" so substitution should
+	// never change the "../" count.
+	chunkAbsDir := c.fs.Dir(c.fs.Join(c.options.AbsOutputDir, config.TemplateToString(chunk.finalTemplate)))
 
 	// Generate CSS for each file in parallel
 	timer.Begin("Print CSS files")
 	waitGroup := sync.WaitGroup{}
-	for _, sourceIndex := range chunkRepr.filesInChunkInOrder {
+	for i, sourceIndex := range chunkRepr.filesInChunkInOrder {
 		// Create a goroutine for this file
-		compileResults = append(compileResults, compileResultCSS{})
-		compileResult := &compileResults[len(compileResults)-1]
 		waitGroup.Add(1)
 		go func(sourceIndex uint32, compileResult *compileResultCSS) {
 			file := &c.graph.Files[sourceIndex]
@@ -4797,10 +4824,11 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 
 			// Filter out "@charset" and "@import" rules
 			rules := make([]css_ast.Rule, 0, len(ast.Rules))
+			hasCharset := false
 			for _, rule := range ast.Rules {
 				switch rule.Data.(type) {
 				case *css_ast.RAtCharset:
-					compileResult.hasCharset = true
+					hasCharset = true
 					continue
 				case *css_ast.RAtImport:
 					continue
@@ -4809,24 +4837,43 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			}
 			ast.Rules = rules
 
-			result := css_printer.Print(ast, css_printer.Options{
-				RemoveWhitespace: c.options.RemoveWhitespace,
-				ASCIIOnly:        c.options.ASCIIOnly,
-			})
-			compileResult.printedCSS = result.CSS
-			compileResult.sourceIndex = sourceIndex
+			// Only generate a source map if needed
+			var addSourceMappings bool
+			var inputSourceMap *sourcemap.SourceMap
+			var lineOffsetTables []sourcemap.LineOffsetTable
+			if file.InputFile.Loader.CanHaveSourceMap() && c.options.SourceMap != config.SourceMapNone {
+				addSourceMappings = true
+				inputSourceMap = file.InputFile.InputSourceMap
+				lineOffsetTables = dataForSourceMaps[sourceIndex].lineOffsetTables
+			}
+
+			cssOptions := css_printer.Options{
+				RemoveWhitespace:  c.options.RemoveWhitespace,
+				ASCIIOnly:         c.options.ASCIIOnly,
+				AddSourceMappings: addSourceMappings,
+				InputSourceMap:    inputSourceMap,
+				LineOffsetTables:  lineOffsetTables,
+			}
+			*compileResult = compileResultCSS{
+				PrintResult: css_printer.Print(ast, cssOptions),
+				sourceIndex: sourceIndex,
+				hasCharset:  hasCharset,
+			}
 			waitGroup.Done()
-		}(sourceIndex, compileResult)
+		}(sourceIndex, &compileResults[i])
 	}
 
 	waitGroup.Wait()
 	timer.End("Print CSS files")
 	timer.Begin("Join CSS files")
 	j := helpers.Joiner{}
+	prevOffset := sourcemap.LineColumnOffset{}
 	newlineBeforeComment := false
 
 	if len(c.options.CSSBanner) > 0 {
+		prevOffset.AdvanceString(c.options.CSSBanner)
 		j.AddString(c.options.CSSBanner)
+		prevOffset.AdvanceString("\n")
 		j.AddString("\n")
 	}
 
@@ -4858,8 +4905,10 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 		if len(tree.Rules) > 0 {
 			result := css_printer.Print(tree, css_printer.Options{
 				RemoveWhitespace: c.options.RemoveWhitespace,
+				ASCIIOnly:        c.options.ASCIIOnly,
 			})
 			if len(result.CSS) > 0 {
+				prevOffset.AdvanceBytes(result.CSS)
 				j.AddBytes(result.CSS)
 				newlineBeforeComment = true
 			}
@@ -4903,17 +4952,40 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 	isFirstMeta := true
 
 	// Concatenate the generated CSS chunks together
+	var compileResultsForSourceMap []compileResultForSourceMap
 	for _, compileResult := range compileResults {
 		if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace {
+			var newline string
 			if newlineBeforeComment {
-				j.AddString("\n")
+				newline = "\n"
 			}
-			j.AddString(fmt.Sprintf("/* %s */\n", c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath))
+			comment := fmt.Sprintf("%s/* %s */\n", newline, c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath)
+			prevOffset.AdvanceString(comment)
+			j.AddString(comment)
 		}
-		if len(compileResult.printedCSS) > 0 {
+		if len(compileResult.CSS) > 0 {
 			newlineBeforeComment = true
 		}
-		j.AddBytes(compileResult.printedCSS)
+
+		// Save the offset to the start of the stored JavaScript
+		compileResult.generatedOffset = prevOffset
+		j.AddBytes(compileResult.CSS)
+
+		// Ignore empty source map chunks
+		if compileResult.SourceMapChunk.ShouldIgnore {
+			prevOffset.AdvanceBytes(compileResult.CSS)
+		} else {
+			prevOffset = sourcemap.LineColumnOffset{}
+
+			// Include this file in the source map
+			if c.options.SourceMap != config.SourceMapNone {
+				compileResultsForSourceMap = append(compileResultsForSourceMap, compileResultForSourceMap{
+					sourceMapChunk:  compileResult.SourceMapChunk,
+					generatedOffset: compileResult.generatedOffset,
+					sourceIndex:     compileResult.sourceIndex,
+				})
+			}
+		}
 
 		// Include this file in the metadata
 		if c.options.NeedsMetafile {
@@ -4924,7 +4996,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			}
 			jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
 				js_printer.QuoteForJSON(c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
-				len(compileResult.printedCSS)))
+				len(compileResult.CSS)))
 		}
 	}
 
@@ -4939,6 +5011,13 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 	// The CSS contents are done now that the source map comment is in
 	chunk.intermediateOutput = c.breakOutputIntoPieces(j, uint32(len(chunks)))
 	timer.End("Join CSS files")
+
+	if c.options.SourceMap != config.SourceMapNone {
+		timer.Begin("Generate source map")
+		canHaveShifts := chunk.intermediateOutput.pieces != nil
+		chunk.outputSourceMap = c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps, canHaveShifts)
+		timer.End("Generate source map")
+	}
 
 	// End the metadata lazily. The final output size is not known until the
 	// final import paths are substituted into the output pieces generated below.
@@ -5252,8 +5331,14 @@ func (c *linkerContext) preventExportsFromBeingRenamed(sourceIndex uint32) {
 	}
 }
 
+type compileResultForSourceMap struct {
+	sourceMapChunk  sourcemap.Chunk
+	generatedOffset sourcemap.LineColumnOffset
+	sourceIndex     uint32
+}
+
 func (c *linkerContext) generateSourceMapForChunk(
-	results []compileResultJS,
+	results []compileResultForSourceMap,
 	chunkAbsDir string,
 	dataForSourceMaps []dataForSourceMap,
 	canHaveShifts bool,
@@ -5365,7 +5450,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 	prevEndState := sourcemap.SourceMapState{}
 	prevColumnOffset := 0
 	for _, result := range results {
-		chunk := result.SourceMapChunk
+		chunk := result.sourceMapChunk
 		offset := result.generatedOffset
 		sourcesIndex := sourceIndexToSourcesIndex[result.sourceIndex]
 

@@ -94,7 +94,12 @@ func (loader Loader) IsTypeScript() bool {
 }
 
 func (loader Loader) CanHaveSourceMap() bool {
-	return loader == LoaderJS || loader == LoaderJSX || loader == LoaderTS || loader == LoaderTSX
+	switch loader {
+	case LoaderJS, LoaderJSX, LoaderTS, LoaderTSX, LoaderCSS:
+		return true
+	default:
+		return false
+	}
 }
 
 type Format uint8

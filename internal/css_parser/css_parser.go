@@ -34,23 +34,27 @@ type Options struct {
 }
 
 func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
+	result := css_lexer.Tokenize(log, source)
 	p := parser{
 		log:       log,
 		source:    source,
 		tracker:   logger.MakeLineColumnTracker(&source),
 		options:   options,
-		tokens:    css_lexer.Tokenize(log, source),
+		tokens:    result.Tokens,
 		prevError: logger.Loc{Start: -1},
 	}
 	p.end = len(p.tokens)
-	tree := css_ast.AST{}
-	tree.Rules = p.parseListOfRules(ruleContext{
+	rules := p.parseListOfRules(ruleContext{
 		isTopLevel:     true,
 		parseSelectors: true,
 	})
-	tree.ImportRecords = p.importRecords
 	p.expect(css_lexer.TEndOfFile)
-	return tree
+	return css_ast.AST{
+		Rules:                rules,
+		ImportRecords:        p.importRecords,
+		ApproximateLineCount: result.ApproximateLineCount,
+		SourceMapComment:     result.SourceMapComment,
+	}
 }
 
 func (p *parser) advance() {
