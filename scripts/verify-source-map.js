@@ -285,6 +285,41 @@ const toSearchDynamicImport = {
   './ext/abc.js': 'entry.js',
 };
 
+const toSearchBundleCSS = {
+  a0: 'a.css',
+  a1: 'a.css',
+  a2: 'a.css',
+  b0: 'b-dir/b.css',
+  b1: 'b-dir/b.css',
+  b2: 'b-dir/b.css',
+  c0: 'b-dir/c-dir/c.css',
+  c1: 'b-dir/c-dir/c.css',
+  c2: 'b-dir/c-dir/c.css',
+}
+
+const testCaseBundleCSS = {
+  'entry.css': `
+    @import "a.css";
+  `,
+  'a.css': `
+    @import "b-dir/b.css";
+    a:nth-child(0):after { content: "a0"; }
+    a:nth-child(1):after { content: "a1"; }
+    a:nth-child(2):after { content: "a2"; }
+  `,
+  'b-dir/b.css': `
+    @import "c-dir/c.css";
+    b:nth-child(0):after { content: "b0"; }
+    b:nth-child(1):after { content: "b1"; }
+    b:nth-child(2):after { content: "b2"; }
+  `,
+  'b-dir/c-dir/c.css': `
+    c:nth-child(0):after { content: "c0"; }
+    c:nth-child(1):after { content: "c1"; }
+    c:nth-child(2):after { content: "c2"; }
+  `,
+}
+
 async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, followUpFlags = [] }) {
   let failed = 0
 
@@ -328,13 +363,13 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
 
     if (isStdin) {
       outCode = stdout
-      recordCheck(outCode.includes(`//# sourceMappingURL=data:application/json;base64,`), `.${ext} file must contain source map`)
+      recordCheck(outCode.includes(`# sourceMappingURL=data:application/json;base64,`), `.${ext} file must contain source map`)
       outCodeMap = Buffer.from(outCode.slice(outCode.indexOf('base64,') + 'base64,'.length).trim(), 'base64').toString()
     }
 
     else {
       outCode = await fs.readFile(path.join(tempDir, `out.${ext}`), 'utf8')
-      recordCheck(outCode.includes(`//# sourceMappingURL=out.${ext}.map\n`), `.${ext} file must link to .${ext}.map`)
+      recordCheck(outCode.includes(`# sourceMappingURL=out.${ext}.map`), `.${ext} file must link to .${ext}.map`)
       outCodeMap = await fs.readFile(path.join(tempDir, `out.${ext}.map`), 'utf8')
     }
 
@@ -345,7 +380,8 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
         if (outIndex < 0) throw new Error(`Failed to find "${id}" in output`)
         const outLines = out.slice(0, outIndex).split('\n')
         const outLine = outLines.length
-        const outColumn = outLines[outLines.length - 1].length
+        const outLastLine = outLines[outLines.length - 1]
+        let outColumn = outLastLine.length
         const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
 
         const inSource = isStdin ? '<stdin>' : toSearch[id];
@@ -357,7 +393,15 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
         if (inIndex < 0) throw new Error(`Failed to find "${id}" in input`)
         const inLines = inCode.slice(0, inIndex).split('\n')
         const inLine = inLines.length
-        const inColumn = inLines[inLines.length - 1].length
+        const inLastLine = inLines[inLines.length - 1]
+        let inColumn = inLastLine.length
+
+        if (ext === 'css') {
+          const outMatch = /\s*content:\s*$/.exec(outLastLine)
+          const inMatch = /\bcontent:\s*$/.exec(inLastLine)
+          if (outMatch) outColumn -= outMatch[0].length
+          if (inMatch) inColumn -= inMatch[0].length
+        }
 
         const expected = JSON.stringify({ source, line: inLine, column: inColumn })
         const observed = JSON.stringify({ source, line, column })
@@ -414,10 +458,11 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
       const nestedEntry = path.join(tempDir, `nested-entry.${ext}`)
       if (isStdin) await fs.writeFile(path.join(tempDir, fileToTest), outCode)
       await fs.writeFile(path.join(tempDir, `extra.${ext}`), `console.log('extra')`)
+      const importKeyword = ext === 'css' ? '@import' : 'import'
       await fs.writeFile(nestedEntry,
-        order === 1 ? `import './${fileToTest}'; import './extra.${ext}'` :
-          order === 2 ? `import './extra.${ext}'; import './${fileToTest}'` :
-            `import './${fileToTest}'`)
+        order === 1 ? `${importKeyword} './${fileToTest}'; ${importKeyword} './extra.${ext}'` :
+          order === 2 ? `${importKeyword} './extra.${ext}'; ${importKeyword} './${fileToTest}'` :
+            `${importKeyword} './${fileToTest}'`)
       await execFileAsync(esbuildPath, [
         nestedEntry,
         '--bundle',
@@ -426,7 +471,7 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
       ].concat(followUpFlags), { cwd: testDir })
 
       const out2Code = await fs.readFile(path.join(tempDir, `out2.${ext}`), 'utf8')
-      recordCheck(out2Code.includes(`//# sourceMappingURL=out2.${ext}.map\n`), `.${ext} file must link to .${ext}.map`)
+      recordCheck(out2Code.includes(`# sourceMappingURL=out2.${ext}.map`), `.${ext} file must link to .${ext}.map`)
       const out2CodeMap = await fs.readFile(path.join(tempDir, `out2.${ext}.map`), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2CodeMap)
@@ -548,6 +593,12 @@ async function main() {
           entryPoints: ['entry.js'],
           crlf,
           followUpFlags: ['--external:./ext/*', '--format=cjs'],
+        }),
+        check('bundle-css' + suffix, testCaseBundleCSS, toSearchBundleCSS, {
+          ext: 'css',
+          flags: flags.concat('--outfile=out.css', '--bundle'),
+          entryPoints: ['entry.css'],
+          crlf,
         }),
       )
     }
