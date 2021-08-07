@@ -237,9 +237,9 @@ type Lexer struct {
 	AllOriginalComments             []js_ast.Comment
 	codePoint                       rune
 	Identifier                      string
-	JSXFactoryPragmaComment         js_ast.Span
-	JSXFragmentPragmaComment        js_ast.Span
-	SourceMappingURL                js_ast.Span
+	JSXFactoryPragmaComment         logger.Span
+	JSXFragmentPragmaComment        logger.Span
+	SourceMappingURL                logger.Span
 	Number                          float64
 	rescanCloseBraceAsTemplateToken bool
 	forGlobalName                   bool
@@ -2629,25 +2629,25 @@ const (
 	pragmaSkipSpaceFirst
 )
 
-func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (js_ast.Span, bool) {
+func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (logger.Span, bool) {
 	text = text[len(pragma):]
 	start += len(pragma)
 
 	if text == "" {
-		return js_ast.Span{}, false
+		return logger.Span{}, false
 	}
 
 	// One or more whitespace characters
 	c, width := utf8.DecodeRuneInString(text)
 	if kind == pragmaSkipSpaceFirst {
 		if !IsWhitespace(c) {
-			return js_ast.Span{}, false
+			return logger.Span{}, false
 		}
 		for IsWhitespace(c) {
 			text = text[width:]
 			start += width
 			if text == "" {
-				return js_ast.Span{}, false
+				return logger.Span{}, false
 			}
 			c, width = utf8.DecodeRuneInString(text)
 		}
@@ -2666,7 +2666,7 @@ func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (js
 		}
 	}
 
-	return js_ast.Span{
+	return logger.Span{
 		Text: text[:i],
 		Range: logger.Range{
 			Loc: logger.Loc{Start: int32(start)},

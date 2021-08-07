@@ -516,7 +516,7 @@ func extractSourceMapFromComment(
 	fsCache *cache.FSCache,
 	res resolver.Resolver,
 	source *logger.Source,
-	comment js_ast.Span,
+	comment logger.Span,
 	absResolveDir string,
 ) (logger.Path, *string) {
 	tracker := logger.MakeLineColumnTracker(source)

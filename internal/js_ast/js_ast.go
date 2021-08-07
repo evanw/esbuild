@@ -253,11 +253,6 @@ type Comment struct {
 	Text string
 }
 
-type Span struct {
-	Text  string
-	Range logger.Range
-}
-
 type PropertyKind int
 
 const (
@@ -1760,7 +1755,7 @@ type AST struct {
 	// call "TopLevelSymbolToParts" instead.
 	TopLevelSymbolToPartsFromParser map[Ref][]uint32
 
-	SourceMapComment Span
+	SourceMapComment logger.Span
 }
 
 // This is a histogram of character frequencies for minification

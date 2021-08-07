@@ -113,6 +113,11 @@ func (r Range) End() int32 {
 	return r.Loc.Start + r.Len
 }
 
+type Span struct {
+	Text  string
+	Range Range
+}
+
 // This type is just so we can use Go's native sort function
 type SortableMsgs []Msg
 
