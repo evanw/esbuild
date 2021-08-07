@@ -2070,7 +2070,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
-		if prop.IsComputed && (p.options.ts.Parse || len(prop.TSDecorators) > 0 ||
+		if prop.IsComputed && (len(prop.TSDecorators) > 0 ||
 			mustLowerField || computedPropertyCache.Data != nil) {
 			needsKey := true
 			if len(prop.TSDecorators) == 0 && (prop.IsMethod || shouldOmitFieldInitializer) {
@@ -2092,7 +2092,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			// If this is a computed method, the property value will be used
 			// immediately. In this case we inline all computed properties so far to
 			// make sure all computed properties before this one are evaluated first.
-			if prop.IsMethod {
+			if !mustLowerField {
 				prop.Key = computedPropertyCache
 				computedPropertyCache = js_ast.Expr{}
 			}

@@ -6,6 +6,41 @@
 
     With this release, esbuild will now generate source maps for CSS output files when `--sourcemap` is enabled. This supports all of the same options as JS source maps including `--sourcemap=inline` and `--sourcemap=external`. In addition, CSS input files with embedded `/*# sourceMappingURL=... */` comments will cause the CSS output file source map to map all the way back to the original inputs. CSS source maps are used by the browser's style inspector to link back to the original source code instead of linking to the bundled source code.
 
+* Fix computed class fields in TypeScript edge case ([#1507](https://github.com/evanw/esbuild/issues/1507))
+
+    If TypeScript code contains computed class fields, the target environment supports class fields so syntax lowering is not necessary, and TypeScript's `useDefineForClassFields` setting is set to `true`, then esbuild had a bug where the computed property names were computed after the class definition and were undefined. Note that TypeScript's `useDefineForClassFields` setting defaults to `true` if `tsconfig.json` contains `"target": "ESNext"`.
+
+    ```ts
+    // Original code
+    class Foo {
+      [foo] = 1;
+      @bar [baz] = 2;
+    }
+
+    // Old output
+    var _a, _b;
+    var Foo = class {
+      [_a] = 1;
+      [_b] = 2;
+    };
+    _a = foo, _b = baz;
+    __decorateClass([
+      bar
+    ], Foo.prototype, _b, 2);
+
+    // New output
+    var _a;
+    var Foo = class {
+      [foo] = 1;
+      [_a = baz] = 2;
+    };
+    __decorateClass([
+      bar
+    ], Foo.prototype, _a, 2);
+    ```
+
+    The problem in this case is that normally TypeScript moves class field initializers into the special `constructor` method (automatically generating one if one doesn't already exist) so the side effects for class field property names must happen after the class body. But if class fields are supported by the target environment then the side effects must happen inline instead.
+
 ## 0.12.18
 
 * Allow implicit `./` in CSS `@import` paths ([#1494](https://github.com/evanw/esbuild/pull/1494))

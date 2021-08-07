@@ -2565,6 +2565,64 @@ switch (bar) {
 }
 
 ================================================================================
+TestTSComputedClassFieldUseDefineFalse
+---------- /out.js ----------
+var _a, _b, _c;
+class Foo {
+  constructor() {
+    this[_a] = s;
+    this[_c] = z;
+  }
+}
+q, _a = r, _b = x, _c = y;
+__decorateClass([
+  dec
+], Foo.prototype, _b, 2);
+__decorateClass([
+  dec
+], Foo.prototype, _c, 2);
+new Foo();
+
+================================================================================
+TestTSComputedClassFieldUseDefineTrue
+---------- /out.js ----------
+var _a, _b;
+class Foo {
+  [q];
+  [r] = s;
+  [_a = x];
+  [_b = y] = z;
+}
+__decorateClass([
+  dec
+], Foo.prototype, _a, 2);
+__decorateClass([
+  dec
+], Foo.prototype, _b, 2);
+new Foo();
+
+================================================================================
+TestTSComputedClassFieldUseDefineTrueLower
+---------- /out.js ----------
+var _a, _b, _c, _d;
+class Foo {
+  constructor() {
+    __publicField(this, _a);
+    __publicField(this, _b, s);
+    __publicField(this, _c);
+    __publicField(this, _d, z);
+  }
+}
+_a = q, _b = r, _c = x, _d = y;
+__decorateClass([
+  dec
+], Foo.prototype, _c, 2);
+__decorateClass([
+  dec
+], Foo.prototype, _d, 2);
+new Foo();
+
+================================================================================
 TestThisInsideFunction
 ---------- /out.js ----------
 // entry.js

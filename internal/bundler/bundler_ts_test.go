@@ -1121,3 +1121,76 @@ func TestThisInsideFunctionTSNoBundleUseDefineForClassFields(t *testing.T) {
 		},
 	})
 }
+
+func TestTSComputedClassFieldUseDefineFalse(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					[q];
+					[r] = s;
+					@dec
+					[x];
+					@dec
+					[y] = z;
+				}
+				new Foo()
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                    config.ModePassThrough,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.False,
+		},
+	})
+}
+
+func TestTSComputedClassFieldUseDefineTrue(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					[q];
+					[r] = s;
+					@dec
+					[x];
+					@dec
+					[y] = z;
+				}
+				new Foo()
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                    config.ModePassThrough,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.True,
+		},
+	})
+}
+
+func TestTSComputedClassFieldUseDefineTrueLower(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					[q];
+					[r] = s;
+					@dec
+					[x];
+					@dec
+					[y] = z;
+				}
+				new Foo()
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                    config.ModePassThrough,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.True,
+			UnsupportedJSFeatures:   compat.ClassField,
+		},
+	})
+}
