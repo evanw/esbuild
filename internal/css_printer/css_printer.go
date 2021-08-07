@@ -2,7 +2,6 @@ package css_printer
 
 import (
 	"fmt"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -10,12 +9,12 @@ import (
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
 
-const quoteForURL rune = -1
+const quoteForURL byte = 0
 
 type printer struct {
 	options       Options
 	importRecords []ast.ImportRecord
-	sb            strings.Builder
+	css           []byte
 }
 
 type Options struct {
@@ -23,7 +22,11 @@ type Options struct {
 	ASCIIOnly        bool
 }
 
-func Print(tree css_ast.AST, options Options) string {
+type PrintResult struct {
+	CSS []byte
+}
+
+func Print(tree css_ast.AST, options Options) PrintResult {
 	p := printer{
 		options:       options,
 		importRecords: tree.ImportRecords,
@@ -31,7 +34,9 @@ func Print(tree css_ast.AST, options Options) string {
 	for _, rule := range tree.Rules {
 		p.printRule(rule, 0, false)
 	}
-	return p.sb.String()
+	return PrintResult{
+		CSS: p.css,
+	}
 }
 
 func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicolon bool) {
@@ -348,10 +353,10 @@ func (p *printer) printPseudoClassSelector(pseudo css_ast.SSPseudoClass, whitesp
 }
 
 func (p *printer) print(text string) {
-	p.sb.WriteString(text)
+	p.css = append(p.css, text...)
 }
 
-func bestQuoteCharForString(text string, forURL bool) rune {
+func bestQuoteCharForString(text string, forURL bool) byte {
 	forURLCost := 0
 	singleCost := 2
 	doubleCost := 2
@@ -402,6 +407,8 @@ const (
 )
 
 func (p *printer) printWithEscape(c rune, escape escapeKind, remainingText string, mayNeedWhitespaceAfter bool) {
+	var temp [utf8.UTFMax]byte
+
 	if escape == escapeBackslash && ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
 		// Hexadecimal characters cannot use a plain backslash escape
 		escape = escapeHex
@@ -409,36 +416,38 @@ func (p *printer) printWithEscape(c rune, escape escapeKind, remainingText strin
 
 	switch escape {
 	case escapeNone:
-		p.sb.WriteRune(c)
+		width := utf8.EncodeRune(temp[:], c)
+		p.css = append(p.css, temp[:width]...)
 
 	case escapeBackslash:
-		p.sb.WriteRune('\\')
-		p.sb.WriteRune(c)
+		p.css = append(p.css, '\\')
+		width := utf8.EncodeRune(temp[:], c)
+		p.css = append(p.css, temp[:width]...)
 
 	case escapeHex:
 		text := fmt.Sprintf("\\%x", c)
-		p.sb.WriteString(text)
+		p.css = append(p.css, text...)
 
 		// Make sure the next character is not interpreted as part of the escape sequence
 		if len(text) < 1+6 {
 			if next := utf8.RuneLen(c); next < len(remainingText) {
 				c = rune(remainingText[next])
 				if c == ' ' || c == '\t' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
-					p.sb.WriteRune(' ')
+					p.css = append(p.css, ' ')
 				}
 			} else if mayNeedWhitespaceAfter {
 				// If the last character is a hexadecimal escape, print a space afterwards
 				// for the escape sequence to consume. That way we're sure it won't
 				// accidentally consume a semantically significant space afterward.
-				p.sb.WriteRune(' ')
+				p.css = append(p.css, ' ')
 			}
 		}
 	}
 }
 
-func (p *printer) printQuotedWithQuote(text string, quote rune) {
+func (p *printer) printQuotedWithQuote(text string, quote byte) {
 	if quote != quoteForURL {
-		p.sb.WriteRune(quote)
+		p.css = append(p.css, quote)
 	}
 
 	for i, c := range text {
@@ -449,7 +458,7 @@ func (p *printer) printQuotedWithQuote(text string, quote rune) {
 			// Use a hexadecimal escape for characters that would be invalid escapes
 			escape = escapeHex
 
-		case '\\', quote:
+		case '\\', rune(quote):
 			escape = escapeBackslash
 
 		case '(', ')', ' ', '\t', '"', '\'':
@@ -468,7 +477,7 @@ func (p *printer) printQuotedWithQuote(text string, quote rune) {
 	}
 
 	if quote != quoteForURL {
-		p.sb.WriteRune(quote)
+		p.css = append(p.css, quote)
 	}
 }
 
@@ -539,7 +548,7 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 
 func (p *printer) printIndent(indent int32) {
 	for i, n := 0, int(indent); i < n; i++ {
-		p.sb.WriteString("  ")
+		p.css = append(p.css, "  "...)
 	}
 }
 

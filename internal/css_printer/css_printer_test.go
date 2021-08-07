@@ -31,8 +31,8 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 			}
 		}
 		assertEqual(t, text, "")
-		css := Print(tree, options)
-		assertEqual(t, string(css), expected)
+		result := Print(tree, options)
+		assertEqual(t, string(result.CSS), expected)
 	})
 }
 
@@ -61,7 +61,7 @@ func expectPrintedString(t *testing.T, stringValue string, expected string) {
 		t.Helper()
 		p := printer{}
 		p.printQuoted(stringValue)
-		assertEqual(t, p.sb.String(), expected)
+		assertEqual(t, string(p.css), expected)
 	})
 }
 

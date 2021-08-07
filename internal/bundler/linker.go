@@ -4764,7 +4764,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 }
 
 type compileResultCSS struct {
-	printedCSS  string
+	printedCSS  []byte
 	sourceIndex uint32
 	hasCharset  bool
 }
@@ -4809,10 +4809,11 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			}
 			ast.Rules = rules
 
-			compileResult.printedCSS = css_printer.Print(ast, css_printer.Options{
+			result := css_printer.Print(ast, css_printer.Options{
 				RemoveWhitespace: c.options.RemoveWhitespace,
 				ASCIIOnly:        c.options.ASCIIOnly,
 			})
+			compileResult.printedCSS = result.CSS
 			compileResult.sourceIndex = sourceIndex
 			waitGroup.Done()
 		}(sourceIndex, compileResult)
@@ -4855,11 +4856,11 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 		}
 
 		if len(tree.Rules) > 0 {
-			css := css_printer.Print(tree, css_printer.Options{
+			result := css_printer.Print(tree, css_printer.Options{
 				RemoveWhitespace: c.options.RemoveWhitespace,
 			})
-			if len(css) > 0 {
-				j.AddString(css)
+			if len(result.CSS) > 0 {
+				j.AddBytes(result.CSS)
 				newlineBeforeComment = true
 			}
 		}
@@ -4912,7 +4913,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 		if len(compileResult.printedCSS) > 0 {
 			newlineBeforeComment = true
 		}
-		j.AddString(compileResult.printedCSS)
+		j.AddBytes(compileResult.printedCSS)
 
 		// Include this file in the metadata
 		if c.options.NeedsMetafile {

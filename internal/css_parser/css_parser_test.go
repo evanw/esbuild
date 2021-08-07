@@ -50,10 +50,10 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 			}
 		}
 		assertEqual(t, text, "")
-		css := css_printer.Print(tree, css_printer.Options{
+		result := css_printer.Print(tree, css_printer.Options{
 			RemoveWhitespace: options.RemoveWhitespace,
 		})
-		assertEqual(t, string(css), expected)
+		assertEqual(t, string(result.CSS), expected)
 	})
 }
 

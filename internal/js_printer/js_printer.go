@@ -522,7 +522,7 @@ func (p *printer) printIdentifier(name string) {
 // This is the same as "printIdentifier(StringToUTF16(bytes))" without any
 // unnecessary temporary allocations
 func (p *printer) printIdentifierUTF16(name []uint16) {
-	temp := make([]byte, utf8.UTFMax)
+	var temp [utf8.UTFMax]byte
 	n := len(name)
 
 	for i := 0; i < n; i++ {
@@ -546,7 +546,7 @@ func (p *printer) printIdentifierUTF16(name []uint16) {
 			continue
 		}
 
-		width := utf8.EncodeRune(temp, c)
+		width := utf8.EncodeRune(temp[:], c)
 		p.js = append(p.js, temp[:width]...)
 	}
 }
