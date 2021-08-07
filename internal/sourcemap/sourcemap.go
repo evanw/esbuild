@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/helpers"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 type Mapping struct {
@@ -361,4 +362,396 @@ func (pieces SourceMapPieces) Finalize(shifts []SourceMapShift) []byte {
 	j.AddBytes(pieces.Mappings[startOfRun:])
 	j.AddBytes(pieces.Suffix)
 	return j.Done()
+}
+
+// Coordinates in source maps are stored using relative offsets for size
+// reasons. When joining together chunks of a source map that were emitted
+// in parallel for different parts of a file, we need to fix up the first
+// segment of each chunk to be relative to the end of the previous chunk.
+type SourceMapState struct {
+	// This isn't stored in the source map. It's only used by the bundler to join
+	// source map chunks together correctly.
+	GeneratedLine int
+
+	// These are stored in the source map in VLQ format.
+	GeneratedColumn int
+	SourceIndex     int
+	OriginalLine    int
+	OriginalColumn  int
+}
+
+// Source map chunks are computed in parallel for speed. Each chunk is relative
+// to the zero state instead of being relative to the end state of the previous
+// chunk, since it's impossible to know the end state of the previous chunk in
+// a parallel computation.
+//
+// After all chunks are computed, they are joined together in a second pass.
+// This rewrites the first mapping in each chunk to be relative to the end
+// state of the previous chunk.
+func AppendSourceMapChunk(j *helpers.Joiner, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) {
+	// Handle line breaks in between this mapping and the previous one
+	if startState.GeneratedLine != 0 {
+		j.AddBytes(bytes.Repeat([]byte{';'}, startState.GeneratedLine))
+		prevEndState.GeneratedColumn = 0
+	}
+
+	// Skip past any leading semicolons, which indicate line breaks
+	semicolons := 0
+	for sourceMap[semicolons] == ';' {
+		semicolons++
+	}
+	if semicolons > 0 {
+		j.AddBytes(sourceMap[:semicolons])
+		sourceMap = sourceMap[semicolons:]
+		prevEndState.GeneratedColumn = 0
+		startState.GeneratedColumn = 0
+	}
+
+	// Strip off the first mapping from the buffer. The first mapping should be
+	// for the start of the original file (the printer always generates one for
+	// the start of the file).
+	generatedColumn, i := DecodeVLQ(sourceMap, 0)
+	sourceIndex, i := DecodeVLQ(sourceMap, i)
+	originalLine, i := DecodeVLQ(sourceMap, i)
+	originalColumn, i := DecodeVLQ(sourceMap, i)
+	sourceMap = sourceMap[i:]
+
+	// Rewrite the first mapping to be relative to the end state of the previous
+	// chunk. We now know what the end state is because we're in the second pass
+	// where all chunks have already been generated.
+	startState.SourceIndex += sourceIndex
+	startState.GeneratedColumn += generatedColumn
+	startState.OriginalLine += originalLine
+	startState.OriginalColumn += originalColumn
+	j.AddBytes(appendMappingToBuffer(nil, j.LastByte(), prevEndState, startState))
+
+	// Then append everything after that without modification.
+	j.AddBytes(sourceMap)
+}
+
+func appendMappingToBuffer(buffer []byte, lastByte byte, prevState SourceMapState, currentState SourceMapState) []byte {
+	// Put commas in between mappings
+	if lastByte != 0 && lastByte != ';' && lastByte != '"' {
+		buffer = append(buffer, ',')
+	}
+
+	// Record the generated column (the line is recorded using ';' elsewhere)
+	buffer = append(buffer, EncodeVLQ(currentState.GeneratedColumn-prevState.GeneratedColumn)...)
+	prevState.GeneratedColumn = currentState.GeneratedColumn
+
+	// Record the generated source
+	buffer = append(buffer, EncodeVLQ(currentState.SourceIndex-prevState.SourceIndex)...)
+	prevState.SourceIndex = currentState.SourceIndex
+
+	// Record the original line
+	buffer = append(buffer, EncodeVLQ(currentState.OriginalLine-prevState.OriginalLine)...)
+	prevState.OriginalLine = currentState.OriginalLine
+
+	// Record the original column
+	buffer = append(buffer, EncodeVLQ(currentState.OriginalColumn-prevState.OriginalColumn)...)
+	prevState.OriginalColumn = currentState.OriginalColumn
+
+	return buffer
+}
+
+type LineOffsetTable struct {
+	byteOffsetToStartOfLine int32
+
+	// The source map specification is very loose and does not specify what
+	// column numbers actually mean. The popular "source-map" library from Mozilla
+	// appears to interpret them as counts of UTF-16 code units, so we generate
+	// those too for compatibility.
+	//
+	// We keep mapping tables around to accelerate conversion from byte offsets
+	// to UTF-16 code unit counts. However, this mapping takes up a lot of memory
+	// and generates a lot of garbage. Since most JavaScript is ASCII and the
+	// mapping for ASCII is 1:1, we avoid creating a table for ASCII-only lines
+	// as an optimization.
+	byteOffsetToFirstNonASCII int32
+	columnsForNonASCII        []int32
+}
+
+func GenerateLineOffsetTables(contents string, approximateLineCount int32) []LineOffsetTable {
+	var ColumnsForNonASCII []int32
+	ByteOffsetToFirstNonASCII := int32(0)
+	lineByteOffset := 0
+	columnByteOffset := 0
+	column := int32(0)
+
+	// Preallocate the top-level table using the approximate line count from the lexer
+	lineOffsetTables := make([]LineOffsetTable, 0, approximateLineCount)
+
+	for i, c := range contents {
+		// Mark the start of the next line
+		if column == 0 {
+			lineByteOffset = i
+		}
+
+		// Start the mapping if this character is non-ASCII
+		if c > 0x7F && ColumnsForNonASCII == nil {
+			columnByteOffset = i - lineByteOffset
+			ByteOffsetToFirstNonASCII = int32(columnByteOffset)
+			ColumnsForNonASCII = []int32{}
+		}
+
+		// Update the per-byte column offsets
+		if ColumnsForNonASCII != nil {
+			for lineBytesSoFar := i - lineByteOffset; columnByteOffset <= lineBytesSoFar; columnByteOffset++ {
+				ColumnsForNonASCII = append(ColumnsForNonASCII, column)
+			}
+		}
+
+		switch c {
+		case '\r', '\n', '\u2028', '\u2029':
+			// Handle Windows-specific "\r\n" newlines
+			if c == '\r' && i+1 < len(contents) && contents[i+1] == '\n' {
+				column++
+				continue
+			}
+
+			lineOffsetTables = append(lineOffsetTables, LineOffsetTable{
+				byteOffsetToStartOfLine:   int32(lineByteOffset),
+				byteOffsetToFirstNonASCII: ByteOffsetToFirstNonASCII,
+				columnsForNonASCII:        ColumnsForNonASCII,
+			})
+			columnByteOffset = 0
+			ByteOffsetToFirstNonASCII = 0
+			ColumnsForNonASCII = nil
+			column = 0
+
+		default:
+			// Mozilla's "source-map" library counts columns using UTF-16 code units
+			if c <= 0xFFFF {
+				column++
+			} else {
+				column += 2
+			}
+		}
+	}
+
+	// Mark the start of the next line
+	if column == 0 {
+		lineByteOffset = len(contents)
+	}
+
+	// Do one last update for the column at the end of the file
+	if ColumnsForNonASCII != nil {
+		for lineBytesSoFar := len(contents) - lineByteOffset; columnByteOffset <= lineBytesSoFar; columnByteOffset++ {
+			ColumnsForNonASCII = append(ColumnsForNonASCII, column)
+		}
+	}
+
+	lineOffsetTables = append(lineOffsetTables, LineOffsetTable{
+		byteOffsetToStartOfLine:   int32(lineByteOffset),
+		byteOffsetToFirstNonASCII: ByteOffsetToFirstNonASCII,
+		columnsForNonASCII:        ColumnsForNonASCII,
+	})
+	return lineOffsetTables
+}
+
+type Chunk struct {
+	Buffer []byte
+
+	// This end state will be used to rewrite the start of the following source
+	// map chunk so that the delta-encoded VLQ numbers are preserved.
+	EndState SourceMapState
+
+	// There probably isn't a source mapping at the end of the file (nor should
+	// there be) but if we're appending another source map chunk after this one,
+	// we'll need to know how many characters were in the last line we generated.
+	FinalGeneratedColumn int
+
+	ShouldIgnore bool
+}
+
+type ChunkBuilder struct {
+	inputSourceMap      *SourceMap
+	sourceMap           []byte
+	prevLoc             logger.Loc
+	prevState           SourceMapState
+	lastGeneratedUpdate int
+	generatedColumn     int
+	hasPrevState        bool
+	lineOffsetTables    []LineOffsetTable
+
+	// This is a workaround for a bug in the popular "source-map" library:
+	// https://github.com/mozilla/source-map/issues/261. The library will
+	// sometimes return null when querying a source map unless every line
+	// starts with a mapping at column zero.
+	//
+	// The workaround is to replicate the previous mapping if a line ends
+	// up not starting with a mapping. This is done lazily because we want
+	// to avoid replicating the previous mapping if we don't need to.
+	lineStartsWithMapping     bool
+	coverLinesWithoutMappings bool
+}
+
+func MakeChunkBuilder(inputSourceMap *SourceMap, lineOffsetTables []LineOffsetTable) ChunkBuilder {
+	return ChunkBuilder{
+		inputSourceMap:   inputSourceMap,
+		prevLoc:          logger.Loc{Start: -1},
+		lineOffsetTables: lineOffsetTables,
+
+		// We automatically repeat the previous source mapping if we ever generate
+		// a line that doesn't start with a mapping. This helps give files more
+		// complete mapping coverage without gaps.
+		//
+		// However, we probably shouldn't do this if the input file has a nested
+		// source map that we will be remapping through. We have no idea what state
+		// that source map is in and it could be pretty scrambled.
+		//
+		// I've seen cases where blindly repeating the last mapping for subsequent
+		// lines gives very strange and unhelpful results with source maps from
+		// other tools.
+		coverLinesWithoutMappings: inputSourceMap == nil,
+	}
+}
+
+func (b *ChunkBuilder) AddSourceMapping(loc logger.Loc, output []byte) {
+	if loc == b.prevLoc {
+		return
+	}
+	b.prevLoc = loc
+
+	// Binary search to find the line
+	lineOffsetTables := b.lineOffsetTables
+	count := len(lineOffsetTables)
+	originalLine := 0
+	for count > 0 {
+		step := count / 2
+		i := originalLine + step
+		if lineOffsetTables[i].byteOffsetToStartOfLine <= loc.Start {
+			originalLine = i + 1
+			count = count - step - 1
+		} else {
+			count = step
+		}
+	}
+	originalLine--
+
+	// Use the line to compute the column
+	line := &lineOffsetTables[originalLine]
+	originalColumn := int(loc.Start - line.byteOffsetToStartOfLine)
+	if line.columnsForNonASCII != nil && originalColumn >= int(line.byteOffsetToFirstNonASCII) {
+		originalColumn = int(line.columnsForNonASCII[originalColumn-int(line.byteOffsetToFirstNonASCII)])
+	}
+
+	b.updateGeneratedLineAndColumn(output)
+
+	// If this line doesn't start with a mapping and we're about to add a mapping
+	// that's not at the start, insert a mapping first so the line starts with one.
+	if b.coverLinesWithoutMappings && !b.lineStartsWithMapping && b.generatedColumn > 0 && b.hasPrevState {
+		b.appendMappingWithoutRemapping(SourceMapState{
+			GeneratedLine:   b.prevState.GeneratedLine,
+			GeneratedColumn: 0,
+			SourceIndex:     b.prevState.SourceIndex,
+			OriginalLine:    b.prevState.OriginalLine,
+			OriginalColumn:  b.prevState.OriginalColumn,
+		})
+	}
+
+	b.appendMapping(SourceMapState{
+		GeneratedLine:   b.prevState.GeneratedLine,
+		GeneratedColumn: b.generatedColumn,
+		OriginalLine:    originalLine,
+		OriginalColumn:  originalColumn,
+	})
+
+	// This line now has a mapping on it, so don't insert another one
+	b.lineStartsWithMapping = true
+}
+
+func (b *ChunkBuilder) GenerateChunk(output []byte) Chunk {
+	b.updateGeneratedLineAndColumn(output)
+	shouldIgnore := true
+	for _, c := range b.sourceMap {
+		if c != ';' {
+			shouldIgnore = false
+			break
+		}
+	}
+	return Chunk{
+		Buffer:               b.sourceMap,
+		EndState:             b.prevState,
+		FinalGeneratedColumn: b.generatedColumn,
+		ShouldIgnore:         shouldIgnore,
+	}
+}
+
+// Scan over the printed text since the last source mapping and update the
+// generated line and column numbers
+func (b *ChunkBuilder) updateGeneratedLineAndColumn(output []byte) {
+	for i, c := range string(output[b.lastGeneratedUpdate:]) {
+		switch c {
+		case '\r', '\n', '\u2028', '\u2029':
+			// Handle Windows-specific "\r\n" newlines
+			if c == '\r' {
+				newlineCheck := b.lastGeneratedUpdate + i + 1
+				if newlineCheck < len(output) && output[newlineCheck] == '\n' {
+					continue
+				}
+			}
+
+			// If we're about to move to the next line and the previous line didn't have
+			// any mappings, add a mapping at the start of the previous line.
+			if b.coverLinesWithoutMappings && !b.lineStartsWithMapping && b.hasPrevState {
+				b.appendMappingWithoutRemapping(SourceMapState{
+					GeneratedLine:   b.prevState.GeneratedLine,
+					GeneratedColumn: 0,
+					SourceIndex:     b.prevState.SourceIndex,
+					OriginalLine:    b.prevState.OriginalLine,
+					OriginalColumn:  b.prevState.OriginalColumn,
+				})
+			}
+
+			b.prevState.GeneratedLine++
+			b.prevState.GeneratedColumn = 0
+			b.generatedColumn = 0
+			b.sourceMap = append(b.sourceMap, ';')
+
+			// This new line doesn't have a mapping yet
+			b.lineStartsWithMapping = false
+
+		default:
+			// Mozilla's "source-map" library counts columns using UTF-16 code units
+			if c <= 0xFFFF {
+				b.generatedColumn++
+			} else {
+				b.generatedColumn += 2
+			}
+		}
+	}
+
+	b.lastGeneratedUpdate = len(output)
+}
+
+func (b *ChunkBuilder) appendMapping(currentState SourceMapState) {
+	// If the input file had a source map, map all the way back to the original
+	if b.inputSourceMap != nil {
+		mapping := b.inputSourceMap.Find(
+			int32(currentState.OriginalLine),
+			int32(currentState.OriginalColumn))
+
+		// Some locations won't have a mapping
+		if mapping == nil {
+			return
+		}
+
+		currentState.SourceIndex = int(mapping.SourceIndex)
+		currentState.OriginalLine = int(mapping.OriginalLine)
+		currentState.OriginalColumn = int(mapping.OriginalColumn)
+	}
+
+	b.appendMappingWithoutRemapping(currentState)
+}
+
+func (b *ChunkBuilder) appendMappingWithoutRemapping(currentState SourceMapState) {
+	var lastByte byte
+	if len(b.sourceMap) != 0 {
+		lastByte = b.sourceMap[len(b.sourceMap)-1]
+	}
+
+	b.sourceMap = appendMappingToBuffer(b.sourceMap, lastByte, b.prevState, currentState)
+	b.prevState = currentState
+	b.hasPrevState = true
 }

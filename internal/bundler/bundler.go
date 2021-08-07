@@ -30,6 +30,7 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
+	"github.com/evanw/esbuild/internal/sourcemap"
 	"github.com/evanw/esbuild/internal/xxhash"
 )
 
@@ -50,7 +51,7 @@ type dataForSourceMap struct {
 	// This data is for the printer. It maps from byte offsets in the file (which
 	// are stored at every AST node) to UTF-16 column offsets (required by source
 	// maps).
-	lineOffsetTables []js_printer.LineOffsetTable
+	lineOffsetTables []sourcemap.LineOffsetTable
 
 	// This contains the quoted contents of the original source file. It's what
 	// needs to be embedded in the "sourcesContent" array in the final source
@@ -2135,7 +2136,7 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 				waitGroup.Add(1)
 				go func(sourceIndex uint32, f *scannerFile, repr *graph.JSRepr) {
 					result := &results[sourceIndex]
-					result.lineOffsetTables = js_printer.GenerateLineOffsetTables(f.inputFile.Source.Contents, repr.AST.ApproximateLineCount)
+					result.lineOffsetTables = sourcemap.GenerateLineOffsetTables(f.inputFile.Source.Contents, repr.AST.ApproximateLineCount)
 					sm := f.inputFile.InputSourceMap
 					if !options.ExcludeSourcesContent {
 						if sm == nil {

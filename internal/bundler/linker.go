@@ -3751,7 +3751,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	// Only generate a source map if needed
 	var addSourceMappings bool
 	var inputSourceMap *sourcemap.SourceMap
-	var lineOffsetTables []js_printer.LineOffsetTable
+	var lineOffsetTables []sourcemap.LineOffsetTable
 	if file.InputFile.Loader.CanHaveSourceMap() && c.options.SourceMap != config.SourceMapNone {
 		addSourceMappings = true
 		inputSourceMap = file.InputFile.InputSourceMap
@@ -5361,7 +5361,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 
 	// Write the mappings
 	mappingsStart := j.Length()
-	prevEndState := js_printer.SourceMapState{}
+	prevEndState := sourcemap.SourceMapState{}
 	prevColumnOffset := 0
 	for _, result := range results {
 		chunk := result.SourceMapChunk
@@ -5380,7 +5380,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 		// index per entry point by modifying the first source mapping. This
 		// is done by AppendSourceMapChunk() using the source index passed
 		// here.
-		startState := js_printer.SourceMapState{
+		startState := sourcemap.SourceMapState{
 			SourceIndex:     sourcesIndex,
 			GeneratedLine:   offset.Lines,
 			GeneratedColumn: offset.Columns,
@@ -5390,7 +5390,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 		}
 
 		// Append the precomputed source map chunk
-		js_printer.AppendSourceMapChunk(&j, prevEndState, startState, chunk.Buffer)
+		sourcemap.AppendSourceMapChunk(&j, prevEndState, startState, chunk.Buffer)
 
 		// Generate the relative offset to start from next time
 		prevEndState = chunk.EndState
