@@ -76,13 +76,13 @@ func compactTokenQuad(a css_ast.Token, b css_ast.Token, c css_ast.Token, d css_a
 	return tokens
 }
 
-func (p *parser) processDeclarations(rules []css_ast.R) []css_ast.R {
+func (p *parser) processDeclarations(rules []css_ast.Rule) []css_ast.Rule {
 	margin := boxTracker{}
 	padding := boxTracker{}
 	borderRadius := borderRadiusTracker{}
 
 	for i, rule := range rules {
-		decl, ok := rule.(*css_ast.RDeclaration)
+		decl, ok := rule.Data.(*css_ast.RDeclaration)
 		if !ok {
 			continue
 		}
@@ -197,7 +197,7 @@ func (p *parser) processDeclarations(rules []css_ast.R) []css_ast.R {
 	if p.options.MangleSyntax {
 		end := 0
 		for _, rule := range rules {
-			if rule != nil {
+			if rule.Data != nil {
 				rules[end] = rule
 				end++
 			}

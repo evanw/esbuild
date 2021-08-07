@@ -154,10 +154,10 @@ type ruleContext struct {
 	parseSelectors bool
 }
 
-func (p *parser) parseListOfRules(context ruleContext) []css_ast.R {
+func (p *parser) parseListOfRules(context ruleContext) []css_ast.Rule {
 	didWarnAboutCharset := false
 	didWarnAboutImport := false
-	rules := []css_ast.R{}
+	rules := []css_ast.Rule{}
 	locs := []logger.Loc{}
 
 loop:
@@ -176,7 +176,7 @@ loop:
 
 			// Validate structure
 			if context.isTopLevel {
-				switch rule.(type) {
+				switch rule.Data.(type) {
 				case *css_ast.RAtCharset:
 					if !didWarnAboutCharset && len(rules) > 0 {
 						p.log.AddRangeWarningWithNotes(&p.tracker, first, "\"@charset\" must be the first rule in the file",
@@ -189,7 +189,7 @@ loop:
 					if !didWarnAboutImport {
 					importLoop:
 						for i, before := range rules {
-							switch before.(type) {
+							switch before.Data.(type) {
 							case *css_ast.RAtCharset, *css_ast.RAtImport:
 							default:
 								p.log.AddRangeWarningWithNotes(&p.tracker, first, "All \"@import\" rules must come first",
@@ -232,7 +232,7 @@ loop:
 	return rules
 }
 
-func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
+func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 	for {
 		switch p.current().Kind {
 		case css_lexer.TWhitespace, css_lexer.TSemicolon:
@@ -260,7 +260,7 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 	}
 }
 
-func removeEmptyAndDuplicateRules(rules []css_ast.R) []css_ast.R {
+func removeEmptyAndDuplicateRules(rules []css_ast.Rule) []css_ast.Rule {
 	type hashEntry struct {
 		indices []uint32
 	}
@@ -274,7 +274,7 @@ skipRule:
 	for i := n - 1; i >= 0; i-- {
 		rule := rules[i]
 
-		switch r := rule.(type) {
+		switch r := rule.Data.(type) {
 		case *css_ast.RAtKeyframes:
 			if len(r.Blocks) == 0 {
 				continue
@@ -291,12 +291,12 @@ skipRule:
 			}
 		}
 
-		if hash, ok := rule.Hash(); ok {
+		if hash, ok := rule.Data.Hash(); ok {
 			entry := entries[hash]
 
 			// For duplicate rules, omit all but the last copy
 			for _, index := range entry.indices {
-				if rule.Equal(rules[index]) {
+				if rule.Data.Equal(rules[index].Data) {
 					continue skipRule
 				}
 			}
@@ -408,7 +408,7 @@ type atRuleContext struct {
 	isDeclarationList bool
 }
 
-func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
+func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 	// Parse the name
 	atToken := p.decoded()
 	atRange := p.current().Range
@@ -429,7 +429,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 			}
 			p.advance()
 			p.expect(css_lexer.TSemicolon)
-			return &css_ast.RAtCharset{Encoding: encoding}
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtCharset{Encoding: encoding}}
 		}
 		p.expect(css_lexer.TString)
 
@@ -461,10 +461,10 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 				Path:  logger.Path{Text: path},
 				Range: r,
 			})
-			return &css_ast.RAtImport{
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtImport{
 				ImportRecordIndex: importRecordIndex,
 				ImportConditions:  importConditions,
-			}
+			}}
 		}
 
 	case "keyframes", "-webkit-keyframes", "-moz-keyframes", "-ms-keyframes", "-o-keyframes":
@@ -556,11 +556,11 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 			}
 
 			p.expect(css_lexer.TCloseBrace)
-			return &css_ast.RAtKeyframes{
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtKeyframes{
 				AtToken: atToken,
 				Name:    name,
 				Blocks:  blocks,
-			}
+			}}
 		}
 
 	default:
@@ -599,12 +599,12 @@ prelude:
 			if kind != atRuleEmpty && kind != atRuleUnknown {
 				p.expect(css_lexer.TOpenBrace)
 				p.eat(css_lexer.TSemicolon)
-				return &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude}
+				return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude}}
 			}
 
 			// Otherwise, parse an unknown at rule
 			p.expect(css_lexer.TSemicolon)
-			return &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude}
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude}}
 
 		default:
 			p.parseComponentValue()
@@ -619,19 +619,19 @@ prelude:
 		p.expect(css_lexer.TSemicolon)
 		p.parseBlock(css_lexer.TOpenBrace, css_lexer.TCloseBrace)
 		block := p.convertTokens(p.tokens[blockStart:p.index])
-		return &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}
+		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}}
 
 	case atRuleDeclarations:
 		// Parse known rules whose blocks consist of whatever the current context is
 		p.advance()
 		rules := p.parseListOfDeclarations()
 		p.expect(css_lexer.TCloseBrace)
-		return &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}
+		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}}
 
 	case atRuleInheritContext:
 		// Parse known rules whose blocks consist of whatever the current context is
 		p.advance()
-		var rules []css_ast.R
+		var rules []css_ast.Rule
 		if context.isDeclarationList {
 			rules = p.parseListOfDeclarations()
 		} else {
@@ -640,13 +640,13 @@ prelude:
 			})
 		}
 		p.expect(css_lexer.TCloseBrace)
-		return &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}
+		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}}
 
 	default:
 		// Otherwise, parse an unknown rule
 		p.parseBlock(css_lexer.TOpenBrace, css_lexer.TCloseBrace)
 		block, _ := p.convertTokensHelper(p.tokens[blockStart:p.index], css_lexer.TEndOfFile, convertTokensOpts{allowImports: true})
-		return &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}
+		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}}
 	}
 }
 
@@ -926,16 +926,16 @@ func mangleNumber(t string) (string, bool) {
 	return t, t != original
 }
 
-func (p *parser) parseSelectorRule() css_ast.R {
+func (p *parser) parseSelectorRule() css_ast.Rule {
 	preludeStart := p.index
 
 	// Try parsing the prelude as a selector list
 	if list, ok := p.parseSelectorList(); ok {
-		rule := css_ast.RSelector{Selectors: list}
+		selector := css_ast.RSelector{Selectors: list}
 		if p.expect(css_lexer.TOpenBrace) {
-			rule.Rules = p.parseListOfDeclarations()
+			selector.Rules = p.parseListOfDeclarations()
 			p.expect(css_lexer.TCloseBrace)
-			return &rule
+			return css_ast.Rule{Loc: p.tokens[preludeStart].Range.Loc, Data: &selector}
 		}
 	}
 
@@ -943,7 +943,9 @@ func (p *parser) parseSelectorRule() css_ast.R {
 	return p.parseQualifiedRuleFrom(preludeStart, true /* isAlreadyInvalid */)
 }
 
-func (p *parser) parseQualifiedRuleFrom(preludeStart int, isAlreadyInvalid bool) *css_ast.RQualified {
+func (p *parser) parseQualifiedRuleFrom(preludeStart int, isAlreadyInvalid bool) css_ast.Rule {
+	preludeLoc := p.tokens[preludeStart].Range.Loc
+
 loop:
 	for {
 		switch p.current().Kind {
@@ -957,30 +959,31 @@ loop:
 			}
 			prelude := p.convertTokens(p.tokens[preludeStart:p.index])
 			p.advance()
-			return &css_ast.RQualified{Prelude: prelude}
+			return css_ast.Rule{Loc: preludeLoc, Data: &css_ast.RQualified{Prelude: prelude}}
 
 		default:
 			p.parseComponentValue()
 		}
 	}
 
-	rule := css_ast.RQualified{
+	qualified := css_ast.RQualified{
 		Prelude: p.convertTokens(p.tokens[preludeStart:p.index]),
 	}
 
 	if p.eat(css_lexer.TOpenBrace) {
-		rule.Rules = p.parseListOfDeclarations()
+		qualified.Rules = p.parseListOfDeclarations()
 		p.expect(css_lexer.TCloseBrace)
 	} else if !isAlreadyInvalid {
 		p.expect(css_lexer.TOpenBrace)
 	}
 
-	return &rule
+	return css_ast.Rule{Loc: preludeLoc, Data: &qualified}
 }
 
-func (p *parser) parseDeclaration() css_ast.R {
+func (p *parser) parseDeclaration() css_ast.Rule {
 	// Parse the key
 	keyStart := p.index
+	keyLoc := p.tokens[keyStart].Range.Loc
 	ok := false
 	if p.expect(css_lexer.TIdent) {
 		p.eat(css_lexer.TWhitespace)
@@ -1013,9 +1016,9 @@ stop:
 
 	// Stop now if this is not a valid declaration
 	if !ok {
-		return &css_ast.RBadDeclaration{
+		return css_ast.Rule{Loc: keyLoc, Data: &css_ast.RBadDeclaration{
 			Tokens: p.convertTokens(p.tokens[keyStart:p.index]),
-		}
+		}}
 	}
 
 	keyToken := p.tokens[keyStart]
@@ -1056,13 +1059,13 @@ stop:
 		}
 	}
 
-	return &css_ast.RDeclaration{
+	return css_ast.Rule{Loc: keyLoc, Data: &css_ast.RDeclaration{
 		Key:       css_ast.KnownDeclarations[keyText],
 		KeyText:   keyText,
 		KeyRange:  keyToken.Range,
 		Value:     result,
 		Important: important,
-	}
+	}}
 }
 
 func (p *parser) parseComponentValue() {

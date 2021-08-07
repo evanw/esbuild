@@ -25,7 +25,7 @@ import (
 
 type AST struct {
 	ImportRecords []ast.ImportRecord
-	Rules         []R
+	Rules         []Rule
 }
 
 // We create a lot of tokens, so make sure this layout is memory-efficient.
@@ -211,27 +211,32 @@ func (t Token) IsOne() bool {
 	return t.Kind == css_lexer.TNumber && t.Text == "1"
 }
 
+type Rule struct {
+	Loc  logger.Loc
+	Data R
+}
+
 type R interface {
 	Equal(rule R) bool
 	Hash() (uint32, bool)
 }
 
-func RulesEqual(a []R, b []R) bool {
+func RulesEqual(a []Rule, b []Rule) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	for i, c := range a {
-		if !c.Equal(b[i]) {
+		if !c.Data.Equal(b[i].Data) {
 			return false
 		}
 	}
 	return true
 }
 
-func HashRules(hash uint32, rules []R) uint32 {
+func HashRules(hash uint32, rules []Rule) uint32 {
 	hash = helpers.HashCombine(hash, uint32(len(rules)))
 	for _, child := range rules {
-		if childHash, ok := child.Hash(); ok {
+		if childHash, ok := child.Data.Hash(); ok {
 			hash = helpers.HashCombine(hash, childHash)
 		} else {
 			hash = helpers.HashCombine(hash, 0)
@@ -276,7 +281,7 @@ type RAtKeyframes struct {
 
 type KeyframeBlock struct {
 	Selectors []string
-	Rules     []R
+	Rules     []Rule
 }
 
 func (a *RAtKeyframes) Equal(rule R) bool {
@@ -319,7 +324,7 @@ func (r *RAtKeyframes) Hash() (uint32, bool) {
 type RKnownAt struct {
 	AtToken string
 	Prelude []Token
-	Rules   []R
+	Rules   []Rule
 }
 
 func (a *RKnownAt) Equal(rule R) bool {
@@ -356,7 +361,7 @@ func (r *RUnknownAt) Hash() (uint32, bool) {
 
 type RSelector struct {
 	Selectors []ComplexSelector
-	Rules     []R
+	Rules     []Rule
 }
 
 func (a *RSelector) Equal(rule R) bool {
@@ -421,7 +426,7 @@ func (r *RSelector) Hash() (uint32, bool) {
 
 type RQualified struct {
 	Prelude []Token
-	Rules   []R
+	Rules   []Rule
 }
 
 func (a *RQualified) Equal(rule R) bool {

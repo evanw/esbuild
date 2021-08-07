@@ -25,14 +25,14 @@ type borderRadiusTracker struct {
 	important bool
 }
 
-func (borderRadius *borderRadiusTracker) updateCorner(rules []css_ast.R, corner int, new borderRadiusCorner) {
+func (borderRadius *borderRadiusTracker) updateCorner(rules []css_ast.Rule, corner int, new borderRadiusCorner) {
 	if old := borderRadius.corners[corner]; old.firstToken.Kind != css_lexer.TEndOfFile && (!new.single || old.single) {
-		rules[old.index] = nil
+		rules[old.index] = css_ast.Rule{}
 	}
 	borderRadius.corners[corner] = new
 }
 
-func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.R, decl *css_ast.RDeclaration, index int, removeWhitespace bool) {
+func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, removeWhitespace bool) {
 	// Reset if we see a change in the "!important" flag
 	if borderRadius.important != decl.Important {
 		borderRadius.corners = [4]borderRadiusCorner{}
@@ -88,7 +88,7 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.R, decl *
 	borderRadius.compactRules(rules, decl.KeyRange, removeWhitespace)
 }
 
-func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.R, decl *css_ast.RDeclaration, index int, removeWhitespace bool, corner int) {
+func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, removeWhitespace bool, corner int) {
 	// Reset if we see a change in the "!important" flag
 	if borderRadius.important != decl.Important {
 		borderRadius.corners = [4]borderRadiusCorner{}
@@ -124,7 +124,7 @@ func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.R, decl *c
 	}
 }
 
-func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.R, keyRange logger.Range, removeWhitespace bool) {
+func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range, removeWhitespace bool) {
 	// All tokens must be present
 	if eof := css_lexer.TEndOfFile; borderRadius.corners[0].firstToken.Kind == eof || borderRadius.corners[1].firstToken.Kind == eof ||
 		borderRadius.corners[2].firstToken.Kind == eof || borderRadius.corners[3].firstToken.Kind == eof {
@@ -160,13 +160,13 @@ func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.R, keyRang
 	}
 
 	// Remove all of the existing declarations
-	rules[borderRadius.corners[0].index] = nil
-	rules[borderRadius.corners[1].index] = nil
-	rules[borderRadius.corners[2].index] = nil
-	rules[borderRadius.corners[3].index] = nil
+	rules[borderRadius.corners[0].index] = css_ast.Rule{}
+	rules[borderRadius.corners[1].index] = css_ast.Rule{}
+	rules[borderRadius.corners[2].index] = css_ast.Rule{}
+	rules[borderRadius.corners[3].index] = css_ast.Rule{}
 
 	// Insert the combined declaration where the last rule was
-	rules[borderRadius.corners[3].index] = &css_ast.RDeclaration{
+	rules[borderRadius.corners[3].index].Data = &css_ast.RDeclaration{
 		Key:       css_ast.DBorderRadius,
 		KeyText:   "border-radius",
 		Value:     tokens,

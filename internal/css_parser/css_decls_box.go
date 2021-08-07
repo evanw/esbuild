@@ -24,14 +24,14 @@ type boxTracker struct {
 	important bool
 }
 
-func (box *boxTracker) updateSide(rules []css_ast.R, side int, new boxSide) {
+func (box *boxTracker) updateSide(rules []css_ast.Rule, side int, new boxSide) {
 	if old := box.sides[side]; old.token.Kind != css_lexer.TEndOfFile && (!new.single || old.single) {
-		rules[old.index] = nil
+		rules[old.index] = css_ast.Rule{}
 	}
 	box.sides[side] = new
 }
 
-func (box *boxTracker) mangleSides(rules []css_ast.R, decl *css_ast.RDeclaration, index int, removeWhitespace bool) {
+func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, removeWhitespace bool) {
 	// Reset if we see a change in the "!important" flag
 	if box.important != decl.Important {
 		box.sides = [4]boxSide{}
@@ -50,7 +50,7 @@ func (box *boxTracker) mangleSides(rules []css_ast.R, decl *css_ast.RDeclaration
 	}
 }
 
-func (box *boxTracker) mangleSide(rules []css_ast.R, decl *css_ast.RDeclaration, index int, removeWhitespace bool, side int) {
+func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, removeWhitespace bool, side int) {
 	// Reset if we see a change in the "!important" flag
 	if box.important != decl.Important {
 		box.sides = [4]boxSide{}
@@ -74,7 +74,7 @@ func (box *boxTracker) mangleSide(rules []css_ast.R, decl *css_ast.RDeclaration,
 	}
 }
 
-func (box *boxTracker) compactRules(rules []css_ast.R, keyRange logger.Range, removeWhitespace bool, isMargin bool) {
+func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range, removeWhitespace bool, isMargin bool) {
 	// All tokens must be present
 	if eof := css_lexer.TEndOfFile; box.sides[0].token.Kind == eof || box.sides[1].token.Kind == eof ||
 		box.sides[2].token.Kind == eof || box.sides[3].token.Kind == eof {
@@ -91,10 +91,10 @@ func (box *boxTracker) compactRules(rules []css_ast.R, keyRange logger.Range, re
 	)
 
 	// Remove all of the existing declarations
-	rules[box.sides[0].index] = nil
-	rules[box.sides[1].index] = nil
-	rules[box.sides[2].index] = nil
-	rules[box.sides[3].index] = nil
+	rules[box.sides[0].index] = css_ast.Rule{}
+	rules[box.sides[1].index] = css_ast.Rule{}
+	rules[box.sides[2].index] = css_ast.Rule{}
+	rules[box.sides[3].index] = css_ast.Rule{}
 
 	// Insert the combined declaration where the last rule was
 	var key css_ast.D
@@ -106,7 +106,7 @@ func (box *boxTracker) compactRules(rules []css_ast.R, keyRange logger.Range, re
 		key = css_ast.DPadding
 		keyText = "padding"
 	}
-	rules[box.sides[3].index] = &css_ast.RDeclaration{
+	rules[box.sides[3].index].Data = &css_ast.RDeclaration{
 		Key:       key,
 		KeyText:   keyText,
 		Value:     tokens,

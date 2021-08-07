@@ -34,12 +34,12 @@ func Print(tree css_ast.AST, options Options) string {
 	return p.sb.String()
 }
 
-func (p *printer) printRule(rule css_ast.R, indent int32, omitTrailingSemicolon bool) {
+func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicolon bool) {
 	if !p.options.RemoveWhitespace {
 		p.printIndent(indent)
 	}
 
-	switch r := rule.(type) {
+	switch r := rule.Data.(type) {
 	case *css_ast.RAtCharset:
 		// It's not valid to remove the space in between these two tokens
 		p.print("@charset ")
@@ -186,7 +186,7 @@ func (p *printer) printRule(rule css_ast.R, indent int32, omitTrailingSemicolon 
 	}
 }
 
-func (p *printer) printRuleBlock(rules []css_ast.R, indent int32) {
+func (p *printer) printRuleBlock(rules []css_ast.Rule, indent int32) {
 	if p.options.RemoveWhitespace {
 		p.print("{")
 	} else {

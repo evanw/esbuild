@@ -2785,7 +2785,7 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 			// Iterate in the inverse order of top-level "@import" rules
 		outer:
 			for i := len(topLevelRules) - 1; i >= 0; i-- {
-				if atImport, ok := topLevelRules[i].(*css_ast.RAtImport); ok {
+				if atImport, ok := topLevelRules[i].Data.(*css_ast.RAtImport); ok {
 					if record := &repr.AST.ImportRecords[atImport.ImportRecordIndex]; record.SourceIndex.IsValid() {
 						// Follow internal dependencies
 						visit(record.SourceIndex.GetIndex(), ast.MakeIndex32(sourceIndex))
@@ -4796,9 +4796,9 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			ast := file.InputFile.Repr.(*graph.CSSRepr).AST
 
 			// Filter out "@charset" and "@import" rules
-			rules := make([]css_ast.R, 0, len(ast.Rules))
+			rules := make([]css_ast.Rule, 0, len(ast.Rules))
 			for _, rule := range ast.Rules {
-				switch rule.(type) {
+				switch rule.Data.(type) {
 				case *css_ast.RAtCharset:
 					compileResult.hasCharset = true
 					continue
@@ -4836,7 +4836,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 		// "@charset" is the only thing that comes before "@import"
 		for _, compileResult := range compileResults {
 			if compileResult.hasCharset {
-				tree.Rules = append(tree.Rules, &css_ast.RAtCharset{Encoding: "UTF-8"})
+				tree.Rules = append(tree.Rules, css_ast.Rule{Data: &css_ast.RAtCharset{Encoding: "UTF-8"}})
 				break
 			}
 		}
@@ -4844,10 +4844,10 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 		// Insert all external "@import" rules at the front. In CSS, all "@import"
 		// rules must come first or the browser will just ignore them.
 		for _, external := range chunkRepr.externalImportsInOrder {
-			tree.Rules = append(tree.Rules, &css_ast.RAtImport{
+			tree.Rules = append(tree.Rules, css_ast.Rule{Data: &css_ast.RAtImport{
 				ImportRecordIndex: uint32(len(tree.ImportRecords)),
 				ImportConditions:  external.conditions,
-			})
+			}})
 			tree.ImportRecords = append(tree.ImportRecords, ast.ImportRecord{
 				Kind: ast.ImportAt,
 				Path: external.path,
