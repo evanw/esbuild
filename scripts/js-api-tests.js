@@ -2660,6 +2660,13 @@ let serveTests = {
     const buffer = await fetch(result.host, result.port, '/out.js')
     assert.strictEqual(buffer.toString(), `console.log(123);\n`);
 
+    let singleRequest = await singleRequestPromise;
+    assert.strictEqual(singleRequest.method, 'GET');
+    assert.strictEqual(singleRequest.path, '/out.js');
+    assert.strictEqual(singleRequest.status, 200);
+    assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
+    assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+
     try {
       await fetch(result.host, result.port, '/in.js')
       throw new Error('Expected a 404 error for "/in.js"')
@@ -2667,13 +2674,6 @@ let serveTests = {
       if (err.message !== '404 when fetching /in.js: 404 - Not Found')
         throw err
     }
-
-    let singleRequest = await singleRequestPromise;
-    assert.strictEqual(singleRequest.method, 'GET');
-    assert.strictEqual(singleRequest.path, '/out.js');
-    assert.strictEqual(singleRequest.status, 200);
-    assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
-    assert.strictEqual(typeof singleRequest.timeInMS, 'number');
 
     result.stop();
     await result.wait;
