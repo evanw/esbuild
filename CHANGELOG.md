@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+* Avoid the sequence `</style` in CSS output ([#1509](https://github.com/evanw/esbuild/issues/1509))
+
+    The CSS code generator now avoids generating the character sequence `</style` in case you want to embed the CSS output in a `<style>...</style>` tag inside HTML:
+
+    ```css
+    /* Original code */
+    a:after {
+      content: "</style>";
+    }
+
+    /* Old output */
+    a:after {
+      content: "</style>";
+    }
+
+    /* New output */
+    a:after {
+      content: "<\/style>";
+    }
+    ```
+
+    This mirrors how the JS code generator similarly avoids the character sequence `</script`.
+
 ## 0.12.19
 
 * Add support for CSS source maps ([#519](https://github.com/evanw/esbuild/issues/519))

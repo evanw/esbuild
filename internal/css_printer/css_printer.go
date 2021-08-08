@@ -2,6 +2,7 @@ package css_printer
 
 import (
 	"fmt"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -482,6 +483,12 @@ func (p *printer) printQuotedWithQuote(text string, quote byte) {
 		case '(', ')', ' ', '\t', '"', '\'':
 			// These characters must be escaped in URL tokens
 			if quote == quoteForURL {
+				escape = escapeBackslash
+			}
+
+		case '/':
+			// Avoid generating the sequence "</style" in CSS code
+			if i >= 1 && text[i-1] == '<' && strings.HasPrefix(text[i+1:], "style") {
 				escape = escapeBackslash
 			}
 

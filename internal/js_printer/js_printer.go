@@ -216,6 +216,7 @@ func (p *printer) printUnquotedUTF16(text []uint16, quote rune) {
 			js = append(js, "\\\\"...)
 
 		case '/':
+			// Avoid generating the sequence "</script" in JS code
 			if i >= 2 && text[i-2] == '<' && i+6 <= len(text) && js_lexer.UTF16EqualsString(text[i:i+6], "script") {
 				js = append(js, '\\')
 			}
