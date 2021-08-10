@@ -115,6 +115,12 @@ func TestTSTypes(t *testing.T) {
 	expectParseErrorTS(t, "let x: typeof readonly Array", "<stdin>: error: Expected \";\" but found \"Array\"\n")
 	expectPrintedTS(t, "let x: `y`", "let x;\n")
 	expectParseErrorTS(t, "let x: tag`y`", "<stdin>: error: Expected \";\" but found \"`y`\"\n")
+	expectPrintedTS(t, "let x: { <A extends B>(): c.d \n <E extends F>(): g.h }", "let x;\n")
+	expectPrintedTSX(t, "type x = a.b \n <c></c>", "/* @__PURE__ */ React.createElement(\"c\", null);\n")
+	expectPrintedTS(t, "type Foo = a.b \n | c.d", "")
+	expectPrintedTS(t, "type Foo = a.b \n & c.d", "")
+	expectPrintedTS(t, "type Foo = \n | a.b \n | c.d", "")
+	expectPrintedTS(t, "type Foo = \n & a.b \n & c.d", "")
 
 	expectPrintedTS(t, "let x: A.B<X.Y>", "let x;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y>=2", "let x = 2;\n")

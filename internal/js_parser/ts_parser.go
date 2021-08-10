@@ -388,7 +388,11 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 				p.lexer.Expect(js_lexer.TIdentifier)
 			}
 			p.lexer.Next()
-			p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+
+			// "{ <A extends B>(): c.d \n <E extends F>(): g.h }" must not become a single type
+			if !p.lexer.HasNewlineBefore {
+				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+			}
 
 		case js_lexer.TOpenBracket:
 			// "{ ['x']: string \n ['y']: string }" must not become a single type

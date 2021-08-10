@@ -25,6 +25,19 @@
 
     This mirrors how the JS code generator similarly avoids the character sequence `</script`.
 
+* Fix a TypeScript parsing edge case with ASI (Automatic Semicolon Insertion) ([#1512](https://github.com/evanw/esbuild/issues/1512))
+
+    This fixes a parsing bug where TypeScript types consisting of multiple identifiers joined together with a `.` could incorrectly extend onto the next line if the next line started with `<`. This problem was due to ASI; esbuild should be automatically inserting a semicolon at the end of the line:
+
+    ```ts
+    let x: {
+      <A extends B>(): c.d
+      <E extends F>(): g.h
+    }
+    ```
+
+    Previously the above code was a syntax error. With this release, this code is now parsed correctly.
+
 ## 0.12.19
 
 * Add support for CSS source maps ([#519](https://github.com/evanw/esbuild/issues/519))
