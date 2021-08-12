@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.20
 
 * Avoid the sequence `</style` in CSS output ([#1509](https://github.com/evanw/esbuild/issues/1509))
 
@@ -33,12 +33,12 @@
 
     ```ts
     let x: {
-      <A extends B>(): c.d
+      <A extends B>(): c.d /* A semicolon should be automatically inserted here */
       <E extends F>(): g.h
     }
     ```
 
-    Previously the above code was a syntax error. With this release, this code is now parsed correctly.
+    Previously the above code was incorrectly considered a syntax error since esbuild attempted to parse the parameterized type `c.d<E extends F ? ...>`. With this release, this code is now parsed correctly.
 
 ## 0.12.19
 
