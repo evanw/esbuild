@@ -25,6 +25,8 @@
 
     This mirrors how the JS code generator similarly avoids the character sequence `</script`.
 
+    In addition, the check that escapes `</style` and `</script` is now case-insensitive to match how the browser's HTML parser behaves. So `</STYLE` and `</SCRIPT` are now escaped as well.
+
 * Fix a TypeScript parsing edge case with ASI (Automatic Semicolon Insertion) ([#1512](https://github.com/evanw/esbuild/issues/1512))
 
     This fixes a parsing bug where TypeScript types consisting of multiple identifiers joined together with a `.` could incorrectly extend onto the next line if the next line started with `<`. This problem was due to ASI; esbuild should be automatically inserting a semicolon at the end of the line:

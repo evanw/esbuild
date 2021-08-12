@@ -910,17 +910,30 @@ func TestAvoidSlashScript(t *testing.T) {
 	// Positive cases
 	expectPrinted(t, "x = '</script'", "x = \"<\\/script\";\n")
 	expectPrinted(t, "x = `</script`", "x = `<\\/script`;\n")
+	expectPrinted(t, "x = `</SCRIPT`", "x = `<\\/SCRIPT`;\n")
+	expectPrinted(t, "x = `</ScRiPt`", "x = `<\\/ScRiPt`;\n")
 	expectPrinted(t, "x = `</script${y}`", "x = `<\\/script${y}`;\n")
 	expectPrinted(t, "x = `${y}</script`", "x = `${y}<\\/script`;\n")
 	expectPrintedMinify(t, "x = 1 < /script/.exec(y).length", "x=1< /script/.exec(y).length;")
+	expectPrintedMinify(t, "x = 1 < /SCRIPT/.exec(y).length", "x=1< /SCRIPT/.exec(y).length;")
+	expectPrintedMinify(t, "x = 1 < /ScRiPt/.exec(y).length", "x=1< /ScRiPt/.exec(y).length;")
 	expectPrintedMinify(t, "x = 1 << /script/.exec(y).length", "x=1<< /script/.exec(y).length;")
-	expectPrinted(t, "//! </script", "//! <\\/script\n")
+	expectPrinted(t, "//! </script\n//! >/script\n//! /script", "//! <\\/script\n//! >/script\n//! /script\n")
+	expectPrinted(t, "//! </SCRIPT\n//! >/SCRIPT\n//! /SCRIPT", "//! <\\/SCRIPT\n//! >/SCRIPT\n//! /SCRIPT\n")
+	expectPrinted(t, "//! </ScRiPt\n//! >/ScRiPt\n//! /ScRiPt", "//! <\\/ScRiPt\n//! >/ScRiPt\n//! /ScRiPt\n")
+	expectPrinted(t, "/*! </script \n </script */", "/*! <\\/script \n <\\/script */\n")
+	expectPrinted(t, "/*! </SCRIPT \n </SCRIPT */", "/*! <\\/SCRIPT \n <\\/SCRIPT */\n")
+	expectPrinted(t, "/*! </ScRiPt \n </ScRiPt */", "/*! <\\/ScRiPt \n <\\/ScRiPt */\n")
 	expectPrinted(t, "String.raw`</script`",
 		"var _a;\nString.raw(_a || (_a = __template([\"<\\/script\"])));\nimport {\n  __template\n} from \"<runtime>\";\n")
 	expectPrinted(t, "String.raw`</script${a}`",
 		"var _a;\nString.raw(_a || (_a = __template([\"<\\/script\", \"\"])), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
 	expectPrinted(t, "String.raw`${a}</script`",
 		"var _a;\nString.raw(_a || (_a = __template([\"\", \"<\\/script\"])), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
+	expectPrinted(t, "String.raw`</SCRIPT`",
+		"var _a;\nString.raw(_a || (_a = __template([\"<\\/SCRIPT\"])));\nimport {\n  __template\n} from \"<runtime>\";\n")
+	expectPrinted(t, "String.raw`</ScRiPt`",
+		"var _a;\nString.raw(_a || (_a = __template([\"<\\/ScRiPt\"])));\nimport {\n  __template\n} from \"<runtime>\";\n")
 
 	// Negative cases
 	expectPrinted(t, "x = '</'", "x = \"</\";\n")

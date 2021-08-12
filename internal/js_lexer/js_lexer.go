@@ -2840,7 +2840,7 @@ func StringToUTF16(text string) []uint16 {
 }
 
 func UTF16ToString(text []uint16) string {
-	temp := make([]byte, utf8.UTFMax)
+	var temp [utf8.UTFMax]byte
 	b := strings.Builder{}
 	n := len(text)
 	for i := 0; i < n; i++ {
@@ -2851,14 +2851,14 @@ func UTF16ToString(text []uint16) string {
 				i++
 			}
 		}
-		width := encodeWTF8Rune(temp, r1)
+		width := encodeWTF8Rune(temp[:], r1)
 		b.Write(temp[:width])
 	}
 	return b.String()
 }
 
 func UTF16ToStringWithValidation(text []uint16) (string, uint16, bool) {
-	temp := make([]byte, utf8.UTFMax)
+	var temp [utf8.UTFMax]byte
 	b := strings.Builder{}
 	n := len(text)
 	for i := 0; i < n; i++ {
@@ -2877,7 +2877,7 @@ func UTF16ToStringWithValidation(text []uint16) (string, uint16, bool) {
 		} else if r1 >= 0xDC00 && r1 <= 0xDFFF {
 			return "", uint16(r1), false
 		}
-		width := encodeWTF8Rune(temp, r1)
+		width := encodeWTF8Rune(temp[:], r1)
 		b.Write(temp[:width])
 	}
 	return b.String(), 0, true
@@ -2889,7 +2889,7 @@ func UTF16EqualsString(text []uint16, str string) bool {
 		// Strings can't be equal if UTF-16 encoding is longer than UTF-8 encoding
 		return false
 	}
-	temp := [utf8.UTFMax]byte{}
+	var temp [utf8.UTFMax]byte
 	n := len(text)
 	j := 0
 	for i := 0; i < n; i++ {

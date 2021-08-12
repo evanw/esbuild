@@ -90,7 +90,11 @@ func TestStringQuote(t *testing.T) {
 	expectPrintedString(t, "</script>", "\"</script>\"")
 	expectPrintedString(t, "</style>", "\"<\\/style>\"")
 	expectPrintedString(t, "</style", "\"<\\/style\"")
+	expectPrintedString(t, "</STYLE", "\"<\\/STYLE\"")
+	expectPrintedString(t, "</StYlE", "\"<\\/StYlE\"")
 	expectPrintedString(t, ">/style", "\">/style\"")
+	expectPrintedString(t, ">/STYLE", "\">/STYLE\"")
+	expectPrintedString(t, ">/StYlE", "\">/StYlE\"")
 }
 
 func TestURLQuote(t *testing.T) {

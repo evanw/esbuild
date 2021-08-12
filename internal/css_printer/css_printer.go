@@ -488,7 +488,7 @@ func (p *printer) printQuotedWithQuote(text string, quote byte) {
 
 		case '/':
 			// Avoid generating the sequence "</style" in CSS code
-			if i >= 1 && text[i-1] == '<' && strings.HasPrefix(text[i+1:], "style") {
+			if i >= 1 && text[i-1] == '<' && i+6 <= len(text) && strings.EqualFold(text[i+1:i+6], "style") {
 				escape = escapeBackslash
 			}
 

@@ -217,8 +217,23 @@ func (p *printer) printUnquotedUTF16(text []uint16, quote rune) {
 
 		case '/':
 			// Avoid generating the sequence "</script" in JS code
-			if i >= 2 && text[i-2] == '<' && i+6 <= len(text) && js_lexer.UTF16EqualsString(text[i:i+6], "script") {
-				js = append(js, '\\')
+			if i >= 2 && text[i-2] == '<' && i+6 <= len(text) {
+				script := "script"
+				matches := true
+				for j := 0; j < 6; j++ {
+					a := text[i+j]
+					b := uint16(script[j])
+					if a >= 'A' && a <= 'Z' {
+						a += 'a' - 'A'
+					}
+					if a != b {
+						matches = false
+						break
+					}
+				}
+				if matches {
+					js = append(js, '\\')
+				}
 			}
 			js = append(js, '/')
 
@@ -1781,7 +1796,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		if n > 0 {
 			// Avoid forming a single-line comment or "</script" sequence
-			if last := buffer[n-1]; last == '/' || (last == '<' && strings.HasPrefix(e.Value, "/script")) {
+			if last := buffer[n-1]; last == '/' || (last == '<' && len(e.Value) >= 7 && strings.EqualFold(e.Value[:7], "/script")) {
 				p.print(" ")
 			}
 		}
@@ -2405,9 +2420,30 @@ func (p *printer) printIf(s *js_ast.SIf) {
 	}
 }
 
+func escapeClosingScriptTag(text string) string {
+	i := strings.Index(text, "</")
+	if i < 0 {
+		return text
+	}
+	var b strings.Builder
+	for {
+		b.WriteString(text[:i+1])
+		text = text[i+1:]
+		if len(text) >= 7 && strings.EqualFold(text[:7], "/script") {
+			b.WriteByte('\\')
+		}
+		i = strings.Index(text, "</")
+		if i < 0 {
+			break
+		}
+	}
+	b.WriteString(text)
+	return b.String()
+}
+
 func (p *printer) printIndentedComment(text string) {
 	// Avoid generating a comment containing the character sequence "</script"
-	text = strings.ReplaceAll(text, "</script", "<\\/script")
+	text = escapeClosingScriptTag(text)
 
 	if strings.HasPrefix(text, "/*") {
 		// Re-indent multi-line comments

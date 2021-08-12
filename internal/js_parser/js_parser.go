@@ -10515,6 +10515,20 @@ func (p *parser) mangleTemplate(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr
 	return js_ast.Expr{Loc: loc, Data: e}
 }
 
+func containsClosingScriptTag(text string) bool {
+	for {
+		i := strings.Index(text, "</")
+		if i < 0 {
+			break
+		}
+		text = text[i+2:]
+		if len(text) >= 6 && strings.EqualFold(text[:6], "script") {
+			return true
+		}
+	}
+	return false
+}
+
 // This function takes "exprIn" as input from the caller and produces "exprOut"
 // for the caller to pass along extra data. This is mostly for optional chaining.
 func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprOut) {
@@ -10785,11 +10799,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Lower tagged template literals that include "</script"
 		// since we won't be able to escape it without lowering it
 		if !shouldLowerTemplateLiteral && e.TagOrNil.Data != nil {
-			if strings.Contains(e.HeadRaw, "</script") {
+			if containsClosingScriptTag(e.HeadRaw) {
 				shouldLowerTemplateLiteral = true
 			} else {
 				for _, part := range e.Parts {
-					if strings.Contains(part.TailRaw, "</script") {
+					if containsClosingScriptTag(part.TailRaw) {
 						shouldLowerTemplateLiteral = true
 						break
 					}
