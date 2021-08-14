@@ -314,6 +314,7 @@ type EntryPoint struct {
 }
 
 type WatchMode struct {
+	Interval  int // The time to wait between watch intervals in milliseconds
 	OnRebuild func(BuildResult)
 }
 
