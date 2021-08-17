@@ -1,6 +1,5 @@
-// +build !darwin
-// +build !linux
-// +build !windows
+//go:build !darwin && !linux && !windows
+// +build !darwin,!linux,!windows
 
 package logger
 

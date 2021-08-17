@@ -1,6 +1,5 @@
-// +build !darwin
-// +build !freebsd
-// +build !linux
+//go:build !darwin && !freebsd && !linux
+// +build !darwin,!freebsd,!linux
 
 package fs
 
