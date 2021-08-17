@@ -111,6 +111,7 @@ platform-all: cmd/esbuild/version.go test-all
 	make -j8 \
 		platform-windows \
 		platform-windows-32 \
+		platform-windows-arm64 \
 		platform-android-arm64 \
 		platform-darwin \
 		platform-darwin-arm64 \
@@ -134,6 +135,10 @@ platform-windows:
 platform-windows-32:
 	cd npm/esbuild-windows-32 && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	CGO_ENABLED=0 GOOS=windows GOARCH=386 go build $(GO_FLAGS) -o npm/esbuild-windows-32/esbuild.exe ./cmd/esbuild
+
+platform-windows-arm64:
+	cd npm/esbuild-windows-arm64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(GO_FLAGS) -o npm/esbuild-windows-arm64/esbuild.exe ./cmd/esbuild
 
 platform-unixlike:
 	test -n "$(GOOS)" && test -n "$(GOARCH)" && test -n "$(NPMDIR)"
@@ -196,30 +201,41 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@echo "Checking for unpushed commits..." && git fetch
 	@test "" = "`git cherry`" || (echo "Refusing to publish with unpushed commits" && false)
 	rm -fr npm && git checkout npm
+
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j4 \
 		publish-windows \
 		publish-windows-32 \
+		publish-windows-arm64 \
+		publish-openbsd
+
+	@echo Enter one-time password:
+	@read OTP && OTP="$$OTP" make -j4 \
 		publish-freebsd \
 		publish-freebsd-arm64 \
-		publish-openbsd \
 		publish-darwin \
 		publish-darwin-arm64
+
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j4 \
 		publish-android-arm64 \
 		publish-linux \
 		publish-linux-32 \
-		publish-linux-arm \
+		publish-linux-arm
+
+	@echo Enter one-time password:
+	@read OTP && OTP="$$OTP" make -j4 \
 		publish-linux-arm64 \
 		publish-linux-mips64le \
 		publish-linux-ppc64le
+
 	# Do these last to avoid race conditions
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j2 \
 		publish-neutral \
 		publish-deno \
 		publish-wasm
+
 	git commit -am "publish $(ESBUILD_VERSION) to npm"
 	git tag "v$(ESBUILD_VERSION)"
 	git push origin master "v$(ESBUILD_VERSION)"
@@ -229,6 +245,9 @@ publish-windows: platform-windows
 
 publish-windows-32: platform-windows-32
 	test -n "$(OTP)" && cd npm/esbuild-windows-32 && npm publish --otp="$(OTP)"
+
+publish-windows-arm64: platform-windows-arm64
+	test -n "$(OTP)" && cd npm/esbuild-windows-arm64 && npm publish --otp="$(OTP)"
 
 publish-android-arm64: platform-android-arm64
 	test -n "$(OTP)" && cd npm/esbuild-android-arm64 && npm publish --otp="$(OTP)"
@@ -284,6 +303,7 @@ clean:
 	rm -f esbuild
 	rm -f npm/esbuild-windows-32/esbuild.exe
 	rm -f npm/esbuild-windows-64/esbuild.exe
+	rm -f npm/esbuild-windows-arm64/esbuild.exe
 	rm -rf npm/esbuild-android-arm64/bin
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-darwin-arm64/bin

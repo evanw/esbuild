@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add support for native esbuild on Windows 64-bit ARM ([#995](https://github.com/evanw/esbuild/issues/995))
+
+    The newly-released Go version 1.17.0 [adds support for Windows 64-bit ARM CPUs](https://golang.org/doc/go1.17#windows), so esbuild can now support these CPUs as well. This release introduces support for `npm install esbuild` on Windows 64-bit ARM.
+
 ## 0.12.20
 
 * Avoid the sequence `</style` in CSS output ([#1509](https://github.com/evanw/esbuild/issues/1509))

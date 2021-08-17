@@ -1,0 +1,16 @@
+{
+  "name": "esbuild-windows-arm64",
+  "version": "0.12.20",
+  "description": "The Windows ARM 64-bit binary for esbuild, a JavaScript bundler.",
+  "repository": "https://github.com/evanw/esbuild",
+  "license": "MIT",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "directories": {
+    "bin": "bin"
+  }
+}
