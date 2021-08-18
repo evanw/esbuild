@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.21
 
 * Add support for native esbuild on Windows 64-bit ARM ([#995](https://github.com/evanw/esbuild/issues/995))
 
