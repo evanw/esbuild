@@ -429,23 +429,29 @@ func (lexer *lexer) next() {
 
 func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 	// Keep track of the contents of the "sourceMappingURL=" comment
+	startOfSourceMappingURL := 0
 	switch lexer.codePoint {
 	case '#', '@':
 		if strings.HasPrefix(lexer.source.Contents[lexer.current:], " sourceMappingURL=") {
-			r := logger.Range{Loc: logger.Loc{Start: int32(lexer.current + len(" sourceMappingURL="))}}
-			for int(r.End()) < len(lexer.source.Contents) && !isWhitespace(rune(lexer.source.Contents[r.End()])) {
-				r.Len++
-			}
-			lexer.sourceMappingURL = logger.Span{Text: lexer.source.TextForRange(r), Range: r}
+			startOfSourceMappingURL = lexer.current + len(" sourceMappingURL=")
 		}
 	}
 
 	for {
 		switch lexer.codePoint {
 		case '*':
+			endOfSourceMappingURL := lexer.current - 1
 			lexer.step()
 			if lexer.codePoint == '/' {
 				lexer.step()
+				if startOfSourceMappingURL != 0 {
+					r := logger.Range{Loc: logger.Loc{Start: int32(startOfSourceMappingURL)}}
+					text := lexer.source.Contents[startOfSourceMappingURL:endOfSourceMappingURL]
+					for int(r.Len) < len(text) && !isWhitespace(rune(text[r.Len])) {
+						r.Len++
+					}
+					lexer.sourceMappingURL = logger.Span{Text: text[:r.Len], Range: r}
+				}
 				return
 			}
 
