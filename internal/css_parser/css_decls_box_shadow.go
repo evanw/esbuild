@@ -6,62 +6,68 @@ import (
 )
 
 func (p *parser) mangleBoxShadow(tokens []css_ast.Token) []css_ast.Token {
-	n := len(tokens)
-	end := 0
-	i := 0
+	insetCount := 0
+	colorCount := 0
+	numbersBegin := 0
+	numbersCount := 0
+	numbersDone := false
+	foundUnexpectedToken := false
 
-	for i < n {
-		t := tokens[i]
-
-		// Parse a run of numbers
+	for i, t := range tokens {
 		if t.Kind == css_lexer.TNumber || t.Kind == css_lexer.TDimension {
-			runStart := i
-			for i < n {
-				t := tokens[i]
-				if t.Kind != css_lexer.TNumber && t.Kind != css_lexer.TDimension {
-					break
-				}
-				if t.TurnLengthIntoNumberIfZero() {
-					tokens[i] = t
-				}
-				i++
+			if numbersDone {
+				// Track if we found a non-number in between two numbers
+				foundUnexpectedToken = true
 			}
-
-			// Trim trailing zeros. There are three valid configurations:
-			//
-			//   offset-x | offset-y
-			//   offset-x | offset-y | blur-radius
-			//   offset-x | offset-y | blur-radius | spread-radius
-			//
-			// If omitted, blur-radius and spread-radius are implied to be zero.
-			runEnd := i
-			for runEnd > runStart+2 {
-				t := tokens[runEnd-1]
-				if t.Kind != css_lexer.TNumber || t.Text != "0" {
-					break
-				}
-				runEnd--
+			if t.TurnLengthIntoNumberIfZero() {
+				// "0px" => "0"
+				tokens[i] = t
 			}
-
-			// Copy over the remaining tokens
-			end += copy(tokens[end:], tokens[runStart:runEnd])
-			continue
+			if numbersCount == 0 {
+				// Track the index of the first number
+				numbersBegin = i
+			}
+			numbersCount++
+		} else {
+			if numbersCount != 0 {
+				// Track when we find a non-number after a number
+				numbersDone = true
+			}
+			if hex, ok := parseColor(t); ok {
+				colorCount++
+				tokens[i] = p.mangleColor(t, hex)
+			} else if t.Kind == css_lexer.TIdent && t.Text == "inset" {
+				insetCount++
+			} else {
+				// Track if we found a token other than a number, a color, or "inset"
+				foundUnexpectedToken = true
+			}
 		}
+	}
 
-		t = p.mangleColor(t)
-		tokens[end] = t
-		end++
-		i++
+	// If everything looks like a valid rule, trim trailing zeros off the numbers.
+	// There are three valid configurations of numbers:
+	//
+	//   offset-x | offset-y
+	//   offset-x | offset-y | blur-radius
+	//   offset-x | offset-y | blur-radius | spread-radius
+	//
+	// If omitted, blur-radius and spread-radius are implied to be zero.
+	if insetCount <= 1 && colorCount <= 1 && numbersCount > 2 && numbersCount <= 4 && !foundUnexpectedToken {
+		numbersEnd := numbersBegin + numbersCount
+		for numbersCount > 2 && tokens[numbersBegin+numbersCount-1].IsZero() {
+			numbersCount--
+		}
+		tokens = append(tokens[:numbersBegin+numbersCount], tokens[numbersEnd:]...)
 	}
 
 	// Set the whitespace flags
-	tokens = tokens[:end]
 	for i := range tokens {
 		var whitespace css_ast.WhitespaceFlags
 		if i > 0 || !p.options.RemoveWhitespace {
 			whitespace |= css_ast.WhitespaceBefore
 		}
-		if i+1 < end {
+		if i+1 < len(tokens) {
 			whitespace |= css_ast.WhitespaceAfter
 		}
 		tokens[i].Whitespace = whitespace

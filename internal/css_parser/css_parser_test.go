@@ -1068,6 +1068,10 @@ func TestBoxShadow(t *testing.T) {
 	expectPrintedMangle(t, "a { box-shadow: yellow 1px 0px 0px 1px inset }", "a {\n  box-shadow: #ff0 1px 0 0 1px inset;\n}\n")
 	expectPrintedMangle(t, "a { box-shadow: yellow 1px 0px 1px 0px inset }", "a {\n  box-shadow: #ff0 1px 0 1px inset;\n}\n")
 	expectPrintedMangle(t, "a { box-shadow: rebeccapurple, yellow, black }", "a {\n  box-shadow:\n    #639,\n    #ff0,\n    #000;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: 0px 0px 0px var(--foo) black }", "a {\n  box-shadow: 0 0 0 var(--foo) #000;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: 0px 0px 0px 0px var(--foo) black }", "a {\n  box-shadow: 0 0 0 0 var(--foo) #000;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: calc(1px + var(--foo)) 0px 0px 0px black }", "a {\n  box-shadow: calc(1px + var(--foo)) 0 0 0 #000;\n}\n")
+	expectPrintedMangle(t, "a { box-shadow: inset 0px 0px 0px 0px 0px magenta; }", "a {\n  box-shadow: inset 0 0 0 0 0 #f0f;\n}\n")
 	expectPrintedMangleMinify(t, "a { box-shadow: rebeccapurple , yellow , black }", "a{box-shadow:#639,#ff0,#000}")
 	expectPrintedMangleMinify(t, "a { box-shadow: rgb(255, 0, 17) 0 0 1 inset }", "a{box-shadow:#f01 0 0 1 inset}")
 }

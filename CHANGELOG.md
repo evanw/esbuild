@@ -8,6 +8,23 @@
 
     Previously this was implemented inefficiently for files that aren't part of the build, but that are read from the underlying fallback directory. In that case the entire file was being read even though only part of the file was needed. In this release, only the part of the file that is needed is read so using HTTP range requests with esbuild in this case will now use less memory.
 
+* Fix CSS minification bug with `box-shadow` and `var()` ([#1538](https://github.com/evanw/esbuild/issues/1538))
+
+    The `box-shadow` property can be specified using 2, 3, or 4 numbers. The 3rd and 4th numbers are the blur radius and spread radius, and can be omitted if zero. When minifying, esbuild has an optimization that removes trailing zeros from runs of numbers within the `box-shadow` property. However, that optimization is not correct in the presence of tokens that are neither a number, a color, nor the token `insert`. These edge cases include `var()` or `calc()` tokens. With this release, esbuild will now do stronger validation and will only remove trailing zeros if the contents of the `box-shadow` property matches the underlying CSS grammar exactly.
+
+    ```css
+    /* Original code */
+    button {
+      box-shadow: 0 0 0 var(--spread) red;
+    }
+
+    /* Old minified output */
+    button{box-shadow:0 0 var(--spread) red}
+
+    /* New minified output */
+    button{box-shadow:0 0 0 var(--spread) red}
+    ```
+
 ## 0.12.21
 
 * Add support for native esbuild on Windows 64-bit ARM ([#995](https://github.com/evanw/esbuild/issues/995))

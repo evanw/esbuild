@@ -600,52 +600,50 @@ func parseColorByte(token css_ast.Token, scale float64) (uint32, bool) {
 	return uint32(i), ok
 }
 
-func (p *parser) mangleColor(token css_ast.Token) css_ast.Token {
+func (p *parser) mangleColor(token css_ast.Token, hex uint32) css_ast.Token {
 	// Note: Do NOT remove color information from fully transparent colors.
 	// Safari behaves differently than other browsers for color interpolation:
 	// https://css-tricks.com/thing-know-gradients-transparent-black/
 
-	if hex, ok := parseColor(token); ok {
-		if hexA(hex) == 255 {
-			token.Children = nil
-			if name, ok := shortColorName[hex]; ok {
-				token.Kind = css_lexer.TIdent
-				token.Text = name
-			} else {
-				token.Kind = css_lexer.THash
-				hex >>= 8
-				compact := compactHex(hex)
-				if hex == expandHex(compact) {
-					token.Text = fmt.Sprintf("%03x", compact)
-				} else {
-					token.Text = fmt.Sprintf("%06x", hex)
-				}
-			}
-		} else if !p.options.UnsupportedCSSFeatures.Has(compat.HexRGBA) {
-			token.Children = nil
+	if hexA(hex) == 255 {
+		token.Children = nil
+		if name, ok := shortColorName[hex]; ok {
+			token.Kind = css_lexer.TIdent
+			token.Text = name
+		} else {
 			token.Kind = css_lexer.THash
+			hex >>= 8
 			compact := compactHex(hex)
 			if hex == expandHex(compact) {
-				token.Text = fmt.Sprintf("%04x", compact)
+				token.Text = fmt.Sprintf("%03x", compact)
 			} else {
-				token.Text = fmt.Sprintf("%08x", hex)
+				token.Text = fmt.Sprintf("%06x", hex)
 			}
+		}
+	} else if !p.options.UnsupportedCSSFeatures.Has(compat.HexRGBA) {
+		token.Children = nil
+		token.Kind = css_lexer.THash
+		compact := compactHex(hex)
+		if hex == expandHex(compact) {
+			token.Text = fmt.Sprintf("%04x", compact)
 		} else {
-			token.Kind = css_lexer.TFunction
-			token.Text = "rgba"
-			commaToken := p.commaToken()
-			alpha := floatToString(float64(hexA(hex)) / 255)
-			if p.options.MangleSyntax {
-				if text, ok := mangleNumber(alpha); ok {
-					alpha = text
-				}
+			token.Text = fmt.Sprintf("%08x", hex)
+		}
+	} else {
+		token.Kind = css_lexer.TFunction
+		token.Text = "rgba"
+		commaToken := p.commaToken()
+		alpha := floatToString(float64(hexA(hex)) / 255)
+		if p.options.MangleSyntax {
+			if text, ok := mangleNumber(alpha); ok {
+				alpha = text
 			}
-			token.Children = &[]css_ast.Token{
-				{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
-				{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
-				{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexB(hex))}, commaToken,
-				{Kind: css_lexer.TNumber, Text: alpha},
-			}
+		}
+		token.Children = &[]css_ast.Token{
+			{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
+			{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
+			{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexB(hex))}, commaToken,
+			{Kind: css_lexer.TNumber, Text: alpha},
 		}
 	}
 

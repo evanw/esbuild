@@ -114,7 +114,10 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) []css_ast.Rule {
 				decl.Value[0] = p.lowerColor(decl.Value[0])
 
 				if p.options.MangleSyntax {
-					decl.Value[0] = p.mangleColor(decl.Value[0])
+					t := decl.Value[0]
+					if hex, ok := parseColor(t); ok {
+						decl.Value[0] = p.mangleColor(t, hex)
+					}
 				}
 			}
 
