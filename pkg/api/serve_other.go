@@ -131,7 +131,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		}
 
 		var kind fs.EntryKind
-		var fileContents []byte
+		var fileContents fs.OpenedFile
 		dirEntries := make(map[string]bool)
 		fileEntries := make(map[string]bool)
 
@@ -141,7 +141,9 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			if strings.HasPrefix(outdirQueryPath, "/") {
 				outdirQueryPath = outdirQueryPath[1:]
 			}
-			kind, fileContents = h.matchQueryPathToResult(outdirQueryPath, &result, dirEntries, fileEntries)
+			resultKind, inMemoryBytes := h.matchQueryPathToResult(outdirQueryPath, &result, dirEntries, fileEntries)
+			kind = resultKind
+			fileContents = &fs.InMemoryOpenedFile{Contents: inMemoryBytes}
 		} else {
 			// Create a fake directory entry for the output path so that it appears to be a real directory
 			p := h.outdirPathPrefix
@@ -169,8 +171,9 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			if absDir := h.fs.Dir(absPath); absDir != absPath {
 				if entries, err, _ := h.fs.ReadDirectory(absDir); err == nil {
 					if entry, _ := entries.Get(h.fs.Base(absPath)); entry != nil && entry.Kind(h.fs) == fs.FileEntry {
-						if contents, err, _ := h.fs.ReadFile(absPath); err == nil {
-							fileContents = []byte(contents)
+						if contents, err, _ := h.fs.OpenFile(absPath); err == nil {
+							defer contents.Close()
+							fileContents = contents
 							kind = fs.FileEntry
 						} else if err != syscall.ENOENT {
 							go h.notifyRequest(time.Since(start), req, http.StatusInternalServerError)
@@ -220,9 +223,9 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		// Serve a "index.html" file if present
 		if kind == fs.DirEntry && fallbackIndexName != "" {
 			queryPath += "/" + fallbackIndexName
-			contents, err, _ := h.fs.ReadFile(h.fs.Join(h.servedir, queryPath))
-			if err == nil {
-				fileContents = []byte(contents)
+			if contents, err, _ := h.fs.OpenFile(h.fs.Join(h.servedir, queryPath)); err == nil {
+				defer contents.Close()
+				fileContents = contents
 				kind = fs.FileEntry
 			} else if err != syscall.ENOENT {
 				go h.notifyRequest(time.Since(start), req, http.StatusInternalServerError)
@@ -234,23 +237,44 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 		// Serve a file
 		if kind == fs.FileEntry {
-			if contentType := helpers.MimeTypeByExtension(path.Ext(queryPath)); contentType != "" {
-				res.Header().Set("Content-Type", contentType)
-			}
+			// Default to serving the whole file
+			status := http.StatusOK
+			fileContentsLen := fileContents.Len()
+			begin := 0
+			end := fileContentsLen
+			isRange := false
 
 			// Handle range requests so that video playback works in Safari
-			status := http.StatusOK
-			if begin, end, ok := parseRangeHeader(req.Header.Get("Range"), len(fileContents)); ok && begin < end {
+			if rangeBegin, rangeEnd, ok := parseRangeHeader(req.Header.Get("Range"), fileContentsLen); ok && rangeBegin < rangeEnd {
 				// Note: The content range is inclusive so subtract 1 from the end
-				res.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", begin, end-1, len(fileContents)))
-				fileContents = fileContents[begin:end]
+				isRange = true
+				begin = rangeBegin
+				end = rangeEnd
 				status = http.StatusPartialContent
 			}
 
-			res.Header().Set("Content-Length", fmt.Sprintf("%d", len(fileContents)))
+			// Try to read the range from the file, which may fail
+			fileBytes, err := fileContents.Read(begin, end)
+			if err != nil {
+				go h.notifyRequest(time.Since(start), req, http.StatusInternalServerError)
+				res.WriteHeader(http.StatusInternalServerError)
+				res.Write([]byte(fmt.Sprintf("500 - Internal server error: %s", err.Error())))
+				return
+			}
+
+			// If we get here, the request was successful
+			if contentType := helpers.MimeTypeByExtension(path.Ext(queryPath)); contentType != "" {
+				res.Header().Set("Content-Type", contentType)
+			} else {
+				res.Header().Set("Content-Type", "application/octet-stream")
+			}
+			if isRange {
+				res.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", begin, end-1, fileContentsLen))
+			}
+			res.Header().Set("Content-Length", fmt.Sprintf("%d", len(fileBytes)))
 			go h.notifyRequest(time.Since(start), req, status)
 			res.WriteHeader(status)
-			res.Write(fileContents)
+			res.Write(fileBytes)
 			return
 		}
 

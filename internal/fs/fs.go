@@ -89,11 +89,34 @@ func (entries DirEntries) UnorderedKeys() (keys []string) {
 	return
 }
 
+type OpenedFile interface {
+	Len() int
+	Read(start int, end int) ([]byte, error)
+	Close() error
+}
+
+type InMemoryOpenedFile struct {
+	Contents []byte
+}
+
+func (f *InMemoryOpenedFile) Len() int {
+	return len(f.Contents)
+}
+
+func (f *InMemoryOpenedFile) Read(start int, end int) ([]byte, error) {
+	return []byte(f.Contents[start:end]), nil
+}
+
+func (f *InMemoryOpenedFile) Close() error {
+	return nil
+}
+
 type FS interface {
 	// The returned map is immutable and is cached across invocations. Do not
 	// mutate it.
 	ReadDirectory(path string) (entries DirEntries, canonicalError error, originalError error)
 	ReadFile(path string) (contents string, canonicalError error, originalError error)
+	OpenFile(path string) (result OpenedFile, canonicalError error, originalError error)
 
 	// This is a key made from the information returned by "stat". It is intended
 	// to be different if the file has been edited, and to otherwise be equal if

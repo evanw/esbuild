@@ -2412,17 +2412,19 @@ require("/assets/file.png");
   },
 }
 
-function fetch(host, port, path) {
+function fetch(host, port, path, headers) {
   return new Promise((resolve, reject) => {
-    http.get({ host, port, path }, res => {
+    http.get({ host, port, path, headers }, res => {
       const chunks = []
       res.on('data', chunk => chunks.push(chunk))
       res.on('end', () => {
         const content = Buffer.concat(chunks)
         if (res.statusCode < 200 || res.statusCode > 299)
           reject(new Error(`${res.statusCode} when fetching ${path}: ${content}`))
-        else
+        else {
+          content.headers = res.headers
           resolve(content)
+        }
       })
     }).on('error', reject)
   })
@@ -2875,6 +2877,44 @@ let serveTests = {
     assert.strictEqual(req.status, 200);
     assert.strictEqual(typeof req.remoteAddress, 'string');
     assert.strictEqual(typeof req.timeInMS, 'number');
+
+    result.stop();
+    await result.wait;
+  },
+
+  async serveRange({ esbuild, testDir }) {
+    const big = path.join(testDir, 'big.txt')
+    const byteCount = 16 * 1024 * 1024
+    const buffer = require('crypto').randomBytes(byteCount)
+    await writeFileAsync(big, buffer)
+
+    const result = await esbuild.serve({
+      host: '127.0.0.1',
+      servedir: testDir,
+    }, {})
+
+    // Test small to big ranges
+    const minLength = 1
+    const maxLength = buffer.length
+
+    for (let i = 0, n = 16; i < n; i++) {
+      const length = Math.round(minLength + (maxLength - minLength) * i / (n - 1))
+      const start = Math.floor(Math.random() * (buffer.length - length))
+      const fetched = await fetch(result.host, result.port, '/big.txt', {
+        // Subtract 1 because range headers are inclusive on both ends
+        Range: `bytes=${start}-${start + length - 1}`,
+      })
+      delete fetched.headers.date
+      const expected = buffer.slice(start, start + length)
+      expected.headers = {
+        'access-control-allow-origin': '*',
+        'content-length': `${length}`,
+        'content-range': `bytes ${start}-${start + length - 1}/${byteCount}`,
+        'content-type': 'application/octet-stream',
+        'connection': 'close',
+      }
+      assert.deepStrictEqual(fetched, expected)
+    }
 
     result.stop();
     await result.wait;

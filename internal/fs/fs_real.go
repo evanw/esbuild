@@ -211,6 +211,57 @@ func (fs *realFS) ReadFile(path string) (contents string, canonicalError error, 
 	return fileContents, canonicalError, originalError
 }
 
+type realOpenedFile struct {
+	handle *os.File
+	len    int
+}
+
+func (f *realOpenedFile) Len() int {
+	return f.len
+}
+
+func (f *realOpenedFile) Read(start int, end int) ([]byte, error) {
+	bytes := make([]byte, end-start)
+	remaining := bytes
+
+	_, err := f.handle.Seek(int64(start), os.SEEK_SET)
+	if err != nil {
+		return nil, err
+	}
+
+	for len(remaining) > 0 {
+		n, err := f.handle.Read(remaining)
+		if err != nil && n <= 0 {
+			return nil, err
+		}
+		remaining = remaining[n:]
+	}
+
+	return bytes, nil
+}
+
+func (f *realOpenedFile) Close() error {
+	return f.handle.Close()
+}
+
+func (fs *realFS) OpenFile(path string) (OpenedFile, error, error) {
+	BeforeFileOpen()
+	defer AfterFileClose()
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fs.canonicalizeError(err), err
+	}
+
+	info, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, fs.canonicalizeError(err), err
+	}
+
+	return &realOpenedFile{f, int(info.Size())}, nil, nil
+}
+
 func (fs *realFS) ModKey(path string) (ModKey, error) {
 	BeforeFileOpen()
 	defer AfterFileClose()

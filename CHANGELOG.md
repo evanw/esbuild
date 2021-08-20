@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Make HTTP range requests more efficient ([#1536](https://github.com/evanw/esbuild/issues/1536))
+
+    The local HTTP server built in to esbuild supports [range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests), which are necessary for video playback in Safari. This means you can now use `<video>` tags in your HTML pages with esbuild's local HTTP server.
+
+    Previously this was implemented inefficiently for files that aren't part of the build, but that are read from the underlying fallback directory. In that case the entire file was being read even though only part of the file was needed. In this release, only the part of the file that is needed is read so using HTTP range requests with esbuild in this case will now use less memory.
+
 ## 0.12.21
 
 * Add support for native esbuild on Windows 64-bit ARM ([#995](https://github.com/evanw/esbuild/issues/995))

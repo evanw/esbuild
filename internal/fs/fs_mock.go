@@ -62,6 +62,13 @@ func (fs *mockFS) ReadFile(path string) (string, error, error) {
 	return "", syscall.ENOENT, syscall.ENOENT
 }
 
+func (fs *mockFS) OpenFile(path string) (OpenedFile, error, error) {
+	if contents, ok := fs.files[path]; ok {
+		return &InMemoryOpenedFile{Contents: []byte(contents)}, nil, nil
+	}
+	return nil, syscall.ENOENT, syscall.ENOENT
+}
+
 func (fs *mockFS) ModKey(path string) (ModKey, error) {
 	return ModKey{}, errors.New("This is not available during tests")
 }
