@@ -1,6 +1,6 @@
 {
   "name": "esbuild-android-arm64",
-  "version": "0.12.21",
+  "version": "0.12.22",
   "description": "The Android ARM 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",

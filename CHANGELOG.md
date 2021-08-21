@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.22
 
 * Make HTTP range requests more efficient ([#1536](https://github.com/evanw/esbuild/issues/1536))
 
