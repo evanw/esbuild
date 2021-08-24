@@ -61,6 +61,8 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
 
   // Write out the binary executable that was extracted from the package
   fs.writeFileSync(toPath, buffer, { mode: 0o755 });
+  // @see https://github.com/evanw/esbuild/issues/1546
+  fs.chmodSync(toPath, 0o755);
 
   // Verify that the binary is the correct version
   try {
