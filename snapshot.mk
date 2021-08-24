@@ -140,3 +140,17 @@ snap-publish-linux-ppc64le: snap-platform-linux-ppc64le
 	test -n "$(OTP)" && cd npm/snapbuild-linux-ppc64le && npm publish --otp="$(OTP)"
 
 snap-test-prepublish: check-go-version
+
+snap-show-versions:
+	npm view snapbuild-android-arm64 version
+	npm view snapbuild-darwin-64 version
+	npm view snapbuild-freebsd-64 version
+	npm view snapbuild-freebsd-arm64 version
+	npm view snapbuild-linux-32 version
+	npm view snapbuild-linux-64 version
+	npm view snapbuild-linux-arm version
+	npm view snapbuild-linux-arm64 version
+	npm view snapbuild-linux-mips64le version
+	npm view snapbuild-linux-ppc64le version
+	npm view snapbuild-windows-32 version
+	npm view snapbuild-windows-64 version
