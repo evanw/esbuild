@@ -59,8 +59,8 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
     process.exit(1);
   }
 
-  // Write out the binary executable that was extracted from the package
-  fs.writeFileSync(toPath, buffer, { mode: 0o755 });
+  fs.writeFileSync(toPath, buffer);
+  // toPath already exists, so writeFile with mode 0o755 won't work
   // @see https://github.com/evanw/esbuild/issues/1546
   fs.chmodSync(toPath, 0o755);
 
