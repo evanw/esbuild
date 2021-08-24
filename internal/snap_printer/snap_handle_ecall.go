@@ -41,4 +41,5 @@ func (p *printer) _printRequireResolve(request *js_ast.Expr) {
 	// internal/snap_renamer/snap_renamer.go (functionWrapperForAbsPath)
 	p.print(", (typeof __filename2 !== 'undefined' ? __filename2 : __filename)")
 	p.print(", (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname)")
+	p.print(")")
 }

@@ -950,7 +950,11 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 			p.printSpaceBeforeIdentifier()
 			p.print("require(")
 			p.addSourceMapping(record.Range.Loc)
+			p.printQuotedUTF8(record.Path.Text, true)
+			p.print(", ")
 			p.printQuotedUTF8(p.resolveRequireName(record), true /* allowBacktick */)
+			p.print(", (typeof __filename2 !== 'undefined' ? __filename2 : __filename)")
+			p.print(", (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname)")
 			p.print(")")
 			return
 		}
@@ -1201,32 +1205,34 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			}
 		}
 
-		// We don't ever want to accidentally generate a direct eval expression here
-		p.callTarget = e.Target.Data
-		if !e.IsDirectEval && p.isUnboundEvalIdentifier(e.Target) {
-			if p.options.RemoveWhitespace {
-				p.print("(0,")
+		if handled := p.handleECall(e); !handled {
+			// We don't ever want to accidentally generate a direct eval expression here
+			p.callTarget = e.Target.Data
+			if !e.IsDirectEval && p.isUnboundEvalIdentifier(e.Target) {
+				if p.options.RemoveWhitespace {
+					p.print("(0,")
+				} else {
+					p.print("(0, ")
+				}
+				p.printExpr(e.Target, js_ast.LPostfix, 0)
+				p.print(")")
 			} else {
-				p.print("(0, ")
+				p.printExpr(e.Target, js_ast.LPostfix, targetFlags)
 			}
-			p.printExpr(e.Target, js_ast.LPostfix, 0)
-			p.print(")")
-		} else {
-			p.printExpr(e.Target, js_ast.LPostfix, targetFlags)
-		}
 
-		if e.OptionalChain == js_ast.OptionalChainStart {
-			p.print("?.")
-		}
-		p.print("(")
-		for i, arg := range e.Args {
-			if i != 0 {
-				p.print(",")
-				p.printSpace()
+			if e.OptionalChain == js_ast.OptionalChainStart {
+				p.print("?.")
 			}
-			p.printExpr(arg, js_ast.LComma, 0)
-		}
-		p.print(")")
+			p.print("(")
+			for i, arg := range e.Args {
+				if i != 0 {
+					p.print(",")
+					p.printSpace()
+				}
+				p.printExpr(arg, js_ast.LComma, 0)
+			}
+			p.print(")")
+		} // end handleECall
 
 		if wrap {
 			p.print(")")

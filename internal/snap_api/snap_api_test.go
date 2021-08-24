@@ -28,7 +28,7 @@ func TestEntryRequiringLocalModule(t *testing.T) {
 __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
 let oneTwoThree;
 function __get_oneTwoThree__() {
-  return oneTwoThree = oneTwoThree || (require("./foo.js").oneTwoThree)
+  return oneTwoThree = oneTwoThree || (require("./foo", "./foo.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname)).oneTwoThree)
 }
   module2.exports = function() {
     get_console().log((__get_oneTwoThree__()));
@@ -66,7 +66,7 @@ __commonJS["./foo.js"] = function(exports, module2, __filename, __dirname, requi
 __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
 let import_foo;
 function __get_import_foo__() {
-  return import_foo = import_foo || (__toModule(require("./foo.js")))
+  return import_foo = import_foo || (__toModule(require("./foo", "./foo.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname))))
 }
   module2.exports = function() {
     get_console().log((__get_import_foo__()).oneTwoThree);
@@ -94,7 +94,7 @@ module.exports = function () { deprecate() }
 __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
 let deprecate;
 function __get_deprecate__() {
-  return deprecate = deprecate || (require("./depd.js")("http-errors"))
+  return deprecate = deprecate || (require("./depd", "./depd.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname))("http-errors"))
 }
   module2.exports = function() {
     (__get_deprecate__())();
@@ -122,7 +122,7 @@ __commonJS["./body-parser.js"] = function(exports, module2, __filename, __dirnam
 };`,
 				ProjectBaseDir + "/entry.js": `
 __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
-  require("./body-parser.js");
+  require("./body-parser", "./body-parser.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
 };`,
 			},
 		},
@@ -170,7 +170,7 @@ require('non-existent')
 			files: map[string]string{
 				ProjectBaseDir + `/entry.js`: `
 __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
-  require("non-existent");
+  require("non-existent", "non-existent", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
 };`,
 			},
 		})
@@ -221,19 +221,19 @@ exports.bar = require('./bar')
 			files: map[string]string{
 				`dev/foo.js`: `
 __commonJS["./foo.js"] = function(exports, module, __filename, __dirname, require) {
-  var fs = require("fs");
+  var fs = require("fs", "fs", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
 };`,
 				`dev/bar.js`: `
 __commonJS["./bar.js"] = function(exports, module2, __filename, __dirname, require) {
 let path;
 function __get_path__() {
-  return path = path || (require("path"))
+  return path = path || (require("path", "path", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname)))
 }
 };`,
 				`dev/entry.js`: `
 __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
-  Object.defineProperty(exports, "foo", { get: () => require("./foo.js") });
-  Object.defineProperty(exports, "bar", { get: () => require("./bar.js") });
+  Object.defineProperty(exports, "foo", { get: () => require("./foo", "./foo.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname)) });
+  Object.defineProperty(exports, "bar", { get: () => require("./bar", "./bar.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname)) });
 };`,
 			},
 		},
@@ -260,12 +260,12 @@ exports.fsevents = require('` + ProjectBaseDir + `/node_modules/fsevents/fsevent
 			files: map[string]string{
 				`dev/node_modules/fsevents/fsevents.js`: `
 __commonJS["./node_modules/fsevents/fsevents.js"] = function(exports, module, __filename, __dirname, require) {
-  var Native = require("./node_modules/fsevents/fsevents.node");
+  var Native = require("./node_modules/fsevents/fsevents.node", "./node_modules/fsevents/fsevents.node", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
   var events = Native.constants;
 };`,
 				`dev/entry.js`: `
 __commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
-  exports.fsevents = require("./node_modules/fsevents/fsevents.js");
+  exports.fsevents = require("/dev/node_modules/fsevents/fsevents.js", "./node_modules/fsevents/fsevents.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
 };`,
 			},
 		},
@@ -296,7 +296,7 @@ __commonJS["./node_modules/fsevents/fsevents.js"] = function(exports, module2, _
 };`,
 				`dev/entry.js`: `
 __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
-  exports.fsevents = require("./node_modules/fsevents/fsevents.js");
+  exports.fsevents = require("/dev/node_modules/fsevents/fsevents.js", "./node_modules/fsevents/fsevents.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
 };`,
 			},
 		},
@@ -328,7 +328,7 @@ __commonJS["./node_modules/file-url.js"] = function(exports, module2, __filename
 };`,
 				`dev/entry.js`: `
 __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
-  exports.fileUrl = require("./node_modules/file-url.js");
+  exports.fileUrl = require("/dev/node_modules/file-url.js", "./node_modules/file-url.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
 };`,
 			},
 		},
@@ -366,8 +366,8 @@ __commonJS["./reassigns-console.js"] = function(exports, module2, __filename, __
 				`dev/entry.js`: `
 __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, require) {
   module2.exports = function() {
-    require("./fine.js");
-    require("./reassigns-console.js");
+    require("./fine", "./fine.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
+    require("./reassigns-console", "./reassigns-console.js", (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
   };
 };`,
 			},
@@ -417,7 +417,7 @@ __commonJS["./entry.js"] = function(exports, module2, __filename, __dirname, req
   function toBeResolved(prefix) {
     return prefix + "foo";
   }
-  require.resolve(toBeResolved("./"), (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname);
+  require.resolve(toBeResolved("./"), (typeof __filename2 !== 'undefined' ? __filename2 : __filename), (typeof __dirname2 !== 'undefined' ? __dirname2 : __dirname));
 };`,
 			},
 		},
