@@ -41,6 +41,17 @@ func (p *parser) skipTypeScriptBinding() {
 			foundIdentifier := false
 
 			switch p.lexer.Token {
+			case js_lexer.TDotDotDot:
+				p.lexer.Next()
+
+				if p.lexer.Token != js_lexer.TIdentifier {
+					p.lexer.Unexpected()
+				}
+
+				// "{...x}"
+				foundIdentifier = true
+				p.lexer.Next()
+
 			case js_lexer.TIdentifier:
 				// "{x}"
 				// "{x: y}"

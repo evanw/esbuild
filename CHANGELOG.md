@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* Parsing of rest arguments in certain TypeScript types ([#1553](https://github.com/evanw/esbuild/issues/1553))
+
+    This release implements parsing of rest arguments inside object destructuring inside arrow functions inside TypeScript type declarations. Support for rest arguments in this specific syntax was not previously implemented. The following code was incorrectly considered a syntax error before this release, but is no longer considered a syntax error:
+
+    ```ts
+    type F = ({ ...rest }) => void;
+    ```
+
 ## 0.12.22
 
 * Make HTTP range requests more efficient ([#1536](https://github.com/evanw/esbuild/issues/1536))
