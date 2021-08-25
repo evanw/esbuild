@@ -9,7 +9,6 @@ import (
 	"strings"
 )
 
-// TODO(thlorenz): document no rewrite regex syntax
 const helpText = `
 Usage:
   snapshot [options] entry point
@@ -29,17 +28,15 @@ Examples:
 `
 
 type SnapCmdArgs struct {
-	EntryPoint  string
-	Outfile     string
-	Basedir     string
-	Metafile    bool
-	Write       bool
-	Deferred    []string
-	Norewrite   []string
-	NorewriteRx []*regexp.Regexp
-	RegexMode   RegexMode
-	Doctor      bool
-	Sourcemap   bool
+	EntryPoint string
+	Outfile    string
+	Basedir    string
+	Metafile   bool
+	Write      bool
+	Deferred   []string
+	Norewrite  []string
+	Doctor     bool
+	Sourcemap  bool
 }
 
 type ProcessCmdArgs = func(args *SnapCmdArgs) api.BuildResult
@@ -66,46 +63,14 @@ func trimPathPrefix(paths []string) []string {
 	return replaced
 }
 
-func convertToRegex(paths []string) []*regexp.Regexp {
-	regexs := make([]*regexp.Regexp, len(paths))
-
-	for i, p := range paths {
-		rx = regexp.MustCompile(p)
-		regexs[i] = rx
+func extractRewriteDefs(paths []string) []string {
+	var norewrites []string
+	for _, p := range paths {
+		norewrites = append(norewrites, p)
 	}
-	return regexs
+	return trimPathPrefix(norewrites)
 }
 
-type RegexMode uint8
-
-const (
-	RegexNone RegexMode = iota
-	RegexNormal
-	RegexNegated
-)
-
-func extractRewriteDefs(paths []string) ([]string, []*regexp.Regexp, RegexMode) {
-	var plains []string
-	var regexs []string
-	regexMode := RegexNone
-	for _, p := range paths {
-		if strings.HasPrefix(p, "rx:") {
-			if regexMode == RegexNegated {
-				panic("Can only handle normal or negated regexes, but no mix")
-			}
-			regexMode = RegexNormal
-			regexs = append(regexs, strings.TrimSpace(p[3:]))
-		} else if strings.HasPrefix(p, "rx!:") {
-			if regexMode == RegexNormal {
-				panic("Can only handle normal or negated regexes, but no mix")
-			}
-			regexMode = RegexNegated
-			regexs = append(regexs, strings.TrimSpace(p[4:]))
-		} else {
-			plains = append(plains, p)
-		}
-	}
-	return trimPathPrefix(plains), convertToRegex(regexs), regexMode
 }
 
 func SnapCmd(processArgs ProcessCmdArgs) {
@@ -142,10 +107,8 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 			cmdArgs.Deferred = extractArray(strings.Trim(arg[len("--deferred="):], "'"))
 
 		case strings.HasPrefix(arg, "--norewrite="):
-			plains, regexs, regexMode := extractRewriteDefs(extractArray(strings.Trim(arg[len("--norewrite="):], "'")))
-			cmdArgs.Norewrite = plains
-			cmdArgs.NorewriteRx = regexs
-			cmdArgs.RegexMode = regexMode
+			norewrites := extractRewriteDefs(extractArray(strings.Trim(arg[len("--norewrite="):], "'")))
+			cmdArgs.Norewrite = norewrites
 
 		case strings.HasPrefix(arg, "--doctor"):
 			cmdArgs.Doctor = true

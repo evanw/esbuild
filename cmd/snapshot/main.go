@@ -44,13 +44,6 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 				}
 			}
 		}
-		if args.RegexMode != snap_api.RegexNone && args.NorewriteRx != nil {
-			for _, rx := range args.NorewriteRx {
-				if rx.MatchString(mdl) {
-					return args.RegexMode == snap_api.RegexNegated
-				}
-			}
-		}
 		return true
 	}
 
