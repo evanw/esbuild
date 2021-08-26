@@ -1466,6 +1466,13 @@ type Symbol struct {
 	// them as strings instead.
 	MustStartWithCapitalLetterForJSX bool
 
+	// If true, this symbol is the target of a "__name" helper function call.
+	// This call is special because it deliberately doesn't count as a use
+	// of the symbol (otherwise keeping names would disable tree shaking)
+	// so "UseCountEstimate" is not incremented. This flag helps us know to
+	// avoid optimizing this symbol when "UseCountEstimate" is 1 in this case.
+	DidKeepName bool
+
 	// We automatically generate import items for property accesses off of
 	// namespace imports. This lets us remove the expensive namespace imports
 	// while bundling in many cases, replacing them with a cheap import item

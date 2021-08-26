@@ -9,6 +9,65 @@
     ```ts
     type F = ({ ...rest }) => void;
     ```
+* Fix an minification bug with the `--keep-names` option ([#1552](https://github.com/evanw/esbuild/issues/1552))
+
+    This release fixes a subtle bug that happens with `--keep-names --minify` and nested function declarations in strict mode code. It can be triggered by the following code, which was being compiled incorrectly under those flags:
+
+    ```js
+    export function outer() {
+      {
+        function inner() {
+          return Math.random();
+        }
+        const x = inner();
+        console.log(x);
+      }
+    }
+    outer();
+    ```
+
+    The bug was caused by an unfortunate interaction between a few of esbuild's behaviors:
+
+    1. Function declarations inside of nested scopes behave differently in different situations, so esbuild rewrites this function declaration to a local variable initialized to a function expression instead so that it behaves the same in all situations.
+
+        More specifically, the interpretation of such function declarations depends on whether or not it currently exists in a strict mode context:
+
+        ```
+        > (function(){ { function x(){} } return x })()
+        function x() {}
+
+        > (function(){ 'use strict'; { function x(){} } return x })()
+        ❌ Uncaught ReferenceError: x is not defined
+        ```
+
+        The bundling process sometimes erases strict mode context. For example, different files may have different strict mode status but may be merged into a single file which all shares the same strict mode status. Also, files in ESM format are automatically in strict mode but a bundle output file in IIFE format may not be executed in strict mode. Transforming the nested `function` to a `let` in strict mode and a `var` in non-strict mode means esbuild's output will behave reliably in different environments.
+
+    2. The "keep names" feature adds automatic calls to the built-in `__name` helper function to assign the original name to the `.name` property of the minified function object at run-time. That transforms the code into this:
+
+        ```js
+        let inner = function() {
+          return Math.random();
+        };
+        __name(inner, "inner");
+        const x = inner();
+        console.log(x);
+        ```
+
+        This injected helper call does not count as a use of the associated function object so that dead-code elimination will still remove the function object as dead code if nothing else uses it. Otherwise dead-code elimination would stop working when the "keep names" feature is enabled.
+
+    3. Minification enables an optimization where an initialized variable with a single use immediately following that variable is transformed by inlining the initializer into the use. So for example `var a = 1; return a` is transformed into `return 1`. This code matches this pattern (initialized single-use variable + use immediately following that variable) so the optimization does the inlining, which transforms the code into this:
+
+        ```js
+        __name(function() {
+          return Math.random();
+        }, "inner");
+        const x = inner();
+        console.log(x);
+        ```
+
+        The code is now incorrect because `inner` actually has two uses, although only one was actually counted.
+
+    This inlining optimization will now be avoided in this specific case, which fixes the bug without regressing dead-code elimination or initialized variable inlining in any other cases.
 
 ## 0.12.22
 

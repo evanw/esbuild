@@ -2553,6 +2553,21 @@ foo();
 //# sourceMappingURL=out.js.map
 
 ================================================================================
+TestStrictModeNestedFnDeclKeepNamesVariableInliningIssue1552
+---------- /out/entry.js ----------
+export function outer() {
+  {
+    let inner = function() {
+      return Math.random();
+    };
+    __name(inner, "inner");
+    const x = inner();
+    console.log(x);
+  }
+}
+__name(outer, "outer"), outer();
+
+================================================================================
 TestSwitchScopeNoBundle
 ---------- /out.js ----------
 switch (foo) {

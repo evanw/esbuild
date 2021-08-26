@@ -7169,21 +7169,27 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 						// Ignore destructuring bindings since that's not the simple case.
 						// Destructuring bindings could potentially execute side-effecting
 						// code which would invalidate reordering.
-						if id, ok := last.Binding.Data.(*js_ast.BIdentifier); ok && p.symbols[id.Ref.InnerIndex].UseCountEstimate == 1 {
-							// Try to substitute the identifier with the initializer. This will
-							// fail if something with side effects is in between the declaration
-							// and the usage.
-							if p.substituteSingleUseSymbolInStmt(stmt, id.Ref, last.ValueOrNil) {
-								// Remove the previous declaration, since the substitution was
-								// successful.
-								if len(prevS.Decls) == 1 {
-									result = result[:len(result)-1]
-								} else {
-									prevS.Decls = prevS.Decls[:len(prevS.Decls)-1]
-								}
+						if id, ok := last.Binding.Data.(*js_ast.BIdentifier); ok {
+							// Don't do this if "__name" was called on this symbol. In that
+							// case there is actually more than one use even though it says
+							// there is only one. The "__name" use isn't counted so that
+							// tree shaking still works when names are kept.
+							if symbol := p.symbols[id.Ref.InnerIndex]; symbol.UseCountEstimate == 1 && !symbol.DidKeepName {
+								// Try to substitute the identifier with the initializer. This will
+								// fail if something with side effects is in between the declaration
+								// and the usage.
+								if p.substituteSingleUseSymbolInStmt(stmt, id.Ref, last.ValueOrNil) {
+									// Remove the previous declaration, since the substitution was
+									// successful.
+									if len(prevS.Decls) == 1 {
+										result = result[:len(result)-1]
+									} else {
+										prevS.Decls = prevS.Decls[:len(prevS.Decls)-1]
+									}
 
-								// Loop back to try again
-								continue
+									// Loop back to try again
+									continue
+								}
 							}
 						}
 					}
@@ -8408,6 +8414,8 @@ func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr 
 }
 
 func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string) js_ast.Stmt {
+	p.symbols[ref.InnerIndex].DidKeepName = true
+
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
 		Value: p.callRuntime(loc, "__name", []js_ast.Expr{
 			{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},

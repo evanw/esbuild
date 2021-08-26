@@ -4677,3 +4677,32 @@ func TestRequireShimSubstitution(t *testing.T) {
 		},
 	})
 }
+
+// This guards against a bad interaction between the strict mode nested function
+// declarations, name keeping, and initialized variable inlining. See this issue
+// for full context: https://github.com/evanw/esbuild/issues/1552.
+func TestStrictModeNestedFnDeclKeepNamesVariableInliningIssue1552(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export function outer() {
+					{
+						function inner() {
+							return Math.random();
+						}
+						const x = inner();
+						console.log(x);
+					}
+				}
+				outer();
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			KeepNames:    true,
+			MangleSyntax: true,
+		},
+	})
+}
