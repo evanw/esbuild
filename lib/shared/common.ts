@@ -1169,6 +1169,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
     if (write && streamIn.isBrowser) throw new Error(`Cannot enable "write" in the browser`);
     if (incremental && streamIn.isSync) throw new Error(`Cannot use "incremental" with a synchronous build`);
+    if (watch && streamIn.isSync) throw new Error(`Cannot use "watch" with a synchronous build`);
     sendRequest<protocol.BuildRequest, protocol.BuildResponse>(refs, request, (error, response) => {
       if (error) return callback(new Error(error), null);
       if (serve) {
