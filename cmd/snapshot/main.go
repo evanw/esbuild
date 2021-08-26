@@ -84,7 +84,7 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 		// Applies when one entry point is used.
 		// https://esbuild.github.io/api/#outfile
 		Outfile:     args.Outfile,
-		EntryPoints: []string{args.EntryPoint},
+		EntryPoints: []string{args.Entryfile},
 
 		// https://esbuild.github.io/getting-started/#bundling-for-node
 		// https://esbuild.github.io/api/#platform

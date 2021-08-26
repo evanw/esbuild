@@ -1,42 +1,69 @@
 package snap_api
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/pkg/api"
+	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/evanw/esbuild/internal/logger"
+	"github.com/evanw/esbuild/pkg/api"
 )
 
 const helpText = `
 Usage:
-  snapshot [options] entry point
+  snapshot <config>
 
-Options:
-  --outfile=...    The output file
-  --metafile=...   Write metadata about the build to a JSON file
-  --basedir=...    The full path project root relative to which modules are resolved 
-  --deferred=...   Comma separated list of relative paths to defer
-  --norewrite=...  Comma separated list of relative paths to files we should not rewrite
-                   which are also automatically deferred
-  --doctor         When set stricter validations are performed to detect problematic code
-  --sourcemap      When set sourcemaps will be generated and included with the second outfile
+Config is a JSON file with the following properties:
+
+  entryfile  (string)    The snapshot entry file
+  outfile    (string)    The snapshot bundle output file
+  basedir    (string)    The full path project root relative to which modules are resolved 
+  deferred   (string[])  List of relative paths to defer
+  norewrite  (string[])  List of relative paths to files we should not rewrite
+                         which are also automatically deferred
+  metafile   (bool)      When true metadata about the build is written to a JSON file
+  doctor     (bool)      When true stricter validations are performed to detect problematic code
+  sourcemap  (bool)      When true sourcemaps will be generated and included with the second outfile
 
 Examples:
-  snapshot entry_point.js --outfile=out.js --metafile --basedir /dev/foo/snap --deferred='./foo,./bar'
+  snapshot snapshot_config.json 
 `
 
 type SnapCmdArgs struct {
-	EntryPoint string
-	Outfile    string
-	Basedir    string
-	Metafile   bool
-	Write      bool
-	Deferred   []string
-	Norewrite  []string
-	Doctor     bool
-	Sourcemap  bool
+	Entryfile string
+	Outfile   string
+	Basedir   string
+	Metafile  bool
+	Write     bool
+	Deferred  []string
+	Norewrite []string
+	Doctor    bool
+	Sourcemap bool
+}
+
+func (args *SnapCmdArgs) toString() string {
+	return fmt.Sprintf(`Args {
+	Entryfile:  '%s',
+	Outfile:    '%s',
+	Basedir:    '%s',
+	Deferred:   '%s'
+	Norewrite:  '%s'
+	Metafile:   '%t',
+	Doctor:     '%t',
+	Sourcemap:  '%t',
+}`,
+		args.Entryfile,
+		args.Outfile,
+		args.Basedir,
+		strings.Join(args.Deferred, ", "),
+		strings.Join(args.Norewrite, ", "),
+		args.Metafile,
+		args.Doctor,
+		args.Sourcemap,
+	)
 }
 
 type ProcessCmdArgs = func(args *SnapCmdArgs) api.BuildResult
@@ -71,69 +98,26 @@ func extractRewriteDefs(paths []string) []string {
 	return trimPathPrefix(norewrites)
 }
 
-}
-
 func SnapCmd(processArgs ProcessCmdArgs) {
 	osArgs := os.Args[1:]
-	cmdArgs := SnapCmdArgs{}
-
-	// Print help text when there are no arguments
-	if len(osArgs) == 0 && logger.GetTerminalInfo(os.Stdin).IsTTY {
+	if len(osArgs) != 1 && logger.GetTerminalInfo(os.Stdin).IsTTY {
 		fmt.Fprintf(os.Stderr, "%s\n", helpText)
 		os.Exit(0)
 	}
 
-	argsEnd := 0
-	for _, arg := range osArgs {
-		switch {
-		case arg == "-h", arg == "-help", arg == "--help", arg == "/?":
-			fmt.Fprintf(os.Stderr, "%s\n", helpText)
-			os.Exit(0)
-
-		case strings.HasPrefix(arg, "--outfile="):
-			cmdArgs.Outfile = arg[len("--outfile="):]
-
-		case strings.HasPrefix(arg, "--metafile"):
-			cmdArgs.Metafile = true
-
-		case strings.HasPrefix(arg, "--write="):
-			cmdArgs.Write = true
-
-		case strings.HasPrefix(arg, "--basedir="):
-			cmdArgs.Basedir = arg[len("--basedir="):]
-
-		case strings.HasPrefix(arg, "--deferred="):
-			// --deferred='./foo,./bar' will include both `'` on windows, so we ensure to remove it
-			cmdArgs.Deferred = extractArray(strings.Trim(arg[len("--deferred="):], "'"))
-
-		case strings.HasPrefix(arg, "--norewrite="):
-			norewrites := extractRewriteDefs(extractArray(strings.Trim(arg[len("--norewrite="):], "'")))
-			cmdArgs.Norewrite = norewrites
-
-		case strings.HasPrefix(arg, "--doctor"):
-			cmdArgs.Doctor = true
-
-		case strings.HasPrefix(arg, "--sourcemap"):
-			cmdArgs.Sourcemap = true
-
-		case !strings.HasPrefix(arg, "-"):
-			cmdArgs.EntryPoint = arg
-
-		default:
-			osArgs[argsEnd] = arg
-			argsEnd++
-		}
-	}
-	osArgs = osArgs[:argsEnd]
+	filename := osArgs[0]
+	jsonBytes, _ := ioutil.ReadFile(filename)
+	var cmdArgs SnapCmdArgs
+	json.Unmarshal(jsonBytes, &cmdArgs)
+	fmt.Fprintln(os.Stderr, cmdArgs.toString())
 
 	// Print help text when there are missing arguments
-	if cmdArgs.EntryPoint == "" {
-		fmt.Fprintf(os.Stderr, "Need entry point\n\n%s\n", helpText)
+	if cmdArgs.Entryfile == "" {
+		fmt.Fprintf(os.Stderr, "Need entry file\n\n%s\n", helpText)
 		os.Exit(1)
 	}
-	if cmdArgs.Write && cmdArgs.Outfile == "" {
-		fmt.Fprintf(os.Stderr, "Need outfile when writing\n\n%s\n", helpText)
-		os.Exit(1)
+	if cmdArgs.Outfile != "" {
+		cmdArgs.Write = true
 	}
 	if cmdArgs.Basedir == "" {
 		fmt.Fprintf(os.Stderr, "Need basedir\n\n%s\n", helpText)
