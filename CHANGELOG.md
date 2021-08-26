@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.23
 
 * Parsing of rest arguments in certain TypeScript types ([#1553](https://github.com/evanw/esbuild/issues/1553))
 
