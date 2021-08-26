@@ -4121,6 +4121,24 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
     }
   },
 
+  async buildSyncWatchThrow({ esbuild, testDir }) {
+    try {
+      const input = path.join(testDir, 'in.js')
+      const output = path.join(testDir, 'out.js')
+      await writeFileAsync(input, '1+')
+      esbuild.buildSync({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs', logLevel: 'silent', watch: true })
+      const result = require(output)
+      assert.strictEqual(result.default, 123)
+      assert.strictEqual(result.__esModule, true)
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert(error instanceof Error, 'Must be an Error object');
+      assert.strictEqual(error.message, `Build failed with 1 error:\nerror: Cannot use "watch" with a synchronous build`);
+      assert.strictEqual(error.errors.length, 1);
+      assert.strictEqual(error.warnings.length, 0);
+    }
+  },
+
   async transformThrow({ esbuild }) {
     try {
       await esbuild.transform(`1+`, {})

@@ -416,8 +416,10 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
     if (!options) return
     let plugins = options.plugins
     let incremental = options.incremental
+    let watch = options.watch
     if (plugins && plugins.length > 0) throw fakeBuildError(`Cannot use plugins in synchronous API calls`);
     if (incremental) throw fakeBuildError(`Cannot use "incremental" with a synchronous build`);
+    if (watch) throw fakeBuildError(`Cannot use "watch" with a synchronous build`);
   };
 
   // MessagePort doesn't copy the properties of Error objects. We still want
