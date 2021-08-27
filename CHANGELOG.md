@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.24
 
 * Fix an edge case with direct `eval` and variable renaming
 
