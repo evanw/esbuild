@@ -3776,6 +3776,38 @@ let transformTests = {
     assert.strictEqual(code2, `foo;\n`)
   },
 
+  async nameCollisionEvalRename({ esbuild }) {
+    const { code } = await esbuild.transform(`
+      // "arg" must not be renamed to "arg2"
+      return function(arg2) {
+        function foo(arg) {
+          return arg + arg2;
+        }
+        // "eval" prevents "arg2" from being renamed
+        // "arg" below causes "arg" above to be renamed
+        return eval(foo(1)) + arg
+      }(2);
+    `)
+    const result = new Function('arg', code)(10)
+    assert.strictEqual(result, 13)
+  },
+
+  async nameCollisionEvalMinify({ esbuild }) {
+    const { code } = await esbuild.transform(`
+      // "arg" must not be renamed to "$"
+      return function($) {
+        function foo(arg) {
+          return arg + $;
+        }
+        // "eval" prevents "$" from being renamed
+        // Repeated "$" puts "$" at the top of the character frequency histogram
+        return eval(foo($$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$))
+      }(2);
+    `, { minifyIdentifiers: true })
+    const result = new Function('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', code)(1)
+    assert.strictEqual(result, 3)
+  },
+
   async dynamicImportString({ esbuild }) {
     const { code: code1 } = await esbuild.transform(`import('foo')`, { target: 'chrome63' })
     assert.strictEqual(code1, `import("foo");\n`)

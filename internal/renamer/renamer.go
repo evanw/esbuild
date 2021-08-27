@@ -25,21 +25,35 @@ func ComputeReservedNames(moduleScopes []*js_ast.Scope, symbols js_ast.SymbolMap
 
 	// All unbound symbols must be reserved names
 	for _, scope := range moduleScopes {
-		for _, member := range scope.Members {
-			symbol := symbols.Get(member.Ref)
-			if symbol.Kind == js_ast.SymbolUnbound || symbol.MustNotBeRenamed {
-				names[symbol.OriginalName] = 1
-			}
-		}
-		for _, ref := range scope.Generated {
-			symbol := symbols.Get(ref)
-			if symbol.Kind == js_ast.SymbolUnbound || symbol.MustNotBeRenamed {
-				names[symbol.OriginalName] = 1
-			}
-		}
+		computeReservedNamesForScope(scope, symbols, names)
 	}
 
 	return names
+}
+
+func computeReservedNamesForScope(scope *js_ast.Scope, symbols js_ast.SymbolMap, names map[string]uint32) {
+	for _, member := range scope.Members {
+		symbol := symbols.Get(member.Ref)
+		if symbol.Kind == js_ast.SymbolUnbound || symbol.MustNotBeRenamed {
+			names[symbol.OriginalName] = 1
+		}
+	}
+	for _, ref := range scope.Generated {
+		symbol := symbols.Get(ref)
+		if symbol.Kind == js_ast.SymbolUnbound || symbol.MustNotBeRenamed {
+			names[symbol.OriginalName] = 1
+		}
+	}
+
+	// If there's a direct "eval" somewhere inside the current scope, continue
+	// traversing down the scope tree until we find it to get all reserved names
+	if scope.ContainsDirectEval {
+		for _, child := range scope.Children {
+			if child.ContainsDirectEval {
+				computeReservedNamesForScope(child, symbols, names)
+			}
+		}
+	}
 }
 
 type Renamer interface {

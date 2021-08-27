@@ -1,5 +1,51 @@
 # Changelog
 
+## Unreleased
+
+* Fix an edge case with direct `eval` and variable renaming
+
+    Use of the direct `eval` construct causes all variable names in the scope containing the direct `eval` and all of its parent scopes to become "pinned" and unable to be renamed. This is because the dynamically-evaluated code is allowed to reference any of those variables by name. When this happens esbuild avoids renaming any of these variables, which effectively disables minification for most of the file, and avoids renaming any non-pinned variables to the name of a pinned variable.
+
+    However, there was previously a bug where the pinned variable name avoidance only worked for pinned variables in the top-level scope but not in nested scopes. This could result in a non-pinned variable being incorrectly renamed to the name of a pinned variable in certain cases. For example:
+
+    ```js
+    // Input to esbuild
+    return function($) {
+      function foo(arg) {
+        return arg + $;
+      }
+      // Direct "eval" here prevents "$" from being renamed
+      // Repeated "$" puts "$" at the top of the character frequency histogram
+      return eval(foo($$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$))
+    }(2);
+    ```
+
+    When this code is minified with `--minify-identifiers`, the non-pinned variable `arg` is incorrectly transformed into `$` resulting in a name collision with the nested pinned variable `$`:
+
+    ```js
+    // Old output from esbuild (incorrect)
+    return function($) {
+      function foo($) {
+        return $ + $;
+      }
+      return eval(foo($$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$));
+    }(2);
+    ```
+
+    This is because the non-pinned variable `arg` is renamed to the top character in the character frequency histogram `$` (esbuild uses a character frequency histogram for smaller gzipped output sizes) and the pinned variable `$` was incorrectly not present in the list of variable names to avoid. With this release, the output is now correct:
+
+    ```js
+    // New output from esbuild (correct)
+    return function($) {
+      function foo(n) {
+        return n + $;
+      }
+      return eval(foo($$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$));
+    }(2);
+    ```
+
+    Note that even when esbuild handles direct `eval` correctly, using direct `eval` is not recommended because it disables minification for the file and likely won't work correctly in the presence of scope hoisting optimizations. See https://esbuild.github.io/link/direct-eval for more details.
+
 ## 0.12.23
 
 * Parsing of rest arguments in certain TypeScript types ([#1553](https://github.com/evanw/esbuild/issues/1553))
