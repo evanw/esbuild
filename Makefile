@@ -124,6 +124,7 @@ platform-all: cmd/esbuild/version.go test-all
 		platform-linux-arm64 \
 		platform-linux-mips64le \
 		platform-linux-ppc64le \
+		platform-sunos \
 		platform-wasm \
 		platform-neutral \
 		platform-deno
@@ -182,6 +183,9 @@ platform-linux-mips64le:
 platform-linux-ppc64le:
 	make GOOS=linux GOARCH=ppc64le NPMDIR=npm/esbuild-linux-ppc64le platform-unixlike
 
+platform-sunos:
+	make GOOS=illumos GOARCH=amd64 NPMDIR=npm/esbuild-sunos-64 platform-unixlike
+
 platform-wasm: esbuild | scripts/node_modules
 	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/esbuild.js ./esbuild --wasm
@@ -227,7 +231,8 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@read OTP && OTP="$$OTP" make -j4 \
 		publish-linux-arm64 \
 		publish-linux-mips64le \
-		publish-linux-ppc64le
+		publish-linux-ppc64le \
+		publish-sunos
 
 	# Do these last to avoid race conditions
 	@echo Enter one-time password:
@@ -285,6 +290,9 @@ publish-linux-mips64le: platform-linux-mips64le
 publish-linux-ppc64le: platform-linux-ppc64le
 	test -n "$(OTP)" && cd npm/esbuild-linux-ppc64le && npm publish --otp="$(OTP)"
 
+publish-sunos: platform-sunos
+	test -n "$(OTP)" && cd npm/esbuild-sunos-64 && npm publish --otp="$(OTP)"
+
 publish-wasm: platform-wasm
 	test -n "$(OTP)" && cd npm/esbuild-wasm && npm publish --otp="$(OTP)"
 
@@ -316,6 +324,7 @@ clean:
 	rm -rf npm/esbuild-linux-arm64/bin
 	rm -rf npm/esbuild-linux-mips64le/bin
 	rm -rf npm/esbuild-linux-ppc64le/bin
+	rm -rf npm/esbuild-sunos-64/bin
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
 	rm -rf npm/esbuild/lib
 	rm -rf npm/esbuild-wasm/lib
