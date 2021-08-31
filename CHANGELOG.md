@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+* Fix a TypeScript parsing edge case with the postfix `!` operator ([#1560](https://github.com/evanw/esbuild/issues/1560))
+
+    This release fixes a bug with esbuild's TypeScript parser where the postfix `!` operator incorrectly terminated a member expression after the `new` operator:
+
+    ```js
+    // Original input
+    new Foo!.Bar();
+
+    // Old output
+    new Foo().Bar();
+
+    // New output
+    new Foo.Bar();
+    ```
+
+    The problem was that `!` was considered a postfix operator instead of part of a member expression. It is now considered to be part of a member expression instead, which fixes this edge case.
+
 ## 0.12.24
 
 * Fix an edge case with direct `eval` and variable renaming

@@ -3109,18 +3109,6 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		target := p.parseExprWithFlags(js_ast.LMember, flags)
 		args := []js_ast.Expr{}
 
-		if p.options.ts.Parse {
-			// Skip over TypeScript non-null assertions
-			if p.lexer.Token == js_lexer.TExclamation && !p.lexer.HasNewlineBefore {
-				p.lexer.Next()
-			}
-
-			// Skip over TypeScript type arguments here if there are any
-			if p.lexer.Token == js_lexer.TLessThan {
-				p.trySkipTypeScriptTypeArgumentsWithBacktracking()
-			}
-		}
-
 		if p.lexer.Token == js_lexer.TOpenParen {
 			args = p.parseCallArgs()
 		}
@@ -3778,9 +3766,6 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			}
 			if !p.options.ts.Parse {
 				p.lexer.Unexpected()
-			}
-			if level >= js_ast.LPostfix {
-				return left
 			}
 			p.lexer.Next()
 			optionalChain = oldOptionalChain
