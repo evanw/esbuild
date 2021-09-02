@@ -23,6 +23,10 @@
 
     This release fixes a bug in the parser where code of the form `#a in #b in c` caused a crash. This code now causes a syntax error instead. Private identifiers are allowed when followed by `in`, but only if the operator precedence level is such that the `in` operator is allowed. The parser was missing the operator precedence check.
 
+* Publish x86-64 binary executables for illumos ([#1562](https://github.com/evanw/esbuild/pull/1562))
+
+    This release adds support for the [illumos](https://www.illumos.org/) operating system, which is related to Solaris and SunOS. Support for this platform was contributed by [@hadfl](https://github.com/hadfl).
+
 ## 0.12.24
 
 * Fix an edge case with direct `eval` and variable renaming
