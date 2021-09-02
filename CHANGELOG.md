@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.25
 
 * Fix a TypeScript parsing edge case with the postfix `!` operator ([#1560](https://github.com/evanw/esbuild/issues/1560))
 
