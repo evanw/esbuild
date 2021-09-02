@@ -1,0 +1,16 @@
+{
+  "name": "esbuild-sunos-64",
+  "version": "0.12.24",
+  "description": "The illumos 64-bit binary for esbuild, a JavaScript bundler.",
+  "repository": "https://github.com/evanw/esbuild",
+  "license": "MIT",
+  "os": [
+    "sunos"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "directories": {
+    "bin": "bin"
+  }
+}

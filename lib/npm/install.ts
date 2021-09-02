@@ -293,6 +293,7 @@ const knownUnixlikePackages: Record<string, string> = {
   'linux mips64el LE': 'esbuild-linux-mips64le',
   'linux ppc64 LE': 'esbuild-linux-ppc64le',
   'linux x64 LE': 'esbuild-linux-64',
+  'sunos x64 LE': 'esbuild-sunos-64',
 };
 
 // Pick a package to install
