@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -170,6 +171,21 @@ func parseFile(args parseArgs) {
 			pluginData: pluginData,
 		},
 	}
+
+	defer func() {
+		r := recover()
+		if r != nil {
+			stack := strings.TrimSpace(string(debug.Stack()))
+			tracker := logger.MakeLineColumnTracker(&source)
+			data := logger.RangeData(&tracker, logger.Range{}, fmt.Sprintf("panic: %v", r))
+			data.Location.LineText = fmt.Sprintf("%s\n%s", data.Location.LineText, stack)
+			args.log.AddMsg(logger.Msg{
+				Kind: logger.Error,
+				Data: data,
+			})
+			args.results <- result
+		}
+	}()
 
 	switch loader {
 	case config.LoaderJS:

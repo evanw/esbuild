@@ -45,6 +45,7 @@ async function main() {
   let reparseCount = 0;
   let reprintCount = 0;
   let minifyCount = 0;
+  let panicCount = 0;
 
   async function esbuildFile(input, options) {
     try {
@@ -155,7 +156,7 @@ async function main() {
       return
     }
 
-    const result = await esbuildFile(content, { minify: false });
+    const result = await esbuildFile(content, { minify: false, sourcefile: file });
 
     if (result.success !== shouldParse) {
       if (!result.success) shouldHavePassed++;
@@ -188,6 +189,13 @@ async function main() {
         }
       }
     }
+
+    else if (result.error.toString().includes('panic')) {
+      console.log(`\n!!! PANIC: ${file} !!!`);
+      console.log(`${result.error}\n${result.error.errors[0].location.lineText}`);
+      panicCount++;
+    }
+
     runCount++;
   }
 
@@ -220,6 +228,7 @@ async function main() {
   console.log(`reparse failures: ${reparseCount}`);
   console.log(`reprint failures: ${reprintCount}`);
   console.log(`minify failures: ${minifyCount}`);
+  console.log(`panics: ${panicCount}`);
 }
 
 main().catch(e => setTimeout(() => {
