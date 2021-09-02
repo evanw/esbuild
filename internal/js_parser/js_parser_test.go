@@ -4357,6 +4357,7 @@ func TestPrivateIdentifiers(t *testing.T) {
 	expectPrinted(t, "class Foo { #foo }", "class Foo {\n  #foo;\n}\n")
 	expectPrinted(t, "class Foo { #foo = 1 }", "class Foo {\n  #foo = 1;\n}\n")
 	expectPrinted(t, "class Foo { #foo = #foo in this }", "class Foo {\n  #foo = #foo in this;\n}\n")
+	expectPrinted(t, "class Foo { #foo = #foo in (#bar in this); #bar }", "class Foo {\n  #foo = #foo in (#bar in this);\n  #bar;\n}\n")
 	expectPrinted(t, "class Foo { #foo() {} }", "class Foo {\n  #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { get #foo() {} }", "class Foo {\n  get #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { set #foo(x) {} }", "class Foo {\n  set #foo(x) {\n  }\n}\n")
@@ -4365,6 +4366,7 @@ func TestPrivateIdentifiers(t *testing.T) {
 	expectPrinted(t, "class Foo { static #foo() {} }", "class Foo {\n  static #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static get #foo() {} }", "class Foo {\n  static get #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static set #foo(x) {} }", "class Foo {\n  static set #foo(x) {\n  }\n}\n")
+	expectParseError(t, "class Foo { #foo = #foo in #bar in this; #bar }", "<stdin>: error: Unexpected \"#bar\"\n")
 
 	// The name "#constructor" is forbidden
 	expectParseError(t, "class Foo { #constructor }", "<stdin>: error: Invalid field name \"#constructor\"\n")

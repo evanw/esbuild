@@ -19,6 +19,10 @@
 
     The problem was that `!` was considered a postfix operator instead of part of a member expression. It is now considered to be part of a member expression instead, which fixes this edge case.
 
+* Fix a parsing crash with nested private brand checks
+
+    This release fixes a bug in the parser where code of the form `#a in #b in c` caused a crash. This code now causes a syntax error instead. Private identifiers are allowed when followed by `in`, but only if the operator precedence level is such that the `in` operator is allowed. The parser was missing the operator precedence check.
+
 ## 0.12.24
 
 * Fix an edge case with direct `eval` and variable renaming

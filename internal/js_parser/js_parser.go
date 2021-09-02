@@ -2838,7 +2838,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		return js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 
 	case js_lexer.TPrivateIdentifier:
-		if !p.allowPrivateIdentifiers || !p.allowIn {
+		if !p.allowPrivateIdentifiers || !p.allowIn || level >= js_ast.LCompare {
 			p.lexer.Unexpected()
 		}
 
