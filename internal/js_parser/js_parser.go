@@ -479,6 +479,7 @@ type fnOrArrowDataParse struct {
 	isTopLevel          bool
 	isConstructor       bool
 	isTypeScriptDeclare bool
+	isClassStaticInit   bool
 
 	// In TypeScript, forward declarations of functions have no bodies
 	allowMissingBodyForTypeScript bool
@@ -1941,6 +1942,26 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 						return p.parseProperty(kind, opts, nil)
 					}
 				}
+			} else if p.lexer.Token == js_lexer.TOpenBrace && name == "static" {
+				p.log.AddRangeError(&p.tracker, p.lexer.Range(), "Class static blocks are not supported yet")
+
+				loc := p.lexer.Loc()
+				p.lexer.Next()
+
+				oldIsClassStaticInit := p.fnOrArrowDataParse.isClassStaticInit
+				oldAwait := p.fnOrArrowDataParse.await
+				p.fnOrArrowDataParse.isClassStaticInit = true
+				p.fnOrArrowDataParse.await = forbidAll
+
+				scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassStaticInit, loc)
+				p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{})
+				p.popAndDiscardScope(scopeIndex)
+
+				p.fnOrArrowDataParse.isClassStaticInit = oldIsClassStaticInit
+				p.fnOrArrowDataParse.await = oldAwait
+
+				p.lexer.Expect(js_lexer.TCloseBrace)
+
 			}
 		}
 
@@ -6349,6 +6370,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SContinue{Label: name}}
 
 	case js_lexer.TReturn:
+		if p.fnOrArrowDataParse.isClassStaticInit {
+			p.log.AddRangeError(&p.tracker, p.lexer.Range(), "A return statement cannot be used inside a class static block")
+		}
 		p.lexer.Next()
 		var value js_ast.Expr
 		if p.lexer.Token != js_lexer.TSemicolon &&

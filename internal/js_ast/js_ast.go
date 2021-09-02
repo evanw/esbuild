@@ -1598,6 +1598,7 @@ const (
 	ScopeEntry // This is a module, TypeScript enum, or TypeScript namespace
 	ScopeFunctionArgs
 	ScopeFunctionBody
+	ScopeClassStaticInit
 )
 
 func (kind ScopeKind) StopsHoisting() bool {
