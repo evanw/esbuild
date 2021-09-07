@@ -113,6 +113,7 @@ platform-all: cmd/esbuild/version.go test-all
 		platform-windows-32 \
 		platform-windows-arm64 \
 		platform-android-arm64 \
+		platform-android-arm \
 		platform-darwin \
 		platform-darwin-arm64 \
 		platform-freebsd \
@@ -149,6 +150,9 @@ platform-unixlike:
 
 platform-android-arm64:
 	make GOOS=android GOARCH=arm64 NPMDIR=npm/esbuild-android-arm64 platform-unixlike
+
+platform-android-arm:
+	make GOOS=android GOARCH=arm NPMDIR=npm/esbuild-android-arm platform-unixlike
 
 platform-darwin:
 	make GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
@@ -239,7 +243,8 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@read OTP && OTP="$$OTP" make -j2 \
 		publish-neutral \
 		publish-deno \
-		publish-wasm
+		publish-wasm \
+		publish-android-arm
 
 	git commit -am "publish $(ESBUILD_VERSION) to npm"
 	git tag "v$(ESBUILD_VERSION)"
@@ -256,6 +261,9 @@ publish-windows-arm64: platform-windows-arm64
 
 publish-android-arm64: platform-android-arm64
 	test -n "$(OTP)" && cd npm/esbuild-android-arm64 && npm publish --otp="$(OTP)"
+
+publish-android-arm: platform-android-arm
+	test -n "$(OTP)" && cd npm/esbuild-android-arm && npm publish --otp="$(OTP)"
 
 publish-darwin: platform-darwin
 	test -n "$(OTP)" && cd npm/esbuild-darwin-64 && npm publish --otp="$(OTP)"
@@ -313,6 +321,7 @@ clean:
 	rm -f npm/esbuild-windows-64/esbuild.exe
 	rm -f npm/esbuild-windows-arm64/esbuild.exe
 	rm -rf npm/esbuild-android-arm64/bin
+	rm -rf npm/esbuild-freebsd-arm/bin
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-darwin-arm64/bin
 	rm -rf npm/esbuild-freebsd-64/bin

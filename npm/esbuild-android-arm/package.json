@@ -1,0 +1,16 @@
+{
+  "name": "esbuild-android-arm",
+  "version": "0.12.25",
+  "description": "The Android ARM binary for esbuild, a JavaScript bundler.",
+  "repository": "https://github.com/evanw/esbuild",
+  "license": "MIT",
+  "os": [
+    "android"
+  ],
+  "cpu": [
+    "arm"
+  ],
+  "directories": {
+    "bin": "bin"
+  }
+}
