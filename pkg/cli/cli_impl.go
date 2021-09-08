@@ -658,12 +658,6 @@ func runImpl(osArgs []string) int {
 				buildOptions.NodePaths = strings.Split(value, separator)
 				break
 			}
-
-			// Read "NO_COLOR" from the environment. This is a convention that some
-			// software follows. See https://no-color.org/ for more information.
-			if buildOptions.Color == api.ColorIfTerminal && strings.HasPrefix(key, "NO_COLOR=") {
-				buildOptions.Color = api.ColorNever
-			}
 		}
 
 		// Read from stdin when there are no entry points

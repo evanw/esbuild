@@ -17,7 +17,7 @@ func GetTerminalInfo(file *os.File) (info TerminalInfo) {
 	// Is this file descriptor a terminal?
 	if _, err := unix.IoctlGetTermios(int(fd), unix.TCGETS); err == nil {
 		info.IsTTY = true
-		info.UseColorEscapes = true
+		info.UseColorEscapes = !hasNoColorEnvironmentVariable()
 
 		// Get the width of the window
 		if w, err := unix.IoctlGetWinsize(int(fd), unix.TIOCGWINSZ); err == nil {

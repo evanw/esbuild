@@ -182,6 +182,22 @@ func (a Path) ComesBeforeInSortedOrder(b Path) bool {
 				(a.Flags == b.Flags && a.IgnoredSuffix < b.IgnoredSuffix)))))
 }
 
+var noColorResult bool
+var noColorOnce sync.Once
+
+func hasNoColorEnvironmentVariable() bool {
+	noColorOnce.Do(func() {
+		for _, key := range os.Environ() {
+			// Read "NO_COLOR" from the environment. This is a convention that some
+			// software follows. See https://no-color.org/ for more information.
+			if strings.HasPrefix(key, "NO_COLOR=") {
+				noColorResult = true
+			}
+		}
+	})
+	return noColorResult
+}
+
 // This has a custom implementation instead of using "filepath.Dir/Base/Ext"
 // because it should work the same on Unix and Windows. These names end up in
 // the generated output and the generated output should not depend on the OS.
