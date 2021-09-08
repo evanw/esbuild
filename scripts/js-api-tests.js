@@ -3985,6 +3985,49 @@ let formatTests = {
   },
 }
 
+let analyzeTests = {
+  async analyzeMetafile({ esbuild }) {
+    const result = await esbuild.analyzeMetafile({
+      "inputs": {
+        "entry.js": {
+          "bytes": 50,
+          "imports": [
+            {
+              "path": "lib.js",
+              "kind": "import-statement"
+            }
+          ]
+        },
+        "lib.js": {
+          "bytes": 200,
+          "imports": []
+        }
+      },
+      "outputs": {
+        "out.js": {
+          "imports": [],
+          "exports": [],
+          "entryPoint": "entry.js",
+          "inputs": {
+            "entry.js": {
+              "bytesInOutput": 25
+            },
+            "lib.js": {
+              "bytesInOutput": 50
+            }
+          },
+          "bytes": 100
+        }
+      }
+    })
+    assert.strictEqual(result, `
+  out.js       100b   100.0%
+   ├ lib.js     50b    50.0%
+   └ entry.js   25b    25.0%
+`)
+  },
+}
+
 let functionScopeCases = [
   'function x() {} { var x }',
   'function* x() {} { var x }',
@@ -4194,6 +4237,47 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
     assert.strictEqual(messages[0], ` > error: This is an error\n\n`)
     assert.strictEqual(messages[1], ` > file.js:0:0: error: Another error\n    0 │ \n      ╵ ^\n\n`)
   },
+
+  async analyzeMetafileSync({ esbuild }) {
+    const result = esbuild.analyzeMetafileSync({
+      "inputs": {
+        "entry.js": {
+          "bytes": 50,
+          "imports": [
+            {
+              "path": "lib.js",
+              "kind": "import-statement"
+            }
+          ]
+        },
+        "lib.js": {
+          "bytes": 200,
+          "imports": []
+        }
+      },
+      "outputs": {
+        "out.js": {
+          "imports": [],
+          "exports": [],
+          "entryPoint": "entry.js",
+          "inputs": {
+            "entry.js": {
+              "bytesInOutput": 25
+            },
+            "lib.js": {
+              "bytesInOutput": 50
+            }
+          },
+          "bytes": 100
+        }
+      }
+    })
+    assert.strictEqual(result, `
+  out.js       100b   100.0%
+   ├ lib.js     50b    50.0%
+   └ entry.js   25b    25.0%
+`)
+  },
 }
 
 async function assertSourceMap(jsSourceMap, source) {
@@ -4237,6 +4321,7 @@ async function main() {
     ...Object.entries(serveTests),
     ...Object.entries(transformTests),
     ...Object.entries(formatTests),
+    ...Object.entries(analyzeTests),
     ...Object.entries(syncTests),
   ]
   let allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)

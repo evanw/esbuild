@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/api_helpers"
 	"github.com/evanw/esbuild/internal/ast"
@@ -729,6 +730,20 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 	return internalResult
 }
 
+func prettyPrintByteCount(n int) string {
+	var size string
+	if n < 1024 {
+		size = fmt.Sprintf("%db ", n)
+	} else if n < 1024*1024 {
+		size = fmt.Sprintf("%.1fkb", float64(n)/(1024))
+	} else if n < 1024*1024*1024 {
+		size = fmt.Sprintf("%.1fmb", float64(n)/(1024*1024))
+	} else {
+		size = fmt.Sprintf("%.1fgb", float64(n)/(1024*1024*1024))
+	}
+	return size
+}
+
 func printSummary(logOptions logger.OutputOptions, outputFiles []OutputFile, start time.Time) {
 	var table logger.SummaryTable = make([]logger.SummaryTableEntry, len(outputFiles))
 
@@ -742,20 +757,10 @@ func printSummary(logOptions logger.OutputOptions, outputFiles []OutputFile, sta
 					}
 					base := realFS.Base(path)
 					n := len(file.Contents)
-					var size string
-					if n < 1024 {
-						size = fmt.Sprintf("%db ", n)
-					} else if n < 1024*1024 {
-						size = fmt.Sprintf("%.1fkb", float64(n)/(1024))
-					} else if n < 1024*1024*1024 {
-						size = fmt.Sprintf("%.1fmb", float64(n)/(1024*1024))
-					} else {
-						size = fmt.Sprintf("%.1fgb", float64(n)/(1024*1024*1024))
-					}
 					table[i] = logger.SummaryTableEntry{
 						Dir:         path[:len(path)-len(base)],
 						Base:        base,
-						Size:        size,
+						Size:        prettyPrintByteCount(n),
 						Bytes:       n,
 						IsSourceMap: strings.HasSuffix(base, ".map"),
 					}
@@ -1601,4 +1606,185 @@ func formatMsgsImpl(msgs []Message, opts FormatMessagesOptions) []string {
 		)
 	}
 	return strings
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AnalyzeMetafile API
+
+type metafileEntry struct {
+	name    string
+	size    int
+	entries []metafileEntry
+}
+
+type metafileArray []metafileEntry
+
+func (a metafileArray) Len() int          { return len(a) }
+func (a metafileArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a metafileArray) Less(i int, j int) bool {
+	ai := a[i]
+	aj := a[j]
+	return ai.size > aj.size || (ai.size == aj.size && ai.name < aj.name)
+}
+
+func getObjectProperty(expr js_ast.Expr, key string) js_ast.Expr {
+	if obj, ok := expr.Data.(*js_ast.EObject); ok {
+		for _, prop := range obj.Properties {
+			if js_lexer.UTF16EqualsString(prop.Key.Data.(*js_ast.EString).Value, key) {
+				return prop.ValueOrNil
+			}
+		}
+	}
+	return js_ast.Expr{}
+}
+
+func getObjectPropertyNumber(expr js_ast.Expr, key string) *js_ast.ENumber {
+	value, _ := getObjectProperty(expr, key).Data.(*js_ast.ENumber)
+	return value
+}
+
+func getObjectPropertyString(expr js_ast.Expr, key string) *js_ast.EString {
+	value, _ := getObjectProperty(expr, key).Data.(*js_ast.EString)
+	return value
+}
+
+func getObjectPropertyObject(expr js_ast.Expr, key string) *js_ast.EObject {
+	value, _ := getObjectProperty(expr, key).Data.(*js_ast.EObject)
+	return value
+}
+
+func getObjectPropertyArray(expr js_ast.Expr, key string) *js_ast.EArray {
+	value, _ := getObjectProperty(expr, key).Data.(*js_ast.EArray)
+	return value
+}
+
+func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
+	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+	source := logger.Source{Contents: metafile}
+
+	if result, ok := js_parser.ParseJSON(log, source, js_parser.JSONOptions{}); ok {
+		if outputs := getObjectPropertyObject(result, "outputs"); outputs != nil {
+			var entries metafileArray
+
+			for _, output := range outputs.Properties {
+				if key := js_lexer.UTF16ToString(output.Key.Data.(*js_ast.EString).Value); !strings.HasSuffix(key, ".map") {
+					if bytes := getObjectPropertyNumber(output.ValueOrNil, "bytes"); bytes != nil {
+						if inputs := getObjectPropertyObject(output.ValueOrNil, "inputs"); inputs != nil {
+							var children metafileArray
+
+							for _, input := range inputs.Properties {
+								if bytesInOutput := getObjectPropertyNumber(input.ValueOrNil, "bytesInOutput"); bytesInOutput != nil && bytesInOutput.Value > 0 {
+									children = append(children, metafileEntry{
+										name: js_lexer.UTF16ToString(input.Key.Data.(*js_ast.EString).Value),
+										size: int(bytesInOutput.Value),
+									})
+								}
+							}
+
+							sort.Sort(children)
+
+							entries = append(entries, metafileEntry{
+								name:    key,
+								size:    int(bytes.Value),
+								entries: children,
+							})
+						}
+					}
+				}
+			}
+
+			sort.Sort(entries)
+
+			type tableEntry struct {
+				first      string
+				second     string
+				third      string
+				firstLen   int
+				secondLen  int
+				thirdLen   int
+				isTopLevel bool
+			}
+
+			var table []tableEntry
+			var colors logger.Colors
+
+			if opts.Color {
+				colors = logger.TerminalColors
+			}
+
+			for _, entry := range entries {
+				second := prettyPrintByteCount(entry.size)
+				third := "100.0%"
+
+				table = append(table, tableEntry{
+					first:      colors.Bold + entry.name,
+					firstLen:   utf8.RuneCountInString(entry.name),
+					second:     second,
+					secondLen:  len(second),
+					third:      third + colors.Reset,
+					thirdLen:   len(third),
+					isTopLevel: true,
+				})
+
+				for j, child := range entry.entries {
+					indent := " ├ "
+					if j+1 == len(entry.entries) {
+						indent = " └ "
+					}
+					percent := 100.0 * float64(child.size) / float64(entry.size)
+
+					first := indent + child.name
+					second := prettyPrintByteCount(child.size)
+					third := fmt.Sprintf("%.1f%%", percent)
+
+					table = append(table, tableEntry{
+						first:     first,
+						firstLen:  utf8.RuneCountInString(first),
+						second:    second,
+						secondLen: len(second),
+						third:     third,
+						thirdLen:  len(third),
+					})
+				}
+			}
+
+			maxFirstLen := 0
+			maxSecondLen := 0
+			maxThirdLen := 0
+
+			for _, entry := range table {
+				if maxFirstLen < entry.firstLen {
+					maxFirstLen = entry.firstLen
+				}
+				if maxSecondLen < entry.secondLen {
+					maxSecondLen = entry.secondLen
+				}
+				if maxThirdLen < entry.thirdLen {
+					maxThirdLen = entry.thirdLen
+				}
+			}
+
+			sb := strings.Builder{}
+
+			for _, entry := range table {
+				prefix := "\n"
+				if !entry.isTopLevel {
+					prefix = ""
+				}
+				sb.WriteString(fmt.Sprintf("%s  %s%s%s%s%s\n",
+					prefix,
+					entry.first,
+					strings.Repeat(" ", 2+maxFirstLen-entry.firstLen+maxSecondLen-entry.secondLen),
+					entry.second,
+					strings.Repeat(" ", 2+maxThirdLen-entry.thirdLen),
+					entry.third,
+				))
+			}
+
+			return sb.String()
+		}
+	}
+
+	return ""
 }

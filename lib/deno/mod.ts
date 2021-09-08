@@ -109,7 +109,7 @@ function getCachePath(name: string): { finalPath: string, finalDir: string } {
 function extractFileFromTarGzip(buffer: Uint8Array, file: string): Uint8Array {
   try {
     buffer = denoflate.gunzip(buffer)
-  } catch (err) {
+  } catch (err: any) {
     throw new Error(`Invalid gzip data in archive: ${err && err.message || err}`)
   }
   let str = (i: number, n: number) => String.fromCharCode(...buffer.subarray(i, i + n)).replace(/\0.*$/, '')

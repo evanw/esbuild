@@ -113,7 +113,7 @@ let fsSync: common.StreamFS = {
       } catch {
       }
       callback(null, contents);
-    } catch (err) {
+    } catch (err: any) {
       callback(err, null);
     }
   },
@@ -138,7 +138,7 @@ let fsAsync: common.StreamFS = {
           callback(err, contents);
         }
       });
-    } catch (err) {
+    } catch (err: any) {
       callback(err, null);
     }
   },
@@ -166,6 +166,9 @@ export let transform: typeof types.transform = (input, options) =>
 
 export let formatMessages: typeof types.formatMessages = (messages, options) =>
   ensureServiceIsRunning().formatMessages(messages, options);
+
+export let analyzeMetafile: typeof types.analyzeMetafile = (messages, options) =>
+  ensureServiceIsRunning().analyzeMetafile(messages, options);
 
 export let buildSync: typeof types.buildSync = (options: types.BuildOptions): any => {
   // Try using a long-lived worker thread to avoid repeated start-up overhead
@@ -225,6 +228,24 @@ export let formatMessagesSync: typeof types.formatMessagesSync = (messages, opti
   return result!;
 };
 
+export let analyzeMetafileSync: typeof types.analyzeMetafileSync = (metafile, options) => {
+  // Try using a long-lived worker thread to avoid repeated start-up overhead
+  if (worker_threads && !isInternalWorkerThread) {
+    if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
+    return workerThreadService.analyzeMetafileSync(metafile, options);
+  }
+
+  let result: string;
+  runServiceSync(service => service.analyzeMetafile({
+    callName: 'analyzeMetafileSync',
+    refs: null,
+    metafile: typeof metafile === 'string' ? metafile : JSON.stringify(metafile),
+    options,
+    callback: (err, res) => { if (err) throw err; result = res! },
+  }));
+  return result!;
+};
+
 let initializeWasCalled = false;
 
 export let initialize: typeof types.initialize = options => {
@@ -242,6 +263,7 @@ interface Service {
   serve: typeof types.serve;
   transform: typeof types.transform;
   formatMessages: typeof types.formatMessages;
+  analyzeMetafile: typeof types.analyzeMetafile;
 }
 
 let defaultWD = process.cwd();
@@ -334,6 +356,16 @@ let ensureServiceIsRunning = (): Service => {
           callback: (err, res) => err ? reject(err) : resolve(res!),
         }));
     },
+    analyzeMetafile: (metafile, options) => {
+      return new Promise((resolve, reject) =>
+        service.analyzeMetafile({
+          callName: 'analyzeMetafile',
+          refs,
+          metafile: typeof metafile === 'string' ? metafile : JSON.stringify(metafile),
+          options,
+          callback: (err, res) => err ? reject(err) : resolve(res!),
+        }));
+    },
   };
   return longLivedService;
 }
@@ -380,6 +412,7 @@ interface WorkerThreadService {
   buildSync(options: types.BuildOptions): types.BuildResult;
   transformSync: typeof types.transformSync;
   formatMessagesSync: typeof types.formatMessagesSync;
+  analyzeMetafileSync: typeof types.analyzeMetafileSync;
 }
 
 let workerThreadService: WorkerThreadService | null = null;
@@ -480,6 +513,9 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
     formatMessagesSync(messages, options) {
       return runCallSync('formatMessages', [messages, options]);
     },
+    analyzeMetafileSync(metafile, options) {
+      return runCallSync('analyzeMetafile', [metafile, options]);
+    },
   };
 };
 
@@ -512,14 +548,25 @@ let startSyncServiceWorker = () => {
       let sharedBufferView = new Int32Array(sharedBuffer);
 
       try {
-        if (command === 'build') {
-          workerPort.postMessage({ id, resolve: await service.build(args[0]) });
-        } else if (command === 'transform') {
-          workerPort.postMessage({ id, resolve: await service.transform(args[0], args[1]) });
-        } else if (command === 'formatMessages') {
-          workerPort.postMessage({ id, resolve: await service.formatMessages(args[0], args[1]) });
-        } else {
-          throw new Error(`Invalid command: ${command}`);
+        switch (command) {
+          case 'build':
+            workerPort.postMessage({ id, resolve: await service.build(args[0]) });
+            break;
+
+          case 'transform':
+            workerPort.postMessage({ id, resolve: await service.transform(args[0], args[1]) });
+            break;
+
+          case 'formatMessages':
+            workerPort.postMessage({ id, resolve: await service.formatMessages(args[0], args[1]) });
+            break;
+
+          case 'analyzeMetafile':
+            workerPort.postMessage({ id, resolve: await service.analyzeMetafile(args[0], args[1]) });
+            break;
+
+          default:
+            throw new Error(`Invalid command: ${command}`);
         }
       } catch (reject) {
         workerPort.postMessage({ id, reject, properties: extractProperties(reject) });

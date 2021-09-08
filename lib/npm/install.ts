@@ -35,7 +35,7 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
   let didFail = false;
   try {
     buffer = installUsingNPM(name, fromPath);
-  } catch (err) {
+  } catch (err: any) {
     didFail = true;
     console.error(`Trying to install "${name}" using npm`);
     console.error(`Failed to install "${name}" using npm: ${err && err.message || err}`);
@@ -48,7 +48,7 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
     console.error(`Trying to download ${JSON.stringify(url)}`);
     try {
       buffer = extractFileFromTarGzip(await fetch(url), fromPath);
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Failed to download ${JSON.stringify(url)}: ${err && err.message || err}`);
     }
   }
@@ -65,7 +65,7 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
   // Verify that the binary is the correct version
   try {
     validateBinaryVersion(toPath);
-  } catch (err) {
+  } catch (err: any) {
     console.error(`The version of the downloaded binary is incorrect: ${err && err.message || err}`);
     console.error(`Install unsuccessful`);
     process.exit(1);
@@ -146,7 +146,7 @@ function fetch(url: string): Promise<Buffer> {
 function extractFileFromTarGzip(buffer: Buffer, file: string): Buffer {
   try {
     buffer = zlib.unzipSync(buffer);
-  } catch (err) {
+  } catch (err: any) {
     throw new Error(`Invalid gzip data in archive: ${err && err.message || err}`);
   }
   let str = (i: number, n: number) => String.fromCharCode(...buffer.subarray(i, i + n)).replace(/\0.*$/, '');

@@ -322,6 +322,10 @@ export interface FormatMessagesOptions {
   terminalWidth?: number;
 }
 
+export interface AnalyzeMetafileOptions {
+  color?: boolean;
+}
+
 // This function invokes the "esbuild" command-line tool for you. It returns a
 // promise that either resolves with a "BuildResult" object or rejects with a
 // "BuildFailure" object.
@@ -356,6 +360,14 @@ export declare function transform(input: string, options?: TransformOptions): Pr
 // Works in browser: yes
 export declare function formatMessages(messages: PartialMessage[], options: FormatMessagesOptions): Promise<string[]>;
 
+// Pretty-prints an analysis of the metafile JSON to a string. This is just for
+// convenience to be able to match esbuild's pretty-printing exactly. If you want
+// to customize it, you can just inspect the data in the metafile yourself.
+//
+// Works in node: yes
+// Works in browser: yes
+export declare function analyzeMetafile(metafile: Metafile | string, options?: AnalyzeMetafileOptions): Promise<string>;
+
 // A synchronous version of "build".
 //
 // Works in node: yes
@@ -374,6 +386,12 @@ export declare function transformSync(input: string, options?: TransformOptions)
 // Works in node: yes
 // Works in browser: no
 export declare function formatMessagesSync(messages: PartialMessage[], options: FormatMessagesOptions): string[];
+
+// A synchronous version of "analyzeMetafile".
+//
+// Works in node: yes
+// Works in browser: no
+export declare function analyzeMetafileSync(metafile: Metafile | string, options?: AnalyzeMetafileOptions): string;
 
 // This configures the browser-based version of esbuild. It is necessary to
 // call this first and wait for the returned promise to be resolved before

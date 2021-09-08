@@ -540,3 +540,14 @@ type FormatMessagesOptions struct {
 func FormatMessages(msgs []Message, opts FormatMessagesOptions) []string {
 	return formatMsgsImpl(msgs, opts)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// AnalyzeMetafile API
+
+type AnalyzeMetafileOptions struct {
+	Color bool
+}
+
+func AnalyzeMetafile(metafile string, opts AnalyzeMetafileOptions) string {
+	return analyzeMetafileImpl(metafile, opts)
+}

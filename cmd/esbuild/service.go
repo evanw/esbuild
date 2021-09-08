@@ -311,6 +311,11 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 				bytes: service.handleFormatMessagesRequest(p.id, request),
 			}
 
+		case "analyze-metafile":
+			return outgoingPacket{
+				bytes: service.handleAnalyzeMetafileRequest(p.id, request),
+			}
+
 		default:
 			return outgoingPacket{
 				bytes: encodePacket(packet{
@@ -902,6 +907,24 @@ func (service *serviceType) handleFormatMessagesRequest(id uint32, request map[s
 		id: id,
 		value: map[string]interface{}{
 			"messages": encodeStringArray(result),
+		},
+	})
+}
+
+func (service *serviceType) handleAnalyzeMetafileRequest(id uint32, request map[string]interface{}) []byte {
+	metafile := request["metafile"].(string)
+
+	options := api.AnalyzeMetafileOptions{}
+	if value, ok := request["color"].(bool); ok {
+		options.Color = value
+	}
+
+	result := api.AnalyzeMetafile(metafile, options)
+
+	return encodePacket(packet{
+		id: id,
+		value: map[string]interface{}{
+			"result": result,
 		},
 	})
 }

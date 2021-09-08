@@ -623,6 +623,7 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *string, *api.Trans
 }
 
 func runImpl(osArgs []string) int {
+	analyze := false
 	end := 0
 
 	for _, arg := range osArgs {
@@ -633,6 +634,12 @@ func runImpl(osArgs []string) int {
 				return 1
 			}
 			return 0
+		}
+
+		// Special-case analyze just for our CLI
+		if arg == "--analyze" {
+			analyze = true
+			continue
 		}
 
 		osArgs[end] = arg
@@ -739,8 +746,22 @@ func runImpl(osArgs []string) int {
 			}
 		}
 
+		// Always generate a metafile if we're analyzing, even if it won't be written out
+		if analyze {
+			buildOptions.Metafile = true
+		}
+
 		// Run the build
 		result := api.Build(*buildOptions)
+
+		// Print the analysis after the build
+		if analyze {
+			logger.PrintTextWithColor(os.Stderr, logger.OutputOptionsForArgs(osArgs).Color, func(colors logger.Colors) string {
+				return api.AnalyzeMetafile(result.Metafile, api.AnalyzeMetafileOptions{
+					Color: colors != logger.Colors{},
+				})
+			})
+		}
 
 		// Write the metafile to the file system
 		if writeMetafile != nil {

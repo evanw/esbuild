@@ -126,6 +126,16 @@ export interface FormatMsgsResponse {
   messages: string[];
 }
 
+export interface AnalyzeMetafileRequest {
+  command: 'analyze-metafile';
+  metafile: string;
+  color?: boolean;
+}
+
+export interface AnalyzeMetafileResponse {
+  result: string;
+}
+
 export interface OnStartRequest {
   command: 'start';
   key: number;

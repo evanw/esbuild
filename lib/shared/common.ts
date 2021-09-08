@@ -414,6 +414,14 @@ export interface StreamService {
     options: types.FormatMessagesOptions,
     callback: (err: Error | null, res: string[] | null) => void,
   }): void;
+
+  analyzeMetafile(args: {
+    callName: string,
+    refs: Refs | null,
+    metafile: string,
+    options: types.AnalyzeMetafileOptions | undefined,
+    callback: (err: Error | null, res: string | null) => void,
+  }): void;
 }
 
 // This can't use any promises in the main execution flow because it must work
@@ -1308,6 +1316,22 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     });
   };
 
+  let analyzeMetafile: StreamService['analyzeMetafile'] = ({ callName, refs, metafile, options, callback }) => {
+    if (options === void 0) options = {}
+    let keys: OptionKeys = {};
+    let color = getFlag(options, keys, 'color', mustBeBoolean);
+    checkForInvalidFlags(options, keys, `in ${callName}() call`);
+    let request: protocol.AnalyzeMetafileRequest = {
+      command: 'analyze-metafile',
+      metafile,
+    }
+    if (color !== void 0) request.color = color;
+    sendRequest<protocol.AnalyzeMetafileRequest, protocol.AnalyzeMetafileResponse>(refs, request, (error, response) => {
+      if (error) return callback(new Error(error), null);
+      callback(null, response!.result);
+    });
+  };
+
   return {
     readFromStdout,
     afterClose,
@@ -1315,6 +1339,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       buildOrServe,
       transform,
       formatMessages,
+      analyzeMetafile,
     },
   };
 }
