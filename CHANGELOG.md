@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Allow `require.resolve` in non-node builds ([#1579](https://github.com/evanw/esbuild/issues/1579))
+
+    With this release, you can now use `require.resolve` in builds when the target platform is set to `browser` instead of `node` as long as the function `window.require.resolve` exists somehow. This was already possible when the platform is `node` but when the platform is `browser`, esbuild generates a no-op shim `require` function for compatibility reasons (e.g. because some code expects `typeof require` must be `"function"` even in the browser). The shim previously had a fallback to `window.require` if it exists, but additional properties of the `require` function such as `require.resolve` were not copied over to the shim. Now the shim function is only used if `window.require` is undefined so additional properties such as `require.resolve` should now work.
+
+    This change was contributed by [@screetBloom](https://github.com/screetBloom).
+
 ## 0.12.25
 
 * Fix a TypeScript parsing edge case with the postfix `!` operator ([#1560](https://github.com/evanw/esbuild/issues/1560))
