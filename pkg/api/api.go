@@ -545,7 +545,8 @@ func FormatMessages(msgs []Message, opts FormatMessagesOptions) []string {
 // AnalyzeMetafile API
 
 type AnalyzeMetafileOptions struct {
-	Color bool
+	Color   bool
+	Verbose bool
 }
 
 func AnalyzeMetafile(metafile string, opts AnalyzeMetafileOptions) string {

@@ -1320,12 +1320,14 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     if (options === void 0) options = {}
     let keys: OptionKeys = {};
     let color = getFlag(options, keys, 'color', mustBeBoolean);
+    let verbose = getFlag(options, keys, 'verbose', mustBeBoolean);
     checkForInvalidFlags(options, keys, `in ${callName}() call`);
     let request: protocol.AnalyzeMetafileRequest = {
       command: 'analyze-metafile',
       metafile,
     }
     if (color !== void 0) request.color = color;
+    if (verbose !== void 0) request.verbose = verbose;
     sendRequest<protocol.AnalyzeMetafileRequest, protocol.AnalyzeMetafileResponse>(refs, request, (error, response) => {
       if (error) return callback(new Error(error), null);
       callback(null, response!.result);

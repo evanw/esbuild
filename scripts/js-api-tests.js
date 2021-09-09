@@ -3987,7 +3987,7 @@ let formatTests = {
 
 let analyzeTests = {
   async analyzeMetafile({ esbuild }) {
-    const result = await esbuild.analyzeMetafile({
+    const metafile = {
       "inputs": {
         "entry.js": {
           "bytes": 50,
@@ -4019,11 +4019,17 @@ let analyzeTests = {
           "bytes": 100
         }
       }
-    })
-    assert.strictEqual(result, `
+    }
+    assert.strictEqual(await esbuild.analyzeMetafile(metafile), `
   out.js       100b   100.0%
    ├ lib.js     50b    50.0%
    └ entry.js   25b    25.0%
+`)
+    assert.strictEqual(await esbuild.analyzeMetafile(metafile, { verbose: true }), `
+  out.js ────── 100b ── 100.0%
+   ├ lib.js ──── 50b ─── 50.0%
+   │  └ entry.js
+   └ entry.js ── 25b ─── 25.0%
 `)
   },
 }
@@ -4239,7 +4245,7 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
   },
 
   async analyzeMetafileSync({ esbuild }) {
-    const result = esbuild.analyzeMetafileSync({
+    const metafile = {
       "inputs": {
         "entry.js": {
           "bytes": 50,
@@ -4271,11 +4277,17 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
           "bytes": 100
         }
       }
-    })
-    assert.strictEqual(result, `
+    }
+    assert.strictEqual(esbuild.analyzeMetafileSync(metafile), `
   out.js       100b   100.0%
    ├ lib.js     50b    50.0%
    └ entry.js   25b    25.0%
+`)
+    assert.strictEqual(esbuild.analyzeMetafileSync(metafile, { verbose: true }), `
+  out.js ────── 100b ── 100.0%
+   ├ lib.js ──── 50b ─── 50.0%
+   │  └ entry.js
+   └ entry.js ── 25b ─── 25.0%
 `)
   },
 }

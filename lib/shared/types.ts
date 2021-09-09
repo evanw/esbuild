@@ -324,6 +324,7 @@ export interface FormatMessagesOptions {
 
 export interface AnalyzeMetafileOptions {
   color?: boolean;
+  verbose?: boolean;
 }
 
 // This function invokes the "esbuild" command-line tool for you. It returns a

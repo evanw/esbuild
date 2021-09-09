@@ -918,6 +918,9 @@ func (service *serviceType) handleAnalyzeMetafileRequest(id uint32, request map[
 	if value, ok := request["color"].(bool); ok {
 		options.Color = value
 	}
+	if value, ok := request["verbose"].(bool); ok {
+		options.Verbose = value
+	}
 
 	result := api.AnalyzeMetafile(metafile, options)
 

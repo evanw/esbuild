@@ -1737,6 +1737,10 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 
 			// Returns a graph with links pointing from imports to importers
 			graphForEntryPoints := func(worklist []string) map[string]graphData {
+				if !opts.Verbose {
+					return nil
+				}
+
 				graph := make(map[string]graphData)
 
 				for _, entryPoint := range worklist {
@@ -1791,11 +1795,11 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 				third := "100.0%"
 
 				table = append(table, tableEntry{
-					first:      colors.Bold + entry.name,
+					first:      fmt.Sprintf("%s%s%s", colors.Bold, entry.name, colors.Reset),
 					firstLen:   utf8.RuneCountInString(entry.name),
-					second:     second,
+					second:     fmt.Sprintf("%s%s%s", colors.Bold, second, colors.Reset),
 					secondLen:  len(second),
-					third:      third + colors.Reset,
+					third:      fmt.Sprintf("%s%s%s", colors.Bold, third, colors.Reset),
 					thirdLen:   len(third),
 					isTopLevel: true,
 				})
@@ -1829,25 +1833,28 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 						thirdLen:  len(third),
 					})
 
-					indent = " │ "
-					if j+1 == len(entry.entries) {
-						indent = "   "
-					}
-					data := graph[child.name]
-					depth := 0
+					if opts.Verbose {
+						indent = " │ "
+						if j+1 == len(entry.entries) {
+							indent = "   "
+						}
+						data := graph[child.name]
+						depth := 0
 
-					for data.depth != 0 {
-						table = append(table, tableEntry{
-							first: fmt.Sprintf("%s%s%s └ %s%s", indent, colors.Dim, strings.Repeat(" ", depth), data.parent, colors.Reset),
-						})
-						data = graph[data.parent]
-						depth += 3
+						for data.depth != 0 {
+							table = append(table, tableEntry{
+								first: fmt.Sprintf("%s%s%s └ %s%s", indent, colors.Dim, strings.Repeat(" ", depth), data.parent, colors.Reset),
+							})
+							data = graph[data.parent]
+							depth += 3
+						}
 					}
 				}
 			}
 
 			maxFirstLen := 0
 			maxSecondLen := 0
+			maxThirdLen := 0
 
 			// Calculate column widths
 			for _, entry := range table {
@@ -1856,6 +1863,9 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 				}
 				if maxSecondLen < entry.secondLen {
 					maxSecondLen = entry.secondLen
+				}
+				if maxThirdLen < entry.thirdLen {
+					maxThirdLen = entry.thirdLen
 				}
 			}
 
@@ -1879,15 +1889,23 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 
 				second := entry.second
 				secondTrimmed := strings.TrimRight(second, " ")
+				lineChar := " "
+				extraSpace := 0
+
+				if opts.Verbose {
+					lineChar = "─"
+					extraSpace = 1
+				}
+
 				sb.WriteString(fmt.Sprintf("%s  %s %s%s%s %s %s%s%s %s\n",
 					prefix,
 					entry.first,
 					colors.Dim,
-					strings.Repeat("─", maxFirstLen-entry.firstLen+maxSecondLen-entry.secondLen),
+					strings.Repeat(lineChar, extraSpace+maxFirstLen-entry.firstLen+maxSecondLen-entry.secondLen),
 					colors.Reset,
 					secondTrimmed,
 					colors.Dim,
-					strings.Repeat("─", 7-entry.thirdLen+len(second)-len(secondTrimmed)),
+					strings.Repeat(lineChar, extraSpace+maxThirdLen-entry.thirdLen+len(second)-len(secondTrimmed)),
 					colors.Reset,
 					entry.third,
 				))

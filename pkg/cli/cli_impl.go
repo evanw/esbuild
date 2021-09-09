@@ -624,6 +624,7 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *string, *api.Trans
 
 func runImpl(osArgs []string) int {
 	analyze := false
+	analyzeVerbose := false
 	end := 0
 
 	for _, arg := range osArgs {
@@ -639,6 +640,12 @@ func runImpl(osArgs []string) int {
 		// Special-case analyze just for our CLI
 		if arg == "--analyze" {
 			analyze = true
+			analyzeVerbose = false
+			continue
+		}
+		if arg == "--analyze=verbose" {
+			analyze = true
+			analyzeVerbose = true
 			continue
 		}
 
@@ -758,9 +765,11 @@ func runImpl(osArgs []string) int {
 		if analyze {
 			logger.PrintTextWithColor(os.Stderr, logger.OutputOptionsForArgs(osArgs).Color, func(colors logger.Colors) string {
 				return api.AnalyzeMetafile(result.Metafile, api.AnalyzeMetafileOptions{
-					Color: colors != logger.Colors{},
+					Color:   colors != logger.Colors{},
+					Verbose: analyzeVerbose,
 				})
 			})
+			os.Stderr.WriteString("\n")
 		}
 
 		// Write the metafile to the file system

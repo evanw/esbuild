@@ -130,6 +130,7 @@ export interface AnalyzeMetafileRequest {
   command: 'analyze-metafile';
   metafile: string;
   color?: boolean;
+  verbose?: boolean;
 }
 
 export interface AnalyzeMetafileResponse {
