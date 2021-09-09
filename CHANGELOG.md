@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.26
 
 * Add `--analyze` to print information about the bundle ([#1568](https://github.com/evanw/esbuild/issues/1568))
 
