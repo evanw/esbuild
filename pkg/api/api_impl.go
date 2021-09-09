@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"os"
 	"regexp"
@@ -1612,9 +1613,10 @@ func formatMsgsImpl(msgs []Message, opts FormatMessagesOptions) []string {
 // AnalyzeMetafile API
 
 type metafileEntry struct {
-	name    string
-	size    int
-	entries []metafileEntry
+	name       string
+	entryPoint string
+	entries    []metafileEntry
+	size       int
 }
 
 type metafileArray []metafileEntry
@@ -1666,9 +1668,17 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 	if result, ok := js_parser.ParseJSON(log, source, js_parser.JSONOptions{}); ok {
 		if outputs := getObjectPropertyObject(result, "outputs"); outputs != nil {
 			var entries metafileArray
+			var entryPoints []string
 
+			// Scan over the "outputs" object
 			for _, output := range outputs.Properties {
 				if key := js_lexer.UTF16ToString(output.Key.Data.(*js_ast.EString).Value); !strings.HasSuffix(key, ".map") {
+					entryPointPath := ""
+					if entryPoint := getObjectPropertyString(output.ValueOrNil, "entryPoint"); entryPoint != nil {
+						entryPointPath = js_lexer.UTF16ToString(entryPoint.Value)
+						entryPoints = append(entryPoints, entryPointPath)
+					}
+
 					if bytes := getObjectPropertyNumber(output.ValueOrNil, "bytes"); bytes != nil {
 						if inputs := getObjectPropertyObject(output.ValueOrNil, "inputs"); inputs != nil {
 							var children metafileArray
@@ -1685,9 +1695,10 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 							sort.Sort(children)
 
 							entries = append(entries, metafileEntry{
-								name:    key,
-								size:    int(bytes.Value),
-								entries: children,
+								name:       key,
+								size:       int(bytes.Value),
+								entries:    children,
+								entryPoint: entryPointPath,
 							})
 						}
 					}
@@ -1695,6 +1706,67 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 			}
 
 			sort.Sort(entries)
+
+			type importData struct {
+				imports []string
+			}
+
+			type graphData struct {
+				parent string
+				depth  int
+			}
+
+			importsForPath := make(map[string]importData)
+
+			// Scan over the "inputs" object
+			if inputs := getObjectPropertyObject(result, "inputs"); inputs != nil {
+				for _, prop := range inputs.Properties {
+					if imports := getObjectPropertyArray(prop.ValueOrNil, "imports"); imports != nil {
+						var data importData
+
+						for _, item := range imports.Items {
+							if path := getObjectPropertyString(item, "path"); path != nil {
+								data.imports = append(data.imports, js_lexer.UTF16ToString(path.Value))
+							}
+						}
+
+						importsForPath[js_lexer.UTF16ToString(prop.Key.Data.(*js_ast.EString).Value)] = data
+					}
+				}
+			}
+
+			// Returns a graph with links pointing from imports to importers
+			graphForEntryPoints := func(worklist []string) map[string]graphData {
+				graph := make(map[string]graphData)
+
+				for _, entryPoint := range worklist {
+					graph[entryPoint] = graphData{}
+				}
+
+				for len(worklist) > 0 {
+					top := worklist[len(worklist)-1]
+					worklist = worklist[:len(worklist)-1]
+					childDepth := graph[top].depth + 1
+
+					for _, importPath := range importsForPath[top].imports {
+						imported, ok := graph[importPath]
+						if !ok {
+							imported.depth = math.MaxInt
+						}
+
+						if imported.depth > childDepth {
+							imported.depth = childDepth
+							imported.parent = top
+							graph[importPath] = imported
+							worklist = append(worklist, importPath)
+						}
+					}
+				}
+
+				return graph
+			}
+
+			graphForAllEntryPoints := graphForEntryPoints(entryPoints)
 
 			type tableEntry struct {
 				first      string
@@ -1713,6 +1785,7 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 				colors = logger.TerminalColors
 			}
 
+			// Build up the table with an entry for each output file (other than ".map" files)
 			for _, entry := range entries {
 				second := prettyPrintByteCount(entry.size)
 				third := "100.0%"
@@ -1727,6 +1800,15 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 					isTopLevel: true,
 				})
 
+				graph := graphForAllEntryPoints
+				if entry.entryPoint != "" {
+					// If there are multiple entry points and this output file is from an
+					// entry point, prefer import paths for this entry point. This is less
+					// confusing than showing import paths for another entry point.
+					graph = graphForEntryPoints([]string{entry.entryPoint})
+				}
+
+				// Add a sub-entry for each input file in this output file
 				for j, child := range entry.entries {
 					indent := " ├ "
 					if j+1 == len(entry.entries) {
@@ -1746,13 +1828,28 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 						third:     third,
 						thirdLen:  len(third),
 					})
+
+					indent = " │ "
+					if j+1 == len(entry.entries) {
+						indent = "   "
+					}
+					data := graph[child.name]
+					depth := 0
+
+					for data.depth != 0 {
+						table = append(table, tableEntry{
+							first: fmt.Sprintf("%s%s%s └ %s%s", indent, colors.Dim, strings.Repeat(" ", depth), data.parent, colors.Reset),
+						})
+						data = graph[data.parent]
+						depth += 3
+					}
 				}
 			}
 
 			maxFirstLen := 0
 			maxSecondLen := 0
-			maxThirdLen := 0
 
+			// Calculate column widths
 			for _, entry := range table {
 				if maxFirstLen < entry.firstLen {
 					maxFirstLen = entry.firstLen
@@ -1760,24 +1857,38 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 				if maxSecondLen < entry.secondLen {
 					maxSecondLen = entry.secondLen
 				}
-				if maxThirdLen < entry.thirdLen {
-					maxThirdLen = entry.thirdLen
-				}
 			}
 
 			sb := strings.Builder{}
 
+			// Render the columns now that we know the widths
 			for _, entry := range table {
 				prefix := "\n"
 				if !entry.isTopLevel {
 					prefix = ""
 				}
-				sb.WriteString(fmt.Sprintf("%s  %s%s%s%s%s\n",
+
+				// Import paths don't have second and third columns
+				if entry.second == "" && entry.third == "" {
+					sb.WriteString(fmt.Sprintf("%s  %s\n",
+						prefix,
+						entry.first,
+					))
+					continue
+				}
+
+				second := entry.second
+				secondTrimmed := strings.TrimRight(second, " ")
+				sb.WriteString(fmt.Sprintf("%s  %s %s%s%s %s %s%s%s %s\n",
 					prefix,
 					entry.first,
-					strings.Repeat(" ", 2+maxFirstLen-entry.firstLen+maxSecondLen-entry.secondLen),
-					entry.second,
-					strings.Repeat(" ", 2+maxThirdLen-entry.thirdLen),
+					colors.Dim,
+					strings.Repeat("─", maxFirstLen-entry.firstLen+maxSecondLen-entry.secondLen),
+					colors.Reset,
+					secondTrimmed,
+					colors.Dim,
+					strings.Repeat("─", 7-entry.thirdLen+len(second)-len(secondTrimmed)),
+					colors.Reset,
 					entry.third,
 				))
 			}
