@@ -2,6 +2,87 @@
 
 ## Unreleased
 
+* Add `--analyze` to print information about the bundle ([#1568](https://github.com/evanw/esbuild/issues/1568))
+
+    The `--metafile=` flag tells esbuild to write information about the bundle into the provided metadata file in JSON format. It contains information about the input files and which other files each one imports, as well as the output files and which input files they include. This information is sufficient to answer many questions such as:
+
+    * Which files are in my bundle?
+    * What's are the biggest files in my bundle?
+    * Why is this file included in my bundle?
+
+    Previously you had to either write your own code to answer these questions, or use another tool such as https://bundle-buddy.com/esbuild to visualize the data. Starting with this release you can now also use `--analyze` to enable esbuild's built-in visualizer. It looks like this:
+
+    ```
+    $ esbuild --bundle example.jsx --outfile=out.js --minify --analyze
+
+      out.js  27.6kb
+
+    ⚡ Done in 6ms
+
+      out.js                                                                    27.6kb  100.0%
+       ├ node_modules/react-dom/cjs/react-dom-server.browser.production.min.js  19.2kb   69.8%
+       ├ node_modules/react/cjs/react.production.min.js                          5.9kb   21.4%
+       ├ node_modules/object-assign/index.js                                     965b     3.4%
+       ├ example.jsx                                                             137b     0.5%
+       ├ node_modules/react-dom/server.browser.js                                 50b     0.2%
+       └ node_modules/react/index.js                                              50b     0.2%
+    ```
+
+    This tells you what input files were bundled into each output file as well as the final minified size contribution of each input file as well as the percentage of the output file it takes up. You can also enable verbose analysis with `--analyze=verbose` to see why each input file was included (i.e. which files imported it from the entry point file):
+
+    ```
+    $ esbuild --bundle example.jsx --outfile=out.js --minify --analyze=verbose
+
+      out.js  27.6kb
+
+    ⚡ Done in 6ms
+
+      out.js ─────────────────────────────────────────────────────────────────── 27.6kb ─ 100.0%
+       ├ node_modules/react-dom/cjs/react-dom-server.browser.production.min.js ─ 19.2kb ── 69.8%
+       │  └ node_modules/react-dom/server.browser.js
+       │     └ example.jsx
+       ├ node_modules/react/cjs/react.production.min.js ───────────────────────── 5.9kb ── 21.4%
+       │  └ node_modules/react/index.js
+       │     └ example.jsx
+       ├ node_modules/object-assign/index.js ──────────────────────────────────── 965b ──── 3.4%
+       │  └ node_modules/react-dom/cjs/react-dom-server.browser.production.min.js
+       │     └ node_modules/react-dom/server.browser.js
+       │        └ example.jsx
+       ├ example.jsx ──────────────────────────────────────────────────────────── 137b ──── 0.5%
+       ├ node_modules/react-dom/server.browser.js ──────────────────────────────── 50b ──── 0.2%
+       │  └ example.jsx
+       └ node_modules/react/index.js ───────────────────────────────────────────── 50b ──── 0.2%
+          └ example.jsx
+    ```
+
+    There is also a JS API for this:
+
+    ```js
+    const result = await esbuild.build({
+      metafile: true,
+      ...
+    })
+    console.log(await esbuild.analyzeMetafile(result.metafile, {
+      verbose: true,
+    }))
+    ```
+
+    and a Go API:
+
+    ```js
+    result := api.Build(api.BuildOptions{
+      Metafile: true,
+      ...
+    })
+    fmt.Println(api.AnalyzeMetafile(result.Metafile, api.AnalyzeMetafileOptions{
+      Verbose: true,
+    }))
+    ```
+
+    Note that this is not the only way to visualize this data. If you want a visualization that's different than the information displayed here, you can easily build it yourself using the information in the metafile that is generated with the `--metafile=` flag.
+
+    Also note that this data is intended for humans, not machines. The specific format of this data may change over time which will likely break any tools that try to parse it. You should not write a tool to parse this data. You should be using the information in the JSON metadata file instead. Everything in this visualization is derived from the JSON metadata so you are not losing out on any information by not using esbuild's output.
+
 * Allow `require.resolve` in non-node builds ([#1579](https://github.com/evanw/esbuild/issues/1579))
 
     With this release, you can now use `require.resolve` in builds when the target platform is set to `browser` instead of `node` as long as the function `window.require.resolve` exists somehow. This was already possible when the platform is `node` but when the platform is `browser`, esbuild generates a no-op shim `require` function for compatibility reasons (e.g. because some code expects `typeof require` must be `"function"` even in the browser). The shim previously had a fallback to `window.require` if it exists, but additional properties of the `require` function such as `require.resolve` were not copied over to the shim. Now the shim function is only used if `window.require` is undefined so additional properties such as `require.resolve` should now work.

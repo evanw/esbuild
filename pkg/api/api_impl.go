@@ -1833,6 +1833,8 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 						thirdLen:  len(third),
 					})
 
+					// If we're in verbose mode, also print the import chain from this file
+					// up toward an entry point to show why this file is in the bundle
 					if opts.Verbose {
 						indent = " │ "
 						if j+1 == len(entry.entries) {
