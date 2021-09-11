@@ -25,7 +25,7 @@ func TestLowerFunctionArgumentScope(t *testing.T) {
 			expectPrintedTarget(t, 2015, fmt.Sprintf(template, before), fmt.Sprintf(template, after))
 		}
 
-		test("a() ?? b", "((_a) => (_a = a()) != null ? _a : b)()")
+		test("a() ?? b", "((_a) => (_a = a()) != null && _a != void 0 ? _a : b)()")
 		test("a()?.b", "((_a) => (_a = a()) == null ? void 0 : _a.b)()")
 		test("a?.b?.()", "((_a) => (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.call(a))()")
 		test("a.b.c?.()", "((_a) => ((_b) => (_b = (_a = a.b).c) == null ? void 0 : _b.call(_a))())()")
@@ -48,29 +48,29 @@ func TestLowerNullishCoalescing(t *testing.T) {
 	expectPrinted(t, "a || b, b ?? c", "a || b, b ?? c;\n")
 
 	expectPrintedTarget(t, 2020, "a ?? b", "a ?? b;\n")
-	expectPrintedTarget(t, 2019, "a ?? b", "a != null ? a : b;\n")
-	expectPrintedTarget(t, 2019, "a() ?? b()", "var _a;\n(_a = a()) != null ? _a : b();\n")
+	expectPrintedTarget(t, 2019, "a ?? b", "a != null && a != void 0 ? a : b;\n")
+	expectPrintedTarget(t, 2019, "a() ?? b()", "var _a;\n(_a = a()) != null && _a != void 0 ? _a : b();\n")
 	expectPrintedTarget(t, 2019, "function foo() { if (x) { a() ?? b() ?? c() } }",
-		"function foo() {\n  var _a, _b;\n  if (x) {\n    (_b = (_a = a()) != null ? _a : b()) != null ? _b : c();\n  }\n}\n")
-	expectPrintedTarget(t, 2019, "() => a ?? b", "() => a != null ? a : b;\n")
-	expectPrintedTarget(t, 2019, "() => a() ?? b()", "() => {\n  var _a;\n  return (_a = a()) != null ? _a : b();\n};\n")
+		"function foo() {\n  var _a, _b;\n  if (x) {\n    (_b = (_a = a()) != null && _a != void 0 ? _a : b()) != null && _b != void 0 ? _b : c();\n  }\n}\n")
+	expectPrintedTarget(t, 2019, "() => a ?? b", "() => a != null && a != void 0 ? a : b;\n")
+	expectPrintedTarget(t, 2019, "() => a() ?? b()", "() => {\n  var _a;\n  return (_a = a()) != null && _a != void 0 ? _a : b();\n};\n")
 }
 
 func TestLowerNullishCoalescingAssign(t *testing.T) {
 	expectPrinted(t, "a ??= b", "a ??= b;\n")
 
-	expectPrintedTarget(t, 2019, "a ??= b", "a != null ? a : a = b;\n")
-	expectPrintedTarget(t, 2019, "a.b ??= c", "var _a;\n(_a = a.b) != null ? _a : a.b = c;\n")
-	expectPrintedTarget(t, 2019, "a().b ??= c", "var _a, _b;\n(_b = (_a = a()).b) != null ? _b : _a.b = c;\n")
-	expectPrintedTarget(t, 2019, "a[b] ??= c", "var _a;\n(_a = a[b]) != null ? _a : a[b] = c;\n")
-	expectPrintedTarget(t, 2019, "a()[b()] ??= c", "var _a, _b, _c;\n(_c = (_a = a())[_b = b()]) != null ? _c : _a[_b] = c;\n")
+	expectPrintedTarget(t, 2019, "a ??= b", "a != null && a != void 0 ? a : a = b;\n")
+	expectPrintedTarget(t, 2019, "a.b ??= c", "var _a;\n(_a = a.b) != null && _a != void 0 ? _a : a.b = c;\n")
+	expectPrintedTarget(t, 2019, "a().b ??= c", "var _a, _b;\n(_b = (_a = a()).b) != null && _b != void 0 ? _b : _a.b = c;\n")
+	expectPrintedTarget(t, 2019, "a[b] ??= c", "var _a;\n(_a = a[b]) != null && _a != void 0 ? _a : a[b] = c;\n")
+	expectPrintedTarget(t, 2019, "a()[b()] ??= c", "var _a, _b, _c;\n(_c = (_a = a())[_b = b()]) != null && _c != void 0 ? _c : _a[_b] = c;\n")
 
 	expectPrintedTarget(t, 2019, "class Foo { #x; constructor() { this.#x ??= 2 } }", `var _x;
 class Foo {
   constructor() {
     __privateAdd(this, _x, void 0);
     var _a;
-    (_a = __privateGet(this, _x)) != null ? _a : __privateSet(this, _x, 2);
+    (_a = __privateGet(this, _x)) != null && _a != void 0 ? _a : __privateSet(this, _x, 2);
   }
 }
 _x = new WeakMap();

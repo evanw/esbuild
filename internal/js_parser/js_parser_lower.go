@@ -919,9 +919,17 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 	leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left, valueDefinitelyNotMutated)
 	return wrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.EIf{
 		Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-			Op:    js_ast.BinOpLooseNe,
-			Left:  leftFunc(),
-			Right: js_ast.Expr{Loc: loc, Data: js_ast.ENullShared},
+			Op: js_ast.BinOpLogicalAnd,
+			Left: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+				Op:    js_ast.BinOpLooseNe,
+				Left:  leftFunc(),
+				Right: js_ast.Expr{Loc: loc, Data: js_ast.ENullShared},
+			}},
+			Right: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+				Op:    js_ast.BinOpLooseNe,
+				Left:  leftFunc(),
+				Right: js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared},
+			}},
 		}},
 		Yes: leftFunc(),
 		No:  right,

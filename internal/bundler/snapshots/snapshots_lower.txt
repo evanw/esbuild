@@ -8,7 +8,7 @@ export class B extends A {
     super();
     __privateAdd(this, _e, void 0);
     var _a;
-    __privateSet(this, _e, (_a = c.d) != null ? _a : "test");
+    __privateSet(this, _e, (_a = c.d) != null && _a != void 0 ? _a : "test");
   }
   f() {
     return __privateGet(this, _e);
@@ -504,7 +504,7 @@ class Foo {
     __privateSet(this, _x, __privateGet(this, _x) ^ 1);
     __privateGet(this, _x) && __privateSet(this, _x, 1);
     __privateGet(this, _x) || __privateSet(this, _x, 1);
-    (_a = __privateGet(this, _x)) != null ? _a : __privateSet(this, _x, 1);
+    (_a = __privateGet(this, _x)) != null && _a != void 0 ? _a : __privateSet(this, _x, 1);
   }
 }
 _x = new WeakMap();
@@ -541,7 +541,7 @@ class Foo {
     __privateSet(this, _x, __privateGet(this, _x) ^ 1);
     __privateGet(this, _x) && __privateSet(this, _x, 1);
     __privateGet(this, _x) || __privateSet(this, _x, 1);
-    (_a = __privateGet(this, _x)) != null ? _a : __privateSet(this, _x, 1);
+    (_a = __privateGet(this, _x)) != null && _a != void 0 ? _a : __privateSet(this, _x, 1);
   }
 }
 _x = new WeakMap();
@@ -699,7 +699,7 @@ var Foo = class {
     __privateSet(_l = fn(), _prop, __privateGet(_l, _prop, prop_get) ^ 1, prop_set);
     __privateGet(_m = fn(), _prop, prop_get) && __privateSet(_m, _prop, 1, prop_set);
     __privateGet(_n = fn(), _prop, prop_get) || __privateSet(_n, _prop, 1, prop_set);
-    (_p = __privateGet(_o = fn(), _prop, prop_get)) != null ? _p : __privateSet(_o, _prop, 1, prop_set);
+    (_p = __privateGet(_o = fn(), _prop, prop_get)) != null && _p != void 0 ? _p : __privateSet(_o, _prop, 1, prop_set);
   }
 };
 _foo = new WeakSet();
@@ -759,7 +759,7 @@ var Foo = class {
     __privateSet(_l = fn(), _prop, __privateGet(_l, _prop, prop_get) ^ 1, prop_set);
     __privateGet(_m = fn(), _prop, prop_get) && __privateSet(_m, _prop, 1, prop_set);
     __privateGet(_n = fn(), _prop, prop_get) || __privateSet(_n, _prop, 1, prop_set);
-    (_p = __privateGet(_o = fn(), _prop, prop_get)) != null ? _p : __privateSet(_o, _prop, 1, prop_set);
+    (_p = __privateGet(_o = fn(), _prop, prop_get)) != null && _p != void 0 ? _p : __privateSet(_o, _prop, 1, prop_set);
   }
 };
 _foo = new WeakSet();

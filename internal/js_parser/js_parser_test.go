@@ -3926,8 +3926,8 @@ func TestMangleInlineLocals(t *testing.T) {
 
 	// Make sure that transforms which duplicate identifiers cause
 	// them to no longer be considered single-use identifiers
-	expectPrintedMangleTarget(t, 2015, "(x => { let y = x; throw y ?? z })()", "((x) => {\n  let y = x;\n  throw y != null ? y : z;\n})();\n")
-	expectPrintedMangleTarget(t, 2015, "(x => { let y = x; y.z ??= z })()", "((x) => {\n  var _a;\n  let y = x;\n  (_a = y.z) != null || (y.z = z);\n})();\n")
+	expectPrintedMangleTarget(t, 2015, "(x => { let y = x; throw y ?? z })()", "((x) => {\n  let y = x;\n  throw y != null && y != void 0 ? y : z;\n})();\n")
+	expectPrintedMangleTarget(t, 2015, "(x => { let y = x; y.z ??= z })()", "((x) => {\n  var _a;\n  let y = x;\n  (_a = y.z) != null && _a != void 0 || (y.z = z);\n})();\n")
 	expectPrintedMangleTarget(t, 2015, "(x => { let y = x; y?.z })()", "((x) => {\n  let y = x;\n  y == null || y.z;\n})();\n")
 }
 
