@@ -479,6 +479,17 @@ func parseOptionsImpl(
 				transformOpts.JSXMode = mode
 			}
 
+		case strings.HasPrefix(arg, "--hash-function=") && buildOpts != nil:
+			value := arg[len("--hash-function="):]
+			switch value {
+			case "sha256":
+				buildOpts.HashFunction = api.HashSHA256
+			case "base32":
+				buildOpts.HashFunction = api.HashBase32
+			default:
+				return fmt.Errorf("Invalid hash function: %q (valid: sha256, base32)", value), nil
+			}
+
 		case strings.HasPrefix(arg, "--jsx-factory="):
 			value := arg[len("--jsx-factory="):]
 			if buildOpts != nil {

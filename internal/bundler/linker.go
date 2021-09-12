@@ -376,8 +376,13 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 			hash := xxhash.New()
 			c.appendIsolatedHashesForImportedChunks(hash, chunks, uint32(chunkIndex), visited, ^uint32(chunkIndex))
 			finalBytes = hash.Sum(finalBytes[:0])
-			finalString := hashForFileName(finalBytes)
-			hashSubstitution = &finalString
+			if c.options.HashFunction == config.HashSHA256 {
+				finalString := digestForFileName(finalBytes)
+				hashSubstitution = &finalString
+			} else {
+				finalString := hashForFileName(finalBytes)
+				hashSubstitution = &finalString
+			}
 		}
 
 		// Render the last remaining placeholder in the template

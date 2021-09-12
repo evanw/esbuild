@@ -2,8 +2,10 @@ package bundler
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base32"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -976,6 +978,11 @@ func canonicalFileSystemPathForWindows(absPath string) string {
 
 func hashForFileName(hashBytes []byte) string {
 	return base32.StdEncoding.EncodeToString(hashBytes)[:8]
+}
+
+func digestForFileName(hashBytes []byte) string {
+	digest := sha256.Sum256(hashBytes)
+	return hex.EncodeToString(digest[:])
 }
 
 type scanner struct {

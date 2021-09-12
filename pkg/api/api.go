@@ -162,6 +162,13 @@ const (
 	FormatESModule
 )
 
+type HashFunction uint8
+
+const (
+	HashBase32 HashFunction = iota
+	HashSHA256
+)
+
 type EngineName uint8
 
 const (
@@ -305,6 +312,8 @@ type BuildOptions struct {
 	EntryNames string // Documentation: https://esbuild.github.io/api/#entry-names
 	ChunkNames string // Documentation: https://esbuild.github.io/api/#chunk-names
 	AssetNames string // Documentation: https://esbuild.github.io/api/#asset-names
+
+	HashFunction HashFunction
 
 	EntryPoints         []string     // Documentation: https://esbuild.github.io/api/#entry-points
 	EntryPointsAdvanced []EntryPoint // Documentation: https://esbuild.github.io/api/#entry-points

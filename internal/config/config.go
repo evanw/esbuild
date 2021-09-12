@@ -187,6 +187,13 @@ const (
 	ModeBundle
 )
 
+type HashFunction uint8
+
+const (
+	HashBase32 HashFunction = iota
+	HashSHA256
+)
+
 type MaybeBool uint8
 
 const (
@@ -249,6 +256,7 @@ type Options struct {
 	MangleSyntax      bool
 	ProfilerNames     bool
 	CodeSplitting     bool
+	HashFunction      HashFunction
 	WatchMode         bool
 	AllowOverwrite    bool
 	LegalComments     LegalComments
