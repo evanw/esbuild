@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"os"
 	"regexp"
@@ -28,11 +29,6 @@ import (
 	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
-)
-
-const (
-	intSize = 32 << (^uint(0) >> 63)
-	maxInt  = 1<<(intSize-1) - 1
 )
 
 func validatePathTemplate(template string) []config.PathTemplate {
@@ -1717,7 +1713,7 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 
 			type graphData struct {
 				parent string
-				depth  int
+				depth  uint32
 			}
 
 			importsForPath := make(map[string]importData)
@@ -1759,7 +1755,7 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 					for _, importPath := range importsForPath[top].imports {
 						imported, ok := graph[importPath]
 						if !ok {
-							imported.depth = maxInt
+							imported.depth = math.MaxUint32
 						}
 
 						if imported.depth > childDepth {

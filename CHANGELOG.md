@@ -20,6 +20,10 @@
 
     There is a development server built in to esbuild which is accessible via the `serve()` API call. This returns a promise that resolves to an object with a `stop()` method that immediately terminates the development server. Previously calling this could cause esbuild to print stray log messages since `stop()` could cause plugins to be unregistered while a build is still in progress. With this release, calling `stop()` no longer terminates the development server immediately. It now waits for any active builds to finish first so the builds are not interrupted and left in a confusing state.
 
+* Fix an accidental dependency on Go ≥1.17.0 ([#1585](https://github.com/evanw/esbuild/pull/1585))
+
+    The source code of this release no longer uses the `math.MaxInt` constant that was introduced in Go version 1.17.0. This constant was preventing esbuild from being compiled on Go version <1.17.0. This fix was contributed by [@davezuko](https://github.com/davezuko).
+
 ## 0.12.26
 
 * Add `--analyze` to print information about the bundle ([#1568](https://github.com/evanw/esbuild/issues/1568))
