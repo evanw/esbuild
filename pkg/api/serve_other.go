@@ -33,6 +33,8 @@ type apiHandler struct {
 	rebuild          func() BuildResult
 	currentBuild     *runningBuild
 	fs               fs.FS
+	serveWaitGroup   sync.WaitGroup
+	serveError       error
 }
 
 type runningBuild struct {
@@ -547,6 +549,9 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 		}
 	}
 
+	var stoppingMutex sync.Mutex
+	isStopping := false
+
 	// The first build will just build normally
 	var handler *apiHandler
 	handler = &apiHandler{
@@ -554,6 +559,14 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 		outdirPathPrefix: outdirPathPrefix,
 		servedir:         serveOptions.Servedir,
 		rebuild: func() BuildResult {
+			stoppingMutex.Lock()
+			defer stoppingMutex.Unlock()
+
+			// Don't start more rebuilds if we were told to stop
+			if isStopping {
+				return BuildResult{}
+			}
+
 			build := buildImpl(buildOptions)
 			if handler.options == nil {
 				handler.options = &build.options
@@ -563,17 +576,38 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 		fs: realFS,
 	}
 
-	// Start the server
+	// When wait is called, block until the server's call to "Serve()" returns
+	result.Wait = func() error {
+		handler.serveWaitGroup.Wait()
+		return handler.serveError
+	}
+
+	// Create the server
 	server := &http.Server{Addr: addr, Handler: handler}
-	wait := make(chan error, 1)
-	result.Wait = func() error { return <-wait }
-	result.Stop = func() { server.Close() }
+
+	// When stop is called, block further rebuilds and then close the server
+	result.Stop = func() {
+		stoppingMutex.Lock()
+		defer stoppingMutex.Unlock()
+
+		// Only try to close the server once
+		if isStopping {
+			return
+		}
+		isStopping = true
+
+		// Close the server and wait for it to close
+		server.Close()
+		handler.serveWaitGroup.Wait()
+	}
+
+	// Start the server and signal on "serveWaitGroup" when it stops
+	handler.serveWaitGroup.Add(1)
 	go func() {
 		if err := server.Serve(listener); err != http.ErrServerClosed {
-			wait <- err
-		} else {
-			wait <- nil
+			handler.serveError = err
 		}
+		handler.serveWaitGroup.Done()
 	}()
 
 	// Start the first build shortly after this function returns (but not

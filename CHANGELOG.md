@@ -16,6 +16,10 @@
 
     I would also like to add data for Safari. They have recently added support for arbitrary module namespace identifier names (https://bugs.webkit.org/show_bug.cgi?id=217576) and `export * as` (https://bugs.webkit.org/show_bug.cgi?id=214379). However, I have no idea how to determine which Safari release these bugs correspond to so this compatibility data for Safari has been omitted.
 
+* Avoid unnecessary additional log messages after the server is stopped ([#1589](https://github.com/evanw/esbuild/issues/1589))
+
+    There is a development server built in to esbuild which is accessible via the `serve()` API call. This returns a promise that resolves to an object with a `stop()` method that immediately terminates the development server. Previously calling this could cause esbuild to print stray log messages since `stop()` could cause plugins to be unregistered while a build is still in progress. With this release, calling `stop()` no longer terminates the development server immediately. It now waits for any active builds to finish first so the builds are not interrupted and left in a confusing state.
+
 ## 0.12.26
 
 * Add `--analyze` to print information about the bundle ([#1568](https://github.com/evanw/esbuild/issues/1568))
