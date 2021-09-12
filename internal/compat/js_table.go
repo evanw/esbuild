@@ -87,8 +87,9 @@ func (features JSFeature) Has(feature JSFeature) bool {
 
 var jsTable = map[JSFeature]map[Engine][]int{
 	ArbitraryModuleNamespaceNames: {
-		Chrome: {90},
-		Node:   {16},
+		Chrome:  {90},
+		Firefox: {87},
+		Node:    {16},
 	},
 	ArraySpread: {
 		Chrome:  {46},
@@ -419,8 +420,11 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Safari:  {9},
 	},
 	TopLevelAwait: {
-		Chrome: {89},
-		Node:   {14, 8},
+		Chrome:  {89},
+		Edge:    {89},
+		Firefox: {89},
+		Node:    {14, 8},
+		Safari:  {15},
 	},
 	UnicodeEscapes: {
 		Chrome:  {44},
