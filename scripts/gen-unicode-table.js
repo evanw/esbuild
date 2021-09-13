@@ -45,10 +45,20 @@ const idContinueES5 = idStartES5.concat(
 // is presumed to be the Unicode set, collection 10646.
 //
 // UnicodeIDStart: any Unicode code point with the Unicode property “ID_Start”
-const idStart = require('@unicode/unicode-13.0.0/Binary_Property/ID_Start/code-points');
+const idStartESNext = require('@unicode/unicode-13.0.0/Binary_Property/ID_Start/code-points');
+const idStartESNextSet = new Set(idStartESNext);
 
 // UnicodeIDContinue: any Unicode code point with the Unicode property “ID_Continue”
-const idContinue = require('@unicode/unicode-13.0.0/Binary_Property/ID_Continue/code-points');
+const idContinueESNext = require('@unicode/unicode-13.0.0/Binary_Property/ID_Continue/code-points');
+const idContinueESNextSet = new Set(idContinueESNext);
+
+// These identifiers are valid in both ES5 and ES6+ (i.e. an intersection of both)
+const idStartES5AndESNext = idStartES5.filter(n => idStartESNextSet.has(n));
+const idContinueES5AndESNext = idContinueES5.filter(n => idContinueESNextSet.has(n));
+
+// These identifiers are valid in either ES5 or ES6+ (i.e. a union of both)
+const idStartES5OrESNext = [...new Set(idStartES5.concat(idStartESNext))].sort((a, b) => a - b);
+const idContinueES5OrESNext = [...new Set(idContinueES5.concat(idContinueESNext))].sort((a, b) => a - b);
 
 function generateRangeTable(codePoints) {
   let lines = [];
@@ -105,11 +115,11 @@ package js_lexer
 
 import "unicode"
 
-var idStartES5 = ${generateRangeTable(idStartES5)}
+var idStartES5AndESNext = ${generateRangeTable(idStartES5AndESNext)}
 
-var idContinueES5 = ${generateRangeTable(idContinueES5)}
+var idContinueES5AndESNext = ${generateRangeTable(idContinueES5AndESNext)}
 
-var idStart = ${generateRangeTable(idStart)}
+var idStartES5OrESNext = ${generateRangeTable(idStartES5OrESNext)}
 
-var idContinue = ${generateRangeTable(idContinue)}
+var idContinueES5OrESNext = ${generateRangeTable(idContinueES5OrESNext)}
 `);

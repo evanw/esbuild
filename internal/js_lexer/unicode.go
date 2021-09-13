@@ -3,7 +3,7 @@ package js_lexer
 
 import "unicode"
 
-var idStartES5 = &unicode.RangeTable{
+var idStartES5AndESNext = &unicode.RangeTable{
 	LatinOffset: 117,
 	R16: []unicode.Range16{
 		{Lo: 0x41, Hi: 0x5a, Stride: 1},
@@ -266,7 +266,7 @@ var idStartES5 = &unicode.RangeTable{
 	},
 }
 
-var idContinueES5 = &unicode.RangeTable{
+var idContinueES5AndESNext = &unicode.RangeTable{
 	LatinOffset: 128,
 	R16: []unicode.Range16{
 		{Lo: 0x30, Hi: 0x39, Stride: 1},
@@ -578,7 +578,8 @@ var idContinueES5 = &unicode.RangeTable{
 		{Lo: 0x3041, Hi: 0x3094, Stride: 1},
 		{Lo: 0x3099, Hi: 0x309a, Stride: 1},
 		{Lo: 0x309d, Hi: 0x309e, Stride: 1},
-		{Lo: 0x30a1, Hi: 0x30fe, Stride: 1},
+		{Lo: 0x30a1, Hi: 0x30fa, Stride: 1},
+		{Lo: 0x30fc, Hi: 0x30fe, Stride: 1},
 		{Lo: 0x3105, Hi: 0x312c, Stride: 1},
 		{Lo: 0x3131, Hi: 0x318e, Stride: 1},
 		{Lo: 0x31a0, Hi: 0x31b7, Stride: 1},
@@ -610,7 +611,7 @@ var idContinueES5 = &unicode.RangeTable{
 		{Lo: 0xff21, Hi: 0xff3a, Stride: 1},
 		{Lo: 0xff3f, Hi: 0xff3f, Stride: 1},
 		{Lo: 0xff41, Hi: 0xff5a, Stride: 1},
-		{Lo: 0xff65, Hi: 0xffbe, Stride: 1},
+		{Lo: 0xff66, Hi: 0xffbe, Stride: 1},
 		{Lo: 0xffc2, Hi: 0xffc7, Stride: 1},
 		{Lo: 0xffca, Hi: 0xffcf, Stride: 1},
 		{Lo: 0xffd2, Hi: 0xffd7, Stride: 1},
@@ -618,7 +619,7 @@ var idContinueES5 = &unicode.RangeTable{
 	},
 }
 
-var idStart = &unicode.RangeTable{
+var idStartES5OrESNext = &unicode.RangeTable{
 	LatinOffset: 117,
 	R16: []unicode.Range16{
 		{Lo: 0x41, Hi: 0x5a, Stride: 1},
@@ -1248,7 +1249,7 @@ var idStart = &unicode.RangeTable{
 	},
 }
 
-var idContinue = &unicode.RangeTable{
+var idContinueES5OrESNext = &unicode.RangeTable{
 	LatinOffset: 129,
 	R16: []unicode.Range16{
 		{Lo: 0x30, Hi: 0x39, Stride: 1},
@@ -1600,8 +1601,7 @@ var idContinue = &unicode.RangeTable{
 		{Lo: 0x3038, Hi: 0x303c, Stride: 1},
 		{Lo: 0x3041, Hi: 0x3096, Stride: 1},
 		{Lo: 0x3099, Hi: 0x309f, Stride: 1},
-		{Lo: 0x30a1, Hi: 0x30fa, Stride: 1},
-		{Lo: 0x30fc, Hi: 0x30ff, Stride: 1},
+		{Lo: 0x30a1, Hi: 0x30ff, Stride: 1},
 		{Lo: 0x3105, Hi: 0x312f, Stride: 1},
 		{Lo: 0x3131, Hi: 0x318e, Stride: 1},
 		{Lo: 0x31a0, Hi: 0x31bf, Stride: 1},
@@ -1678,7 +1678,7 @@ var idContinue = &unicode.RangeTable{
 		{Lo: 0xff21, Hi: 0xff3a, Stride: 1},
 		{Lo: 0xff3f, Hi: 0xff3f, Stride: 1},
 		{Lo: 0xff41, Hi: 0xff5a, Stride: 1},
-		{Lo: 0xff66, Hi: 0xffbe, Stride: 1},
+		{Lo: 0xff65, Hi: 0xffbe, Stride: 1},
 		{Lo: 0xffc2, Hi: 0xffc7, Stride: 1},
 		{Lo: 0xffca, Hi: 0xffcf, Stride: 1},
 		{Lo: 0xffd2, Hi: 0xffd7, Stride: 1},

@@ -574,6 +574,20 @@ func TestRegExp(t *testing.T) {
 `)
 }
 
+func TestUnicodeIdentifierNames(t *testing.T) {
+	// There are two code points that are valid in identifiers in ES5 but not in ES6+:
+	//
+	//   U+30FB KATAKANA MIDDLE DOT
+	//   U+FF65 HALFWIDTH KATAKANA MIDDLE DOT
+	//
+	expectPrinted(t, "x = {x・: 0}", "x = { \"x・\": 0 };\n")
+	expectPrinted(t, "x = {x･: 0}", "x = { \"x･\": 0 };\n")
+	expectPrinted(t, "x = {xπ: 0}", "x = { xπ: 0 };\n")
+	expectPrinted(t, "x = y.x・", "x = y[\"x・\"];\n")
+	expectPrinted(t, "x = y.x･", "x = y[\"x･\"];\n")
+	expectPrinted(t, "x = y.xπ", "x = y.xπ;\n")
+}
+
 func TestIdentifierEscapes(t *testing.T) {
 	expectPrinted(t, "var _\\u0076\\u0061\\u0072", "var _var;\n")
 	expectParseError(t, "var \\u0076\\u0061\\u0072", "<stdin>: error: Expected identifier but found \"\\\\u0076\\\\u0061\\\\u0072\"\n")

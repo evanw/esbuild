@@ -577,17 +577,17 @@ func IsIdentifier(text string) bool {
 	return true
 }
 
-func IsIdentifierES5(text string) bool {
+func IsIdentifierES5AndESNext(text string) bool {
 	if len(text) == 0 {
 		return false
 	}
 	for i, codePoint := range text {
 		if i == 0 {
-			if !IsIdentifierStartES5(codePoint) {
+			if !IsIdentifierStartES5AndESNext(codePoint) {
 				return false
 			}
 		} else {
-			if !IsIdentifierContinueES5(codePoint) {
+			if !IsIdentifierContinueES5AndESNext(codePoint) {
 				return false
 			}
 		}
@@ -652,8 +652,8 @@ func IsIdentifierUTF16(text []uint16) bool {
 	return true
 }
 
-// This does "IsIdentifierES5(UTF16ToString(text))" without any allocations
-func IsIdentifierES5UTF16(text []uint16) bool {
+// This does "IsIdentifierES5AndESNext(UTF16ToString(text))" without any allocations
+func IsIdentifierES5AndESNextUTF16(text []uint16) bool {
 	n := len(text)
 	if n == 0 {
 		return false
@@ -668,11 +668,11 @@ func IsIdentifierES5UTF16(text []uint16) bool {
 			}
 		}
 		if isStart {
-			if !IsIdentifierStartES5(r1) {
+			if !IsIdentifierStartES5AndESNext(r1) {
 				return false
 			}
 		} else {
-			if !IsIdentifierContinueES5(r1) {
+			if !IsIdentifierContinueES5AndESNext(r1) {
 				return false
 			}
 		}
@@ -695,7 +695,7 @@ func IsIdentifierStart(codePoint rune) bool {
 		return false
 	}
 
-	return unicode.Is(idStart, codePoint)
+	return unicode.Is(idStartES5OrESNext, codePoint)
 }
 
 func IsIdentifierContinue(codePoint rune) bool {
@@ -718,10 +718,10 @@ func IsIdentifierContinue(codePoint rune) bool {
 		return true
 	}
 
-	return unicode.Is(idContinue, codePoint)
+	return unicode.Is(idContinueES5OrESNext, codePoint)
 }
 
-func IsIdentifierStartES5(codePoint rune) bool {
+func IsIdentifierStartES5AndESNext(codePoint rune) bool {
 	switch codePoint {
 	case '_', '$',
 		'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
@@ -736,10 +736,10 @@ func IsIdentifierStartES5(codePoint rune) bool {
 		return false
 	}
 
-	return unicode.Is(idStartES5, codePoint)
+	return unicode.Is(idStartES5AndESNext, codePoint)
 }
 
-func IsIdentifierContinueES5(codePoint rune) bool {
+func IsIdentifierContinueES5AndESNext(codePoint rune) bool {
 	switch codePoint {
 	case '_', '$', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 		'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
@@ -759,7 +759,7 @@ func IsIdentifierContinueES5(codePoint rune) bool {
 		return true
 	}
 
-	return unicode.Is(idContinueES5, codePoint)
+	return unicode.Is(idContinueES5AndESNext, codePoint)
 }
 
 // See the "White Space Code Points" table in the ECMAScript standard
