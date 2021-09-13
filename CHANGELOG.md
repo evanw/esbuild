@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.27
 
 * Update JavaScript syntax feature compatibility tables ([#1594](https://github.com/evanw/esbuild/issues/1594))
 
