@@ -117,7 +117,8 @@ func code(isES6 bool) string {
 		export var __name = (target, value) => __defProp(target, 'name', { value, configurable: true })
 
 		// This fallback "require" function exists so that "typeof require" can naturally be "function"
-		export var __require = typeof require !== 'undefined' ? require : x => {
+		export var __require = x => {
+			if (typeof require !== 'undefined') return require(x)
 			throw new Error('Dynamic require of "' + x + '" is not supported')
 		}
 
