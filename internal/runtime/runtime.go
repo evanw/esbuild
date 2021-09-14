@@ -255,8 +255,11 @@ func code(isES6 bool) string {
 			setter ? setter.call(obj, value) : member.set(obj, value)
 			return value
 		}
-		export var __privateAssign = (obj, member, setter) => {
-			return { set _(value) { __privateSet(obj, member, value, setter) } }
+		export var __privateWrapper = (obj, member, setter, getter) => {
+			return {
+				set _(value) { __privateSet(obj, member, value, setter) },
+				get _() { return __privateGet(obj, member, getter) },
+			}
 		}
 		export var __privateMethod = (obj, member, method) => {
 			__accessCheck(obj, member, 'access private method')

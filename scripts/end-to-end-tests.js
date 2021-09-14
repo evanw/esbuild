@@ -2844,6 +2844,174 @@
     }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
       'in.js': `
+        function print(x) {
+          return typeof x + ':' + x
+        }
+
+        function check(before, op, after) {
+          let result = new Foo(before)[op]()
+          if (result !== after) throw before + ' ' + op + ' should be ' + after + ' but was ' + result
+        }
+
+        class Foo {
+          #foo
+          constructor(foo) { this.#foo = foo }
+          preInc = () => print(++this.#foo) + ' ' + print(this.#foo)
+          preDec = () => print(--this.#foo) + ' ' + print(this.#foo)
+          postInc = () => print(this.#foo++) + ' ' + print(this.#foo)
+          postDec = () => print(this.#foo--) + ' ' + print(this.#foo)
+        }
+
+        check(123, 'preInc', 'number:124 number:124')
+        check(123, 'preDec', 'number:122 number:122')
+        check(123, 'postInc', 'number:123 number:124')
+        check(123, 'postDec', 'number:123 number:122')
+
+        check('123', 'preInc', 'number:124 number:124')
+        check('123', 'preDec', 'number:122 number:122')
+        check('123', 'postInc', 'number:123 number:124')
+        check('123', 'postDec', 'number:123 number:122')
+
+        check('x', 'preInc', 'number:NaN number:NaN')
+        check('x', 'preDec', 'number:NaN number:NaN')
+        check('x', 'postInc', 'number:NaN number:NaN')
+        check('x', 'postDec', 'number:NaN number:NaN')
+
+        check(BigInt(123), 'preInc', 'bigint:124 bigint:124')
+        check(BigInt(123), 'preDec', 'bigint:122 bigint:122')
+        check(BigInt(123), 'postInc', 'bigint:123 bigint:124')
+        check(BigInt(123), 'postDec', 'bigint:123 bigint:122')
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        function print(x) {
+          return typeof x + ':' + x
+        }
+
+        function check(before, op, after) {
+          let result = new Foo(before)[op]()
+          if (result !== after) throw before + ' ' + op + ' should be ' + after + ' but was ' + result
+        }
+
+        class Foo {
+          get #foo() { return this.__foo }
+          set #foo(x) { this.__foo = x }
+          constructor(foo) { this.#foo = foo }
+          preInc = () => print(++this.#foo) + ' ' + print(this.#foo)
+          preDec = () => print(--this.#foo) + ' ' + print(this.#foo)
+          postInc = () => print(this.#foo++) + ' ' + print(this.#foo)
+          postDec = () => print(this.#foo--) + ' ' + print(this.#foo)
+        }
+
+        check(123, 'preInc', 'number:124 number:124')
+        check(123, 'preDec', 'number:122 number:122')
+        check(123, 'postInc', 'number:123 number:124')
+        check(123, 'postDec', 'number:123 number:122')
+
+        check('123', 'preInc', 'number:124 number:124')
+        check('123', 'preDec', 'number:122 number:122')
+        check('123', 'postInc', 'number:123 number:124')
+        check('123', 'postDec', 'number:123 number:122')
+
+        check('x', 'preInc', 'number:NaN number:NaN')
+        check('x', 'preDec', 'number:NaN number:NaN')
+        check('x', 'postInc', 'number:NaN number:NaN')
+        check('x', 'postDec', 'number:NaN number:NaN')
+
+        check(BigInt(123), 'preInc', 'bigint:124 bigint:124')
+        check(BigInt(123), 'preDec', 'bigint:122 bigint:122')
+        check(BigInt(123), 'postInc', 'bigint:123 bigint:124')
+        check(BigInt(123), 'postDec', 'bigint:123 bigint:122')
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        function print(x) {
+          return typeof x + ':' + x
+        }
+
+        function check(before, op, after) {
+          Foo.setup(before)
+          let result = Foo[op]()
+          if (result !== after) throw before + ' ' + op + ' should be ' + after + ' but was ' + result
+        }
+
+        class Foo {
+          static #foo
+          static setup(x) { Foo.#foo = x }
+          static preInc = () => print(++Foo.#foo) + ' ' + print(Foo.#foo)
+          static preDec = () => print(--Foo.#foo) + ' ' + print(Foo.#foo)
+          static postInc = () => print(Foo.#foo++) + ' ' + print(Foo.#foo)
+          static postDec = () => print(Foo.#foo--) + ' ' + print(Foo.#foo)
+        }
+
+        check(123, 'preInc', 'number:124 number:124')
+        check(123, 'preDec', 'number:122 number:122')
+        check(123, 'postInc', 'number:123 number:124')
+        check(123, 'postDec', 'number:123 number:122')
+
+        check('123', 'preInc', 'number:124 number:124')
+        check('123', 'preDec', 'number:122 number:122')
+        check('123', 'postInc', 'number:123 number:124')
+        check('123', 'postDec', 'number:123 number:122')
+
+        check('x', 'preInc', 'number:NaN number:NaN')
+        check('x', 'preDec', 'number:NaN number:NaN')
+        check('x', 'postInc', 'number:NaN number:NaN')
+        check('x', 'postDec', 'number:NaN number:NaN')
+
+        check(BigInt(123), 'preInc', 'bigint:124 bigint:124')
+        check(BigInt(123), 'preDec', 'bigint:122 bigint:122')
+        check(BigInt(123), 'postInc', 'bigint:123 bigint:124')
+        check(BigInt(123), 'postDec', 'bigint:123 bigint:122')
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        function print(x) {
+          return typeof x + ':' + x
+        }
+
+        function check(before, op, after) {
+          Foo.setup(before)
+          let result = Foo[op]()
+          if (result !== after) throw before + ' ' + op + ' should be ' + after + ' but was ' + result
+        }
+
+        class Foo {
+          static get #foo() { return this.__foo }
+          static set #foo(x) { this.__foo = x }
+          static setup(x) { this.#foo = x }
+          static preInc = () => print(++this.#foo) + ' ' + print(this.#foo)
+          static preDec = () => print(--this.#foo) + ' ' + print(this.#foo)
+          static postInc = () => print(this.#foo++) + ' ' + print(this.#foo)
+          static postDec = () => print(this.#foo--) + ' ' + print(this.#foo)
+        }
+
+        check(123, 'preInc', 'number:124 number:124')
+        check(123, 'preDec', 'number:122 number:122')
+        check(123, 'postInc', 'number:123 number:124')
+        check(123, 'postDec', 'number:123 number:122')
+
+        check('123', 'preInc', 'number:124 number:124')
+        check('123', 'preDec', 'number:122 number:122')
+        check('123', 'postInc', 'number:123 number:124')
+        check('123', 'postDec', 'number:123 number:122')
+
+        check('x', 'preInc', 'number:NaN number:NaN')
+        check('x', 'preDec', 'number:NaN number:NaN')
+        check('x', 'postInc', 'number:NaN number:NaN')
+        check('x', 'postDec', 'number:NaN number:NaN')
+
+        check(BigInt(123), 'preInc', 'bigint:124 bigint:124')
+        check(BigInt(123), 'preDec', 'bigint:122 bigint:122')
+        check(BigInt(123), 'postInc', 'bigint:123 bigint:124')
+        check(BigInt(123), 'postDec', 'bigint:123 bigint:122')
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
         function expect(fn, msg) {
           try {
             fn()

@@ -13,6 +13,10 @@
 
     As of this release, esbuild will now parse a superset of ES5 and ES6+ and will now quote identifier names when possible if it's not considered to be a valid identifier name in either ES5 or ES6+. In other words, a union of ES5 and ES6 rules is used for parsing and the intersection of ES5 and ES6 rules is used for printing.
 
+* Fix `++` and `--` on class private fields when used with big integers ([#1600](https://github.com/evanw/esbuild/issues/1600))
+
+    Previously when esbuild lowered class private fields (e.g. `#foo`) to older JavaScript syntax, the transform of the `++` and `--` was not correct if the value is a big integer such as `123n`. The transform in esbuild is similar to Babel's transform which [has the same problem](https://github.com/babel/babel/issues/13756). Specifically, the code was transformed into code that either adds or subtracts the number `1` and `123n + 1` throws an exception in JavaScript. This problem has been fixed so this should now work fine starting with this release.
+
 ## 0.12.27
 
 * Update JavaScript syntax feature compatibility tables ([#1594](https://github.com/evanw/esbuild/issues/1594))

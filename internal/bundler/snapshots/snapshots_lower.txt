@@ -481,11 +481,10 @@ class Foo {
     __privateAdd(this, _x, void 0);
   }
   unary() {
-    var _a, _b;
-    __privateSet(this, _x, (_a = +__privateGet(this, _x)) + 1), _a;
-    __privateSet(this, _x, (_b = +__privateGet(this, _x)) - 1), _b;
-    __privateSet(this, _x, +__privateGet(this, _x) + 1);
-    __privateSet(this, _x, +__privateGet(this, _x) - 1);
+    __privateWrapper(this, _x)._++;
+    __privateWrapper(this, _x)._--;
+    ++__privateWrapper(this, _x)._;
+    --__privateWrapper(this, _x)._;
   }
   binary() {
     var _a;
@@ -518,11 +517,10 @@ class Foo {
     __privateAdd(this, _x, void 0);
   }
   unary() {
-    var _a, _b;
-    __privateSet(this, _x, (_a = +__privateGet(this, _x)) + 1), _a;
-    __privateSet(this, _x, (_b = +__privateGet(this, _x)) - 1), _b;
-    __privateSet(this, _x, +__privateGet(this, _x) + 1);
-    __privateSet(this, _x, +__privateGet(this, _x) - 1);
+    __privateWrapper(this, _x)._++;
+    __privateWrapper(this, _x)._--;
+    ++__privateWrapper(this, _x)._;
+    --__privateWrapper(this, _x)._;
   }
   binary() {
     var _a;
@@ -555,11 +553,10 @@ class Foo {
     __privateAdd(this, _x, void 0);
   }
   unary() {
-    var _a, _b;
-    __privateSet(this, _x, (_a = +__privateGet(this, _x)) + 1), _a;
-    __privateSet(this, _x, (_b = +__privateGet(this, _x)) - 1), _b;
-    __privateSet(this, _x, +__privateGet(this, _x) + 1);
-    __privateSet(this, _x, +__privateGet(this, _x) - 1);
+    __privateWrapper(this, _x)._++;
+    __privateWrapper(this, _x)._--;
+    ++__privateWrapper(this, _x)._;
+    --__privateWrapper(this, _x)._;
   }
   binary() {
     __privateSet(this, _x, 1);
@@ -676,11 +673,10 @@ var Foo = class {
     __privateSet(fn(), _prop, 2, prop_set);
   }
   unary(fn) {
-    var _a, _b, _c, _d, _e, _f;
-    __privateSet(_a = fn(), _prop, (_b = +__privateGet(_a, _prop, prop_get)) + 1, prop_set), _b;
-    __privateSet(_c = fn(), _prop, (_d = +__privateGet(_c, _prop, prop_get)) - 1, prop_set), _d;
-    __privateSet(_e = fn(), _prop, +__privateGet(_e, _prop, prop_get) + 1, prop_set);
-    __privateSet(_f = fn(), _prop, +__privateGet(_f, _prop, prop_get) - 1, prop_set);
+    __privateWrapper(fn(), _prop, prop_set, prop_get)._++;
+    __privateWrapper(fn(), _prop, prop_set, prop_get)._--;
+    ++__privateWrapper(fn(), _prop, prop_set, prop_get)._;
+    --__privateWrapper(fn(), _prop, prop_set, prop_get)._;
   }
   binary(fn) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
@@ -736,11 +732,10 @@ var Foo = class {
     __privateSet(fn(), _prop, 2, prop_set);
   }
   unary(fn) {
-    var _a, _b, _c, _d, _e, _f;
-    __privateSet(_a = fn(), _prop, (_b = +__privateGet(_a, _prop, prop_get)) + 1, prop_set), _b;
-    __privateSet(_c = fn(), _prop, (_d = +__privateGet(_c, _prop, prop_get)) - 1, prop_set), _d;
-    __privateSet(_e = fn(), _prop, +__privateGet(_e, _prop, prop_get) + 1, prop_set);
-    __privateSet(_f = fn(), _prop, +__privateGet(_f, _prop, prop_get) - 1, prop_set);
+    __privateWrapper(fn(), _prop, prop_set, prop_get)._++;
+    __privateWrapper(fn(), _prop, prop_set, prop_get)._--;
+    ++__privateWrapper(fn(), _prop, prop_set, prop_get)._;
+    --__privateWrapper(fn(), _prop, prop_set, prop_get)._;
   }
   binary(fn) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
@@ -796,11 +791,10 @@ var Foo = class {
     __privateSet(fn(), _prop, 2, prop_set);
   }
   unary(fn) {
-    var _a, _b, _c, _d, _e, _f;
-    __privateSet(_a = fn(), _prop, (_b = +__privateGet(_a, _prop, prop_get)) + 1, prop_set), _b;
-    __privateSet(_c = fn(), _prop, (_d = +__privateGet(_c, _prop, prop_get)) - 1, prop_set), _d;
-    __privateSet(_e = fn(), _prop, +__privateGet(_e, _prop, prop_get) + 1, prop_set);
-    __privateSet(_f = fn(), _prop, +__privateGet(_f, _prop, prop_get) - 1, prop_set);
+    __privateWrapper(fn(), _prop, prop_set, prop_get)._++;
+    __privateWrapper(fn(), _prop, prop_set, prop_get)._--;
+    ++__privateWrapper(fn(), _prop, prop_set, prop_get)._;
+    --__privateWrapper(fn(), _prop, prop_set, prop_get)._;
   }
   binary(fn) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;

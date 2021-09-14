@@ -1084,35 +1084,53 @@ func (p *parser) lowerPrivateSet(
 	}
 }
 
-func (p *parser) lowerPrivateSetUnOp(target js_ast.Expr, loc logger.Loc, private *js_ast.EPrivateIdentifier, op js_ast.OpCode, isSuffix bool) js_ast.Expr {
-	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target, valueDefinitelyNotMutated)
-	target = targetFunc()
+func (p *parser) lowerPrivateSetUnOp(target js_ast.Expr, loc logger.Loc, private *js_ast.EPrivateIdentifier, op js_ast.OpCode) js_ast.Expr {
+	kind := p.symbols[private.Ref.InnerIndex].Kind
 
-	// Load the private field and then use the unary "+" operator to force it to
-	// be a number. Otherwise the binary "+" operator may cause string
-	// concatenation instead of addition if one of the operands is not a number.
-	value := js_ast.Expr{Loc: target.Loc, Data: &js_ast.EUnary{
-		Op:    js_ast.UnOpPos,
-		Value: p.lowerPrivateGet(targetFunc(), loc, private),
-	}}
-
-	if isSuffix {
-		// "target.#private++" => "__privateSet(target, #private, _a = +__privateGet(target, #private) + 1), _a"
-		valueFunc, valueWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, value, valueDefinitelyNotMutated)
-		assign := valueWrapFunc(targetWrapFunc(p.lowerPrivateSet(target, loc, private, js_ast.Expr{Loc: target.Loc, Data: &js_ast.EBinary{
-			Op:    op,
-			Left:  valueFunc(),
-			Right: js_ast.Expr{Loc: target.Loc, Data: &js_ast.ENumber{Value: 1}},
-		}})))
-		return js_ast.JoinWithComma(assign, valueFunc())
+	// Determine the setter, if any
+	var setter js_ast.Expr
+	switch kind {
+	case js_ast.SymbolPrivateSet, js_ast.SymbolPrivateStaticSet,
+		js_ast.SymbolPrivateGetSetPair, js_ast.SymbolPrivateStaticGetSetPair:
+		ref := p.privateSetters[private.Ref]
+		p.recordUsage(ref)
+		setter = js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
 	}
 
-	// "++target.#private" => "__privateSet(target, #private, +__privateGet(target, #private) + 1)"
-	return targetWrapFunc(p.lowerPrivateSet(target, loc, private, js_ast.Expr{Loc: target.Loc, Data: &js_ast.EBinary{
-		Op:    op,
-		Left:  value,
-		Right: js_ast.Expr{Loc: target.Loc, Data: &js_ast.ENumber{Value: 1}},
-	}}))
+	// Determine the getter, if any
+	var getter js_ast.Expr
+	switch kind {
+	case js_ast.SymbolPrivateGet, js_ast.SymbolPrivateStaticGet,
+		js_ast.SymbolPrivateGetSetPair, js_ast.SymbolPrivateStaticGetSetPair:
+		ref := p.privateGetters[private.Ref]
+		p.recordUsage(ref)
+		getter = js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
+	}
+
+	// Only include necessary arguments
+	args := []js_ast.Expr{
+		target,
+		{Loc: loc, Data: &js_ast.EIdentifier{Ref: private.Ref}},
+	}
+	if setter.Data != nil {
+		args = append(args, setter)
+	}
+	if getter.Data != nil {
+		if setter.Data == nil {
+			args = append(args, js_ast.Expr{Loc: loc, Data: js_ast.ENullShared})
+		}
+		args = append(args, getter)
+	}
+
+	// "target.#private++" => "__privateWrapper(target, #private, private_set, private_get)._++"
+	return js_ast.Expr{Loc: loc, Data: &js_ast.EUnary{
+		Op: op,
+		Value: js_ast.Expr{Loc: target.Loc, Data: &js_ast.EDot{
+			Target:  p.callRuntime(target.Loc, "__privateWrapper", args),
+			NameLoc: target.Loc,
+			Name:    "_",
+		}},
+	}}
 }
 
 func (p *parser) lowerPrivateSetBinOp(target js_ast.Expr, loc logger.Loc, private *js_ast.EPrivateIdentifier, op js_ast.OpCode, value js_ast.Expr) js_ast.Expr {
@@ -1305,31 +1323,31 @@ func (p *parser) lowerPrivateInAssign(expr js_ast.Expr) (js_ast.Expr, bool) {
 		}
 
 	case *js_ast.EIndex:
-		// "[a.#b] = [c]" => "[__privateAssign(a, #b)._] = [c]"
+		// "[a.#b] = [c]" => "[__privateWrapper(a, #b)._] = [c]"
 		if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok && p.privateSymbolNeedsToBeLowered(private) {
 			var target js_ast.Expr
 
 			switch p.symbols[private.Ref.InnerIndex].Kind {
 			case js_ast.SymbolPrivateSet, js_ast.SymbolPrivateStaticSet,
 				js_ast.SymbolPrivateGetSetPair, js_ast.SymbolPrivateStaticGetSetPair:
-				// "this.#setter" => "__privateAssign(this, #setter, setter_set)"
+				// "this.#setter" => "__privateWrapper(this, #setter, setter_set)"
 				fnRef := p.privateSetters[private.Ref]
 				p.recordUsage(fnRef)
-				target = p.callRuntime(expr.Loc, "__privateAssign", []js_ast.Expr{
+				target = p.callRuntime(expr.Loc, "__privateWrapper", []js_ast.Expr{
 					e.Target,
 					{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: private.Ref}},
 					{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: fnRef}},
 				})
 
 			default:
-				// "this.#field" => "__privateAssign(this, #field)"
-				target = p.callRuntime(expr.Loc, "__privateAssign", []js_ast.Expr{
+				// "this.#field" => "__privateWrapper(this, #field)"
+				target = p.callRuntime(expr.Loc, "__privateWrapper", []js_ast.Expr{
 					e.Target,
 					{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: private.Ref}},
 				})
 			}
 
-			// "__privateAssign(this, #field)" => "__privateAssign(this, #field)._"
+			// "__privateWrapper(this, #field)" => "__privateWrapper(this, #field)._"
 			expr.Data = &js_ast.EDot{Target: target, Name: "_", NameLoc: expr.Loc}
 			didLower = true
 		}

@@ -11553,24 +11553,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				////////////////////////////////////////////////////////////////////////////////
 				// All assignment operators below here
 
-			case js_ast.UnOpPreDec:
+			case js_ast.UnOpPreDec, js_ast.UnOpPreInc, js_ast.UnOpPostDec, js_ast.UnOpPostInc:
 				if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
-					return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpSub, false), exprOut{}
-				}
-
-			case js_ast.UnOpPreInc:
-				if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
-					return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpAdd, false), exprOut{}
-				}
-
-			case js_ast.UnOpPostDec:
-				if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
-					return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpSub, true), exprOut{}
-				}
-
-			case js_ast.UnOpPostInc:
-				if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
-					return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpAdd, true), exprOut{}
+					return p.lowerPrivateSetUnOp(target, loc, private, e.Op), exprOut{}
 				}
 			}
 		}
