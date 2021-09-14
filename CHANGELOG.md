@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.28
 
 * Fix U+30FB and U+FF65 in identifier names in ES5 vs. ES6+ ([#1599](https://github.com/evanw/esbuild/issues/1599))
 
