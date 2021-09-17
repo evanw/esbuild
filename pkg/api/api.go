@@ -258,6 +258,7 @@ type BuildOptions struct {
 	MinifySyntax      bool
 	Charset           Charset
 	TreeShaking       TreeShaking
+	ForceTreeShaking  bool
 	LegalComments     LegalComments
 
 	JSXMode     JSXMode
@@ -366,6 +367,7 @@ type TransformOptions struct {
 	MinifySyntax      bool
 	Charset           Charset
 	TreeShaking       TreeShaking
+	ForceTreeShaking  bool
 	LegalComments     LegalComments
 
 	JSXMode     JSXMode

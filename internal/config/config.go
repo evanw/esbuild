@@ -221,6 +221,7 @@ type Options struct {
 	ASCIIOnly               bool
 	KeepNames               bool
 	IgnoreDCEAnnotations    bool
+	ForceTreeShaking        bool
 
 	Defines  *ProcessedDefines
 	TS       TSOptions

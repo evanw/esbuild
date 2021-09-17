@@ -3231,6 +3231,14 @@ let transformTests = {
     assert.strictEqual(code, `fn(), React.createElement("div", null);\n`)
   },
 
+  async treeShakingForce({ esbuild }) {
+    const { code } = await esbuild.transform(`function used(){}; used(); function unused(){};`, {
+      minifySyntax: true,
+      forceTreeShaking: true
+    })
+    assert.strictEqual(code, `function used() {\n}\nused();\n`)
+  },
+
   async jsCharsetDefault({ esbuild }) {
     const { code } = await esbuild.transform(`let π = 'π'`, {})
     assert.strictEqual(code, `let \\u03C0 = "\\u03C0";\n`)

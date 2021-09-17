@@ -1630,6 +1630,23 @@ func TestTreeShakingNoBundleIIFE(t *testing.T) {
 	})
 }
 
+func TestTreeShakingNoBundleForce(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function keep() {}
+				function REMOVE() {}
+				keep()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			ForceTreeShaking: true,
+			AbsOutputFile:    "/out.js",
+		},
+	})
+}
+
 func TestTreeShakingInESMWrapper(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{

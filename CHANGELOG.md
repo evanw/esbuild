@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Add an option to force tree-shaking in transform mode ([#1610](https://github.com/evanw/esbuild/issues/1610))
+
+    Previously esbuild does not perform tree-shaking when transforming single files because esbuild cannot assume whether the file will be concatenated with other files, and thus it would be unsafe to remove unused bindings. However, in cases where the user knows that the file will be used as a standalone module, tree-shaking can be safely enforced.
+    
+    This release adds a new flag `--force-tree-shaking` to allow you to force tree shaking when transforming (in particular, minifying) a single file. This is necessary for tools that intend to use esbuild as a non-bundling minifier to replace Terser - for example, a Vite or Rollup plugin that minifies ESM chunks produced by Rollup.
+
 ## 0.12.28
 
 * Fix U+30FB and U+FF65 in identifier names in ES5 vs. ES6+ ([#1599](https://github.com/evanw/esbuild/issues/1599))

@@ -2571,8 +2571,7 @@ func (c *linkerContext) markFileLiveForTreeShaking(sourceIndex uint32) {
 
 	switch repr := file.InputFile.Repr.(type) {
 	case *graph.JSRepr:
-		isTreeShakingEnabled := config.IsTreeShakingEnabled(c.options.Mode, c.options.OutputFormat)
-
+		isTreeShakingEnabled := c.options.ForceTreeShaking || config.IsTreeShakingEnabled(c.options.Mode, c.options.OutputFormat)
 		// If the JavaScript stub for a CSS file is included, also include the CSS file
 		if repr.CSSSourceIndex.IsValid() {
 			c.markFileLiveForTreeShaking(repr.CSSSourceIndex.GetIndex())

@@ -721,6 +721,13 @@ TestTreeShakingNoBundleIIFE
 })();
 
 ================================================================================
+TestTreeShakingNoBundleForce
+---------- /out.js ----------
+function keep() {
+}
+keep();
+
+================================================================================
 TestTreeShakingReactElements
 ---------- /out.js ----------
 // entry.jsx

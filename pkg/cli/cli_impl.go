@@ -95,6 +95,13 @@ func parseOptionsImpl(
 				transformOpts.MinifyIdentifiers = true
 			}
 
+		case arg == "--force-tree-shaking":
+			if buildOpts != nil {
+				buildOpts.ForceTreeShaking = true
+			} else {
+				transformOpts.ForceTreeShaking = true
+			}
+
 		case strings.HasPrefix(arg, "--legal-comments="):
 			value := arg[len("--legal-comments="):]
 			var legalComments api.LegalComments

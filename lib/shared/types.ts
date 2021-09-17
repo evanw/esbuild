@@ -21,6 +21,7 @@ interface CommonOptions {
   minifySyntax?: boolean;
   charset?: Charset;
   treeShaking?: TreeShaking;
+  forceTreeShaking?: boolean;
 
   jsx?: 'transform' | 'preserve';
   jsxFactory?: string;
