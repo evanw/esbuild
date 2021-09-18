@@ -68,10 +68,12 @@ func parseOptionsImpl(
 				buildOpts.MinifySyntax = true
 				buildOpts.MinifyWhitespace = true
 				buildOpts.MinifyIdentifiers = true
+				buildOpts.MinifyUnused = true
 			} else {
 				transformOpts.MinifySyntax = true
 				transformOpts.MinifyWhitespace = true
 				transformOpts.MinifyIdentifiers = true
+				transformOpts.MinifyUnused = true
 			}
 
 		case arg == "--minify-syntax":
@@ -93,6 +95,13 @@ func parseOptionsImpl(
 				buildOpts.MinifyIdentifiers = true
 			} else {
 				transformOpts.MinifyIdentifiers = true
+			}
+
+		case arg == "--minify-unused":
+			if buildOpts != nil {
+				buildOpts.MinifyUnused = true
+			} else {
+				transformOpts.MinifyUnused = true
 			}
 
 		case strings.HasPrefix(arg, "--legal-comments="):

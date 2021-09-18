@@ -19,6 +19,7 @@ interface CommonOptions {
   minifyWhitespace?: boolean;
   minifyIdentifiers?: boolean;
   minifySyntax?: boolean;
+  minifyUnused?: boolean;
   charset?: Charset;
   treeShaking?: TreeShaking;
 

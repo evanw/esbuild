@@ -721,6 +721,29 @@ TestTreeShakingNoBundleIIFE
 })();
 
 ================================================================================
+TestTreeShakingNoBundleMinifyCJS
+---------- /out.js ----------
+function keep() {
+}
+keep();
+
+================================================================================
+TestTreeShakingNoBundleMinifyESM
+---------- /out.js ----------
+function keep() {
+}
+keep();
+
+================================================================================
+TestTreeShakingNoBundleMinifyIIFE
+---------- /out.js ----------
+(() => {
+  function keep() {
+  }
+  keep();
+})();
+
+================================================================================
 TestTreeShakingReactElements
 ---------- /out.js ----------
 // entry.jsx

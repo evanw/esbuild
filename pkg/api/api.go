@@ -256,6 +256,7 @@ type BuildOptions struct {
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
 	MinifySyntax      bool
+	MinifyUnused      bool
 	Charset           Charset
 	TreeShaking       TreeShaking
 	LegalComments     LegalComments
@@ -364,6 +365,7 @@ type TransformOptions struct {
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
 	MinifySyntax      bool
+	MinifyUnused      bool
 	Charset           Charset
 	TreeShaking       TreeShaking
 	LegalComments     LegalComments

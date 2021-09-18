@@ -804,7 +804,7 @@ func rebuildImpl(
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtensions)
 	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
 	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
-	minify := buildOpts.MinifyWhitespace && buildOpts.MinifyIdentifiers && buildOpts.MinifySyntax
+	minify := buildOpts.MinifyWhitespace && buildOpts.MinifyIdentifiers && buildOpts.MinifySyntax && buildOpts.MinifyUnused
 	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, buildOpts.Platform, minify)
 	options := config.Options{
 		IsTargetUnconfigured:   isTargetUnconfigured,
@@ -826,6 +826,7 @@ func rebuildImpl(
 		MangleSyntax:          buildOpts.MinifySyntax,
 		RemoveWhitespace:      buildOpts.MinifyWhitespace,
 		MinifyIdentifiers:     buildOpts.MinifyIdentifiers,
+		RemoveUnused:          buildOpts.MinifyUnused,
 		AllowOverwrite:        buildOpts.AllowOverwrite,
 		ASCIIOnly:             validateASCIIOnly(buildOpts.Charset),
 		IgnoreDCEAnnotations:  validateIgnoreDCEAnnotations(buildOpts.TreeShaking),
@@ -1310,6 +1311,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		MangleSyntax:            transformOpts.MinifySyntax,
 		RemoveWhitespace:        transformOpts.MinifyWhitespace,
 		MinifyIdentifiers:       transformOpts.MinifyIdentifiers,
+		RemoveUnused:            transformOpts.MinifyUnused,
 		ASCIIOnly:               validateASCIIOnly(transformOpts.Charset),
 		IgnoreDCEAnnotations:    validateIgnoreDCEAnnotations(transformOpts.TreeShaking),
 		AbsOutputFile:           transformOpts.Sourcefile + "-out",

@@ -206,6 +206,7 @@ type Options struct {
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
 	MangleSyntax      bool
+	RemoveUnused      bool
 	ProfilerNames     bool
 	CodeSplitting     bool
 	WatchMode         bool
@@ -384,8 +385,8 @@ func SubstituteTemplate(template []PathTemplate, placeholders PathPlaceholders) 
 	return result
 }
 
-func IsTreeShakingEnabled(mode Mode, outputFormat Format) bool {
-	return mode == ModeBundle || (mode == ModeConvertFormat && outputFormat == FormatIIFE)
+func IsTreeShakingEnabled(mode Mode, outputFormat Format, minifyUnused bool) bool {
+	return mode == ModeBundle || (mode == ModeConvertFormat && (outputFormat == FormatIIFE || minifyUnused))
 }
 
 func ShouldCallRuntimeRequire(mode Mode, outputFormat Format) bool {

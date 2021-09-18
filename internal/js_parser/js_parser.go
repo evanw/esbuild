@@ -334,6 +334,7 @@ type optionsThatSupportStructuralEquality struct {
 	keepNames               bool
 	mangleSyntax            bool
 	minifyIdentifiers       bool
+	removeUnused            bool
 	omitRuntimeForTests     bool
 	ignoreDCEAnnotations    bool
 	preserveUnusedImportsTS bool
@@ -359,6 +360,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			keepNames:               options.KeepNames,
 			mangleSyntax:            options.MangleSyntax,
 			minifyIdentifiers:       options.MinifyIdentifiers,
+			removeUnused:            options.RemoveUnused,
 			omitRuntimeForTests:     options.OmitRuntimeForTests,
 			ignoreDCEAnnotations:    options.IgnoreDCEAnnotations,
 			preserveUnusedImportsTS: options.PreserveUnusedImportsTS,
@@ -13830,7 +13832,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	// single pass, but it turns out it's pretty much impossible to do this
 	// correctly while handling arrow functions because of the grammar
 	// ambiguities.
-	if !config.IsTreeShakingEnabled(p.options.mode, p.options.outputFormat) {
+	if !config.IsTreeShakingEnabled(p.options.mode, p.options.outputFormat, p.options.removeUnused) {
 		// When not bundling, everything comes in a single part
 		parts = p.appendPart(parts, stmts)
 	} else {

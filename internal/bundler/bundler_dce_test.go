@@ -1630,6 +1630,63 @@ func TestTreeShakingNoBundleIIFE(t *testing.T) {
 	})
 }
 
+func TestTreeShakingNoBundleMinifyESM(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function keep() {}
+				function unused() {}
+				keep()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatESModule,
+			RemoveUnused:  true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTreeShakingNoBundleMinifyIIFE(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function keep() {}
+				function unused() {}
+				keep()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatIIFE,
+			RemoveUnused:  true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTreeShakingNoBundleMinifyCJS(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function keep() {}
+				function unused() {}
+				keep()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatCommonJS,
+			RemoveUnused:  true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestTreeShakingInESMWrapper(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{

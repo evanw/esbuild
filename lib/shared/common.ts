@@ -107,6 +107,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let minifySyntax = getFlag(options, keys, 'minifySyntax', mustBeBoolean);
   let minifyWhitespace = getFlag(options, keys, 'minifyWhitespace', mustBeBoolean);
   let minifyIdentifiers = getFlag(options, keys, 'minifyIdentifiers', mustBeBoolean);
+  let minifyUnused = getFlag(options, keys, 'minifyUnused', mustBeBoolean);
   let charset = getFlag(options, keys, 'charset', mustBeString);
   let treeShaking = getFlag(options, keys, 'treeShaking', mustBeStringOrBoolean);
   let jsx = getFlag(options, keys, 'jsx', mustBeString);
@@ -130,6 +131,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (minifySyntax) flags.push('--minify-syntax');
   if (minifyWhitespace) flags.push('--minify-whitespace');
   if (minifyIdentifiers) flags.push('--minify-identifiers');
+  if (minifyUnused) flags.push('--minify-unused');
   if (charset) flags.push(`--charset=${charset}`);
   if (treeShaking !== void 0 && treeShaking !== true) flags.push(`--tree-shaking=${treeShaking}`);
 
