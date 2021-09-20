@@ -1835,16 +1835,16 @@ TestMinifiedExportsAndModuleFormatCommonJS
 // foo/test.js
 var t = {};
 f(t, {
-  foo: () => l
+  foo: () => m
 });
-var l = 123;
+var m = 123;
 
 // bar/test.js
 var r = {};
 f(r, {
-  bar: () => m
+  bar: () => b
 });
-var m = 123;
+var b = 123;
 
 // entry.js
 console.log(exports, module.exports, t, r);

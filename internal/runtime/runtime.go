@@ -111,7 +111,7 @@ func code(isES6 bool) string {
 		export var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b))
 
 		// Tells importing modules that this can be considered an ES6 module
-		var __markAsModule = target => __defProp(target, '__esModule', { value: true })
+		var __markAsModule = target => !__hasOwnProp.call(target, '__esModule') && __defProp(target, '__esModule', { value: true })
 
 		// Tells importing modules that this can be considered an ES6 module
 		export var __name = (target, value) => __defProp(target, 'name', { value, configurable: true })
@@ -168,9 +168,9 @@ func code(isES6 bool) string {
 
 		// Used to implement ES6 exports to CommonJS
 		export var __export = (target, all) => {
-			__markAsModule(target)
 			for (var name in all)
 				__defProp(target, name, { get: all[name], enumerable: true })
+			__markAsModule(target)
 		}
 		export var __reExport = (target, module, desc) => {
 			if (module && typeof module === 'object' || typeof module === 'function')

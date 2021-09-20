@@ -328,7 +328,7 @@ TestSplittingHybridESMAndCJSIssue617
 import {
   foo,
   init_a
-} from "./chunk-ZIIA2BWE.js";
+} from "./chunk-IFICMH5R.js";
 init_a();
 export {
   foo
@@ -338,7 +338,7 @@ export {
 import {
   a_exports,
   init_a
-} from "./chunk-ZIIA2BWE.js";
+} from "./chunk-IFICMH5R.js";
 
 // b.js
 var bar = (init_a(), a_exports);
@@ -346,7 +346,7 @@ export {
   bar
 };
 
----------- /out/chunk-ZIIA2BWE.js ----------
+---------- /out/chunk-IFICMH5R.js ----------
 // a.js
 var a_exports = {};
 __export(a_exports, {
@@ -399,7 +399,7 @@ TestSplittingMissingLazyExport
 ---------- /out/a.js ----------
 import {
   foo
-} from "./chunk-XIEF2OJ5.js";
+} from "./chunk-MN2S3FNS.js";
 
 // a.js
 console.log(foo());
@@ -407,12 +407,12 @@ console.log(foo());
 ---------- /out/b.js ----------
 import {
   bar
-} from "./chunk-XIEF2OJ5.js";
+} from "./chunk-MN2S3FNS.js";
 
 // b.js
 console.log(bar());
 
----------- /out/chunk-XIEF2OJ5.js ----------
+---------- /out/chunk-MN2S3FNS.js ----------
 // empty.js
 var empty_exports = {};
 __markAsModule(empty_exports);
