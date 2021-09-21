@@ -1812,7 +1812,7 @@ console.log(shared_default);
 ================================================================================
 TestMinifiedBundleCommonJS
 ---------- /out.js ----------
-var t=r(n=>{n.foo=function(){return 123}});var u=r((l,s)=>{s.exports={test:!0}});var{foo:c}=t();console.log(c(),u());
+var t=r(n=>{n.foo=function(){return 123}});var u=r((q,c)=>{c.exports={test:!0}});var{foo:f}=t();console.log(f(),u());
 
 ================================================================================
 TestMinifiedBundleES6
@@ -1833,21 +1833,21 @@ import("foo");import(foo());
 TestMinifiedExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
 // foo/test.js
-var t = {};
-f(t, {
+var e = {};
+f(e, {
   foo: () => l
 });
 var l = 123;
 
 // bar/test.js
-var r = {};
-f(r, {
+var s = {};
+f(s, {
   bar: () => m
 });
 var m = 123;
 
 // entry.js
-console.log(exports, module.exports, t, r);
+console.log(exports, module.exports, e, s);
 
 ================================================================================
 TestMinifyArguments

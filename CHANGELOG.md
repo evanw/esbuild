@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased
+
+* Proxy from the `__require` shim to `require` ([#1614](https://github.com/evanw/esbuild/issues/1614))
+
+    Some background: esbuild's bundler emulates a CommonJS environment. The bundling process replaces the literal syntax `require(<string>)` with the referenced module at compile-time. However, other uses of `require` such as `require(someFunction())` are not bundled since the value of `someFunction()` depends on code evaluation, and esbuild does not evaluate code at compile-time. So it's possible for some references to `require` to remain after bundling.
+
+    This was causing problems for some CommonJS code that was run in the browser and that expected `typeof require === 'function'` to be true (see [#1202](https://github.com/evanw/esbuild/issues/1202)), since the browser does not provide a global called `require`. Thus esbuild introduced a shim `require` function called `__require` (shown below) and replaced all references to `require` in the bundled code with `__require`:
+
+    ```js
+    var __require = x => {
+      if (typeof require !== 'undefined') return require(x);
+      throw new Error('Dynamic require of "' + x + '" is not supported');
+    };
+    ```
+
+    However, this broke code that referenced `require.resolve` inside the bundle, which could hypothetically actually work since you could assign your own implementation to `window.require.resolve` (see [#1579](https://github.com/evanw/esbuild/issues/1579)). So the implementation of `__require` was changed to this:
+
+    ```js
+    var __require = typeof require !== 'undefined' ? require : x => {
+      throw new Error('Dynamic require of "' + x + '" is not supported');
+    };
+    ```
+
+    However, that broke code that assigned to `window.require` later on after the bundle was loaded ([#1614](https://github.com/evanw/esbuild/issues/1614)). So with this release, the code for `__require` now handles all of these edge cases:
+
+    * `typeof require` is still `function` even if `window.require` is undefined
+    * `window.require` can be assigned to either before or after the bundle is loaded
+    * `require.resolve` and arbitrary other properties can still be accessed
+    * `require` will now forward any number of arguments, not just the first one
+
+    Handling all of these edge cases is only possible with the [Proxy API](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy). So the implementation of `__require` now looks like this:
+
+    ```js
+    var __require = typeof require !== 'undefined' ? require :
+      (x => typeof Proxy !== 'undefined' ? new Proxy(x, {
+        get: (a, b) => (typeof require !== 'undefined' ? require : a)[b],
+      }) : x)(function(x) {
+        if (typeof require !== 'undefined')
+          return require.apply(this, arguments);
+        throw new Error('Dynamic require of "' + x + '" is not supported');
+      });
+    ```
+
 ## 0.12.28
 
 * Fix U+30FB and U+FF65 in identifier names in ES5 vs. ES6+ ([#1599](https://github.com/evanw/esbuild/issues/1599))
