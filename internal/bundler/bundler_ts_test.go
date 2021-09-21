@@ -1194,3 +1194,53 @@ func TestTSComputedClassFieldUseDefineTrueLower(t *testing.T) {
 		},
 	})
 }
+
+func TestTSAbstractClassFieldUseAssign(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				const keepThis = Symbol('keepThis')
+				declare const AND_REMOVE_THIS: unique symbol
+				abstract class Foo {
+					REMOVE_THIS: any
+					[keepThis]: any
+					abstract REMOVE_THIS_TOO: any
+					abstract [AND_REMOVE_THIS]: any
+					abstract [(x => y => x + y)('nested')('scopes')]: any
+				}
+				(() => new Foo())()
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                    config.ModePassThrough,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.False,
+		},
+	})
+}
+
+func TestTSAbstractClassFieldUseDefine(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				const keepThisToo = Symbol('keepThisToo')
+				declare const REMOVE_THIS_TOO: unique symbol
+				abstract class Foo {
+					keepThis: any
+					[keepThisToo]: any
+					abstract REMOVE_THIS: any
+					abstract [REMOVE_THIS_TOO]: any
+					abstract [(x => y => x + y)('nested')('scopes')]: any
+				}
+				(() => new Foo())()
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                    config.ModePassThrough,
+			AbsOutputFile:           "/out.js",
+			UseDefineForClassFields: config.True,
+		},
+	})
+}

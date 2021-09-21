@@ -1809,6 +1809,7 @@ type propertyOpts struct {
 	// Class-related options
 	isStatic          bool
 	isTSDeclare       bool
+	isTSAbstract      bool
 	isClass           bool
 	classHasExtends   bool
 	allowTSDecorators bool
@@ -1936,7 +1937,16 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 						return js_ast.Property{}, false
 					}
 
-				case "private", "protected", "public", "readonly", "abstract", "override":
+				case "abstract":
+					if opts.isClass && p.options.ts.Parse && !opts.isTSAbstract && raw == name {
+						opts.isTSAbstract = true
+						scopeIndex := len(p.scopesInOrder)
+						p.parseProperty(kind, opts, nil)
+						p.discardScopesUpTo(scopeIndex)
+						return js_ast.Property{}, false
+					}
+
+				case "private", "protected", "public", "readonly", "override":
 					// Skip over TypeScript keywords
 					if opts.isClass && p.options.ts.Parse && raw == name {
 						return p.parseProperty(kind, opts, nil)

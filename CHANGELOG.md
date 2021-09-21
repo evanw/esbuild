@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+* Fix compilation of abstract class fields in TypeScript ([#1623](https://github.com/evanw/esbuild/issues/1623))
+
+    This release fixes a bug where esbuild could incorrectly include a TypeScript abstract class field in the compiled JavaScript output. This is incorrect because the official TypeScript compiler never does this. Note that this only happened in scenarios where TypeScript's `useDefineForClassFields` setting was set to `true` (or equivalently where TypeScript's `target` setting was set to `ESNext`). Here is the difference:
+
+    ```js
+    // Original code
+    abstract class Foo {
+      abstract foo: any;
+    }
+
+    // Old output
+    class Foo {
+      foo;
+    }
+
+    // New output
+    class Foo {
+    }
+    ```
+
 * Proxy from the `__require` shim to `require` ([#1614](https://github.com/evanw/esbuild/issues/1614))
 
     Some background: esbuild's bundler emulates a CommonJS environment. The bundling process replaces the literal syntax `require(<string>)` with the referenced module at compile-time. However, other uses of `require` such as `require(someFunction())` are not bundled since the value of `someFunction()` depends on code evaluation, and esbuild does not evaluate code at compile-time. So it's possible for some references to `require` to remain after bundling.

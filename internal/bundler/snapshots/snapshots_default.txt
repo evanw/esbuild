@@ -2580,6 +2580,25 @@ switch (bar) {
 }
 
 ================================================================================
+TestTSAbstractClassFieldUseAssign
+---------- /out.js ----------
+const keepThis = Symbol("keepThis");
+class Foo {
+}
+keepThis;
+(() => new Foo())();
+
+================================================================================
+TestTSAbstractClassFieldUseDefine
+---------- /out.js ----------
+const keepThisToo = Symbol("keepThisToo");
+class Foo {
+  keepThis;
+  [keepThisToo];
+}
+(() => new Foo())();
+
+================================================================================
 TestTSComputedClassFieldUseDefineFalse
 ---------- /out.js ----------
 var _a, _b, _c;
