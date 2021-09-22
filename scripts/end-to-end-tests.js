@@ -4984,9 +4984,10 @@
     return async () => {
       const hasBundle = args.includes('--bundle')
       const hasIIFE = args.includes('--format=iife')
+      const hasUMD = args.includes('--format=umd')
       const hasCJS = args.includes('--format=cjs')
       const hasESM = args.includes('--format=esm')
-      const formats = hasIIFE ? ['iife'] : hasESM ? ['esm'] : hasCJS || !hasBundle ? ['cjs'] : ['cjs', 'esm']
+      const formats = hasIIFE ? ['iife'] : hasUMD ? ['umd'] : hasESM ? ['esm'] : hasCJS || !hasBundle ? ['cjs'] : ['cjs', 'esm']
       const expectedStderr = options && options.expectedStderr || '';
 
       // If the test doesn't specify a format, test both formats
@@ -5034,6 +5035,7 @@
           switch (format) {
             case 'cjs':
             case 'iife':
+            case 'umd':
               await fs.writeFile(path.join(thisTestDir, 'package.json'), '{"type": "commonjs"}')
               testExports = (await import(url.pathToFileURL(`${nodePath}.js`))).default
               break

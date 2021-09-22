@@ -3340,6 +3340,37 @@ let transformTests = {
 
   async es6_import_to_cjs({ esbuild }) {
     const { code } = await esbuild.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'cjs' })
+
+  async es6_import_to_umd({ service }) {
+    const { code } = await service.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'umd' })
+    new Function('require', code)(require)
+  },
+
+  async es6_import_star_to_umd({ service }) {
+    const { code } = await service.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'umd' })
+    new Function('require', code)(require)
+  },
+
+  async es6_export_to_umd({ service }) {
+    const { code } = await service.transform(`export {exists} from "fs"`, { format: 'umd', globalName: 'out' })
+    const out = new Function('require', code + ';return this.out')(require)
+    if (out.exists !== fs.exists) throw 'fail'
+  },
+
+  async es6_export_star_to_umd({ service }) {
+    const { code } = await service.transform(`export * from "fs"`, { format: 'umd', globalName: 'out' })
+    const out = new Function('require', code + ';return this.out')(require)
+    if (out.exists !== fs.exists) throw 'fail'
+  },
+
+  async es6_export_star_as_to_umd({ service }) {
+    const { code } = await service.transform(`export * as fs from "fs"`, { format: 'umd', globalName: 'out' })
+    const out = new Function('require', code + ';return this.out')(require)
+    if (out.fs.exists !== fs.exists) throw 'fail'
+  },
+
+  async es6_import_to_cjs({ service }) {
+    const { code } = await service.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'cjs' })
     new Function('require', code)(require)
   },
 
@@ -3443,8 +3474,58 @@ let transformTests = {
 π["π 𐀀"]["𐀀"]["𐀀 π"] = `)
   },
 
-  async jsx({ esbuild }) {
-    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx' })
+  async umdGlobalName({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'umd', globalName: 'testName' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.testName.default, 123)
+  },
+
+  async umdGlobalNameCompound({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'umd', globalName: 'test.name' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.test.name.default, 123)
+  },
+
+  async umdGlobalNameString({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'umd', globalName: 'test["some text"]' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.test['some text'].default, 123)
+  },
+
+  async umdGlobalNameUnicodeEscape({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'umd', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
+    assert.strictEqual(code.slice(code.indexOf('} else {\n') + 9, code.indexOf('  }\n}(typeof')),
+      `    root.\\u03C0 = root.\\u03C0 || {};
+    root.\\u03C0["\\u03C0 \\uD800\\uDC00"] = root.\\u03C0["\\u03C0 \\uD800\\uDC00"] || {};
+    root.\\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000} = root.\\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000} || {};
+    root.\\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000}["\\uD800\\uDC00 \\u03C0"] = factory();\n`)
+  },
+
+  async umdGlobalNameUnicodeNoEscape({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'umd', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]', charset: 'utf8' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
+    assert.strictEqual(code.slice(code.indexOf('} else {\n') + 9, code.indexOf('  }\n}(typeof')),
+      `    root.π = root.π || {};
+    root.π["π 𐀀"] = root.π["π 𐀀"] || {};
+    root.π["π 𐀀"].𐀀 = root.π["π 𐀀"].𐀀 || {};
+    root.π["π 𐀀"].𐀀["𐀀 π"] = factory();\n`)
+  },
+
+  async jsx({ service }) {
+    const { code } = await service.transform(`console.log(<div/>)`, { loader: 'jsx' })
     assert.strictEqual(code, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)
   },
 

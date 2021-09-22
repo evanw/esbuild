@@ -37,7 +37,7 @@ var helpText = func(colors logger.Colors) string {
   --bundle              Bundle all dependencies into the output files
   --define:K=V          Substitute K with V while parsing
   --external:M          Exclude module M from the bundle (can use * wildcards)
-  --format=...          Output format (iife | cjs | esm, no default when not
+  --format=...          Output format (iife | cjs | umd | esm, no default when not
                         bundling, otherwise default is iife when platform
                         is browser and cjs when platform is node)
   --loader:X=L          Use loader L to load file extension X, where L is
@@ -71,7 +71,7 @@ var helpText = func(colors logger.Colors) string {
                             (default "[dir]/[name]", can also use "[hash]")
   --footer:T=...            Text to be appended to each output file of type T
                             where T is one of: css | js
-  --global-name=...         The name of the global for the IIFE format
+  --global-name=...         The name of the global for the IIFE or UMD format
   --inject:F                Import the file F into all input files and
                             automatically replace matching globals with imports
   --jsx-factory=...         What to use for JSX instead of React.createElement
