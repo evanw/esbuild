@@ -122,10 +122,13 @@ func code(isES6 bool) string {
 		// shim to fall back to "globalThis.require" even if it's defined later
 		// (including property accesses such as "require.resolve") so we need to
 		// use a proxy (issue #1614).
-		export var __require = typeof require !== 'undefined' ? require :
-			/* @__PURE__ */ (x => typeof Proxy !== 'undefined' ? new Proxy(x, {
-				get: (a, b) => (typeof require !== 'undefined' ? require : a)[b],
-			}) : x)(function(x) {
+		export var __require =
+			/* @__PURE__ */ (x =>
+				typeof require !== 'undefined' ? require :
+				typeof Proxy !== 'undefined' ? new Proxy(x, {
+					get: (a, b) => (typeof require !== 'undefined' ? require : a)[b]
+				}) : x
+			)(function(x) {
 				if (typeof require !== 'undefined') return require.apply(this, arguments)
 				throw new Error('Dynamic require of "' + x + '" is not supported')
 			})

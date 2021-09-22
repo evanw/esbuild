@@ -53,14 +53,15 @@
     Handling all of these edge cases is only possible with the [Proxy API](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy). So the implementation of `__require` now looks like this:
 
     ```js
-    var __require = typeof require !== 'undefined' ? require :
-      (x => typeof Proxy !== 'undefined' ? new Proxy(x, {
-        get: (a, b) => (typeof require !== 'undefined' ? require : a)[b],
-      }) : x)(function(x) {
-        if (typeof require !== 'undefined')
-          return require.apply(this, arguments);
-        throw new Error('Dynamic require of "' + x + '" is not supported');
-      });
+    var __require = (x =>
+      typeof require !== 'undefined' ? require :
+      typeof Proxy !== 'undefined' ? new Proxy(x, {
+        get: (a, b) => (typeof require !== 'undefined' ? require : a)[b]
+      }) : x
+    )(function(x) {
+      if (typeof require !== 'undefined') return require.apply(this, arguments);
+      throw new Error('Dynamic require of "' + x + '" is not supported');
+    });
     ```
 
 * Consider `typeof x` to have no side effects

@@ -111,11 +111,11 @@ var foo = 123;
 TestExportSelfCommonJSMinified
 ---------- /out.js ----------
 // entry.js
-var l = s((f, r) => {
-  r.exports = { foo: 123 };
-  console.log(l());
+var r = n((t, e) => {
+  e.exports = { foo: 123 };
+  console.log(r());
 });
-module.exports = l();
+module.exports = r();
 
 ================================================================================
 TestExportSelfES6
