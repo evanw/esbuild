@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.29
 
 * Fix compilation of abstract class fields in TypeScript ([#1623](https://github.com/evanw/esbuild/issues/1623))
 
