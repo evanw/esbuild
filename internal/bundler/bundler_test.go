@@ -77,6 +77,10 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 		if args.options.AbsOutputFile != "" {
 			args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
 		}
+		if args.options.Mode == config.ModeBundle || (args.options.Mode == config.ModeConvertFormat && args.options.OutputFormat == config.FormatIIFE) {
+			// Apply this default to all tests since it was not configurable when the tests were written
+			args.options.TreeShaking = true
+		}
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		caches := cache.MakeCacheSet()
 		resolver := resolver.NewResolver(fs, log, caches, args.options)

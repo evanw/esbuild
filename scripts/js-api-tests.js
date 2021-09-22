@@ -1984,7 +1984,7 @@ console.log("success");
       },
       write: false,
       bundle: true,
-      treeShaking: 'ignore-annotations',
+      ignoreAnnotations: true,
     })
     assert.strictEqual(outputFiles[0].text, `(() => {
   // <stdin>
@@ -3205,28 +3205,84 @@ let transformTests = {
     assert.strictEqual(code2, `/* @__PURE__ */ factory(fragment, null, /* @__PURE__ */ factory("div", null));\n`)
   },
 
+  // Note: tree shaking is disabled when the output format isn't IIFE
   async treeShakingDefault({ esbuild }) {
-    const { code } = await esbuild.transform(`/* @__PURE__ */ fn(); <div/>`, {
+    const { code } = await esbuild.transform(`var unused = 123`, {
       loader: 'jsx',
-      minifySyntax: true,
+      format: 'esm',
+      treeShaking: undefined,
     })
-    assert.strictEqual(code, ``)
+    assert.strictEqual(code, `var unused = 123;\n`)
+  },
+
+  async treeShakingFalse({ esbuild }) {
+    const { code } = await esbuild.transform(`var unused = 123`, {
+      loader: 'jsx',
+      format: 'esm',
+      treeShaking: false,
+    })
+    assert.strictEqual(code, `var unused = 123;\n`)
   },
 
   async treeShakingTrue({ esbuild }) {
-    const { code } = await esbuild.transform(`/* @__PURE__ */ fn(); <div/>`, {
+    const { code } = await esbuild.transform(`var unused = 123`, {
       loader: 'jsx',
-      minifySyntax: true,
+      format: 'esm',
       treeShaking: true,
     })
     assert.strictEqual(code, ``)
   },
 
-  async treeShakingIgnoreAnnotations({ esbuild }) {
+  // Note: tree shaking is enabled when the output format is IIFE
+  async treeShakingDefaultIIFE({ esbuild }) {
+    const { code } = await esbuild.transform(`var unused = 123`, {
+      loader: 'jsx',
+      format: 'iife',
+      treeShaking: undefined,
+    })
+    assert.strictEqual(code, `(() => {\n})();\n`)
+  },
+
+  async treeShakingFalseIIFE({ esbuild }) {
+    const { code } = await esbuild.transform(`var unused = 123`, {
+      loader: 'jsx',
+      format: 'iife',
+      treeShaking: false,
+    })
+    assert.strictEqual(code, `(() => {\n  var unused = 123;\n})();\n`)
+  },
+
+  async treeShakingTrueIIFE({ esbuild }) {
+    const { code } = await esbuild.transform(`var unused = 123`, {
+      loader: 'jsx',
+      format: 'iife',
+      treeShaking: true,
+    })
+    assert.strictEqual(code, `(() => {\n})();\n`)
+  },
+
+  async ignoreAnnotationsDefault({ esbuild }) {
     const { code } = await esbuild.transform(`/* @__PURE__ */ fn(); <div/>`, {
       loader: 'jsx',
       minifySyntax: true,
-      treeShaking: 'ignore-annotations',
+    })
+    assert.strictEqual(code, ``)
+  },
+
+  async ignoreAnnotationsFalse({ esbuild }) {
+    const { code } = await esbuild.transform(`/* @__PURE__ */ fn(); <div/>`, {
+      loader: 'jsx',
+      minifySyntax: true,
+      ignoreAnnotations: false,
+    })
+    assert.strictEqual(code, ``)
+  },
+
+  async ignoreAnnotationsTrue({ esbuild }) {
+    const { code } = await esbuild.transform(`/* @__PURE__ */ fn(); <div/>`, {
+      loader: 'jsx',
+      minifySyntax: true,
+      ignoreAnnotations: true,
     })
     assert.strictEqual(code, `fn(), React.createElement("div", null);\n`)
   },

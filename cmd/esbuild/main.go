@@ -72,6 +72,8 @@ var helpText = func(colors logger.Colors) string {
   --footer:T=...            Text to be appended to each output file of type T
                             where T is one of: css | js
   --global-name=...         The name of the global for the IIFE format
+  --ignore-annotations      Enable this to work with packages that have
+                            incorrect tree-shaking annotations
   --inject:F                Import the file F into all input files and
                             automatically replace matching globals with imports
   --jsx-factory=...         What to use for JSX instead of React.createElement
@@ -105,8 +107,7 @@ var helpText = func(colors logger.Colors) string {
   --sourcemap=external      Do not link to the source map with a comment
   --sourcemap=inline        Emit the source map with an inline data URL
   --sources-content=false   Omit "sourcesContent" in generated source maps
-  --tree-shaking=...        Set to "ignore-annotations" to work with packages
-                            that have incorrect tree-shaking annotations
+  --tree-shaking=...        Force tree shaking on or off (false | true)
   --tsconfig=...            Use this tsconfig.json file instead of other ones
   --version                 Print the current version (` + esbuildVersion + `) and exit
 

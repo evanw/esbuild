@@ -336,6 +336,7 @@ type optionsThatSupportStructuralEquality struct {
 	minifyIdentifiers       bool
 	omitRuntimeForTests     bool
 	ignoreDCEAnnotations    bool
+	treeShaking             bool
 	preserveUnusedImportsTS bool
 	useDefineForClassFields config.MaybeBool
 }
@@ -361,6 +362,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			minifyIdentifiers:       options.MinifyIdentifiers,
 			omitRuntimeForTests:     options.OmitRuntimeForTests,
 			ignoreDCEAnnotations:    options.IgnoreDCEAnnotations,
+			treeShaking:             options.TreeShaking,
 			preserveUnusedImportsTS: options.PreserveUnusedImportsTS,
 			useDefineForClassFields: options.UseDefineForClassFields,
 		},
@@ -13904,11 +13906,11 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	// single pass, but it turns out it's pretty much impossible to do this
 	// correctly while handling arrow functions because of the grammar
 	// ambiguities.
-	if !config.IsTreeShakingEnabled(p.options.mode, p.options.outputFormat) {
-		// When not bundling, everything comes in a single part
+	if !p.options.treeShaking {
+		// When tree shaking is disabled, everything comes in a single part
 		parts = p.appendPart(parts, stmts)
 	} else {
-		// When bundling, each top-level statement is potentially a separate part
+		// When tree shaking is enabled, each top-level statement is potentially a separate part
 		for _, stmt := range stmts {
 			switch s := stmt.Data.(type) {
 			case *js_ast.SLocal:

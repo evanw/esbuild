@@ -204,11 +204,19 @@ func validateASCIIOnly(value Charset) bool {
 	}
 }
 
-func validateIgnoreDCEAnnotations(value TreeShaking) bool {
+func validateTreeShaking(value TreeShaking, bundle bool, format Format) bool {
 	switch value {
 	case TreeShakingDefault:
+		// If we're in an IIFE then there's no way to concatenate additional code
+		// to the end of our output so we assume tree shaking is safe. And when
+		// bundling we assume that tree shaking is safe because if you want to add
+		// code to the bundle, you should be doing that by including it in the
+		// bundle instead of concatenating it afterward, so we also assume tree
+		// shaking is safe then. Otherwise we assume tree shaking is not safe.
+		return bundle || format == FormatIIFE
+	case TreeShakingFalse:
 		return false
-	case TreeShakingIgnoreAnnotations:
+	case TreeShakingTrue:
 		return true
 	default:
 		panic("Invalid tree shaking")
@@ -828,7 +836,8 @@ func rebuildImpl(
 		MinifyIdentifiers:     buildOpts.MinifyIdentifiers,
 		AllowOverwrite:        buildOpts.AllowOverwrite,
 		ASCIIOnly:             validateASCIIOnly(buildOpts.Charset),
-		IgnoreDCEAnnotations:  validateIgnoreDCEAnnotations(buildOpts.TreeShaking),
+		IgnoreDCEAnnotations:  buildOpts.IgnoreAnnotations,
+		TreeShaking:           validateTreeShaking(buildOpts.TreeShaking, buildOpts.Bundle, buildOpts.Format),
 		GlobalName:            validateGlobalName(log, buildOpts.GlobalName),
 		CodeSplitting:         buildOpts.Splitting,
 		OutputFormat:          validateFormat(buildOpts.Format),
@@ -1311,7 +1320,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		RemoveWhitespace:        transformOpts.MinifyWhitespace,
 		MinifyIdentifiers:       transformOpts.MinifyIdentifiers,
 		ASCIIOnly:               validateASCIIOnly(transformOpts.Charset),
-		IgnoreDCEAnnotations:    validateIgnoreDCEAnnotations(transformOpts.TreeShaking),
+		IgnoreDCEAnnotations:    transformOpts.IgnoreAnnotations,
+		TreeShaking:             validateTreeShaking(transformOpts.TreeShaking, false /* bundle */, transformOpts.Format),
 		AbsOutputFile:           transformOpts.Sourcefile + "-out",
 		KeepNames:               transformOpts.KeepNames,
 		UseDefineForClassFields: useDefineForClassFieldsTS,

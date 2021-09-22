@@ -108,7 +108,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let minifyWhitespace = getFlag(options, keys, 'minifyWhitespace', mustBeBoolean);
   let minifyIdentifiers = getFlag(options, keys, 'minifyIdentifiers', mustBeBoolean);
   let charset = getFlag(options, keys, 'charset', mustBeString);
-  let treeShaking = getFlag(options, keys, 'treeShaking', mustBeStringOrBoolean);
+  let treeShaking = getFlag(options, keys, 'treeShaking', mustBeBoolean);
+  let ignoreAnnotations = getFlag(options, keys, 'ignoreAnnotations', mustBeBoolean);
   let jsx = getFlag(options, keys, 'jsx', mustBeString);
   let jsxFactory = getFlag(options, keys, 'jsxFactory', mustBeString);
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
@@ -131,7 +132,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (minifyWhitespace) flags.push('--minify-whitespace');
   if (minifyIdentifiers) flags.push('--minify-identifiers');
   if (charset) flags.push(`--charset=${charset}`);
-  if (treeShaking !== void 0 && treeShaking !== true) flags.push(`--tree-shaking=${treeShaking}`);
+  if (treeShaking !== void 0) flags.push(`--tree-shaking=${treeShaking}`);
+  if (ignoreAnnotations) flags.push(`--ignore-annotations`);
 
   if (jsx) flags.push(`--jsx=${jsx}`);
   if (jsxFactory) flags.push(`--jsx-factory=${jsxFactory}`);
