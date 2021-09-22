@@ -4,6 +4,10 @@ TestBase64LoaderRemoveUnused
 console.log("unused import");
 
 ================================================================================
+TestDCETypeOf
+---------- /out.js ----------
+
+================================================================================
 TestDataURLLoaderRemoveUnused
 ---------- /out.js ----------
 // entry.js

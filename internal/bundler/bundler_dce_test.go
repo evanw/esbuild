@@ -1504,7 +1504,6 @@ func TestTreeShakingUnaryOperators(t *testing.T) {
 				let REMOVE;
 				!REMOVE;
 				void REMOVE;
-				typeof REMOVE;
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1645,6 +1644,39 @@ func TestTreeShakingInESMWrapper(t *testing.T) {
 				export let keep1 = () => 'keep1'
 				export let keep2 = () => 'keep2'
 				export let REMOVE = () => 'REMOVE'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestDCETypeOf(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// These should be removed because they have no side effects
+				typeof x_REMOVE
+				typeof v_REMOVE
+				typeof f_REMOVE
+				typeof g_REMOVE
+				typeof a_REMOVE
+				var v_REMOVE
+				function f_REMOVE() {}
+				function* g_REMOVE() {}
+				async function a_REMOVE() {}
+
+				// These technically have side effects due to TDZ, but this is not currently handled
+				typeof c_remove
+				typeof l_remove
+				typeof s_remove
+				const c_remove = 0
+				let l_remove
+				class s_remove {}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
