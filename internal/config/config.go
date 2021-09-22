@@ -221,6 +221,7 @@ type Options struct {
 	ASCIIOnly               bool
 	KeepNames               bool
 	IgnoreDCEAnnotations    bool
+	TreeShaking             bool
 
 	Defines  *ProcessedDefines
 	TS       TSOptions
@@ -382,10 +383,6 @@ func SubstituteTemplate(template []PathTemplate, placeholders PathPlaceholders) 
 		}
 	}
 	return result
-}
-
-func IsTreeShakingEnabled(mode Mode, outputFormat Format) bool {
-	return mode == ModeBundle || (mode == ModeConvertFormat && outputFormat == FormatIIFE)
 }
 
 func ShouldCallRuntimeRequire(mode Mode, outputFormat Format) bool {

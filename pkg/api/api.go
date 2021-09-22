@@ -235,7 +235,8 @@ type TreeShaking uint8
 
 const (
 	TreeShakingDefault TreeShaking = iota
-	TreeShakingIgnoreAnnotations
+	TreeShakingFalse
+	TreeShakingTrue
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -258,6 +259,7 @@ type BuildOptions struct {
 	MinifySyntax      bool
 	Charset           Charset
 	TreeShaking       TreeShaking
+	IgnoreAnnotations bool
 	LegalComments     LegalComments
 
 	JSXMode     JSXMode
@@ -366,6 +368,7 @@ type TransformOptions struct {
 	MinifySyntax      bool
 	Charset           Charset
 	TreeShaking       TreeShaking
+	IgnoreAnnotations bool
 	LegalComments     LegalComments
 
 	JSXMode     JSXMode

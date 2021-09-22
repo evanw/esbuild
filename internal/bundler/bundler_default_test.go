@@ -3786,6 +3786,7 @@ func TestInjectNoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModePassThrough,
+			TreeShaking:   true,
 			AbsOutputFile: "/out.js",
 			Defines:       &defines,
 			InjectAbsPaths: []string{

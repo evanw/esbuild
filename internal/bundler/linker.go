@@ -2571,8 +2571,6 @@ func (c *linkerContext) markFileLiveForTreeShaking(sourceIndex uint32) {
 
 	switch repr := file.InputFile.Repr.(type) {
 	case *graph.JSRepr:
-		isTreeShakingEnabled := config.IsTreeShakingEnabled(c.options.Mode, c.options.OutputFormat)
-
 		// If the JavaScript stub for a CSS file is included, also include the CSS file
 		if repr.CSSSourceIndex.IsValid() {
 			c.markFileLiveForTreeShaking(repr.CSSSourceIndex.GetIndex())
@@ -2609,7 +2607,7 @@ func (c *linkerContext) markFileLiveForTreeShaking(sourceIndex uint32) {
 			// Include all parts in this file with side effects, or just include
 			// everything if tree-shaking is disabled. Note that we still want to
 			// perform tree-shaking on the runtime even if tree-shaking is disabled.
-			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !isTreeShakingEnabled && file.IsEntryPoint()) {
+			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.TreeShaking && file.IsEntryPoint()) {
 				c.markPartLiveForTreeShaking(sourceIndex, uint32(partIndex))
 			}
 		}

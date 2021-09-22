@@ -144,10 +144,19 @@ func parseOptionsImpl(
 			}
 			name := arg[len("--tree-shaking="):]
 			switch name {
-			case "ignore-annotations":
-				*value = api.TreeShakingIgnoreAnnotations
+			case "false":
+				*value = api.TreeShakingFalse
+			case "true":
+				*value = api.TreeShakingTrue
 			default:
-				return fmt.Errorf("Invalid tree shaking value: %q (valid: ignore-annotations)", name), nil
+				return fmt.Errorf("Invalid tree shaking value: %q (valid: false, true)", name), nil
+			}
+
+		case arg == "--ignore-annotations":
+			if buildOpts != nil {
+				buildOpts.IgnoreAnnotations = true
+			} else {
+				transformOpts.IgnoreAnnotations = true
 			}
 
 		case arg == "--keep-names":
