@@ -843,14 +843,18 @@ func IsNumericValue(a Expr) bool {
 		case BinOpAdd:
 			return IsNumericValue(e.Left) && IsNumericValue(e.Right)
 
-		case BinOpSub, BinOpMul, BinOpDiv, BinOpRem,
-			BinOpBitwiseAnd, BinOpBitwiseOr, BinOpBitwiseXor,
-			BinOpShl, BinOpShr, BinOpUShr:
+		case
+			BinOpSub, BinOpSubAssign,
+			BinOpMul, BinOpMulAssign,
+			BinOpDiv, BinOpDivAssign,
+			BinOpRem, BinOpRemAssign,
+			BinOpBitwiseAnd, BinOpBitwiseAndAssign,
+			BinOpBitwiseOr, BinOpBitwiseOrAssign,
+			BinOpBitwiseXor, BinOpBitwiseXorAssign,
+			BinOpShl, BinOpShlAssign,
+			BinOpShr, BinOpShrAssign,
+			BinOpUShr, BinOpUShrAssign:
 			return true
-
-		case BinOpSubAssign, BinOpMulAssign, BinOpDivAssign, BinOpRemAssign,
-			BinOpBitwiseAndAssign, BinOpBitwiseOrAssign, BinOpBitwiseXorAssign,
-			BinOpShlAssign, BinOpShrAssign, BinOpUShrAssign:
 
 		case BinOpAssign, BinOpComma:
 			return IsNumericValue(e.Right)
