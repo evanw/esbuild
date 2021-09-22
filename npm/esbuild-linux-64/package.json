@@ -9,8 +9,5 @@
   ],
   "cpu": [
     "x64"
-  ],
-  "directories": {
-    "bin": "bin"
-  }
+  ]
 }

@@ -14,12 +14,15 @@ const esmBrowserTarget = 'es2017'; // Preserves "async"
 
 exports.buildNativeLib = (esbuildPath) => {
   const libDir = path.join(npmDir, 'lib')
+  const binDir = path.join(npmDir, 'bin')
   fs.mkdirSync(libDir, { recursive: true })
+  fs.mkdirSync(binDir, { recursive: true })
 
   // Generate "npm/esbuild/install.js"
   childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'npm', 'install.ts'),
+    path.join(repoDir, 'lib', 'npm', 'node-install.ts'),
     '--outfile=' + path.join(npmDir, 'install.js'),
+    '--bundle',
     '--target=' + nodeTarget,
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
     '--platform=node',
@@ -32,8 +35,18 @@ exports.buildNativeLib = (esbuildPath) => {
     '--outfile=' + path.join(libDir, 'main.js'),
     '--bundle',
     '--target=' + nodeTarget,
-    '--format=cjs',
     '--define:WASM=false',
+    '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+    '--platform=node',
+    '--log-level=warning',
+  ], { cwd: repoDir })
+
+  // Generate "npm/esbuild/bin/esbuild"
+  childProcess.execFileSync(esbuildPath, [
+    path.join(repoDir, 'lib', 'npm', 'node-shim.ts'),
+    '--outfile=' + path.join(binDir, 'esbuild'),
+    '--bundle',
+    '--target=' + nodeTarget,
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
     '--platform=node',
     '--log-level=warning',
@@ -42,6 +55,26 @@ exports.buildNativeLib = (esbuildPath) => {
   // Generate "npm/esbuild/lib/main.d.ts"
   const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'types.ts'), 'utf8')
   fs.writeFileSync(path.join(libDir, 'main.d.ts'), types_ts)
+
+  // Get supported platforms
+  const platforms = {}
+  new Function('exports', 'require', childProcess.execFileSync(esbuildPath, [
+    path.join(repoDir, 'lib', 'npm', 'node-platform.ts'),
+    '--bundle',
+    '--target=' + nodeTarget,
+    '--platform=node',
+    '--log-level=warning',
+  ], { cwd: repoDir }))(platforms, require)
+  const optionalDependencies = Object.fromEntries(Object.values({
+    ...platforms.knownWindowsPackages,
+    ...platforms.knownUnixlikePackages,
+  }).sort().map(x => [x, version]))
+
+  // Update "npm/esbuild/package.json"
+  const pjPath = path.join(npmDir, 'package.json')
+  const package_json = JSON.parse(fs.readFileSync(pjPath, 'utf8'))
+  package_json.optionalDependencies = optionalDependencies
+  fs.writeFileSync(pjPath, JSON.stringify(package_json, null, 2) + '\n')
 }
 
 exports.buildWasmLib = async (esbuildPath) => {

@@ -9,8 +9,5 @@
   ],
   "cpu": [
     "ia32"
-  ],
-  "directories": {
-    "bin": "bin"
-  }
+  ]
 }
