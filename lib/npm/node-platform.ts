@@ -105,6 +105,10 @@ export function extractedBinPath(): string {
   if (isYarnPnP) {
     const binTargetPath = getCachePath(pkg);
     if (!fs.existsSync(binTargetPath)) {
+      fs.mkdirSync(path.dirname(binTargetPath), {
+        recursive: true,
+        mode: 0o700, // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+      });
       fs.copyFileSync(bin, binTargetPath);
       fs.chmodSync(binTargetPath, 0o755);
     }
