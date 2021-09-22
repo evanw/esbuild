@@ -1687,3 +1687,39 @@ func TestDCETypeOf(t *testing.T) {
 		},
 	})
 }
+
+func TestDCETypeOfEqualsString(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				var hasBar = typeof bar !== 'undefined'
+				if (false) console.log(hasBar)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatIIFE,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestDCETypeOfEqualsStringMangle(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// Everything here should be removed as dead code due to tree shaking
+				var hasBar = typeof bar !== 'undefined'
+				if (false) console.log(hasBar)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatIIFE,
+			MangleSyntax:  true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

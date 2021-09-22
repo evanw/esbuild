@@ -3371,15 +3371,6 @@ var import_return_asi = __toModule(require_return_asi());
 var import_return_asi2 = __toModule(require_return_asi2());
 var import_return_asi3 = __toModule(require_return_asi3());
 
-// bad-typeof.js
-typeof x == "null";
-
-// node_modules/bad-typeof.js
-typeof x == "null";
-
-// plugin-dir/node_modules/bad-typeof.js
-typeof x == "null";
-
 // equals-neg-zero.js
 x === -0;
 
