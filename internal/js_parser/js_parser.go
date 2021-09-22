@@ -13340,7 +13340,9 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 		return true
 
 	case *js_ast.EIf:
-		return p.exprCanBeRemovedIfUnused(e.Test) && p.exprCanBeRemovedIfUnused(e.Yes) && p.exprCanBeRemovedIfUnused(e.No)
+		return p.exprCanBeRemovedIfUnused(e.Test) &&
+			((p.isSideEffectFreeUnboundIdentifierRef(e.Yes, e.Test, true) || p.exprCanBeRemovedIfUnused(e.Yes)) &&
+				(p.isSideEffectFreeUnboundIdentifierRef(e.No, e.Test, false) || p.exprCanBeRemovedIfUnused(e.No)))
 
 	case *js_ast.EArray:
 		for _, item := range e.Items {
@@ -13414,9 +13416,18 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 		switch e.Op {
 		// These operators must not have any type conversions that can execute code
 		// such as "toString" or "valueOf". They must also never throw any exceptions.
-		case js_ast.BinOpStrictEq, js_ast.BinOpStrictNe, js_ast.BinOpComma,
-			js_ast.BinOpLogicalOr, js_ast.BinOpLogicalAnd, js_ast.BinOpNullishCoalescing:
+		case js_ast.BinOpStrictEq, js_ast.BinOpStrictNe, js_ast.BinOpComma, js_ast.BinOpNullishCoalescing:
 			return p.exprCanBeRemovedIfUnused(e.Left) && p.exprCanBeRemovedIfUnused(e.Right)
+
+		// Special-case "||" to make sure "typeof x === 'undefined' || x" can be removed
+		case js_ast.BinOpLogicalOr:
+			return p.exprCanBeRemovedIfUnused(e.Left) &&
+				(p.isSideEffectFreeUnboundIdentifierRef(e.Right, e.Left, false) || p.exprCanBeRemovedIfUnused(e.Right))
+
+		// Special-case "&&" to make sure "typeof x !== 'undefined' && x" can be removed
+		case js_ast.BinOpLogicalAnd:
+			return p.exprCanBeRemovedIfUnused(e.Left) &&
+				(p.isSideEffectFreeUnboundIdentifierRef(e.Right, e.Left, true) || p.exprCanBeRemovedIfUnused(e.Right))
 
 		// For "==" and "!=", pretend the operator was actually "===" or "!==". If
 		// we know that we can convert it to "==" or "!=", then we can consider the
@@ -13430,6 +13441,34 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 	}
 
 	// Assume all other expression types have side effects and cannot be removed
+	return false
+}
+
+func (p *parser) isSideEffectFreeUnboundIdentifierRef(value js_ast.Expr, guardCondition js_ast.Expr, isYesBranch bool) bool {
+	if id, ok := value.Data.(*js_ast.EIdentifier); ok && p.symbols[id.Ref.InnerIndex].Kind == js_ast.SymbolUnbound {
+		if binary, ok := guardCondition.Data.(*js_ast.EBinary); ok {
+			switch binary.Op {
+			case js_ast.BinOpStrictEq, js_ast.BinOpStrictNe, js_ast.BinOpLooseEq, js_ast.BinOpLooseNe:
+				// Pattern match for "typeof x !== <string>"
+				typeof, string := binary.Left, binary.Right
+				if _, ok := typeof.Data.(*js_ast.EString); ok {
+					typeof, string = string, typeof
+				}
+				if typeof, ok := typeof.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
+					if text, ok := string.Data.(*js_ast.EString); ok {
+						// In "typeof x !== 'undefined' ? x : null", the reference to "x" is side-effect free
+						// In "typeof x === 'object' ? x : null", the reference to "x" is side-effect free
+						if (js_lexer.UTF16EqualsString(text.Value, "undefined") == isYesBranch) ==
+							(binary.Op == js_ast.BinOpStrictNe || binary.Op == js_ast.BinOpLooseNe) {
+							if id2, ok := typeof.Value.Data.(*js_ast.EIdentifier); ok && id2.Ref == id.Ref {
+								return true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	return false
 }
 

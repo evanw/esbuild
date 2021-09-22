@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+* Treat `x` guarded by `typeof x !== 'undefined'` as side-effect free
+
+    This is a small tree-shaking (i.e. dead code removal) improvement. Global identifier references are considered to potentially have side effects since they will throw a reference error if the global identifier isn't defined, and code with side effects cannot be removed as dead code. However, there's a somewhat-common case where the identifier reference is guarded by a `typeof` check to check that it's defined before accessing it. With this release, code that does this will now be considered to have no side effects which allows it to be tree-shaken:
+
+    ```js
+    // Original code
+    var __foo = typeof foo !== 'undefined' && foo;
+    var __bar = typeof bar !== 'undefined' && bar;
+    console.log(__bar);
+
+    // Old output (with --bundle, which enables tree-shaking)
+    var __foo = typeof foo !== 'undefined' && foo;
+    var __bar = typeof bar !== 'undefined' && bar;
+    console.log(__bar);
+
+    // New output (with --bundle, which enables tree-shaking)
+    var __bar = typeof bar !== 'undefined' && bar;
+    console.log(__bar);
+    ```
+
 ## 0.12.29
 
 * Fix compilation of abstract class fields in TypeScript ([#1623](https://github.com/evanw/esbuild/issues/1623))
