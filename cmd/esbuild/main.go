@@ -57,6 +57,8 @@ var helpText = func(colors logger.Colors) string {
 
 ` + colors.Bold + `Advanced options:` + colors.Reset + `
   --allow-overwrite         Allow output files to overwrite input files
+  --analyze                 Print a report about the contents of the bundle
+                            (use "--analyze=verbose" for a detailed report)
   --asset-names=...         Path template to use for "file" loader files
                             (default "[name]-[hash]")
   --banner:T=...            Text to be prepended to each output file of type T
