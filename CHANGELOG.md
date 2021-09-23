@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.1
 
 * Fix the `esbuild` package in yarn 2+
 

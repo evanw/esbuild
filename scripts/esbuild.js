@@ -141,6 +141,7 @@ exports.buildWasmLib = async (esbuildPath) => {
     '--format=cjs',
     '--define:WASM=true',
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+    '--external:esbuild',
     '--platform=node',
     '--log-level=warning',
   ], { cwd: repoDir })
