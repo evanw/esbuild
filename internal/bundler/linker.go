@@ -4291,7 +4291,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		//
 		//   // foo.js
 		//   var foo, foo_exports = {};
-		//   __exports(foo_exports, {
+		//   __export(foo_exports, {
 		//     foo: () => foo
 		//   });
 		//   let init_foo = __esm(() => {

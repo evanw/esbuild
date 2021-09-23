@@ -3207,30 +3207,42 @@ let transformTests = {
 
   // Note: tree shaking is disabled when the output format isn't IIFE
   async treeShakingDefault({ esbuild }) {
-    const { code } = await esbuild.transform(`var unused = 123`, {
+    const { code } = await esbuild.transform(`
+      var unused = 123
+      var used = 234
+      export { used }
+    `, {
       loader: 'jsx',
       format: 'esm',
       treeShaking: undefined,
     })
-    assert.strictEqual(code, `var unused = 123;\n`)
+    assert.strictEqual(code, `var unused = 123;\nvar used = 234;\nexport {\n  used\n};\n`)
   },
 
   async treeShakingFalse({ esbuild }) {
-    const { code } = await esbuild.transform(`var unused = 123`, {
+    const { code } = await esbuild.transform(`
+      var unused = 123
+      var used = 234
+      export { used }
+    `, {
       loader: 'jsx',
       format: 'esm',
       treeShaking: false,
     })
-    assert.strictEqual(code, `var unused = 123;\n`)
+    assert.strictEqual(code, `var unused = 123;\nvar used = 234;\nexport {\n  used\n};\n`)
   },
 
   async treeShakingTrue({ esbuild }) {
-    const { code } = await esbuild.transform(`var unused = 123`, {
+    const { code } = await esbuild.transform(`
+      var unused = 123
+      var used = 234
+      export { used }
+    `, {
       loader: 'jsx',
       format: 'esm',
       treeShaking: true,
     })
-    assert.strictEqual(code, ``)
+    assert.strictEqual(code, `var used = 234;\nexport {\n  used\n};\n`)
   },
 
   // Note: tree shaking is enabled when the output format is IIFE

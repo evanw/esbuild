@@ -30,7 +30,7 @@ const (
 	//
 	//   // foo.ts
 	//   var foo, foo_exports = {};
-	//   __exports(foo_exports, {
+	//   __export(foo_exports, {
 	//     foo: () => foo
 	//   });
 	//   let init_foo = __esm(() => {
