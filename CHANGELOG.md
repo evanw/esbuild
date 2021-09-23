@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.2
 
 * Fix `export {}` statements with `--tree-shaking=true` ([#1628](https://github.com/evanw/esbuild/issues/1628))
 
