@@ -12,7 +12,7 @@ var cachedIfWindows bool
 
 func CheckIfWindows() bool {
 	if !checkedIfWindows {
-		cachedIfWindows = false
+		checkedIfWindows = true
 
 		// Hack: Assume that we're on Windows if we're running WebAssembly and
 		// the "C:\\" directory exists. This is a workaround for a bug in Go's
