@@ -25,6 +25,7 @@ exports.buildNativeLib = (esbuildPath) => {
     '--bundle',
     '--target=' + nodeTarget,
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+    '--external:esbuild',
     '--platform=node',
     '--log-level=warning',
   ], { cwd: repoDir })
@@ -37,6 +38,7 @@ exports.buildNativeLib = (esbuildPath) => {
     '--target=' + nodeTarget,
     '--define:WASM=false',
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+    '--external:esbuild',
     '--platform=node',
     '--log-level=warning',
   ], { cwd: repoDir })
@@ -47,7 +49,7 @@ exports.buildNativeLib = (esbuildPath) => {
     '--outfile=' + path.join(binDir, 'esbuild'),
     '--bundle',
     '--target=' + nodeTarget,
-    '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+    '--external:esbuild',
     '--platform=node',
     '--log-level=warning',
   ], { cwd: repoDir })
@@ -62,6 +64,7 @@ exports.buildNativeLib = (esbuildPath) => {
     path.join(repoDir, 'lib', 'npm', 'node-platform.ts'),
     '--bundle',
     '--target=' + nodeTarget,
+    '--external:esbuild',
     '--platform=node',
     '--log-level=warning',
   ], { cwd: repoDir }))(platforms, require)

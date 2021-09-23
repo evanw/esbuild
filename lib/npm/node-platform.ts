@@ -2,8 +2,6 @@ import fs = require('fs');
 import os = require('os');
 import path = require('path');
 
-declare const ESBUILD_VERSION: string;
-
 // This feature was added to give external code a way to modify the binary
 // path without modifying the code itself. Do not remove this because
 // external code relies on this.
@@ -31,7 +29,7 @@ export const knownUnixlikePackages: Record<string, string> = {
   'sunos x64 LE': 'esbuild-sunos-64',
 };
 
-export function pkgAndBinForCurrentPlatform(): { pkg: string, bin: string } {
+export function binPathForCurrentPlatform(): string {
   let pkg: string;
   let bin: string;
   let platformKey = `${process.platform} ${os.arch()} ${os.endianness()}`;
@@ -65,21 +63,7 @@ by esbuild to install the correct binary executable for your current platform.`)
     throw e
   }
 
-  return { pkg, bin };
-}
-
-function getCachePath(name: string): string {
-  const home = os.homedir();
-  const common = ['esbuild', 'bin', `${name}@${ESBUILD_VERSION}`];
-  if (process.platform === 'darwin') return path.join(home, 'Library', 'Caches', ...common);
-  if (process.platform === 'win32') return path.join(home, 'AppData', 'Local', 'Cache', ...common);
-
-  // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-  const XDG_CACHE_HOME = process.env.XDG_CACHE_HOME;
-  if (process.platform === 'linux' && XDG_CACHE_HOME && path.isAbsolute(XDG_CACHE_HOME))
-    return path.join(XDG_CACHE_HOME, ...common);
-
-  return path.join(home, '.cache', ...common);
+  return bin;
 }
 
 export function extractedBinPath(): string {
@@ -90,7 +74,7 @@ export function extractedBinPath(): string {
     return ESBUILD_BINARY_PATH;
   }
 
-  const { pkg, bin } = pkgAndBinForCurrentPlatform();
+  const bin = binPathForCurrentPlatform();
 
   // The esbuild binary executable can't be used in Yarn 2 in PnP mode because
   // it's inside a virtual file system and the OS needs it in the real file
@@ -103,12 +87,9 @@ export function extractedBinPath(): string {
   } catch (e) {
   }
   if (isYarnPnP) {
-    const binTargetPath = getCachePath(pkg);
+    const esbuildLibDir = path.dirname(require.resolve('esbuild'));
+    const binTargetPath = path.join(esbuildLibDir, 'yarn-pnp-' + path.basename(bin));
     if (!fs.existsSync(binTargetPath)) {
-      fs.mkdirSync(path.dirname(binTargetPath), {
-        recursive: true,
-        mode: 0o700, // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-      });
       fs.copyFileSync(bin, binTargetPath);
       fs.chmodSync(binTargetPath, 0o755);
     }

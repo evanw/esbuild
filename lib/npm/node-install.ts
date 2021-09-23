@@ -1,4 +1,4 @@
-import { pkgAndBinForCurrentPlatform } from './node-platform';
+import { binPathForCurrentPlatform } from './node-platform';
 
 import fs = require('fs');
 import os = require('os');
@@ -59,7 +59,7 @@ if (process.env.ESBUILD_BINARY_PATH) {
 // doesn't apply when npm's "--ignore-scripts" flag is used since in that case
 // this install script will not be run.
 else if (os.platform() !== 'win32' && !isYarn2OrAbove()) {
-  const { bin } = pkgAndBinForCurrentPlatform();
+  const bin = binPathForCurrentPlatform();
   try {
     fs.unlinkSync(toPath);
     fs.linkSync(bin, toPath);
