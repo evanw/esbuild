@@ -4,6 +4,7 @@
   "description": "The Windows 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
+  "preferUnplugged": false,
   "os": [
     "win32"
   ],

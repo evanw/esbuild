@@ -4,6 +4,7 @@
   "description": "The Linux MIPS 64-bit Little Endian binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
+  "preferUnplugged": false,
   "os": [
     "linux"
   ],
