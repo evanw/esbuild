@@ -4671,6 +4671,7 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 
 		// "import { type xx } from 'mod'"
 		// "import { type xx as yy } from 'mod'"
+		// "import { type 'xx' as yy } from 'mod'"
 		// "import { type as } from 'mod'"
 		// "import { type as as } from 'mod'"
 		// "import { type as as as } from 'mod'"
@@ -4714,12 +4715,14 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 						OriginalName: originalName,
 					})
 				}
-			} else if p.lexer.IsIdentifierOrKeyword() {
+			} else {
 				isIdentifier := p.lexer.Token == js_lexer.TIdentifier
 
 				// "import { type xx } from 'mod'"
 				// "import { type xx as yy } from 'mod'"
 				// "import { type if as yy } from 'mod'"
+				// "import { type 'xx' as yy } from 'mod'"
+				p.parseClauseAlias("import")
 				p.lexer.Next()
 
 				if p.lexer.IsContextualKeyword("as") {
@@ -4809,9 +4812,11 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 					aliasLoc = p.lexer.Loc()
 					p.lexer.Next()
 
-					if p.lexer.Token == js_lexer.TIdentifier {
+					if p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TCloseBrace {
 						// "export { type as as as }"
 						// "export { type as as foo }"
+						// "export { type as as 'foo' }"
+						p.parseClauseAlias("export")
 						p.lexer.Next()
 					} else {
 						// "export { type as as }"
@@ -4822,8 +4827,9 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 							OriginalName: originalName,
 						})
 					}
-				} else if p.lexer.Token == js_lexer.TIdentifier {
+				} else if p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TCloseBrace {
 					// "export { type as xxx }"
+					// "export { type as 'xxx' }"
 					alias = p.parseClauseAlias("export")
 					aliasLoc = p.lexer.Loc()
 					p.lexer.Next()
@@ -4855,16 +4861,14 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 				// "export { type xx as if }"
 				// "export { type default } from 'path'"
 				// "export { type default as if } from 'path'"
-				if !p.lexer.IsIdentifierOrKeyword() {
-					p.lexer.Expected(js_lexer.TIdentifier)
-				}
+				// "export { type xx as 'yy' }"
+				// "export { type 'xx' } from 'mod'"
+				p.parseClauseAlias("export")
 				p.lexer.Next()
 
 				if p.lexer.IsContextualKeyword("as") {
 					p.lexer.Next()
-					if !p.lexer.IsIdentifierOrKeyword() {
-						p.lexer.Expected(js_lexer.TIdentifier)
-					}
+					p.parseClauseAlias("export")
 					p.lexer.Next()
 				}
 			}
