@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.3
 
 * Support TypeScript type-only import/export specifiers ([#1637](https://github.com/evanw/esbuild/pull/1637))
 
