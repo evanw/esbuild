@@ -4669,6 +4669,12 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 		originalName := alias
 		p.lexer.Next()
 
+		// Handle:
+		// `import { type xx } from 'mod'`
+		// `import { type xx as yy } from 'mod'`
+		// `import { type as } from 'mod'`
+		// `import { type as as } from 'mod'`
+		// `import { type as as as } from 'mod'`
 		if alias == "type" && p.options.ts.Parse && p.lexer.Token == js_lexer.TIdentifier {
 			if p.lexer.IsContextualKeyword("as") {
 				p.lexer.Next()
@@ -4678,8 +4684,11 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 					p.lexer.Next()
 
 					if p.lexer.Token == js_lexer.TIdentifier {
+						// `import { type as as as } from 'mod'`
+						// `import { type as as foo } from 'mod'`
 						p.lexer.Next()
 					} else {
+						// `import { type as as } from 'mod'`
 						items = append(items, js_ast.ClauseItem{
 							Alias:        alias,
 							AliasLoc:     aliasLoc,
@@ -4688,6 +4697,7 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 						})
 					}
 				} else if p.lexer.Token == js_lexer.TIdentifier {
+					// `import { type as xxx } from 'mod'`
 					originalName = p.lexer.Identifier
 					name = js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(originalName)}
 					p.lexer.Expect(js_lexer.TIdentifier)
@@ -4706,6 +4716,8 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 					})
 				}
 			} else {
+				// `import { type xx } from 'mod'`
+				// `import { type xx as yy } from 'mod'`
 				p.lexer.Next()
 
 				if p.lexer.IsContextualKeyword("as") {
