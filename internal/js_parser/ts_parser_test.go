@@ -1475,6 +1475,18 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectPrintedTS(t, "import type = require('type'); type", "const type = require(\"type\");\ntype;\n")
 	expectPrintedTS(t, "import type from 'bar'; type", "import type from \"bar\";\ntype;\n")
 
+	expectPrintedTS(t, "import { type } from 'mod'; type", "import { type } from \"mod\";\ntype;\n")
+	expectPrintedTS(t, "import { x, type foo } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { x, type as } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { x, type foo as bar } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { x, type foo as as } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { type as as } from 'mod'; as", "import { type as as } from \"mod\";\nas;\n")
+	expectPrintedTS(t, "import { type as foo } from 'mod'; foo", "import { type as foo } from \"mod\";\nfoo;\n")
+	expectPrintedTS(t, "import { type as type } from 'mod'; type", "import { type } from \"mod\";\ntype;\n")
+	expectPrintedTS(t, "import { x, type as as foo } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { x, type as as as } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { x, type type as as } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+
 	expectPrintedTS(t, "import a = b; import c = a.c", "")
 	expectPrintedTS(t, "import c = a.c; import a = b", "")
 	expectPrintedTS(t, "import a = b; import c = a.c; c()", "const a = b;\nconst c = a.c;\nc();\n")
@@ -1489,6 +1501,14 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectParseErrorTS(t, "import type foo, {foo} from 'bar'", "<stdin>: error: Expected \"from\" but found \",\"\n")
 	expectParseErrorTS(t, "import type * as foo = require('bar')", "<stdin>: error: Expected \"from\" but found \"=\"\n")
 	expectParseErrorTS(t, "import type {foo} = require('bar')", "<stdin>: error: Expected \"from\" but found \"=\"\n")
+
+	expectParseErrorTS(t, "import { type as export } from 'mod'", "<stdin>: error: Expected \"}\" but found \"export\"\n")
+	expectParseErrorTS(t, "import { type as as export } from 'mod'", "<stdin>: error: Expected \"}\" but found \"export\"\n")
+	expectParseErrorTS(t, "import { type import } from 'mod'", "<stdin>: error: Expected \"}\" but found \"import\"\n")
+	expectParseErrorTS(t, "import { type foo bar } from 'mod'", "<stdin>: error: Expected \"}\" but found \"bar\"\n")
+	expectParseErrorTS(t, "import { type foo as } from 'mod'", "<stdin>: error: Expected identifier but found \"}\"\n")
+	expectParseErrorTS(t, "import { type foo as bar baz } from 'mod'", "<stdin>: error: Expected \"}\" but found \"baz\"\n")
+	expectParseErrorTS(t, "import { type as as as as } from 'mod'", "<stdin>: error: Expected \"}\" but found \"as\"\n")
 }
 
 func TestTSTypeOnlyExport(t *testing.T) {
