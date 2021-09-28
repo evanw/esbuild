@@ -4674,7 +4674,7 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 		// "import { type as } from 'mod'"
 		// "import { type as as } from 'mod'"
 		// "import { type as as as } from 'mod'"
-		if p.options.ts.Parse && p.lexer.Token == js_lexer.TIdentifier && alias == "type" {
+		if p.options.ts.Parse && alias == "type" && p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TCloseBrace {
 			if p.lexer.IsContextualKeyword("as") {
 				p.lexer.Next()
 				if p.lexer.IsContextualKeyword("as") {
@@ -4714,14 +4714,20 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 						OriginalName: originalName,
 					})
 				}
-			} else {
+			} else if p.lexer.IsIdentifierOrKeyword() {
+				isIdentifier := p.lexer.Token == js_lexer.TIdentifier
+
 				// "import { type xx } from 'mod'"
 				// "import { type xx as yy } from 'mod'"
+				// "import { type if as yy } from 'mod'"
 				p.lexer.Next()
 
 				if p.lexer.IsContextualKeyword("as") {
 					p.lexer.Next()
 					p.lexer.Expect(js_lexer.TIdentifier)
+				} else if !isIdentifier {
+					// An import where the name is a keyword must have an alias
+					p.lexer.ExpectedString("\"as\"")
 				}
 			}
 		} else {
@@ -4795,7 +4801,7 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 		}
 		p.lexer.Next()
 
-		if p.options.ts.Parse && p.lexer.Token == js_lexer.TIdentifier && alias == "type" {
+		if p.options.ts.Parse && alias == "type" && p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TCloseBrace {
 			if p.lexer.IsContextualKeyword("as") {
 				p.lexer.Next()
 				if p.lexer.IsContextualKeyword("as") {
@@ -4830,13 +4836,36 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 					})
 				}
 			} else {
+				// The name can actually be a keyword if we're really an "export from"
+				// statement. However, we won't know until later. Allow keywords as
+				// identifiers for now and throw an error later if there's no "from".
+				//
+				//   // This is fine
+				//   export { type default } from 'path'
+				//
+				//   // This is a syntax error
+				//   export { type default }
+				//
+				if p.lexer.Token != js_lexer.TIdentifier && firstNonIdentifierLoc.Start == 0 {
+					firstNonIdentifierLoc = p.lexer.Loc()
+				}
+
 				// "export { type xx }"
 				// "export { type xx as yy }"
+				// "export { type xx as if }"
+				// "export { type default } from 'path'"
+				// "export { type default as if } from 'path'"
+				if !p.lexer.IsIdentifierOrKeyword() {
+					p.lexer.Expected(js_lexer.TIdentifier)
+				}
 				p.lexer.Next()
 
 				if p.lexer.IsContextualKeyword("as") {
 					p.lexer.Next()
-					p.lexer.Expect(js_lexer.TIdentifier)
+					if !p.lexer.IsIdentifierOrKeyword() {
+						p.lexer.Expected(js_lexer.TIdentifier)
+					}
+					p.lexer.Next()
 				}
 			}
 		} else {
