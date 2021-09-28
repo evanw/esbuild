@@ -4674,7 +4674,7 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 		// "import { type as } from 'mod'"
 		// "import { type as as } from 'mod'"
 		// "import { type as as as } from 'mod'"
-		if alias == "type" && p.options.ts.Parse && p.lexer.Token == js_lexer.TIdentifier {
+		if p.options.ts.Parse && p.lexer.Token == js_lexer.TIdentifier && alias == "type" {
 			if p.lexer.IsContextualKeyword("as") {
 				p.lexer.Next()
 				if p.lexer.IsContextualKeyword("as") {
@@ -4795,7 +4795,7 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 		}
 		p.lexer.Next()
 
-		if alias == "type" && p.options.ts.Parse && p.lexer.Token == js_lexer.TIdentifier {
+		if p.options.ts.Parse && p.lexer.Token == js_lexer.TIdentifier && alias == "type" {
 			if p.lexer.IsContextualKeyword("as") {
 				p.lexer.Next()
 				if p.lexer.IsContextualKeyword("as") {
