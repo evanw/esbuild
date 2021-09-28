@@ -4796,19 +4796,65 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 		}
 		p.lexer.Next()
 
-		if p.lexer.IsContextualKeyword("as") {
-			p.lexer.Next()
-			alias = p.parseClauseAlias("export")
-			aliasLoc = p.lexer.Loc()
-			p.lexer.Next()
-		}
+		if alias == "type" && p.options.ts.Parse && p.lexer.Token == js_lexer.TIdentifier {
+			if p.lexer.IsContextualKeyword("as") {
+				p.lexer.Next()
+				if p.lexer.IsContextualKeyword("as") {
+					alias = p.parseClauseAlias("export")
+					aliasLoc = p.lexer.Loc()
+					p.lexer.Next()
 
-		items = append(items, js_ast.ClauseItem{
-			Alias:        alias,
-			AliasLoc:     aliasLoc,
-			Name:         name,
-			OriginalName: originalName,
-		})
+					if p.lexer.Token == js_lexer.TIdentifier {
+						// `export { type as as as }`
+						// `export { type as as foo }`
+						p.lexer.Next()
+					} else {
+						// `export { type as as }``
+						items = append(items, js_ast.ClauseItem{
+							Alias:        alias,
+							AliasLoc:     aliasLoc,
+							Name:         name,
+							OriginalName: originalName,
+						})
+					}
+				} else if p.lexer.Token == js_lexer.TIdentifier {
+					// `export { type as xxx }``
+					alias = p.parseClauseAlias("export")
+					aliasLoc = p.lexer.Loc()
+					p.lexer.Next()
+
+					items = append(items, js_ast.ClauseItem{
+						Alias:        alias,
+						AliasLoc:     aliasLoc,
+						Name:         name,
+						OriginalName: originalName,
+					})
+				}
+			} else {
+				// `export { type xx }`
+				// `export { type xx as yy }`
+				p.lexer.Next()
+
+				if p.lexer.IsContextualKeyword("as") {
+					p.lexer.Next()
+					p.lexer.Expect(js_lexer.TIdentifier)
+				}
+			}
+		} else {
+			if p.lexer.IsContextualKeyword("as") {
+				p.lexer.Next()
+				alias = p.parseClauseAlias("export")
+				aliasLoc = p.lexer.Loc()
+				p.lexer.Next()
+			}
+
+			items = append(items, js_ast.ClauseItem{
+				Alias:        alias,
+				AliasLoc:     aliasLoc,
+				Name:         name,
+				OriginalName: originalName,
+			})
+		}
 
 		if p.lexer.Token != js_lexer.TComma {
 			break

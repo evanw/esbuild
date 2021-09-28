@@ -1519,6 +1519,22 @@ func TestTSTypeOnlyExport(t *testing.T) {
 	expectPrintedTS(t, "export type {default} from 'bar'", "")
 	expectParseErrorTS(t, "export type {default}", "<stdin>: error: Expected identifier but found \"default\"\n")
 
+	expectPrintedTS(t, "export { type } from 'mod'; type", "export { type } from \"mod\";\ntype;\n")
+	expectPrintedTS(t, "export { x, type foo } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { x, type as } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { x, type foo as bar } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { x, type foo as as } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { type as as } from 'mod'; as", "export { type as as } from \"mod\";\nas;\n")
+	expectPrintedTS(t, "export { type as foo } from 'mod'; foo", "export { type as foo } from \"mod\";\nfoo;\n")
+	expectPrintedTS(t, "export { type as type } from 'mod'; type", "export { type } from \"mod\";\ntype;\n")
+	expectPrintedTS(t, "export { x, type as as foo } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { x, type as as as } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { x, type type as as } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectParseErrorTS(t, "export { type foo bar } from 'mod'", "<stdin>: error: Expected \"}\" but found \"bar\"\n")
+	expectParseErrorTS(t, "export { type foo as } from 'mod'", "<stdin>: error: Expected identifier but found \"}\"\n")
+	expectParseErrorTS(t, "export { type foo as bar baz } from 'mod'", "<stdin>: error: Expected \"}\" but found \"baz\"\n")
+	expectParseErrorTS(t, "export { type as as as as } from 'mod'", "<stdin>: error: Expected \"}\" but found \"as\"\n")
+
 	// Named exports should be removed if they don't refer to a local symbol
 	expectPrintedTS(t, "const Foo = {}; export {Foo}", "const Foo = {};\nexport { Foo };\n")
 	expectPrintedTS(t, "type Foo = {}; export {Foo}", "export {};\n")
