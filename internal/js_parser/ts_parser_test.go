@@ -1516,6 +1516,10 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectParseErrorTS(t, "import { type x as if } from 'mod'", "<stdin>: error: Expected identifier but found \"if\"\n")
 	expectParseErrorTS(t, "import { type as if } from 'mod'", "<stdin>: error: Expected \"}\" but found \"if\"\n")
 
+	// Forbidden names
+	expectParseErrorTS(t, "import { type as eval } from 'mod'", "<stdin>: error: Cannot use \"eval\" as an identifier here\n")
+	expectParseErrorTS(t, "import { type as arguments } from 'mod'", "<stdin>: error: Cannot use \"arguments\" as an identifier here\n")
+
 	// Arbitrary module namespace identifier names
 	expectPrintedTS(t, "import { x, type 'y' as z } from 'mod'; x, z", "import { x } from \"mod\";\nx, z;\n")
 	expectParseErrorTS(t, "import { x, type 'y' } from 'mod'", "<stdin>: error: Expected \"as\" but found \"}\"\n")
