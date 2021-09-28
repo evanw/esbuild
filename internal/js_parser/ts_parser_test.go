@@ -1475,6 +1475,20 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectPrintedTS(t, "import type = require('type'); type", "const type = require(\"type\");\ntype;\n")
 	expectPrintedTS(t, "import type from 'bar'; type", "import type from \"bar\";\ntype;\n")
 
+	expectPrintedTS(t, "import { type } from 'mod'; type", "import { type } from \"mod\";\ntype;\n")
+	expectPrintedTS(t, "import { x, type foo } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { x, type as } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { x, type foo as bar } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { x, type foo as as } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { type as as } from 'mod'; as", "import { type as as } from \"mod\";\nas;\n")
+	expectPrintedTS(t, "import { type as foo } from 'mod'; foo", "import { type as foo } from \"mod\";\nfoo;\n")
+	expectPrintedTS(t, "import { type as type } from 'mod'; type", "import { type } from \"mod\";\ntype;\n")
+	expectPrintedTS(t, "import { x, type as as foo } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { x, type as as as } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { x, type type as as } from 'mod'; x", "import { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "import { x, \\u0074ype y } from 'mod'; x, y", "import { x } from \"mod\";\nx, y;\n")
+	expectPrintedTS(t, "import { x, type if as y } from 'mod'; x, y", "import { x } from \"mod\";\nx, y;\n")
+
 	expectPrintedTS(t, "import a = b; import c = a.c", "")
 	expectPrintedTS(t, "import c = a.c; import a = b", "")
 	expectPrintedTS(t, "import a = b; import c = a.c; c()", "const a = b;\nconst c = a.c;\nc();\n")
@@ -1489,6 +1503,30 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectParseErrorTS(t, "import type foo, {foo} from 'bar'", "<stdin>: error: Expected \"from\" but found \",\"\n")
 	expectParseErrorTS(t, "import type * as foo = require('bar')", "<stdin>: error: Expected \"from\" but found \"=\"\n")
 	expectParseErrorTS(t, "import type {foo} = require('bar')", "<stdin>: error: Expected \"from\" but found \"=\"\n")
+
+	expectParseErrorTS(t, "import { type as export } from 'mod'", "<stdin>: error: Expected \"}\" but found \"export\"\n")
+	expectParseErrorTS(t, "import { type as as export } from 'mod'", "<stdin>: error: Expected \"}\" but found \"export\"\n")
+	expectParseErrorTS(t, "import { type import } from 'mod'", "<stdin>: error: Expected \"as\" but found \"}\"\n")
+	expectParseErrorTS(t, "import { type foo bar } from 'mod'", "<stdin>: error: Expected \"}\" but found \"bar\"\n")
+	expectParseErrorTS(t, "import { type foo as } from 'mod'", "<stdin>: error: Expected identifier but found \"}\"\n")
+	expectParseErrorTS(t, "import { type foo as bar baz } from 'mod'", "<stdin>: error: Expected \"}\" but found \"baz\"\n")
+	expectParseErrorTS(t, "import { type as as as as } from 'mod'", "<stdin>: error: Expected \"}\" but found \"as\"\n")
+	expectParseErrorTS(t, "import { type \\u0061s x } from 'mod'", "<stdin>: error: Expected \"}\" but found \"x\"\n")
+	expectParseErrorTS(t, "import { type x \\u0061s y } from 'mod'", "<stdin>: error: Expected \"}\" but found \"\\\\u0061s\"\n")
+	expectParseErrorTS(t, "import { type x as if } from 'mod'", "<stdin>: error: Expected identifier but found \"if\"\n")
+	expectParseErrorTS(t, "import { type as if } from 'mod'", "<stdin>: error: Expected \"}\" but found \"if\"\n")
+
+	// Forbidden names
+	expectParseErrorTS(t, "import { type as eval } from 'mod'", "<stdin>: error: Cannot use \"eval\" as an identifier here\n")
+	expectParseErrorTS(t, "import { type as arguments } from 'mod'", "<stdin>: error: Cannot use \"arguments\" as an identifier here\n")
+
+	// Arbitrary module namespace identifier names
+	expectPrintedTS(t, "import { x, type 'y' as z } from 'mod'; x, z", "import { x } from \"mod\";\nx, z;\n")
+	expectParseErrorTS(t, "import { x, type 'y' } from 'mod'", "<stdin>: error: Expected \"as\" but found \"}\"\n")
+	expectParseErrorTS(t, "import { x, type 'y' as } from 'mod'", "<stdin>: error: Expected identifier but found \"}\"\n")
+	expectParseErrorTS(t, "import { x, type 'y' as 'z' } from 'mod'", "<stdin>: error: Expected identifier but found \"'z'\"\n")
+	expectParseErrorTS(t, "import { x, type as 'y' } from 'mod'", "<stdin>: error: Expected \"}\" but found \"'y'\"\n")
+	expectParseErrorTS(t, "import { x, type y as 'z' } from 'mod'", "<stdin>: error: Expected identifier but found \"'z'\"\n")
 }
 
 func TestTSTypeOnlyExport(t *testing.T) {
@@ -1498,6 +1536,42 @@ func TestTSTypeOnlyExport(t *testing.T) {
 	expectPrintedTS(t, "export type {foo} from 'bar'\nx", "x;\n")
 	expectPrintedTS(t, "export type {default} from 'bar'", "")
 	expectParseErrorTS(t, "export type {default}", "<stdin>: error: Expected identifier but found \"default\"\n")
+
+	expectPrintedTS(t, "export { type } from 'mod'; type", "export { type } from \"mod\";\ntype;\n")
+	expectPrintedTS(t, "export { type, as } from 'mod'", "export { type, as } from \"mod\";\n")
+	expectPrintedTS(t, "export { x, type foo } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { x, type as } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { x, type foo as bar } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { x, type foo as as } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { type as as } from 'mod'; as", "export { type as as } from \"mod\";\nas;\n")
+	expectPrintedTS(t, "export { type as foo } from 'mod'; foo", "export { type as foo } from \"mod\";\nfoo;\n")
+	expectPrintedTS(t, "export { type as type } from 'mod'; type", "export { type } from \"mod\";\ntype;\n")
+	expectPrintedTS(t, "export { x, type as as foo } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { x, type as as as } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { x, type type as as } from 'mod'; x", "export { x } from \"mod\";\nx;\n")
+	expectPrintedTS(t, "export { x, \\u0074ype y }; let x, y", "export { x };\nlet x, y;\n")
+	expectPrintedTS(t, "export { x, \\u0074ype y } from 'mod'", "export { x } from \"mod\";\n")
+	expectPrintedTS(t, "export { x, type if } from 'mod'", "export { x } from \"mod\";\n")
+	expectPrintedTS(t, "export { x, type y as if }; let x", "export { x };\nlet x;\n")
+
+	expectParseErrorTS(t, "export { type foo bar } from 'mod'", "<stdin>: error: Expected \"}\" but found \"bar\"\n")
+	expectParseErrorTS(t, "export { type foo as } from 'mod'", "<stdin>: error: Expected identifier but found \"}\"\n")
+	expectParseErrorTS(t, "export { type foo as bar baz } from 'mod'", "<stdin>: error: Expected \"}\" but found \"baz\"\n")
+	expectParseErrorTS(t, "export { type as as as as } from 'mod'", "<stdin>: error: Expected \"}\" but found \"as\"\n")
+	expectParseErrorTS(t, "export { type \\u0061s x } from 'mod'", "<stdin>: error: Expected \"}\" but found \"x\"\n")
+	expectParseErrorTS(t, "export { type x \\u0061s y } from 'mod'", "<stdin>: error: Expected \"}\" but found \"\\\\u0061s\"\n")
+	expectParseErrorTS(t, "export { x, type if }", "<stdin>: error: Expected identifier but found \"if\"\n")
+
+	// Arbitrary module namespace identifier names
+	expectPrintedTS(t, "export { type as \"\" } from 'mod'", "export { type as \"\" } from \"mod\";\n")
+	expectPrintedTS(t, "export { type as as \"\" } from 'mod'", "export {} from \"mod\";\n")
+	expectPrintedTS(t, "export { type x as \"\" } from 'mod'", "export {} from \"mod\";\n")
+	expectPrintedTS(t, "export { type \"\" as x } from 'mod'", "export {} from \"mod\";\n")
+	expectPrintedTS(t, "export { type \"\" as \" \" } from 'mod'", "export {} from \"mod\";\n")
+	expectPrintedTS(t, "export { type \"\" } from 'mod'", "export {} from \"mod\";\n")
+	expectParseErrorTS(t, "export { type \"\" }", "<stdin>: error: Expected identifier but found \"\\\"\\\"\"\n")
+	expectParseErrorTS(t, "export { type \"\" as x }", "<stdin>: error: Expected identifier but found \"\\\"\\\"\"\n")
+	expectParseErrorTS(t, "export { type \"\" as \" \" }", "<stdin>: error: Expected identifier but found \"\\\"\\\"\"\n")
 
 	// Named exports should be removed if they don't refer to a local symbol
 	expectPrintedTS(t, "const Foo = {}; export {Foo}", "const Foo = {};\nexport { Foo };\n")

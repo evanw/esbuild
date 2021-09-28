@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+* Support TypeScript type-only import/export specifiers ([#1637](https://github.com/evanw/esbuild/pull/1637))
+
+    This release adds support for a new TypeScript syntax feature in the upcoming version 4.5 of TypeScript. This feature lets you prefix individual imports and exports with the `type` keyword to indicate that they are types instead of values. This helps tools such as esbuild omit them from your source code, and is necessary because esbuild compiles files one-at-a-time and doesn't know at parse time which imports/exports are types and which are values. The new syntax looks like this:
+
+    ```ts
+    // Input TypeScript code
+    import { type Foo } from 'foo'
+    export { type Bar }
+
+    // Output JavaScript code (requires "importsNotUsedAsValues": "preserve" in "tsconfig.json")
+    import {} from "foo";
+    export {};
+    ```
+
+    See [microsoft/TypeScript#45998](https://github.com/microsoft/TypeScript/pull/45998) for full details. From what I understand this is a purely ergonomic improvement since this was already previously possible using a type-only import/export statements like this:
+
+    ```ts
+    // Input TypeScript code
+    import type { Foo } from 'foo'
+    export type { Bar }
+    import 'foo'
+    export {}
+
+    // Output JavaScript code (requires "importsNotUsedAsValues": "preserve" in "tsconfig.json")
+    import "foo";
+    export {};
+    ```
+
+    This feature was contributed by [@g-plane](https://github.com/g-plane).
+
 ## 0.13.2
 
 * Fix `export {}` statements with `--tree-shaking=true` ([#1628](https://github.com/evanw/esbuild/issues/1628))

@@ -4669,28 +4669,94 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 		originalName := alias
 		p.lexer.Next()
 
-		if p.lexer.IsContextualKeyword("as") {
-			p.lexer.Next()
-			originalName = p.lexer.Identifier
-			name = js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(originalName)}
-			p.lexer.Expect(js_lexer.TIdentifier)
-		} else if !isIdentifier {
-			// An import where the name is a keyword must have an alias
-			p.lexer.ExpectedString("\"as\"")
-		}
+		// "import { type xx } from 'mod'"
+		// "import { type xx as yy } from 'mod'"
+		// "import { type 'xx' as yy } from 'mod'"
+		// "import { type as } from 'mod'"
+		// "import { type as as } from 'mod'"
+		// "import { type as as as } from 'mod'"
+		if p.options.ts.Parse && alias == "type" && p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TCloseBrace {
+			if p.lexer.IsContextualKeyword("as") {
+				p.lexer.Next()
+				if p.lexer.IsContextualKeyword("as") {
+					originalName = p.lexer.Identifier
+					name = js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(originalName)}
+					p.lexer.Next()
 
-		// Reject forbidden names
-		if isEvalOrArguments(originalName) {
-			r := js_lexer.RangeOfIdentifier(p.source, name.Loc)
-			p.log.AddRangeError(&p.tracker, r, fmt.Sprintf("Cannot use %q as an identifier here", originalName))
-		}
+					if p.lexer.Token == js_lexer.TIdentifier {
+						// "import { type as as as } from 'mod'"
+						// "import { type as as foo } from 'mod'"
+						p.lexer.Next()
+					} else {
+						// "import { type as as } from 'mod'"
+						items = append(items, js_ast.ClauseItem{
+							Alias:        alias,
+							AliasLoc:     aliasLoc,
+							Name:         name,
+							OriginalName: originalName,
+						})
+					}
+				} else if p.lexer.Token == js_lexer.TIdentifier {
+					// "import { type as xxx } from 'mod'"
+					originalName = p.lexer.Identifier
+					name = js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(originalName)}
+					p.lexer.Expect(js_lexer.TIdentifier)
 
-		items = append(items, js_ast.ClauseItem{
-			Alias:        alias,
-			AliasLoc:     aliasLoc,
-			Name:         name,
-			OriginalName: originalName,
-		})
+					// Reject forbidden names
+					if isEvalOrArguments(originalName) {
+						r := js_lexer.RangeOfIdentifier(p.source, name.Loc)
+						p.log.AddRangeError(&p.tracker, r, fmt.Sprintf("Cannot use %q as an identifier here", originalName))
+					}
+
+					items = append(items, js_ast.ClauseItem{
+						Alias:        alias,
+						AliasLoc:     aliasLoc,
+						Name:         name,
+						OriginalName: originalName,
+					})
+				}
+			} else {
+				isIdentifier := p.lexer.Token == js_lexer.TIdentifier
+
+				// "import { type xx } from 'mod'"
+				// "import { type xx as yy } from 'mod'"
+				// "import { type if as yy } from 'mod'"
+				// "import { type 'xx' as yy } from 'mod'"
+				p.parseClauseAlias("import")
+				p.lexer.Next()
+
+				if p.lexer.IsContextualKeyword("as") {
+					p.lexer.Next()
+					p.lexer.Expect(js_lexer.TIdentifier)
+				} else if !isIdentifier {
+					// An import where the name is a keyword must have an alias
+					p.lexer.ExpectedString("\"as\"")
+				}
+			}
+		} else {
+			if p.lexer.IsContextualKeyword("as") {
+				p.lexer.Next()
+				originalName = p.lexer.Identifier
+				name = js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(originalName)}
+				p.lexer.Expect(js_lexer.TIdentifier)
+			} else if !isIdentifier {
+				// An import where the name is a keyword must have an alias
+				p.lexer.ExpectedString("\"as\"")
+			}
+
+			// Reject forbidden names
+			if isEvalOrArguments(originalName) {
+				r := js_lexer.RangeOfIdentifier(p.source, name.Loc)
+				p.log.AddRangeError(&p.tracker, r, fmt.Sprintf("Cannot use %q as an identifier here", originalName))
+			}
+
+			items = append(items, js_ast.ClauseItem{
+				Alias:        alias,
+				AliasLoc:     aliasLoc,
+				Name:         name,
+				OriginalName: originalName,
+			})
+		}
 
 		if p.lexer.Token != js_lexer.TComma {
 			break
@@ -4738,19 +4804,89 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 		}
 		p.lexer.Next()
 
-		if p.lexer.IsContextualKeyword("as") {
-			p.lexer.Next()
-			alias = p.parseClauseAlias("export")
-			aliasLoc = p.lexer.Loc()
-			p.lexer.Next()
-		}
+		if p.options.ts.Parse && alias == "type" && p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TCloseBrace {
+			if p.lexer.IsContextualKeyword("as") {
+				p.lexer.Next()
+				if p.lexer.IsContextualKeyword("as") {
+					alias = p.parseClauseAlias("export")
+					aliasLoc = p.lexer.Loc()
+					p.lexer.Next()
 
-		items = append(items, js_ast.ClauseItem{
-			Alias:        alias,
-			AliasLoc:     aliasLoc,
-			Name:         name,
-			OriginalName: originalName,
-		})
+					if p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TCloseBrace {
+						// "export { type as as as }"
+						// "export { type as as foo }"
+						// "export { type as as 'foo' }"
+						p.parseClauseAlias("export")
+						p.lexer.Next()
+					} else {
+						// "export { type as as }"
+						items = append(items, js_ast.ClauseItem{
+							Alias:        alias,
+							AliasLoc:     aliasLoc,
+							Name:         name,
+							OriginalName: originalName,
+						})
+					}
+				} else if p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TCloseBrace {
+					// "export { type as xxx }"
+					// "export { type as 'xxx' }"
+					alias = p.parseClauseAlias("export")
+					aliasLoc = p.lexer.Loc()
+					p.lexer.Next()
+
+					items = append(items, js_ast.ClauseItem{
+						Alias:        alias,
+						AliasLoc:     aliasLoc,
+						Name:         name,
+						OriginalName: originalName,
+					})
+				}
+			} else {
+				// The name can actually be a keyword if we're really an "export from"
+				// statement. However, we won't know until later. Allow keywords as
+				// identifiers for now and throw an error later if there's no "from".
+				//
+				//   // This is fine
+				//   export { type default } from 'path'
+				//
+				//   // This is a syntax error
+				//   export { type default }
+				//
+				if p.lexer.Token != js_lexer.TIdentifier && firstNonIdentifierLoc.Start == 0 {
+					firstNonIdentifierLoc = p.lexer.Loc()
+				}
+
+				// "export { type xx }"
+				// "export { type xx as yy }"
+				// "export { type xx as if }"
+				// "export { type default } from 'path'"
+				// "export { type default as if } from 'path'"
+				// "export { type xx as 'yy' }"
+				// "export { type 'xx' } from 'mod'"
+				p.parseClauseAlias("export")
+				p.lexer.Next()
+
+				if p.lexer.IsContextualKeyword("as") {
+					p.lexer.Next()
+					p.parseClauseAlias("export")
+					p.lexer.Next()
+				}
+			}
+		} else {
+			if p.lexer.IsContextualKeyword("as") {
+				p.lexer.Next()
+				alias = p.parseClauseAlias("export")
+				aliasLoc = p.lexer.Loc()
+				p.lexer.Next()
+			}
+
+			items = append(items, js_ast.ClauseItem{
+				Alias:        alias,
+				AliasLoc:     aliasLoc,
+				Name:         name,
+				OriginalName: originalName,
+			})
+		}
 
 		if p.lexer.Token != js_lexer.TComma {
 			break
