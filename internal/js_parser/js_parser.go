@@ -4669,12 +4669,11 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 		originalName := alias
 		p.lexer.Next()
 
-		// Handle:
-		// `import { type xx } from 'mod'`
-		// `import { type xx as yy } from 'mod'`
-		// `import { type as } from 'mod'`
-		// `import { type as as } from 'mod'`
-		// `import { type as as as } from 'mod'`
+		// "import { type xx } from 'mod'"
+		// "import { type xx as yy } from 'mod'"
+		// "import { type as } from 'mod'"
+		// "import { type as as } from 'mod'"
+		// "import { type as as as } from 'mod'"
 		if alias == "type" && p.options.ts.Parse && p.lexer.Token == js_lexer.TIdentifier {
 			if p.lexer.IsContextualKeyword("as") {
 				p.lexer.Next()
@@ -4684,11 +4683,11 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 					p.lexer.Next()
 
 					if p.lexer.Token == js_lexer.TIdentifier {
-						// `import { type as as as } from 'mod'`
-						// `import { type as as foo } from 'mod'`
+						// "import { type as as as } from 'mod'"
+						// "import { type as as foo } from 'mod'"
 						p.lexer.Next()
 					} else {
-						// `import { type as as } from 'mod'`
+						// "import { type as as } from 'mod'"
 						items = append(items, js_ast.ClauseItem{
 							Alias:        alias,
 							AliasLoc:     aliasLoc,
@@ -4697,7 +4696,7 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 						})
 					}
 				} else if p.lexer.Token == js_lexer.TIdentifier {
-					// `import { type as xxx } from 'mod'`
+					// "import { type as xxx } from 'mod'"
 					originalName = p.lexer.Identifier
 					name = js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(originalName)}
 					p.lexer.Expect(js_lexer.TIdentifier)
@@ -4716,8 +4715,8 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 					})
 				}
 			} else {
-				// `import { type xx } from 'mod'`
-				// `import { type xx as yy } from 'mod'`
+				// "import { type xx } from 'mod'"
+				// "import { type xx as yy } from 'mod'"
 				p.lexer.Next()
 
 				if p.lexer.IsContextualKeyword("as") {
@@ -4805,11 +4804,11 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 					p.lexer.Next()
 
 					if p.lexer.Token == js_lexer.TIdentifier {
-						// `export { type as as as }`
-						// `export { type as as foo }`
+						// "export { type as as as }"
+						// "export { type as as foo }"
 						p.lexer.Next()
 					} else {
-						// `export { type as as }``
+						// "export { type as as }"
 						items = append(items, js_ast.ClauseItem{
 							Alias:        alias,
 							AliasLoc:     aliasLoc,
@@ -4818,7 +4817,7 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 						})
 					}
 				} else if p.lexer.Token == js_lexer.TIdentifier {
-					// `export { type as xxx }``
+					// "export { type as xxx }"
 					alias = p.parseClauseAlias("export")
 					aliasLoc = p.lexer.Loc()
 					p.lexer.Next()
@@ -4831,8 +4830,8 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 					})
 				}
 			} else {
-				// `export { type xx }`
-				// `export { type xx as yy }`
+				// "export { type xx }"
+				// "export { type xx as yy }"
 				p.lexer.Next()
 
 				if p.lexer.IsContextualKeyword("as") {
