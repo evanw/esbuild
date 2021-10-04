@@ -29,44 +29,34 @@ export const knownUnixlikePackages: Record<string, string> = {
   'sunos x64 LE': 'esbuild-sunos-64',
 };
 
-export function binPathForCurrentPlatform(): string {
+export function pkgAndSubpathForCurrentPlatform(): { pkg: string, subpath: string } {
   let pkg: string;
-  let bin: string;
+  let subpath: string;
   let platformKey = `${process.platform} ${os.arch()} ${os.endianness()}`;
 
   if (platformKey in knownWindowsPackages) {
     pkg = knownWindowsPackages[platformKey];
-    bin = `${pkg}/esbuild.exe`;
+    subpath = 'esbuild.exe';
   }
 
   else if (platformKey in knownUnixlikePackages) {
     pkg = knownUnixlikePackages[platformKey];
-    bin = `${pkg}/bin/esbuild`;
+    subpath = 'bin/esbuild';
   }
 
   else {
     throw new Error(`Unsupported platform: ${platformKey}`);
   }
 
-  try {
-    bin = require.resolve(bin);
-  } catch (e) {
-    try {
-      require.resolve(pkg)
-    } catch {
-      throw new Error(`The package "${pkg}" could not be found, and is needed by esbuild.
-
-If you are installing esbuild with npm, make sure that you don't specify the
-"--no-optional" flag. The "optionalDependencies" package.json feature is used
-by esbuild to install the correct binary executable for your current platform.`)
-    }
-    throw e
-  }
-
-  return bin;
+  return { pkg, subpath };
 }
 
-export function extractedBinPath(): string {
+export function downloadedBinPath(pkg: string, subpath: string): string {
+  const esbuildLibDir = path.dirname(require.resolve('esbuild'));
+  return path.join(esbuildLibDir, `downloaded-${pkg}-${path.basename(subpath)}`);
+}
+
+export function generateBinPath(): string {
   // This feature was added to give external code a way to modify the binary
   // path without modifying the code itself. Do not remove this because
   // external code relies on this (in addition to esbuild's own test suite).
@@ -74,7 +64,37 @@ export function extractedBinPath(): string {
     return ESBUILD_BINARY_PATH;
   }
 
-  const bin = binPathForCurrentPlatform();
+  const { pkg, subpath } = pkgAndSubpathForCurrentPlatform();
+  let binPath: string;
+
+  try {
+    // First check for the binary package from our "optionalDependencies". This
+    // package should have been installed alongside this package at install time.
+    binPath = require.resolve(`${pkg}/${subpath}`);
+  } catch (e) {
+    // If that didn't work, then someone probably installed esbuild with the
+    // "--no-optional" flag. Our install script attempts to compensate for this
+    // by manually downloading the package instead. Check for that next.
+    binPath = downloadedBinPath(pkg, subpath);
+    if (!fs.existsSync(binPath)) {
+      // If that didn't work too, then we're out of options. This can happen
+      // when someone installs esbuild with both the "--no-optional" and the
+      // "--ignore-scripts" flags. The fix for this is to just not do that.
+      //
+      // In that case we try to have a nice error message if we think we know
+      // what's happening. Otherwise we just rethrow the original error message.
+      try {
+        require.resolve(pkg);
+      } catch {
+        throw new Error(`The package "${pkg}" could not be found, and is needed by esbuild.
+
+If you are installing esbuild with npm, make sure that you don't specify the
+"--no-optional" flag. The "optionalDependencies" package.json feature is used
+by esbuild to install the correct binary executable for your current platform.`);
+      }
+      throw e;
+    }
+  }
 
   // The esbuild binary executable can't be used in Yarn 2 in PnP mode because
   // it's inside a virtual file system and the OS needs it in the real file
@@ -88,13 +108,13 @@ export function extractedBinPath(): string {
   }
   if (isYarnPnP) {
     const esbuildLibDir = path.dirname(require.resolve('esbuild'));
-    const binTargetPath = path.join(esbuildLibDir, 'yarn-pnp-' + path.basename(bin));
+    const binTargetPath = path.join(esbuildLibDir, 'yarn-pnp-' + path.basename(subpath));
     if (!fs.existsSync(binTargetPath)) {
-      fs.copyFileSync(bin, binTargetPath);
+      fs.copyFileSync(binPath, binTargetPath);
       fs.chmodSync(binTargetPath, 0o755);
     }
     return binTargetPath;
   }
 
-  return bin;
+  return binPath;
 }

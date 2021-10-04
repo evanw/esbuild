@@ -1,6 +1,6 @@
 import * as types from "../shared/types";
 import * as common from "../shared/common";
-import { extractedBinPath } from "./node-platform";
+import { generateBinPath } from "./node-platform";
 
 import child_process = require('child_process');
 import crypto = require('crypto');
@@ -66,7 +66,7 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
     return ['node', [path.join(__dirname, '..', 'bin', 'esbuild')]];
   }
 
-  return [extractedBinPath(), []];
+  return [generateBinPath(), []];
 };
 
 // Return true if stderr is a TTY
