@@ -7,6 +7,7 @@ import child_process = require('child_process');
 
 declare const ESBUILD_VERSION: string;
 const toPath = path.join(__dirname, 'bin', 'esbuild');
+let isToPathJS = true;
 
 function validateBinaryVersion(...command: string[]): void {
   command.push('--version');
@@ -40,9 +41,6 @@ if (process.env.ESBUILD_BINARY_PATH) {
   const libMain = path.join(__dirname, 'lib', 'main.js');
   const code = fs.readFileSync(libMain, 'utf8');
   fs.writeFileSync(libMain, `var ESBUILD_BINARY_PATH = ${pathString};\n${code}`);
-
-  // Windows needs "node" before this command since it's a JavaScript file
-  validateBinaryVersion('node', toPath);
 }
 
 // This package contains a "bin/esbuild" JavaScript file that finds and runs
@@ -60,18 +58,30 @@ if (process.env.ESBUILD_BINARY_PATH) {
 // this install script will not be run.
 else if (os.platform() !== 'win32' && !isYarn2OrAbove()) {
   const bin = binPathForCurrentPlatform();
+  const tempPath = path.join(__dirname, 'bin-esbuild');
   try {
-    fs.unlinkSync(toPath);
-    fs.linkSync(bin, toPath);
+    // First link the binary with a temporary file. If this fails and throws an
+    // error, then we'll just end up doing nothing. This uses a hard link to
+    // avoid taking up additional space on the file system.
+    fs.linkSync(bin, tempPath);
+
+    // Then use rename to atomically replace the target file with the temporary
+    // file. If this fails and throws an error, then we'll just end up leaving
+    // the temporary file there, which is harmless.
+    fs.renameSync(tempPath, toPath);
+
+    // If we get here, then we know that the target location is now a binary
+    // executable instead of a JavaScript file.
+    isToPathJS = false;
   } catch (e) {
     // Ignore errors here since this optimization is optional
   }
-
-  // This is no longer a JavaScript file so don't run it using "node"
-  validateBinaryVersion(toPath);
 }
 
-else {
-  // Windows needs "node" before this command since it's a JavaScript file
+if (isToPathJS) {
+  // We need "node" before this command since it's a JavaScript file
   validateBinaryVersion('node', toPath);
+} else {
+  // This is no longer a JavaScript file so don't run it using "node"
+  validateBinaryVersion(toPath);
 }
