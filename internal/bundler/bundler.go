@@ -1923,6 +1923,8 @@ func DefaultExtensionToLoaderMap() map[string]config.Loader {
 		".cjs":  config.LoaderJS,
 		".jsx":  config.LoaderJSX,
 		".ts":   config.LoaderTS,
+		".cts":  config.LoaderTS,
+		".mts":  config.LoaderTS,
 		".tsx":  config.LoaderTSX,
 		".css":  config.LoaderCSS,
 		".json": config.LoaderJSON,

@@ -405,7 +405,7 @@ func isValidExtension(ext string) bool {
 
 func validateResolveExtensions(log logger.Log, order []string) []string {
 	if order == nil {
-		return []string{".tsx", ".ts", ".jsx", ".js", ".css", ".json"}
+		return []string{".tsx", ".ts", ".cts", ".mts", ".jsx", ".js", ".css", ".json"}
 	}
 	for _, ext := range order {
 		if !isValidExtension(ext) {

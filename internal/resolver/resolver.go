@@ -1054,6 +1054,15 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	return info
 }
 
+var rewrittenFileExtensions = map[string][]string{
+	// Note that the official compiler code always tries ".ts" before
+	// ".tsx" even if the original extension was ".jsx".
+	".js":  {".ts", ".tsx"},
+	".jsx": {".ts", ".tsx"},
+	".mjs": {".mts"},
+	".cjs": {".cts"},
+}
+
 func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string, bool, *fs.DifferentCase) {
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Attempting to load %q as a file", path))
@@ -1117,11 +1126,12 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 	//
 	// See the discussion here for more historical context:
 	// https://github.com/microsoft/TypeScript/issues/4595
-	if strings.HasSuffix(base, ".js") || strings.HasSuffix(base, ".jsx") {
+	for old, exts := range rewrittenFileExtensions {
+		if !strings.HasSuffix(base, old) {
+			continue
+		}
 		lastDot := strings.LastIndexByte(base, '.')
-		// Note that the official compiler code always tries ".ts" before
-		// ".tsx" even if the original extension was ".jsx".
-		for _, ext := range []string{".ts", ".tsx"} {
+		for _, ext := range exts {
 			if entry, diffCase := entries.Get(base[:lastDot] + ext); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 				if r.debugLogs != nil {
 					r.debugLogs.addNote(fmt.Sprintf("Rewrote to %q", base[:lastDot]+ext))
@@ -1132,6 +1142,7 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 				r.debugLogs.addNote(fmt.Sprintf("Failed to rewrite to %q", base[:lastDot]+ext))
 			}
 		}
+		break
 	}
 
 	if r.debugLogs != nil {

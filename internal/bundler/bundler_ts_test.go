@@ -1244,3 +1244,41 @@ func TestTSAbstractClassFieldUseDefine(t *testing.T) {
 		},
 	})
 }
+
+func TestTSImportMTS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import './imported.mjs'
+			`,
+			"/imported.mts": `
+				console.log('works')
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatESModule,
+		},
+	})
+}
+
+func TestTSImportCTS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				require('./required.cjs')
+			`,
+			"/required.cjs": `
+				console.log('works')
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatCommonJS,
+		},
+	})
+}

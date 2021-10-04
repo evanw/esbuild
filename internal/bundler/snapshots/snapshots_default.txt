@@ -2657,6 +2657,25 @@ __decorateClass([
 new Foo();
 
 ================================================================================
+TestTSImportCTS
+---------- /out.js ----------
+// required.cjs
+var require_required = __commonJS({
+  "required.cjs"() {
+    console.log("works");
+  }
+});
+
+// entry.ts
+require_required();
+
+================================================================================
+TestTSImportMTS
+---------- /out.js ----------
+// imported.mts
+console.log("works");
+
+================================================================================
 TestThisInsideFunction
 ---------- /out.js ----------
 // entry.js
