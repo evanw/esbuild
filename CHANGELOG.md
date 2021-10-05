@@ -26,6 +26,38 @@
 
     With this release, esbuild will also automatically rewrite `.mjs` to `.mts` and `.cjs` to `.cts` when resolving import paths to files on the file system. This should make it possible to bundle code written in this new style. In addition, the extensions `.mts` and `.cts` are now also considered valid TypeScript file extensions by default along with the `.ts` extension.
 
+* Fix invalid CSS minification of `margin` and `padding` ([#1657](https://github.com/evanw/esbuild/issues/1657))
+
+    CSS minification does collapsing of `margin` and `padding` related properties. For example:
+
+    ```css
+    /* Original CSS */
+    div {
+      margin: auto;
+      margin-top: 5px;
+      margin-left: 5px;
+    }
+
+    /* Minified CSS */
+    div{margin:5px auto auto 5px}
+    ```
+
+    However, while this works for the `auto` keyword, it doesn't work for other keywords. For example:
+
+    ```css
+    /* Original CSS */
+    div {
+      margin: inherit;
+      margin-top: 5px;
+      margin-left: 5px;
+    }
+
+    /* Minified CSS */
+    div{margin:inherit;margin-top:5px;margin-left:5px}
+    ```
+
+    Transforming this to `div{margin:5px inherit inherit 5px}`, as was done in previous releases of esbuild, is an invalid transformation and results in incorrect CSS. This release of esbuild fixes this CSS transformation bug.
+
 ## 0.13.3
 
 * Support TypeScript type-only import/export specifiers ([#1637](https://github.com/evanw/esbuild/pull/1637))

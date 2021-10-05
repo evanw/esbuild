@@ -980,7 +980,6 @@ func TestMarginAndPadding(t *testing.T) {
 		expectPrintedMangle(t, "a { "+x+"-top: 1; "+x+"-top: }", "a {\n  "+x+"-top: 1;\n  "+x+"-top:;\n}\n")
 		expectPrintedMangle(t, "a { "+x+"-top: 1; "+x+"-top: 2 3 }", "a {\n  "+x+"-top: 1;\n  "+x+"-top: 2 3;\n}\n")
 		expectPrintedMangle(t, "a { "+x+": 1 2 3 4; "+x+"-left: -4; "+x+"-right: -2 }", "a {\n  "+x+": 1 -2 3 -4;\n}\n")
-		expectPrintedMangle(t, "a { "+x+": 1 auto 3 4; "+x+"-left: auto }", "a {\n  "+x+": 1 auto 3;\n}\n")
 		expectPrintedMangle(t, "a { "+x+": 1 2; "+x+"-top: 5 }", "a {\n  "+x+": 5 2 1;\n}\n")
 		expectPrintedMangle(t, "a { "+x+": 1; "+x+"-top: 5 }", "a {\n  "+x+": 5 1 1;\n}\n")
 
@@ -999,6 +998,14 @@ func TestMarginAndPadding(t *testing.T) {
 		// This should not be changed because "--x" and "--z" could be empty
 		expectPrintedMangle(t, "a { "+x+": var(--x) var(--y) var(--z) var(--y) }", "a {\n  "+x+": var(--x) var(--y) var(--z) var(--y);\n}\n")
 	}
+
+	// "auto" is the only keyword allowed in a quad, and only for "margin" not for "padding"
+	expectPrintedMangle(t, "a { margin: 1 auto 3 4; margin-left: auto }", "a {\n  margin: 1 auto 3;\n}\n")
+	expectPrintedMangle(t, "a { padding: 1 auto 3 4; padding-left: auto }", "a {\n  padding: 1 auto 3 4;\n  padding-left: auto;\n}\n")
+	expectPrintedMangle(t, "a { margin: auto; margin-left: 1px }", "a {\n  margin: auto auto auto 1px;\n}\n")
+	expectPrintedMangle(t, "a { padding: auto; padding-left: 1px }", "a {\n  padding: auto;\n  padding-left: 1px;\n}\n")
+	expectPrintedMangle(t, "a { margin: inherit; margin-left: 1px }", "a {\n  margin: inherit;\n  margin-left: 1px;\n}\n")
+	expectPrintedMangle(t, "a { padding: inherit; padding-left: 1px }", "a {\n  padding: inherit;\n  padding-left: 1px;\n}\n")
 }
 
 func TestBorderRadius(t *testing.T) {
