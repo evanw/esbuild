@@ -19,13 +19,10 @@ function validateBinaryVersion(...command: string[]): void {
   }
 }
 
-function isYarn2OrAbove(): boolean {
+function isYarn(): boolean {
   const { npm_config_user_agent } = process.env;
   if (npm_config_user_agent) {
-    const match = npm_config_user_agent.match(/yarn\/(\d+)/);
-    if (match && match[1]) {
-      return parseInt(match[1], 10) >= 2;
-    }
+    return /\byarn\//.test(npm_config_user_agent);
   }
   return false;
 }
@@ -146,12 +143,17 @@ function maybeOptimizePackage(binPath: string): void {
   // Here we optimize for this by replacing the JavaScript file with the binary
   // executable at install time. This optimization does not work on Windows
   // because on Windows the binary executable must be called "esbuild.exe"
-  // instead of "esbuild". This also doesn't work with Yarn 2+ because the Yarn
-  // developers don't think binary modules should be used. See this thread for
-  // details: https://github.com/yarnpkg/berry/issues/882. This optimization also
-  // doesn't apply when npm's "--ignore-scripts" flag is used since in that case
-  // this install script will not be run.
-  if (os.platform() !== 'win32' && !isYarn2OrAbove()) {
+  // instead of "esbuild".
+  //
+  // This also doesn't work with Yarn both because of lack of support for binary
+  // files in Yarn 2+ (see https://github.com/yarnpkg/berry/issues/882) and
+  // because Yarn (even Yarn 1?) may run the same install scripts in the same
+  // place multiple times from different platforms, especially when people use
+  // Docker. Avoid idempotency issues by just not optimizing when using Yarn.
+  //
+  // This optimization also doesn't apply when npm's "--ignore-scripts" flag is
+  // used since in that case this install script will not be run.
+  if (os.platform() !== 'win32' && !isYarn()) {
     const tempPath = path.join(__dirname, 'bin-esbuild');
     try {
       // First link the binary with a temporary file. If this fails and throws an
