@@ -58,6 +58,22 @@
 
     Transforming this to `div{margin:5px inherit inherit 5px}`, as was done in previous releases of esbuild, is an invalid transformation and results in incorrect CSS. This release of esbuild fixes this CSS transformation bug.
 
+* Drop catch binding when optional catch binding is supported ([#1660](https://github.com/evanw/esbuild/pull/1660))
+
+    The `--minify-syntax` flag (automatically enabled by `--minify`) will now drop catch binding when optional catch binding is supported.
+
+    ```js
+    // Original code
+    try {
+      throw 0
+    } catch (e) {}
+
+    // Output with "--minify-syntax" when optional catch binding is supported
+    try {
+      throw 0
+    } catch {}
+    ```
+
 ## 0.13.3
 
 * Support TypeScript type-only import/export specifiers ([#1637](https://github.com/evanw/esbuild/pull/1637))
