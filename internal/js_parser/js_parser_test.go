@@ -4804,3 +4804,10 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedTargetASCII(t, 5, "export var π", "export var \\u03C0;\n")
 	expectParseErrorTargetASCII(t, 5, "export var 𐀀", es5)
 }
+
+func TestDropUnusedCatchBinding(t *testing.T) {
+	expectPrintedMangle(t, "try { throw 0 } catch (e) { console.log(0) }", "try {\n  throw 0;\n} catch {\n  console.log(0);\n}\n")
+	expectPrintedMangle(t, "try { throw 0 } catch (e) { console.log(0, e) }", "try {\n  throw 0;\n} catch (e) {\n  console.log(0, e);\n}\n")
+	expectPrintedMangle(t, "try { thrower() } catch ({ a }) { console.log(0) }", "try {\n  thrower();\n} catch ({ a }) {\n  console.log(0);\n}\n")
+	expectPrintedMangleTarget(t, 2018, "try { throw 0 } catch (e) { console.log(0) }", "try {\n  throw 0;\n} catch (e) {\n  console.log(0);\n}\n")
+}

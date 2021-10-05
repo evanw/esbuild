@@ -7564,6 +7564,16 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					}
 				}
 			}
+
+		case *js_ast.STry:
+			// Drop unused binding if optional catch binding is supported
+			if !p.options.unsupportedJSFeatures.Has(compat.OptionalCatchBinding) {
+				if s.Catch != nil && s.Catch.BindingOrNil.Data != nil {
+					if id, ok := s.Catch.BindingOrNil.Data.(*js_ast.BIdentifier); ok && p.symbolUses[id.Ref].CountEstimate == 0 {
+						s.Catch.BindingOrNil.Data = nil
+					}
+				}
+			}
 		}
 
 		result = append(result, stmt)
