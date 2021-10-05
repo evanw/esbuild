@@ -108,7 +108,7 @@ by esbuild to install the correct binary executable for your current platform.`)
   }
   if (isYarnPnP) {
     const esbuildLibDir = path.dirname(require.resolve('esbuild'));
-    const binTargetPath = path.join(esbuildLibDir, 'yarn-pnp-' + path.basename(subpath));
+    const binTargetPath = path.join(esbuildLibDir, `pnpapi-${pkg}-${path.basename(subpath)}`);
     if (!fs.existsSync(binTargetPath)) {
       fs.copyFileSync(binPath, binTargetPath);
       fs.chmodSync(binTargetPath, 0o755);
