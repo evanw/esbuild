@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.4
 
 * Fix permission issues with the install script ([#1642](https://github.com/evanw/esbuild/issues/1642))
 
