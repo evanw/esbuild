@@ -4810,4 +4810,8 @@ func TestDropUnusedCatchBinding(t *testing.T) {
 	expectPrintedMangle(t, "try { throw 0 } catch (e) { console.log(0, e) }", "try {\n  throw 0;\n} catch (e) {\n  console.log(0, e);\n}\n")
 	expectPrintedMangle(t, "try { thrower() } catch ({ a }) { console.log(0) }", "try {\n  thrower();\n} catch ({ a }) {\n  console.log(0);\n}\n")
 	expectPrintedMangleTarget(t, 2018, "try { throw 0 } catch (e) { console.log(0) }", "try {\n  throw 0;\n} catch (e) {\n  console.log(0);\n}\n")
+
+	expectPrintedMangle(t, "try {\n throw 1 } catch (x) { y.push(x); var x = 2; y.push(x) }", "try {\n  throw 1;\n} catch (x) {\n  y.push(x);\n  var x = 2;\n  y.push(x);\n}\n")
+	expectPrintedMangle(t, "try {\n throw 1 } catch (x) { var x = 2; y.push(x) }", "try {\n  throw 1;\n} catch (x) {\n  var x = 2;\n  y.push(x);\n}\n")
+	expectPrintedMangle(t, "try {\n throw 1 } catch (x) { var x = 2 }", "try {\n  throw 1;\n} catch (x) {\n  var x = 2;\n}\n")
 }
