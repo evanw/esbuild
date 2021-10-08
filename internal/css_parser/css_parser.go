@@ -279,11 +279,6 @@ skipRule:
 		rule := rules[i]
 
 		switch r := rule.Data.(type) {
-		case *css_ast.RAtKeyframes:
-			if len(r.Blocks) == 0 {
-				continue
-			}
-
 		case *css_ast.RKnownAt:
 			if len(r.Rules) == 0 {
 				continue
