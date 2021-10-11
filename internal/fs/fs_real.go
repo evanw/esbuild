@@ -336,19 +336,23 @@ func (fs *realFS) readdir(dirname string) (entries []string, canonicalError erro
 	if canonicalError != nil {
 		return nil, canonicalError, originalError
 	}
-
 	defer f.Close()
-	entries, err := f.Readdirnames(-1)
 
-	// Unwrap to get the underlying error
-	if syscallErr, ok := err.(*os.SyscallError); ok {
-		err = syscallErr.Unwrap()
+	entries, originalError = f.Readdirnames(-1)
+	if originalError != nil {
+		canonicalError = originalError
+		// Unwrap to get the underlying error
+		if syscallErr, ok := originalError.(*os.SyscallError); ok {
+			canonicalError = syscallErr.Unwrap()
+		}
+
+		// Don't convert ENOTDIR to ENOENT here. ENOTDIR is a legitimate error
+		// condition for Readdirnames() on non-Windows platforms.
+
+		return nil, canonicalError, originalError
 	}
 
-	// Don't convert ENOTDIR to ENOENT here. ENOTDIR is a legitimate error
-	// condition for Readdirnames() on non-Windows platforms.
-
-	return entries, canonicalError, originalError
+	return entries, nil, nil
 }
 
 func (fs *realFS) canonicalizeError(err error) error {
