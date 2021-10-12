@@ -697,7 +697,9 @@ func runOnResolvePlugins(
 				fsCache.ReadFile(fs, file)
 			}
 			for _, dir := range result.AbsWatchDirs {
-				fs.ReadDirectory(dir)
+				if entries, err, _ := fs.ReadDirectory(dir); err == nil {
+					entries.SortedKeys()
+				}
 			}
 
 			// Stop now if there was an error
@@ -812,7 +814,9 @@ func runOnLoadPlugins(
 				fsCache.ReadFile(fs, file)
 			}
 			for _, dir := range result.AbsWatchDirs {
-				fs.ReadDirectory(dir)
+				if entries, err, _ := fs.ReadDirectory(dir); err == nil {
+					entries.SortedKeys()
+				}
 			}
 
 			// Stop now if there was an error

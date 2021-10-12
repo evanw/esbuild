@@ -1212,11 +1212,11 @@ func (w *watcher) tryToFindDirtyPath() string {
 
 	// Always check all recent items every iteration
 	for i, path := range w.recentItems {
-		if w.data.Paths[path]() {
+		if dirtyPath := w.data.Paths[path](); dirtyPath != "" {
 			// Move this path to the back of the list (i.e. the "most recent" position)
 			copy(w.recentItems[i:], w.recentItems[i+1:])
 			w.recentItems[len(w.recentItems)-1] = path
-			return path
+			return dirtyPath
 		}
 	}
 
@@ -1230,7 +1230,7 @@ func (w *watcher) tryToFindDirtyPath() string {
 
 	// Check if any of the entries in this iteration have been modified
 	for _, path := range toCheck {
-		if w.data.Paths[path]() {
+		if dirtyPath := w.data.Paths[path](); dirtyPath != "" {
 			// Mark this item as recent by adding it to the back of the list
 			w.recentItems = append(w.recentItems, path)
 			if len(w.recentItems) > maxRecentItemCount {
@@ -1238,7 +1238,7 @@ func (w *watcher) tryToFindDirtyPath() string {
 				copy(w.recentItems, w.recentItems[1:])
 				w.recentItems = w.recentItems[:maxRecentItemCount]
 			}
-			return path
+			return dirtyPath
 		}
 	}
 	return ""

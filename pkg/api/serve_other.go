@@ -193,7 +193,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		if h.servedir != "" && kind != fs.FileEntry {
 			if entries, err, _ := h.fs.ReadDirectory(h.fs.Join(h.servedir, queryPath)); err == nil {
 				kind = fs.DirEntry
-				for _, name := range entries.UnorderedKeys() {
+				for _, name := range entries.SortedKeys() {
 					entry, _ := entries.Get(name)
 					switch entry.Kind(h.fs) {
 					case fs.DirEntry:

@@ -38,20 +38,20 @@ type entriesOrErr struct {
 type watchState uint8
 
 const (
-	stateNone               watchState = iota
-	stateDirHasEntries                 // Compare "dirEntries"
-	stateDirMissing                    // Compare directory presence
-	stateFileHasModKey                 // Compare "modKey"
-	stateFileNeedModKey                // Need to transition to "stateFileHasModKey" or "stateFileUnusableModKey" before "WatchData()" returns
-	stateFileMissing                   // Compare file presence
-	stateFileUnusableModKey            // Compare "fileContents"
+	stateNone                  watchState = iota
+	stateDirHasAccessedEntries            // Compare "accessedEntries"
+	stateDirMissing                       // Compare directory presence
+	stateFileHasModKey                    // Compare "modKey"
+	stateFileNeedModKey                   // Need to transition to "stateFileHasModKey" or "stateFileUnusableModKey" before "WatchData()" returns
+	stateFileMissing                      // Compare file presence
+	stateFileUnusableModKey               // Compare "fileContents"
 )
 
 type privateWatchData struct {
-	dirEntries   []string
-	fileContents string
-	modKey       ModKey
-	state        watchState
+	accessedEntries *accessedEntries
+	fileContents    string
+	modKey          ModKey
+	state           watchState
 }
 
 type RealFSOptions struct {
@@ -133,7 +133,7 @@ func (fs *realFS) ReadDirectory(dir string) (entries DirEntries, canonicalError 
 
 	// Cache miss: read the directory entries
 	names, canonicalError, originalError := fs.readdir(dir)
-	entries = DirEntries{dir, make(map[string]*Entry)}
+	entries = DirEntries{dir, make(map[string]*Entry), nil}
 
 	// Unwrap to get the underlying error
 	if pathErr, ok := canonicalError.(*os.PathError); ok {
@@ -157,14 +157,14 @@ func (fs *realFS) ReadDirectory(dir string) (entries DirEntries, canonicalError 
 	if fs.watchData != nil {
 		defer fs.watchMutex.Unlock()
 		fs.watchMutex.Lock()
-		state := stateDirHasEntries
+		state := stateDirHasAccessedEntries
 		if canonicalError != nil {
 			state = stateDirMissing
 		}
-		sort.Strings(names)
+		entries.accessedEntries = &accessedEntries{wasPresent: make(map[string]bool)}
 		fs.watchData[dir] = privateWatchData{
-			dirEntries: names,
-			state:      state,
+			accessedEntries: entries.accessedEntries,
+			state:           state,
 		}
 	}
 
@@ -432,7 +432,7 @@ func (fs *realFS) kind(dir string, base string) (symlink string, kind EntryKind)
 }
 
 func (fs *realFS) WatchData() WatchData {
-	paths := make(map[string]func() bool)
+	paths := make(map[string]func() string)
 
 	for path, data := range fs.watchData {
 		// Each closure below needs its own copy of these loop variables
@@ -454,42 +454,70 @@ func (fs *realFS) WatchData() WatchData {
 
 		switch data.state {
 		case stateDirMissing:
-			paths[path] = func() bool {
+			paths[path] = func() string {
 				info, err := os.Stat(path)
-				return err == nil && info.IsDir()
+				if err == nil && info.IsDir() {
+					return path
+				}
+				return ""
 			}
 
-		case stateDirHasEntries:
-			paths[path] = func() bool {
+		case stateDirHasAccessedEntries:
+			paths[path] = func() string {
 				names, err, _ := fs.readdir(path)
-				if err != nil || len(names) != len(data.dirEntries) {
-					return true
+				if err != nil {
+					return path
 				}
-				sort.Strings(names)
-				for i, s := range names {
-					if s != data.dirEntries[i] {
-						return true
+				data.accessedEntries.mutex.Lock()
+				defer data.accessedEntries.mutex.Unlock()
+				if allEntries := data.accessedEntries.allEntries; allEntries != nil {
+					// Check all entries
+					if len(names) != len(allEntries) {
+						return path
+					}
+					sort.Strings(names)
+					for i, s := range names {
+						if s != allEntries[i] {
+							return path
+						}
+					}
+				} else {
+					// Check individual entries
+					isPresent := make(map[string]bool, len(names))
+					for _, name := range names {
+						isPresent[strings.ToLower(name)] = true
+					}
+					for name, wasPresent := range data.accessedEntries.wasPresent {
+						if wasPresent != isPresent[name] {
+							return fs.Join(path, name)
+						}
 					}
 				}
-				return false
+				return ""
 			}
 
 		case stateFileMissing:
-			paths[path] = func() bool {
-				info, err := os.Stat(path)
-				return err == nil && !info.IsDir()
+			paths[path] = func() string {
+				if info, err := os.Stat(path); err == nil && !info.IsDir() {
+					return path
+				}
+				return ""
 			}
 
 		case stateFileHasModKey:
-			paths[path] = func() bool {
-				key, err := modKey(path)
-				return err != nil || key != data.modKey
+			paths[path] = func() string {
+				if key, err := modKey(path); err != nil || key != data.modKey {
+					return path
+				}
+				return ""
 			}
 
 		case stateFileUnusableModKey:
-			paths[path] = func() bool {
-				buffer, err := ioutil.ReadFile(path)
-				return err != nil || string(buffer) != data.fileContents
+			paths[path] = func() string {
+				if buffer, err := ioutil.ReadFile(path); err != nil || string(buffer) != data.fileContents {
+					return path
+				}
+				return ""
 			}
 		}
 	}
