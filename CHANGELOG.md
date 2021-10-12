@@ -14,7 +14,7 @@
 
 * Disallow certain uses of `<` in `.mts` and `.cts` files
 
-    The upcoming version 4.5 of TypeScript is introducing the `.mts` and `.cts` extensions that turn into the `.mjs` and `.cjs` extensions when compiled. However, unlike the existing `.ts` and `.tsx` extensions, expressions that start with `<` are disallowed when they would be ambiguous depending on whether they are parsed in `.ts` or `.tsx` mode. The ambiguity is caused by the overlap between the syntax for JSX elements and the old deprecated syntax for type casts.
+    The upcoming version 4.5 of TypeScript is introducing the `.mts` and `.cts` extensions that turn into the `.mjs` and `.cjs` extensions when compiled. However, unlike the existing `.ts` and `.tsx` extensions, expressions that start with `<` are disallowed when they would be ambiguous depending on whether they are parsed in `.ts` or `.tsx` mode. The ambiguity is caused by the overlap between the syntax for JSX elements and the old deprecated syntax for type casts:
 
     | Syntax                        | `.ts`                | `.tsx`           | `.mts`/`.cts`        |
     |-------------------------------|----------------------|------------------|----------------------|
@@ -28,6 +28,27 @@
     | `<T extends X>() => {}`       | ✅ Arrow function    | ✅ Arrow function | ✅ Arrow function    |
 
     This release of esbuild introduces a syntax error for these ambiguous syntax constructs in `.mts` and `.cts` files to match the new behavior of the TypeScript compiler.
+
+* Do not remove empty `@keyframes` rules ([#1665](https://github.com/evanw/esbuild/issues/1665))
+
+    CSS minification in esbuild automatically removes empty CSS rules, since they have no effect. However, empty `@keyframes` rules still trigger JavaScript animation events so it's incorrect to remove them. To demonstrate that empty `@keyframes` rules still have an effect, here is a bug report for Firefox where it was incorrectly not triggering JavaScript animation events for empty `@keyframes` rules: https://bugzilla.mozilla.org/show_bug.cgi?id=1004377.
+
+    With this release, empty `@keyframes` rules are now preserved during minification:
+
+    ```css
+    /* Original CSS */
+    @keyframes foo {
+      from {}
+      to {}
+    }
+
+    /* Old output (with --minify) */
+
+    /* New output (with --minify) */
+    @keyframes foo{}
+    ```
+
+    This fix was contributed by [@eelco](https://github.com/eelco).
 
 ## 0.13.4
 
