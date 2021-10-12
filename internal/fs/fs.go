@@ -3,6 +3,7 @@ package fs
 import (
 	"errors"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -44,17 +45,37 @@ func (e *Entry) Symlink(fs FS) string {
 	return e.symlink
 }
 
+type accessedEntries struct {
+	mutex      sync.Mutex
+	wasPresent map[string]bool
+
+	// If this is nil, "SortedKeys()" was not accessed. This means we should
+	// check for whether this directory has changed or not by seeing if any of
+	// the entries in the "wasPresent" map have changed in "present or not"
+	// status, since the only access was to individual entries via "Get()".
+	//
+	// If this is non-nil, "SortedKeys()" was accessed. This means we should
+	// check for whether this directory has changed or not by checking the
+	// "allEntries" array for equality with the existing entries list, since the
+	// code asked for all entries and may have used the presence or absence of
+	// entries in that list.
+	//
+	// The goal of having these two checks is to be as narrow as possible to
+	// avoid unnecessary rebuilds. If only "Get()" is called on a few entries,
+	// then we won't invalidate the build if random unrelated entries are added
+	// or removed. But if "SortedKeys()" is called, we need to invalidate the
+	// build if anything about the set of entries in this directory is changed.
+	allEntries []string
+}
+
 type DirEntries struct {
-	dir  string
-	data map[string]*Entry
+	dir             string
+	data            map[string]*Entry
+	accessedEntries *accessedEntries
 }
 
 func MakeEmptyDirEntries(dir string) DirEntries {
-	return DirEntries{dir, make(map[string]*Entry)}
-}
-
-func (entries DirEntries) Len() int {
-	return len(entries.data)
+	return DirEntries{dir, make(map[string]*Entry), nil}
 }
 
 type DifferentCase struct {
@@ -65,7 +86,17 @@ type DifferentCase struct {
 
 func (entries DirEntries) Get(query string) (*Entry, *DifferentCase) {
 	if entries.data != nil {
-		if entry := entries.data[strings.ToLower(query)]; entry != nil {
+		key := strings.ToLower(query)
+		entry := entries.data[key]
+
+		// Track whether this specific entry was present or absent for watch mode
+		if accessed := entries.accessedEntries; accessed != nil {
+			accessed.mutex.Lock()
+			accessed.wasPresent[key] = entry != nil
+			accessed.mutex.Unlock()
+		}
+
+		if entry != nil {
 			if entry.base != query {
 				return entry, &DifferentCase{
 					Dir:    entries.dir,
@@ -76,16 +107,28 @@ func (entries DirEntries) Get(query string) (*Entry, *DifferentCase) {
 			return entry, nil
 		}
 	}
+
 	return nil, nil
 }
 
-func (entries DirEntries) UnorderedKeys() (keys []string) {
+func (entries DirEntries) SortedKeys() (keys []string) {
 	if entries.data != nil {
 		keys = make([]string, 0, len(entries.data))
 		for _, entry := range entries.data {
 			keys = append(keys, entry.base)
 		}
+		sort.Strings(keys)
+
+		// Track the exact set of all entries for watch mode
+		if entries.accessedEntries != nil {
+			entries.accessedEntries.mutex.Lock()
+			entries.accessedEntries.allEntries = keys
+			entries.accessedEntries.mutex.Unlock()
+		}
+
+		return keys
 	}
+
 	return
 }
 
@@ -152,8 +195,11 @@ type FS interface {
 }
 
 type WatchData struct {
-	// These functions return true if the file system entry has been modified
-	Paths map[string]func() bool
+	// These functions return a non-empty path as a string if the file system
+	// entry has been modified. For files, the returned path is the same as the
+	// file path. For directories, the returned path is either the directory
+	// itself or a file in the directory that was changed.
+	Paths map[string]func() string
 }
 
 type ModKey struct {

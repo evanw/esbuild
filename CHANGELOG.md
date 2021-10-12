@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+* Improve watch mode accuracy ([#1113](https://github.com/evanw/esbuild/issues/1113))
+
+    Watch mode is enabled by `--watch` and causes esbuild to become a long-running process that automatically rebuilds output files when input files are changed. It's implemented by recording all calls to esbuild's internal file system interface and then invalidating the build whenever these calls would return different values. For example, a call to esbuild's internal `ReadFile()` function is considered to be different if either the presence of the file has changed (e.g. the file didn't exist before but now exists) or the presence of the file stayed the same but the content of the file has changed.
+
+    Previously esbuild's watch mode operated at the `ReadFile()` and `ReadDirectory()` level. When esbuild checked whether a directory entry existed or not (e.g. whether a directory contains a `node_modules` subdirectory or a `package.json` file), it called `ReadDirectory()` which then caused the build to depend on that directory's set of entries. This meant the build would be invalidated even if a new unrelated entry was added or removed, since that still changes the set of entries. This is problematic when using esbuild in environments that constantly create and destroy temporary directory entries in your project directory. In that case, esbuild's watch mode would constantly rebuild as the directory was constantly considered to be dirty.
+
+    With this release, watch mode now operates at the `ReadFile()` and `ReadDirectory().Get()` level. So when esbuild checks whether a directory entry exists or not, the build should now only depend on the presence status for that one directory entry. This should avoid unnecessary rebuilds due to unrelated directory entries being added or removed. The log messages generated using `--watch` will now also mention the specific directory entry whose presence status was changed if a build is invalidated for this reason.
+
+    Note that this optimization does not apply to plugins using the `watchDirs` return value because those paths are only specified at the directory level and do not describe individual directory entries. You can use `watchFiles` or `watchDirs` on the individual entries inside the directory to get a similar effect instead.
+
 ## 0.13.4
 
 * Fix permission issues with the install script ([#1642](https://github.com/evanw/esbuild/issues/1642))
