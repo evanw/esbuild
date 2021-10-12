@@ -37,6 +37,26 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectParseErrorTSNoAmbiguousLessThan(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse:               true,
+			NoAmbiguousLessThan: true,
+		},
+	})
+}
+
+func expectPrintedTSNoAmbiguousLessThan(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse:               true,
+			NoAmbiguousLessThan: true,
+		},
+	})
+}
+
 func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectParseErrorCommon(t, contents, expected, config.Options{
@@ -1672,6 +1692,27 @@ func TestTSJSX(t *testing.T) {
 	expectParseErrorTSX(t, "(<T = X>(y))", "<stdin>: error: Expected \">\" but found \"=\"\n")
 	expectParseErrorTSX(t, "(<T, X>(y))", "<stdin>: error: Expected \"=>\" but found \")\"\n")
 	expectParseErrorTSX(t, "(<T, X>y => {})", "<stdin>: error: Expected \"(\" but found \"y\"\n")
+}
+
+func TestTSNoAmbiguousLessThan(t *testing.T) {
+	expectPrintedTSNoAmbiguousLessThan(t, "(<T,>() => {})", "() => {\n};\n")
+	expectPrintedTSNoAmbiguousLessThan(t, "(<T, X>() => {})", "() => {\n};\n")
+	expectPrintedTSNoAmbiguousLessThan(t, "(<T extends X>() => {})", "() => {\n};\n")
+	expectParseErrorTSNoAmbiguousLessThan(t, "(<T>x)",
+		"<stdin>: error: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n")
+	expectParseErrorTSNoAmbiguousLessThan(t, "(<T>() => {})",
+		"<stdin>: error: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n")
+	expectParseErrorTSNoAmbiguousLessThan(t, "(<T>(x) => {})",
+		"<stdin>: error: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n")
+	expectParseErrorTSNoAmbiguousLessThan(t, "<x>y</x>",
+		"<stdin>: error: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n"+
+			"<stdin>: error: Unexpected end of file\n")
+	expectParseErrorTSNoAmbiguousLessThan(t, "<x extends></x>",
+		"<stdin>: error: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n"+
+			"<stdin>: error: Unexpected \">\"\n")
+	expectParseErrorTSNoAmbiguousLessThan(t, "<x extends={y}></x>",
+		"<stdin>: error: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n"+
+			"<stdin>: error: Unexpected \"=\"\n")
 }
 
 func TestClassSideEffectOrder(t *testing.T) {
