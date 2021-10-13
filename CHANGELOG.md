@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Experimental support for esbuild on NetBSD ([#1624](https://github.com/evanw/esbuild/pull/1624))
+
+    With this release, esbuild now has a published binary executable for [NetBSD](https://www.netbsd.org/) in the [`esbuild-netbsd-64`](http://npmjs.com/package/esbuild-netbsd-64) npm package, and esbuild's installer has been modified to attempt to use it when on NetBSD. Hopefully this makes installing esbuild via npm work on NetBSD. This change was contributed by [@gdt](https://github.com/gdt).
+
+    ⚠️ Note: NetBSD is not one of [Node's supported platforms](https://nodejs.org/api/process.html#process_process_platform), so installing esbuild may or may not work on NetBSD depending on how Node has been patched. This is not a problem with esbuild. ⚠️
+
 ## 0.13.5
 
 * Improve watch mode accuracy ([#1113](https://github.com/evanw/esbuild/issues/1113))
