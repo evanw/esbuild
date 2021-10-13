@@ -25,7 +25,8 @@ type JSXExpr struct {
 }
 
 type TSOptions struct {
-	Parse bool
+	Parse               bool
+	NoAmbiguousLessThan bool
 }
 
 type Platform uint8
@@ -78,6 +79,7 @@ const (
 	LoaderJS
 	LoaderJSX
 	LoaderTS
+	LoaderTSNoAmbiguousLessThan // Used with ".mts" and ".cts"
 	LoaderTSX
 	LoaderJSON
 	LoaderText
@@ -90,12 +92,17 @@ const (
 )
 
 func (loader Loader) IsTypeScript() bool {
-	return loader == LoaderTS || loader == LoaderTSX
+	switch loader {
+	case LoaderTS, LoaderTSNoAmbiguousLessThan, LoaderTSX:
+		return true
+	default:
+		return false
+	}
 }
 
 func (loader Loader) CanHaveSourceMap() bool {
 	switch loader {
-	case LoaderJS, LoaderJSX, LoaderTS, LoaderTSX, LoaderCSS:
+	case LoaderJS, LoaderJSX, LoaderTS, LoaderTSNoAmbiguousLessThan, LoaderTSX, LoaderCSS:
 		return true
 	default:
 		return false

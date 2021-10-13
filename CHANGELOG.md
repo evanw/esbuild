@@ -1,5 +1,78 @@
 # Changelog
 
+## 0.13.5
+
+* Improve watch mode accuracy ([#1113](https://github.com/evanw/esbuild/issues/1113))
+
+    Watch mode is enabled by `--watch` and causes esbuild to become a long-running process that automatically rebuilds output files when input files are changed. It's implemented by recording all calls to esbuild's internal file system interface and then invalidating the build whenever these calls would return different values. For example, a call to esbuild's internal `ReadFile()` function is considered to be different if either the presence of the file has changed (e.g. the file didn't exist before but now exists) or the presence of the file stayed the same but the content of the file has changed.
+
+    Previously esbuild's watch mode operated at the `ReadFile()` and `ReadDirectory()` level. When esbuild checked whether a directory entry existed or not (e.g. whether a directory contains a `node_modules` subdirectory or a `package.json` file), it called `ReadDirectory()` which then caused the build to depend on that directory's set of entries. This meant the build would be invalidated even if a new unrelated entry was added or removed, since that still changes the set of entries. This is problematic when using esbuild in environments that constantly create and destroy temporary directory entries in your project directory. In that case, esbuild's watch mode would constantly rebuild as the directory was constantly considered to be dirty.
+
+    With this release, watch mode now operates at the `ReadFile()` and `ReadDirectory().Get()` level. So when esbuild checks whether a directory entry exists or not, the build should now only depend on the presence status for that one directory entry. This should avoid unnecessary rebuilds due to unrelated directory entries being added or removed. The log messages generated using `--watch` will now also mention the specific directory entry whose presence status was changed if a build is invalidated for this reason.
+
+    Note that this optimization does not apply to plugins using the `watchDirs` return value because those paths are only specified at the directory level and do not describe individual directory entries. You can use `watchFiles` or `watchDirs` on the individual entries inside the directory to get a similar effect instead.
+
+* Disallow certain uses of `<` in `.mts` and `.cts` files
+
+    The upcoming version 4.5 of TypeScript is introducing the `.mts` and `.cts` extensions that turn into the `.mjs` and `.cjs` extensions when compiled. However, unlike the existing `.ts` and `.tsx` extensions, expressions that start with `<` are disallowed when they would be ambiguous depending on whether they are parsed in `.ts` or `.tsx` mode. The ambiguity is caused by the overlap between the syntax for JSX elements and the old deprecated syntax for type casts:
+
+    | Syntax                        | `.ts`                | `.tsx`           | `.mts`/`.cts`        |
+    |-------------------------------|----------------------|------------------|----------------------|
+    | `<x>y`                        | ✅ Type cast         | 🚫 Syntax error   | 🚫 Syntax error      |
+    | `<T>() => {}`                 | ✅ Arrow function    | 🚫 Syntax error   | 🚫 Syntax error      |
+    | `<x>y</x>`                    | 🚫 Syntax error      | ✅ JSX element    | 🚫 Syntax error      |
+    | `<T>() => {}</T>`             | 🚫 Syntax error      | ✅ JSX element    | 🚫 Syntax error      |
+    | `<T extends>() => {}</T>`     | 🚫 Syntax error      | ✅ JSX element    | 🚫 Syntax error      |
+    | `<T extends={0}>() => {}</T>` | 🚫 Syntax error      | ✅ JSX element    | 🚫 Syntax error      |
+    | `<T,>() => {}`                | ✅ Arrow function    | ✅ Arrow function | ✅ Arrow function    |
+    | `<T extends X>() => {}`       | ✅ Arrow function    | ✅ Arrow function | ✅ Arrow function    |
+
+    This release of esbuild introduces a syntax error for these ambiguous syntax constructs in `.mts` and `.cts` files to match the new behavior of the TypeScript compiler.
+
+* Do not remove empty `@keyframes` rules ([#1665](https://github.com/evanw/esbuild/issues/1665))
+
+    CSS minification in esbuild automatically removes empty CSS rules, since they have no effect. However, empty `@keyframes` rules still trigger JavaScript animation events so it's incorrect to remove them. To demonstrate that empty `@keyframes` rules still have an effect, here is a bug report for Firefox where it was incorrectly not triggering JavaScript animation events for empty `@keyframes` rules: https://bugzilla.mozilla.org/show_bug.cgi?id=1004377.
+
+    With this release, empty `@keyframes` rules are now preserved during minification:
+
+    ```css
+    /* Original CSS */
+    @keyframes foo {
+      from {}
+      to {}
+    }
+
+    /* Old output (with --minify) */
+
+    /* New output (with --minify) */
+    @keyframes foo{}
+    ```
+
+    This fix was contributed by [@eelco](https://github.com/eelco).
+
+* Fix an incorrect duplicate label error ([#1671](https://github.com/evanw/esbuild/pull/1671))
+
+    When labeling a statement in JavaScript, the label must be unique within the enclosing statements since the label determines the jump target of any labeled `break` or `continue` statement:
+
+    ```js
+    // This code is valid
+    x: y: z: break x;
+
+    // This code is invalid
+    x: y: x: break x;
+    ```
+
+    However, an enclosing label with the same name *is* allowed as long as it's located in a different function body. Since `break` and `continue` statements can't jump across function boundaries, the label is not ambiguous. This release fixes a bug where esbuild incorrectly treated this valid code as a syntax error:
+
+    ```js
+    // This code is valid, but was incorrectly considered a syntax error
+    x: (() => {
+      x: break x;
+    })();
+    ```
+
+    This fix was contributed by [@nevkontakte](https://github.com/nevkontakte).
+
 ## 0.13.4
 
 * Fix permission issues with the install script ([#1642](https://github.com/evanw/esbuild/issues/1642))
