@@ -1,6 +1,6 @@
 import * as types from "../shared/types";
 import * as common from "../shared/common";
-import { generateBinPath } from "./node-platform";
+import { ESBUILD_BINARY_PATH, generateBinPath } from "./node-platform";
 
 import child_process = require('child_process');
 import crypto = require('crypto');
@@ -47,8 +47,8 @@ let isInternalWorkerThread = worker_threads?.workerData?.esbuildVersion === ESBU
 
 let esbuildCommandAndArgs = (): [string, string[]] => {
   // Try to have a nice error message when people accidentally bundle esbuild
-  // without providing an explicit path to the binary.
-  if (!process.env.ESBUILD_BINARY_PATH && (path.basename(__filename) !== 'main.js' || path.basename(__dirname) !== 'lib')) {
+  // without providing an explicit path to the binary, or when using WebAssembly.
+  if ((!ESBUILD_BINARY_PATH || WASM) && (path.basename(__filename) !== 'main.js' || path.basename(__dirname) !== 'lib')) {
     throw new Error(
       `The esbuild JavaScript API cannot be bundled. Please mark the "esbuild" ` +
       `package as external so it's not included in the bundle.\n` +

@@ -5,7 +5,7 @@ import path = require('path');
 // This feature was added to give external code a way to modify the binary
 // path without modifying the code itself. Do not remove this because
 // external code relies on this.
-var ESBUILD_BINARY_PATH: string | undefined = process.env.ESBUILD_BINARY_PATH || ESBUILD_BINARY_PATH;
+export var ESBUILD_BINARY_PATH: string | undefined = process.env.ESBUILD_BINARY_PATH || ESBUILD_BINARY_PATH;
 
 export const knownWindowsPackages: Record<string, string> = {
   'win32 arm64 LE': 'esbuild-windows-arm64',
