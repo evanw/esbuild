@@ -646,6 +646,21 @@ TestRemoveUnusedImportMeta
 console.log("foo is unused");
 
 ================================================================================
+TestRemoveUnusedImports
+---------- /out.js ----------
+import "a";
+import "b";
+import "c";
+
+================================================================================
+TestRemoveUnusedImportsEval
+---------- /out.js ----------
+import a from "a";
+import * as b from "b";
+import { c } from "c";
+eval("foo(a, b, c)");
+
+================================================================================
 TestRemoveUnusedPureCommentCalls
 ---------- /out.js ----------
 // entry.js

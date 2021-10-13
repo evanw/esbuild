@@ -1827,3 +1827,40 @@ func TestDCETypeOfEqualsStringGuardCondition(t *testing.T) {
 		},
 	})
 }
+
+func TestRemoveUnusedImports(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import a from 'a'
+				import * as b from 'b'
+				import {c} from 'c'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			MangleSyntax:  true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestRemoveUnusedImportsEval(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import a from 'a'
+				import * as b from 'b'
+				import {c} from 'c'
+				eval('foo(a, b, c)')
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			MangleSyntax:  true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

@@ -3567,6 +3567,7 @@ func TestMangleEqualsUndefined(t *testing.T) {
 func TestMangleUnusedFunctionExpressionNames(t *testing.T) {
 	expectPrintedMangle(t, "x = function y() {}", "x = function() {\n};\n")
 	expectPrintedMangle(t, "x = function y() { return y }", "x = function y() {\n  return y;\n};\n")
+	expectPrintedMangle(t, "x = function y() { return eval('y') }", "x = function y() {\n  return eval(\"y\");\n};\n")
 	expectPrintedMangle(t, "x = function y() { if (0) return y }", "x = function() {\n};\n")
 }
 
