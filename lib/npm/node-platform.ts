@@ -25,6 +25,7 @@ export const knownUnixlikePackages: Record<string, string> = {
   'linux mips64el LE': 'esbuild-linux-mips64le',
   'linux ppc64 LE': 'esbuild-linux-ppc64le',
   'linux x64 LE': 'esbuild-linux-64',
+  'netbsd x64 LE': 'esbuild-netbsd-64',
   'openbsd x64 LE': 'esbuild-openbsd-64',
   'sunos x64 LE': 'esbuild-sunos-64',
 };
