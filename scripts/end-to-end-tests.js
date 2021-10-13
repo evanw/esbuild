@@ -2225,6 +2225,63 @@
         }),
       )
     }
+
+    // Check try/catch simplification
+    tests.push(
+      test(['in.js', '--outfile=node.js'].concat(minify), {
+        'in.js': `
+          try {
+            try {
+              throw 0
+            } finally {
+              var x = 1
+            }
+          } catch {
+          }
+          if (x !== 1) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js'].concat(minify), {
+        'in.js': `
+          let y
+          try {
+            throw 1
+          } catch (x) {
+            eval('y = x')
+          }
+          if (y !== 1) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js'].concat(minify), {
+        'in.js': `
+          try {
+            throw 0
+          } catch (x) {
+            var x = 1
+          }
+          if (x !== void 0) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js'].concat(minify), {
+        'in.js': `
+          let works
+          try {
+            throw { get a() { works = true } }
+          } catch ({ a }) {}
+          if (!works) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js'].concat(minify), {
+        'in.js': `
+          let works
+          try {
+            throw { *[Symbol.iterator]() { works = true } }
+          } catch ([x]) {
+          }
+          if (!works) throw 'fail'
+        `,
+      }),
+    )
   }
 
   // Test minification of top-level symbols
