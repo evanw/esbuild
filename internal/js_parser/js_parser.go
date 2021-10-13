@@ -8784,6 +8784,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 						fmt.Sprintf("The original label %q is here", name))})
 				break
 			}
+			if scope.Kind == js_ast.ScopeFunctionBody {
+				// Labels are only visible within the function they are defined in.
+				break
+			}
 		}
 
 		p.currentScope.Label = js_ast.LocRef{Loc: s.Name.Loc, Ref: ref}
