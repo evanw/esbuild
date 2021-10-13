@@ -107,8 +107,8 @@ wasm-napi-exit0-windows:
 	main.bat
 	rm -f main.*
 
-platform-all: cmd/esbuild/version.go test-all
-	make -j8 \
+platform-all: cmd/esbuild/version.go
+	make -j4 \
 		platform-windows \
 		platform-windows-32 \
 		platform-windows-arm64 \
@@ -214,13 +214,18 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@read OTP && OTP="$$OTP" make -j4 \
 		publish-windows \
 		publish-windows-32 \
-		publish-windows-arm64 \
-		publish-openbsd
+		publish-windows-arm64
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j4 \
 		publish-freebsd \
 		publish-freebsd-arm64 \
+		publish-openbsd \
+		publish-netbsd
+
+	@echo Enter one-time password:
+	@read OTP && OTP="$$OTP" $(MAKE) -j4 \
+		publish-sunos \
 		publish-darwin \
 		publish-darwin-arm64
 
@@ -235,16 +240,11 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@read OTP && OTP="$$OTP" make -j4 \
 		publish-linux-arm64 \
 		publish-linux-mips64le \
-		publish-linux-ppc64le \
-		publish-sunos
-
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" $(MAKE) -j1 \
-		publish-netbsd
+		publish-linux-ppc64le
 
 	# Do these last to avoid race conditions
 	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j2 \
+	@read OTP && OTP="$$OTP" make -j4 \
 		publish-neutral \
 		publish-deno \
 		publish-wasm
