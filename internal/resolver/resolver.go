@@ -796,7 +796,7 @@ func (r resolverQuery) dirInfoCached(path string) *dirInfo {
 		if cached == nil {
 			r.debugLogs.addNote(fmt.Sprintf("Failed to read directory %q", path))
 		} else {
-			count := cached.entries.Len()
+			count := len(cached.entries.SortedKeys())
 			entries := "entries"
 			if count == 1 {
 				entries = "entry"

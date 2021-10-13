@@ -694,6 +694,28 @@ func (p *parser) trySkipTypeScriptArrowArgsWithBacktracking() bool {
 	return true
 }
 
+// Returns true if the current less-than token is considered to be an arrow
+// function under TypeScript's rules for files containing JSX syntax
+func (p *parser) isTSArrowFnJSX() (isTSArrowFn bool) {
+	oldLexer := p.lexer
+	p.lexer.Next()
+
+	// Look ahead to see if this should be an arrow function instead
+	if p.lexer.Token == js_lexer.TIdentifier {
+		p.lexer.Next()
+		if p.lexer.Token == js_lexer.TComma {
+			isTSArrowFn = true
+		} else if p.lexer.Token == js_lexer.TExtends {
+			p.lexer.Next()
+			isTSArrowFn = p.lexer.Token != js_lexer.TEquals && p.lexer.Token != js_lexer.TGreaterThan
+		}
+	}
+
+	// Restore the lexer
+	p.lexer = oldLexer
+	return
+}
+
 // This function is taken from the official TypeScript compiler source code:
 // https://github.com/microsoft/TypeScript/blob/master/src/compiler/parser.ts
 func (p *parser) canFollowTypeArgumentsInExpression() bool {

@@ -29,7 +29,7 @@ func MockFS(input map[string]string) FS {
 			kDir := path.Dir(k)
 			dir, ok := dirs[kDir]
 			if !ok {
-				dir = DirEntries{kDir, make(map[string]*Entry)}
+				dir = DirEntries{kDir, make(map[string]*Entry), nil}
 				dirs[kDir] = dir
 			}
 			if kDir == k {

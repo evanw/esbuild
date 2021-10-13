@@ -3318,30 +3318,10 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		//     <A>(x) => {}
 		//     <A = B>(x) => {}
 
-		if p.options.ts.Parse && p.options.jsx.Parse {
-			oldLexer := p.lexer
-			p.lexer.Next()
-
-			// Look ahead to see if this should be an arrow function instead
-			isTSArrowFn := false
-			if p.lexer.Token == js_lexer.TIdentifier {
-				p.lexer.Next()
-				if p.lexer.Token == js_lexer.TComma {
-					isTSArrowFn = true
-				} else if p.lexer.Token == js_lexer.TExtends {
-					p.lexer.Next()
-					isTSArrowFn = p.lexer.Token != js_lexer.TEquals && p.lexer.Token != js_lexer.TGreaterThan
-				}
-			}
-
-			// Restore the lexer
-			p.lexer = oldLexer
-
-			if isTSArrowFn {
-				p.skipTypeScriptTypeParameters()
-				p.lexer.Expect(js_lexer.TOpenParen)
-				return p.parseParenExpr(loc, level, parenExprOpts{forceArrowFn: true})
-			}
+		if p.options.ts.Parse && p.options.jsx.Parse && p.isTSArrowFnJSX() {
+			p.skipTypeScriptTypeParameters()
+			p.lexer.Expect(js_lexer.TOpenParen)
+			return p.parseParenExpr(loc, level, parenExprOpts{forceArrowFn: true})
 		}
 
 		if p.options.jsx.Parse {
@@ -3359,6 +3339,14 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		if p.options.ts.Parse {
 			// This is either an old-style type cast or a generic lambda function
+
+			// TypeScript 4.5 introduced the ".mts" and ".cts" extensions that forbid
+			// the use of an expression starting with "<" that would be ambiguous
+			// when the file is in JSX mode.
+			if p.options.ts.NoAmbiguousLessThan && !p.isTSArrowFnJSX() {
+				p.log.AddRangeError(&p.tracker, p.lexer.Range(),
+					"This syntax is not allowed in files with the \".mts\" or \".cts\" extension")
+			}
 
 			// "<T>(x)"
 			// "<T>(x) => {}"
@@ -8808,6 +8796,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					fmt.Sprintf("Duplicate label %q", name),
 					[]logger.MsgData{logger.RangeData(&p.tracker, js_lexer.RangeOfIdentifier(p.source, scope.Label.Loc),
 						fmt.Sprintf("The original label %q is here", name))})
+				break
+			}
+			if scope.Kind == js_ast.ScopeFunctionBody {
+				// Labels are only visible within the function they are defined in.
 				break
 			}
 		}

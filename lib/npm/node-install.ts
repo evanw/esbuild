@@ -1,4 +1,4 @@
-import { downloadedBinPath, pkgAndSubpathForCurrentPlatform } from './node-platform';
+import { downloadedBinPath, ESBUILD_BINARY_PATH, pkgAndSubpathForCurrentPlatform } from './node-platform';
 
 import fs = require('fs');
 import os = require('os');
@@ -193,8 +193,8 @@ async function checkAndPreparePackage(): Promise<void> {
   // This feature was added to give external code a way to modify the binary
   // path without modifying the code itself. Do not remove this because
   // external code relies on this (in addition to esbuild's own test suite).
-  if (process.env.ESBUILD_BINARY_PATH) {
-    applyManualBinaryPathOverride(process.env.ESBUILD_BINARY_PATH);
+  if (ESBUILD_BINARY_PATH) {
+    applyManualBinaryPathOverride(ESBUILD_BINARY_PATH);
     return;
   }
 

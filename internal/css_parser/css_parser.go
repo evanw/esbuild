@@ -280,9 +280,9 @@ skipRule:
 
 		switch r := rule.Data.(type) {
 		case *css_ast.RAtKeyframes:
-			if len(r.Blocks) == 0 {
-				continue
-			}
+			// Do not remove empty "@keyframe foo {}" rules. Even empty rules still
+			// dispatch JavaScript animation events, so removing them changes
+			// behavior: https://bugzilla.mozilla.org/show_bug.cgi?id=1004377.
 
 		case *css_ast.RKnownAt:
 			if len(r.Rules) == 0 {

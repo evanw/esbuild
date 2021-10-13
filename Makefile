@@ -107,8 +107,8 @@ wasm-napi-exit0-windows:
 	main.bat
 	rm -f main.*
 
-platform-all: cmd/esbuild/version.go test-all
-	make -j8 \
+platform-all: cmd/esbuild/version.go
+	make -j4 \
 		platform-windows \
 		platform-windows-32 \
 		platform-windows-arm64 \
@@ -117,6 +117,7 @@ platform-all: cmd/esbuild/version.go test-all
 		platform-darwin-arm64 \
 		platform-freebsd \
 		platform-freebsd-arm64 \
+		platform-netbsd \
 		platform-openbsd \
 		platform-linux \
 		platform-linux-32 \
@@ -161,6 +162,9 @@ platform-freebsd:
 
 platform-freebsd-arm64:
 	make GOOS=freebsd GOARCH=arm64 NPMDIR=npm/esbuild-freebsd-arm64 platform-unixlike
+
+platform-netbsd:
+	make GOOS=netbsd GOARCH=amd64 NPMDIR=npm/esbuild-netbsd-64 platform-unixlike
 
 platform-openbsd:
 	make GOOS=openbsd GOARCH=amd64 NPMDIR=npm/esbuild-openbsd-64 platform-unixlike
@@ -210,13 +214,18 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@read OTP && OTP="$$OTP" make -j4 \
 		publish-windows \
 		publish-windows-32 \
-		publish-windows-arm64 \
-		publish-openbsd
+		publish-windows-arm64
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j4 \
 		publish-freebsd \
 		publish-freebsd-arm64 \
+		publish-openbsd \
+		publish-netbsd
+
+	@echo Enter one-time password:
+	@read OTP && OTP="$$OTP" $(MAKE) -j4 \
+		publish-sunos \
 		publish-darwin \
 		publish-darwin-arm64
 
@@ -231,12 +240,11 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@read OTP && OTP="$$OTP" make -j4 \
 		publish-linux-arm64 \
 		publish-linux-mips64le \
-		publish-linux-ppc64le \
-		publish-sunos
+		publish-linux-ppc64le
 
 	# Do these last to avoid race conditions
 	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j2 \
+	@read OTP && OTP="$$OTP" make -j4 \
 		publish-neutral \
 		publish-deno \
 		publish-wasm
@@ -268,6 +276,9 @@ publish-freebsd: platform-freebsd
 
 publish-freebsd-arm64: platform-freebsd-arm64
 	test -n "$(OTP)" && cd npm/esbuild-freebsd-arm64 && npm publish --otp="$(OTP)"
+
+publish-netbsd: platform-netbsd
+	test -n "$(OTP)" && cd npm/esbuild-netbsd-64 && npm publish --otp="$(OTP)"
 
 publish-openbsd: platform-openbsd
 	test -n "$(OTP)" && cd npm/esbuild-openbsd-64 && npm publish --otp="$(OTP)"
@@ -317,6 +328,7 @@ clean:
 	rm -rf npm/esbuild-darwin-arm64/bin
 	rm -rf npm/esbuild-freebsd-64/bin
 	rm -rf npm/esbuild-freebsd-amd64/bin
+	rm -rf npm/esbuild-netbsd-64/bin
 	rm -rf npm/esbuild-openbsd-64/bin
 	rm -rf npm/esbuild-linux-32/bin
 	rm -rf npm/esbuild-linux-64/bin

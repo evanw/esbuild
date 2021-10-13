@@ -5,7 +5,7 @@ import path = require('path');
 // This feature was added to give external code a way to modify the binary
 // path without modifying the code itself. Do not remove this because
 // external code relies on this.
-var ESBUILD_BINARY_PATH: string | undefined = process.env.ESBUILD_BINARY_PATH || ESBUILD_BINARY_PATH;
+export var ESBUILD_BINARY_PATH: string | undefined = process.env.ESBUILD_BINARY_PATH || ESBUILD_BINARY_PATH;
 
 export const knownWindowsPackages: Record<string, string> = {
   'win32 arm64 LE': 'esbuild-windows-arm64',
@@ -19,13 +19,14 @@ export const knownUnixlikePackages: Record<string, string> = {
   'darwin x64 LE': 'esbuild-darwin-64',
   'freebsd arm64 LE': 'esbuild-freebsd-arm64',
   'freebsd x64 LE': 'esbuild-freebsd-64',
-  'openbsd x64 LE': 'esbuild-openbsd-64',
   'linux arm LE': 'esbuild-linux-arm',
   'linux arm64 LE': 'esbuild-linux-arm64',
   'linux ia32 LE': 'esbuild-linux-32',
   'linux mips64el LE': 'esbuild-linux-mips64le',
   'linux ppc64 LE': 'esbuild-linux-ppc64le',
   'linux x64 LE': 'esbuild-linux-64',
+  'netbsd x64 LE': 'esbuild-netbsd-64',
+  'openbsd x64 LE': 'esbuild-openbsd-64',
   'sunos x64 LE': 'esbuild-sunos-64',
 };
 

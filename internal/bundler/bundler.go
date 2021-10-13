@@ -199,8 +199,9 @@ func parseFile(args parseArgs) {
 		result.file.inputFile.Repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
-	case config.LoaderTS:
+	case config.LoaderTS, config.LoaderTSNoAmbiguousLessThan:
 		args.options.TS.Parse = true
+		args.options.TS.NoAmbiguousLessThan = loader == config.LoaderTSNoAmbiguousLessThan
 		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
 		result.file.inputFile.Repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
@@ -697,7 +698,9 @@ func runOnResolvePlugins(
 				fsCache.ReadFile(fs, file)
 			}
 			for _, dir := range result.AbsWatchDirs {
-				fs.ReadDirectory(dir)
+				if entries, err, _ := fs.ReadDirectory(dir); err == nil {
+					entries.SortedKeys()
+				}
 			}
 
 			// Stop now if there was an error
@@ -812,7 +815,9 @@ func runOnLoadPlugins(
 				fsCache.ReadFile(fs, file)
 			}
 			for _, dir := range result.AbsWatchDirs {
-				fs.ReadDirectory(dir)
+				if entries, err, _ := fs.ReadDirectory(dir); err == nil {
+					entries.SortedKeys()
+				}
 			}
 
 			// Stop now if there was an error
@@ -1923,8 +1928,8 @@ func DefaultExtensionToLoaderMap() map[string]config.Loader {
 		".cjs":  config.LoaderJS,
 		".jsx":  config.LoaderJSX,
 		".ts":   config.LoaderTS,
-		".cts":  config.LoaderTS,
-		".mts":  config.LoaderTS,
+		".cts":  config.LoaderTSNoAmbiguousLessThan,
+		".mts":  config.LoaderTSNoAmbiguousLessThan,
 		".tsx":  config.LoaderTSX,
 		".css":  config.LoaderCSS,
 		".json": config.LoaderJSON,

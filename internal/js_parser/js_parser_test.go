@@ -1902,6 +1902,9 @@ func TestLabels(t *testing.T) {
 
 	expectPrinted(t, "x: y: z: 1", "x:\n  y:\n    z:\n      1;\n")
 	expectPrinted(t, "x: 1; y: 2; x: 3", "x:\n  1;\ny:\n  2;\nx:\n  3;\n")
+	expectPrinted(t, "x: (() => { x: 1; })()", "x:\n  (() => {\n    x:\n      1;\n  })();\n")
+	expectPrinted(t, "x: ({ f() { x: 1; } }).f()", "x:\n  ({ f() {\n    x:\n      1;\n  } }).f();\n")
+	expectPrinted(t, "x: (function() { x: 1; })()", "x:\n  (function() {\n    x:\n      1;\n  })();\n")
 	expectParseError(t, "x: y: x: 1", "<stdin>: error: Duplicate label \"x\"\n<stdin>: note: The original label \"x\" is here\n")
 }
 
