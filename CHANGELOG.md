@@ -50,6 +50,29 @@
 
     This fix was contributed by [@eelco](https://github.com/eelco).
 
+* Fix an incorrect duplicate label error ([#1671](https://github.com/evanw/esbuild/pull/1671))
+
+    When labeling a statement in JavaScript, the label must be unique within the enclosing statements since the label determines the jump target of any labeled `break` or `continue` statement:
+
+    ```js
+    // This code is valid
+    x: y: z: break x;
+
+    // This code is invalid
+    x: y: x: break x;
+    ```
+
+    However, an enclosing label with the same name *is* allowed as long as it's located in a different function body. Since `break` and `continue` statements can't jump across function boundaries, the label is not ambiguous. This release fixes a bug where esbuild incorrectly treated this valid code as a syntax error:
+
+    ```js
+    // This code is valid, but was incorrectly considered a syntax error
+    x: (() => {
+      x: break x;
+    })();
+    ```
+
+    This fix was contributed by [@nevkontakte](https://github.com/nevkontakte).
+
 ## 0.13.4
 
 * Fix permission issues with the install script ([#1642](https://github.com/evanw/esbuild/issues/1642))
