@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.5
 
 * Improve watch mode accuracy ([#1113](https://github.com/evanw/esbuild/issues/1113))
 
