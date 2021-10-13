@@ -14,6 +14,28 @@
 
     This change was contributed by [@heypiotr](https://github.com/heypiotr).
 
+* Remove unused `catch` bindings when minifying ([#1660](https://github.com/evanw/esbuild/pull/1660))
+
+    With this release, esbuild will now remove unused `catch` bindings when minifying:
+
+    ```js
+    // Original code
+    try {
+      throw 0;
+    } catch (e) {
+    }
+
+    // Old output (with --minify)
+    try{throw 0}catch(t){}
+
+    // New output (with --minify)
+    try{throw 0}catch{}
+    ```
+
+    This takes advantage of the new [optional catch binding](https://github.com/tc39/proposal-optional-catch-binding) syntax feature that was introduced in ES2019. This minification rule is only enabled when optional catch bindings are supported by the target environment. Specifically, it's not enabled when using `--target=es2018` or older. Make sure to set esbuild's `target` setting correctly when minifying if the code will be running in an older JavaScript environment.
+
+    This change was contributed by [@sapphi-red](https://github.com/sapphi-red).
+
 ## 0.13.5
 
 * Improve watch mode accuracy ([#1113](https://github.com/evanw/esbuild/issues/1113))
@@ -144,22 +166,6 @@
     ```
 
     Transforming this to `div{margin:5px inherit inherit 5px}`, as was done in previous releases of esbuild, is an invalid transformation and results in incorrect CSS. This release of esbuild fixes this CSS transformation bug.
-
-* Drop catch binding when optional catch binding is supported ([#1660](https://github.com/evanw/esbuild/pull/1660))
-
-    The `--minify-syntax` flag (automatically enabled by `--minify`) will now drop catch binding when optional catch binding is supported.
-
-    ```js
-    // Original code
-    try {
-      throw 0
-    } catch (e) {}
-
-    // Output with "--minify-syntax" when optional catch binding is supported
-    try {
-      throw 0
-    } catch {}
-    ```
 
 ## 0.13.3
 
