@@ -899,7 +899,7 @@ func TestEmptyRule(t *testing.T) {
 	expectPrintedMangle(t, "div {}", "")
 	expectPrintedMangle(t, "@media screen {}", "")
 	expectPrintedMangle(t, "@page { @top-left {} }", "")
-	expectPrintedMangle(t, "@keyframes test { from {} to {} }", "")
+	expectPrintedMangle(t, "@keyframes test { from {} to {} }", "@keyframes test {\n}\n")
 
 	expectPrinted(t, "$invalid {}", "$invalid {\n}\n")
 	expectPrinted(t, "@page { color: red; @top-left {} }", "@page {\n  color: red;\n  @top-left {\n  }\n}\n")

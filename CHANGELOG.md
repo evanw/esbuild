@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Experimental support for esbuild on NetBSD ([#1624](https://github.com/evanw/esbuild/pull/1624))
+
+    With this release, esbuild now has a published binary executable for [NetBSD](https://www.netbsd.org/) in the [`esbuild-netbsd-64`](https://www.npmjs.com/package/esbuild-netbsd-64) npm package, and esbuild's installer has been modified to attempt to use it when on NetBSD. Hopefully this makes installing esbuild via npm work on NetBSD. This change was contributed by [@gdt](https://github.com/gdt).
+
+    ⚠️ Note: NetBSD is not one of [Node's supported platforms](https://nodejs.org/api/process.html#process_process_platform), so installing esbuild may or may not work on NetBSD depending on how Node has been patched. This is not a problem with esbuild. ⚠️
+
+## 0.13.5
+
 * Improve watch mode accuracy ([#1113](https://github.com/evanw/esbuild/issues/1113))
 
     Watch mode is enabled by `--watch` and causes esbuild to become a long-running process that automatically rebuilds output files when input files are changed. It's implemented by recording all calls to esbuild's internal file system interface and then invalidating the build whenever these calls would return different values. For example, a call to esbuild's internal `ReadFile()` function is considered to be different if either the presence of the file has changed (e.g. the file didn't exist before but now exists) or the presence of the file stayed the same but the content of the file has changed.
@@ -14,7 +22,7 @@
 
 * Disallow certain uses of `<` in `.mts` and `.cts` files
 
-    The upcoming version 4.5 of TypeScript is introducing the `.mts` and `.cts` extensions that turn into the `.mjs` and `.cjs` extensions when compiled. However, unlike the existing `.ts` and `.tsx` extensions, expressions that start with `<` are disallowed when they would be ambiguous depending on whether they are parsed in `.ts` or `.tsx` mode. The ambiguity is caused by the overlap between the syntax for JSX elements and the old deprecated syntax for type casts.
+    The upcoming version 4.5 of TypeScript is introducing the `.mts` and `.cts` extensions that turn into the `.mjs` and `.cjs` extensions when compiled. However, unlike the existing `.ts` and `.tsx` extensions, expressions that start with `<` are disallowed when they would be ambiguous depending on whether they are parsed in `.ts` or `.tsx` mode. The ambiguity is caused by the overlap between the syntax for JSX elements and the old deprecated syntax for type casts:
 
     | Syntax                        | `.ts`                | `.tsx`           | `.mts`/`.cts`        |
     |-------------------------------|----------------------|------------------|----------------------|
@@ -28,6 +36,50 @@
     | `<T extends X>() => {}`       | ✅ Arrow function    | ✅ Arrow function | ✅ Arrow function    |
 
     This release of esbuild introduces a syntax error for these ambiguous syntax constructs in `.mts` and `.cts` files to match the new behavior of the TypeScript compiler.
+
+* Do not remove empty `@keyframes` rules ([#1665](https://github.com/evanw/esbuild/issues/1665))
+
+    CSS minification in esbuild automatically removes empty CSS rules, since they have no effect. However, empty `@keyframes` rules still trigger JavaScript animation events so it's incorrect to remove them. To demonstrate that empty `@keyframes` rules still have an effect, here is a bug report for Firefox where it was incorrectly not triggering JavaScript animation events for empty `@keyframes` rules: https://bugzilla.mozilla.org/show_bug.cgi?id=1004377.
+
+    With this release, empty `@keyframes` rules are now preserved during minification:
+
+    ```css
+    /* Original CSS */
+    @keyframes foo {
+      from {}
+      to {}
+    }
+
+    /* Old output (with --minify) */
+
+    /* New output (with --minify) */
+    @keyframes foo{}
+    ```
+
+    This fix was contributed by [@eelco](https://github.com/eelco).
+
+* Fix an incorrect duplicate label error ([#1671](https://github.com/evanw/esbuild/pull/1671))
+
+    When labeling a statement in JavaScript, the label must be unique within the enclosing statements since the label determines the jump target of any labeled `break` or `continue` statement:
+
+    ```js
+    // This code is valid
+    x: y: z: break x;
+
+    // This code is invalid
+    x: y: x: break x;
+    ```
+
+    However, an enclosing label with the same name *is* allowed as long as it's located in a different function body. Since `break` and `continue` statements can't jump across function boundaries, the label is not ambiguous. This release fixes a bug where esbuild incorrectly treated this valid code as a syntax error:
+
+    ```js
+    // This code is valid, but was incorrectly considered a syntax error
+    x: (() => {
+      x: break x;
+    })();
+    ```
+
+    This fix was contributed by [@nevkontakte](https://github.com/nevkontakte).
 
 ## 0.13.4
 
@@ -4176,7 +4228,7 @@ In addition to the breaking changes above, the following features are also inclu
 
 * Allow namespaced names in JSX syntax ([#702](https://github.com/evanw/esbuild/issues/702))
 
-    XML-style namespaced names with a `:` in the middle are a part of the [JSX specification](http://facebook.github.io/jsx/) but they are explicitly unimplemented by React and TypeScript so esbuild doesn't currently support them. However, there was a user request to support this feature since it's part of the JSX specification and esbuild's JSX support can be used for non-React purposes. So this release now supports namespaced names in JSX expressions:
+    XML-style namespaced names with a `:` in the middle are a part of the [JSX specification](https://facebook.github.io/jsx/) but they are explicitly unimplemented by React and TypeScript so esbuild doesn't currently support them. However, there was a user request to support this feature since it's part of the JSX specification and esbuild's JSX support can be used for non-React purposes. So this release now supports namespaced names in JSX expressions:
 
     ```jsx
     let xml =
@@ -7383,7 +7435,7 @@ Note that you can also just use `--strict` to enable strictness for all transfor
 
 * Special-case `require` in browserify bundles ([#80](https://github.com/evanw/esbuild/issues/80) and [#90](https://github.com/evanw/esbuild/issues/90))
 
-    [Browserify](http://browserify.org/) generates code containing the expression `typeof require == "function" && require` which then ends up in a lot of npm packages. This expression is problematic because bundling involves statically determining all source files and their dependencies. Using `require` dynamically like this defeats the static analysis. It's also problematic because esbuild replaces `typeof require == "function"` with `true` since `require` is a function at compile-time when bundling. Then `true && require` becomes `require` in the generated code, which crashes at run time.
+    [Browserify](https://browserify.org/) generates code containing the expression `typeof require == "function" && require` which then ends up in a lot of npm packages. This expression is problematic because bundling involves statically determining all source files and their dependencies. Using `require` dynamically like this defeats the static analysis. It's also problematic because esbuild replaces `typeof require == "function"` with `true` since `require` is a function at compile-time when bundling. Then `true && require` becomes `require` in the generated code, which crashes at run time.
 
     Previously esbuild would generate an error for these expressions. Now esbuild replaces `typeof require == "function" && require` with `false` when targeting the browser and `require` when targeting node. This matches the intent of the browserify prelude snippet and allows esbuild to build libraries containing this code without errors or warnings.
 
@@ -7401,7 +7453,7 @@ Note that you can also just use `--strict` to enable strictness for all transfor
 
 * Fix interpretation of legacy `-->` single-line HTML comments
 
-    The `-->` sequence starts a single-line comment similar to `//`. This is legacy behavior from [annex B](http://www.ecma-international.org/ecma-262/6.0/#sec-html-like-comments) under the name `SingleLineHTMLCloseComment`. However, `-->` was incorrectly treated as the start of a comment even when it didn't come at the beginning of the line. Now `-->` only starts a comment if there are no tokens before it on that line.
+    The `-->` sequence starts a single-line comment similar to `//`. This is legacy behavior from [annex B](https://www.ecma-international.org/ecma-262/6.0/#sec-html-like-comments) under the name `SingleLineHTMLCloseComment`. However, `-->` was incorrectly treated as the start of a comment even when it didn't come at the beginning of the line. Now `-->` only starts a comment if there are no tokens before it on that line.
 
 * Allow shadowing of CommonJS variables ([#165](https://github.com/evanw/esbuild/issues/165))
 
