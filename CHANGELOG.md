@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.6
 
 * Emit decorators for `declare` class fields ([#1675](https://github.com/evanw/esbuild/issues/1675))
 
