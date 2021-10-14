@@ -2085,13 +2085,21 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			}
 		}
 
+		// If the field uses the TypeScript "declare" keyword, just omit it entirely.
+		// However, we must still keep any side-effects in the computed value and/or
+		// in the decorators.
+		if prop.Kind == js_ast.PropertyDeclare && prop.ValueOrNil.Data == nil {
+			mustLowerField = true
+			shouldOmitFieldInitializer = true
+		}
+
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
 		if prop.IsComputed && (len(prop.TSDecorators) > 0 ||
 			mustLowerField || computedPropertyCache.Data != nil) {
 			needsKey := true
-			if len(prop.TSDecorators) == 0 && (prop.IsMethod || shouldOmitFieldInitializer) {
+			if len(prop.TSDecorators) == 0 && (prop.IsMethod || shouldOmitFieldInitializer || !mustLowerField) {
 				needsKey = false
 			}
 

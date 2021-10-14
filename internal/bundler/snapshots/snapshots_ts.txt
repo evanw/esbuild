@@ -43,7 +43,7 @@ TestTSDeclareClassFields
 // define-false/index.ts
 var Foo = class {
 };
-() => null, c, () => null, C;
+() => null, c, () => null, d, () => null, C, () => null, D;
 (() => new Foo())();
 
 // define-true/index.ts
@@ -54,7 +54,7 @@ var Bar = class {
     __publicField(this, _a);
   }
 };
-_a = (() => null, c), _b = (() => null, C);
+_a = (() => null, c), () => null, d, _b = (() => null, C), () => null, D;
 __publicField(Bar, "A");
 __publicField(Bar, _b);
 (() => new Bar())();
@@ -388,6 +388,10 @@ __decorateClass([
 __decorateClass([
   x,
   y
+], Foo.prototype, "mDecl", 2);
+__decorateClass([
+  x,
+  y
 ], Foo, "sUndef", 2);
 __decorateClass([
   x,
@@ -401,6 +405,10 @@ __decorateClass([
   __decorateParam(1, x1),
   __decorateParam(1, y1)
 ], Foo, "sMethod", 1);
+__decorateClass([
+  x,
+  y
+], Foo, "mDecl", 2);
 Foo = __decorateClass([
   x.y(),
   new y.x(),
@@ -411,21 +419,22 @@ Foo = __decorateClass([
 ], Foo);
 
 // all_computed.ts
-var _a, _b, _c, _d, _e, _f, _g, _h;
+var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
 var Foo2 = class {
   constructor() {
     this[_b] = 1;
-    this[_d] = 2;
+    this[_e] = 2;
   }
   [(_a = mUndef(), _b = mDef(), _c = method())](arg0, arg1) {
     return new Foo2();
   }
-  static [(xUndef(), _d = xDef(), yUndef(), _e = yDef(), _f = sUndef(), _g = sDef(), _h = sMethod())](arg0, arg1) {
+  static [(_d = mDecl(), xUndef(), _e = xDef(), yUndef(), _f = yDef(), _g = sUndef(), _h = sDef(), _i = sMethod())](arg0, arg1) {
     return new Foo2();
   }
 };
-Foo2[_e] = 3;
-Foo2[_g] = new Foo2();
+_j = mDecl();
+Foo2[_f] = 3;
+Foo2[_h] = new Foo2();
 __decorateClass([
   x,
   y
@@ -445,11 +454,15 @@ __decorateClass([
 __decorateClass([
   x,
   y
-], Foo2, _f, 2);
+], Foo2.prototype, _d, 2);
 __decorateClass([
   x,
   y
 ], Foo2, _g, 2);
+__decorateClass([
+  x,
+  y
+], Foo2, _h, 2);
 __decorateClass([
   x,
   y,
@@ -457,7 +470,11 @@ __decorateClass([
   __decorateParam(0, y0),
   __decorateParam(1, x1),
   __decorateParam(1, y1)
-], Foo2, _h, 1);
+], Foo2, _i, 1);
+__decorateClass([
+  x,
+  y
+], Foo2, _j, 2);
 Foo2 = __decorateClass([
   x?.[_ + "y"](),
   new y?.[_ + "x"]()

@@ -3543,7 +3543,7 @@
           declare [(() => ++b)()]
         }
         const foo = new Foo
-        if (b !== 1 || 'a' in foo || 1 in foo || 'c' in foo || 2 in foo) throw 'fail'
+        if (b !== 2 || 'a' in foo || 1 in foo || 'c' in foo || 2 in foo) throw 'fail'
       `,
     }),
     test(['in.ts', '--outfile=node.js', '--target=es6'], {
@@ -3556,7 +3556,7 @@
           declare [(() => ++b)()]
         }
         const foo = new Foo
-        if (b !== 1 || !('a' in foo) || !(1 in foo) || 'c' in foo || 2 in foo) throw 'fail'
+        if (b !== 2 || !('a' in foo) || !(1 in foo) || 'c' in foo || 2 in foo) throw 'fail'
       `,
       'tsconfig.json': `{
         "compilerOptions": {

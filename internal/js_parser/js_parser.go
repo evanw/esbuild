@@ -1941,7 +1941,22 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 					if opts.isClass && p.options.ts.Parse && opts.tsDeclareRange.Len == 0 && raw == name {
 						opts.tsDeclareRange = nameRange
 						scopeIndex := len(p.scopesInOrder)
-						p.parseProperty(kind, opts, nil)
+
+						if prop, ok := p.parseProperty(kind, opts, nil); ok &&
+							prop.Kind == js_ast.PropertyNormal && prop.ValueOrNil.Data == nil {
+							// If this is a well-formed class field with the "declare" keyword,
+							// keep the declaration to preserve its side-effects, which may
+							// include the computed key and/or the TypeScript decorators:
+							//
+							//   class Foo {
+							//     declare [(console.log('side effect 1'), 'foo')]
+							//     @decorator(console.log('side effect 2')) declare bar
+							//   }
+							//
+							prop.Kind = js_ast.PropertyDeclare
+							return prop, true
+						}
+
 						p.discardScopesUpTo(scopeIndex)
 						return js_ast.Property{}, false
 					}

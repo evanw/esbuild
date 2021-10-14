@@ -2,6 +2,52 @@
 
 ## Unreleased
 
+* Emit decorators for `declare` class fields ([#1675](https://github.com/evanw/esbuild/issues/1675))
+
+    In version 3.7, TypeScript introduced the `declare` keyword for class fields that avoids generating any code for that field:
+
+    ```ts
+    // TypeScript input
+    class Foo {
+      a: number
+      declare b: number
+    }
+
+    // JavaScript output
+    class Foo {
+      a;
+    }
+    ```
+
+    However, it turns out that TypeScript still emits decorators for these omitted fields. With this release, esbuild will now do this too:
+
+    ```ts
+    // TypeScript input
+    class Foo {
+      @decorator a: number;
+      @decorator declare b: number;
+    }
+
+    // Old JavaScript output
+    class Foo {
+      a;
+    }
+    __decorateClass([
+      decorator
+    ], Foo.prototype, "a", 2);
+
+    // New JavaScript output
+    class Foo {
+      a;
+    }
+    __decorateClass([
+      decorator
+    ], Foo.prototype, "a", 2);
+    __decorateClass([
+      decorator
+    ], Foo.prototype, "b", 2);
+    ```
+
 * Experimental support for esbuild on NetBSD ([#1624](https://github.com/evanw/esbuild/pull/1624))
 
     With this release, esbuild now has a published binary executable for [NetBSD](https://www.netbsd.org/) in the [`esbuild-netbsd-64`](https://www.npmjs.com/package/esbuild-netbsd-64) npm package, and esbuild's installer has been modified to attempt to use it when on NetBSD. Hopefully this makes installing esbuild via npm work on NetBSD. This change was contributed by [@gdt](https://github.com/gdt).

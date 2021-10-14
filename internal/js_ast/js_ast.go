@@ -260,6 +260,7 @@ const (
 	PropertyGet
 	PropertySet
 	PropertySpread
+	PropertyDeclare
 )
 
 type Property struct {
