@@ -833,29 +833,11 @@ bench-rome-parcel: | require/parcel/node_modules bench/rome bench/rome-verify
 	du -h bench/rome/parcel/rome.parcel.js*
 	cd bench/rome-verify && rm -fr parcel && ROME_CACHE=0 node ../rome/parcel/rome.parcel.js bundle packages/rome parcel
 
-# This fixes TypeScript parsing bugs in Parcel 2. Parcel 2 switched to using
-# Babel to transform TypeScript into JavaScript, and Babel's TypeScript parser is
-# incomplete. It cannot parse the code in the TypeScript benchmark.
-#
-# The suggested workaround for any Babel bugs is to install a plugin to get the
-# old TypeScript parser back. Read this thread for more information:
-# https://github.com/parcel-bundler/parcel/issues/2023.
-#
-# It also looks like the Parcel team is considering reverting this change:
-# https://github.com/parcel-bundler/parcel/issues/4938.
-PARCELRC += {
-PARCELRC +=   "extends": ["@parcel/config-default"],
-PARCELRC +=   "transformers": {
-PARCELRC +=     "*.ts": ["@parcel/transformer-typescript-tsc"]
-PARCELRC +=   }
-PARCELRC += }
-
 bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
 	rm -fr bench/rome/parcel2
-	cp -r bench/rome/src bench/rome/parcel2 # Can't use a symbolic link or ".parcelrc" breaks
+	cp -r bench/rome/src bench/rome/parcel2
 	rm -fr bench/rome/parcel2/node_modules
 	cp -RP require/parcel2/node_modules bench/rome/parcel2/node_modules
-	echo '$(PARCELRC)' > bench/rome/parcel2/.parcelrc
 
 	# Inject aliases into "package.json" to fix Parcel 2 ignoring "tsconfig.json".
 	# Also inject "engines": "node" to avoid Parcel 2 mangling node globals.

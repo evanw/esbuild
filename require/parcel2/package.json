@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "@parcel/transformer-typescript-tsc": "2.0.0",
     "parcel": "2.0.0",
     "typescript": "4.4.4"
   }
