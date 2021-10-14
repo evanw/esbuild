@@ -42,19 +42,21 @@ TestTSDeclareClassFields
 ---------- /out.js ----------
 // define-false/index.ts
 var Foo = class {
-  constructor() {
-    this.c = () => this;
-  }
 };
+() => null, c, () => null, C;
 (() => new Foo())();
 
 // define-true/index.ts
+var _a, _b;
 var Bar = class {
   constructor() {
     __publicField(this, "a");
-    __publicField(this, "c", () => this);
+    __publicField(this, _a);
   }
 };
+_a = (() => null, c), _b = (() => null, C);
+__publicField(Bar, "A");
+__publicField(Bar, _b);
 (() => new Bar())();
 
 ================================================================================
