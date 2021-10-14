@@ -1828,6 +1828,8 @@ func TestDCETypeOfEqualsStringGuardCondition(t *testing.T) {
 	})
 }
 
+// These unused imports should be removed since they aren't used, and removing
+// them makes the code shorter.
 func TestRemoveUnusedImports(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1846,10 +1848,36 @@ func TestRemoveUnusedImports(t *testing.T) {
 	})
 }
 
+// These unused imports should be kept since the direct eval could potentially
+// reference them, even though they appear to be unused.
 func TestRemoveUnusedImportsEval(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
+				import a from 'a'
+				import * as b from 'b'
+				import {c} from 'c'
+				eval('foo(a, b, c)')
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			MangleSyntax:  true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+// These unused imports should be removed even though there is a direct eval
+// because they may be types, not values, so keeping them will likely cause
+// module instantiation failures. It's still true that direct eval could
+// access them of course, but that's very unlikely while module instantiation
+// failure is very likely so we bias towards the likely case here instead.
+func TestRemoveUnusedImportsEvalTS(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
 				import a from 'a'
 				import * as b from 'b'
 				import {c} from 'c'

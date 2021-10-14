@@ -13021,7 +13021,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					}
 
 					// Remove the symbol if it's never used outside a dead code region
-					if symbol.UseCountEstimate == 0 && !p.moduleScope.ContainsDirectEval {
+					if symbol.UseCountEstimate == 0 && (p.options.ts.Parse || !p.moduleScope.ContainsDirectEval) {
 						s.DefaultName = nil
 					}
 				}
@@ -13037,7 +13037,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					}
 
 					// Remove the symbol if it's never used outside a dead code region
-					if symbol.UseCountEstimate == 0 && !p.moduleScope.ContainsDirectEval {
+					if symbol.UseCountEstimate == 0 && (p.options.ts.Parse || !p.moduleScope.ContainsDirectEval) {
 						// Make sure we don't remove this if it was used for a property
 						// access while bundling
 						if importItems, ok := p.importItemsForNamespace[s.NamespaceRef]; ok && len(importItems) == 0 {
@@ -13060,7 +13060,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 						}
 
 						// Remove the symbol if it's never used outside a dead code region
-						if symbol.UseCountEstimate != 0 || p.moduleScope.ContainsDirectEval {
+						if symbol.UseCountEstimate != 0 || (!p.options.ts.Parse && p.moduleScope.ContainsDirectEval) {
 							(*s.Items)[itemsEnd] = item
 							itemsEnd++
 						}
