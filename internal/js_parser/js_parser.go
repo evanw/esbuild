@@ -494,8 +494,6 @@ type fnOrArrowDataParse struct {
 // restored on the call stack around code that parses nested functions and
 // arrow expressions.
 type fnOrArrowDataVisit struct {
-	superIndexRef *js_ast.Ref
-
 	isArrow            bool
 	isAsync            bool
 	isGenerator        bool
@@ -513,6 +511,9 @@ type fnOrArrowDataVisit struct {
 // restored on the call stack around code that parses nested functions (but not
 // nested arrow functions).
 type fnOnlyDataVisit struct {
+	superIndexRef    *js_ast.Ref
+	shouldLowerSuper bool
+
 	// This is a reference to the magic "arguments" variable that exists inside
 	// functions in JavaScript. It will be non-nil inside functions and nil
 	// otherwise.
@@ -12813,6 +12814,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 		isThisNested:       true,
 		isNewTargetAllowed: true,
 		argumentsRef:       &fn.ArgumentsRef,
+		shouldLowerSuper:   fn.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait),
 	}
 
 	if fn.Name != nil {

@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+* Fix `super` inside arrow function inside lowered `async` function ([#1425](https://github.com/evanw/esbuild/issues/1425))
+
+    When an `async` function is transformed into a regular function for target environments that don't support `async` such as `--target=es6`, references to `super` inside that function must be transformed too since the `async`-to-regular function transformation moves the function body into a nested function, so the `super` references are no longer syntactically valid. However, this transform didn't handle an edge case and `super` references inside of an arrow function were overlooked. This release fixes this bug:
+
+    ```js
+    // Original code
+    class Foo extends Bar {
+      async foo() {
+        return () => super.foo()
+      }
+    }
+
+    // Old output (with --target=es6)
+    class Foo extends Bar {
+      foo() {
+        return __async(this, null, function* () {
+          return () => super.foo();
+        });
+      }
+    }
+
+    // New output (with --target=es6)
+    class Foo extends Bar {
+      foo() {
+        var __super = (key) => super[key];
+        return __async(this, null, function* () {
+          return () => __super("foo").call(this);
+        });
+      }
+    }
+    ```
+
 ## 0.13.7
 
 * Minify CSS alpha values correctly ([#1682](https://github.com/evanw/esbuild/issues/1682))

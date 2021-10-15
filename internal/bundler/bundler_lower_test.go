@@ -920,6 +920,43 @@ obj-method.js: error: Transforming object literal extensions to the configured t
 	})
 }
 
+func TestLowerAsyncSuperES2017NoBundle(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Derived extends Base {
+					async test(key) {
+						return [
+							await super.foo,
+							await super[key],
+
+							await super.foo.name,
+							await super[key].name,
+							await super.foo?.name,
+							await super[key]?.name,
+
+							await super.foo(1, 2),
+							await super[key](1, 2),
+							await super.foo?.(1, 2),
+							await super[key]?.(1, 2),
+
+							await (() => super.foo)(),
+							await (() => super[key])(),
+							await (() => super.foo())(),
+							await (() => super[key]())(),
+						]
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			UnsupportedJSFeatures: es(2017),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
 func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -939,6 +976,11 @@ func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 							await super[key](1, 2),
 							await super.foo?.(1, 2),
 							await super[key]?.(1, 2),
+
+							await (() => super.foo)(),
+							await (() => super[key])(),
+							await (() => super.foo())(),
+							await (() => super[key]())(),
 						]
 					}
 				}

@@ -109,9 +109,38 @@ class Derived extends Base {
         yield __super("foo").call(this, 1, 2),
         yield __super(key).call(this, 1, 2),
         yield (_c = __super("foo")) == null ? void 0 : _c.call(this, 1, 2),
-        yield (_d = __super(key)) == null ? void 0 : _d.call(this, 1, 2)
+        yield (_d = __super(key)) == null ? void 0 : _d.call(this, 1, 2),
+        yield (() => __super("foo"))(),
+        yield (() => __super(key))(),
+        yield (() => __super("foo").call(this))(),
+        yield (() => __super(key).call(this))()
       ];
     });
+  }
+}
+
+================================================================================
+TestLowerAsyncSuperES2017NoBundle
+---------- /out.js ----------
+class Derived extends Base {
+  async test(key) {
+    var _a, _b, _c, _d;
+    return [
+      await super.foo,
+      await super[key],
+      await super.foo.name,
+      await super[key].name,
+      await ((_a = super.foo) == null ? void 0 : _a.name),
+      await ((_b = super[key]) == null ? void 0 : _b.name),
+      await super.foo(1, 2),
+      await super[key](1, 2),
+      await ((_c = super.foo) == null ? void 0 : _c.call(this, 1, 2)),
+      await ((_d = super[key]) == null ? void 0 : _d.call(this, 1, 2)),
+      await (() => super.foo)(),
+      await (() => super[key])(),
+      await (() => super.foo())(),
+      await (() => super[key]())()
+    ];
   }
 }
 

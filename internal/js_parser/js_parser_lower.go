@@ -443,12 +443,12 @@ func (p *parser) lowerFunction(
 		returnStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SReturn{ValueOrNil: callAsync}}
 
 		// Prepend the "super" index function if necessary
-		if p.fnOrArrowDataVisit.superIndexRef != nil {
+		if p.fnOnlyDataVisit.superIndexRef != nil {
 			argRef := p.newSymbol(js_ast.SymbolOther, "key")
-			p.currentScope.Generated = append(p.currentScope.Generated, *p.fnOrArrowDataVisit.superIndexRef, argRef)
+			p.currentScope.Generated = append(p.currentScope.Generated, *p.fnOnlyDataVisit.superIndexRef, argRef)
 			superIndexStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SLocal{
 				Decls: []js_ast.Decl{{
-					Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: *p.fnOrArrowDataVisit.superIndexRef}},
+					Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: *p.fnOnlyDataVisit.superIndexRef}},
 					ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArrow{
 						Args: []js_ast.Arg{{
 							Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: argRef}},
@@ -2729,7 +2729,7 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 }
 
 func (p *parser) shouldLowerSuperPropertyAccess(expr js_ast.Expr) bool {
-	if p.fnOrArrowDataVisit.isAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
+	if p.fnOnlyDataVisit.shouldLowerSuper {
 		_, isSuper := expr.Data.(*js_ast.ESuper)
 		return isSuper
 	}
@@ -2737,13 +2737,13 @@ func (p *parser) shouldLowerSuperPropertyAccess(expr js_ast.Expr) bool {
 }
 
 func (p *parser) lowerSuperPropertyAccess(loc logger.Loc, key js_ast.Expr) js_ast.Expr {
-	if p.fnOrArrowDataVisit.superIndexRef == nil {
+	if p.fnOnlyDataVisit.superIndexRef == nil {
 		ref := p.newSymbol(js_ast.SymbolOther, "__super")
-		p.fnOrArrowDataVisit.superIndexRef = &ref
+		p.fnOnlyDataVisit.superIndexRef = &ref
 	}
-	p.recordUsage(*p.fnOrArrowDataVisit.superIndexRef)
+	p.recordUsage(*p.fnOnlyDataVisit.superIndexRef)
 	return js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
-		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOrArrowDataVisit.superIndexRef}},
+		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.superIndexRef}},
 		Args:   []js_ast.Expr{key},
 	}}
 }
