@@ -434,7 +434,7 @@ TEST_ROLLUP_FLAGS += src/node-entry.ts
 
 github/rollup:
 	mkdir -p github
-	git clone --depth 1 --branch v2.50.1 https://github.com/rollup/rollup.git github/rollup
+	git clone --depth 1 --branch v2.58.0 https://github.com/rollup/rollup.git github/rollup
 
 demo/rollup: | github/rollup
 	mkdir -p demo
