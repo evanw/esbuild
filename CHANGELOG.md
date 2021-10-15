@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.7
 
 * Minify CSS alpha values correctly ([#1682](https://github.com/evanw/esbuild/issues/1682))
 
