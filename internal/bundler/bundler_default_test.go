@@ -4707,3 +4707,38 @@ func TestStrictModeNestedFnDeclKeepNamesVariableInliningIssue1552(t *testing.T) 
 		},
 	})
 }
+
+func TestBuiltInNodeModulePrecedence(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log([
+					// These are node core modules
+					require('fs'),
+					require('fs/promises'),
+					require('node:foo'),
+
+					// These are not node core modules
+					require('fs/abc'),
+					require('fs/'),
+				])
+			`,
+			"/node_modules/fs/abc.js": `
+				console.log('include this')
+			`,
+			"/node_modules/fs/index.js": `
+				console.log('include this too')
+			`,
+			"/node_modules/fs/promises.js": `
+				throw 'DO NOT INCLUDE THIS'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			Platform:     config.PlatformNode,
+			OutputFormat: config.FormatCommonJS,
+			AbsOutputDir: "/out",
+		},
+	})
+}

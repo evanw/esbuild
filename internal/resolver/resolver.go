@@ -214,20 +214,6 @@ type resolverQuery struct {
 }
 
 func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options config.Options) Resolver {
-	// Bundling for node implies allowing node's builtin modules
-	if options.Platform == config.PlatformNode {
-		externalNodeModules := make(map[string]bool)
-		if options.ExternalModules.NodeModules != nil {
-			for name := range options.ExternalModules.NodeModules {
-				externalNodeModules[name] = true
-			}
-		}
-		for name := range BuiltInNodeModules {
-			externalNodeModules[name] = true
-		}
-		options.ExternalModules.NodeModules = externalNodeModules
-	}
-
 	// Filter out non-CSS extensions for CSS "@import" imports
 	atImportExtensionOrder := make([]string, 0, len(options.ExtensionOrder))
 	for _, ext := range options.ExtensionOrder {
@@ -294,8 +280,9 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		// "background: url(//example.com/images/image.png);"
 		strings.HasPrefix(importPath, "//") ||
 
+		// "import fs from 'fs'"
 		// "import fs from 'node:fs'"
-		(r.options.Platform == config.PlatformNode && strings.HasPrefix(importPath, "node:")) {
+		(r.options.Platform == config.PlatformNode && (BuiltInNodeModules[importPath] || strings.HasPrefix(importPath, "node:"))) {
 
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Marking this path as implicitly external")
@@ -1729,6 +1716,11 @@ func IsPackagePath(path string) bool {
 		!strings.HasPrefix(path, "../") && path != "." && path != ".."
 }
 
+// This list can be obtained with the following command:
+//
+//   node --experimental-wasi-unstable-preview1 -p "[...require('module').builtinModules].join('\n')"
+//
+// Be sure to use the *LATEST* version of node when updating this list!
 var BuiltInNodeModules = map[string]bool{
 	"_http_agent":         true,
 	"_http_client":        true,
@@ -1745,6 +1737,7 @@ var BuiltInNodeModules = map[string]bool{
 	"_tls_common":         true,
 	"_tls_wrap":           true,
 	"assert":              true,
+	"assert/strict":       true,
 	"async_hooks":         true,
 	"buffer":              true,
 	"child_process":       true,
@@ -1755,9 +1748,11 @@ var BuiltInNodeModules = map[string]bool{
 	"dgram":               true,
 	"diagnostics_channel": true,
 	"dns":                 true,
+	"dns/promises":        true,
 	"domain":              true,
 	"events":              true,
 	"fs":                  true,
+	"fs/promises":         true,
 	"http":                true,
 	"http2":               true,
 	"https":               true,
@@ -1766,6 +1761,8 @@ var BuiltInNodeModules = map[string]bool{
 	"net":                 true,
 	"os":                  true,
 	"path":                true,
+	"path/posix":          true,
+	"path/win32":          true,
 	"perf_hooks":          true,
 	"process":             true,
 	"punycode":            true,
@@ -1773,14 +1770,19 @@ var BuiltInNodeModules = map[string]bool{
 	"readline":            true,
 	"repl":                true,
 	"stream":              true,
+	"stream/consumers":    true,
+	"stream/promises":     true,
+	"stream/web":          true,
 	"string_decoder":      true,
 	"sys":                 true,
 	"timers":              true,
+	"timers/promises":     true,
 	"tls":                 true,
 	"trace_events":        true,
 	"tty":                 true,
 	"url":                 true,
 	"util":                true,
+	"util/types":          true,
 	"v8":                  true,
 	"vm":                  true,
 	"wasi":                true,

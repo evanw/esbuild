@@ -182,6 +182,32 @@ async function main(name) {
 main("fs");
 
 ================================================================================
+TestBuiltInNodeModulePrecedence
+---------- /out/entry.js ----------
+// node_modules/fs/abc.js
+var require_abc = __commonJS({
+  "node_modules/fs/abc.js"() {
+    console.log("include this");
+  }
+});
+
+// node_modules/fs/index.js
+var require_fs = __commonJS({
+  "node_modules/fs/index.js"() {
+    console.log("include this too");
+  }
+});
+
+// entry.js
+console.log([
+  require("fs"),
+  require("fs/promises"),
+  require("node:foo"),
+  require_abc(),
+  require_fs()
+]);
+
+================================================================================
 TestCallImportNamespaceWarning
 ---------- /out/js.js ----------
 import * as a from "a";
