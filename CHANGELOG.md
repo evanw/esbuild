@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Minify CSS alpha values correctly ([#1682](https://github.com/evanw/esbuild/issues/1682))
+
+    When esbuild uses the `rgba()` syntax for a color instead of the 8-character hex code (e.g. when `target` is set to Chrome 61 or earlier), the 0-to-255 integer alpha value must be printed as a floating-point fraction between 0 and 1. The fraction was only printed to three decimal places since that is the minimal number of decimal places required for all 256 different alpha values to be uniquely determined. However, using three decimal places does not necessarily result in the shortest result. For example, `128 / 255` is `0.5019607843137255` which is printed as `".502"` using three decimal places, but `".5"` is equivalent because `round(0.5 * 255) == 128`, so printing `".5"` would be better. With this release, esbuild will always use the minimal numeric representation for the alpha value:
+
+    ```css
+    /* Original code */
+    a { color: #FF800080 }
+
+    /* Old output (with --minify --target=chrome61) */
+    a{color:rgba(255,128,0,.502)}
+
+    /* New output (with --minify --target=chrome61) */
+    a{color:rgba(255,128,0,.5)}
+    ```
+
 ## 0.13.6
 
 * Emit decorators for `declare` class fields ([#1675](https://github.com/evanw/esbuild/issues/1675))
