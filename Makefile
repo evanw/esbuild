@@ -44,8 +44,13 @@ no-filepath:
 	@! grep --color --include '*.go' -r '"path/filepath"' cmd internal pkg || ( \
 		echo 'error: Use of "path/filepath" is disallowed. See http://golang.org/issue/43768.' && false)
 
+# This uses "env -i" to run in a clean environment with no environment
+# variables. It then adds some environment variables back as needed.
+# This is a hack to avoid a problem with the WebAssembly support in Go
+# 1.17.2, which will crash when run in an environment with over 4096
+# bytes of environment variable data such as GitHub Actions.
 test-wasm-node: esbuild
-	PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./internal/...
+	env -i $(shell go env) PATH="$(shell go env GOROOT)/misc/wasm:$(PATH)" GOOS=js GOARCH=wasm go test ./internal/...
 	node scripts/wasm-tests.js
 
 test-wasm-browser: platform-wasm | scripts/browser/node_modules
