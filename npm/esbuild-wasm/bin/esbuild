@@ -80,5 +80,22 @@ fs.read = function () {
   return read.apply(this, arguments);
 };
 
+// WASM code generated with Go 1.17.2+ will crash when run in a situation with
+// many environment variables: https://github.com/golang/go/issues/49011. An
+// example of this situation is running a Go-compiled WASM executable in GitHub
+// Actions. Work around this by filtering node's copy of environment variables
+// down to only include the environment variables that esbuild currently uses.
+const esbuildUsedEnvVars = [
+  'NO_COLOR',
+  'NODE_PATH',
+  'npm_config_user_agent',
+  'WT_SESSION',
+]
+for (let key in process.env) {
+  if (esbuildUsedEnvVars.indexOf(key) < 0) {
+    delete process.env[key]
+  }
+}
+
 const argv = ['node', wasm_exec, esbuild_wasm].concat(process.argv.slice(2));
 wrapper(require, require.main, Object.assign(Object.create(process), { argv }), Object.assign(Object.create(WebAssembly), { instantiate }));
