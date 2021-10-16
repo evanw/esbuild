@@ -546,6 +546,17 @@ var init_types = __esm({
 console.log((init_types(), types_exports));
 
 ================================================================================
+TestEntryNamesNoSlashAfterDir
+---------- /out/app1-main.js ----------
+console.log(1);
+
+---------- /out/app2-main.js ----------
+console.log(2);
+
+---------- /out/-customPath.js ----------
+console.log(3);
+
+================================================================================
 TestExportChain
 ---------- /out.js ----------
 // bar.js

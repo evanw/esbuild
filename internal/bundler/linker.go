@@ -605,11 +605,6 @@ func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) s
 // Returns the path of this file relative to "outbase", which is then ready to
 // be joined with the absolute output directory path. The directory and name
 // components are returned separately for convenience.
-//
-// This makes sure to have the directory end in a slash so that it can be
-// substituted into a path template without necessarily having a "/" after it.
-// Extra slashes should get cleaned up automatically when we join it with the
-// output directory.
 func pathRelativeToOutbase(
 	inputFile *graph.InputFile,
 	options *config.Options,
@@ -684,7 +679,13 @@ func pathRelativeToOutbase(
 			// with a "." means that it will not be hidden on Unix.
 			relDir = strings.Repeat("_.._/", dotDotCount) + relDir[dotDotCount*3:]
 		}
+		for strings.HasSuffix(relDir, "/") {
+			relDir = relDir[:len(relDir)-1]
+		}
 		relDir = "/" + relDir
+		if strings.HasSuffix(relDir, "/.") {
+			relDir = relDir[:len(relDir)-1]
+		}
 	}
 
 	// Strip the file extension if the output path is an input file

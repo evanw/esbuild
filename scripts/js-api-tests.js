@@ -2386,8 +2386,8 @@ require("/assets/file.png");
       write: false,
     })
     assert.strictEqual(outputFiles.length, 2)
-    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', '4UQMP3ZH-1.cjs.js'))
-    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'ACBA75F5-2.mjs.js'))
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', 'CXHWNMAN-1.cjs.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'EYSNILNO-2.mjs.js'))
   },
 
   async customEntryPointOutputPathsAbs({ esbuild, testDir }) {
@@ -2407,8 +2407,8 @@ require("/assets/file.png");
       write: false,
     })
     assert.strictEqual(outputFiles.length, 2)
-    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', 'MYINLEYF-1.js'))
-    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', 'R2MEQS4G-2.js'))
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', 'TIORPBNU-1.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', '3KY7NOSR-2.js'))
   },
 }
 

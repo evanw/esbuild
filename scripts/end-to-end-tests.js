@@ -4290,8 +4290,8 @@
         export let foo = 123
       `,
       'node.js': `
-        import {a} from './out/index/pages/a/y.js'
-        import {b} from './out/index/pages/b/y.js'
+        import {a} from './out/index/pages/ay.js'
+        import {b} from './out/index/pages/by.js'
         if (a !== 'a123' || b !== 'b123') throw 'fail'
       `,
     }),

@@ -34,6 +34,14 @@
     }
     ```
 
+* Remove the implicit `/` after `[dir]` in entry names ([#1661](https://github.com/evanw/esbuild/issues/1661))
+
+    The "entry names" feature lets you customize the way output file names are generated. The `[dir]` and `[name]` placeholders are filled in with the directory name and file name of the corresponding entry point file, respectively.
+
+    Previously `--entry-names=[dir]/[name]` and `--entry-names=[dir][name]` behaved the same because the value used for `[dir]` always had an implicit trailing slash, since it represents a directory. However, some people want to be able to remove the file name with `--entry-names=[dir]` and the implicit trailing slash gets in the way.
+
+    With this release, you can now use the `[dir]` placeholder without an implicit trailing slash getting in the way. For example, the command `esbuild foo/bar/index.js --outbase=. --outdir=out --entry-names=[dir]` previously generated the file `out/foo/bar/.js` but will now generate the file `out/foo/bar.js`.
+
 ## 0.13.7
 
 * Minify CSS alpha values correctly ([#1682](https://github.com/evanw/esbuild/issues/1682))
