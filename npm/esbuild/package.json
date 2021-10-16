@@ -1,7 +1,7 @@
 {
   "name": "esbuild",
   "version": "0.13.7",
-  "description": "An extremely fast JavaScript bundler and minifier.",
+  "description": "An extremely fast JavaScript and CSS bundler and minifier.",
   "repository": "https://github.com/evanw/esbuild",
   "scripts": {
     "postinstall": "node install.js"
