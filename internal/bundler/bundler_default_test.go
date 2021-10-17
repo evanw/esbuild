@@ -4766,3 +4766,23 @@ func TestEntryNamesNoSlashAfterDir(t *testing.T) {
 		},
 	})
 }
+
+func TestEntryNamesNonPortableCharacter(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry1-*.ts": `console.log(1)`,
+			"/entry2-*.ts": `console.log(2)`,
+		},
+		entryPathsAdvanced: []EntryPoint{
+			// The "*" should turn into "_" for cross-platform Windows portability
+			{InputPath: "/entry1-*.ts"},
+
+			// The "*" should be preserved since the user _really_ wants it
+			{InputPath: "/entry2-*.ts", OutputPath: "entry2-*"},
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+		},
+	})
+}
