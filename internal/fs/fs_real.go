@@ -2,6 +2,7 @@ package fs
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"sort"
@@ -224,7 +225,7 @@ func (f *realOpenedFile) Read(start int, end int) ([]byte, error) {
 	bytes := make([]byte, end-start)
 	remaining := bytes
 
-	_, err := f.handle.Seek(int64(start), os.SEEK_SET)
+	_, err := f.handle.Seek(int64(start), io.SeekStart)
 	if err != nil {
 		return nil, err
 	}
