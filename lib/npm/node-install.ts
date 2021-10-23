@@ -169,6 +169,12 @@ function maybeOptimizePackage(binPath: string): void {
       // If we get here, then we know that the target location is now a binary
       // executable instead of a JavaScript file.
       isToPathJS = false;
+
+      // If this install script is being re-run, then "renameSync" will fail
+      // since the underlying inode is the same (it just returns without doing
+      // anything, and without throwing an error). In that case we should remove
+      // the file manually.
+      fs.unlinkSync(tempPath);
     } catch {
       // Ignore errors here since this optimization is optional
     }

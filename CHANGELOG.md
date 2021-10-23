@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Fix using `npm rebuild` with the `esbuild` package ([#1703](https://github.com/evanw/esbuild/issues/1703))
+
+    Version 0.13.4 accidentally introduced a regression in the install script where running `npm rebuild` multiple times could fail after the second time. The install script creates a copy of the binary executable using [`link`](https://man7.org/linux/man-pages/man2/link.2.html) followed by [`rename`](https://www.man7.org/linux/man-pages/man2/rename.2.html). Using `link` creates a hard link which saves space on the file system, and `rename` is used for safety since it atomically replaces the destination.
+
+    However, the `rename` syscall has an edge case where it silently fails if the source and destination are both the same link. This meant that the install script would fail after being run twice in a row. With this release, the install script now deletes the source after calling `rename` in case it has silently failed, so this issue should now be fixed. It should now be safe to use `npm rebuild` with the `esbuild` package.
+
 * Fix invalid CSS minification of `border-radius` ([#1702](https://github.com/evanw/esbuild/issues/1702))
 
     CSS minification does collapsing of `border-radius` related properties. For example:
