@@ -57,8 +57,8 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, dec
 		}
 	}
 
-	firstRadii, firstRadiiOk := expandTokenQuad(tokens[:beforeSplit])
-	lastRadii, lastRadiiOk := expandTokenQuad(tokens[afterSplit:])
+	firstRadii, firstRadiiOk := expandTokenQuad(tokens[:beforeSplit], "")
+	lastRadii, lastRadiiOk := expandTokenQuad(tokens[afterSplit:], "")
 
 	// Stop now if the pattern wasn't matched
 	if !firstRadiiOk || (beforeSplit < afterSplit && !lastRadiiOk) {
@@ -95,8 +95,8 @@ func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.Rule, decl
 		borderRadius.important = decl.Important
 	}
 
-	if tokens := decl.Value; (len(tokens) == 1 && tokens[0].Kind.IsNumericOrIdent()) ||
-		(len(tokens) == 2 && tokens[0].Kind.IsNumericOrIdent() && tokens[1].Kind.IsNumericOrIdent()) {
+	if tokens := decl.Value; (len(tokens) == 1 && tokens[0].Kind.IsNumeric()) ||
+		(len(tokens) == 2 && tokens[0].Kind.IsNumeric() && tokens[1].Kind.IsNumeric()) {
 		firstToken := tokens[0]
 		if firstToken.TurnLengthIntoNumberIfZero() {
 			tokens[0] = firstToken

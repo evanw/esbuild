@@ -1016,7 +1016,6 @@ func TestBorderRadius(t *testing.T) {
 	expectPrintedMangle(t, "a { border-top-left-radius: 0 1 }", "a {\n  border-top-left-radius: 0 1;\n}\n")
 
 	expectPrintedMangle(t, "a { border-top-left-radius: 0; border-radius: 1 }", "a {\n  border-radius: 1;\n}\n")
-	expectPrintedMangle(t, "a { border-top-left-radius: 0; border-radius: inherit }", "a {\n  border-radius: inherit;\n}\n")
 
 	expectPrintedMangle(t, "a { border-radius: 1 2 3 4 }", "a {\n  border-radius: 1 2 3 4;\n}\n")
 	expectPrintedMangle(t, "a { border-radius: 1 2 1 3 }", "a {\n  border-radius: 1 2 1 3;\n}\n")
@@ -1063,6 +1062,13 @@ func TestBorderRadius(t *testing.T) {
 	// These should not be changed because "--x" and "--z" could be empty
 	expectPrintedMangle(t, "a { border-radius: var(--x) var(--y) var(--z) var(--y) }", "a {\n  border-radius: var(--x) var(--y) var(--z) var(--y);\n}\n")
 	expectPrintedMangle(t, "a { border-radius: 0 / var(--x) var(--y) var(--z) var(--y) }", "a {\n  border-radius: 0 / var(--x) var(--y) var(--z) var(--y);\n}\n")
+
+	// "inherit" should not be merged
+	expectPrintedMangle(t, "a { border-radius: 1px; border-top-left-radius: 0 }", "a {\n  border-radius: 0 1px 1px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: inherit; border-top-left-radius: 0 }", "a {\n  border-radius: inherit;\n  border-top-left-radius: 0;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 0; border-top-left-radius: inherit }", "a {\n  border-radius: 0;\n  border-top-left-radius: inherit;\n}\n")
+	expectPrintedMangle(t, "a { border-top-left-radius: 0; border-radius: inherit }", "a {\n  border-top-left-radius: 0;\n  border-radius: inherit;\n}\n")
+	expectPrintedMangle(t, "a { border-top-left-radius: inherit; border-radius: 0 }", "a {\n  border-top-left-radius: inherit;\n  border-radius: 0;\n}\n")
 }
 
 func TestBoxShadow(t *testing.T) {

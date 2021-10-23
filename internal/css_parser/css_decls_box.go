@@ -38,11 +38,12 @@ func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclarat
 		box.important = decl.Important
 	}
 
+	allowedIdent := ""
 	isMargin := decl.Key == css_ast.DMargin
-	if quad, ok := expandTokenQuad(decl.Value); ok &&
-		isNumericOrMarginAuto(&quad[0], isMargin) && isNumericOrMarginAuto(&quad[1], isMargin) &&
-		isNumericOrMarginAuto(&quad[2], isMargin) && isNumericOrMarginAuto(&quad[3], isMargin) {
-		isMargin := decl.Key == css_ast.DMargin
+	if isMargin {
+		allowedIdent = "auto"
+	}
+	if quad, ok := expandTokenQuad(decl.Value, allowedIdent); ok {
 		for side, t := range quad {
 			t.TurnLengthIntoNumberIfZero()
 			box.updateSide(rules, side, boxSide{token: t, index: uint32(index)})
@@ -65,16 +66,19 @@ func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclarati
 	case css_ast.DMarginTop, css_ast.DMarginRight, css_ast.DMarginBottom, css_ast.DMarginLeft:
 		isMargin = true
 	}
-	if tokens := decl.Value; len(tokens) == 1 && isNumericOrMarginAuto(&tokens[0], isMargin) {
-		t := tokens[0]
-		if t.TurnLengthIntoNumberIfZero() {
-			tokens[0] = t
+
+	if tokens := decl.Value; len(tokens) == 1 {
+		if t := tokens[0]; t.Kind.IsNumeric() || (t.Kind == css_lexer.TIdent && isMargin && t.Text == "auto") {
+			if t.TurnLengthIntoNumberIfZero() {
+				tokens[0] = t
+			}
+			box.updateSide(rules, side, boxSide{token: t, index: uint32(index), single: true})
+			box.compactRules(rules, decl.KeyRange, removeWhitespace, isMargin)
+			return
 		}
-		box.updateSide(rules, side, boxSide{token: t, index: uint32(index), single: true})
-		box.compactRules(rules, decl.KeyRange, removeWhitespace, isMargin)
-	} else {
-		box.sides = [4]boxSide{}
 	}
+
+	box.sides = [4]boxSide{}
 }
 
 func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range, removeWhitespace bool, isMargin bool) {
@@ -116,14 +120,4 @@ func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range,
 		KeyRange:  keyRange,
 		Important: box.important,
 	}
-}
-
-func isNumericOrMarginAuto(t *css_ast.Token, isMargin bool) bool {
-	if t.Kind.IsNumeric() {
-		return true
-	}
-	if isMargin && t.Kind == css_lexer.TIdent && t.Text == "auto" {
-		return true
-	}
-	return false
 }

@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+* Fix invalid CSS minification of `border-radius` ([#1702](https://github.com/evanw/esbuild/issues/1702))
+
+    CSS minification does collapsing of `border-radius` related properties. For example:
+
+    ```css
+    /* Original CSS */
+    div {
+      border-radius: 1px;
+      border-top-left-radius: 5px;
+    }
+
+    /* Minified CSS */
+    div{border-radius:5px 1px 1px}
+    ```
+
+    However, this only works for numeric tokens, not identifiers. For example:
+
+    ```css
+    /* Original CSS */
+    div {
+      border-radius: 1px;
+      border-top-left-radius: inherit;
+    }
+
+    /* Minified CSS */
+    div{border-radius:1px;border-top-left-radius:inherit}
+    ```
+
+    Transforming this to `div{border-radius:inherit 1px 1px}`, as was done in previous releases of esbuild, is an invalid transformation and results in incorrect CSS. This release of esbuild fixes this CSS transformation bug.
+
 ## 0.13.8
 
 * Fix `super` inside arrow function inside lowered `async` function ([#1425](https://github.com/evanw/esbuild/issues/1425))
