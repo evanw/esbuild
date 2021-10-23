@@ -87,6 +87,43 @@ node-unref-tests: | scripts/node_modules
 lib-typecheck: | lib/node_modules
 	cd lib && node_modules/.bin/tsc -noEmit -p .
 
+# End-to-end tests
+test-e2e: test-e2e-npm
+
+test-e2e-npm:
+	# Test normal install
+	rm -fr e2e-npm && mkdir e2e-npm && cd e2e-npm && echo {} > package.json && npm i esbuild
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test CI reinstall
+	cd e2e-npm && npm ci
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test rebuild
+	cd e2e-npm && npm rebuild && npm rebuild
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+
+	# Test install without scripts
+	rm -fr e2e-npm && mkdir e2e-npm && cd e2e-npm && echo {} > package.json && npm i --ignore-scripts esbuild
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test CI reinstall
+	cd e2e-npm && npm ci
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test rebuild
+	cd e2e-npm && npm rebuild && npm rebuild
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+
+	# Test install without optional dependencies
+	rm -fr e2e-npm && mkdir e2e-npm && cd e2e-npm && echo {} > package.json && npm i --no-optional esbuild
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test CI reinstall
+	cd e2e-npm && npm ci
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test rebuild
+	cd e2e-npm && npm rebuild && npm rebuild
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+
+	# Clean up
+	rm -fr e2e-npm
+
 cmd/esbuild/version.go: version.txt
 	# Update this atomically to avoid issues with this being overwritten during use
 	node -e 'console.log(`package main\n\nconst esbuildVersion = "$(ESBUILD_VERSION)"`)' > cmd/esbuild/version.go.txt
