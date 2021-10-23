@@ -1534,26 +1534,26 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo) (Pat
 						// paths. We also want to avoid any "%" characters in the absolute
 						// directory path accidentally being interpreted as URL escapes.
 						resolvedPath, status, debug := r.esmPackageExportsResolveWithPostConditions("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
-						if (status == peStatusExact || status == peStatusInexact) && strings.HasPrefix(resolvedPath, "/") {
+						if (status == pjStatusExact || status == pjStatusInexact) && strings.HasPrefix(resolvedPath, "/") {
 							absResolvedPath := r.fs.Join(absPkgPath, resolvedPath[1:])
 
 							switch status {
-							case peStatusExact:
+							case pjStatusExact:
 								if r.debugLogs != nil {
 									r.debugLogs.addNote(fmt.Sprintf("The resolved path %q is exact", absResolvedPath))
 								}
 								resolvedDirInfo := r.dirInfoCached(r.fs.Dir(absResolvedPath))
 								if resolvedDirInfo == nil {
-									status = peStatusModuleNotFound
+									status = pjStatusModuleNotFound
 								} else if entry, diffCase := resolvedDirInfo.entries.Get(r.fs.Base(absResolvedPath)); entry == nil {
-									status = peStatusModuleNotFound
+									status = pjStatusModuleNotFound
 								} else if kind := entry.Kind(r.fs); kind == fs.DirEntry {
 									if r.debugLogs != nil {
 										r.debugLogs.addNote(fmt.Sprintf("The path %q is a directory, which is not allowed", absResolvedPath))
 									}
-									status = peStatusUnsupportedDirectoryImport
+									status = pjStatusUnsupportedDirectoryImport
 								} else if kind != fs.FileEntry {
-									status = peStatusModuleNotFound
+									status = pjStatusModuleNotFound
 								} else {
 									if r.debugLogs != nil {
 										r.debugLogs.addNote(fmt.Sprintf("Resolved to %q", absResolvedPath))
@@ -1561,7 +1561,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo) (Pat
 									return PathPair{Primary: logger.Path{Text: absResolvedPath, Namespace: "file"}}, true, diffCase, DebugMeta{}
 								}
 
-							case peStatusInexact:
+							case pjStatusInexact:
 								// If this was resolved against an expansion key ending in a "/"
 								// instead of a "*", we need to try CommonJS-style implicit
 								// extension and/or directory detection.
@@ -1571,7 +1571,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo) (Pat
 								if absolute, ok, diffCase := r.loadAsFileOrDirectory(absResolvedPath); ok {
 									return absolute, true, diffCase, DebugMeta{}
 								}
-								status = peStatusModuleNotFound
+								status = pjStatusModuleNotFound
 							}
 						}
 
@@ -1583,15 +1583,15 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo) (Pat
 						// Provide additional details about the failure to help with debugging
 						tracker := logger.MakeLineColumnTracker(&packageJSON.source)
 						switch status {
-						case peStatusInvalidModuleSpecifier:
+						case pjStatusInvalidModuleSpecifier:
 							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token,
 								fmt.Sprintf("The module specifier %q is invalid", resolvedPath))}
 
-						case peStatusInvalidPackageConfiguration:
+						case pjStatusInvalidPackageConfiguration:
 							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token,
 								"The package configuration has an invalid value here")}
 
-						case peStatusInvalidPackageTarget:
+						case pjStatusInvalidPackageTarget:
 							why := fmt.Sprintf("The package target %q is invalid", resolvedPath)
 							if resolvedPath == "" {
 								// "PACKAGE_TARGET_RESOLVE" is specified to throw an "Invalid
@@ -1601,7 +1601,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo) (Pat
 							}
 							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token, why)}
 
-						case peStatusPackagePathNotExported:
+						case pjStatusPackagePathNotExported:
 							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token,
 								fmt.Sprintf("The path %q is not exported by package %q", esmPackageSubpath, esmPackageName))}
 
@@ -1626,15 +1626,15 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo) (Pat
 								}
 							}
 
-						case peStatusModuleNotFound:
+						case pjStatusModuleNotFound:
 							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token,
 								fmt.Sprintf("The module %q was not found on the file system", resolvedPath))}
 
-						case peStatusUnsupportedDirectoryImport:
+						case pjStatusUnsupportedDirectoryImport:
 							debugMeta.notes = []logger.MsgData{logger.RangeData(&tracker, debug.token,
 								fmt.Sprintf("Importing the directory %q is not supported", resolvedPath))}
 
-						case peStatusUndefinedNoConditionsMatch:
+						case pjStatusUndefinedNoConditionsMatch:
 							prettyPrintConditions := func(conditions []string) string {
 								quoted := make([]string, len(conditions))
 								for i, condition := range conditions {
