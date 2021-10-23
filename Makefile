@@ -93,33 +93,33 @@ test-e2e: test-e2e-npm test-e2e-pnpm
 test-e2e-npm:
 	# Test normal install
 	rm -fr e2e-npm && mkdir e2e-npm && cd e2e-npm && echo {} > package.json && npm i esbuild
-	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test CI reinstall
 	cd e2e-npm && npm ci
-	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test rebuild
 	cd e2e-npm && npm rebuild && npm rebuild
-	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 
 	# Test install without scripts
 	rm -fr e2e-npm && mkdir e2e-npm && cd e2e-npm && echo {} > package.json && npm i --ignore-scripts esbuild
-	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test CI reinstall
 	cd e2e-npm && npm ci
-	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test rebuild
 	cd e2e-npm && npm rebuild && npm rebuild
-	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 
 	# Test install without optional dependencies
 	rm -fr e2e-npm && mkdir e2e-npm && cd e2e-npm && echo {} > package.json && npm i --no-optional esbuild
-	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test CI reinstall
 	cd e2e-npm && npm ci
-	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test rebuild
 	cd e2e-npm && npm rebuild && npm rebuild
-	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-npm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 
 	# Clean up
 	rm -fr e2e-npm
@@ -127,33 +127,33 @@ test-e2e-npm:
 test-e2e-pnpm:
 	# Test normal install
 	rm -fr e2e-pnpm && mkdir e2e-pnpm && cd e2e-pnpm && echo {} > package.json && pnpm i esbuild
-	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test CI reinstall
 	cd e2e-pnpm && pnpm i --frozen-lockfile
-	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test rebuild
 	cd e2e-pnpm && pnpm rebuild && pnpm rebuild
-	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 
 	# Test install without scripts
 	rm -fr e2e-pnpm && mkdir e2e-pnpm && cd e2e-pnpm && echo {} > package.json && pnpm i --ignore-scripts esbuild
-	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test CI reinstall
 	cd e2e-pnpm && pnpm i --frozen-lockfile
-	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test rebuild
 	cd e2e-pnpm && pnpm rebuild && pnpm rebuild
-	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 
 	# Test install without optional dependencies
 	rm -fr e2e-pnpm && mkdir e2e-pnpm && cd e2e-pnpm && echo {} > package.json && pnpm i --no-optional esbuild
-	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test CI reinstall
 	cd e2e-pnpm && pnpm i --frozen-lockfile
-	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 	# Test rebuild
 	cd e2e-pnpm && pnpm rebuild && pnpm rebuild
-	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild | grep "1 + 2;" && node -p "require('esbuild').transformSync('1+2').code" | grep "1 + 2;"
 
 	# Clean up
 	rm -fr e2e-pnpm
