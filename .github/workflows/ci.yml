@@ -2,12 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [ '*' ]
+    branches: ['*']
   pull_request:
-    branches: [ '*' ]
+    branches: ['*']
 
 jobs:
-
   esbuild:
     name: esbuild CI
     runs-on: ${{ matrix.os }}
@@ -16,115 +15,114 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17.2
+        id: go
 
-    - name: Set up Go 1.x
-      uses: actions/setup-go@v2
-      with:
-        go-version: 1.17.2
-      id: go
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v1.4.4
+        with:
+          node-version: 14
 
-    - name: Setup Node.js environment
-      uses: actions/setup-node@v1.4.4
-      with:
-        node-version: 14
+      - name: Setup Deno 1.x
+        uses: denoland/setup-deno@main
+        with:
+          deno-version: v1.x
 
-    - name: Setup Deno 1.x
-      uses: denoland/setup-deno@main
-      with:
-        deno-version: v1.x
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
 
-    - name: Check out code into the Go module directory
-      uses: actions/checkout@v2
+      - name: go test
+        run: go test ./internal/...
 
-    - name: go test
-      run: go test ./internal/...
+      - name: go vet
+        run: go vet ./cmd/... ./internal/... ./pkg/...
 
-    - name: go vet
-      run: go vet ./cmd/... ./internal/... ./pkg/...
+      - name: Deno Tests
+        # Deno tests currently don't run on Windows because of "esbuild" vs.
+        # "esbuild.exe" in the test harness. This should be fixed...
+        if: matrix.os != 'windows-latest'
+        run: make test-deno
 
-    - name: Deno Tests
-      # Deno tests currently don't run on Windows because of "esbuild" vs.
-      # "esbuild.exe" in the test harness. This should be fixed...
-      if: matrix.os != 'windows-latest'
-      run: make test-deno
+      - name: Test for path/filepath
+        if: matrix.os == 'ubuntu-latest'
+        run: make no-filepath
 
-    - name: Test for path/filepath
-      if: matrix.os == 'ubuntu-latest'
-      run: make no-filepath
+      - name: Make sure "check-go-version" works
+        if: matrix.os != 'windows-latest'
+        run: make check-go-version
 
-    - name: Make sure "check-go-version" works
-      if: matrix.os != 'windows-latest'
-      run: make check-go-version
+      - name: go fmt
+        if: matrix.os == 'macos-latest'
+        run: make fmt-go
 
-    - name: go fmt
-      if: matrix.os == 'macos-latest'
-      run: make fmt-go
+      - name: npm ci
+        run: cd scripts && npm ci
 
-    - name: npm ci
-      run: cd scripts && npm ci
+      - name: Register Test (ESBUILD_WORKER_THREADS=0)
+        if: matrix.os != 'windows-latest'
+        run: ESBUILD_WORKER_THREADS=0 node scripts/register-test.js
 
-    - name: Register Test (ESBUILD_WORKER_THREADS=0)
-      if: matrix.os != 'windows-latest'
-      run: ESBUILD_WORKER_THREADS=0 node scripts/register-test.js
+      - name: Register Test
+        run: node scripts/register-test.js
 
-    - name: Register Test
-      run: node scripts/register-test.js
+      - name: Verify Source Map
+        run: node scripts/verify-source-map.js
 
-    - name: Verify Source Map
-      run: node scripts/verify-source-map.js
+      - name: E2E Tests
+        run: node scripts/end-to-end-tests.js
 
-    - name: E2E Tests
-      run: node scripts/end-to-end-tests.js
+      - name: JS API Tests (ESBUILD_WORKER_THREADS=0)
+        if: matrix.os != 'windows-latest'
+        run: ESBUILD_WORKER_THREADS=0 node scripts/js-api-tests.js
 
-    - name: JS API Tests (ESBUILD_WORKER_THREADS=0)
-      if: matrix.os != 'windows-latest'
-      run: ESBUILD_WORKER_THREADS=0 node scripts/js-api-tests.js
+      - name: JS API Tests
+        run: node scripts/js-api-tests.js
 
-    - name: JS API Tests
-      run: node scripts/js-api-tests.js
+      - name: NodeJS Unref Tests
+        run: node scripts/node-unref-tests.js
 
-    - name: NodeJS Unref Tests
-      run: node scripts/node-unref-tests.js
+      - name: Plugin Tests
+        run: node scripts/plugin-tests.js
 
-    - name: Plugin Tests
-      run: node scripts/plugin-tests.js
+      - name: TypeScript Type Definition Tests
+        if: matrix.os == 'ubuntu-latest'
+        run: node scripts/ts-type-tests.js
 
-    - name: TypeScript Type Definition Tests
-      if: matrix.os == 'ubuntu-latest'
-      run: node scripts/ts-type-tests.js
+      - name: JS API Type Check
+        if: matrix.os == 'ubuntu-latest'
+        run: make lib-typecheck
 
-    - name: JS API Type Check
-      if: matrix.os == 'ubuntu-latest'
-      run: make lib-typecheck
+      - name: WebAssembly API Tests (browser)
+        if: matrix.os == 'ubuntu-latest'
+        run: make test-wasm-browser
 
-    - name: WebAssembly API Tests (browser)
-      if: matrix.os == 'ubuntu-latest'
-      run: make test-wasm-browser
+      - name: WebAssembly API Tests (node)
+        if: matrix.os == 'ubuntu-latest'
+        run: make test-wasm-node
 
-    - name: WebAssembly API Tests (node)
-      if: matrix.os == 'ubuntu-latest'
-      run: make test-wasm-node
+      - name: WebAssembly API Tests (node)
+        if: matrix.os != 'ubuntu-latest'
+        run: node scripts/wasm-tests.js
 
-    - name: WebAssembly API Tests (node)
-      if: matrix.os != 'ubuntu-latest'
-      run: node scripts/wasm-tests.js
+      - name: Sucrase Tests
+        if: matrix.os == 'ubuntu-latest'
+        run: make test-sucrase
 
-    - name: Sucrase Tests
-      if: matrix.os == 'ubuntu-latest'
-      run: make test-sucrase
+      - name: Esprima Tests
+        if: matrix.os == 'ubuntu-latest'
+        run: make test-esprima
 
-    - name: Esprima Tests
-      if: matrix.os == 'ubuntu-latest'
-      run: make test-esprima
+      - name: Preact Splitting Tests
+        if: matrix.os == 'ubuntu-latest'
+        run: make test-preact-splitting
 
-    - name: Preact Splitting Tests
-      if: matrix.os == 'ubuntu-latest'
-      run: make test-preact-splitting
+      - name: Uglify Tests
+        if: matrix.os == 'ubuntu-latest'
+        run: make uglify
 
-    - name: Uglify Tests
-      if: matrix.os == 'ubuntu-latest'
-      run: make uglify
-
-    - name: Check the unicode table generator
-      if: matrix.os == 'ubuntu-latest'
-      run: cd scripts && node gen-unicode-table.js
+      - name: Check the unicode table generator
+        if: matrix.os == 'ubuntu-latest'
+        run: cd scripts && node gen-unicode-table.js
