@@ -1506,11 +1506,11 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo) (Pat
 				r.debugLogs.addNote(fmt.Sprintf("Checking for a package in the directory %q", absPath))
 			}
 
-			// Check for an "exports" map in the package's package.json folder
+			// Check the package's package.json file
 			if esmOK {
 				absPkgPath := r.fs.Join(dirInfo.absPath, "node_modules", esmPackageName)
 				if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil {
-					// Check for an "exports" map in the package's package.json folder
+					// Check the "exports" map
 					if packageJSON := pkgDirInfo.packageJSON; packageJSON != nil && packageJSON.exportsMap != nil {
 						if r.debugLogs != nil {
 							r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"exports\" map in %q", esmPackageSubpath, packageJSON.source.KeyPath.Text))

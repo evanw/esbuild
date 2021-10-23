@@ -367,9 +367,8 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	}
 
 	// Read the "exports" map
-	if exportsJSON, exportsRange, ok := getProperty(json, "exports"); ok {
+	if exportsJSON, _, ok := getProperty(json, "exports"); ok {
 		if exportsMap := parseExportsMap(jsonSource, r.log, exportsJSON); exportsMap != nil {
-			exportsMap.exportsRange = jsonSource.RangeOfString(exportsRange)
 			packageJSON.exportsMap = exportsMap
 		}
 	}
@@ -439,8 +438,7 @@ func globstarToEscapedRegexp(glob string) (string, bool) {
 
 // Reference: https://nodejs.org/api/esm.html#esm_resolver_algorithm_specification
 type pjMap struct {
-	exportsRange logger.Range
-	root         pjEntry
+	root pjEntry
 }
 
 type pjKind uint8
