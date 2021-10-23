@@ -88,7 +88,7 @@ lib-typecheck: | lib/node_modules
 	cd lib && node_modules/.bin/tsc -noEmit -p .
 
 # End-to-end tests
-test-e2e: test-e2e-npm
+test-e2e: test-e2e-npm test-e2e-pnpm
 
 test-e2e-npm:
 	# Test normal install
@@ -123,6 +123,40 @@ test-e2e-npm:
 
 	# Clean up
 	rm -fr e2e-npm
+
+test-e2e-pnpm:
+	# Test normal install
+	rm -fr e2e-pnpm && mkdir e2e-pnpm && cd e2e-pnpm && echo {} > package.json && pnpm i esbuild
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test CI reinstall
+	cd e2e-pnpm && pnpm i --frozen-lockfile
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test rebuild
+	cd e2e-pnpm && pnpm rebuild && pnpm rebuild
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+
+	# Test install without scripts
+	rm -fr e2e-pnpm && mkdir e2e-pnpm && cd e2e-pnpm && echo {} > package.json && pnpm i --ignore-scripts esbuild
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test CI reinstall
+	cd e2e-pnpm && pnpm i --frozen-lockfile
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test rebuild
+	cd e2e-pnpm && pnpm rebuild && pnpm rebuild
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+
+	# Test install without optional dependencies
+	rm -fr e2e-pnpm && mkdir e2e-pnpm && cd e2e-pnpm && echo {} > package.json && pnpm i --no-optional esbuild
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test CI reinstall
+	cd e2e-pnpm && pnpm i --frozen-lockfile
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+	# Test rebuild
+	cd e2e-pnpm && pnpm rebuild && pnpm rebuild
+	cd e2e-pnpm && echo "1+2" | node_modules/.bin/esbuild && node -p "require('esbuild').transformSync('1+2').code"
+
+	# Clean up
+	rm -fr e2e-pnpm
 
 cmd/esbuild/version.go: version.txt
 	# Update this atomically to avoid issues with this being overwritten during use
