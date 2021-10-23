@@ -4638,9 +4638,68 @@
     }),
   )
 
-  // Test "exports" in package.json
+  // Test "imports" and "exports" in package.json
   for (const flags of [[], ['--bundle']]) {
     tests.push(
+      // "imports"
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from '#pkg'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{
+          "type": "module",
+          "imports": {
+            "#pkg": "./foo.js"
+          }
+        }`,
+        'foo.js': `export default 123`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from '#pkg/bar.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{
+          "type": "module",
+          "imports": {
+            "#pkg/": "./foo/"
+          }
+        }`,
+        'foo/bar.js': `export default 123`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from '#pkg/bar.js'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{
+          "type": "module",
+          "imports": {
+            "#pkg/*": "./foo/*"
+          }
+        }`,
+        'foo/bar.js': `export default 123`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+        'in.js': `import abc from '#pkg'; if (abc !== 123) throw 'fail'`,
+        'package.json': `{
+          "type": "module",
+          "imports": {
+            "#pkg": {
+              "import": "./yes.js",
+              "default": "./no.js"
+            }
+          }
+        }`,
+        'yes.js': `export default 123`,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=cjs'].concat(flags), {
+        'in.js': `const abc = require('#pkg'); if (abc !== 123) throw 'fail'`,
+        'package.json': `{
+          "type": "commonjs",
+          "imports": {
+            "#pkg": {
+              "require": "./yes.js",
+              "default": "./no.js"
+            }
+          }
+        }`,
+        'yes.js': `module.exports = 123`,
+      }),
+
+      // "exports"
       test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
         'in.js': `import abc from 'pkg'; if (abc !== 123) throw 'fail'`,
         'package.json': `{ "type": "module" }`,
@@ -4823,7 +4882,7 @@
       }),
       test(['in.js', '--outfile=node.js', '--format=cjs'].concat(flags), {
         'in.js': `const abc = require('pkg/dir/test'); if (abc !== 123) throw 'fail'`,
-        'package.json': `{ "type": "module" }`,
+        'package.json': `{ "type": "commonjs" }`,
         'node_modules/pkg/sub/test.js': `module.exports = 123`,
         'node_modules/pkg/package.json': `{
           "exports": {
@@ -4833,7 +4892,7 @@
       }),
       test(['in.js', '--outfile=node.js', '--format=cjs'].concat(flags), {
         'in.js': `const abc = require('pkg/dir/test'); if (abc !== 123) throw 'fail'`,
-        'package.json': `{ "type": "module" }`,
+        'package.json': `{ "type": "commonjs" }`,
         'node_modules/pkg/sub/test/index.js': `module.exports = 123`,
         'node_modules/pkg/package.json': `{
           "exports": {
@@ -5087,16 +5146,18 @@
           // only supports absolute paths on Unix-style systems, not on Windows.
           // See https://github.com/nodejs/node/issues/31710 for more info.
           const nodePath = path.join(thisTestDir, 'node')
+          const pjPath = path.join(thisTestDir, 'package.json')
+          const pjExists = await fs.stat(pjPath).then(() => true, () => false)
           let testExports
           switch (format) {
             case 'cjs':
             case 'iife':
-              await fs.writeFile(path.join(thisTestDir, 'package.json'), '{"type": "commonjs"}')
+              if (!pjExists) await fs.writeFile(pjPath, '{"type": "commonjs"}')
               testExports = (await import(url.pathToFileURL(`${nodePath}.js`))).default
               break
 
             case 'esm':
-              await fs.writeFile(path.join(thisTestDir, 'package.json'), '{"type": "module"}')
+              if (!pjExists) await fs.writeFile(pjPath, '{"type": "module"}')
               testExports = await import(url.pathToFileURL(`${nodePath}.js`))
               break
           }

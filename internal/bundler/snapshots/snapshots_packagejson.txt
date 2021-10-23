@@ -545,6 +545,36 @@ var require_require = __commonJS({
 require_require();
 
 ================================================================================
+TestPackageJsonImports
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/a.js
+console.log("a.js");
+
+// Users/user/project/src/b.js
+console.log("b.js");
+
+// Users/user/project/src/some-star/c.js
+console.log("c.js");
+
+// Users/user/project/src/some-slash/d.js
+console.log("d.js");
+
+================================================================================
+TestPackageJsonImportsRemapToOtherPackage
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/node_modules/pkg/a.js
+console.log("a.js");
+
+// Users/user/project/src/node_modules/pkg/b.js
+console.log("b.js");
+
+// Users/user/project/src/node_modules/pkg/some-star/c.js
+console.log("c.js");
+
+// Users/user/project/src/node_modules/pkg/some-slash/d.js
+console.log("d.js");
+
+================================================================================
 TestPackageJsonMain
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/custom-main.js

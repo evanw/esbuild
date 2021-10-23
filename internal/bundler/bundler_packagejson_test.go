@@ -1929,3 +1929,162 @@ Users/user/project/src/entry.js: note: Import from "pkg/extra/other/file.js" to 
 `,
 	})
 }
+
+func TestPackageJsonImports(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import '#top-level'
+				import '#nested/path.js'
+				import '#star/c.js'
+				import '#slash/d.js'
+			`,
+			"/Users/user/project/src/package.json": `
+				{
+					"imports": {
+						"#top-level": "./a.js",
+						"#nested/path.js": "./b.js",
+						"#star/*": "./some-star/*",
+						"#slash/": "./some-slash/"
+					}
+				}
+			`,
+			"/Users/user/project/src/a.js":            `console.log('a.js')`,
+			"/Users/user/project/src/b.js":            `console.log('b.js')`,
+			"/Users/user/project/src/some-star/c.js":  `console.log('c.js')`,
+			"/Users/user/project/src/some-slash/d.js": `console.log('d.js')`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonImportsRemapToOtherPackage(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import '#top-level'
+				import '#nested/path.js'
+				import '#star/c.js'
+				import '#slash/d.js'
+			`,
+			"/Users/user/project/src/package.json": `
+				{
+					"imports": {
+						"#top-level": "pkg/a.js",
+						"#nested/path.js": "pkg/b.js",
+						"#star/*": "pkg/some-star/*",
+						"#slash/": "pkg/some-slash/"
+					}
+				}
+			`,
+			"/Users/user/project/src/node_modules/pkg/a.js":            `console.log('a.js')`,
+			"/Users/user/project/src/node_modules/pkg/b.js":            `console.log('b.js')`,
+			"/Users/user/project/src/node_modules/pkg/some-star/c.js":  `console.log('c.js')`,
+			"/Users/user/project/src/node_modules/pkg/some-slash/d.js": `console.log('d.js')`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonImportsErrorMissingRemappedPackage(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import '#foo'
+			`,
+			"/Users/user/project/src/package.json": `
+				{
+					"imports": {
+						"#foo": "bar"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "#foo" (mark it as external to exclude it from the bundle)
+Users/user/project/src/package.json: note: The remapped path "bar" could not be resolved
+`,
+	})
+}
+
+func TestPackageJsonImportsInvalidPackageConfiguration(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import '#foo'
+			`,
+			"/Users/user/project/src/package.json": `
+				{
+					"imports": "#foo"
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "#foo" (mark it as external to exclude it from the bundle)
+Users/user/project/src/package.json: note: The package configuration has an invalid value here
+Users/user/project/src/package.json: warning: The value for "imports" must be an object
+`,
+	})
+}
+
+func TestPackageJsonImportsErrorEqualsHash(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import '#'
+			`,
+			"/Users/user/project/src/package.json": `
+				{
+					"imports": {}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "#" (mark it as external to exclude it from the bundle)
+Users/user/project/src/package.json: note: This "imports" map was ignored because the module specifier "#" is invalid
+`,
+	})
+}
+
+func TestPackageJsonImportsErrorStartsWithHashSlash(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import '#/foo'
+			`,
+			"/Users/user/project/src/package.json": `
+				{
+					"imports": {}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "#/foo" (mark it as external to exclude it from the bundle)
+Users/user/project/src/package.json: note: This "imports" map was ignored because the module specifier "#/foo" is invalid
+`,
+	})
+}
