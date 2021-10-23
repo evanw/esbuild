@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.9
 
 * Add support for `imports` in `package.json` ([#1691](https://github.com/evanw/esbuild/issues/1691))
 
