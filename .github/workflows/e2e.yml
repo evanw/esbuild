@@ -18,7 +18,7 @@ jobs:
 
       - name: Test npm
         run: |
-          npm i -g npm@next
+          npm i -g npm@next-7
           time make test-e2e-npm
 
       - name: Test pnpm
@@ -28,5 +28,5 @@ jobs:
 
       - name: Test yarn
         run: |
-          npm i -g yarn@next
+          npm i -g yarn@latest
           time make test-e2e-yarn-berry
