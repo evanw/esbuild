@@ -138,6 +138,9 @@ jobs:
           go-version: 1.13
         id: go
 
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
       - name: go build
         run: go build ./cmd/esbuild
 
