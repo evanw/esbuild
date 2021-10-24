@@ -1,0 +1,32 @@
+name: End-to-end install tests
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v1.4.4
+        with:
+          node-version: 14
+
+      - name: Test npm
+        run: |
+          npm i -g npm@next
+          time make test-e2e-npm
+
+      - name: Test pnpm
+        run: |
+          npm i -g pnpm@next
+          time make test-e2e-pnpm
+
+      - name: Test yarn
+        run: |
+          npm i -g yarn@next
+          time make test-e2e-yarn-berry
