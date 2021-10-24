@@ -126,3 +126,20 @@ jobs:
       - name: Check the unicode table generator
         if: matrix.os == 'ubuntu-latest'
         run: cd scripts && node gen-unicode-table.js
+
+  esbuild-old-golang:
+    name: esbuild CI (old Go version)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Go 1.13 (the minimum required Go version for esbuild)
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.13
+        id: go
+
+      - name: go build
+        run: go build ./cmd/esbuild
+
+      - name: go test
+        run: go test ./internal/...
