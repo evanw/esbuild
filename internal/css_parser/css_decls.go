@@ -123,6 +123,11 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) []css_ast.Rule {
 				}
 			}
 
+		case css_ast.DFontWeight:
+			if p.options.MangleSyntax {
+				decl.Value = p.mangleFontWeight(decl.Value)
+			}
+
 		case css_ast.DTransform:
 			if p.options.MangleSyntax {
 				decl.Value = p.mangleTransforms(decl.Value)

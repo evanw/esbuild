@@ -1481,3 +1481,13 @@ func TestMangleDuplicateSelectorRules(t *testing.T) {
 	expectPrintedMangle(t, "a { color: red } b { color: red; color: red }", "a,\nb {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a { color: red } b { color: blue }", "a {\n  color: red;\n}\nb {\n  color: #00f;\n}\n")
 }
+
+func TestFontWeight(t *testing.T) {
+	expectPrintedMangle(t, "a { font-weight: normal }", "a {\n  font-weight: 400;\n}\n")
+	expectPrintedMangle(t, "a { font-weight: bold }", "a {\n  font-weight: 700;\n}\n")
+	expectPrintedMangle(t, "a { font-weight: 400 }", "a {\n  font-weight: 400;\n}\n")
+	expectPrintedMangle(t, "a { font-weight: bolder }", "a {\n  font-weight: bolder;\n}\n")
+	expectPrintedMangle(t, "a { font-weight: var(--var) }", "a {\n  font-weight: var(--var);\n}\n")
+
+	expectPrintedMangleMinify(t, "a { font-weight: normal }", "a{font-weight:400}")
+}
