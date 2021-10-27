@@ -3922,6 +3922,11 @@ let transformTests = {
     assert.strictEqual(fromPromiseResolve(code4), `Promise.resolve().then(function(){return __toModule(require(foo))});\n`)
   },
 
+  async caseInsensitiveTarget({ esbuild }) {
+    assert.strictEqual((await esbuild.transform(`a ||= b`, { target: 'eS5' })).code, `a || (a = b);\n`)
+    assert.strictEqual((await esbuild.transform(`a ||= b`, { target: 'eSnExT' })).code, `a ||= b;\n`)
+  },
+
   async multipleEngineTargets({ esbuild }) {
     const check = async (target, expected) =>
       assert.strictEqual((await esbuild.transform(`foo(a ?? b)`, { target })).code, expected)

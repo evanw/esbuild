@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Allow uppercase `es*` targets ([#1717](https://github.com/evanw/esbuild/issues/1717))
+
+    With this release, you can now use target names such as `ESNext` instead of `esnext` as the target name in the CLI and JS API. This is important because people don't want to have to call `.toLowerCase()` on target strings from TypeScript's `tsconfig.json` file before passing it to esbuild (TypeScript uses case-agnostic target names).
+
+    This feature was contributed by [@timse](https://github.com/timse).
+
 ## 0.13.9
 
 * Add support for `imports` in `package.json` ([#1691](https://github.com/evanw/esbuild/issues/1691))
