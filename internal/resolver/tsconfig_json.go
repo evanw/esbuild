@@ -126,7 +126,7 @@ func ParseTSConfigJSON(
 					constraints[compat.ES] = []int{5}
 				case "es6", "es2015":
 					constraints[compat.ES] = []int{2015}
-				case "es7", "es2016":
+				case "es2016":
 					constraints[compat.ES] = []int{2016}
 				case "es2017":
 					constraints[compat.ES] = []int{2017}
