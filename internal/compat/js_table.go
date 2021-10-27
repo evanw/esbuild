@@ -163,8 +163,10 @@ var jsTable = map[JSFeature]map[Engine][]int{
 	},
 	ClassPrivateBrandCheck: {
 		Chrome:  {91},
+		Edge:    {91},
 		Firefox: {90},
 		IOS:     {15},
+		Node:    {16, 9},
 		Safari:  {15},
 	},
 	ClassPrivateField: {
@@ -394,11 +396,11 @@ var jsTable = map[JSFeature]map[Engine][]int{
 	},
 	OptionalChain: {
 		Chrome:  {91},
-		Edge:    {80},
+		Edge:    {91},
 		ES:      {2020},
 		Firefox: {74},
 		IOS:     {13, 4},
-		Node:    {14, 0},
+		Node:    {16, 9},
 		Safari:  {13, 1},
 	},
 	RestArgument: {
