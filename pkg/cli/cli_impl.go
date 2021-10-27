@@ -567,7 +567,7 @@ func parseTargets(targets []string) (target api.Target, engines []api.Engine, er
 
 outer:
 	for _, value := range targets {
-		if valid, ok := validTargets[value]; ok {
+		if valid, ok := validTargets[strings.ToLower(value)]; ok {
 			target = valid
 			continue
 		}
