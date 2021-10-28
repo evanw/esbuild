@@ -1340,7 +1340,7 @@
         if (ns.default === void 0) throw 'fail'
       `,
       'node_modules/pkg/index.js': ``,
-    }, {}),
+    }),
     test(['in.js', '--outfile=node.js', '--bundle'], {
       'in.js': `
         import * as ns from 'pkg/index.cjs'
@@ -1350,10 +1350,30 @@
     }),
     test(['in.js', '--outfile=node.js', '--bundle'], {
       'in.js': `
+        import * as ns from 'pkg/index.cts'
+        if (ns.default === void 0) throw 'fail'
+      `,
+      'node_modules/pkg/index.cts': ``,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
         import * as ns from 'pkg/index.mjs'
         if (ns.default !== void 0) throw 'fail'
       `,
       'node_modules/pkg/index.mjs': ``,
+    }, {
+      expectedStderr: ` > in.js:3:15: warning: Import "default" will always be undefined because there is no matching export
+    3 │         if (ns.default !== void 0) throw 'fail'
+      ╵                ~~~~~~~
+
+`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from 'pkg/index.mts'
+        if (ns.default !== void 0) throw 'fail'
+      `,
+      'node_modules/pkg/index.mts': ``,
     }, {
       expectedStderr: ` > in.js:3:15: warning: Import "default" will always be undefined because there is no matching export
     3 │         if (ns.default !== void 0) throw 'fail'

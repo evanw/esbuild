@@ -14606,14 +14606,14 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 	} else {
 		// If this module has no exports, try to determine what kind of module it
 		// is by looking at node's "type" field in "package.json" and/or whether
-		// the file extension is ".mjs" or ".cjs".
+		// the file extension is ".mjs"/".mts" or ".cjs"/".cts".
 		switch p.options.moduleType {
 		case config.ModuleCommonJS:
-			// "type: module" or ".mjs"
+			// "type: commonjs" or ".cjs" or ".cts"
 			exportsKind = js_ast.ExportsCommonJS
 
 		case config.ModuleESM:
-			// "type: commonjs" or ".cjs"
+			// "type: module" or ".mjs" or ".mts"
 			exportsKind = js_ast.ExportsESM
 
 		case config.ModuleUnknown:
