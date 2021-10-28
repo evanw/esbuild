@@ -1820,6 +1820,10 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	//   _foo = new WeakMap();
 	//
 	for _, prop := range class.Properties {
+		if prop.Kind == js_ast.PropertyClassStaticBlock {
+			continue
+		}
+
 		if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
 			if prop.IsStatic {
 				if p.privateSymbolNeedsToBeLowered(private) {
@@ -2105,6 +2109,13 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	classLoweringInfo := p.computeClassLoweringInfo(class)
 
 	for _, prop := range class.Properties {
+		if prop.Kind == js_ast.PropertyClassStaticBlock {
+			// Keep this property
+			class.Properties[end] = prop
+			end++
+			continue
+		}
+
 		// Merge parameter decorators with method decorators
 		if p.options.ts.Parse && prop.IsMethod {
 			if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {

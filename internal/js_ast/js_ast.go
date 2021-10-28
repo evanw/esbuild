@@ -261,11 +261,19 @@ const (
 	PropertySet
 	PropertySpread
 	PropertyDeclare
+	PropertyClassStaticBlock
 )
 
+type ClassStaticBlock struct {
+	Loc   logger.Loc
+	Stmts []Stmt
+}
+
 type Property struct {
-	TSDecorators []Expr
-	Key          Expr
+	TSDecorators     []Expr
+	ClassStaticBlock *ClassStaticBlock
+
+	Key Expr
 
 	// This is omitted for class fields
 	ValueOrNil Expr

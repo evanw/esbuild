@@ -1979,25 +1979,31 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 					}
 				}
 			} else if p.lexer.Token == js_lexer.TOpenBrace && name == "static" {
-				p.log.AddRangeError(&p.tracker, p.lexer.Range(), "Class static blocks are not supported yet")
-
 				loc := p.lexer.Loc()
 				p.lexer.Next()
 
-				oldIsClassStaticInit := p.fnOrArrowDataParse.isClassStaticInit
-				oldAwait := p.fnOrArrowDataParse.await
-				p.fnOrArrowDataParse.isClassStaticInit = true
-				p.fnOrArrowDataParse.await = forbidAll
+				oldFnOrArrowDataParse := p.fnOrArrowDataParse
+				p.fnOrArrowDataParse = fnOrArrowDataParse{
+					isClassStaticInit:  true,
+					allowSuperProperty: true,
+					await:              forbidAll,
+					yield:              forbidAll,
+				}
 
-				scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassStaticInit, loc)
-				p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{})
-				p.popAndDiscardScope(scopeIndex)
+				p.pushScopeForParsePass(js_ast.ScopeClassStaticInit, loc)
+				stmts := p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{})
+				p.popScope()
 
-				p.fnOrArrowDataParse.isClassStaticInit = oldIsClassStaticInit
-				p.fnOrArrowDataParse.await = oldAwait
+				p.fnOrArrowDataParse = oldFnOrArrowDataParse
 
 				p.lexer.Expect(js_lexer.TCloseBrace)
-
+				return js_ast.Property{
+					Kind: js_ast.PropertyClassStaticBlock,
+					ClassStaticBlock: &js_ast.ClassStaticBlock{
+						Loc:   loc,
+						Stmts: stmts,
+					},
+				}, true
 			}
 		}
 
@@ -9777,8 +9783,39 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 	p.pushScopeForVisitPass(js_ast.ScopeClassBody, class.BodyLoc)
 	defer p.popScope()
 
+	end := 0
+
 	for i := range class.Properties {
 		property := &class.Properties[i]
+
+		if property.Kind == js_ast.PropertyClassStaticBlock {
+			oldFnOrArrowData := p.fnOrArrowDataVisit
+			oldFnOnlyDataVisit := p.fnOnlyDataVisit
+
+			p.fnOrArrowDataVisit = fnOrArrowDataVisit{}
+			p.fnOnlyDataVisit = fnOnlyDataVisit{
+				isThisNested:       true,
+				isNewTargetAllowed: true,
+			}
+
+			p.pushScopeForVisitPass(js_ast.ScopeClassStaticInit, property.ClassStaticBlock.Loc)
+			property.ClassStaticBlock.Stmts = p.visitStmts(property.ClassStaticBlock.Stmts, stmtsFnBody)
+			p.popScope()
+
+			p.fnOrArrowDataVisit = oldFnOrArrowData
+			p.fnOnlyDataVisit = oldFnOnlyDataVisit
+
+			// "class { static {} }" => "class {}"
+			if p.options.mangleSyntax && len(property.ClassStaticBlock.Stmts) == 0 {
+				continue
+			}
+
+			// Keep this property
+			class.Properties[end] = *property
+			end++
+			continue
+		}
+
 		property.TSDecorators = p.visitTSDecorators(property.TSDecorators)
 		private, isPrivate := property.Key.Data.(*js_ast.EPrivateIdentifier)
 
@@ -9869,7 +9906,14 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 
 		// Restore the ability to use "arguments" in decorators and computed properties
 		p.currentScope.ForbidArguments = false
+
+		// Keep this property
+		class.Properties[end] = *property
+		end++
 	}
+
+	// Finish the filtering operation
+	class.Properties = class.Properties[:end]
 
 	p.enclosingClassKeyword = oldEnclosingClassKeyword
 	p.popScope()

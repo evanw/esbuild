@@ -819,6 +819,15 @@ func (p *printer) printClass(class js_ast.Class) {
 	for _, item := range class.Properties {
 		p.printSemicolonIfNeeded()
 		p.printIndent()
+
+		if item.Kind == js_ast.PropertyClassStaticBlock {
+			p.print("static")
+			p.printSpace()
+			p.printBlock(item.ClassStaticBlock.Loc, item.ClassStaticBlock.Stmts)
+			p.printNewline()
+			continue
+		}
+
 		p.printProperty(item)
 
 		// Need semicolons after class fields
