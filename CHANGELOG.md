@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.10
 
 * Implement legal comment preservation for CSS ([#1539](https://github.com/evanw/esbuild/issues/1539))
 
