@@ -52,6 +52,7 @@ const (
 	ClassPrivateStaticAccessor
 	ClassPrivateStaticField
 	ClassPrivateStaticMethod
+	ClassStaticBlocks
 	ClassStaticField
 	Const
 	DefaultArgument
@@ -208,6 +209,10 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		IOS:     {15},
 		Node:    {14, 6},
 		Safari:  {15},
+	},
+	ClassStaticBlocks: {
+		Chrome: {91},
+		Node:   {16, 11},
 	},
 	ClassStaticField: {
 		Chrome:  {73},

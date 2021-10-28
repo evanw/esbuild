@@ -157,6 +157,7 @@ mergeVersions('LogicalAssignment', { es2021: true })
 mergeVersions('TopLevelAwait', {})
 mergeVersions('ArbitraryModuleNamespaceNames', {})
 mergeVersions('ImportAssertions', {})
+mergeVersions('ClassStaticBlocks', {})
 
 // Manually copied from https://caniuse.com/?search=export%20*%20as
 mergeVersions('ExportStarAs', {
@@ -216,6 +217,17 @@ mergeVersions('ImportAssertions', {
   chrome91: true,
 
   // Not yet in Firefox: https://bugzilla.mozilla.org/show_bug.cgi?id=1668330
+})
+
+mergeVersions('ClassStaticBlocks', {
+  // From https://www.chromestatus.com/feature/6482797915013120
+  chrome91: true,
+
+  // https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V16.md
+  // combined with https://v8.dev/blog/v8-release-94
+  node16_11: true,
+
+  // Not yet in Firefox: https://bugzilla.mozilla.org/show_bug.cgi?id=1670018
 })
 
 for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests]) {
