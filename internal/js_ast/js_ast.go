@@ -351,6 +351,11 @@ type Binding struct {
 // Go's type system.
 type B interface{ isBinding() }
 
+func (*BMissing) isBinding()    {}
+func (*BIdentifier) isBinding() {}
+func (*BArray) isBinding()      {}
+func (*BObject) isBinding()     {}
+
 type BMissing struct{}
 
 type BIdentifier struct{ Ref Ref }
@@ -366,11 +371,6 @@ type BObject struct {
 	IsSingleLine bool
 }
 
-func (*BMissing) isBinding()    {}
-func (*BIdentifier) isBinding() {}
-func (*BArray) isBinding()      {}
-func (*BObject) isBinding()     {}
-
 type Expr struct {
 	Loc  logger.Loc
 	Data E
@@ -379,6 +379,43 @@ type Expr struct {
 // This interface is never called. Its purpose is to encode a variant type in
 // Go's type system.
 type E interface{ isExpr() }
+
+func (*EArray) isExpr()                {}
+func (*EUnary) isExpr()                {}
+func (*EBinary) isExpr()               {}
+func (*EBoolean) isExpr()              {}
+func (*ESuper) isExpr()                {}
+func (*ENull) isExpr()                 {}
+func (*EUndefined) isExpr()            {}
+func (*EThis) isExpr()                 {}
+func (*ENew) isExpr()                  {}
+func (*ENewTarget) isExpr()            {}
+func (*EImportMeta) isExpr()           {}
+func (*ECall) isExpr()                 {}
+func (*EDot) isExpr()                  {}
+func (*EIndex) isExpr()                {}
+func (*EArrow) isExpr()                {}
+func (*EFunction) isExpr()             {}
+func (*EClass) isExpr()                {}
+func (*EIdentifier) isExpr()           {}
+func (*EImportIdentifier) isExpr()     {}
+func (*EPrivateIdentifier) isExpr()    {}
+func (*EJSXElement) isExpr()           {}
+func (*EMissing) isExpr()              {}
+func (*ENumber) isExpr()               {}
+func (*EBigInt) isExpr()               {}
+func (*EObject) isExpr()               {}
+func (*ESpread) isExpr()               {}
+func (*EString) isExpr()               {}
+func (*ETemplate) isExpr()             {}
+func (*ERegExp) isExpr()               {}
+func (*EAwait) isExpr()                {}
+func (*EYield) isExpr()                {}
+func (*EIf) isExpr()                   {}
+func (*ERequireString) isExpr()        {}
+func (*ERequireResolveString) isExpr() {}
+func (*EImportString) isExpr()         {}
+func (*EImportCall) isExpr()           {}
 
 type EArray struct {
 	Items            []Expr
@@ -662,43 +699,6 @@ type EImportCall struct {
 	LeadingInteriorComments []Comment
 }
 
-func (*EArray) isExpr()                {}
-func (*EUnary) isExpr()                {}
-func (*EBinary) isExpr()               {}
-func (*EBoolean) isExpr()              {}
-func (*ESuper) isExpr()                {}
-func (*ENull) isExpr()                 {}
-func (*EUndefined) isExpr()            {}
-func (*EThis) isExpr()                 {}
-func (*ENew) isExpr()                  {}
-func (*ENewTarget) isExpr()            {}
-func (*EImportMeta) isExpr()           {}
-func (*ECall) isExpr()                 {}
-func (*EDot) isExpr()                  {}
-func (*EIndex) isExpr()                {}
-func (*EArrow) isExpr()                {}
-func (*EFunction) isExpr()             {}
-func (*EClass) isExpr()                {}
-func (*EIdentifier) isExpr()           {}
-func (*EImportIdentifier) isExpr()     {}
-func (*EPrivateIdentifier) isExpr()    {}
-func (*EJSXElement) isExpr()           {}
-func (*EMissing) isExpr()              {}
-func (*ENumber) isExpr()               {}
-func (*EBigInt) isExpr()               {}
-func (*EObject) isExpr()               {}
-func (*ESpread) isExpr()               {}
-func (*EString) isExpr()               {}
-func (*ETemplate) isExpr()             {}
-func (*ERegExp) isExpr()               {}
-func (*EAwait) isExpr()                {}
-func (*EYield) isExpr()                {}
-func (*EIf) isExpr()                   {}
-func (*ERequireString) isExpr()        {}
-func (*ERequireResolveString) isExpr() {}
-func (*EImportString) isExpr()         {}
-func (*EImportCall) isExpr()           {}
-
 func IsOptionalChain(value Expr) bool {
 	switch e := value.Data.(type) {
 	case *EDot:
@@ -946,6 +946,40 @@ type Stmt struct {
 // Go's type system.
 type S interface{ isStmt() }
 
+func (*SBlock) isStmt()         {}
+func (*SComment) isStmt()       {}
+func (*SDebugger) isStmt()      {}
+func (*SDirective) isStmt()     {}
+func (*SEmpty) isStmt()         {}
+func (*STypeScript) isStmt()    {}
+func (*SExportClause) isStmt()  {}
+func (*SExportFrom) isStmt()    {}
+func (*SExportDefault) isStmt() {}
+func (*SExportStar) isStmt()    {}
+func (*SExportEquals) isStmt()  {}
+func (*SLazyExport) isStmt()    {}
+func (*SExpr) isStmt()          {}
+func (*SEnum) isStmt()          {}
+func (*SNamespace) isStmt()     {}
+func (*SFunction) isStmt()      {}
+func (*SClass) isStmt()         {}
+func (*SLabel) isStmt()         {}
+func (*SIf) isStmt()            {}
+func (*SFor) isStmt()           {}
+func (*SForIn) isStmt()         {}
+func (*SForOf) isStmt()         {}
+func (*SDoWhile) isStmt()       {}
+func (*SWhile) isStmt()         {}
+func (*SWith) isStmt()          {}
+func (*STry) isStmt()           {}
+func (*SSwitch) isStmt()        {}
+func (*SImport) isStmt()        {}
+func (*SReturn) isStmt()        {}
+func (*SThrow) isStmt()         {}
+func (*SLocal) isStmt()         {}
+func (*SBreak) isStmt()         {}
+func (*SContinue) isStmt()      {}
+
 type SBlock struct {
 	Stmts []Stmt
 }
@@ -1185,40 +1219,6 @@ type SBreak struct {
 type SContinue struct {
 	Label *LocRef
 }
-
-func (*SBlock) isStmt()         {}
-func (*SComment) isStmt()       {}
-func (*SDebugger) isStmt()      {}
-func (*SDirective) isStmt()     {}
-func (*SEmpty) isStmt()         {}
-func (*STypeScript) isStmt()    {}
-func (*SExportClause) isStmt()  {}
-func (*SExportFrom) isStmt()    {}
-func (*SExportDefault) isStmt() {}
-func (*SExportStar) isStmt()    {}
-func (*SExportEquals) isStmt()  {}
-func (*SLazyExport) isStmt()    {}
-func (*SExpr) isStmt()          {}
-func (*SEnum) isStmt()          {}
-func (*SNamespace) isStmt()     {}
-func (*SFunction) isStmt()      {}
-func (*SClass) isStmt()         {}
-func (*SLabel) isStmt()         {}
-func (*SIf) isStmt()            {}
-func (*SFor) isStmt()           {}
-func (*SForIn) isStmt()         {}
-func (*SForOf) isStmt()         {}
-func (*SDoWhile) isStmt()       {}
-func (*SWhile) isStmt()         {}
-func (*SWith) isStmt()          {}
-func (*STry) isStmt()           {}
-func (*SSwitch) isStmt()        {}
-func (*SImport) isStmt()        {}
-func (*SReturn) isStmt()        {}
-func (*SThrow) isStmt()         {}
-func (*SLocal) isStmt()         {}
-func (*SBreak) isStmt()         {}
-func (*SContinue) isStmt()      {}
 
 func IsSuperCall(stmt Stmt) bool {
 	if expr, ok := stmt.Data.(*SExpr); ok {
