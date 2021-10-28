@@ -478,6 +478,21 @@ func (r *RBadDeclaration) Hash() (uint32, bool) {
 	return hash, true
 }
 
+type RComment struct {
+	Text string
+}
+
+func (a *RComment) Equal(rule R) bool {
+	b, ok := rule.(*RComment)
+	return ok && a.Text == b.Text
+}
+
+func (r *RComment) Hash() (uint32, bool) {
+	hash := uint32(9)
+	hash = helpers.HashCombineString(hash, r.Text)
+	return hash, true
+}
+
 type ComplexSelector struct {
 	Selectors []CompoundSelector
 }

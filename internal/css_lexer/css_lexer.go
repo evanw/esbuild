@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -155,12 +156,20 @@ type lexer struct {
 	current                 int
 	codePoint               rune
 	Token                   Token
+	licenseCommentsBefore   []Comment
 	approximateNewlineCount int
 	sourceMappingURL        logger.Span
 }
 
+type Comment struct {
+	Text            string
+	Loc             logger.Loc
+	TokenIndexAfter uint32
+}
+
 type TokenizeResult struct {
 	Tokens               []Token
+	LicenseComments      []Comment
 	ApproximateLineCount int32
 	SourceMapComment     logger.Span
 }
@@ -185,12 +194,21 @@ func Tokenize(log logger.Log, source logger.Source) TokenizeResult {
 
 	lexer.next()
 	var tokens []Token
+	var comments []Comment
 	for lexer.Token.Kind != TEndOfFile {
+		if lexer.licenseCommentsBefore != nil {
+			for _, comment := range lexer.licenseCommentsBefore {
+				comment.TokenIndexAfter = uint32(len(tokens))
+				comments = append(comments, comment)
+			}
+			lexer.licenseCommentsBefore = nil
+		}
 		tokens = append(tokens, lexer.Token)
 		lexer.next()
 	}
 	return TokenizeResult{
 		Tokens:               tokens,
+		LicenseComments:      comments,
 		ApproximateLineCount: int32(lexer.approximateNewlineCount) + 1,
 		SourceMapComment:     lexer.sourceMappingURL,
 	}
@@ -424,13 +442,19 @@ func (lexer *lexer) next() {
 }
 
 func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
-	// Keep track of the contents of the "sourceMappingURL=" comment
 	startOfSourceMappingURL := 0
+	isLicenseComment := false
+
 	switch lexer.codePoint {
 	case '#', '@':
+		// Keep track of the contents of the "sourceMappingURL=" comment
 		if strings.HasPrefix(lexer.source.Contents[lexer.current:], " sourceMappingURL=") {
 			startOfSourceMappingURL = lexer.current + len(" sourceMappingURL=")
 		}
+
+	case '!':
+		// Remember if this is a license comment
+		isLicenseComment = true
 	}
 
 	for {
@@ -439,7 +463,10 @@ func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 			endOfSourceMappingURL := lexer.current - 1
 			lexer.step()
 			if lexer.codePoint == '/' {
+				commentEnd := lexer.current
 				lexer.step()
+
+				// Record the source mapping URL
 				if startOfSourceMappingURL != 0 {
 					r := logger.Range{Loc: logger.Loc{Start: int32(startOfSourceMappingURL)}}
 					text := lexer.source.Contents[startOfSourceMappingURL:endOfSourceMappingURL]
@@ -447,6 +474,12 @@ func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 						r.Len++
 					}
 					lexer.sourceMappingURL = logger.Span{Text: text[:r.Len], Range: r}
+				}
+
+				// Record license comments
+				if text := lexer.source.Contents[startRange.Loc.Start:commentEnd]; isLicenseComment || containsAtPreserveOrAtLicense(text) {
+					text = helpers.RemoveMultiLineCommentIndent(lexer.source.Contents[:startRange.Loc.Start], text)
+					lexer.licenseCommentsBefore = append(lexer.licenseCommentsBefore, Comment{Loc: startRange.Loc, Text: text})
 				}
 				return
 			}
@@ -460,6 +493,15 @@ func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 			lexer.step()
 		}
 	}
+}
+
+func containsAtPreserveOrAtLicense(text string) bool {
+	for i, c := range text {
+		if c == '@' && (strings.HasPrefix(text[i+1:], "preserve") || strings.HasPrefix(text[i+1:], "license")) {
+			return true
+		}
+	}
+	return false
 }
 
 func (lexer *lexer) consumeToEndOfSingleLineComment() {

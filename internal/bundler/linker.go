@@ -4667,31 +4667,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 
 	// Make sure the file ends with a newline
 	j.EnsureNewlineAtEnd()
-
-	// Add all unique license comments to the end of the file. These are
-	// deduplicated because some projects have thousands of files with the same
-	// comment. The comment must be preserved in the output for legal reasons but
-	// at the same time we want to generate a small bundle when minifying.
-	if len(legalCommentList) > 0 {
-		sort.Strings(legalCommentList)
-
-		switch c.options.LegalComments {
-		case config.LegalCommentsEndOfFile:
-			for _, text := range legalCommentList {
-				j.AddString(text)
-				j.AddString("\n")
-			}
-
-		case config.LegalCommentsLinkedWithComment,
-			config.LegalCommentsExternalWithoutComment:
-			jComments := helpers.Joiner{}
-			for _, text := range legalCommentList {
-				jComments.AddString(text)
-				jComments.AddString("\n")
-			}
-			chunk.externalLegalComments = jComments.Done()
-		}
-	}
+	maybeAppendLegalComments(c.options.LegalComments, legalCommentList, chunk, &j, "/script")
 
 	if len(c.options.JSFooter) > 0 {
 		j.AddString(c.options.JSFooter)
@@ -4849,6 +4825,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			cssOptions := css_printer.Options{
 				RemoveWhitespace:  c.options.RemoveWhitespace,
 				ASCIIOnly:         c.options.ASCIIOnly,
+				LegalComments:     c.options.LegalComments,
 				AddSourceMappings: addSourceMappings,
 				InputSourceMap:    inputSourceMap,
 				LineOffsetTables:  lineOffsetTables,
@@ -4952,7 +4929,16 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 
 	// Concatenate the generated CSS chunks together
 	var compileResultsForSourceMap []compileResultForSourceMap
+	var legalCommentList []string
+	legalCommentSet := make(map[string]bool)
 	for _, compileResult := range compileResults {
+		for text := range compileResult.ExtractedLegalComments {
+			if !legalCommentSet[text] {
+				legalCommentSet[text] = true
+				legalCommentList = append(legalCommentList, text)
+			}
+		}
+
 		if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace {
 			var newline string
 			if newlineBeforeComment {
@@ -5001,6 +4987,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 
 	// Make sure the file ends with a newline
 	j.EnsureNewlineAtEnd()
+	maybeAppendLegalComments(c.options.LegalComments, legalCommentList, chunk, &j, "/style")
 
 	if len(c.options.CSSFooter) > 0 {
 		j.AddString(c.options.CSSFooter)
@@ -5032,6 +5019,39 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 
 	c.generateIsolatedHashInParallel(chunk)
 	chunkWaitGroup.Done()
+}
+
+// Add all unique license comments to the end of the file. These are
+// deduplicated because some projects have thousands of files with the same
+// comment. The comment must be preserved in the output for legal reasons but
+// at the same time we want to generate a small bundle when minifying.
+func maybeAppendLegalComments(
+	legalComments config.LegalComments,
+	legalCommentList []string,
+	chunk *chunkInfo,
+	j *helpers.Joiner,
+	slashTag string,
+) {
+	if len(legalCommentList) > 0 {
+		sort.Strings(legalCommentList)
+
+		switch legalComments {
+		case config.LegalCommentsEndOfFile:
+			for _, text := range legalCommentList {
+				j.AddString(helpers.EscapeClosingTag(text, slashTag))
+				j.AddString("\n")
+			}
+
+		case config.LegalCommentsLinkedWithComment,
+			config.LegalCommentsExternalWithoutComment:
+			jComments := helpers.Joiner{}
+			for _, text := range legalCommentList {
+				jComments.AddString(text)
+				jComments.AddString("\n")
+			}
+			chunk.externalLegalComments = jComments.Done()
+		}
+	}
 }
 
 func appendIsolatedHashesForImportedChunks(

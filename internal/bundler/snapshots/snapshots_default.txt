@@ -1411,12 +1411,63 @@ var clsExprKeep = /* @__PURE__ */ __name(class {
 new clsExprKeep();
 
 ================================================================================
-TestLegalCommentsExternal
----------- /out.js.LEGAL.txt ----------
-//! Copyright notice 1
-//! Copyright notice 2
+TestLegalCommentsAvoidSlashTagEndOfFile
+---------- /out/entry.js ----------
+// entry.js
+var x;
+export {
+  x
+};
+//! <script>foo<\/script>
 
----------- /out.js ----------
+---------- /out/entry.css ----------
+/* entry.css */
+x {
+  y: z;
+}
+/*! <style>foo<\/style> */
+
+================================================================================
+TestLegalCommentsAvoidSlashTagExternal
+---------- /out/entry.js.LEGAL.txt ----------
+//! <script>foo</script>
+
+---------- /out/entry.js ----------
+// entry.js
+var x;
+export {
+  x
+};
+
+---------- /out/entry.css.LEGAL.txt ----------
+/*! <style>foo</style> */
+
+---------- /out/entry.css ----------
+/* entry.css */
+x {
+  y: z;
+}
+
+================================================================================
+TestLegalCommentsAvoidSlashTagInline
+---------- /out/entry.js ----------
+// entry.js
+//! <script>foo<\/script>
+var x;
+export {
+  x
+};
+
+---------- /out/entry.css ----------
+/* entry.css */
+/*! <style>foo<\/style> */
+x {
+  y: z;
+}
+
+================================================================================
+TestLegalCommentsEndOfFile
+---------- /out/entry.js ----------
 // a.js
 console.log("in a");
 
@@ -1425,10 +1476,70 @@ console.log("in b");
 
 // c.js
 console.log("in c");
+//! Copyright notice 1
+//! Copyright notice 2
+
+---------- /out/entry.css ----------
+/* a.css */
+a {
+  zoom: 2;
+}
+
+/* b.css */
+b {
+  zoom: 2;
+}
+
+/* c.css */
+c {
+  zoom: 2;
+}
+
+/* entry.css */
+/*! Copyright notice 1 */
+/*! Copyright notice 2 */
+
+================================================================================
+TestLegalCommentsExternal
+---------- /out/entry.js.LEGAL.txt ----------
+//! Copyright notice 1
+//! Copyright notice 2
+
+---------- /out/entry.js ----------
+// a.js
+console.log("in a");
+
+// b.js
+console.log("in b");
+
+// c.js
+console.log("in c");
+
+---------- /out/entry.css.LEGAL.txt ----------
+/*! Copyright notice 1 */
+/*! Copyright notice 2 */
+
+---------- /out/entry.css ----------
+/* a.css */
+a {
+  zoom: 2;
+}
+
+/* b.css */
+b {
+  zoom: 2;
+}
+
+/* c.css */
+c {
+  zoom: 2;
+}
+
+/* entry.css */
 
 ================================================================================
 TestLegalCommentsInline
----------- /out.js ----------
+---------- /out/entry.js ----------
 // a.js
 console.log("in a");
 //! Copyright notice 1
@@ -1440,14 +1551,35 @@ console.log("in b");
 // c.js
 console.log("in c");
 //! Copyright notice 2
+
+---------- /out/entry.css ----------
+/* a.css */
+a {
+  zoom: 2;
+}
+/*! Copyright notice 1 */
+
+/* b.css */
+b {
+  zoom: 2;
+}
+/*! Copyright notice 1 */
+
+/* c.css */
+c {
+  zoom: 2;
+}
+/*! Copyright notice 2 */
+
+/* entry.css */
 
 ================================================================================
 TestLegalCommentsLinked
----------- /out.js.LEGAL.txt ----------
+---------- /out/entry.js.LEGAL.txt ----------
 //! Copyright notice 1
 //! Copyright notice 2
 
----------- /out.js ----------
+---------- /out/entry.js ----------
 // a.js
 console.log("in a");
 
@@ -1456,11 +1588,58 @@ console.log("in b");
 
 // c.js
 console.log("in c");
-/*! For license information please see out.js.LEGAL.txt */
+/*! For license information please see entry.js.LEGAL.txt */
+
+---------- /out/entry.css.LEGAL.txt ----------
+/*! Copyright notice 1 */
+/*! Copyright notice 2 */
+
+---------- /out/entry.css ----------
+/* a.css */
+a {
+  zoom: 2;
+}
+
+/* b.css */
+b {
+  zoom: 2;
+}
+
+/* c.css */
+c {
+  zoom: 2;
+}
+
+/* entry.css */
+/*! For license information please see entry.css.LEGAL.txt */
+
+================================================================================
+TestLegalCommentsModifyIndent
+---------- /out/entry.js ----------
+// entry.js
+var entry_default = () => {
+  /**
+   * @preserve
+   */
+};
+export {
+  entry_default as default
+};
+
+---------- /out/entry.css ----------
+/* entry.css */
+@media (x: y) {
+  /**
+   * @preserve
+   */
+  z {
+    zoom: 2;
+  }
+}
 
 ================================================================================
 TestLegalCommentsNone
----------- /out.js ----------
+---------- /out/entry.js ----------
 // a.js
 console.log("in a");
 
@@ -1469,6 +1648,24 @@ console.log("in b");
 
 // c.js
 console.log("in c");
+
+---------- /out/entry.css ----------
+/* a.css */
+a {
+  zoom: 2;
+}
+
+/* b.css */
+b {
+  zoom: 2;
+}
+
+/* c.css */
+c {
+  zoom: 2;
+}
+
+/* entry.css */
 
 ================================================================================
 TestLoaderDataURLApplicationJSON

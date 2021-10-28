@@ -20,6 +20,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
 )
@@ -2729,7 +2730,7 @@ func (lexer *Lexer) scanCommentText() {
 
 	if hasLegalAnnotation || lexer.PreserveAllCommentsBefore {
 		if isMultiLineComment {
-			text = removeMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
+			text = helpers.RemoveMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
 		}
 
 		lexer.CommentsToPreserveBefore = append(lexer.CommentsToPreserveBefore, js_ast.Comment{
@@ -2737,68 +2738,6 @@ func (lexer *Lexer) scanCommentText() {
 			Text: text,
 		})
 	}
-}
-
-func removeMultiLineCommentIndent(prefix string, text string) string {
-	// Figure out the initial indent
-	indent := 0
-seekBackwardToNewline:
-	for len(prefix) > 0 {
-		c, size := utf8.DecodeLastRuneInString(prefix)
-		switch c {
-		case '\r', '\n', '\u2028', '\u2029':
-			break seekBackwardToNewline
-		}
-		prefix = prefix[:len(prefix)-size]
-		indent++
-	}
-
-	// Split the comment into lines
-	var lines []string
-	start := 0
-	for i, c := range text {
-		switch c {
-		case '\r', '\n':
-			// Don't double-append for Windows style "\r\n" newlines
-			if start <= i {
-				lines = append(lines, text[start:i])
-			}
-
-			start = i + 1
-
-			// Ignore the second part of Windows style "\r\n" newlines
-			if c == '\r' && start < len(text) && text[start] == '\n' {
-				start++
-			}
-
-		case '\u2028', '\u2029':
-			lines = append(lines, text[start:i])
-			start = i + 3
-		}
-	}
-	lines = append(lines, text[start:])
-
-	// Find the minimum indent over all lines after the first line
-	for _, line := range lines[1:] {
-		lineIndent := 0
-		for _, c := range line {
-			if !IsWhitespace(c) {
-				break
-			}
-			lineIndent++
-		}
-		if indent > lineIndent {
-			indent = lineIndent
-		}
-	}
-
-	// Trim the indent off of all lines after the first line
-	for i, line := range lines {
-		if i > 0 {
-			lines[i] = line[indent:]
-		}
-	}
-	return strings.Join(lines, "\n")
 }
 
 func ContainsNonBMPCodePoint(text string) bool {

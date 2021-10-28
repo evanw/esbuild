@@ -2997,11 +2997,20 @@ func TestLegalCommentsNone(t *testing.T) {
 			"/a.js": `console.log('in a') //! Copyright notice 1`,
 			"/b.js": `console.log('in b') //! Copyright notice 1`,
 			"/c.js": `console.log('in c') //! Copyright notice 2`,
+
+			"/entry.css": `
+				@import "./a.css";
+				@import "./b.css";
+				@import "./c.css";
+			`,
+			"/a.css": `a { zoom: 2 } /*! Copyright notice 1 */`,
+			"/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
+			"/c.css": `c { zoom: 2 } /*! Copyright notice 2 */`,
 		},
-		entryPaths: []string{"/entry.js"},
+		entryPaths: []string{"/entry.js", "/entry.css"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
+			AbsOutputDir:  "/out",
 			LegalComments: config.LegalCommentsNone,
 		},
 	})
@@ -3018,12 +3027,51 @@ func TestLegalCommentsInline(t *testing.T) {
 			"/a.js": `console.log('in a') //! Copyright notice 1`,
 			"/b.js": `console.log('in b') //! Copyright notice 1`,
 			"/c.js": `console.log('in c') //! Copyright notice 2`,
+
+			"/entry.css": `
+				@import "./a.css";
+				@import "./b.css";
+				@import "./c.css";
+			`,
+			"/a.css": `a { zoom: 2 } /*! Copyright notice 1 */`,
+			"/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
+			"/c.css": `c { zoom: 2 } /*! Copyright notice 2 */`,
 		},
-		entryPaths: []string{"/entry.js"},
+		entryPaths: []string{"/entry.js", "/entry.css"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
+			AbsOutputDir:  "/out",
 			LegalComments: config.LegalCommentsInline,
+		},
+	})
+}
+
+func TestLegalCommentsEndOfFile(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './a'
+				import './b'
+				import './c'
+			`,
+			"/a.js": `console.log('in a') //! Copyright notice 1`,
+			"/b.js": `console.log('in b') //! Copyright notice 1`,
+			"/c.js": `console.log('in c') //! Copyright notice 2`,
+
+			"/entry.css": `
+				@import "./a.css";
+				@import "./b.css";
+				@import "./c.css";
+			`,
+			"/a.css": `a { zoom: 2 } /*! Copyright notice 1 */`,
+			"/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
+			"/c.css": `c { zoom: 2 } /*! Copyright notice 2 */`,
+		},
+		entryPaths: []string{"/entry.js", "/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputDir:  "/out",
+			LegalComments: config.LegalCommentsEndOfFile,
 		},
 	})
 }
@@ -3039,11 +3087,20 @@ func TestLegalCommentsLinked(t *testing.T) {
 			"/a.js": `console.log('in a') //! Copyright notice 1`,
 			"/b.js": `console.log('in b') //! Copyright notice 1`,
 			"/c.js": `console.log('in c') //! Copyright notice 2`,
+
+			"/entry.css": `
+				@import "./a.css";
+				@import "./b.css";
+				@import "./c.css";
+			`,
+			"/a.css": `a { zoom: 2 } /*! Copyright notice 1 */`,
+			"/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
+			"/c.css": `c { zoom: 2 } /*! Copyright notice 2 */`,
 		},
-		entryPaths: []string{"/entry.js"},
+		entryPaths: []string{"/entry.js", "/entry.css"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
+			AbsOutputDir:  "/out",
 			LegalComments: config.LegalCommentsLinkedWithComment,
 		},
 	})
@@ -3060,11 +3117,111 @@ func TestLegalCommentsExternal(t *testing.T) {
 			"/a.js": `console.log('in a') //! Copyright notice 1`,
 			"/b.js": `console.log('in b') //! Copyright notice 1`,
 			"/c.js": `console.log('in c') //! Copyright notice 2`,
+
+			"/entry.css": `
+				@import "./a.css";
+				@import "./b.css";
+				@import "./c.css";
+			`,
+			"/a.css": `a { zoom: 2 } /*! Copyright notice 1 */`,
+			"/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
+			"/c.css": `c { zoom: 2 } /*! Copyright notice 2 */`,
 		},
-		entryPaths: []string{"/entry.js"},
+		entryPaths: []string{"/entry.js", "/entry.css"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
+			AbsOutputDir:  "/out",
+			LegalComments: config.LegalCommentsExternalWithoutComment,
+		},
+	})
+}
+
+func TestLegalCommentsModifyIndent(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export default () => {
+					/**
+					 * @preserve
+					 */
+				}
+			`,
+			"/entry.css": `
+				@media (x: y) {
+					/**
+					 * @preserve
+					 */
+					z { zoom: 2 }
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js", "/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputDir:  "/out",
+			LegalComments: config.LegalCommentsInline,
+		},
+	})
+}
+
+func TestLegalCommentsAvoidSlashTagInline(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				//! <script>foo</script>
+				export let x
+			`,
+			"/entry.css": `
+				/*! <style>foo</style> */
+				x { y: z }
+			`,
+		},
+		entryPaths: []string{"/entry.js", "/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputDir:  "/out",
+			LegalComments: config.LegalCommentsInline,
+		},
+	})
+}
+
+func TestLegalCommentsAvoidSlashTagEndOfFile(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				//! <script>foo</script>
+				export let x
+			`,
+			"/entry.css": `
+				/*! <style>foo</style> */
+				x { y: z }
+			`,
+		},
+		entryPaths: []string{"/entry.js", "/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputDir:  "/out",
+			LegalComments: config.LegalCommentsEndOfFile,
+		},
+	})
+}
+
+func TestLegalCommentsAvoidSlashTagExternal(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				//! <script>foo</script>
+				export let x
+			`,
+			"/entry.css": `
+				/*! <style>foo</style> */
+				x { y: z }
+			`,
+		},
+		entryPaths: []string{"/entry.js", "/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputDir:  "/out",
 			LegalComments: config.LegalCommentsExternalWithoutComment,
 		},
 	})

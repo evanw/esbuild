@@ -11,6 +11,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -2420,30 +2421,9 @@ func (p *printer) printIf(s *js_ast.SIf) {
 	}
 }
 
-func escapeClosingScriptTag(text string) string {
-	i := strings.Index(text, "</")
-	if i < 0 {
-		return text
-	}
-	var b strings.Builder
-	for {
-		b.WriteString(text[:i+1])
-		text = text[i+1:]
-		if len(text) >= 7 && strings.EqualFold(text[:7], "/script") {
-			b.WriteByte('\\')
-		}
-		i = strings.Index(text, "</")
-		if i < 0 {
-			break
-		}
-	}
-	b.WriteString(text)
-	return b.String()
-}
-
 func (p *printer) printIndentedComment(text string) {
 	// Avoid generating a comment containing the character sequence "</script"
-	text = escapeClosingScriptTag(text)
+	text = helpers.EscapeClosingTag(text, "/script")
 
 	if strings.HasPrefix(text, "/*") {
 		// Re-indent multi-line comments

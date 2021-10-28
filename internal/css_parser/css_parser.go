@@ -15,16 +15,18 @@ import (
 // support for parsing https://drafts.csswg.org/css-nesting-1/.
 
 type parser struct {
-	log           logger.Log
-	source        logger.Source
-	tracker       logger.LineColumnTracker
-	options       Options
-	tokens        []css_lexer.Token
-	stack         []css_lexer.T
-	index         int
-	end           int
-	prevError     logger.Loc
-	importRecords []ast.ImportRecord
+	log                 logger.Log
+	source              logger.Source
+	tracker             logger.LineColumnTracker
+	options             Options
+	tokens              []css_lexer.Token
+	licenseComments     []css_lexer.Comment
+	stack               []css_lexer.T
+	index               int
+	end                 int
+	licenseCommentIndex int
+	prevError           logger.Loc
+	importRecords       []ast.ImportRecord
 }
 
 type Options struct {
@@ -36,12 +38,13 @@ type Options struct {
 func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 	result := css_lexer.Tokenize(log, source)
 	p := parser{
-		log:       log,
-		source:    source,
-		tracker:   logger.MakeLineColumnTracker(&source),
-		options:   options,
-		tokens:    result.Tokens,
-		prevError: logger.Loc{Start: -1},
+		log:             log,
+		source:          source,
+		tracker:         logger.MakeLineColumnTracker(&source),
+		options:         options,
+		tokens:          result.Tokens,
+		licenseComments: result.LicenseComments,
+		prevError:       logger.Loc{Start: -1},
 	}
 	p.end = len(p.tokens)
 	rules := p.parseListOfRules(ruleContext{
@@ -166,6 +169,17 @@ func (p *parser) parseListOfRules(context ruleContext) []css_ast.Rule {
 
 loop:
 	for {
+		// If there are any license comments immediately before the current token,
+		// turn them all into comment rules and append them to the current rule list
+		for p.licenseCommentIndex < len(p.licenseComments) {
+			comment := p.licenseComments[p.licenseCommentIndex]
+			if comment.TokenIndexAfter != uint32(p.index) {
+				break
+			}
+			rules = append(rules, css_ast.Rule{Loc: comment.Loc, Data: &css_ast.RComment{Text: comment.Text}})
+			p.licenseCommentIndex++
+		}
+
 		switch p.current().Kind {
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
 			break loop
