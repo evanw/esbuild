@@ -1821,6 +1821,9 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	//
 	for _, prop := range class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
+			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) && len(prop.ClassStaticBlock.Stmts) > 0 {
+				result.lowerAllStaticFields = true
+			}
 			continue
 		}
 
@@ -2110,6 +2113,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 	for _, prop := range class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
+			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) {
+				if block := *prop.ClassStaticBlock; len(block.Stmts) > 0 {
+					staticMembers = append(staticMembers, js_ast.Expr{Loc: block.Loc, Data: &js_ast.ECall{
+						Target: js_ast.Expr{Loc: block.Loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{
+							Stmts: block.Stmts,
+						}}},
+					}})
+				}
+				continue
+			}
+
 			// Keep this property
 			class.Properties[end] = prop
 			end++

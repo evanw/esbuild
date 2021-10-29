@@ -1256,6 +1256,51 @@ y = () => [
 ];
 
 ================================================================================
+TestStaticClassBlockES2021
+---------- /out.js ----------
+// entry.js
+var _A = class {
+};
+var A = _A;
+(() => {
+  _A.thisField++;
+  _A.classField++;
+  __superStaticSet(_A, "superField", __superStaticGet(_A, "superField") + 1);
+  __superStaticWrapper(_A, "superField")._++;
+})();
+var _a;
+var B = (_a = class {
+}, (() => {
+  _a.thisField++;
+  __superStaticSet(_a, "superField", __superStaticGet(_a, "superField") + 1);
+  __superStaticWrapper(_a, "superField")._++;
+})(), _a);
+
+================================================================================
+TestStaticClassBlockESNext
+---------- /out.js ----------
+// entry.js
+var A = class {
+  static {
+  }
+  static {
+    this.thisField++;
+    A.classField++;
+    super.superField = super.superField + 1;
+    super.superField++;
+  }
+};
+var B = class {
+  static {
+  }
+  static {
+    this.thisField++;
+    super.superField = super.superField + 1;
+    super.superField++;
+  }
+};
+
+================================================================================
 TestTSLowerClassField2020NoBundle
 ---------- /out.js ----------
 var _foo, _bar, _s_foo, _s_bar;

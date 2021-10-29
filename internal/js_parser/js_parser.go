@@ -1987,7 +1987,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 					isClassStaticInit:  true,
 					allowSuperProperty: true,
 					await:              forbidAll,
-					yield:              forbidAll,
+					yield:              allowIdent,
 				}
 
 				p.pushScopeForParsePass(js_ast.ScopeClassStaticInit, loc)
@@ -9796,6 +9796,14 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 			p.fnOnlyDataVisit = fnOnlyDataVisit{
 				isThisNested:       true,
 				isNewTargetAllowed: true,
+			}
+
+			if classLoweringInfo.lowerAllStaticFields {
+				// Replace "this" with the class name inside static class blocks
+				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
+
+				// Need to lower "super" since it won't be valid outside the class body
+				p.fnOnlyDataVisit.shouldLowerSuper = true
 			}
 
 			p.pushScopeForVisitPass(js_ast.ScopeClassStaticInit, property.ClassStaticBlock.Loc)

@@ -1673,6 +1673,22 @@ func TestClassFields(t *testing.T) {
 	expectPrinted(t, "class Foo { static ['prototype'] = 1 }", "class Foo {\n  static [\"prototype\"] = 1;\n}\n")
 }
 
+func TestClassStaticBlocks(t *testing.T) {
+	expectPrinted(t, "class Foo { static {} }", "class Foo {\n  static {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static {} x = 1 }", "class Foo {\n  static {\n  }\n  x = 1;\n}\n")
+	expectPrinted(t, "class Foo { static { this.foo() } }", "class Foo {\n  static {\n    this.foo();\n  }\n}\n")
+
+	expectParseError(t, "class Foo { static { yield } }",
+		"<stdin>: error: \"yield\" is a reserved word and cannot be used in strict mode\n"+
+			"<stdin>: note: All code inside a class is implicitly in strict mode\n")
+	expectParseError(t, "class Foo { static { await } }", "<stdin>: error: The keyword \"await\" cannot be used here\n")
+	expectParseError(t, "class Foo { static { return } }", "<stdin>: error: A return statement cannot be used inside a class static block\n")
+	expectParseError(t, "class Foo { static { break } }", "<stdin>: error: Cannot use \"break\" here\n")
+	expectParseError(t, "class Foo { static { continue } }", "<stdin>: error: Cannot use \"continue\" here\n")
+	expectParseError(t, "x: { class Foo { static { break x } } }", "<stdin>: error: There is no containing label named \"x\"\n")
+	expectParseError(t, "x: { class Foo { static { continue x } } }", "<stdin>: error: There is no containing label named \"x\"\n")
+}
+
 func TestGenerator(t *testing.T) {
 	expectParseError(t, "(class { * foo })", "<stdin>: error: Expected \"(\" but found \"}\"\n")
 	expectParseError(t, "(class { * *foo() {} })", "<stdin>: error: Unexpected \"*\"\n")
