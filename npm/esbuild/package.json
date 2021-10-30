@@ -1,6 +1,6 @@
 {
   "name": "esbuild",
-  "version": "0.13.10",
+  "version": "0.13.11",
   "description": "An extremely fast JavaScript and CSS bundler and minifier.",
   "repository": "https://github.com/evanw/esbuild",
   "scripts": {
@@ -12,23 +12,23 @@
     "esbuild": "bin/esbuild"
   },
   "optionalDependencies": {
-    "esbuild-android-arm64": "0.13.10",
-    "esbuild-darwin-64": "0.13.10",
-    "esbuild-darwin-arm64": "0.13.10",
-    "esbuild-freebsd-64": "0.13.10",
-    "esbuild-freebsd-arm64": "0.13.10",
-    "esbuild-linux-32": "0.13.10",
-    "esbuild-linux-64": "0.13.10",
-    "esbuild-linux-arm": "0.13.10",
-    "esbuild-linux-arm64": "0.13.10",
-    "esbuild-linux-mips64le": "0.13.10",
-    "esbuild-linux-ppc64le": "0.13.10",
-    "esbuild-netbsd-64": "0.13.10",
-    "esbuild-openbsd-64": "0.13.10",
-    "esbuild-sunos-64": "0.13.10",
-    "esbuild-windows-32": "0.13.10",
-    "esbuild-windows-64": "0.13.10",
-    "esbuild-windows-arm64": "0.13.10"
+    "esbuild-android-arm64": "0.13.11",
+    "esbuild-darwin-64": "0.13.11",
+    "esbuild-darwin-arm64": "0.13.11",
+    "esbuild-freebsd-64": "0.13.11",
+    "esbuild-freebsd-arm64": "0.13.11",
+    "esbuild-linux-32": "0.13.11",
+    "esbuild-linux-64": "0.13.11",
+    "esbuild-linux-arm": "0.13.11",
+    "esbuild-linux-arm64": "0.13.11",
+    "esbuild-linux-mips64le": "0.13.11",
+    "esbuild-linux-ppc64le": "0.13.11",
+    "esbuild-netbsd-64": "0.13.11",
+    "esbuild-openbsd-64": "0.13.11",
+    "esbuild-sunos-64": "0.13.11",
+    "esbuild-windows-32": "0.13.11",
+    "esbuild-windows-64": "0.13.11",
+    "esbuild-windows-arm64": "0.13.11"
   },
   "license": "MIT"
 }

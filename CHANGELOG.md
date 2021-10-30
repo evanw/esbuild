@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.11
 
 * Implement class static blocks ([#1558](https://github.com/evanw/esbuild/issues/1558))
 
