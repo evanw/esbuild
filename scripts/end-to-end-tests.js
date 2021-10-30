@@ -3706,257 +3706,259 @@
   )
 
   // Async lowering tests
-  tests.push(
-    test(['in.js', '--outfile=node.js', '--target=es6'], {
-      'in.js': `
-        exports.async = async () => {
-          const value = await Promise.resolve(123)
-          if (value !== 123) throw 'fail'
+  for (let flags of [[], ['--target=es6']]) {
+    tests.push(
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        'in.js': `
+          exports.async = async () => {
+            const value = await Promise.resolve(123)
+            if (value !== 123) throw 'fail'
 
-          let uncaught = false
-          let caught = false
-          try {
-            await Promise.reject(234)
-            uncaught = true
-          } catch (error) {
-            if (error !== 234) throw 'fail'
-            caught = true
-          }
-          if (uncaught || !caught) throw 'fail'
-        }
-      `,
-    }, { async: true }),
-    test(['in.js', '--outfile=node.js', '--target=es6'], {
-      'in.js': `
-        async function throws() {
-          throw 123
-        }
-        exports.async = () => throws().then(
-          () => {
-            throw 'fail'
-          },
-          error => {
-            if (error !== 123) throw 'fail'
-          }
-        )
-      `,
-    }, { async: true }),
-    test(['in.js', '--outfile=node.js', '--target=es6'], {
-      'in.js': `
-        exports.async = async () => {
-          "use strict"
-          async function foo() {
-            return [this, arguments]
-          }
-          let [t, a] = await foo.call(0, 1, 2, 3)
-          if (t !== 0 || a.length !== 3 || a[0] !== 1 || a[1] !== 2 || a[2] !== 3) throw 'fail'
-        }
-      `,
-    }, { async: true }),
-    test(['in.js', '--outfile=node.js', '--target=es6'], {
-      'in.js': `
-        let couldThrow = () => 'b'
-        exports.async = async () => {
-          "use strict"
-          async function f0() {
-            let bar = async (x, y) => [x, y, this, arguments]
-            return await bar('a', 'b')
-          }
-          async function f1() {
-            let bar = async (x, ...y) => [x, y[0], this, arguments]
-            return await bar('a', 'b')
-          }
-          async function f2() {
-            let bar = async (x, y = 'b') => [x, y, this, arguments]
-            return await bar('a')
-          }
-          async function f3() {
-            let bar = async (x, y = couldThrow()) => [x, y, this, arguments]
-            return await bar('a')
-          }
-          async function f4() {
-            let bar = async (x, y = couldThrow()) => (() => [x, y, this, arguments])()
-            return await bar('a')
-          }
-          async function f5() {
-            let bar = () => async (x, y = couldThrow()) => [x, y, this, arguments]
-            return await bar()('a')
-          }
-          async function f6() {
-            let bar = async () => async (x, y = couldThrow()) => [x, y, this, arguments]
-            return await (await bar())('a')
-          }
-          for (let foo of [f0, f1, f2, f3, f4, f5, f6]) {
-            let [x, y, t, a] = await foo.call(0, 1, 2, 3)
-            if (x !== 'a' || y !== 'b' || t !== 0 || a.length !== 3 || a[0] !== 1 || a[1] !== 2 || a[2] !== 3) throw 'fail'
-          }
-        }
-      `,
-    }, { async: true }),
-    test(['in.js', '--outfile=node.js', '--target=es6'], {
-      // The async transform must not change the argument count
-      'in.js': `
-        async function a(x, y) {}
-        if (a.length !== 2) throw 'fail: a'
-
-        async function b(x, y = x(), z) {}
-        if (b.length !== 1) throw 'fail: b'
-
-        async function c(x, y, ...z) {}
-        if (c.length !== 2) throw 'fail: c'
-
-        let d = async function(x, y) {}
-        if (d.length !== 2) throw 'fail: d'
-
-        let e = async function(x, y = x(), z) {}
-        if (e.length !== 1) throw 'fail: e'
-
-        let f = async function(x, y, ...z) {}
-        if (f.length !== 2) throw 'fail: f'
-
-        let g = async (x, y) => {}
-        if (g.length !== 2) throw 'fail: g'
-
-        let h = async (x, y = x(), z) => {}
-        if (h.length !== 1) throw 'fail: h'
-
-        let i = async (x, y, ...z) => {}
-        if (i.length !== 2) throw 'fail: i'
-      `,
-    }),
-    test(['in.js', '--outfile=node.js', '--target=es6'], {
-      // Functions must be able to access default arguments past the last non-default argument
-      'in.js': `
-        exports.async = async () => {
-          async function a(x, y = 0) { return y }
-          let b = async function(x, y = 0) { return y }
-          let c = async (x, y = 0) => y
-          for (let fn of [a, b, c]) {
-            if ((await fn('x', 'y')) !== 'y') throw 'fail: ' + fn
-          }
-        }
-      `,
-    }, { async: true }),
-    test(['in.js', '--outfile=node.js', '--target=es6'], {
-      // Functions must be able to access arguments past the argument count using "arguments"
-      'in.js': `
-        exports.async = async () => {
-          async function a() { return arguments[2] }
-          async function b(x, y) { return arguments[2] }
-          async function c(x, y = x) { return arguments[2] }
-          let d = async function() { return arguments[2] }
-          let e = async function(x, y) { return arguments[2] }
-          let f = async function(x, y = x) { return arguments[2] }
-          for (let fn of [a, b, c, d, e, f]) {
-            if ((await fn('x', 'y', 'z')) !== 'z') throw 'fail: ' + fn
-          }
-        }
-      `,
-    }, { async: true }),
-    test(['in.js', '--outfile=node.js', '--target=es6'], {
-      // Functions must be able to access arguments past the argument count using a rest argument
-      'in.js': `
-        exports.async = async () => {
-          async function a(...rest) { return rest[3] }
-          async function b(x, y, ...rest) { return rest[1] }
-          async function c(x, y = x, ...rest) { return rest[1] }
-          let d = async function(...rest) { return rest[3] }
-          let e = async function(x, y, ...rest) { return rest[1] }
-          let f = async function(x, y = x, ...rest) { return rest[1] }
-          let g = async (...rest) => rest[3]
-          let h = async (x, y, ...rest) => rest[1]
-          let i = async (x, y = x, ...rest) => rest[1]
-          for (let fn of [a, b, c, d, e, f, g, h, i]) {
-            if ((await fn(11, 22, 33, 44)) !== 44) throw 'fail: ' + fn
-          }
-        }
-      `,
-    }, { async: true }),
-    test(['in.js', '--outfile=node.js', '--target=es6'], {
-      // Functions must be able to modify arguments using "arguments"
-      'in.js': `
-        exports.async = async () => {
-          async function a(x) { let y = [x, arguments[0]]; arguments[0] = 'y'; return y.concat(x, arguments[0]) }
-          let b = async function(x) { let y = [x, arguments[0]]; arguments[0] = 'y'; return y.concat(x, arguments[0]) }
-          for (let fn of [a, b]) {
-            let values = (await fn('x')) + ''
-            if (values !== 'x,x,y,y') throw 'fail: ' + values
-          }
-        }
-      `,
-    }, { async: true }),
-    test(['in.js', '--outfile=node.js', '--target=es6'], {
-      // Errors in the evaluation of async function arguments should reject the resulting promise
-      'in.js': `
-        exports.async = async () => {
-          let expected = new Error('You should never see this error')
-          let throws = () => { throw expected }
-          async function a(x, y = throws()) {}
-          async function b({ [throws()]: x }) {}
-          let c = async function (x, y = throws()) {}
-          let d = async function ({ [throws()]: x }) {}
-          let e = async (x, y = throws()) => {}
-          let f = async ({ [throws()]: x }) => {}
-          for (let fn of [a, b, c, d, e, f]) {
-            let promise = fn({})
+            let uncaught = false
+            let caught = false
             try {
-              await promise
-            } catch (e) {
-              if (e === expected) continue
+              await Promise.reject(234)
+              uncaught = true
+            } catch (error) {
+              if (error !== 234) throw 'fail'
+              caught = true
             }
-            throw 'fail: ' + fn
+            if (uncaught || !caught) throw 'fail'
           }
-        }
-      `,
-    }, { async: true }),
-    test(['in.js', '--outfile=node.js', '--target=es6'], {
-      // Functions handle "super" property accesses
-      'in.js': `
-        exports.async = async () => {
-          class Base {
-            foo(x, y) {
-              return x + y
-            }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        'in.js': `
+          async function throws() {
+            throw 123
           }
-          class Derived extends Base {
-            async test(key) {
-              return [
-                await super.foo,
-                await super[key],
-
-                await super.foo.name,
-                await super[key].name,
-                await super.foo?.name,
-                await super[key]?.name,
-                await super._foo?.name,
-                await super['_' + key]?.name,
-
-                await super.foo(1, 2),
-                await super[key](1, 2),
-                await super.foo?.(1, 2),
-                await super[key]?.(1, 2),
-                await super._foo?.(1, 2),
-                await super['_' + key]?.(1, 2),
-              ]
-            }
-          }
-          let d = new Derived
-          let observed = await d.test('foo')
-          let expected = [
-            d.foo, d.foo,
-            d.foo.name, d.foo.name, d.foo.name, d.foo.name, void 0, void 0,
-            3, 3, 3, 3, void 0, void 0,
-          ]
-          for (let i = 0; i < expected.length; i++) {
-            if (observed[i] !== expected[i]) {
-              console.log(i, observed[i], expected[i])
+          exports.async = () => throws().then(
+            () => {
               throw 'fail'
+            },
+            error => {
+              if (error !== 123) throw 'fail'
+            }
+          )
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        'in.js': `
+          exports.async = async () => {
+            "use strict"
+            async function foo() {
+              return [this, arguments]
+            }
+            let [t, a] = await foo.call(0, 1, 2, 3)
+            if (t !== 0 || a.length !== 3 || a[0] !== 1 || a[1] !== 2 || a[2] !== 3) throw 'fail'
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        'in.js': `
+          let couldThrow = () => 'b'
+          exports.async = async () => {
+            "use strict"
+            async function f0() {
+              let bar = async (x, y) => [x, y, this, arguments]
+              return await bar('a', 'b')
+            }
+            async function f1() {
+              let bar = async (x, ...y) => [x, y[0], this, arguments]
+              return await bar('a', 'b')
+            }
+            async function f2() {
+              let bar = async (x, y = 'b') => [x, y, this, arguments]
+              return await bar('a')
+            }
+            async function f3() {
+              let bar = async (x, y = couldThrow()) => [x, y, this, arguments]
+              return await bar('a')
+            }
+            async function f4() {
+              let bar = async (x, y = couldThrow()) => (() => [x, y, this, arguments])()
+              return await bar('a')
+            }
+            async function f5() {
+              let bar = () => async (x, y = couldThrow()) => [x, y, this, arguments]
+              return await bar()('a')
+            }
+            async function f6() {
+              let bar = async () => async (x, y = couldThrow()) => [x, y, this, arguments]
+              return await (await bar())('a')
+            }
+            for (let foo of [f0, f1, f2, f3, f4, f5, f6]) {
+              let [x, y, t, a] = await foo.call(0, 1, 2, 3)
+              if (x !== 'a' || y !== 'b' || t !== 0 || a.length !== 3 || a[0] !== 1 || a[1] !== 2 || a[2] !== 3) throw 'fail'
             }
           }
-        }
-      `,
-    }, { async: true }),
-  )
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // The async transform must not change the argument count
+        'in.js': `
+          async function a(x, y) {}
+          if (a.length !== 2) throw 'fail: a'
+
+          async function b(x, y = x(), z) {}
+          if (b.length !== 1) throw 'fail: b'
+
+          async function c(x, y, ...z) {}
+          if (c.length !== 2) throw 'fail: c'
+
+          let d = async function(x, y) {}
+          if (d.length !== 2) throw 'fail: d'
+
+          let e = async function(x, y = x(), z) {}
+          if (e.length !== 1) throw 'fail: e'
+
+          let f = async function(x, y, ...z) {}
+          if (f.length !== 2) throw 'fail: f'
+
+          let g = async (x, y) => {}
+          if (g.length !== 2) throw 'fail: g'
+
+          let h = async (x, y = x(), z) => {}
+          if (h.length !== 1) throw 'fail: h'
+
+          let i = async (x, y, ...z) => {}
+          if (i.length !== 2) throw 'fail: i'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Functions must be able to access default arguments past the last non-default argument
+        'in.js': `
+          exports.async = async () => {
+            async function a(x, y = 0) { return y }
+            let b = async function(x, y = 0) { return y }
+            let c = async (x, y = 0) => y
+            for (let fn of [a, b, c]) {
+              if ((await fn('x', 'y')) !== 'y') throw 'fail: ' + fn
+            }
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Functions must be able to access arguments past the argument count using "arguments"
+        'in.js': `
+          exports.async = async () => {
+            async function a() { return arguments[2] }
+            async function b(x, y) { return arguments[2] }
+            async function c(x, y = x) { return arguments[2] }
+            let d = async function() { return arguments[2] }
+            let e = async function(x, y) { return arguments[2] }
+            let f = async function(x, y = x) { return arguments[2] }
+            for (let fn of [a, b, c, d, e, f]) {
+              if ((await fn('x', 'y', 'z')) !== 'z') throw 'fail: ' + fn
+            }
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Functions must be able to access arguments past the argument count using a rest argument
+        'in.js': `
+          exports.async = async () => {
+            async function a(...rest) { return rest[3] }
+            async function b(x, y, ...rest) { return rest[1] }
+            async function c(x, y = x, ...rest) { return rest[1] }
+            let d = async function(...rest) { return rest[3] }
+            let e = async function(x, y, ...rest) { return rest[1] }
+            let f = async function(x, y = x, ...rest) { return rest[1] }
+            let g = async (...rest) => rest[3]
+            let h = async (x, y, ...rest) => rest[1]
+            let i = async (x, y = x, ...rest) => rest[1]
+            for (let fn of [a, b, c, d, e, f, g, h, i]) {
+              if ((await fn(11, 22, 33, 44)) !== 44) throw 'fail: ' + fn
+            }
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Functions must be able to modify arguments using "arguments"
+        'in.js': `
+          exports.async = async () => {
+            async function a(x) { let y = [x, arguments[0]]; arguments[0] = 'y'; return y.concat(x, arguments[0]) }
+            let b = async function(x) { let y = [x, arguments[0]]; arguments[0] = 'y'; return y.concat(x, arguments[0]) }
+            for (let fn of [a, b]) {
+              let values = (await fn('x')) + ''
+              if (values !== 'x,x,y,y') throw 'fail: ' + values
+            }
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Errors in the evaluation of async function arguments should reject the resulting promise
+        'in.js': `
+          exports.async = async () => {
+            let expected = new Error('You should never see this error')
+            let throws = () => { throw expected }
+            async function a(x, y = throws()) {}
+            async function b({ [throws()]: x }) {}
+            let c = async function (x, y = throws()) {}
+            let d = async function ({ [throws()]: x }) {}
+            let e = async (x, y = throws()) => {}
+            let f = async ({ [throws()]: x }) => {}
+            for (let fn of [a, b, c, d, e, f]) {
+              let promise = fn({})
+              try {
+                await promise
+              } catch (e) {
+                if (e === expected) continue
+              }
+              throw 'fail: ' + fn
+            }
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Functions handle "super" property accesses
+        'in.js': `
+          exports.async = async () => {
+            class Base {
+              foo(x, y) {
+                return x + y
+              }
+            }
+            class Derived extends Base {
+              async test(key) {
+                return [
+                  await super.foo,
+                  await super[key],
+
+                  await super.foo.name,
+                  await super[key].name,
+                  await super.foo?.name,
+                  await super[key]?.name,
+                  await super._foo?.name,
+                  await super['_' + key]?.name,
+
+                  await super.foo(1, 2),
+                  await super[key](1, 2),
+                  await super.foo?.(1, 2),
+                  await super[key]?.(1, 2),
+                  await super._foo?.(1, 2),
+                  await super['_' + key]?.(1, 2),
+                ]
+              }
+            }
+            let d = new Derived
+            let observed = await d.test('foo')
+            let expected = [
+              d.foo, d.foo,
+              d.foo.name, d.foo.name, d.foo.name, d.foo.name, void 0, void 0,
+              3, 3, 3, 3, void 0, void 0,
+            ]
+            for (let i = 0; i < expected.length; i++) {
+              if (observed[i] !== expected[i]) {
+                console.log(i, observed[i], expected[i])
+                throw 'fail'
+              }
+            }
+          }
+        `,
+      }, { async: true }),
+    )
+  }
 
   // Function hoisting tests
   tests.push(
