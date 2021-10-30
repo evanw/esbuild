@@ -1082,6 +1082,148 @@ __privateAdd(Foo, _sa);
 __privateAdd(Foo, _sag);
 
 ================================================================================
+TestLowerStaticAsyncSuperES2016NoBundle
+---------- /out.js ----------
+const _Derived = class extends Base {
+};
+let Derived = _Derived;
+__publicField(Derived, "test", (key) => __async(_Derived, null, function* () {
+  var _a, _b, _c, _d;
+  return [
+    yield __superStaticGet(_Derived, "foo"),
+    yield __superStaticGet(_Derived, key),
+    yield [__superStaticWrapper(_Derived, "foo")._] = [0],
+    yield [__superStaticWrapper(_Derived, key)._] = [0],
+    yield __superStaticSet(_Derived, "foo", 1),
+    yield __superStaticSet(_Derived, key, 1),
+    yield __superStaticSet(_Derived, "foo", __superStaticGet(_Derived, "foo") + 2),
+    yield __superStaticSet(_Derived, key, __superStaticGet(_Derived, key) + 2),
+    yield ++__superStaticWrapper(_Derived, "foo")._,
+    yield ++__superStaticWrapper(_Derived, key)._,
+    yield __superStaticWrapper(_Derived, "foo")._++,
+    yield __superStaticWrapper(_Derived, key)._++,
+    yield __superStaticGet(_Derived, "foo").name,
+    yield __superStaticGet(_Derived, key).name,
+    yield (_a = __superStaticGet(_Derived, "foo")) == null ? void 0 : _a.name,
+    yield (_b = __superStaticGet(_Derived, key)) == null ? void 0 : _b.name,
+    yield __superStaticGet(_Derived, "foo").call(this, 1, 2),
+    yield __superStaticGet(_Derived, key).call(this, 1, 2),
+    yield (_c = __superStaticGet(_Derived, "foo")) == null ? void 0 : _c.call(this, 1, 2),
+    yield (_d = __superStaticGet(_Derived, key)) == null ? void 0 : _d.call(this, 1, 2),
+    yield (() => __superStaticGet(_Derived, "foo"))(),
+    yield (() => __superStaticGet(_Derived, key))(),
+    yield (() => __superStaticGet(_Derived, "foo").call(this))(),
+    yield (() => __superStaticGet(_Derived, key).call(this))()
+  ];
+}));
+
+================================================================================
+TestLowerStaticAsyncSuperES2021NoBundle
+---------- /out.js ----------
+const _Derived = class extends Base {
+};
+let Derived = _Derived;
+__publicField(Derived, "test", async (key) => {
+  return [
+    await __superStaticGet(_Derived, "foo"),
+    await __superStaticGet(_Derived, key),
+    await ([__superStaticWrapper(_Derived, "foo")._] = [0]),
+    await ([__superStaticWrapper(_Derived, key)._] = [0]),
+    await __superStaticSet(_Derived, "foo", 1),
+    await __superStaticSet(_Derived, key, 1),
+    await __superStaticSet(_Derived, "foo", __superStaticGet(_Derived, "foo") + 2),
+    await __superStaticSet(_Derived, key, __superStaticGet(_Derived, key) + 2),
+    await ++__superStaticWrapper(_Derived, "foo")._,
+    await ++__superStaticWrapper(_Derived, key)._,
+    await __superStaticWrapper(_Derived, "foo")._++,
+    await __superStaticWrapper(_Derived, key)._++,
+    await __superStaticGet(_Derived, "foo").name,
+    await __superStaticGet(_Derived, key).name,
+    await __superStaticGet(_Derived, "foo")?.name,
+    await __superStaticGet(_Derived, key)?.name,
+    await __superStaticGet(_Derived, "foo").call(this, 1, 2),
+    await __superStaticGet(_Derived, key).call(this, 1, 2),
+    await super.foo?.(1, 2),
+    await super[key]?.(1, 2),
+    await (() => __superStaticGet(_Derived, "foo"))(),
+    await (() => __superStaticGet(_Derived, key))(),
+    await (() => __superStaticGet(_Derived, "foo").call(this))(),
+    await (() => __superStaticGet(_Derived, key).call(this))()
+  ];
+});
+
+================================================================================
+TestLowerStaticSuperES2016NoBundle
+---------- /out.js ----------
+const _Derived = class extends Base {
+};
+let Derived = _Derived;
+__publicField(Derived, "test", (key) => {
+  var _a, _b, _c, _d;
+  return [
+    __superStaticGet(_Derived, "foo"),
+    __superStaticGet(_Derived, key),
+    [__superStaticWrapper(_Derived, "foo")._] = [0],
+    [__superStaticWrapper(_Derived, key)._] = [0],
+    __superStaticSet(_Derived, "foo", 1),
+    __superStaticSet(_Derived, key, 1),
+    __superStaticSet(_Derived, "foo", __superStaticGet(_Derived, "foo") + 2),
+    __superStaticSet(_Derived, key, __superStaticGet(_Derived, key) + 2),
+    ++__superStaticWrapper(_Derived, "foo")._,
+    ++__superStaticWrapper(_Derived, key)._,
+    __superStaticWrapper(_Derived, "foo")._++,
+    __superStaticWrapper(_Derived, key)._++,
+    __superStaticGet(_Derived, "foo").name,
+    __superStaticGet(_Derived, key).name,
+    (_a = __superStaticGet(_Derived, "foo")) == null ? void 0 : _a.name,
+    (_b = __superStaticGet(_Derived, key)) == null ? void 0 : _b.name,
+    __superStaticGet(_Derived, "foo").call(this, 1, 2),
+    __superStaticGet(_Derived, key).call(this, 1, 2),
+    (_c = __superStaticGet(_Derived, "foo")) == null ? void 0 : _c.call(this, 1, 2),
+    (_d = __superStaticGet(_Derived, key)) == null ? void 0 : _d.call(this, 1, 2),
+    (() => __superStaticGet(_Derived, "foo"))(),
+    (() => __superStaticGet(_Derived, key))(),
+    (() => __superStaticGet(_Derived, "foo").call(this))(),
+    (() => __superStaticGet(_Derived, key).call(this))()
+  ];
+});
+
+================================================================================
+TestLowerStaticSuperES2021NoBundle
+---------- /out.js ----------
+const _Derived = class extends Base {
+};
+let Derived = _Derived;
+__publicField(Derived, "test", (key) => {
+  return [
+    __superStaticGet(_Derived, "foo"),
+    __superStaticGet(_Derived, key),
+    [__superStaticWrapper(_Derived, "foo")._] = [0],
+    [__superStaticWrapper(_Derived, key)._] = [0],
+    __superStaticSet(_Derived, "foo", 1),
+    __superStaticSet(_Derived, key, 1),
+    __superStaticSet(_Derived, "foo", __superStaticGet(_Derived, "foo") + 2),
+    __superStaticSet(_Derived, key, __superStaticGet(_Derived, key) + 2),
+    ++__superStaticWrapper(_Derived, "foo")._,
+    ++__superStaticWrapper(_Derived, key)._,
+    __superStaticWrapper(_Derived, "foo")._++,
+    __superStaticWrapper(_Derived, key)._++,
+    __superStaticGet(_Derived, "foo").name,
+    __superStaticGet(_Derived, key).name,
+    __superStaticGet(_Derived, "foo")?.name,
+    __superStaticGet(_Derived, key)?.name,
+    __superStaticGet(_Derived, "foo").call(this, 1, 2),
+    __superStaticGet(_Derived, key).call(this, 1, 2),
+    super.foo?.(1, 2),
+    super[key]?.(1, 2),
+    (() => __superStaticGet(_Derived, "foo"))(),
+    (() => __superStaticGet(_Derived, key))(),
+    (() => __superStaticGet(_Derived, "foo").call(this))(),
+    (() => __superStaticGet(_Derived, key).call(this))()
+  ];
+});
+
+================================================================================
 TestLowerStrictModeSyntax
 ---------- /out.js ----------
 // for-in.js

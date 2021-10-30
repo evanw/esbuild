@@ -4085,6 +4085,100 @@
         `,
       }, { async: true }),
       test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Handle "super" property accesses in static class fields
+        'in.js': `
+          exports.async = async () => {
+            let counter = 0
+            let returnsBar = () => (++counter, 'bar')
+            class Base {
+              static foo(x, y) {
+                return x + y
+              }
+              static get bar() { return this._bar }
+              static set bar(x) { this._bar = x }
+            }
+            class Derived extends Base {
+              static get bar() { throw 'fail' }
+              static set bar(x) { throw 'fail' }
+              static test = async (foo, bar) => {
+                return [
+                  await super.foo,
+                  await super[foo],
+
+                  ([super.bar] = [BigInt('1')])[0],
+                  ([super[bar]] = [BigInt('2')])[0],
+                  ([super[returnsBar()]] = [BigInt('3')])[0],
+
+                  (super.bar = BigInt('4')),
+                  (super.bar += BigInt('2')),
+                  super.bar++,
+                  ++super.bar,
+
+                  (super[bar] = BigInt('9')),
+                  (super[bar] += BigInt('2')),
+                  super[bar]++,
+                  ++super[bar],
+
+                  (super[returnsBar()] = BigInt('14')),
+                  (super[returnsBar()] += BigInt('2')),
+                  super[returnsBar()]++,
+                  ++super[returnsBar()],
+
+                  await super.foo.name,
+                  await super[foo].name,
+                  await super.foo?.name,
+                  await super[foo]?.name,
+                  await super._foo?.name,
+                  await super['_' + foo]?.name,
+
+                  await super.foo(1, 2),
+                  await super[foo](1, 2),
+                  await super.foo?.(1, 2),
+                  await super[foo]?.(1, 2),
+                  await super._foo?.(1, 2),
+                  await super['_' + foo]?.(1, 2),
+                ]
+              }
+            }
+            let observed = await Derived.test('foo', 'bar')
+            let expected = [
+              Derived.foo, Derived.foo,
+              BigInt('1'), BigInt('2'), BigInt('3'),
+              BigInt('4'), BigInt('6'), BigInt('6'), BigInt('8'),
+              BigInt('9'), BigInt('11'), BigInt('11'), BigInt('13'),
+              BigInt('14'), BigInt('16'), BigInt('16'), BigInt('18'),
+              Derived.foo.name, Derived.foo.name, Derived.foo.name, Derived.foo.name, void 0, void 0,
+              3, 3, 3, 3, void 0, void 0,
+            ]
+            observed.push(Derived._bar, Base._bar, counter)
+            expected.push(BigInt('18'), undefined, 5)
+            for (let i = 0; i < expected.length; i++) {
+              if (observed[i] !== expected[i]) {
+                console.log(i, observed[i], expected[i])
+                throw 'fail'
+              }
+            }
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Test coverage for a TypeScript bug: https://github.com/microsoft/TypeScript/issues/46580
+        'in.js': `
+          class A {
+            static x = 1
+          }
+          class B extends A {
+            static y = () => super.x
+          }
+          class C {
+            static x = 2
+          }
+          if (B.y() !== 1) throw 'fail'
+          Object.setPrototypeOf(B, C)
+          if (B.y() !== 2) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
         // Check the behavior of method tear-off
         'in.js': `
           exports.async = async () => {
@@ -4110,6 +4204,93 @@
             derived.set = new Derived().set
             await derived.set(123)
             if (base.foo !== void 0 || derived.foo !== 'Base') throw 'fail'
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Check the behavior of static method tear-off
+        'in.js': `
+          exports.async = async () => {
+            class Base {
+              static set x(y) {
+                this.foo = 'Base'
+              }
+            }
+            class Derived extends Base {
+              static set x(y) {
+                this.foo = 'Derived'
+              }
+              static async set(z) {
+                super.x = z
+              }
+            }
+            let base = {
+              set x(y) {
+                this.foo = 'base'
+              }
+            }
+            let derived = Object.create(base)
+            derived.set = Derived.set
+            await derived.set(123)
+            if (base.foo !== void 0 || derived.foo !== 'Base') throw 'fail'
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Check the behavior of static field tear-off (no async)
+        'in.js': `
+          exports.async = async () => {
+            class Base {
+              static set x(y) {
+                this.foo = 'Base'
+              }
+            }
+            class Derived extends Base {
+              static set x(y) {
+                this.foo = 'Derived'
+              }
+              static set = z => {
+                super.x = z
+              }
+            }
+            let base = {
+              set x(y) {
+                this.foo = 'base'
+              }
+            }
+            let derived = Object.create(base)
+            derived.set = Derived.set
+            derived.set(123)
+            if (base.foo !== void 0 || Derived.foo !== 'Base') throw 'fail'
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Check the behavior of static field tear-off (async)
+        'in.js': `
+          exports.async = async () => {
+            class Base {
+              static set x(y) {
+                this.foo = 'Base'
+              }
+            }
+            class Derived extends Base {
+              static set x(y) {
+                this.foo = 'Derived'
+              }
+              static set = async (z) => {
+                super.x = z
+              }
+            }
+            let base = {
+              set x(y) {
+                this.foo = 'base'
+              }
+            }
+            let derived = Object.create(base)
+            derived.set = Derived.set
+            await derived.set(123)
+            if (base.foo !== void 0 || Derived.foo !== 'Base') throw 'fail'
           }
         `,
       }, { async: true }),

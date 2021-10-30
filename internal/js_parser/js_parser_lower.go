@@ -2818,25 +2818,45 @@ func (p *parser) ensureSuperSet() {
 }
 
 func (p *parser) callSuperPropertyWrapper(loc logger.Loc, property js_ast.Expr, includeGet bool) js_ast.Expr {
-	// Only some uses of the wrapper need to read
-	superGet := js_ast.Expr{Loc: loc, Data: js_ast.ENullShared}
-	if includeGet {
-		p.ensureSuperGet()
-		superGet.Data = &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.superGetRef}
+	var result js_ast.Expr
+
+	if thisRef := p.fnOnlyDataVisit.thisClassStaticRef; thisRef != nil {
+		p.recordUsage(*thisRef)
+		result = p.callRuntime(loc, "__superStaticWrapper", []js_ast.Expr{
+			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *thisRef}},
+			property,
+		})
+	} else {
+		// Only some uses of the wrapper need to read
+		superGet := js_ast.Expr{Loc: loc, Data: js_ast.ENullShared}
+		if includeGet {
+			p.ensureSuperGet()
+			superGet.Data = &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.superGetRef}
+		}
+
+		// All uses of the wrapper need to write
+		p.ensureSuperSet()
+		superSet := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.superSetRef}}
+
+		result = p.callRuntime(loc, "__superWrapper", []js_ast.Expr{
+			superGet,
+			superSet,
+			property,
+		})
 	}
 
-	// All uses of the wrapper need to write
-	p.ensureSuperSet()
-	superSet := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.superSetRef}}
-
-	return js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: p.callRuntime(loc, "__superWrapper", []js_ast.Expr{
-		superGet,
-		superSet,
-		property,
-	}), Name: "_", NameLoc: loc}}
+	return js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: result, Name: "_", NameLoc: loc}}
 }
 
 func (p *parser) lowerSuperPropertyGet(loc logger.Loc, key js_ast.Expr) js_ast.Expr {
+	if thisRef := p.fnOnlyDataVisit.thisClassStaticRef; thisRef != nil {
+		p.recordUsage(*thisRef)
+		return p.callRuntime(loc, "__superStaticGet", []js_ast.Expr{
+			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *thisRef}},
+			key,
+		})
+	}
+
 	// "super.foo" => "__superGet('foo')"
 	// "super[foo]" => "__superGet(foo)"
 	p.ensureSuperGet()
@@ -2847,6 +2867,15 @@ func (p *parser) lowerSuperPropertyGet(loc logger.Loc, key js_ast.Expr) js_ast.E
 }
 
 func (p *parser) lowerSuperPropertySet(loc logger.Loc, key js_ast.Expr, value js_ast.Expr) js_ast.Expr {
+	if thisRef := p.fnOnlyDataVisit.thisClassStaticRef; thisRef != nil {
+		p.recordUsage(*thisRef)
+		return p.callRuntime(loc, "__superStaticSet", []js_ast.Expr{
+			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *thisRef}},
+			key,
+			value,
+		})
+	}
+
 	// "super.foo = bar" => "__superSet('foo', bar)"
 	// "super[foo] = bar" => "__superSet(foo, bar)"
 	p.ensureSuperSet()

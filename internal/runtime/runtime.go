@@ -76,6 +76,8 @@ func code(isES6 bool) string {
 		var __getProtoOf = Object.getPrototypeOf
 		var __hasOwnProp = Object.prototype.hasOwnProperty
 		var __propIsEnum = Object.prototype.propertyIsEnumerable
+		var __reflectGet = Reflect.get
+		var __reflectSet = Reflect.set
 
 		export var __pow = Math.pow
 
@@ -277,10 +279,20 @@ func code(isES6 bool) string {
 			__accessCheck(obj, member, 'access private method')
 			return method
 		}
+
+		// For "super" property accesses
+		export var __superStaticGet = (obj, member) => __reflectGet(__getProtoOf(obj), member, obj)
+		export var __superStaticSet = (obj, member, value) => (__reflectSet(__getProtoOf(obj), member, value, obj), value)
 		export var __superWrapper = (getter, setter, member) => {
 			return {
 				set _(value) { setter(member, value) },
 				get _() { return getter(member) },
+			}
+		}
+		export var __superStaticWrapper = (obj, member) => {
+			return {
+				set _(value) { __superStaticSet(obj, member, value) },
+				get _() { return __superStaticGet(obj, member) },
 			}
 		}
 

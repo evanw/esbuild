@@ -51,7 +51,44 @@
     new Derived().bar();
     ```
 
-    All edge cases should now be covered including destructuring assignment and using the unary assignment operators with BigInts.
+    All known edge cases for assignment to a `super` property should now be covered including destructuring assignment and using the unary assignment operators with BigInts.
+
+    In addition, this release also fixes a bug where a `static` class field containing a `super` property access was not transformed when it was moved outside of the class body, which can happen when `static` class fields aren't supported.
+
+    ```js
+    // Original code
+    class Base {
+      static get foo() {
+        return 123
+      }
+    }
+    class Derived extends Base {
+      static bar = super.foo
+    }
+
+    // Old output with --target=es6 (contains a syntax error)
+    class Base {
+      static get foo() {
+        return 123;
+      }
+    }
+    class Derived extends Base {
+    }
+    __publicField(Derived, "bar", super.foo);
+
+    // New output with --target=es6 (works correctly)
+    class Base {
+      static get foo() {
+        return 123;
+      }
+    }
+    const _Derived = class extends Base {
+    };
+    let Derived = _Derived;
+    __publicField(Derived, "bar", __superStaticGet(_Derived, "foo"));
+    ```
+
+    All known edge cases for `super` inside `static` class fields should be handled including accessing `super` after prototype reassignment of the enclosing class object.
 
 ## 0.13.10
 

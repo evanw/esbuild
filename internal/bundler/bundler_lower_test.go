@@ -1018,6 +1018,202 @@ func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 	})
 }
 
+func TestLowerStaticAsyncSuperES2021NoBundle(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Derived extends Base {
+					static test = async (key) => {
+						return [
+							await super.foo,
+							await super[key],
+							await ([super.foo] = [0]),
+							await ([super[key]] = [0]),
+
+							await (super.foo = 1),
+							await (super[key] = 1),
+							await (super.foo += 2),
+							await (super[key] += 2),
+
+							await ++super.foo,
+							await ++super[key],
+							await super.foo++,
+							await super[key]++,
+
+							await super.foo.name,
+							await super[key].name,
+							await super.foo?.name,
+							await super[key]?.name,
+
+							await super.foo(1, 2),
+							await super[key](1, 2),
+							await super.foo?.(1, 2),
+							await super[key]?.(1, 2),
+
+							await (() => super.foo)(),
+							await (() => super[key])(),
+							await (() => super.foo())(),
+							await (() => super[key]())(),
+						]
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			UnsupportedJSFeatures: es(2021),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestLowerStaticAsyncSuperES2016NoBundle(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Derived extends Base {
+					static test = async (key) => {
+						return [
+							await super.foo,
+							await super[key],
+							await ([super.foo] = [0]),
+							await ([super[key]] = [0]),
+
+							await (super.foo = 1),
+							await (super[key] = 1),
+							await (super.foo += 2),
+							await (super[key] += 2),
+
+							await ++super.foo,
+							await ++super[key],
+							await super.foo++,
+							await super[key]++,
+
+							await super.foo.name,
+							await super[key].name,
+							await super.foo?.name,
+							await super[key]?.name,
+
+							await super.foo(1, 2),
+							await super[key](1, 2),
+							await super.foo?.(1, 2),
+							await super[key]?.(1, 2),
+
+							await (() => super.foo)(),
+							await (() => super[key])(),
+							await (() => super.foo())(),
+							await (() => super[key]())(),
+						]
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestLowerStaticSuperES2021NoBundle(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Derived extends Base {
+					static test = key => {
+						return [
+							super.foo,
+							super[key],
+							([super.foo] = [0]),
+							([super[key]] = [0]),
+
+							(super.foo = 1),
+							(super[key] = 1),
+							(super.foo += 2),
+							(super[key] += 2),
+
+							++super.foo,
+							++super[key],
+							super.foo++,
+							super[key]++,
+
+							super.foo.name,
+							super[key].name,
+							super.foo?.name,
+							super[key]?.name,
+
+							super.foo(1, 2),
+							super[key](1, 2),
+							super.foo?.(1, 2),
+							super[key]?.(1, 2),
+
+							(() => super.foo)(),
+							(() => super[key])(),
+							(() => super.foo())(),
+							(() => super[key]())(),
+						]
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			UnsupportedJSFeatures: es(2021),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestLowerStaticSuperES2016NoBundle(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Derived extends Base {
+					static test = key => {
+						return [
+							super.foo,
+							super[key],
+							([super.foo] = [0]),
+							([super[key]] = [0]),
+
+							(super.foo = 1),
+							(super[key] = 1),
+							(super.foo += 2),
+							(super[key] += 2),
+
+							++super.foo,
+							++super[key],
+							super.foo++,
+							super[key]++,
+
+							super.foo.name,
+							super[key].name,
+							super.foo?.name,
+							super[key]?.name,
+
+							super.foo(1, 2),
+							super[key](1, 2),
+							super.foo?.(1, 2),
+							super[key]?.(1, 2),
+
+							(() => super.foo)(),
+							(() => super[key])(),
+							(() => super.foo())(),
+							(() => super[key]())(),
+						]
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
 func TestLowerClassField2020NoBundle(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
