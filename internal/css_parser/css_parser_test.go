@@ -846,6 +846,27 @@ func TestAtImport(t *testing.T) {
 	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: warning: Expected \";\" but found end of file\n")
 }
 
+func TestLicenseComment(t *testing.T) {
+	expectPrinted(t, "/*!*/@import \"x\";", "/*!*/\n@import \"x\";\n")
+	expectPrinted(t, "/*!*/@charset \"UTF-8\";", "/*!*/\n@charset \"UTF-8\";\n")
+	expectPrinted(t, "/*!*/ @import \"x\";", "/*!*/\n@import \"x\";\n")
+	expectPrinted(t, "/*!*/ @charset \"UTF-8\";", "/*!*/\n@charset \"UTF-8\";\n")
+	expectPrinted(t, "/*!*/ @charset \"UTF-8\"; @import \"x\";", "/*!*/\n@charset \"UTF-8\";\n@import \"x\";\n")
+	expectPrinted(t, "/*!*/ @import \"x\"; @charset \"UTF-8\";", "/*!*/\n@import \"x\";\n@charset \"UTF-8\";\n")
+
+	expectParseError(t, "/*!*/ @import \"x\";", "")
+	expectParseError(t, "/*!*/ @charset \"UTF-8\";", "")
+	expectParseError(t, "/*!*/ @charset \"UTF-8\"; @import \"x\";", "")
+	expectParseError(t, "/*!*/ @import \"x\"; @charset \"UTF-8\";",
+		"<stdin>: warning: \"@charset\" must be the first rule in the file\n"+
+			"<stdin>: note: This rule cannot come before a \"@charset\" rule\n")
+
+	expectPrinted(t, "@import \"x\";/*!*/", "@import \"x\";\n/*!*/\n")
+	expectPrinted(t, "@charset \"UTF-8\";/*!*/", "@charset \"UTF-8\";\n/*!*/\n")
+	expectPrinted(t, "@import \"x\"; /*!*/", "@import \"x\";\n/*!*/\n")
+	expectPrinted(t, "@charset \"UTF-8\"; /*!*/", "@charset \"UTF-8\";\n/*!*/\n")
+}
+
 func TestAtKeyframes(t *testing.T) {
 	expectPrinted(t, "@keyframes {}", "@keyframes \"\" {\n}\n")
 	expectPrinted(t, "@keyframes name{}", "@keyframes name {\n}\n")

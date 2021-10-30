@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a crash with a legal comment followed by an import ([#1730](https://github.com/evanw/esbuild/issues/1730))
+
+    Version 0.13.10 introduced parsing for CSS legal comments but caused a regression in the code that checks whether there are any rules that come before `@import`. This is not desired because browsers ignore `@import` rules after other non-`@import` rules, so esbuild warns you when you do this. However, legal comments are modeled as rules in esbuild's internal AST even though they aren't actual CSS rules, and the code that performs this check wasn't updated. This release fixes the crash.
+
 ## 0.13.11
 
 * Implement class static blocks ([#1558](https://github.com/evanw/esbuild/issues/1558))

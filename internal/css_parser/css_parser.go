@@ -177,6 +177,9 @@ loop:
 				break
 			}
 			rules = append(rules, css_ast.Rule{Loc: comment.Loc, Data: &css_ast.RComment{Text: comment.Text}})
+			if context.isTopLevel {
+				locs = append(locs, comment.Loc)
+			}
 			p.licenseCommentIndex++
 		}
 
@@ -196,11 +199,15 @@ loop:
 			if context.isTopLevel {
 				switch rule.Data.(type) {
 				case *css_ast.RAtCharset:
-					if !didWarnAboutCharset && len(rules) > 0 {
-						p.log.AddRangeWarningWithNotes(&p.tracker, first, "\"@charset\" must be the first rule in the file",
-							[]logger.MsgData{logger.RangeData(&p.tracker, logger.Range{Loc: locs[len(locs)-1]},
-								"This rule cannot come before a \"@charset\" rule")})
-						didWarnAboutCharset = true
+					if !didWarnAboutCharset {
+						for i, before := range rules {
+							if _, ok := before.Data.(*css_ast.RComment); !ok {
+								p.log.AddRangeWarningWithNotes(&p.tracker, first, "\"@charset\" must be the first rule in the file",
+									[]logger.MsgData{logger.RangeData(&p.tracker, logger.Range{Loc: locs[i]},
+										"This rule cannot come before a \"@charset\" rule")})
+								didWarnAboutCharset = true
+							}
+						}
 					}
 
 				case *css_ast.RAtImport:
@@ -208,7 +215,7 @@ loop:
 					importLoop:
 						for i, before := range rules {
 							switch before.Data.(type) {
-							case *css_ast.RAtCharset, *css_ast.RAtImport:
+							case *css_ast.RComment, *css_ast.RAtCharset, *css_ast.RAtImport:
 							default:
 								p.log.AddRangeWarningWithNotes(&p.tracker, first, "All \"@import\" rules must come first",
 									[]logger.MsgData{logger.RangeData(&p.tracker, logger.Range{Loc: locs[i]},
