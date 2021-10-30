@@ -24,7 +24,7 @@ jobs:
       - name: Setup Node.js environment
         uses: actions/setup-node@v1.4.4
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Setup Deno 1.x
         uses: denoland/setup-deno@main
