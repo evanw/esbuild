@@ -1820,6 +1820,13 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	//   _foo = new WeakMap();
 	//
 	for _, prop := range class.Properties {
+		if prop.Kind == js_ast.PropertyClassStaticBlock {
+			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) && len(prop.ClassStaticBlock.Stmts) > 0 {
+				result.lowerAllStaticFields = true
+			}
+			continue
+		}
+
 		if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
 			if prop.IsStatic {
 				if p.privateSymbolNeedsToBeLowered(private) {
@@ -2105,6 +2112,24 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	classLoweringInfo := p.computeClassLoweringInfo(class)
 
 	for _, prop := range class.Properties {
+		if prop.Kind == js_ast.PropertyClassStaticBlock {
+			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) {
+				if block := *prop.ClassStaticBlock; len(block.Stmts) > 0 {
+					staticMembers = append(staticMembers, js_ast.Expr{Loc: block.Loc, Data: &js_ast.ECall{
+						Target: js_ast.Expr{Loc: block.Loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{
+							Stmts: block.Stmts,
+						}}},
+					}})
+				}
+				continue
+			}
+
+			// Keep this property
+			class.Properties[end] = prop
+			end++
+			continue
+		}
+
 		// Merge parameter decorators with method decorators
 		if p.options.ts.Parse && prop.IsMethod {
 			if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {

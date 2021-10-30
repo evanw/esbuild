@@ -1877,3 +1877,66 @@ func TestLowerNullishCoalescingAssignmentIssue1493(t *testing.T) {
 		},
 	})
 }
+
+func TestStaticClassBlockESNext(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class A {
+					static {}
+					static {
+						this.thisField++
+						A.classField++
+						super.superField = super.superField + 1
+						super.superField++
+					}
+				}
+				let B = class {
+					static {}
+					static {
+						this.thisField++
+						super.superField = super.superField + 1
+						super.superField++
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestStaticClassBlockES2021(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class A {
+					static {}
+					static {
+						this.thisField++
+						A.classField++
+						super.superField = super.superField + 1
+						super.superField++
+					}
+				}
+				let B = class {
+					static {}
+					static {
+						this.thisField++
+						super.superField = super.superField + 1
+						super.superField++
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: es(2021),
+		},
+	})
+}
