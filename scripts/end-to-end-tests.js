@@ -3929,7 +3929,7 @@
         `,
       }, { async: true }),
       test(['in.js', '--outfile=node.js'].concat(flags), {
-        // Functions handle "super" property accesses
+        // Functions handle "super" property accesses in classes
         'in.js': `
           exports.async = async () => {
             class Base {
@@ -3938,28 +3938,75 @@
               }
             }
             class Derived extends Base {
-              async test(key) {
+              async test(foo) {
                 return [
                   await super.foo,
-                  await super[key],
+                  await super[foo],
 
                   await super.foo.name,
-                  await super[key].name,
+                  await super[foo].name,
                   await super.foo?.name,
-                  await super[key]?.name,
+                  await super[foo]?.name,
                   await super._foo?.name,
-                  await super['_' + key]?.name,
+                  await super['_' + foo]?.name,
 
                   await super.foo(1, 2),
-                  await super[key](1, 2),
+                  await super[foo](1, 2),
                   await super.foo?.(1, 2),
-                  await super[key]?.(1, 2),
+                  await super[foo]?.(1, 2),
                   await super._foo?.(1, 2),
-                  await super['_' + key]?.(1, 2),
+                  await super['_' + foo]?.(1, 2),
                 ]
               }
             }
             let d = new Derived
+            let observed = await d.test('foo')
+            let expected = [
+              d.foo, d.foo,
+              d.foo.name, d.foo.name, d.foo.name, d.foo.name, void 0, void 0,
+              3, 3, 3, 3, void 0, void 0,
+            ]
+            for (let i = 0; i < expected.length; i++) {
+              if (observed[i] !== expected[i]) {
+                console.log(i, observed[i], expected[i])
+                throw 'fail'
+              }
+            }
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Functions handle "super" property accesses in objects
+        'in.js': `
+          exports.async = async () => {
+            let b = {
+              foo(x, y) {
+                return x + y
+              },
+            }
+            let d = {
+              async test(foo) {
+                return [
+                  await super.foo,
+                  await super[foo],
+
+                  await super.foo.name,
+                  await super[foo].name,
+                  await super.foo?.name,
+                  await super[foo]?.name,
+                  await super._foo?.name,
+                  await super['_' + foo]?.name,
+
+                  await super.foo(1, 2),
+                  await super[foo](1, 2),
+                  await super.foo?.(1, 2),
+                  await super[foo]?.(1, 2),
+                  await super._foo?.(1, 2),
+                  await super['_' + foo]?.(1, 2),
+                ]
+              },
+            }
+            Object.setPrototypeOf(d, b)
             let observed = await d.test('foo')
             let expected = [
               d.foo, d.foo,
