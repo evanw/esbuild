@@ -4,6 +4,37 @@ TestBase64LoaderRemoveUnused
 console.log("unused import");
 
 ================================================================================
+TestDCEClassStaticBlocks
+---------- /out.js ----------
+// entry.ts
+var A_keep = class {
+  static {
+    foo;
+  }
+};
+var B_keep = class {
+  static {
+    this.foo;
+  }
+};
+var C_keep = class {
+  static {
+    try {
+      foo;
+    } catch {
+    }
+  }
+};
+var D_keep = class {
+  static {
+    try {
+    } finally {
+      foo;
+    }
+  }
+};
+
+================================================================================
 TestDCETypeOf
 ---------- /out.js ----------
 

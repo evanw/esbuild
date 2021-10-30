@@ -13465,6 +13465,11 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
 				}
 			}
 
+		case *js_ast.STry:
+			if !p.stmtsCanBeRemovedIfUnused(s.Body) || (s.Finally != nil && !p.stmtsCanBeRemovedIfUnused(s.Finally.Stmts)) {
+				return false
+			}
+
 		case *js_ast.SExportFrom:
 			// Exports are tracked separately, so this isn't necessary
 
@@ -13511,6 +13516,12 @@ func (p *parser) classCanBeRemovedIfUnused(class js_ast.Class) bool {
 	}
 
 	for _, property := range class.Properties {
+		if property.Kind == js_ast.PropertyClassStaticBlock {
+			if !p.stmtsCanBeRemovedIfUnused(property.ClassStaticBlock.Stmts) {
+				return false
+			}
+			continue
+		}
 		if !p.exprCanBeRemovedIfUnused(property.Key) {
 			return false
 		}
