@@ -39,6 +39,7 @@ const (
 	TDelimEquals
 	TDelimExclamation
 	TDelimGreaterThan
+	TDelimMinus
 	TDelimPlus
 	TDelimSlash
 	TDelimTilde
@@ -79,6 +80,7 @@ var tokenToString = []string{
 	"\"=\"",
 	"\"!\"",
 	"\">\"",
+	"\"-\"",
 	"\"+\"",
 	"\"/\"",
 	"\"~\"",
@@ -363,7 +365,7 @@ func (lexer *lexer) next() {
 				lexer.Token.Kind = lexer.consumeIdentLike()
 			} else {
 				lexer.step()
-				lexer.Token.Kind = TDelim
+				lexer.Token.Kind = TDelimMinus
 			}
 
 		case '<':

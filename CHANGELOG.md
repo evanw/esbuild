@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+* Implement initial support for simplifying `calc()` expressions in CSS ([#1607](https://github.com/evanw/esbuild/issues/1607))
+
+    This release includes basic simplification of `calc()` expressions in CSS when minification is enabled. The approach mainly follows the official CSS specification, which means it should behave the way browsers behave: https://www.w3.org/TR/css-values-4/#calc-func. This is a basic implementation so there are probably some `calc()` expressions that can be reduced by other tools but not by esbuild. This release mainly focuses on setting up the parsing infrastructure for `calc()` expressions to make it straightforward to implement additional simplifications in the future. Here's an example of this new functionality:
+
+    ```css
+    /* Input CSS */
+    div {
+      width: calc(60px * 4 - 5px * 2);
+      height: calc(100% / 4);
+    }
+
+    /* Output CSS (with --minify-syntax) */
+    div {
+      width: 230px;
+      height: 25%;
+    }
+    ```
+
+    Expressions that can't be fully simplified will still be partially simplified into a reduced `calc()` expression:
+
+    ```css
+    /* Input CSS */
+    div {
+      width: calc(100% / 5 - 2 * 1em - 2 * 1px);
+    }
+
+    /* Output CSS (with --minify-syntax) */
+    div {
+      width: calc(20% - 2em - 2px);
+    }
+    ```
+
+    Note that this transformation doesn't attempt to modify any expression containing a `var()` CSS variable reference. These variable references can contain any number of tokens so it's not safe to move forward with a simplification assuming that `var()` is a single token. For example, `calc(2px * var(--x) * 3)` is not transformed into `calc(6px * var(--x))` in case `var(--x)` contains something like `4 + 5px` (`calc(2px * 4 + 5px * 3)` evaluates to `23px` while `calc(6px * 4 + 5px)` evaluates to `29px`).
+
 * Fix a crash with a legal comment followed by an import ([#1730](https://github.com/evanw/esbuild/issues/1730))
 
     Version 0.13.10 introduced parsing for CSS legal comments but caused a regression in the code that checks whether there are any rules that come before `@import`. This is not desired because browsers ignore `@import` rules after other non-`@import` rules, so esbuild warns you when you do this. However, legal comments are modeled as rules in esbuild's internal AST even though they aren't actual CSS rules, and the code that performs this check wasn't updated. This release fixes the crash.

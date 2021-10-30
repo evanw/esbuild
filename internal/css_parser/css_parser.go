@@ -761,6 +761,11 @@ loop:
 			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen, nestedOpts)
 			token.Children = &nested
 
+			// Apply "calc" simplification rules when minifying
+			if p.options.MangleSyntax && token.Text == "calc" {
+				token = tryToReduceCalcExpression(token)
+			}
+
 			// Treat a URL function call with a string just like a URL token
 			if token.Text == "url" && len(nested) == 1 && nested[0].Kind == css_lexer.TString {
 				token.Kind = css_lexer.TURL
