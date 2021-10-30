@@ -277,6 +277,12 @@ func code(isES6 bool) string {
 			__accessCheck(obj, member, 'access private method')
 			return method
 		}
+		export var __superWrapper = (getter, setter, member) => {
+			return {
+				set _(value) { setter(member, value) },
+				get _() { return getter(member) },
+			}
+		}
 
 		// For lowering tagged template literals
 		export var __template = (cooked, raw) => __freeze(__defProp(cooked, 'raw', { value: __freeze(raw || cooked.slice()) }))

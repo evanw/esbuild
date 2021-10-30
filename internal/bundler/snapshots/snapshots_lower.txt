@@ -96,24 +96,35 @@ TestLowerAsyncSuperES2016NoBundle
 ---------- /out.js ----------
 class Derived extends Base {
   test(key) {
-    var __super = (key2) => super[key2];
+    var __superGet = (key2) => super[key2];
+    var __superSet = (key3, value) => super[key3] = value;
     return __async(this, null, function* () {
       var _a, _b, _c, _d;
       return [
-        yield __super("foo"),
-        yield __super(key),
-        yield __super("foo").name,
-        yield __super(key).name,
-        yield (_a = __super("foo")) == null ? void 0 : _a.name,
-        yield (_b = __super(key)) == null ? void 0 : _b.name,
-        yield __super("foo").call(this, 1, 2),
-        yield __super(key).call(this, 1, 2),
-        yield (_c = __super("foo")) == null ? void 0 : _c.call(this, 1, 2),
-        yield (_d = __super(key)) == null ? void 0 : _d.call(this, 1, 2),
-        yield (() => __super("foo"))(),
-        yield (() => __super(key))(),
-        yield (() => __super("foo").call(this))(),
-        yield (() => __super(key).call(this))()
+        yield __superGet("foo"),
+        yield __superGet(key),
+        yield [__superWrapper(null, __superSet, "foo")._] = [0],
+        yield [__superWrapper(null, __superSet, key)._] = [0],
+        yield __superSet("foo", 1),
+        yield __superSet(key, 1),
+        yield __superSet("foo", __superGet("foo") + 2),
+        yield __superSet(key, __superGet(key) + 2),
+        yield ++__superWrapper(__superGet, __superSet, "foo")._,
+        yield ++__superWrapper(__superGet, __superSet, key)._,
+        yield __superWrapper(__superGet, __superSet, "foo")._++,
+        yield __superWrapper(__superGet, __superSet, key)._++,
+        yield __superGet("foo").name,
+        yield __superGet(key).name,
+        yield (_a = __superGet("foo")) == null ? void 0 : _a.name,
+        yield (_b = __superGet(key)) == null ? void 0 : _b.name,
+        yield __superGet("foo").call(this, 1, 2),
+        yield __superGet(key).call(this, 1, 2),
+        yield (_c = __superGet("foo")) == null ? void 0 : _c.call(this, 1, 2),
+        yield (_d = __superGet(key)) == null ? void 0 : _d.call(this, 1, 2),
+        yield (() => __superGet("foo"))(),
+        yield (() => __superGet(key))(),
+        yield (() => __superGet("foo").call(this))(),
+        yield (() => __superGet(key).call(this))()
       ];
     });
   }
@@ -128,6 +139,16 @@ class Derived extends Base {
     return [
       await super.foo,
       await super[key],
+      await ([super.foo] = [0]),
+      await ([super[key]] = [0]),
+      await (super.foo = 1),
+      await (super[key] = 1),
+      await (super.foo += 2),
+      await (super[key] += 2),
+      await ++super.foo,
+      await ++super[key],
+      await super.foo++,
+      await super[key]++,
       await super.foo.name,
       await super[key].name,
       await ((_a = super.foo) == null ? void 0 : _a.name),

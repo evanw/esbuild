@@ -511,7 +511,8 @@ type fnOrArrowDataVisit struct {
 // restored on the call stack around code that parses nested functions (but not
 // nested arrow functions).
 type fnOnlyDataVisit struct {
-	superIndexRef    *js_ast.Ref
+	superGetRef      *js_ast.Ref
+	superSetRef      *js_ast.Ref
 	shouldLowerSuper bool
 
 	// This is a reference to the magic "arguments" variable that exists inside
@@ -11422,6 +11423,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				return p.lowerPrivateSet(target, loc, private, e.Right), exprOut{}
 			}
 
+			if property := p.extractSuperProperty(e.Left); property.Data != nil {
+				return p.lowerSuperPropertySet(e.Left.Loc, property, e.Right), exprOut{}
+			}
+
 			// Lower assignment destructuring patterns for browsers that don't
 			// support them. Note that assignment expressions are used to represent
 			// initializers in binding patterns, so only do this if we're not
@@ -11437,28 +11442,28 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpAddAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpAdd, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpAdd, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpSubAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpSub, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpSub, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpMulAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpMul, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpMul, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpDivAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpDiv, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpDiv, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpRemAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpRem, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpRem, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpPowAssign:
@@ -11467,38 +11472,38 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				return p.lowerExponentiationAssignmentOperator(expr.Loc, e), exprOut{}
 			}
 
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpPow, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpPow, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpShlAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpShl, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpShl, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpShrAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpShr, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpShr, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpUShrAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpUShr, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpUShr, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpBitwiseOrAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpBitwiseOr, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpBitwiseOr, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpBitwiseAndAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpBitwiseAnd, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpBitwiseAnd, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpBitwiseXorAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, js_ast.BinOpBitwiseXor, e.Right), exprOut{}
+			if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpBitwiseXor, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 		case js_ast.BinOpNullishCoalescingAssign:
@@ -11606,8 +11611,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Lower "super[prop]" if necessary
-		if !isCallTarget && p.shouldLowerSuperPropertyAccess(e.Target) {
-			return p.lowerSuperPropertyAccess(expr.Loc, e.Index), exprOut{}
+		if e.OptionalChain == js_ast.OptionalChainNone && in.assignTarget == js_ast.AssignTargetNone &&
+			!isCallTarget && p.shouldLowerSuperPropertyAccess(e.Target) {
+			// "super[foo]" => "__superGet(foo)"
+			return p.lowerSuperPropertyGet(expr.Loc, e.Index), exprOut{}
 		}
 
 		// Lower optional chaining if we're the top of the chain
@@ -11763,6 +11770,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
 					return p.lowerPrivateSetUnOp(target, loc, private, e.Op), exprOut{}
 				}
+				if property := p.extractSuperProperty(e.Value); property.Data != nil {
+					e.Value = p.callSuperPropertyWrapper(expr.Loc, property, true /* includeGet */)
+				}
 			}
 		}
 
@@ -11829,9 +11839,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		e.Target = target
 
 		// Lower "super.prop" if necessary
-		if !isCallTarget && p.shouldLowerSuperPropertyAccess(e.Target) {
+		if e.OptionalChain == js_ast.OptionalChainNone && in.assignTarget == js_ast.AssignTargetNone &&
+			!isCallTarget && p.shouldLowerSuperPropertyAccess(e.Target) {
+			// "super.foo" => "__superGet('foo')"
 			key := js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(e.Name)}}
-			return p.lowerSuperPropertyAccess(expr.Loc, key), exprOut{}
+			return p.lowerSuperPropertyGet(expr.Loc, key), exprOut{}
 		}
 
 		// Lower optional chaining if we're the top of the chain
@@ -12483,7 +12495,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 				}}), exprOut{}
 			}
-			p.maybeLowerSuperPropertyAccessInsideCall(e)
+			p.maybeLowerSuperPropertyGetInsideCall(e)
 		}
 
 		// Track calls to require() so we can use them while bundling

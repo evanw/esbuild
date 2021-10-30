@@ -929,6 +929,18 @@ func TestLowerAsyncSuperES2017NoBundle(t *testing.T) {
 						return [
 							await super.foo,
 							await super[key],
+							await ([super.foo] = [0]),
+							await ([super[key]] = [0]),
+
+							await (super.foo = 1),
+							await (super[key] = 1),
+							await (super.foo += 2),
+							await (super[key] += 2),
+
+							await ++super.foo,
+							await ++super[key],
+							await super.foo++,
+							await super[key]++,
 
 							await super.foo.name,
 							await super[key].name,
@@ -966,6 +978,18 @@ func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 						return [
 							await super.foo,
 							await super[key],
+							await ([super.foo] = [0]),
+							await ([super[key]] = [0]),
+
+							await (super.foo = 1),
+							await (super[key] = 1),
+							await (super.foo += 2),
+							await (super[key] += 2),
+
+							await ++super.foo,
+							await ++super[key],
+							await super.foo++,
+							await super[key]++,
 
 							await super.foo.name,
 							await super[key].name,

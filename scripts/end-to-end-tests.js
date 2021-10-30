@@ -3932,16 +3932,41 @@
         // Functions handle "super" property accesses in classes
         'in.js': `
           exports.async = async () => {
+            let counter = 0
+            let returnsBar = () => (++counter, 'bar')
             class Base {
               foo(x, y) {
                 return x + y
               }
+              get bar() { return this._bar }
+              set bar(x) { this._bar = x }
             }
             class Derived extends Base {
-              async test(foo) {
+              get bar() { throw 'fail' }
+              set bar(x) { throw 'fail' }
+              async test(foo, bar) {
                 return [
                   await super.foo,
                   await super[foo],
+
+                  ([super.bar] = [BigInt('1')])[0],
+                  ([super[bar]] = [BigInt('2')])[0],
+                  ([super[returnsBar()]] = [BigInt('3')])[0],
+
+                  (super.bar = BigInt('4')),
+                  (super.bar += BigInt('2')),
+                  super.bar++,
+                  ++super.bar,
+
+                  (super[bar] = BigInt('9')),
+                  (super[bar] += BigInt('2')),
+                  super[bar]++,
+                  ++super[bar],
+
+                  (super[returnsBar()] = BigInt('14')),
+                  (super[returnsBar()] += BigInt('2')),
+                  super[returnsBar()]++,
+                  ++super[returnsBar()],
 
                   await super.foo.name,
                   await super[foo].name,
@@ -3960,12 +3985,18 @@
               }
             }
             let d = new Derived
-            let observed = await d.test('foo')
+            let observed = await d.test('foo', 'bar')
             let expected = [
               d.foo, d.foo,
+              BigInt('1'), BigInt('2'), BigInt('3'),
+              BigInt('4'), BigInt('6'), BigInt('6'), BigInt('8'),
+              BigInt('9'), BigInt('11'), BigInt('11'), BigInt('13'),
+              BigInt('14'), BigInt('16'), BigInt('16'), BigInt('18'),
               d.foo.name, d.foo.name, d.foo.name, d.foo.name, void 0, void 0,
               3, 3, 3, 3, void 0, void 0,
             ]
+            observed.push(d._bar, Base.prototype._bar, counter)
+            expected.push(BigInt('18'), undefined, 5)
             for (let i = 0; i < expected.length; i++) {
               if (observed[i] !== expected[i]) {
                 console.log(i, observed[i], expected[i])
@@ -3979,16 +4010,41 @@
         // Functions handle "super" property accesses in objects
         'in.js': `
           exports.async = async () => {
+            let counter = 0
+            let returnsBar = () => (++counter, 'bar')
             let b = {
               foo(x, y) {
                 return x + y
               },
+              get bar() { return this._bar },
+              set bar(x) { this._bar = x },
             }
             let d = {
-              async test(foo) {
+              get bar() { throw 'fail' },
+              set bar(x) { throw 'fail' },
+              async test(foo, bar) {
                 return [
                   await super.foo,
                   await super[foo],
+
+                  ([super.bar] = [BigInt('1')])[0],
+                  ([super[bar]] = [BigInt('2')])[0],
+                  ([super[returnsBar()]] = [BigInt('3')])[0],
+
+                  (super.bar = BigInt('4')),
+                  (super.bar += BigInt('2')),
+                  super.bar++,
+                  ++super.bar,
+
+                  (super[bar] = BigInt('9')),
+                  (super[bar] += BigInt('2')),
+                  super[bar]++,
+                  ++super[bar],
+
+                  (super[returnsBar()] = BigInt('14')),
+                  (super[returnsBar()] += BigInt('2')),
+                  super[returnsBar()]++,
+                  ++super[returnsBar()],
 
                   await super.foo.name,
                   await super[foo].name,
@@ -4007,18 +4063,53 @@
               },
             }
             Object.setPrototypeOf(d, b)
-            let observed = await d.test('foo')
+            let observed = await d.test('foo', 'bar')
             let expected = [
               d.foo, d.foo,
+              BigInt('1'), BigInt('2'), BigInt('3'),
+              BigInt('4'), BigInt('6'), BigInt('6'), BigInt('8'),
+              BigInt('9'), BigInt('11'), BigInt('11'), BigInt('13'),
+              BigInt('14'), BigInt('16'), BigInt('16'), BigInt('18'),
               d.foo.name, d.foo.name, d.foo.name, d.foo.name, void 0, void 0,
               3, 3, 3, 3, void 0, void 0,
             ]
+            observed.push(d._bar, b._bar, counter)
+            expected.push(BigInt('18'), undefined, 5)
             for (let i = 0; i < expected.length; i++) {
               if (observed[i] !== expected[i]) {
                 console.log(i, observed[i], expected[i])
                 throw 'fail'
               }
             }
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Check the behavior of method tear-off
+        'in.js': `
+          exports.async = async () => {
+            class Base {
+              set x(y) {
+                this.foo = 'Base'
+              }
+            }
+            class Derived extends Base {
+              set x(y) {
+                this.foo = 'Derived'
+              }
+              async set(z) {
+                super.x = z
+              }
+            }
+            let base = {
+              set x(y) {
+                this.foo = 'base'
+              }
+            }
+            let derived = Object.create(base)
+            derived.set = new Derived().set
+            await derived.set(123)
+            if (base.foo !== void 0 || derived.foo !== 'Base') throw 'fail'
           }
         `,
       }, { async: true }),

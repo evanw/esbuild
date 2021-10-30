@@ -1,5 +1,58 @@
 # Changelog
 
+## Unreleased
+
+* Fix issues with `super` property accesses
+
+    Code containing `super` property accesses may need to be transformed even when they are supported. For example, in ES6 `async` methods are unsupported while `super` properties are supported. An `async` method containing `super` property accesses requires those uses of `super` to be transformed (the `async` function is transformed into a nested generator function and the `super` keyword cannot be used inside nested functions).
+
+    Previously esbuild transformed `super` property accesses into a function call that returned the corresponding property. However, this was incorrect for uses of `super` that write to the inherited setter since a function call is not a valid assignment target. This release fixes writing to a `super` property:
+
+    ```js
+    // Original code
+    class Base {
+      set foo(x) { console.log('set foo to', x) }
+    }
+    class Derived extends Base {
+      async bar() { super.foo = 123 }
+    }
+    new Derived().bar()
+
+    // Old output with --target=es6 (contains a syntax error)
+    class Base {
+      set foo(x) {
+        console.log("set foo to", x);
+      }
+    }
+    class Derived extends Base {
+      bar() {
+        var __super = (key) => super[key];
+        return __async(this, null, function* () {
+          __super("foo") = 123;
+        });
+      }
+    }
+    new Derived().bar();
+
+    // New output with --target=es6 (works correctly)
+    class Base {
+      set foo(x) {
+        console.log("set foo to", x);
+      }
+    }
+    class Derived extends Base {
+      bar() {
+        var __superSet = (key, value) => super[key] = value;
+        return __async(this, null, function* () {
+          __superSet("foo", 123);
+        });
+      }
+    }
+    new Derived().bar();
+    ```
+
+    All edge cases should now be covered including destructuring assignment and using the unary assignment operators with BigInts.
+
 ## 0.13.10
 
 * Implement legal comment preservation for CSS ([#1539](https://github.com/evanw/esbuild/issues/1539))
