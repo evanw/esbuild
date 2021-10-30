@@ -10,10 +10,14 @@ import (
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
 
-func tryToReduceCalcExpression(token css_ast.Token) css_ast.Token {
+func (p *parser) tryToReduceCalcExpression(token css_ast.Token) css_ast.Token {
 	if term := tryToParseCalcTerm(*token.Children); term != nil {
+		whitespace := css_ast.WhitespaceBefore | css_ast.WhitespaceAfter
+		if p.options.RemoveWhitespace {
+			whitespace = 0
+		}
 		term = term.partiallySimplify()
-		result := term.convertToToken()
+		result := term.convertToToken(whitespace)
 		if result.Kind == css_lexer.TOpenParen {
 			result.Kind = css_lexer.TFunction
 			result.Text = "calc"
@@ -25,7 +29,7 @@ func tryToReduceCalcExpression(token css_ast.Token) css_ast.Token {
 
 // See: https://www.w3.org/TR/css-values-4/#calc-internal
 type calcTerm interface {
-	convertToToken() css_ast.Token
+	convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token
 	partiallySimplify() calcTerm
 }
 
@@ -51,7 +55,8 @@ type calcNumeric struct {
 }
 
 type calcValue struct {
-	token css_ast.Token
+	token                css_ast.Token
+	isInvalidPlusOrMinus bool
 }
 
 func floatToStringForCalc(a float64) string {
@@ -74,15 +79,15 @@ func floatToStringForCalc(a float64) string {
 	return text
 }
 
-func (c *calcSum) convertToToken() css_ast.Token {
+func (c *calcSum) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
 	// Specification: https://www.w3.org/TR/css-values-4/#calc-serialize
 	tokens := make([]css_ast.Token, 0, len(c.terms)*2)
 
 	// ALGORITHM DEVIATION: Avoid parenthesizing product nodes inside sum nodes
 	if product, ok := c.terms[0].(*calcProduct); ok {
-		tokens = append(tokens, *product.convertToToken().Children...)
+		tokens = append(tokens, *product.convertToToken(whitespace).Children...)
 	} else {
-		tokens = append(tokens, c.terms[0].convertToToken())
+		tokens = append(tokens, c.terms[0].convertToToken(whitespace))
 	}
 
 	for _, term := range c.terms[1:] {
@@ -92,7 +97,7 @@ func (c *calcSum) convertToToken() css_ast.Token {
 				Kind:       css_lexer.TDelimMinus,
 				Text:       "-",
 				Whitespace: css_ast.WhitespaceBefore | css_ast.WhitespaceAfter,
-			}, negate.term.convertToToken())
+			}, negate.term.convertToToken(whitespace))
 			continue
 		}
 
@@ -104,7 +109,7 @@ func (c *calcSum) convertToToken() css_ast.Token {
 				Kind:       css_lexer.TDelimMinus,
 				Text:       "-",
 				Whitespace: css_ast.WhitespaceBefore | css_ast.WhitespaceAfter,
-			}, clone.convertToToken())
+			}, clone.convertToToken(whitespace))
 			continue
 		}
 
@@ -117,9 +122,9 @@ func (c *calcSum) convertToToken() css_ast.Token {
 
 		// ALGORITHM DEVIATION: Avoid parenthesizing product nodes inside sum nodes
 		if product, ok := term.(*calcProduct); ok {
-			tokens = append(tokens, *product.convertToToken().Children...)
+			tokens = append(tokens, *product.convertToToken(whitespace).Children...)
 		} else {
-			tokens = append(tokens, term.convertToToken())
+			tokens = append(tokens, term.convertToToken(whitespace))
 		}
 	}
 
@@ -130,10 +135,10 @@ func (c *calcSum) convertToToken() css_ast.Token {
 	}
 }
 
-func (c *calcProduct) convertToToken() css_ast.Token {
+func (c *calcProduct) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
 	// Specification: https://www.w3.org/TR/css-values-4/#calc-serialize
 	tokens := make([]css_ast.Token, 0, len(c.terms)*2)
-	tokens = append(tokens, c.terms[0].convertToToken())
+	tokens = append(tokens, c.terms[0].convertToToken(whitespace))
 
 	for _, term := range c.terms[1:] {
 		// If child is an Invert node, append " / " to s, then serialize the Invert’s child and append the result to s.
@@ -141,8 +146,8 @@ func (c *calcProduct) convertToToken() css_ast.Token {
 			tokens = append(tokens, css_ast.Token{
 				Kind:       css_lexer.TDelimSlash,
 				Text:       "/",
-				Whitespace: css_ast.WhitespaceBefore | css_ast.WhitespaceAfter,
-			}, invert.term.convertToToken())
+				Whitespace: whitespace,
+			}, invert.term.convertToToken(whitespace))
 			continue
 		}
 
@@ -150,8 +155,8 @@ func (c *calcProduct) convertToToken() css_ast.Token {
 		tokens = append(tokens, css_ast.Token{
 			Kind:       css_lexer.TDelimAsterisk,
 			Text:       "*",
-			Whitespace: css_ast.WhitespaceBefore | css_ast.WhitespaceAfter,
-		}, term.convertToToken())
+			Whitespace: whitespace,
+		}, term.convertToToken(whitespace))
 	}
 
 	return css_ast.Token{
@@ -161,7 +166,7 @@ func (c *calcProduct) convertToToken() css_ast.Token {
 	}
 }
 
-func (c *calcNegate) convertToToken() css_ast.Token {
+func (c *calcNegate) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
 	// Specification: https://www.w3.org/TR/css-values-4/#calc-serialize
 	return css_ast.Token{
 		Kind: css_lexer.TOpenParen,
@@ -169,12 +174,12 @@ func (c *calcNegate) convertToToken() css_ast.Token {
 		Children: &[]css_ast.Token{
 			{Kind: css_lexer.TNumber, Text: "-1"},
 			{Kind: css_lexer.TDelimSlash, Text: "*", Whitespace: css_ast.WhitespaceBefore | css_ast.WhitespaceAfter},
-			c.term.convertToToken(),
+			c.term.convertToToken(whitespace),
 		},
 	}
 }
 
-func (c *calcInvert) convertToToken() css_ast.Token {
+func (c *calcInvert) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
 	// Specification: https://www.w3.org/TR/css-values-4/#calc-serialize
 	return css_ast.Token{
 		Kind: css_lexer.TOpenParen,
@@ -182,12 +187,12 @@ func (c *calcInvert) convertToToken() css_ast.Token {
 		Children: &[]css_ast.Token{
 			{Kind: css_lexer.TNumber, Text: "1"},
 			{Kind: css_lexer.TDelimSlash, Text: "/", Whitespace: css_ast.WhitespaceBefore | css_ast.WhitespaceAfter},
-			c.term.convertToToken(),
+			c.term.convertToToken(whitespace),
 		},
 	}
 }
 
-func (c *calcNumeric) convertToToken() css_ast.Token {
+func (c *calcNumeric) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
 	if c.unit == "" {
 		return css_ast.Token{
 			Kind: css_lexer.TNumber,
@@ -208,7 +213,7 @@ func (c *calcNumeric) convertToToken() css_ast.Token {
 	}
 }
 
-func (c *calcValue) convertToToken() css_ast.Token {
+func (c *calcValue) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
 	t := c.token
 	t.Whitespace = 0
 	return t
@@ -422,7 +427,16 @@ func tryToParseCalcTerm(tokens []css_ast.Token) calcTerm {
 		} else if token.Kind == css_lexer.TIdent && strings.EqualFold(token.Text, "NaN") {
 			term = &calcNumeric{number: math.NaN()}
 		} else {
-			term = &calcValue{token: token}
+			term = &calcValue{
+				token: token,
+
+				// From the specification: "In addition, whitespace is required on both sides of the
+				// + and - operators. (The * and / operators can be used without white space around them.)"
+				isInvalidPlusOrMinus: i > 0 && i+1 < len(tokens) &&
+					(token.Kind == css_lexer.TDelimPlus || token.Kind == css_lexer.TDelimMinus) &&
+					(((token.Whitespace&css_ast.WhitespaceBefore) == 0 && (tokens[i-1].Whitespace&css_ast.WhitespaceAfter) == 0) ||
+						(token.Whitespace&css_ast.WhitespaceAfter) == 0 && (tokens[i+1].Whitespace&css_ast.WhitespaceBefore) == 0),
+			}
 		}
 		terms[i] = term
 	}
@@ -457,6 +471,7 @@ func tryToParseCalcTerm(tokens []css_ast.Token) calcTerm {
 			terms = append(terms[:first], terms[last+2:]...)
 			continue
 		}
+
 		first++
 	}
 
@@ -464,11 +479,13 @@ func tryToParseCalcTerm(tokens []css_ast.Token) calcTerm {
 	first = 1
 	for first+1 < len(terms) {
 		// If this is a "+" or "-" operator
-		if value, ok := terms[first].(*calcValue); ok && (value.token.Kind == css_lexer.TDelimPlus || value.token.Kind == css_lexer.TDelimMinus) {
+		if value, ok := terms[first].(*calcValue); ok && !value.isInvalidPlusOrMinus &&
+			(value.token.Kind == css_lexer.TDelimPlus || value.token.Kind == css_lexer.TDelimMinus) {
 			// Scan over the run
 			last := first
 			for last+3 < len(terms) {
-				if value, ok := terms[last+2].(*calcValue); ok && (value.token.Kind == css_lexer.TDelimPlus || value.token.Kind == css_lexer.TDelimMinus) {
+				if value, ok := terms[last+2].(*calcValue); ok && !value.isInvalidPlusOrMinus &&
+					(value.token.Kind == css_lexer.TDelimPlus || value.token.Kind == css_lexer.TDelimMinus) {
 					last += 2
 				} else {
 					break
@@ -490,6 +507,7 @@ func tryToParseCalcTerm(tokens []css_ast.Token) calcTerm {
 			terms = append(terms[:first], terms[last+2:]...)
 			continue
 		}
+
 		first++
 	}
 

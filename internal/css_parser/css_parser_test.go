@@ -1178,6 +1178,40 @@ func TestMangleTime(t *testing.T) {
 	expectPrintedMangle(t, "a { animation: b 1E3ms }", "a {\n  animation: b 1E3ms;\n}\n")
 }
 
+func TestCalc(t *testing.T) {
+	expectParseError(t, "a { b: calc(+(2)) }", "<stdin>: warning: \"+\" can only be used as an infix operator, not a prefix operator\n")
+	expectParseError(t, "a { b: calc(-(2)) }", "<stdin>: warning: \"-\" can only be used as an infix operator, not a prefix operator\n")
+	expectParseError(t, "a { b: calc(*(2)) }", "")
+	expectParseError(t, "a { b: calc(/(2)) }", "")
+
+	expectParseError(t, "a { b: calc(1 + 2) }", "")
+	expectParseError(t, "a { b: calc(1 - 2) }", "")
+	expectParseError(t, "a { b: calc(1 * 2) }", "")
+	expectParseError(t, "a { b: calc(1 / 2) }", "")
+
+	expectParseError(t, "a { b: calc(1+ 2) }", "<stdin>: warning: The \"+\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1- 2) }", "<stdin>: warning: The \"-\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1* 2) }", "")
+	expectParseError(t, "a { b: calc(1/ 2) }", "")
+
+	expectParseError(t, "a { b: calc(1 +2) }", "<stdin>: warning: The \"+\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1 -2) }", "<stdin>: warning: The \"-\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1 *2) }", "")
+	expectParseError(t, "a { b: calc(1 /2) }", "")
+
+	expectParseError(t, "a { b: calc(1 +(2)) }", "<stdin>: warning: The \"+\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1 -(2)) }", "<stdin>: warning: The \"-\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1 *(2)) }", "")
+	expectParseError(t, "a { b: calc(1 /(2)) }", "")
+}
+
+func TestMinifyCalc(t *testing.T) {
+	expectPrintedMangleMinify(t, "a { b: calc(x + y) }", "a{b:calc(x + y)}")
+	expectPrintedMangleMinify(t, "a { b: calc(x - y) }", "a{b:calc(x - y)}")
+	expectPrintedMangleMinify(t, "a { b: calc(x * y) }", "a{b:calc(x*y)}")
+	expectPrintedMangleMinify(t, "a { b: calc(x / y) }", "a{b:calc(x/y)}")
+}
+
 func TestMangleCalc(t *testing.T) {
 	expectPrintedMangle(t, "a { b: calc(1) }", "a {\n  b: 1;\n}\n")
 	expectPrintedMangle(t, "a { b: calc((1)) }", "a {\n  b: 1;\n}\n")
