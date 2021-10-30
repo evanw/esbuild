@@ -318,7 +318,7 @@ console.log(a, b, c, d, e, real);
 ================================================================================
 TestTSMinifiedBundleCommonJS
 ---------- /out.js ----------
-var n=e(r=>{r.foo=function(){return 123}});var t=e((q,s)=>{s.exports={test:!0}});var{foo:c}=n();console.log(c(),t());
+var n=e(r=>{r.foo=function(){return 123}});var t=e((j,s)=>{s.exports={test:!0}});var{foo:c}=n();console.log(c(),t());
 
 ================================================================================
 TestTSMinifiedBundleES6

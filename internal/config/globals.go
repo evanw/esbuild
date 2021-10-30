@@ -127,6 +127,22 @@ var knownGlobals = [][]string{
 	{"Math", "tanh"},
 	{"Math", "trunc"},
 
+	// Reflect: Static methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Reflect#static_methods
+	{"Reflect", "apply"},
+	{"Reflect", "construct"},
+	{"Reflect", "defineProperty"},
+	{"Reflect", "deleteProperty"},
+	{"Reflect", "get"},
+	{"Reflect", "getOwnPropertyDescriptor"},
+	{"Reflect", "getPrototypeOf"},
+	{"Reflect", "has"},
+	{"Reflect", "isExtensible"},
+	{"Reflect", "ownKeys"},
+	{"Reflect", "preventExtensions"},
+	{"Reflect", "set"},
+	{"Reflect", "setPrototypeOf"},
+
 	// Other globals present in both the browser and node (except "eval" because
 	// it has special behavior)
 	{"AbortController"},
