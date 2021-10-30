@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+* Implement class static blocks ([#1558](https://github.com/evanw/esbuild/issues/1558))
+
+    This release adds support for a new upcoming JavaScript feature called [class static blocks](https://github.com/tc39/proposal-class-static-block) that lets you evaluate code inside of a class body. It looks like this:
+
+    ```js
+    class Foo {
+      static {
+        this.foo = 123
+      }
+    }
+    ```
+
+    This can be useful when you want to use `try`/`catch` or access private `#name` fields during class initialization. Doing that without this feature is quite hacky and basically involves creating temporary static fields containing immediately-invoked functions and then deleting the fields after class initialization. Static blocks are much more ergonomic and avoid performance loss due to `delete` changing the object shape.
+
+    Static blocks are transformed for older browsers by moving the static block outside of the class body and into an immediately invoked arrow function after the class definition:
+
+    ```js
+    // The transformed version of the example code above
+    const _Foo = class {
+    };
+    let Foo = _Foo;
+    (() => {
+      _Foo.foo = 123;
+    })();
+    ```
+
+    In case you're wondering, the additional `let` variable is to guard against the potential reassignment of `Foo` during evaluation such as what happens below. The value of `this` must be bound to the original class, not to the current value of `Foo`:
+
+    ```js
+    let bar
+    class Foo {
+      static {
+        bar = () => this
+      }
+    }
+    Foo = null
+    console.log(bar()) // This should not be "null"
+    ```
+
 * Fix issues with `super` property accesses
 
     Code containing `super` property accesses may need to be transformed even when they are supported. For example, in ES6 `async` methods are unsupported while `super` properties are supported. An `async` method containing `super` property accesses requires those uses of `super` to be transformed (the `async` function is transformed into a nested generator function and the `super` keyword cannot be used inside nested functions).
