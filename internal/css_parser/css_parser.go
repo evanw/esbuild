@@ -681,8 +681,9 @@ func (p *parser) convertTokens(tokens []css_lexer.Token) []css_ast.Token {
 }
 
 type convertTokensOpts struct {
-	allowImports       bool
-	verbatimWhitespace bool
+	allowImports         bool
+	verbatimWhitespace   bool
+	isInsideCalcFunction bool
 }
 
 func (p *parser) convertTokensHelper(tokens []css_lexer.Token, close css_lexer.T, opts convertTokensOpts) ([]css_ast.Token, []css_lexer.Token) {
@@ -703,6 +704,14 @@ loop:
 		}
 		nextWhitespace = 0
 
+		// Warn about invalid "+" and "-" operators that break the containing "calc()"
+		if opts.isInsideCalcFunction && t.Kind.IsNumeric() && len(result) > 0 && result[len(result)-1].Kind.IsNumeric() &&
+			(strings.HasPrefix(token.Text, "+") || strings.HasPrefix(token.Text, "-")) {
+			// "calc(1+2)" and "calc(1-2)" are invalid
+			p.log.AddRangeWarning(&p.tracker, logger.Range{Loc: t.Range.Loc, Len: 1},
+				fmt.Sprintf("The %q operator only works if there is whitespace on both sides", token.Text[:1]))
+		}
+
 		switch t.Kind {
 		case css_lexer.TWhitespace:
 			if last := len(result) - 1; last >= 0 {
@@ -710,6 +719,20 @@ loop:
 			}
 			nextWhitespace = css_ast.WhitespaceBefore
 			continue
+
+		case css_lexer.TDelimPlus, css_lexer.TDelimMinus:
+			// Warn about invalid "+" and "-" operators that break the containing "calc()"
+			if opts.isInsideCalcFunction && len(tokens) > 0 {
+				if len(result) == 0 || result[len(result)-1].Kind == css_lexer.TComma {
+					// "calc(-(1 + 2))" is invalid
+					p.log.AddRangeWarning(&p.tracker, t.Range,
+						fmt.Sprintf("%q can only be used as an infix operator, not a prefix operator", token.Text))
+				} else if token.Whitespace != css_ast.WhitespaceBefore || tokens[0].Kind != css_lexer.TWhitespace {
+					// "calc(1- 2)" and "calc(1 -(2))" are invalid
+					p.log.AddRangeWarning(&p.tracker, t.Range,
+						fmt.Sprintf("The %q operator only works if there is whitespace on both sides", token.Text))
+				}
+			}
 
 		case css_lexer.TNumber:
 			if p.options.MangleSyntax {
@@ -758,8 +781,16 @@ loop:
 				// CSS variables require verbatim whitespace for correctness
 				nestedOpts.verbatimWhitespace = true
 			}
+			if token.Text == "calc" {
+				nestedOpts.isInsideCalcFunction = true
+			}
 			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen, nestedOpts)
 			token.Children = &nested
+
+			// Apply "calc" simplification rules when minifying
+			if p.options.MangleSyntax && token.Text == "calc" {
+				token = p.tryToReduceCalcExpression(token)
+			}
 
 			// Treat a URL function call with a string just like a URL token
 			if token.Text == "url" && len(nested) == 1 && nested[0].Kind == css_lexer.TString {

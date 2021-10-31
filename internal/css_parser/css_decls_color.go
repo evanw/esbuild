@@ -230,7 +230,7 @@ func hexG(v uint32) int { return int((v >> 16) & 255) }
 func hexB(v uint32) int { return int((v >> 8) & 255) }
 func hexA(v uint32) int { return int(v & 255) }
 
-func floatToString(a float64) string {
+func floatToStringForColor(a float64) string {
 	text := fmt.Sprintf("%.03f", a)
 	for text[len(text)-1] == '0' {
 		text = text[:len(text)-1]
@@ -269,7 +269,7 @@ func lowerAlphaPercentageToNumber(token css_ast.Token) css_ast.Token {
 	if token.Kind == css_lexer.TPercentage {
 		if value, err := strconv.ParseFloat(token.Text[:len(token.Text)-1], 64); err == nil {
 			token.Kind = css_lexer.TNumber
-			token.Text = floatToString(value / 100.0)
+			token.Text = floatToStringForColor(value / 100.0)
 		}
 	}
 	return token
@@ -294,7 +294,7 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
 						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
 						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexB(hex))}, commaToken,
-						{Kind: css_lexer.TNumber, Text: floatToString(float64(hexA(hex)) / 255)},
+						{Kind: css_lexer.TNumber, Text: floatToStringForColor(float64(hexA(hex)) / 255)},
 					}
 				}
 
@@ -308,7 +308,7 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
 						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
 						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hexB(hex))}, commaToken,
-						{Kind: css_lexer.TNumber, Text: floatToString(float64(hexA(hex)) / 255)},
+						{Kind: css_lexer.TNumber, Text: floatToStringForColor(float64(hexA(hex)) / 255)},
 					}
 				}
 			}
@@ -332,7 +332,7 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 				if (text == "hsl" || text == "hsla") && len(args) > 0 {
 					if degrees, ok := degreesForAngle(args[0]); ok {
 						args[0].Kind = css_lexer.TNumber
-						args[0].Text = floatToString(degrees)
+						args[0].Text = floatToStringForColor(degrees)
 					}
 				}
 
