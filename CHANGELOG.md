@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.12
 
 * Implement initial support for simplifying `calc()` expressions in CSS ([#1607](https://github.com/evanw/esbuild/issues/1607))
 
