@@ -14636,7 +14636,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		}
 
 		// Pulling in the exports of this module always pulls in the export part
-		p.topLevelSymbolToParts[p.exportsRef] = []uint32{js_ast.NSExportPartIndex}
+		p.topLevelSymbolToParts[p.exportsRef] = append(p.topLevelSymbolToParts[p.exportsRef], js_ast.NSExportPartIndex)
 
 		// Each part tracks the other parts it depends on within this file
 		localDependencies := make(map[uint32]uint32)

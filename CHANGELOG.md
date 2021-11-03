@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+* Fix a tree-shaking bug with `var exports` ([#1739](https://github.com/evanw/esbuild/issues/1739))
+
+    This release fixes a bug where a variable named `var exports = {}` was incorrectly removed by tree-shaking (i.e. dead code elimination). The `exports` variable is a special variable in CommonJS modules that is automatically provided by the CommonJS runtime. CommonJS modules are transformed into something like this before being run:
+
+    ```js
+    function(exports, module, require) {
+      var exports = {}
+    }
+    ```
+
+    So using `var exports = {}` should have the same effect as `exports = {}` because the variable `exports` should already be defined. However, esbuild was incorrectly overwriting the definition of the `exports` variable with the one provided by CommonJS. This release merges the definitions together so both are included, which fixes the bug.
+
 ## 0.13.12
 
 * Implement initial support for simplifying `calc()` expressions in CSS ([#1607](https://github.com/evanw/esbuild/issues/1607))

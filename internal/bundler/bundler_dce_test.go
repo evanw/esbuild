@@ -1937,3 +1937,27 @@ func TestDCEClassStaticBlocks(t *testing.T) {
 		},
 	})
 }
+
+func TestDCEVarExports(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				var foo = { bar: 123 }
+				module.exports = foo
+			`,
+			"/b.js": `
+				var exports = { bar: 123 }
+				module.exports = exports
+			`,
+			"/c.js": `
+				var module = { bar: 123 }
+				exports.foo = module
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js", "/c.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
