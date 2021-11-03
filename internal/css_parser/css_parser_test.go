@@ -1034,51 +1034,51 @@ func TestBorderRadius(t *testing.T) {
 	expectPrinted(t, "a { border-top-left-radius: 0 0 }", "a {\n  border-top-left-radius: 0 0;\n}\n")
 	expectPrintedMangle(t, "a { border-top-left-radius: 0 0 }", "a {\n  border-top-left-radius: 0;\n}\n")
 	expectPrintedMangle(t, "a { border-top-left-radius: 0 0px }", "a {\n  border-top-left-radius: 0;\n}\n")
-	expectPrintedMangle(t, "a { border-top-left-radius: 0 1 }", "a {\n  border-top-left-radius: 0 1;\n}\n")
+	expectPrintedMangle(t, "a { border-top-left-radius: 0 1px }", "a {\n  border-top-left-radius: 0 1px;\n}\n")
 
-	expectPrintedMangle(t, "a { border-top-left-radius: 0; border-radius: 1 }", "a {\n  border-radius: 1;\n}\n")
+	expectPrintedMangle(t, "a { border-top-left-radius: 0; border-radius: 1px }", "a {\n  border-radius: 1px;\n}\n")
 
-	expectPrintedMangle(t, "a { border-radius: 1 2 3 4 }", "a {\n  border-radius: 1 2 3 4;\n}\n")
-	expectPrintedMangle(t, "a { border-radius: 1 2 1 3 }", "a {\n  border-radius: 1 2 1 3;\n}\n")
-	expectPrintedMangle(t, "a { border-radius: 1 2 3 2 }", "a {\n  border-radius: 1 2 3;\n}\n")
-	expectPrintedMangle(t, "a { border-radius: 1 2 1 2 }", "a {\n  border-radius: 1 2;\n}\n")
-	expectPrintedMangle(t, "a { border-radius: 1 1 1 1 }", "a {\n  border-radius: 1;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 1px 2px 3px 4px }", "a {\n  border-radius: 1px 2px 3px 4px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 1px 2px 1px 3px }", "a {\n  border-radius: 1px 2px 1px 3px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 1px 2px 3px 2px }", "a {\n  border-radius: 1px 2px 3px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 1px 2px 1px 2px }", "a {\n  border-radius: 1px 2px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 1px 1px 1px 1px }", "a {\n  border-radius: 1px;\n}\n")
 
-	expectPrintedMangle(t, "a { border-radius: 0/1 2 3 4 }", "a {\n  border-radius: 0 / 1 2 3 4;\n}\n")
-	expectPrintedMangle(t, "a { border-radius: 0/1 2 1 3 }", "a {\n  border-radius: 0 / 1 2 1 3;\n}\n")
-	expectPrintedMangle(t, "a { border-radius: 0/1 2 3 2 }", "a {\n  border-radius: 0 / 1 2 3;\n}\n")
-	expectPrintedMangle(t, "a { border-radius: 0/1 2 1 2 }", "a {\n  border-radius: 0 / 1 2;\n}\n")
-	expectPrintedMangle(t, "a { border-radius: 0/1 1 1 1 }", "a {\n  border-radius: 0 / 1;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 0/1px 2px 3px 4px }", "a {\n  border-radius: 0 / 1px 2px 3px 4px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 0/1px 2px 1px 3px }", "a {\n  border-radius: 0 / 1px 2px 1px 3px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 0/1px 2px 3px 2px }", "a {\n  border-radius: 0 / 1px 2px 3px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 0/1px 2px 1px 2px }", "a {\n  border-radius: 0 / 1px 2px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 0/1px 1px 1px 1px }", "a {\n  border-radius: 0 / 1px;\n}\n")
 
-	expectPrintedMangle(t, "a { border-radius: 1 2; border-top-left-radius: 3; }", "a {\n  border-radius: 3 2 1;\n}\n")
-	expectPrintedMangle(t, "a { border-radius: 1; border-top-left-radius: 3; }", "a {\n  border-radius: 3 1 1;\n}\n")
-	expectPrintedMangle(t, "a { border-radius: 0/1; border-top-left-radius: 3; }", "a {\n  border-radius: 3 0 0 / 3 1 1;\n}\n")
-	expectPrintedMangle(t, "a { border-radius: 0/1 2; border-top-left-radius: 3; }", "a {\n  border-radius: 3 0 0 / 3 2 1;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 1px 2px; border-top-left-radius: 3px; }", "a {\n  border-radius: 3px 2px 1px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 1px; border-top-left-radius: 3px; }", "a {\n  border-radius: 3px 1px 1px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 0/1px; border-top-left-radius: 3px; }", "a {\n  border-radius: 3px 0 0 / 3px 1px 1px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 0/1px 2px; border-top-left-radius: 3px; }", "a {\n  border-radius: 3px 0 0 / 3px 2px 1px;\n}\n")
 
 	for _, x := range []string{"", "-top-left", "-top-right", "-bottom-left", "-bottom-right"} {
 		y := "border" + x + "-radius"
-		expectPrintedMangle(t, "a { "+y+": 1; "+y+": 2 }",
-			"a {\n  "+y+": 2;\n}\n")
-		expectPrintedMangle(t, "a { "+y+": 1 !important; "+y+": 2 }",
-			"a {\n  "+y+": 1 !important;\n  "+y+": 2;\n}\n")
-		expectPrintedMangle(t, "a { "+y+": 1; "+y+": 2 !important }",
-			"a {\n  "+y+": 1;\n  "+y+": 2 !important;\n}\n")
-		expectPrintedMangle(t, "a { "+y+": 1 !important; "+y+": 2 !important }",
-			"a {\n  "+y+": 2 !important;\n}\n")
+		expectPrintedMangle(t, "a { "+y+": 1px; "+y+": 2px }",
+			"a {\n  "+y+": 2px;\n}\n")
+		expectPrintedMangle(t, "a { "+y+": 1px !important; "+y+": 2px }",
+			"a {\n  "+y+": 1px !important;\n  "+y+": 2px;\n}\n")
+		expectPrintedMangle(t, "a { "+y+": 1px; "+y+": 2px !important }",
+			"a {\n  "+y+": 1px;\n  "+y+": 2px !important;\n}\n")
+		expectPrintedMangle(t, "a { "+y+": 1px !important; "+y+": 2px !important }",
+			"a {\n  "+y+": 2px !important;\n}\n")
 
-		expectPrintedMangle(t, "a { border-radius: 1; "+y+": 2 !important; }",
-			"a {\n  border-radius: 1;\n  "+y+": 2 !important;\n}\n")
-		expectPrintedMangle(t, "a { border-radius: 1 !important; "+y+": 2; }",
-			"a {\n  border-radius: 1 !important;\n  "+y+": 2;\n}\n")
+		expectPrintedMangle(t, "a { border-radius: 1px; "+y+": 2px !important; }",
+			"a {\n  border-radius: 1px;\n  "+y+": 2px !important;\n}\n")
+		expectPrintedMangle(t, "a { border-radius: 1px !important; "+y+": 2px; }",
+			"a {\n  border-radius: 1px !important;\n  "+y+": 2px;\n}\n")
 	}
 
-	expectPrintedMangle(t, "a { border-top-left-radius: ; border-radius: 1 }",
-		"a {\n  border-top-left-radius:;\n  border-radius: 1;\n}\n")
-	expectPrintedMangle(t, "a { border-top-left-radius: 1; border-radius: / }",
-		"a {\n  border-top-left-radius: 1;\n  border-radius: /;\n}\n")
+	expectPrintedMangle(t, "a { border-top-left-radius: ; border-radius: 1px }",
+		"a {\n  border-top-left-radius:;\n  border-radius: 1px;\n}\n")
+	expectPrintedMangle(t, "a { border-top-left-radius: 1px; border-radius: / }",
+		"a {\n  border-top-left-radius: 1px;\n  border-radius: /;\n}\n")
 
-	expectPrintedMangleMinify(t, "a { border-radius: 1 2 3 4; border-top-right-radius: 5; }", "a{border-radius:1 5 3 4}")
-	expectPrintedMangleMinify(t, "a { border-radius: 1 2 3 4; border-top-right-radius: 5 6; }", "a{border-radius:1 5 3 4/1 6 3 4}")
+	expectPrintedMangleMinify(t, "a { border-radius: 1px 2px 3px 4px; border-top-right-radius: 5px; }", "a{border-radius:1px 5px 3px 4px}")
+	expectPrintedMangleMinify(t, "a { border-radius: 1px 2px 3px 4px; border-top-right-radius: 5px 6px; }", "a{border-radius:1px 5px 3px 4px/1px 6px 3px 4px}")
 
 	// These should not be changed because "--x" and "--z" could be empty
 	expectPrintedMangle(t, "a { border-radius: var(--x) var(--y) var(--z) var(--y) }", "a {\n  border-radius: var(--x) var(--y) var(--z) var(--y);\n}\n")
