@@ -171,6 +171,7 @@ const (
 	DImageOrientation
 	DImageRendering
 	DInlineSize
+	DInset
 	DJustifyContent
 	DJustifyItems
 	DJustifySelf
@@ -489,6 +490,7 @@ var KnownDeclarations = map[string]D{
 	"image-orientation":           DImageOrientation,
 	"image-rendering":             DImageRendering,
 	"inline-size":                 DInlineSize,
+	"inset":                       DInset,
 	"justify-content":             DJustifyContent,
 	"justify-items":               DJustifyItems,
 	"justify-self":                DJustifySelf,

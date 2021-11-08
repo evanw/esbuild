@@ -14,6 +14,27 @@
 
     So using `var exports = {}` should have the same effect as `exports = {}` because the variable `exports` should already be defined. However, esbuild was incorrectly overwriting the definition of the `exports` variable with the one provided by CommonJS. This release merges the definitions together so both are included, which fixes the bug.
 
+* Shorten `top`, `right`, `bottom`, `left` CSS property into `inset` when it is supported
+
+    This release enables collapsing of `inset` related properties:
+
+    ```css
+    /* Original code */
+    div {
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+    }
+
+    /* Output with "--minify-syntax" */
+    div {
+      inset: 0;
+    }
+    ```
+
+    This minification rule is only enabled when `inset` property is supported by the target environment. Make sure to set esbuild's `target` setting correctly when minifying if the code will be running in an older environment (e.g. earlier than Chrome 87).
+
 ## 0.13.12
 
 * Implement initial support for simplifying `calc()` expressions in CSS ([#1607](https://github.com/evanw/esbuild/issues/1607))
