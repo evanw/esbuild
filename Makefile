@@ -472,6 +472,9 @@ require/rollup/node_modules:
 require/parcel2/node_modules:
 	cd require/parcel2 && npm ci
 
+require/spack/node_modules:
+	cd require/spack && npm ci
+
 lib/node_modules:
 	cd lib && npm ci
 
@@ -480,6 +483,27 @@ scripts/node_modules:
 
 scripts/browser/node_modules:
 	cd scripts/browser && npm ci
+
+# This configuration appears to be the equivalent of esbuild's "--minify" and
+# "--sourcemap=external" options. However, there's a bug where spack doesn't
+# minify top-level variables: https://github.com/swc-project/swc/issues/2451.
+SPACK_COMMON_CONFIG += mode: "production",
+SPACK_COMMON_CONFIG += options: {
+SPACK_COMMON_CONFIG +=   jsc: {
+SPACK_COMMON_CONFIG +=     target: "es2021",
+SPACK_COMMON_CONFIG +=     minify: {
+SPACK_COMMON_CONFIG +=       inlineSourcesContent: true,
+SPACK_COMMON_CONFIG +=       sourceMap: true,
+SPACK_COMMON_CONFIG +=       compress: true,
+SPACK_COMMON_CONFIG +=       mangle: {
+SPACK_COMMON_CONFIG +=         topLevel: true,
+SPACK_COMMON_CONFIG +=       },
+SPACK_COMMON_CONFIG +=     },
+SPACK_COMMON_CONFIG +=   },
+SPACK_COMMON_CONFIG +=   inlineSourcesContent: true,
+SPACK_COMMON_CONFIG +=   sourceMaps: true,
+SPACK_COMMON_CONFIG +=   minify: true,
+SPACK_COMMON_CONFIG += },
 
 ################################################################################
 # This downloads the kangax compat-table and generates browser support mappings
@@ -649,7 +673,7 @@ demo/three: | github/three
 	mkdir -p demo/three
 	cp -r github/three/src demo/three/src
 
-demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack5 demo-three-parcel2
+demo-three: demo-three-esbuild demo-three-spack demo-three-rollup demo-three-webpack5 demo-three-parcel2
 
 demo-three-esbuild: esbuild | demo/three
 	rm -fr demo/three/esbuild
@@ -669,6 +693,27 @@ THREE_ROLLUP_CONFIG += export default {
 THREE_ROLLUP_CONFIG +=   output: { format: 'iife', name: 'THREE', sourcemap: true },
 THREE_ROLLUP_CONFIG +=   plugins: [terser()],
 THREE_ROLLUP_CONFIG += }
+
+demo-three-spack: | require/spack/node_modules demo/three
+	rm -fr require/spack/demo/three demo/three/spack
+	mkdir -p require/spack/demo/three demo/three/spack
+	echo 'import * as THREE from "./src/Three.js"; window.THREE = THREE' > require/spack/demo/three/Three.spack.js
+
+	# Generate the config file
+	echo 'module.exports = {' > require/spack/demo/three/spack.config.js
+	echo '$(SPACK_COMMON_CONFIG)' >> require/spack/demo/three/spack.config.js
+	echo '  entry: { web: "Three.spack.js" },' >> require/spack/demo/three/spack.config.js
+	echo '  output: { path: "out", name: "Three.spack.js" },' >> require/spack/demo/three/spack.config.js
+	echo '}' >> require/spack/demo/three/spack.config.js
+
+	ln -s ../../../../demo/three/src require/spack/demo/three/src
+	ln -s ../../../../demo/three/spack require/spack/demo/three/out
+	cd require/spack/demo/three && time -p ../../node_modules/.bin/spack
+
+	# Spack currently requires you to append the sourceMappingURL comment yourself
+	echo '//# sourceMappingURL=Three.spack.js.map' >> demo/three/spack/Three.spack.js
+
+	du -h demo/three/spack/Three.spack.js*
 
 demo-three-rollup: | require/rollup/node_modules demo/three
 	rm -fr require/rollup/demo/three demo/three/rollup
@@ -713,7 +758,7 @@ bench/three: | github/three
 	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/src/entry.js; done
 	echo 'Line count:' && find bench/three/src -name '*.js' | xargs wc -l | tail -n 1
 
-bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack5 bench-three-parcel2
+bench-three: bench-three-esbuild bench-three-spack bench-three-rollup bench-three-webpack5 bench-three-parcel2
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
@@ -727,6 +772,27 @@ bench-three-eswasm: platform-wasm | bench/three
 		--sourcemap --minify bench/three/src/entry.js --outfile=bench/three/eswasm/entry.eswasm.js
 	du -h bench/three/eswasm/entry.eswasm.js*
 	shasum bench/three/eswasm/entry.eswasm.js*
+
+bench-three-spack: | require/spack/node_modules bench/three
+	rm -fr require/spack/bench/three bench/three/spack
+	mkdir -p require/spack/bench/three bench/three/spack
+	echo 'import * as THREE from "./src/entry.js"; window.THREE = THREE' > require/spack/bench/three/entry.spack.js
+
+	# Generate the config file
+	echo 'module.exports = {' > require/spack/bench/three/spack.config.js
+	echo '$(SPACK_COMMON_CONFIG)' >> require/spack/bench/three/spack.config.js
+	echo '  entry: { web: "entry.spack.js" },' >> require/spack/bench/three/spack.config.js
+	echo '  output: { path: "out", name: "entry.spack.js" },' >> require/spack/bench/three/spack.config.js
+	echo '}' >> require/spack/bench/three/spack.config.js
+
+	ln -s ../../../../bench/three/src require/spack/bench/three/src
+	ln -s ../../../../bench/three/spack require/spack/bench/three/out
+	cd require/spack/bench/three && time -p ../../node_modules/.bin/spack
+
+	# Spack currently requires you to append the sourceMappingURL comment yourself
+	echo '//# sourceMappingURL=entry.spack.js.map' >> bench/three/spack/entry.spack.js
+
+	du -h bench/three/spack/entry.spack.js*
 
 bench-three-rollup: | require/rollup/node_modules bench/three
 	rm -fr require/rollup/bench/three bench/three/rollup
@@ -816,6 +882,32 @@ bench-rome-esbuild: esbuild | bench/rome bench/rome-verify
 	du -h bench/rome/esbuild/rome.esbuild.js*
 	shasum bench/rome/esbuild/rome.esbuild.js*
 	cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
+
+# This benchmark doesn't currently work because spack doesn't support "baseUrl"
+# by itself: https://github.com/swc-project/swc/issues/1324. In addition,
+# support for "paths" is broken and doesn't correctly resolve paths in nested
+# directories relative to "baseUrl": https://github.com/swc-project/swc/issues/2126.
+# I also tried using absolute paths, but that doesn't appear to be supported either.
+bench-rome-spack: | require/spack/node_modules bench/rome bench/rome-verify
+	rm -fr require/spack/bench/rome bench/rome/spack
+	mkdir -p require/spack/bench/rome bench/rome/spack
+
+	# Generate the config file
+	echo 'module.exports = {' > require/spack/bench/rome/spack.config.js
+	echo '$(SPACK_COMMON_CONFIG)' >> require/spack/bench/rome/spack.config.js
+	echo '  entry: { web: "src/entry.ts" },' >> require/spack/bench/rome/spack.config.js
+	echo '  output: { path: "out", name: "rome.spack.js" },' >> require/spack/bench/rome/spack.config.js
+	echo '}' >> require/spack/bench/rome/spack.config.js
+
+	ln -s ../../../../bench/rome/src require/spack/bench/rome/src
+	ln -s ../../../../bench/rome/spack require/spack/bench/rome/out
+	cd require/spack/bench/rome && time -p ../../node_modules/.bin/spack
+
+	# Spack currently requires you to append the sourceMappingURL comment yourself
+	echo '//# sourceMappingURL=rome.spack.js.map' >> bench/rome/spack/rome.spack.js
+
+	du -h bench/three/spack/rome.spack.js*
+	cd bench/rome-verify && rm -fr spack && ROME_CACHE=0 node ../rome/spack/rome.spack.js bundle packages/rome spack
 
 ROME_WEBPACK5_CONFIG += module.exports = {
 ROME_WEBPACK5_CONFIG +=   entry: './src/entry.ts',
