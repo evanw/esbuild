@@ -1162,6 +1162,7 @@ func TestPackageJsonNeutralNoDefaultMainFields(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "demo-pkg" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/demo-pkg/package.json: note: The "main" field was ignored (main fields must be configured manually when using the "neutral" platform)
 `,
 	})
 }
@@ -2085,6 +2086,76 @@ func TestPackageJsonImportsErrorStartsWithHashSlash(t *testing.T) {
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "#/foo" (mark it as external to exclude it from the bundle)
 Users/user/project/src/package.json: note: This "imports" map was ignored because the module specifier "#/foo" is invalid
+`,
+	})
+}
+
+func TestPackageJsonMainFieldsErrorMessageDefault(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'foo'
+			`,
+			"/Users/user/project/node_modules/foo/package.json": `
+				{
+					"main": "./foo"
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "foo" (mark it as external to exclude it from the bundle)
+`,
+	})
+}
+
+func TestPackageJsonMainFieldsErrorMessageNotIncluded(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'foo'
+			`,
+			"/Users/user/project/node_modules/foo/package.json": `
+				{
+					"main": "./foo"
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{"some", "fields"},
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "foo" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/foo/package.json: note: The "main" field was ignored because the list of main fields to use is currently set to ["some", "fields"]
+`,
+	})
+}
+
+func TestPackageJsonMainFieldsErrorMessageEmpty(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'foo'
+			`,
+			"/Users/user/project/node_modules/foo/package.json": `
+				{
+					"main": "./foo"
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "foo" (mark it as external to exclude it from the bundle)
+Users/user/project/node_modules/foo/package.json: note: The "main" field was ignored because the list of main fields to use is currently set to []
 `,
 	})
 }

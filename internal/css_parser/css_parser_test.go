@@ -11,13 +11,6 @@ import (
 	"github.com/evanw/esbuild/internal/test"
 )
 
-func assertEqual(t *testing.T, a interface{}, b interface{}) {
-	t.Helper()
-	if a != b {
-		t.Fatalf("%s != %s", a, b)
-	}
-}
-
 func expectParseError(t *testing.T, contents string, expected string) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
@@ -29,7 +22,7 @@ func expectParseError(t *testing.T, contents string, expected string) {
 		for _, msg := range msgs {
 			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 		}
-		test.AssertEqual(t, text, expected)
+		test.AssertEqualWithDiff(t, text, expected)
 	})
 }
 
@@ -50,11 +43,11 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 				text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 			}
 		}
-		assertEqual(t, text, "")
+		test.AssertEqualWithDiff(t, text, "")
 		result := css_printer.Print(tree, css_printer.Options{
 			RemoveWhitespace: options.RemoveWhitespace,
 		})
-		assertEqual(t, string(result.CSS), expected)
+		test.AssertEqualWithDiff(t, string(result.CSS), expected)
 	})
 }
 
@@ -1474,4 +1467,17 @@ func TestMangleAlpha(t *testing.T) {
 
 	// An alpha value of 100% does not use "rgba(...)"
 	expectPrintedLowerMangle(t, "a { color: #000000FF }", "a {\n  color: #000;\n}\n")
+}
+
+func TestMangleDuplicateSelectorRules(t *testing.T) {
+	expectPrinted(t, "a { color: red } b { color: red }", "a {\n  color: red;\n}\nb {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } b { color: red }", "a,\nb {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } div {} b { color: red }", "a,\nb {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } div { color: red } b { color: red }", "a,\ndiv,\nb {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } div { color: red } a { color: red }", "a,\ndiv {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } div { color: blue } b { color: red }", "a {\n  color: red;\n}\ndiv {\n  color: #00f;\n}\nb {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } div { color: blue } a { color: red }", "div {\n  color: #00f;\n}\na {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red; color: red } b { color: red }", "a,\nb {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } b { color: red; color: red }", "a,\nb {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } b { color: blue }", "a {\n  color: red;\n}\nb {\n  color: #00f;\n}\n")
 }
