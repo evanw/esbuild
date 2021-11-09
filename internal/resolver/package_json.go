@@ -17,7 +17,7 @@ import (
 
 type packageJSON struct {
 	source     logger.Source
-	mainFields map[string]string
+	mainFields map[string]mainField
 	moduleType config.ModuleType
 
 	// Present if the "browser" field is present. This field is intended to be
@@ -66,6 +66,11 @@ type packageJSON struct {
 
 	// This represents the "exports" field in this package.json file.
 	exportsMap *pjMap
+}
+
+type mainField struct {
+	keyLoc  logger.Loc
+	relPath string
 }
 
 type browserPathKind uint8
@@ -238,7 +243,10 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 		return nil
 	}
 
-	packageJSON := &packageJSON{source: jsonSource}
+	packageJSON := &packageJSON{
+		source:     jsonSource,
+		mainFields: make(map[string]mainField),
+	}
 
 	// Read the "type" field
 	if typeJSON, _, ok := getProperty(json, "type"); ok {
@@ -264,12 +272,18 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 		mainFields = defaultMainFields[r.options.Platform]
 	}
 	for _, field := range mainFields {
-		if mainJSON, _, ok := getProperty(json, field); ok {
+		if mainJSON, mainRange, ok := getProperty(json, field); ok {
 			if main, ok := getString(mainJSON); ok && main != "" {
-				if packageJSON.mainFields == nil {
-					packageJSON.mainFields = make(map[string]string)
+				packageJSON.mainFields[field] = mainField{mainRange, main}
+			}
+		}
+	}
+	for _, field := range mainFieldsForFailure {
+		if _, ok := packageJSON.mainFields[field]; !ok {
+			if mainJSON, mainRange, ok := getProperty(json, field); ok {
+				if main, ok := getString(mainJSON); ok && main != "" {
+					packageJSON.mainFields[field] = mainField{mainRange, main}
 				}
-				packageJSON.mainFields[field] = main
 			}
 		}
 	}

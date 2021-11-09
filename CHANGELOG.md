@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+* Add more information about skipping `"main"` in `package.json` ([#1754](https://github.com/evanw/esbuild/issues/1754))
+
+    Configuring `mainFields: []` breaks most npm packages since it tells esbuild to ignore the `"main"` field in `package.json`, which most npm packages use to specify their entry point. This is not a bug with esbuild because esbuild is just doing what it was told to do. However, people may do this without understanding how npm packages work, and then be confused about why it doesn't work. This release now includes additional information in the error message:
+
+    ```
+     > foo.js:1:27: error: Could not resolve "events" (use "--platform=node" when building for node)
+         1 │ var EventEmitter = require('events')
+           ╵                            ~~~~~~~~
+       node_modules/events/package.json:20:2: note: The "main" field was ignored because the list of main fields to use is currently set to []
+        20 │   "main": "./events.js",
+           ╵   ~~~~~~
+    ```
+
 * Fix a tree-shaking bug with `var exports` ([#1739](https://github.com/evanw/esbuild/issues/1739))
 
     This release fixes a bug where a variable named `var exports = {}` was incorrectly removed by tree-shaking (i.e. dead code elimination). The `exports` variable is a special variable in CommonJS modules that is automatically provided by the CommonJS runtime. CommonJS modules are transformed into something like this before being run:

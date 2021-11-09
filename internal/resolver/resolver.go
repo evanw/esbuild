@@ -54,6 +54,10 @@ var defaultMainFields = map[config.Platform][]string{
 	config.PlatformNeutral: {},
 }
 
+// These are the main fields to use when the "main fields" setting is configured
+// to something unusual, such as something without the "main" field.
+var mainFieldsForFailure = []string{"main", "module"}
+
 // Path resolution is a mess. One tricky issue is the "module" override for the
 // "main" field in "package.json" files. Bundlers generally prefer "module" over
 // "main" but that breaks packages that export a function in "main" for use with
@@ -1250,7 +1254,7 @@ func (r resolverQuery) loadAsFileOrDirectory(path string) (PathPair, bool, *fs.D
 }
 
 func (r resolverQuery) loadAsMainField(dirInfo *dirInfo, path string, extensionOrder []string) (PathPair, bool, *fs.DifferentCase) {
-	if dirInfo.packageJSON == nil || dirInfo.packageJSON.mainFields == nil {
+	if dirInfo.packageJSON == nil {
 		return PathPair{}, false, nil
 	}
 
@@ -1299,18 +1303,23 @@ func (r resolverQuery) loadAsMainField(dirInfo *dirInfo, path string, extensionO
 
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Searching for main fields in %q", dirInfo.packageJSON.source.KeyPath.Text))
+		r.debugLogs.increaseIndent()
+		defer r.debugLogs.decreaseIndent()
 	}
 
+	foundSomething := false
+
 	for _, key := range mainFieldKeys {
-		fieldRelPath, ok := mainFieldValues[key]
+		value, ok := mainFieldValues[key]
 		if !ok {
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("Did not find main field %q", key))
 			}
 			continue
 		}
+		foundSomething = true
 
-		absolute, ok, diffCase := loadMainField(fieldRelPath, key)
+		absolute, ok, diffCase := loadMainField(value.relPath, key)
 		if !ok {
 			continue
 		}
@@ -1324,8 +1333,8 @@ func (r resolverQuery) loadAsMainField(dirInfo *dirInfo, path string, extensionO
 			var okMain bool
 			var diffCaseMain *fs.DifferentCase
 
-			if mainRelPath, ok := mainFieldValues["main"]; ok {
-				if absolute, ok, diffCase := loadMainField(mainRelPath, "main"); ok {
+			if main, ok := mainFieldValues["main"]; ok {
+				if absolute, ok, diffCase := loadMainField(main.relPath, "main"); ok {
 					absoluteMain = absolute
 					okMain = true
 					diffCaseMain = diffCase
@@ -1375,6 +1384,30 @@ func (r resolverQuery) loadAsMainField(dirInfo *dirInfo, path string, extensionO
 				absolute.Primary.Text, key, dirInfo.packageJSON.source.KeyPath.Text))
 		}
 		return absolute, true, diffCase
+	}
+
+	// Let the user know if "main" exists but was skipped due to mis-configuration
+	if !foundSomething {
+		for _, field := range mainFieldsForFailure {
+			if main, ok := mainFieldValues[field]; ok {
+				tracker := logger.MakeLineColumnTracker(&dirInfo.packageJSON.source)
+				keyRange := dirInfo.packageJSON.source.RangeOfString(main.keyLoc)
+				if len(mainFieldKeys) == 0 && r.options.Platform == config.PlatformNeutral {
+					r.debugMeta.notes = append(r.debugMeta.notes, logger.RangeData(&tracker, keyRange,
+						fmt.Sprintf("The %q field was ignored (main fields must be configured manually when using the \"neutral\" platform)",
+							field)))
+				} else {
+					quoted := make([]string, len(mainFieldKeys))
+					for i, key := range mainFieldKeys {
+						quoted[i] = fmt.Sprintf("%q", key)
+					}
+					r.debugMeta.notes = append(r.debugMeta.notes, logger.RangeData(&tracker, keyRange,
+						fmt.Sprintf("The %q field was ignored because the list of main fields to use is currently set to [%s]",
+							field, strings.Join(quoted, ", "))))
+				}
+				break
+			}
+		}
 	}
 
 	return PathPair{}, false, nil
