@@ -44,6 +44,7 @@ var cssTable = map[CSSFeature]map[Engine][]int{
 		IOS:     {12, 2},
 		Safari:  {12, 1},
 	},
+
 	// Data from: https://developer.mozilla.org/en-US/docs/Web/CSS/inset
 	InsetProperty: {
 		Chrome:  {87},

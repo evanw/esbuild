@@ -64,6 +64,8 @@
 
     This minification rule is only enabled when `inset` property is supported by the target environment. Make sure to set esbuild's `target` setting correctly when minifying if the code will be running in an older environment (e.g. earlier than Chrome 87).
 
+    This feature was contributed by [@sapphi-red](https://github.com/sapphi-red).
+
 ## 0.13.12
 
 * Implement initial support for simplifying `calc()` expressions in CSS ([#1607](https://github.com/evanw/esbuild/issues/1607))

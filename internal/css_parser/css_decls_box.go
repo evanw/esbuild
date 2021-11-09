@@ -28,14 +28,6 @@ type boxTracker struct {
 	important bool
 }
 
-func newBoxTracker(key css_ast.D, keyText string, allowAuto bool) boxTracker {
-	return boxTracker{
-		key:       key,
-		keyText:   keyText,
-		allowAuto: allowAuto,
-	}
-}
-
 func (box *boxTracker) updateSide(rules []css_ast.Rule, side int, new boxSide) {
 	if old := box.sides[side]; old.token.Kind != css_lexer.TEndOfFile && (!new.single || old.single) {
 		rules[old.index] = css_ast.Rule{}
