@@ -369,35 +369,11 @@ type RSelector struct {
 func (a *RSelector) Equal(rule R) bool {
 	b, ok := rule.(*RSelector)
 	if ok && len(a.Selectors) == len(b.Selectors) {
-		for i, ai := range a.Selectors {
-			bi := b.Selectors[i]
-			if len(ai.Selectors) != len(bi.Selectors) {
+		for i, sel := range a.Selectors {
+			if !sel.Equal(b.Selectors[i]) {
 				return false
 			}
-
-			for j, aj := range ai.Selectors {
-				bj := bi.Selectors[j]
-				if aj.HasNestPrefix != bj.HasNestPrefix || aj.Combinator != bj.Combinator {
-					return false
-				}
-
-				if ats, bts := aj.TypeSelector, bj.TypeSelector; (ats == nil) != (bts == nil) {
-					return false
-				} else if ats != nil && bts != nil && !ats.Equal(*bts) {
-					return false
-				}
-
-				if len(aj.SubclassSelectors) != len(bj.SubclassSelectors) {
-					return false
-				}
-				for k, ak := range aj.SubclassSelectors {
-					if !ak.Equal(bj.SubclassSelectors[k]) {
-						return false
-					}
-				}
-			}
 		}
-
 		return RulesEqual(a.Rules, b.Rules)
 	}
 
@@ -495,6 +471,36 @@ func (r *RComment) Hash() (uint32, bool) {
 
 type ComplexSelector struct {
 	Selectors []CompoundSelector
+}
+
+func (a ComplexSelector) Equal(b ComplexSelector) bool {
+	if len(a.Selectors) != len(b.Selectors) {
+		return false
+	}
+
+	for i, ai := range a.Selectors {
+		bi := b.Selectors[i]
+		if ai.HasNestPrefix != bi.HasNestPrefix || ai.Combinator != bi.Combinator {
+			return false
+		}
+
+		if ats, bts := ai.TypeSelector, bi.TypeSelector; (ats == nil) != (bts == nil) {
+			return false
+		} else if ats != nil && bts != nil && !ats.Equal(*bts) {
+			return false
+		}
+
+		if len(ai.SubclassSelectors) != len(bi.SubclassSelectors) {
+			return false
+		}
+		for j, aj := range ai.SubclassSelectors {
+			if !aj.Equal(bi.SubclassSelectors[j]) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 type CompoundSelector struct {

@@ -27,6 +27,22 @@
 
     So using `var exports = {}` should have the same effect as `exports = {}` because the variable `exports` should already be defined. However, esbuild was incorrectly overwriting the definition of the `exports` variable with the one provided by CommonJS. This release merges the definitions together so both are included, which fixes the bug.
 
+* Merge adjacent CSS selector rules with duplicate content ([#1755](https://github.com/evanw/esbuild/issues/1755))
+
+    With this release, esbuild will now merge adjacent selectors when minifying if they have the same content:
+
+    ```css
+    /* Original code */
+    a { color: red }
+    b { color: red }
+
+    /* Old output (with --minify) */
+    a{color:red}b{color:red}
+
+    /* New output (with --minify) */
+    a,b{color:red}
+    ```
+
 ## 0.13.12
 
 * Implement initial support for simplifying `calc()` expressions in CSS ([#1607](https://github.com/evanw/esbuild/issues/1607))

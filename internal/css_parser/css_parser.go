@@ -252,7 +252,7 @@ loop:
 	}
 
 	if p.options.MangleSyntax {
-		rules = removeEmptyAndDuplicateRules(rules)
+		rules = mangleRules(rules)
 	}
 	return rules
 }
@@ -266,7 +266,7 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
 			list = p.processDeclarations(list)
 			if p.options.MangleSyntax {
-				list = removeEmptyAndDuplicateRules(list)
+				list = mangleRules(list)
 			}
 			return
 
@@ -285,20 +285,14 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 	}
 }
 
-func removeEmptyAndDuplicateRules(rules []css_ast.Rule) []css_ast.Rule {
+func mangleRules(rules []css_ast.Rule) []css_ast.Rule {
 	type hashEntry struct {
 		indices []uint32
 	}
 
-	n := len(rules)
-	start := n
-	entries := make(map[uint32]hashEntry)
-
-	// Scan from the back so we keep the last rule
-skipRule:
-	for i := n - 1; i >= 0; i-- {
-		rule := rules[i]
-
+	// Remove empty rules
+	n := 0
+	for _, rule := range rules {
 		switch r := rule.Data.(type) {
 		case *css_ast.RAtKeyframes:
 			// Do not remove empty "@keyframe foo {}" rules. Even empty rules still
@@ -316,16 +310,46 @@ skipRule:
 			}
 		}
 
+		rules[n] = rule
+		n++
+	}
+	rules = rules[:n]
+
+	// Remove duplicate rules, scanning from the back so we keep the last duplicate
+	start := n
+	entries := make(map[uint32]hashEntry)
+skipRule:
+	for i := n - 1; i >= 0; i-- {
+		rule := rules[i]
+
+		// Merge adjacent selectors with the same content
+		// "a { color: red; } b { color: red; }" => "a, b { color: red; }"
+		if i > 0 {
+			if r, ok := rule.Data.(*css_ast.RSelector); ok {
+				if prev, ok := rules[i-1].Data.(*css_ast.RSelector); ok && css_ast.RulesEqual(r.Rules, prev.Rules) {
+				nextSelector:
+					for _, sel := range r.Selectors {
+						for _, prevSel := range prev.Selectors {
+							if sel.Equal(prevSel) {
+								// Don't add duplicate selectors more than once
+								continue nextSelector
+							}
+						}
+						prev.Selectors = append(prev.Selectors, sel)
+					}
+					continue skipRule
+				}
+			}
+		}
+
+		// For duplicate rules, omit all but the last copy
 		if hash, ok := rule.Data.Hash(); ok {
 			entry := entries[hash]
-
-			// For duplicate rules, omit all but the last copy
 			for _, index := range entry.indices {
 				if rule.Data.Equal(rules[index].Data) {
 					continue skipRule
 				}
 			}
-
 			entry.indices = append(entry.indices, uint32(i))
 			entries[hash] = entry
 		}
