@@ -1235,133 +1235,143 @@ func (r resolverQuery) loadAsFileOrDirectory(path string) (PathPair, bool, *fs.D
 	}
 
 	// Try using the main field(s) from "package.json"
-	if dirInfo.packageJSON != nil && dirInfo.packageJSON.mainFields != nil {
-		mainFieldValues := dirInfo.packageJSON.mainFields
-		mainFieldKeys := r.options.MainFields
-		autoMain := false
-
-		// If the user has not explicitly specified a "main" field order,
-		// use a default one determined by the current platform target
-		if mainFieldKeys == nil {
-			mainFieldKeys = defaultMainFields[r.options.Platform]
-			autoMain = true
-		}
-
-		loadMainField := func(fieldRelPath string, field string) (PathPair, bool, *fs.DifferentCase) {
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Found main field %q with path %q", field, fieldRelPath))
-				r.debugLogs.increaseIndent()
-				defer r.debugLogs.decreaseIndent()
-			}
-
-			// Potentially remap using the "browser" field
-			fieldAbsPath := r.fs.Join(path, fieldRelPath)
-			if remapped, ok := r.checkBrowserMap(dirInfo, fieldAbsPath, absolutePathKind); ok {
-				if remapped == nil {
-					return PathPair{Primary: logger.Path{Text: fieldAbsPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil
-				}
-				fieldAbsPath = r.fs.Join(path, *remapped)
-			}
-
-			// Is this a file?
-			absolute, ok, diffCase := r.loadAsFile(fieldAbsPath, extensionOrder)
-			if ok {
-				return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
-			}
-
-			// Is it a directory with an index?
-			if fieldDirInfo := r.dirInfoCached(fieldAbsPath); fieldDirInfo != nil {
-				if absolute, ok, _ := r.loadAsIndexWithBrowserRemapping(fieldDirInfo, fieldAbsPath, extensionOrder); ok {
-					return absolute, true, nil
-				}
-			}
-
-			return PathPair{}, false, nil
-		}
-
-		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("Searching for main fields in %q", dirInfo.packageJSON.source.KeyPath.Text))
-		}
-
-		for _, key := range mainFieldKeys {
-			fieldRelPath, ok := mainFieldValues[key]
-			if !ok {
-				if r.debugLogs != nil {
-					r.debugLogs.addNote(fmt.Sprintf("Did not find main field %q", key))
-				}
-				continue
-			}
-
-			absolute, ok, diffCase := loadMainField(fieldRelPath, key)
-			if !ok {
-				continue
-			}
-
-			// If the user did not manually configure a "main" field order, then
-			// use a special per-module automatic algorithm to decide whether to
-			// use "module" or "main" based on whether the package is imported
-			// using "import" or "require".
-			if autoMain && key == "module" {
-				var absoluteMain PathPair
-				var okMain bool
-				var diffCaseMain *fs.DifferentCase
-
-				if mainRelPath, ok := mainFieldValues["main"]; ok {
-					if absolute, ok, diffCase := loadMainField(mainRelPath, "main"); ok {
-						absoluteMain = absolute
-						okMain = true
-						diffCaseMain = diffCase
-					}
-				} else {
-					// Some packages have a "module" field without a "main" field but
-					// still have an implicit "index.js" file. In that case, treat that
-					// as the value for "main".
-					if absolute, ok, diffCase := r.loadAsIndexWithBrowserRemapping(dirInfo, path, extensionOrder); ok {
-						absoluteMain = absolute
-						okMain = true
-						diffCaseMain = diffCase
-					}
-				}
-
-				if okMain {
-					// If both the "main" and "module" fields exist, use "main" if the
-					// path is for "require" and "module" if the path is for "import".
-					// If we're using "module", return enough information to be able to
-					// fall back to "main" later if something ended up using "require()"
-					// with this same path. The goal of this code is to avoid having
-					// both the "module" file and the "main" file in the bundle at the
-					// same time.
-					if r.kind != ast.ImportRequire {
-						if r.debugLogs != nil {
-							r.debugLogs.addNote(fmt.Sprintf("Resolved to %q using the \"module\" field in %q",
-								absolute.Primary.Text, dirInfo.packageJSON.source.KeyPath.Text))
-							r.debugLogs.addNote(fmt.Sprintf("The fallback path in case of \"require\" is %q",
-								absoluteMain.Primary.Text))
-						}
-						return PathPair{
-							// This is the whole point of the path pair
-							Primary:   absolute.Primary,
-							Secondary: absoluteMain.Primary,
-						}, true, diffCase
-					} else {
-						if r.debugLogs != nil {
-							r.debugLogs.addNote(fmt.Sprintf("Resolved to %q because of \"require\"", absoluteMain.Primary.Text))
-						}
-						return absoluteMain, true, diffCaseMain
-					}
-				}
-			}
-
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Resolved to %q using the %q field in %q",
-					absolute.Primary.Text, key, dirInfo.packageJSON.source.KeyPath.Text))
-			}
-			return absolute, true, diffCase
-		}
+	if absolute, ok, diffCase := r.loadAsMainField(dirInfo, path, extensionOrder); ok {
+		return absolute, true, diffCase
 	}
 
 	// Look for an "index" file with known extensions
 	if absolute, ok, diffCase := r.loadAsIndexWithBrowserRemapping(dirInfo, path, extensionOrder); ok {
+		return absolute, true, diffCase
+	}
+
+	return PathPair{}, false, nil
+}
+
+func (r resolverQuery) loadAsMainField(dirInfo *dirInfo, path string, extensionOrder []string) (PathPair, bool, *fs.DifferentCase) {
+	if dirInfo.packageJSON == nil || dirInfo.packageJSON.mainFields == nil {
+		return PathPair{}, false, nil
+	}
+
+	mainFieldValues := dirInfo.packageJSON.mainFields
+	mainFieldKeys := r.options.MainFields
+	autoMain := false
+
+	// If the user has not explicitly specified a "main" field order,
+	// use a default one determined by the current platform target
+	if mainFieldKeys == nil {
+		mainFieldKeys = defaultMainFields[r.options.Platform]
+		autoMain = true
+	}
+
+	loadMainField := func(fieldRelPath string, field string) (PathPair, bool, *fs.DifferentCase) {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("Found main field %q with path %q", field, fieldRelPath))
+			r.debugLogs.increaseIndent()
+			defer r.debugLogs.decreaseIndent()
+		}
+
+		// Potentially remap using the "browser" field
+		fieldAbsPath := r.fs.Join(path, fieldRelPath)
+		if remapped, ok := r.checkBrowserMap(dirInfo, fieldAbsPath, absolutePathKind); ok {
+			if remapped == nil {
+				return PathPair{Primary: logger.Path{Text: fieldAbsPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil
+			}
+			fieldAbsPath = r.fs.Join(path, *remapped)
+		}
+
+		// Is this a file?
+		absolute, ok, diffCase := r.loadAsFile(fieldAbsPath, extensionOrder)
+		if ok {
+			return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true, diffCase
+		}
+
+		// Is it a directory with an index?
+		if fieldDirInfo := r.dirInfoCached(fieldAbsPath); fieldDirInfo != nil {
+			if absolute, ok, _ := r.loadAsIndexWithBrowserRemapping(fieldDirInfo, fieldAbsPath, extensionOrder); ok {
+				return absolute, true, nil
+			}
+		}
+
+		return PathPair{}, false, nil
+	}
+
+	if r.debugLogs != nil {
+		r.debugLogs.addNote(fmt.Sprintf("Searching for main fields in %q", dirInfo.packageJSON.source.KeyPath.Text))
+	}
+
+	for _, key := range mainFieldKeys {
+		fieldRelPath, ok := mainFieldValues[key]
+		if !ok {
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("Did not find main field %q", key))
+			}
+			continue
+		}
+
+		absolute, ok, diffCase := loadMainField(fieldRelPath, key)
+		if !ok {
+			continue
+		}
+
+		// If the user did not manually configure a "main" field order, then
+		// use a special per-module automatic algorithm to decide whether to
+		// use "module" or "main" based on whether the package is imported
+		// using "import" or "require".
+		if autoMain && key == "module" {
+			var absoluteMain PathPair
+			var okMain bool
+			var diffCaseMain *fs.DifferentCase
+
+			if mainRelPath, ok := mainFieldValues["main"]; ok {
+				if absolute, ok, diffCase := loadMainField(mainRelPath, "main"); ok {
+					absoluteMain = absolute
+					okMain = true
+					diffCaseMain = diffCase
+				}
+			} else {
+				// Some packages have a "module" field without a "main" field but
+				// still have an implicit "index.js" file. In that case, treat that
+				// as the value for "main".
+				if absolute, ok, diffCase := r.loadAsIndexWithBrowserRemapping(dirInfo, path, extensionOrder); ok {
+					absoluteMain = absolute
+					okMain = true
+					diffCaseMain = diffCase
+				}
+			}
+
+			if okMain {
+				// If both the "main" and "module" fields exist, use "main" if the
+				// path is for "require" and "module" if the path is for "import".
+				// If we're using "module", return enough information to be able to
+				// fall back to "main" later if something ended up using "require()"
+				// with this same path. The goal of this code is to avoid having
+				// both the "module" file and the "main" file in the bundle at the
+				// same time.
+				if r.kind != ast.ImportRequire {
+					if r.debugLogs != nil {
+						r.debugLogs.addNote(fmt.Sprintf("Resolved to %q using the \"module\" field in %q",
+							absolute.Primary.Text, dirInfo.packageJSON.source.KeyPath.Text))
+						r.debugLogs.addNote(fmt.Sprintf("The fallback path in case of \"require\" is %q",
+							absoluteMain.Primary.Text))
+					}
+					return PathPair{
+						// This is the whole point of the path pair
+						Primary:   absolute.Primary,
+						Secondary: absoluteMain.Primary,
+					}, true, diffCase
+				} else {
+					if r.debugLogs != nil {
+						r.debugLogs.addNote(fmt.Sprintf("Resolved to %q because of \"require\"", absoluteMain.Primary.Text))
+					}
+					return absoluteMain, true, diffCaseMain
+				}
+			}
+		}
+
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("Resolved to %q using the %q field in %q",
+				absolute.Primary.Text, key, dirInfo.packageJSON.source.KeyPath.Text))
+		}
 		return absolute, true, diffCase
 	}
 
