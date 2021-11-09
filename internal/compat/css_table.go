@@ -13,6 +13,8 @@ const (
 	// - rgb() can accept alpha values
 	// - Space-separated functional color notations
 	Modern_RGB_HSL
+
+	InsetProperty
 )
 
 func (features CSSFeature) Has(feature CSSFeature) bool {
@@ -41,6 +43,14 @@ var cssTable = map[CSSFeature]map[Engine][]int{
 		Firefox: {52},
 		IOS:     {12, 2},
 		Safari:  {12, 1},
+	},
+	// Data from: https://developer.mozilla.org/en-US/docs/Web/CSS/inset
+	InsetProperty: {
+		Chrome:  {87},
+		Edge:    {87},
+		Firefox: {66},
+		IOS:     {14, 5},
+		Safari:  {14, 1},
 	},
 }
 

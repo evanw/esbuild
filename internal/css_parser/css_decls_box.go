@@ -20,8 +20,20 @@ type boxSide struct {
 }
 
 type boxTracker struct {
+	key       css_ast.D
+	keyText   string
+	allowAuto bool
+
 	sides     [4]boxSide
 	important bool
+}
+
+func newBoxTracker(key css_ast.D, keyText string, allowAuto bool) boxTracker {
+	return boxTracker{
+		key:       key,
+		keyText:   keyText,
+		allowAuto: allowAuto,
+	}
 }
 
 func (box *boxTracker) updateSide(rules []css_ast.Rule, side int, new boxSide) {
@@ -39,8 +51,7 @@ func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclarat
 	}
 
 	allowedIdent := ""
-	isMargin := decl.Key == css_ast.DMargin
-	if isMargin {
+	if box.allowAuto {
 		allowedIdent = "auto"
 	}
 	if quad, ok := expandTokenQuad(decl.Value, allowedIdent); ok {
@@ -48,7 +59,7 @@ func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclarat
 			t.TurnLengthIntoNumberIfZero()
 			box.updateSide(rules, side, boxSide{token: t, index: uint32(index)})
 		}
-		box.compactRules(rules, decl.KeyRange, removeWhitespace, isMargin)
+		box.compactRules(rules, decl.KeyRange, removeWhitespace)
 	} else {
 		box.sides = [4]boxSide{}
 	}
@@ -61,19 +72,13 @@ func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclarati
 		box.important = decl.Important
 	}
 
-	isMargin := false
-	switch decl.Key {
-	case css_ast.DMarginTop, css_ast.DMarginRight, css_ast.DMarginBottom, css_ast.DMarginLeft:
-		isMargin = true
-	}
-
 	if tokens := decl.Value; len(tokens) == 1 {
-		if t := tokens[0]; t.Kind.IsNumeric() || (t.Kind == css_lexer.TIdent && isMargin && t.Text == "auto") {
+		if t := tokens[0]; t.Kind.IsNumeric() || (t.Kind == css_lexer.TIdent && box.allowAuto && t.Text == "auto") {
 			if t.TurnLengthIntoNumberIfZero() {
 				tokens[0] = t
 			}
 			box.updateSide(rules, side, boxSide{token: t, index: uint32(index), single: true})
-			box.compactRules(rules, decl.KeyRange, removeWhitespace, isMargin)
+			box.compactRules(rules, decl.KeyRange, removeWhitespace)
 			return
 		}
 	}
@@ -81,7 +86,7 @@ func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclarati
 	box.sides = [4]boxSide{}
 }
 
-func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range, removeWhitespace bool, isMargin bool) {
+func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range, removeWhitespace bool) {
 	// All tokens must be present
 	if eof := css_lexer.TEndOfFile; box.sides[0].token.Kind == eof || box.sides[1].token.Kind == eof ||
 		box.sides[2].token.Kind == eof || box.sides[3].token.Kind == eof {
@@ -104,18 +109,9 @@ func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range,
 	rules[box.sides[3].index] = css_ast.Rule{}
 
 	// Insert the combined declaration where the last rule was
-	var key css_ast.D
-	var keyText string
-	if isMargin {
-		key = css_ast.DMargin
-		keyText = "margin"
-	} else {
-		key = css_ast.DPadding
-		keyText = "padding"
-	}
 	rules[box.sides[3].index].Data = &css_ast.RDeclaration{
-		Key:       key,
-		KeyText:   keyText,
+		Key:       box.key,
+		KeyText:   box.keyText,
 		Value:     tokens,
 		KeyRange:  keyRange,
 		Important: box.important,
