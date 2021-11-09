@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+* Minify syntax in the CSS `font`, `font-family`, `font-weight` property
+
+    This release includes size reductions for CSS font syntax when minification is enabled:
+
+    ```css
+    /* Original code */
+    div {
+      font: bold 1rem / 1.2 "Segoe UI", sans-serif, "Segoe UI Emoji";
+    }
+
+    /* Output with "--minify-syntax" */
+    div {
+      font:
+        700 1rem / 1.2 Segoe UI,
+        sans-serif,
+        "Segoe UI Emoji";
+    }
+    ```
+
 ## 0.13.13
 
 * Add more information about skipping `"main"` in `package.json` ([#1754](https://github.com/evanw/esbuild/issues/1754))
