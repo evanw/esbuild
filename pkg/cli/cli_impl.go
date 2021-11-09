@@ -230,13 +230,13 @@ func parseOptionsImpl(
 			}
 
 		case strings.HasPrefix(arg, "--resolve-extensions=") && buildOpts != nil:
-			buildOpts.ResolveExtensions = strings.Split(arg[len("--resolve-extensions="):], ",")
+			buildOpts.ResolveExtensions = splitWithEmptyCheck(arg[len("--resolve-extensions="):], ",")
 
 		case strings.HasPrefix(arg, "--main-fields=") && buildOpts != nil:
-			buildOpts.MainFields = strings.Split(arg[len("--main-fields="):], ",")
+			buildOpts.MainFields = splitWithEmptyCheck(arg[len("--main-fields="):], ",")
 
 		case strings.HasPrefix(arg, "--conditions=") && buildOpts != nil:
-			buildOpts.Conditions = strings.Split(arg[len("--conditions="):], ",")
+			buildOpts.Conditions = splitWithEmptyCheck(arg[len("--conditions="):], ",")
 
 		case strings.HasPrefix(arg, "--public-path=") && buildOpts != nil:
 			buildOpts.PublicPath = arg[len("--public-path="):]
@@ -332,7 +332,7 @@ func parseOptionsImpl(
 			}
 
 		case strings.HasPrefix(arg, "--target="):
-			target, engines, err := parseTargets(strings.Split(arg[len("--target="):], ","))
+			target, engines, err := parseTargets(splitWithEmptyCheck(arg[len("--target="):], ","))
 			if err != nil {
 				return err, nil
 			}
@@ -631,6 +631,15 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *string, *api.Trans
 	return nil, nil, &options, nil
 }
 
+func splitWithEmptyCheck(s string, sep string) []string {
+	// Special-case the empty string to return [] instead of [""]
+	if s == "" {
+		return []string{}
+	}
+
+	return strings.Split(s, sep)
+}
+
 func runImpl(osArgs []string) int {
 	analyze := false
 	analyzeVerbose := false
@@ -678,7 +687,7 @@ func runImpl(osArgs []string) int {
 					// On Windows, NODE_PATH is delimited by semicolons instead of colons
 					separator = ";"
 				}
-				buildOptions.NodePaths = strings.Split(value, separator)
+				buildOptions.NodePaths = splitWithEmptyCheck(value, separator)
 				break
 			}
 		}
