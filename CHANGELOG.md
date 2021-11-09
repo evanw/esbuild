@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.13
 
 * Add more information about skipping `"main"` in `package.json` ([#1754](https://github.com/evanw/esbuild/issues/1754))
 
