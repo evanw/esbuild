@@ -21,37 +21,37 @@ func (features CSSFeature) Has(feature CSSFeature) bool {
 	return (features & feature) != 0
 }
 
-var cssTable = map[CSSFeature]map[Engine]v{
+var cssTable = map[CSSFeature]map[Engine][]versionRange{
 	// Data from: https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
 	HexRGBA: {
-		Chrome:  v{62, 0, 0},
-		Edge:    v{79, 0, 0},
-		Firefox: v{49, 0, 0},
-		IOS:     v{9, 3, 0},
-		Safari:  v{9, 1, 0},
+		Chrome:  {{start: v{62, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		Firefox: {{start: v{49, 0, 0}}},
+		IOS:     {{start: v{9, 3, 0}}},
+		Safari:  {{start: v{9, 1, 0}}},
 	},
 	RebeccaPurple: {
-		Chrome:  v{38, 0, 0},
-		Edge:    v{12, 0, 0},
-		Firefox: v{33, 0, 0},
-		IOS:     v{8, 0, 0},
-		Safari:  v{9, 0, 0},
+		Chrome:  {{start: v{38, 0, 0}}},
+		Edge:    {{start: v{12, 0, 0}}},
+		Firefox: {{start: v{33, 0, 0}}},
+		IOS:     {{start: v{8, 0, 0}}},
+		Safari:  {{start: v{9, 0, 0}}},
 	},
 	Modern_RGB_HSL: {
-		Chrome:  v{66, 0, 0},
-		Edge:    v{79, 0, 0},
-		Firefox: v{52, 0, 0},
-		IOS:     v{12, 2, 0},
-		Safari:  v{12, 1, 0},
+		Chrome:  {{start: v{66, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		Firefox: {{start: v{52, 0, 0}}},
+		IOS:     {{start: v{12, 2, 0}}},
+		Safari:  {{start: v{12, 1, 0}}},
 	},
 
 	// Data from: https://developer.mozilla.org/en-US/docs/Web/CSS/inset
 	InsetProperty: {
-		Chrome:  v{87, 0, 0},
-		Edge:    v{87, 0, 0},
-		Firefox: v{66, 0, 0},
-		IOS:     v{14, 5, 0},
-		Safari:  v{14, 1, 0},
+		Chrome:  {{start: v{87, 0, 0}}},
+		Edge:    {{start: v{87, 0, 0}}},
+		Firefox: {{start: v{66, 0, 0}}},
+		IOS:     {{start: v{14, 5, 0}}},
+		Safari:  {{start: v{14, 1, 0}}},
 	},
 }
 
@@ -63,7 +63,7 @@ func UnsupportedCSSFeatures(constraints map[Engine][]int) (unsupported CSSFeatur
 				// Specifying "--target=es2020" shouldn't affect CSS
 				continue
 			}
-			if minVersion, ok := engines[engine]; !ok || compareVersions(minVersion, version) > 0 {
+			if versionRanges, ok := engines[engine]; !ok || !isVersionSupported(versionRanges, version) {
 				unsupported |= feature
 			}
 		}

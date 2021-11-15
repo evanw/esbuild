@@ -274,7 +274,7 @@ function writeInnerMap(obj) {
   const keys = Object.keys(obj).sort()
   const maxLength = keys.reduce((a, b) => Math.max(a, b.length + 1), 0)
   if (keys.length === 0) return '{}'
-  return `{\n${keys.map(x => `\t\t${(upper(x) + ':').padEnd(maxLength)} v{${obj[x].concat(0, 0).slice(0, 3).join(', ')}},`).join('\n')}\n\t}`
+  return `{\n${keys.map(x => `\t\t${(upper(x) + ':').padEnd(maxLength)} {{start: v{${obj[x].concat(0, 0).slice(0, 3).join(', ')}}}},`).join('\n')}\n\t}`
 }
 
 fs.writeFileSync(__dirname + '/../internal/compat/js_table.go',
@@ -305,7 +305,7 @@ func (features JSFeature) Has(feature JSFeature) bool {
 \treturn (features & feature) != 0
 }
 
-var jsTable = map[JSFeature]map[Engine]v{
+var jsTable = map[JSFeature]map[Engine][]versionRange{
 ${Object.keys(versions).sort().map(x => `\t${x}: ${writeInnerMap(versions[x])},`).join('\n')}
 }
 
@@ -313,7 +313,7 @@ ${Object.keys(versions).sort().map(x => `\t${x}: ${writeInnerMap(versions[x])},`
 func UnsupportedJSFeatures(constraints map[Engine][]int) (unsupported JSFeature) {
 \tfor feature, engines := range jsTable {
 \t\tfor engine, version := range constraints {
-\t\t\tif minVersion, ok := engines[engine]; !ok || isVersionLessThan(version, minVersion) {
+\t\t\tif versionRanges, ok := engines[engine]; !ok || !isVersionSupported(versionRanges, version) {
 \t\t\t\tunsupported |= feature
 \t\t\t}
 \t\t}

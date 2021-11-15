@@ -28,3 +28,18 @@ func compareVersions(a v, b []int) int {
 	}
 	return diff
 }
+
+// The start is inclusive and the end is exclusive
+type versionRange struct {
+	start v
+	end   v // Use 0.0.0 for "no end"
+}
+
+func isVersionSupported(ranges []versionRange, version []int) bool {
+	for _, r := range ranges {
+		if compareVersions(r.start, version) <= 0 && (r.end == (v{}) || compareVersions(r.end, version) > 0) {
+			return true
+		}
+	}
+	return false
+}
