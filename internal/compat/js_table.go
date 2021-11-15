@@ -255,7 +255,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{67, 0, 0}}},
 		IOS:     {{start: v{11, 0, 0}}},
-		Node:    {{start: v{13, 2, 0}}},
+		Node:    {{start: v{12, 20, 0}, end: v{13, 0, 0}}, {start: v{13, 2, 0}}},
 		Safari:  {{start: v{11, 1, 0}}},
 	},
 	ExponentOperator: {

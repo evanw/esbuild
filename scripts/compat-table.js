@@ -115,8 +115,8 @@ function mergeVersions(target, res) {
   const highestVersionMap = versions[target] || (versions[target] = {})
   for (const engine in lowestVersionMap) {
     const version = lowestVersionMap[engine]
-    if (!highestVersionMap[engine] || compareVersions({ version }, { version: highestVersionMap[engine] }) > 0) {
-      highestVersionMap[engine] = version
+    if (!highestVersionMap[engine] || compareVersions({ version }, { version: highestVersionMap[engine][0].start }) > 0) {
+      highestVersionMap[engine] = [{ start: version, end: null }]
     }
   }
 }
@@ -196,9 +196,20 @@ mergeVersions('DynamicImport', {
   edge79: true,
   firefox67: true,
   ios11: true,
-  node13_2: true, // From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import
   safari11_1: true,
 })
+
+// This is a special case. Node added support for it to both v12.20+ and v13.2+
+// so the range is inconveniently discontiguous. Sources:
+//
+// - https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import
+// - https://github.com/nodejs/node/pull/35950
+// - https://github.com/nodejs/node/pull/31974
+//
+versions.DynamicImport.node = [
+  { start: [12, 20], end: [13] },
+  { start: [13, 2] },
+]
 
 mergeVersions('ArbitraryModuleNamespaceNames', {
   // From https://github.com/tc39/ecma262/pull/2154#issuecomment-825201030
@@ -274,7 +285,13 @@ function writeInnerMap(obj) {
   const keys = Object.keys(obj).sort()
   const maxLength = keys.reduce((a, b) => Math.max(a, b.length + 1), 0)
   if (keys.length === 0) return '{}'
-  return `{\n${keys.map(x => `\t\t${(upper(x) + ':').padEnd(maxLength)} {{start: v{${obj[x].concat(0, 0).slice(0, 3).join(', ')}}}},`).join('\n')}\n\t}`
+  return `{\n${keys.map(x => {
+    const items = obj[x].map(y => {
+      return `{start: v{${y.start.concat(0, 0).slice(0, 3).join(', ')
+        }}${y.end ? `, end: v{${y.end.concat(0, 0).slice(0, 3).join(', ')}}` : ''}}`
+    })
+    return `\t\t${(upper(x) + ':').padEnd(maxLength)} {${items.join(', ')}},`
+  }).join('\n')}\n\t}`
 }
 
 fs.writeFileSync(__dirname + '/../internal/compat/js_table.go',
