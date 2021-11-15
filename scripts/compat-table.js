@@ -274,7 +274,7 @@ function writeInnerMap(obj) {
   const keys = Object.keys(obj).sort()
   const maxLength = keys.reduce((a, b) => Math.max(a, b.length + 1), 0)
   if (keys.length === 0) return '{}'
-  return `{\n${keys.map(x => `\t\t${(upper(x) + ':').padEnd(maxLength)} {${obj[x].join(', ')}},`).join('\n')}\n\t}`
+  return `{\n${keys.map(x => `\t\t${(upper(x) + ':').padEnd(maxLength)} v{${obj[x].concat(0, 0).slice(0, 3).join(', ')}},`).join('\n')}\n\t}`
 }
 
 fs.writeFileSync(__dirname + '/../internal/compat/js_table.go',
@@ -305,20 +305,8 @@ func (features JSFeature) Has(feature JSFeature) bool {
 \treturn (features & feature) != 0
 }
 
-var jsTable = map[JSFeature]map[Engine][]int{
+var jsTable = map[JSFeature]map[Engine]v{
 ${Object.keys(versions).sort().map(x => `\t${x}: ${writeInnerMap(versions[x])},`).join('\n')}
-}
-
-func isVersionLessThan(a []int, b []int) bool {
-\tfor i := 0; i < len(a) && i < len(b); i++ {
-\t\tif a[i] > b[i] {
-\t\t\treturn false
-\t\t}
-\t\tif a[i] < b[i] {
-\t\t\treturn true
-\t\t}
-\t}
-\treturn len(a) < len(b)
 }
 
 // Return all features that are not available in at least one environment
