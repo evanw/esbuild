@@ -883,11 +883,8 @@ bench-rome-esbuild: esbuild | bench/rome bench/rome-verify
 	shasum bench/rome/esbuild/rome.esbuild.js*
 	cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
 
-# This benchmark doesn't currently work because spack doesn't support "baseUrl"
-# by itself: https://github.com/swc-project/swc/issues/1324. In addition,
-# support for "paths" is broken and doesn't correctly resolve paths in nested
-# directories relative to "baseUrl": https://github.com/swc-project/swc/issues/2126.
-# I also tried using absolute paths, but that doesn't appear to be supported either.
+# This benchmark doesn't currently work because the result crashes with this
+# error: "SyntaxError: Identifier 'descriptions' has already been declared"
 bench-rome-spack: | require/spack/node_modules bench/rome bench/rome-verify
 	rm -fr require/spack/bench/rome bench/rome/spack
 	mkdir -p require/spack/bench/rome bench/rome/spack
@@ -895,18 +892,28 @@ bench-rome-spack: | require/spack/node_modules bench/rome bench/rome-verify
 	# Generate the config file
 	echo 'module.exports = {' > require/spack/bench/rome/spack.config.js
 	echo '$(SPACK_COMMON_CONFIG)' >> require/spack/bench/rome/spack.config.js
+	echo '  target: "node",' >> require/spack/bench/rome/spack.config.js
 	echo '  entry: { web: "src/entry.ts" },' >> require/spack/bench/rome/spack.config.js
 	echo '  output: { path: "out", name: "rome.spack.js" },' >> require/spack/bench/rome/spack.config.js
 	echo '}' >> require/spack/bench/rome/spack.config.js
 
-	ln -s ../../../../bench/rome/src require/spack/bench/rome/src
+	# Hack around bugs with support for "paths" and "baseUrl" in "tsconfig.json".
+	# See this for more information: https://github.com/swc-project/swc/issues/2725
+	echo 'module.exports.options.jsc.paths = {' >> require/spack/bench/rome/spack.config.js
+	ls bench/rome/src/@romejs | sed 's/.*/"\@romejs\/&": [__dirname + "\/src\/@romejs\/&\/index.ts"],/g' >> require/spack/bench/rome/spack.config.js
+	ls bench/rome/src/@romejs | sed 's/.*/"\@romejs\/&\/*": [__dirname + "\/src\/@romejs\/&\/*.ts"],/g' >> require/spack/bench/rome/spack.config.js
+	echo '  "rome": [__dirname + "/src/rome/index.ts"],' >> require/spack/bench/rome/spack.config.js
+	echo '  "rome/*": [__dirname + "/src/rome/*.ts"],' >> require/spack/bench/rome/spack.config.js
+	echo '}' >> require/spack/bench/rome/spack.config.js
+
+	cp -r bench/rome/src require/spack/bench/rome/src
 	ln -s ../../../../bench/rome/spack require/spack/bench/rome/out
 	cd require/spack/bench/rome && time -p ../../node_modules/.bin/spack
 
 	# Spack currently requires you to append the sourceMappingURL comment yourself
 	echo '//# sourceMappingURL=rome.spack.js.map' >> bench/rome/spack/rome.spack.js
 
-	du -h bench/three/spack/rome.spack.js*
+	du -h bench/rome/spack/rome.spack.js*
 	cd bench/rome-verify && rm -fr spack && ROME_CACHE=0 node ../rome/spack/rome.spack.js bundle packages/rome spack
 
 ROME_WEBPACK5_CONFIG += module.exports = {

@@ -527,7 +527,7 @@ type NamespacedName struct {
 	// If present, this is an identifier or "*" and is followed by a "|" character
 	NamespacePrefix *NameToken
 
-	// This is an identifier or "*" or "&"
+	// This is an identifier or "*"
 	Name NameToken
 }
 
@@ -573,9 +573,9 @@ func (ss *SSClass) Hash() uint32 {
 
 type SSAttribute struct {
 	NamespacedName  NamespacedName
-	MatcherOp       string
+	MatcherOp       string // Either "" or one of: "=" "~=" "|=" "^=" "$=" "*="
 	MatcherValue    string
-	MatcherModifier byte
+	MatcherModifier byte // Either 0 or one of: 'i' 'I' 's' 'S'
 }
 
 func (a *SSAttribute) Equal(ss SS) bool {

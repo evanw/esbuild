@@ -21,37 +21,37 @@ func (features CSSFeature) Has(feature CSSFeature) bool {
 	return (features & feature) != 0
 }
 
-var cssTable = map[CSSFeature]map[Engine][]int{
+var cssTable = map[CSSFeature]map[Engine][]versionRange{
 	// Data from: https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
 	HexRGBA: {
-		Chrome:  {62},
-		Edge:    {79},
-		Firefox: {49},
-		IOS:     {9, 3},
-		Safari:  {9, 1},
+		Chrome:  {{start: v{62, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		Firefox: {{start: v{49, 0, 0}}},
+		IOS:     {{start: v{9, 3, 0}}},
+		Safari:  {{start: v{9, 1, 0}}},
 	},
 	RebeccaPurple: {
-		Chrome:  {38},
-		Edge:    {12},
-		Firefox: {33},
-		IOS:     {8},
-		Safari:  {9},
+		Chrome:  {{start: v{38, 0, 0}}},
+		Edge:    {{start: v{12, 0, 0}}},
+		Firefox: {{start: v{33, 0, 0}}},
+		IOS:     {{start: v{8, 0, 0}}},
+		Safari:  {{start: v{9, 0, 0}}},
 	},
 	Modern_RGB_HSL: {
-		Chrome:  {66},
-		Edge:    {79},
-		Firefox: {52},
-		IOS:     {12, 2},
-		Safari:  {12, 1},
+		Chrome:  {{start: v{66, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		Firefox: {{start: v{52, 0, 0}}},
+		IOS:     {{start: v{12, 2, 0}}},
+		Safari:  {{start: v{12, 1, 0}}},
 	},
 
 	// Data from: https://developer.mozilla.org/en-US/docs/Web/CSS/inset
 	InsetProperty: {
-		Chrome:  {87},
-		Edge:    {87},
-		Firefox: {66},
-		IOS:     {14, 5},
-		Safari:  {14, 1},
+		Chrome:  {{start: v{87, 0, 0}}},
+		Edge:    {{start: v{87, 0, 0}}},
+		Firefox: {{start: v{66, 0, 0}}},
+		IOS:     {{start: v{14, 5, 0}}},
+		Safari:  {{start: v{14, 1, 0}}},
 	},
 }
 
@@ -63,7 +63,7 @@ func UnsupportedCSSFeatures(constraints map[Engine][]int) (unsupported CSSFeatur
 				// Specifying "--target=es2020" shouldn't affect CSS
 				continue
 			}
-			if minVersion, ok := engines[engine]; !ok || isVersionLessThan(version, minVersion) {
+			if versionRanges, ok := engines[engine]; !ok || !isVersionSupported(versionRanges, version) {
 				unsupported |= feature
 			}
 		}

@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+* Fix dynamic `import()` on node 12.20+ ([#1772](https://github.com/evanw/esbuild/issues/1772))
+
+    When you use flags such as `--target=node12.20`, esbuild uses that version number to see what features the target environment supports. This consults an internal table that stores which target environments are supported for each feature. For example, `import(x)` is changed into `Promise.resolve().then(() => require(x))` if dynamic `import` expressions are unsupported.
+
+    Previously esbuild's internal table only stored one version number, since features are rarely ever removed in newer versions of software. Either the target environment is before that version and the feature is unsupported, or the target environment is after that version and the feature is supported. This approach has work for all relevant features in all cases except for one: dynamic `import` support in node. This feature is supported in node 12.20.0 up to but not including node 13.0.0, and then is also supported in node 13.2.0 up. The feature table implementation has been changed to store an array of potentially discontiguous version ranges instead of one version number.
+
+    Up until now, esbuild used 13.2.0 as the lowest supported version number to avoid generating dynamic `import` expressions when targeting node versions that don't support it. But with this release, esbuild will now use the more accurate discontiguous version range in this case. This means dynamic `import` expressions can now be generated when targeting versions of node 12.20.0 up to but not including node 13.0.0.
+
+* Avoid merging certain qualified rules in CSS ([#1776](https://github.com/evanw/esbuild/issues/1776))
+
+    A change was introduced in the previous release to merge adjacent CSS rules that have the same content:
+
+    ```css
+    /* Original code */
+    a { color: red }
+    b { color: red }
+
+    /* Minified output */
+    a,b{color:red}
+    ```
+
+    However, that introduced a regression in cases where the browser considers one selector to be valid and the other selector to be invalid, such as in the following example:
+
+    ```css
+    /* This rule is valid, and is applied */
+    a { color: red }
+
+    /* This rule is invalid, and is ignored */
+    b:-x-invalid { color: red }
+    ```
+
+    Merging these two rules into one causes the browser to consider the entire merged rule to be invalid, which disables both rules. This is a change in behavior from the original code.
+
+    With this release, esbuild will now only merge adjacent duplicate rules together if they are known to work in all browsers (specifically, if they are known to work in IE 7 and up). Adjacent duplicate rules will no longer be merged in all other cases including modern pseudo-class selectors such as `:focus`, HTML5 elements such as `video`, and combinators such as `a + b`.
+
 * Minify syntax in the CSS `font`, `font-family`, and `font-weight` properties ([#1756](https://github.com/evanw/esbuild/pull/1756))
 
     This release includes size reductions for CSS font syntax when minification is enabled:

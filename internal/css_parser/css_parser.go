@@ -326,7 +326,8 @@ skipRule:
 		// "a { color: red; } b { color: red; }" => "a, b { color: red; }"
 		if i > 0 {
 			if r, ok := rule.Data.(*css_ast.RSelector); ok {
-				if prev, ok := rules[i-1].Data.(*css_ast.RSelector); ok && css_ast.RulesEqual(r.Rules, prev.Rules) {
+				if prev, ok := rules[i-1].Data.(*css_ast.RSelector); ok && css_ast.RulesEqual(r.Rules, prev.Rules) &&
+					isSafeSelectors(r.Selectors) && isSafeSelectors(prev.Selectors) {
 				nextSelector:
 					for _, sel := range r.Selectors {
 						for _, prevSel := range prev.Selectors {
@@ -359,6 +360,163 @@ skipRule:
 	}
 
 	return rules[start:]
+}
+
+// Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Element
+var nonDeprecatedElementsSupportedByIE7 = map[string]bool{
+	"a":          true,
+	"abbr":       true,
+	"address":    true,
+	"area":       true,
+	"b":          true,
+	"base":       true,
+	"blockquote": true,
+	"body":       true,
+	"br":         true,
+	"button":     true,
+	"caption":    true,
+	"cite":       true,
+	"code":       true,
+	"col":        true,
+	"colgroup":   true,
+	"dd":         true,
+	"del":        true,
+	"dfn":        true,
+	"div":        true,
+	"dl":         true,
+	"dt":         true,
+	"em":         true,
+	"embed":      true,
+	"fieldset":   true,
+	"form":       true,
+	"h1":         true,
+	"h2":         true,
+	"h3":         true,
+	"h4":         true,
+	"h5":         true,
+	"h6":         true,
+	"head":       true,
+	"hr":         true,
+	"html":       true,
+	"i":          true,
+	"iframe":     true,
+	"img":        true,
+	"input":      true,
+	"ins":        true,
+	"kbd":        true,
+	"label":      true,
+	"legend":     true,
+	"li":         true,
+	"link":       true,
+	"map":        true,
+	"menu":       true,
+	"meta":       true,
+	"noscript":   true,
+	"object":     true,
+	"ol":         true,
+	"optgroup":   true,
+	"option":     true,
+	"p":          true,
+	"param":      true,
+	"pre":        true,
+	"q":          true,
+	"ruby":       true,
+	"s":          true,
+	"samp":       true,
+	"script":     true,
+	"select":     true,
+	"small":      true,
+	"span":       true,
+	"strong":     true,
+	"style":      true,
+	"sub":        true,
+	"sup":        true,
+	"table":      true,
+	"tbody":      true,
+	"td":         true,
+	"textarea":   true,
+	"tfoot":      true,
+	"th":         true,
+	"thead":      true,
+	"title":      true,
+	"tr":         true,
+	"u":          true,
+	"ul":         true,
+	"var":        true,
+}
+
+// This only returns true if all of these selectors are considered "safe" which
+// means that they are very likely to work in any browser a user might reasonably
+// be using. We do NOT want to merge adjacent qualified rules with the same body
+// if any of the selectors are unsafe, since then browsers which don't support
+// that particular feature would ignore the entire merged qualified rule:
+//
+//   Input:
+//     a { color: red }
+//     b { color: red }
+//     input::-moz-placeholder { color: red }
+//
+//   Valid output:
+//     a, b { color: red }
+//     input::-moz-placeholder { color: red }
+//
+//   Invalid output:
+//     a, b, input::-moz-placeholder { color: red }
+//
+// This considers IE 7 and above to be a browser that a user could possibly use.
+// Versions of IE less than 6 are not considered.
+func isSafeSelectors(complexSelectors []css_ast.ComplexSelector) bool {
+	for _, complex := range complexSelectors {
+		for _, compound := range complex.Selectors {
+			if compound.HasNestPrefix {
+				// Bail because this is an extension: https://drafts.csswg.org/css-nesting-1/
+				return false
+			}
+
+			if compound.Combinator != "" {
+				// "Before Internet Explorer 10, the combinator only works in standards mode"
+				// Reference: https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors
+				return false
+			}
+
+			if compound.TypeSelector != nil {
+				if compound.TypeSelector.NamespacePrefix != nil {
+					// Bail if we hit a namespace, which doesn't work in IE before version 9
+					// Reference: https://developer.mozilla.org/en-US/docs/Web/CSS/Type_selectors
+					return false
+				}
+
+				if compound.TypeSelector.Name.Kind == css_lexer.TIdent && !nonDeprecatedElementsSupportedByIE7[compound.TypeSelector.Name.Text] {
+					// Bail if this element is either deprecated or not supported in IE 7
+					return false
+				}
+			}
+
+			for _, ss := range compound.SubclassSelectors {
+				switch s := ss.(type) {
+				case *css_ast.SSAttribute:
+					if s.MatcherModifier != 0 {
+						// Bail if we hit a case modifier, which doesn't work in IE at all
+						// Reference: https://developer.mozilla.org/en-US/docs/Web/CSS/Attribute_selectors
+						return false
+					}
+
+				case *css_ast.SSPseudoClass:
+					// Bail if this pseudo class doesn't match a hard-coded list that's
+					// known to work everywhere. For example, ":focus" doesn't work in IE 7.
+					// Reference: https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-classes
+					if s.Args == nil && !s.IsElement {
+						switch s.Name {
+						case "active", "first-child", "hover", "link", "visited":
+							continue
+						}
+					}
+					return false
+				}
+			}
+		}
+	}
+	return true
 }
 
 func (p *parser) parseURLOrString() (string, logger.Range, bool) {

@@ -1480,6 +1480,24 @@ func TestMangleDuplicateSelectorRules(t *testing.T) {
 	expectPrintedMangle(t, "a { color: red; color: red } b { color: red }", "a,\nb {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a { color: red } b { color: red; color: red }", "a,\nb {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a { color: red } b { color: blue }", "a {\n  color: red;\n}\nb {\n  color: #00f;\n}\n")
+
+	// Do not merge duplicates if they are "unsafe"
+	expectPrintedMangle(t, "a { color: red } unknown { color: red }", "a {\n  color: red;\n}\nunknown {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "unknown { color: red } a { color: red }", "unknown {\n  color: red;\n}\na {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } video { color: red }", "a {\n  color: red;\n}\nvideo {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "video { color: red } a { color: red }", "video {\n  color: red;\n}\na {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } a:last-child { color: red }", "a {\n  color: red;\n}\na:last-child {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } a[b=c i] { color: red }", "a {\n  color: red;\n}\na[b=c i] {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } & { color: red }", "a {\n  color: red;\n}\n& {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } a + b { color: red }", "a {\n  color: red;\n}\na + b {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } a|b { color: red }", "a {\n  color: red;\n}\na|b {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } a::hover { color: red }", "a {\n  color: red;\n}\na::hover {\n  color: red;\n}\n")
+
+	// Still merge duplicates if they are "safe"
+	expectPrintedMangle(t, "a { color: red } a:hover { color: red }", "a,\na:hover {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } a[b=c] { color: red }", "a,\na[b=c] {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } a#id { color: red }", "a,\na#id {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } a.cls { color: red }", "a,\na.cls {\n  color: red;\n}\n")
 }
 
 func TestFontWeight(t *testing.T) {

@@ -115,8 +115,8 @@ function mergeVersions(target, res) {
   const highestVersionMap = versions[target] || (versions[target] = {})
   for (const engine in lowestVersionMap) {
     const version = lowestVersionMap[engine]
-    if (!highestVersionMap[engine] || compareVersions({ version }, { version: highestVersionMap[engine] }) > 0) {
-      highestVersionMap[engine] = version
+    if (!highestVersionMap[engine] || compareVersions({ version }, { version: highestVersionMap[engine][0].start }) > 0) {
+      highestVersionMap[engine] = [{ start: version, end: null }]
     }
   }
 }
@@ -196,9 +196,20 @@ mergeVersions('DynamicImport', {
   edge79: true,
   firefox67: true,
   ios11: true,
-  node13_2: true, // From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import
   safari11_1: true,
 })
+
+// This is a special case. Node added support for it to both v12.20+ and v13.2+
+// so the range is inconveniently discontiguous. Sources:
+//
+// - https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import
+// - https://github.com/nodejs/node/pull/35950
+// - https://github.com/nodejs/node/pull/31974
+//
+versions.DynamicImport.node = [
+  { start: [12, 20], end: [13] },
+  { start: [13, 2] },
+]
 
 mergeVersions('ArbitraryModuleNamespaceNames', {
   // From https://github.com/tc39/ecma262/pull/2154#issuecomment-825201030
@@ -274,7 +285,13 @@ function writeInnerMap(obj) {
   const keys = Object.keys(obj).sort()
   const maxLength = keys.reduce((a, b) => Math.max(a, b.length + 1), 0)
   if (keys.length === 0) return '{}'
-  return `{\n${keys.map(x => `\t\t${(upper(x) + ':').padEnd(maxLength)} {${obj[x].join(', ')}},`).join('\n')}\n\t}`
+  return `{\n${keys.map(x => {
+    const items = obj[x].map(y => {
+      return `{start: v{${y.start.concat(0, 0).slice(0, 3).join(', ')
+        }}${y.end ? `, end: v{${y.end.concat(0, 0).slice(0, 3).join(', ')}}` : ''}}`
+    })
+    return `\t\t${(upper(x) + ':').padEnd(maxLength)} {${items.join(', ')}},`
+  }).join('\n')}\n\t}`
 }
 
 fs.writeFileSync(__dirname + '/../internal/compat/js_table.go',
@@ -305,27 +322,15 @@ func (features JSFeature) Has(feature JSFeature) bool {
 \treturn (features & feature) != 0
 }
 
-var jsTable = map[JSFeature]map[Engine][]int{
+var jsTable = map[JSFeature]map[Engine][]versionRange{
 ${Object.keys(versions).sort().map(x => `\t${x}: ${writeInnerMap(versions[x])},`).join('\n')}
-}
-
-func isVersionLessThan(a []int, b []int) bool {
-\tfor i := 0; i < len(a) && i < len(b); i++ {
-\t\tif a[i] > b[i] {
-\t\t\treturn false
-\t\t}
-\t\tif a[i] < b[i] {
-\t\t\treturn true
-\t\t}
-\t}
-\treturn len(a) < len(b)
 }
 
 // Return all features that are not available in at least one environment
 func UnsupportedJSFeatures(constraints map[Engine][]int) (unsupported JSFeature) {
 \tfor feature, engines := range jsTable {
 \t\tfor engine, version := range constraints {
-\t\t\tif minVersion, ok := engines[engine]; !ok || isVersionLessThan(version, minVersion) {
+\t\t\tif versionRanges, ok := engines[engine]; !ok || !isVersionSupported(versionRanges, version) {
 \t\t\t\tunsupported |= feature
 \t\t\t}
 \t\t}
