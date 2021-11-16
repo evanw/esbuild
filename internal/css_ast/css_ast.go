@@ -213,6 +213,14 @@ func (t Token) IsOne() bool {
 	return t.Kind == css_lexer.TNumber && t.Text == "1"
 }
 
+func (t Token) IsAngle() bool {
+	if t.Kind == css_lexer.TDimension {
+		unit := t.DimensionUnit()
+		return unit == "deg" || unit == "grad" || unit == "rad" || unit == "turn"
+	}
+	return false
+}
+
 type Rule struct {
 	Loc  logger.Loc
 	Data R

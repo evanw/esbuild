@@ -37,6 +37,24 @@
 
     With this release, esbuild will now only merge adjacent duplicate rules together if they are known to work in all browsers (specifically, if they are known to work in IE 7 and up). Adjacent duplicate rules will no longer be merged in all other cases including modern pseudo-class selectors such as `:focus`, HTML5 elements such as `video`, and combinators such as `a + b`.
 
+* Minify syntax in the CSS `font`, `font-family`, and `font-weight` properties ([#1756](https://github.com/evanw/esbuild/pull/1756))
+
+    This release includes size reductions for CSS font syntax when minification is enabled:
+
+    ```css
+    /* Original code */
+    div {
+      font: bold 1rem / 1.2 "Segoe UI", sans-serif, "Segoe UI Emoji";
+    }
+
+    /* Output with "--minify" */
+    div{font:700 1rem/1.2 Segoe UI,sans-serif,"Segoe UI Emoji"}
+    ```
+
+    Notice how `bold` has been changed to `700` and the quotes were removed around `"Segoe UI"` since it was safe to do so.
+
+    This feature was contributed by [@sapphi-red](https://github.com/sapphi-red).
+
 ## 0.13.13
 
 * Add more information about skipping `"main"` in `package.json` ([#1754](https://github.com/evanw/esbuild/issues/1754))
