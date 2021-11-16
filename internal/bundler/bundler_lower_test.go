@@ -1214,6 +1214,186 @@ func TestLowerStaticSuperES2016NoBundle(t *testing.T) {
 	})
 }
 
+func TestLowerAsyncArrowSuperES2016(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export { default as foo1 } from "./foo1"
+				export { default as foo2 } from "./foo2"
+				export { default as foo3 } from "./foo3"
+				export { default as foo4 } from "./foo4"
+				export { default as bar1 } from "./bar1"
+				export { default as bar2 } from "./bar2"
+				export { default as bar3 } from "./bar3"
+				export { default as bar4 } from "./bar4"
+				export { default as baz1 } from "./baz1"
+				export { default as baz2 } from "./baz2"
+				import "./outer"
+			`,
+			"/foo1.js": `export default class extends x { foo1() { return async () => super.foo('foo1') } }`,
+			"/foo2.js": `export default class extends x { foo2() { return async () => () => super.foo('foo2') } }`,
+			"/foo3.js": `export default class extends x { foo3() { return () => async () => super.foo('foo3') } }`,
+			"/foo4.js": `export default class extends x { foo4() { return async () => async () => super.foo('foo4') } }`,
+			"/bar1.js": `export default class extends x { bar1 = async () => super.foo('bar1') }`,
+			"/bar2.js": `export default class extends x { bar2 = async () => () => super.foo('bar2') }`,
+			"/bar3.js": `export default class extends x { bar3 = () => async () => super.foo('bar3') }`,
+			"/bar4.js": `export default class extends x { bar4 = async () => async () => super.foo('bar4') }`,
+			"/baz1.js": `export default class extends x { async baz1() { return () => super.foo('baz1') } }`,
+			"/baz2.js": `export default class extends x { async baz2() { return () => () => super.foo('baz2') } }`,
+			"/outer.js": `
+				// Helper functions for "super" shouldn't be inserted into this outer function
+				export default (async function () {
+					class y extends z {
+						foo = async () => super.foo()
+					}
+					await new y().foo()()
+				})()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestLowerAsyncArrowSuperSetterES2016(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export { default as foo1 } from "./foo1"
+				export { default as foo2 } from "./foo2"
+				export { default as foo3 } from "./foo3"
+				export { default as foo4 } from "./foo4"
+				export { default as bar1 } from "./bar1"
+				export { default as bar2 } from "./bar2"
+				export { default as bar3 } from "./bar3"
+				export { default as bar4 } from "./bar4"
+				export { default as baz1 } from "./baz1"
+				export { default as baz2 } from "./baz2"
+				import "./outer"
+			`,
+			"/foo1.js": `export default class extends x { foo1() { return async () => super.foo = 'foo1' } }`,
+			"/foo2.js": `export default class extends x { foo2() { return async () => () => super.foo = 'foo2' } }`,
+			"/foo3.js": `export default class extends x { foo3() { return () => async () => super.foo = 'foo3' } }`,
+			"/foo4.js": `export default class extends x { foo4() { return async () => async () => super.foo = 'foo4' } }`,
+			"/bar1.js": `export default class extends x { bar1 = async () => super.foo = 'bar1' }`,
+			"/bar2.js": `export default class extends x { bar2 = async () => () => super.foo = 'bar2' }`,
+			"/bar3.js": `export default class extends x { bar3 = () => async () => super.foo = 'bar3' }`,
+			"/bar4.js": `export default class extends x { bar4 = async () => async () => super.foo = 'bar4' }`,
+			"/baz1.js": `export default class extends x { async baz1() { return () => super.foo = 'baz1' } }`,
+			"/baz2.js": `export default class extends x { async baz2() { return () => () => super.foo = 'baz2' } }`,
+			"/outer.js": `
+				// Helper functions for "super" shouldn't be inserted into this outer function
+				export default (async function () {
+					class y extends z {
+						foo = async () => super.foo = 'foo'
+					}
+					await new y().foo()()
+				})()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestLowerStaticAsyncArrowSuperES2016(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export { default as foo1 } from "./foo1"
+				export { default as foo2 } from "./foo2"
+				export { default as foo3 } from "./foo3"
+				export { default as foo4 } from "./foo4"
+				export { default as bar1 } from "./bar1"
+				export { default as bar2 } from "./bar2"
+				export { default as bar3 } from "./bar3"
+				export { default as bar4 } from "./bar4"
+				export { default as baz1 } from "./baz1"
+				export { default as baz2 } from "./baz2"
+				import "./outer"
+			`,
+			"/foo1.js": `export default class extends x { static foo1() { return async () => super.foo('foo1') } }`,
+			"/foo2.js": `export default class extends x { static foo2() { return async () => () => super.foo('foo2') } }`,
+			"/foo3.js": `export default class extends x { static foo3() { return () => async () => super.foo('foo3') } }`,
+			"/foo4.js": `export default class extends x { static foo4() { return async () => async () => super.foo('foo4') } }`,
+			"/bar1.js": `export default class extends x { static bar1 = async () => super.foo('bar1') }`,
+			"/bar2.js": `export default class extends x { static bar2 = async () => () => super.foo('bar2') }`,
+			"/bar3.js": `export default class extends x { static bar3 = () => async () => super.foo('bar3') }`,
+			"/bar4.js": `export default class extends x { static bar4 = async () => async () => super.foo('bar4') }`,
+			"/baz1.js": `export default class extends x { static async baz1() { return () => super.foo('baz1') } }`,
+			"/baz2.js": `export default class extends x { static async baz2() { return () => () => super.foo('baz2') } }`,
+			"/outer.js": `
+				// Helper functions for "super" shouldn't be inserted into this outer function
+				export default (async function () {
+					class y extends z {
+						static foo = async () => super.foo()
+					}
+					await y.foo()()
+				})()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestLowerStaticAsyncArrowSuperSetterES2016(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export { default as foo1 } from "./foo1"
+				export { default as foo2 } from "./foo2"
+				export { default as foo3 } from "./foo3"
+				export { default as foo4 } from "./foo4"
+				export { default as bar1 } from "./bar1"
+				export { default as bar2 } from "./bar2"
+				export { default as bar3 } from "./bar3"
+				export { default as bar4 } from "./bar4"
+				export { default as baz1 } from "./baz1"
+				export { default as baz2 } from "./baz2"
+				import "./outer"
+			`,
+			"/foo1.js": `export default class extends x { static foo1() { return async () => super.foo = 'foo1' } }`,
+			"/foo2.js": `export default class extends x { static foo2() { return async () => () => super.foo = 'foo2' } }`,
+			"/foo3.js": `export default class extends x { static foo3() { return () => async () => super.foo = 'foo3' } }`,
+			"/foo4.js": `export default class extends x { static foo4() { return async () => async () => super.foo = 'foo4' } }`,
+			"/bar1.js": `export default class extends x { static bar1 = async () => super.foo = 'bar1' }`,
+			"/bar2.js": `export default class extends x { static bar2 = async () => () => super.foo = 'bar2' }`,
+			"/bar3.js": `export default class extends x { static bar3 = () => async () => super.foo = 'bar3' }`,
+			"/bar4.js": `export default class extends x { static bar4 = async () => async () => super.foo = 'bar4' }`,
+			"/baz1.js": `export default class extends x { static async baz1() { return () => super.foo = 'baz1' } }`,
+			"/baz2.js": `export default class extends x { static async baz2() { return () => () => super.foo = 'baz2' } }`,
+			"/outer.js": `
+				// Helper functions for "super" shouldn't be inserted into this outer function
+				export default (async function () {
+					class y extends z {
+						static foo = async () => super.foo = 'foo'
+					}
+					await y.foo()()
+				})()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
 func TestLowerClassField2020NoBundle(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{

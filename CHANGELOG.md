@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+* Fix `super` in lowered `async` arrow functions ([#1777](https://github.com/evanw/esbuild/issues/1777))
+
+    This release fixes an edge case that was missed when lowering `async` arrow functions containing `super` property accesses for compile targets that don't support `async` such as with `--target=es6`. The problem was that lowering transforms `async` arrow functions into generator function expressions that are then passed to an esbuild helper function called `__async` that implements the `async` state machine behavior. Since function expressions do not capture `this` and `super` like arrow functions do, this led to a mismatch in behavior which meant that the transform was incorrect. The fix is to introduce a helper function to forward `super` access into the generator function expression body. Here's an example:
+
+    ```js
+    // Original code
+    class Foo extends Bar {
+      foo() { return async () => super.bar() }
+    }
+
+    // Old output (with --target=es6)
+    class Foo extends Bar {
+      foo() {
+        return () => __async(this, null, function* () {
+          return super.bar();
+        });
+      }
+    }
+
+    // New output (with --target=es6)
+    class Foo extends Bar {
+      foo() {
+        return () => {
+          var __superGet = (key) => super[key];
+          return __async(this, null, function* () {
+            return __superGet("bar").call(this);
+          });
+        };
+      }
+    }
+    ```
+
 ## 0.13.14
 
 * Fix dynamic `import()` on node 12.20+ ([#1772](https://github.com/evanw/esbuild/issues/1772))

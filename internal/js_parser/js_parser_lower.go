@@ -245,6 +245,7 @@ func (p *parser) lowerFunction(
 	preferExpr *bool,
 	hasRestArg *bool,
 	isArrow bool,
+	superHelpers *superHelpers,
 ) {
 	// Lower object rest binding patterns in function arguments
 	if p.options.unsupportedJSFeatures.Has(compat.ObjectRestSpread) {
@@ -444,65 +445,67 @@ func (p *parser) lowerFunction(
 
 		// Prepend the "super" index functions if necessary
 		var bodyStmtList []js_ast.Stmt
-		if p.fnOnlyDataVisit.superGetRef != nil {
-			keyRef := p.newSymbol(js_ast.SymbolOther, "key")
-			p.currentScope.Generated = append(p.currentScope.Generated, *p.fnOnlyDataVisit.superGetRef, keyRef)
-			superGetStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SLocal{
-				Decls: []js_ast.Decl{{
-					Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: *p.fnOnlyDataVisit.superGetRef}},
-					ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArrow{
-						Args: []js_ast.Arg{
-							{Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: keyRef}}},
-						},
-						Body: js_ast.FnBody{
-							Loc: bodyLoc,
-							Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
-								ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
-									Target: js_ast.Expr{Loc: bodyLoc, Data: js_ast.ESuperShared},
-									Index:  js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: keyRef}},
-								}},
-							}}},
-						},
-						PreferExpr: true,
-					}},
-				}},
-			}}
-			p.recordUsage(keyRef)
-			bodyStmtList = append(bodyStmtList, superGetStmt)
-		}
-		if p.fnOnlyDataVisit.superSetRef != nil {
-			keyRef := p.newSymbol(js_ast.SymbolOther, "key")
-			valueRef := p.newSymbol(js_ast.SymbolOther, "value")
-			p.currentScope.Generated = append(p.currentScope.Generated, *p.fnOnlyDataVisit.superSetRef, keyRef)
-			p.currentScope.Generated = append(p.currentScope.Generated, *p.fnOnlyDataVisit.superSetRef, valueRef)
-			superSetStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SLocal{
-				Decls: []js_ast.Decl{{
-					Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: *p.fnOnlyDataVisit.superSetRef}},
-					ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArrow{
-						Args: []js_ast.Arg{
-							{Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: keyRef}}},
-							{Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: valueRef}}},
-						},
-						Body: js_ast.FnBody{
-							Loc: bodyLoc,
-							Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
-								ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EBinary{
-									Op: js_ast.BinOpAssign,
-									Left: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
+		if superHelpers != nil {
+			if superHelpers.getRef != js_ast.InvalidRef {
+				keyRef := p.newSymbol(js_ast.SymbolOther, "key")
+				p.currentScope.Generated = append(p.currentScope.Generated, superHelpers.getRef, keyRef)
+				superGetStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SLocal{
+					Decls: []js_ast.Decl{{
+						Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: superHelpers.getRef}},
+						ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArrow{
+							Args: []js_ast.Arg{
+								{Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: keyRef}}},
+							},
+							Body: js_ast.FnBody{
+								Loc: bodyLoc,
+								Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
+									ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
 										Target: js_ast.Expr{Loc: bodyLoc, Data: js_ast.ESuperShared},
 										Index:  js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: keyRef}},
 									}},
-									Right: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: valueRef}},
-								}},
-							}}},
-						},
-						PreferExpr: true,
+								}}},
+							},
+							PreferExpr: true,
+						}},
 					}},
-				}},
-			}}
-			p.recordUsage(keyRef)
-			p.recordUsage(valueRef)
-			bodyStmtList = append(bodyStmtList, superSetStmt)
+				}}
+				p.recordUsage(keyRef)
+				bodyStmtList = append(bodyStmtList, superGetStmt)
+			}
+			if superHelpers.setRef != js_ast.InvalidRef {
+				keyRef := p.newSymbol(js_ast.SymbolOther, "key")
+				valueRef := p.newSymbol(js_ast.SymbolOther, "value")
+				p.currentScope.Generated = append(p.currentScope.Generated, superHelpers.setRef, keyRef)
+				p.currentScope.Generated = append(p.currentScope.Generated, superHelpers.setRef, valueRef)
+				superSetStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SLocal{
+					Decls: []js_ast.Decl{{
+						Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: superHelpers.setRef}},
+						ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArrow{
+							Args: []js_ast.Arg{
+								{Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: keyRef}}},
+								{Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: valueRef}}},
+							},
+							Body: js_ast.FnBody{
+								Loc: bodyLoc,
+								Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
+									ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EBinary{
+										Op: js_ast.BinOpAssign,
+										Left: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
+											Target: js_ast.Expr{Loc: bodyLoc, Data: js_ast.ESuperShared},
+											Index:  js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: keyRef}},
+										}},
+										Right: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: valueRef}},
+									}},
+								}}},
+							},
+							PreferExpr: true,
+						}},
+					}},
+				}}
+				p.recordUsage(keyRef)
+				p.recordUsage(valueRef)
+				bodyStmtList = append(bodyStmtList, superSetStmt)
+			}
 		}
 		*bodyStmts = append(bodyStmtList, returnStmt)
 	}
@@ -2819,7 +2822,7 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 }
 
 func (p *parser) shouldLowerSuperPropertyAccess(expr js_ast.Expr) bool {
-	if p.fnOnlyDataVisit.shouldLowerSuper {
+	if p.fnOrArrowDataVisit.shouldLowerSuper {
 		_, isSuper := expr.Data.(*js_ast.ESuper)
 		return isSuper
 	}
@@ -2827,19 +2830,19 @@ func (p *parser) shouldLowerSuperPropertyAccess(expr js_ast.Expr) bool {
 }
 
 func (p *parser) ensureSuperGet() {
-	if p.fnOnlyDataVisit.superGetRef == nil {
-		ref := p.newSymbol(js_ast.SymbolOther, "__superGet")
-		p.fnOnlyDataVisit.superGetRef = &ref
+	ref := &p.fnOnlyDataVisit.superHelpers.getRef
+	if *ref == js_ast.InvalidRef {
+		*ref = p.newSymbol(js_ast.SymbolOther, "__superGet")
 	}
-	p.recordUsage(*p.fnOnlyDataVisit.superGetRef)
+	p.recordUsage(*ref)
 }
 
 func (p *parser) ensureSuperSet() {
-	if p.fnOnlyDataVisit.superSetRef == nil {
-		ref := p.newSymbol(js_ast.SymbolOther, "__superSet")
-		p.fnOnlyDataVisit.superSetRef = &ref
+	ref := &p.fnOnlyDataVisit.superHelpers.setRef
+	if *ref == js_ast.InvalidRef {
+		*ref = p.newSymbol(js_ast.SymbolOther, "__superSet")
 	}
-	p.recordUsage(*p.fnOnlyDataVisit.superSetRef)
+	p.recordUsage(*ref)
 }
 
 func (p *parser) callSuperPropertyWrapper(loc logger.Loc, property js_ast.Expr, includeGet bool) js_ast.Expr {
@@ -2856,12 +2859,12 @@ func (p *parser) callSuperPropertyWrapper(loc logger.Loc, property js_ast.Expr, 
 		superGet := js_ast.Expr{Loc: loc, Data: js_ast.ENullShared}
 		if includeGet {
 			p.ensureSuperGet()
-			superGet.Data = &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.superGetRef}
+			superGet.Data = &js_ast.EIdentifier{Ref: p.fnOnlyDataVisit.superHelpers.getRef}
 		}
 
 		// All uses of the wrapper need to write
 		p.ensureSuperSet()
-		superSet := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.superSetRef}}
+		superSet := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.fnOnlyDataVisit.superHelpers.setRef}}
 
 		result = p.callRuntime(loc, "__superWrapper", []js_ast.Expr{
 			superGet,
@@ -2886,7 +2889,7 @@ func (p *parser) lowerSuperPropertyGet(loc logger.Loc, key js_ast.Expr) js_ast.E
 	// "super[foo]" => "__superGet(foo)"
 	p.ensureSuperGet()
 	return js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
-		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.superGetRef}},
+		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.fnOnlyDataVisit.superHelpers.getRef}},
 		Args:   []js_ast.Expr{key},
 	}}
 }
@@ -2905,7 +2908,7 @@ func (p *parser) lowerSuperPropertySet(loc logger.Loc, key js_ast.Expr, value js
 	// "super[foo] = bar" => "__superSet(foo, bar)"
 	p.ensureSuperSet()
 	return js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
-		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.superSetRef}},
+		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.fnOnlyDataVisit.superHelpers.setRef}},
 		Args:   []js_ast.Expr{key, value},
 	}}
 }

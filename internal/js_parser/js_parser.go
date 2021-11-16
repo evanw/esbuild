@@ -500,6 +500,7 @@ type fnOrArrowDataVisit struct {
 	isInsideLoop       bool
 	isInsideSwitch     bool
 	isOutsideFnOrArrow bool
+	shouldLowerSuper   bool
 
 	// This is used to silence unresolvable imports due to "require" calls inside
 	// a try/catch statement. The assumption is that the try/catch statement is
@@ -507,13 +508,19 @@ type fnOrArrowDataVisit struct {
 	tryBodyCount int
 }
 
+type superHelpers struct {
+	getRef js_ast.Ref
+	setRef js_ast.Ref
+}
+
 // This is function-specific information used during visiting. It is saved and
 // restored on the call stack around code that parses nested functions (but not
 // nested arrow functions).
 type fnOnlyDataVisit struct {
-	superGetRef      *js_ast.Ref
-	superSetRef      *js_ast.Ref
-	shouldLowerSuper bool
+	// These helpers are necessary to forward access to "super" into lowered
+	// async functions. Lowering transforms async functions into generator
+	// functions, which no longer have direct access to "super".
+	superHelpers *superHelpers
 
 	// This is a reference to the magic "arguments" variable that exists inside
 	// functions in JavaScript. It will be non-nil inside functions and nil
@@ -9803,7 +9810,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
 
 				// Need to lower "super" since it won't be valid outside the class body
-				p.fnOnlyDataVisit.shouldLowerSuper = true
+				p.fnOrArrowDataVisit.shouldLowerSuper = true
 			}
 
 			p.pushScopeForVisitPass(js_ast.ScopeClassStaticInit, property.ClassStaticBlock.Loc)
@@ -9861,13 +9868,14 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		// Make it an error to use "arguments" in a class body
 		p.currentScope.ForbidArguments = true
 
-		// The value of "this" is shadowed inside property values
+		// The value of "this" and "super" is shadowed inside property values
 		oldIsThisCaptured := p.fnOnlyDataVisit.isThisNested
 		oldThis := p.fnOnlyDataVisit.thisClassStaticRef
-		oldShouldLowerSuper := p.fnOnlyDataVisit.shouldLowerSuper
+		oldShouldLowerSuper := p.fnOrArrowDataVisit.shouldLowerSuper
 		p.fnOnlyDataVisit.isThisNested = true
 		p.fnOnlyDataVisit.isNewTargetAllowed = true
 		p.fnOnlyDataVisit.thisClassStaticRef = nil
+		p.fnOnlyDataVisit.superHelpers = nil
 
 		// We need to explicitly assign the name to the property initializer if it
 		// will be transformed such that it is no longer an inline initializer.
@@ -9897,7 +9905,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
 
 				// Need to lower "super" since it won't be valid outside the class body
-				p.fnOnlyDataVisit.shouldLowerSuper = true
+				p.fnOrArrowDataVisit.shouldLowerSuper = true
 			}
 			if nameToKeep != "" {
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.InitializerOrNil)
@@ -9910,7 +9918,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		// Restore "this" so it will take the inherited value in property keys
 		p.fnOnlyDataVisit.thisClassStaticRef = oldThis
 		p.fnOnlyDataVisit.isThisNested = oldIsThisCaptured
-		p.fnOnlyDataVisit.shouldLowerSuper = oldShouldLowerSuper
+		p.fnOrArrowDataVisit.shouldLowerSuper = oldShouldLowerSuper
 
 		// Restore the ability to use "arguments" in decorators and computed properties
 		p.currentScope.ForbidArguments = false
@@ -12634,10 +12642,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EArrow:
+		asyncArrowNeedsToBeLowered := e.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait)
 		oldFnOrArrowData := p.fnOrArrowDataVisit
 		p.fnOrArrowDataVisit = fnOrArrowDataVisit{
-			isArrow: true,
-			isAsync: e.IsAsync,
+			isArrow:          true,
+			isAsync:          e.IsAsync,
+			shouldLowerSuper: oldFnOrArrowData.shouldLowerSuper || asyncArrowNeedsToBeLowered,
 		}
 
 		// Mark if we're inside an async arrow function. This value should be true
@@ -12649,6 +12659,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			p.fnOnlyDataVisit.isInsideAsyncArrowFn = true
 		}
 
+		// If this function is "async" and we need to lower it, also lower any
+		// "super" property accesses within this function. This object will be
+		// populated if "super" is used, and then any necessary helper functions
+		// will be placed in the function body by "lowerFunction" below.
+		var superHelpersOrNil *superHelpers
+		if asyncArrowNeedsToBeLowered && p.fnOnlyDataVisit.superHelpers == nil {
+			superHelpersOrNil = &superHelpers{
+				getRef: js_ast.InvalidRef,
+				setRef: js_ast.InvalidRef,
+			}
+			p.fnOnlyDataVisit.superHelpers = superHelpersOrNil
+		}
+
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, expr.Loc)
 		p.visitArgs(e.Args, visitArgsOpts{
 			hasRestArg:               e.HasRestArg,
@@ -12658,8 +12681,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, e.Body.Loc)
 		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts, prependTempRefsOpts{kind: stmtsFnBody})
 		p.popScope()
-		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Stmts, &e.PreferExpr, &e.HasRestArg, true /* isArrow */)
+		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Stmts, &e.PreferExpr, &e.HasRestArg, true /* isArrow */, superHelpersOrNil)
 		p.popScope()
+
+		// If we intercepted "super" accesses above, clear out the helpers so they
+		// don't propagate into other function calls later on.
+		if superHelpersOrNil != nil {
+			p.fnOnlyDataVisit.superHelpers = nil
+		}
 
 		if p.options.mangleSyntax && len(e.Body.Stmts) == 1 {
 			if s, ok := e.Body.Stmts[0].Data.(*js_ast.SReturn); ok {
@@ -12875,14 +12904,25 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 	oldFnOrArrowData := p.fnOrArrowDataVisit
 	oldFnOnlyData := p.fnOnlyDataVisit
 	p.fnOrArrowDataVisit = fnOrArrowDataVisit{
-		isAsync:     fn.IsAsync,
-		isGenerator: fn.IsGenerator,
+		isAsync:          fn.IsAsync,
+		isGenerator:      fn.IsGenerator,
+		shouldLowerSuper: fn.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait),
 	}
 	p.fnOnlyDataVisit = fnOnlyDataVisit{
 		isThisNested:       true,
 		isNewTargetAllowed: true,
 		argumentsRef:       &fn.ArgumentsRef,
-		shouldLowerSuper:   fn.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait),
+	}
+
+	// If this function is "async" and we need to lower it, also lower any
+	// "super" property accesses within this function. This object will be
+	// populated if "super" is used, and then any necessary helper functions
+	// will be placed in the function body by "lowerFunction" below.
+	if p.fnOrArrowDataVisit.shouldLowerSuper {
+		p.fnOnlyDataVisit.superHelpers = &superHelpers{
+			getRef: js_ast.InvalidRef,
+			setRef: js_ast.InvalidRef,
+		}
 	}
 
 	if fn.Name != nil {
@@ -12901,7 +12941,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 	}
 	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts, prependTempRefsOpts{fnBodyLoc: &fn.Body.Loc, kind: stmtsFnBody})
 	p.popScope()
-	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil, &fn.HasRestArg, false /* isArrow */)
+	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil, &fn.HasRestArg, false /* isArrow */, p.fnOnlyDataVisit.superHelpers)
 	p.popScope()
 
 	p.fnOrArrowDataVisit = oldFnOrArrowData

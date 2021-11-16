@@ -4162,6 +4162,152 @@
         `,
       }, { async: true }),
       test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Handle "super" property accesses in async arrow functions
+        'in.js': `
+          exports.async = async () => {
+            const log = [];
+            class Base {
+              foo(x) { log.push(x) }
+            }
+            class Derived extends Base {
+              foo1() { return async () => super.foo('foo1') }
+              foo2() { return async () => () => super.foo('foo2') }
+              foo3() { return () => async () => super.foo('foo3') }
+              foo4() { return async () => async () => super.foo('foo4') }
+              bar1 = async () => super.foo('bar1')
+              bar2 = async () => () => super.foo('bar2')
+              bar3 = () => async () => super.foo('bar3')
+              bar4 = async () => async () => super.foo('bar4')
+              async baz1() { return () => super.foo('baz1') }
+              async baz2() { return () => () => super.foo('baz2') }
+            }
+            const derived = new Derived;
+            await derived.foo1()();
+            (await derived.foo2()())();
+            await derived.foo3()()();
+            await (await derived.foo4()())();
+            await derived.bar1();
+            (await derived.bar2())();
+            await derived.bar3()();
+            await (await derived.bar4())();
+            (await derived.baz1())();
+            (await derived.baz2())()();
+            const observed = log.join(',');
+            const expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            if (observed !== expected) throw 'fail: ' + observed + ' != ' + expected;
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Handle "super" property writes in async arrow functions
+        'in.js': `
+          exports.async = async () => {
+            const log = [];
+            class Base {
+              set foo(x) { log.push(x) }
+            }
+            class Derived extends Base {
+              foo1() { return async () => super.foo = 'foo1' }
+              foo2() { return async () => () => super.foo = 'foo2' }
+              foo3() { return () => async () => super.foo = 'foo3' }
+              foo4() { return async () => async () => super.foo = 'foo4' }
+              bar1 = async () => super.foo = 'bar1'
+              bar2 = async () => () => super.foo = 'bar2'
+              bar3 = () => async () => super.foo = 'bar3'
+              bar4 = async () => async () => super.foo = 'bar4'
+              async baz1() { return () => super.foo = 'baz1' }
+              async baz2() { return () => () => super.foo = 'baz2' }
+            }
+            const derived = new Derived;
+            await derived.foo1()();
+            (await derived.foo2()())();
+            await derived.foo3()()();
+            await (await derived.foo4()())();
+            await derived.bar1();
+            (await derived.bar2())();
+            await derived.bar3()();
+            await (await derived.bar4())();
+            (await derived.baz1())();
+            (await derived.baz2())()();
+            const observed = log.join(',');
+            const expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            if (observed !== expected) throw 'fail: ' + observed + ' != ' + expected;
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Handle static "super" property accesses in async arrow functions
+        'in.js': `
+          exports.async = async () => {
+            const log = [];
+            class Base {
+              static foo(x) { log.push(x) }
+            }
+            class Derived extends Base {
+              static foo1() { return async () => super.foo('foo1') }
+              static foo2() { return async () => () => super.foo('foo2') }
+              static foo3() { return () => async () => super.foo('foo3') }
+              static foo4() { return async () => async () => super.foo('foo4') }
+              static bar1 = async () => super.foo('bar1')
+              static bar2 = async () => () => super.foo('bar2')
+              static bar3 = () => async () => super.foo('bar3')
+              static bar4 = async () => async () => super.foo('bar4')
+              static async baz1() { return () => super.foo('baz1') }
+              static async baz2() { return () => () => super.foo('baz2') }
+            }
+            await Derived.foo1()();
+            (await Derived.foo2()())();
+            await Derived.foo3()()();
+            await (await Derived.foo4()())();
+            await Derived.bar1();
+            (await Derived.bar2())();
+            await Derived.bar3()();
+            await (await Derived.bar4())();
+            (await Derived.baz1())();
+            (await Derived.baz2())()();
+            const observed = log.join(',');
+            const expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            if (observed !== expected) throw 'fail: ' + observed + ' != ' + expected;
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Handle static "super" property writes in async arrow functions
+        'in.js': `
+          exports.async = async () => {
+            const log = [];
+            class Base {
+              static set foo(x) { log.push(x) }
+            }
+            class Derived extends Base {
+              static foo1() { return async () => super.foo = 'foo1' }
+              static foo2() { return async () => () => super.foo = 'foo2' }
+              static foo3() { return () => async () => super.foo = 'foo3' }
+              static foo4() { return async () => async () => super.foo = 'foo4' }
+              static bar1 = async () => super.foo = 'bar1'
+              static bar2 = async () => () => super.foo = 'bar2'
+              static bar3 = () => async () => super.foo = 'bar3'
+              static bar4 = async () => async () => super.foo = 'bar4'
+              static async baz1() { return () => super.foo = 'baz1' }
+              static async baz2() { return () => () => super.foo = 'baz2' }
+            }
+            await Derived.foo1()();
+            (await Derived.foo2()())();
+            await Derived.foo3()()();
+            await (await Derived.foo4()())();
+            await Derived.bar1();
+            (await Derived.bar2())();
+            await Derived.bar3()();
+            await (await Derived.bar4())();
+            (await Derived.baz1())();
+            (await Derived.baz2())()();
+            const observed = log.join(',');
+            const expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            if (observed !== expected) throw 'fail: ' + observed + ' != ' + expected;
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
         // Test coverage for a TypeScript bug: https://github.com/microsoft/TypeScript/issues/46580
         'in.js': `
           class A {
