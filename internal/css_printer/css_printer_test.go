@@ -141,6 +141,7 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedMinify(t, "a { &b {} }", "a{&b{}}")
 	expectPrintedMinify(t, "a { & b {} }", "a{& b{}}")
 	expectPrintedMinify(t, "a { & :b {} }", "a{& :b{}}")
+	expectPrintedMinify(t, "& a & b & c {}", "& a & b & c{}")
 }
 
 func TestBadQualifiedRules(t *testing.T) {
