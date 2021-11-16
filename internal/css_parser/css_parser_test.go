@@ -1516,15 +1516,20 @@ func TestFontFamily(t *testing.T) {
 
 func TestFont(t *testing.T) {
 	expectPrintedMangle(t, "a { font: caption }", "a {\n  font: caption;\n}\n")
+	expectPrintedMangle(t, "a { font: normal 1px }", "a {\n  font: normal 1px;\n}\n")
+	expectPrintedMangle(t, "a { font: normal bold }", "a {\n  font: normal bold;\n}\n")
 	expectPrintedMangle(t, "a { font: 1rem 'aaa bbb' }", "a {\n  font: 1rem aaa bbb;\n}\n")
 	expectPrintedMangle(t, "a { font: 1rem/1.2 'aaa bbb' }", "a {\n  font: 1rem/1.2 aaa bbb;\n}\n")
-	expectPrintedMangle(t, "a { font: normal 1rem 'aaa bbb' }", "a {\n  font: 400 1rem aaa bbb;\n}\n")
-	expectPrintedMangle(t, "a { font: normal 1rem 'aaa bbb', serif }", "a {\n  font: 400 1rem aaa bbb, serif;\n}\n")
+	expectPrintedMangle(t, "a { font: normal 1rem 'aaa bbb' }", "a {\n  font: 1rem aaa bbb;\n}\n")
+	expectPrintedMangle(t, "a { font: normal 1rem 'aaa bbb', serif }", "a {\n  font: 1rem aaa bbb, serif;\n}\n")
 	expectPrintedMangle(t, "a { font: italic small-caps bold ultra-condensed 1rem/1.2 'aaa bbb' }", "a {\n  font: italic small-caps 700 ultra-condensed 1rem/1.2 aaa bbb;\n}\n")
+	expectPrintedMangle(t, "a { font: oblique 1px 'aaa bbb' }", "a {\n  font: oblique 1px aaa bbb;\n}\n")
+	expectPrintedMangle(t, "a { font: oblique 45deg 1px 'aaa bbb' }", "a {\n  font: oblique 45deg 1px aaa bbb;\n}\n")
 
 	expectPrintedMangle(t, "a { font: var(--var) 'aaa bbb' }", "a {\n  font: var(--var) \"aaa bbb\";\n}\n")
-	expectPrintedMangle(t, "a { font: normal var(--var) 'aaa bbb' }", "a {\n  font: 400 var(--var) \"aaa bbb\";\n}\n")
-	expectPrintedMangle(t, "a { font: normal 1rem var(--var), 'aaa bbb' }", "a {\n  font: 400 1rem var(--var), \"aaa bbb\";\n}\n")
+	expectPrintedMangle(t, "a { font: normal var(--var) 'aaa bbb' }", "a {\n  font: normal var(--var) \"aaa bbb\";\n}\n")
+	expectPrintedMangle(t, "a { font: normal 1rem var(--var), 'aaa bbb' }", "a {\n  font: normal 1rem var(--var), \"aaa bbb\";\n}\n")
 
+	expectPrintedMangleMinify(t, "a { font: italic small-caps bold ultra-condensed 1rem/1.2 'aaa bbb' }", "a{font:italic small-caps 700 ultra-condensed 1rem/1.2 aaa bbb}")
 	expectPrintedMangleMinify(t, "a { font: italic small-caps bold ultra-condensed 1rem / 1.2 'aaa bbb' }", "a{font:italic small-caps 700 ultra-condensed 1rem/1.2 aaa bbb}")
 }

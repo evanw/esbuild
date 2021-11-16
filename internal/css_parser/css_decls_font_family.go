@@ -32,24 +32,24 @@ var genericFamilyNames = map[string]bool{
 }
 
 // Specification: https://drafts.csswg.org/css-fonts/#font-family-prop
-func (p *parser) mangleFontFamily(tokens []css_ast.Token) []css_ast.Token {
+func (p *parser) mangleFontFamily(tokens []css_ast.Token) ([]css_ast.Token, bool) {
 	result, rest, ok := p.mangleFamilyNameOrGenericName(nil, tokens)
 	if !ok {
-		return tokens
+		return nil, false
 	}
 
 	for len(rest) > 0 && rest[0].Kind == css_lexer.TComma {
 		result, rest, ok = p.mangleFamilyNameOrGenericName(append(result, rest[0]), rest[1:])
 		if !ok {
-			return tokens
+			return nil, false
 		}
 	}
 
 	if len(rest) > 0 {
-		return tokens
+		return nil, false
 	}
 
-	return result
+	return result, true
 }
 
 func (p *parser) mangleFamilyNameOrGenericName(result []css_ast.Token, tokens []css_ast.Token) ([]css_ast.Token, []css_ast.Token, bool) {

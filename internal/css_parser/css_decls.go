@@ -130,7 +130,9 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) []css_ast.Rule {
 
 		case css_ast.DFontFamily:
 			if p.options.MangleSyntax {
-				decl.Value = p.mangleFontFamily(decl.Value)
+				if value, ok := p.mangleFontFamily(decl.Value); ok {
+					decl.Value = value
+				}
 			}
 
 		case css_ast.DFontWeight:
