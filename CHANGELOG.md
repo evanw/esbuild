@@ -10,6 +10,33 @@
 
     Up until now, esbuild used 13.2.0 as the lowest supported version number to avoid generating dynamic `import` expressions when targeting node versions that don't support it. But with this release, esbuild will now use the more accurate discontiguous version range in this case. This means dynamic `import` expressions can now be generated when targeting versions of node 12.20.0 up to but not including node 13.0.0.
 
+* Avoid merging certain qualified rules in CSS ([#1776](https://github.com/evanw/esbuild/issues/1776))
+
+    A change was introduced in the previous release to merge adjacent CSS rules that have the same content:
+
+    ```css
+    /* Original code */
+    a { color: red }
+    b { color: red }
+
+    /* Minified output */
+    a,b{color:red}
+    ```
+
+    However, that introduced a regression in cases where the browser considers one selector to be valid and the other selector to be invalid, such as in the following example:
+
+    ```css
+    /* This rule is valid, and is applied */
+    a { color: red }
+
+    /* This rule is invalid, and is ignored */
+    b:-x-invalid { color: red }
+    ```
+
+    Merging these two rules into one causes the browser to consider the entire merged rule to be invalid, which disables both rules. This is a change in behavior from the original code.
+
+    With this release, esbuild will now only merge adjacent duplicate rules together if they are known to work in all browsers (specifically, if they are known to work in IE 7 and up). Adjacent duplicate rules will no longer be merged in all other cases including modern pseudo-class selectors such as `:focus`, HTML5 elements such as `video`, and combinators such as `a + b`.
+
 ## 0.13.13
 
 * Add more information about skipping `"main"` in `package.json` ([#1754](https://github.com/evanw/esbuild/issues/1754))
