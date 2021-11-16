@@ -33,92 +33,92 @@ var genericFamilyNames = map[string]bool{
 
 // Specification: https://drafts.csswg.org/css-fonts/#font-family-prop
 func (p *parser) mangleFontFamily(tokens []css_ast.Token) []css_ast.Token {
-	splittedTokens, ok := getTokensSplittedByComma(tokens)
+	result, rest, ok := p.mangleFamilyNameOrGenericName(nil, tokens)
 	if !ok {
 		return tokens
 	}
 
-	newTokens := make([]css_ast.Token, 0, len(tokens))
-
-	for i, sToken := range splittedTokens {
-		if i > 0 {
-			newTokens = append(newTokens, p.commaToken())
-		}
-
-		ts, ok := turnIntoCustomIdents(sToken)
+	for len(rest) > 0 && rest[0].Kind == css_lexer.TComma {
+		result, rest, ok = p.mangleFamilyNameOrGenericName(append(result, rest[0]), rest[1:])
 		if !ok {
-			newTokens = append(newTokens, sToken...)
-			continue
+			return tokens
 		}
-
-		if !p.options.RemoveWhitespace {
-			ts[0].Whitespace |= css_ast.WhitespaceBefore
-		}
-		newTokens = append(newTokens, ts...)
 	}
 
-	return newTokens
+	if len(rest) > 0 {
+		return tokens
+	}
+
+	return result
 }
 
-func getTokensSplittedByComma(tokens []css_ast.Token) ([][]css_ast.Token, bool) {
-	result := make([][]css_ast.Token, 0)
+func (p *parser) mangleFamilyNameOrGenericName(result []css_ast.Token, tokens []css_ast.Token) ([]css_ast.Token, []css_ast.Token, bool) {
+	if len(tokens) > 0 {
+		t := tokens[0]
 
-	start := 0
-	for i := range tokens {
-		if tokens[i].Kind == css_lexer.TComma {
-			result = append(result, tokens[start:i])
-			start = i + 1
-			continue
+		// Handle <generic-family>
+		if t.Kind == css_lexer.TIdent && genericFamilyNames[t.Text] {
+			return append(result, t), tokens[1:], true
 		}
 
-		// var() and env() may include comma
-		if tokens[i].Kind == css_lexer.TFunction {
-			switch strings.ToLower(tokens[i].Text) {
-			case "var", "env":
-				return [][]css_ast.Token{}, false
+		// Handle <family-name>
+		if t.Kind == css_lexer.TString {
+			// "If a sequence of identifiers is given as a <family-name>, the computed
+			// value is the name converted to a string by joining all the identifiers
+			// in the sequence by single spaces."
+			//
+			// More information: https://mathiasbynens.be/notes/unquoted-font-family
+			names := strings.Split(t.Text, " ")
+			for _, name := range names {
+				if !isValidCustomIdent(name, genericFamilyNames) {
+					return append(result, t), tokens[1:], true
+				}
 			}
-		}
-	}
-	result = append(result, tokens[start:])
-	return result, true
-}
-
-func turnIntoCustomIdents(tokens []css_ast.Token) ([]css_ast.Token, bool) {
-	if len(tokens) != 1 || tokens[0].Kind != css_lexer.TString {
-		return []css_ast.Token{}, false
-	}
-
-	names := strings.Split(tokens[0].Text, " ")
-	newTokens := make([]css_ast.Token, 0, len(names))
-
-	for i, name := range names {
-		if !isValidCustomIdent(name, genericFamilyNames) {
-			return []css_ast.Token{}, false
+			for i, name := range names {
+				var whitespace css_ast.WhitespaceFlags
+				if i != 0 || !p.options.RemoveWhitespace {
+					whitespace = css_ast.WhitespaceBefore
+				}
+				result = append(result, css_ast.Token{
+					Kind:       css_lexer.TIdent,
+					Text:       name,
+					Whitespace: whitespace,
+				})
+			}
+			return result, tokens[1:], true
 		}
 
-		var whitespace css_ast.WhitespaceFlags
-		if i != 0 {
-			whitespace = css_ast.WhitespaceBefore
+		// "Font family names other than generic families must either be given
+		// quoted as <string>s, or unquoted as a sequence of one or more
+		// <custom-ident>."
+		if t.Kind == css_lexer.TIdent {
+			for {
+				if !isValidCustomIdent(t.Text, genericFamilyNames) {
+					return nil, nil, false
+				}
+				result = append(result, t)
+				tokens = tokens[1:]
+				if len(tokens) == 0 || tokens[0].Kind != css_lexer.TIdent {
+					break
+				}
+				t = tokens[0]
+			}
+			return result, tokens, true
 		}
-
-		newTokens = append(newTokens, css_ast.Token{
-			Kind:       css_lexer.TIdent,
-			Text:       name,
-			Whitespace: whitespace,
-		})
 	}
 
-	return newTokens, true
+	// Anything other than the cases listed above causes us to bail
+	return nil, nil, false
 }
 
 // Specification: https://drafts.csswg.org/css-values-4/#custom-idents
 func isValidCustomIdent(text string, predefinedKeywords map[string]bool) bool {
 	loweredText := strings.ToLower(text)
 
-	if _, ok := predefinedKeywords[loweredText]; ok {
+	if predefinedKeywords[loweredText] {
 		return false
 	}
-	if _, ok := wideKeywords[loweredText]; ok {
+	if wideKeywords[loweredText] {
 		return false
 	}
 	if loweredText == "default" {

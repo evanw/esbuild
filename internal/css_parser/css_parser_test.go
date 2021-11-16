@@ -1505,6 +1505,10 @@ func TestFontFamily(t *testing.T) {
 	expectPrintedMangle(t, "a {font-family: 'aaa  bbb', serif }", "a {\n  font-family: \"aaa  bbb\", serif;\n}\n")
 	expectPrintedMangle(t, "a {font-family: 'aaa serif' }", "a {\n  font-family: \"aaa serif\";\n}\n")
 	expectPrintedMangle(t, "a {font-family: 'aaa bbb', var(--var) }", "a {\n  font-family: \"aaa bbb\", var(--var);\n}\n")
+	expectPrintedMangle(t, "a {font-family: 'aaa bbb', }", "a {\n  font-family: \"aaa bbb\", ;\n}\n")
+	expectPrintedMangle(t, "a {font-family: , 'aaa bbb' }", "a {\n  font-family: , \"aaa bbb\";\n}\n")
+	expectPrintedMangle(t, "a {font-family: 'aaa',, 'bbb' }", "a {\n  font-family:\n    \"aaa\",,\n    \"bbb\";\n}\n")
+	expectPrintedMangle(t, "a {font-family: 'aaa bbb', x serif }", "a {\n  font-family: \"aaa bbb\", x serif;\n}\n")
 
 	expectPrintedMangleMinify(t, "a {font-family: 'aaa bbb', serif }", "a{font-family:aaa bbb,serif}")
 	expectPrintedMangleMinify(t, "a {font-family: 'aaa bbb', 'ccc ddd' }", "a{font-family:aaa bbb,ccc ddd}")
