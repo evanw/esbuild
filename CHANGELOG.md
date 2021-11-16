@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.14
 
 * Fix dynamic `import()` on node 12.20+ ([#1772](https://github.com/evanw/esbuild/issues/1772))
 
