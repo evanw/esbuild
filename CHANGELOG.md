@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* Minify syntax in the CSS `font`, `font-family`, `font-weight` property
+* Minify syntax in the CSS `font`, `font-family`, and `font-weight` properties ([#1756](https://github.com/evanw/esbuild/pull/1756))
 
     This release includes size reductions for CSS font syntax when minification is enabled:
 
@@ -12,14 +12,13 @@
       font: bold 1rem / 1.2 "Segoe UI", sans-serif, "Segoe UI Emoji";
     }
 
-    /* Output with "--minify-syntax" */
-    div {
-      font:
-        700 1rem / 1.2 Segoe UI,
-        sans-serif,
-        "Segoe UI Emoji";
-    }
+    /* Output with "--minify" */
+    div{font:700 1rem/1.2 Segoe UI,sans-serif,"Segoe UI Emoji"}
     ```
+
+    Notice how `bold` has been changed to `700` and the quotes were removed around `"Segoe UI"` since it was safe to do so.
+
+    This feature was contributed by [@sapphi-red](https://github.com/sapphi-red).
 
 ## 0.13.13
 
