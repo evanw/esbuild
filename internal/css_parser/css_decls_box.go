@@ -14,23 +14,23 @@ const (
 )
 
 type boxSide struct {
-	token  css_ast.Token
-	index  uint32
-	single bool
+	token         css_ast.Token
+	ruleIndex     uint32 // The index of the originating rule in the rules array
+	wasSingleRule bool   // True if the originating rule was just for this side
 }
 
 type boxTracker struct {
 	key       css_ast.D
 	keyText   string
-	allowAuto bool
+	allowAuto bool // If true, allow the "auto" keyword
 
 	sides     [4]boxSide
-	important bool
+	important bool // True if all active rules were flagged as "!important"
 }
 
 func (box *boxTracker) updateSide(rules []css_ast.Rule, side int, new boxSide) {
-	if old := box.sides[side]; old.token.Kind != css_lexer.TEndOfFile && (!new.single || old.single) {
-		rules[old.index] = css_ast.Rule{}
+	if old := box.sides[side]; old.token.Kind != css_lexer.TEndOfFile && (!new.wasSingleRule || old.wasSingleRule) {
+		rules[old.ruleIndex] = css_ast.Rule{}
 	}
 	box.sides[side] = new
 }
@@ -49,7 +49,10 @@ func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclarat
 	if quad, ok := expandTokenQuad(decl.Value, allowedIdent); ok {
 		for side, t := range quad {
 			t.TurnLengthIntoNumberIfZero()
-			box.updateSide(rules, side, boxSide{token: t, index: uint32(index)})
+			box.updateSide(rules, side, boxSide{
+				token:     t,
+				ruleIndex: uint32(index),
+			})
 		}
 		box.compactRules(rules, decl.KeyRange, removeWhitespace)
 	} else {
@@ -69,7 +72,11 @@ func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclarati
 			if t.TurnLengthIntoNumberIfZero() {
 				tokens[0] = t
 			}
-			box.updateSide(rules, side, boxSide{token: t, index: uint32(index), single: true})
+			box.updateSide(rules, side, boxSide{
+				token:         t,
+				ruleIndex:     uint32(index),
+				wasSingleRule: true,
+			})
 			box.compactRules(rules, decl.KeyRange, removeWhitespace)
 			return
 		}
@@ -95,13 +102,13 @@ func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range,
 	)
 
 	// Remove all of the existing declarations
-	rules[box.sides[0].index] = css_ast.Rule{}
-	rules[box.sides[1].index] = css_ast.Rule{}
-	rules[box.sides[2].index] = css_ast.Rule{}
-	rules[box.sides[3].index] = css_ast.Rule{}
+	rules[box.sides[0].ruleIndex] = css_ast.Rule{}
+	rules[box.sides[1].ruleIndex] = css_ast.Rule{}
+	rules[box.sides[2].ruleIndex] = css_ast.Rule{}
+	rules[box.sides[3].ruleIndex] = css_ast.Rule{}
 
 	// Insert the combined declaration where the last rule was
-	rules[box.sides[3].index].Data = &css_ast.RDeclaration{
+	rules[box.sides[3].ruleIndex].Data = &css_ast.RDeclaration{
 		Key:       box.key,
 		KeyText:   box.keyText,
 		Value:     tokens,

@@ -14,20 +14,20 @@ const (
 )
 
 type borderRadiusCorner struct {
-	firstToken  css_ast.Token
-	secondToken css_ast.Token
-	index       uint32
-	single      bool
+	firstToken    css_ast.Token
+	secondToken   css_ast.Token
+	ruleIndex     uint32 // The index of the originating rule in the rules array
+	wasSingleRule bool   // True if the originating rule was just for this side
 }
 
 type borderRadiusTracker struct {
 	corners   [4]borderRadiusCorner
-	important bool
+	important bool // True if all active rules were flagged as "!important"
 }
 
 func (borderRadius *borderRadiusTracker) updateCorner(rules []css_ast.Rule, corner int, new borderRadiusCorner) {
-	if old := borderRadius.corners[corner]; old.firstToken.Kind != css_lexer.TEndOfFile && (!new.single || old.single) {
-		rules[old.index] = css_ast.Rule{}
+	if old := borderRadius.corners[corner]; old.firstToken.Kind != css_lexer.TEndOfFile && (!new.wasSingleRule || old.wasSingleRule) {
+		rules[old.ruleIndex] = css_ast.Rule{}
 	}
 	borderRadius.corners[corner] = new
 }
@@ -72,7 +72,7 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, dec
 		borderRadius.updateCorner(rules, corner, borderRadiusCorner{
 			firstToken:  t,
 			secondToken: t,
-			index:       uint32(index),
+			ruleIndex:   uint32(index),
 		})
 	}
 
@@ -113,10 +113,10 @@ func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.Rule, decl
 			}
 		}
 		borderRadius.updateCorner(rules, corner, borderRadiusCorner{
-			firstToken:  firstToken,
-			secondToken: secondToken,
-			index:       uint32(index),
-			single:      true,
+			firstToken:    firstToken,
+			secondToken:   secondToken,
+			ruleIndex:     uint32(index),
+			wasSingleRule: true,
 		})
 		borderRadius.compactRules(rules, decl.KeyRange, removeWhitespace)
 	} else {
@@ -160,13 +160,13 @@ func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.Rule, keyR
 	}
 
 	// Remove all of the existing declarations
-	rules[borderRadius.corners[0].index] = css_ast.Rule{}
-	rules[borderRadius.corners[1].index] = css_ast.Rule{}
-	rules[borderRadius.corners[2].index] = css_ast.Rule{}
-	rules[borderRadius.corners[3].index] = css_ast.Rule{}
+	rules[borderRadius.corners[0].ruleIndex] = css_ast.Rule{}
+	rules[borderRadius.corners[1].ruleIndex] = css_ast.Rule{}
+	rules[borderRadius.corners[2].ruleIndex] = css_ast.Rule{}
+	rules[borderRadius.corners[3].ruleIndex] = css_ast.Rule{}
 
 	// Insert the combined declaration where the last rule was
-	rules[borderRadius.corners[3].index].Data = &css_ast.RDeclaration{
+	rules[borderRadius.corners[3].ruleIndex].Data = &css_ast.RDeclaration{
 		Key:       css_ast.DBorderRadius,
 		KeyText:   "border-radius",
 		Value:     tokens,
