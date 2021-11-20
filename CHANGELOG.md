@@ -66,6 +66,12 @@
 
     However, some people have packages just for TypeScript type definitions. These package can actually have a side effect as they can augment the type of the global object in TypeScript, even if they are marked with `"sideEffects": false`. To avoid warning in this case, esbuild will now only issue this warning if the imported file is non-empty. If the file is empty, then it's irrelevant whether you import it or not so any import of that file does not indicate a bug. This fixes this case because `.d.ts` files typically end up being empty after esbuild parses them since they typically only contain type declarations.
 
+* Attempt to fix packages broken due to the `node:` prefix ([#1760](https://github.com/evanw/esbuild/issues/1760))
+
+    Some people have started using the node-specific `node:` path prefix in their packages. This prefix forces the following path to be interpreted as a node built-in module instead of a package on the file system. So `require("node:path")` will always import [node's `path` module](https://nodejs.org/api/path.html) and never import [npm's `path` package](https://www.npmjs.com/package/path).
+
+    Adding the `node:` prefix breaks that code with older node versions that don't understand the `node:` prefix. This is a problem with the package, not with esbuild. The package should be adding a fallback if the `node:` prefix isn't available. However, people still want to be able to use these packages with older node versions even though the code is broken. Now esbuild will automatically strip this prefix if it detects that the code will break in the configured target environment (as specified by `--target=`). Note that this only happens during bundling, since import paths are only examined during bundling.
+
 ## 0.13.14
 
 * Fix dynamic `import()` on node 12.20+ ([#1772](https://github.com/evanw/esbuild/issues/1772))

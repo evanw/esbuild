@@ -418,7 +418,10 @@ func parseFile(args parseArgs) {
 				// All "require.resolve()" imports should be external because we don't
 				// want to waste effort traversing into them
 				if record.Kind == ast.ImportRequireResolve {
-					if !record.HandlesImportErrors && (resolveResult == nil || !resolveResult.IsExternal) {
+					if resolveResult != nil && resolveResult.IsExternal {
+						// Allow path substitution as long as the result is external
+						result.resolveResults[importRecordIndex] = resolveResult
+					} else if !record.HandlesImportErrors {
 						args.log.AddRangeWarning(&tracker, record.Range,
 							fmt.Sprintf("%q should be marked as external for use with \"require.resolve\"", record.Path.Text))
 					}

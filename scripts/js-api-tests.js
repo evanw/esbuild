@@ -2410,6 +2410,72 @@ require("/assets/file.png");
     assert.strictEqual(outputFiles[0].path, path.join(testDir, 'entry', 'out', 'TIORPBNU-1.js'))
     assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', '3KY7NOSR-2.js'))
   },
+
+  async nodeColonPrefixImport({ esbuild }) {
+    const tryTargetESM = async target => {
+      const result = await esbuild.build({
+        stdin: { contents: `import 'node:fs'; import('node:fs')` },
+        bundle: true,
+        platform: 'node',
+        target,
+        format: 'esm',
+        write: false,
+      })
+      const code = result.outputFiles[0].text
+      return code.slice(code.indexOf(`// <stdin>\n`))
+    }
+
+    assert.strictEqual(await tryTargetESM('node14.13.1'), `// <stdin>\nimport "node:fs";\nimport("node:fs");\n`)
+    assert.strictEqual(await tryTargetESM('node14.13.0'), `// <stdin>\nimport "fs";\nimport("fs");\n`)
+    assert.strictEqual(await tryTargetESM('node13'), `// <stdin>\nimport "fs";\nPromise.resolve().then(() => __toModule(__require("fs")));\n`)
+    assert.strictEqual(await tryTargetESM('node12.99'), `// <stdin>\nimport "node:fs";\nimport("node:fs");\n`)
+    assert.strictEqual(await tryTargetESM('node12.20'), `// <stdin>\nimport "node:fs";\nimport("node:fs");\n`)
+    assert.strictEqual(await tryTargetESM('node12.19'), `// <stdin>\nimport "fs";\nPromise.resolve().then(() => __toModule(__require("fs")));\n`)
+  },
+
+  async nodeColonPrefixRequire({ esbuild }) {
+    const tryTargetESM = async target => {
+      const result = await esbuild.build({
+        stdin: { contents: `require('node:fs'); require.resolve('node:fs')` },
+        bundle: true,
+        platform: 'node',
+        target,
+        format: 'cjs',
+        write: false,
+      })
+      const code = result.outputFiles[0].text
+      return code.slice(code.indexOf(`// <stdin>\n`))
+    }
+
+    assert.strictEqual(await tryTargetESM('node16'), `// <stdin>\nrequire("node:fs");\nrequire.resolve("node:fs");\n`)
+    assert.strictEqual(await tryTargetESM('node15.99'), `// <stdin>\nrequire("fs");\nrequire.resolve("fs");\n`)
+    assert.strictEqual(await tryTargetESM('node15'), `// <stdin>\nrequire("fs");\nrequire.resolve("fs");\n`)
+    assert.strictEqual(await tryTargetESM('node14.99'), `// <stdin>\nrequire("node:fs");\nrequire.resolve("node:fs");\n`)
+    assert.strictEqual(await tryTargetESM('node14.18'), `// <stdin>\nrequire("node:fs");\nrequire.resolve("node:fs");\n`)
+    assert.strictEqual(await tryTargetESM('node14.17'), `// <stdin>\nrequire("fs");\nrequire.resolve("fs");\n`)
+  },
+
+  async nodeColonPrefixImportTurnedIntoRequire({ esbuild }) {
+    const tryTargetESM = async target => {
+      const result = await esbuild.build({
+        stdin: { contents: `import 'node:fs'; import('node:fs')` },
+        bundle: true,
+        platform: 'node',
+        target,
+        format: 'cjs',
+        write: false,
+      })
+      const code = result.outputFiles[0].text
+      return code.slice(code.indexOf(`// <stdin>\n`))
+    }
+
+    assert.strictEqual(await tryTargetESM('node16'), `// <stdin>\nvar import_node_fs = __toModule(require("node:fs"));\nimport("node:fs");\n`)
+    assert.strictEqual(await tryTargetESM('node15.99'), `// <stdin>\nvar import_node_fs = __toModule(require("fs"));\nimport("fs");\n`)
+    assert.strictEqual(await tryTargetESM('node15'), `// <stdin>\nvar import_node_fs = __toModule(require("fs"));\nimport("fs");\n`)
+    assert.strictEqual(await tryTargetESM('node14.99'), `// <stdin>\nvar import_node_fs = __toModule(require("node:fs"));\nimport("node:fs");\n`)
+    assert.strictEqual(await tryTargetESM('node14.18'), `// <stdin>\nvar import_node_fs = __toModule(require("node:fs"));\nimport("node:fs");\n`)
+    assert.strictEqual(await tryTargetESM('node14.17'), `// <stdin>\nvar import_node_fs = __toModule(require("fs"));\nimport("fs");\n`)
+  },
 }
 
 function fetch(host, port, path, headers) {

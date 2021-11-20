@@ -211,6 +211,20 @@ versions.DynamicImport.node = [
   { start: [13, 2] },
 ]
 
+// Manually copied from https://nodejs.org/api/esm.html#node-imports
+versions.NodeColonPrefixImport = {
+  node: [
+    { start: [12, 20], end: [13] },
+    { start: [14, 13, 1] },
+  ]
+}
+versions.NodeColonPrefixRequire = {
+  node: [
+    { start: [14, 18], end: [15] },
+    { start: [16] },
+  ]
+}
+
 mergeVersions('ArbitraryModuleNamespaceNames', {
   // From https://github.com/tc39/ecma262/pull/2154#issuecomment-825201030
   chrome90: true,

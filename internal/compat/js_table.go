@@ -70,6 +70,8 @@ const (
 	LogicalAssignment
 	NestedRestBinding
 	NewTarget
+	NodeColonPrefixImport
+	NodeColonPrefixRequire
 	NullishCoalescing
 	ObjectAccessors
 	ObjectExtensions
@@ -356,6 +358,12 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{5, 0, 0}}},
 		Safari:  {{start: v{10, 0, 0}}},
+	},
+	NodeColonPrefixImport: {
+		Node: {{start: v{12, 20, 0}, end: v{13, 0, 0}}, {start: v{14, 13, 1}}},
+	},
+	NodeColonPrefixRequire: {
+		Node: {{start: v{14, 18, 0}, end: v{15, 0, 0}}, {start: v{16, 0, 0}}},
 	},
 	NullishCoalescing: {
 		Chrome:  {{start: v{80, 0, 0}}},

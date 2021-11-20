@@ -11,6 +11,7 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/cache"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/helpers"
@@ -288,11 +289,50 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		strings.HasPrefix(importPath, "//") ||
 
 		// "import fs from 'fs'"
-		// "import fs from 'node:fs'"
-		(r.options.Platform == config.PlatformNode && (BuiltInNodeModules[importPath] || strings.HasPrefix(importPath, "node:"))) {
+		(r.options.Platform == config.PlatformNode && BuiltInNodeModules[importPath]) {
 
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Marking this path as implicitly external")
+		}
+
+		r.flushDebugLogs(flushDueToSuccess)
+		return &ResolveResult{
+			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal: true,
+		}, debugMeta
+	}
+
+	// "import fs from 'node:fs'"
+	// "require('node:fs')"
+	if r.options.Platform == config.PlatformNode && strings.HasPrefix(importPath, "node:") {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Marking this path as implicitly external due to the \"node:\" prefix")
+		}
+
+		// Check whether the path will end up as "import" or "require"
+		convertImportToRequire := !r.options.OutputFormat.KeepES6ImportExportSyntax()
+		isImport := !convertImportToRequire && (kind == ast.ImportStmt || kind == ast.ImportDynamic)
+		isRequire := kind == ast.ImportRequire || kind == ast.ImportRequireResolve ||
+			(convertImportToRequire && (kind == ast.ImportStmt || kind == ast.ImportDynamic))
+
+		// Check for support with "import"
+		if isImport && r.options.UnsupportedJSFeatures.Has(compat.NodeColonPrefixImport) {
+			if r.debugLogs != nil {
+				r.debugLogs.addNote("Removing the \"node:\" prefix because the target environment doesn't support it with \"import\" statements")
+			}
+
+			// Automatically strip the prefix if it's not supported
+			importPath = importPath[5:]
+		}
+
+		// Check for support with "require"
+		if isRequire && r.options.UnsupportedJSFeatures.Has(compat.NodeColonPrefixRequire) {
+			if r.debugLogs != nil {
+				r.debugLogs.addNote("Removing the \"node:\" prefix because the target environment doesn't support it with \"require\" calls")
+			}
+
+			// Automatically strip the prefix if it's not supported
+			importPath = importPath[5:]
 		}
 
 		r.flushDebugLogs(flushDueToSuccess)
