@@ -61,6 +61,10 @@ const (
 	// file in one of our containing directories with a "sideEffects" field.
 	NoSideEffects_PackageJSON
 
+	// This file is considered to have no side effects because the AST was empty
+	// after parsing finished. This should be the case for ".d.ts" files.
+	NoSideEffects_EmptyAST
+
 	// This file was loaded using a data-oriented loader (e.g. "text") that is
 	// known to not have side effects.
 	NoSideEffects_PureData

@@ -60,6 +60,12 @@
 
     Notice how esbuild can still collapse rules together when they all share the same unit, even if the unit is one that doesn't have universal browser support such as the unit `Q`. One subtlety is that esbuild now distinguishes between "safe" and "unsafe" units where safe units are old enough that they are guaranteed to work in any browser a user might reasonably use, such as `px`. Safe units are allowed to be collapsed together even if there are multiple different units while multiple different unsafe units are not allowed to be collapsed together. Another detail is that esbuild no longer minifies zero lengths by removing the unit if the unit is unsafe (e.g. `0rem` into `0`) since that could cause a rendering difference if a previously-ignored rule is now no longer ignored due to the unit change. If you are curious, you can learn more about browser support levels for different CSS units in [Mozilla's documentation about CSS length units](https://developer.mozilla.org/en-US/docs/Web/CSS/length).
 
+* Avoid warning about ignored side-effect free imports for empty files ([#1785](https://github.com/evanw/esbuild/issues/1785))
+
+    When bundling, esbuild warns about bare imports such as `import "lodash-es"` when the package has been marked as `"sideEffects": false` in its `package.json` file. This is because the only reason to use a bare import is because you are relying on the side effects of the import, but imports for packages marked as side-effect free are supposed to be removed. If the package indicates that it has no side effects, then this bare import is likely a bug.
+
+    However, some people have packages just for TypeScript type definitions. These package can actually have a side effect as they can augment the type of the global object in TypeScript, even if they are marked with `"sideEffects": false`. To avoid warning in this case, esbuild will now only issue this warning if the imported file is non-empty. If the file is empty, then it's irrelevant whether you import it or not so any import of that file does not indicate a bug. This fixes this case because `.d.ts` files typically end up being empty after esbuild parses them since they typically only contain type declarations.
+
 ## 0.13.14
 
 * Fix dynamic `import()` on node 12.20+ ([#1772](https://github.com/evanw/esbuild/issues/1772))

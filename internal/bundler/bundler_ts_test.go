@@ -1297,3 +1297,42 @@ func TestTSImportCTS(t *testing.T) {
 		},
 	})
 }
+
+func TestTSSideEffectsFalseWarningTypeDeclarations(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import "some-js"
+				import "some-ts"
+				import "empty-js"
+				import "empty-ts"
+				import "empty-dts"
+			`,
+
+			"/node_modules/some-js/package.json": `{ "main": "./foo.js", "sideEffects": false }`,
+			"/node_modules/some-js/foo.js":       `console.log('foo')`,
+
+			"/node_modules/some-ts/package.json": `{ "main": "./foo.ts", "sideEffects": false }`,
+			"/node_modules/some-ts/foo.ts":       `console.log('foo' as string)`,
+
+			"/node_modules/empty-js/package.json": `{ "main": "./foo.js", "sideEffects": false }`,
+			"/node_modules/empty-js/foo.js":       ``,
+
+			"/node_modules/empty-ts/package.json": `{ "main": "./foo.ts", "sideEffects": false }`,
+			"/node_modules/empty-ts/foo.ts":       `export type Foo = number`,
+
+			"/node_modules/empty-dts/package.json": `{ "main": "./foo.d.ts", "sideEffects": false }`,
+			"/node_modules/empty-dts/foo.d.ts":     `export type Foo = number`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.ts: warning: Ignoring this import because "node_modules/some-js/foo.js" was marked as having no side effects
+node_modules/some-js/package.json: note: "sideEffects" is false in the enclosing "package.json" file
+entry.ts: warning: Ignoring this import because "node_modules/some-ts/foo.ts" was marked as having no side effects
+node_modules/some-ts/package.json: note: "sideEffects" is false in the enclosing "package.json" file
+`,
+	})
+}

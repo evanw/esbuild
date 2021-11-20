@@ -190,12 +190,18 @@ func parseFile(args parseArgs) {
 	switch loader {
 	case config.LoaderJS:
 		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
+		if len(ast.Parts) <= 1 { // Ignore the implicitly-generated namespace export part
+			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_EmptyAST
+		}
 		result.file.inputFile.Repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
 	case config.LoaderJSX:
 		args.options.JSX.Parse = true
 		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
+		if len(ast.Parts) <= 1 { // Ignore the implicitly-generated namespace export part
+			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_EmptyAST
+		}
 		result.file.inputFile.Repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
@@ -203,6 +209,9 @@ func parseFile(args parseArgs) {
 		args.options.TS.Parse = true
 		args.options.TS.NoAmbiguousLessThan = loader == config.LoaderTSNoAmbiguousLessThan
 		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
+		if len(ast.Parts) <= 1 { // Ignore the implicitly-generated namespace export part
+			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_EmptyAST
+		}
 		result.file.inputFile.Repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
@@ -210,6 +219,9 @@ func parseFile(args parseArgs) {
 		args.options.TS.Parse = true
 		args.options.JSX.Parse = true
 		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
+		if len(ast.Parts) <= 1 { // Ignore the implicitly-generated namespace export part
+			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_EmptyAST
+		}
 		result.file.inputFile.Repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
@@ -1730,7 +1742,12 @@ func (s *scanner) processScannedFiles() []scannerFile {
 						// Do not warn if this is from a plugin, since removing the import
 						// would cause the plugin to not run, and running a plugin is a side
 						// effect.
-						otherModule.SideEffects.Kind != graph.NoSideEffects_PureData_FromPlugin {
+						otherModule.SideEffects.Kind != graph.NoSideEffects_PureData_FromPlugin &&
+
+						// Do not warn if this has no side effects because the parsed AST
+						// is empty. This is the case for ".d.ts" files, for example.
+						otherModule.SideEffects.Kind != graph.NoSideEffects_EmptyAST {
+
 						var notes []logger.MsgData
 						var by string
 						if data := otherModule.SideEffects.Data; data != nil {

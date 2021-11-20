@@ -2918,6 +2918,10 @@ TestTSImportMTS
 console.log("works");
 
 ================================================================================
+TestTSSideEffectsFalseWarningTypeDeclarations
+---------- /out.js ----------
+
+================================================================================
 TestThisInsideFunction
 ---------- /out.js ----------
 // entry.js
