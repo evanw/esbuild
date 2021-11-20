@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.15
 
 * Fix `super` in lowered `async` arrow functions ([#1777](https://github.com/evanw/esbuild/issues/1777))
 
