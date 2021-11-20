@@ -964,7 +964,7 @@ func TestMarginAndPaddingAndInset(t *testing.T) {
 		expectPrintedMangle(t, "a { "+x+": 0 0 0 0 }", "a {\n  "+x+": 0;\n}\n")
 		expectPrintedMangle(t, "a { "+x+": 0 0 0 0 !important }", "a {\n  "+x+": 0 !important;\n}\n")
 		expectPrintedMangle(t, "a { "+x+": 0 1px 0px 1px }", "a {\n  "+x+": 0 1px;\n}\n")
-		expectPrintedMangle(t, "a { "+x+": 0 1 0px 1px }", "a {\n  "+x+": 0 1 0 1px;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 1 0px 1px }", "a {\n  "+x+": 0 1 0px 1px;\n}\n")
 
 		expectPrintedMangle(t, "a { "+x+": 1px 2px 3px 4px; "+xTop+": 5px }", "a {\n  "+x+": 5px 2px 3px 4px;\n}\n")
 		expectPrintedMangle(t, "a { "+x+": 1px 2px 3px 4px; "+xRight+": 5px }", "a {\n  "+x+": 1px 5px 3px 4px;\n}\n")
@@ -1024,6 +1024,19 @@ func TestMarginAndPaddingAndInset(t *testing.T) {
 
 		// This should not be changed because "--x" and "--z" could be empty
 		expectPrintedMangle(t, "a { "+x+": var(--x) var(--y) var(--z) var(--y) }", "a {\n  "+x+": var(--x) var(--y) var(--z) var(--y);\n}\n")
+
+		// Don't merge different units
+		expectPrintedMangle(t, "a { "+x+": 1px; "+x+": 2px; }", "a {\n  "+x+": 2px;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 1px; "+x+": 2vw; }", "a {\n  "+x+": 1px;\n  "+x+": 2vw;\n}\n")
+		expectPrintedMangle(t, "a { "+xLeft+": 1px; "+xLeft+": 2px; }", "a {\n  "+xLeft+": 2px;\n}\n")
+		expectPrintedMangle(t, "a { "+xLeft+": 1px; "+xLeft+": 2vw; }", "a {\n  "+xLeft+": 1px;\n  "+xLeft+": 2vw;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 1px 2cm 3%; "+x+": 4px; }", "a {\n  "+x+": 4px;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 1px 2cm 3%; "+x+": 4vw; }", "a {\n  "+x+": 0 1px 2cm 3%;\n  "+x+": 4vw;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 1px 2cm 3%; "+xLeft+": 4px; }", "a {\n  "+x+": 0 1px 2cm 4px;\n}\n")
+		expectPrintedMangle(t, "a { "+x+": 0 1px 2cm 3%; "+xLeft+": 4vw; }", "a {\n  "+x+": 0 1px 2cm 3%;\n  "+xLeft+": 4vw;\n}\n")
+		expectPrintedMangle(t, "a { "+xLeft+": 1Q; "+xRight+": 2Q; "+xTop+": 3Q; "+xBottom+": 4Q; }", "a {\n  "+x+": 3Q 2Q 4Q 1Q;\n}\n")
+		expectPrintedMangle(t, "a { "+xLeft+": 1Q; "+xRight+": 2Q; "+xTop+": 3Q; "+xBottom+": 0; }",
+			"a {\n  "+xLeft+": 1Q;\n  "+xRight+": 2Q;\n  "+xTop+": 3Q;\n  "+xBottom+": 0;\n}\n")
 	}
 
 	// "auto" is the only keyword allowed in a quad, and only for "margin" and "inset" not for "padding"

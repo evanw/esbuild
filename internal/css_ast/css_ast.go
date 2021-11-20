@@ -205,6 +205,16 @@ func (t Token) DimensionUnit() string {
 	return t.Text[t.UnitOffset:]
 }
 
+func (t Token) DimensionUnitIsSafeLength() bool {
+	switch t.DimensionUnit() {
+	// These units can be reasonably expected to be supported everywhere.
+	// Information used: https://developer.mozilla.org/en-US/docs/Web/CSS/length
+	case "cm", "em", "in", "mm", "pc", "pt", "px":
+		return true
+	}
+	return false
+}
+
 func (t Token) IsZero() bool {
 	return t.Kind == css_lexer.TNumber && t.Text == "0"
 }
