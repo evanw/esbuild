@@ -1113,6 +1113,18 @@ func TestBorderRadius(t *testing.T) {
 	expectPrintedMangle(t, "a { border-radius: 0; border-top-left-radius: inherit }", "a {\n  border-radius: 0;\n  border-top-left-radius: inherit;\n}\n")
 	expectPrintedMangle(t, "a { border-top-left-radius: 0; border-radius: inherit }", "a {\n  border-top-left-radius: 0;\n  border-radius: inherit;\n}\n")
 	expectPrintedMangle(t, "a { border-top-left-radius: inherit; border-radius: 0 }", "a {\n  border-top-left-radius: inherit;\n  border-radius: 0;\n}\n")
+
+	// Don't merge different units
+	expectPrintedMangle(t, "a { border-radius: 1px; border-radius: 2px; }", "a {\n  border-radius: 2px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 1px; border-top-left-radius: 2px; }", "a {\n  border-radius: 2px 1px 1px;\n}\n")
+	expectPrintedMangle(t, "a { border-top-left-radius: 1px; border-radius: 2px; }", "a {\n  border-radius: 2px;\n}\n")
+	expectPrintedMangle(t, "a { border-top-left-radius: 1px; border-top-left-radius: 2px; }", "a {\n  border-top-left-radius: 2px;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 1rem; border-radius: 1vw; }", "a {\n  border-radius: 1rem;\n  border-radius: 1vw;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 1rem; border-top-left-radius: 1vw; }", "a {\n  border-radius: 1rem;\n  border-top-left-radius: 1vw;\n}\n")
+	expectPrintedMangle(t, "a { border-top-left-radius: 1rem; border-radius: 1vw; }", "a {\n  border-top-left-radius: 1rem;\n  border-radius: 1vw;\n}\n")
+	expectPrintedMangle(t, "a { border-top-left-radius: 1rem; border-top-left-radius: 1vw; }", "a {\n  border-top-left-radius: 1rem;\n  border-top-left-radius: 1vw;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 0; border-top-left-radius: 2px; }", "a {\n  border-radius: 2px 0 0;\n}\n")
+	expectPrintedMangle(t, "a { border-radius: 0; border-top-left-radius: 2rem; }", "a {\n  border-radius: 0;\n  border-top-left-radius: 2rem;\n}\n")
 }
 
 func TestBoxShadow(t *testing.T) {

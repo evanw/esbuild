@@ -34,6 +34,32 @@
     }
     ```
 
+* Avoid merging certain CSS rules with different units ([#1732](https://github.com/evanw/esbuild/issues/1732))
+
+    This release no longer collapses `border-radius`, `margin`, `padding`, and `inset` rules when they have units with different levels of browser support. Collapsing multiple of these rules into a single rule is not equivalent if the browser supports one unit but not the other unit, since one rule would still have applied before the collapse but no longer applies after the collapse due to the whole rule being ignored. For example, Chrome 10 supports the `rem` unit but not the `vw` unit, so the CSS code below should render with rounded corners in Chrome 10. However, esbuild previously merged everything into a single rule which would cause Chrome 10 to ignore the rule and not round the corners. This issue is now fixed:
+
+    ```css
+    /* Original CSS */
+    div {
+      border-radius: 1rem;
+      border-top-left-radius: 1vw;
+      margin: 0;
+      margin-top: 1Q;
+      left: 10Q;
+      top: 20Q;
+      right: 10Q;
+      bottom: 20Q;
+    }
+
+    /* Old output (with --minify) */
+    div{border-radius:1vw 1rem 1rem;margin:1Q 0 0;inset:20Q 10Q}
+
+    /* New output (with --minify) */
+    div{border-radius:1rem;border-top-left-radius:1vw;margin:0;margin-top:1Q;inset:20Q 10Q}
+    ```
+
+    Notice how esbuild can still collapse rules together when they all share the same unit, even if the unit is one that doesn't have universal browser support such as the unit `Q`. One subtlety is that esbuild now distinguishes between "safe" and "unsafe" units where safe units are old enough that they are guaranteed to work in any browser a user might reasonably use, such as `px`. Safe units are allowed to be collapsed together even if there are multiple different units while multiple different unsafe units are not allowed to be collapsed together. Another detail is that esbuild no longer minifies zero lengths by removing the unit if the unit is unsafe (e.g. `0rem` into `0`) since that could cause a rendering difference if a previously-ignored rule is now no longer ignored due to the unit change. If you are curious, you can learn more about browser support levels for different CSS units in [Mozilla's documentation about CSS length units](https://developer.mozilla.org/en-US/docs/Web/CSS/length).
+
 ## 0.13.14
 
 * Fix dynamic `import()` on node 12.20+ ([#1772](https://github.com/evanw/esbuild/issues/1772))

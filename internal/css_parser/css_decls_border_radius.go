@@ -16,6 +16,7 @@ const (
 type borderRadiusCorner struct {
 	firstToken    css_ast.Token
 	secondToken   css_ast.Token
+	unitSafety    unitSafetyTracker
 	ruleIndex     uint32 // The index of the originating rule in the rules array
 	wasSingleRule bool   // True if the originating rule was just for this side
 }
@@ -26,7 +27,9 @@ type borderRadiusTracker struct {
 }
 
 func (borderRadius *borderRadiusTracker) updateCorner(rules []css_ast.Rule, corner int, new borderRadiusCorner) {
-	if old := borderRadius.corners[corner]; old.firstToken.Kind != css_lexer.TEndOfFile && (!new.wasSingleRule || old.wasSingleRule) {
+	if old := borderRadius.corners[corner]; old.firstToken.Kind != css_lexer.TEndOfFile &&
+		(!new.wasSingleRule || old.wasSingleRule) &&
+		old.unitSafety.status == unitSafe && new.unitSafety.status == unitSafe {
 		rules[old.ruleIndex] = css_ast.Rule{}
 	}
 	borderRadius.corners[corner] = new
@@ -57,6 +60,15 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, dec
 		}
 	}
 
+	// Use a single tracker for the whole rule
+	unitSafety := unitSafetyTracker{}
+	for _, t := range tokens[:beforeSplit] {
+		unitSafety.includeUnitOf(t)
+	}
+	for _, t := range tokens[afterSplit:] {
+		unitSafety.includeUnitOf(t)
+	}
+
 	firstRadii, firstRadiiOk := expandTokenQuad(tokens[:beforeSplit], "")
 	lastRadii, lastRadiiOk := expandTokenQuad(tokens[afterSplit:], "")
 
@@ -68,10 +80,13 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, dec
 
 	// Handle the first radii
 	for corner, t := range firstRadii {
-		t.TurnLengthIntoNumberIfZero()
+		if unitSafety.status == unitSafe {
+			t.TurnLengthIntoNumberIfZero()
+		}
 		borderRadius.updateCorner(rules, corner, borderRadiusCorner{
 			firstToken:  t,
 			secondToken: t,
+			unitSafety:  unitSafety,
 			ruleIndex:   uint32(index),
 		})
 	}
@@ -79,7 +94,9 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, dec
 	// Handle the last radii
 	if lastRadiiOk {
 		for corner, t := range lastRadii {
-			t.TurnLengthIntoNumberIfZero()
+			if unitSafety.status == unitSafe {
+				t.TurnLengthIntoNumberIfZero()
+			}
 			borderRadius.corners[corner].secondToken = t
 		}
 	}
@@ -98,23 +115,36 @@ func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.Rule, decl
 	if tokens := decl.Value; (len(tokens) == 1 && tokens[0].Kind.IsNumeric()) ||
 		(len(tokens) == 2 && tokens[0].Kind.IsNumeric() && tokens[1].Kind.IsNumeric()) {
 		firstToken := tokens[0]
-		if firstToken.TurnLengthIntoNumberIfZero() {
-			tokens[0] = firstToken
-		}
 		secondToken := firstToken
 		if len(tokens) == 2 {
 			secondToken = tokens[1]
-			if secondToken.TurnLengthIntoNumberIfZero() {
+		}
+
+		// Check to see if these units are safe to use in every browser
+		unitSafety := unitSafetyTracker{}
+		unitSafety.includeUnitOf(firstToken)
+		unitSafety.includeUnitOf(secondToken)
+
+		// Only collapse "0unit" into "0" if the unit is safe
+		if unitSafety.status == unitSafe && firstToken.TurnLengthIntoNumberIfZero() {
+			tokens[0] = firstToken
+		}
+		if len(tokens) == 2 {
+			if unitSafety.status == unitSafe && secondToken.TurnLengthIntoNumberIfZero() {
 				tokens[1] = secondToken
 			}
+
+			// If both tokens are equal, merge them into one
 			if firstToken.EqualIgnoringWhitespace(secondToken) {
 				tokens[0].Whitespace &= ^css_ast.WhitespaceAfter
 				decl.Value = tokens[:1]
 			}
 		}
+
 		borderRadius.updateCorner(rules, corner, borderRadiusCorner{
 			firstToken:    firstToken,
 			secondToken:   secondToken,
+			unitSafety:    unitSafety,
 			ruleIndex:     uint32(index),
 			wasSingleRule: true,
 		})
@@ -129,6 +159,13 @@ func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.Rule, keyR
 	if eof := css_lexer.TEndOfFile; borderRadius.corners[0].firstToken.Kind == eof || borderRadius.corners[1].firstToken.Kind == eof ||
 		borderRadius.corners[2].firstToken.Kind == eof || borderRadius.corners[3].firstToken.Kind == eof {
 		return
+	}
+
+	// All tokens must have the same unit
+	for _, side := range borderRadius.corners[1:] {
+		if !side.unitSafety.isSafeWith(borderRadius.corners[0].unitSafety) {
+			return
+		}
 	}
 
 	// Generate the most minimal representation
