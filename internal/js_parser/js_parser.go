@@ -481,7 +481,7 @@ type fnOrArrowDataParse struct {
 	isTopLevel          bool
 	isConstructor       bool
 	isTypeScriptDeclare bool
-	isClassStaticInit   bool
+	isReturnDisallowed  bool
 
 	// In TypeScript, forward declarations of functions have no bodies
 	allowMissingBodyForTypeScript bool
@@ -1991,10 +1991,9 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 
 				oldFnOrArrowDataParse := p.fnOrArrowDataParse
 				p.fnOrArrowDataParse = fnOrArrowDataParse{
-					isClassStaticInit:  true,
+					isReturnDisallowed: true,
 					allowSuperProperty: true,
 					await:              forbidAll,
-					yield:              allowIdent,
 				}
 
 				p.pushScopeForParsePass(js_ast.ScopeClassStaticInit, loc)
@@ -6557,8 +6556,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SContinue{Label: name}}
 
 	case js_lexer.TReturn:
-		if p.fnOrArrowDataParse.isClassStaticInit {
-			p.log.AddRangeError(&p.tracker, p.lexer.Range(), "A return statement cannot be used inside a class static block")
+		if p.fnOrArrowDataParse.isReturnDisallowed {
+			p.log.AddRangeError(&p.tracker, p.lexer.Range(), "A return statement cannot be used here")
 		}
 		p.lexer.Next()
 		var value js_ast.Expr

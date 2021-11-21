@@ -418,6 +418,12 @@ func TestTSInterface(t *testing.T) {
 }
 
 func TestTSNamespace(t *testing.T) {
+	// Certain syntax isn't allowed inside a namespace block
+	expectParseErrorTS(t, "namespace x { return }", "<stdin>: error: A return statement cannot be used here\n")
+	expectParseErrorTS(t, "namespace x { await }", "<stdin>: error: The keyword \"await\" cannot be used here\n")
+	expectParseErrorTS(t, "namespace x { if (y) return }", "<stdin>: error: A return statement cannot be used here\n")
+	expectParseErrorTS(t, "namespace x { if (y) await }", "<stdin>: error: The keyword \"await\" cannot be used here\n")
+
 	expectPrintedTS(t, "namespace Foo { 0 }", `var Foo;
 (function(Foo) {
   0;

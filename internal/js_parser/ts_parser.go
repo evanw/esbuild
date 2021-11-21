@@ -1023,7 +1023,13 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
 
 	oldHasNonLocalExportDeclareInsideNamespace := p.hasNonLocalExportDeclareInsideNamespace
+	oldFnOrArrowData := p.fnOrArrowDataParse
 	p.hasNonLocalExportDeclareInsideNamespace = false
+	p.fnOrArrowDataParse = fnOrArrowDataParse{
+		isReturnDisallowed: true,
+		await:              forbidAll,
+	}
+
 	var stmts []js_ast.Stmt
 	if p.lexer.Token == js_lexer.TDot {
 		dotLoc := p.lexer.Loc()
@@ -1043,8 +1049,10 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 		})
 		p.lexer.Next()
 	}
+
 	hasNonLocalExportDeclareInsideNamespace := p.hasNonLocalExportDeclareInsideNamespace
 	p.hasNonLocalExportDeclareInsideNamespace = oldHasNonLocalExportDeclareInsideNamespace
+	p.fnOrArrowDataParse = oldFnOrArrowData
 
 	// Import assignments may be only used in type expressions, not value
 	// expressions. If this is the case, the TypeScript compiler removes
