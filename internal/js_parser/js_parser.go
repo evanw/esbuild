@@ -337,7 +337,7 @@ type optionsThatSupportStructuralEquality struct {
 	omitRuntimeForTests     bool
 	ignoreDCEAnnotations    bool
 	treeShaking             bool
-	preserveUnusedImportsTS bool
+	unusedImportsTS         config.UnusedImportsTS
 	useDefineForClassFields config.MaybeBool
 }
 
@@ -363,7 +363,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			omitRuntimeForTests:     options.OmitRuntimeForTests,
 			ignoreDCEAnnotations:    options.IgnoreDCEAnnotations,
 			treeShaking:             options.TreeShaking,
-			preserveUnusedImportsTS: options.PreserveUnusedImportsTS,
+			unusedImportsTS:         options.UnusedImportsTS,
 			useDefineForClassFields: options.UseDefineForClassFields,
 		},
 	}
@@ -13054,19 +13054,12 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 		case *js_ast.SImport:
 			record := &p.importRecords[s.ImportRecordIndex]
 
-			// The official TypeScript compiler always removes unused imported
-			// symbols. However, we deliberately deviate from the official
-			// TypeScript compiler's behavior doing this in a specific scenario:
-			// we are not bundling, symbol renaming is off, and the tsconfig.json
-			// "importsNotUsedAsValues" setting is present and is not set to
-			// "remove".
-			//
-			// This exists to support the use case of compiling partial modules for
-			// compile-to-JavaScript languages such as Svelte. These languages try
-			// to reference imports in ways that are impossible for esbuild to know
-			// about when esbuild is only given a partial module to compile. Here
-			// is an example of some Svelte code that might use esbuild to convert
-			// TypeScript to JavaScript:
+			// We implement TypeScript's "preserveValueImports" tsconfig.json setting
+			// to support the use case of compiling partial modules for compile-to-
+			// JavaScript languages such as Svelte. These languages try to reference
+			// imports in ways that are impossible for TypeScript and esbuild to know
+			// about when they are only given a partial module to compile. Here is an
+			// example of some Svelte code that contains a TypeScript snippet:
 			//
 			//   <script lang="ts">
 			//     import Counter from './Counter.svelte';
@@ -13079,24 +13072,11 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 			//
 			// Tools that use esbuild to compile TypeScript code inside a Svelte
 			// file like this only give esbuild the contents of the <script> tag.
-			// These tools work around this missing import problem when using the
-			// official TypeScript compiler by hacking the TypeScript AST to
-			// remove the "unused import" flags. This isn't possible in esbuild
-			// because esbuild deliberately does not expose an AST manipulation
-			// API for performance reasons.
+			// The "preserveValueImports" setting avoids removing unused import
+			// names, which means additional code appended after the TypeScript-
+			// to-JavaScript conversion can still access those unused imports.
 			//
-			// We deviate from the TypeScript compiler's behavior in this specific
-			// case because doing so is useful for these compile-to-JavaScript
-			// languages and is benign in other cases. The rationale is as follows:
-			//
-			//   * If "importsNotUsedAsValues" is absent or set to "remove", then
-			//     we don't know if these imports are values or types. It's not
-			//     safe to keep them because if they are types, the missing imports
-			//     will cause run-time failures because there will be no matching
-			//     exports. It's only safe keep imports if "importsNotUsedAsValues"
-			//     is set to "preserve" or "error" because then we can assume that
-			//     none of the imports are types (since the TypeScript compiler
-			//     would generate an error in that case).
+			// There are two scenarios where we don't do this:
 			//
 			//   * If we're bundling, then we know we aren't being used to compile
 			//     a partial module. The parser is seeing the entire code for the
@@ -13110,7 +13090,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 			//     user is expecting the output to be as small as possible. So we
 			//     should omit unused imports.
 			//
-			keepUnusedImports := p.options.ts.Parse && p.options.preserveUnusedImportsTS &&
+			keepUnusedImports := p.options.ts.Parse && p.options.unusedImportsTS == config.UnusedImportsKeepValues &&
 				p.options.mode != config.ModeBundle && !p.options.minifyIdentifiers
 
 			// TypeScript always trims unused imports. This is important for
@@ -13197,7 +13177,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 				//
 				// We do not want to do this culling in JavaScript though because the
 				// module may have side effects even if all imports are unused.
-				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && !p.options.preserveUnusedImportsTS {
+				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && p.options.unusedImportsTS == config.UnusedImportsRemoveStmt {
 					// Ignore import records with a pre-filled source index. These are
 					// for injected files and we definitely do not want to trim these.
 					if !record.SourceIndex.IsValid() {

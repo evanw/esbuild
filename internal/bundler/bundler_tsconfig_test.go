@@ -1090,11 +1090,7 @@ func TestTsconfigPreserveUnusedImports(t *testing.T) {
 	})
 }
 
-// This must preserve the import clause even though all imports are not used as
-// values. THIS BEHAVIOR IS A DEVIATION FROM THE TYPESCRIPT COMPILER! It exists
-// to support the use case of compiling partial modules for compile-to-JavaScript
-// languages such as Svelte.
-func TestTsconfigPreserveUnusedImportClause(t *testing.T) {
+func TestTsconfigImportsNotUsedAsValuesPreserve(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1106,6 +1102,35 @@ func TestTsconfigPreserveUnusedImportClause(t *testing.T) {
 			"/Users/user/project/src/tsconfig.json": `{
 				"compilerOptions": {
 					"importsNotUsedAsValues": "preserve"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/Users/user/project/out.js",
+			ExternalModules: config.ExternalModules{
+				AbsPaths: map[string]bool{
+					"/Users/user/project/src/foo": true,
+				},
+			},
+		},
+	})
+}
+
+func TestTsconfigPreserveValueImports(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import {x, y} from "./foo"
+				import z from "./foo"
+				import * as ns from "./foo"
+				console.log(1 as x, 2 as z, 3 as ns.y)
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"preserveValueImports": true
 				}
 			}`,
 		},

@@ -118,10 +118,8 @@ type ResolveResult struct {
 	// If true, the class field transform should use Object.defineProperty().
 	UseDefineForClassFieldsTS config.MaybeBool
 
-	// If true, unused imports are retained in TypeScript code. This matches the
-	// behavior of the "importsNotUsedAsValues" field in "tsconfig.json" when the
-	// value is not "remove".
-	PreserveUnusedImportsTS bool
+	// This is the "importsNotUsedAsValues" and "preserveValueImports" fields from "package.json"
+	UnusedImportsTS config.UnusedImportsTS
 
 	// This is the "type" field from "package.json"
 	ModuleType config.ModuleType
@@ -562,7 +560,10 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 						result.JSXFactory = dirInfo.enclosingTSConfigJSON.JSXFactory
 						result.JSXFragment = dirInfo.enclosingTSConfigJSON.JSXFragmentFactory
 						result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
-						result.PreserveUnusedImportsTS = dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues
+						result.UnusedImportsTS = config.UnusedImportsFromTsconfigValues(
+							dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues,
+							dirInfo.enclosingTSConfigJSON.PreserveValueImports,
+						)
 						result.TSTarget = dirInfo.enclosingTSConfigJSON.TSTarget
 
 						if r.debugLogs != nil {

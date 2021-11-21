@@ -3155,7 +3155,7 @@ let transformTests = {
     assert.strictEqual(code, `export let abc=123;eval("console.log(abc)");\n`)
   },
 
-  async tsconfigRawRemoveUnusedImportsDefault({ esbuild }) {
+  async tsconfigRawImportsNotUsedAsValuesDefault({ esbuild }) {
     const { code } = await esbuild.transform(`import {T} from 'path'`, {
       tsconfigRaw: {
         compilerOptions: {},
@@ -3165,7 +3165,7 @@ let transformTests = {
     assert.strictEqual(code, ``)
   },
 
-  async tsconfigRawRemoveUnusedImports({ esbuild }) {
+  async tsconfigRawImportsNotUsedAsValuesRemove({ esbuild }) {
     const { code } = await esbuild.transform(`import {T} from 'path'`, {
       tsconfigRaw: {
         compilerOptions: {
@@ -3177,7 +3177,7 @@ let transformTests = {
     assert.strictEqual(code, ``)
   },
 
-  async tsconfigRawPreserveUnusedImports({ esbuild }) {
+  async tsconfigRawImportsNotUsedAsValuesPreserve({ esbuild }) {
     const { code } = await esbuild.transform(`import {T} from 'path'`, {
       tsconfigRaw: {
         compilerOptions: {
@@ -3186,14 +3186,82 @@ let transformTests = {
       },
       loader: 'ts',
     })
+    assert.strictEqual(code, `import "path";\n`)
+  },
+
+  async tsconfigRawImportsNotUsedAsValuesError({ esbuild }) {
+    const { code } = await esbuild.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          importsNotUsedAsValues: 'error',
+        },
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(code, `import "path";\n`)
+  },
+
+  async tsconfigRawImportsNotUsedAsValuesRemoveJS({ esbuild }) {
+    const { code } = await esbuild.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          importsNotUsedAsValues: 'remove',
+        },
+      },
+    })
     assert.strictEqual(code, `import { T } from "path";\n`)
   },
 
-  async tsconfigRawPreserveUnusedImportsMinifyIdentifiers({ esbuild }) {
+  async tsconfigRawImportsNotUsedAsValuesPreserveJS({ esbuild }) {
     const { code } = await esbuild.transform(`import {T} from 'path'`, {
       tsconfigRaw: {
         compilerOptions: {
           importsNotUsedAsValues: 'preserve',
+        },
+      },
+    })
+    assert.strictEqual(code, `import { T } from "path";\n`)
+  },
+
+  async tsconfigRawPreserveValueImportsDefault({ esbuild }) {
+    const { code } = await esbuild.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {},
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(code, ``)
+  },
+
+  async tsconfigRawPreserveValueImportsFalse({ esbuild }) {
+    const { code } = await esbuild.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          preserveValueImports: false,
+        },
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(code, ``)
+  },
+
+  async tsconfigRawPreserveValueImportsTrue({ esbuild }) {
+    const { code } = await esbuild.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          preserveValueImports: true,
+        },
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(code, `import { T } from "path";\n`)
+  },
+
+  async tsconfigRawPreserveValueImportsTrueMinifyIdentifiers({ esbuild }) {
+    const { code } = await esbuild.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          preserveValueImports: true,
         },
       },
       loader: 'ts',
@@ -3202,14 +3270,15 @@ let transformTests = {
     assert.strictEqual(code, `import "path";\n`)
   },
 
-  async tsconfigRawPreserveUnusedImportsJS({ esbuild }) {
+  async tsconfigRawPreserveValueImportsTrueImportsNotUsedAsValuesRemove({ esbuild }) {
     const { code } = await esbuild.transform(`import {T} from 'path'`, {
       tsconfigRaw: {
         compilerOptions: {
-          importsNotUsedAsValues: 'preserve',
+          importsNotUsedAsValues: 'remove',
+          preserveValueImports: true,
         },
       },
-      loader: 'js',
+      loader: 'ts',
     })
     assert.strictEqual(code, `import { T } from "path";\n`)
   },
@@ -3219,7 +3288,7 @@ let transformTests = {
     const { code: code5 } = await esbuild.transform(`import {T} from 'path'`, {
       tsconfigRaw: `{
         "compilerOptions": {
-          "importsNotUsedAsValues": "preserve", // there is a trailing comment here
+          "preserveValueImports": true, // there is a trailing comment here
         },
       }`,
       loader: 'ts',
@@ -3227,7 +3296,7 @@ let transformTests = {
     assert.strictEqual(code5, `import { T } from "path";\n`)
   },
 
-  async tsconfigRawImportsNotUsedAsValues({ esbuild }) {
+  async tsconfigRawUseDefineForClassFields({ esbuild }) {
     const { code: code1 } = await esbuild.transform(`class Foo { foo }`, {
       tsconfigRaw: {
         compilerOptions: {

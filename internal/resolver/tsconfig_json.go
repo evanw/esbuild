@@ -40,6 +40,7 @@ type TSConfigJSON struct {
 	TSTarget                       *config.TSTarget
 	UseDefineForClassFields        config.MaybeBool
 	PreserveImportsNotUsedAsValues bool
+	PreserveValueImports           bool
 }
 
 func ParseTSConfigJSON(
@@ -171,6 +172,13 @@ func ParseTSConfigJSON(
 					log.AddRangeWarning(&tracker, source.RangeOfString(valueJSON.Loc),
 						fmt.Sprintf("Invalid value %q for \"importsNotUsedAsValues\"", value))
 				}
+			}
+		}
+
+		// Parse "preserveValueImports"
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "preserveValueImports"); ok {
+			if value, ok := getBool(valueJSON); ok {
+				result.PreserveValueImports = value
 			}
 		}
 

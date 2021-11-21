@@ -1114,8 +1114,8 @@ func (s *scanner) maybeParseFile(
 	if resolveResult.UseDefineForClassFieldsTS != config.Unspecified {
 		optionsClone.UseDefineForClassFields = resolveResult.UseDefineForClassFieldsTS
 	}
-	if resolveResult.PreserveUnusedImportsTS {
-		optionsClone.PreserveUnusedImportsTS = true
+	if resolveResult.UnusedImportsTS != config.UnusedImportsRemoveStmt {
+		optionsClone.UnusedImportsTS = resolveResult.UnusedImportsTS
 	}
 	optionsClone.TSTarget = resolveResult.TSTarget
 

@@ -1,5 +1,38 @@
 # Changelog
 
+## Breaking changes
+
+* Add support for TypeScript's `preserveValueImports` setting ([#1525](https://github.com/evanw/esbuild/issues/1525))
+
+    TypeScript 4.5, which was just released, added [a new setting called `preserveValueImports`](https://devblogs.microsoft.com/typescript/announcing-typescript-4-5/#preserve-value-imports). This release of esbuild implements support for this new setting. However, this release also changes esbuild's behavior regarding the `importsNotUsedAsValues` setting, so this release is being considered a breaking change. Now esbuild's behavior should more accurately match the behavior of the TypeScript compiler. This is described in more detail below.
+
+    The difference in behavior is around unused imports. By default, unused import names are considered to be types and are completely removed if they are unused. If all import names are removed for a given import statement, then the whole import statement is removed too. The two `tsconfig.json` settings [`importsNotUsedAsValues`](https://www.typescriptlang.org/tsconfig#importsNotUsedAsValues) and [`preserveValueImports`](https://www.typescriptlang.org/tsconfig#preserveValueImports) let you customize this. Here's what the TypeScript compiler's output looks like with these different settings enabled:
+
+    ```ts
+    // Original code
+    import { unused } from "foo";
+
+    // Default output
+    /* (the import is completely removed) */
+
+    // Output with "importsNotUsedAsValues": "preserve"
+    import "foo";
+
+    // Output with "preserveValueImports": true
+    import { unused } from "foo";
+    ```
+
+    Previously, since the `preserveValueImports` setting didn't exist yet, esbuild had treated the `importsNotUsedAsValues` setting as if it were what is now the `preserveValueImports` setting instead. This was a deliberate deviation from how the TypeScript compiler behaves, but was necessary to allow esbuild to be used as a TypeScript-to-JavaScript compiler inside of certain composite languages such as Svelte and Vue. These languages append additional code after converting the TypeScript to JavaScript so unused imports may actually turn out to be used later on:
+
+    ```svelte
+    <script>
+    import { someFunc } from "./some-module.js";
+    </script>
+    <button on:click={someFunc}>Click me!</button>
+    ```
+
+    Previously the implementers of these languages had to use the `importsNotUsedAsValues` setting as a hack for esbuild to preserve the import statements. With this release, esbuild now follows the behavior of the TypeScript compiler so implementers will need to use the new `preserveValueImports` setting to do this instead. This is the breaking change.
+
 ## 0.13.15
 
 * Fix `super` in lowered `async` arrow functions ([#1777](https://github.com/evanw/esbuild/issues/1777))
