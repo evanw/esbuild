@@ -235,7 +235,7 @@ type Options struct {
 	JSX      JSXOptions
 	Platform Platform
 
-	IsTargetUnconfigured   bool // If true, TypeScript's "target" setting is respected
+	TargetFromAPI          TargetFromAPI
 	UnsupportedJSFeatures  compat.JSFeature
 	UnsupportedCSSFeatures compat.CSSFeature
 	TSTarget               *TSTarget
@@ -283,6 +283,19 @@ type Options struct {
 
 	Stdin *StdinInfo
 }
+
+type TargetFromAPI uint8
+
+const (
+	// In this state, the "target" field in "tsconfig.json" is respected
+	TargetWasUnconfigured TargetFromAPI = iota
+
+	// In this state, the "target" field in "tsconfig.json" is overridden
+	TargetWasConfigured
+
+	// In this state, "useDefineForClassFields" is true unless overridden
+	TargetWasConfiguredIncludingESNext
+)
 
 type UnusedImportsTS uint8
 

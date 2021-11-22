@@ -277,13 +277,14 @@ func validateEngine(value EngineName) compat.Engine {
 
 var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?$`)
 
-func validateFeatures(log logger.Log, target Target, engines []Engine) (bool, compat.JSFeature, compat.CSSFeature, string) {
+func validateFeatures(log logger.Log, target Target, engines []Engine) (config.TargetFromAPI, compat.JSFeature, compat.CSSFeature, string) {
 	if target == DefaultTarget && len(engines) == 0 {
-		return true, 0, 0, ""
+		return config.TargetWasUnconfigured, 0, 0, ""
 	}
 
 	constraints := make(map[compat.Engine][]int)
 	targets := make([]string, 0, 1+len(engines))
+	targetFromAPI := config.TargetWasConfigured
 
 	switch target {
 	case ES5:
@@ -302,7 +303,9 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (bool, co
 		constraints[compat.ES] = []int{2020}
 	case ES2021:
 		constraints[compat.ES] = []int{2021}
-	case ESNext, DefaultTarget:
+	case ESNext:
+		targetFromAPI = config.TargetWasConfiguredIncludingESNext
+	case DefaultTarget:
 	default:
 		panic("Invalid target")
 	}
@@ -356,7 +359,7 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (bool, co
 	sort.Strings(targets)
 	targetEnv := strings.Join(targets, ", ")
 
-	return false, compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints), targetEnv
+	return targetFromAPI, compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints), targetEnv
 }
 
 func validateGlobalName(log logger.Log, text string) []string {
@@ -808,14 +811,14 @@ func rebuildImpl(
 		// This should already have been checked above
 		panic(err.Error())
 	}
-	isTargetUnconfigured, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
+	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtensions)
 	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
 	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
 	minify := buildOpts.MinifyWhitespace && buildOpts.MinifyIdentifiers && buildOpts.MinifySyntax
 	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, buildOpts.Platform, minify)
 	options := config.Options{
-		IsTargetUnconfigured:   isTargetUnconfigured,
+		TargetFromAPI:          targetFromAPI,
 		UnsupportedJSFeatures:  jsFeatures,
 		UnsupportedCSSFeatures: cssFeatures,
 		OriginalTargetEnv:      targetEnv,
@@ -1300,10 +1303,10 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Convert and validate the transformOpts
-	isTargetUnconfigured, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
+	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
 	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, PlatformNeutral, false /* minify */)
 	options := config.Options{
-		IsTargetUnconfigured:    isTargetUnconfigured,
+		TargetFromAPI:           targetFromAPI,
 		UnsupportedJSFeatures:   jsFeatures,
 		UnsupportedCSSFeatures:  cssFeatures,
 		OriginalTargetEnv:       targetEnv,

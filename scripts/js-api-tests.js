@@ -3318,6 +3318,19 @@ let transformTests = {
     assert.strictEqual(code2, `class Foo {\n  foo;\n}\n`)
   },
 
+  async tsImplicitUseDefineForClassFields({ esbuild }) {
+    const { code: code1 } = await esbuild.transform(`class Foo { foo }`, {
+      loader: 'ts',
+    })
+    assert.strictEqual(code1, `class Foo {\n}\n`)
+
+    const { code: code2 } = await esbuild.transform(`class Foo { foo }`, {
+      target: 'esnext',
+      loader: 'ts',
+    })
+    assert.strictEqual(code2, `class Foo {\n  foo;\n}\n`)
+  },
+
   async tsconfigRawJSX({ esbuild }) {
     const { code: code1 } = await esbuild.transform(`<><div/></>`, {
       tsconfigRaw: {

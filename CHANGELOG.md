@@ -33,6 +33,24 @@
 
     Previously the implementers of these languages had to use the `importsNotUsedAsValues` setting as a hack for esbuild to preserve the import statements. With this release, esbuild now follows the behavior of the TypeScript compiler so implementers will need to use the new `preserveValueImports` setting to do this instead. This is the breaking change.
 
+* Follow JavaScript class field semantics with `--target=esnext` ([#1480](https://github.com/evanw/esbuild/issues/1480))
+
+    TypeScript 4.3 included a subtle breaking change that wasn't mentioned in the [TypeScript 4.3 blog post](https://devblogs.microsoft.com/typescript/announcing-typescript-4-3/): class fields will now be compiled with different semantics if `"target": "ESNext"` is present in `tsconfig.json`. Specifically in this case `useDefineForClassFields` will default to `true` when not specified instead of `false`. This means class field behavior in TypeScript code will now match JavaScript instead of doing something else:
+
+    ```js
+    class Base {
+      set foo(value) { console.log('set', value) }
+    }
+    class Derived extends Base {
+      foo = 123
+    }
+    new Derived()
+    ```
+
+    In TypeScript 4.2 and below, the TypeScript compiler would generate code that prints `set 123` when `tsconfig.json` contains `"target": "ESNext"` but in TypeScript 4.3 and above, the TypeScript compiler will now generate code that doesn't print anything. This is the difference between "assign" semantics and "define" semantics.
+
+    Previously you had to create a `tsconfig.json` file and specify `"target": "ESNext"` to get this behavior in esbuild. With this release, you can now also just pass `--target=esnext` to esbuild to force-enable this behavior. Note that esbuild doesn't do this by default even though the default value of `--target=` otherwise behaves like `esnext`. Since TypeScript's compiler doesn't do this behavior by default, it seems like a good idea for esbuild to not do this behavior by default either.
+
 ## 0.13.15
 
 * Fix `super` in lowered `async` arrow functions ([#1777](https://github.com/evanw/esbuild/issues/1777))

@@ -329,7 +329,7 @@ type optionsThatSupportStructuralEquality struct {
 	platform                config.Platform
 	outputFormat            config.Format
 	moduleType              config.ModuleType
-	isTargetUnconfigured    bool
+	targetFromAPI           config.TargetFromAPI
 	asciiOnly               bool
 	keepNames               bool
 	mangleSyntax            bool
@@ -355,7 +355,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			platform:                options.Platform,
 			outputFormat:            options.OutputFormat,
 			moduleType:              options.ModuleType,
-			isTargetUnconfigured:    options.IsTargetUnconfigured,
+			targetFromAPI:           options.TargetFromAPI,
 			asciiOnly:               options.ASCIIOnly,
 			keepNames:               options.KeepNames,
 			mangleSyntax:            options.MangleSyntax,
@@ -14097,7 +14097,8 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		// silently changed in TypeScript 4.3. It's a breaking change even though
 		// it wasn't mentioned in the announcement blog post for TypeScript 4.3:
 		// https://devblogs.microsoft.com/typescript/announcing-typescript-4-3/.
-		if options.tsTarget != nil && strings.EqualFold(options.tsTarget.Target, "ESNext") {
+		if options.targetFromAPI == config.TargetWasConfiguredIncludingESNext ||
+			(options.tsTarget != nil && strings.EqualFold(options.tsTarget.Target, "ESNext")) {
 			options.useDefineForClassFields = config.True
 		} else {
 			options.useDefineForClassFields = config.False
@@ -14107,7 +14108,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	// If there is no top-level esbuild "target" setting, include unsupported
 	// JavaScript features from the TypeScript "target" setting. Otherwise the
 	// TypeScript "target" setting is ignored.
-	if options.isTargetUnconfigured && options.tsTarget != nil {
+	if options.targetFromAPI == config.TargetWasUnconfigured && options.tsTarget != nil {
 		options.unsupportedJSFeatures |= options.tsTarget.UnsupportedJSFeatures
 	}
 
