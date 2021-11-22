@@ -860,8 +860,13 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	}
 	p.lexer.Expect(js_lexer.TOpenBrace)
 
-	values := []js_ast.EnumValue{}
+	oldFnOrArrowData := p.fnOrArrowDataParse
+	p.fnOrArrowDataParse = fnOrArrowDataParse{
+		needsAsyncLoc: logger.Loc{Start: -1},
+	}
 
+	// Parse the body
+	values := []js_ast.EnumValue{}
 	for p.lexer.Token != js_lexer.TCloseBrace {
 		value := js_ast.EnumValue{
 			Loc: p.lexer.Loc(),
@@ -896,6 +901,8 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 		}
 		p.lexer.Next()
 	}
+
+	p.fnOrArrowDataParse = oldFnOrArrowData
 
 	if !opts.isTypeScriptDeclare {
 		// Avoid a collision with the enum closure argument variable if the
@@ -1027,7 +1034,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	p.hasNonLocalExportDeclareInsideNamespace = false
 	p.fnOrArrowDataParse = fnOrArrowDataParse{
 		isReturnDisallowed: true,
-		await:              forbidAll,
+		needsAsyncLoc:      logger.Loc{Start: -1},
 	}
 
 	var stmts []js_ast.Stmt

@@ -420,9 +420,24 @@ func TestTSInterface(t *testing.T) {
 func TestTSNamespace(t *testing.T) {
 	// Certain syntax isn't allowed inside a namespace block
 	expectParseErrorTS(t, "namespace x { return }", "<stdin>: error: A return statement cannot be used here\n")
-	expectParseErrorTS(t, "namespace x { await }", "<stdin>: error: The keyword \"await\" cannot be used here\n")
+	expectParseErrorTS(t, "namespace x { await 1 }", "<stdin>: error: \"await\" can only be used inside an \"async\" function\n")
 	expectParseErrorTS(t, "namespace x { if (y) return }", "<stdin>: error: A return statement cannot be used here\n")
-	expectParseErrorTS(t, "namespace x { if (y) await }", "<stdin>: error: The keyword \"await\" cannot be used here\n")
+	expectParseErrorTS(t, "namespace x { if (y) await 1 }", "<stdin>: error: \"await\" can only be used inside an \"async\" function\n")
+	expectParseErrorTS(t, "export namespace x { export let yield = 1 }",
+		"<stdin>: error: \"yield\" is a reserved word and cannot be used in strict mode\n"+
+			"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n")
+	expectPrintedTS(t, "namespace x { export let await = 1, y = await }", `var x;
+(function(x) {
+  x.await = 1;
+  x.y = x.await;
+})(x || (x = {}));
+`)
+	expectPrintedTS(t, "namespace x { export let yield = 1, y = yield }", `var x;
+(function(x) {
+  x.yield = 1;
+  x.y = x.yield;
+})(x || (x = {}));
+`)
 
 	expectPrintedTS(t, "namespace Foo { 0 }", `var Foo;
 (function(Foo) {
@@ -1043,6 +1058,26 @@ y = [0, Foo?.["A"], Foo?.["A"]()];
   _Foo[_Foo["Bar"] = 1] = "Bar";
 })(Foo || (Foo = {}));
 `)
+
+	// Check "await" and "yield"
+	expectPrintedTS(t, "enum x { await = 1, y = await }", `var x;
+(function(x) {
+  x[x["await"] = 1] = "await";
+  x[x["y"] = 1] = "y";
+})(x || (x = {}));
+`)
+	expectPrintedTS(t, "enum x { yield = 1, y = yield }", `var x;
+(function(x) {
+  x[x["yield"] = 1] = "yield";
+  x[x["y"] = 1] = "y";
+})(x || (x = {}));
+`)
+	expectParseErrorTS(t, "enum x { y = await 1 }", "<stdin>: error: \"await\" can only be used inside an \"async\" function\n")
+	expectParseErrorTS(t, "function *f() { enum x { y = yield 1 } }", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
+	expectParseErrorTS(t, "async function f() { enum x { y = await 1 } }", "<stdin>: error: \"await\" can only be used inside an \"async\" function\n")
+	expectParseErrorTS(t, "export enum x { yield = 1, y = yield }",
+		"<stdin>: error: \"yield\" is a reserved word and cannot be used in strict mode\n"+
+			"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n")
 }
 
 func TestTSEnumConstantFolding(t *testing.T) {
