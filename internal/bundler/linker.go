@@ -5021,7 +5021,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 	chunkWaitGroup.Done()
 }
 
-// Add all unique license comments to the end of the file. These are
+// Add all unique legal comments to the end of the file. These are
 // deduplicated because some projects have thousands of files with the same
 // comment. The comment must be preserved in the output for legal reasons but
 // at the same time we want to generate a small bundle when minifying.

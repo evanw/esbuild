@@ -839,7 +839,7 @@ func TestAtImport(t *testing.T) {
 	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: warning: Expected \";\" but found end of file\n")
 }
 
-func TestLicenseComment(t *testing.T) {
+func TestLegalComment(t *testing.T) {
 	expectPrinted(t, "/*!*/@import \"x\";", "/*!*/\n@import \"x\";\n")
 	expectPrinted(t, "/*!*/@charset \"UTF-8\";", "/*!*/\n@charset \"UTF-8\";\n")
 	expectPrinted(t, "/*!*/ @import \"x\";", "/*!*/\n@import \"x\";\n")

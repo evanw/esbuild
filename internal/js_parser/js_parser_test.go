@@ -234,14 +234,14 @@ func TestStrictMode(t *testing.T) {
 
 	expectPrinted(t, "'use strict'", "\"use strict\";\n")
 	expectPrinted(t, "`use strict`", "`use strict`;\n")
-	expectPrinted(t, "//! @license comment\n 'use strict'", "\"use strict\";\n//! @license comment\n")
-	expectPrinted(t, "/*! @license comment */ 'use strict'", "\"use strict\";\n/*! @license comment */\n")
-	expectPrinted(t, "function f() { //! @license comment\n 'use strict' }", "function f() {\n  //! @license comment\n  \"use strict\";\n}\n")
-	expectPrinted(t, "function f() { /*! @license comment */ 'use strict' }", "function f() {\n  /*! @license comment */\n  \"use strict\";\n}\n")
-	expectParseError(t, "//! @license comment\n 'use strict'", "")
-	expectParseError(t, "/*! @license comment */ 'use strict'", "")
-	expectParseError(t, "function f() { //! @license comment\n 'use strict' }", "")
-	expectParseError(t, "function f() { /*! @license comment */ 'use strict' }", "")
+	expectPrinted(t, "//! @legal comment\n 'use strict'", "\"use strict\";\n//! @legal comment\n")
+	expectPrinted(t, "/*! @legal comment */ 'use strict'", "\"use strict\";\n/*! @legal comment */\n")
+	expectPrinted(t, "function f() { //! @legal comment\n 'use strict' }", "function f() {\n  //! @legal comment\n  \"use strict\";\n}\n")
+	expectPrinted(t, "function f() { /*! @legal comment */ 'use strict' }", "function f() {\n  /*! @legal comment */\n  \"use strict\";\n}\n")
+	expectParseError(t, "//! @legal comment\n 'use strict'", "")
+	expectParseError(t, "/*! @legal comment */ 'use strict'", "")
+	expectParseError(t, "function f() { //! @legal comment\n 'use strict' }", "")
+	expectParseError(t, "function f() { /*! @legal comment */ 'use strict' }", "")
 
 	nonSimple := "<stdin>: error: Cannot use a \"use strict\" directive in a function with a non-simple parameter list\n"
 	expectParseError(t, "function f() { 'use strict' }", "")

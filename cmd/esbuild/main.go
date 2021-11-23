@@ -80,7 +80,7 @@ var helpText = func(colors logger.Colors) string {
   --jsx-fragment=...        What to use for JSX instead of React.Fragment
   --jsx=...                 Set to "preserve" to disable transforming JSX to JS
   --keep-names              Preserve "name" on functions and classes
-  --legal-comments=...      Where to place license comments (none | inline |
+  --legal-comments=...      Where to place legal comments (none | inline |
                             eof | linked | external, default eof when bundling
                             and inline otherwise)
   --log-level=...           Disable logging (verbose | debug | info | warning |

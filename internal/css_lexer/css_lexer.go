@@ -158,7 +158,7 @@ type lexer struct {
 	current                 int
 	codePoint               rune
 	Token                   Token
-	licenseCommentsBefore   []Comment
+	legalCommentsBefore     []Comment
 	approximateNewlineCount int
 	sourceMappingURL        logger.Span
 }
@@ -171,7 +171,7 @@ type Comment struct {
 
 type TokenizeResult struct {
 	Tokens               []Token
-	LicenseComments      []Comment
+	LegalComments        []Comment
 	ApproximateLineCount int32
 	SourceMapComment     logger.Span
 }
@@ -198,26 +198,26 @@ func Tokenize(log logger.Log, source logger.Source) TokenizeResult {
 	var tokens []Token
 	var comments []Comment
 	for lexer.Token.Kind != TEndOfFile {
-		if lexer.licenseCommentsBefore != nil {
-			for _, comment := range lexer.licenseCommentsBefore {
+		if lexer.legalCommentsBefore != nil {
+			for _, comment := range lexer.legalCommentsBefore {
 				comment.TokenIndexAfter = uint32(len(tokens))
 				comments = append(comments, comment)
 			}
-			lexer.licenseCommentsBefore = nil
+			lexer.legalCommentsBefore = nil
 		}
 		tokens = append(tokens, lexer.Token)
 		lexer.next()
 	}
-	if lexer.licenseCommentsBefore != nil {
-		for _, comment := range lexer.licenseCommentsBefore {
+	if lexer.legalCommentsBefore != nil {
+		for _, comment := range lexer.legalCommentsBefore {
 			comment.TokenIndexAfter = uint32(len(tokens))
 			comments = append(comments, comment)
 		}
-		lexer.licenseCommentsBefore = nil
+		lexer.legalCommentsBefore = nil
 	}
 	return TokenizeResult{
 		Tokens:               tokens,
-		LicenseComments:      comments,
+		LegalComments:        comments,
 		ApproximateLineCount: int32(lexer.approximateNewlineCount) + 1,
 		SourceMapComment:     lexer.sourceMappingURL,
 	}
@@ -452,7 +452,7 @@ func (lexer *lexer) next() {
 
 func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 	startOfSourceMappingURL := 0
-	isLicenseComment := false
+	isLegalComment := false
 
 	switch lexer.codePoint {
 	case '#', '@':
@@ -462,8 +462,8 @@ func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 		}
 
 	case '!':
-		// Remember if this is a license comment
-		isLicenseComment = true
+		// Remember if this is a legal comment
+		isLegalComment = true
 	}
 
 	for {
@@ -485,10 +485,10 @@ func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 					lexer.sourceMappingURL = logger.Span{Text: text[:r.Len], Range: r}
 				}
 
-				// Record license comments
-				if text := lexer.source.Contents[startRange.Loc.Start:commentEnd]; isLicenseComment || containsAtPreserveOrAtLicense(text) {
+				// Record legal comments
+				if text := lexer.source.Contents[startRange.Loc.Start:commentEnd]; isLegalComment || containsAtPreserveOrAtLicense(text) {
 					text = helpers.RemoveMultiLineCommentIndent(lexer.source.Contents[:startRange.Loc.Start], text)
-					lexer.licenseCommentsBefore = append(lexer.licenseCommentsBefore, Comment{Loc: startRange.Loc, Text: text})
+					lexer.legalCommentsBefore = append(lexer.legalCommentsBefore, Comment{Loc: startRange.Loc, Text: text})
 				}
 				return
 			}

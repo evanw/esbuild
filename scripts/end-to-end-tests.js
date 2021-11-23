@@ -2138,7 +2138,7 @@
     }),
     test(['entry.js', '--outfile=node.js', '--target=es6'], {
       'entry.js': `
-        //! @license comment
+        //! @legal comment
         'use strict'
         function f(a) {
           a **= 2
