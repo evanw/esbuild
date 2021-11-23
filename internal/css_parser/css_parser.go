@@ -173,12 +173,14 @@ loop:
 		// turn them all into comment rules and append them to the current rule list
 		for p.legalCommentIndex < len(p.legalComments) {
 			comment := p.legalComments[p.legalCommentIndex]
-			if comment.TokenIndexAfter != uint32(p.index) {
+			if comment.TokenIndexAfter > uint32(p.index) {
 				break
 			}
-			rules = append(rules, css_ast.Rule{Loc: comment.Loc, Data: &css_ast.RComment{Text: comment.Text}})
-			if context.isTopLevel {
-				locs = append(locs, comment.Loc)
+			if comment.TokenIndexAfter == uint32(p.index) {
+				rules = append(rules, css_ast.Rule{Loc: comment.Loc, Data: &css_ast.RComment{Text: comment.Text}})
+				if context.isTopLevel {
+					locs = append(locs, comment.Loc)
+				}
 			}
 			p.legalCommentIndex++
 		}

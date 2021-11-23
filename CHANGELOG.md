@@ -125,6 +125,27 @@ In addition to the breaking changes above, the following changes are also includ
 
     Note that this behavior does **not** work across files. Each file is still compiled independently so the namespaces in each file are still resolved independently per-file. Implicit namespace cross-references still do not work across files. Getting this to work is counter to esbuild's parallel architecture and does not fit in with esbuild's design. It also doesn't make sense with esbuild's bundling model where input files are either in ESM or CommonJS format and therefore each have their own scope.
 
+* Fix legal comment parsing in CSS ([#1796](https://github.com/evanw/esbuild/issues/1796))
+
+    Legal comments in CSS either start with `/*!` or contain `@preserve` or `@license` and are preserved by esbuild in the generated CSS output. This release fixes a bug where non-top-level legal comments inside a CSS file caused esbuild to skip any following legal comments even if those following comments are top-level:
+
+    ```css
+    /* Original code */
+    .example {
+      --some-var: var(--tw-empty, /*!*/ /*!*/);
+    }
+    /*! Some legal comment */
+    body {
+      background-color: red;
+    }
+
+    /* Old output (with --minify) */
+    .example{--some-var: var(--tw-empty, )}body{background-color:red}
+
+    /* New output (with --minify) */
+    .example{--some-var: var(--tw-empty, )}/*! Some legal comment */body{background-color:red}
+    ```
+
 ## 0.13.15
 
 * Fix `super` in lowered `async` arrow functions ([#1777](https://github.com/evanw/esbuild/issues/1777))

@@ -858,6 +858,8 @@ func TestLegalComment(t *testing.T) {
 	expectPrinted(t, "@charset \"UTF-8\";/*!*/", "@charset \"UTF-8\";\n/*!*/\n")
 	expectPrinted(t, "@import \"x\"; /*!*/", "@import \"x\";\n/*!*/\n")
 	expectPrinted(t, "@charset \"UTF-8\"; /*!*/", "@charset \"UTF-8\";\n/*!*/\n")
+
+	expectPrinted(t, "/*! before */ a { --b: var(--c, /*!*/ /*!*/); } /*! after */\n", "/*! before */\na {\n  --b: var(--c, );\n}\n/*! after */\n")
 }
 
 func TestAtKeyframes(t *testing.T) {
