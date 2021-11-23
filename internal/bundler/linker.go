@@ -3043,11 +3043,14 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			template = c.options.ChunkPathTemplate
 		}
 
+		var templateExt = ext[1:]
+
 		// Determine the output path template
 		template = append(append(make([]config.PathTemplate, 0, len(template)+1), template...), config.PathTemplate{Data: ext})
 		chunk.finalTemplate = config.SubstituteTemplate(template, config.PathPlaceholders{
 			Dir:  &dir,
 			Name: &base,
+			Ext:  &templateExt,
 		})
 	}
 

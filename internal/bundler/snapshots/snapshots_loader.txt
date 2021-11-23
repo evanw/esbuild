@@ -240,6 +240,17 @@ var image_default = "../images/image-LSAMBFUD.png";
 console.log(image_default);
 
 ================================================================================
+TestLoaderFileExtPathAssetNamesJS
+---------- /out/png/image-LSAMBFUD.png ----------
+x
+---------- /out/entries/entry.js ----------
+// src/images/image.png
+var image_default = "../png/image-LSAMBFUD.png";
+
+// src/entries/entry.js
+console.log(image_default);
+
+================================================================================
 TestLoaderFileRelativePathCSS
 ---------- /out/image-LSAMBFUD.png ----------
 x

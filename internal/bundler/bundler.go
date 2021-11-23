@@ -1809,11 +1809,14 @@ func (s *scanner) processScannedFiles() []scannerFile {
 				/* customFilePath */ "",
 			)
 
+			var templateExt = ext[1:]
+
 			// Apply the asset path template
 			relPath := config.TemplateToString(config.SubstituteTemplate(s.options.AssetPathTemplate, config.PathPlaceholders{
 				Dir:  &dir,
 				Name: &base,
 				Hash: &hash,
+				Ext:  &templateExt,
 			})) + ext
 
 			// Optionally add metadata about the file
