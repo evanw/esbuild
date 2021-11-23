@@ -1197,9 +1197,9 @@ func TestTsconfigTarget(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.ts"},
 		options: config.Options{
-			Mode:                 config.ModeBundle,
-			AbsOutputFile:        "/Users/user/project/out.js",
-			IsTargetUnconfigured: true,
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			TargetFromAPI: config.TargetWasUnconfigured,
 		},
 		expectedScanLog: `Users/user/project/src/es4/tsconfig.json: warning: Unrecognized target environment "ES4"
 `,
@@ -1220,9 +1220,9 @@ func TestTsconfigTargetError(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.ts"},
 		options: config.Options{
-			Mode:                 config.ModeBundle,
-			AbsOutputFile:        "/Users/user/project/out.js",
-			IsTargetUnconfigured: true,
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			TargetFromAPI: config.TargetWasUnconfigured,
 		},
 		expectedScanLog: `Users/user/project/src/entry.ts: error: Big integer literals are not available in the configured target environment ("ES2019")
 Users/user/project/src/tsconfig.json: note: The target environment was set to "ES2019" here
@@ -1244,9 +1244,9 @@ func TestTsconfigTargetIgnored(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.ts"},
 		options: config.Options{
-			Mode:                 config.ModeBundle,
-			AbsOutputFile:        "/Users/user/project/out.js",
-			IsTargetUnconfigured: false,
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			TargetFromAPI: config.TargetWasConfigured,
 		},
 	})
 }
