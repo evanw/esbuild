@@ -1630,6 +1630,9 @@ type Scope struct {
 	Members   map[string]ScopeMember
 	Generated []Ref
 
+	// This will be non-nil if this is a TypeScript "namespace" or "enum"
+	TSNamespace *TSNamespaceScope
+
 	// The location of the "use strict" directive for ExplicitStrictMode
 	UseStrictLoc logger.Loc
 
@@ -1666,6 +1669,115 @@ func (s *Scope) RecursiveSetStrictMode(kind StrictModeKind) {
 			child.RecursiveSetStrictMode(kind)
 		}
 	}
+}
+
+// This is for TypeScript "enum" and "namespace" blocks. Each block can
+// potentially be instantiated multiple times. The exported members of each
+// block are merged into a single namespace while the non-exported code is
+// still scoped to just within that block:
+//
+//   let x = 1;
+//   namespace Foo {
+//     let x = 2;
+//     export let y = 3;
+//   }
+//   namespace Foo {
+//     console.log(x); // 1
+//     console.log(y); // 3
+//   }
+//
+// Doing this also works inside an enum:
+//
+//   enum Foo {
+//     A = 3,
+//     B = A + 1,
+//   }
+//   enum Foo {
+//     C = A + 2,
+//   }
+//   console.log(Foo.B) // 4
+//   console.log(Foo.C) // 5
+//
+// This is a form of identifier lookup that works differently than the
+// hierarchical scope-based identifier lookup in JavaScript. Lookup now needs
+// to search sibling scopes in addition to parent scopes. This is accomplished
+// by sharing the map of exported members between all matching sibling scopes.
+type TSNamespaceScope struct {
+	// This is shared between all sibling namespace blocks
+	ExportedMembers TSNamespaceMembers
+
+	// This is specific to this namespace block. It's the argument of the
+	// immediately-invoked function expression that the namespace block is
+	// compiled into:
+	//
+	//   var ns;
+	//   (function (ns2) {
+	//     ns2.x = 123;
+	//   })(ns || (ns = {}));
+	//
+	// This variable is "ns2" in the above example. It's the symbol to use when
+	// generating property accesses off of this namespace when it's in scope.
+	ArgRef Ref
+
+	// This is a lazily-generated map of identifiers that actually represent
+	// property accesses to this namespace's properties. For example:
+	//
+	//   namespace x {
+	//     export let y = 123
+	//   }
+	//   namespace x {
+	//     export let z = y
+	//   }
+	//
+	// This should be compiled into the following code:
+	//
+	//   var x;
+	//   (function(x2) {
+	//     x2.y = 123;
+	//   })(x || (x = {}));
+	//   (function(x3) {
+	//     x3.z = x3.y;
+	//   })(x || (x = {}));
+	//
+	// When we try to find the symbol "y", we instead return one of these lazily
+	// generated proxy symbols that represent the property access "x3.y". This
+	// map is unique per namespace block because "x3" is the argument symbol that
+	// is specific to that particular namespace block.
+	LazilyGeneratedProperyAccesses map[string]Ref
+}
+
+type TSNamespaceMembers map[string]TSNamespaceMember
+
+type TSNamespaceMember struct {
+	Loc  logger.Loc
+	Data TSNamespaceMemberData
+}
+
+type TSNamespaceMemberData interface {
+	isTSNamespaceMember()
+}
+
+func (TSNamespaceMemberProperty) isTSNamespaceMember()   {}
+func (TSNamespaceMemberNamespace) isTSNamespaceMember()  {}
+func (TSNamespaceMemberEnumNumber) isTSNamespaceMember() {}
+func (TSNamespaceMemberEnumString) isTSNamespaceMember() {}
+
+// "namespace ns { export let it }"
+type TSNamespaceMemberProperty struct{}
+
+// "namespace ns { export namespace it {} }"
+type TSNamespaceMemberNamespace struct {
+	ExportedMembers TSNamespaceMembers
+}
+
+// "enum ns { it }"
+type TSNamespaceMemberEnumNumber struct {
+	Value float64
+}
+
+// "enum ns { it = 'it' }"
+type TSNamespaceMemberEnumString struct {
+	Value []uint16
 }
 
 type SymbolMap struct {

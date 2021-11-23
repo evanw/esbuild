@@ -82,10 +82,29 @@ type parser struct {
 	privateSetters map[js_ast.Ref]js_ast.Ref
 
 	// These are for TypeScript
+	//
+	// We build up enough information about the TypeScript namespace hierarchy to
+	// be able to resolve scope lookups and property accesses for TypeScript enum
+	// and namespace features. Each JavaScript scope object inside a namespace
+	// has a reference to a map of exported namespace members from sibling scopes.
+	//
+	// In addition, there is a map from each relevant symbol reference to the data
+	// associated with that namespace or namespace member: "refToTSNamespaceMemberData".
+	// This gives enough info to be able to resolve queries into the namespace.
+	//
+	// When visiting expressions, namespace metadata is associated with the most
+	// recently visited node. If namespace metadata is present, "tsNamespaceTarget"
+	// will be set to the most recently visited node (as a way to mark that this
+	// node has metadata) and "tsNamespaceMemberData" will be set to the metadata.
+	//
+	// The "shouldFoldNumericConstants" flag is enabled inside each enum body block
+	// since TypeScript requires numeric constant folding in enum definitions.
+	refToTSNamespaceMemberData map[js_ast.Ref]js_ast.TSNamespaceMemberData
+	tsNamespaceTarget          js_ast.E
+	tsNamespaceMemberData      js_ast.TSNamespaceMemberData
 	shouldFoldNumericConstants bool
 	emittedNamespaceVars       map[js_ast.Ref]bool
 	isExportedInsideNamespace  map[js_ast.Ref]js_ast.Ref
-	knownEnumValues            map[js_ast.Ref]map[string]float64
 	localTypeNames             map[string]bool
 
 	// This is the reference to the generated function argument for the namespace,
@@ -6975,6 +6994,31 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 			break
 		}
 
+		// Is the symbol a member of this scope's TypeScript namespace?
+		if tsNamespace := s.TSNamespace; tsNamespace != nil {
+			if member, ok := tsNamespace.ExportedMembers[name]; ok {
+				// If this is an identifier from a sibling TypeScript namespace, then we're
+				// going to have to generate a property access instead of a simple reference.
+				// Lazily-generate an identifier that represents this property access.
+				cache := tsNamespace.LazilyGeneratedProperyAccesses
+				if cache == nil {
+					cache = make(map[string]js_ast.Ref)
+					tsNamespace.LazilyGeneratedProperyAccesses = cache
+				}
+				ref, ok = cache[name]
+				if !ok {
+					ref = p.newSymbol(js_ast.SymbolOther, name)
+					p.symbols[ref.InnerIndex].NamespaceAlias = &js_ast.NamespaceAlias{
+						NamespaceRef: tsNamespace.ArgRef,
+						Alias:        name,
+					}
+					cache[name] = ref
+				}
+				declareLoc = member.Loc
+				break
+			}
+		}
+
 		s = s.Parent
 		if s == nil {
 			// Allocate an "unbound" symbol
@@ -9311,11 +9355,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		hasNumericValue := true
 		valueExprs := []js_ast.Expr{}
 
-		// Track values so they can be used by constant folding. We need to follow
-		// links here in case the enum was merged with a preceding namespace.
-		valuesSoFar := make(map[string]float64)
-		p.knownEnumValues[s.Name.Ref] = valuesSoFar
-		p.knownEnumValues[s.Arg] = valuesSoFar
+		// Update the exported members of this enum as we constant fold each one
+		exportedMembers := p.currentScope.TSNamespace.ExportedMembers
 
 		// We normally don't fold numeric constants because they might increase code
 		// size, but it's important to fold numeric constants inside enums since
@@ -9332,16 +9373,28 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if value.ValueOrNil.Data != nil {
 				value.ValueOrNil = p.visitExpr(value.ValueOrNil)
 				hasNumericValue = false
+
 				switch e := value.ValueOrNil.Data.(type) {
 				case *js_ast.ENumber:
-					valuesSoFar[name] = e.Value
+					member := exportedMembers[name]
+					member.Data = &js_ast.TSNamespaceMemberEnumNumber{Value: e.Value}
+					exportedMembers[name] = member
+					p.refToTSNamespaceMemberData[value.Ref] = member.Data
 					hasNumericValue = true
 					nextNumericValue = e.Value + 1
+
 				case *js_ast.EString:
+					member := exportedMembers[name]
+					member.Data = &js_ast.TSNamespaceMemberEnumString{Value: e.Value}
+					exportedMembers[name] = member
+					p.refToTSNamespaceMemberData[value.Ref] = member.Data
 					hasStringValue = true
 				}
 			} else if hasNumericValue {
-				valuesSoFar[name] = nextNumericValue
+				member := exportedMembers[name]
+				member.Data = &js_ast.TSNamespaceMemberEnumNumber{Value: nextNumericValue}
+				exportedMembers[name] = member
+				p.refToTSNamespaceMemberData[value.Ref] = member.Data
 				value.ValueOrNil = js_ast.Expr{Loc: value.Loc, Data: &js_ast.ENumber{Value: nextNumericValue}}
 				nextNumericValue++
 			} else {
@@ -10325,15 +10378,6 @@ func (p *parser) maybeRewritePropertyAccess(
 				return js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: p.requireRef}}, true
 			}
 		}
-
-		// If this is a known enum value, inline the value of the enum
-		if p.options.ts.Parse {
-			if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
-				if number, ok := enumValueMap[name]; ok {
-					return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: number}}, true
-				}
-			}
-		}
 	}
 
 	// Attempt to simplify statically-determined object literal property accesses
@@ -10392,6 +10436,40 @@ func (p *parser) maybeRewritePropertyAccess(
 				// We can only return "undefined" when a key is missing if the prototype is null
 				if hasProtoNull {
 					return js_ast.Expr{Loc: target.Loc, Data: js_ast.EUndefinedShared}, true
+				}
+			}
+		}
+	}
+
+	// Handle references to namespaces or namespace members
+	if target.Data == p.tsNamespaceTarget && assignTarget == js_ast.AssignTargetNone && !isDeleteTarget {
+		if ns, ok := p.tsNamespaceMemberData.(*js_ast.TSNamespaceMemberNamespace); ok {
+			if member, ok := ns.ExportedMembers[name]; ok {
+				switch m := member.Data.(type) {
+				case *js_ast.TSNamespaceMemberEnumNumber:
+					return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}, true
+
+				case *js_ast.TSNamespaceMemberEnumString:
+					return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}, true
+
+				case *js_ast.TSNamespaceMemberNamespace:
+					// If this isn't a constant, return a clone of this property access
+					// but with the namespace member data associated with it so that
+					// more property accesses off of this property access are recognized.
+					if preferQuotedKey || !js_lexer.IsIdentifier(name) {
+						p.tsNamespaceTarget = &js_ast.EIndex{
+							Target: target,
+							Index:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}},
+						}
+					} else {
+						p.tsNamespaceTarget = &js_ast.EDot{
+							Target:  target,
+							Name:    name,
+							NameLoc: nameLoc,
+						}
+					}
+					p.tsNamespaceMemberData = member.Data
+					return js_ast.Expr{Loc: loc, Data: p.tsNamespaceTarget}, true
 				}
 			}
 		}
@@ -12851,6 +12929,38 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 		p.log.AddRangeError(&p.tracker, r, fmt.Sprintf("Cannot assign to import %q", p.symbols[ref.InnerIndex].OriginalName))
 	}
 
+	// Substitute an EImportIdentifier now if this has a namespace alias
+	if opts.assignTarget == js_ast.AssignTargetNone && !opts.isDeleteTarget {
+		if nsAlias := p.symbols[ref.InnerIndex].NamespaceAlias; nsAlias != nil {
+			data := &js_ast.EImportIdentifier{
+				Ref:                     ref,
+				PreferQuotedKey:         opts.preferQuotedKey,
+				WasOriginallyIdentifier: opts.wasOriginallyIdentifier,
+			}
+
+			// Handle references to namespaces or namespace members
+			if tsMemberData, ok := p.refToTSNamespaceMemberData[nsAlias.NamespaceRef]; ok {
+				if ns, ok := tsMemberData.(*js_ast.TSNamespaceMemberNamespace); ok {
+					if member, ok := ns.ExportedMembers[nsAlias.Alias]; ok {
+						switch m := member.Data.(type) {
+						case *js_ast.TSNamespaceMemberEnumNumber:
+							return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}
+
+						case *js_ast.TSNamespaceMemberEnumString:
+							return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}
+
+						case *js_ast.TSNamespaceMemberNamespace:
+							p.tsNamespaceTarget = data
+							p.tsNamespaceMemberData = member.Data
+						}
+					}
+				}
+			}
+
+			return js_ast.Expr{Loc: loc, Data: data}
+		}
+	}
+
 	// Substitute an EImportIdentifier now if this is an import item
 	if p.isImportItem[ref] {
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EImportIdentifier{
@@ -12860,25 +12970,37 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 		}}
 	}
 
+	// Handle references to namespaces or namespace members
+	if tsMemberData, ok := p.refToTSNamespaceMemberData[ref]; ok {
+		switch m := tsMemberData.(type) {
+		case *js_ast.TSNamespaceMemberEnumNumber:
+			return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}
+
+		case *js_ast.TSNamespaceMemberEnumString:
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}
+
+		case *js_ast.TSNamespaceMemberNamespace:
+			p.tsNamespaceTarget = e
+			p.tsNamespaceMemberData = tsMemberData
+		}
+	}
+
 	// Substitute a namespace export reference now if appropriate
 	if p.options.ts.Parse {
 		if nsRef, ok := p.isExportedInsideNamespace[ref]; ok {
 			name := p.symbols[ref.InnerIndex].OriginalName
 
-			// If this is a known enum value, inline the value of the enum
-			if enumValueMap, ok := p.knownEnumValues[nsRef]; ok {
-				if number, ok := enumValueMap[name]; ok {
-					return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: number}}
-				}
-			}
-
 			// Otherwise, create a property access on the namespace
 			p.recordUsage(nsRef)
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+			propertyAccess := &js_ast.EDot{
 				Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: nsRef}},
 				Name:    name,
 				NameLoc: loc,
-			}}
+			}
+			if p.tsNamespaceTarget == e {
+				p.tsNamespaceTarget = propertyAccess
+			}
+			return js_ast.Expr{Loc: loc, Data: propertyAccess}
 		}
 	}
 
@@ -14032,10 +14154,10 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		privateSetters: make(map[js_ast.Ref]js_ast.Ref),
 
 		// These are for TypeScript
-		emittedNamespaceVars:      make(map[js_ast.Ref]bool),
-		isExportedInsideNamespace: make(map[js_ast.Ref]js_ast.Ref),
-		knownEnumValues:           make(map[js_ast.Ref]map[string]float64),
-		localTypeNames:            make(map[string]bool),
+		refToTSNamespaceMemberData: make(map[js_ast.Ref]js_ast.TSNamespaceMemberData),
+		emittedNamespaceVars:       make(map[js_ast.Ref]bool),
+		isExportedInsideNamespace:  make(map[js_ast.Ref]js_ast.Ref),
+		localTypeNames:             make(map[string]bool),
 
 		// These are for handling ES6 imports and exports
 		importItemsForNamespace: make(map[js_ast.Ref]map[string]js_ast.LocRef),

@@ -895,12 +895,27 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	nameText := p.lexer.Identifier
 	p.lexer.Expect(js_lexer.TIdentifier)
 	name := js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
-	argRef := js_ast.InvalidRef
+
+	// Generate the namespace object
+	exportedMembers := p.getOrCreateExportedNamespaceMembers(nameText, opts.isExport)
+	tsNamespace := &js_ast.TSNamespaceScope{
+		ExportedMembers: exportedMembers,
+		ArgRef:          js_ast.InvalidRef,
+	}
+	enumMemberData := &js_ast.TSNamespaceMemberNamespace{
+		ExportedMembers: exportedMembers,
+	}
+
+	// Declare the enum and create the scope
 	if !opts.isTypeScriptDeclare {
 		name.Ref = p.declareSymbol(js_ast.SymbolTSEnum, nameLoc, nameText)
 		p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
+		p.currentScope.TSNamespace = tsNamespace
+		p.refToTSNamespaceMemberData[name.Ref] = enumMemberData
 	}
+
 	p.lexer.Expect(js_lexer.TOpenBrace)
+	values := []js_ast.EnumValue{}
 
 	oldFnOrArrowData := p.fnOrArrowDataParse
 	p.fnOrArrowDataParse = fnOrArrowDataParse{
@@ -908,7 +923,6 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	}
 
 	// Parse the body
-	values := []js_ast.EnumValue{}
 	for p.lexer.Token != js_lexer.TCloseBrace {
 		value := js_ast.EnumValue{
 			Loc: p.lexer.Loc(),
@@ -916,10 +930,13 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 		}
 
 		// Parse the name
+		var nameText string
 		if p.lexer.Token == js_lexer.TStringLiteral {
 			value.Name = p.lexer.StringLiteral()
+			nameText = js_lexer.UTF16ToString(value.Name)
 		} else if p.lexer.IsIdentifierOrKeyword() {
-			value.Name = js_lexer.StringToUTF16(p.lexer.Identifier)
+			nameText = p.lexer.Identifier
+			value.Name = js_lexer.StringToUTF16(nameText)
 		} else {
 			p.lexer.Expect(js_lexer.TIdentifier)
 		}
@@ -937,6 +954,12 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 		}
 
 		values = append(values, value)
+
+		// Add this enum value as a member of the enum's namespace
+		exportedMembers[nameText] = js_ast.TSNamespaceMember{
+			Loc:  value.Loc,
+			Data: &js_ast.TSNamespaceMemberProperty{},
+		}
 
 		if p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TSemicolon {
 			break
@@ -980,11 +1003,12 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 			// Add a "_" to make tests easier to read, since non-bundler tests don't
 			// run the renamer. For external-facing things the renamer will avoid
 			// collisions automatically so this isn't important for correctness.
-			argRef = p.newSymbol(js_ast.SymbolHoisted, "_"+nameText)
-			p.currentScope.Generated = append(p.currentScope.Generated, argRef)
+			tsNamespace.ArgRef = p.newSymbol(js_ast.SymbolHoisted, "_"+nameText)
+			p.currentScope.Generated = append(p.currentScope.Generated, tsNamespace.ArgRef)
 		} else {
-			argRef = p.declareSymbol(js_ast.SymbolHoisted, nameLoc, nameText)
+			tsNamespace.ArgRef = p.declareSymbol(js_ast.SymbolHoisted, nameLoc, nameText)
 		}
+		p.refToTSNamespaceMemberData[tsNamespace.ArgRef] = enumMemberData
 
 		p.popScope()
 	}
@@ -1001,7 +1025,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SEnum{
 		Name:     name,
-		Arg:      argRef,
+		Arg:      tsNamespace.ArgRef,
 		Values:   values,
 		IsExport: opts.isExport,
 	}}
@@ -1062,14 +1086,54 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 	}}
 }
 
+// Generate a TypeScript namespace object for this namespace's scope. If this
+// namespace is another block that is to be merged with an existing namespace,
+// use that earlier namespace's object instead.
+func (p *parser) getOrCreateExportedNamespaceMembers(name string, isExport bool) js_ast.TSNamespaceMembers {
+	// Merge with a sibling namespace from the same scope
+	if existingMember, ok := p.currentScope.Members[name]; ok {
+		if memberData, ok := p.refToTSNamespaceMemberData[existingMember.Ref]; ok {
+			if nsMemberData, ok := memberData.(*js_ast.TSNamespaceMemberNamespace); ok {
+				return nsMemberData.ExportedMembers
+			}
+		}
+	}
+
+	// Merge with a sibling namespace from a different scope
+	if isExport {
+		if parentNamespace := p.currentScope.TSNamespace; parentNamespace != nil {
+			if existing, ok := parentNamespace.ExportedMembers[name]; ok {
+				if existing, ok := existing.Data.(*js_ast.TSNamespaceMemberNamespace); ok {
+					return existing.ExportedMembers
+				}
+			}
+		}
+	}
+
+	// Otherwise, generate a new namespace object
+	return make(js_ast.TSNamespaceMembers)
+}
+
 func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
 	// "namespace Foo {}"
 	nameLoc := p.lexer.Loc()
 	nameText := p.lexer.Identifier
 	p.lexer.Next()
 
+	// Generate the namespace object
+	exportedMembers := p.getOrCreateExportedNamespaceMembers(nameText, opts.isExport)
+	tsNamespace := &js_ast.TSNamespaceScope{
+		ExportedMembers: exportedMembers,
+		ArgRef:          js_ast.InvalidRef,
+	}
+	nsMemberData := &js_ast.TSNamespaceMemberNamespace{
+		ExportedMembers: exportedMembers,
+	}
+
+	// Declare the namespace and create the scope
 	name := js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
+	p.currentScope.TSNamespace = tsNamespace
 
 	oldHasNonLocalExportDeclareInsideNamespace := p.hasNonLocalExportDeclareInsideNamespace
 	oldFnOrArrowData := p.fnOrArrowDataParse
@@ -1079,6 +1143,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 		needsAsyncLoc:      logger.Loc{Start: -1},
 	}
 
+	// Parse the statements inside the namespace
 	var stmts []js_ast.Stmt
 	if p.lexer.Token == js_lexer.TDot {
 		dotLoc := p.lexer.Loc()
@@ -1102,6 +1167,71 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	hasNonLocalExportDeclareInsideNamespace := p.hasNonLocalExportDeclareInsideNamespace
 	p.hasNonLocalExportDeclareInsideNamespace = oldHasNonLocalExportDeclareInsideNamespace
 	p.fnOrArrowDataParse = oldFnOrArrowData
+
+	// Add any exported members from this namespace's body as members of the
+	// associated namespace object.
+	for _, stmt := range stmts {
+		switch s := stmt.Data.(type) {
+		case *js_ast.SFunction:
+			if s.IsExport {
+				name := p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName
+				member := js_ast.TSNamespaceMember{
+					Loc:  s.Fn.Name.Loc,
+					Data: &js_ast.TSNamespaceMemberProperty{},
+				}
+				exportedMembers[name] = member
+				p.refToTSNamespaceMemberData[s.Fn.Name.Ref] = member.Data
+			}
+
+		case *js_ast.SClass:
+			if s.IsExport {
+				name := p.symbols[s.Class.Name.Ref.InnerIndex].OriginalName
+				member := js_ast.TSNamespaceMember{
+					Loc:  s.Class.Name.Loc,
+					Data: &js_ast.TSNamespaceMemberProperty{},
+				}
+				exportedMembers[name] = member
+				p.refToTSNamespaceMemberData[s.Class.Name.Ref] = member.Data
+			}
+
+		case *js_ast.SNamespace:
+			if s.IsExport {
+				if memberData, ok := p.refToTSNamespaceMemberData[s.Name.Ref]; ok {
+					if nsMemberData, ok := memberData.(*js_ast.TSNamespaceMemberNamespace); ok {
+						member := js_ast.TSNamespaceMember{
+							Loc: s.Name.Loc,
+							Data: &js_ast.TSNamespaceMemberNamespace{
+								ExportedMembers: nsMemberData.ExportedMembers,
+							},
+						}
+						exportedMembers[p.symbols[s.Name.Ref.InnerIndex].OriginalName] = member
+						p.refToTSNamespaceMemberData[s.Name.Ref] = member.Data
+					}
+				}
+			}
+
+		case *js_ast.SEnum:
+			if s.IsExport {
+				if memberData, ok := p.refToTSNamespaceMemberData[s.Name.Ref]; ok {
+					if nsMemberData, ok := memberData.(*js_ast.TSNamespaceMemberNamespace); ok {
+						member := js_ast.TSNamespaceMember{
+							Loc: s.Name.Loc,
+							Data: &js_ast.TSNamespaceMemberNamespace{
+								ExportedMembers: nsMemberData.ExportedMembers,
+							},
+						}
+						exportedMembers[p.symbols[s.Name.Ref.InnerIndex].OriginalName] = member
+						p.refToTSNamespaceMemberData[s.Name.Ref] = member.Data
+					}
+				}
+			}
+
+		case *js_ast.SLocal:
+			if s.IsExport {
+				p.exportDeclsInsideNamespace(exportedMembers, s.Decls)
+			}
+		}
+	}
 
 	// Import assignments may be only used in type expressions, not value
 	// expressions. If this is the case, the TypeScript compiler removes
@@ -1132,7 +1262,6 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
 	}
 
-	argRef := js_ast.InvalidRef
 	if !opts.isTypeScriptDeclare {
 		// Avoid a collision with the namespace closure argument variable if the
 		// namespace exports a symbol with the same name as the namespace itself:
@@ -1154,23 +1283,59 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 			// Add a "_" to make tests easier to read, since non-bundler tests don't
 			// run the renamer. For external-facing things the renamer will avoid
 			// collisions automatically so this isn't important for correctness.
-			argRef = p.newSymbol(js_ast.SymbolHoisted, "_"+nameText)
-			p.currentScope.Generated = append(p.currentScope.Generated, argRef)
+			tsNamespace.ArgRef = p.newSymbol(js_ast.SymbolHoisted, "_"+nameText)
+			p.currentScope.Generated = append(p.currentScope.Generated, tsNamespace.ArgRef)
 		} else {
-			argRef = p.declareSymbol(js_ast.SymbolHoisted, nameLoc, nameText)
+			tsNamespace.ArgRef = p.declareSymbol(js_ast.SymbolHoisted, nameLoc, nameText)
 		}
+		p.refToTSNamespaceMemberData[tsNamespace.ArgRef] = nsMemberData
 	}
 
 	p.popScope()
 	if !opts.isTypeScriptDeclare {
 		name.Ref = p.declareSymbol(js_ast.SymbolTSNamespace, nameLoc, nameText)
+		p.refToTSNamespaceMemberData[name.Ref] = nsMemberData
 	}
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SNamespace{
 		Name:     name,
-		Arg:      argRef,
+		Arg:      tsNamespace.ArgRef,
 		Stmts:    stmts,
 		IsExport: opts.isExport,
 	}}
+}
+
+func (p *parser) exportDeclsInsideNamespace(exportedMembers js_ast.TSNamespaceMembers, decls []js_ast.Decl) {
+	for _, decl := range decls {
+		p.exportBindingInsideNamespace(exportedMembers, decl.Binding)
+	}
+}
+
+func (p *parser) exportBindingInsideNamespace(exportedMembers js_ast.TSNamespaceMembers, binding js_ast.Binding) {
+	switch b := binding.Data.(type) {
+	case *js_ast.BMissing:
+
+	case *js_ast.BIdentifier:
+		name := p.symbols[b.Ref.InnerIndex].OriginalName
+		member := js_ast.TSNamespaceMember{
+			Loc:  binding.Loc,
+			Data: &js_ast.TSNamespaceMemberProperty{},
+		}
+		exportedMembers[name] = member
+		p.refToTSNamespaceMemberData[b.Ref] = member.Data
+
+	case *js_ast.BArray:
+		for _, item := range b.Items {
+			p.exportBindingInsideNamespace(exportedMembers, item.Binding)
+		}
+
+	case *js_ast.BObject:
+		for _, property := range b.Properties {
+			p.exportBindingInsideNamespace(exportedMembers, property.Value)
+		}
+
+	default:
+		panic("Internal error")
+	}
 }
 
 func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(

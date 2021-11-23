@@ -61,6 +61,70 @@ In addition to the breaking changes above, the following changes are also includ
 
     * Forbidden keywords: `break`, `case`, `catch`, `class`, `const`, `continue`, `debugger`, `default`, `delete`, `do`, `else`, `enum`, `export`, `extends`, `finally`, `for`, `if`, `in`, `instanceof`, `return`, `super`, `switch`, `throw`, `try`, `var`, `while`, `with`
 
+* Support sibling namespaces in TypeScript ([#1410](https://github.com/evanw/esbuild/issues/1410))
+
+    TypeScript has a feature where sibling namespaces with the same name can implicitly reference each other's exports without an explicit property access. This goes against how scope lookup works in JavaScript, so it previously didn't work with esbuild. This release adds support for this feature:
+
+    ```ts
+    // Original TypeScript code
+    namespace x {
+      export let y = 123
+    }
+    namespace x {
+      export let z = y
+    }
+
+    // Old JavaScript output
+    var x;
+    (function(x2) {
+      x2.y = 123;
+    })(x || (x = {}));
+    (function(x2) {
+      x2.z = y;
+    })(x || (x = {}));
+
+    // New JavaScript output
+    var x;
+    (function(x2) {
+      x2.y = 123;
+    })(x || (x = {}));
+    (function(x2) {
+      x2.z = x2.y;
+    })(x || (x = {}));
+    ```
+
+    Notice how the identifier `y` is now compiled to the property access `x2.y` which references the export named `y` on the namespace, instead of being left as the identifier `y` which references the global named `y`. This matches how the TypeScript compiler treats namespace objects. This new behavior also works for enums:
+
+    ```ts
+    // Original TypeScript code
+    enum x {
+      y = 123
+    }
+    enum x {
+      z = y + 1
+    }
+
+    // Old JavaScript output
+    var x;
+    (function(x2) {
+      x2[x2["y"] = 123] = "y";
+    })(x || (x = {}));
+    (function(x2) {
+      x2[x2["z"] = y + 1] = "z";
+    })(x || (x = {}));
+
+    // New JavaScript output
+    var x;
+    (function(x2) {
+      x2[x2["y"] = 123] = "y";
+    })(x || (x = {}));
+    (function(x2) {
+      x2[x2["z"] = 124] = "z";
+    })(x || (x = {}));
+    ```
+
+    Note that this behavior does **not** work across files. Each file is still compiled independently so the namespaces in each file are still resolved independently per-file. Implicit namespace cross-references still do not work across files. Getting this to work is counter to esbuild's parallel architecture and does not fit in with esbuild's design. It also doesn't make sense with esbuild's bundling model where input files are either in ESM or CommonJS format and therefore each have their own scope.
+
 ## 0.13.15
 
 * Fix `super` in lowered `async` arrow functions ([#1777](https://github.com/evanw/esbuild/issues/1777))
