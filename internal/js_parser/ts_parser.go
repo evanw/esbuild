@@ -5,6 +5,8 @@
 package js_parser
 
 import (
+	"fmt"
+
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -156,7 +158,8 @@ func (p *parser) skipTypeScriptType(level js_ast.L) {
 }
 
 type skipTypeOpts struct {
-	isReturnType bool
+	isReturnType     bool
+	allowTupleLabels bool
 }
 
 type tsTypeIdentifierKind uint8
@@ -197,8 +200,17 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 		switch p.lexer.Token {
 		case js_lexer.TNumericLiteral, js_lexer.TBigIntegerLiteral, js_lexer.TStringLiteral,
 			js_lexer.TNoSubstitutionTemplateLiteral, js_lexer.TTrue, js_lexer.TFalse,
-			js_lexer.TNull, js_lexer.TVoid, js_lexer.TConst:
+			js_lexer.TNull, js_lexer.TVoid:
 			p.lexer.Next()
+
+		case js_lexer.TConst:
+			r := p.lexer.Range()
+			p.lexer.Next()
+
+			// "[const: number]"
+			if opts.allowTupleLabels && p.lexer.Token == js_lexer.TColon {
+				p.log.AddRangeError(&p.tracker, r, "Unexpected \"const\"")
+			}
 
 		case js_lexer.TThis:
 			p.lexer.Next()
@@ -229,6 +241,12 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 		case js_lexer.TImport:
 			// "import('fs')"
 			p.lexer.Next()
+
+			// "[import: number]"
+			if opts.allowTupleLabels && p.lexer.Token == js_lexer.TColon {
+				return
+			}
+
 			p.lexer.Expect(js_lexer.TOpenParen)
 			p.lexer.Expect(js_lexer.TStringLiteral)
 			p.lexer.Expect(js_lexer.TCloseParen)
@@ -237,6 +255,12 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 			// "new () => Foo"
 			// "new <T>() => Foo<T>"
 			p.lexer.Next()
+
+			// "[new: number]"
+			if opts.allowTupleLabels && p.lexer.Token == js_lexer.TColon {
+				return
+			}
+
 			p.skipTypeScriptTypeParameters()
 			p.skipTypeScriptParenOrFnType()
 
@@ -304,6 +328,12 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 
 		case js_lexer.TTypeof:
 			p.lexer.Next()
+
+			// "[typeof: number]"
+			if opts.allowTupleLabels && p.lexer.Token == js_lexer.TColon {
+				return
+			}
+
 			if p.lexer.Token == js_lexer.TImport {
 				// "typeof import('fs')"
 				continue
@@ -330,7 +360,7 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 				if p.lexer.Token == js_lexer.TDotDotDot {
 					p.lexer.Next()
 				}
-				p.skipTypeScriptType(js_ast.LLowest)
+				p.skipTypeScriptTypeWithOpts(js_ast.LLowest, skipTypeOpts{allowTupleLabels: true})
 				if p.lexer.Token == js_lexer.TQuestion {
 					p.lexer.Next()
 				}
@@ -361,6 +391,18 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 			}
 
 		default:
+			// "[function: number]"
+			if opts.allowTupleLabels && p.lexer.IsIdentifierOrKeyword() {
+				if p.lexer.Token != js_lexer.TFunction {
+					p.log.AddRangeError(&p.tracker, p.lexer.Range(), fmt.Sprintf("Unexpected %q", p.lexer.Raw()))
+				}
+				p.lexer.Next()
+				if p.lexer.Token != js_lexer.TColon {
+					p.lexer.Expect(js_lexer.TColon)
+				}
+				return
+			}
+
 			p.lexer.Unexpected()
 		}
 		break
