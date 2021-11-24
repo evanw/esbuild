@@ -463,6 +463,10 @@ func TestTSNamespace(t *testing.T) {
 	expectParseErrorTS(t, "namespace x { await 1 }", "<stdin>: error: \"await\" can only be used inside an \"async\" function\n")
 	expectParseErrorTS(t, "namespace x { if (y) return }", "<stdin>: error: A return statement cannot be used here\n")
 	expectParseErrorTS(t, "namespace x { if (y) await 1 }", "<stdin>: error: \"await\" can only be used inside an \"async\" function\n")
+	expectParseErrorTS(t, "namespace x { this }", "<stdin>: error: Cannot use \"this\" here\n")
+	expectParseErrorTS(t, "namespace x { () => this }", "<stdin>: error: Cannot use \"this\" here\n")
+	expectParseErrorTS(t, "namespace x { (function() { this }) }", "")
+	expectParseErrorTS(t, "namespace x { function y() { this } }", "")
 	expectParseErrorTS(t, "export namespace x { export let yield = 1 }",
 		"<stdin>: error: \"yield\" is a reserved word and cannot be used in strict mode\n"+
 			"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n")
@@ -998,6 +1002,11 @@ func TestTSNamespaceDestructuring(t *testing.T) {
 }
 
 func TestTSEnum(t *testing.T) {
+	// Certain syntax isn't allowed inside an enum block
+	expectParseErrorTS(t, "enum x { y = this }", "<stdin>: error: Cannot use \"this\" here\n")
+	expectParseErrorTS(t, "enum x { y = () => this }", "<stdin>: error: Cannot use \"this\" here\n")
+	expectParseErrorTS(t, "enum x { y = function() { this } }", "")
+
 	expectPrintedTS(t, "enum Foo { A, B }", `var Foo;
 (function(Foo) {
   Foo[Foo["A"] = 0] = "A";

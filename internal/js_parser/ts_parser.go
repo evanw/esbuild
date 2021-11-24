@@ -919,7 +919,8 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 
 	oldFnOrArrowData := p.fnOrArrowDataParse
 	p.fnOrArrowDataParse = fnOrArrowDataParse{
-		needsAsyncLoc: logger.Loc{Start: -1},
+		isThisDisallowed: true,
+		needsAsyncLoc:    logger.Loc{Start: -1},
 	}
 
 	// Parse the body
@@ -1139,6 +1140,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	oldFnOrArrowData := p.fnOrArrowDataParse
 	p.hasNonLocalExportDeclareInsideNamespace = false
 	p.fnOrArrowDataParse = fnOrArrowDataParse{
+		isThisDisallowed:   true,
 		isReturnDisallowed: true,
 		needsAsyncLoc:      logger.Loc{Start: -1},
 	}

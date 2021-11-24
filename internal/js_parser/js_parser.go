@@ -500,6 +500,7 @@ type fnOrArrowDataParse struct {
 	isTopLevel          bool
 	isConstructor       bool
 	isTypeScriptDeclare bool
+	isThisDisallowed    bool
 	isReturnDisallowed  bool
 
 	// In TypeScript, forward declarations of functions have no bodies
@@ -2388,7 +2389,8 @@ func (p *parser) parseArrowBody(args []js_ast.Arg, data fnOrArrowDataParse) *js_
 		p.declareBinding(js_ast.SymbolHoisted, arg.Binding, parseStmtOpts{})
 	}
 
-	// The ability to use "super" is inherited by arrow functions
+	// The ability to use "this" and "super" is inherited by arrow functions
+	data.isThisDisallowed = p.fnOrArrowDataParse.isThisDisallowed
 	data.allowSuperCall = p.fnOrArrowDataParse.allowSuperCall
 	data.allowSuperProperty = p.fnOrArrowDataParse.allowSuperProperty
 
@@ -2936,6 +2938,9 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		return js_ast.Expr{Loc: loc, Data: js_ast.ENullShared}
 
 	case js_lexer.TThis:
+		if p.fnOrArrowDataParse.isThisDisallowed {
+			p.log.AddRangeError(&p.tracker, p.lexer.Range(), "Cannot use \"this\" here")
+		}
 		p.lexer.Next()
 		return js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 
