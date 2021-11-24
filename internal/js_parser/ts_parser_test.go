@@ -37,6 +37,18 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedTargetTS(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+	})
+}
+
 func expectParseErrorTSNoAmbiguousLessThan(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectParseErrorCommon(t, contents, expected, config.Options{
@@ -458,6 +470,10 @@ func TestTSInterface(t *testing.T) {
 }
 
 func TestTSNamespace(t *testing.T) {
+	// Check ES5 emit
+	expectPrintedTargetTS(t, 5, "namespace x { export var y = 1 }", "var x;\n(function(x) {\n  x.y = 1;\n})(x || (x = {}));\n")
+	expectPrintedTargetTS(t, 2015, "namespace x { export var y = 1 }", "var x;\n((x) => {\n  x.y = 1;\n})(x || (x = {}));\n")
+
 	// Certain syntax isn't allowed inside a namespace block
 	expectParseErrorTS(t, "namespace x { return }", "<stdin>: error: A return statement cannot be used here\n")
 	expectParseErrorTS(t, "namespace x { await 1 }", "<stdin>: error: \"await\" can only be used inside an \"async\" function\n")
@@ -471,32 +487,32 @@ func TestTSNamespace(t *testing.T) {
 		"<stdin>: error: \"yield\" is a reserved word and cannot be used in strict mode\n"+
 			"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n")
 	expectPrintedTS(t, "namespace x { export let await = 1, y = await }", `var x;
-(function(x) {
+((x) => {
   x.await = 1;
   x.y = x.await;
 })(x || (x = {}));
 `)
 	expectPrintedTS(t, "namespace x { export let yield = 1, y = yield }", `var x;
-(function(x) {
+((x) => {
   x.yield = 1;
   x.y = x.yield;
 })(x || (x = {}));
 `)
 
 	expectPrintedTS(t, "namespace Foo { 0 }", `var Foo;
-(function(Foo) {
+((Foo) => {
   0;
 })(Foo || (Foo = {}));
 `)
 	expectPrintedTS(t, "export namespace Foo { 0 }", `export var Foo;
-(function(Foo) {
+((Foo) => {
   0;
 })(Foo || (Foo = {}));
 `)
 
 	// Namespaces should introduce a scope that prevents name collisions
 	expectPrintedTS(t, "namespace Foo { let x } let x", `var Foo;
-(function(Foo) {
+((Foo) => {
   let x;
 })(Foo || (Foo = {}));
 let x;
@@ -504,12 +520,12 @@ let x;
 
 	// Exports in namespaces shouldn't collide with module exports
 	expectPrintedTS(t, "namespace Foo { export let x } export let x", `var Foo;
-(function(Foo) {
+((Foo) => {
 })(Foo || (Foo = {}));
 export let x;
 `)
 	expectPrintedTS(t, "declare namespace Foo { export let x } namespace x { 0 }", `var x;
-(function(x) {
+((x) => {
   0;
 })(x || (x = {}));
 `)
@@ -545,38 +561,38 @@ export let x;
 	// Namespaces are allowed to merge with certain symbols
 	expectPrintedTS(t, "function foo() {} namespace foo { 0 }", `function foo() {
 }
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
 `)
 	expectPrintedTS(t, "function* foo() {} namespace foo { 0 }", `function* foo() {
 }
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
 `)
 	expectPrintedTS(t, "async function foo() {} namespace foo { 0 }", `async function foo() {
 }
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
 `)
 	expectPrintedTS(t, "class foo {} namespace foo { 0 }", `class foo {
 }
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
 `)
 	expectPrintedTS(t, "enum foo { a } namespace foo { 0 }", `var foo;
-(function(foo) {
+((foo) => {
   foo[foo["a"] = 0] = "a";
 })(foo || (foo = {}));
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
 `)
 	expectPrintedTS(t, "namespace foo {} namespace foo { 0 }", `var foo;
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
 `)
@@ -585,29 +601,29 @@ export let x;
 	expectParseErrorTS(t, "namespace foo { 0 } async function foo() {}", errorText)
 	expectParseErrorTS(t, "namespace foo { 0 } class foo {}", errorText)
 	expectPrintedTS(t, "namespace foo { 0 } enum foo { a }", `var foo;
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
-(function(foo) {
+((foo) => {
   foo[foo["a"] = 0] = "a";
 })(foo || (foo = {}));
 `)
 	expectPrintedTS(t, "namespace foo { 0 } namespace foo {}", `var foo;
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
 `)
 	expectPrintedTS(t, "namespace foo { 0 } namespace foo { 0 }", `var foo;
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
 `)
 	expectPrintedTS(t, "function foo() {} namespace foo { 0 } function foo() {}", `function foo() {
 }
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
 function foo() {
@@ -615,7 +631,7 @@ function foo() {
 `)
 	expectPrintedTS(t, "function* foo() {} namespace foo { 0 } function* foo() {}", `function* foo() {
 }
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
 function* foo() {
@@ -623,7 +639,7 @@ function* foo() {
 `)
 	expectPrintedTS(t, "async function foo() {} namespace foo { 0 } async function foo() {}", `async function foo() {
 }
-(function(foo) {
+((foo) => {
   0;
 })(foo || (foo = {}));
 async function foo() {
@@ -639,9 +655,9 @@ async function foo() {
 
 	// Test dot nested namespace syntax
 	expectPrintedTS(t, "namespace foo.bar { foo(bar) }", `var foo;
-(function(foo) {
+((foo) => {
   let bar;
-  (function(bar) {
+  ((bar) => {
     foo(bar);
   })(bar = foo.bar || (foo.bar = {}));
 })(foo || (foo = {}));
@@ -649,25 +665,25 @@ async function foo() {
 
 	// "module" is a deprecated alias for "namespace"
 	expectPrintedTS(t, "module foo { export namespace bar { foo(bar) } }", `var foo;
-(function(foo) {
+((foo) => {
   let bar;
-  (function(bar) {
+  ((bar) => {
     foo(bar);
   })(bar = foo.bar || (foo.bar = {}));
 })(foo || (foo = {}));
 `)
 	expectPrintedTS(t, "namespace foo { export module bar { foo(bar) } }", `var foo;
-(function(foo) {
+((foo) => {
   let bar;
-  (function(bar) {
+  ((bar) => {
     foo(bar);
   })(bar = foo.bar || (foo.bar = {}));
 })(foo || (foo = {}));
 `)
 	expectPrintedTS(t, "module foo.bar { foo(bar) }", `var foo;
-(function(foo) {
+((foo) => {
   let bar;
-  (function(bar) {
+  ((bar) => {
     foo(bar);
   })(bar = foo.bar || (foo.bar = {}));
 })(foo || (foo = {}));
@@ -688,21 +704,21 @@ func TestTSNamespaceExports(t *testing.T) {
 			}
 		}
 	`, `var A;
-(function(A) {
+((A) => {
   let B;
-  (function(B) {
+  ((B) => {
     function fn() {
     }
     B.fn = fn;
   })(B = A.B || (A.B = {}));
   let C;
-  (function(C) {
+  ((C) => {
     function fn() {
     }
     C.fn = fn;
   })(C || (C = {}));
   let D;
-  (function(D) {
+  ((D) => {
     function fn() {
     }
   })(D || (D = {}));
@@ -722,21 +738,21 @@ func TestTSNamespaceExports(t *testing.T) {
 			}
 		}
 	`, `var A;
-(function(A) {
+((A) => {
   let B;
-  (function(B) {
+  ((B) => {
     class Class {
     }
     B.Class = Class;
   })(B = A.B || (A.B = {}));
   let C;
-  (function(C) {
+  ((C) => {
     class Class {
     }
     C.Class = Class;
   })(C || (C = {}));
   let D;
-  (function(D) {
+  ((D) => {
     class Class {
     }
   })(D || (D = {}));
@@ -756,23 +772,23 @@ func TestTSNamespaceExports(t *testing.T) {
 			}
 		}
 	`, `var A;
-(function(A) {
+((A) => {
   let B;
-  (function(B) {
+  ((B) => {
     let Enum;
-    (function(Enum) {
+    ((Enum) => {
     })(Enum = B.Enum || (B.Enum = {}));
   })(B = A.B || (A.B = {}));
   let C;
-  (function(C) {
+  ((C) => {
     let Enum;
-    (function(Enum) {
+    ((Enum) => {
     })(Enum = C.Enum || (C.Enum = {}));
   })(C || (C = {}));
   let D;
-  (function(D) {
+  ((D) => {
     let Enum;
-    (function(Enum) {
+    ((Enum) => {
     })(Enum || (Enum = {}));
   })(D || (D = {}));
 })(A || (A = {}));
@@ -794,19 +810,19 @@ func TestTSNamespaceExports(t *testing.T) {
 			}
 		}
 	`, `var A;
-(function(A) {
+((A) => {
   let B;
-  (function(B) {
+  ((B) => {
     B.foo = 1;
     B.foo += B.foo;
   })(B = A.B || (A.B = {}));
   let C;
-  (function(C) {
+  ((C) => {
     C.foo = 1;
     C.foo += C.foo;
   })(C || (C = {}));
   let D;
-  (function(D) {
+  ((D) => {
     let foo = 1;
     foo += foo;
   })(D || (D = {}));
@@ -826,17 +842,17 @@ func TestTSNamespaceExports(t *testing.T) {
 			}
 		}
 	`, `var A;
-(function(A) {
+((A) => {
   let B;
-  (function(B) {
+  ((B) => {
     B.foo = 1;
   })(B = A.B || (A.B = {}));
   let C;
-  (function(C) {
+  ((C) => {
     C.foo = 1;
   })(C || (C = {}));
   let D;
-  (function(D) {
+  ((D) => {
     const foo = 1;
   })(D || (D = {}));
 })(A || (A = {}));
@@ -858,19 +874,19 @@ func TestTSNamespaceExports(t *testing.T) {
 			}
 		}
 	`, `var A;
-(function(A) {
+((A) => {
   let B;
-  (function(B) {
+  ((B) => {
     B.foo = 1;
     B.foo += B.foo;
   })(B = A.B || (A.B = {}));
   let C;
-  (function(C) {
+  ((C) => {
     C.foo = 1;
     C.foo += C.foo;
   })(C || (C = {}));
   let D;
-  (function(D) {
+  ((D) => {
     var foo = 1;
     foo += foo;
   })(D || (D = {}));
@@ -901,7 +917,7 @@ func TestTSNamespaceExports(t *testing.T) {
 			console.log(N)
 		}
 	`, `var ns;
-(function(ns) {
+((ns) => {
   console.log(ns.L1);
   console.log(ns.L2, ns.L3);
   console.log(F);
@@ -920,35 +936,35 @@ func TestTSNamespaceExports(t *testing.T) {
 		namespace e { export namespace e {} log(e) }
 		namespace f { export function f() {} log(f) }
 	`, `var a;
-(function(_a) {
+((_a) => {
   _a.a = 123;
   log(_a.a);
 })(a || (a = {}));
 var b;
-(function(_b) {
+((_b) => {
   _b.b = 123;
   log(_b.b);
 })(b || (b = {}));
 var c;
-(function(_c) {
+((_c) => {
   let c;
-  (function(c) {
+  ((c) => {
   })(c = _c.c || (_c.c = {}));
   log(c);
 })(c || (c = {}));
 var d;
-(function(_d) {
+((_d) => {
   class d {
   }
   _d.d = d;
   log(d);
 })(d || (d = {}));
 var e;
-(function(e) {
+((e) => {
   log(e);
 })(e || (e = {}));
 var f;
-(function(_f) {
+((_f) => {
   function f() {
   }
   _f.f = f;
@@ -964,19 +980,19 @@ var f;
 		namespace e { export declare namespace e {} }
 		namespace f { export declare function f() {} }
 	`, `var a;
-(function(_a) {
+((_a) => {
 })(a || (a = {}));
 var b;
-(function(_b) {
+((_b) => {
 })(b || (b = {}));
 var c;
-(function(c) {
+((c) => {
 })(c || (c = {}));
 var d;
-(function(d) {
+((d) => {
 })(d || (d = {}));
 var f;
-(function(f) {
+((f) => {
 })(f || (f = {}));
 `)
 }
@@ -991,7 +1007,7 @@ func TestTSNamespaceDestructuring(t *testing.T) {
 			] = ref
 		}
 	`, `var A;
-(function(A) {
+((A) => {
   [
     A.a,
     [, A.b = c, ...A.d],
@@ -1002,25 +1018,29 @@ func TestTSNamespaceDestructuring(t *testing.T) {
 }
 
 func TestTSEnum(t *testing.T) {
+	// Check ES5 emit
+	expectPrintedTargetTS(t, 5, "enum x { y = 1 }", "var x;\n(function(x) {\n  x[x[\"y\"] = 1] = \"y\";\n})(x || (x = {}));\n")
+	expectPrintedTargetTS(t, 2015, "enum x { y = 1 }", "var x;\n((x) => {\n  x[x[\"y\"] = 1] = \"y\";\n})(x || (x = {}));\n")
+
 	// Certain syntax isn't allowed inside an enum block
 	expectParseErrorTS(t, "enum x { y = this }", "<stdin>: error: Cannot use \"this\" here\n")
 	expectParseErrorTS(t, "enum x { y = () => this }", "<stdin>: error: Cannot use \"this\" here\n")
 	expectParseErrorTS(t, "enum x { y = function() { this } }", "")
 
 	expectPrintedTS(t, "enum Foo { A, B }", `var Foo;
-(function(Foo) {
+((Foo) => {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
 })(Foo || (Foo = {}));
 `)
 	expectPrintedTS(t, "export enum Foo { A; B }", `export var Foo;
-(function(Foo) {
+((Foo) => {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
 })(Foo || (Foo = {}));
 `)
 	expectPrintedTS(t, "enum Foo { A, B, C = 3.3, D, E }", `var Foo;
-(function(Foo) {
+((Foo) => {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
   Foo[Foo["C"] = 3.3] = "C";
@@ -1029,7 +1049,7 @@ func TestTSEnum(t *testing.T) {
 })(Foo || (Foo = {}));
 `)
 	expectPrintedTS(t, "enum Foo { A, B, C = 'x', D, E, F = `y`, G = `${z}`, H = tag`` }", `var Foo;
-(function(Foo) {
+((Foo) => {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
   Foo["C"] = "x";
@@ -1043,10 +1063,10 @@ func TestTSEnum(t *testing.T) {
 
 	// TypeScript allows splitting an enum into multiple blocks
 	expectPrintedTS(t, "enum Foo { A = 1 } enum Foo { B = 2 }", `var Foo;
-(function(Foo) {
+((Foo) => {
   Foo[Foo["A"] = 1] = "A";
 })(Foo || (Foo = {}));
-(function(Foo) {
+((Foo) => {
   Foo[Foo["B"] = 2] = "B";
 })(Foo || (Foo = {}));
 `)
@@ -1064,7 +1084,7 @@ func TestTSEnum(t *testing.T) {
 			a = Foo.a
 		}
 	`, `var Foo;
-(function(Foo) {
+((Foo) => {
   Foo[Foo["a"] = 10.01] = "a";
   Foo[Foo["a b"] = 100] = "a b";
   Foo[Foo["c"] = 120.02] = "c";
@@ -1073,7 +1093,7 @@ func TestTSEnum(t *testing.T) {
   Foo[Foo["f"] = void 0] = "f";
 })(Foo || (Foo = {}));
 var Bar;
-(function(Bar) {
+((Bar) => {
   Bar[Bar["a"] = 10.01] = "a";
 })(Bar || (Bar = {}));
 `)
@@ -1083,7 +1103,7 @@ var Bar;
 		x = [Foo.A, Foo?.A, Foo?.A()]
 		y = [Foo['A'], Foo?.['A'], Foo?.['A']()]
 	`, `var Foo;
-(function(Foo) {
+((Foo) => {
   Foo[Foo["A"] = 0] = "A";
 })(Foo || (Foo = {}));
 x = [0, Foo?.A, Foo?.A()];
@@ -1092,35 +1112,35 @@ y = [0, Foo?.["A"], Foo?.["A"]()];
 
 	// Check shadowing
 	expectPrintedTS(t, "enum Foo { Foo }", `var Foo;
-(function(_Foo) {
+((_Foo) => {
   _Foo[_Foo["Foo"] = 0] = "Foo";
 })(Foo || (Foo = {}));
 `)
 	expectPrintedTS(t, "enum Foo { Bar = Foo }", `var Foo;
-(function(Foo) {
+((Foo) => {
   Foo[Foo["Bar"] = Foo] = "Bar";
 })(Foo || (Foo = {}));
 `)
 	expectPrintedTS(t, "enum Foo { Foo = 1, Bar = Foo }", `var Foo;
-(function(_Foo) {
+((_Foo) => {
   _Foo[_Foo["Foo"] = 1] = "Foo";
   _Foo[_Foo["Bar"] = 1] = "Bar";
 })(Foo || (Foo = {}));
 `)
 
 	// Check top-level "var" and nested "let"
-	expectPrintedTS(t, "enum a { b = 1 }", "var a;\n(function(a) {\n  a[a[\"b\"] = 1] = \"b\";\n})(a || (a = {}));\n")
-	expectPrintedTS(t, "{ enum a { b = 1 } }", "{\n  let a;\n  (function(a) {\n    a[a[\"b\"] = 1] = \"b\";\n  })(a || (a = {}));\n}\n")
+	expectPrintedTS(t, "enum a { b = 1 }", "var a;\n((a) => {\n  a[a[\"b\"] = 1] = \"b\";\n})(a || (a = {}));\n")
+	expectPrintedTS(t, "{ enum a { b = 1 } }", "{\n  let a;\n  ((a) => {\n    a[a[\"b\"] = 1] = \"b\";\n  })(a || (a = {}));\n}\n")
 
 	// Check "await" and "yield"
 	expectPrintedTS(t, "enum x { await = 1, y = await }", `var x;
-(function(x) {
+((x) => {
   x[x["await"] = 1] = "await";
   x[x["y"] = 1] = "y";
 })(x || (x = {}));
 `)
 	expectPrintedTS(t, "enum x { yield = 1, y = yield }", `var x;
-(function(x) {
+((x) => {
   x[x["yield"] = 1] = "yield";
   x[x["y"] = 1] = "y";
 })(x || (x = {}));
@@ -1166,7 +1186,7 @@ func TestTSEnumConstantFolding(t *testing.T) {
 			pow3 = (-2.25) ** -3,
 		}
 	`, `var Foo;
-(function(Foo) {
+((Foo) => {
   Foo[Foo["add"] = 3] = "add";
   Foo[Foo["sub"] = -3] = "sub";
   Foo[Foo["mul"] = 200] = "mul";
@@ -1212,7 +1232,7 @@ func TestTSEnumConstantFolding(t *testing.T) {
 			bitxor = 0xDEADF00D ^ 0xBADCAFE,
 		}
 	`, `var Foo;
-(function(Foo) {
+((Foo) => {
   Foo[Foo["shl0"] = -344350012] = "shl0";
   Foo[Foo["shl1"] = -2147483648] = "shl1";
   Foo[Foo["shl2"] = -344350012] = "shl2";
@@ -1571,18 +1591,18 @@ func TestTSImportEqualsInNamespace(t *testing.T) {
 	expectPrintedTS(t, "namespace ns { import foo = bar }", "")
 	expectPrintedTS(t, "namespace ns { import foo = bar; type x = foo.x }", "")
 	expectPrintedTS(t, "namespace ns { import foo = bar.x; foo }", `var ns;
-(function(ns) {
+((ns) => {
   const foo = bar.x;
   foo;
 })(ns || (ns = {}));
 `)
 	expectPrintedTS(t, "namespace ns { export import foo = bar }", `var ns;
-(function(ns) {
+((ns) => {
   ns.foo = bar;
 })(ns || (ns = {}));
 `)
 	expectPrintedTS(t, "namespace ns { export import foo = bar.x; foo }", `var ns;
-(function(ns) {
+((ns) => {
   ns.foo = bar.x;
   ns.foo;
 })(ns || (ns = {}));

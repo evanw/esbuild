@@ -1961,7 +1961,7 @@ class class_stmt {
   }
 }
 var ns;
-(function(ns2) {
+((ns2) => {
   ns2.x = __objRest({}, []);
 })(ns || (ns = {}));
 try {
@@ -2036,7 +2036,7 @@ class class_stmt {
   }
 }
 var ns;
-(function(ns2) {
+((ns2) => {
   ({ ...ns2.x } = {});
 })(ns || (ns = {}));
 try {

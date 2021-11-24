@@ -7,6 +7,7 @@ package js_parser
 import (
 	"fmt"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -1354,19 +1355,20 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	// Make sure to only emit a variable once for a given namespace, since there
 	// can be multiple namespace blocks for the same namespace
 	if (symbol.Kind == js_ast.SymbolTSNamespace || symbol.Kind == js_ast.SymbolTSEnum) && !p.emittedNamespaceVars[nameRef] {
+		decls := []js_ast.Decl{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}}}}
 		p.emittedNamespaceVars[nameRef] = true
 		if p.currentScope == p.moduleScope {
-			// Top-level namespace
+			// Top-level namespace: "var"
 			stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
 				Kind:     js_ast.LocalVar,
-				Decls:    []js_ast.Decl{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}}}},
+				Decls:    decls,
 				IsExport: isExport,
 			}})
 		} else {
-			// Nested namespace
+			// Nested namespace: "let"
 			stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
 				Kind:  js_ast.LocalLet,
-				Decls: []js_ast.Decl{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}}}},
+				Decls: decls,
 			}})
 		}
 	}
@@ -1411,13 +1413,25 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 		p.recordUsage(nameRef)
 	}
 
+	// Try to use an arrow function if possible for compactness
+	var targetExpr js_ast.Expr
+	args := []js_ast.Arg{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: argRef}}}}
+	if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
+		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
+			Args: args,
+			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+		}}}
+	} else {
+		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EArrow{
+			Args: args,
+			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+		}}
+	}
+
 	// Call the closure with the name object
 	stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmtLoc, Data: &js_ast.ECall{
-		Target: js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
-			Args: []js_ast.Arg{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: argRef}}}},
-			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
-		}}},
-		Args: []js_ast.Expr{argExpr},
+		Target: targetExpr,
+		Args:   []js_ast.Expr{argExpr},
 	}}}})
 
 	return stmts

@@ -3285,7 +3285,7 @@ var require_es6_export_assign = __commonJS({
 var require_es6_ns_export_variable = __commonJS({
   "es6-ns-export-variable.ts"(exports) {
     var ns;
-    (function(ns2) {
+    ((ns2) => {
       ns2.foo = 123;
     })(ns || (ns = {}));
     console.log(exports);
@@ -3296,7 +3296,7 @@ var require_es6_ns_export_variable = __commonJS({
 var require_es6_ns_export_function = __commonJS({
   "es6-ns-export-function.ts"(exports) {
     var ns;
-    (function(ns2) {
+    ((ns2) => {
       function foo() {
       }
       ns2.foo = foo;
@@ -3309,7 +3309,7 @@ var require_es6_ns_export_function = __commonJS({
 var require_es6_ns_export_async_function = __commonJS({
   "es6-ns-export-async-function.ts"(exports) {
     var ns;
-    (function(ns2) {
+    ((ns2) => {
       async function foo() {
       }
       ns2.foo = foo;
@@ -3322,9 +3322,9 @@ var require_es6_ns_export_async_function = __commonJS({
 var require_es6_ns_export_enum = __commonJS({
   "es6-ns-export-enum.ts"(exports) {
     var ns;
-    (function(ns2) {
+    ((ns2) => {
       let Foo3;
-      (function(Foo4) {
+      ((Foo4) => {
       })(Foo3 = ns2.Foo || (ns2.Foo = {}));
     })(ns || (ns = {}));
     console.log(exports);
@@ -3335,9 +3335,9 @@ var require_es6_ns_export_enum = __commonJS({
 var require_es6_ns_export_const_enum = __commonJS({
   "es6-ns-export-const-enum.ts"(exports) {
     var ns;
-    (function(ns2) {
+    ((ns2) => {
       let Foo3;
-      (function(Foo4) {
+      ((Foo4) => {
       })(Foo3 = ns2.Foo || (ns2.Foo = {}));
     })(ns || (ns = {}));
     console.log(exports);
@@ -3362,7 +3362,7 @@ var require_es6_ns_export_namespace = __commonJS({
 var require_es6_ns_export_class = __commonJS({
   "es6-ns-export-class.ts"(exports) {
     var ns;
-    (function(ns2) {
+    ((ns2) => {
       class Foo3 {
       }
       ns2.Foo = Foo3;
@@ -3375,7 +3375,7 @@ var require_es6_ns_export_class = __commonJS({
 var require_es6_ns_export_abstract_class = __commonJS({
   "es6-ns-export-abstract-class.ts"(exports) {
     var ns;
-    (function(ns2) {
+    ((ns2) => {
       class Foo3 {
       }
       ns2.Foo = Foo3;
@@ -3415,13 +3415,13 @@ console.log(void 0);
 
 // es6-export-enum.ts
 var Foo;
-(function(Foo3) {
+((Foo3) => {
 })(Foo || (Foo = {}));
 console.log(void 0);
 
 // es6-export-const-enum.ts
 var Foo2;
-(function(Foo3) {
+((Foo3) => {
 })(Foo2 || (Foo2 = {}));
 console.log(void 0);
 
