@@ -81,6 +81,28 @@
     }),
   )
 
+  // Test TypeScript enum scope merging
+  tests.push(
+    test(['entry.ts', '--bundle', '--outfile=node.js'], {
+      'entry.ts': `
+        enum a { b = 1 }
+        enum a { c = 2 }
+        if (a.c !== 2 || a[2] !== 'c' || a.b !== 1 || a[1] !== 'b') throw 'fail'
+      `,
+    }),
+    test(['entry.ts', '--bundle', '--outfile=node.js'], {
+      'entry.ts': `
+        {
+          enum a { b = 1 }
+        }
+        {
+          enum a { c = 2 }
+          if (a.c !== 2 || a[2] !== 'c' || a.b !== void 0 || a[1] !== void 0) throw 'fail'
+        }
+      `,
+    }),
+  )
+
   // Test coverage for a special JSX error message
   tests.push(
     test(['example.jsx', '--outfile=node.js'], {

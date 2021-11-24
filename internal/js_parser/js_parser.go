@@ -9335,7 +9335,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 	case *js_ast.SEnum:
 		p.recordDeclaredSymbol(s.Name.Ref)
 		p.pushScopeForVisitPass(js_ast.ScopeEntry, stmt.Loc)
-		defer p.popScope()
 		p.recordDeclaredSymbol(s.Arg)
 
 		// Scan ahead for any variables inside this namespace. This must be done
@@ -9439,6 +9438,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			p.recordUsage(s.Arg)
 		}
 
+		p.popScope()
 		p.shouldFoldNumericConstants = oldShouldFoldNumericConstants
 
 		// Generate statements from expressions

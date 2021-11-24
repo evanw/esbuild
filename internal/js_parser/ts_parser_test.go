@@ -1099,6 +1099,10 @@ y = [0, Foo?.["A"], Foo?.["A"]()];
 })(Foo || (Foo = {}));
 `)
 
+	// Check top-level "var" and nested "let"
+	expectPrintedTS(t, "enum a { b = 1 }", "var a;\n(function(a) {\n  a[a[\"b\"] = 1] = \"b\";\n})(a || (a = {}));\n")
+	expectPrintedTS(t, "{ enum a { b = 1 } }", "{\n  let a;\n  (function(a) {\n    a[a[\"b\"] = 1] = \"b\";\n  })(a || (a = {}));\n}\n")
+
 	// Check "await" and "yield"
 	expectPrintedTS(t, "enum x { await = 1, y = await }", `var x;
 (function(x) {

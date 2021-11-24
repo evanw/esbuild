@@ -1353,7 +1353,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	// can be multiple namespace blocks for the same namespace
 	if (symbol.Kind == js_ast.SymbolTSNamespace || symbol.Kind == js_ast.SymbolTSEnum) && !p.emittedNamespaceVars[nameRef] {
 		p.emittedNamespaceVars[nameRef] = true
-		if p.enclosingNamespaceArgRef == nil {
+		if p.currentScope == p.moduleScope {
 			// Top-level namespace
 			stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
 				Kind:     js_ast.LocalVar,
