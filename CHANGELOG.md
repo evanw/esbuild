@@ -146,6 +146,26 @@ In addition to the breaking changes above, the following changes are also includ
     .example{--some-var: var(--tw-empty, )}/*! Some legal comment */body{background-color:red}
     ```
 
+* Mark `Set` and `Map` with array arguments as pure ([#1791](https://github.com/evanw/esbuild/issues/1791))
+
+    This release introduces special behavior for references to the global `Set` and `Map` constructors that marks them as `/* @__PURE__ */` if they are known to not have any side effects. These constructors evaluate the iterator of whatever is passed to them and the iterator could have side effects, so this is only safe if whatever is passed to them is an array, since the array iterator has no side effects.
+
+    Marking a constructor call as `/* @__PURE__ */` means it's safe to remove if the result is unused. This is an existing feature that you can trigger by manually adding a `/* @__PURE__ */` comment before a constructor call. The difference is that this release contains special behavior to automatically mark `Set` and `Map` as pure for you as long as it's safe to do so. As with all constructor calls that are marked `/* @__PURE__ */`, any internal expressions which could cause side effects are still preserved even though the constructor call itself is removed:
+
+    ```js
+    // Original code
+    new Map([
+      ['a', b()],
+      [c(), new Set(['d', e()])],
+    ]);
+
+    // Old output (with --minify)
+    new Map([["a",b()],[c(),new Set(["d",e()])]]);
+
+    // New output (with --minify)
+    b(),c(),e();
+    ```
+
 ## 0.13.15
 
 * Fix `super` in lowered `async` arrow functions ([#1777](https://github.com/evanw/esbuild/issues/1777))

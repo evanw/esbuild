@@ -4839,3 +4839,31 @@ func TestMangleCatch(t *testing.T) {
 	expectPrintedMangle(t, "try { throw 1 } catch (x) { eval('x') }", "try {\n  throw 1;\n} catch (x) {\n  eval(\"x\");\n}\n")
 	expectPrintedMangle(t, "if (y) try { throw 1 } catch (x) {} else eval('x')", "if (y)\n  try {\n    throw 1;\n  } catch {\n  }\nelse\n  eval(\"x\");\n")
 }
+
+func TestAutoPureForSet(t *testing.T) {
+	expectPrinted(t, "new Set", "/* @__PURE__ */ new Set();\n")
+	expectPrinted(t, "new Set(null)", "/* @__PURE__ */ new Set(null);\n")
+	expectPrinted(t, "new Set(undefined)", "/* @__PURE__ */ new Set(void 0);\n")
+	expectPrinted(t, "new Set([])", "/* @__PURE__ */ new Set([]);\n")
+	expectPrinted(t, "new Set([x])", "/* @__PURE__ */ new Set([x]);\n")
+
+	expectPrinted(t, "new Set(x)", "new Set(x);\n")
+	expectPrinted(t, "new Set(false)", "new Set(false);\n")
+	expectPrinted(t, "new Set({})", "new Set({});\n")
+	expectPrinted(t, "new Set({ x })", "new Set({ x });\n")
+}
+
+func TestAutoPureForMap(t *testing.T) {
+	expectPrinted(t, "new Map", "/* @__PURE__ */ new Map();\n")
+	expectPrinted(t, "new Map(null)", "/* @__PURE__ */ new Map(null);\n")
+	expectPrinted(t, "new Map(undefined)", "/* @__PURE__ */ new Map(void 0);\n")
+	expectPrinted(t, "new Map([])", "/* @__PURE__ */ new Map([]);\n")
+	expectPrinted(t, "new Map([[]])", "/* @__PURE__ */ new Map([[]]);\n")
+	expectPrinted(t, "new Map([[], []])", "/* @__PURE__ */ new Map([[], []]);\n")
+
+	expectPrinted(t, "new Map(x)", "new Map(x);\n")
+	expectPrinted(t, "new Map(false)", "new Map(false);\n")
+	expectPrinted(t, "new Map([x])", "new Map([x]);\n")
+	expectPrinted(t, "new Map([x, []])", "new Map([x, []]);\n")
+	expectPrinted(t, "new Map([[], x])", "new Map([[], x]);\n")
+}

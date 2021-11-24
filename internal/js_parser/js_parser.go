@@ -12718,6 +12718,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			e.Args[i] = p.visitExpr(arg)
 		}
 
+		p.maybeMarkKnownGlobalConstructorAsPure(e)
+
 	case *js_ast.EArrow:
 		asyncArrowNeedsToBeLowered := e.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait)
 		oldFnOrArrowData := p.fnOrArrowDataVisit
@@ -12886,6 +12888,72 @@ func (p *parser) warnAboutImportNamespaceCall(target js_ast.Expr, kind importNam
 				hint),
 				notes,
 			)
+		}
+	}
+}
+
+func (p *parser) maybeMarkKnownGlobalConstructorAsPure(e *js_ast.ENew) {
+	if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok {
+		if symbol := p.symbols[id.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound {
+			switch symbol.OriginalName {
+			case "Set":
+				n := len(e.Args)
+
+				if n == 0 {
+					// "new Set()" is pure
+					e.CanBeUnwrappedIfUnused = true
+					break
+				}
+
+				if n == 1 {
+					switch e.Args[0].Data.(type) {
+					case *js_ast.EArray, *js_ast.ENull, *js_ast.EUndefined:
+						// "new Set([a, b, c])" is pure
+						// "new Set(null)" is pure
+						// "new Set(void 0)" is pure
+						e.CanBeUnwrappedIfUnused = true
+
+					default:
+						// "new Set(x)" is impure because the iterator for "x" could have side effects
+					}
+				}
+
+			case "Map":
+				n := len(e.Args)
+
+				if n == 0 {
+					// "new Map()" is pure
+					e.CanBeUnwrappedIfUnused = true
+					break
+				}
+
+				if n == 1 {
+					switch arg := e.Args[0].Data.(type) {
+					case *js_ast.ENull, *js_ast.EUndefined:
+						// "new Map(null)" is pure
+						// "new Map(void 0)" is pure
+						e.CanBeUnwrappedIfUnused = true
+
+					case *js_ast.EArray:
+						allEntriesAreArrays := true
+						for _, item := range arg.Items {
+							if _, ok := item.Data.(*js_ast.EArray); !ok {
+								// "new Map([x])" is impure because "x[0]" could have side effects
+								allEntriesAreArrays = false
+								break
+							}
+						}
+
+						// "new Map([[a, b], [c, d]])" is pure
+						if allEntriesAreArrays {
+							e.CanBeUnwrappedIfUnused = true
+						}
+
+					default:
+						// "new Map(x)" is impure because the iterator for "x" could have side effects
+					}
+				}
+			}
 		}
 	}
 }
