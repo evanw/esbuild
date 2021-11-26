@@ -2101,12 +2101,16 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 
 			p.lexer.Next()
 
-			// "super" property access is allowed in field initializers
+			// "this" and "super" property access is allowed in field initializers
+			oldIsThisDisallowed := p.fnOrArrowDataParse.isThisDisallowed
+			oldAllowSuperProperty := p.fnOrArrowDataParse.allowSuperProperty
+			p.fnOrArrowDataParse.isThisDisallowed = false
 			p.fnOrArrowDataParse.allowSuperProperty = true
 
 			initializerOrNil = p.parseExpr(js_ast.LComma)
 
-			p.fnOrArrowDataParse.allowSuperProperty = false
+			p.fnOrArrowDataParse.isThisDisallowed = oldIsThisDisallowed
+			p.fnOrArrowDataParse.allowSuperProperty = oldAllowSuperProperty
 		}
 
 		// Special-case private identifiers

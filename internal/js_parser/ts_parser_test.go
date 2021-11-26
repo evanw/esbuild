@@ -481,8 +481,10 @@ func TestTSNamespace(t *testing.T) {
 	expectParseErrorTS(t, "namespace x { if (y) await 1 }", "<stdin>: error: \"await\" can only be used inside an \"async\" function\n")
 	expectParseErrorTS(t, "namespace x { this }", "<stdin>: error: Cannot use \"this\" here\n")
 	expectParseErrorTS(t, "namespace x { () => this }", "<stdin>: error: Cannot use \"this\" here\n")
+	expectParseErrorTS(t, "namespace x { class y { [this] } }", "<stdin>: error: Cannot use \"this\" here\n")
 	expectParseErrorTS(t, "namespace x { (function() { this }) }", "")
 	expectParseErrorTS(t, "namespace x { function y() { this } }", "")
+	expectParseErrorTS(t, "namespace x { class y { x = this } }", "")
 	expectParseErrorTS(t, "export namespace x { export let yield = 1 }",
 		"<stdin>: error: \"yield\" is a reserved word and cannot be used in strict mode\n"+
 			"<stdin>: note: This file is implicitly in strict mode because of the \"export\" keyword here\n")
