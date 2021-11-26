@@ -1577,8 +1577,16 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		}
 	}
 
+	// Find the parent directory with the "package.json" file
+	dirInfoPackageJSON := dirInfo
+	for dirInfoPackageJSON != nil && dirInfoPackageJSON.packageJSON == nil {
+		dirInfoPackageJSON = dirInfoPackageJSON.parent
+	}
+
 	// Then check for the package in any enclosing "node_modules" directories
-	if packageJSON := dirInfo.enclosingPackageJSON; strings.HasPrefix(importPath, "#") && !forbidImports && packageJSON != nil && packageJSON.importsMap != nil {
+	if dirInfoPackageJSON != nil && strings.HasPrefix(importPath, "#") && !forbidImports && dirInfoPackageJSON.packageJSON.importsMap != nil {
+		packageJSON := dirInfoPackageJSON.packageJSON
+
 		if r.debugLogs != nil {
 			r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"imports\" map in %q", importPath, packageJSON.source.KeyPath.Text))
 			r.debugLogs.increaseIndent()
@@ -1613,7 +1621,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 			// The import path was remapped via "imports" to another import path
 			// that now needs to be resolved too. Set "forbidImports" to true
 			// so we don't try to resolve "imports" again and end up in a loop.
-			absolute, ok, diffCase := r.loadNodeModules(resolvedPath, dirInfo, true /* forbidImports */)
+			absolute, ok, diffCase := r.loadNodeModules(resolvedPath, dirInfoPackageJSON, true /* forbidImports */)
 			if !ok {
 				tracker := logger.MakeLineColumnTracker(&packageJSON.source)
 				r.debugMeta.notes = append(
@@ -1625,7 +1633,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		}
 
 		return r.finalizeImportsExportsResult(
-			dirInfo.absPath, conditions, *packageJSON.importsMap, packageJSON,
+			dirInfoPackageJSON.absPath, conditions, *packageJSON.importsMap, packageJSON,
 			resolvedPath, status, debug,
 			"", "", "",
 		)

@@ -1934,7 +1934,7 @@ Users/user/project/src/entry.js: note: Import from "pkg/extra/other/file.js" to 
 func TestPackageJsonImports(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/src/entry.js": `
+			"/Users/user/project/src/foo/entry.js": `
 				import '#top-level'
 				import '#nested/path.js'
 				import '#star/c.js'
@@ -1955,7 +1955,7 @@ func TestPackageJsonImports(t *testing.T) {
 			"/Users/user/project/src/some-star/c.js":  `console.log('c.js')`,
 			"/Users/user/project/src/some-slash/d.js": `console.log('d.js')`,
 		},
-		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		entryPaths: []string{"/Users/user/project/src/foo/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
