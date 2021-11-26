@@ -83,22 +83,45 @@
 
   // Test TypeScript enum scope merging
   tests.push(
-    test(['entry.ts', '--bundle', '--outfile=node.js'], {
+    test(['entry.ts', '--bundle', '--minify', '--outfile=node.js'], {
       'entry.ts': `
+        const id = x => x
         enum a { b = 1 }
         enum a { c = 2 }
-        if (a.c !== 2 || a[2] !== 'c' || a.b !== 1 || a[1] !== 'b') throw 'fail'
+        if (id(a).c !== 2 || id(a)[2] !== 'c' || id(a).b !== 1 || id(a)[1] !== 'b') throw 'fail'
       `,
     }),
-    test(['entry.ts', '--bundle', '--outfile=node.js'], {
+    test(['entry.ts', '--bundle', '--minify', '--outfile=node.js'], {
       'entry.ts': `
+        const id = x => x
         {
           enum a { b = 1 }
         }
         {
           enum a { c = 2 }
-          if (a.c !== 2 || a[2] !== 'c' || a.b !== void 0 || a[1] !== void 0) throw 'fail'
+          if (id(a).c !== 2 || id(a)[2] !== 'c' || id(a).b !== void 0 || id(a)[1] !== void 0) throw 'fail'
         }
+      `,
+    }),
+    test(['entry.ts', '--bundle', '--minify', '--outfile=node.js'], {
+      'entry.ts': `
+        const id = x => x
+        enum a { b = 1 }
+        namespace a {
+          if (id(a).b !== 1 || id(a)[1] !== 'b') throw 'fail'
+        }
+      `,
+    }),
+    test(['entry.ts', '--bundle', '--minify', '--outfile=node.js'], {
+      'entry.ts': `
+        const id = x => x
+        namespace a {
+          export function foo() {
+            if (id(a).b !== 1 || id(a)[1] !== 'b') throw 'fail'
+          }
+        }
+        enum a { b = 1 }
+        a.foo()
       `,
     }),
   )

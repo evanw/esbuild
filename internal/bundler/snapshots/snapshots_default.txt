@@ -3323,9 +3323,9 @@ var require_es6_ns_export_enum = __commonJS({
   "es6-ns-export-enum.ts"(exports) {
     var ns;
     ((ns2) => {
-      let Foo3;
-      ((Foo4) => {
-      })(Foo3 = ns2.Foo || (ns2.Foo = {}));
+      let Foo;
+      ((Foo2) => {
+      })(Foo = ns2.Foo || (ns2.Foo = {}));
     })(ns || (ns = {}));
     console.log(exports);
   }
@@ -3336,9 +3336,9 @@ var require_es6_ns_export_const_enum = __commonJS({
   "es6-ns-export-const-enum.ts"(exports) {
     var ns;
     ((ns2) => {
-      let Foo3;
-      ((Foo4) => {
-      })(Foo3 = ns2.Foo || (ns2.Foo = {}));
+      let Foo;
+      ((Foo2) => {
+      })(Foo = ns2.Foo || (ns2.Foo = {}));
     })(ns || (ns = {}));
     console.log(exports);
   }
@@ -3363,9 +3363,9 @@ var require_es6_ns_export_class = __commonJS({
   "es6-ns-export-class.ts"(exports) {
     var ns;
     ((ns2) => {
-      class Foo3 {
+      class Foo {
       }
-      ns2.Foo = Foo3;
+      ns2.Foo = Foo;
     })(ns || (ns = {}));
     console.log(exports);
   }
@@ -3376,9 +3376,9 @@ var require_es6_ns_export_abstract_class = __commonJS({
   "es6-ns-export-abstract-class.ts"(exports) {
     var ns;
     ((ns2) => {
-      class Foo3 {
+      class Foo {
       }
-      ns2.Foo = Foo3;
+      ns2.Foo = Foo;
     })(ns || (ns = {}));
     console.log(exports);
   }
@@ -3414,15 +3414,9 @@ console.log(void 0);
 console.log(void 0);
 
 // es6-export-enum.ts
-var Foo;
-((Foo3) => {
-})(Foo || (Foo = {}));
 console.log(void 0);
 
 // es6-export-const-enum.ts
-var Foo2;
-((Foo3) => {
-})(Foo2 || (Foo2 = {}));
 console.log(void 0);
 
 // es6-export-module.ts

@@ -1358,8 +1358,12 @@ func (p *parser) canMergeSymbols(scope *js_ast.Scope, existing js_ast.SymbolKind
 	}
 
 	// "enum Foo {} enum Foo {}"
+	if new == js_ast.SymbolTSEnum && existing == js_ast.SymbolTSEnum {
+		return mergeKeepExisting
+	}
+
 	// "namespace Foo { ... } enum Foo {}"
-	if new == js_ast.SymbolTSEnum && (existing == js_ast.SymbolTSEnum || existing == js_ast.SymbolTSNamespace) {
+	if new == js_ast.SymbolTSEnum && existing == js_ast.SymbolTSNamespace {
 		return mergeReplaceWithNew
 	}
 
@@ -1636,6 +1640,27 @@ func (p *parser) ignoreUsage(ref js_ast.Ref) {
 
 	// Don't roll back the "tsUseCounts" increment. This must be counted even if
 	// the value is ignored because that's what the TypeScript compiler does.
+}
+
+func (p *parser) ignoreUsageOfIdentifierInDotChain(expr js_ast.Expr) {
+	for {
+		switch e := expr.Data.(type) {
+		case *js_ast.EIdentifier:
+			p.ignoreUsage(e.Ref)
+
+		case *js_ast.EDot:
+			expr = e.Target
+			continue
+
+		case *js_ast.EIndex:
+			if _, ok := e.Index.Data.(*js_ast.EString); ok {
+				expr = e.Target
+				continue
+			}
+		}
+
+		return
+	}
 }
 
 func (p *parser) importFromRuntime(loc logger.Loc, name string) js_ast.Expr {
@@ -9362,6 +9387,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		nextNumericValue := float64(0)
 		hasNumericValue := true
 		valueExprs := []js_ast.Expr{}
+		allValuesArePure := true
 
 		// Update the exported members of this enum as we constant fold each one
 		exportedMembers := p.currentScope.TSNamespace.ExportedMembers
@@ -9397,6 +9423,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					exportedMembers[name] = member
 					p.refToTSNamespaceMemberData[value.Ref] = member.Data
 					hasStringValue = true
+
+				default:
+					if !p.exprCanBeRemovedIfUnused(value.ValueOrNil) {
+						allValuesArePure = false
+					}
 				}
 			} else if hasNumericValue {
 				member := exportedMembers[name]
@@ -9443,30 +9474,16 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					}},
 					js_ast.Expr{Loc: value.Loc, Data: &js_ast.EString{Value: value.Name}},
 				))
+				p.recordUsage(s.Arg)
 			}
-			p.recordUsage(s.Arg)
 		}
 
 		p.popScope()
 		p.shouldFoldNumericConstants = oldShouldFoldNumericConstants
 
-		// Generate statements from expressions
-		valueStmts := []js_ast.Stmt{}
-		if len(valueExprs) > 0 {
-			if p.options.mangleSyntax {
-				// "a; b; c;" => "a, b, c;"
-				joined := js_ast.JoinAllWithComma(valueExprs)
-				valueStmts = append(valueStmts, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SExpr{Value: joined}})
-			} else {
-				for _, expr := range valueExprs {
-					valueStmts = append(valueStmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
-				}
-			}
-		}
-
 		// Wrap this enum definition in a closure
-		stmts = p.generateClosureForTypeScriptNamespaceOrEnum(
-			stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, valueStmts)
+		stmts = p.generateClosureForTypeScriptEnum(
+			stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, valueExprs, allValuesArePure)
 		return stmts
 
 	case *js_ast.SNamespace:
@@ -10456,9 +10473,11 @@ func (p *parser) maybeRewritePropertyAccess(
 			if member, ok := ns.ExportedMembers[name]; ok {
 				switch m := member.Data.(type) {
 				case *js_ast.TSNamespaceMemberEnumNumber:
+					p.ignoreUsageOfIdentifierInDotChain(target)
 					return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}, true
 
 				case *js_ast.TSNamespaceMemberEnumString:
+					p.ignoreUsageOfIdentifierInDotChain(target)
 					return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}, true
 
 				case *js_ast.TSNamespaceMemberNamespace:

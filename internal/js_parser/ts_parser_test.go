@@ -585,10 +585,10 @@ export let x;
   0;
 })(foo || (foo = {}));
 `)
-	expectPrintedTS(t, "enum foo { a } namespace foo { 0 }", `var foo;
-((foo) => {
+	expectPrintedTS(t, "enum foo { a } namespace foo { 0 }", `var foo = /* @__PURE__ */ ((foo) => {
   foo[foo["a"] = 0] = "a";
-})(foo || (foo = {}));
+  return foo;
+})(foo || {});
 ((foo) => {
   0;
 })(foo || (foo = {}));
@@ -606,9 +606,10 @@ export let x;
 ((foo) => {
   0;
 })(foo || (foo = {}));
-((foo) => {
+var foo = /* @__PURE__ */ ((foo) => {
   foo[foo["a"] = 0] = "a";
-})(foo || (foo = {}));
+  return foo;
+})(foo || {});
 `)
 	expectPrintedTS(t, "namespace foo { 0 } namespace foo {}", `var foo;
 ((foo) => {
@@ -1021,37 +1022,36 @@ func TestTSNamespaceDestructuring(t *testing.T) {
 
 func TestTSEnum(t *testing.T) {
 	// Check ES5 emit
-	expectPrintedTargetTS(t, 5, "enum x { y = 1 }", "var x;\n(function(x) {\n  x[x[\"y\"] = 1] = \"y\";\n})(x || (x = {}));\n")
-	expectPrintedTargetTS(t, 2015, "enum x { y = 1 }", "var x;\n((x) => {\n  x[x[\"y\"] = 1] = \"y\";\n})(x || (x = {}));\n")
+	expectPrintedTargetTS(t, 5, "enum x { y = 1 }", "var x = /* @__PURE__ */ function(x) {\n  x[x[\"y\"] = 1] = \"y\";\n  return x;\n}(x || {});\n")
+	expectPrintedTargetTS(t, 2015, "enum x { y = 1 }", "var x = /* @__PURE__ */ ((x) => {\n  x[x[\"y\"] = 1] = \"y\";\n  return x;\n})(x || {});\n")
 
 	// Certain syntax isn't allowed inside an enum block
 	expectParseErrorTS(t, "enum x { y = this }", "<stdin>: error: Cannot use \"this\" here\n")
 	expectParseErrorTS(t, "enum x { y = () => this }", "<stdin>: error: Cannot use \"this\" here\n")
 	expectParseErrorTS(t, "enum x { y = function() { this } }", "")
 
-	expectPrintedTS(t, "enum Foo { A, B }", `var Foo;
-((Foo) => {
+	expectPrintedTS(t, "enum Foo { A, B }", `var Foo = /* @__PURE__ */ ((Foo) => {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
-})(Foo || (Foo = {}));
+  return Foo;
+})(Foo || {});
 `)
-	expectPrintedTS(t, "export enum Foo { A; B }", `export var Foo;
-((Foo) => {
+	expectPrintedTS(t, "export enum Foo { A; B }", `export var Foo = /* @__PURE__ */ ((Foo) => {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
-})(Foo || (Foo = {}));
+  return Foo;
+})(Foo || {});
 `)
-	expectPrintedTS(t, "enum Foo { A, B, C = 3.3, D, E }", `var Foo;
-((Foo) => {
+	expectPrintedTS(t, "enum Foo { A, B, C = 3.3, D, E }", `var Foo = /* @__PURE__ */ ((Foo) => {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
   Foo[Foo["C"] = 3.3] = "C";
   Foo[Foo["D"] = 4.3] = "D";
   Foo[Foo["E"] = 5.3] = "E";
-})(Foo || (Foo = {}));
+  return Foo;
+})(Foo || {});
 `)
-	expectPrintedTS(t, "enum Foo { A, B, C = 'x', D, E, F = `y`, G = `${z}`, H = tag`` }", `var Foo;
-((Foo) => {
+	expectPrintedTS(t, "enum Foo { A, B, C = 'x', D, E, F = `y`, G = `${z}`, H = tag`` }", `var Foo = ((Foo) => {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
   Foo["C"] = "x";
@@ -1060,17 +1060,19 @@ func TestTSEnum(t *testing.T) {
   Foo["F"] = `+"`y`"+`;
   Foo[Foo["G"] = `+"`${z}`"+`] = "G";
   Foo[Foo["H"] = tag`+"``"+`] = "H";
-})(Foo || (Foo = {}));
+  return Foo;
+})(Foo || {});
 `)
 
 	// TypeScript allows splitting an enum into multiple blocks
-	expectPrintedTS(t, "enum Foo { A = 1 } enum Foo { B = 2 }", `var Foo;
-((Foo) => {
+	expectPrintedTS(t, "enum Foo { A = 1 } enum Foo { B = 2 }", `var Foo = /* @__PURE__ */ ((Foo) => {
   Foo[Foo["A"] = 1] = "A";
-})(Foo || (Foo = {}));
-((Foo) => {
+  return Foo;
+})(Foo || {});
+var Foo = /* @__PURE__ */ ((Foo) => {
   Foo[Foo["B"] = 2] = "B";
-})(Foo || (Foo = {}));
+  return Foo;
+})(Foo || {});
 `)
 
 	expectPrintedTS(t, `
@@ -1085,67 +1087,67 @@ func TestTSEnum(t *testing.T) {
 		enum Bar {
 			a = Foo.a
 		}
-	`, `var Foo;
-((Foo) => {
+	`, `var Foo = ((Foo) => {
   Foo[Foo["a"] = 10.01] = "a";
   Foo[Foo["a b"] = 100] = "a b";
   Foo[Foo["c"] = 120.02] = "c";
   Foo[Foo["d"] = 121.02] = "d";
   Foo[Foo["e"] = 120.02 + Math.random()] = "e";
   Foo[Foo["f"] = void 0] = "f";
-})(Foo || (Foo = {}));
-var Bar;
-((Bar) => {
+  return Foo;
+})(Foo || {});
+var Bar = /* @__PURE__ */ ((Bar) => {
   Bar[Bar["a"] = 10.01] = "a";
-})(Bar || (Bar = {}));
+  return Bar;
+})(Bar || {});
 `)
 
 	expectPrintedTS(t, `
 		enum Foo { A }
 		x = [Foo.A, Foo?.A, Foo?.A()]
 		y = [Foo['A'], Foo?.['A'], Foo?.['A']()]
-	`, `var Foo;
-((Foo) => {
+	`, `var Foo = /* @__PURE__ */ ((Foo) => {
   Foo[Foo["A"] = 0] = "A";
-})(Foo || (Foo = {}));
+  return Foo;
+})(Foo || {});
 x = [0, Foo?.A, Foo?.A()];
 y = [0, Foo?.["A"], Foo?.["A"]()];
 `)
 
 	// Check shadowing
-	expectPrintedTS(t, "enum Foo { Foo }", `var Foo;
-((_Foo) => {
+	expectPrintedTS(t, "enum Foo { Foo }", `var Foo = /* @__PURE__ */ ((_Foo) => {
   _Foo[_Foo["Foo"] = 0] = "Foo";
-})(Foo || (Foo = {}));
+  return _Foo;
+})(Foo || {});
 `)
-	expectPrintedTS(t, "enum Foo { Bar = Foo }", `var Foo;
-((Foo) => {
+	expectPrintedTS(t, "enum Foo { Bar = Foo }", `var Foo = /* @__PURE__ */ ((Foo) => {
   Foo[Foo["Bar"] = Foo] = "Bar";
-})(Foo || (Foo = {}));
+  return Foo;
+})(Foo || {});
 `)
-	expectPrintedTS(t, "enum Foo { Foo = 1, Bar = Foo }", `var Foo;
-((_Foo) => {
+	expectPrintedTS(t, "enum Foo { Foo = 1, Bar = Foo }", `var Foo = /* @__PURE__ */ ((_Foo) => {
   _Foo[_Foo["Foo"] = 1] = "Foo";
   _Foo[_Foo["Bar"] = 1] = "Bar";
-})(Foo || (Foo = {}));
+  return _Foo;
+})(Foo || {});
 `)
 
 	// Check top-level "var" and nested "let"
-	expectPrintedTS(t, "enum a { b = 1 }", "var a;\n((a) => {\n  a[a[\"b\"] = 1] = \"b\";\n})(a || (a = {}));\n")
+	expectPrintedTS(t, "enum a { b = 1 }", "var a = /* @__PURE__ */ ((a) => {\n  a[a[\"b\"] = 1] = \"b\";\n  return a;\n})(a || {});\n")
 	expectPrintedTS(t, "{ enum a { b = 1 } }", "{\n  let a;\n  ((a) => {\n    a[a[\"b\"] = 1] = \"b\";\n  })(a || (a = {}));\n}\n")
 
 	// Check "await" and "yield"
-	expectPrintedTS(t, "enum x { await = 1, y = await }", `var x;
-((x) => {
+	expectPrintedTS(t, "enum x { await = 1, y = await }", `var x = /* @__PURE__ */ ((x) => {
   x[x["await"] = 1] = "await";
   x[x["y"] = 1] = "y";
-})(x || (x = {}));
+  return x;
+})(x || {});
 `)
-	expectPrintedTS(t, "enum x { yield = 1, y = yield }", `var x;
-((x) => {
+	expectPrintedTS(t, "enum x { yield = 1, y = yield }", `var x = /* @__PURE__ */ ((x) => {
   x[x["yield"] = 1] = "yield";
   x[x["y"] = 1] = "y";
-})(x || (x = {}));
+  return x;
+})(x || {});
 `)
 	expectParseErrorTS(t, "enum x { y = await 1 }", "<stdin>: error: \"await\" can only be used inside an \"async\" function\n")
 	expectParseErrorTS(t, "function *f() { enum x { y = yield 1 } }", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
@@ -1187,8 +1189,7 @@ func TestTSEnumConstantFolding(t *testing.T) {
 			pow2 = (-2.25) ** 3,
 			pow3 = (-2.25) ** -3,
 		}
-	`, `var Foo;
-((Foo) => {
+	`, `var Foo = /* @__PURE__ */ ((Foo) => {
   Foo[Foo["add"] = 3] = "add";
   Foo[Foo["sub"] = -3] = "sub";
   Foo[Foo["mul"] = 200] = "mul";
@@ -1212,7 +1213,8 @@ func TestTSEnumConstantFolding(t *testing.T) {
   Foo[Foo["pow1"] = 0.0877914951989026] = "pow1";
   Foo[Foo["pow2"] = -11.390625] = "pow2";
   Foo[Foo["pow3"] = -0.0877914951989026] = "pow3";
-})(Foo || (Foo = {}));
+  return Foo;
+})(Foo || {});
 `)
 
 	expectPrintedTS(t, `
@@ -1233,8 +1235,7 @@ func TestTSEnumConstantFolding(t *testing.T) {
 			bitor = 0xDEADF00D | 0xBADCAFE,
 			bitxor = 0xDEADF00D ^ 0xBADCAFE,
 		}
-	`, `var Foo;
-((Foo) => {
+	`, `var Foo = /* @__PURE__ */ ((Foo) => {
   Foo[Foo["shl0"] = -344350012] = "shl0";
   Foo[Foo["shl1"] = -2147483648] = "shl1";
   Foo[Foo["shl2"] = -344350012] = "shl2";
@@ -1247,7 +1248,8 @@ func TestTSEnumConstantFolding(t *testing.T) {
   Foo[Foo["bitand"] = 179159052] = "bitand";
   Foo[Foo["bitor"] = -542246145] = "bitor";
   Foo[Foo["bitxor"] = -721405197] = "bitxor";
-})(Foo || (Foo = {}));
+  return Foo;
+})(Foo || {});
 `)
 }
 

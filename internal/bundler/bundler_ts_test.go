@@ -1457,6 +1457,64 @@ func TestTSSiblingEnum(t *testing.T) {
 	})
 }
 
+func TestTSEnumTreeShaking(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/simple-member.ts": `
+				enum x { y = 123 }
+				console.log(x.y)
+			`,
+			"/simple-enum.ts": `
+				enum x { y = 123 }
+				console.log(x)
+			`,
+			"/sibling-member.ts": `
+				enum x { y = 123 }
+				enum x { z = y * 2 }
+				console.log(x.y, x.z)
+			`,
+			"/sibling-enum-before.ts": `
+				console.log(x)
+				enum x { y = 123 }
+				enum x { z = y * 2 }
+			`,
+			"/sibling-enum-middle.ts": `
+				enum x { y = 123 }
+				console.log(x)
+				enum x { z = y * 2 }
+			`,
+			"/sibling-enum-after.ts": `
+				enum x { y = 123 }
+				enum x { z = y * 2 }
+				console.log(x)
+			`,
+			"/namespace-before.ts": `
+				namespace x { console.log(x,y) }
+				enum x { y = 123 }
+			`,
+			"/namespace-after.ts": `
+				enum x { y = 123 }
+				namespace x { console.log(x,y) }
+			`,
+		},
+		entryPaths: []string{
+			"/simple-member.ts",
+			"/simple-enum.ts",
+			"/sibling-member.ts",
+			"/sibling-enum-before.ts",
+			"/sibling-enum-middle.ts",
+			"/sibling-enum-after.ts",
+			"/namespace-before.ts",
+			"/namespace-after.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			OutputFormat: config.FormatESModule,
+		},
+	})
+}
+
 func TestTSEnumJSX(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{

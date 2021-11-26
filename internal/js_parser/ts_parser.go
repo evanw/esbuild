@@ -1436,3 +1436,126 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 
 	return stmts
 }
+
+func (p *parser) generateClosureForTypeScriptEnum(
+	stmts []js_ast.Stmt, stmtLoc logger.Loc, isExport bool, nameLoc logger.Loc,
+	nameRef js_ast.Ref, argRef js_ast.Ref, exprsInsideClosure []js_ast.Expr,
+	allValuesArePure bool,
+) []js_ast.Stmt {
+	// Bail back to the namespace code for enums that aren't at the top level.
+	// Doing this for nested enums is problematic for two reasons. First of all
+	// enums inside of namespaces must be property accesses off the namespace
+	// object instead of variable declarations. Also we'd need to use "let"
+	// instead of "var" which doesn't allow sibling declarations to be merged.
+	if p.currentScope != p.moduleScope {
+		stmtsInsideClosure := []js_ast.Stmt{}
+		if len(exprsInsideClosure) > 0 {
+			if p.options.mangleSyntax {
+				// "a; b; c;" => "a, b, c;"
+				joined := js_ast.JoinAllWithComma(exprsInsideClosure)
+				stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SExpr{Value: joined}})
+			} else {
+				for _, expr := range exprsInsideClosure {
+					stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
+				}
+			}
+		}
+		return p.generateClosureForTypeScriptNamespaceOrEnum(
+			stmts, stmtLoc, isExport, nameLoc, nameRef, argRef, stmtsInsideClosure)
+	}
+
+	// This uses an output format for enums that's different but equivalent to
+	// what TypeScript uses. Here is TypeScript's output:
+	//
+	//   var x;
+	//   (function (x) {
+	//     x[x["y"] = 1] = "y";
+	//   })(x || (x = {}));
+	//
+	// And here's our output:
+	//
+	//   var x = /* @__PURE__ */ ((x) => {
+	//     x[x["y"] = 1] = "y";
+	//     return x;
+	//   })(x || {});
+	//
+	// One benefit is that the minified output is smaller:
+	//
+	//   // Old output minified
+	//   var x;(function(n){n[n.y=1]="y"})(x||(x={}));
+	//
+	//   // New output minified
+	//   var x=(r=>(r[r.y=1]="y",r))(x||{});
+	//
+	// Another benefit is that the @__PURE__ annotation means it automatically
+	// works with tree-shaking, even with more advanced features such as sibling
+	// enum declarations and enum/namespace merges. Ideally all uses of the enum
+	// are just direct references to enum members (and are therefore inlined as
+	// long as the enum value is a constant) and the enum definition itself is
+	// unused and can be removed as dead code.
+
+	// Follow the link chain in case symbols were merged
+	symbol := p.symbols[nameRef.InnerIndex]
+	for symbol.Link != js_ast.InvalidRef {
+		nameRef = symbol.Link
+		symbol = p.symbols[nameRef.InnerIndex]
+	}
+
+	// Generate the body of the closure, including a return statement at the end
+	stmtsInsideClosure := []js_ast.Stmt{}
+	if len(exprsInsideClosure) > 0 {
+		argExpr := js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: argRef}}
+		if p.options.mangleSyntax {
+			// "a; b; return c;" => "return a, b, c;"
+			joined := js_ast.JoinAllWithComma(exprsInsideClosure)
+			joined = js_ast.JoinWithComma(joined, argExpr)
+			stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SReturn{ValueOrNil: joined}})
+		} else {
+			for _, expr := range exprsInsideClosure {
+				stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
+			}
+			stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: argExpr.Loc, Data: &js_ast.SReturn{ValueOrNil: argExpr}})
+		}
+	}
+
+	// Try to use an arrow function if possible for compactness
+	var targetExpr js_ast.Expr
+	args := []js_ast.Arg{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: argRef}}}}
+	if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
+		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
+			Args: args,
+			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+		}}}
+	} else {
+		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EArrow{
+			Args:       args,
+			Body:       js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			PreferExpr: p.options.mangleSyntax,
+		}}
+	}
+
+	// Call the closure with the name object and store it to the variable
+	decls := []js_ast.Decl{{
+		Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}},
+		ValueOrNil: js_ast.Expr{Loc: stmtLoc, Data: &js_ast.ECall{
+			Target: targetExpr,
+			Args: []js_ast.Expr{{Loc: nameLoc, Data: &js_ast.EBinary{
+				Op:    js_ast.BinOpLogicalOr,
+				Left:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+				Right: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
+			}}},
+			CanBeUnwrappedIfUnused: allValuesArePure,
+		}},
+	}}
+	p.recordUsage(nameRef)
+
+	// Use a "var" statement since this is a top-level enum, but only use "export" once
+	stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
+		Kind:     js_ast.LocalVar,
+		Decls:    decls,
+		IsExport: isExport && !p.emittedNamespaceVars[nameRef],
+	}})
+	p.emittedNamespaceVars[nameRef] = true
+
+	return stmts
+}

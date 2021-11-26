@@ -125,6 +125,51 @@ In addition to the breaking changes above, the following changes are also includ
 
     Note that this behavior does **not** work across files. Each file is still compiled independently so the namespaces in each file are still resolved independently per-file. Implicit namespace cross-references still do not work across files. Getting this to work is counter to esbuild's parallel architecture and does not fit in with esbuild's design. It also doesn't make sense with esbuild's bundling model where input files are either in ESM or CommonJS format and therefore each have their own scope.
 
+* Change output for top-level TypeScript enums
+
+    The output format for top-level TypeScript enums has been changed to reduce code size and improve tree shaking, which means that esbuild's enum output is now somewhat different than TypeScript's enum output. The behavior of both output formats should still be equivalent though. Here's an example that shows the difference:
+
+    ```ts
+    // Original code
+    enum x {
+      y = 1,
+      z = 2
+    }
+
+    // Old output
+    var x;
+    (function(x2) {
+      x2[x2["y"] = 1] = "y";
+      x2[x2["z"] = 2] = "z";
+    })(x || (x = {}));
+
+    // New output
+    var x = /* @__PURE__ */ ((x2) => {
+      x2[x2["y"] = 1] = "y";
+      x2[x2["z"] = 2] = "z";
+      return x2;
+    })(x || {});
+    ```
+
+    The function expression has been changed to an arrow expression to reduce code size and the enum initializer has been moved into the variable declaration to make it possible to be marked as `/* @__PURE__ */` to improve tree shaking. The `/* @__PURE__ */` annotation is now automatically added when all of the enum values are side-effect free, which means the entire enum definition can be removed as dead code if it's never referenced. Direct enum value references within the same file that have been inlined do not count as references to the enum definition so this should eliminate enums from the output in many cases:
+
+    ```ts
+    // Original code
+    enum Foo { FOO = 1 }
+    enum Bar { BAR = 2 }
+    console.log(Foo, Bar.BAR)
+
+    // Old output (with --bundle --minify)
+    var n;(function(e){e[e.FOO=1]="FOO"})(n||(n={}));var l;(function(e){e[e.BAR=2]="BAR"})(l||(l={}));console.log(n,2);
+
+    // New output (with --bundle --minify)
+    var n=(e=>(e[e.FOO=1]="FOO",e))(n||{});console.log(n,2);
+    ```
+
+    Notice how the new output is much shorter because the entire definition for `Bar` has been completely removed as dead code by esbuild's tree shaking.
+
+    The output may seem strange since it would be simpler to just have a plain object literal as an initializer. However, TypeScript's enum feature behaves similarly to TypeScript's namespace feature which means enums can merge with existing enums and/or existing namespaces (and in some cases also existing objects) if the existing definition has the same name. This new output format keeps its similarity to the original output format so that it still handles all of the various edge cases that TypeScript's enum feature supports. Initializing the enum using a plain object literal would not merge with existing definitions and would break TypeScript's enum semantics.
+
 * Fix legal comment parsing in CSS ([#1796](https://github.com/evanw/esbuild/issues/1796))
 
     Legal comments in CSS either start with `/*!` or contain `@preserve` or `@license` and are preserved by esbuild in the generated CSS output. This release fixes a bug where non-top-level legal comments inside a CSS file caused esbuild to skip any following legal comments even if those following comments are top-level:
