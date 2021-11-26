@@ -647,8 +647,14 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 		p.eat(css_lexer.TWhitespace)
 		if path, r, ok := p.expectURLOrString(); ok {
 			importConditionsStart := p.index
-			for p.current().Kind != css_lexer.TSemicolon && p.current().Kind != css_lexer.TEndOfFile {
+			for {
+				if kind := p.current().Kind; kind == css_lexer.TSemicolon || kind == css_lexer.TOpenBrace || kind == css_lexer.TEndOfFile {
+					break
+				}
 				p.parseComponentValue()
+			}
+			if p.current().Kind == css_lexer.TOpenBrace {
+				break // Avoid parsing an invalid "@import" rule
 			}
 			importConditions := p.convertTokens(p.tokens[importConditionsStart:p.index])
 			kind := ast.ImportAt

@@ -146,6 +146,14 @@ In addition to the breaking changes above, the following changes are also includ
     .example{--some-var: var(--tw-empty, )}/*! Some legal comment */body{background-color:red}
     ```
 
+* Fix panic when printing invalid CSS ([#1803](https://github.com/evanw/esbuild/issues/1803))
+
+    This release fixes a panic caused by a conditional CSS `@import` rule with a URL token. Code like this caused esbuild to enter an unexpected state because the case where tokens in the import condition with associated import records wasn't handled. This case is now handled correctly:
+
+    ```css
+    @import "example.css" url(foo);
+    ```
+
 * Mark `Set` and `Map` with array arguments as pure ([#1791](https://github.com/evanw/esbuild/issues/1791))
 
     This release introduces special behavior for references to the global `Set` and `Map` constructors that marks them as `/* @__PURE__ */` if they are known to not have any side effects. These constructors evaluate the iterator of whatever is passed to them and the iterator could have side effects, so this is only safe if whatever is passed to them is an array, since the array iterator has no side effects.

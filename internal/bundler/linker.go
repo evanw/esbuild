@@ -174,8 +174,9 @@ type chunkReprCSS struct {
 }
 
 type externalImportCSS struct {
-	path       logger.Path
-	conditions []css_ast.Token
+	path                   logger.Path
+	conditions             []css_ast.Token
+	conditionImportRecords []ast.ImportRecord
 }
 
 // Returns a log where "log.HasErrors()" only returns true if any errors have
@@ -2822,10 +2823,15 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 							external.conditions = append(external.conditions, atImport.ImportConditions)
 						}
 
+						// Clone any import records associated with the condition tokens
+						conditions, conditionImportRecords := css_ast.CloneTokensWithImportRecords(
+							atImport.ImportConditions, repr.AST.ImportRecords, nil, nil)
+
 						externals[record.Path] = external
 						externalOrder = append(externalOrder, externalImportCSS{
-							path:       record.Path,
-							conditions: atImport.ImportConditions,
+							path:                   record.Path,
+							conditions:             conditions,
+							conditionImportRecords: conditionImportRecords,
 						})
 					}
 				}
@@ -4868,9 +4874,12 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 		// Insert all external "@import" rules at the front. In CSS, all "@import"
 		// rules must come first or the browser will just ignore them.
 		for _, external := range chunkRepr.externalImportsInOrder {
+			var conditions []css_ast.Token
+			conditions, tree.ImportRecords = css_ast.CloneTokensWithImportRecords(
+				external.conditions, external.conditionImportRecords, conditions, tree.ImportRecords)
 			tree.Rules = append(tree.Rules, css_ast.Rule{Data: &css_ast.RAtImport{
 				ImportRecordIndex: uint32(len(tree.ImportRecords)),
-				ImportConditions:  external.conditions,
+				ImportConditions:  conditions,
 			}})
 			tree.ImportRecords = append(tree.ImportRecords, ast.ImportRecord{
 				Kind: ast.ImportAt,

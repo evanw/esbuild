@@ -94,6 +94,13 @@ TestCSSAtImportConditionsBundleExternal
 /* entry.css */
 
 ================================================================================
+TestCSSAtImportConditionsBundleExternalConditionWithURL
+---------- /out.css ----------
+@import "https://example.com/foo.css" (foo: url(foo.png)) and (bar: url(bar.png));
+
+/* entry.css */
+
+================================================================================
 TestCSSAtImportConditionsNoBundle
 ---------- /out.css ----------
 @import "./print.css" print;

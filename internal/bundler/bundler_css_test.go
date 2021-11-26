@@ -566,6 +566,21 @@ func TestCSSAtImportConditionsBundleExternal(t *testing.T) {
 	})
 }
 
+func TestCSSAtImportConditionsBundleExternalConditionWithURL(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@import "https://example.com/foo.css" (foo: url("foo.png")) and (bar: url("bar.png"));
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.css",
+		},
+	})
+}
+
 func TestCSSAtImportConditionsBundle(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{

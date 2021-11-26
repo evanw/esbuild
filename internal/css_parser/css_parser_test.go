@@ -836,7 +836,8 @@ func TestAtImport(t *testing.T) {
 <stdin>: warning: Expected ";" but found end of file
 `)
 
-	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: warning: Expected \";\" but found end of file\n")
+	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: warning: Expected \";\"\n")
+	expectPrinted(t, "@import \"foo\"\na { color: red }\nb { color: blue }", "@import \"foo\" a { color: red }\nb {\n  color: blue;\n}\n")
 }
 
 func TestLegalComment(t *testing.T) {
