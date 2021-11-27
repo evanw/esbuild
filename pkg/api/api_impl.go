@@ -340,7 +340,7 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (config.T
 			}
 		}
 
-		log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Invalid version: %q", engine.Version))
+		log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid version: %q", engine.Version))
 	}
 
 	for engine, version := range constraints {
@@ -386,7 +386,7 @@ func validateExternals(log logger.Log, fs fs.FS, paths []string) config.External
 	for _, path := range paths {
 		if index := strings.IndexByte(path, '*'); index != -1 {
 			if strings.ContainsRune(path[index+1:], '*') {
-				log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("External path %q cannot have more than one \"*\" wildcard", path))
+				log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("External path %q cannot have more than one \"*\" wildcard", path))
 			} else {
 				result.Patterns = append(result.Patterns, config.WildcardPattern{
 					Prefix: path[:index],
@@ -412,7 +412,7 @@ func validateResolveExtensions(log logger.Log, order []string) []string {
 	}
 	for _, ext := range order {
 		if !isValidExtension(ext) {
-			log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Invalid file extension: %q", ext))
+			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid file extension: %q", ext))
 		}
 	}
 	return order
@@ -423,7 +423,7 @@ func validateLoaders(log logger.Log, loaders map[string]Loader) map[string]confi
 	if loaders != nil {
 		for ext, loader := range loaders {
 			if !isValidExtension(ext) {
-				log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Invalid file extension: %q", ext))
+				log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid file extension: %q", ext))
 			}
 			result[ext] = validateLoader(loader)
 		}
@@ -435,7 +435,7 @@ func validateJSXExpr(log logger.Log, text string, name string, kind js_parser.JS
 	if expr, ok := js_parser.ParseJSXExpr(text, kind); ok {
 		return expr
 	}
-	log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
+	log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
 	return config.JSXExpr{}
 }
 
@@ -455,9 +455,9 @@ func validateDefines(
 		for _, part := range strings.Split(key, ".") {
 			if !js_lexer.IsIdentifier(part) {
 				if part == key {
-					log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("The define key %q must be a valid identifier", key))
+					log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("The define key %q must be a valid identifier", key))
 				} else {
-					log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("The define key %q contains invalid identifier %q", key, part))
+					log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("The define key %q contains invalid identifier %q", key, part))
 				}
 				continue
 			}
@@ -480,7 +480,7 @@ func validateDefines(
 		source := logger.Source{Contents: value}
 		expr, ok := js_parser.ParseJSON(logger.NewDeferLog(logger.DeferLogAll), source, js_parser.JSONOptions{})
 		if !ok {
-			log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Invalid define value (must be valid JSON syntax or a single identifier): %s", value))
+			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid define value (must be valid JSON syntax or a single identifier): %s", value))
 			continue
 		}
 
@@ -554,7 +554,7 @@ func validateDefines(
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
 			if !js_lexer.IsIdentifier(part) {
-				log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Invalid pure function: %q", key))
+				log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid pure function: %q", key))
 				continue
 			}
 		}
@@ -577,7 +577,7 @@ func validatePath(log logger.Log, fs fs.FS, relPath string, pathKind string) str
 	}
 	absPath, ok := fs.Abs(relPath)
 	if !ok {
-		log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Invalid %s: %s", pathKind, relPath))
+		log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid %s: %s", pathKind, relPath))
 	}
 	return absPath
 }
@@ -585,7 +585,7 @@ func validatePath(log logger.Log, fs fs.FS, relPath string, pathKind string) str
 func validateOutputExtensions(log logger.Log, outExtensions map[string]string) (js string, css string) {
 	for key, value := range outExtensions {
 		if !isValidExtension(value) {
-			log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Invalid output extension: %q", value))
+			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid output extension: %q", value))
 		}
 		switch key {
 		case ".js":
@@ -593,7 +593,7 @@ func validateOutputExtensions(log logger.Log, outExtensions map[string]string) (
 		case ".css":
 			css = value
 		default:
-			log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Invalid output extension: %q (valid: .css, .js)", key))
+			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid output extension: %q (valid: .css, .js)", key))
 		}
 	}
 	return
@@ -607,7 +607,7 @@ func validateBannerOrFooter(log logger.Log, name string, values map[string]strin
 		case "css":
 			css = value
 		default:
-			log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Invalid %s file type: %q (valid: css, js)", name, key))
+			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid %s file type: %q (valid: css, js)", name, key))
 		}
 	}
 	return
@@ -717,7 +717,7 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 		AbsWorkingDir: buildOpts.AbsWorkingDir,
 	})
 	if err != nil {
-		log.AddRangeError(nil, logger.Range{}, err.Error())
+		log.Add(logger.Error, nil, logger.Range{}, err.Error())
 		return internalBuildResult{result: BuildResult{Errors: convertMessagesToPublic(logger.Error, log.Done())}}
 	}
 
@@ -899,13 +899,13 @@ func rebuildImpl(
 	}
 
 	if options.AbsOutputDir == "" && entryPointCount > 1 {
-		log.AddRangeError(nil, logger.Range{},
+		log.Add(logger.Error, nil, logger.Range{},
 			"Must use \"outdir\" when there are multiple input files")
 	} else if options.AbsOutputDir == "" && options.CodeSplitting {
-		log.AddRangeError(nil, logger.Range{},
+		log.Add(logger.Error, nil, logger.Range{},
 			"Must use \"outdir\" when code splitting is enabled")
 	} else if options.AbsOutputFile != "" && options.AbsOutputDir != "" {
-		log.AddRangeError(nil, logger.Range{}, "Cannot use both \"outfile\" and \"outdir\"")
+		log.Add(logger.Error, nil, logger.Range{}, "Cannot use both \"outfile\" and \"outdir\"")
 	} else if options.AbsOutputFile != "" {
 		// If the output file is specified, use it to derive the output directory
 		options.AbsOutputDir = realFS.Dir(options.AbsOutputFile)
@@ -914,14 +914,14 @@ func rebuildImpl(
 
 		// Forbid certain features when writing to stdout
 		if options.SourceMap != config.SourceMapNone && options.SourceMap != config.SourceMapInline {
-			log.AddRangeError(nil, logger.Range{}, "Cannot use an external source map without an output path")
+			log.Add(logger.Error, nil, logger.Range{}, "Cannot use an external source map without an output path")
 		}
 		if options.LegalComments.HasExternalFile() {
-			log.AddRangeError(nil, logger.Range{}, "Cannot use linked or external legal comments without an output path")
+			log.Add(logger.Error, nil, logger.Range{}, "Cannot use linked or external legal comments without an output path")
 		}
 		for _, loader := range options.ExtensionToLoader {
 			if loader == config.LoaderFile {
-				log.AddRangeError(nil, logger.Range{}, "Cannot use the \"file\" loader without an output path")
+				log.Add(logger.Error, nil, logger.Range{}, "Cannot use the \"file\" loader without an output path")
 				break
 			}
 		}
@@ -934,7 +934,7 @@ func rebuildImpl(
 	if !buildOpts.Bundle {
 		// Disallow bundle-only options when not bundling
 		if len(options.ExternalModules.NodeModules) > 0 || len(options.ExternalModules.AbsPaths) > 0 {
-			log.AddRangeError(nil, logger.Range{}, "Cannot use \"external\" without \"bundle\"")
+			log.Add(logger.Error, nil, logger.Range{}, "Cannot use \"external\" without \"bundle\"")
 		}
 	} else if options.OutputFormat == config.FormatPreserve {
 		// If the format isn't specified, set the default format using the platform
@@ -957,7 +957,7 @@ func rebuildImpl(
 
 	// Code splitting is experimental and currently only enabled for ES6 modules
 	if options.CodeSplitting && options.OutputFormat != config.FormatESModule {
-		log.AddRangeError(nil, logger.Range{}, "Splitting currently only works with the \"esm\" format")
+		log.Add(logger.Error, nil, logger.Range{}, "Splitting currently only works with the \"esm\" format")
 	}
 
 	var outputFiles []OutputFile
@@ -993,10 +993,10 @@ func rebuildImpl(
 					if options.WriteToStdout {
 						// Special-case writing to stdout
 						if len(results) != 1 {
-							log.AddRangeError(nil, logger.Range{}, fmt.Sprintf(
+							log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf(
 								"Internal error: did not expect to generate %d files when writing to stdout", len(results)))
 						} else if _, err := os.Stdout.Write(results[0].Contents); err != nil {
-							log.AddRangeError(nil, logger.Range{}, fmt.Sprintf(
+							log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf(
 								"Failed to write to stdout: %s", err.Error()))
 						}
 					} else {
@@ -1008,7 +1008,7 @@ func rebuildImpl(
 								fs.BeforeFileOpen()
 								defer fs.AfterFileClose()
 								if err := fs.MkdirAll(realFS, realFS.Dir(result.AbsPath), 0755); err != nil {
-									log.AddRangeError(nil, logger.Range{}, fmt.Sprintf(
+									log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf(
 										"Failed to create output directory: %s", err.Error()))
 								} else {
 									var mode os.FileMode = 0644
@@ -1016,7 +1016,7 @@ func rebuildImpl(
 										mode = 0755
 									}
 									if err := ioutil.WriteFile(result.AbsPath, result.Contents, mode); err != nil {
-										log.AddRangeError(nil, logger.Range{}, fmt.Sprintf(
+										log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf(
 											"Failed to write to output file: %s", err.Error()))
 									}
 								}
@@ -1345,14 +1345,14 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 	if options.SourceMap == config.SourceMapLinkedWithComment {
 		// Linked source maps don't make sense because there's no output file name
-		log.AddRangeError(nil, logger.Range{}, "Cannot transform with linked source maps")
+		log.Add(logger.Error, nil, logger.Range{}, "Cannot transform with linked source maps")
 	}
 	if options.SourceMap != config.SourceMapNone && options.Stdin.SourceFile == "" {
-		log.AddRangeError(nil, logger.Range{},
+		log.Add(logger.Error, nil, logger.Range{},
 			"Must use \"sourcefile\" with \"sourcemap\" to set the original file name")
 	}
 	if options.LegalComments.HasExternalFile() {
-		log.AddRangeError(nil, logger.Range{}, "Cannot transform with linked or external legal comments")
+		log.Add(logger.Error, nil, logger.Range{}, "Cannot transform with linked or external legal comments")
 	}
 
 	// Set the output mode using other settings
@@ -1444,7 +1444,7 @@ func (impl *pluginImpl) OnStart(callback func() (OnStartResult, error)) {
 func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnResolve", options.Filter)
 	if filter == nil {
-		impl.log.AddRangeError(nil, logger.Range{}, err.Error())
+		impl.log.Add(logger.Error, nil, logger.Range{}, err.Error())
 		return
 	}
 
@@ -1511,7 +1511,7 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnLoad", options.Filter)
 	if filter == nil {
-		impl.log.AddRangeError(nil, logger.Range{}, err.Error())
+		impl.log.Add(logger.Error, nil, logger.Range{}, err.Error())
 		return
 	}
 
@@ -1576,7 +1576,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (plugin
 
 	for i, item := range clone {
 		if item.Name == "" {
-			log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Plugin at index %d is missing a name", i))
+			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Plugin at index %d is missing a name", i))
 			continue
 		}
 

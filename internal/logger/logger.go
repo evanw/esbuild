@@ -1394,54 +1394,16 @@ func renderTabStops(withTabs string, spacesPerTab int) string {
 	return withoutTabs.String()
 }
 
-func (log Log) AddRangeError(tracker *LineColumnTracker, r Range, text string) {
+func (log Log) Add(kind MsgKind, tracker *LineColumnTracker, r Range, text string) {
 	log.AddMsg(Msg{
-		Kind: Error,
+		Kind: kind,
 		Data: tracker.MsgData(r, text),
 	})
 }
 
-func (log Log) AddRangeErrorWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
+func (log Log) AddWithNotes(kind MsgKind, tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
 	log.AddMsg(Msg{
-		Kind:  Error,
-		Data:  tracker.MsgData(r, text),
-		Notes: notes,
-	})
-}
-
-func (log Log) AddRangeWarning(tracker *LineColumnTracker, r Range, text string) {
-	log.AddMsg(Msg{
-		Kind: Warning,
-		Data: tracker.MsgData(r, text),
-	})
-}
-
-func (log Log) AddRangeWarningWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
-	log.AddMsg(Msg{
-		Kind:  Warning,
-		Data:  tracker.MsgData(r, text),
-		Notes: notes,
-	})
-}
-
-func (log Log) AddRangeDebug(tracker *LineColumnTracker, r Range, text string) {
-	log.AddMsg(Msg{
-		Kind: Debug,
-		Data: tracker.MsgData(r, text),
-	})
-}
-
-func (log Log) AddRangeDebugWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
-	log.AddMsg(Msg{
-		Kind:  Debug,
-		Data:  tracker.MsgData(r, text),
-		Notes: notes,
-	})
-}
-
-func (log Log) AddRangeVerboseWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
-	log.AddMsg(Msg{
-		Kind:  Verbose,
+		Kind:  kind,
 		Data:  tracker.MsgData(r, text),
 		Notes: notes,
 	})

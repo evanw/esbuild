@@ -322,7 +322,7 @@ func (c *linkerContext) enforceNoCyclicChunkImports(chunks []chunkInfo) {
 	validate = func(chunkIndex int, path []int) {
 		for _, otherChunkIndex := range path {
 			if chunkIndex == otherChunkIndex {
-				c.log.AddRangeError(nil, logger.Range{}, "Internal error: generated chunks contain a circular import")
+				c.log.Add(logger.Error, nil, logger.Range{}, "Internal error: generated chunks contain a circular import")
 				return
 			}
 		}
@@ -587,7 +587,7 @@ func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) s
 	// Otherwise, return a relative path
 	relPath, ok := c.fs.Rel(fromRelDir, toRelPath)
 	if !ok {
-		c.log.AddRangeError(nil, logger.Range{},
+		c.log.Add(logger.Error, nil, logger.Range{},
 			fmt.Sprintf("Cannot traverse from directory %q to chunk %q", fromRelDir, toRelPath))
 		return ""
 	}
@@ -1978,7 +1978,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 		case matchImportCycle:
 			namedImport := repr.AST.NamedImports[importRef]
-			c.log.AddRangeError(file.LineColumnTracker(), js_lexer.RangeOfIdentifier(file.InputFile.Source, namedImport.AliasLoc),
+			c.log.Add(logger.Error, file.LineColumnTracker(), js_lexer.RangeOfIdentifier(file.InputFile.Source, namedImport.AliasLoc),
 				fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
 
 		case matchImportProbablyTypeScriptType:
@@ -2012,10 +2012,10 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
 				msg := fmt.Sprintf("Import %q will always be undefined because there are multiple matching exports", namedImport.Alias)
-				c.log.AddRangeWarningWithNotes(file.LineColumnTracker(), r, msg, notes)
+				c.log.AddWithNotes(logger.Warning, file.LineColumnTracker(), r, msg, notes)
 			} else {
 				msg := fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias)
-				c.log.AddRangeErrorWithNotes(file.LineColumnTracker(), r, msg, notes)
+				c.log.AddWithNotes(logger.Error, file.LineColumnTracker(), r, msg, notes)
 			}
 		}
 	}
@@ -2117,7 +2117,7 @@ loop:
 			if status == importCommonJSWithoutExports {
 				symbol := c.graph.Symbols.Get(tracker.importRef)
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
-				c.log.AddRangeWarning(
+				c.log.Add(logger.Warning,
 					trackerFile.LineColumnTracker(),
 					js_lexer.RangeOfIdentifier(trackerFile.InputFile.Source, namedImport.AliasLoc),
 					fmt.Sprintf("Import %q will always be undefined because the file %q has no exports",
@@ -2156,10 +2156,10 @@ loop:
 				// time, so we emit a warning and rewrite the value to the literal
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
-				c.log.AddRangeWarning(trackerFile.LineColumnTracker(), r, fmt.Sprintf(
+				c.log.Add(logger.Warning, trackerFile.LineColumnTracker(), r, fmt.Sprintf(
 					"Import %q will always be undefined because there is no matching export", namedImport.Alias))
 			} else {
-				c.log.AddRangeError(trackerFile.LineColumnTracker(), r, fmt.Sprintf("No matching export in %q for import %q",
+				c.log.Add(logger.Error, trackerFile.LineColumnTracker(), r, fmt.Sprintf("No matching export in %q for import %q",
 					c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath, namedImport.Alias))
 			}
 

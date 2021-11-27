@@ -210,7 +210,7 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 
 			// "[const: number]"
 			if opts.allowTupleLabels && p.lexer.Token == js_lexer.TColon {
-				p.log.AddRangeError(&p.tracker, r, "Unexpected \"const\"")
+				p.log.Add(logger.Error, &p.tracker, r, "Unexpected \"const\"")
 			}
 
 		case js_lexer.TThis:
@@ -395,7 +395,7 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 			// "[function: number]"
 			if opts.allowTupleLabels && p.lexer.IsIdentifierOrKeyword() {
 				if p.lexer.Token != js_lexer.TFunction {
-					p.log.AddRangeError(&p.tracker, p.lexer.Range(), fmt.Sprintf("Unexpected %q", p.lexer.Raw()))
+					p.log.Add(logger.Error, &p.tracker, p.lexer.Range(), fmt.Sprintf("Unexpected %q", p.lexer.Raw()))
 				}
 				p.lexer.Next()
 				if p.lexer.Token != js_lexer.TColon {

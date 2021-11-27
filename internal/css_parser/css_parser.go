@@ -133,7 +133,7 @@ func (p *parser) expect(kind css_lexer.T) bool {
 		}
 	}
 	if t.Range.Loc.Start > p.prevError.Start {
-		p.log.AddRangeWarning(&p.tracker, t.Range, text)
+		p.log.Add(logger.Warning, &p.tracker, t.Range, text)
 		p.prevError = t.Range.Loc
 	}
 	return false
@@ -151,7 +151,7 @@ func (p *parser) unexpected() {
 		default:
 			text = fmt.Sprintf("Unexpected %q", p.raw())
 		}
-		p.log.AddRangeWarning(&p.tracker, t.Range, text)
+		p.log.Add(logger.Warning, &p.tracker, t.Range, text)
 		p.prevError = t.Range.Loc
 	}
 }
@@ -204,7 +204,7 @@ loop:
 					if !didWarnAboutCharset {
 						for i, before := range rules {
 							if _, ok := before.Data.(*css_ast.RComment); !ok {
-								p.log.AddRangeWarningWithNotes(&p.tracker, first, "\"@charset\" must be the first rule in the file",
+								p.log.AddWithNotes(logger.Warning, &p.tracker, first, "\"@charset\" must be the first rule in the file",
 									[]logger.MsgData{p.tracker.MsgData(logger.Range{Loc: locs[i]},
 										"This rule cannot come before a \"@charset\" rule")})
 								didWarnAboutCharset = true
@@ -219,7 +219,7 @@ loop:
 							switch before.Data.(type) {
 							case *css_ast.RComment, *css_ast.RAtCharset, *css_ast.RAtImport:
 							default:
-								p.log.AddRangeWarningWithNotes(&p.tracker, first, "All \"@import\" rules must come first",
+								p.log.AddWithNotes(logger.Warning, &p.tracker, first, "All \"@import\" rules must come first",
 									[]logger.MsgData{p.tracker.MsgData(logger.Range{Loc: locs[i]},
 										"This rule cannot come before an \"@import\" rule")})
 								didWarnAboutImport = true
@@ -633,7 +633,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 		if p.peek(css_lexer.TString) {
 			encoding := p.decoded()
 			if !strings.EqualFold(encoding, "UTF-8") {
-				p.log.AddRangeWarning(&p.tracker, p.current().Range,
+				p.log.Add(logger.Warning, &p.tracker, p.current().Range,
 					fmt.Sprintf("\"UTF-8\" will be used instead of unsupported charset %q", encoding))
 			}
 			p.advance()
@@ -796,7 +796,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 			//
 			// Instead of implementing all of that for an extremely obscure feature,
 			// CSS namespaces are just explicitly not supported.
-			p.log.AddRangeWarning(&p.tracker, atRange, "\"@namespace\" rules are not supported")
+			p.log.Add(logger.Warning, &p.tracker, atRange, "\"@namespace\" rules are not supported")
 		}
 	}
 
@@ -898,7 +898,7 @@ loop:
 		if opts.isInsideCalcFunction && t.Kind.IsNumeric() && len(result) > 0 && result[len(result)-1].Kind.IsNumeric() &&
 			(strings.HasPrefix(token.Text, "+") || strings.HasPrefix(token.Text, "-")) {
 			// "calc(1+2)" and "calc(1-2)" are invalid
-			p.log.AddRangeWarning(&p.tracker, logger.Range{Loc: t.Range.Loc, Len: 1},
+			p.log.Add(logger.Warning, &p.tracker, logger.Range{Loc: t.Range.Loc, Len: 1},
 				fmt.Sprintf("The %q operator only works if there is whitespace on both sides", token.Text[:1]))
 		}
 
@@ -915,11 +915,11 @@ loop:
 			if opts.isInsideCalcFunction && len(tokens) > 0 {
 				if len(result) == 0 || result[len(result)-1].Kind == css_lexer.TComma {
 					// "calc(-(1 + 2))" is invalid
-					p.log.AddRangeWarning(&p.tracker, t.Range,
+					p.log.Add(logger.Warning, &p.tracker, t.Range,
 						fmt.Sprintf("%q can only be used as an infix operator, not a prefix operator", token.Text))
 				} else if token.Whitespace != css_ast.WhitespaceBefore || tokens[0].Kind != css_lexer.TWhitespace {
 					// "calc(1- 2)" and "calc(1 -(2))" are invalid
-					p.log.AddRangeWarning(&p.tracker, t.Range,
+					p.log.Add(logger.Warning, &p.tracker, t.Range,
 						fmt.Sprintf("The %q operator only works if there is whitespace on both sides", token.Text))
 				}
 			}
