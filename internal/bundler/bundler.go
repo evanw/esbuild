@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -175,7 +174,7 @@ func parseFile(args parseArgs) {
 	defer func() {
 		r := recover()
 		if r != nil {
-			stack := strings.TrimSpace(string(debug.Stack()))
+			stack := helpers.PrettyPrintedStack()
 			args.log.AddMsg(logger.Msg{
 				Kind: logger.Error,
 				Data: logger.MsgData{

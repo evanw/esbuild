@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"hash"
 	"path"
-	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -5552,7 +5551,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 // Recover from a panic by logging it as an internal error instead of crashing
 func (c *linkerContext) recoverInternalError(waitGroup *sync.WaitGroup, sourceIndex uint32) {
 	if r := recover(); r != nil {
-		stack := strings.TrimSpace(string(debug.Stack()))
+		stack := helpers.PrettyPrintedStack()
 		data := logger.MsgData{
 			Text: fmt.Sprintf("panic: %v", r),
 			Location: &logger.MsgLocation{
