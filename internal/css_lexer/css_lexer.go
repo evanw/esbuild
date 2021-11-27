@@ -494,7 +494,8 @@ func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 			}
 
 		case eof: // This indicates the end of the file
-			lexer.log.AddErrorWithNotes(&lexer.tracker, logger.Loc{Start: lexer.Token.Range.End()}, "Expected \"*/\" to terminate multi-line comment",
+			lexer.log.AddRangeErrorWithNotes(&lexer.tracker, logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}},
+				"Expected \"*/\" to terminate multi-line comment",
 				[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here")})
 			return
 
@@ -688,7 +689,7 @@ validURL:
 
 		case eof:
 			loc := logger.Loc{Start: lexer.Token.Range.End()}
-			lexer.log.AddError(&lexer.tracker, loc, "Expected \")\" to end URL token")
+			lexer.log.AddRangeError(&lexer.tracker, logger.Range{Loc: loc}, "Expected \")\" to end URL token")
 			return TBadURL
 
 		case ' ', '\t', '\n', '\r', '\f':
@@ -698,7 +699,7 @@ validURL:
 			}
 			if lexer.codePoint != ')' {
 				loc := logger.Loc{Start: lexer.Token.Range.End()}
-				lexer.log.AddError(&lexer.tracker, loc, "Expected \")\" to end URL token")
+				lexer.log.AddRangeError(&lexer.tracker, logger.Range{Loc: loc}, "Expected \")\" to end URL token")
 				break validURL
 			}
 			lexer.step()
@@ -763,11 +764,15 @@ func (lexer *lexer) consumeString() T {
 			// Otherwise, fall through to ignore the character after the backslash
 
 		case eof:
-			lexer.log.AddError(&lexer.tracker, logger.Loc{Start: lexer.Token.Range.End()}, "Unterminated string token")
+			lexer.log.AddRangeError(&lexer.tracker,
+				logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}},
+				"Unterminated string token")
 			return TBadString
 
 		case '\n', '\r', '\f':
-			lexer.log.AddError(&lexer.tracker, logger.Loc{Start: lexer.Token.Range.End()}, "Unterminated string token")
+			lexer.log.AddRangeError(&lexer.tracker,
+				logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}},
+				"Unterminated string token")
 			return TBadString
 
 		case quote:

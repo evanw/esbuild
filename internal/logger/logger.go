@@ -1394,21 +1394,6 @@ func renderTabStops(withTabs string, spacesPerTab int) string {
 	return withoutTabs.String()
 }
 
-func (log Log) AddError(tracker *LineColumnTracker, loc Loc, text string) {
-	log.AddMsg(Msg{
-		Kind: Error,
-		Data: tracker.MsgData(Range{Loc: loc}, text),
-	})
-}
-
-func (log Log) AddErrorWithNotes(tracker *LineColumnTracker, loc Loc, text string, notes []MsgData) {
-	log.AddMsg(Msg{
-		Kind:  Error,
-		Data:  tracker.MsgData(Range{Loc: loc}, text),
-		Notes: notes,
-	})
-}
-
 func (log Log) AddRangeError(tracker *LineColumnTracker, r Range, text string) {
 	log.AddMsg(Msg{
 		Kind: Error,
@@ -1424,13 +1409,6 @@ func (log Log) AddRangeErrorWithNotes(tracker *LineColumnTracker, r Range, text 
 	})
 }
 
-func (log Log) AddWarning(tracker *LineColumnTracker, loc Loc, text string) {
-	log.AddMsg(Msg{
-		Kind: Warning,
-		Data: tracker.MsgData(Range{Loc: loc}, text),
-	})
-}
-
 func (log Log) AddRangeWarning(tracker *LineColumnTracker, r Range, text string) {
 	log.AddMsg(Msg{
 		Kind: Warning,
@@ -1442,21 +1420,6 @@ func (log Log) AddRangeWarningWithNotes(tracker *LineColumnTracker, r Range, tex
 	log.AddMsg(Msg{
 		Kind:  Warning,
 		Data:  tracker.MsgData(r, text),
-		Notes: notes,
-	})
-}
-
-func (log Log) AddDebug(tracker *LineColumnTracker, loc Loc, text string) {
-	log.AddMsg(Msg{
-		Kind: Debug,
-		Data: tracker.MsgData(Range{Loc: loc}, text),
-	})
-}
-
-func (log Log) AddDebugWithNotes(tracker *LineColumnTracker, loc Loc, text string, notes []MsgData) {
-	log.AddMsg(Msg{
-		Kind:  Debug,
-		Data:  tracker.MsgData(Range{Loc: loc}, text),
 		Notes: notes,
 	})
 }
@@ -1476,17 +1439,10 @@ func (log Log) AddRangeDebugWithNotes(tracker *LineColumnTracker, r Range, text 
 	})
 }
 
-func (log Log) AddVerbose(tracker *LineColumnTracker, loc Loc, text string) {
-	log.AddMsg(Msg{
-		Kind: Verbose,
-		Data: tracker.MsgData(Range{Loc: loc}, text),
-	})
-}
-
-func (log Log) AddVerboseWithNotes(tracker *LineColumnTracker, loc Loc, text string, notes []MsgData) {
+func (log Log) AddRangeVerboseWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
 	log.AddMsg(Msg{
 		Kind:  Verbose,
-		Data:  tracker.MsgData(Range{Loc: loc}, text),
+		Data:  tracker.MsgData(r, text),
 		Notes: notes,
 	})
 }

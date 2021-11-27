@@ -221,7 +221,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 		r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", packageJSONPath, originalError.Error()))
 	}
 	if err != nil {
-		r.log.AddError(nil, logger.Loc{},
+		r.log.AddRangeError(nil, logger.Range{},
 			fmt.Sprintf("Cannot read file %q: %s",
 				r.PrettyPath(logger.Path{Text: packageJSONPath, Namespace: "file"}), err.Error()))
 		return nil
@@ -261,7 +261,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 					fmt.Sprintf("%q is not a valid value for the \"type\" field (must be either \"commonjs\" or \"module\")", typeValue))
 			}
 		} else {
-			r.log.AddWarning(&tracker, typeJSON.Loc,
+			r.log.AddRangeWarning(&tracker, logger.Range{Loc: typeJSON.Loc},
 				"The value for \"type\" must be a string")
 		}
 	}
@@ -317,7 +317,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 							browserMap[key] = nil
 						}
 					} else {
-						r.log.AddWarning(&tracker, prop.ValueOrNil.Loc,
+						r.log.AddRangeWarning(&tracker, logger.Range{Loc: prop.ValueOrNil.Loc},
 							"Each \"browser\" mapping must be a string or a boolean")
 					}
 				}
@@ -354,7 +354,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 			for _, itemJSON := range data.Items {
 				item, ok := itemJSON.Data.(*js_ast.EString)
 				if !ok || item.Value == nil {
-					r.log.AddWarning(&tracker, itemJSON.Loc,
+					r.log.AddRangeWarning(&tracker, logger.Range{Loc: itemJSON.Loc},
 						"Expected string in array for \"sideEffects\"")
 					continue
 				}
@@ -378,7 +378,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 			}
 
 		default:
-			r.log.AddWarning(&tracker, sideEffectsJSON.Loc,
+			r.log.AddRangeWarning(&tracker, logger.Range{Loc: sideEffectsJSON.Loc},
 				"The value for \"sideEffects\" must be a boolean or an array")
 		}
 	}

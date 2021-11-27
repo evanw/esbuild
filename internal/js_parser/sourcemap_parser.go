@@ -20,7 +20,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	obj, ok := expr.Data.(*js_ast.EObject)
 	tracker := logger.MakeLineColumnTracker(&source)
 	if !ok {
-		log.AddError(&tracker, expr.Loc, "Invalid source map")
+		log.AddRangeError(&tracker, logger.Range{Loc: expr.Loc}, "Invalid source map")
 		return nil
 	}
 

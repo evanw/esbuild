@@ -4234,7 +4234,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			// Warn about "!a in b" instead of "!(a in b)"
 			if !p.suppressWarningsAboutWeirdCode {
 				if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
-					p.log.AddWarning(&p.tracker, left.Loc,
+					p.log.AddRangeWarning(&p.tracker, logger.Range{Loc: left.Loc},
 						"Suspicious use of the \"!\" operator inside the \"in\" operator")
 				}
 			}
@@ -4251,7 +4251,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			// example of code with this problem: https://github.com/mrdoob/three.js/pull/11182.
 			if !p.suppressWarningsAboutWeirdCode {
 				if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
-					p.log.AddWarning(&p.tracker, left.Loc,
+					p.log.AddRangeWarning(&p.tracker, logger.Range{Loc: left.Loc},
 						"Suspicious use of the \"!\" operator inside the \"instanceof\" operator")
 				}
 			}
@@ -4390,7 +4390,8 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 		// Dashes are not allowed in member expression chains
 		index := strings.IndexByte(member, '-')
 		if index >= 0 {
-			p.log.AddError(&p.tracker, logger.Loc{Start: memberRange.Loc.Start + int32(index)}, "Unexpected \"-\"")
+			p.log.AddRangeError(&p.tracker, logger.Range{Loc: logger.Loc{Start: memberRange.Loc.Start + int32(index)}},
+				"Unexpected \"-\"")
 			panic(js_lexer.LexerPanic{})
 		}
 
@@ -4701,7 +4702,7 @@ func (p *parser) requireInitializers(decls []js_ast.Decl) {
 				p.log.AddRangeError(&p.tracker, r, fmt.Sprintf("The constant %q must be initialized",
 					p.symbols[id.Ref.InnerIndex].OriginalName))
 			} else {
-				p.log.AddError(&p.tracker, d.Binding.Loc, "This constant must be initialized")
+				p.log.AddRangeError(&p.tracker, logger.Range{Loc: d.Binding.Loc}, "This constant must be initialized")
 			}
 		}
 	}
@@ -4709,7 +4710,8 @@ func (p *parser) requireInitializers(decls []js_ast.Decl) {
 
 func (p *parser) forbidInitializers(decls []js_ast.Decl, loopType string, isVar bool) {
 	if len(decls) > 1 {
-		p.log.AddError(&p.tracker, decls[0].Binding.Loc, fmt.Sprintf("for-%s loops must have a single declaration", loopType))
+		p.log.AddRangeError(&p.tracker, logger.Range{Loc: decls[0].Binding.Loc},
+			fmt.Sprintf("for-%s loops must have a single declaration", loopType))
 	} else if len(decls) == 1 && decls[0].ValueOrNil.Data != nil {
 		if isVar {
 			if _, ok := decls[0].Binding.Data.(*js_ast.BIdentifier); ok {
@@ -4718,7 +4720,8 @@ func (p *parser) forbidInitializers(decls []js_ast.Decl, loopType string, isVar 
 				return
 			}
 		}
-		p.log.AddError(&p.tracker, decls[0].ValueOrNil.Loc, fmt.Sprintf("for-%s loop variables cannot have an initializer", loopType))
+		p.log.AddRangeError(&p.tracker, logger.Range{Loc: decls[0].ValueOrNil.Loc},
+			fmt.Sprintf("for-%s loop variables cannot have an initializer", loopType))
 	}
 }
 
@@ -5454,7 +5457,8 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 			// Forbid decorators on class constructors
 			if key, ok := property.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(key.Value, "constructor") {
 				if len(opts.tsDecorators) > 0 {
-					p.log.AddError(&p.tracker, firstDecoratorLoc, "TypeScript does not allow decorators on class constructors")
+					p.log.AddRangeError(&p.tracker, logger.Range{Loc: firstDecoratorLoc},
+						"TypeScript does not allow decorators on class constructors")
 				}
 				if property.IsMethod && !property.IsStatic && !property.IsComputed {
 					if hasConstructor {
@@ -5777,7 +5781,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				asyncRange := p.lexer.Range()
 				p.lexer.Next()
 				if p.lexer.HasNewlineBefore {
-					p.log.AddError(&p.tracker, logger.Loc{Start: asyncRange.End()}, "Unexpected newline after \"async\"")
+					p.log.AddRangeError(&p.tracker, logger.Range{Loc: logger.Loc{Start: asyncRange.End()}},
+						"Unexpected newline after \"async\"")
 					panic(js_lexer.LexerPanic{})
 				}
 				p.lexer.Expect(js_lexer.TFunction)
@@ -5792,7 +5797,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					typeRange := p.lexer.Range()
 					p.lexer.Next()
 					if p.lexer.HasNewlineBefore {
-						p.log.AddError(&p.tracker, logger.Loc{Start: typeRange.End()}, "Unexpected newline after \"type\"")
+						p.log.AddRangeError(&p.tracker, logger.Range{Loc: logger.Loc{Start: typeRange.End()}},
+							"Unexpected newline after \"type\"")
 						panic(js_lexer.LexerPanic{})
 					}
 					p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope, isExport: true})
@@ -6628,7 +6634,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 	case js_lexer.TThrow:
 		p.lexer.Next()
 		if p.lexer.HasNewlineBefore {
-			p.log.AddError(&p.tracker, logger.Loc{Start: loc.Start + 5}, "Unexpected newline after \"throw\"")
+			p.log.AddRangeError(&p.tracker, logger.Range{Loc: logger.Loc{Start: loc.Start + 5}},
+				"Unexpected newline after \"throw\"")
 			panic(js_lexer.LexerPanic{})
 		}
 		expr := p.parseExpr(js_ast.LLowest)
@@ -6936,7 +6943,7 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 			} else {
 				if returnWithoutSemicolonStart != -1 {
 					if _, ok := stmt.Data.(*js_ast.SExpr); ok {
-						p.log.AddWarning(&p.tracker, logger.Loc{Start: returnWithoutSemicolonStart + 6},
+						p.log.AddRangeWarning(&p.tracker, logger.Range{Loc: logger.Loc{Start: returnWithoutSemicolonStart + 6}},
 							"The following expression is not returned because of an automatically-inserted semicolon")
 					}
 				}
@@ -10927,7 +10934,7 @@ func containsClosingScriptTag(text string) bool {
 // for the caller to pass along extra data. This is mostly for optional chaining.
 func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprOut) {
 	if in.assignTarget != js_ast.AssignTargetNone && !p.isValidAssignmentTarget(expr) {
-		p.log.AddError(&p.tracker, expr.Loc, "Invalid assignment target")
+		p.log.AddRangeError(&p.tracker, logger.Range{Loc: expr.Loc}, "Invalid assignment target")
 	}
 
 	switch e := expr.Data.(type) {
@@ -12395,9 +12402,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.options.mode == config.ModeBundle {
 					text := "This \"import()\" was not recognized because " + why
 					if !p.suppressWarningsAboutWeirdCode {
-						p.log.AddWarning(&p.tracker, whyLoc, text)
+						p.log.AddRangeWarning(&p.tracker, logger.Range{Loc: whyLoc}, text)
 					} else {
-						p.log.AddDebug(&p.tracker, whyLoc, text)
+						p.log.AddRangeDebug(&p.tracker, logger.Range{Loc: whyLoc}, text)
 					}
 				}
 

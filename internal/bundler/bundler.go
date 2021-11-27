@@ -886,7 +886,7 @@ func runOnLoadPlugins(
 			}, true
 		} else {
 			if log.Level <= logger.LevelDebug && originalError != nil {
-				log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Failed to read file %q: %s", source.KeyPath.Text, originalError.Error()))
+				log.AddRangeDebug(nil, logger.Range{}, fmt.Sprintf("Failed to read file %q: %s", source.KeyPath.Text, originalError.Error()))
 			}
 			if err == syscall.ENOENT {
 				log.AddRangeError(&tracker, importPathRange,
@@ -1022,7 +1022,7 @@ func ScanBundle(
 	// Each bundling operation gets a separate unique key
 	uniqueKeyPrefix, err := generateUniqueKeyPrefix()
 	if err != nil {
-		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
+		log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
 	}
 
 	s := scanner{
@@ -1260,7 +1260,7 @@ func (s *scanner) preprocessInjectedFiles() {
 		absPathKey := canonicalFileSystemPathForWindows(absPath)
 
 		if duplicateInjectedFiles[absPathKey] {
-			s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate injected file %q", prettyPath))
+			s.log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Duplicate injected file %q", prettyPath))
 			continue
 		}
 
@@ -1268,7 +1268,7 @@ func (s *scanner) preprocessInjectedFiles() {
 		resolveResult := s.res.ResolveAbs(absPath)
 
 		if resolveResult == nil {
-			s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
+			s.log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("Could not resolve %q", prettyPath))
 			continue
 		}
 
@@ -1349,7 +1349,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 				}
 			}
 		} else if s.log.Level <= logger.LevelDebug && originalError != nil {
-			s.log.AddDebug(nil, logger.Loc{}, fmt.Sprintf("Failed to read directory %q: %s", absPath, originalError.Error()))
+			s.log.AddRangeDebug(nil, logger.Range{}, fmt.Sprintf("Failed to read directory %q: %s", absPath, originalError.Error()))
 		}
 	}
 
@@ -1383,7 +1383,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 			)
 			if resolveResult != nil {
 				if resolveResult.IsExternal {
-					s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("The entry point %q cannot be marked as external", entryPoint.InputPath))
+					s.log.AddRangeError(nil, logger.Range{}, fmt.Sprintf("The entry point %q cannot be marked as external", entryPoint.InputPath))
 				} else {
 					entryPointResolveResults[i] = resolveResult
 				}
@@ -2079,7 +2079,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 					case logger.GoAPI:
 						hint = " (use \"AllowOverwrite: true\" to allow this)"
 					}
-					log.AddError(nil, logger.Loc{},
+					log.AddRangeError(nil, logger.Range{},
 						fmt.Sprintf("Refusing to overwrite input file %q%s",
 							b.files[sourceIndex].inputFile.Source.PrettyPath, hint))
 				}
@@ -2116,7 +2116,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 			if relPath, ok := b.fs.Rel(b.fs.Cwd(), outputPath); ok {
 				outputPath = relPath
 			}
-			log.AddError(nil, logger.Loc{}, "Two output files share the same path but have different contents: "+outputPath)
+			log.AddRangeError(nil, logger.Range{}, "Two output files share the same path but have different contents: "+outputPath)
 		}
 		outputFiles = outputFiles[:end]
 	}
