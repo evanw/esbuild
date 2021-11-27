@@ -437,7 +437,13 @@ func (lexer *Lexer) ExpectedString(text string) {
 	if lexer.start == len(lexer.source.Contents) {
 		found = "end of file"
 	}
-	lexer.addRangeError(lexer.Range(), fmt.Sprintf("Expected %s but found %s", text, found))
+
+	suggestion := ""
+	if strings.HasPrefix(text, "\"") && strings.HasSuffix(text, "\"") {
+		suggestion = text[1 : len(text)-1]
+	}
+
+	lexer.addRangeErrorWithSuggestion(lexer.Range(), fmt.Sprintf("Expected %s but found %s", text, found), suggestion)
 	panic(LexerPanic{})
 }
 
@@ -2569,6 +2575,20 @@ func (lexer *Lexer) addRangeError(r logger.Range, text string) {
 
 	if !lexer.IsLogDisabled {
 		lexer.log.Add(logger.Error, &lexer.tracker, r, text)
+	}
+}
+
+func (lexer *Lexer) addRangeErrorWithSuggestion(r logger.Range, text string, suggestion string) {
+	// Don't report multiple errors in the same spot
+	if r.Loc == lexer.prevErrorLoc {
+		return
+	}
+	lexer.prevErrorLoc = r.Loc
+
+	if !lexer.IsLogDisabled {
+		data := lexer.tracker.MsgData(r, text)
+		data.Location.Suggestion = suggestion
+		lexer.log.AddMsg(logger.Msg{Kind: logger.Error, Data: data})
 	}
 }
 

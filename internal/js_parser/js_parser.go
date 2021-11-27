@@ -10767,11 +10767,13 @@ func (p *parser) valueForThis(
 					notes := p.whyESModule()
 
 					// Show the warning as a debug message if we're in "node_modules"
-					if !p.suppressWarningsAboutWeirdCode {
-						p.log.AddWithNotes(logger.Warning, &p.tracker, r, text, notes)
-					} else {
-						p.log.AddWithNotes(logger.Debug, &p.tracker, r, text, notes)
+					kind := logger.Warning
+					if p.suppressWarningsAboutWeirdCode {
+						kind = logger.Debug
 					}
+					data := p.tracker.MsgData(r, text)
+					data.Location.Suggestion = "undefined"
+					p.log.AddMsg(logger.Msg{Kind: kind, Data: data, Notes: notes})
 				}
 
 				// In an ES6 module, "this" is supposed to be undefined. Instead of

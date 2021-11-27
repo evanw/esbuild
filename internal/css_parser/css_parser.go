@@ -116,24 +116,35 @@ func (p *parser) expect(kind css_lexer.T) bool {
 		return true
 	}
 	t := p.current()
+
 	var text string
-	if kind == css_lexer.TSemicolon && p.index > 0 && p.at(p.index-1).Kind == css_lexer.TWhitespace {
-		// Have a nice error message for forgetting a trailing semicolon
-		text = "Expected \";\""
+	var suggestion string
+
+	expected := kind.String()
+	if strings.HasPrefix(expected, "\"") && strings.HasSuffix(expected, "\"") {
+		suggestion = expected[1 : len(expected)-1]
+	}
+
+	if (kind == css_lexer.TSemicolon || kind == css_lexer.TColon) && p.index > 0 && p.at(p.index-1).Kind == css_lexer.TWhitespace {
+		// Have a nice error message for forgetting a trailing semicolon or colon
+		text = fmt.Sprintf("Expected %s", expected)
 		t = p.at(p.index - 1)
 	} else {
 		switch t.Kind {
 		case css_lexer.TEndOfFile, css_lexer.TWhitespace:
-			text = fmt.Sprintf("Expected %s but found %s", kind.String(), t.Kind.String())
+			text = fmt.Sprintf("Expected %s but found %s", expected, t.Kind.String())
 			t.Range.Len = 0
 		case css_lexer.TBadURL, css_lexer.TBadString:
-			text = fmt.Sprintf("Expected %s but found %s", kind.String(), t.Kind.String())
+			text = fmt.Sprintf("Expected %s but found %s", expected, t.Kind.String())
 		default:
-			text = fmt.Sprintf("Expected %s but found %q", kind.String(), p.raw())
+			text = fmt.Sprintf("Expected %s but found %q", expected, p.raw())
 		}
 	}
+
 	if t.Range.Loc.Start > p.prevError.Start {
-		p.log.Add(logger.Warning, &p.tracker, t.Range, text)
+		data := p.tracker.MsgData(t.Range, text)
+		data.Location.Suggestion = suggestion
+		p.log.AddMsg(logger.Msg{Kind: logger.Warning, Data: data})
 		p.prevError = t.Range.Loc
 	}
 	return false
