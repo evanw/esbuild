@@ -30,6 +30,27 @@
 
     This release changes the implicit sibling scope lookup behavior to only work for `enum`-to-`enum` and `namespace`-to-`namespace` interactions. These implicit references no longer work with `enum`-to-`namespace` and `namespace`-to-`enum` interactions, which should more accurately match the behavior of the TypeScript compiler.
 
+* Add semicolon insertion before TypeScript-specific definite assignment assertion modifier ([#1810](https://github.com/evanw/esbuild/issues/1810))
+
+    TypeScript lets you add a `!` after a variable declaration to bypass TypeScript's definite assignment analysis:
+
+    ```ts
+    let x!: number[];
+    initialize();
+    x.push(4);
+
+    function initialize() { x = [0, 1, 2, 3]; }
+    ```
+
+    This `!` is called a [definite assignment assertion](https://devblogs.microsoft.com/typescript/announcing-typescript-2-7/#definite-assignment-assertions) and tells TypeScript to assume that the variable has been initialized somehow. However, JavaScript's automatic semicolon insertion rules should be able to insert a semicolon before it:
+
+    ```ts
+    let a
+    !function(){}()
+    ```
+
+    Previously the above code was incorrectly considered a syntax error in TypeScript. With this release, this code is now parsed correctly.
+
 ## 0.14.0
 
 **This release contains backwards-incompatible changes.** Since esbuild is before version 1.0.0, these changes have been released as a new minor version to reflect this (as [recommended by npm](https://docs.npmjs.com/cli/v6/using-npm/semver/)). You should either be pinning the exact version of `esbuild` in your `package.json` file or be using a version range syntax that only accepts patch upgrades such as `~0.13.0`. See the documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

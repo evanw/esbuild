@@ -2091,7 +2091,8 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 	if p.options.ts.Parse {
 		// "class X { foo?: number }"
 		// "class X { foo!: number }"
-		if opts.isClass && (p.lexer.Token == js_lexer.TQuestion || p.lexer.Token == js_lexer.TExclamation) {
+		if opts.isClass && (p.lexer.Token == js_lexer.TQuestion ||
+			(p.lexer.Token == js_lexer.TExclamation && !p.lexer.HasNewlineBefore)) {
 			p.lexer.Next()
 		}
 
@@ -4664,7 +4665,7 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 		// Skip over types
 		if p.options.ts.Parse {
 			// "let foo!"
-			isDefiniteAssignmentAssertion := p.lexer.Token == js_lexer.TExclamation
+			isDefiniteAssignmentAssertion := p.lexer.Token == js_lexer.TExclamation && !p.lexer.HasNewlineBefore
 			if isDefiniteAssignmentAssertion {
 				p.lexer.Next()
 			}

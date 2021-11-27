@@ -383,6 +383,9 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { foo!(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectParseErrorTS(t, "class Foo { foo!(): void foo(): void {} }", "<stdin>: error: Expected \";\" but found \"foo\"\n")
 
+	expectPrintedTS(t, "class Foo { foo \n ?: number }", "class Foo {\n}\n")
+	expectParseErrorTS(t, "class Foo { foo \n !: number }", "<stdin>: error: Expected identifier but found \"!\"\n")
+
 	expectPrintedTS(t, "class Foo { public foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { private foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { protected foo: number }", "class Foo {\n}\n")
@@ -1284,6 +1287,8 @@ func TestTSDecl(t *testing.T) {
 	expectPrintedTS(t, "var a!: string, b!: boolean", "var a, b;\n")
 	expectPrintedTS(t, "let a!: string, b!: boolean", "let a, b;\n")
 	expectPrintedTS(t, "const a!: string = '', b!: boolean = false", "const a = \"\", b = false;\n")
+	expectPrintedTS(t, "var a\n!0", "var a;\ntrue;\n")
+	expectPrintedTS(t, "let a\n!0", "let a;\ntrue;\n")
 	expectParseErrorTS(t, "var a!", "<stdin>: error: Expected \":\" but found end of file\n")
 	expectParseErrorTS(t, "var a! = ", "<stdin>: error: Expected \":\" but found \"=\"\n")
 	expectParseErrorTS(t, "var a!, b", "<stdin>: error: Expected \":\" but found \",\"\n")
