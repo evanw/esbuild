@@ -1489,12 +1489,12 @@ func TestTSEnumTreeShaking(t *testing.T) {
 				console.log(x)
 			`,
 			"/namespace-before.ts": `
-				namespace x { console.log(x,y) }
+				namespace x { console.log(x, y) }
 				enum x { y = 123 }
 			`,
 			"/namespace-after.ts": `
 				enum x { y = 123 }
-				namespace x { console.log(x,y) }
+				namespace x { console.log(x, y) }
 			`,
 		},
 		entryPaths: []string{

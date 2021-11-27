@@ -220,7 +220,7 @@ console.log(x);
 // namespace-before.ts
 var x;
 ((x2) => {
-  console.log(x2, x2.y);
+  console.log(x2, y);
 })(x || (x = {}));
 var x = /* @__PURE__ */ ((x2) => {
   x2[x2["y"] = 123] = "y";
@@ -234,7 +234,7 @@ var x = /* @__PURE__ */ ((x2) => {
   return x2;
 })(x || {});
 ((x2) => {
-  console.log(x2, 123);
+  console.log(x2, y);
 })(x || (x = {}));
 
 ================================================================================
@@ -502,7 +502,7 @@ var x = /* @__PURE__ */ ((x2) => {
   return x2;
 })(x || {});
 ((x2) => {
-  console.log(0, 1);
+  console.log(y, z);
 })(x || (x = {}));
 console.log(0, 1);
 
@@ -517,7 +517,7 @@ var x = /* @__PURE__ */ ((x2) => {
   return x2;
 })(x || {});
 ((x2) => {
-  console.log("a", "a");
+  console.log(y, z);
 })(x || (x = {}));
 console.log("a", "a");
 
@@ -557,7 +557,7 @@ export var foo;
 ((foo2) => {
   let x;
   ((x2) => {
-    console.log(0, 1);
+    console.log(y, z);
     console.log(0, 1);
   })(x = foo2.x || (foo2.x = {}));
 })(foo || (foo = {}));
@@ -580,7 +580,7 @@ export var foo;
 ((foo2) => {
   let x;
   ((x2) => {
-    console.log("a", "a");
+    console.log(y, z);
     console.log("a", "a");
   })(x = foo2.x || (foo2.x = {}));
 })(foo || (foo = {}));

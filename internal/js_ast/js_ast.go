@@ -1744,13 +1744,41 @@ type TSNamespaceScope struct {
 	// map is unique per namespace block because "x3" is the argument symbol that
 	// is specific to that particular namespace block.
 	LazilyGeneratedProperyAccesses map[string]Ref
+
+	// Even though enums are like namespaces and both enums and namespaces allow
+	// implicit references to properties of sibling scopes, they behave like
+	// separate, er, namespaces. Implicit references only work namespace-to-
+	// namespace and enum-to-enum. They do not work enum-to-namespace. And I'm
+	// not sure what's supposed to happen for the namespace-to-enum case because
+	// the compiler crashes: https://github.com/microsoft/TypeScript/issues/46891.
+	// So basically these both work:
+	//
+	//   enum a { b = 1 }
+	//   enum a { c = b }
+	//
+	//   namespace x { export let y = 1 }
+	//   namespace x { export let z = y }
+	//
+	// This doesn't work:
+	//
+	//   enum a { b = 1 }
+	//   namespace a { export let c = b }
+	//
+	// And this crashes the TypeScript compiler:
+	//
+	//   namespace a { export let b = 1 }
+	//   enum a { c = b }
+	//
+	// Therefore we only allow enum/enum and namespace/namespace interactions.
+	IsEnumScope bool
 }
 
 type TSNamespaceMembers map[string]TSNamespaceMember
 
 type TSNamespaceMember struct {
-	Loc  logger.Loc
-	Data TSNamespaceMemberData
+	Data        TSNamespaceMemberData
+	Loc         logger.Loc
+	IsEnumValue bool
 }
 
 type TSNamespaceMemberData interface {

@@ -7030,7 +7030,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 
 		// Is the symbol a member of this scope's TypeScript namespace?
 		if tsNamespace := s.TSNamespace; tsNamespace != nil {
-			if member, ok := tsNamespace.ExportedMembers[name]; ok {
+			if member, ok := tsNamespace.ExportedMembers[name]; ok && tsNamespace.IsEnumScope == member.IsEnumValue {
 				// If this is an identifier from a sibling TypeScript namespace, then we're
 				// going to have to generate a property access instead of a simple reference.
 				// Lazily-generate an identifier that represents this property access.

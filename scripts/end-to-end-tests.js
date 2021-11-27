@@ -124,6 +124,37 @@
         a.foo()
       `,
     }),
+    test(['entry.ts', '--bundle', '--minify', '--outfile=node.js'], {
+      'entry.ts': `
+        import './enum-to-namespace'
+        import './namespace-to-enum'
+        import './namespace-to-namespace'
+      `,
+      'enum-to-namespace.ts': `
+        let foo, bar, y = 2, z = 4
+        enum x { y = 1 }
+        namespace x { foo = y }
+        enum x { z = y * 3 }
+        namespace x { bar = z }
+        if (foo !== 2 || bar !== 4) throw 'fail'
+      `,
+      'namespace-to-enum.ts': `
+        let y = 2, z = 4
+        namespace x { export let y = 1 }
+        enum x { foo = y }
+        namespace x { export let z = y * 3 }
+        enum x { bar = z }
+        if (x.foo !== 2 || x.bar !== 4) throw 'fail'
+      `,
+      'namespace-to-namespace.ts': `
+        let foo, bar, y = 2, z = 4
+        namespace x { export const y = 1 }
+        namespace x { foo = y }
+        namespace x { export const z = y * 3 }
+        namespace x { bar = z }
+        if (foo !== 1 || bar !== 3) throw 'fail'
+      `,
+    }),
   )
 
   // Test coverage for a special JSX error message

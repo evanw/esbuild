@@ -902,6 +902,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	tsNamespace := &js_ast.TSNamespaceScope{
 		ExportedMembers: exportedMembers,
 		ArgRef:          js_ast.InvalidRef,
+		IsEnumScope:     true,
 	}
 	enumMemberData := &js_ast.TSNamespaceMemberNamespace{
 		ExportedMembers: exportedMembers,
@@ -959,8 +960,9 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 
 		// Add this enum value as a member of the enum's namespace
 		exportedMembers[nameText] = js_ast.TSNamespaceMember{
-			Loc:  value.Loc,
-			Data: &js_ast.TSNamespaceMemberProperty{},
+			Loc:         value.Loc,
+			Data:        &js_ast.TSNamespaceMemberProperty{},
+			IsEnumValue: true,
 		}
 
 		if p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TSemicolon {
