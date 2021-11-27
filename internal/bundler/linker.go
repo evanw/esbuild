@@ -1996,8 +1996,8 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				ra := js_lexer.RangeOfIdentifier(a.InputFile.Source, result.nameLoc)
 				rb := js_lexer.RangeOfIdentifier(b.InputFile.Source, result.otherNameLoc)
 				notes = []logger.MsgData{
-					logger.RangeData(a.LineColumnTracker(), ra, "One matching export is here"),
-					logger.RangeData(b.LineColumnTracker(), rb, "Another matching export is here"),
+					a.LineColumnTracker().MsgData(ra, "One matching export is here"),
+					b.LineColumnTracker().MsgData(rb, "Another matching export is here"),
 				}
 			}
 
@@ -5554,13 +5554,14 @@ func (c *linkerContext) recoverInternalError(waitGroup *sync.WaitGroup, sourceIn
 	if r := recover(); r != nil {
 		stack := strings.TrimSpace(string(debug.Stack()))
 		data := logger.MsgData{
-			Text:     fmt.Sprintf("panic: %v", r),
-			Location: &logger.MsgLocation{},
+			Text: fmt.Sprintf("panic: %v", r),
+			Location: &logger.MsgLocation{
+				LineText: "\n" + stack,
+			},
 		}
 		if sourceIndex != runtime.SourceIndex {
 			data.Location.File = c.graph.Files[sourceIndex].InputFile.Source.PrettyPath
 		}
-		data.Location.LineText = fmt.Sprintf("%s\n%s", data.Location.LineText, stack)
 		c.log.AddMsg(logger.Msg{
 			Kind: logger.Error,
 			Data: data,

@@ -19,7 +19,7 @@ func (p *parser) prettyPrintTargetEnvironment(feature compat.JSFeature) (where s
 	if tsTarget := p.options.tsTarget; tsTarget != nil && tsTarget.UnsupportedJSFeatures.Has(feature) {
 		tracker := logger.MakeLineColumnTracker(&tsTarget.Source)
 		where = fmt.Sprintf("%s (%q)", where, tsTarget.Target)
-		notes = []logger.MsgData{logger.RangeData(&tracker, tsTarget.Range, fmt.Sprintf(
+		notes = []logger.MsgData{tracker.MsgData(tsTarget.Range, fmt.Sprintf(
 			"The target environment was set to %q here", tsTarget.Target))}
 	} else if p.options.originalTargetEnv != "" {
 		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
@@ -198,7 +198,7 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 			if why == "" {
 				why = fmt.Sprintf("This file is implicitly in strict mode because of the %q keyword here", p.source.TextForRange(where))
 			}
-			notes = []logger.MsgData{logger.RangeData(&p.tracker, where, why)}
+			notes = []logger.MsgData{p.tracker.MsgData(where, why)}
 		}
 		p.log.AddRangeErrorWithNotes(&p.tracker, r,
 			fmt.Sprintf("%s cannot be used in strict mode", text), notes)

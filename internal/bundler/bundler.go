@@ -176,12 +176,15 @@ func parseFile(args parseArgs) {
 		r := recover()
 		if r != nil {
 			stack := strings.TrimSpace(string(debug.Stack()))
-			tracker := logger.MakeLineColumnTracker(&source)
-			data := logger.RangeData(&tracker, logger.Range{}, fmt.Sprintf("panic: %v", r))
-			data.Location.LineText = fmt.Sprintf("%s\n%s", data.Location.LineText, stack)
 			args.log.AddMsg(logger.Msg{
 				Kind: logger.Error,
-				Data: data,
+				Data: logger.MsgData{
+					Text: fmt.Sprintf("panic: %v", r),
+					Location: &logger.MsgLocation{
+						File:     source.PrettyPath,
+						LineText: "\n" + stack,
+					},
+				},
 			})
 			args.results <- result
 		}
@@ -630,14 +633,14 @@ func logPluginMessages(
 			sanetizeLocation(res, note.Location)
 		}
 		if msg.Data.Location == nil {
-			msg.Data.Location = logger.LocationOrNil(&tracker, importPathRange)
+			msg.Data.Location = tracker.MsgLocationOrNil(importPathRange)
 		} else {
 			sanetizeLocation(res, msg.Data.Location)
 			if msg.Data.Location.File == "" && importSource != nil {
 				msg.Data.Location.File = importSource.PrettyPath
 			}
 			if importSource != nil {
-				msg.Notes = append(msg.Notes, logger.RangeData(&tracker, importPathRange,
+				msg.Notes = append(msg.Notes, tracker.MsgData(importPathRange,
 					fmt.Sprintf("The plugin %q was triggered by this import", name)))
 			}
 		}
@@ -654,7 +657,7 @@ func logPluginMessages(
 			Kind:       logger.Error,
 			Data: logger.MsgData{
 				Text:       text,
-				Location:   logger.LocationOrNil(&tracker, importPathRange),
+				Location:   tracker.MsgLocationOrNil(importPathRange),
 				UserDetail: thrown,
 			},
 		})
@@ -1764,7 +1767,7 @@ func (s *scanner) processScannedFiles() []scannerFile {
 									text = "\"sideEffects\" is false in the enclosing \"package.json\" file"
 								}
 								tracker := logger.MakeLineColumnTracker(data.Source)
-								notes = append(notes, logger.RangeData(&tracker, data.Range, text))
+								notes = append(notes, tracker.MsgData(data.Range, text))
 							}
 						}
 						s.log.AddRangeWarningWithNotes(&tracker, record.Range,
@@ -1893,7 +1896,7 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 							if parentRepr.AST.TopLevelAwaitKeyword.Len > 0 {
 								tlaPrettyPath = parentResult.file.inputFile.Source.PrettyPath
 								tracker := logger.MakeLineColumnTracker(&parentResult.file.inputFile.Source)
-								notes = append(notes, logger.RangeData(&tracker, parentRepr.AST.TopLevelAwaitKeyword,
+								notes = append(notes, tracker.MsgData(parentRepr.AST.TopLevelAwaitKeyword,
 									fmt.Sprintf("The top-level await in %q is here", tlaPrettyPath)))
 								break
 							}
@@ -1906,7 +1909,7 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 							otherSourceIndex = parentResult.tlaCheck.parent.GetIndex()
 
 							tracker := logger.MakeLineColumnTracker(&parentResult.file.inputFile.Source)
-							notes = append(notes, logger.RangeData(&tracker,
+							notes = append(notes, tracker.MsgData(
 								parentRepr.AST.ImportRecords[parent.importRecordIndex].Range,
 								fmt.Sprintf("The file %q imports the file %q here",
 									parentResult.file.inputFile.Source.PrettyPath, s.results[otherSourceIndex].file.inputFile.Source.PrettyPath)))

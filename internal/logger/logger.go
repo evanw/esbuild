@@ -1087,6 +1087,13 @@ func MakeLineColumnTracker(source *Source) LineColumnTracker {
 	}
 }
 
+func (tracker *LineColumnTracker) MsgData(r Range, text string) MsgData {
+	return MsgData{
+		Text:     text,
+		Location: tracker.MsgLocationOrNil(r),
+	}
+}
+
 func (t *LineColumnTracker) scanTo(offset int32) {
 	contents := t.contents
 	i := t.offset
@@ -1187,7 +1194,7 @@ func (t *LineColumnTracker) computeLineAndColumn(offset int) (lineCount int, col
 	return int(t.line), offset - int(t.lineStart), int(t.lineStart), int(t.lineEnd)
 }
 
-func LocationOrNil(tracker *LineColumnTracker, r Range) *MsgLocation {
+func (tracker *LineColumnTracker) MsgLocationOrNil(r Range) *MsgLocation {
 	if tracker == nil || !tracker.hasSource {
 		return nil
 	}
@@ -1390,14 +1397,14 @@ func renderTabStops(withTabs string, spacesPerTab int) string {
 func (log Log) AddError(tracker *LineColumnTracker, loc Loc, text string) {
 	log.AddMsg(Msg{
 		Kind: Error,
-		Data: RangeData(tracker, Range{Loc: loc}, text),
+		Data: tracker.MsgData(Range{Loc: loc}, text),
 	})
 }
 
 func (log Log) AddErrorWithNotes(tracker *LineColumnTracker, loc Loc, text string, notes []MsgData) {
 	log.AddMsg(Msg{
 		Kind:  Error,
-		Data:  RangeData(tracker, Range{Loc: loc}, text),
+		Data:  tracker.MsgData(Range{Loc: loc}, text),
 		Notes: notes,
 	})
 }
@@ -1405,14 +1412,14 @@ func (log Log) AddErrorWithNotes(tracker *LineColumnTracker, loc Loc, text strin
 func (log Log) AddRangeError(tracker *LineColumnTracker, r Range, text string) {
 	log.AddMsg(Msg{
 		Kind: Error,
-		Data: RangeData(tracker, r, text),
+		Data: tracker.MsgData(r, text),
 	})
 }
 
 func (log Log) AddRangeErrorWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
 	log.AddMsg(Msg{
 		Kind:  Error,
-		Data:  RangeData(tracker, r, text),
+		Data:  tracker.MsgData(r, text),
 		Notes: notes,
 	})
 }
@@ -1420,21 +1427,21 @@ func (log Log) AddRangeErrorWithNotes(tracker *LineColumnTracker, r Range, text 
 func (log Log) AddWarning(tracker *LineColumnTracker, loc Loc, text string) {
 	log.AddMsg(Msg{
 		Kind: Warning,
-		Data: RangeData(tracker, Range{Loc: loc}, text),
+		Data: tracker.MsgData(Range{Loc: loc}, text),
 	})
 }
 
 func (log Log) AddRangeWarning(tracker *LineColumnTracker, r Range, text string) {
 	log.AddMsg(Msg{
 		Kind: Warning,
-		Data: RangeData(tracker, r, text),
+		Data: tracker.MsgData(r, text),
 	})
 }
 
 func (log Log) AddRangeWarningWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
 	log.AddMsg(Msg{
 		Kind:  Warning,
-		Data:  RangeData(tracker, r, text),
+		Data:  tracker.MsgData(r, text),
 		Notes: notes,
 	})
 }
@@ -1442,14 +1449,14 @@ func (log Log) AddRangeWarningWithNotes(tracker *LineColumnTracker, r Range, tex
 func (log Log) AddDebug(tracker *LineColumnTracker, loc Loc, text string) {
 	log.AddMsg(Msg{
 		Kind: Debug,
-		Data: RangeData(tracker, Range{Loc: loc}, text),
+		Data: tracker.MsgData(Range{Loc: loc}, text),
 	})
 }
 
 func (log Log) AddDebugWithNotes(tracker *LineColumnTracker, loc Loc, text string, notes []MsgData) {
 	log.AddMsg(Msg{
 		Kind:  Debug,
-		Data:  RangeData(tracker, Range{Loc: loc}, text),
+		Data:  tracker.MsgData(Range{Loc: loc}, text),
 		Notes: notes,
 	})
 }
@@ -1457,14 +1464,14 @@ func (log Log) AddDebugWithNotes(tracker *LineColumnTracker, loc Loc, text strin
 func (log Log) AddRangeDebug(tracker *LineColumnTracker, r Range, text string) {
 	log.AddMsg(Msg{
 		Kind: Debug,
-		Data: RangeData(tracker, r, text),
+		Data: tracker.MsgData(r, text),
 	})
 }
 
 func (log Log) AddRangeDebugWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
 	log.AddMsg(Msg{
 		Kind:  Debug,
-		Data:  RangeData(tracker, r, text),
+		Data:  tracker.MsgData(r, text),
 		Notes: notes,
 	})
 }
@@ -1472,21 +1479,14 @@ func (log Log) AddRangeDebugWithNotes(tracker *LineColumnTracker, r Range, text 
 func (log Log) AddVerbose(tracker *LineColumnTracker, loc Loc, text string) {
 	log.AddMsg(Msg{
 		Kind: Verbose,
-		Data: RangeData(tracker, Range{Loc: loc}, text),
+		Data: tracker.MsgData(Range{Loc: loc}, text),
 	})
 }
 
 func (log Log) AddVerboseWithNotes(tracker *LineColumnTracker, loc Loc, text string, notes []MsgData) {
 	log.AddMsg(Msg{
 		Kind:  Verbose,
-		Data:  RangeData(tracker, Range{Loc: loc}, text),
+		Data:  tracker.MsgData(Range{Loc: loc}, text),
 		Notes: notes,
 	})
-}
-
-func RangeData(tracker *LineColumnTracker, r Range, text string) MsgData {
-	return MsgData{
-		Text:     text,
-		Location: LocationOrNil(tracker, r),
-	}
 }

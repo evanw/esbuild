@@ -205,7 +205,7 @@ loop:
 						for i, before := range rules {
 							if _, ok := before.Data.(*css_ast.RComment); !ok {
 								p.log.AddRangeWarningWithNotes(&p.tracker, first, "\"@charset\" must be the first rule in the file",
-									[]logger.MsgData{logger.RangeData(&p.tracker, logger.Range{Loc: locs[i]},
+									[]logger.MsgData{p.tracker.MsgData(logger.Range{Loc: locs[i]},
 										"This rule cannot come before a \"@charset\" rule")})
 								didWarnAboutCharset = true
 							}
@@ -220,7 +220,7 @@ loop:
 							case *css_ast.RComment, *css_ast.RAtCharset, *css_ast.RAtImport:
 							default:
 								p.log.AddRangeWarningWithNotes(&p.tracker, first, "All \"@import\" rules must come first",
-									[]logger.MsgData{logger.RangeData(&p.tracker, logger.Range{Loc: locs[i]},
+									[]logger.MsgData{p.tracker.MsgData(logger.Range{Loc: locs[i]},
 										"This rule cannot come before an \"@import\" rule")})
 								didWarnAboutImport = true
 								break importLoop

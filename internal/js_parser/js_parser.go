@@ -1430,7 +1430,7 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 		case mergeForbidden:
 			r := js_lexer.RangeOfIdentifier(p.source, loc)
 			p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf("%q has already been declared", name),
-				[]logger.MsgData{logger.RangeData(&p.tracker, js_lexer.RangeOfIdentifier(p.source, existing.Loc),
+				[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, existing.Loc),
 					fmt.Sprintf("%q was originally declared here", name))})
 			return existing.Ref
 
@@ -1550,7 +1550,7 @@ func (p *parser) hoistSymbols(scope *js_ast.Scope) {
 							if !isSloppyModeBlockLevelFnStmt {
 								r := js_lexer.RangeOfIdentifier(p.source, member.Loc)
 								p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf("%q has already been declared", symbol.OriginalName),
-									[]logger.MsgData{logger.RangeData(&p.tracker, js_lexer.RangeOfIdentifier(p.source, existingMember.Loc),
+									[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, existingMember.Loc),
 										fmt.Sprintf("%q was originally declared here", symbol.OriginalName))})
 							} else if s == scope.Parent {
 								// Never mind about this, turns out it's not needed after all
@@ -4497,7 +4497,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 	//
 	// This code special-cases this error to provide a less obscure error message.
 	if p.lexer.Token == js_lexer.TSyntaxError && p.lexer.Raw() == "\\" && previousStringWithBackslashLoc.Start > 0 {
-		msg := logger.Msg{Kind: logger.Error, Data: logger.RangeData(&p.tracker, p.lexer.Range(),
+		msg := logger.Msg{Kind: logger.Error, Data: p.tracker.MsgData(p.lexer.Range(),
 			"Unexpected backslash in JSX element")}
 
 		// Option 1: Suggest using an XML escape
@@ -4509,7 +4509,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			xmlEscape = "&apos;"
 		}
 		if xmlEscape != "" {
-			data := logger.RangeData(&p.tracker, p.lexer.PreviousBackslashQuoteInJSX,
+			data := p.tracker.MsgData(p.lexer.PreviousBackslashQuoteInJSX,
 				"Quoted JSX attributes use XML-style escapes instead of JavaScript-style escapes")
 			data.Location.Suggestion = xmlEscape
 			msg.Notes = append(msg.Notes, data)
@@ -4517,7 +4517,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 
 		// Option 2: Suggest using a JavaScript string
 		if stringRange := p.source.RangeOfString(previousStringWithBackslashLoc); stringRange.Len > 0 {
-			data := logger.RangeData(&p.tracker, stringRange,
+			data := p.tracker.MsgData(stringRange,
 				"Consider using a JavaScript string inside {...} instead of a quoted JSX attribute")
 			data.Location.Suggestion = fmt.Sprintf("{%s}", p.source.TextForRange(stringRange))
 			msg.Notes = append(msg.Notes, data)
@@ -4591,7 +4591,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			endRange, endText, _ := p.parseJSXTag()
 			if startText != endText {
 				p.log.AddRangeErrorWithNotes(&p.tracker, endRange, fmt.Sprintf("Expected closing tag %q to match opening tag %q", endText, startText),
-					[]logger.MsgData{logger.RangeData(&p.tracker, startRange, fmt.Sprintf("The opening tag %q is here", startText))})
+					[]logger.MsgData{p.tracker.MsgData(startRange, fmt.Sprintf("The opening tag %q is here", startText))})
 			}
 			if p.lexer.Token != js_lexer.TGreaterThan {
 				p.lexer.Expected(js_lexer.TGreaterThan)
@@ -5534,7 +5534,7 @@ func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry) {
 			}
 			if prevRange, ok := duplicates[keyText]; ok {
 				p.log.AddRangeErrorWithNotes(&p.tracker, p.lexer.Range(), fmt.Sprintf("Duplicate import assertion %q", keyText),
-					[]logger.MsgData{logger.RangeData(&p.tracker, prevRange, fmt.Sprintf("The first %q was here", keyText))})
+					[]logger.MsgData{p.tracker.MsgData(prevRange, fmt.Sprintf("The first %q was here", keyText))})
 			}
 			duplicates[keyText] = p.lexer.Range()
 			p.lexer.Next()
@@ -8938,7 +8938,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if scope.Label.Ref != js_ast.InvalidRef && name == p.symbols[scope.Label.Ref.InnerIndex].OriginalName {
 				p.log.AddRangeErrorWithNotes(&p.tracker, js_lexer.RangeOfIdentifier(p.source, s.Name.Loc),
 					fmt.Sprintf("Duplicate label %q", name),
-					[]logger.MsgData{logger.RangeData(&p.tracker, js_lexer.RangeOfIdentifier(p.source, scope.Label.Loc),
+					[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, scope.Label.Loc),
 						fmt.Sprintf("The original label %q is here", name))})
 				break
 			}
@@ -11016,7 +11016,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			switch p.symbols[result.ref.InnerIndex].Kind {
 			case js_ast.SymbolConst:
 				r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
-				notes := []logger.MsgData{logger.RangeData(&p.tracker, js_lexer.RangeOfIdentifier(p.source, result.declareLoc),
+				notes := []logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, result.declareLoc),
 					fmt.Sprintf("%q was declared a constant here", name))}
 
 				// Make this an error when bundling because we may need to convert this
@@ -11031,7 +11031,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if where, ok := p.injectedSymbolSources[result.ref]; ok {
 					r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
 					tracker := logger.MakeLineColumnTracker(&where.source)
-					notes := []logger.MsgData{logger.RangeData(&tracker, js_lexer.RangeOfIdentifier(where.source, where.loc),
+					notes := []logger.MsgData{tracker.MsgData(js_lexer.RangeOfIdentifier(where.source, where.loc),
 						fmt.Sprintf("%q was exported from %q here", name, where.source.PrettyPath))}
 					p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf("Cannot assign to %q because it's an import from an injected file", name), notes)
 				}
@@ -12254,7 +12254,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							} else {
 								r := js_lexer.RangeOfIdentifier(p.source, property.Key.Loc)
 								p.log.AddRangeWarningWithNotes(&p.tracker, r, fmt.Sprintf("Duplicate key %q in object literal", key),
-									[]logger.MsgData{logger.RangeData(&p.tracker, js_lexer.RangeOfIdentifier(p.source, prevKey.loc),
+									[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, prevKey.loc),
 										fmt.Sprintf("The original %q is here", key))})
 							}
 						}
@@ -12880,7 +12880,7 @@ func (p *parser) warnAboutImportNamespaceCall(target js_ast.Expr, kind importNam
 			if member, ok := p.moduleScope.Members[name]; ok && member.Ref == id.Ref {
 				if star := p.source.RangeOfOperatorBefore(member.Loc, "*"); star.Len > 0 {
 					if as := p.source.RangeOfOperatorBefore(member.Loc, "as"); as.Len > 0 && as.Loc.Start > star.Loc.Start {
-						note := logger.RangeData(&p.tracker,
+						note := p.tracker.MsgData(
 							logger.Range{Loc: star.Loc, Len: js_lexer.RangeOfIdentifier(p.source, member.Loc).End() - star.Loc.Start},
 							fmt.Sprintf("Consider changing %q to a default import instead", name))
 						note.Location.Suggestion = name
@@ -13171,7 +13171,7 @@ func (p *parser) recordExport(loc logger.Loc, alias string, ref js_ast.Ref) {
 		// Duplicate exports are an error
 		p.log.AddRangeErrorWithNotes(&p.tracker, js_lexer.RangeOfIdentifier(p.source, loc),
 			fmt.Sprintf("Multiple exports with the same name %q", alias),
-			[]logger.MsgData{logger.RangeData(&p.tracker, js_lexer.RangeOfIdentifier(p.source, name.AliasLoc),
+			[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, name.AliasLoc),
 				fmt.Sprintf("%q was originally exported here", alias))})
 	} else if alias == "__esModule" {
 		p.log.AddRangeError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, loc),
@@ -14567,7 +14567,7 @@ func (p *parser) whyESModule() (notes []logger.MsgData) {
 		where = p.topLevelAwaitKeyword
 	}
 	if where.Len > 0 {
-		notes = []logger.MsgData{logger.RangeData(&p.tracker, where,
+		notes = []logger.MsgData{p.tracker.MsgData(where,
 			fmt.Sprintf("This file is considered an ECMAScript module because of the %q keyword here", p.source.TextForRange(where)))}
 	}
 	return

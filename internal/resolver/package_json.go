@@ -565,7 +565,7 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 					prevEntry := mapData[i-1]
 					log.AddRangeWarningWithNotes(&tracker, keyRange,
 						"This object cannot contain keys that both start with \".\" and don't start with \".\"",
-						[]logger.MsgData{logger.RangeData(&tracker, prevEntry.keyRange,
+						[]logger.MsgData{tracker.MsgData(prevEntry.keyRange,
 							fmt.Sprintf("The previous key %q is incompatible with the current key %q", prevEntry.key, key))})
 					return pjEntry{
 						kind:       pjInvalid,
