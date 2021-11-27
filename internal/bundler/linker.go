@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash"
 	"path"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -3586,6 +3587,8 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	result *compileResultJS,
 	dataForSourceMaps []dataForSourceMap,
 ) {
+	defer c.recoverInternalError(waitGroup, partRange.sourceIndex)
+
 	file := &c.graph.Files[partRange.sourceIndex]
 	repr := file.InputFile.Repr.(*graph.JSRepr)
 	nsExportPartIndex := js_ast.NSExportPartIndex
@@ -4338,7 +4341,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 }
 
 func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
-	defer c.recoverInternalError(chunkWaitGroup)
+	defer c.recoverInternalError(chunkWaitGroup, runtime.SourceIndex)
 
 	chunk := &chunks[chunkIndex]
 
@@ -4772,7 +4775,7 @@ type compileResultCSS struct {
 }
 
 func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
-	defer c.recoverInternalError(chunkWaitGroup)
+	defer c.recoverInternalError(chunkWaitGroup, runtime.SourceIndex)
 
 	chunk := &chunks[chunkIndex]
 
@@ -4804,6 +4807,8 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 		// Create a goroutine for this file
 		waitGroup.Add(1)
 		go func(sourceIndex uint32, compileResult *compileResultCSS) {
+			defer c.recoverInternalError(&waitGroup, sourceIndex)
+
 			file := &c.graph.Files[sourceIndex]
 			ast := file.InputFile.Repr.(*graph.CSSRepr).AST
 
@@ -5544,11 +5549,22 @@ func (c *linkerContext) generateSourceMapForChunk(
 	return
 }
 
-// Recover from a panic logging it as an internal error
-// so that errors are returned to generateChunksInParallel
-func (c *linkerContext) recoverInternalError(chunkWaitGroup *sync.WaitGroup) {
+// Recover from a panic by logging it as an internal error instead of crashing
+func (c *linkerContext) recoverInternalError(waitGroup *sync.WaitGroup, sourceIndex uint32) {
 	if r := recover(); r != nil {
-		c.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Internal error: %s", r))
-		chunkWaitGroup.Done()
+		stack := strings.TrimSpace(string(debug.Stack()))
+		data := logger.MsgData{
+			Text:     fmt.Sprintf("panic: %v", r),
+			Location: &logger.MsgLocation{},
+		}
+		if sourceIndex != runtime.SourceIndex {
+			data.Location.File = c.graph.Files[sourceIndex].InputFile.Source.PrettyPath
+		}
+		data.Location.LineText = fmt.Sprintf("%s\n%s", data.Location.LineText, stack)
+		c.log.AddMsg(logger.Msg{
+			Kind: logger.Error,
+			Data: data,
+		})
+		waitGroup.Done()
 	}
 }
