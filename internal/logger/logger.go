@@ -1020,17 +1020,16 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 	return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s%s%s\n%s%s%s%s%s%s%s\n%s%s%s%s%s%s%s\n%s",
 		prefixColor, textIndent, d.Path, d.Line, d.Column,
 		kindColor, kind.String(),
-		pluginText, colors.Reset, messageColor, d.Message,
+		pluginText, colors.Reset, messageColor, data.Text,
 		colors.Reset, colors.Dim, d.SourceBefore, colors.Green, d.SourceMarked, colors.Dim, d.SourceAfter,
 		calloutPrefix, emptyMarginText(maxMargin, true), d.Indent, colors.Green, callout, colors.Dim, d.ContentAfter,
 		colors.Reset)
 }
 
 type MsgDetail struct {
-	Path    string
-	Line    int
-	Column  int
-	Message string
+	Path   string
+	Line   int
+	Column int
 
 	SourceBefore string
 	SourceMarked string
@@ -1336,10 +1335,9 @@ func detailStruct(data MsgData, terminalInfo TerminalInfo, maxMargin int) MsgDet
 	margin := marginWithLineText(maxMargin, loc.Line)
 
 	return MsgDetail{
-		Path:    loc.File,
-		Line:    loc.Line,
-		Column:  loc.Column,
-		Message: data.Text,
+		Path:   loc.File,
+		Line:   loc.Line,
+		Column: loc.Column,
 
 		SourceBefore: margin + lineText[:markerStart],
 		SourceMarked: lineText[markerStart:markerEnd],
