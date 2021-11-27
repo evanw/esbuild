@@ -20,7 +20,7 @@ func (p *parser) prettyPrintTargetEnvironment(feature compat.JSFeature) (where s
 		tracker := logger.MakeLineColumnTracker(&tsTarget.Source)
 		where = fmt.Sprintf("%s (%q)", where, tsTarget.Target)
 		notes = []logger.MsgData{tracker.MsgData(tsTarget.Range, fmt.Sprintf(
-			"The target environment was set to %q here", tsTarget.Target))}
+			"The target environment was set to %q here:", tsTarget.Target))}
 	} else if p.options.originalTargetEnv != "" {
 		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
 	}
@@ -191,12 +191,12 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 			why = "All code inside a class is implicitly in strict mode"
 			where = p.enclosingClassKeyword
 		case js_ast.ExplicitStrictMode:
-			why = "Strict mode is triggered by the \"use strict\" directive here"
+			why = "Strict mode is triggered by the \"use strict\" directive here:"
 			where = p.source.RangeOfString(p.currentScope.UseStrictLoc)
 		}
 		if where.Len > 0 {
 			if why == "" {
-				why = fmt.Sprintf("This file is implicitly in strict mode because of the %q keyword here", p.source.TextForRange(where))
+				why = fmt.Sprintf("This file is implicitly in strict mode because of the %q keyword here:", p.source.TextForRange(where))
 			}
 			notes = []logger.MsgData{p.tracker.MsgData(where, why)}
 		}

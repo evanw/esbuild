@@ -496,7 +496,7 @@ func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 		case eof: // This indicates the end of the file
 			lexer.log.AddWithNotes(logger.Error, &lexer.tracker, logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}},
 				"Expected \"*/\" to terminate multi-line comment",
-				[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here")})
+				[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here:")})
 			return
 
 		default:

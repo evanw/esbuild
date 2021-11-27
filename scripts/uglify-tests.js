@@ -143,7 +143,7 @@ async function test_case(esbuild, test) {
     const formatError = ({ text, location }) => {
       if (!location) return `\nerror: ${text}`;
       const { file, line, column } = location;
-      return `\n${file}:${line}:${column}: error: ${text}`;
+      return `\n${file}:${line}:${column}: ERROR: ${text}`;
     }
     log("!!! esbuild failed\n---INPUT---\n{input}\n---ERROR---\n{error}\n", {
       input: input_code,

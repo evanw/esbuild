@@ -367,15 +367,15 @@ func TestTsConfigBadPathsNoBaseURL(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: `Users/user/project/entry.ts: error: Could not resolve "should-not-be-imported" ` +
-			`(use "./should-not-be-imported" to reference the file "Users/user/project/should-not-be-imported.ts")
-Users/user/project/tsconfig.json: warning: Non-relative path "bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-Users/user/project/tsconfig.json: warning: Non-relative path "@bad/core" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-Users/user/project/tsconfig.json: warning: Non-relative path ".*/bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-Users/user/project/tsconfig.json: warning: Non-relative path "..*/bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-Users/user/project/tsconfig.json: warning: Non-relative path "c*:\\bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-Users/user/project/tsconfig.json: warning: Non-relative path "c:*\\bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-Users/user/project/tsconfig.json: warning: Non-relative path "http://bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+		expectedScanLog: `Users/user/project/entry.ts: ERROR: Could not resolve "should-not-be-imported"
+NOTE: Use the relative path "./should-not-be-imported" to reference the file "Users/user/project/should-not-be-imported.ts". Without the leading "./", the path "should-not-be-imported" is being interpreted as a package path instead.
+Users/user/project/tsconfig.json: WARNING: Non-relative path "bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: WARNING: Non-relative path "@bad/core" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: WARNING: Non-relative path ".*/bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: WARNING: Non-relative path "..*/bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: WARNING: Non-relative path "c*:\\bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: WARNING: Non-relative path "c:*\\bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: WARNING: Non-relative path "http://bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
 `,
 	})
 }
@@ -485,7 +485,8 @@ func TestTsConfigPathsMissingBaseURL(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/entry.ts: error: Could not resolve "#/test" (mark it as external to exclude it from the bundle)
+		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: Could not resolve "#/test"
+NOTE: You can mark the path "#/test" as external to exclude it from the bundle, which will remove this error.
 `,
 	})
 }
@@ -831,7 +832,7 @@ func TestTsconfigJsonExtendsLoop(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `base.json: warning: Base config file "./tsconfig" forms cycle
+		expectedScanLog: `base.json: WARNING: Base config file "./tsconfig" forms cycle
 `,
 	})
 }
@@ -961,7 +962,7 @@ func TestTsconfigJsonOverrideInvalid(t *testing.T) {
 			AbsOutputFile:    "/out.js",
 			TsConfigOverride: "/this/file/doesn't/exist/tsconfig.json",
 		},
-		expectedScanLog: `error: Cannot find tsconfig file "this/file/doesn't/exist/tsconfig.json"
+		expectedScanLog: `ERROR: Cannot find tsconfig file "this/file/doesn't/exist/tsconfig.json"
 `,
 	})
 }
@@ -1038,7 +1039,7 @@ func TestTsconfigWarningsInsideNodeModules(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/foo/tsconfig.json: warning: Cannot find base config file "extends for foo"
+		expectedScanLog: `Users/user/project/src/foo/tsconfig.json: WARNING: Cannot find base config file "extends for foo"
 `,
 	})
 }
@@ -1201,7 +1202,7 @@ func TestTsconfigTarget(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 			TargetFromAPI: config.TargetWasUnconfigured,
 		},
-		expectedScanLog: `Users/user/project/src/es4/tsconfig.json: warning: Unrecognized target environment "ES4"
+		expectedScanLog: `Users/user/project/src/es4/tsconfig.json: WARNING: Unrecognized target environment "ES4"
 `,
 	})
 }
@@ -1224,8 +1225,8 @@ func TestTsconfigTargetError(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 			TargetFromAPI: config.TargetWasUnconfigured,
 		},
-		expectedScanLog: `Users/user/project/src/entry.ts: error: Big integer literals are not available in the configured target environment ("ES2019")
-Users/user/project/src/tsconfig.json: note: The target environment was set to "ES2019" here
+		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: Big integer literals are not available in the configured target environment ("ES2019")
+Users/user/project/src/tsconfig.json: NOTE: The target environment was set to "ES2019" here:
 `,
 	})
 }
@@ -1320,7 +1321,7 @@ func TestTsconfigUnrecognizedTargetWarning(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/a/tsconfig.json: warning: Unrecognized target environment "es3"
+		expectedScanLog: `Users/user/project/src/a/tsconfig.json: WARNING: Unrecognized target environment "es3"
 `,
 	})
 }

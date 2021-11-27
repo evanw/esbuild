@@ -423,7 +423,7 @@ func (lexer *Lexer) ExpectedString(text string) {
 		var notes []logger.MsgData
 		if lexer.FnOrArrowStartLoc.Start != -1 {
 			note := lexer.tracker.MsgData(logger.Range{Loc: lexer.FnOrArrowStartLoc},
-				"Consider adding the \"async\" keyword here")
+				"Consider adding the \"async\" keyword here:")
 			note.Location.Suggestion = "async"
 			notes = []logger.MsgData{note}
 		}
@@ -1020,7 +1020,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
 						lexer.addRangeErrorWithNotes(logger.Range{Loc: lexer.Loc()}, "Expected \"*/\" to terminate multi-line comment",
-							[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here")})
+							[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here:")})
 						panic(LexerPanic{})
 
 					default:
@@ -1450,7 +1450,7 @@ func (lexer *Lexer) Next() {
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
 						lexer.addRangeErrorWithNotes(logger.Range{Loc: lexer.Loc()}, "Expected \"*/\" to terminate multi-line comment",
-							[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here")})
+							[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here:")})
 						panic(LexerPanic{})
 
 					default:
@@ -2166,7 +2166,7 @@ func (lexer *Lexer) ScanRegExp() {
 						lexer.log.AddWithNotes(logger.Error, &lexer.tracker, r2,
 							fmt.Sprintf("Duplicate flag \"%c\" in regular expression", lexer.codePoint),
 							[]logger.MsgData{lexer.tracker.MsgData(r1,
-								fmt.Sprintf("The first \"%c\" was here", lexer.codePoint))})
+								fmt.Sprintf("The first \"%c\" was here:", lexer.codePoint))})
 					} else {
 						bits |= bit
 					}

@@ -53,22 +53,46 @@ const (
 	Note
 	Debug
 	Verbose
+	errorPanic
 )
 
 func (kind MsgKind) String() string {
 	switch kind {
 	case Error:
-		return "error"
+		return "ERROR"
 	case Warning:
-		return "warning"
+		return "WARNING"
 	case Info:
-		return "info"
+		return "INFO"
 	case Note:
-		return "note"
+		return "NOTE"
 	case Debug:
-		return "debug"
+		return "DEBUG"
 	case Verbose:
-		return "verbose"
+		return "VERBOSE"
+	case errorPanic:
+		return "PANIC"
+	default:
+		panic("Internal error")
+	}
+}
+
+func (kind MsgKind) Icon() string {
+	switch kind {
+	case Error:
+		return "✘"
+	case Warning:
+		return "▲"
+	case Info:
+		return "▶︎"
+	case Note:
+		return "⋯"
+	case Debug:
+		return "●"
+	case Verbose:
+		return "⬥"
+	case errorPanic:
+		return "⚑"
 	default:
 		panic("Internal error")
 	}
@@ -264,6 +288,17 @@ type Source struct {
 
 func (s *Source) TextForRange(r Range) string {
 	return s.Contents[r.Loc.Start : r.Loc.Start+r.Len]
+}
+
+func (s *Source) LocBeforeWhitespace(loc Loc) Loc {
+	for loc.Start > 0 {
+		c, width := utf8.DecodeLastRuneInString(s.Contents[:loc.Start])
+		if c != ' ' && c != '\t' && c != '\r' && c != '\n' {
+			break
+		}
+		loc.Start -= int32(width)
+	}
+	return loc
 }
 
 func (s *Source) RangeOfOperatorBefore(loc Loc, op string) Range {
@@ -574,6 +609,17 @@ type Colors struct {
 	Cyan    string
 	Magenta string
 	Yellow  string
+
+	Black string
+	White string
+
+	RedBg   string
+	GreenBg string
+	BlueBg  string
+
+	CyanBg    string
+	MagentaBg string
+	YellowBg  string
 }
 
 var TerminalColors = Colors{
@@ -589,6 +635,17 @@ var TerminalColors = Colors{
 	Cyan:    "\033[36m",
 	Magenta: "\033[35m",
 	Yellow:  "\033[33m",
+
+	Black: "\033[30m",
+	White: "\033[97m",
+
+	RedBg:   "\033[41m",
+	GreenBg: "\033[42m",
+	BlueBg:  "\033[44m",
+
+	CyanBg:    "\033[46m",
+	MagentaBg: "\033[45m",
+	YellowBg:  "\033[43m",
 }
 
 func PrintText(file *os.File, level LogLevel, osArgs []string, callback func(Colors) string) {
@@ -889,35 +946,25 @@ type OutputOptions struct {
 }
 
 func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
-	// Compute the maximum margin
-	maxMargin := 0
-	if options.IncludeSource {
-		if msg.Data.Location != nil {
-			maxMargin = len(fmt.Sprintf("%d", msg.Data.Location.Line))
-		}
-		for _, note := range msg.Notes {
-			if note.Location != nil {
-				margin := len(fmt.Sprintf("%d", note.Location.Line))
-				if margin > maxMargin {
-					maxMargin = margin
-				}
-			}
-		}
+	// Special-case panic messages
+	isPanic := false
+	if panicPrefix := "panic: "; msg.Kind == Error && strings.HasPrefix(msg.Data.Text, panicPrefix) {
+		msg.Data.Text = strings.TrimPrefix(msg.Data.Text, panicPrefix)
+		msg.Kind = errorPanic
+		isPanic = true
 	}
 
 	// Format the message
-	text := msgString(options.IncludeSource, terminalInfo, msg.Kind, msg.Data, maxMargin, msg.PluginName)
-
-	// Put a blank line between the message and the notes if the message has a stack trace
-	gap := ""
-	if loc := msg.Data.Location; loc != nil && strings.ContainsRune(loc.LineText, '\n') {
-		gap = "\n"
-	}
+	text := msgString(options.IncludeSource, terminalInfo, msg.Kind, msg.Data, msg.PluginName, isPanic)
 
 	// Format the notes
-	for _, note := range msg.Notes {
-		text += gap
-		text += msgString(options.IncludeSource, terminalInfo, Note, note, maxMargin, "")
+	var oldData MsgData
+	for i, note := range msg.Notes {
+		if options.IncludeSource && (i == 0 || strings.IndexByte(oldData.Text, '\n') >= 0 || oldData.Location != nil) {
+			text += "\n"
+		}
+		text += msgString(options.IncludeSource, terminalInfo, Note, note, "", isPanic)
+		oldData = note
 	}
 
 	// Add extra spacing between messages if source code is present
@@ -928,102 +975,242 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 }
 
 // The number of margin characters in addition to the line number
-const extraMarginChars = 7
+const extraMarginChars = 9
 
 func marginWithLineText(maxMargin int, line int) string {
 	number := fmt.Sprintf("%d", line)
-	return fmt.Sprintf("    %s%s │ ", strings.Repeat(" ", maxMargin-len(number)), number)
+	return fmt.Sprintf("      %s%s │ ", strings.Repeat(" ", maxMargin-len(number)), number)
 }
 
 func emptyMarginText(maxMargin int, isLast bool) string {
 	space := strings.Repeat(" ", maxMargin)
 	if isLast {
-		return fmt.Sprintf("    %s ╵ ", space)
+		return fmt.Sprintf("      %s ╵ ", space)
 	}
-	return fmt.Sprintf("    %s │ ", space)
+	return fmt.Sprintf("      %s │ ", space)
 }
 
-func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int, pluginName string) string {
+func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data MsgData, pluginName string, isPanic bool) string {
+	if !includeSource {
+		if loc := data.Location; loc != nil {
+			return fmt.Sprintf("%s: %s: %s\n", loc.File, kind.String(), data.Text)
+		}
+		return fmt.Sprintf("%s: %s\n", kind.String(), data.Text)
+	}
+
 	var colors Colors
 	if terminalInfo.UseColorEscapes {
 		colors = TerminalColors
 	}
 
+	var iconColor string
 	var kindColor string
-	prefixColor := colors.Bold
-	messageColor := colors.Bold
-	textIndent := ""
+	var kindColorBg string
 
-	if includeSource {
-		textIndent = " > "
+	location := ""
+
+	if data.Location != nil {
+		maxMargin := len(fmt.Sprintf("%d", data.Location.Line))
+		d := detailStruct(data, terminalInfo, maxMargin)
+		if d.Suggestion != "" {
+			location = fmt.Sprintf("\n    %s%s:%d:%d:\n%s%s%s%s%s\n%s%s%s%s%s\n%s%s%s%s%s\n%s",
+				colors.Dim, d.Path, d.Line, d.Column,
+				d.SourceBefore, colors.Green, d.SourceMarked, colors.Dim, d.SourceAfter,
+				emptyMarginText(maxMargin, false), d.Indent, colors.Green, d.Marker, colors.Dim,
+				emptyMarginText(maxMargin, true), d.Indent, colors.Green, d.Suggestion, colors.Reset,
+				d.ContentAfter,
+			)
+		} else {
+			location = fmt.Sprintf("\n    %s%s:%d:%d:\n%s%s%s%s%s\n%s%s%s%s%s\n%s",
+				colors.Dim, d.Path, d.Line, d.Column,
+				d.SourceBefore, colors.Green, d.SourceMarked, colors.Dim, d.SourceAfter,
+				emptyMarginText(maxMargin, true), d.Indent, colors.Green, d.Marker, colors.Reset,
+				d.ContentAfter,
+			)
+		}
 	}
 
 	switch kind {
 	case Verbose:
-		kindColor = colors.Cyan
+		iconColor = colors.Cyan
+		kindColor = colors.Black
+		kindColorBg = colors.CyanBg
 
 	case Debug:
-		kindColor = colors.Blue
+		iconColor = colors.Green
+		kindColor = colors.White
+		kindColorBg = colors.GreenBg
 
 	case Info:
-		kindColor = colors.Green
+		iconColor = colors.Blue
+		kindColor = colors.White
+		kindColorBg = colors.BlueBg
 
 	case Error:
-		kindColor = colors.Red
+		iconColor = colors.Red
+		kindColor = colors.White
+		kindColorBg = colors.RedBg
+
+	case errorPanic:
+		iconColor = colors.Red
+		kindColor = colors.White
+		kindColorBg = colors.RedBg
 
 	case Warning:
-		kindColor = colors.Magenta
+		iconColor = colors.Yellow
+		kindColor = colors.Black
+		kindColorBg = colors.YellowBg
 
 	case Note:
-		prefixColor = colors.Reset
-		kindColor = colors.Bold
-		messageColor = ""
-		if includeSource {
-			textIndent = "   "
+		sb := strings.Builder{}
+
+		for _, line := range strings.Split(data.Text, "\n") {
+			// Special-case panic note formatting
+			if isPanic {
+				where := ""
+				if paren := strings.LastIndexByte(line, '('); paren >= 0 && line[len(line)-1] == ')' {
+					where = line[paren:]
+					line = line[:paren]
+				}
+				sb.WriteString("  ")
+				sb.WriteString(line)
+				if where != "" {
+					sb.WriteString(colors.Dim)
+					sb.WriteString(where)
+					sb.WriteString(colors.Reset)
+				}
+				continue
+			}
+
+			// Special-case word wrapping
+			if wrapWidth := terminalInfo.Width; wrapWidth > 2 {
+				if wrapWidth > 100 {
+					wrapWidth = 100 // Enforce a maximum paragraph width for readability
+				}
+				for _, run := range wrapWordsInString(line, wrapWidth-2) {
+					sb.WriteString("  ")
+					sb.WriteString(linkifyText(run, colors.Underline, colors.Reset))
+					sb.WriteByte('\n')
+				}
+				continue
+			}
+
+			// Otherwise, just write an indented line
+			sb.WriteString("  ")
+			sb.WriteString(linkifyText(line, colors.Underline, colors.Reset))
+			sb.WriteByte('\n')
 		}
 
-	default:
-		panic("Internal error")
+		sb.WriteString(location)
+		return sb.String()
 	}
 
-	var pluginText string
-	if pluginName != "" {
-		pluginText = fmt.Sprintf("%s[plugin: %s] ", colors.Yellow, pluginName)
+	return fmt.Sprintf("%s%s %s[%s%s%s]%s %s%s%s\n%s",
+		iconColor, kind.Icon(),
+		kindColorBg, kindColor, kind.String(), iconColor, colors.Reset,
+		colors.Bold, data.Text, colors.Reset,
+		location,
+	)
+}
+
+func linkifyText(text string, underline string, reset string) string {
+	if underline == "" {
+		return text
 	}
 
-	if data.Location == nil {
-		return fmt.Sprintf("%s%s%s%s: %s%s%s%s\n%s",
-			prefixColor, textIndent, kindColor, kind.String(),
-			pluginText, colors.Reset, messageColor, data.Text,
-			colors.Reset)
+	https := strings.Index(text, "https://")
+	if https == -1 {
+		return text
 	}
 
-	if !includeSource {
-		return fmt.Sprintf("%s%s%s: %s%s: %s%s%s%s\n%s",
-			prefixColor, textIndent, data.Location.File,
-			kindColor, kind.String(),
-			pluginText, colors.Reset, messageColor, data.Text,
-			colors.Reset)
+	sb := strings.Builder{}
+	for {
+		https := strings.Index(text, "https://")
+		if https == -1 {
+			break
+		}
+
+		end := strings.IndexByte(text[https:], ' ')
+		if end == -1 {
+			end = len(text)
+		} else {
+			end += https
+		}
+
+		// Remove trailing punctuation
+		if end > https {
+			switch text[end-1] {
+			case '.', ',', '?', '!', ')', ']', '}':
+				end--
+			}
+		}
+
+		sb.WriteString(text[:https])
+		sb.WriteString(underline)
+		sb.WriteString(text[https:end])
+		sb.WriteString(reset)
+		text = text[end:]
 	}
 
-	d := detailStruct(data, terminalInfo, maxMargin)
+	sb.WriteString(text)
+	return sb.String()
+}
 
-	callout := d.Marker
-	calloutPrefix := ""
+func wrapWordsInString(text string, width int) []string {
+	runs := []string{}
 
-	if d.Suggestion != "" {
-		callout = d.Suggestion
-		calloutPrefix = fmt.Sprintf("%s%s%s%s%s\n",
-			emptyMarginText(maxMargin, false), d.Indent, colors.Green, d.Marker, colors.Dim)
+outer:
+	for text != "" {
+		i := 0
+		x := 0
+		wordEndI := 0
+
+		// Skip over any leading spaces
+		for i < len(text) && text[i] == ' ' {
+			i++
+			x++
+		}
+
+		// Find out how many words will fit in this run
+		for i < len(text) {
+			oldWordEndI := wordEndI
+			wordStartI := i
+
+			// Find the end of the word
+			for i < len(text) {
+				c, width := utf8.DecodeRuneInString(text[i:])
+				if c == ' ' {
+					break
+				}
+				i += width
+				x += 1 // Naively assume that each unicode code point is a single column
+			}
+			wordEndI = i
+
+			// Split into a new run if this isn't the first word in the run and the end is past the width
+			if wordStartI > 0 && x > width {
+				runs = append(runs, text[:oldWordEndI])
+				text = text[wordStartI:]
+				continue outer
+			}
+
+			// Skip over any spaces after the word
+			for i < len(text) && text[i] == ' ' {
+				i++
+				x++
+			}
+		}
+
+		// If we get here, this is the last run (i.e. everything fits)
+		break
 	}
 
-	return fmt.Sprintf("%s%s%s:%d:%d: %s%s: %s%s%s%s\n%s%s%s%s%s%s%s\n%s%s%s%s%s%s%s\n%s",
-		prefixColor, textIndent, d.Path, d.Line, d.Column,
-		kindColor, kind.String(),
-		pluginText, colors.Reset, messageColor, data.Text,
-		colors.Reset, colors.Dim, d.SourceBefore, colors.Green, d.SourceMarked, colors.Dim, d.SourceAfter,
-		calloutPrefix, emptyMarginText(maxMargin, true), d.Indent, colors.Green, callout, colors.Dim, d.ContentAfter,
-		colors.Reset)
+	// Remove any trailing spaces on the last run
+	for len(text) > 0 && text[len(text)-1] == ' ' {
+		text = text[:len(text)-1]
+	}
+	runs = append(runs, text)
+	return runs
 }
 
 type MsgDetail struct {
