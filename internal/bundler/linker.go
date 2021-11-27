@@ -4338,6 +4338,8 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 }
 
 func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
+	defer c.recoverInternalError(chunkWaitGroup)
+
 	chunk := &chunks[chunkIndex]
 
 	timer := c.timer.Fork()
@@ -4770,6 +4772,8 @@ type compileResultCSS struct {
 }
 
 func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
+	defer c.recoverInternalError(chunkWaitGroup)
+
 	chunk := &chunks[chunkIndex]
 
 	timer := c.timer.Fork()
@@ -5538,4 +5542,13 @@ func (c *linkerContext) generateSourceMapForChunk(
 		pieces.Suffix = bytes[mappingsEnd:]
 	}
 	return
+}
+
+// Recover from a panic logging it as an internal error
+// so that errors are returned to generateChunksInParallel
+func (c *linkerContext) recoverInternalError(chunkWaitGroup *sync.WaitGroup) {
+	if r := recover(); r != nil {
+		c.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Internal error: %s", r))
+		chunkWaitGroup.Done()
+	}
 }
