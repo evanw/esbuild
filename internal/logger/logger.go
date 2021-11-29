@@ -53,7 +53,6 @@ const (
 	Note
 	Debug
 	Verbose
-	errorPanic
 )
 
 func (kind MsgKind) String() string {
@@ -70,32 +69,79 @@ func (kind MsgKind) String() string {
 		return "DEBUG"
 	case Verbose:
 		return "VERBOSE"
-	case errorPanic:
-		return "PANIC"
 	default:
 		panic("Internal error")
 	}
 }
 
 func (kind MsgKind) Icon() string {
+	// Special-case Windows command prompt, which only supports a few characters
+	if isProbablyWindowsCommandPrompt() {
+		switch kind {
+		case Error:
+			return "X"
+		case Warning:
+			return "▲"
+		case Info:
+			return "►"
+		case Note:
+			return "→"
+		case Debug:
+			return "●"
+		case Verbose:
+			return "♦"
+		default:
+			panic("Internal error")
+		}
+	}
+
 	switch kind {
 	case Error:
 		return "✘"
 	case Warning:
 		return "▲"
 	case Info:
-		return "▶︎"
+		return "▶"
 	case Note:
-		return "⋯"
+		return "→"
 	case Debug:
 		return "●"
 	case Verbose:
 		return "⬥"
-	case errorPanic:
-		return "⚑"
 	default:
 		panic("Internal error")
 	}
+}
+
+var windowsCommandPrompt struct {
+	mutex         sync.Mutex
+	once          bool
+	isProbablyCMD bool
+}
+
+func isProbablyWindowsCommandPrompt() bool {
+	windowsCommandPrompt.mutex.Lock()
+	defer windowsCommandPrompt.mutex.Unlock()
+
+	if !windowsCommandPrompt.once {
+		windowsCommandPrompt.once = true
+
+		// Assume we are running in Windows Command Prompt if we're on Windows. If
+		// so, we can't use emoji because it won't be supported. Except we can
+		// still use emoji if the WT_SESSION environment variable is present
+		// because that means we're running in the new Windows Terminal instead.
+		if runtime.GOOS == "windows" {
+			windowsCommandPrompt.isProbablyCMD = true
+			for _, env := range os.Environ() {
+				if strings.HasPrefix(env, "WT_SESSION=") {
+					windowsCommandPrompt.isProbablyCMD = false
+					break
+				}
+			}
+		}
+	}
+
+	return windowsCommandPrompt.isProbablyCMD
 }
 
 type Msg struct {
@@ -734,22 +780,8 @@ const sizeWarningThreshold = 1024 * 1024
 
 func PrintSummary(useColor UseColor, table SummaryTable, start *time.Time) {
 	PrintTextWithColor(os.Stderr, useColor, func(colors Colors) string {
-		isProbablyWindowsCommandPrompt := false
+		isProbablyWindowsCommandPrompt := isProbablyWindowsCommandPrompt()
 		sb := strings.Builder{}
-
-		// Assume we are running in Windows Command Prompt if we're on Windows. If
-		// so, we can't use emoji because it won't be supported. Except we can
-		// still use emoji if the WT_SESSION environment variable is present
-		// because that means we're running in the new Windows Terminal instead.
-		if runtime.GOOS == "windows" {
-			isProbablyWindowsCommandPrompt = true
-			for _, env := range os.Environ() {
-				if strings.HasPrefix(env, "WT_SESSION=") {
-					isProbablyWindowsCommandPrompt = false
-					break
-				}
-			}
-		}
 
 		if len(table) > 0 {
 			info := GetTerminalInfo(os.Stderr)
@@ -952,16 +984,8 @@ type OutputOptions struct {
 }
 
 func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
-	// Special-case panic messages
-	isPanic := false
-	if panicPrefix := "panic: "; msg.Kind == Error && strings.HasPrefix(msg.Data.Text, panicPrefix) {
-		msg.Data.Text = strings.TrimPrefix(msg.Data.Text, panicPrefix)
-		msg.Kind = errorPanic
-		isPanic = true
-	}
-
 	// Format the message
-	text := msgString(options.IncludeSource, terminalInfo, msg.Kind, msg.Data, msg.PluginName, isPanic)
+	text := msgString(options.IncludeSource, terminalInfo, msg.Kind, msg.Data, msg.PluginName)
 
 	// Format the notes
 	var oldData MsgData
@@ -969,7 +993,7 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 		if options.IncludeSource && (i == 0 || strings.IndexByte(oldData.Text, '\n') >= 0 || oldData.Location != nil) {
 			text += "\n"
 		}
-		text += msgString(options.IncludeSource, terminalInfo, Note, note, "", isPanic)
+		text += msgString(options.IncludeSource, terminalInfo, Note, note, "")
 		oldData = note
 	}
 
@@ -996,7 +1020,7 @@ func emptyMarginText(maxMargin int, isLast bool) string {
 	return fmt.Sprintf("      %s │ ", space)
 }
 
-func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data MsgData, pluginName string, isPanic bool) string {
+func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data MsgData, pluginName string) string {
 	if !includeSource {
 		if loc := data.Location; loc != nil {
 			return fmt.Sprintf("%s: %s: %s\n", loc.File, kind.String(), data.Text)
@@ -1057,11 +1081,6 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 		kindColorBrackets = colors.RedBgRed
 		kindColorText = colors.RedBgWhite
 
-	case errorPanic:
-		iconColor = colors.Red
-		kindColorBrackets = colors.RedBgRed
-		kindColorText = colors.RedBgWhite
-
 	case Warning:
 		iconColor = colors.Yellow
 		kindColorBrackets = colors.YellowBgYellow
@@ -1071,23 +1090,6 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 		sb := strings.Builder{}
 
 		for _, line := range strings.Split(data.Text, "\n") {
-			// Special-case panic note formatting
-			if isPanic {
-				where := ""
-				if paren := strings.LastIndexByte(line, '('); paren >= 0 && line[len(line)-1] == ')' {
-					where = line[paren:]
-					line = line[:paren]
-				}
-				sb.WriteString("  ")
-				sb.WriteString(line)
-				if where != "" {
-					sb.WriteString(colors.Dim)
-					sb.WriteString(where)
-					sb.WriteString(colors.Reset)
-				}
-				continue
-			}
-
 			// Special-case word wrapping
 			if wrapWidth := terminalInfo.Width; wrapWidth > 2 {
 				if wrapWidth > 100 {
