@@ -17,7 +17,7 @@ const tests = {
       });
       throw new Error('Expected an error to be thrown');
     } catch (err) {
-      assert.strictEqual(err.stderr + '', ' > error: The "serve" API is not supported when using WebAssembly\n\n')
+      assert.strictEqual(err.stderr + '', `✘ [ERROR] The "serve" API is not supported when using WebAssembly\n\n`)
     }
   },
 

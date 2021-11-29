@@ -51,6 +51,45 @@
 
     Previously the above code was incorrectly considered a syntax error in TypeScript. With this release, this code is now parsed correctly.
 
+* Log output to stderr has been overhauled
+
+    This release changes the way log messages are formatted to stderr. The changes make the kind of message (e.g. error vs. warning vs. note) more obvious, and they also give more room for paragraph-style notes that can provide more detail about the message. Here's an example:
+
+    Before:
+
+    ```
+     > example.tsx:14:25: warning: Comparison with -0 using the "===" operator will also match 0
+        14 │     case 1: return x === -0
+           ╵                          ~~
+     > example.tsx:21:23: error: Could not resolve "path" (use "--platform=node" when building for node)
+        21 │   const path = require('path')
+           ╵                        ~~~~~~
+    ```
+
+    After:
+
+    ```
+    ▲ [WARNING] Comparison with -0 using the "===" operator will also match 0
+
+        example.tsx:14:25:
+          14 │     case 1: return x === -0
+             ╵                          ~~
+
+      Floating-point equality is defined such that 0 and -0 are equal, so "x === -0" returns true for
+      both 0 and -0. You need to use "Object.is(x, -0)" instead to test for -0.
+
+    ✘ [ERROR] Could not resolve "path"
+
+        example.tsx:21:23:
+          21 │   const path = require('path')
+             ╵                        ~~~~~~
+
+      The package "path" wasn't found on the file system but is built into node. Are you trying to
+      bundle for node? You can use "--platform=node" to do that, which will remove this error.
+    ```
+
+    Note that esbuild's formatted log output is for humans, not for machines. If you need to output a stable machine-readable format, you should be using the API for that. Build and transform results have arrays called `errors` and `warnings` with objects that represent the log messages.
+
 ## 0.14.0
 
 **This release contains backwards-incompatible changes.** Since esbuild is before version 1.0.0, these changes have been released as a new minor version to reflect this (as [recommended by npm](https://docs.npmjs.com/cli/v6/using-npm/semver/)). You should either be pinning the exact version of `esbuild` in your `package.json` file or be using a version range syntax that only accepts patch upgrades such as `~0.13.0`. See the documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

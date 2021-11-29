@@ -122,19 +122,19 @@ func TestURLParsing(t *testing.T) {
 }
 
 func TestComment(t *testing.T) {
-	test.AssertEqual(t, lexerError("/*"), "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
-	test.AssertEqual(t, lexerError("/*/"), "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
-	test.AssertEqual(t, lexerError("/**/"), "")
-	test.AssertEqual(t, lexerError("//"), "<stdin>: warning: Comments in CSS use \"/* ... */\" instead of \"//\"\n")
+	test.AssertEqualWithDiff(t, lexerError("/*"), "<stdin>: ERROR: Expected \"*/\" to terminate multi-line comment\n<stdin>: NOTE: The multi-line comment starts here:\n")
+	test.AssertEqualWithDiff(t, lexerError("/*/"), "<stdin>: ERROR: Expected \"*/\" to terminate multi-line comment\n<stdin>: NOTE: The multi-line comment starts here:\n")
+	test.AssertEqualWithDiff(t, lexerError("/**/"), "")
+	test.AssertEqualWithDiff(t, lexerError("//"), "<stdin>: WARNING: Comments in CSS use \"/* ... */\" instead of \"//\"\n")
 }
 
 func TestString(t *testing.T) {
-	test.AssertEqual(t, lexerError("'"), "<stdin>: error: Unterminated string token\n")
-	test.AssertEqual(t, lexerError("\""), "<stdin>: error: Unterminated string token\n")
-	test.AssertEqual(t, lexerError("'\\'"), "<stdin>: error: Unterminated string token\n")
-	test.AssertEqual(t, lexerError("\"\\\""), "<stdin>: error: Unterminated string token\n")
-	test.AssertEqual(t, lexerError("''"), "")
-	test.AssertEqual(t, lexerError("\"\""), "")
+	test.AssertEqualWithDiff(t, lexerError("'"), "<stdin>: ERROR: Unterminated string token\n")
+	test.AssertEqualWithDiff(t, lexerError("\""), "<stdin>: ERROR: Unterminated string token\n")
+	test.AssertEqualWithDiff(t, lexerError("'\\'"), "<stdin>: ERROR: Unterminated string token\n")
+	test.AssertEqualWithDiff(t, lexerError("\"\\\""), "<stdin>: ERROR: Unterminated string token\n")
+	test.AssertEqualWithDiff(t, lexerError("''"), "")
+	test.AssertEqualWithDiff(t, lexerError("\"\""), "")
 }
 
 func TestBOM(t *testing.T) {

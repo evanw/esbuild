@@ -25,6 +25,7 @@
 
   const nodeMajorVersion = +process.versions.node.split('.')[0]
   const testDir = path.join(dirname, '.end-to-end-tests')
+  const errorIcon = process.platform !== 'win32' ? '✘' : 'X'
   const esbuildPath = buildBinary()
   const tests = []
   let testCount = 0
@@ -62,9 +63,11 @@
       'entry.js': `import "./file.js/what/is/this"`,
       'file.js': `some file`,
     }, {
-      expectedStderr: ` > entry.js:1:7: error: Could not resolve "./file.js/what/is/this"
-    1 │ import "./file.js/what/is/this"
-      ╵        ~~~~~~~~~~~~~~~~~~~~~~~~
+      expectedStderr: `${errorIcon} [ERROR] Could not resolve "./file.js/what/is/this"
+
+    entry.js:1:7:
+      1 │ import "./file.js/what/is/this"
+        ╵        ~~~~~~~~~~~~~~~~~~~~~~~~
 
 `,
     }),
@@ -162,34 +165,50 @@
     test(['example.jsx', '--outfile=node.js'], {
       'example.jsx': `let button = <Button content="some so-called \\"button text\\"" />`,
     }, {
-      expectedStderr: ` > example.jsx:1:58: error: Unexpected backslash in JSX element
-    1 │ let button = <Button content="some so-called \\"button text\\"" />
-      ╵                                                           ^
-   example.jsx:1:45: note: Quoted JSX attributes use XML-style escapes instead of JavaScript-style escapes
-    1 │ let button = <Button content="some so-called \\"button text\\"" />
-      │                                              ~~
-      ╵                                              &quot;
-   example.jsx:1:29: note: Consider using a JavaScript string inside {...} instead of a quoted JSX attribute
-    1 │ let button = <Button content="some so-called \\"button text\\"" />
-      │                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      ╵                              {"some so-called \\"button text\\""}
+      expectedStderr: `${errorIcon} [ERROR] Unexpected backslash in JSX element
+
+    example.jsx:1:58:
+      1 │ let button = <Button content="some so-called \\"button text\\"" />
+        ╵                                                           ^
+
+  Quoted JSX attributes use XML-style escapes instead of JavaScript-style escapes:
+
+    example.jsx:1:45:
+      1 │ let button = <Button content="some so-called \\"button text\\"" />
+        │                                              ~~
+        ╵                                              &quot;
+
+  Consider using a JavaScript string inside {...} instead of a quoted JSX attribute:
+
+    example.jsx:1:29:
+      1 │ let button = <Button content="some so-called \\"button text\\"" />
+        │                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        ╵                              {"some so-called \\"button text\\""}
 
 `,
     }),
     test(['example.jsx', '--outfile=node.js'], {
       'example.jsx': `let button = <Button content='some so-called \\'button text\\'' />`,
     }, {
-      expectedStderr: ` > example.jsx:1:58: error: Unexpected backslash in JSX element
-    1 │ let button = <Button content='some so-called \\'button text\\'' />
-      ╵                                                           ^
-   example.jsx:1:45: note: Quoted JSX attributes use XML-style escapes instead of JavaScript-style escapes
-    1 │ let button = <Button content='some so-called \\'button text\\'' />
-      │                                              ~~
-      ╵                                              &apos;
-   example.jsx:1:29: note: Consider using a JavaScript string inside {...} instead of a quoted JSX attribute
-    1 │ let button = <Button content='some so-called \\'button text\\'' />
-      │                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      ╵                              {'some so-called \\'button text\\''}
+      expectedStderr: `${errorIcon} [ERROR] Unexpected backslash in JSX element
+
+    example.jsx:1:58:
+      1 │ let button = <Button content='some so-called \\'button text\\'' />
+        ╵                                                           ^
+
+  Quoted JSX attributes use XML-style escapes instead of JavaScript-style escapes:
+
+    example.jsx:1:45:
+      1 │ let button = <Button content='some so-called \\'button text\\'' />
+        │                                              ~~
+        ╵                                              &apos;
+
+  Consider using a JavaScript string inside {...} instead of a quoted JSX attribute:
+
+    example.jsx:1:29:
+      1 │ let button = <Button content='some so-called \\'button text\\'' />
+        │                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        ╵                              {'some so-called \\'button text\\''}
 
 `,
     }),
@@ -1207,13 +1226,21 @@
         export function run() { return data }
       `,
     }, {
-      expectedStderr: ` > runner1.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
-    2 │         let data = eval('"runner1" + ".js"')
-      ╵                    ~~~~
+      expectedStderr: `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
 
- > runner2.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
-    2 │         let data = eval('"runner2" + ".js"')
-      ╵                    ~~~~
+    runner1.js:2:19:
+      2 │         let data = eval('"runner1" + ".js"')
+        ╵                    ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
+
+▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+
+    runner2.js:2:19:
+      2 │         let data = eval('"runner2" + ".js"')
+        ╵                    ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
 
 `,
     }),
@@ -1248,13 +1275,21 @@
         if (ab[0] !== 'runner1.js' || ab[1] !== 'runner2.js') throw 'fail'
       `,
     }, {
-      expectedStderr: ` > runner2.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
-    2 │         let data = eval('"runner2" + ".js"')
-      ╵                    ~~~~
+      expectedStderr: `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
 
- > runner1.js:2:19: warning: Using direct eval with a bundler is not recommended and may cause problems (more info: https://esbuild.github.io/link/direct-eval)
-    2 │         let data = eval('"runner1" + ".js"')
-      ╵                    ~~~~
+    runner2.js:2:19:
+      2 │         let data = eval('"runner2" + ".js"')
+        ╵                    ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
+
+▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+
+    runner1.js:2:19:
+      2 │         let data = eval('"runner1" + ".js"')
+        ╵                    ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
 
 `,
     }),
@@ -1439,9 +1474,11 @@
       `,
       'node_modules/pkg/index.mjs': ``,
     }, {
-      expectedStderr: ` > in.js:3:15: warning: Import "default" will always be undefined because there is no matching export
-    3 │         if (ns.default !== void 0) throw 'fail'
-      ╵                ~~~~~~~
+      expectedStderr: `▲ [WARNING] Import "default" will always be undefined because there is no matching export
+
+    in.js:3:15:
+      3 │         if (ns.default !== void 0) throw 'fail'
+        ╵                ~~~~~~~
 
 `,
     }),
@@ -1452,9 +1489,11 @@
       `,
       'node_modules/pkg/index.mts': ``,
     }, {
-      expectedStderr: ` > in.js:3:15: warning: Import "default" will always be undefined because there is no matching export
-    3 │         if (ns.default !== void 0) throw 'fail'
-      ╵                ~~~~~~~
+      expectedStderr: `▲ [WARNING] Import "default" will always be undefined because there is no matching export
+
+    in.js:3:15:
+      3 │         if (ns.default !== void 0) throw 'fail'
+        ╵                ~~~~~~~
 
 `,
     }),
@@ -1478,9 +1517,11 @@
       }`,
       'node_modules/pkg/index.js': ``,
     }, {
-      expectedStderr: ` > in.js:3:15: warning: Import "default" will always be undefined because there is no matching export
-    3 │         if (ns.default !== void 0) throw 'fail'
-      ╵                ~~~~~~~
+      expectedStderr: `▲ [WARNING] Import "default" will always be undefined because there is no matching export
+
+    in.js:3:15:
+      3 │         if (ns.default !== void 0) throw 'fail'
+        ╵                ~~~~~~~
 
 `,
     }),
@@ -1841,9 +1882,11 @@
       `,
     }, {
       async: true,
-      expectedStderr: ` > in.js:2:25: warning: Converting "require" to "esm" is currently not supported
-    2 │         const {exists} = require('fs')
-      ╵                          ~~~~~~~
+      expectedStderr: `▲ [WARNING] Converting "require" to "esm" is currently not supported
+
+    in.js:2:25:
+      2 │         const {exists} = require('fs')
+        ╵                          ~~~~~~~
 
 `,
     }),
@@ -1862,9 +1905,11 @@
       `,
     }, {
       async: true,
-      expectedStderr: ` > in.js:2:19: warning: Converting "require" to "esm" is currently not supported
-    2 │         const fs = require('fs')
-      ╵                    ~~~~~~~
+      expectedStderr: `▲ [WARNING] Converting "require" to "esm" is currently not supported
+
+    in.js:2:19:
+      2 │         const fs = require('fs')
+        ╵                    ~~~~~~~
 
 `,
     }),
@@ -3212,21 +3257,29 @@
           new Foo().bar()
         `,
       }, {
-        expectedStderr: ` > in.js:22:31: warning: Writing to read-only method "#method" will throw
-    22 │               expect(() => obj.#method = 1, 'Cannot write to private...
-       ╵                                ~~~~~~~
+        expectedStderr: `▲ [WARNING] Writing to read-only method "#method" will throw
 
- > in.js:23:32: warning: Reading from setter-only property "#setter" will throw
-    23 │               expect(() => this.#setter, 'member.get is not a functi...
-       ╵                                 ~~~~~~~
+    in.js:22:31:
+      22 │               expect(() => obj.#method = 1, 'Cannot write to priva...
+         ╵                                ~~~~~~~
 
- > in.js:24:32: warning: Writing to getter-only property "#getter" will throw
-    24 │               expect(() => this.#getter = 1, 'member.set is not a fu...
-       ╵                                 ~~~~~~~
+▲ [WARNING] Reading from setter-only property "#setter" will throw
 
- > in.js:25:32: warning: Writing to read-only method "#method" will throw
-    25 │               expect(() => this.#method = 1, 'member.set is not a fu...
-       ╵                                 ~~~~~~~
+    in.js:23:32:
+      23 │ ...          expect(() => this.#setter, 'member.get is not a funct...
+         ╵                                ~~~~~~~
+
+▲ [WARNING] Writing to getter-only property "#getter" will throw
+
+    in.js:24:32:
+      24 │ ...          expect(() => this.#getter = 1, 'member.set is not a f...
+         ╵                                ~~~~~~~
+
+▲ [WARNING] Writing to read-only method "#method" will throw
+
+    in.js:25:32:
+      25 │ ...          expect(() => this.#method = 1, 'member.set is not a f...
+         ╵                                ~~~~~~~
 
 `,
       }),
@@ -3389,12 +3442,17 @@
           }
         `,
       }, {
-        expectedStderr: ` > in.js:5:28: warning: This assignment will throw because "Foo" is a constant
-    5 │               static #foo = Foo = class Bar {}
-      ╵                             ~~~
-   in.js:3:18: note: "Foo" was declared a constant here
-    3 │             class Foo {
-      ╵                   ~~~
+        expectedStderr: `▲ [WARNING] This assignment will throw because "Foo" is a constant
+
+    in.js:5:28:
+      5 │               static #foo = Foo = class Bar {}
+        ╵                             ~~~
+
+  The symbol "Foo" was declared a constant here:
+
+    in.js:3:18:
+      3 │             class Foo {
+        ╵                   ~~~
 
 `,
       }),
@@ -3413,12 +3471,17 @@
           }
         `,
       }, {
-        expectedStderr: ` > in.js:4:28: warning: This assignment will throw because "Foo" is a constant
-    4 │             static #foo() { Foo = class Bar{} }
-      ╵                             ~~~
-   in.js:2:16: note: "Foo" was declared a constant here
-    2 │           class Foo {
-      ╵                 ~~~
+        expectedStderr: `▲ [WARNING] This assignment will throw because "Foo" is a constant
+
+    in.js:4:28:
+      4 │             static #foo() { Foo = class Bar{} }
+        ╵                             ~~~
+
+  The symbol "Foo" was declared a constant here:
+
+    in.js:2:16:
+      2 │           class Foo {
+        ╵                 ~~~
 
 `,
       }),
@@ -5142,9 +5205,11 @@
       `,
         'src/entry.js.map/x': ``,
       }, {
-        expectedStderr: ` > src/entry.js:2:29: warning: Cannot read file "src/entry.js.map": ${errorText}
-    2 │         //# sourceMappingURL=entry.js.map
-      ╵                              ~~~~~~~~~~~~
+        expectedStderr: `▲ [WARNING] Cannot read file "src/entry.js.map": ${errorText}
+
+    src/entry.js:2:29:
+      2 │         //# sourceMappingURL=entry.js.map
+        ╵                              ~~~~~~~~~~~~
 
 `,
       }),
@@ -5153,9 +5218,11 @@
         'src/tsconfig.json': `{"extends": "./base.json"}`,
         'src/base.json/x': ``,
       }, {
-        expectedStderr: ` > src/tsconfig.json:1:12: error: Cannot read file "src/base.json": ${errorText}
-    1 │ {"extends": "./base.json"}
-      ╵             ~~~~~~~~~~~~~
+        expectedStderr: `${errorIcon} [ERROR] Cannot read file "src/base.json": ${errorText}
+
+    src/tsconfig.json:1:12:
+      1 │ {"extends": "./base.json"}
+        ╵             ~~~~~~~~~~~~~
 
 `,
       }),
@@ -5164,9 +5231,11 @@
         'src/tsconfig.json': `{"extends": "foo"}`,
         'node_modules/foo/tsconfig.json/x': ``,
       }, {
-        expectedStderr: ` > src/tsconfig.json:1:12: error: Cannot read file "node_modules/foo/tsconfig.json": ${errorText}
-    1 │ {"extends": "foo"}
-      ╵             ~~~~~
+        expectedStderr: `${errorIcon} [ERROR] Cannot read file "node_modules/foo/tsconfig.json": ${errorText}
+
+    src/tsconfig.json:1:12:
+      1 │ {"extends": "foo"}
+        ╵             ~~~~~
 
 `,
       }),
@@ -5187,7 +5256,7 @@
     test(['in.js', `'--define:process.env.NODE_ENV="production"'`], {
       'in.js': ``,
     }, {
-      expectedStderr: ` > error: Unexpected single quote character before flag (use \\" to ` +
+      expectedStderr: `${errorIcon} [ERROR] Unexpected single quote character before flag (use \\" to ` +
         `escape double quotes): '--define:process.env.NODE_ENV="production"'
 
 `,
@@ -5609,9 +5678,11 @@
       `,
       'file.js': `This file should not be imported on Windows`,
     }, {
-      expectedStderr: ` > in.js:2:15: error: Could not resolve "/file.js"
-    2 │         import "/file.js"
-      ╵                ~~~~~~~~~~
+      expectedStderr: `${errorIcon} [ERROR] Could not resolve "/file.js"
+
+    in.js:2:15:
+      2 │         import "/file.js"
+        ╵                ~~~~~~~~~~
 
 `,
     }),
@@ -5630,13 +5701,17 @@
         'file1.js': `export default 123`,
         'File2.js': `export default 234`,
       }, {
-        expectedStderr: ` > in.js:2:24: warning: Use "file1.js" instead of "File1.js" to avoid issues with case-sensitive file systems
-    2 │           import x from "./File1.js"
-      ╵                         ~~~~~~~~~~~~
+        expectedStderr: `▲ [WARNING] Use "file1.js" instead of "File1.js" to avoid issues with case-sensitive file systems
 
- > in.js:3:24: warning: Use "File2.js" instead of "file2.js" to avoid issues with case-sensitive file systems
-    3 │           import y from "./file2.js"
-      ╵                         ~~~~~~~~~~~~
+    in.js:2:24:
+      2 │           import x from "./File1.js"
+        ╵                         ~~~~~~~~~~~~
+
+▲ [WARNING] Use "File2.js" instead of "file2.js" to avoid issues with case-sensitive file systems
+
+    in.js:3:24:
+      3 │           import y from "./file2.js"
+        ╵                         ~~~~~~~~~~~~
 
 `,
       }),
@@ -5660,13 +5735,17 @@
         'node_modules/pkg/file1.js': `export default 123`,
         'node_modules/pkg/File2.js': `export default 234`,
       }, {
-        expectedStderr: ` > in.js:2:24: warning: Use "node_modules/pkg/file1.js" instead of "node_modules/pkg/File1.js" to avoid issues with case-sensitive file systems
-    2 │           import x from "pkg/File1.js"
-      ╵                         ~~~~~~~~~~~~~~
+        expectedStderr: `▲ [WARNING] Use "node_modules/pkg/file1.js" instead of "node_modules/pkg/File1.js" to avoid issues with case-sensitive file systems
 
- > in.js:3:24: warning: Use "node_modules/pkg/File2.js" instead of "node_modules/pkg/file2.js" to avoid issues with case-sensitive file systems
-    3 │           import y from "pkg/file2.js"
-      ╵                         ~~~~~~~~~~~~~~
+    in.js:2:24:
+      2 │           import x from "pkg/File1.js"
+        ╵                         ~~~~~~~~~~~~~~
+
+▲ [WARNING] Use "node_modules/pkg/File2.js" instead of "node_modules/pkg/file2.js" to avoid issues with case-sensitive file systems
+
+    in.js:3:24:
+      3 │           import y from "pkg/file2.js"
+        ╵                         ~~~~~~~~~~~~~~
 
 `,
       }),

@@ -1995,8 +1995,8 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				ra := js_lexer.RangeOfIdentifier(a.InputFile.Source, result.nameLoc)
 				rb := js_lexer.RangeOfIdentifier(b.InputFile.Source, result.otherNameLoc)
 				notes = []logger.MsgData{
-					a.LineColumnTracker().MsgData(ra, "One matching export is here"),
-					b.LineColumnTracker().MsgData(rb, "Another matching export is here"),
+					a.LineColumnTracker().MsgData(ra, "One matching export is here:"),
+					b.LineColumnTracker().MsgData(rb, "Another matching export is here:"),
 				}
 			}
 
@@ -5551,20 +5551,12 @@ func (c *linkerContext) generateSourceMapForChunk(
 // Recover from a panic by logging it as an internal error instead of crashing
 func (c *linkerContext) recoverInternalError(waitGroup *sync.WaitGroup, sourceIndex uint32) {
 	if r := recover(); r != nil {
-		stack := helpers.PrettyPrintedStack()
-		data := logger.MsgData{
-			Text: fmt.Sprintf("panic: %v", r),
-			Location: &logger.MsgLocation{
-				LineText: "\n" + stack,
-			},
-		}
+		text := fmt.Sprintf("panic: %v", r)
 		if sourceIndex != runtime.SourceIndex {
-			data.Location.File = c.graph.Files[sourceIndex].InputFile.Source.PrettyPath
+			text = fmt.Sprintf("%s (while printing %q)", text, c.graph.Files[sourceIndex].InputFile.Source.PrettyPath)
 		}
-		c.log.AddMsg(logger.Msg{
-			Kind: logger.Error,
-			Data: data,
-		})
+		c.log.AddWithNotes(logger.Error, nil, logger.Range{}, text,
+			[]logger.MsgData{{Text: helpers.PrettyPrintedStack()}})
 		waitGroup.Done()
 	}
 }

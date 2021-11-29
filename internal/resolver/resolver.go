@@ -131,19 +131,19 @@ type DebugMeta struct {
 	suggestionMessage string
 }
 
-func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string) {
+func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string, notes []logger.MsgData) {
 	tracker := logger.MakeLineColumnTracker(source)
-
-	msg := logger.Msg{
-		Kind:  logger.Error,
-		Data:  tracker.MsgData(r, text),
-		Notes: dm.notes,
-	}
 
 	if source != nil && dm.suggestionMessage != "" {
 		data := tracker.MsgData(r, dm.suggestionMessage)
 		data.Location.Suggestion = dm.suggestionText
-		msg.Notes = append(msg.Notes, data)
+		dm.notes = append(dm.notes, data)
+	}
+
+	msg := logger.Msg{
+		Kind:  logger.Error,
+		Data:  tracker.MsgData(r, text),
+		Notes: append(dm.notes, notes...),
 	}
 
 	log.AddMsg(msg)
@@ -1435,7 +1435,7 @@ func (r resolverQuery) loadAsMainField(dirInfo *dirInfo, path string, extensionO
 				keyRange := dirInfo.packageJSON.source.RangeOfString(main.keyLoc)
 				if len(mainFieldKeys) == 0 && r.options.Platform == config.PlatformNeutral {
 					r.debugMeta.notes = append(r.debugMeta.notes, tracker.MsgData(keyRange,
-						fmt.Sprintf("The %q field was ignored (main fields must be configured manually when using the \"neutral\" platform)",
+						fmt.Sprintf("The %q field here was ignored. Main fields must be configured explicitly when using the \"neutral\" platform.",
 							field)))
 				} else {
 					quoted := make([]string, len(mainFieldKeys))
@@ -1443,7 +1443,7 @@ func (r resolverQuery) loadAsMainField(dirInfo *dirInfo, path string, extensionO
 						quoted[i] = fmt.Sprintf("%q", key)
 					}
 					r.debugMeta.notes = append(r.debugMeta.notes, tracker.MsgData(keyRange,
-						fmt.Sprintf("The %q field was ignored because the list of main fields to use is currently set to [%s]",
+						fmt.Sprintf("The %q field here was ignored because the list of main fields to use is currently set to [%s].",
 							field, strings.Join(quoted, ", "))))
 				}
 				break
@@ -1802,7 +1802,7 @@ func (r resolverQuery) finalizeImportsExportsResult(
 
 	case pjStatusInvalidPackageConfiguration:
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
-			"The package configuration has an invalid value here")}
+			"The package configuration has an invalid value here:")}
 
 	case pjStatusInvalidPackageTarget:
 		why := fmt.Sprintf("The package target %q is invalid", resolvedPath)
@@ -1810,7 +1810,7 @@ func (r resolverQuery) finalizeImportsExportsResult(
 			// "PACKAGE_TARGET_RESOLVE" is specified to throw an "Invalid
 			// Package Target" error for what is actually an invalid package
 			// configuration error
-			why = "The package configuration has an invalid value here"
+			why = "The package configuration has an invalid value here:"
 		}
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token, why)}
 

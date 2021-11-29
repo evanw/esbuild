@@ -174,17 +174,9 @@ func parseFile(args parseArgs) {
 	defer func() {
 		r := recover()
 		if r != nil {
-			stack := helpers.PrettyPrintedStack()
-			args.log.AddMsg(logger.Msg{
-				Kind: logger.Error,
-				Data: logger.MsgData{
-					Text: fmt.Sprintf("panic: %v", r),
-					Location: &logger.MsgLocation{
-						File:     source.PrettyPath,
-						LineText: "\n" + stack,
-					},
-				},
-			})
+			args.log.AddWithNotes(logger.Error, nil, logger.Range{},
+				fmt.Sprintf("panic: %v (while parsing %q)", r, source.PrettyPath),
+				[]logger.MsgData{{Text: helpers.PrettyPrintedStack()}})
 			args.results <- result
 		}
 	}()
@@ -438,37 +430,47 @@ func parseFile(args parseArgs) {
 					if !didLogError && !record.HandlesImportErrors {
 						hint := ""
 						if resolver.IsPackagePath(record.Path.Text) {
+							hint = fmt.Sprintf("You can mark the path %q as external to exclude it from the bundle, which will remove this error.", record.Path.Text)
 							if record.Kind == ast.ImportRequire {
-								hint = ", or surround it with try/catch to handle the failure at run-time"
+								hint += " You can also surround this \"require\" call with a try/catch block to handle this failure at run-time instead of bundle-time."
 							} else if record.Kind == ast.ImportDynamic {
-								hint = ", or add \".catch()\" to handle the failure at run-time"
+								hint += " You can also add \".catch()\" here to handle this failure at run-time instead of bundle-time."
 							}
-							hint = fmt.Sprintf(" (mark it as external to exclude it from the bundle%s)", hint)
 							if pluginName == "" && !args.fs.IsAbs(record.Path.Text) {
 								if query := args.res.ProbeResolvePackageAsRelative(absResolveDir, record.Path.Text, record.Kind); query != nil {
-									hint = fmt.Sprintf(" (use %q to reference the file %q)", "./"+record.Path.Text, args.res.PrettyPath(query.PathPair.Primary))
+									hint = fmt.Sprintf("Use the relative path %q to reference the file %q. "+
+										"Without the leading \"./\", the path %q is being interpreted as a package path instead.",
+										"./"+record.Path.Text, args.res.PrettyPath(query.PathPair.Primary), record.Path.Text)
 								}
 							}
 						}
 						if args.options.Platform != config.PlatformNode {
 							if _, ok := resolver.BuiltInNodeModules[record.Path.Text]; ok {
+								var how string
 								switch logger.API {
 								case logger.CLIAPI:
-									hint = " (use \"--platform=node\" when building for node)"
+									how = "--platform=node"
 								case logger.JSAPI:
-									hint = " (use \"platform: 'node'\" when building for node)"
+									how = "platform: 'node'"
 								case logger.GoAPI:
-									hint = " (use \"Platform: api.PlatformNode\" when building for node)"
+									how = "Platform: api.PlatformNode"
 								}
+								hint = fmt.Sprintf("The package %q wasn't found on the file system but is built into node. "+
+									"Are you trying to bundle for node? You can use %q to do that, which will remove this error.", record.Path.Text, how)
 							}
 						}
 						if absResolveDir == "" && pluginName != "" {
-							hint = fmt.Sprintf(" (the plugin %q didn't set a resolve directory)", pluginName)
+							hint = fmt.Sprintf("The plugin %q didn't set a resolve directory for the file %q, "+
+								"so esbuild did not search for %q on the file system.", pluginName, source.PrettyPath, record.Path.Text)
 						}
-						debug.LogErrorMsg(args.log, &source, record.Range, fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint))
+						var notes []logger.MsgData
+						if hint != "" {
+							notes = append(notes, logger.MsgData{Text: hint})
+						}
+						debug.LogErrorMsg(args.log, &source, record.Range, fmt.Sprintf("Could not resolve %q", record.Path.Text), notes)
 					} else if args.log.Level <= logger.LevelDebug && !didLogError && record.HandlesImportErrors {
 						args.log.Add(logger.Debug, &tracker, record.Range,
-							fmt.Sprintf("Importing %q was allowed even though it could not be resolved because dynamic import failures appear to be handled here",
+							fmt.Sprintf("Importing %q was allowed even though it could not be resolved because dynamic import failures appear to be handled here:",
 								record.Path.Text))
 					}
 					continue
@@ -1387,15 +1389,23 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 					entryPointResolveResults[i] = resolveResult
 				}
 			} else if !didLogError {
-				hint := ""
+				var notes []logger.MsgData
 				if !s.fs.IsAbs(entryPoint.InputPath) {
 					if strings.ContainsRune(entryPoint.InputPath, '*') {
-						hint = " (glob syntax must be expanded first before passing the paths to esbuild)"
+						notes = append(notes, logger.MsgData{
+							Text: "It looks like you are trying to use glob syntax (i.e. \"*\") with esbuild. " +
+								"This syntax is typically handled by your shell, and isn't handled by esbuild itself. " +
+								"You must expand glob syntax first before passing your paths to esbuild.",
+						})
 					} else if query := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, entryPoint.InputPath, ast.ImportEntryPoint); query != nil {
-						hint = fmt.Sprintf(" (use %q to reference the file %q)", "./"+entryPoint.InputPath, s.res.PrettyPath(query.PathPair.Primary))
+						notes = append(notes, logger.MsgData{
+							Text: fmt.Sprintf("Use the relative path %q to reference the file %q. "+
+								"Without the leading \"./\", the path %q is being interpreted as a package path instead.",
+								"./"+entryPoint.InputPath, s.res.PrettyPath(query.PathPair.Primary), entryPoint.InputPath),
+						})
 					}
 				}
-				debug.LogErrorMsg(s.log, nil, logger.Range{}, fmt.Sprintf("Could not resolve %q%s", entryPoint.InputPath, hint))
+				debug.LogErrorMsg(s.log, nil, logger.Range{}, fmt.Sprintf("Could not resolve %q", entryPoint.InputPath), notes)
 			}
 			entryPointWaitGroup.Done()
 		}(i, entryPoint)
@@ -1896,7 +1906,7 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 								tlaPrettyPath = parentResult.file.inputFile.Source.PrettyPath
 								tracker := logger.MakeLineColumnTracker(&parentResult.file.inputFile.Source)
 								notes = append(notes, tracker.MsgData(parentRepr.AST.TopLevelAwaitKeyword,
-									fmt.Sprintf("The top-level await in %q is here", tlaPrettyPath)))
+									fmt.Sprintf("The top-level await in %q is here:", tlaPrettyPath)))
 								break
 							}
 
@@ -1910,7 +1920,7 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 							tracker := logger.MakeLineColumnTracker(&parentResult.file.inputFile.Source)
 							notes = append(notes, tracker.MsgData(
 								parentRepr.AST.ImportRecords[parent.importRecordIndex].Range,
-								fmt.Sprintf("The file %q imports the file %q here",
+								fmt.Sprintf("The file %q imports the file %q here:",
 									parentResult.file.inputFile.Source.PrettyPath, s.results[otherSourceIndex].file.inputFile.Source.PrettyPath)))
 						}
 

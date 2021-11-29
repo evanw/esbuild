@@ -21,7 +21,7 @@ func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 		for _, msg := range msgs {
 			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 		}
-		test.AssertEqual(t, text, expected)
+		test.AssertEqualWithDiff(t, text, expected)
 	})
 }
 
@@ -44,7 +44,7 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 		for _, msg := range msgs {
 			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 		}
-		test.AssertEqual(t, text, warning)
+		test.AssertEqualWithDiff(t, text, warning)
 		if !ok {
 			t.Fatal("Parse error")
 		}
@@ -63,7 +63,7 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 			js = js[:n-1]
 		}
 
-		test.AssertEqual(t, string(js), expected)
+		test.AssertEqualWithDiff(t, string(js), expected)
 	})
 }
 
@@ -71,25 +71,25 @@ func TestJSONAtom(t *testing.T) {
 	expectPrintedJSON(t, "false", "false")
 	expectPrintedJSON(t, "true", "true")
 	expectPrintedJSON(t, "null", "null")
-	expectParseErrorJSON(t, "undefined", "<stdin>: error: Unexpected \"undefined\"\n")
+	expectParseErrorJSON(t, "undefined", "<stdin>: ERROR: Unexpected \"undefined\"\n")
 }
 
 func TestJSONString(t *testing.T) {
 	expectPrintedJSON(t, "\"x\"", "\"x\"")
-	expectParseErrorJSON(t, "'x'", "<stdin>: error: JSON strings must use double quotes\n")
-	expectParseErrorJSON(t, "`x`", "<stdin>: error: Unexpected \"`x`\"\n")
+	expectParseErrorJSON(t, "'x'", "<stdin>: ERROR: JSON strings must use double quotes\n")
+	expectParseErrorJSON(t, "`x`", "<stdin>: ERROR: Unexpected \"`x`\"\n")
 
 	// Newlines
 	expectPrintedJSON(t, "\"\u2028\"", "\"\\u2028\"")
 	expectPrintedJSON(t, "\"\u2029\"", "\"\\u2029\"")
-	expectParseErrorJSON(t, "\"\r\"", "<stdin>: error: Unterminated string literal\n")
-	expectParseErrorJSON(t, "\"\n\"", "<stdin>: error: Unterminated string literal\n")
+	expectParseErrorJSON(t, "\"\r\"", "<stdin>: ERROR: Unterminated string literal\n")
+	expectParseErrorJSON(t, "\"\n\"", "<stdin>: ERROR: Unterminated string literal\n")
 
 	// Control characters
 	for c := 0; c < 0x20; c++ {
 		if c != '\r' && c != '\n' {
 			expectParseErrorJSON(t, fmt.Sprintf("\"%c\"", c),
-				fmt.Sprintf("<stdin>: error: Syntax error \"\\x%02X\"\n", c))
+				fmt.Sprintf("<stdin>: ERROR: Syntax error \"\\x%02X\"\n", c))
 		}
 	}
 
@@ -109,23 +109,23 @@ func TestJSONString(t *testing.T) {
 	expectPrintedJSON(t, "\"\\uDC00\"", "\"\\uDC00\"")
 
 	// Invalid escapes
-	expectParseErrorJSON(t, "\"\\", "<stdin>: error: Unterminated string literal\n")
-	expectParseErrorJSON(t, "\"\\0\"", "<stdin>: error: Syntax error \"0\"\n")
-	expectParseErrorJSON(t, "\"\\1\"", "<stdin>: error: Syntax error \"1\"\n")
-	expectParseErrorJSON(t, "\"\\'\"", "<stdin>: error: Syntax error \"'\"\n")
-	expectParseErrorJSON(t, "\"\\a\"", "<stdin>: error: Syntax error \"a\"\n")
-	expectParseErrorJSON(t, "\"\\v\"", "<stdin>: error: Syntax error \"v\"\n")
-	expectParseErrorJSON(t, "\"\\\n\"", "<stdin>: error: Syntax error \"\\x0A\"\n")
-	expectParseErrorJSON(t, "\"\\x78\"", "<stdin>: error: Syntax error \"x\"\n")
-	expectParseErrorJSON(t, "\"\\u{1234}\"", "<stdin>: error: Syntax error \"{\"\n")
-	expectParseErrorJSON(t, "\"\\uG\"", "<stdin>: error: Syntax error \"G\"\n")
-	expectParseErrorJSON(t, "\"\\uDG\"", "<stdin>: error: Syntax error \"G\"\n")
-	expectParseErrorJSON(t, "\"\\uDEG\"", "<stdin>: error: Syntax error \"G\"\n")
-	expectParseErrorJSON(t, "\"\\uDEFG\"", "<stdin>: error: Syntax error \"G\"\n")
-	expectParseErrorJSON(t, "\"\\u\"", "<stdin>: error: Syntax error '\"'\n")
-	expectParseErrorJSON(t, "\"\\uD\"", "<stdin>: error: Syntax error '\"'\n")
-	expectParseErrorJSON(t, "\"\\uDE\"", "<stdin>: error: Syntax error '\"'\n")
-	expectParseErrorJSON(t, "\"\\uDEF\"", "<stdin>: error: Syntax error '\"'\n")
+	expectParseErrorJSON(t, "\"\\", "<stdin>: ERROR: Unterminated string literal\n")
+	expectParseErrorJSON(t, "\"\\0\"", "<stdin>: ERROR: Syntax error \"0\"\n")
+	expectParseErrorJSON(t, "\"\\1\"", "<stdin>: ERROR: Syntax error \"1\"\n")
+	expectParseErrorJSON(t, "\"\\'\"", "<stdin>: ERROR: Syntax error \"'\"\n")
+	expectParseErrorJSON(t, "\"\\a\"", "<stdin>: ERROR: Syntax error \"a\"\n")
+	expectParseErrorJSON(t, "\"\\v\"", "<stdin>: ERROR: Syntax error \"v\"\n")
+	expectParseErrorJSON(t, "\"\\\n\"", "<stdin>: ERROR: Syntax error \"\\x0A\"\n")
+	expectParseErrorJSON(t, "\"\\x78\"", "<stdin>: ERROR: Syntax error \"x\"\n")
+	expectParseErrorJSON(t, "\"\\u{1234}\"", "<stdin>: ERROR: Syntax error \"{\"\n")
+	expectParseErrorJSON(t, "\"\\uG\"", "<stdin>: ERROR: Syntax error \"G\"\n")
+	expectParseErrorJSON(t, "\"\\uDG\"", "<stdin>: ERROR: Syntax error \"G\"\n")
+	expectParseErrorJSON(t, "\"\\uDEG\"", "<stdin>: ERROR: Syntax error \"G\"\n")
+	expectParseErrorJSON(t, "\"\\uDEFG\"", "<stdin>: ERROR: Syntax error \"G\"\n")
+	expectParseErrorJSON(t, "\"\\u\"", "<stdin>: ERROR: Syntax error '\"'\n")
+	expectParseErrorJSON(t, "\"\\uD\"", "<stdin>: ERROR: Syntax error '\"'\n")
+	expectParseErrorJSON(t, "\"\\uDE\"", "<stdin>: ERROR: Syntax error '\"'\n")
+	expectParseErrorJSON(t, "\"\\uDEF\"", "<stdin>: ERROR: Syntax error '\"'\n")
 }
 
 func TestJSONNumber(t *testing.T) {
@@ -137,9 +137,9 @@ func TestJSONNumber(t *testing.T) {
 	expectPrintedJSON(t, "-.123", "-.123")
 	expectPrintedJSON(t, "123e20", "123e20")
 	expectPrintedJSON(t, "123e-20", "123e-20")
-	expectParseErrorJSON(t, "NaN", "<stdin>: error: Unexpected \"NaN\"\n")
-	expectParseErrorJSON(t, "Infinity", "<stdin>: error: Unexpected \"Infinity\"\n")
-	expectParseErrorJSON(t, "-Infinity", "<stdin>: error: Expected number but found \"Infinity\"\n")
+	expectParseErrorJSON(t, "NaN", "<stdin>: ERROR: Unexpected \"NaN\"\n")
+	expectParseErrorJSON(t, "Infinity", "<stdin>: ERROR: Unexpected \"Infinity\"\n")
+	expectParseErrorJSON(t, "-Infinity", "<stdin>: ERROR: Expected number but found \"Infinity\"\n")
 }
 
 func TestJSONObject(t *testing.T) {
@@ -147,36 +147,36 @@ func TestJSONObject(t *testing.T) {
 	expectPrintedJSON(t, "{\"x\":0,\"y\":1}", "({x:0,y:1})")
 	expectPrintedJSONWithWarning(t,
 		"{\"x\":0,\"x\":1}",
-		"<stdin>: warning: Duplicate key \"x\" in object literal\n<stdin>: note: The original \"x\" is here\n",
+		"<stdin>: WARNING: Duplicate key \"x\" in object literal\n<stdin>: NOTE: The original key \"x\" is here:\n",
 		"({x:0,x:1})")
-	expectParseErrorJSON(t, "{\"x\":0,}", "<stdin>: error: JSON does not support trailing commas\n")
-	expectParseErrorJSON(t, "{x:0}", "<stdin>: error: Expected string but found \"x\"\n")
-	expectParseErrorJSON(t, "{1:0}", "<stdin>: error: Expected string but found \"1\"\n")
-	expectParseErrorJSON(t, "{[\"x\"]:0}", "<stdin>: error: Expected string but found \"[\"\n")
+	expectParseErrorJSON(t, "{\"x\":0,}", "<stdin>: ERROR: JSON does not support trailing commas\n")
+	expectParseErrorJSON(t, "{x:0}", "<stdin>: ERROR: Expected string but found \"x\"\n")
+	expectParseErrorJSON(t, "{1:0}", "<stdin>: ERROR: Expected string but found \"1\"\n")
+	expectParseErrorJSON(t, "{[\"x\"]:0}", "<stdin>: ERROR: Expected string but found \"[\"\n")
 }
 
 func TestJSONArray(t *testing.T) {
 	expectPrintedJSON(t, "[]", "[]")
 	expectPrintedJSON(t, "[1]", "[1]")
 	expectPrintedJSON(t, "[1,2]", "[1,2]")
-	expectParseErrorJSON(t, "[,]", "<stdin>: error: Unexpected \",\"\n")
-	expectParseErrorJSON(t, "[,1]", "<stdin>: error: Unexpected \",\"\n")
-	expectParseErrorJSON(t, "[1,]", "<stdin>: error: JSON does not support trailing commas\n")
-	expectParseErrorJSON(t, "[1,,2]", "<stdin>: error: Unexpected \",\"\n")
+	expectParseErrorJSON(t, "[,]", "<stdin>: ERROR: Unexpected \",\"\n")
+	expectParseErrorJSON(t, "[,1]", "<stdin>: ERROR: Unexpected \",\"\n")
+	expectParseErrorJSON(t, "[1,]", "<stdin>: ERROR: JSON does not support trailing commas\n")
+	expectParseErrorJSON(t, "[1,,2]", "<stdin>: ERROR: Unexpected \",\"\n")
 }
 
 func TestJSONInvalid(t *testing.T) {
-	expectParseErrorJSON(t, "({\"x\":0})", "<stdin>: error: Unexpected \"(\"\n")
-	expectParseErrorJSON(t, "{\"x\":(0)}", "<stdin>: error: Unexpected \"(\"\n")
-	expectParseErrorJSON(t, "#!/usr/bin/env node\n{}", "<stdin>: error: Unexpected \"#!/usr/bin/env node\"\n")
-	expectParseErrorJSON(t, "{\"x\":0}{\"y\":1}", "<stdin>: error: Expected end of file but found \"{\"\n")
+	expectParseErrorJSON(t, "({\"x\":0})", "<stdin>: ERROR: Unexpected \"(\"\n")
+	expectParseErrorJSON(t, "{\"x\":(0)}", "<stdin>: ERROR: Unexpected \"(\"\n")
+	expectParseErrorJSON(t, "#!/usr/bin/env node\n{}", "<stdin>: ERROR: Unexpected \"#!/usr/bin/env node\"\n")
+	expectParseErrorJSON(t, "{\"x\":0}{\"y\":1}", "<stdin>: ERROR: Expected end of file but found \"{\"\n")
 }
 
 func TestJSONComments(t *testing.T) {
-	expectParseErrorJSON(t, "/*comment*/{}", "<stdin>: error: JSON does not support comments\n")
-	expectParseErrorJSON(t, "//comment\n{}", "<stdin>: error: JSON does not support comments\n")
-	expectParseErrorJSON(t, "{/*comment*/}", "<stdin>: error: JSON does not support comments\n")
-	expectParseErrorJSON(t, "{//comment\n}", "<stdin>: error: JSON does not support comments\n")
-	expectParseErrorJSON(t, "{}/*comment*/", "<stdin>: error: JSON does not support comments\n")
-	expectParseErrorJSON(t, "{}//comment\n", "<stdin>: error: JSON does not support comments\n")
+	expectParseErrorJSON(t, "/*comment*/{}", "<stdin>: ERROR: JSON does not support comments\n")
+	expectParseErrorJSON(t, "//comment\n{}", "<stdin>: ERROR: JSON does not support comments\n")
+	expectParseErrorJSON(t, "{/*comment*/}", "<stdin>: ERROR: JSON does not support comments\n")
+	expectParseErrorJSON(t, "{//comment\n}", "<stdin>: ERROR: JSON does not support comments\n")
+	expectParseErrorJSON(t, "{}/*comment*/", "<stdin>: ERROR: JSON does not support comments\n")
+	expectParseErrorJSON(t, "{}//comment\n", "<stdin>: ERROR: JSON does not support comments\n")
 }

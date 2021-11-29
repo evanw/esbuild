@@ -253,24 +253,24 @@ func TestString(t *testing.T) {
 	expectPrinted(t, "a:after { content: 'a\\62 c' }", "a:after {\n  content: \"abc\";\n}\n")
 
 	expectParseError(t, "a:after { content: '\r' }",
-		`<stdin>: error: Unterminated string token
-<stdin>: error: Unterminated string token
-<stdin>: warning: Expected "}" but found end of file
+		`<stdin>: ERROR: Unterminated string token
+<stdin>: ERROR: Unterminated string token
+<stdin>: WARNING: Expected "}" but found end of file
 `)
 	expectParseError(t, "a:after { content: '\n' }",
-		`<stdin>: error: Unterminated string token
-<stdin>: error: Unterminated string token
-<stdin>: warning: Expected "}" but found end of file
+		`<stdin>: ERROR: Unterminated string token
+<stdin>: ERROR: Unterminated string token
+<stdin>: WARNING: Expected "}" but found end of file
 `)
 	expectParseError(t, "a:after { content: '\f' }",
-		`<stdin>: error: Unterminated string token
-<stdin>: error: Unterminated string token
-<stdin>: warning: Expected "}" but found end of file
+		`<stdin>: ERROR: Unterminated string token
+<stdin>: ERROR: Unterminated string token
+<stdin>: WARNING: Expected "}" but found end of file
 `)
 	expectParseError(t, "a:after { content: '\r\n' }",
-		`<stdin>: error: Unterminated string token
-<stdin>: error: Unterminated string token
-<stdin>: warning: Expected "}" but found end of file
+		`<stdin>: ERROR: Unterminated string token
+<stdin>: ERROR: Unterminated string token
+<stdin>: WARNING: Expected "}" but found end of file
 `)
 
 	expectPrinted(t, "a:after { content: '\\1010101' }", "a:after {\n  content: \"\U001010101\";\n}\n")
@@ -548,7 +548,7 @@ func TestDeclaration(t *testing.T) {
 	expectPrinted(t, ".decl { a: b; }", ".decl {\n  a: b;\n}\n")
 	expectPrinted(t, ".decl { a: b; c: d }", ".decl {\n  a: b;\n  c: d;\n}\n")
 	expectPrinted(t, ".decl { a: b; c: d; }", ".decl {\n  a: b;\n  c: d;\n}\n")
-	expectParseError(t, ".decl { a { b: c; } }", "<stdin>: warning: Expected \":\"\n")
+	expectParseError(t, ".decl { a { b: c; } }", "<stdin>: WARNING: Expected \":\"\n")
 	expectPrinted(t, ".decl { & a { b: c; } }", ".decl {\n  & a {\n    b: c;\n  }\n}\n")
 
 	// See http://browserhacks.com/
@@ -577,20 +577,20 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "[b] {}", "[b] {\n}\n")
 	expectPrinted(t, "a[b] {}", "a[b] {\n}\n")
 	expectPrinted(t, "a [b] {}", "a [b] {\n}\n")
-	expectParseError(t, "[] {}", "<stdin>: warning: Expected identifier but found \"]\"\n")
-	expectParseError(t, "[b {}", "<stdin>: warning: Expected \"]\" but found \"{\"\n")
-	expectParseError(t, "[b]] {}", "<stdin>: warning: Unexpected \"]\"\n")
-	expectParseError(t, "a[b {}", "<stdin>: warning: Expected \"]\" but found \"{\"\n")
-	expectParseError(t, "a[b]] {}", "<stdin>: warning: Unexpected \"]\"\n")
+	expectParseError(t, "[] {}", "<stdin>: WARNING: Expected identifier but found \"]\"\n")
+	expectParseError(t, "[b {}", "<stdin>: WARNING: Expected \"]\" but found \"{\"\n")
+	expectParseError(t, "[b]] {}", "<stdin>: WARNING: Unexpected \"]\"\n")
+	expectParseError(t, "a[b {}", "<stdin>: WARNING: Expected \"]\" but found \"{\"\n")
+	expectParseError(t, "a[b]] {}", "<stdin>: WARNING: Unexpected \"]\"\n")
 
 	expectPrinted(t, "[|b]{}", "[b] {\n}\n") // "[|b]" is equivalent to "[b]"
 	expectPrinted(t, "[*|b]{}", "[*|b] {\n}\n")
 	expectPrinted(t, "[a|b]{}", "[a|b] {\n}\n")
 	expectPrinted(t, "[a|b|=\"c\"]{}", "[a|b|=c] {\n}\n")
 	expectPrinted(t, "[a|b |= \"c\"]{}", "[a|b|=c] {\n}\n")
-	expectParseError(t, "[a||b] {}", "<stdin>: warning: Expected identifier but found \"|\"\n")
-	expectParseError(t, "[* | b] {}", "<stdin>: warning: Expected \"|\" but found whitespace\n")
-	expectParseError(t, "[a | b] {}", "<stdin>: warning: Expected \"=\" but found whitespace\n")
+	expectParseError(t, "[a||b] {}", "<stdin>: WARNING: Expected identifier but found \"|\"\n")
+	expectParseError(t, "[* | b] {}", "<stdin>: WARNING: Expected \"|\" but found whitespace\n")
+	expectParseError(t, "[a | b] {}", "<stdin>: WARNING: Expected \"=\" but found whitespace\n")
 
 	expectPrinted(t, "[b=\"c\"] {}", "[b=c] {\n}\n")
 	expectPrinted(t, "[b=\"c d\"] {}", "[b=\"c d\"] {\n}\n")
@@ -600,7 +600,7 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "[b$=\"c\"] {}", "[b$=c] {\n}\n")
 	expectPrinted(t, "[b*=\"c\"] {}", "[b*=c] {\n}\n")
 	expectPrinted(t, "[b|=\"c\"] {}", "[b|=c] {\n}\n")
-	expectParseError(t, "[b?=\"c\"] {}", "<stdin>: warning: Expected \"]\" but found \"?\"\n")
+	expectParseError(t, "[b?=\"c\"] {}", "<stdin>: WARNING: Expected \"]\" but found \"?\"\n")
 
 	expectPrinted(t, "[b = \"c\"] {}", "[b=c] {\n}\n")
 	expectPrinted(t, "[b ~= \"c\"] {}", "[b~=c] {\n}\n")
@@ -608,16 +608,16 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "[b $= \"c\"] {}", "[b$=c] {\n}\n")
 	expectPrinted(t, "[b *= \"c\"] {}", "[b*=c] {\n}\n")
 	expectPrinted(t, "[b |= \"c\"] {}", "[b|=c] {\n}\n")
-	expectParseError(t, "[b ?= \"c\"] {}", "<stdin>: warning: Expected \"]\" but found \"?\"\n")
+	expectParseError(t, "[b ?= \"c\"] {}", "<stdin>: WARNING: Expected \"]\" but found \"?\"\n")
 
 	expectPrinted(t, "[b = \"c\" i] {}", "[b=c i] {\n}\n")
 	expectPrinted(t, "[b = \"c\" I] {}", "[b=c I] {\n}\n")
 	expectPrinted(t, "[b = \"c\" s] {}", "[b=c s] {\n}\n")
 	expectPrinted(t, "[b = \"c\" S] {}", "[b=c S] {\n}\n")
-	expectParseError(t, "[b i] {}", "<stdin>: warning: Expected \"]\" but found \"i\"\n<stdin>: warning: Unexpected \"]\"\n")
-	expectParseError(t, "[b I] {}", "<stdin>: warning: Expected \"]\" but found \"I\"\n<stdin>: warning: Unexpected \"]\"\n")
-	expectParseError(t, "[b s] {}", "<stdin>: warning: Expected \"]\" but found \"s\"\n<stdin>: warning: Unexpected \"]\"\n")
-	expectParseError(t, "[b S] {}", "<stdin>: warning: Expected \"]\" but found \"S\"\n<stdin>: warning: Unexpected \"]\"\n")
+	expectParseError(t, "[b i] {}", "<stdin>: WARNING: Expected \"]\" but found \"i\"\n<stdin>: WARNING: Unexpected \"]\"\n")
+	expectParseError(t, "[b I] {}", "<stdin>: WARNING: Expected \"]\" but found \"I\"\n<stdin>: WARNING: Unexpected \"]\"\n")
+	expectParseError(t, "[b s] {}", "<stdin>: WARNING: Expected \"]\" but found \"s\"\n<stdin>: WARNING: Unexpected \"]\"\n")
+	expectParseError(t, "[b S] {}", "<stdin>: WARNING: Expected \"]\" but found \"S\"\n<stdin>: WARNING: Unexpected \"]\"\n")
 
 	expectPrinted(t, "|b {}", "|b {\n}\n")
 	expectPrinted(t, "|* {}", "|* {\n}\n")
@@ -625,7 +625,7 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "a|* {}", "a|* {\n}\n")
 	expectPrinted(t, "*|b {}", "*|b {\n}\n")
 	expectPrinted(t, "*|* {}", "*|* {\n}\n")
-	expectParseError(t, "a||b {}", "<stdin>: warning: Expected identifier but found \"|\"\n")
+	expectParseError(t, "a||b {}", "<stdin>: WARNING: Expected identifier but found \"|\"\n")
 
 	expectPrinted(t, "a+b {}", "a + b {\n}\n")
 	expectPrinted(t, "a>b {}", "a > b {\n}\n")
@@ -655,10 +655,10 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "div#--0 {}", "div#--0 {\n}\n")
 	expectPrinted(t, "div#\\-0 {}", "div#\\-0 {\n}\n")
 	expectPrinted(t, "div#\\30 {}", "div#\\30  {\n}\n")
-	expectParseError(t, "#0 {}", "<stdin>: warning: Unexpected \"#0\"\n")
-	expectParseError(t, "#-0 {}", "<stdin>: warning: Unexpected \"#-0\"\n")
-	expectParseError(t, "div#0 {}", "<stdin>: warning: Unexpected \"#0\"\n")
-	expectParseError(t, "div#-0 {}", "<stdin>: warning: Unexpected \"#-0\"\n")
+	expectParseError(t, "#0 {}", "<stdin>: WARNING: Unexpected \"#0\"\n")
+	expectParseError(t, "#-0 {}", "<stdin>: WARNING: Unexpected \"#-0\"\n")
+	expectParseError(t, "div#0 {}", "<stdin>: WARNING: Unexpected \"#0\"\n")
+	expectParseError(t, "div#-0 {}", "<stdin>: WARNING: Unexpected \"#-0\"\n")
 
 	expectPrinted(t, "div::before::after::selection::first-line::first-letter {color:red}",
 		"div::before::after::selection::first-line::first-letter {\n  color: red;\n}\n")
@@ -691,10 +691,10 @@ func TestNestedSelector(t *testing.T) {
 }
 
 func TestBadQualifiedRules(t *testing.T) {
-	expectParseError(t, "$bad: rule;", "<stdin>: warning: Unexpected \"$\"\n")
-	expectParseError(t, "$bad { color: red }", "<stdin>: warning: Unexpected \"$\"\n")
-	expectParseError(t, "a { div.major { color: blue } color: red }", "<stdin>: warning: Expected \":\" but found \".\"\n")
-	expectParseError(t, "a { div:hover { color: blue } color: red }", "<stdin>: warning: Expected \";\"\n")
+	expectParseError(t, "$bad: rule;", "<stdin>: WARNING: Unexpected \"$\"\n")
+	expectParseError(t, "$bad { color: red }", "<stdin>: WARNING: Unexpected \"$\"\n")
+	expectParseError(t, "a { div.major { color: blue } color: red }", "<stdin>: WARNING: Expected \":\" but found \".\"\n")
+	expectParseError(t, "a { div:hover { color: blue } color: red }", "<stdin>: WARNING: Expected \";\"\n")
 	expectParseError(t, "a { div:hover { color: blue }; color: red }", "")
 	expectParseError(t, "a { div:hover { color: blue } ; color: red }", "")
 }
@@ -706,10 +706,10 @@ func TestAtRule(t *testing.T) {
 	expectPrinted(t, "@unknown x;", "@unknown x;\n")
 	expectPrinted(t, "@unknown{\na: b;\nc: d;\n}", "@unknown { a: b; c: d; }\n")
 
-	expectParseError(t, "@unknown", "<stdin>: warning: Expected \"{\" but found end of file\n")
-	expectParseError(t, "@", "<stdin>: warning: Unexpected \"@\"\n")
-	expectParseError(t, "@;", "<stdin>: warning: Unexpected \"@\"\n")
-	expectParseError(t, "@{}", "<stdin>: warning: Unexpected \"@\"\n")
+	expectParseError(t, "@unknown", "<stdin>: WARNING: Expected \"{\" but found end of file\n")
+	expectParseError(t, "@", "<stdin>: WARNING: Unexpected \"@\"\n")
+	expectParseError(t, "@;", "<stdin>: WARNING: Unexpected \"@\"\n")
+	expectParseError(t, "@{}", "<stdin>: WARNING: Unexpected \"@\"\n")
 
 	expectPrinted(t, "@viewport { width: 100vw }", "@viewport {\n  width: 100vw;\n}\n")
 	expectPrinted(t, "@-ms-viewport { width: 100vw }", "@-ms-viewport {\n  width: 100vw;\n}\n")
@@ -803,15 +803,15 @@ func TestAtCharset(t *testing.T) {
 	expectParseError(t, "@charset \"utf-8\";", "")
 	expectParseError(t, "@charset \"Utf-8\";", "")
 	expectParseError(t, "@charset \"UTF-8\";", "")
-	expectParseError(t, "@charset \"US-ASCII\";", "<stdin>: warning: \"UTF-8\" will be used instead of unsupported charset \"US-ASCII\"\n")
-	expectParseError(t, "@charset;", "<stdin>: warning: Expected whitespace but found \";\"\n")
-	expectParseError(t, "@charset ;", "<stdin>: warning: Expected string token but found \";\"\n")
-	expectParseError(t, "@charset\"UTF-8\";", "<stdin>: warning: Expected whitespace but found \"\\\"UTF-8\\\"\"\n")
-	expectParseError(t, "@charset \"UTF-8\"", "<stdin>: warning: Expected \";\" but found end of file\n")
-	expectParseError(t, "@charset url(UTF-8);", "<stdin>: warning: Expected string token but found \"url(UTF-8)\"\n")
-	expectParseError(t, "@charset url(\"UTF-8\");", "<stdin>: warning: Expected string token but found \"url(\"\n")
-	expectParseError(t, "@charset \"UTF-8\" ", "<stdin>: warning: Expected \";\" but found whitespace\n")
-	expectParseError(t, "@charset \"UTF-8\"{}", "<stdin>: warning: Expected \";\" but found \"{\"\n")
+	expectParseError(t, "@charset \"US-ASCII\";", "<stdin>: WARNING: \"UTF-8\" will be used instead of unsupported charset \"US-ASCII\"\n")
+	expectParseError(t, "@charset;", "<stdin>: WARNING: Expected whitespace but found \";\"\n")
+	expectParseError(t, "@charset ;", "<stdin>: WARNING: Expected string token but found \";\"\n")
+	expectParseError(t, "@charset\"UTF-8\";", "<stdin>: WARNING: Expected whitespace but found \"\\\"UTF-8\\\"\"\n")
+	expectParseError(t, "@charset \"UTF-8\"", "<stdin>: WARNING: Expected \";\" but found end of file\n")
+	expectParseError(t, "@charset url(UTF-8);", "<stdin>: WARNING: Expected string token but found \"url(UTF-8)\"\n")
+	expectParseError(t, "@charset url(\"UTF-8\");", "<stdin>: WARNING: Expected string token but found \"url(\"\n")
+	expectParseError(t, "@charset \"UTF-8\" ", "<stdin>: WARNING: Expected \";\" but found whitespace\n")
+	expectParseError(t, "@charset \"UTF-8\"{}", "<stdin>: WARNING: Expected \";\" but found \"{\"\n")
 }
 
 func TestAtImport(t *testing.T) {
@@ -826,17 +826,17 @@ func TestAtImport(t *testing.T) {
 	expectPrinted(t, "@import url(\"foo.css\") print;", "@import \"foo.css\" print;\n")
 	expectPrinted(t, "@import url(\"foo.css\") screen and (orientation:landscape);", "@import \"foo.css\" screen and (orientation:landscape);\n")
 
-	expectParseError(t, "@import;", "<stdin>: warning: Expected URL token but found \";\"\n")
-	expectParseError(t, "@import ;", "<stdin>: warning: Expected URL token but found \";\"\n")
-	expectParseError(t, "@import \"foo.css\"", "<stdin>: warning: Expected \";\" but found end of file\n")
-	expectParseError(t, "@import url(\"foo.css\";", "<stdin>: warning: Expected \")\" but found \";\"\n")
-	expectParseError(t, "@import noturl(\"foo.css\");", "<stdin>: warning: Expected URL token but found \"noturl(\"\n")
-	expectParseError(t, "@import url(", `<stdin>: warning: Expected URL token but found bad URL token
-<stdin>: error: Expected ")" to end URL token
-<stdin>: warning: Expected ";" but found end of file
+	expectParseError(t, "@import;", "<stdin>: WARNING: Expected URL token but found \";\"\n")
+	expectParseError(t, "@import ;", "<stdin>: WARNING: Expected URL token but found \";\"\n")
+	expectParseError(t, "@import \"foo.css\"", "<stdin>: WARNING: Expected \";\" but found end of file\n")
+	expectParseError(t, "@import url(\"foo.css\";", "<stdin>: WARNING: Expected \")\" but found \";\"\n")
+	expectParseError(t, "@import noturl(\"foo.css\");", "<stdin>: WARNING: Expected URL token but found \"noturl(\"\n")
+	expectParseError(t, "@import url(", `<stdin>: WARNING: Expected URL token but found bad URL token
+<stdin>: ERROR: Expected ")" to end URL token
+<stdin>: WARNING: Expected ";" but found end of file
 `)
 
-	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: warning: Expected \";\"\n")
+	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: WARNING: Expected \";\"\n")
 	expectPrinted(t, "@import \"foo\"\na { color: red }\nb { color: blue }", "@import \"foo\" a { color: red }\nb {\n  color: blue;\n}\n")
 }
 
@@ -852,8 +852,8 @@ func TestLegalComment(t *testing.T) {
 	expectParseError(t, "/*!*/ @charset \"UTF-8\";", "")
 	expectParseError(t, "/*!*/ @charset \"UTF-8\"; @import \"x\";", "")
 	expectParseError(t, "/*!*/ @import \"x\"; @charset \"UTF-8\";",
-		"<stdin>: warning: \"@charset\" must be the first rule in the file\n"+
-			"<stdin>: note: This rule cannot come before a \"@charset\" rule\n")
+		"<stdin>: WARNING: \"@charset\" must be the first rule in the file\n"+
+			"<stdin>: NOTE: This rule cannot come before a \"@charset\" rule\n")
 
 	expectPrinted(t, "@import \"x\";/*!*/", "@import \"x\";\n/*!*/\n")
 	expectPrinted(t, "@charset \"UTF-8\";/*!*/", "@charset \"UTF-8\";\n/*!*/\n")
@@ -886,26 +886,26 @@ func TestAtKeyframes(t *testing.T) {
 	expectPrinted(t, "@-ms-keyframes name {}", "@-ms-keyframes name {\n}\n")
 	expectPrinted(t, "@-o-keyframes name {}", "@-o-keyframes name {\n}\n")
 
-	expectParseError(t, "@keyframes {}", "<stdin>: warning: Expected identifier but found \"{\"\n")
-	expectParseError(t, "@keyframes 'name' {}", "<stdin>: warning: Expected identifier but found \"'name'\"\n")
-	expectParseError(t, "@keyframes name { 0% 100% {} }", "<stdin>: warning: Expected \",\" but found \"100%\"\n")
-	expectParseError(t, "@keyframes name { {} 0% {} }", "<stdin>: warning: Expected percentage but found \"{\"\n")
-	expectParseError(t, "@keyframes name { 100 {} }", "<stdin>: warning: Expected percentage but found \"100\"\n")
-	expectParseError(t, "@keyframes name { into {} }", "<stdin>: warning: Expected percentage but found \"into\"\n")
-	expectParseError(t, "@keyframes name { 1,2 {} }", "<stdin>: warning: Expected percentage but found \"1\"\n<stdin>: warning: Expected percentage but found \"2\"\n")
-	expectParseError(t, "@keyframes name { 1, 2 {} }", "<stdin>: warning: Expected percentage but found \"1\"\n<stdin>: warning: Expected percentage but found \"2\"\n")
-	expectParseError(t, "@keyframes name { 1 ,2 {} }", "<stdin>: warning: Expected percentage but found \"1\"\n<stdin>: warning: Expected percentage but found \"2\"\n")
-	expectParseError(t, "@keyframes name { 1%,,2% {} }", "<stdin>: warning: Expected percentage but found \",\"\n")
+	expectParseError(t, "@keyframes {}", "<stdin>: WARNING: Expected identifier but found \"{\"\n")
+	expectParseError(t, "@keyframes 'name' {}", "<stdin>: WARNING: Expected identifier but found \"'name'\"\n")
+	expectParseError(t, "@keyframes name { 0% 100% {} }", "<stdin>: WARNING: Expected \",\" but found \"100%\"\n")
+	expectParseError(t, "@keyframes name { {} 0% {} }", "<stdin>: WARNING: Expected percentage but found \"{\"\n")
+	expectParseError(t, "@keyframes name { 100 {} }", "<stdin>: WARNING: Expected percentage but found \"100\"\n")
+	expectParseError(t, "@keyframes name { into {} }", "<stdin>: WARNING: Expected percentage but found \"into\"\n")
+	expectParseError(t, "@keyframes name { 1,2 {} }", "<stdin>: WARNING: Expected percentage but found \"1\"\n<stdin>: WARNING: Expected percentage but found \"2\"\n")
+	expectParseError(t, "@keyframes name { 1, 2 {} }", "<stdin>: WARNING: Expected percentage but found \"1\"\n<stdin>: WARNING: Expected percentage but found \"2\"\n")
+	expectParseError(t, "@keyframes name { 1 ,2 {} }", "<stdin>: WARNING: Expected percentage but found \"1\"\n<stdin>: WARNING: Expected percentage but found \"2\"\n")
+	expectParseError(t, "@keyframes name { 1%,,2% {} }", "<stdin>: WARNING: Expected percentage but found \",\"\n")
 }
 
 func TestAtRuleValidation(t *testing.T) {
 	expectParseError(t, "a {} @charset \"UTF-8\";",
-		"<stdin>: warning: \"@charset\" must be the first rule in the file\n"+
-			"<stdin>: note: This rule cannot come before a \"@charset\" rule\n")
+		"<stdin>: WARNING: \"@charset\" must be the first rule in the file\n"+
+			"<stdin>: NOTE: This rule cannot come before a \"@charset\" rule\n")
 
 	expectParseError(t, "a {} @import \"foo\";",
-		"<stdin>: warning: All \"@import\" rules must come first\n"+
-			"<stdin>: note: This rule cannot come before an \"@import\" rule\n")
+		"<stdin>: WARNING: All \"@import\" rules must come first\n"+
+			"<stdin>: NOTE: This rule cannot come before an \"@import\" rule\n")
 }
 
 func TestEmptyRule(t *testing.T) {
@@ -1217,8 +1217,8 @@ func TestMangleTime(t *testing.T) {
 }
 
 func TestCalc(t *testing.T) {
-	expectParseError(t, "a { b: calc(+(2)) }", "<stdin>: warning: \"+\" can only be used as an infix operator, not a prefix operator\n")
-	expectParseError(t, "a { b: calc(-(2)) }", "<stdin>: warning: \"-\" can only be used as an infix operator, not a prefix operator\n")
+	expectParseError(t, "a { b: calc(+(2)) }", "<stdin>: WARNING: \"+\" can only be used as an infix operator, not a prefix operator\n")
+	expectParseError(t, "a { b: calc(-(2)) }", "<stdin>: WARNING: \"-\" can only be used as an infix operator, not a prefix operator\n")
 	expectParseError(t, "a { b: calc(*(2)) }", "")
 	expectParseError(t, "a { b: calc(/(2)) }", "")
 
@@ -1227,18 +1227,18 @@ func TestCalc(t *testing.T) {
 	expectParseError(t, "a { b: calc(1 * 2) }", "")
 	expectParseError(t, "a { b: calc(1 / 2) }", "")
 
-	expectParseError(t, "a { b: calc(1+ 2) }", "<stdin>: warning: The \"+\" operator only works if there is whitespace on both sides\n")
-	expectParseError(t, "a { b: calc(1- 2) }", "<stdin>: warning: The \"-\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1+ 2) }", "<stdin>: WARNING: The \"+\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1- 2) }", "<stdin>: WARNING: The \"-\" operator only works if there is whitespace on both sides\n")
 	expectParseError(t, "a { b: calc(1* 2) }", "")
 	expectParseError(t, "a { b: calc(1/ 2) }", "")
 
-	expectParseError(t, "a { b: calc(1 +2) }", "<stdin>: warning: The \"+\" operator only works if there is whitespace on both sides\n")
-	expectParseError(t, "a { b: calc(1 -2) }", "<stdin>: warning: The \"-\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1 +2) }", "<stdin>: WARNING: The \"+\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1 -2) }", "<stdin>: WARNING: The \"-\" operator only works if there is whitespace on both sides\n")
 	expectParseError(t, "a { b: calc(1 *2) }", "")
 	expectParseError(t, "a { b: calc(1 /2) }", "")
 
-	expectParseError(t, "a { b: calc(1 +(2)) }", "<stdin>: warning: The \"+\" operator only works if there is whitespace on both sides\n")
-	expectParseError(t, "a { b: calc(1 -(2)) }", "<stdin>: warning: The \"-\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1 +(2)) }", "<stdin>: WARNING: The \"+\" operator only works if there is whitespace on both sides\n")
+	expectParseError(t, "a { b: calc(1 -(2)) }", "<stdin>: WARNING: The \"-\" operator only works if there is whitespace on both sides\n")
 	expectParseError(t, "a { b: calc(1 *(2)) }", "")
 	expectParseError(t, "a { b: calc(1 /(2)) }", "")
 }

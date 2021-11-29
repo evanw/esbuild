@@ -34,14 +34,14 @@ func TestLowerFunctionArgumentScope(t *testing.T) {
 }
 
 func TestLowerNullishCoalescing(t *testing.T) {
-	expectParseError(t, "a ?? b && c", "<stdin>: error: Unexpected \"&&\"\n")
-	expectParseError(t, "a ?? b || c", "<stdin>: error: Unexpected \"||\"\n")
-	expectParseError(t, "a ?? b && c || d", "<stdin>: error: Unexpected \"&&\"\n")
-	expectParseError(t, "a ?? b || c && d", "<stdin>: error: Unexpected \"||\"\n")
-	expectParseError(t, "a && b ?? c", "<stdin>: error: Unexpected \"??\"\n")
-	expectParseError(t, "a || b ?? c", "<stdin>: error: Unexpected \"??\"\n")
-	expectParseError(t, "a && b || c ?? c", "<stdin>: error: Unexpected \"??\"\n")
-	expectParseError(t, "a || b && c ?? d", "<stdin>: error: Unexpected \"??\"\n")
+	expectParseError(t, "a ?? b && c", "<stdin>: ERROR: Unexpected \"&&\"\n")
+	expectParseError(t, "a ?? b || c", "<stdin>: ERROR: Unexpected \"||\"\n")
+	expectParseError(t, "a ?? b && c || d", "<stdin>: ERROR: Unexpected \"&&\"\n")
+	expectParseError(t, "a ?? b || c && d", "<stdin>: ERROR: Unexpected \"||\"\n")
+	expectParseError(t, "a && b ?? c", "<stdin>: ERROR: Unexpected \"??\"\n")
+	expectParseError(t, "a || b ?? c", "<stdin>: ERROR: Unexpected \"??\"\n")
+	expectParseError(t, "a && b || c ?? c", "<stdin>: ERROR: Unexpected \"??\"\n")
+	expectParseError(t, "a || b && c ?? d", "<stdin>: ERROR: Unexpected \"??\"\n")
 	expectPrinted(t, "a ?? b, b && c", "a ?? b, b && c;\n")
 	expectPrinted(t, "a ?? b, b || c", "a ?? b, b || c;\n")
 	expectPrinted(t, "a && b, b ?? c", "a && b, b ?? c;\n")

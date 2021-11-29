@@ -177,7 +177,7 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 					bytes: encodePacket(packet{
 						id: p.id,
 						value: map[string]interface{}{
-							"error": fmt.Sprintf("Panic: %v\n\n%s", r, helpers.PrettyPrintedStack()),
+							"error": fmt.Sprintf("panic: %v\n\n%s", r, helpers.PrettyPrintedStack()),
 						},
 					}),
 				}
