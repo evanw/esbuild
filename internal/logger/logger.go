@@ -610,16 +610,19 @@ type Colors struct {
 	Magenta string
 	Yellow  string
 
-	Black string
-	White string
+	RedBgRed     string
+	RedBgWhite   string
+	GreenBgGreen string
+	GreenBgWhite string
+	BlueBgBlue   string
+	BlueBgWhite  string
 
-	RedBg   string
-	GreenBg string
-	BlueBg  string
-
-	CyanBg    string
-	MagentaBg string
-	YellowBg  string
+	CyanBgCyan       string
+	CyanBgBlack      string
+	MagentaBgMagenta string
+	MagentaBgBlack   string
+	YellowBgYellow   string
+	YellowBgBlack    string
 }
 
 var TerminalColors = Colors{
@@ -636,16 +639,19 @@ var TerminalColors = Colors{
 	Magenta: "\033[35m",
 	Yellow:  "\033[33m",
 
-	Black: "\033[30m",
-	White: "\033[97m",
+	RedBgRed:     "\033[41;31m",
+	RedBgWhite:   "\033[41;97m",
+	GreenBgGreen: "\033[42;32m",
+	GreenBgWhite: "\033[42;97m",
+	BlueBgBlue:   "\033[44;34m",
+	BlueBgWhite:  "\033[44;97m",
 
-	RedBg:   "\033[41m",
-	GreenBg: "\033[42m",
-	BlueBg:  "\033[44m",
-
-	CyanBg:    "\033[46m",
-	MagentaBg: "\033[45m",
-	YellowBg:  "\033[43m",
+	CyanBgCyan:       "\033[46;36m",
+	CyanBgBlack:      "\033[46;30m",
+	MagentaBgMagenta: "\033[45;35m",
+	MagentaBgBlack:   "\033[45;30m",
+	YellowBgYellow:   "\033[43;33m",
+	YellowBgBlack:    "\033[43;30m",
 }
 
 func PrintText(file *os.File, level LogLevel, osArgs []string, callback func(Colors) string) {
@@ -1004,8 +1010,8 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 	}
 
 	var iconColor string
-	var kindColor string
-	var kindColorBg string
+	var kindColorBrackets string
+	var kindColorText string
 
 	location := ""
 
@@ -1033,33 +1039,33 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 	switch kind {
 	case Verbose:
 		iconColor = colors.Cyan
-		kindColor = colors.Black
-		kindColorBg = colors.CyanBg
+		kindColorBrackets = colors.CyanBgCyan
+		kindColorText = colors.CyanBgBlack
 
 	case Debug:
 		iconColor = colors.Green
-		kindColor = colors.White
-		kindColorBg = colors.GreenBg
+		kindColorBrackets = colors.GreenBgGreen
+		kindColorText = colors.GreenBgWhite
 
 	case Info:
 		iconColor = colors.Blue
-		kindColor = colors.White
-		kindColorBg = colors.BlueBg
+		kindColorBrackets = colors.BlueBgBlue
+		kindColorText = colors.BlueBgWhite
 
 	case Error:
 		iconColor = colors.Red
-		kindColor = colors.White
-		kindColorBg = colors.RedBg
+		kindColorBrackets = colors.RedBgRed
+		kindColorText = colors.RedBgWhite
 
 	case errorPanic:
 		iconColor = colors.Red
-		kindColor = colors.White
-		kindColorBg = colors.RedBg
+		kindColorBrackets = colors.RedBgRed
+		kindColorText = colors.RedBgWhite
 
 	case Warning:
 		iconColor = colors.Yellow
-		kindColor = colors.Black
-		kindColorBg = colors.YellowBg
+		kindColorBrackets = colors.YellowBgYellow
+		kindColorText = colors.YellowBgBlack
 
 	case Note:
 		sb := strings.Builder{}
@@ -1107,7 +1113,7 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 
 	return fmt.Sprintf("%s%s %s[%s%s%s]%s %s%s%s\n%s",
 		iconColor, kind.Icon(),
-		kindColorBg, kindColor, kind.String(), iconColor, colors.Reset,
+		kindColorBrackets, kindColorText, kind.String(), kindColorBrackets, colors.Reset,
 		colors.Bold, data.Text, colors.Reset,
 		location,
 	)
