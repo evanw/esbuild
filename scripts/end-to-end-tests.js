@@ -25,6 +25,7 @@
 
   const nodeMajorVersion = +process.versions.node.split('.')[0]
   const testDir = path.join(dirname, '.end-to-end-tests')
+  const errorIcon = process.platform !== 'win32' ? '✘' : 'X'
   const esbuildPath = buildBinary()
   const tests = []
   let testCount = 0
@@ -62,7 +63,7 @@
       'entry.js': `import "./file.js/what/is/this"`,
       'file.js': `some file`,
     }, {
-      expectedStderr: `✘ [ERROR] Could not resolve "./file.js/what/is/this"
+      expectedStderr: `${errorIcon} [ERROR] Could not resolve "./file.js/what/is/this"
 
     entry.js:1:7:
       1 │ import "./file.js/what/is/this"
@@ -164,7 +165,7 @@
     test(['example.jsx', '--outfile=node.js'], {
       'example.jsx': `let button = <Button content="some so-called \\"button text\\"" />`,
     }, {
-      expectedStderr: `✘ [ERROR] Unexpected backslash in JSX element
+      expectedStderr: `${errorIcon} [ERROR] Unexpected backslash in JSX element
 
     example.jsx:1:58:
       1 │ let button = <Button content="some so-called \\"button text\\"" />
@@ -189,7 +190,7 @@
     test(['example.jsx', '--outfile=node.js'], {
       'example.jsx': `let button = <Button content='some so-called \\'button text\\'' />`,
     }, {
-      expectedStderr: `✘ [ERROR] Unexpected backslash in JSX element
+      expectedStderr: `${errorIcon} [ERROR] Unexpected backslash in JSX element
 
     example.jsx:1:58:
       1 │ let button = <Button content='some so-called \\'button text\\'' />
@@ -5217,7 +5218,7 @@
         'src/tsconfig.json': `{"extends": "./base.json"}`,
         'src/base.json/x': ``,
       }, {
-        expectedStderr: `✘ [ERROR] Cannot read file "src/base.json": ${errorText}
+        expectedStderr: `${errorIcon} [ERROR] Cannot read file "src/base.json": ${errorText}
 
     src/tsconfig.json:1:12:
       1 │ {"extends": "./base.json"}
@@ -5230,7 +5231,7 @@
         'src/tsconfig.json': `{"extends": "foo"}`,
         'node_modules/foo/tsconfig.json/x': ``,
       }, {
-        expectedStderr: `✘ [ERROR] Cannot read file "node_modules/foo/tsconfig.json": ${errorText}
+        expectedStderr: `${errorIcon} [ERROR] Cannot read file "node_modules/foo/tsconfig.json": ${errorText}
 
     src/tsconfig.json:1:12:
       1 │ {"extends": "foo"}
@@ -5255,7 +5256,7 @@
     test(['in.js', `'--define:process.env.NODE_ENV="production"'`], {
       'in.js': ``,
     }, {
-      expectedStderr: `✘ [ERROR] Unexpected single quote character before flag (use \\" to ` +
+      expectedStderr: `${errorIcon} [ERROR] Unexpected single quote character before flag (use \\" to ` +
         `escape double quotes): '--define:process.env.NODE_ENV="production"'
 
 `,
@@ -5677,7 +5678,7 @@
       `,
       'file.js': `This file should not be imported on Windows`,
     }, {
-      expectedStderr: `✘ [ERROR] Could not resolve "/file.js"
+      expectedStderr: `${errorIcon} [ERROR] Could not resolve "/file.js"
 
     in.js:2:15:
       2 │         import "/file.js"

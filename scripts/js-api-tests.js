@@ -12,6 +12,7 @@ const mkdirAsync = fs.promises.mkdir
 
 const repoDir = path.dirname(__dirname)
 const rootTestDir = path.join(repoDir, 'scripts', '.js-api-tests')
+const errorIcon = process.platform !== 'win32' ? '✘' : 'X'
 
 let buildTests = {
   async errorIfEntryPointsNotArray({ esbuild }) {
@@ -4251,8 +4252,8 @@ let formatTests = {
       kind: 'error',
     })
     assert.strictEqual(messages.length, 2)
-    assert.strictEqual(messages[0], `✘ [ERROR] This is an error\n\n`)
-    assert.strictEqual(messages[1], '✘ [ERROR] Another error\n\n    file.js:0:0:\n      0 │ \n        ╵ ^\n\n')
+    assert.strictEqual(messages[0], `${errorIcon} [ERROR] This is an error\n\n`)
+    assert.strictEqual(messages[1], `${errorIcon} [ERROR] Another error\n\n    file.js:0:0:\n      0 │ \n        ╵ ^\n\n`)
   },
 }
 
@@ -4511,8 +4512,8 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: ERROR: Unexpecte
       kind: 'error',
     })
     assert.strictEqual(messages.length, 2)
-    assert.strictEqual(messages[0], `✘ [ERROR] This is an error\n\n`)
-    assert.strictEqual(messages[1], '✘ [ERROR] Another error\n\n    file.js:0:0:\n      0 │ \n        ╵ ^\n\n')
+    assert.strictEqual(messages[0], `${errorIcon} [ERROR] This is an error\n\n`)
+    assert.strictEqual(messages[1], `${errorIcon} [ERROR] Another error\n\n    file.js:0:0:\n      0 │ \n        ╵ ^\n\n`)
   },
 
   async analyzeMetafileSync({ esbuild }) {
