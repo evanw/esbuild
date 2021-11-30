@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.1
 
 * Fix `imports` in `package.json` ([#1807](https://github.com/evanw/esbuild/issues/1807))
 
