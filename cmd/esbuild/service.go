@@ -787,7 +787,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				if value, ok := response["loader"]; ok {
 					loader, err := cli_helpers.ParseLoader(value.(string))
 					if err != nil {
-						return result, err
+						return result, errors.New(err.Text)
 					}
 					result.Loader = loader
 				}

@@ -9,7 +9,19 @@ import (
 	"github.com/evanw/esbuild/pkg/api"
 )
 
-func ParseLoader(text string) (api.Loader, error) {
+type ErrorWithNote struct {
+	Text string
+	Note string
+}
+
+func MakeErrorWithNote(text string, note string) *ErrorWithNote {
+	return &ErrorWithNote{
+		Text: text,
+		Note: note,
+	}
+}
+
+func ParseLoader(text string) (api.Loader, *ErrorWithNote) {
 	switch text {
 	case "js":
 		return api.LoaderJS, nil
@@ -36,7 +48,9 @@ func ParseLoader(text string) (api.Loader, error) {
 	case "default":
 		return api.LoaderDefault, nil
 	default:
-		return api.LoaderNone, fmt.Errorf("Invalid loader: %q (valid: "+
-			"js, jsx, ts, tsx, css, json, text, base64, dataurl, file, binary)", text)
+		return api.LoaderNone, MakeErrorWithNote(
+			fmt.Sprintf("Invalid loader value: %q", text),
+			"Valid values are \"js\", \"jsx\", \"ts\", \"tsx\", \"css\", \"json\", \"text\", \"base64\", \"dataurl\", \"file\", or \"binary\".",
+		)
 	}
 }

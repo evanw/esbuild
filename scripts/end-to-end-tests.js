@@ -5262,8 +5262,10 @@
     test(['in.js', `'--define:process.env.NODE_ENV="production"'`], {
       'in.js': ``,
     }, {
-      expectedStderr: `${errorIcon} [ERROR] Unexpected single quote character before flag (use \\" to ` +
-        `escape double quotes): '--define:process.env.NODE_ENV="production"'
+      expectedStderr: `${errorIcon} [ERROR] Unexpected single quote character before flag: '--define:process.env.NODE_ENV="production"'
+
+  This typically happens when attempting to use single quotes to quote arguments with a shell that doesn't recognize single quotes. `+
+        `Try using double quote characters to quote arguments instead.
 
 `,
     }),

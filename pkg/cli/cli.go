@@ -18,6 +18,8 @@
 package cli
 
 import (
+	"errors"
+
 	"github.com/evanw/esbuild/pkg/api"
 )
 
@@ -46,7 +48,10 @@ func Run(osArgs []string) int {
 //
 func ParseBuildOptions(osArgs []string) (options api.BuildOptions, err error) {
 	options = newBuildOptions()
-	err, _ = parseOptionsImpl(osArgs, &options, nil, kindExternal)
+	errWithNote, _ := parseOptionsImpl(osArgs, &options, nil, kindExternal)
+	if errWithNote != nil {
+		err = errors.New(errWithNote.Text)
+	}
 	return
 }
 
@@ -66,7 +71,10 @@ func ParseBuildOptions(osArgs []string) (options api.BuildOptions, err error) {
 //
 func ParseTransformOptions(osArgs []string) (options api.TransformOptions, err error) {
 	options = newTransformOptions()
-	err, _ = parseOptionsImpl(osArgs, nil, &options, kindExternal)
+	errWithNote, _ := parseOptionsImpl(osArgs, nil, &options, kindExternal)
+	if errWithNote != nil {
+		err = errors.New(errWithNote.Text)
+	}
 	return
 }
 
