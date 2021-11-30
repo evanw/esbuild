@@ -1043,17 +1043,17 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 		maxMargin := len(fmt.Sprintf("%d", data.Location.Line))
 		d := detailStruct(data, terminalInfo, maxMargin)
 		if d.Suggestion != "" {
-			location = fmt.Sprintf("\n    %s%s:%d:%d:\n%s%s%s%s%s\n%s%s%s%s%s\n%s%s%s%s%s\n%s",
-				colors.Dim, d.Path, d.Line, d.Column,
-				d.SourceBefore, colors.Green, d.SourceMarked, colors.Dim, d.SourceAfter,
+			location = fmt.Sprintf("\n    %s:%d:%d:\n%s%s%s%s%s%s\n%s%s%s%s%s\n%s%s%s%s%s\n%s",
+				d.Path, d.Line, d.Column,
+				colors.Dim, d.SourceBefore, colors.Green, d.SourceMarked, colors.Dim, d.SourceAfter,
 				emptyMarginText(maxMargin, false), d.Indent, colors.Green, d.Marker, colors.Dim,
 				emptyMarginText(maxMargin, true), d.Indent, colors.Green, d.Suggestion, colors.Reset,
 				d.ContentAfter,
 			)
 		} else {
-			location = fmt.Sprintf("\n    %s%s:%d:%d:\n%s%s%s%s%s\n%s%s%s%s%s\n%s",
-				colors.Dim, d.Path, d.Line, d.Column,
-				d.SourceBefore, colors.Green, d.SourceMarked, colors.Dim, d.SourceAfter,
+			location = fmt.Sprintf("\n    %s:%d:%d:\n%s%s%s%s%s%s\n%s%s%s%s%s\n%s",
+				d.Path, d.Line, d.Column,
+				colors.Dim, d.SourceBefore, colors.Green, d.SourceMarked, colors.Dim, d.SourceAfter,
 				emptyMarginText(maxMargin, true), d.Indent, colors.Green, d.Marker, colors.Reset,
 				d.ContentAfter,
 			)

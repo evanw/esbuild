@@ -1597,11 +1597,11 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		// a better error message instead of later when we're inside the algorithm
 		if importPath == "#" || strings.HasPrefix(importPath, "#/") {
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("The path %q must not equal \"#\" and must not start with \"#/\"", importPath))
+				r.debugLogs.addNote(fmt.Sprintf("The path %q must not equal \"#\" and must not start with \"#/\".", importPath))
 			}
 			tracker := logger.MakeLineColumnTracker(&packageJSON.source)
 			r.debugMeta.notes = append(r.debugMeta.notes, tracker.MsgData(packageJSON.importsMap.root.firstToken,
-				fmt.Sprintf("This \"imports\" map was ignored because the module specifier %q is invalid", importPath)))
+				fmt.Sprintf("This \"imports\" map was ignored because the module specifier %q is invalid:", importPath)))
 			return PathPair{}, false, nil
 		}
 
@@ -1626,7 +1626,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 				tracker := logger.MakeLineColumnTracker(&packageJSON.source)
 				r.debugMeta.notes = append(
 					[]logger.MsgData{tracker.MsgData(debug.token,
-						fmt.Sprintf("The remapped path %q could not be resolved", resolvedPath))},
+						fmt.Sprintf("The remapped path %q could not be resolved:", resolvedPath))},
 					r.debugMeta.notes...)
 			}
 			return absolute, ok, diffCase
@@ -1798,14 +1798,14 @@ func (r resolverQuery) finalizeImportsExportsResult(
 	switch status {
 	case pjStatusInvalidModuleSpecifier:
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
-			fmt.Sprintf("The module specifier %q is invalid", resolvedPath))}
+			fmt.Sprintf("The module specifier %q is invalid:", resolvedPath))}
 
 	case pjStatusInvalidPackageConfiguration:
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
 			"The package configuration has an invalid value here:")}
 
 	case pjStatusInvalidPackageTarget:
-		why := fmt.Sprintf("The package target %q is invalid", resolvedPath)
+		why := fmt.Sprintf("The package target %q is invalid:", resolvedPath)
 		if resolvedPath == "" {
 			// "PACKAGE_TARGET_RESOLVE" is specified to throw an "Invalid
 			// Package Target" error for what is actually an invalid package
@@ -1816,7 +1816,7 @@ func (r resolverQuery) finalizeImportsExportsResult(
 
 	case pjStatusPackagePathNotExported:
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
-			fmt.Sprintf("The path %q is not exported by package %q", esmPackageSubpath, esmPackageName))}
+			fmt.Sprintf("The path %q is not exported by package %q:", esmPackageSubpath, esmPackageName))}
 
 		// If this fails, try to resolve it using the old algorithm
 		if absolute, ok, _ := r.loadAsFileOrDirectory(absImportPath); ok && absolute.Primary.Namespace == "file" {
@@ -1828,12 +1828,12 @@ func (r resolverQuery) finalizeImportsExportsResult(
 				if ok, subpath, token := r.esmPackageExportsReverseResolve(
 					query, importExportMap.root, conditions); ok {
 					r.debugMeta.notes = append(r.debugMeta.notes, tracker.MsgData(token,
-						fmt.Sprintf("The file %q is exported at path %q", query, subpath)))
+						fmt.Sprintf("The file %q is exported at path %q:", query, subpath)))
 
 					// Provide an inline suggestion message with the correct import path
 					actualImportPath := path.Join(esmPackageName, subpath)
 					r.debugMeta.suggestionText = string(js_printer.QuoteForJSON(actualImportPath, false))
-					r.debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q",
+					r.debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q:",
 						actualImportPath, r.PrettyPath(absolute.Primary))
 				}
 			}
@@ -1841,15 +1841,15 @@ func (r resolverQuery) finalizeImportsExportsResult(
 
 	case pjStatusPackageImportNotDefined:
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
-			fmt.Sprintf("The package import %q is not defined in this \"imports\" map", resolvedPath))}
+			fmt.Sprintf("The package import %q is not defined in this \"imports\" map:", resolvedPath))}
 
 	case pjStatusModuleNotFound:
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
-			fmt.Sprintf("The module %q was not found on the file system", resolvedPath))}
+			fmt.Sprintf("The module %q was not found on the file system:", resolvedPath))}
 
 	case pjStatusUnsupportedDirectoryImport:
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
-			fmt.Sprintf("Importing the directory %q is not supported", resolvedPath))}
+			fmt.Sprintf("Importing the directory %q is not supported:", resolvedPath))}
 
 	case pjStatusUndefinedNoConditionsMatch:
 		prettyPrintConditions := func(conditions []string) string {
@@ -1866,18 +1866,18 @@ func (r resolverQuery) finalizeImportsExportsResult(
 		sort.Strings(keys)
 		r.debugMeta.notes = []logger.MsgData{
 			tracker.MsgData(importExportMap.root.firstToken,
-				fmt.Sprintf("The path %q is not currently exported by package %q",
+				fmt.Sprintf("The path %q is not currently exported by package %q:",
 					esmPackageSubpath, esmPackageName)),
 			tracker.MsgData(debug.token,
-				fmt.Sprintf("None of the conditions provided (%s) match any of the currently active conditions (%s)",
+				fmt.Sprintf("None of the conditions provided (%s) match any of the currently active conditions (%s):",
 					prettyPrintConditions(debug.unmatchedConditions),
 					prettyPrintConditions(keys),
 				))}
 		for _, key := range debug.unmatchedConditions {
 			if key == "import" && (r.kind == ast.ImportRequire || r.kind == ast.ImportRequireResolve) {
-				r.debugMeta.suggestionMessage = "Consider using an \"import\" statement to import this file"
+				r.debugMeta.suggestionMessage = "Consider using an \"import\" statement to import this file:"
 			} else if key == "require" && (r.kind == ast.ImportStmt || r.kind == ast.ImportDynamic) {
-				r.debugMeta.suggestionMessage = "Consider using a \"require()\" call to import this file"
+				r.debugMeta.suggestionMessage = "Consider using a \"require()\" call to import this file:"
 			}
 		}
 	}

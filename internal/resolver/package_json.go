@@ -257,8 +257,10 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 			case "module":
 				packageJSON.moduleType = config.ModuleESM
 			default:
-				r.log.Add(logger.Warning, &tracker, jsonSource.RangeOfString(typeJSON.Loc),
-					fmt.Sprintf("%q is not a valid value for the \"type\" field (must be either \"commonjs\" or \"module\")", typeValue))
+				r.log.AddWithNotes(logger.Warning, &tracker, jsonSource.RangeOfString(typeJSON.Loc),
+					fmt.Sprintf("%q is not a valid value for the \"type\" field", typeValue),
+					[]logger.MsgData{{Text: "The \"type\" field must be set to either \"commonjs\" or \"module\"."}},
+				)
 			}
 		} else {
 			r.log.Add(logger.Warning, &tracker, logger.Range{Loc: typeJSON.Loc},
@@ -566,7 +568,7 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 					log.AddWithNotes(logger.Warning, &tracker, keyRange,
 						"This object cannot contain keys that both start with \".\" and don't start with \".\"",
 						[]logger.MsgData{tracker.MsgData(prevEntry.keyRange,
-							fmt.Sprintf("The previous key %q is incompatible with the current key %q", prevEntry.key, key))})
+							fmt.Sprintf("The key %q is incompatible with the previous key %q:", key, prevEntry.key))})
 					return pjEntry{
 						kind:       pjInvalid,
 						firstToken: firstToken,
@@ -607,7 +609,8 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 			firstToken.Loc = expr.Loc
 		}
 
-		log.Add(logger.Warning, &tracker, firstToken, "This value must be a string, an object, an array, or null")
+		log.Add(logger.Warning, &tracker, firstToken,
+			"This value must be a string, an object, an array, or null")
 		return pjEntry{
 			kind:       pjInvalid,
 			firstToken: firstToken,
