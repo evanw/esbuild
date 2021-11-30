@@ -3473,6 +3473,22 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			return p.parseParenExpr(loc, level, parenExprOpts{forceArrowFn: true})
 		}
 
+		// Print a friendly error message when parsing JSX as JavaScript
+		if !p.options.jsx.Parse && !p.options.ts.Parse {
+			var how string
+			switch logger.API {
+			case logger.CLIAPI:
+				how = " You can use \"--loader:.js=jsx\" to do that."
+			case logger.JSAPI:
+				how = " You can use \"loader: { '.js': 'jsx' }\" to do that."
+			case logger.GoAPI:
+				how = " You can use 'Loader: map[string]api.Loader{\".js\": api.LoaderJSX}' to do that."
+			}
+			p.log.AddWithNotes(logger.Error, &p.tracker, p.lexer.Range(), "The JSX syntax extension is not currently enabled", []logger.MsgData{{
+				Text: "The esbuild loader for this file is currently set to \"js\" but it must be set to \"jsx\" to be able to parse JSX syntax." + how}})
+			p.options.jsx.Parse = true
+		}
+
 		if p.options.jsx.Parse {
 			// Use NextInsideJSXElement() instead of Next() so we parse "<<" as "<"
 			p.lexer.NextInsideJSXElement()

@@ -493,7 +493,8 @@ func TestJSXSyntaxInJS(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: ERROR: Unexpected "<"
+		expectedScanLog: `entry.js: ERROR: The JSX syntax extension is not currently enabled
+NOTE: The esbuild loader for this file is currently set to "js" but it must be set to "jsx" to be able to parse JSX syntax. You can use 'Loader: map[string]api.Loader{".js": api.LoaderJSX}' to do that.
 `,
 	})
 }

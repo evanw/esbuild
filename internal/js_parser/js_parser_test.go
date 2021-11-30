@@ -4153,7 +4153,9 @@ func TestNewTarget(t *testing.T) {
 }
 
 func TestJSX(t *testing.T) {
-	expectParseError(t, "<a/>", "<stdin>: ERROR: Unexpected \"<\"\n")
+	expectParseError(t, "<a/>", "<stdin>: ERROR: The JSX syntax extension is not currently enabled\n"+
+		"NOTE: The esbuild loader for this file is currently set to \"js\" but it must be set to \"jsx\" to be able to parse JSX syntax. "+
+		"You can use 'Loader: map[string]api.Loader{\".js\": api.LoaderJSX}' to do that.\n")
 
 	expectPrintedJSX(t, "<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
 	expectPrintedJSX(t, "<a></a>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
