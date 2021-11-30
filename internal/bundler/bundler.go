@@ -597,7 +597,7 @@ func extractSourceMapFromComment(
 	return logger.Path{}, nil
 }
 
-func sanetizeLocation(res resolver.Resolver, loc *logger.MsgLocation) {
+func sanitizeLocation(res resolver.Resolver, loc *logger.MsgLocation) {
 	if loc != nil {
 		if loc.Namespace == "" {
 			loc.Namespace = "file"
@@ -631,12 +631,12 @@ func logPluginMessages(
 
 		// Sanitize the locations
 		for _, note := range msg.Notes {
-			sanetizeLocation(res, note.Location)
+			sanitizeLocation(res, note.Location)
 		}
 		if msg.Data.Location == nil {
 			msg.Data.Location = tracker.MsgLocationOrNil(importPathRange)
 		} else {
-			sanetizeLocation(res, msg.Data.Location)
+			sanitizeLocation(res, msg.Data.Location)
 			if msg.Data.Location.File == "" && importSource != nil {
 				msg.Data.Location.File = importSource.PrettyPath
 			}
