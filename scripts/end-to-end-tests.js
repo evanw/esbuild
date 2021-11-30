@@ -599,6 +599,8 @@
           if (\`\${obj}c\` !== 'bc') throw 'fail'
           if (\`a\${obj}c\` !== 'abc') throw 'fail'
         `,
+      }),
+      test(['in.js', '--outfile=node.js', target], {
         'in.js': `
           var obj = {}
           obj[Symbol.toPrimitive] = hint => {
@@ -610,14 +612,18 @@
           if (\`\${obj}c\` !== 'bc') throw 'fail'
           if (\`a\${obj}c\` !== 'abc') throw 'fail'
         `,
+      }),
+      test(['in.js', '--outfile=node.js', target], {
         'in.js': `
           var list = []
           var trace = x => list.push(x)
-          var obj2 = { toString: () => trace(2) }
-          var obj4 = { toString: () => trace(4) }
+          var obj2 = { toString: () => trace(2) };
+          var obj4 = { toString: () => trace(4) };
           \`\${trace(1), obj2}\${trace(3), obj4}\`
           if (list.join('') !== '1234') throw 'fail'
         `,
+      }),
+      test(['in.js', '--outfile=node.js', target], {
         'in.js': `
           x: {
             try {
