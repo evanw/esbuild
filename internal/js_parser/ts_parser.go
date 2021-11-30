@@ -928,8 +928,9 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 
 	// Parse the body
 	for p.lexer.Token != js_lexer.TCloseBrace {
+		nameRange := p.lexer.Range()
 		value := js_ast.EnumValue{
-			Loc: p.lexer.Loc(),
+			Loc: nameRange.Loc,
 			Ref: js_ast.InvalidRef,
 		}
 
@@ -967,6 +968,29 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 		}
 
 		if p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TSemicolon {
+			if p.lexer.IsIdentifierOrKeyword() || p.lexer.Token == js_lexer.TStringLiteral {
+				var errorLoc logger.Loc
+				var errorText string
+
+				if value.ValueOrNil.Data == nil {
+					errorLoc = logger.Loc{Start: nameRange.End()}
+					errorText = fmt.Sprintf("Expected \",\" after %q in enum", nameText)
+				} else {
+					var nextName string
+					if p.lexer.Token == js_lexer.TStringLiteral {
+						nextName = js_lexer.UTF16ToString(p.lexer.StringLiteral())
+					} else {
+						nextName = p.lexer.Identifier
+					}
+					errorLoc = p.lexer.Loc()
+					errorText = fmt.Sprintf("Expected \",\" before %q in enum", nextName)
+				}
+
+				data := p.tracker.MsgData(logger.Range{Loc: errorLoc}, errorText)
+				data.Location.Suggestion = ","
+				p.log.AddMsg(logger.Msg{Kind: logger.Error, Data: data})
+				panic(js_lexer.LexerPanic{})
+			}
 			break
 		}
 		p.lexer.Next()

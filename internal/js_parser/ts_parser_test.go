@@ -1024,6 +1024,11 @@ func TestTSNamespaceDestructuring(t *testing.T) {
 }
 
 func TestTSEnum(t *testing.T) {
+	expectParseErrorTS(t, "enum x { y z }", "<stdin>: ERROR: Expected \",\" after \"y\" in enum\n")
+	expectParseErrorTS(t, "enum x { 'y' 'z' }", "<stdin>: ERROR: Expected \",\" after \"y\" in enum\n")
+	expectParseErrorTS(t, "enum x { y = 0 z }", "<stdin>: ERROR: Expected \",\" before \"z\" in enum\n")
+	expectParseErrorTS(t, "enum x { 'y' = 0 'z' }", "<stdin>: ERROR: Expected \",\" before \"z\" in enum\n")
+
 	// Check ES5 emit
 	expectPrintedTargetTS(t, 5, "enum x { y = 1 }", "var x = /* @__PURE__ */ function(x) {\n  x[x[\"y\"] = 1] = \"y\";\n  return x;\n}(x || {});\n")
 	expectPrintedTargetTS(t, 2015, "enum x { y = 1 }", "var x = /* @__PURE__ */ ((x) => {\n  x[x[\"y\"] = 1] = \"y\";\n  return x;\n})(x || {});\n")
