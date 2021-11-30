@@ -602,7 +602,7 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *string, *api.Trans
 			options := newBuildOptions()
 
 			// Apply defaults appropriate for the CLI
-			options.LogLimit = 10
+			options.LogLimit = 6
 			options.LogLevel = api.LogLevelInfo
 			options.Write = true
 
@@ -618,7 +618,7 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *string, *api.Trans
 	options := newTransformOptions()
 
 	// Apply defaults appropriate for the CLI
-	options.LogLimit = 10
+	options.LogLimit = 6
 	options.LogLevel = api.LogLevelInfo
 
 	err, _ := parseOptionsImpl(osArgs, nil, &options, kindInternal)
