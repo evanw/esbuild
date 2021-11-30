@@ -645,6 +645,9 @@ func (dc *duplicateCaseChecker) check(p *parser, expr js_ast.Expr) {
 
 func duplicateCaseHash(expr js_ast.Expr) (uint32, bool) {
 	switch e := expr.Data.(type) {
+	case *js_ast.EInlinedEnum:
+		return duplicateCaseHash(e.Value)
+
 	case *js_ast.ENull:
 		return 0, true
 
@@ -695,7 +698,14 @@ func duplicateCaseHash(expr js_ast.Expr) (uint32, bool) {
 }
 
 func duplicateCaseEquals(left js_ast.Expr, right js_ast.Expr) (equals bool, couldBeIncorrect bool) {
+	if b, ok := right.Data.(*js_ast.EInlinedEnum); ok {
+		return duplicateCaseEquals(left, b.Value)
+	}
+
 	switch a := left.Data.(type) {
+	case *js_ast.EInlinedEnum:
+		return duplicateCaseEquals(a.Value, right)
+
 	case *js_ast.ENull:
 		_, ok := right.Data.(*js_ast.ENull)
 		return ok, false
@@ -751,8 +761,11 @@ func isJumpStatement(data js_ast.S) bool {
 	return false
 }
 
-func isPrimitiveToReorder(e js_ast.E) bool {
-	switch e.(type) {
+func isPrimitiveToReorder(data js_ast.E) bool {
+	switch e := data.(type) {
+	case *js_ast.EInlinedEnum:
+		return isPrimitiveToReorder(e.Value.Data)
+
 	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EString, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt:
 		return true
 	}
@@ -768,7 +781,10 @@ const (
 
 func toNullOrUndefinedWithSideEffects(data js_ast.E) (isNullOrUndefined bool, sideEffects sideEffects, ok bool) {
 	switch e := data.(type) {
-	// Never null or undefined
+	case *js_ast.EInlinedEnum:
+		return toNullOrUndefinedWithSideEffects(e.Value.Data)
+
+		// Never null or undefined
 	case *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EString, *js_ast.ERegExp,
 		*js_ast.EFunction, *js_ast.EArrow, *js_ast.EBigInt:
 		return false, noSideEffects, true
@@ -825,6 +841,9 @@ func toNullOrUndefinedWithSideEffects(data js_ast.E) (isNullOrUndefined bool, si
 
 func toBooleanWithSideEffects(data js_ast.E) (boolean bool, sideEffects sideEffects, ok bool) {
 	switch e := data.(type) {
+	case *js_ast.EInlinedEnum:
+		return toBooleanWithSideEffects(e.Value.Data)
+
 	case *js_ast.ENull, *js_ast.EUndefined:
 		return false, noSideEffects, true
 
@@ -888,6 +907,9 @@ func toBooleanWithSideEffects(data js_ast.E) (boolean bool, sideEffects sideEffe
 
 func toNumberWithoutSideEffects(data js_ast.E) (float64, bool) {
 	switch e := data.(type) {
+	case *js_ast.EInlinedEnum:
+		return toNumberWithoutSideEffects(e.Value.Data)
+
 	case *js_ast.ENull:
 		return 0, true
 
@@ -912,7 +934,10 @@ func toNumberWithoutSideEffects(data js_ast.E) (float64, bool) {
 // statically determined and this expression has no side effects (i.e. can be
 // removed without consequence).
 func typeofWithoutSideEffects(data js_ast.E) (string, bool) {
-	switch data.(type) {
+	switch e := data.(type) {
+	case *js_ast.EInlinedEnum:
+		return typeofWithoutSideEffects(e.Value.Data)
+
 	case *js_ast.ENull:
 		return "object", true
 
@@ -943,6 +968,9 @@ func typeofWithoutSideEffects(data js_ast.E) (string, bool) {
 // cannot be removed due to side effects.
 func isPrimitiveWithSideEffects(data js_ast.E) bool {
 	switch e := data.(type) {
+	case *js_ast.EInlinedEnum:
+		return isPrimitiveWithSideEffects(e.Value.Data)
+
 	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt, *js_ast.EString:
 		return true
 
@@ -998,7 +1026,14 @@ func isPrimitiveWithSideEffects(data js_ast.E) bool {
 // values. If "ok" is true, the equality or inequality of the two values is
 // stored in "equal".
 func checkEqualityIfNoSideEffects(left js_ast.E, right js_ast.E) (bool, bool) {
+	if r, ok := right.(*js_ast.EInlinedEnum); ok {
+		return checkEqualityIfNoSideEffects(left, r.Value.Data)
+	}
+
 	switch l := left.(type) {
+	case *js_ast.EInlinedEnum:
+		return checkEqualityIfNoSideEffects(l.Value.Data, right)
+
 	case *js_ast.ENull:
 		_, ok := right.(*js_ast.ENull)
 		return ok, ok
@@ -1028,7 +1063,14 @@ func checkEqualityIfNoSideEffects(left js_ast.E, right js_ast.E) (bool, bool) {
 }
 
 func valuesLookTheSame(left js_ast.E, right js_ast.E) bool {
+	if b, ok := right.(*js_ast.EInlinedEnum); ok {
+		return valuesLookTheSame(left, b.Value.Data)
+	}
+
 	switch a := left.(type) {
+	case *js_ast.EInlinedEnum:
+		return valuesLookTheSame(a.Value.Data, right)
+
 	case *js_ast.EIdentifier:
 		if b, ok := right.(*js_ast.EIdentifier); ok && a.Ref == b.Ref {
 			return true
@@ -10516,11 +10558,11 @@ func (p *parser) maybeRewritePropertyAccess(
 				switch m := member.Data.(type) {
 				case *js_ast.TSNamespaceMemberEnumNumber:
 					p.ignoreUsageOfIdentifierInDotChain(target)
-					return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}, true
+					return p.wrapInlinedEnum(js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}, name), true
 
 				case *js_ast.TSNamespaceMemberEnumString:
 					p.ignoreUsageOfIdentifierInDotChain(target)
-					return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}, true
+					return p.wrapInlinedEnum(js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}, name), true
 
 				case *js_ast.TSNamespaceMemberNamespace:
 					// If this isn't a constant, return a clone of this property access
@@ -13114,10 +13156,10 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 					if member, ok := ns.ExportedMembers[nsAlias.Alias]; ok {
 						switch m := member.Data.(type) {
 						case *js_ast.TSNamespaceMemberEnumNumber:
-							return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}
+							return p.wrapInlinedEnum(js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}, nsAlias.Alias)
 
 						case *js_ast.TSNamespaceMemberEnumString:
-							return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}
+							return p.wrapInlinedEnum(js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}, nsAlias.Alias)
 
 						case *js_ast.TSNamespaceMemberNamespace:
 							p.tsNamespaceTarget = data
@@ -13144,10 +13186,10 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 	if tsMemberData, ok := p.refToTSNamespaceMemberData[ref]; ok {
 		switch m := tsMemberData.(type) {
 		case *js_ast.TSNamespaceMemberEnumNumber:
-			return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}
+			return p.wrapInlinedEnum(js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}, p.symbols[ref.InnerIndex].OriginalName)
 
 		case *js_ast.TSNamespaceMemberEnumString:
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}
+			return p.wrapInlinedEnum(js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}, p.symbols[ref.InnerIndex].OriginalName)
 
 		case *js_ast.TSNamespaceMemberNamespace:
 			p.tsNamespaceTarget = e
@@ -13878,6 +13920,9 @@ func (p *parser) bindingCanBeRemovedIfUnused(binding js_ast.Binding) bool {
 
 func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 	switch e := expr.Data.(type) {
+	case *js_ast.EInlinedEnum:
+		return p.exprCanBeRemovedIfUnused(e.Value)
+
 	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EMissing, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt,
 		*js_ast.EString, *js_ast.EThis, *js_ast.ERegExp, *js_ast.EFunction, *js_ast.EArrow, *js_ast.EImportMeta:
 		return true
@@ -14071,6 +14116,9 @@ func (p *parser) isSideEffectFreeUnboundIdentifierRef(value js_ast.Expr, guardCo
 // This will return a nil expression if the expression can be totally removed
 func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 	switch e := expr.Data.(type) {
+	case *js_ast.EInlinedEnum:
+		return p.simplifyUnusedExpr(e.Value)
+
 	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EMissing, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt,
 		*js_ast.EString, *js_ast.EThis, *js_ast.ERegExp, *js_ast.EFunction, *js_ast.EArrow, *js_ast.EImportMeta:
 		return js_ast.Expr{}

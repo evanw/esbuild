@@ -90,6 +90,24 @@
 
     Note that esbuild's formatted log output is for humans, not for machines. If you need to output a stable machine-readable format, you should be using the API for that. Build and transform results have arrays called `errors` and `warnings` with objects that represent the log messages.
 
+* Show inlined enum value names in comments
+
+    When esbuild inlines an enum, it will now put a comment next to it with the original enum name:
+
+    ```ts
+    // Original code
+    const enum Foo { FOO }
+    console.log(Foo.FOO)
+
+    // Old output
+    console.log(0);
+
+    // New output
+    console.log(0 /* FOO */);
+    ```
+
+    This matches the behavior of the TypeScript compiler, and should help with debugging. These comments are not generated if minification is enabled.
+
 ## 0.14.0
 
 **This release contains backwards-incompatible changes.** Since esbuild is before version 1.0.0, these changes have been released as a new minor version to reflect this (as [recommended by npm](https://docs.npmjs.com/cli/v6/using-npm/semver/)). You should either be pinning the exact version of `esbuild` in your `package.json` file or be using a version range syntax that only accepts patch upgrades such as `~0.13.0`. See the documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

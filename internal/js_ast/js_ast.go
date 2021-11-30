@@ -417,6 +417,7 @@ func (*ESpread) isExpr()               {}
 func (*EString) isExpr()               {}
 func (*ETemplate) isExpr()             {}
 func (*ERegExp) isExpr()               {}
+func (*EInlinedEnum) isExpr()          {}
 func (*EAwait) isExpr()                {}
 func (*EYield) isExpr()                {}
 func (*EIf) isExpr()                   {}
@@ -663,6 +664,11 @@ type ETemplate struct {
 
 type ERegExp struct{ Value string }
 
+type EInlinedEnum struct {
+	Value   Expr
+	Comment string
+}
+
 type EAwait struct {
 	Value Expr
 }
@@ -745,6 +751,11 @@ func Not(expr Expr) Expr {
 // that is undesired.
 func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 	switch e := expr.Data.(type) {
+	case *EInlinedEnum:
+		if value, ok := MaybeSimplifyNot(e.Value); ok {
+			return value, true
+		}
+
 	case *ENull, *EUndefined:
 		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: true}}, true
 
@@ -806,6 +817,9 @@ func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 
 func IsBooleanValue(a Expr) bool {
 	switch e := a.Data.(type) {
+	case *EInlinedEnum:
+		return IsBooleanValue(e.Value)
+
 	case *EBoolean:
 		return true
 
@@ -835,6 +849,9 @@ func IsBooleanValue(a Expr) bool {
 
 func IsNumericValue(a Expr) bool {
 	switch e := a.Data.(type) {
+	case *EInlinedEnum:
+		return IsNumericValue(e.Value)
+
 	case *ENumber:
 		return true
 
@@ -875,6 +892,9 @@ func IsNumericValue(a Expr) bool {
 
 func IsStringValue(a Expr) bool {
 	switch e := a.Data.(type) {
+	case *EInlinedEnum:
+		return IsStringValue(e.Value)
+
 	case *EString:
 		return true
 

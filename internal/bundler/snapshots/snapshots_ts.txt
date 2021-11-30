@@ -117,14 +117,14 @@ export var Foo = /* @__PURE__ */ ((Foo2) => {
   Foo2["Div"] = "div";
   return Foo2;
 })(Foo || {});
-console.log(/* @__PURE__ */ React.createElement("div", null));
+console.log(/* @__PURE__ */ React.createElement("div" /* Div */, null));
 
 ---------- /out/fragment.js ----------
 export var React = /* @__PURE__ */ ((React2) => {
   React2["Fragment"] = "div";
   return React2;
 })(React || {});
-console.log(/* @__PURE__ */ React.createElement("div", null, "test"));
+console.log(/* @__PURE__ */ React.createElement("div" /* Fragment */, null, "test"));
 
 ---------- /out/nested-element.js ----------
 var x;
@@ -140,7 +140,7 @@ var x;
 ((x2) => {
   let y;
   ((y2) => {
-    console.log(/* @__PURE__ */ React.createElement("div", null));
+    console.log(/* @__PURE__ */ React.createElement("div" /* Div */, null));
   })(y = x2.y || (x2.y = {}));
 })(x || (x = {}));
 
@@ -158,7 +158,7 @@ var x;
 ((x2) => {
   let y;
   ((y2) => {
-    console.log(/* @__PURE__ */ y2.React.createElement("div", null, "test"));
+    console.log(/* @__PURE__ */ y2.React.createElement("div" /* Fragment */, null, "test"));
   })(y = x2.y || (x2.y = {}));
 })(x || (x = {}));
 
@@ -166,7 +166,7 @@ var x;
 TestTSEnumTreeShaking
 ---------- /out/simple-member.js ----------
 // simple-member.ts
-console.log(123);
+console.log(123 /* y */);
 
 ---------- /out/simple-enum.js ----------
 // simple-enum.ts
@@ -178,7 +178,7 @@ console.log(x);
 
 ---------- /out/sibling-member.js ----------
 // sibling-member.ts
-console.log(123, 246);
+console.log(123 /* y */, 246 /* z */);
 
 ---------- /out/sibling-enum-before.js ----------
 // sibling-enum-before.ts
@@ -504,7 +504,7 @@ var x = /* @__PURE__ */ ((x2) => {
 ((x2) => {
   console.log(y, z);
 })(x || (x = {}));
-console.log(0, 1);
+console.log(0 /* y */, 1 /* z */);
 
 ---------- /out/string.js ----------
 export var x = /* @__PURE__ */ ((x2) => {
@@ -519,7 +519,7 @@ var x = /* @__PURE__ */ ((x2) => {
 ((x2) => {
   console.log(y, z);
 })(x || (x = {}));
-console.log("a", "a");
+console.log("a" /* y */, "a" /* z */);
 
 ---------- /out/propagation.js ----------
 export var a = /* @__PURE__ */ ((a2) => {
@@ -537,7 +537,7 @@ var x = /* @__PURE__ */ ((x2) => {
   x2[x2["g"] = 625] = "g";
   return x2;
 })(x || {});
-console.log(100, 100, 625, 625);
+console.log(100 /* b */, 100 /* b */, 625 /* g */, 625 /* g */);
 
 ---------- /out/nested-number.js ----------
 export var foo;
@@ -558,7 +558,7 @@ export var foo;
   let x;
   ((x2) => {
     console.log(y, z);
-    console.log(0, 1);
+    console.log(0 /* y */, 1 /* z */);
   })(x = foo2.x || (foo2.x = {}));
 })(foo || (foo = {}));
 
@@ -581,7 +581,7 @@ export var foo;
   let x;
   ((x2) => {
     console.log(y, z);
-    console.log("a", "a");
+    console.log("a" /* y */, "a" /* z */);
   })(x = foo2.x || (foo2.x = {}));
 })(foo || (foo = {}));
 
@@ -607,7 +607,7 @@ export var n;
   ((x2) => {
     x2[x2["g"] = 625] = "g";
   })(x = n2.x || (n2.x = {}));
-  console.log(100, 100, 100, 625, 625, 625);
+  console.log(100 /* b */, 100 /* b */, 100 /* b */, 625 /* g */, 625 /* g */, 625 /* g */);
 })(n || (n = {}));
 
 ================================================================================

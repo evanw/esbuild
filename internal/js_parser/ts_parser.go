@@ -6,6 +6,7 @@ package js_parser
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/js_ast"
@@ -1560,4 +1561,17 @@ func (p *parser) generateClosureForTypeScriptEnum(
 	p.emittedNamespaceVars[nameRef] = true
 
 	return stmts
+}
+
+func (p *parser) wrapInlinedEnum(value js_ast.Expr, comment string) js_ast.Expr {
+	if p.shouldFoldNumericConstants || p.options.mangleSyntax || strings.Contains(comment, "*/") {
+		// Don't wrap with a comment
+		return value
+	}
+
+	// Wrap with a comment
+	return js_ast.Expr{Loc: value.Loc, Data: &js_ast.EInlinedEnum{
+		Value:   value,
+		Comment: comment,
+	}}
 }

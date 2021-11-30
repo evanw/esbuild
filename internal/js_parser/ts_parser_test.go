@@ -1113,8 +1113,8 @@ var Bar = /* @__PURE__ */ ((Bar) => {
   Foo[Foo["A"] = 0] = "A";
   return Foo;
 })(Foo || {});
-x = [0, Foo?.A, Foo?.A()];
-y = [0, Foo?.["A"], Foo?.["A"]()];
+x = [0 /* A */, Foo?.A, Foo?.A()];
+y = [0 /* A */, Foo?.["A"], Foo?.["A"]()];
 `)
 
 	// Check shadowing
