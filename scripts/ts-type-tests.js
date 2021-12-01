@@ -113,6 +113,7 @@ const tests = {
           jsxFragmentFactory: '',
           useDefineForClassFields: true,
           importsNotUsedAsValues: 'preserve',
+          preserveValueImports: true,
         },
       },
       sourcefile: '',
