@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Disable star-to-clause transform for external imports ([#1801](https://github.com/evanw/esbuild/issues/1801))
+
+    When bundling is enabled, esbuild automatically transforms `import * as x from 'y'; x.z()` into `import {z} as 'y'; z()` to improve tree shaking. This avoids needing to create the import namespace object `x` if it's unnecessary, which can result in the removal of large amounts of unused code. However, this transform shouldn't be done for external imports because that incorrectly changes the semantics of the import. If the export `z` doesn't exist in the previous example, the value `x.z` is a property access that is undefined at run-time, but the value `z` is an import error that will prevent the code from running entirely. This release fixes the problem by avoiding doing this transform for external imports:
+
+    ```js
+    // Original code
+    import * as x from 'y';
+    x.z();
+
+    // Old output (with --bundle --format=esm --external:y)
+    import { z } from "y";
+    z();
+
+    // New output (with --bundle --format=esm --external:y)
+    import * as x from "y";
+    x.z();
+    ```
+
 ## 0.14.1
 
 * Fix `imports` in `package.json` ([#1807](https://github.com/evanw/esbuild/issues/1807))

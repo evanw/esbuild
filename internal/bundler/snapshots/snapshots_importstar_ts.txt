@@ -43,8 +43,8 @@ var require_foo = __commonJS({
 
 // entry.ts
 var ns = __toModule(require_foo());
-var foo = 234;
-console.log(ns, ns.foo, foo);
+var foo2 = 234;
+console.log(ns, ns.foo, foo2);
 
 ================================================================================
 TestTSImportStarCommonJSNoCapture

@@ -2156,7 +2156,8 @@ loop:
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
 				c.log.Add(logger.Warning, trackerFile.LineColumnTracker(), r, fmt.Sprintf(
-					"Import %q will always be undefined because there is no matching export", namedImport.Alias))
+					"Import %q will always be undefined because there is no matching export in %q",
+					namedImport.Alias, c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath))
 			} else {
 				c.log.Add(logger.Error, trackerFile.LineColumnTracker(), r, fmt.Sprintf("No matching export in %q for import %q",
 					c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath, namedImport.Alias))
