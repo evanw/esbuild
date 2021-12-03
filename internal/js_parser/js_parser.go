@@ -9993,6 +9993,10 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 			}
 
 			p.pushScopeForVisitPass(js_ast.ScopeClassStaticInit, property.ClassStaticBlock.Loc)
+
+			// Make it an error to use "arguments" in a static class block
+			p.currentScope.ForbidArguments = true
+
 			property.ClassStaticBlock.Stmts = p.visitStmts(property.ClassStaticBlock.Stmts, stmtsFnBody)
 			p.popScope()
 

@@ -1394,6 +1394,8 @@ func TestClass(t *testing.T) {
 	expectParseError(t, "class Foo { x = 1 ? 2 : arguments }", "<stdin>: ERROR: Cannot access \"arguments\" here:\n")
 	expectParseError(t, "class Foo { x = class { [arguments] } }", "<stdin>: ERROR: Cannot access \"arguments\" here:\n")
 	expectParseError(t, "class Foo { x = class { [arguments] = 1 } }", "<stdin>: ERROR: Cannot access \"arguments\" here:\n")
+	expectParseError(t, "class Foo { static { arguments } }", "<stdin>: ERROR: Cannot access \"arguments\" here:\n")
+	expectParseError(t, "class Foo { static { class Bar { [arguments] } } }", "<stdin>: ERROR: Cannot access \"arguments\" here:\n")
 
 	// The name "constructor" is sometimes forbidden
 	expectPrinted(t, "class Foo { get ['constructor']() {} }", "class Foo {\n  get [\"constructor\"]() {\n  }\n}\n")
