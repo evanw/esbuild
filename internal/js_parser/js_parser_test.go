@@ -358,26 +358,26 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "'use strict'; arguments += 0", "<stdin>: ERROR: Invalid assignment target\n")
 	expectParseError(t, "'use strict'; [arguments] = 0", "<stdin>: ERROR: Invalid assignment target\n")
 
+	evalDecl := "<stdin>: ERROR: Declarations with the name \"eval\" cannot be used in strict mode\n" + useStrict
+	argsDecl := "<stdin>: ERROR: Declarations with the name \"arguments\" cannot be used in strict mode\n" + useStrict
 	expectPrinted(t, "function eval() {}", "function eval() {\n}\n")
-	expectPrinted(t, "function f(eval) {}", "function f(eval) {\n}\n")
 	expectPrinted(t, "function arguments() {}", "function arguments() {\n}\n")
+	expectPrinted(t, "function f(eval) {}", "function f(eval) {\n}\n")
 	expectPrinted(t, "function f(arguments) {}", "function f(arguments) {\n}\n")
-	expectParseError(t, "'use strict'; function eval() {}",
-		"<stdin>: ERROR: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
-	expectParseError(t, "'use strict'; function f(eval) {}",
-		"<stdin>: ERROR: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
-	expectParseError(t, "'use strict'; function arguments() {}",
-		"<stdin>: ERROR: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
-	expectParseError(t, "'use strict'; function f(arguments) {}",
-		"<stdin>: ERROR: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
-	expectParseError(t, "function eval() { 'use strict' }",
-		"<stdin>: ERROR: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
-	expectParseError(t, "function arguments() { 'use strict' }",
-		"<stdin>: ERROR: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
-	expectParseError(t, "'use strict'; class eval {}",
-		"<stdin>: ERROR: Declarations with the name \"eval\" cannot be used in strict mode\n"+useStrict)
-	expectParseError(t, "'use strict'; class arguments {}",
-		"<stdin>: ERROR: Declarations with the name \"arguments\" cannot be used in strict mode\n"+useStrict)
+	expectPrinted(t, "({ f(eval) {} })", "({ f(eval) {\n} });\n")
+	expectPrinted(t, "({ f(arguments) {} })", "({ f(arguments) {\n} });\n")
+	expectParseError(t, "'use strict'; function eval() {}", evalDecl)
+	expectParseError(t, "'use strict'; function arguments() {}", argsDecl)
+	expectParseError(t, "'use strict'; function f(eval) {}", evalDecl)
+	expectParseError(t, "'use strict'; function f(arguments) {}", argsDecl)
+	expectParseError(t, "function eval() { 'use strict' }", evalDecl)
+	expectParseError(t, "function arguments() { 'use strict' }", argsDecl)
+	expectParseError(t, "function f(eval) { 'use strict' }", evalDecl)
+	expectParseError(t, "function f(arguments) { 'use strict' }", argsDecl)
+	expectParseError(t, "({ f(eval) { 'use strict' } })", evalDecl)
+	expectParseError(t, "({ f(arguments) { 'use strict' } })", argsDecl)
+	expectParseError(t, "'use strict'; class eval {}", evalDecl)
+	expectParseError(t, "'use strict'; class arguments {}", argsDecl)
 
 	expectPrinted(t, "let protected", "let protected;\n")
 	expectPrinted(t, "let protecte\\u0064", "let protected;\n")

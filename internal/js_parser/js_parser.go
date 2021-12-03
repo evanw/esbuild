@@ -6986,6 +6986,21 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 						// Track "use strict" directives
 						p.currentScope.StrictMode = js_ast.ExplicitStrictMode
 						p.currentScope.UseStrictLoc = expr.Value.Loc
+
+						// Inside a function, strict mode actually propagates from the child
+						// scope to the parent scope:
+						//
+						//   // This is a syntax error
+						//   function fn(arguments) {
+						//     "use strict";
+						//   }
+						//
+						if p.currentScope.Kind == js_ast.ScopeFunctionBody &&
+							p.currentScope.Parent.Kind == js_ast.ScopeFunctionArgs &&
+							p.currentScope.Parent.StrictMode == js_ast.SloppyMode {
+							p.currentScope.Parent.StrictMode = js_ast.ExplicitStrictMode
+							p.currentScope.Parent.UseStrictLoc = expr.Value.Loc
+						}
 					} else if js_lexer.UTF16EqualsString(str.Value, "use asm") {
 						// Deliberately remove "use asm" directives. The asm.js subset of
 						// JavaScript has complicated validation rules that are triggered
