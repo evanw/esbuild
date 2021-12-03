@@ -24,6 +24,27 @@
 
     Version 0.13.12 introduced simplification of `calc()` expressions in CSS when minifying. For example, `calc(100% / 4)` turns into `25%`. However, this is problematic for numbers with many fractional digits because either the number is printed with reduced precision, which is inaccurate, or the number is printed with full precision, which could be longer than the original expression. For example, turning `calc(100% / 3)` into `33.33333%` is inaccurate and turning it into `33.333333333333336%` likely isn't desired. In this release, minification of `calc()` is now disabled when any number in the result cannot be represented to full precision with at most five fractional digits.
 
+* Fix an edge case with `catch` scope handling ([#1812](https://github.com/evanw/esbuild/issues/1812))
+
+    This release fixes a subtle edge case with `catch` scope and destructuring assignment. Identifiers in computed properties and/or default values inside the destructuring binding pattern should reference the outer scope, not the inner scope. The fix was to split the destructuring pattern into its own scope, separate from the `catch` body. Here's an example of code that was affected by this edge case:
+
+    ```js
+    // Original code
+    let foo = 1
+    try {
+      throw ['a', 'b']
+    } catch ({ [foo]: y }) {
+      let foo = 2
+      assert(y === 'b')
+    }
+
+    // Old output (with --minify)
+    let foo=1;try{throw["a","b"]}catch({[o]:t}){let o=2;assert(t==="b")}
+
+    // New output (with --minify)
+    let foo=1;try{throw["a","b"]}catch({[foo]:t}){let o=2;assert(t==="b")}
+    ```
+
 ## 0.14.1
 
 * Fix `imports` in `package.json` ([#1807](https://github.com/evanw/esbuild/issues/1807))

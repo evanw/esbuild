@@ -2252,6 +2252,41 @@
         if (y + '' !== '1') throw 'fail: ' + y
       `,
     }),
+
+    // https://github.com/evanw/esbuild/issues/1812
+    test(['in.js', '--outfile=node.js'], {
+      'in.js': `
+        let a = 1;
+        let def = "PASS2";
+        try {
+          throw [ "FAIL2", "PASS1" ];
+        } catch ({ [a]: b, 3: d = def }) {
+          let a = 0, def = "FAIL3";
+          if (b !== 'PASS1' || d !== 'PASS2') throw 'fail: ' + b + ' ' + d
+        }
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        let a = 1;
+        let def = "PASS2";
+        try {
+          throw [ "FAIL2", "PASS1" ];
+        } catch ({ [a]: b, 3: d = def }) {
+          let a = 0, def = "FAIL3";
+          if (b !== 'PASS1' || d !== 'PASS2') throw 'fail: ' + b + ' ' + d
+        }
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'], {
+      'in.js': `
+        try {
+          throw { x: 'z', z: 123 }
+        } catch ({ x, [x]: y }) {
+          if (y !== 123) throw 'fail'
+        }
+      `,
+    }),
   )
 
   // Test cyclic import issues (shouldn't crash on evaluation)

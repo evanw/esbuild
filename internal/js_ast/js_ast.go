@@ -1160,9 +1160,10 @@ type SWith struct {
 }
 
 type Catch struct {
-	Loc          logger.Loc
 	BindingOrNil Binding
 	Body         []Stmt
+	Loc          logger.Loc
+	BodyLoc      logger.Loc
 }
 
 type Finally struct {
@@ -1626,6 +1627,7 @@ const (
 	ScopeLabel
 	ScopeClassName
 	ScopeClassBody
+	ScopeCatchBinding
 
 	// The scopes below stop hoisted variables from extending into parent scopes
 	ScopeEntry // This is a module, TypeScript enum, or TypeScript namespace

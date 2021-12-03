@@ -1461,6 +1461,18 @@ func (p *parser) canMergeSymbols(scope *js_ast.Scope, existing js_ast.SymbolKind
 	return mergeForbidden
 }
 
+func (p *parser) addSymbolAlreadyDeclaredError(name string, newLoc logger.Loc, oldLoc logger.Loc) {
+	p.log.AddWithNotes(logger.Error, &p.tracker,
+		js_lexer.RangeOfIdentifier(p.source, newLoc),
+		fmt.Sprintf("The symbol %q has already been declared", name),
+
+		[]logger.MsgData{p.tracker.MsgData(
+			js_lexer.RangeOfIdentifier(p.source, oldLoc),
+			fmt.Sprintf("The symbol %q was originally declared here:", name),
+		)},
+	)
+}
+
 func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name string) js_ast.Ref {
 	p.checkForUnrepresentableIdentifier(loc, name)
 
@@ -1473,10 +1485,7 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 
 		switch p.canMergeSymbols(p.currentScope, symbol.Kind, kind) {
 		case mergeForbidden:
-			r := js_lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf("The symbol %q has already been declared", name),
-				[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, existing.Loc),
-					fmt.Sprintf("The symbol %q was originally declared here:", name))})
+			p.addSymbolAlreadyDeclaredError(name, loc, existing.Loc)
 			return existing.Ref
 
 		case mergeKeepExisting:
@@ -1507,6 +1516,25 @@ func (p *parser) hoistSymbols(scope *js_ast.Scope) {
 	nextMember:
 		for _, member := range scope.Members {
 			symbol := &p.symbols[member.Ref.InnerIndex]
+
+			// Handle non-hoisted collisions between catch bindings and the catch body.
+			// This implements "B.3.4 VariableStatements in Catch Blocks" from Annex B
+			// of the ECMAScript standard version 6+ (except for the hoisted case, which
+			// is handled later on below):
+			//
+			// * It is a Syntax Error if any element of the BoundNames of CatchParameter
+			//   also occurs in the LexicallyDeclaredNames of Block.
+			//
+			// * It is a Syntax Error if any element of the BoundNames of CatchParameter
+			//   also occurs in the VarDeclaredNames of Block unless CatchParameter is
+			//   CatchParameter : BindingIdentifier .
+			//
+			if scope.Parent.Kind == js_ast.ScopeCatchBinding && symbol.Kind != js_ast.SymbolHoisted {
+				if existingMember, ok := scope.Parent.Members[symbol.OriginalName]; ok {
+					p.addSymbolAlreadyDeclaredError(symbol.OriginalName, member.Loc, existingMember.Loc)
+					continue
+				}
+			}
 
 			if !symbol.Kind.IsHoisted() {
 				continue
@@ -6300,7 +6328,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		if p.lexer.Token == js_lexer.TCatch {
 			catchLoc := p.lexer.Loc()
-			p.pushScopeForParsePass(js_ast.ScopeBlock, catchLoc)
+			p.pushScopeForParsePass(js_ast.ScopeCatchBinding, catchLoc)
 			p.lexer.Next()
 			var bindingOrNil js_ast.Binding
 
@@ -6332,10 +6360,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.declareBinding(kind, bindingOrNil, parseStmtOpts{})
 			}
 
+			bodyLoc := p.lexer.Loc()
 			p.lexer.Expect(js_lexer.TOpenBrace)
+
+			p.pushScopeForParsePass(js_ast.ScopeBlock, bodyLoc)
 			stmts := p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{})
+			p.popScope()
+
 			p.lexer.Next()
-			catch = &js_ast.Catch{Loc: catchLoc, BindingOrNil: bindingOrNil, Body: stmts}
+			catch = &js_ast.Catch{Loc: catchLoc, BindingOrNil: bindingOrNil, BodyLoc: bodyLoc, Body: stmts}
 			p.popScope()
 		}
 
@@ -9381,11 +9414,15 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.popScope()
 
 		if s.Catch != nil {
-			p.pushScopeForVisitPass(js_ast.ScopeBlock, s.Catch.Loc)
+			p.pushScopeForVisitPass(js_ast.ScopeCatchBinding, s.Catch.Loc)
 			if s.Catch.BindingOrNil.Data != nil {
 				p.visitBinding(s.Catch.BindingOrNil, bindingOpts{})
 			}
+
+			p.pushScopeForVisitPass(js_ast.ScopeBlock, s.Catch.BodyLoc)
 			s.Catch.Body = p.visitStmts(s.Catch.Body, stmtsNormal)
+			p.popScope()
+
 			p.lowerObjectRestInCatchBinding(s.Catch)
 			p.popScope()
 		}

@@ -2628,14 +2628,16 @@ func TestCatch(t *testing.T) {
 	expectPrinted(t, "try {} catch (e) { { function e() {} } }", "try {\n} catch (e) {\n  {\n    let e = function() {\n    };\n    var e = e;\n  }\n}\n")
 	expectPrinted(t, "try {} catch (e) { if (1) function e() {} }", "try {\n} catch (e) {\n  if (1) {\n    let e = function() {\n    };\n    var e = e;\n  }\n}\n")
 	expectPrinted(t, "try {} catch (e) { if (0) ; else function e() {} }", "try {\n} catch (e) {\n  if (0)\n    ;\n  else {\n    let e = function() {\n    };\n    var e = e;\n  }\n}\n")
+	expectPrinted(t, "try {} catch ({ e }) { { function e() {} } }", "try {\n} catch ({ e }) {\n  {\n    let e = function() {\n    };\n    var e = e;\n  }\n}\n")
 
 	errorText := `<stdin>: ERROR: The symbol "e" has already been declared
 <stdin>: NOTE: The symbol "e" was originally declared here:
 `
 
 	expectParseError(t, "try {} catch (e) { function e() {} }", errorText)
-	expectParseError(t, "try {} catch ({e}) { var e }", errorText)
-	expectParseError(t, "try {} catch ({e}) { function e() {} }", errorText)
+	expectParseError(t, "try {} catch ({ e }) { var e }", errorText)
+	expectParseError(t, "try {} catch ({ e }) { { var e } }", errorText)
+	expectParseError(t, "try {} catch ({ e }) { function e() {} }", errorText)
 	expectParseError(t, "try {} catch (e) { let e }", errorText)
 	expectParseError(t, "try {} catch (e) { const e = 0 }", errorText)
 }
