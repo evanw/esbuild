@@ -336,10 +336,15 @@ func TestStrictMode(t *testing.T) {
 		"<stdin>: ERROR: Function declarations inside if statements cannot be used in strict mode\n"+useStrict)
 	expectParseError(t, "'use strict'; if (0) ; else function f() {}",
 		"<stdin>: ERROR: Function declarations inside if statements cannot be used in strict mode\n"+useStrict)
+	expectParseError(t, "'use strict'; x: function f() {}",
+		"<stdin>: ERROR: Function declarations inside labels cannot be used in strict mode\n"+useStrict)
+
 	expectParseError(t, "if (0) function f() {} export {}",
 		"<stdin>: ERROR: Function declarations inside if statements cannot be used in strict mode\n"+why)
 	expectParseError(t, "if (0) ; else function f() {} export {}",
 		"<stdin>: ERROR: Function declarations inside if statements cannot be used in strict mode\n"+why)
+	expectParseError(t, "x: function f() {} export {}",
+		"<stdin>: ERROR: Function declarations inside labels cannot be used in strict mode\n"+why)
 
 	expectPrinted(t, "eval++", "eval++;\n")
 	expectPrinted(t, "eval = 0", "eval = 0;\n")
@@ -1292,10 +1297,13 @@ func TestLexicalDecl(t *testing.T) {
 	expectParseError(t, "while (1) function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "do function f() {} while (0)", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 
+	fnLabelAwait := "<stdin>: ERROR: Function declarations inside labels cannot be used in strict mode\n" +
+		"<stdin>: NOTE: This file is implicitly in strict mode because of the \"await\" keyword here:\n"
+
 	expectParseError(t, "for (;;) label: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "for (x in y) label: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "for (x of y) label: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
-	expectParseError(t, "for await (x of y) label: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
+	expectParseError(t, "for await (x of y) label: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n"+fnLabelAwait)
 	expectParseError(t, "with (1) label: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "while (1) label: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "do label: function f() {} while (0)", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
@@ -1303,7 +1311,7 @@ func TestLexicalDecl(t *testing.T) {
 	expectParseError(t, "for (;;) label: label2: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "for (x in y) label: label2: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "for (x of y) label: label2: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
-	expectParseError(t, "for await (x of y) label: label2: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
+	expectParseError(t, "for await (x of y) label: label2: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n"+fnLabelAwait)
 	expectParseError(t, "with (1) label: label2: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "while (1) label: label2: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "do label: label2: function f() {} while (0)", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")

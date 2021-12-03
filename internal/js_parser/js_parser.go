@@ -9025,6 +9025,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 	case *js_ast.SLabel:
+		// Forbid functions inside labels in strict mode
+		if p.isStrictMode() {
+			if _, ok := s.Stmt.Data.(*js_ast.SFunction); ok {
+				p.markStrictModeFeature(labelFunctionStmt, js_lexer.RangeOfIdentifier(p.source, s.Stmt.Loc), "")
+			}
+		}
+
 		p.pushScopeForVisitPass(js_ast.ScopeLabel, stmt.Loc)
 		name := p.loadNameFromRef(s.Name.Ref)
 		if js_lexer.StrictModeReservedWords[name] {

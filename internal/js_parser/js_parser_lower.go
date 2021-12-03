@@ -150,6 +150,7 @@ const (
 	legacyOctalLiteral
 	legacyOctalEscape
 	ifElseFunctionStmt
+	labelFunctionStmt
 )
 
 func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range, detail string) {
@@ -173,6 +174,8 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		text = "Legacy octal escape sequences"
 	case ifElseFunctionStmt:
 		text = "Function declarations inside if statements"
+	case labelFunctionStmt:
+		text = "Function declarations inside labels"
 	default:
 		text = "This feature"
 	}
