@@ -1301,6 +1301,27 @@ func TestMangleCalc(t *testing.T) {
 	// Using "var()" should bail because it can expand to any number of tokens
 	expectPrintedMangle(t, "a { b: calc(1px - x + 2px) }", "a {\n  b: calc(3px - x);\n}\n")
 	expectPrintedMangle(t, "a { b: calc(1px - var(x) + 2px) }", "a {\n  b: calc(1px - var(x) + 2px);\n}\n")
+
+	// Test values that can't be accurately represented as decimals
+	expectPrintedMangle(t, "a { b: calc(100% / 1) }", "a {\n  b: 100%;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 2) }", "a {\n  b: 50%;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 3) }", "a {\n  b: calc(100% / 3);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 4) }", "a {\n  b: 25%;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 5) }", "a {\n  b: 20%;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 6) }", "a {\n  b: calc(100% / 6);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 7) }", "a {\n  b: calc(100% / 7);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 8) }", "a {\n  b: 12.5%;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 9) }", "a {\n  b: calc(100% / 9);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 10) }", "a {\n  b: 10%;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 100) }", "a {\n  b: 1%;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 1000) }", "a {\n  b: .1%;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 10000) }", "a {\n  b: .01%;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 100000) }", "a {\n  b: .001%;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / 1000000) }", "a {\n  b: calc(100% / 1000000);\n}\n") // This actually ends up as "100% * (1 / 1000000)" which is less precise
+	expectPrintedMangle(t, "a { b: calc(100% / -1000000) }", "a {\n  b: calc(100% / -1000000);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(100% / -100000) }", "a {\n  b: -.001%;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(3 * (2px + 1em / 7)) }", "a {\n  b: calc(3 * (2px + 1em / 7));\n}\n")
+	expectPrintedMangle(t, "a { b: calc(3 * (2px + 1em / 8)) }", "a {\n  b: calc(3 * (2px + .125em));\n}\n")
 }
 
 func TestTransform(t *testing.T) {

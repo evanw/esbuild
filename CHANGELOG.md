@@ -20,6 +20,10 @@
     x.z();
     ```
 
+* Disable `calc()` transform for numbers with many fractional digits ([#1821](https://github.com/evanw/esbuild/issues/1821))
+
+    Version 0.13.12 introduced simplification of `calc()` expressions in CSS when minifying. For example, `calc(100% / 4)` turns into `25%`. However, this is problematic for numbers with many fractional digits because either the number is printed with reduced precision, which is inaccurate, or the number is printed with full precision, which could be longer than the original expression. For example, turning `calc(100% / 3)` into `33.33333%` is inaccurate and turning it into `33.333333333333336%` likely isn't desired. In this release, minification of `calc()` is now disabled when any number in the result cannot be represented to full precision with at most five fractional digits.
+
 ## 0.14.1
 
 * Fix `imports` in `package.json` ([#1807](https://github.com/evanw/esbuild/issues/1807))
