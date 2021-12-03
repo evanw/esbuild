@@ -156,6 +156,17 @@ body {
 }
 
 ================================================================================
+TestCSSExternalQueryAndHashMatchIssue1822
+---------- /out.css ----------
+/* entry.css */
+a {
+  background: url(foo/bar.png?baz);
+}
+b {
+  background: url(foo/bar.png#baz);
+}
+
+================================================================================
 TestCSSFromJSMissingStarImport
 ---------- /out/entry.js ----------
 // entry.js
