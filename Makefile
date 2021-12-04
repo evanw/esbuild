@@ -575,8 +575,9 @@ demo/rollup: | github/rollup
 	mv demo/rollup/tsconfig2.json demo/rollup/tsconfig.json
 
 test-rollup: esbuild | demo/rollup
-	cd demo/rollup && ../../esbuild $(TEST_ROLLUP_FLAGS) && npm run test:only
-	cd demo/rollup && ../../esbuild $(TEST_ROLLUP_FLAGS) --minify && npm run test:only
+	# Skip watch tests to avoid flakes
+	cd demo/rollup && ../../esbuild $(TEST_ROLLUP_FLAGS) && npm run test:only -- --fgrep watch --invert
+	cd demo/rollup && ../../esbuild $(TEST_ROLLUP_FLAGS) --minify && npm run test:only -- --fgrep watch --invert
 
 ################################################################################
 # This builds Preact using esbuild with splitting enabled, which had a bug at one point
