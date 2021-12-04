@@ -298,7 +298,7 @@ platform-linux-ppc64le:
 platform-sunos:
 	$(MAKE) --no-print-directory GOOS=illumos GOARCH=amd64 NPMDIR=npm/esbuild-sunos-64 platform-unixlike
 
-platform-wasm: esbuild | scripts/node_modules
+platform-wasm: esbuild
 	node scripts/esbuild.js npm/esbuild-wasm/package.json --version
 	node scripts/esbuild.js ./esbuild --wasm
 
