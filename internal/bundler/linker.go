@@ -610,12 +610,10 @@ func pathRelativeToOutbase(
 	inputFile *graph.InputFile,
 	options *config.Options,
 	fs fs.FS,
-	stdExt string,
 	avoidIndex bool,
 	customFilePath string,
-) (relDir string, baseName string, baseExt string) {
+) (relDir string, baseName string) {
 	relDir = "/"
-	baseExt = stdExt
 	absPath := inputFile.Source.KeyPath.Text
 
 	if customFilePath != "" {
@@ -3034,14 +3032,14 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 				}
 			} else {
 				// Otherwise, derive the output path from the input path
-				dir, base, ext = pathRelativeToOutbase(
+				dir, base = pathRelativeToOutbase(
 					&c.graph.Files[chunk.sourceIndex].InputFile,
 					c.options,
 					c.fs,
-					stdExt,
 					!file.IsUserSpecifiedEntryPoint(),
 					c.graph.EntryPoints()[chunk.entryPointBit].OutputPath,
 				)
+				ext = stdExt
 			}
 		} else {
 			dir = "/"
