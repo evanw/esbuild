@@ -1114,9 +1114,14 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 		return sb.String()
 	}
 
-	return fmt.Sprintf("%s%s %s[%s%s%s]%s %s%s%s\n%s",
+	if pluginName != "" {
+		pluginName = fmt.Sprintf("%s%s[plugin %s]%s ", colors.Bold, colors.Magenta, pluginName, colors.Reset)
+	}
+
+	return fmt.Sprintf("%s%s %s[%s%s%s]%s %s%s%s%s\n%s",
 		iconColor, kind.Icon(),
 		kindColorBrackets, kindColorText, kind.String(), kindColorBrackets, colors.Reset,
+		pluginName,
 		colors.Bold, data.Text, colors.Reset,
 		location,
 	)
