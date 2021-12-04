@@ -1,5 +1,6 @@
 import * as types from "../shared/types"
 import * as common from "../shared/common"
+import * as ourselves from "./mod"
 import * as denoflate from "https://deno.land/x/denoflate@1.2.1/mod.ts"
 
 declare const ESBUILD_VERSION: string
@@ -22,6 +23,10 @@ export const formatMessages: typeof types.formatMessages = (messages, options) =
   ensureServiceIsRunning().then(service =>
     service.formatMessages(messages, options))
 
+export const analyzeMetafile: typeof types.analyzeMetafile = (metafile, options) =>
+  ensureServiceIsRunning().then(service =>
+    service.analyzeMetafile(metafile, options))
+
 export const buildSync: typeof types.buildSync = () => {
   throw new Error(`The "buildSync" API does not work in Deno`)
 }
@@ -32,6 +37,10 @@ export const transformSync: typeof types.transformSync = () => {
 
 export const formatMessagesSync: typeof types.formatMessagesSync = () => {
   throw new Error(`The "formatMessagesSync" API does not work in Deno`)
+}
+
+export const analyzeMetafileSync: typeof types.analyzeMetafileSync = () => {
+  throw new Error(`The "analyzeMetafileSync" API does not work in Deno`)
 }
 
 export const stop = () => {
@@ -156,6 +165,7 @@ interface Service {
   serve: typeof types.serve
   transform: typeof types.transform
   formatMessages: typeof types.formatMessages
+  analyzeMetafile: typeof types.analyzeMetafile
 }
 
 let defaultWD = Deno.cwd()
@@ -208,6 +218,7 @@ let ensureServiceIsRunning = (): Promise<Service> => {
         },
         isSync: false,
         isBrowser: false,
+        esbuild: ourselves,
       })
 
       const stdoutBuffer = new Uint8Array(4 * 1024 * 1024)
@@ -242,6 +253,7 @@ let ensureServiceIsRunning = (): Promise<Service> => {
             })
           })
         },
+
         serve: (serveOptions, buildOptions) => {
           if (serveOptions === null || typeof serveOptions !== 'object')
             throw new Error('The first argument must be an object')
@@ -255,6 +267,7 @@ let ensureServiceIsRunning = (): Promise<Service> => {
               defaultWD, callback: (err, res) => err ? reject(err) : resolve(res as types.ServeResult),
             }))
         },
+
         transform: (input, options) => {
           return new Promise((resolve, reject) =>
             service.transform({
@@ -288,12 +301,24 @@ let ensureServiceIsRunning = (): Promise<Service> => {
               callback: (err, res) => err ? reject(err) : resolve(res!),
             }))
         },
+
         formatMessages: (messages, options) => {
           return new Promise((resolve, reject) =>
             service.formatMessages({
               callName: 'formatMessages',
               refs: null,
               messages,
+              options,
+              callback: (err, res) => err ? reject(err) : resolve(res!),
+            }))
+        },
+
+        analyzeMetafile: (metafile, options) => {
+          return new Promise((resolve, reject) =>
+            service.analyzeMetafile({
+              callName: 'analyzeMetafile',
+              refs: null,
+              metafile: typeof metafile === 'string' ? metafile : JSON.stringify(metafile),
               options,
               callback: (err, res) => err ? reject(err) : resolve(res!),
             }))

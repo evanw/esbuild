@@ -81,3 +81,21 @@ test("largeTransform", async () => {
   asserts.assertStrictEquals(result.outputFiles[0].text, y.slice(0, -2) + '];\n')
 })
 
+test("analyzeMetafile", async () => {
+  const result = await esbuild.analyzeMetafile({
+    outputs: {
+      'out.js': {
+        bytes: 4096,
+        inputs: {
+          'in.js': {
+            bytesInOutput: 1024,
+          },
+        },
+      },
+    },
+  })
+  asserts.assertStrictEquals(result, `
+  out.js    4.0kb  100.0%
+   └ in.js  1.0kb   25.0%
+`)
+})
