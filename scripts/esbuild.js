@@ -12,7 +12,7 @@ const nodeTarget = 'node10'; // See: https://nodejs.org/en/about/releases/
 const umdBrowserTarget = 'es2015'; // Transpiles "async"
 const esmBrowserTarget = 'es2017'; // Preserves "async"
 
-exports.buildNativeLib = (esbuildPath) => {
+const buildNeutralLib = (esbuildPath) => {
   const libDir = path.join(npmDir, 'lib')
   const binDir = path.join(npmDir, 'bin')
   fs.mkdirSync(libDir, { recursive: true })
@@ -231,7 +231,7 @@ module.exports = ${JSON.stringify(exit0Map, null, 2)};
   await goBuildPromise;
 }
 
-exports.buildDenoLib = (esbuildPath) => {
+const buildDenoLib = (esbuildPath) => {
   // Generate "deno/esbuild/mod.js"
   childProcess.execFileSync(esbuildPath, [
     path.join(repoDir, 'lib', 'deno', 'mod.ts'),
@@ -291,13 +291,10 @@ exports.removeRecursiveSync = path => {
   }
 }
 
-exports.updateVersionPackageJSON = pathToPackageJSON => {
+const updateVersionPackageJSON = pathToPackageJSON => {
   const version = fs.readFileSync(path.join(path.dirname(__dirname), 'version.txt'), 'utf8').trim()
   const json = JSON.parse(fs.readFileSync(pathToPackageJSON, 'utf8'))
-  if (json.version === version) {
-    console.log(`${JSON.stringify(pathToPackageJSON)} already has version ${JSON.stringify(version)}`)
-  } else {
-    console.log(`${JSON.stringify(pathToPackageJSON)} version ${JSON.stringify(json.version)} => ${JSON.stringify(version)}`)
+  if (json.version !== version) {
     json.version = version
     fs.writeFileSync(pathToPackageJSON, JSON.stringify(json, null, 2) + '\n')
   }
@@ -306,7 +303,7 @@ exports.updateVersionPackageJSON = pathToPackageJSON => {
 exports.installForTests = () => {
   // Build the "esbuild" binary and library
   const esbuildPath = exports.buildBinary()
-  exports.buildNativeLib(esbuildPath)
+  buildNeutralLib(esbuildPath)
 
   // Install the "esbuild" package to a temporary directory. On Windows, it's
   // sometimes randomly impossible to delete this installation directory. My
@@ -336,7 +333,8 @@ exports.dirname = __dirname
 // The main Makefile invokes this script before publishing
 if (require.main === module) {
   if (process.argv.indexOf('--wasm') >= 0) exports.buildWasmLib(process.argv[2])
-  else if (process.argv.indexOf('--deno') >= 0) exports.buildDenoLib(process.argv[2])
-  else if (process.argv.indexOf('--version') >= 0) exports.updateVersionPackageJSON(process.argv[2])
-  else exports.buildNativeLib(process.argv[2])
+  else if (process.argv.indexOf('--deno') >= 0) buildDenoLib(process.argv[2])
+  else if (process.argv.indexOf('--version') >= 0) updateVersionPackageJSON(process.argv[2])
+  else if (process.argv.indexOf('--neutral') >= 0) buildNeutralLib(process.argv[2])
+  else throw new Error('Expected a flag')
 }

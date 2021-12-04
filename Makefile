@@ -10,14 +10,14 @@ esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.m
 	CGO_ENABLED=0 go build $(GO_FLAGS) ./cmd/esbuild
 
 test:
-	$(MAKE) --no-print-directory -j6 test-common
+	@$(MAKE) --no-print-directory -j6 test-common
 
 # These tests are for development
 test-common: test-go vet-go no-filepath verify-source-map end-to-end-tests js-api-tests plugin-tests register-test node-unref-tests
 
 # These tests are for release (the extra tests are not included in "test" because they are pretty slow)
 test-all:
-	$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
+	@$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 check-go-version:
 	@go version | grep ' go1\.17\.4 ' || (echo 'Please install Go version 1.17.4' && false)
@@ -215,7 +215,7 @@ wasm-napi-exit0-windows:
 	rm -f main.*
 
 platform-all: cmd/esbuild/version.go
-	$(MAKE) --no-print-directory -j4 \
+	@$(MAKE) --no-print-directory -j4 \
 		platform-windows \
 		platform-windows-32 \
 		platform-windows-arm64 \
@@ -253,50 +253,50 @@ platform-unixlike:
 	@test -n "$(GOOS)" || (echo "The environment variable GOOS must be provided" && false)
 	@test -n "$(GOARCH)" || (echo "The environment variable GOARCH must be provided" && false)
 	@test -n "$(NPMDIR)" || (echo "The environment variable NPMDIR must be provided" && false)
-	mkdir -p "$(NPMDIR)/bin" && node scripts/esbuild.js "$(NPMDIR)/package.json" --version
+	node scripts/esbuild.js "$(NPMDIR)/package.json" --version
 	CGO_ENABLED=0 GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
 
 platform-android-arm64:
-	$(MAKE) --no-print-directory GOOS=android GOARCH=arm64 NPMDIR=npm/esbuild-android-arm64 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=android GOARCH=arm64 NPMDIR=npm/esbuild-android-arm64 platform-unixlike
 
 platform-darwin:
-	$(MAKE) --no-print-directory GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
 
 platform-darwin-arm64:
-	$(MAKE) --no-print-directory GOOS=darwin GOARCH=arm64 NPMDIR=npm/esbuild-darwin-arm64 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=darwin GOARCH=arm64 NPMDIR=npm/esbuild-darwin-arm64 platform-unixlike
 
 platform-freebsd:
-	$(MAKE) --no-print-directory GOOS=freebsd GOARCH=amd64 NPMDIR=npm/esbuild-freebsd-64 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=freebsd GOARCH=amd64 NPMDIR=npm/esbuild-freebsd-64 platform-unixlike
 
 platform-freebsd-arm64:
-	$(MAKE) --no-print-directory GOOS=freebsd GOARCH=arm64 NPMDIR=npm/esbuild-freebsd-arm64 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=freebsd GOARCH=arm64 NPMDIR=npm/esbuild-freebsd-arm64 platform-unixlike
 
 platform-netbsd:
-	$(MAKE) --no-print-directory GOOS=netbsd GOARCH=amd64 NPMDIR=npm/esbuild-netbsd-64 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=netbsd GOARCH=amd64 NPMDIR=npm/esbuild-netbsd-64 platform-unixlike
 
 platform-openbsd:
-	$(MAKE) --no-print-directory GOOS=openbsd GOARCH=amd64 NPMDIR=npm/esbuild-openbsd-64 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=openbsd GOARCH=amd64 NPMDIR=npm/esbuild-openbsd-64 platform-unixlike
 
 platform-linux:
-	$(MAKE) --no-print-directory GOOS=linux GOARCH=amd64 NPMDIR=npm/esbuild-linux-64 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=amd64 NPMDIR=npm/esbuild-linux-64 platform-unixlike
 
 platform-linux-32:
-	$(MAKE) --no-print-directory GOOS=linux GOARCH=386 NPMDIR=npm/esbuild-linux-32 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=386 NPMDIR=npm/esbuild-linux-32 platform-unixlike
 
 platform-linux-arm:
-	$(MAKE) --no-print-directory GOOS=linux GOARCH=arm NPMDIR=npm/esbuild-linux-arm platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=arm NPMDIR=npm/esbuild-linux-arm platform-unixlike
 
 platform-linux-arm64:
-	$(MAKE) --no-print-directory GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
 
 platform-linux-mips64le:
-	$(MAKE) --no-print-directory GOOS=linux GOARCH=mips64le NPMDIR=npm/esbuild-linux-mips64le platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=mips64le NPMDIR=npm/esbuild-linux-mips64le platform-unixlike
 
 platform-linux-ppc64le:
-	$(MAKE) --no-print-directory GOOS=linux GOARCH=ppc64le NPMDIR=npm/esbuild-linux-ppc64le platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=ppc64le NPMDIR=npm/esbuild-linux-ppc64le platform-unixlike
 
 platform-sunos:
-	$(MAKE) --no-print-directory GOOS=illumos GOARCH=amd64 NPMDIR=npm/esbuild-sunos-64 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=illumos GOARCH=amd64 NPMDIR=npm/esbuild-sunos-64 platform-unixlike
 
 platform-wasm: esbuild
 	node scripts/esbuild.js npm/esbuild-wasm/package.json --version
@@ -304,7 +304,7 @@ platform-wasm: esbuild
 
 platform-neutral: esbuild
 	node scripts/esbuild.js npm/esbuild/package.json --version
-	node scripts/esbuild.js ./esbuild
+	node scripts/esbuild.js ./esbuild --neutral
 
 platform-deno: esbuild
 	node scripts/esbuild.js ./esbuild --deno
@@ -312,12 +312,26 @@ platform-deno: esbuild
 test-otp:
 	test -n "$(OTP)" && echo publish --otp="$(OTP)"
 
-publish-all: platform-all
-	@echo "Checking for uncommitted/untracked changes..." && test -z "`git status --porcelain`" || (echo "Refusing to publish with uncommitted/untracked changes" && false)
-	@echo "Checking for master branch..." && test master = "`git rev-parse --abbrev-ref HEAD`" || (echo "Refusing to publish from non-master branch `git rev-parse --abbrev-ref HEAD`" && false)
+publish-all:
+	@echo "Checking for uncommitted/untracked changes..." && test -z "`git status --porcelain | grep -vE 'M (CHANGELOG\.md|version\.txt)'`" || \
+		(echo "Refusing to publish with these uncommitted/untracked changes:" && \
+		git status --porcelain | grep -vE 'M (CHANGELOG\.md|version\.txt)' && false)
+	@echo "Checking for master branch..." && test master = "`git rev-parse --abbrev-ref HEAD`" || \
+		(echo "Refusing to publish from non-master branch `git rev-parse --abbrev-ref HEAD`" && false)
 	@echo "Checking for unpushed commits..." && git fetch
 	@test "" = "`git cherry`" || (echo "Refusing to publish with unpushed commits" && false)
-	rm -fr npm && git checkout npm # Make sure the npm directory is pristine since it will be published
+
+	# Prebuild now to prime go's compile cache and avoid timing issues later
+	@$(MAKE) --no-print-directory platform-all
+
+	# Commit now before publishing so git is clean for this: https://github.com/golang/go/issues/37475
+	# Note: If this fails, then the version number was likely not incremented before running this command
+	git commit -am "publish $(ESBUILD_VERSION) to npm"
+	git tag "v$(ESBUILD_VERSION)"
+	@test -z "`git status --porcelain`" || (echo "Aborting because git is somehow unclean after a commit" && false)
+
+	# Make sure the npm directory is pristine (including .gitignored files) since it will be published
+	rm -fr npm && git checkout npm
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
@@ -358,8 +372,6 @@ publish-all: platform-all
 		publish-deno \
 		publish-wasm
 
-	git commit -am "publish $(ESBUILD_VERSION) to npm"
-	git tag "v$(ESBUILD_VERSION)"
 	git push origin master "v$(ESBUILD_VERSION)"
 
 publish-windows: platform-windows
@@ -422,7 +434,7 @@ publish-neutral: platform-neutral
 publish-deno:
 	test -d deno/.git || (rm -fr deno && git clone git@github.com:esbuild/deno-esbuild.git deno)
 	cd deno && git fetch && git checkout main && git reset --hard origin/main
-	$(MAKE) --no-print-directory platform-deno
+	@$(MAKE) --no-print-directory platform-deno
 	cd deno && git commit -am "publish $(ESBUILD_VERSION) to deno"
 	cd deno && git tag "v$(ESBUILD_VERSION)"
 	cd deno && git push origin main "v$(ESBUILD_VERSION)"
