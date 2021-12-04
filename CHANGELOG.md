@@ -2,7 +2,7 @@
 
 ## 0.14.2
 
-* Add `[ext]` placeholder for path templates ((https://github.com/evanw/esbuild/pull/1799))
+* Add `[ext]` placeholder for path templates ([#1799](https://github.com/evanw/esbuild/pull/1799))
 
     This release adds the `[ext]` placeholder to the `--entry-names=`, `--chunk-names=`, and `--asset-names=` configuration options. The `[ext]` placeholder takes the value of the file extension without the leading `.`, and can be used to place output files with different file extensions into different folders. For example, `--asset-names=assets/[ext]/[name]-[hash]` might generate an output path of `assets/png/image-LSAMBFUD.png`.
 
