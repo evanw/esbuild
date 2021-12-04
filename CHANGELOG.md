@@ -51,6 +51,14 @@
     let foo=1;try{throw["a","b"]}catch({[foo]:t}){let o=2;assert(t==="b")}
     ```
 
+* Go 1.17.2 was upgraded to Go 1.17.4
+
+    The previous release was built with Go 1.17.2, but this release is built with Go 1.17.4. This is just a routine upgrade. There are no changes significant to esbuild outside of some security-related fixes to Go's HTTP stack (but you shouldn't be running esbuild's dev server in production anyway).
+
+    One notable change related to this is that esbuild's publishing script now ensures that git's state is free of uncommitted and/or untracked files before building. Previously this wasn't the case because publishing esbuild involved changing the version number, running the publishing script, and committing at the end, which meant that files were uncommitted during the build process. I also typically had some untracked test files in the same directory during publishing (which is harmless).
+
+    This matters because there's an upcoming change in Go 1.18 where the Go compiler will include metadata about whether there are untracked files or not when doing a build: https://github.com/golang/go/issues/37475. Changing esbuild's publishing script should mean that when esbuild upgrades to Go 1.18, esbuild's binary executables will be marked as being built off of a specific commit without any modifications. This is important for reproducibility. Checking out a specific esbuild commit and building it should give a bitwise-identical binary executable to one that I published. But if this metadata indicated that there were untracked files during the published build, then the resulting executable would no longer be bitwise-identical.
+
 ## 0.14.1
 
 * Fix `imports` in `package.json` ([#1807](https://github.com/evanw/esbuild/issues/1807))
