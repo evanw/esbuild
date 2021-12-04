@@ -19,9 +19,6 @@ test-common: test-go vet-go no-filepath verify-source-map end-to-end-tests js-ap
 test-all:
 	make -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
-# This includes tests of some 3rd-party libraries, which can be very slow
-test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild bench-readmin-esbuild test-esprima test-rollup
-
 check-go-version:
 	@go version | grep ' go1\.17\.4 ' || (echo 'Please install Go version 1.17.4' && false)
 
@@ -304,11 +301,11 @@ platform-wasm: esbuild | scripts/node_modules
 	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/esbuild.js ./esbuild --wasm
 
-platform-neutral: esbuild lib-typecheck | scripts/node_modules
+platform-neutral: esbuild
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/esbuild.js ./esbuild
 
-platform-deno: esbuild lib-typecheck | scripts/node_modules
+platform-deno: esbuild
 	node scripts/esbuild.js ./esbuild --deno
 
 test-otp:
@@ -319,7 +316,7 @@ publish-all: platform-all
 	@echo "Checking for master branch..." && test master = "`git rev-parse --abbrev-ref HEAD`" || (echo "Refusing to publish from non-master branch `git rev-parse --abbrev-ref HEAD`" && false)
 	@echo "Checking for unpushed commits..." && git fetch
 	@test "" = "`git cherry`" || (echo "Refusing to publish with unpushed commits" && false)
-	rm -fr npm && git checkout npm
+	rm -fr npm && git checkout npm # Make sure the npm directory is pristine since it will be published
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j4 \
