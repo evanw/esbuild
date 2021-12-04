@@ -1820,9 +1820,8 @@ func (s *scanner) processScannedFiles() []scannerFile {
 				/* customFilePath */ "",
 			)
 
-			var templateExt = originalExt[1:]
-
 			// Apply the asset path template
+			templateExt := strings.TrimPrefix(originalExt, ".")
 			relPath := config.TemplateToString(config.SubstituteTemplate(s.options.AssetPathTemplate, config.PathPlaceholders{
 				Dir:  &dir,
 				Name: &base,

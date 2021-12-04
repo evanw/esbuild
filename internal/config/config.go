@@ -344,7 +344,8 @@ const (
 	// all dependencies (except for their hash placeholders)
 	HashPlaceholder
 
-	// The original extension of the file, or the name of the output file ("css", "svg", "png")
+	// The original extension of the file, or the name of the output file
+	// (e.g. "css", "svg", "png")
 	ExtPlaceholder
 )
 

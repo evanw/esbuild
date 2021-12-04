@@ -4981,3 +4981,35 @@ func TestEntryNamesNonPortableCharacter(t *testing.T) {
 		},
 	})
 }
+
+func TestEntryNamesChunkNamesExtPlaceholder(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entries/entry1.js":  `import "../lib/shared.js"; import "./entry1.css"; console.log('entry1')`,
+			"/src/entries/entry2.js":  `import "../lib/shared.js"; import "./entry2.css"; console.log('entry2')`,
+			"/src/entries/entry1.css": `a:after { content: "entry1" }`,
+			"/src/entries/entry2.css": `a:after { content: "entry2" }`,
+			"/src/lib/shared.js":      `console.log('shared')`,
+		},
+		entryPaths: []string{
+			"/src/entries/entry1.js",
+			"/src/entries/entry2.js",
+		},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/src",
+			AbsOutputDir:  "/out",
+			CodeSplitting: true,
+			EntryPathTemplate: []config.PathTemplate{
+				{Data: "main/", Placeholder: config.ExtPlaceholder},
+				{Data: "/", Placeholder: config.NamePlaceholder},
+				{Data: "-", Placeholder: config.HashPlaceholder},
+			},
+			ChunkPathTemplate: []config.PathTemplate{
+				{Data: "common/", Placeholder: config.ExtPlaceholder},
+				{Data: "/", Placeholder: config.NamePlaceholder},
+				{Data: "-", Placeholder: config.HashPlaceholder},
+			},
+		},
+	})
+}

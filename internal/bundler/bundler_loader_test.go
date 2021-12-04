@@ -474,9 +474,11 @@ func TestLoaderFileExtPathAssetNamesJS(t *testing.T) {
 		files: map[string]string{
 			"/src/entries/entry.js": `
 				import x from '../images/image.png'
-				console.log(x)
+				import y from '../uploads/file.txt'
+				console.log(x, y)
 			`,
 			"/src/images/image.png": "x",
+			"/src/uploads/file.txt": "y",
 		},
 		entryPaths: []string{"/src/entries/entry.js"},
 		options: config.Options{
@@ -491,6 +493,7 @@ func TestLoaderFileExtPathAssetNamesJS(t *testing.T) {
 			ExtensionToLoader: map[string]config.Loader{
 				".js":  config.LoaderJS,
 				".png": config.LoaderFile,
+				".txt": config.LoaderFile,
 			},
 		},
 	})
