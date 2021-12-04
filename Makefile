@@ -10,14 +10,14 @@ esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.m
 	CGO_ENABLED=0 go build $(GO_FLAGS) ./cmd/esbuild
 
 test:
-	make -j6 test-common
+	$(MAKE) --no-print-directory -j6 test-common
 
 # These tests are for development
 test-common: test-go vet-go no-filepath verify-source-map end-to-end-tests js-api-tests plugin-tests register-test node-unref-tests
 
 # These tests are for release (the extra tests are not included in "test" because they are pretty slow)
 test-all:
-	make -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
+	$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 check-go-version:
 	@go version | grep ' go1\.17\.4 ' || (echo 'Please install Go version 1.17.4' && false)
@@ -215,7 +215,7 @@ wasm-napi-exit0-windows:
 	rm -f main.*
 
 platform-all: cmd/esbuild/version.go
-	make -j4 \
+	$(MAKE) --no-print-directory -j4 \
 		platform-windows \
 		platform-windows-32 \
 		platform-windows-arm64 \
@@ -250,52 +250,53 @@ platform-windows-arm64:
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(GO_FLAGS) -o npm/esbuild-windows-arm64/esbuild.exe ./cmd/esbuild
 
 platform-unixlike:
-	test -n "$(GOOS)" && test -n "$(GOARCH)" && test -n "$(NPMDIR)"
-	mkdir -p "$(NPMDIR)/bin"
-	node scripts/esbuild.js "$(NPMDIR)/package.json" --version
+	@test -n "$(GOOS)" || (echo "The environment variable GOOS must be provided" && false)
+	@test -n "$(GOARCH)" || (echo "The environment variable GOARCH must be provided" && false)
+	@test -n "$(NPMDIR)" || (echo "The environment variable NPMDIR must be provided" && false)
+	mkdir -p "$(NPMDIR)/bin" && node scripts/esbuild.js "$(NPMDIR)/package.json" --version
 	CGO_ENABLED=0 GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
 
 platform-android-arm64:
-	make GOOS=android GOARCH=arm64 NPMDIR=npm/esbuild-android-arm64 platform-unixlike
+	$(MAKE) --no-print-directory GOOS=android GOARCH=arm64 NPMDIR=npm/esbuild-android-arm64 platform-unixlike
 
 platform-darwin:
-	make GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
+	$(MAKE) --no-print-directory GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
 
 platform-darwin-arm64:
-	make GOOS=darwin GOARCH=arm64 NPMDIR=npm/esbuild-darwin-arm64 platform-unixlike
+	$(MAKE) --no-print-directory GOOS=darwin GOARCH=arm64 NPMDIR=npm/esbuild-darwin-arm64 platform-unixlike
 
 platform-freebsd:
-	make GOOS=freebsd GOARCH=amd64 NPMDIR=npm/esbuild-freebsd-64 platform-unixlike
+	$(MAKE) --no-print-directory GOOS=freebsd GOARCH=amd64 NPMDIR=npm/esbuild-freebsd-64 platform-unixlike
 
 platform-freebsd-arm64:
-	make GOOS=freebsd GOARCH=arm64 NPMDIR=npm/esbuild-freebsd-arm64 platform-unixlike
+	$(MAKE) --no-print-directory GOOS=freebsd GOARCH=arm64 NPMDIR=npm/esbuild-freebsd-arm64 platform-unixlike
 
 platform-netbsd:
-	make GOOS=netbsd GOARCH=amd64 NPMDIR=npm/esbuild-netbsd-64 platform-unixlike
+	$(MAKE) --no-print-directory GOOS=netbsd GOARCH=amd64 NPMDIR=npm/esbuild-netbsd-64 platform-unixlike
 
 platform-openbsd:
-	make GOOS=openbsd GOARCH=amd64 NPMDIR=npm/esbuild-openbsd-64 platform-unixlike
+	$(MAKE) --no-print-directory GOOS=openbsd GOARCH=amd64 NPMDIR=npm/esbuild-openbsd-64 platform-unixlike
 
 platform-linux:
-	make GOOS=linux GOARCH=amd64 NPMDIR=npm/esbuild-linux-64 platform-unixlike
+	$(MAKE) --no-print-directory GOOS=linux GOARCH=amd64 NPMDIR=npm/esbuild-linux-64 platform-unixlike
 
 platform-linux-32:
-	make GOOS=linux GOARCH=386 NPMDIR=npm/esbuild-linux-32 platform-unixlike
+	$(MAKE) --no-print-directory GOOS=linux GOARCH=386 NPMDIR=npm/esbuild-linux-32 platform-unixlike
 
 platform-linux-arm:
-	make GOOS=linux GOARCH=arm NPMDIR=npm/esbuild-linux-arm platform-unixlike
+	$(MAKE) --no-print-directory GOOS=linux GOARCH=arm NPMDIR=npm/esbuild-linux-arm platform-unixlike
 
 platform-linux-arm64:
-	make GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
+	$(MAKE) --no-print-directory GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
 
 platform-linux-mips64le:
-	make GOOS=linux GOARCH=mips64le NPMDIR=npm/esbuild-linux-mips64le platform-unixlike
+	$(MAKE) --no-print-directory GOOS=linux GOARCH=mips64le NPMDIR=npm/esbuild-linux-mips64le platform-unixlike
 
 platform-linux-ppc64le:
-	make GOOS=linux GOARCH=ppc64le NPMDIR=npm/esbuild-linux-ppc64le platform-unixlike
+	$(MAKE) --no-print-directory GOOS=linux GOARCH=ppc64le NPMDIR=npm/esbuild-linux-ppc64le platform-unixlike
 
 platform-sunos:
-	make GOOS=illumos GOARCH=amd64 NPMDIR=npm/esbuild-sunos-64 platform-unixlike
+	$(MAKE) --no-print-directory GOOS=illumos GOARCH=amd64 NPMDIR=npm/esbuild-sunos-64 platform-unixlike
 
 platform-wasm: esbuild | scripts/node_modules
 	node scripts/esbuild.js npm/esbuild-wasm/package.json --version
@@ -319,40 +320,40 @@ publish-all: platform-all
 	rm -fr npm && git checkout npm # Make sure the npm directory is pristine since it will be published
 
 	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j4 \
+	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-windows \
 		publish-windows-32 \
 		publish-windows-arm64
 
 	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j4 \
+	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-freebsd \
 		publish-freebsd-arm64 \
 		publish-openbsd \
 		publish-netbsd
 
 	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" $(MAKE) -j4 \
+	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-sunos \
 		publish-darwin \
 		publish-darwin-arm64
 
 	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j4 \
+	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-android-arm64 \
 		publish-linux \
 		publish-linux-32 \
 		publish-linux-arm
 
 	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j4 \
+	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-linux-arm64 \
 		publish-linux-mips64le \
 		publish-linux-ppc64le
 
 	# Do these last to avoid race conditions
 	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j4 \
+	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-neutral \
 		publish-deno \
 		publish-wasm
@@ -421,7 +422,7 @@ publish-neutral: platform-neutral
 publish-deno:
 	test -d deno/.git || (rm -fr deno && git clone git@github.com:esbuild/deno-esbuild.git deno)
 	cd deno && git fetch && git checkout main && git reset --hard origin/main
-	make platform-deno
+	$(MAKE) --no-print-directory platform-deno
 	cd deno && git commit -am "publish $(ESBUILD_VERSION) to deno"
 	cd deno && git tag "v$(ESBUILD_VERSION)"
 	cd deno && git push origin main "v$(ESBUILD_VERSION)"
