@@ -5800,15 +5800,16 @@ const (
 )
 
 type parseStmtOpts struct {
-	tsDecorators        *deferredTSDecorators
-	lexicalDecl         lexicalDecl
-	isModuleScope       bool
-	isNamespaceScope    bool
-	isExport            bool
-	isNameOptional      bool // For "export default" pseudo-statements
-	isTypeScriptDeclare bool
-	isForLoopInit       bool
-	isForAwaitLoopInit  bool
+	tsDecorators           *deferredTSDecorators
+	lexicalDecl            lexicalDecl
+	isModuleScope          bool
+	isNamespaceScope       bool
+	isExport               bool
+	isNameOptional         bool // For "export default" pseudo-statements
+	isTypeScriptDeclare    bool
+	isForLoopInit          bool
+	isForAwaitLoopInit     bool
+	allowDirectivePrologue bool
 }
 
 func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
@@ -6958,7 +6959,9 @@ func (p *parser) parseFnBody(data fnOrArrowDataParse) js_ast.FnBody {
 	defer p.popScope()
 
 	p.lexer.Expect(js_lexer.TOpenBrace)
-	stmts := p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{})
+	stmts := p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{
+		allowDirectivePrologue: true,
+	})
 	p.lexer.Next()
 
 	p.allowIn = oldAllowIn
@@ -6975,7 +6978,7 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 	stmts := []js_ast.Stmt{}
 	returnWithoutSemicolonStart := int32(-1)
 	opts.lexicalDecl = lexicalDeclAllowAll
-	isDirectivePrologue := true
+	isDirectivePrologue := opts.allowDirectivePrologue
 
 	for {
 		// Preserve some statement-level comments
@@ -14493,7 +14496,10 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	p.fnOrArrowDataParse.isTopLevel = true
 
 	// Parse the file in the first pass, but do not bind symbols
-	stmts := p.parseStmtsUpTo(js_lexer.TEndOfFile, parseStmtOpts{isModuleScope: true})
+	stmts := p.parseStmtsUpTo(js_lexer.TEndOfFile, parseStmtOpts{
+		isModuleScope:          true,
+		allowDirectivePrologue: true,
+	})
 	p.prepareForVisitPass()
 
 	// Strip off a leading "use strict" directive when not bundling
