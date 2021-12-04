@@ -1210,6 +1210,8 @@
       'in.js': `
         import a from './a'
         if (a !== 'runner1.js') throw 'fail'
+        import b from './b'
+        if (b !== 'runner2.js') throw 'fail'
       `,
       'a.js': `
         import { run } from './runner1'
@@ -1218,10 +1220,6 @@
       'runner1.js': `
         let data = eval('"runner1" + ".js"')
         export function run() { return data }
-
-        // Do this here instead of in "in.js" so that log order is deterministic
-        import b from './b'
-        if (b !== 'runner2.js') throw 'fail'
       `,
       'b.js': `
         import { run } from './runner2'
@@ -1232,7 +1230,9 @@
         export function run() { return data }
       `,
     }, {
-      expectedStderr: `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+      // There are two possible output orders due to log output order non-determinism
+      expectedStderr: [
+        `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
 
     runner1.js:2:19:
       2 │         let data = eval('"runner1" + ".js"')
@@ -1248,7 +1248,24 @@
 
   You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
 
+`, `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+
+    runner2.js:2:19:
+      2 │         let data = eval('"runner2" + ".js"')
+        ╵                    ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
+
+▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+
+    runner1.js:2:19:
+      2 │         let data = eval('"runner1" + ".js"')
+        ╵                    ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
+
 `,
+      ],
     }),
     test(['--bundle', '--format=esm', '--splitting', 'in.js', 'in2.js', '--outdir=out'], {
       'in.js': `
@@ -1281,7 +1298,25 @@
         if (ab[0] !== 'runner1.js' || ab[1] !== 'runner2.js') throw 'fail'
       `,
     }, {
-      expectedStderr: `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+      // There are two possible output orders due to log output order non-determinism
+      expectedStderr: [
+        `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+
+    runner1.js:2:19:
+      2 │         let data = eval('"runner1" + ".js"')
+        ╵                    ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
+
+▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+
+    runner2.js:2:19:
+      2 │         let data = eval('"runner2" + ".js"')
+        ╵                    ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
+
+`, `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
 
     runner2.js:2:19:
       2 │         let data = eval('"runner2" + ".js"')
@@ -1298,6 +1333,7 @@
   You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
 
 `,
+      ],
     }),
   )
 
@@ -5866,7 +5902,13 @@
           } else {
             stderr = (await execFileAsync(esbuildPath, modifiedArgs, { cwd: thisTestDir, stdio: 'pipe' })).stderr
           }
-          assert.strictEqual(stderr, expectedStderr);
+          if (Array.isArray(expectedStderr)) {
+            // An array of possible outputs (due to log output order non-determinism)
+            if (!expectedStderr.includes(stderr))
+              assert.strictEqual(stderr, expectedStderr[0]);
+          } else {
+            assert.strictEqual(stderr, expectedStderr);
+          }
 
           // Run the resulting node.js file and make sure it exits cleanly. The
           // use of "pathToFileURL" is a workaround for a problem where node
@@ -5903,7 +5945,13 @@
         catch (e) {
           if (e && e.stderr !== void 0) {
             try {
-              assert.strictEqual(e.stderr, expectedStderr);
+              if (Array.isArray(expectedStderr)) {
+                // An array of possible outputs (due to log output order non-determinism)
+                if (!expectedStderr.includes(e.stderr))
+                  assert.strictEqual(e.stderr, expectedStderr[0]);
+              } else {
+                assert.strictEqual(e.stderr, expectedStderr);
+              }
 
               // Clean up test output
               removeRecursiveSync(thisTestDir)
