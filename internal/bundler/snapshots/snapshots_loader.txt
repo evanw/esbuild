@@ -11,6 +11,36 @@ var require_test = __commonJS({
 console.log(require_test());
 
 ================================================================================
+TestEntryNamesChunkNamesExtPlaceholder
+---------- /out/main/js/entry1-L7KI5G7A.js ----------
+import "../../common/js/chunk-XHGYOYUR.js";
+
+// src/entries/entry1.js
+console.log("entry1");
+
+---------- /out/main/js/entry2-KTHKWVT2.js ----------
+import "../../common/js/chunk-XHGYOYUR.js";
+
+// src/entries/entry2.js
+console.log("entry2");
+
+---------- /out/common/js/chunk-XHGYOYUR.js ----------
+// src/lib/shared.js
+console.log("shared");
+
+---------- /out/main/css/entry1-3JZGIUSL.css ----------
+/* src/entries/entry1.css */
+a:after {
+  content: "entry1";
+}
+
+---------- /out/main/css/entry2-NXZBPPIA.css ----------
+/* src/entries/entry2.css */
+a:after {
+  content: "entry2";
+}
+
+================================================================================
 TestJSXPreserveCapitalLetter
 ---------- /out.js ----------
 // foo.js
@@ -115,6 +145,22 @@ var y_default = "./y-YE5AYNFB.txt";
 // entry.js
 var x_url = require_x();
 console.log(x_url, y_default);
+
+================================================================================
+TestLoaderFileExtPathAssetNamesJS
+---------- /out/png/image-LSAMBFUD.png ----------
+x
+---------- /out/txt/file-YE5AYNFB.txt ----------
+y
+---------- /out/entries/entry.js ----------
+// src/images/image.png
+var image_default = "../png/image-LSAMBFUD.png";
+
+// src/uploads/file.txt
+var file_default = "../txt/file-YE5AYNFB.txt";
+
+// src/entries/entry.js
+console.log(image_default, file_default);
 
 ================================================================================
 TestLoaderFileMultipleNoCollision

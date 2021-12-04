@@ -65,6 +65,10 @@ func validatePathTemplate(template string) []config.PathTemplate {
 			placeholder = config.HashPlaceholder
 			search += len("[hash]")
 
+		case strings.HasPrefix(tail, "[ext]"):
+			placeholder = config.ExtPlaceholder
+			search += len("[ext]")
+
 		default:
 			// Skip past the "[" so we don't find it again
 			search++

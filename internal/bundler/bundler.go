@@ -1812,21 +1812,22 @@ func (s *scanner) processScannedFiles() []scannerFile {
 
 			// Generate the input for the template
 			_, _, originalExt := logger.PlatformIndependentPathDirBaseExt(result.file.inputFile.Source.KeyPath.Text)
-			dir, base, ext := pathRelativeToOutbase(
+			dir, base := pathRelativeToOutbase(
 				&result.file.inputFile,
 				&s.options,
 				s.fs,
-				originalExt,
 				/* avoidIndex */ false,
 				/* customFilePath */ "",
 			)
 
 			// Apply the asset path template
+			templateExt := strings.TrimPrefix(originalExt, ".")
 			relPath := config.TemplateToString(config.SubstituteTemplate(s.options.AssetPathTemplate, config.PathPlaceholders{
 				Dir:  &dir,
 				Name: &base,
 				Hash: &hash,
-			})) + ext
+				Ext:  &templateExt,
+			})) + originalExt
 
 			// Optionally add metadata about the file
 			var jsonMetadataChunk string

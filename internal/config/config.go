@@ -343,6 +343,10 @@ const (
 	// A hash of the contents of this file, and the contents and output paths of
 	// all dependencies (except for their hash placeholders)
 	HashPlaceholder
+
+	// The original extension of the file, or the name of the output file
+	// (e.g. "css", "svg", "png")
+	ExtPlaceholder
 )
 
 type PathTemplate struct {
@@ -354,6 +358,7 @@ type PathPlaceholders struct {
 	Dir  *string
 	Name *string
 	Hash *string
+	Ext  *string
 }
 
 func (placeholders PathPlaceholders) Get(placeholder PathPlaceholder) *string {
@@ -364,6 +369,8 @@ func (placeholders PathPlaceholders) Get(placeholder PathPlaceholder) *string {
 		return placeholders.Name
 	case HashPlaceholder:
 		return placeholders.Hash
+	case ExtPlaceholder:
+		return placeholders.Ext
 	}
 	return nil
 }
@@ -383,6 +390,8 @@ func TemplateToString(template []PathTemplate) string {
 			sb.WriteString("[name]")
 		case HashPlaceholder:
 			sb.WriteString("[hash]")
+		case ExtPlaceholder:
+			sb.WriteString("[ext]")
 		}
 	}
 	return sb.String()
