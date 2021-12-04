@@ -291,6 +291,18 @@ exports.removeRecursiveSync = path => {
   }
 }
 
+exports.updateVersionPackageJSON = pathToPackageJSON => {
+  const version = fs.readFileSync(path.join(path.dirname(__dirname), 'version.txt'), 'utf8').trim()
+  const json = JSON.parse(fs.readFileSync(pathToPackageJSON, 'utf8'))
+  if (json.version === version) {
+    console.log(`${JSON.stringify(pathToPackageJSON)} already has version ${JSON.stringify(version)}`)
+  } else {
+    console.log(`${JSON.stringify(pathToPackageJSON)} version ${JSON.stringify(json.version)} => ${JSON.stringify(version)}`)
+    json.version = version
+    fs.writeFileSync(pathToPackageJSON, JSON.stringify(json, null, 2) + '\n')
+  }
+}
+
 exports.installForTests = () => {
   // Build the "esbuild" binary and library
   const esbuildPath = exports.buildBinary()
@@ -325,5 +337,6 @@ exports.dirname = __dirname
 if (require.main === module) {
   if (process.argv.indexOf('--wasm') >= 0) exports.buildWasmLib(process.argv[2])
   else if (process.argv.indexOf('--deno') >= 0) exports.buildDenoLib(process.argv[2])
+  else if (process.argv.indexOf('--version') >= 0) exports.updateVersionPackageJSON(process.argv[2])
   else exports.buildNativeLib(process.argv[2])
 }

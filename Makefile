@@ -57,19 +57,19 @@ test-deno: esbuild platform-deno
 	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno test --allow-run --allow-env --allow-net --allow-read --allow-write --no-check scripts/deno-tests.js
 
 register-test: cmd/esbuild/version.go | scripts/node_modules
-	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/register-test.js
 
 verify-source-map: cmd/esbuild/version.go | scripts/node_modules
-	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/verify-source-map.js
 
 end-to-end-tests: cmd/esbuild/version.go | scripts/node_modules
-	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/end-to-end-tests.js
 
 js-api-tests: cmd/esbuild/version.go | scripts/node_modules
-	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/js-api-tests.js
 
 plugin-tests: cmd/esbuild/version.go | scripts/node_modules
@@ -238,21 +238,21 @@ platform-all: cmd/esbuild/version.go
 		platform-deno
 
 platform-windows:
-	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js npm/esbuild-windows-64/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GO_FLAGS) -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
 
 platform-windows-32:
-	cd npm/esbuild-windows-32 && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js npm/esbuild-windows-32/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=386 go build $(GO_FLAGS) -o npm/esbuild-windows-32/esbuild.exe ./cmd/esbuild
 
 platform-windows-arm64:
-	cd npm/esbuild-windows-arm64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js npm/esbuild-windows-arm64/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(GO_FLAGS) -o npm/esbuild-windows-arm64/esbuild.exe ./cmd/esbuild
 
 platform-unixlike:
 	test -n "$(GOOS)" && test -n "$(GOARCH)" && test -n "$(NPMDIR)"
 	mkdir -p "$(NPMDIR)/bin"
-	cd "$(NPMDIR)" && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js "$(NPMDIR)/package.json" --version
 	CGO_ENABLED=0 GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
 
 platform-android-arm64:
@@ -298,11 +298,11 @@ platform-sunos:
 	make GOOS=illumos GOARCH=amd64 NPMDIR=npm/esbuild-sunos-64 platform-unixlike
 
 platform-wasm: esbuild | scripts/node_modules
-	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js npm/esbuild-wasm/package.json --version
 	node scripts/esbuild.js ./esbuild --wasm
 
 platform-neutral: esbuild
-	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/esbuild.js ./esbuild
 
 platform-deno: esbuild
