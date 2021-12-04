@@ -1,3 +1,3 @@
 package main
 
-const esbuildVersion = "0.13.15"
+const esbuildVersion = "0.14.1"

@@ -121,7 +121,7 @@ jobs:
 
       - name: Uglify Tests
         if: matrix.os == 'ubuntu-latest'
-        run: make uglify
+        run: CI=1 make uglify
 
       - name: Check the unicode table generator
         if: matrix.os == 'ubuntu-latest'

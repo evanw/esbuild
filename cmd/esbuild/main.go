@@ -85,7 +85,7 @@ var helpText = func(colors logger.Colors) string {
                             and inline otherwise)
   --log-level=...           Disable logging (verbose | debug | info | warning |
                             error | silent, default info)
-  --log-limit=...           Maximum message count or 0 to disable (default 10)
+  --log-limit=...           Maximum message count or 0 to disable (default 6)
   --main-fields=...         Override the main file order in package.json
                             (default "browser,module,main" when platform is
                             browser and "main,module" when platform is node)

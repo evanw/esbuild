@@ -12,13 +12,13 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
-	"runtime/debug"
 	"sync"
 	"time"
 
 	"github.com/evanw/esbuild/internal/cli_helpers"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/evanw/esbuild/pkg/cli"
@@ -177,7 +177,7 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 					bytes: encodePacket(packet{
 						id: p.id,
 						value: map[string]interface{}{
-							"error": fmt.Sprintf("Panic: %v\n\n%s", r, debug.Stack()),
+							"error": fmt.Sprintf("panic: %v\n\n%s", r, helpers.PrettyPrintedStack()),
 						},
 					}),
 				}
@@ -787,7 +787,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				if value, ok := response["loader"]; ok {
 					loader, err := cli_helpers.ParseLoader(value.(string))
 					if err != nil {
-						return result, err
+						return result, errors.New(err.Text)
 					}
 					result.Loader = loader
 				}

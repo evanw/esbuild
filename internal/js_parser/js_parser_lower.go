@@ -19,8 +19,8 @@ func (p *parser) prettyPrintTargetEnvironment(feature compat.JSFeature) (where s
 	if tsTarget := p.options.tsTarget; tsTarget != nil && tsTarget.UnsupportedJSFeatures.Has(feature) {
 		tracker := logger.MakeLineColumnTracker(&tsTarget.Source)
 		where = fmt.Sprintf("%s (%q)", where, tsTarget.Target)
-		notes = []logger.MsgData{logger.RangeData(&tracker, tsTarget.Range, fmt.Sprintf(
-			"The target environment was set to %q here", tsTarget.Target))}
+		notes = []logger.MsgData{tracker.MsgData(tsTarget.Range, fmt.Sprintf(
+			"The target environment was set to %q here:", tsTarget.Target))}
 	} else if p.options.originalTargetEnv != "" {
 		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
 	}
@@ -32,7 +32,7 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 
 	if !p.options.unsupportedJSFeatures.Has(feature) {
 		if feature == compat.TopLevelAwait && !p.options.outputFormat.KeepES6ImportExportSyntax() {
-			p.log.AddRangeError(&p.tracker, r, fmt.Sprintf(
+			p.log.Add(logger.Error, &p.tracker, r, fmt.Sprintf(
 				"Top-level await is currently not supported with the %q output format", p.options.outputFormat.String()))
 			return
 		}
@@ -94,39 +94,39 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 		name = "non-identifier array rest patterns"
 
 	case compat.ImportAssertions:
-		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+		p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
 			"Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where), notes)
 		return
 
 	case compat.TopLevelAwait:
-		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+		p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
 			"Top-level await is not available in %s", where), notes)
 		return
 
 	case compat.ArbitraryModuleNamespaceNames:
-		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+		p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
 			"Using a string as a module namespace identifier name is not supported in %s", where), notes)
 		return
 
 	case compat.BigInt:
 		// Transforming these will never be supported
-		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+		p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
 			"Big integer literals are not available in %s", where), notes)
 		return
 
 	case compat.ImportMeta:
 		// This can't be polyfilled
-		p.log.AddRangeWarningWithNotes(&p.tracker, r, fmt.Sprintf(
+		p.log.AddWithNotes(logger.Warning, &p.tracker, r, fmt.Sprintf(
 			"\"import.meta\" is not available in %s and will be empty", where), notes)
 		return
 
 	default:
-		p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+		p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
 			"This feature is not available in %s", where), notes)
 		return
 	}
 
-	p.log.AddRangeErrorWithNotes(&p.tracker, r, fmt.Sprintf(
+	p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
 		"Transforming %s to %s is not supported yet", name, where), notes)
 	return
 }
@@ -150,6 +150,7 @@ const (
 	legacyOctalLiteral
 	legacyOctalEscape
 	ifElseFunctionStmt
+	labelFunctionStmt
 )
 
 func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range, detail string) {
@@ -173,6 +174,8 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 		text = "Legacy octal escape sequences"
 	case ifElseFunctionStmt:
 		text = "Function declarations inside if statements"
+	case labelFunctionStmt:
+		text = "Function declarations inside labels"
 	default:
 		text = "This feature"
 	}
@@ -191,19 +194,19 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 			why = "All code inside a class is implicitly in strict mode"
 			where = p.enclosingClassKeyword
 		case js_ast.ExplicitStrictMode:
-			why = "Strict mode is triggered by the \"use strict\" directive here"
+			why = "Strict mode is triggered by the \"use strict\" directive here:"
 			where = p.source.RangeOfString(p.currentScope.UseStrictLoc)
 		}
 		if where.Len > 0 {
 			if why == "" {
-				why = fmt.Sprintf("This file is implicitly in strict mode because of the %q keyword here", p.source.TextForRange(where))
+				why = fmt.Sprintf("This file is implicitly in strict mode because of the %q keyword here:", p.source.TextForRange(where))
 			}
-			notes = []logger.MsgData{logger.RangeData(&p.tracker, where, why)}
+			notes = []logger.MsgData{p.tracker.MsgData(where, why)}
 		}
-		p.log.AddRangeErrorWithNotes(&p.tracker, r,
+		p.log.AddWithNotes(logger.Error, &p.tracker, r,
 			fmt.Sprintf("%s cannot be used in strict mode", text), notes)
 	} else if !canBeTransformed && p.isStrictModeOutputFormat() {
-		p.log.AddRangeError(&p.tracker, r,
+		p.log.Add(logger.Error, &p.tracker, r,
 			fmt.Sprintf("%s cannot be used with the \"esm\" output format due to strict mode", text))
 	}
 }

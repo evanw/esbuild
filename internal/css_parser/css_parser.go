@@ -116,24 +116,35 @@ func (p *parser) expect(kind css_lexer.T) bool {
 		return true
 	}
 	t := p.current()
+
 	var text string
-	if kind == css_lexer.TSemicolon && p.index > 0 && p.at(p.index-1).Kind == css_lexer.TWhitespace {
-		// Have a nice error message for forgetting a trailing semicolon
-		text = "Expected \";\""
+	var suggestion string
+
+	expected := kind.String()
+	if strings.HasPrefix(expected, "\"") && strings.HasSuffix(expected, "\"") {
+		suggestion = expected[1 : len(expected)-1]
+	}
+
+	if (kind == css_lexer.TSemicolon || kind == css_lexer.TColon) && p.index > 0 && p.at(p.index-1).Kind == css_lexer.TWhitespace {
+		// Have a nice error message for forgetting a trailing semicolon or colon
+		text = fmt.Sprintf("Expected %s", expected)
 		t = p.at(p.index - 1)
 	} else {
 		switch t.Kind {
 		case css_lexer.TEndOfFile, css_lexer.TWhitespace:
-			text = fmt.Sprintf("Expected %s but found %s", kind.String(), t.Kind.String())
+			text = fmt.Sprintf("Expected %s but found %s", expected, t.Kind.String())
 			t.Range.Len = 0
 		case css_lexer.TBadURL, css_lexer.TBadString:
-			text = fmt.Sprintf("Expected %s but found %s", kind.String(), t.Kind.String())
+			text = fmt.Sprintf("Expected %s but found %s", expected, t.Kind.String())
 		default:
-			text = fmt.Sprintf("Expected %s but found %q", kind.String(), p.raw())
+			text = fmt.Sprintf("Expected %s but found %q", expected, p.raw())
 		}
 	}
+
 	if t.Range.Loc.Start > p.prevError.Start {
-		p.log.AddRangeWarning(&p.tracker, t.Range, text)
+		data := p.tracker.MsgData(t.Range, text)
+		data.Location.Suggestion = suggestion
+		p.log.AddMsg(logger.Msg{Kind: logger.Warning, Data: data})
 		p.prevError = t.Range.Loc
 	}
 	return false
@@ -151,7 +162,7 @@ func (p *parser) unexpected() {
 		default:
 			text = fmt.Sprintf("Unexpected %q", p.raw())
 		}
-		p.log.AddRangeWarning(&p.tracker, t.Range, text)
+		p.log.Add(logger.Warning, &p.tracker, t.Range, text)
 		p.prevError = t.Range.Loc
 	}
 }
@@ -204,8 +215,8 @@ loop:
 					if !didWarnAboutCharset {
 						for i, before := range rules {
 							if _, ok := before.Data.(*css_ast.RComment); !ok {
-								p.log.AddRangeWarningWithNotes(&p.tracker, first, "\"@charset\" must be the first rule in the file",
-									[]logger.MsgData{logger.RangeData(&p.tracker, logger.Range{Loc: locs[i]},
+								p.log.AddWithNotes(logger.Warning, &p.tracker, first, "\"@charset\" must be the first rule in the file",
+									[]logger.MsgData{p.tracker.MsgData(logger.Range{Loc: locs[i]},
 										"This rule cannot come before a \"@charset\" rule")})
 								didWarnAboutCharset = true
 							}
@@ -219,8 +230,8 @@ loop:
 							switch before.Data.(type) {
 							case *css_ast.RComment, *css_ast.RAtCharset, *css_ast.RAtImport:
 							default:
-								p.log.AddRangeWarningWithNotes(&p.tracker, first, "All \"@import\" rules must come first",
-									[]logger.MsgData{logger.RangeData(&p.tracker, logger.Range{Loc: locs[i]},
+								p.log.AddWithNotes(logger.Warning, &p.tracker, first, "All \"@import\" rules must come first",
+									[]logger.MsgData{p.tracker.MsgData(logger.Range{Loc: locs[i]},
 										"This rule cannot come before an \"@import\" rule")})
 								didWarnAboutImport = true
 								break importLoop
@@ -633,7 +644,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 		if p.peek(css_lexer.TString) {
 			encoding := p.decoded()
 			if !strings.EqualFold(encoding, "UTF-8") {
-				p.log.AddRangeWarning(&p.tracker, p.current().Range,
+				p.log.Add(logger.Warning, &p.tracker, p.current().Range,
 					fmt.Sprintf("\"UTF-8\" will be used instead of unsupported charset %q", encoding))
 			}
 			p.advance()
@@ -647,8 +658,14 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 		p.eat(css_lexer.TWhitespace)
 		if path, r, ok := p.expectURLOrString(); ok {
 			importConditionsStart := p.index
-			for p.current().Kind != css_lexer.TSemicolon && p.current().Kind != css_lexer.TEndOfFile {
+			for {
+				if kind := p.current().Kind; kind == css_lexer.TSemicolon || kind == css_lexer.TOpenBrace || kind == css_lexer.TEndOfFile {
+					break
+				}
 				p.parseComponentValue()
+			}
+			if p.current().Kind == css_lexer.TOpenBrace {
+				break // Avoid parsing an invalid "@import" rule
 			}
 			importConditions := p.convertTokens(p.tokens[importConditionsStart:p.index])
 			kind := ast.ImportAt
@@ -790,7 +807,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 			//
 			// Instead of implementing all of that for an extremely obscure feature,
 			// CSS namespaces are just explicitly not supported.
-			p.log.AddRangeWarning(&p.tracker, atRange, "\"@namespace\" rules are not supported")
+			p.log.Add(logger.Warning, &p.tracker, atRange, "\"@namespace\" rules are not supported")
 		}
 	}
 
@@ -892,7 +909,7 @@ loop:
 		if opts.isInsideCalcFunction && t.Kind.IsNumeric() && len(result) > 0 && result[len(result)-1].Kind.IsNumeric() &&
 			(strings.HasPrefix(token.Text, "+") || strings.HasPrefix(token.Text, "-")) {
 			// "calc(1+2)" and "calc(1-2)" are invalid
-			p.log.AddRangeWarning(&p.tracker, logger.Range{Loc: t.Range.Loc, Len: 1},
+			p.log.Add(logger.Warning, &p.tracker, logger.Range{Loc: t.Range.Loc, Len: 1},
 				fmt.Sprintf("The %q operator only works if there is whitespace on both sides", token.Text[:1]))
 		}
 
@@ -909,11 +926,11 @@ loop:
 			if opts.isInsideCalcFunction && len(tokens) > 0 {
 				if len(result) == 0 || result[len(result)-1].Kind == css_lexer.TComma {
 					// "calc(-(1 + 2))" is invalid
-					p.log.AddRangeWarning(&p.tracker, t.Range,
+					p.log.Add(logger.Warning, &p.tracker, t.Range,
 						fmt.Sprintf("%q can only be used as an infix operator, not a prefix operator", token.Text))
 				} else if token.Whitespace != css_ast.WhitespaceBefore || tokens[0].Kind != css_lexer.TWhitespace {
 					// "calc(1- 2)" and "calc(1 -(2))" are invalid
-					p.log.AddRangeWarning(&p.tracker, t.Range,
+					p.log.Add(logger.Warning, &p.tracker, t.Range,
 						fmt.Sprintf("The %q operator only works if there is whitespace on both sides", token.Text))
 				}
 			}

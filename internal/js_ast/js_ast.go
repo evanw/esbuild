@@ -417,6 +417,7 @@ func (*ESpread) isExpr()               {}
 func (*EString) isExpr()               {}
 func (*ETemplate) isExpr()             {}
 func (*ERegExp) isExpr()               {}
+func (*EInlinedEnum) isExpr()          {}
 func (*EAwait) isExpr()                {}
 func (*EYield) isExpr()                {}
 func (*EIf) isExpr()                   {}
@@ -663,6 +664,11 @@ type ETemplate struct {
 
 type ERegExp struct{ Value string }
 
+type EInlinedEnum struct {
+	Value   Expr
+	Comment string
+}
+
 type EAwait struct {
 	Value Expr
 }
@@ -745,6 +751,11 @@ func Not(expr Expr) Expr {
 // that is undesired.
 func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 	switch e := expr.Data.(type) {
+	case *EInlinedEnum:
+		if value, ok := MaybeSimplifyNot(e.Value); ok {
+			return value, true
+		}
+
 	case *ENull, *EUndefined:
 		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: true}}, true
 
@@ -806,6 +817,9 @@ func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 
 func IsBooleanValue(a Expr) bool {
 	switch e := a.Data.(type) {
+	case *EInlinedEnum:
+		return IsBooleanValue(e.Value)
+
 	case *EBoolean:
 		return true
 
@@ -835,6 +849,9 @@ func IsBooleanValue(a Expr) bool {
 
 func IsNumericValue(a Expr) bool {
 	switch e := a.Data.(type) {
+	case *EInlinedEnum:
+		return IsNumericValue(e.Value)
+
 	case *ENumber:
 		return true
 
@@ -875,6 +892,9 @@ func IsNumericValue(a Expr) bool {
 
 func IsStringValue(a Expr) bool {
 	switch e := a.Data.(type) {
+	case *EInlinedEnum:
+		return IsStringValue(e.Value)
+
 	case *EString:
 		return true
 
@@ -1140,9 +1160,10 @@ type SWith struct {
 }
 
 type Catch struct {
-	Loc          logger.Loc
 	BindingOrNil Binding
 	Body         []Stmt
+	Loc          logger.Loc
+	BodyLoc      logger.Loc
 }
 
 type Finally struct {
@@ -1606,6 +1627,7 @@ const (
 	ScopeLabel
 	ScopeClassName
 	ScopeClassBody
+	ScopeCatchBinding
 
 	// The scopes below stop hoisted variables from extending into parent scopes
 	ScopeEntry // This is a module, TypeScript enum, or TypeScript namespace
@@ -1744,13 +1766,41 @@ type TSNamespaceScope struct {
 	// map is unique per namespace block because "x3" is the argument symbol that
 	// is specific to that particular namespace block.
 	LazilyGeneratedProperyAccesses map[string]Ref
+
+	// Even though enums are like namespaces and both enums and namespaces allow
+	// implicit references to properties of sibling scopes, they behave like
+	// separate, er, namespaces. Implicit references only work namespace-to-
+	// namespace and enum-to-enum. They do not work enum-to-namespace. And I'm
+	// not sure what's supposed to happen for the namespace-to-enum case because
+	// the compiler crashes: https://github.com/microsoft/TypeScript/issues/46891.
+	// So basically these both work:
+	//
+	//   enum a { b = 1 }
+	//   enum a { c = b }
+	//
+	//   namespace x { export let y = 1 }
+	//   namespace x { export let z = y }
+	//
+	// This doesn't work:
+	//
+	//   enum a { b = 1 }
+	//   namespace a { export let c = b }
+	//
+	// And this crashes the TypeScript compiler:
+	//
+	//   namespace a { export let b = 1 }
+	//   enum a { c = b }
+	//
+	// Therefore we only allow enum/enum and namespace/namespace interactions.
+	IsEnumScope bool
 }
 
 type TSNamespaceMembers map[string]TSNamespaceMember
 
 type TSNamespaceMember struct {
-	Loc  logger.Loc
-	Data TSNamespaceMemberData
+	Data        TSNamespaceMemberData
+	Loc         logger.Loc
+	IsEnumValue bool
 }
 
 type TSNamespaceMemberData interface {

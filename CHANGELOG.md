@@ -1,6 +1,161 @@
 # Changelog
 
-## Breaking changes
+## Unreleased
+
+* Disable star-to-clause transform for external imports ([#1801](https://github.com/evanw/esbuild/issues/1801))
+
+    When bundling is enabled, esbuild automatically transforms `import * as x from 'y'; x.z()` into `import {z} as 'y'; z()` to improve tree shaking. This avoids needing to create the import namespace object `x` if it's unnecessary, which can result in the removal of large amounts of unused code. However, this transform shouldn't be done for external imports because that incorrectly changes the semantics of the import. If the export `z` doesn't exist in the previous example, the value `x.z` is a property access that is undefined at run-time, but the value `z` is an import error that will prevent the code from running entirely. This release fixes the problem by avoiding doing this transform for external imports:
+
+    ```js
+    // Original code
+    import * as x from 'y';
+    x.z();
+
+    // Old output (with --bundle --format=esm --external:y)
+    import { z } from "y";
+    z();
+
+    // New output (with --bundle --format=esm --external:y)
+    import * as x from "y";
+    x.z();
+    ```
+
+* Disable `calc()` transform for numbers with many fractional digits ([#1821](https://github.com/evanw/esbuild/issues/1821))
+
+    Version 0.13.12 introduced simplification of `calc()` expressions in CSS when minifying. For example, `calc(100% / 4)` turns into `25%`. However, this is problematic for numbers with many fractional digits because either the number is printed with reduced precision, which is inaccurate, or the number is printed with full precision, which could be longer than the original expression. For example, turning `calc(100% / 3)` into `33.33333%` is inaccurate and turning it into `33.333333333333336%` likely isn't desired. In this release, minification of `calc()` is now disabled when any number in the result cannot be represented to full precision with at most five fractional digits.
+
+* Fix an edge case with `catch` scope handling ([#1812](https://github.com/evanw/esbuild/issues/1812))
+
+    This release fixes a subtle edge case with `catch` scope and destructuring assignment. Identifiers in computed properties and/or default values inside the destructuring binding pattern should reference the outer scope, not the inner scope. The fix was to split the destructuring pattern into its own scope, separate from the `catch` body. Here's an example of code that was affected by this edge case:
+
+    ```js
+    // Original code
+    let foo = 1
+    try {
+      throw ['a', 'b']
+    } catch ({ [foo]: y }) {
+      let foo = 2
+      assert(y === 'b')
+    }
+
+    // Old output (with --minify)
+    let foo=1;try{throw["a","b"]}catch({[o]:t}){let o=2;assert(t==="b")}
+
+    // New output (with --minify)
+    let foo=1;try{throw["a","b"]}catch({[foo]:t}){let o=2;assert(t==="b")}
+    ```
+
+## 0.14.1
+
+* Fix `imports` in `package.json` ([#1807](https://github.com/evanw/esbuild/issues/1807))
+
+    This release contains a fix for the rarely-used [`imports` feature in `package.json` files](https://nodejs.org/api/packages.html#subpath-imports) that lets a package specify a custom remapping for import paths inside that package that start with `#`. Support for `imports` was added in version 0.13.9. However, the field was being incorrectly interpreted as relative to the importing file instead of to the `package.json` file, which caused an import failure when the importing file is in a subdirectory instead of being at the top level of the package. Import paths should now be interpreted as relative to the correct directory which should fix these path resolution failures.
+
+* Isolate implicit sibling scope lookup for `enum` and `namespace`
+
+    The previous release implemented sibling namespaces in TypeScript, which introduces a new kind of scope lookup that doesn't exist in JavaScript. Exported members inside an `enum` or `namespace` block can be implicitly referenced in a sibling `enum` or `namespace` block just by using the name without using a property reference. However, this behavior appears to only work for `enum`-to-`enum` and `namespace`-to-`namespace` interactions. Even though sibling enums and namespaces with the same name can be merged together into the same underlying object, this implicit reference behavior doesn't work for `enum`-to-`namespace` interactions and attempting to do this with a `namespace`-to-`enum` interaction [causes the TypeScript compiler itself to crash](https://github.com/microsoft/TypeScript/issues/46891). Here is an example of how the TypeScript compiler behaves in each case:
+
+    ```ts
+    // "b" is accessible
+    enum a { b = 1 }
+    enum a { c = b }
+
+    // "e" is accessible
+    namespace d { export let e = 1 }
+    namespace d { export let f = e }
+
+    // "h" is inaccessible
+    enum g { h = 1 }
+    namespace g { export let i = h }
+
+    // This causes the TypeScript compiler to crash
+    namespace j { export let k = 1 }
+    enum j { l = k }
+    ```
+
+    This release changes the implicit sibling scope lookup behavior to only work for `enum`-to-`enum` and `namespace`-to-`namespace` interactions. These implicit references no longer work with `enum`-to-`namespace` and `namespace`-to-`enum` interactions, which should more accurately match the behavior of the TypeScript compiler.
+
+* Add semicolon insertion before TypeScript-specific definite assignment assertion modifier ([#1810](https://github.com/evanw/esbuild/issues/1810))
+
+    TypeScript lets you add a `!` after a variable declaration to bypass TypeScript's definite assignment analysis:
+
+    ```ts
+    let x!: number[];
+    initialize();
+    x.push(4);
+
+    function initialize() { x = [0, 1, 2, 3]; }
+    ```
+
+    This `!` is called a [definite assignment assertion](https://devblogs.microsoft.com/typescript/announcing-typescript-2-7/#definite-assignment-assertions) and tells TypeScript to assume that the variable has been initialized somehow. However, JavaScript's automatic semicolon insertion rules should be able to insert a semicolon before it:
+
+    ```ts
+    let a
+    !function(){}()
+    ```
+
+    Previously the above code was incorrectly considered a syntax error in TypeScript. With this release, this code is now parsed correctly.
+
+* Log output to stderr has been overhauled
+
+    This release changes the way log messages are formatted to stderr. The changes make the kind of message (e.g. error vs. warning vs. note) more obvious, and they also give more room for paragraph-style notes that can provide more detail about the message. Here's an example:
+
+    Before:
+
+    ```
+     > example.tsx:14:25: warning: Comparison with -0 using the "===" operator will also match 0
+        14 │     case 1: return x === -0
+           ╵                          ~~
+     > example.tsx:21:23: error: Could not resolve "path" (use "--platform=node" when building for node)
+        21 │   const path = require('path')
+           ╵                        ~~~~~~
+    ```
+
+    After:
+
+    ```
+    ▲ [WARNING] Comparison with -0 using the "===" operator will also match 0
+
+        example.tsx:14:25:
+          14 │     case 1: return x === -0
+             ╵                          ~~
+
+      Floating-point equality is defined such that 0 and -0 are equal, so "x === -0" returns true for
+      both 0 and -0. You need to use "Object.is(x, -0)" instead to test for -0.
+
+    ✘ [ERROR] Could not resolve "path"
+
+        example.tsx:21:23:
+          21 │   const path = require('path')
+             ╵                        ~~~~~~
+
+      The package "path" wasn't found on the file system but is built into node. Are you trying to
+      bundle for node? You can use "--platform=node" to do that, which will remove this error.
+    ```
+
+    Note that esbuild's formatted log output is for humans, not for machines. If you need to output a stable machine-readable format, you should be using the API for that. Build and transform results have arrays called `errors` and `warnings` with objects that represent the log messages.
+
+* Show inlined enum value names in comments
+
+    When esbuild inlines an enum, it will now put a comment next to it with the original enum name:
+
+    ```ts
+    // Original code
+    const enum Foo { FOO }
+    console.log(Foo.FOO)
+
+    // Old output
+    console.log(0);
+
+    // New output
+    console.log(0 /* FOO */);
+    ```
+
+    This matches the behavior of the TypeScript compiler, and should help with debugging. These comments are not generated if minification is enabled.
+
+## 0.14.0
+
+**This release contains backwards-incompatible changes.** Since esbuild is before version 1.0.0, these changes have been released as a new minor version to reflect this (as [recommended by npm](https://docs.npmjs.com/cli/v6/using-npm/semver/)). You should either be pinning the exact version of `esbuild` in your `package.json` file or be using a version range syntax that only accepts patch upgrades such as `~0.13.0`. See the documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
 
 * Add support for TypeScript's `preserveValueImports` setting ([#1525](https://github.com/evanw/esbuild/issues/1525))
 
@@ -33,7 +188,7 @@
 
     Previously the implementers of these languages had to use the `importsNotUsedAsValues` setting as a hack for esbuild to preserve the import statements. With this release, esbuild now follows the behavior of the TypeScript compiler so implementers will need to use the new `preserveValueImports` setting to do this instead. This is the breaking change.
 
-* Follow JavaScript class field semantics with `--target=esnext` ([#1480](https://github.com/evanw/esbuild/issues/1480))
+* TypeScript code follows JavaScript class field semantics with `--target=esnext` ([#1480](https://github.com/evanw/esbuild/issues/1480))
 
     TypeScript 4.3 included a subtle breaking change that wasn't mentioned in the [TypeScript 4.3 blog post](https://devblogs.microsoft.com/typescript/announcing-typescript-4-3/): class fields will now be compiled with different semantics if `"target": "ESNext"` is present in `tsconfig.json`. Specifically in this case `useDefineForClassFields` will default to `true` when not specified instead of `false`. This means class field behavior in TypeScript code will now match JavaScript instead of doing something else:
 
@@ -125,6 +280,51 @@ In addition to the breaking changes above, the following changes are also includ
 
     Note that this behavior does **not** work across files. Each file is still compiled independently so the namespaces in each file are still resolved independently per-file. Implicit namespace cross-references still do not work across files. Getting this to work is counter to esbuild's parallel architecture and does not fit in with esbuild's design. It also doesn't make sense with esbuild's bundling model where input files are either in ESM or CommonJS format and therefore each have their own scope.
 
+* Change output for top-level TypeScript enums
+
+    The output format for top-level TypeScript enums has been changed to reduce code size and improve tree shaking, which means that esbuild's enum output is now somewhat different than TypeScript's enum output. The behavior of both output formats should still be equivalent though. Here's an example that shows the difference:
+
+    ```ts
+    // Original code
+    enum x {
+      y = 1,
+      z = 2
+    }
+
+    // Old output
+    var x;
+    (function(x2) {
+      x2[x2["y"] = 1] = "y";
+      x2[x2["z"] = 2] = "z";
+    })(x || (x = {}));
+
+    // New output
+    var x = /* @__PURE__ */ ((x2) => {
+      x2[x2["y"] = 1] = "y";
+      x2[x2["z"] = 2] = "z";
+      return x2;
+    })(x || {});
+    ```
+
+    The function expression has been changed to an arrow expression to reduce code size and the enum initializer has been moved into the variable declaration to make it possible to be marked as `/* @__PURE__ */` to improve tree shaking. The `/* @__PURE__ */` annotation is now automatically added when all of the enum values are side-effect free, which means the entire enum definition can be removed as dead code if it's never referenced. Direct enum value references within the same file that have been inlined do not count as references to the enum definition so this should eliminate enums from the output in many cases:
+
+    ```ts
+    // Original code
+    enum Foo { FOO = 1 }
+    enum Bar { BAR = 2 }
+    console.log(Foo, Bar.BAR)
+
+    // Old output (with --bundle --minify)
+    var n;(function(e){e[e.FOO=1]="FOO"})(n||(n={}));var l;(function(e){e[e.BAR=2]="BAR"})(l||(l={}));console.log(n,2);
+
+    // New output (with --bundle --minify)
+    var n=(e=>(e[e.FOO=1]="FOO",e))(n||{});console.log(n,2);
+    ```
+
+    Notice how the new output is much shorter because the entire definition for `Bar` has been completely removed as dead code by esbuild's tree shaking.
+
+    The output may seem strange since it would be simpler to just have a plain object literal as an initializer. However, TypeScript's enum feature behaves similarly to TypeScript's namespace feature which means enums can merge with existing enums and/or existing namespaces (and in some cases also existing objects) if the existing definition has the same name. This new output format keeps its similarity to the original output format so that it still handles all of the various edge cases that TypeScript's enum feature supports. Initializing the enum using a plain object literal would not merge with existing definitions and would break TypeScript's enum semantics.
+
 * Fix legal comment parsing in CSS ([#1796](https://github.com/evanw/esbuild/issues/1796))
 
     Legal comments in CSS either start with `/*!` or contain `@preserve` or `@license` and are preserved by esbuild in the generated CSS output. This release fixes a bug where non-top-level legal comments inside a CSS file caused esbuild to skip any following legal comments even if those following comments are top-level:
@@ -144,6 +344,34 @@ In addition to the breaking changes above, the following changes are also includ
 
     /* New output (with --minify) */
     .example{--some-var: var(--tw-empty, )}/*! Some legal comment */body{background-color:red}
+    ```
+
+* Fix panic when printing invalid CSS ([#1803](https://github.com/evanw/esbuild/issues/1803))
+
+    This release fixes a panic caused by a conditional CSS `@import` rule with a URL token. Code like this caused esbuild to enter an unexpected state because the case where tokens in the import condition with associated import records wasn't handled. This case is now handled correctly:
+
+    ```css
+    @import "example.css" url(foo);
+    ```
+
+* Mark `Set` and `Map` with array arguments as pure ([#1791](https://github.com/evanw/esbuild/issues/1791))
+
+    This release introduces special behavior for references to the global `Set` and `Map` constructors that marks them as `/* @__PURE__ */` if they are known to not have any side effects. These constructors evaluate the iterator of whatever is passed to them and the iterator could have side effects, so this is only safe if whatever is passed to them is an array, since the array iterator has no side effects.
+
+    Marking a constructor call as `/* @__PURE__ */` means it's safe to remove if the result is unused. This is an existing feature that you can trigger by manually adding a `/* @__PURE__ */` comment before a constructor call. The difference is that this release contains special behavior to automatically mark `Set` and `Map` as pure for you as long as it's safe to do so. As with all constructor calls that are marked `/* @__PURE__ */`, any internal expressions which could cause side effects are still preserved even though the constructor call itself is removed:
+
+    ```js
+    // Original code
+    new Map([
+      ['a', b()],
+      [c(), new Set(['d', e()])],
+    ]);
+
+    // Old output (with --minify)
+    new Map([["a",b()],[c(),new Set(["d",e()])]]);
+
+    // New output (with --minify)
+    b(),c(),e();
     ```
 
 ## 0.13.15

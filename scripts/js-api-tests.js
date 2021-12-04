@@ -12,6 +12,7 @@ const mkdirAsync = fs.promises.mkdir
 
 const repoDir = path.dirname(__dirname)
 const rootTestDir = path.join(repoDir, 'scripts', '.js-api-tests')
+const errorIcon = process.platform !== 'win32' ? '✘' : 'X'
 
 let buildTests = {
   async errorIfEntryPointsNotArray({ esbuild }) {
@@ -53,8 +54,10 @@ let buildTests = {
       })
       throw new Error('Expected build failure');
     } catch (e) {
-      if (!e.errors || !e.errors[0] || e.errors[0].text !== 'Could not resolve "./src/*.js" ' +
-        '(glob syntax must be expanded first before passing the paths to esbuild)') {
+      if (!e.errors || !e.errors[0] || e.errors[0].text !== 'Could not resolve "./src/*.js"' ||
+        e.errors[0].notes[0].text !== 'It looks like you are trying to use glob syntax (i.e. "*") with esbuild. ' +
+        'This syntax is typically handled by your shell, and isn\'t handled by esbuild itself. ' +
+        'You must expand glob syntax first before passing your paths to esbuild.') {
         throw e;
       }
     }
@@ -3676,7 +3679,7 @@ let transformTests = {
 
   async ts({ esbuild }) {
     const { code } = await esbuild.transform(`enum Foo { FOO }`, { loader: 'ts' })
-    assert.strictEqual(code, `var Foo;\n(function(Foo2) {\n  Foo2[Foo2["FOO"] = 0] = "FOO";\n})(Foo || (Foo = {}));\n`)
+    assert.strictEqual(code, `var Foo = /* @__PURE__ */ ((Foo2) => {\n  Foo2[Foo2["FOO"] = 0] = "FOO";\n  return Foo2;\n})(Foo || {});\n`)
   },
 
   async tsx({ esbuild }) {
@@ -4249,8 +4252,8 @@ let formatTests = {
       kind: 'error',
     })
     assert.strictEqual(messages.length, 2)
-    assert.strictEqual(messages[0], ` > error: This is an error\n\n`)
-    assert.strictEqual(messages[1], ` > file.js:0:0: error: Another error\n    0 │ \n      ╵ ^\n\n`)
+    assert.strictEqual(messages[0], `${errorIcon} [ERROR] This is an error\n\n`)
+    assert.strictEqual(messages[1], `${errorIcon} [ERROR] Another error\n\n    file.js:0:0:\n      0 │ \n        ╵ ^\n\n`)
   },
 }
 
@@ -4447,7 +4450,7 @@ let syncTests = {
     } catch (error) {
       assert(error instanceof Error, 'Must be an Error object');
       assert.strictEqual(error.message, `Build failed with 1 error:
-${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpected end of file`);
+${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: ERROR: Unexpected end of file`);
       assert.strictEqual(error.errors.length, 1);
       assert.strictEqual(error.warnings.length, 0);
     }
@@ -4495,7 +4498,7 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
       throw new Error('Expected an error to be thrown');
     } catch (error) {
       assert(error instanceof Error, 'Must be an Error object');
-      assert.strictEqual(error.message, `Transform failed with 1 error:\n<stdin>:1:2: error: Unexpected end of file`);
+      assert.strictEqual(error.message, `Transform failed with 1 error:\n<stdin>:1:2: ERROR: Unexpected end of file`);
       assert.strictEqual(error.errors.length, 1);
       assert.strictEqual(error.warnings.length, 0);
     }
@@ -4509,8 +4512,8 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
       kind: 'error',
     })
     assert.strictEqual(messages.length, 2)
-    assert.strictEqual(messages[0], ` > error: This is an error\n\n`)
-    assert.strictEqual(messages[1], ` > file.js:0:0: error: Another error\n    0 │ \n      ╵ ^\n\n`)
+    assert.strictEqual(messages[0], `${errorIcon} [ERROR] This is an error\n\n`)
+    assert.strictEqual(messages[1], `${errorIcon} [ERROR] Another error\n\n    file.js:0:0:\n      0 │ \n        ╵ ^\n\n`)
   },
 
   async analyzeMetafileSync({ esbuild }) {

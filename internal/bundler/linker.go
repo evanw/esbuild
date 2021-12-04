@@ -174,8 +174,9 @@ type chunkReprCSS struct {
 }
 
 type externalImportCSS struct {
-	path       logger.Path
-	conditions []css_ast.Token
+	path                   logger.Path
+	conditions             []css_ast.Token
+	conditionImportRecords []ast.ImportRecord
 }
 
 // Returns a log where "log.HasErrors()" only returns true if any errors have
@@ -320,7 +321,7 @@ func (c *linkerContext) enforceNoCyclicChunkImports(chunks []chunkInfo) {
 	validate = func(chunkIndex int, path []int) {
 		for _, otherChunkIndex := range path {
 			if chunkIndex == otherChunkIndex {
-				c.log.AddError(nil, logger.Loc{}, "Internal error: generated chunks contain a circular import")
+				c.log.Add(logger.Error, nil, logger.Range{}, "Internal error: generated chunks contain a circular import")
 				return
 			}
 		}
@@ -585,7 +586,7 @@ func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) s
 	// Otherwise, return a relative path
 	relPath, ok := c.fs.Rel(fromRelDir, toRelPath)
 	if !ok {
-		c.log.AddError(nil, logger.Loc{},
+		c.log.Add(logger.Error, nil, logger.Range{},
 			fmt.Sprintf("Cannot traverse from directory %q to chunk %q", fromRelDir, toRelPath))
 		return ""
 	}
@@ -609,12 +610,10 @@ func pathRelativeToOutbase(
 	inputFile *graph.InputFile,
 	options *config.Options,
 	fs fs.FS,
-	stdExt string,
 	avoidIndex bool,
 	customFilePath string,
-) (relDir string, baseName string, baseExt string) {
+) (relDir string, baseName string) {
 	relDir = "/"
-	baseExt = stdExt
 	absPath := inputFile.Source.KeyPath.Text
 
 	if customFilePath != "" {
@@ -1976,7 +1975,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 		case matchImportCycle:
 			namedImport := repr.AST.NamedImports[importRef]
-			c.log.AddRangeError(file.LineColumnTracker(), js_lexer.RangeOfIdentifier(file.InputFile.Source, namedImport.AliasLoc),
+			c.log.Add(logger.Error, file.LineColumnTracker(), js_lexer.RangeOfIdentifier(file.InputFile.Source, namedImport.AliasLoc),
 				fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
 
 		case matchImportProbablyTypeScriptType:
@@ -1994,8 +1993,8 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				ra := js_lexer.RangeOfIdentifier(a.InputFile.Source, result.nameLoc)
 				rb := js_lexer.RangeOfIdentifier(b.InputFile.Source, result.otherNameLoc)
 				notes = []logger.MsgData{
-					logger.RangeData(a.LineColumnTracker(), ra, "One matching export is here"),
-					logger.RangeData(b.LineColumnTracker(), rb, "Another matching export is here"),
+					a.LineColumnTracker().MsgData(ra, "One matching export is here:"),
+					b.LineColumnTracker().MsgData(rb, "Another matching export is here:"),
 				}
 			}
 
@@ -2010,10 +2009,10 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
 				msg := fmt.Sprintf("Import %q will always be undefined because there are multiple matching exports", namedImport.Alias)
-				c.log.AddRangeWarningWithNotes(file.LineColumnTracker(), r, msg, notes)
+				c.log.AddWithNotes(logger.Warning, file.LineColumnTracker(), r, msg, notes)
 			} else {
 				msg := fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias)
-				c.log.AddRangeErrorWithNotes(file.LineColumnTracker(), r, msg, notes)
+				c.log.AddWithNotes(logger.Error, file.LineColumnTracker(), r, msg, notes)
 			}
 		}
 	}
@@ -2115,7 +2114,7 @@ loop:
 			if status == importCommonJSWithoutExports {
 				symbol := c.graph.Symbols.Get(tracker.importRef)
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
-				c.log.AddRangeWarning(
+				c.log.Add(logger.Warning,
 					trackerFile.LineColumnTracker(),
 					js_lexer.RangeOfIdentifier(trackerFile.InputFile.Source, namedImport.AliasLoc),
 					fmt.Sprintf("Import %q will always be undefined because the file %q has no exports",
@@ -2154,10 +2153,11 @@ loop:
 				// time, so we emit a warning and rewrite the value to the literal
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
-				c.log.AddRangeWarning(trackerFile.LineColumnTracker(), r, fmt.Sprintf(
-					"Import %q will always be undefined because there is no matching export", namedImport.Alias))
+				c.log.Add(logger.Warning, trackerFile.LineColumnTracker(), r, fmt.Sprintf(
+					"Import %q will always be undefined because there is no matching export in %q",
+					namedImport.Alias, c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath))
 			} else {
-				c.log.AddRangeError(trackerFile.LineColumnTracker(), r, fmt.Sprintf("No matching export in %q for import %q",
+				c.log.Add(logger.Error, trackerFile.LineColumnTracker(), r, fmt.Sprintf("No matching export in %q for import %q",
 					c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath, namedImport.Alias))
 			}
 
@@ -2822,10 +2822,15 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 							external.conditions = append(external.conditions, atImport.ImportConditions)
 						}
 
+						// Clone any import records associated with the condition tokens
+						conditions, conditionImportRecords := css_ast.CloneTokensWithImportRecords(
+							atImport.ImportConditions, repr.AST.ImportRecords, nil, nil)
+
 						externals[record.Path] = external
 						externalOrder = append(externalOrder, externalImportCSS{
-							path:       record.Path,
-							conditions: atImport.ImportConditions,
+							path:                   record.Path,
+							conditions:             conditions,
+							conditionImportRecords: conditionImportRecords,
 						})
 					}
 				}
@@ -3027,14 +3032,14 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 				}
 			} else {
 				// Otherwise, derive the output path from the input path
-				dir, base, ext = pathRelativeToOutbase(
+				dir, base = pathRelativeToOutbase(
 					&c.graph.Files[chunk.sourceIndex].InputFile,
 					c.options,
 					c.fs,
-					stdExt,
 					!file.IsUserSpecifiedEntryPoint(),
 					c.graph.EntryPoints()[chunk.entryPointBit].OutputPath,
 				)
+				ext = stdExt
 			}
 		} else {
 			dir = "/"
@@ -3583,6 +3588,8 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	result *compileResultJS,
 	dataForSourceMaps []dataForSourceMap,
 ) {
+	defer c.recoverInternalError(waitGroup, partRange.sourceIndex)
+
 	file := &c.graph.Files[partRange.sourceIndex]
 	repr := file.InputFile.Repr.(*graph.JSRepr)
 	nsExportPartIndex := js_ast.NSExportPartIndex
@@ -4335,6 +4342,8 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 }
 
 func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
+	defer c.recoverInternalError(chunkWaitGroup, runtime.SourceIndex)
+
 	chunk := &chunks[chunkIndex]
 
 	timer := c.timer.Fork()
@@ -4767,6 +4776,8 @@ type compileResultCSS struct {
 }
 
 func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
+	defer c.recoverInternalError(chunkWaitGroup, runtime.SourceIndex)
+
 	chunk := &chunks[chunkIndex]
 
 	timer := c.timer.Fork()
@@ -4797,6 +4808,8 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 		// Create a goroutine for this file
 		waitGroup.Add(1)
 		go func(sourceIndex uint32, compileResult *compileResultCSS) {
+			defer c.recoverInternalError(&waitGroup, sourceIndex)
+
 			file := &c.graph.Files[sourceIndex]
 			ast := file.InputFile.Repr.(*graph.CSSRepr).AST
 
@@ -4871,9 +4884,12 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 		// Insert all external "@import" rules at the front. In CSS, all "@import"
 		// rules must come first or the browser will just ignore them.
 		for _, external := range chunkRepr.externalImportsInOrder {
+			var conditions []css_ast.Token
+			conditions, tree.ImportRecords = css_ast.CloneTokensWithImportRecords(
+				external.conditions, external.conditionImportRecords, conditions, tree.ImportRecords)
 			tree.Rules = append(tree.Rules, css_ast.Rule{Data: &css_ast.RAtImport{
 				ImportRecordIndex: uint32(len(tree.ImportRecords)),
-				ImportConditions:  external.conditions,
+				ImportConditions:  conditions,
 			}})
 			tree.ImportRecords = append(tree.ImportRecords, ast.ImportRecord{
 				Kind: ast.ImportAt,
@@ -5532,4 +5548,17 @@ func (c *linkerContext) generateSourceMapForChunk(
 		pieces.Suffix = bytes[mappingsEnd:]
 	}
 	return
+}
+
+// Recover from a panic by logging it as an internal error instead of crashing
+func (c *linkerContext) recoverInternalError(waitGroup *sync.WaitGroup, sourceIndex uint32) {
+	if r := recover(); r != nil {
+		text := fmt.Sprintf("panic: %v", r)
+		if sourceIndex != runtime.SourceIndex {
+			text = fmt.Sprintf("%s (while printing %q)", text, c.graph.Files[sourceIndex].InputFile.Source.PrettyPath)
+		}
+		c.log.AddWithNotes(logger.Error, nil, logger.Range{}, text,
+			[]logger.MsgData{{Text: helpers.PrettyPrintedStack()}})
+		waitGroup.Done()
+	}
 }

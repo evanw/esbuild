@@ -17,19 +17,20 @@ func (p *parser) tryToReduceCalcExpression(token css_ast.Token) css_ast.Token {
 			whitespace = 0
 		}
 		term = term.partiallySimplify()
-		result := term.convertToToken(whitespace)
-		if result.Kind == css_lexer.TOpenParen {
-			result.Kind = css_lexer.TFunction
-			result.Text = "calc"
+		if result, ok := term.convertToToken(whitespace); ok {
+			if result.Kind == css_lexer.TOpenParen {
+				result.Kind = css_lexer.TFunction
+				result.Text = "calc"
+			}
+			return result
 		}
-		return result
 	}
 	return token
 }
 
 // See: https://www.w3.org/TR/css-values-4/#calc-internal
 type calcTerm interface {
-	convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token
+	convertToToken(whitespace css_ast.WhitespaceFlags) (css_ast.Token, bool)
 	partiallySimplify() calcTerm
 }
 
@@ -59,16 +60,19 @@ type calcValue struct {
 	isInvalidPlusOrMinus bool
 }
 
-func floatToStringForCalc(a float64) string {
+func floatToStringForCalc(a float64) (string, bool) {
+	// Handle non-finite cases
 	if math.IsNaN(a) {
-		return "NaN"
+		return "NaN", true
 	}
 	if math.IsInf(a, 1) {
-		return "Infinity"
+		return "Infinity", true
 	}
 	if math.IsInf(a, -1) {
-		return "-Infinity"
+		return "-Infinity", true
 	}
+
+	// Print the number as a string
 	text := fmt.Sprintf("%.05f", a)
 	for text[len(text)-1] == '0' {
 		text = text[:len(text)-1]
@@ -76,28 +80,51 @@ func floatToStringForCalc(a float64) string {
 	if text[len(text)-1] == '.' {
 		text = text[:len(text)-1]
 	}
-	return text
+	if strings.HasPrefix(text, "0.") {
+		text = text[1:]
+	} else if strings.HasPrefix(text, "-0.") {
+		text = "-" + text[2:]
+	}
+
+	// Bail if the number is not exactly represented
+	if number, err := strconv.ParseFloat(text, 64); err != nil || number != a {
+		return "", false
+	}
+
+	return text, true
 }
 
-func (c *calcSum) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
+func (c *calcSum) convertToToken(whitespace css_ast.WhitespaceFlags) (css_ast.Token, bool) {
 	// Specification: https://www.w3.org/TR/css-values-4/#calc-serialize
 	tokens := make([]css_ast.Token, 0, len(c.terms)*2)
 
 	// ALGORITHM DEVIATION: Avoid parenthesizing product nodes inside sum nodes
 	if product, ok := c.terms[0].(*calcProduct); ok {
-		tokens = append(tokens, *product.convertToToken(whitespace).Children...)
+		token, ok := product.convertToToken(whitespace)
+		if !ok {
+			return css_ast.Token{}, false
+		}
+		tokens = append(tokens, *token.Children...)
 	} else {
-		tokens = append(tokens, c.terms[0].convertToToken(whitespace))
+		token, ok := c.terms[0].convertToToken(whitespace)
+		if !ok {
+			return css_ast.Token{}, false
+		}
+		tokens = append(tokens, token)
 	}
 
 	for _, term := range c.terms[1:] {
 		// If child is a Negate node, append " - " to s, then serialize the Negate’s child and append the result to s.
 		if negate, ok := term.(*calcNegate); ok {
+			token, ok := negate.term.convertToToken(whitespace)
+			if !ok {
+				return css_ast.Token{}, false
+			}
 			tokens = append(tokens, css_ast.Token{
 				Kind:       css_lexer.TDelimMinus,
 				Text:       "-",
 				Whitespace: css_ast.WhitespaceBefore | css_ast.WhitespaceAfter,
-			}, negate.term.convertToToken(whitespace))
+			}, token)
 			continue
 		}
 
@@ -105,11 +132,15 @@ func (c *calcSum) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Tok
 		if numeric, ok := term.(*calcNumeric); ok && numeric.number < 0 {
 			clone := *numeric
 			clone.number = -clone.number
+			token, ok := clone.convertToToken(whitespace)
+			if !ok {
+				return css_ast.Token{}, false
+			}
 			tokens = append(tokens, css_ast.Token{
 				Kind:       css_lexer.TDelimMinus,
 				Text:       "-",
 				Whitespace: css_ast.WhitespaceBefore | css_ast.WhitespaceAfter,
-			}, clone.convertToToken(whitespace))
+			}, token)
 			continue
 		}
 
@@ -122,9 +153,17 @@ func (c *calcSum) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Tok
 
 		// ALGORITHM DEVIATION: Avoid parenthesizing product nodes inside sum nodes
 		if product, ok := term.(*calcProduct); ok {
-			tokens = append(tokens, *product.convertToToken(whitespace).Children...)
+			token, ok := product.convertToToken(whitespace)
+			if !ok {
+				return css_ast.Token{}, false
+			}
+			tokens = append(tokens, *token.Children...)
 		} else {
-			tokens = append(tokens, term.convertToToken(whitespace))
+			token, ok := term.convertToToken(whitespace)
+			if !ok {
+				return css_ast.Token{}, false
+			}
+			tokens = append(tokens, token)
 		}
 	}
 
@@ -132,91 +171,114 @@ func (c *calcSum) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Tok
 		Kind:     css_lexer.TOpenParen,
 		Text:     "(",
 		Children: &tokens,
-	}
+	}, true
 }
 
-func (c *calcProduct) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
+func (c *calcProduct) convertToToken(whitespace css_ast.WhitespaceFlags) (css_ast.Token, bool) {
 	// Specification: https://www.w3.org/TR/css-values-4/#calc-serialize
 	tokens := make([]css_ast.Token, 0, len(c.terms)*2)
-	tokens = append(tokens, c.terms[0].convertToToken(whitespace))
+	token, ok := c.terms[0].convertToToken(whitespace)
+	if !ok {
+		return css_ast.Token{}, false
+	}
+	tokens = append(tokens, token)
 
 	for _, term := range c.terms[1:] {
 		// If child is an Invert node, append " / " to s, then serialize the Invert’s child and append the result to s.
 		if invert, ok := term.(*calcInvert); ok {
+			token, ok := invert.term.convertToToken(whitespace)
+			if !ok {
+				return css_ast.Token{}, false
+			}
 			tokens = append(tokens, css_ast.Token{
 				Kind:       css_lexer.TDelimSlash,
 				Text:       "/",
 				Whitespace: whitespace,
-			}, invert.term.convertToToken(whitespace))
+			}, token)
 			continue
 		}
 
 		// Otherwise, append " * " to s, then serialize child and append the result to s.
+		token, ok := term.convertToToken(whitespace)
+		if !ok {
+			return css_ast.Token{}, false
+		}
 		tokens = append(tokens, css_ast.Token{
 			Kind:       css_lexer.TDelimAsterisk,
 			Text:       "*",
 			Whitespace: whitespace,
-		}, term.convertToToken(whitespace))
+		}, token)
 	}
 
 	return css_ast.Token{
 		Kind:     css_lexer.TOpenParen,
 		Text:     "(",
 		Children: &tokens,
-	}
+	}, true
 }
 
-func (c *calcNegate) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
+func (c *calcNegate) convertToToken(whitespace css_ast.WhitespaceFlags) (css_ast.Token, bool) {
 	// Specification: https://www.w3.org/TR/css-values-4/#calc-serialize
+	token, ok := c.term.convertToToken(whitespace)
+	if !ok {
+		return css_ast.Token{}, false
+	}
 	return css_ast.Token{
 		Kind: css_lexer.TOpenParen,
 		Text: "(",
 		Children: &[]css_ast.Token{
 			{Kind: css_lexer.TNumber, Text: "-1"},
 			{Kind: css_lexer.TDelimSlash, Text: "*", Whitespace: css_ast.WhitespaceBefore | css_ast.WhitespaceAfter},
-			c.term.convertToToken(whitespace),
+			token,
 		},
-	}
+	}, true
 }
 
-func (c *calcInvert) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
+func (c *calcInvert) convertToToken(whitespace css_ast.WhitespaceFlags) (css_ast.Token, bool) {
 	// Specification: https://www.w3.org/TR/css-values-4/#calc-serialize
+	token, ok := c.term.convertToToken(whitespace)
+	if !ok {
+		return css_ast.Token{}, false
+	}
 	return css_ast.Token{
 		Kind: css_lexer.TOpenParen,
 		Text: "(",
 		Children: &[]css_ast.Token{
 			{Kind: css_lexer.TNumber, Text: "1"},
 			{Kind: css_lexer.TDelimSlash, Text: "/", Whitespace: css_ast.WhitespaceBefore | css_ast.WhitespaceAfter},
-			c.term.convertToToken(whitespace),
+			token,
 		},
-	}
+	}, true
 }
 
-func (c *calcNumeric) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
+func (c *calcNumeric) convertToToken(whitespace css_ast.WhitespaceFlags) (css_ast.Token, bool) {
+	text, ok := floatToStringForCalc(c.number)
+	if !ok {
+		return css_ast.Token{}, false
+	}
 	if c.unit == "" {
 		return css_ast.Token{
 			Kind: css_lexer.TNumber,
-			Text: floatToStringForCalc(c.number),
-		}
+			Text: text,
+		}, true
 	} else if c.unit == "%" {
 		return css_ast.Token{
 			Kind: css_lexer.TPercentage,
-			Text: floatToStringForCalc(c.number) + "%",
-		}
+			Text: text + "%",
+		}, true
 	} else {
-		text := floatToStringForCalc(c.number)
 		return css_ast.Token{
 			Kind:       css_lexer.TDimension,
 			Text:       text + c.unit,
 			UnitOffset: uint16(len(text)),
-		}
+		}, true
 	}
 }
 
-func (c *calcValue) convertToToken(whitespace css_ast.WhitespaceFlags) css_ast.Token {
+func (c *calcValue) convertToToken(whitespace css_ast.WhitespaceFlags) (css_ast.Token, bool) {
 	t := c.token
 	t.Whitespace = 0
-	return t
+	return t, true
 }
 
 func (c *calcSum) partiallySimplify() calcTerm {
@@ -323,11 +385,11 @@ func (c *calcProduct) partiallySimplify() calcTerm {
 	for i := 1; i < len(terms); i++ {
 		if numeric, ok := terms[i].(*calcNumeric); ok {
 			reciprocal := 1 / numeric.number
-			multiply := floatToStringForCalc(numeric.number)
-			divide := floatToStringForCalc(reciprocal)
-			if len(divide) < len(multiply) {
-				numeric.number = reciprocal
-				terms[i] = &calcInvert{term: numeric}
+			if multiply, ok := floatToStringForCalc(numeric.number); ok {
+				if divide, ok := floatToStringForCalc(reciprocal); ok && len(divide) < len(multiply) {
+					numeric.number = reciprocal
+					terms[i] = &calcInvert{term: numeric}
+				}
 			}
 		}
 	}

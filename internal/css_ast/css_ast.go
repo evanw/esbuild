@@ -231,6 +231,31 @@ func (t Token) IsAngle() bool {
 	return false
 }
 
+func CloneTokensWithImportRecords(
+	tokensIn []Token, importRecordsIn []ast.ImportRecord,
+	tokensOut []Token, importRecordsOut []ast.ImportRecord,
+) ([]Token, []ast.ImportRecord) {
+	for _, t := range tokensIn {
+		// If this is a URL token, also clone the import record
+		if t.Kind == css_lexer.TURL {
+			importRecordIndex := uint32(len(importRecordsOut))
+			importRecordsOut = append(importRecordsOut, importRecordsIn[t.ImportRecordIndex])
+			t.ImportRecordIndex = importRecordIndex
+		}
+
+		// Also search for URL tokens in this token's children
+		if t.Children != nil {
+			var children []Token
+			children, importRecordsOut = CloneTokensWithImportRecords(*t.Children, importRecordsIn, children, importRecordsOut)
+			t.Children = &children
+		}
+
+		tokensOut = append(tokensOut, t)
+	}
+
+	return tokensOut, importRecordsOut
+}
+
 type Rule struct {
 	Loc  logger.Loc
 	Data R

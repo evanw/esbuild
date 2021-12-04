@@ -100,7 +100,7 @@ func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 			UnsupportedJSFeatures: es(2015),
 			AbsOutputFile:         "/out.js",
 		},
-		expectedScanLog: `entry.js: error: Big integer literals are not available in the configured target environment
+		expectedScanLog: `entry.js: ERROR: Big integer literals are not available in the configured target environment
 `,
 	})
 }
@@ -876,8 +876,8 @@ func TestLowerAsyncThis2016ES6(t *testing.T) {
 			UnsupportedJSFeatures: es(2016),
 			AbsOutputFile:         "/out.js",
 		},
-		expectedScanLog: `entry.js: warning: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-entry.js: note: This file is considered an ECMAScript module because of the "export" keyword here
+		expectedScanLog: `entry.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+entry.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
 `,
 	})
 }
@@ -908,14 +908,14 @@ func TestLowerAsyncES5(t *testing.T) {
 			UnsupportedJSFeatures: es(5),
 			AbsOutputFile:         "/out.js",
 		},
-		expectedScanLog: `arrow-1.js: error: Transforming async functions to the configured target environment is not supported yet
-arrow-2.js: error: Transforming async functions to the configured target environment is not supported yet
-export-def-1.js: error: Transforming async functions to the configured target environment is not supported yet
-export-def-2.js: error: Transforming async functions to the configured target environment is not supported yet
-fn-expr.js: error: Transforming async functions to the configured target environment is not supported yet
-fn-stmt.js: error: Transforming async functions to the configured target environment is not supported yet
-obj-method.js: error: Transforming async functions to the configured target environment is not supported yet
-obj-method.js: error: Transforming object literal extensions to the configured target environment is not supported yet
+		expectedScanLog: `arrow-1.js: ERROR: Transforming async functions to the configured target environment is not supported yet
+arrow-2.js: ERROR: Transforming async functions to the configured target environment is not supported yet
+export-def-1.js: ERROR: Transforming async functions to the configured target environment is not supported yet
+export-def-2.js: ERROR: Transforming async functions to the configured target environment is not supported yet
+fn-expr.js: ERROR: Transforming async functions to the configured target environment is not supported yet
+fn-stmt.js: ERROR: Transforming async functions to the configured target environment is not supported yet
+obj-method.js: ERROR: Transforming async functions to the configured target environment is not supported yet
+obj-method.js: ERROR: Transforming object literal extensions to the configured target environment is not supported yet
 `,
 	})
 }
@@ -1791,9 +1791,9 @@ func TestLowerForbidStrictModeSyntax(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `delete-1.js: error: Delete of a bare identifier cannot be used with the "esm" output format due to strict mode
-delete-2.js: error: Delete of a bare identifier cannot be used with the "esm" output format due to strict mode
-with.js: error: With statements cannot be used with the "esm" output format due to strict mode
+		expectedScanLog: `delete-1.js: ERROR: Delete of a bare identifier cannot be used with the "esm" output format due to strict mode
+delete-2.js: ERROR: Delete of a bare identifier cannot be used with the "esm" output format due to strict mode
+with.js: ERROR: With statements cannot be used with the "esm" output format due to strict mode
 `,
 	})
 }

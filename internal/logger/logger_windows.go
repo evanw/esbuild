@@ -50,75 +50,87 @@ func GetTerminalInfo(file *os.File) TerminalInfo {
 	}
 }
 
-func writeStringWithColor(file *os.File, text string) {
-	const FOREGROUND_BLUE = 1
-	const FOREGROUND_GREEN = 2
-	const FOREGROUND_RED = 4
-	const FOREGROUND_INTENSITY = 8
+const (
+	FOREGROUND_BLUE uint8 = 1 << iota
+	FOREGROUND_GREEN
+	FOREGROUND_RED
+	FOREGROUND_INTENSITY
+	BACKGROUND_BLUE
+	BACKGROUND_GREEN
+	BACKGROUND_RED
+	BACKGROUND_INTENSITY
+)
 
+var windowsEscapeSequenceMap = map[string]uint8{
+	TerminalColors.Reset: FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE,
+	TerminalColors.Dim:   FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE,
+	TerminalColors.Bold:  FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY,
+
+	// Apparently underlines only work with the CJK locale on Windows :(
+	TerminalColors.Underline: FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE,
+
+	TerminalColors.Red:   FOREGROUND_RED,
+	TerminalColors.Green: FOREGROUND_GREEN,
+	TerminalColors.Blue:  FOREGROUND_BLUE,
+
+	TerminalColors.Cyan:    FOREGROUND_GREEN | FOREGROUND_BLUE,
+	TerminalColors.Magenta: FOREGROUND_RED | FOREGROUND_BLUE,
+	TerminalColors.Yellow:  FOREGROUND_RED | FOREGROUND_GREEN,
+
+	TerminalColors.RedBgRed:     FOREGROUND_RED | BACKGROUND_RED,
+	TerminalColors.RedBgWhite:   FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | BACKGROUND_RED,
+	TerminalColors.GreenBgGreen: FOREGROUND_GREEN | BACKGROUND_GREEN,
+	TerminalColors.GreenBgWhite: FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | BACKGROUND_GREEN,
+	TerminalColors.BlueBgBlue:   FOREGROUND_BLUE | BACKGROUND_BLUE,
+	TerminalColors.BlueBgWhite:  FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | BACKGROUND_BLUE,
+
+	TerminalColors.CyanBgCyan:       FOREGROUND_GREEN | FOREGROUND_BLUE | BACKGROUND_GREEN | BACKGROUND_BLUE,
+	TerminalColors.CyanBgBlack:      BACKGROUND_GREEN | BACKGROUND_BLUE,
+	TerminalColors.MagentaBgMagenta: FOREGROUND_RED | FOREGROUND_BLUE | BACKGROUND_RED | BACKGROUND_BLUE,
+	TerminalColors.MagentaBgBlack:   BACKGROUND_RED | BACKGROUND_BLUE,
+	TerminalColors.YellowBgYellow:   FOREGROUND_RED | FOREGROUND_GREEN | BACKGROUND_RED | BACKGROUND_GREEN,
+	TerminalColors.YellowBgBlack:    BACKGROUND_RED | BACKGROUND_GREEN,
+}
+
+func writeStringWithColor(file *os.File, text string) {
 	fd := file.Fd()
 	i := 0
 
 	for i < len(text) {
-		var attributes uintptr
-		end := i
-
-		switch {
-		case text[i] != 033:
-			i++
-			continue
-
-		case strings.HasPrefix(text[i:], TerminalColors.Reset):
-			i += len(TerminalColors.Reset)
-			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
-
-		case strings.HasPrefix(text[i:], TerminalColors.Red):
-			i += len(TerminalColors.Red)
-			attributes = FOREGROUND_RED
-
-		case strings.HasPrefix(text[i:], TerminalColors.Green):
-			i += len(TerminalColors.Green)
-			attributes = FOREGROUND_GREEN
-
-		case strings.HasPrefix(text[i:], TerminalColors.Blue):
-			i += len(TerminalColors.Blue)
-			attributes = FOREGROUND_BLUE
-
-		case strings.HasPrefix(text[i:], TerminalColors.Cyan):
-			i += len(TerminalColors.Cyan)
-			attributes = FOREGROUND_GREEN | FOREGROUND_BLUE
-
-		case strings.HasPrefix(text[i:], TerminalColors.Magenta):
-			i += len(TerminalColors.Magenta)
-			attributes = FOREGROUND_RED | FOREGROUND_BLUE
-
-		case strings.HasPrefix(text[i:], TerminalColors.Yellow):
-			i += len(TerminalColors.Yellow)
-			attributes = FOREGROUND_RED | FOREGROUND_GREEN
-
-		case strings.HasPrefix(text[i:], TerminalColors.Dim):
-			i += len(TerminalColors.Dim)
-			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
-
-		case strings.HasPrefix(text[i:], TerminalColors.Bold):
-			i += len(TerminalColors.Bold)
-			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY
-
-		// Apparently underlines only work with the CJK locale on Windows :(
-		case strings.HasPrefix(text[i:], TerminalColors.Underline):
-			i += len(TerminalColors.Underline)
-			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
-
-		default:
+		// Find the escape
+		if text[i] != 033 {
 			i++
 			continue
 		}
 
-		file.WriteString(text[:end])
-		text = text[i:]
+		// Find the 'm'
+		window := text[i:]
+		if len(window) > 8 {
+			window = window[:8]
+		}
+		m := strings.IndexByte(window, 'm')
+		if m == -1 {
+			i++
+			continue
+		}
+		m += i + 1
+
+		// Find the escape sequence
+		attributes, ok := windowsEscapeSequenceMap[text[i:m]]
+		if !ok {
+			i++
+			continue
+		}
+
+		// Write out the text before the escape sequence
+		file.WriteString(text[:i])
+
+		// Apply the escape sequence
+		text = text[m:]
 		i = 0
-		setConsoleTextAttribute.Call(fd, attributes)
+		setConsoleTextAttribute.Call(fd, uintptr(attributes))
 	}
 
+	// Write out the remaining text
 	file.WriteString(text)
 }

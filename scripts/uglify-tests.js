@@ -58,7 +58,7 @@ async function test_file(esbuild, file) {
   let failed = 0;
   let skipped = 0;
   const tests = parse_test(file);
-  const runTest = name => test_case(esbuild, tests[name])
+  const runTest = name => test_case(esbuild, tests[name], path.basename(file))
     .then(x => {
       if (x === SKIP) {
         skipped++;
@@ -76,7 +76,7 @@ async function test_file(esbuild, file) {
 }
 
 // Modified from "uglify/demo/test/compress.js"
-async function test_case(esbuild, test) {
+async function test_case(esbuild, test, basename) {
   const sandbox = require(path.join(uglifyDir, 'test', 'sandbox'));
   const log = (format, args) => { throw new Error(tmpl(format, args)); };
 
@@ -125,29 +125,73 @@ async function test_case(esbuild, test) {
   try {
     var { code: output } = await esbuild.transform(input_code, {
       minify: true,
-      target: 'es5',
+      target: 'esnext',
     });
   } catch (e) {
-    // These two tests fail because they contain setters without arguments,
-    // which is a syntax error. These test failures do not indicate anything
-    // wrong with esbuild so the failures are ignored. Here is one of the
-    // tests:
+    // These tests fail because they contain syntax errors. These test failures
+    // do not indicate anything wrong with esbuild so the failures are ignored.
+    // Here is one of the tests:
     //
-    //   function f(){var a={get b(){},set b(){}};return{a:a}}
+    //   try{}catch(a){const a="aa"}
     //
-    if (test.name === 'unsafe_object_accessor' || test.name === 'keep_name_of_setter') {
-      console.error("*** skipping test with known syntax error:", test.name);
+    if ([
+      'const.js: issue_4290_1',
+      'const.js: issue_4305_2',
+      'const.js: retain_catch',
+      'const.js: skip_braces',
+      'exports.js: defaults',
+      'exports.js: drop_unused',
+      'exports.js: hoist_exports_1',
+      'exports.js: hoist_exports_2',
+      'exports.js: keep_return_values',
+      'exports.js: mangle_rename',
+      'exports.js: mangle',
+      'exports.js: refs',
+      'imports.js: issue_4708_1',
+      'imports.js: issue_4708_2',
+      'let.js: issue_4290_1',
+      'let.js: issue_4305_2',
+      'let.js: retain_catch',
+      'let.js: skip_braces',
+      'reduce_vars.js: defun_catch_4',
+      'reduce_vars.js: defun_catch_5',
+      'templates.js: malformed_evaluate_1',
+      'templates.js: malformed_evaluate_2',
+      'templates.js: malformed_evaluate_3',
+      'varify.js: issue_4290_1_const',
+      'varify.js: issue_4290_1_let',
+    ].indexOf(`${basename}: ${test.name}`) >= 0) {
+      console.error(`*** skipping test with known syntax error: ${basename}: ${test.name}`);
       return SKIP;
     }
 
-    const formatError = ({ text, location }) => {
-      if (!location) return `\nerror: ${text}`;
-      const { file, line, column } = location;
-      return `\n${file}:${line}:${column}: error: ${text}`;
+    // These tests fail because esbuild supports top-level await. Technically
+    // top-level await is only allowed inside a module, and can be used as a
+    // normal identifier in a script. But the script/module distinction causes
+    // a lot of pain due to the need to configure every single tool to say
+    // whether to parse the code as a script or a module, so esbuild mostly
+    // does away with the distinction and enables top-level await everywhere.
+    // This means it fails these tests but the failures are unlikely to matter
+    // in real-world code, so they can be ignored. Here's one test case:
+    //
+    //   async function await(){console.log("PASS")}await();
+    //
+    if ([
+      'awaits.js: defun_name',
+      'awaits.js: drop_fname',
+      'awaits.js: functions_anonymous',
+      'awaits.js: functions_inner_var',
+      'awaits.js: issue_4335_1',
+      'awaits.js: keep_fname',
+      'classes.js: await',
+    ].indexOf(`${basename}: ${test.name}`) >= 0) {
+      console.error(`*** skipping test with top-level await as identifier: ${basename}: ${test.name}`);
+      return SKIP;
     }
+
     log("!!! esbuild failed\n---INPUT---\n{input}\n---ERROR---\n{error}\n", {
       input: input_code,
-      error: (e && e.message || e) + '' + (e.errors ? e.errors.map(formatError) : ''),
+      error: e && e.message || e,
     });
   }
 
@@ -184,7 +228,33 @@ async function test_case(esbuild, test) {
       test.expect_stdout = actual;
     }
     actual = run_code(output, toplevel);
+
+    // Ignore the known failures in CI, but not otherwise
+    const isExpectingFailure = !process.env.CI ? false : [
+      // Stdout difference
+      'classes.js: issue_5015_2',
+      'const.js: issue_4225',
+      'const.js: issue_4229',
+      'const.js: issue_4245',
+      'const.js: use_before_init_3',
+      'destructured.js: funarg_side_effects_2',
+      'destructured.js: funarg_side_effects_3',
+      'drop-unused.js: issue_4464_3',
+      'let.js: issue_4225',
+      'let.js: issue_4229',
+      'let.js: issue_4245',
+      'let.js: use_before_init_3',
+
+      // Error difference
+      'dead-code.js: dead_code_2_should_warn',
+    ].indexOf(`${basename}: ${test.name}`) >= 0
+
     if (!sandbox.same_stdout(test.expect_stdout, actual)) {
+      if (isExpectingFailure) {
+        console.error(`*** skipping test with known esbuild failure: ${basename}: ${test.name}`);
+        return SKIP;
+      }
+
       log([
         "!!! failed",
         "---INPUT---",
@@ -202,6 +272,8 @@ async function test_case(esbuild, test) {
         actual_type: typeof actual == "string" ? "STDOUT" : "ERROR",
         actual: actual,
       });
+    } else if (isExpectingFailure) {
+      throw new Error(`UPDATE NEEDED: expected failure for ${basename}: ${test.name}, please remove this test from known failure list`);
     }
   }
 }

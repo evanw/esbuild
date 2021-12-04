@@ -182,17 +182,13 @@ console.log(def, ns, ns.def);
 
 ---------- /out/external-default.js ----------
 // external-default.js
-import def, {
-  default as default2
-} from "external";
-console.log(def, default2);
+import def, * as ns from "external";
+console.log(def, ns.default);
 
 ---------- /out/external-def.js ----------
 // external-def.js
-import def, {
-  def as def2
-} from "external";
-console.log(def, def2);
+import def, * as ns from "external";
+console.log(def, ns.def);
 
 ---------- /out/internal-default2.js ----------
 // internal.js
@@ -292,6 +288,86 @@ var z = 4;
 console.log(x, void 0, z);
 
 ================================================================================
+TestImportNamespaceUndefinedPropertyEmptyFile
+---------- /out/entry-nope.js ----------
+// empty.js
+var require_empty = __commonJS({
+  "empty.js"() {
+  }
+});
+
+// empty.cjs
+var require_empty2 = __commonJS({
+  "empty.cjs"() {
+  }
+});
+
+// entry-nope.js
+var js = __toModule(require_empty());
+var cjs = __toModule(require_empty2());
+console.log(void 0, void 0, void 0);
+
+---------- /out/entry-default.js ----------
+// empty.js
+var require_empty = __commonJS({
+  "empty.js"() {
+  }
+});
+
+// empty.cjs
+var require_empty2 = __commonJS({
+  "empty.cjs"() {
+  }
+});
+
+// entry-default.js
+var js = __toModule(require_empty());
+var cjs = __toModule(require_empty2());
+console.log(js.default, void 0, cjs.default);
+
+================================================================================
+TestImportNamespaceUndefinedPropertySideEffectFreeFile
+---------- /out/entry-nope.js ----------
+// foo/no-side-effects.js
+var require_no_side_effects = __commonJS({
+  "foo/no-side-effects.js"() {
+    console.log("js");
+  }
+});
+
+// foo/no-side-effects.cjs
+var require_no_side_effects2 = __commonJS({
+  "foo/no-side-effects.cjs"() {
+    console.log("cjs");
+  }
+});
+
+// entry-nope.js
+var js = __toModule(require_no_side_effects());
+var cjs = __toModule(require_no_side_effects2());
+console.log(void 0, void 0, void 0);
+
+---------- /out/entry-default.js ----------
+// foo/no-side-effects.js
+var require_no_side_effects = __commonJS({
+  "foo/no-side-effects.js"() {
+    console.log("js");
+  }
+});
+
+// foo/no-side-effects.cjs
+var require_no_side_effects2 = __commonJS({
+  "foo/no-side-effects.cjs"() {
+    console.log("cjs");
+  }
+});
+
+// entry-default.js
+var js = __toModule(require_no_side_effects());
+var cjs = __toModule(require_no_side_effects2());
+console.log(js.default, void 0, cjs.default);
+
+================================================================================
 TestImportOfExportStar
 ---------- /out.js ----------
 // bar.js
@@ -378,8 +454,8 @@ var require_foo = __commonJS({
 
 // entry.js
 var ns = __toModule(require_foo());
-var foo = 234;
-console.log(ns, ns.foo, foo);
+var foo2 = 234;
+console.log(ns, ns.foo, foo2);
 
 ================================================================================
 TestImportStarCommonJSNoCapture

@@ -304,7 +304,7 @@ func TestLoaderJSONMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `entry.js: error: No matching export in "test.json" for import "missing"
+		expectedCompileLog: `entry.js: ERROR: No matching export in "test.json" for import "missing"
 `,
 	})
 }
@@ -860,7 +860,7 @@ func TestLoaderDataURLTextCSSCannotImport(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedScanLog: `<data:text/css,@import './other.css';>: error: Could not resolve "./other.css"
+		expectedScanLog: `<data:text/css,@import './other.css';>: ERROR: Could not resolve "./other.css"
 `,
 	})
 }
@@ -898,7 +898,7 @@ func TestLoaderDataURLTextJavaScriptCannotImport(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedScanLog: `<data:text/javascript,import './other.js'>: error: Could not resolve "./other.js"
+		expectedScanLog: `<data:text/javascript,import './other.js'>: ERROR: Could not resolve "./other.js"
 `,
 	})
 }

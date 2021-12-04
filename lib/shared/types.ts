@@ -232,6 +232,7 @@ export interface TransformOptions extends CommonOptions {
       jsxFragmentFactory?: string,
       useDefineForClassFields?: boolean,
       importsNotUsedAsValues?: 'remove' | 'preserve' | 'error',
+      preserveValueImports?: boolean,
     },
   };
 

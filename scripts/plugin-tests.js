@@ -194,7 +194,7 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert(e.message.endsWith('error: [plugin: x] Expected onResolve() callback in plugin "x" to return an object'), e.message)
+      assert(e.message.endsWith('ERROR: [plugin: x] Expected onResolve() callback in plugin "x" to return an object'), e.message)
     }
 
     try {
@@ -212,7 +212,7 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert(e.message.endsWith('error: [plugin: x] Invalid option from onResolve() callback in plugin "x": "thisIsWrong"'), e.message)
+      assert(e.message.endsWith('ERROR: [plugin: x] Invalid option from onResolve() callback in plugin "x": "thisIsWrong"'), e.message)
     }
   },
 
@@ -255,7 +255,7 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert(e.message.endsWith(`error: [plugin: x] Expected onLoad() callback in plugin "x" to return an object`), e.message)
+      assert(e.message.endsWith(`ERROR: [plugin: x] Expected onLoad() callback in plugin "x" to return an object`), e.message)
     }
 
     try {
@@ -276,7 +276,7 @@ let pluginTests = {
         }],
       })
     } catch (e) {
-      assert(e.message.endsWith('error: [plugin: x] Invalid option from onLoad() callback in plugin "x": "thisIsWrong"'), e.message)
+      assert(e.message.endsWith('ERROR: [plugin: x] Invalid option from onLoad() callback in plugin "x": "thisIsWrong"'), e.message)
     }
   },
 
@@ -884,7 +884,10 @@ let pluginTests = {
     assert.notStrictEqual(error, void 0)
     if (!Array.isArray(error.errors)) throw error
     assert.strictEqual(error.errors.length, 1)
-    assert.strictEqual(error.errors[0].text, `Could not resolve "./loadme" (the plugin "name" didn't set a resolve directory)`)
+    assert.strictEqual(error.errors[0].text, `Could not resolve "./loadme"`)
+    assert.strictEqual(error.errors[0].notes[0].text,
+      `The plugin "name" didn't set a resolve directory for the file "for-testing:virtual", ` +
+      `so esbuild did not search for "./loadme" on the file system.`)
   },
 
   async webAssembly({ esbuild, testDir }) {
@@ -1236,7 +1239,7 @@ let pluginTests = {
           column: 2,
           length: 1,
           lineText: 'x y',
-          suggestion: '',
+          suggestion: ';',
         },
         notes: [],
         detail: void 0,
@@ -1258,7 +1261,12 @@ let pluginTests = {
         lineText: 'typeof x == "null"',
         suggestion: '',
       },
-      notes: [],
+      notes: [
+        {
+          location: null,
+          text: 'The expression "typeof x" actually evaluates to "object" in JavaScript, not "null". You need to use "x === null" to test for null.'
+        }
+      ],
       detail: void 0,
     }])
   },
@@ -1283,7 +1291,7 @@ let pluginTests = {
           column: 2,
           length: 1,
           lineText: 'x y',
-          suggestion: '',
+          suggestion: ';',
         },
         notes: [],
         detail: void 0,
@@ -1309,7 +1317,12 @@ let pluginTests = {
         lineText: 'typeof x == "null"',
         suggestion: '',
       },
-      notes: [],
+      notes: [
+        {
+          location: null,
+          text: 'The expression "typeof x" actually evaluates to "object" in JavaScript, not "null". You need to use "x === null" to test for null.'
+        }
+      ],
       detail: void 0,
     }])
   },

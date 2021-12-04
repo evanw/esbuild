@@ -1473,7 +1473,7 @@ function failureErrorWithLog(text: string, errors: types.Message[], warnings: ty
       if (!e.location) return `\nerror: ${e.text}`;
       let { file, line, column } = e.location;
       let pluginText = e.pluginName ? `[plugin: ${e.pluginName}] ` : '';
-      return `\n${file}:${line}:${column}: error: ${pluginText}${e.text}`;
+      return `\n${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     }).join('');
   let error: any = new Error(`${text}${summary}`);
   error.errors = errors;

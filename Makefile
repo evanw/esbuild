@@ -535,7 +535,7 @@ test262: esbuild | demo/test262
 github/uglify:
 	mkdir -p github/uglify
 	cd github/uglify && git init && git remote add origin https://github.com/mishoo/uglifyjs.git
-	cd github/uglify && git fetch --depth 1 origin 83a3cbf1514e81292b749655f2f712e82a5a2ba8 && git checkout FETCH_HEAD
+	cd github/uglify && git fetch --depth 1 origin 860aa9531b2ce660ace8379c335bb092034b6e82 && git checkout FETCH_HEAD
 
 demo/uglify: | github/uglify
 	mkdir -p demo

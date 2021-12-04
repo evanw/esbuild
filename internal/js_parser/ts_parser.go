@@ -6,7 +6,9 @@ package js_parser
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -209,7 +211,7 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 
 			// "[const: number]"
 			if opts.allowTupleLabels && p.lexer.Token == js_lexer.TColon {
-				p.log.AddRangeError(&p.tracker, r, "Unexpected \"const\"")
+				p.log.Add(logger.Error, &p.tracker, r, "Unexpected \"const\"")
 			}
 
 		case js_lexer.TThis:
@@ -394,7 +396,7 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 			// "[function: number]"
 			if opts.allowTupleLabels && p.lexer.IsIdentifierOrKeyword() {
 				if p.lexer.Token != js_lexer.TFunction {
-					p.log.AddRangeError(&p.tracker, p.lexer.Range(), fmt.Sprintf("Unexpected %q", p.lexer.Raw()))
+					p.log.Add(logger.Error, &p.tracker, p.lexer.Range(), fmt.Sprintf("Unexpected %q", p.lexer.Raw()))
 				}
 				p.lexer.Next()
 				if p.lexer.Token != js_lexer.TColon {
@@ -901,6 +903,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	tsNamespace := &js_ast.TSNamespaceScope{
 		ExportedMembers: exportedMembers,
 		ArgRef:          js_ast.InvalidRef,
+		IsEnumScope:     true,
 	}
 	enumMemberData := &js_ast.TSNamespaceMemberNamespace{
 		ExportedMembers: exportedMembers,
@@ -919,13 +922,15 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 
 	oldFnOrArrowData := p.fnOrArrowDataParse
 	p.fnOrArrowDataParse = fnOrArrowDataParse{
-		needsAsyncLoc: logger.Loc{Start: -1},
+		isThisDisallowed: true,
+		needsAsyncLoc:    logger.Loc{Start: -1},
 	}
 
 	// Parse the body
 	for p.lexer.Token != js_lexer.TCloseBrace {
+		nameRange := p.lexer.Range()
 		value := js_ast.EnumValue{
-			Loc: p.lexer.Loc(),
+			Loc: nameRange.Loc,
 			Ref: js_ast.InvalidRef,
 		}
 
@@ -957,11 +962,35 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 
 		// Add this enum value as a member of the enum's namespace
 		exportedMembers[nameText] = js_ast.TSNamespaceMember{
-			Loc:  value.Loc,
-			Data: &js_ast.TSNamespaceMemberProperty{},
+			Loc:         value.Loc,
+			Data:        &js_ast.TSNamespaceMemberProperty{},
+			IsEnumValue: true,
 		}
 
 		if p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TSemicolon {
+			if p.lexer.IsIdentifierOrKeyword() || p.lexer.Token == js_lexer.TStringLiteral {
+				var errorLoc logger.Loc
+				var errorText string
+
+				if value.ValueOrNil.Data == nil {
+					errorLoc = logger.Loc{Start: nameRange.End()}
+					errorText = fmt.Sprintf("Expected \",\" after %q in enum", nameText)
+				} else {
+					var nextName string
+					if p.lexer.Token == js_lexer.TStringLiteral {
+						nextName = js_lexer.UTF16ToString(p.lexer.StringLiteral())
+					} else {
+						nextName = p.lexer.Identifier
+					}
+					errorLoc = p.lexer.Loc()
+					errorText = fmt.Sprintf("Expected \",\" before %q in enum", nextName)
+				}
+
+				data := p.tracker.MsgData(logger.Range{Loc: errorLoc}, errorText)
+				data.Location.Suggestion = ","
+				p.log.AddMsg(logger.Msg{Kind: logger.Error, Data: data})
+				panic(js_lexer.LexerPanic{})
+			}
 			break
 		}
 		p.lexer.Next()
@@ -1139,6 +1168,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	oldFnOrArrowData := p.fnOrArrowDataParse
 	p.hasNonLocalExportDeclareInsideNamespace = false
 	p.fnOrArrowDataParse = fnOrArrowDataParse{
+		isThisDisallowed:   true,
 		isReturnDisallowed: true,
 		needsAsyncLoc:      logger.Loc{Start: -1},
 	}
@@ -1352,19 +1382,20 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	// Make sure to only emit a variable once for a given namespace, since there
 	// can be multiple namespace blocks for the same namespace
 	if (symbol.Kind == js_ast.SymbolTSNamespace || symbol.Kind == js_ast.SymbolTSEnum) && !p.emittedNamespaceVars[nameRef] {
+		decls := []js_ast.Decl{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}}}}
 		p.emittedNamespaceVars[nameRef] = true
-		if p.enclosingNamespaceArgRef == nil {
-			// Top-level namespace
+		if p.currentScope == p.moduleScope {
+			// Top-level namespace: "var"
 			stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
 				Kind:     js_ast.LocalVar,
-				Decls:    []js_ast.Decl{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}}}},
+				Decls:    decls,
 				IsExport: isExport,
 			}})
 		} else {
-			// Nested namespace
+			// Nested namespace: "let"
 			stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
 				Kind:  js_ast.LocalLet,
-				Decls: []js_ast.Decl{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}}}},
+				Decls: decls,
 			}})
 		}
 	}
@@ -1409,14 +1440,162 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 		p.recordUsage(nameRef)
 	}
 
+	// Try to use an arrow function if possible for compactness
+	var targetExpr js_ast.Expr
+	args := []js_ast.Arg{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: argRef}}}}
+	if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
+		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
+			Args: args,
+			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+		}}}
+	} else {
+		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EArrow{
+			Args: args,
+			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+		}}
+	}
+
 	// Call the closure with the name object
 	stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmtLoc, Data: &js_ast.ECall{
-		Target: js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
-			Args: []js_ast.Arg{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: argRef}}}},
-			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
-		}}},
-		Args: []js_ast.Expr{argExpr},
+		Target: targetExpr,
+		Args:   []js_ast.Expr{argExpr},
 	}}}})
 
 	return stmts
+}
+
+func (p *parser) generateClosureForTypeScriptEnum(
+	stmts []js_ast.Stmt, stmtLoc logger.Loc, isExport bool, nameLoc logger.Loc,
+	nameRef js_ast.Ref, argRef js_ast.Ref, exprsInsideClosure []js_ast.Expr,
+	allValuesArePure bool,
+) []js_ast.Stmt {
+	// Bail back to the namespace code for enums that aren't at the top level.
+	// Doing this for nested enums is problematic for two reasons. First of all
+	// enums inside of namespaces must be property accesses off the namespace
+	// object instead of variable declarations. Also we'd need to use "let"
+	// instead of "var" which doesn't allow sibling declarations to be merged.
+	if p.currentScope != p.moduleScope {
+		stmtsInsideClosure := []js_ast.Stmt{}
+		if len(exprsInsideClosure) > 0 {
+			if p.options.mangleSyntax {
+				// "a; b; c;" => "a, b, c;"
+				joined := js_ast.JoinAllWithComma(exprsInsideClosure)
+				stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SExpr{Value: joined}})
+			} else {
+				for _, expr := range exprsInsideClosure {
+					stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
+				}
+			}
+		}
+		return p.generateClosureForTypeScriptNamespaceOrEnum(
+			stmts, stmtLoc, isExport, nameLoc, nameRef, argRef, stmtsInsideClosure)
+	}
+
+	// This uses an output format for enums that's different but equivalent to
+	// what TypeScript uses. Here is TypeScript's output:
+	//
+	//   var x;
+	//   (function (x) {
+	//     x[x["y"] = 1] = "y";
+	//   })(x || (x = {}));
+	//
+	// And here's our output:
+	//
+	//   var x = /* @__PURE__ */ ((x) => {
+	//     x[x["y"] = 1] = "y";
+	//     return x;
+	//   })(x || {});
+	//
+	// One benefit is that the minified output is smaller:
+	//
+	//   // Old output minified
+	//   var x;(function(n){n[n.y=1]="y"})(x||(x={}));
+	//
+	//   // New output minified
+	//   var x=(r=>(r[r.y=1]="y",r))(x||{});
+	//
+	// Another benefit is that the @__PURE__ annotation means it automatically
+	// works with tree-shaking, even with more advanced features such as sibling
+	// enum declarations and enum/namespace merges. Ideally all uses of the enum
+	// are just direct references to enum members (and are therefore inlined as
+	// long as the enum value is a constant) and the enum definition itself is
+	// unused and can be removed as dead code.
+
+	// Follow the link chain in case symbols were merged
+	symbol := p.symbols[nameRef.InnerIndex]
+	for symbol.Link != js_ast.InvalidRef {
+		nameRef = symbol.Link
+		symbol = p.symbols[nameRef.InnerIndex]
+	}
+
+	// Generate the body of the closure, including a return statement at the end
+	stmtsInsideClosure := []js_ast.Stmt{}
+	if len(exprsInsideClosure) > 0 {
+		argExpr := js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: argRef}}
+		if p.options.mangleSyntax {
+			// "a; b; return c;" => "return a, b, c;"
+			joined := js_ast.JoinAllWithComma(exprsInsideClosure)
+			joined = js_ast.JoinWithComma(joined, argExpr)
+			stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SReturn{ValueOrNil: joined}})
+		} else {
+			for _, expr := range exprsInsideClosure {
+				stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
+			}
+			stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: argExpr.Loc, Data: &js_ast.SReturn{ValueOrNil: argExpr}})
+		}
+	}
+
+	// Try to use an arrow function if possible for compactness
+	var targetExpr js_ast.Expr
+	args := []js_ast.Arg{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: argRef}}}}
+	if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
+		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
+			Args: args,
+			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+		}}}
+	} else {
+		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EArrow{
+			Args:       args,
+			Body:       js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			PreferExpr: p.options.mangleSyntax,
+		}}
+	}
+
+	// Call the closure with the name object and store it to the variable
+	decls := []js_ast.Decl{{
+		Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}},
+		ValueOrNil: js_ast.Expr{Loc: stmtLoc, Data: &js_ast.ECall{
+			Target: targetExpr,
+			Args: []js_ast.Expr{{Loc: nameLoc, Data: &js_ast.EBinary{
+				Op:    js_ast.BinOpLogicalOr,
+				Left:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+				Right: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
+			}}},
+			CanBeUnwrappedIfUnused: allValuesArePure,
+		}},
+	}}
+	p.recordUsage(nameRef)
+
+	// Use a "var" statement since this is a top-level enum, but only use "export" once
+	stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
+		Kind:     js_ast.LocalVar,
+		Decls:    decls,
+		IsExport: isExport && !p.emittedNamespaceVars[nameRef],
+	}})
+	p.emittedNamespaceVars[nameRef] = true
+
+	return stmts
+}
+
+func (p *parser) wrapInlinedEnum(value js_ast.Expr, comment string) js_ast.Expr {
+	if p.shouldFoldNumericConstants || p.options.mangleSyntax || strings.Contains(comment, "*/") {
+		// Don't wrap with a comment
+		return value
+	}
+
+	// Wrap with a comment
+	return js_ast.Expr{Loc: value.Loc, Data: &js_ast.EInlinedEnum{
+		Value:   value,
+		Comment: comment,
+	}}
 }

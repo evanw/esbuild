@@ -1815,6 +1815,15 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		// Need a space before the next identifier to avoid it turning into flags
 		p.prevRegExpEnd = len(p.js)
 
+	case *js_ast.EInlinedEnum:
+		p.printExpr(e.Value, level, flags)
+
+		if !p.options.RemoveWhitespace {
+			p.print(" /* ")
+			p.print(e.Comment)
+			p.print(" */")
+		}
+
 	case *js_ast.EBigInt:
 		p.printSpaceBeforeIdentifier()
 		p.print(e.Value)

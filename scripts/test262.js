@@ -28,9 +28,9 @@ function formatErrors(content, error) {
       if (location) {
         const { line, column } = location;
         const contentLine = content.split(/(?:\r\n|\n|\r|\u2028|\u2029)/g)[line - 1];
-        return `<stdin>:${line}:${column}: error: ${text}\n${contentLine}\n${' '.repeat(column)}^`;
+        return `<stdin>:${line}:${column}: ERROR: ${text}\n${contentLine}\n${' '.repeat(column)}^`;
       }
-      return `error: ${text}`;
+      return `ERROR: ${text}`;
     }).join('\n');
   }
   return error + '';

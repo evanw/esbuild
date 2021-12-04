@@ -413,7 +413,7 @@ func (lexer *Lexer) SyntaxError() {
 			message = "Syntax error '\"'"
 		}
 	}
-	lexer.addError(loc, message)
+	lexer.addRangeError(logger.Range{Loc: loc}, message)
 	panic(LexerPanic{})
 }
 
@@ -422,8 +422,8 @@ func (lexer *Lexer) ExpectedString(text string) {
 	if lexer.PrevTokenWasAwaitKeyword {
 		var notes []logger.MsgData
 		if lexer.FnOrArrowStartLoc.Start != -1 {
-			note := logger.RangeData(&lexer.tracker, logger.Range{Loc: lexer.FnOrArrowStartLoc},
-				"Consider adding the \"async\" keyword here")
+			note := lexer.tracker.MsgData(logger.Range{Loc: lexer.FnOrArrowStartLoc},
+				"Consider adding the \"async\" keyword here:")
 			note.Location.Suggestion = "async"
 			notes = []logger.MsgData{note}
 		}
@@ -437,7 +437,13 @@ func (lexer *Lexer) ExpectedString(text string) {
 	if lexer.start == len(lexer.source.Contents) {
 		found = "end of file"
 	}
-	lexer.addRangeError(lexer.Range(), fmt.Sprintf("Expected %s but found %s", text, found))
+
+	suggestion := ""
+	if strings.HasPrefix(text, "\"") && strings.HasSuffix(text, "\"") {
+		suggestion = text[1 : len(text)-1]
+	}
+
+	lexer.addRangeErrorWithSuggestion(lexer.Range(), fmt.Sprintf("Expected %s but found %s", text, found), suggestion)
 	panic(LexerPanic{})
 }
 
@@ -1013,8 +1019,8 @@ func (lexer *Lexer) NextInsideJSXElement() {
 
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
-						lexer.addErrorWithNotes(lexer.Loc(), "Expected \"*/\" to terminate multi-line comment",
-							[]logger.MsgData{logger.RangeData(&lexer.tracker, startRange, "The multi-line comment starts here")})
+						lexer.addRangeErrorWithNotes(logger.Range{Loc: lexer.Loc()}, "Expected \"*/\" to terminate multi-line comment",
+							[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here:")})
 						panic(LexerPanic{})
 
 					default:
@@ -1107,7 +1113,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 							lexer.step()
 						}
 					} else {
-						lexer.addError(logger.Loc{Start: lexer.Range().End()},
+						lexer.addRangeError(logger.Range{Loc: logger.Loc{Start: lexer.Range().End()}},
 							fmt.Sprintf("Expected identifier after %q in namespaced JSX name", lexer.Raw()))
 					}
 				}
@@ -1350,7 +1356,7 @@ func (lexer *Lexer) Next() {
 				if lexer.codePoint == '>' && lexer.HasNewlineBefore {
 					lexer.step()
 					lexer.LegacyHTMLCommentRange = lexer.Range()
-					lexer.log.AddRangeWarning(&lexer.tracker, lexer.Range(),
+					lexer.log.Add(logger.Warning, &lexer.tracker, lexer.Range(),
 						"Treating \"-->\" as the start of a legacy HTML single-line comment")
 				singleLineHTMLCloseComment:
 					for {
@@ -1443,8 +1449,8 @@ func (lexer *Lexer) Next() {
 
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
-						lexer.addErrorWithNotes(lexer.Loc(), "Expected \"*/\" to terminate multi-line comment",
-							[]logger.MsgData{logger.RangeData(&lexer.tracker, startRange, "The multi-line comment starts here")})
+						lexer.addRangeErrorWithNotes(logger.Range{Loc: lexer.Loc()}, "Expected \"*/\" to terminate multi-line comment",
+							[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here:")})
 						panic(LexerPanic{})
 
 					default:
@@ -1505,7 +1511,7 @@ func (lexer *Lexer) Next() {
 					lexer.step()
 					lexer.step()
 					lexer.LegacyHTMLCommentRange = lexer.Range()
-					lexer.log.AddRangeWarning(&lexer.tracker, lexer.Range(),
+					lexer.log.Add(logger.Warning, &lexer.tracker, lexer.Range(),
 						"Treating \"<!--\" as the start of a legacy HTML single-line comment")
 				singleLineHTMLOpenComment:
 					for {
@@ -1604,12 +1610,12 @@ func (lexer *Lexer) Next() {
 					}
 
 				case -1: // This indicates the end of the file
-					lexer.addError(logger.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
+					lexer.addRangeError(logger.Range{Loc: logger.Loc{Start: int32(lexer.end)}}, "Unterminated string literal")
 					panic(LexerPanic{})
 
 				case '\r':
 					if quote != '`' {
-						lexer.addError(logger.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
+						lexer.addRangeError(logger.Range{Loc: logger.Loc{Start: int32(lexer.end)}}, "Unterminated string literal")
 						panic(LexerPanic{})
 					}
 
@@ -1618,7 +1624,7 @@ func (lexer *Lexer) Next() {
 
 				case '\n':
 					if quote != '`' {
-						lexer.addError(logger.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
+						lexer.addRangeError(logger.Range{Loc: logger.Loc{Start: int32(lexer.end)}}, "Unterminated string literal")
 						panic(LexerPanic{})
 					}
 
@@ -2157,10 +2163,10 @@ func (lexer *Lexer) ScanRegExp() {
 						for r1.Loc.Start < r2.Loc.Start && lexer.source.Contents[r1.Loc.Start] != byte(lexer.codePoint) {
 							r1.Loc.Start++
 						}
-						lexer.log.AddRangeErrorWithNotes(&lexer.tracker, r2,
+						lexer.log.AddWithNotes(logger.Error, &lexer.tracker, r2,
 							fmt.Sprintf("Duplicate flag \"%c\" in regular expression", lexer.codePoint),
-							[]logger.MsgData{logger.RangeData(&lexer.tracker, r1,
-								fmt.Sprintf("The first \"%c\" was here", lexer.codePoint))})
+							[]logger.MsgData{lexer.tracker.MsgData(r1,
+								fmt.Sprintf("The first \"%c\" was here:", lexer.codePoint))})
 					} else {
 						bits |= bit
 					}
@@ -2560,30 +2566,6 @@ func (lexer *Lexer) step() {
 	lexer.current += width
 }
 
-func (lexer *Lexer) addError(loc logger.Loc, text string) {
-	// Don't report multiple errors in the same spot
-	if loc == lexer.prevErrorLoc {
-		return
-	}
-	lexer.prevErrorLoc = loc
-
-	if !lexer.IsLogDisabled {
-		lexer.log.AddError(&lexer.tracker, loc, text)
-	}
-}
-
-func (lexer *Lexer) addErrorWithNotes(loc logger.Loc, text string, notes []logger.MsgData) {
-	// Don't report multiple errors in the same spot
-	if loc == lexer.prevErrorLoc {
-		return
-	}
-	lexer.prevErrorLoc = loc
-
-	if !lexer.IsLogDisabled {
-		lexer.log.AddErrorWithNotes(&lexer.tracker, loc, text, notes)
-	}
-}
-
 func (lexer *Lexer) addRangeError(r logger.Range, text string) {
 	// Don't report multiple errors in the same spot
 	if r.Loc == lexer.prevErrorLoc {
@@ -2592,7 +2574,21 @@ func (lexer *Lexer) addRangeError(r logger.Range, text string) {
 	lexer.prevErrorLoc = r.Loc
 
 	if !lexer.IsLogDisabled {
-		lexer.log.AddRangeError(&lexer.tracker, r, text)
+		lexer.log.Add(logger.Error, &lexer.tracker, r, text)
+	}
+}
+
+func (lexer *Lexer) addRangeErrorWithSuggestion(r logger.Range, text string, suggestion string) {
+	// Don't report multiple errors in the same spot
+	if r.Loc == lexer.prevErrorLoc {
+		return
+	}
+	lexer.prevErrorLoc = r.Loc
+
+	if !lexer.IsLogDisabled {
+		data := lexer.tracker.MsgData(r, text)
+		data.Location.Suggestion = suggestion
+		lexer.log.AddMsg(logger.Msg{Kind: logger.Error, Data: data})
 	}
 }
 
@@ -2604,7 +2600,7 @@ func (lexer *Lexer) addRangeErrorWithNotes(r logger.Range, text string, notes []
 	lexer.prevErrorLoc = r.Loc
 
 	if !lexer.IsLogDisabled {
-		lexer.log.AddRangeErrorWithNotes(&lexer.tracker, r, text, notes)
+		lexer.log.AddWithNotes(logger.Error, &lexer.tracker, r, text, notes)
 	}
 }
 

@@ -260,8 +260,8 @@ func TestTSImportMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `entry.ts: error: No matching export in "foo.js" for import "default"
-entry.ts: error: No matching export in "foo.js" for import "y"
+		expectedCompileLog: `entry.ts: ERROR: No matching export in "foo.js" for import "default"
+entry.ts: ERROR: No matching export in "foo.js" for import "y"
 `,
 	})
 }
@@ -320,7 +320,7 @@ func TestTSImportMissingFile(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.ts: error: Could not resolve "./doesNotExist.ts"
+		expectedScanLog: `entry.ts: ERROR: Could not resolve "./doesNotExist.ts"
 `,
 	})
 }
@@ -931,10 +931,10 @@ func TestTSImplicitExtensionsMissing(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.ts: error: Could not resolve "./mjs.mjs"
-entry.ts: error: Could not resolve "./cjs.cjs"
-entry.ts: error: Could not resolve "./js.js"
-entry.ts: error: Could not resolve "./jsx.jsx"
+		expectedScanLog: `entry.ts: ERROR: Could not resolve "./mjs.mjs"
+entry.ts: ERROR: Could not resolve "./cjs.cjs"
+entry.ts: ERROR: Could not resolve "./js.js"
+entry.ts: ERROR: Could not resolve "./jsx.jsx"
 `,
 	})
 }
@@ -1330,10 +1330,10 @@ func TestTSSideEffectsFalseWarningTypeDeclarations(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.ts: warning: Ignoring this import because "node_modules/some-js/foo.js" was marked as having no side effects
-node_modules/some-js/package.json: note: "sideEffects" is false in the enclosing "package.json" file
-entry.ts: warning: Ignoring this import because "node_modules/some-ts/foo.ts" was marked as having no side effects
-node_modules/some-ts/package.json: note: "sideEffects" is false in the enclosing "package.json" file
+		expectedScanLog: `entry.ts: WARNING: Ignoring this import because "node_modules/some-js/foo.js" was marked as having no side effects
+node_modules/some-js/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file
+entry.ts: WARNING: Ignoring this import because "node_modules/some-ts/foo.ts" was marked as having no side effects
+node_modules/some-ts/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file
 `,
 	})
 }
@@ -1453,6 +1453,64 @@ func TestTSSiblingEnum(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModePassThrough,
 			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestTSEnumTreeShaking(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/simple-member.ts": `
+				enum x { y = 123 }
+				console.log(x.y)
+			`,
+			"/simple-enum.ts": `
+				enum x { y = 123 }
+				console.log(x)
+			`,
+			"/sibling-member.ts": `
+				enum x { y = 123 }
+				enum x { z = y * 2 }
+				console.log(x.y, x.z)
+			`,
+			"/sibling-enum-before.ts": `
+				console.log(x)
+				enum x { y = 123 }
+				enum x { z = y * 2 }
+			`,
+			"/sibling-enum-middle.ts": `
+				enum x { y = 123 }
+				console.log(x)
+				enum x { z = y * 2 }
+			`,
+			"/sibling-enum-after.ts": `
+				enum x { y = 123 }
+				enum x { z = y * 2 }
+				console.log(x)
+			`,
+			"/namespace-before.ts": `
+				namespace x { console.log(x, y) }
+				enum x { y = 123 }
+			`,
+			"/namespace-after.ts": `
+				enum x { y = 123 }
+				namespace x { console.log(x, y) }
+			`,
+		},
+		entryPaths: []string{
+			"/simple-member.ts",
+			"/simple-enum.ts",
+			"/sibling-member.ts",
+			"/sibling-enum-before.ts",
+			"/sibling-enum-middle.ts",
+			"/sibling-enum-after.ts",
+			"/namespace-before.ts",
+			"/namespace-after.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			OutputFormat: config.FormatESModule,
 		},
 	})
 }
