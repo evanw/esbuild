@@ -693,19 +693,19 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           initialOptions,
 
           onStart(callback) {
-            let registeredText = `This error came from the "onStart" callback registered here`
+            let registeredText = `This error came from the "onStart" callback registered here:`
             let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onStart');
             onStartCallbacks.push({ name: name!, callback, note: registeredNote });
           },
 
           onEnd(callback) {
-            let registeredText = `This error came from the "onEnd" callback registered here`
+            let registeredText = `This error came from the "onEnd" callback registered here:`
             let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onEnd');
             onEndCallbacks.push({ name: name!, callback, note: registeredNote });
           },
 
           onResolve(options, callback) {
-            let registeredText = `This error came from the "onResolve" callback registered here`
+            let registeredText = `This error came from the "onResolve" callback registered here:`
             let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onResolve');
             let keys: OptionKeys = {};
             let filter = getFlag(options, keys, 'filter', mustBeRegExp);
@@ -718,7 +718,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           },
 
           onLoad(options, callback) {
-            let registeredText = `This error came from the "onLoad" callback registered here`
+            let registeredText = `This error came from the "onLoad" callback registered here:`
             let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onLoad');
             let keys: OptionKeys = {};
             let filter = getFlag(options, keys, 'filter', mustBeRegExp);
