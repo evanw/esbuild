@@ -1509,6 +1509,7 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 	// Overwrite this name in the declaring scope
 	p.currentScope.Members[name] = js_ast.ScopeMember{Ref: ref, Loc: loc}
 	return ref
+
 }
 
 func (p *parser) hoistSymbols(scope *js_ast.Scope) {
@@ -1615,16 +1616,13 @@ func (p *parser) hoistSymbols(scope *js_ast.Scope) {
 						continue nextMember
 					}
 
-					// Otherwise if this isn't a catch identifier, it's a collision
-					if existingSymbol.Kind != js_ast.SymbolCatchIdentifier {
+					// Otherwise if this isn't a catch identifier or "arguments", it's a collision
+					if existingSymbol.Kind != js_ast.SymbolCatchIdentifier && existingSymbol.Kind != js_ast.SymbolArguments {
 						// An identifier binding from a catch statement and a function
 						// declaration can both silently shadow another hoisted symbol
 						if symbol.Kind != js_ast.SymbolCatchIdentifier && symbol.Kind != js_ast.SymbolHoistedFunction {
 							if !isSloppyModeBlockLevelFnStmt {
-								r := js_lexer.RangeOfIdentifier(p.source, member.Loc)
-								p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf("The symbol %q has already been declared", symbol.OriginalName),
-									[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, existingMember.Loc),
-										fmt.Sprintf("The symbol %q was originally declared here:", symbol.OriginalName))})
+								p.addSymbolAlreadyDeclaredError(symbol.OriginalName, member.Loc, existingMember.Loc)
 							} else if s == scope.Parent {
 								// Never mind about this, turns out it's not needed after all
 								delete(p.hoistedRefForSloppyModeBlockFn, originalMemberRef)
