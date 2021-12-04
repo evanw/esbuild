@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.2
 
 * Add `[ext]` placeholder for path templates ((https://github.com/evanw/esbuild/pull/1799))
 
