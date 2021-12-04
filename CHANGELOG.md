@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+* Pass the current esbuild instance to JS plugins ([#1790](https://github.com/evanw/esbuild/issues/1790))
+
+    Previously JS plugins that wanted to run esbuild had to `require('esbuild')` to get the esbuild object. However, that could potentially result in a different version of esbuild. This is also more complicated to do outside of node (such as within a browser). With this release, the current esbuild instance is now passed to JS plugins as the `esbuild` property:
+
+    ```js
+    let examplePlugin = {
+      name: 'example',
+      setup(build) {
+        console.log(build.esbuild.version)
+        console.log(build.esbuild.transformSync('1+2'))
+      },
+    }
+    ```
+
 ## 0.14.2
 
 * Add `[ext]` placeholder for path templates ([#1799](https://github.com/evanw/esbuild/pull/1799))

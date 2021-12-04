@@ -370,6 +370,7 @@ export interface StreamIn {
   readFileSync?: (path: string, encoding: 'utf8') => string;
   isSync: boolean;
   isBrowser: boolean;
+  esbuild: types.PluginBuild['esbuild'];
 }
 
 export interface StreamOut {
@@ -729,6 +730,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             onLoadCallbacks[id] = { name: name!, callback, note: registeredNote };
             plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' });
           },
+
+          esbuild: streamIn.esbuild,
         });
 
         // Await a returned promise if there was one. This allows plugins to do

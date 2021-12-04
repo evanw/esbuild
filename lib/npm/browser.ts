@@ -1,5 +1,6 @@
 import * as types from "../shared/types"
 import * as common from "../shared/common"
+import * as ourselves from "./browser"
 
 declare const ESBUILD_VERSION: string;
 declare let WEB_WORKER_SOURCE_CODE: string
@@ -112,6 +113,7 @@ const startRunningService = async (wasmURL: string, useWorker: boolean): Promise
     },
     isSync: false,
     isBrowser: true,
+    esbuild: ourselves,
   })
 
   longLivedService = {

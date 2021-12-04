@@ -2050,6 +2050,24 @@ let pluginTests = {
     assert.strictEqual(await readFileAsync(input, 'utf8'), `some data`)
     assert.strictEqual(require(path.join(outdir, 'in.js')), `./in.data`)
   },
+
+  async esbuildProperty({ esbuild }) {
+    let esbuildFromBuild
+    await esbuild.build({
+      entryPoints: ['xyz'],
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          esbuildFromBuild = build.esbuild
+          build.onResolve({ filter: /.*/ }, () => ({ path: 'foo', namespace: 'bar' }))
+          build.onLoad({ filter: /.*/ }, async () => ({ contents: '' }))
+        },
+      }],
+    })
+    if (esbuildFromBuild !== esbuild) {
+      throw new Error('Unexpected value for the "esbuild" property')
+    }
+  },
 }
 
 // These tests have to run synchronously
