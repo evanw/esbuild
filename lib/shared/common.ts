@@ -1099,10 +1099,6 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       };
       copyResponseToResult(response!, result);
       runOnEndCallbacks(result, logPluginError, () => {
-        if (result.errors.length > 0) {
-          return callback(failureErrorWithLog('Build failed', result.errors, result.warnings), null);
-        }
-
         // Handle incremental rebuilds
         if (response!.rebuildID !== void 0) {
           if (!rebuild) {
@@ -1174,6 +1170,10 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             }
           }
           result.stop = stop;
+        }
+
+        if (result.errors.length > 0) {
+          return callback(failureErrorWithLog('Build failed', result.errors, result.warnings), null);
         }
 
         callback(null, result);
