@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.3
 
 * Pass the current esbuild instance to JS plugins ([#1790](https://github.com/evanw/esbuild/issues/1790))
 
