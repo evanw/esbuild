@@ -62,14 +62,8 @@ type calcValue struct {
 
 func floatToStringForCalc(a float64) (string, bool) {
 	// Handle non-finite cases
-	if math.IsNaN(a) {
-		return "NaN", true
-	}
-	if math.IsInf(a, 1) {
-		return "Infinity", true
-	}
-	if math.IsInf(a, -1) {
-		return "-Infinity", true
+	if math.IsNaN(a) || math.IsInf(a, 0) {
+		return "", false
 	}
 
 	// Print the number as a string

@@ -16,6 +16,10 @@
     }
     ```
 
+* Disable `calc()` transform for results with non-finite numbers ([#1839](https://github.com/evanw/esbuild/issues/1839))
+
+    This release disables minification of `calc()` expressions when the result contains `NaN`, `-Infinity`, or `Infinity`. These numbers are valid inside of `calc()` expressions but not outside of them, so the `calc()` expression must be preserved in these cases.
+
 ## 0.14.2
 
 * Add `[ext]` placeholder for path templates ([#1799](https://github.com/evanw/esbuild/pull/1799))

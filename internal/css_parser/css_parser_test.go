@@ -1322,6 +1322,17 @@ func TestMangleCalc(t *testing.T) {
 	expectPrintedMangle(t, "a { b: calc(100% / -100000) }", "a {\n  b: -.001%;\n}\n")
 	expectPrintedMangle(t, "a { b: calc(3 * (2px + 1em / 7)) }", "a {\n  b: calc(3 * (2px + 1em / 7));\n}\n")
 	expectPrintedMangle(t, "a { b: calc(3 * (2px + 1em / 8)) }", "a {\n  b: calc(3 * (2px + .125em));\n}\n")
+
+	// Non-finite numbers
+	expectPrintedMangle(t, "a { b: calc(0px / 0) }", "a {\n  b: calc(0px / 0);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(1px / 0) }", "a {\n  b: calc(1px / 0);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(-1px / 0) }", "a {\n  b: calc(-1px / 0);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(nan) }", "a {\n  b: calc(nan);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(infinity) }", "a {\n  b: calc(infinity);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(-infinity) }", "a {\n  b: calc(-infinity);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(1px / nan) }", "a {\n  b: calc(1px / nan);\n}\n")
+	expectPrintedMangle(t, "a { b: calc(1px / infinity) }", "a {\n  b: 0px;\n}\n")
+	expectPrintedMangle(t, "a { b: calc(1px / -infinity) }", "a {\n  b: -0px;\n}\n")
 }
 
 func TestTransform(t *testing.T) {
