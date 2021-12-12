@@ -3595,6 +3595,14 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	needsWrapper := false
 	stmtList := stmtList{}
 
+	// The top-level directive must come first (the non-wrapped case is handled
+	// by the chunk generation code, although only for the entry point)
+	if repr.AST.Directive != "" && repr.Meta.Wrap != graph.WrapNone && !file.IsEntryPoint() {
+		stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
+			Data: &js_ast.SDirective{Value: js_lexer.StringToUTF16(repr.AST.Directive)},
+		})
+	}
+
 	// Make sure the generated call to "__export(exports, ...)" comes first
 	// before anything else.
 	if nsExportPartIndex >= partRange.partIndexBegin && nsExportPartIndex < partRange.partIndexEnd &&

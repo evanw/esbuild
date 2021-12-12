@@ -20,6 +20,10 @@
 
     This release disables minification of `calc()` expressions when the result contains `NaN`, `-Infinity`, or `Infinity`. These numbers are valid inside of `calc()` expressions but not outside of them, so the `calc()` expression must be preserved in these cases.
 
+* Move `"use strict"` before injected shim imports ([#1837](https://github.com/evanw/esbuild/issues/1837))
+
+    If a CommonJS file contains a `"use strict"` directive, it could potentially be unintentionally disabled by esbuild when using the "inject" feature when bundling is enabled. This is because the inject feature was inserting a call to the initializer for the injected file before the `"use strict"` directive. In JavaScript, directives do not apply if they come after a non-directive statement. This release fixes the problem by moving the `"use strict"` directive before the initializer for the injected file so it isn't accidentally disabled.
+
 ## 0.14.2
 
 * Add `[ext]` placeholder for path templates ([#1799](https://github.com/evanw/esbuild/pull/1799))

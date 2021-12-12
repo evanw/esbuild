@@ -3561,6 +3561,32 @@ for await (foo of bar)
   ;
 
 ================================================================================
+TestUseStrictDirectiveBundleIssue1837
+---------- /out.js ----------
+(() => {
+  // shims.js
+  var import_process;
+  var init_shims = __esm({
+    "shims.js"() {
+      import_process = __toModule(__require("process"));
+    }
+  });
+
+  // cjs.js
+  var require_cjs = __commonJS({
+    "cjs.js"(exports) {
+      "use strict";
+      init_shims();
+      exports.foo = import_process.default;
+    }
+  });
+
+  // entry.js
+  init_shims();
+  console.log(require_cjs());
+})();
+
+================================================================================
 TestUseStrictDirectiveMinifyNoBundle
 ---------- /out.js ----------
 "use strict";a,b;

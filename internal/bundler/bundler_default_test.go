@@ -2747,6 +2747,32 @@ func TestUseStrictDirectiveMinifyNoBundle(t *testing.T) {
 	})
 }
 
+func TestUseStrictDirectiveBundleIssue1837(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./cjs'))
+			`,
+			"/cjs.js": `
+				'use strict'
+				exports.foo = process
+			`,
+			"/shims.js": `
+				import process from 'process'
+				export { process }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:           config.ModeBundle,
+			AbsOutputFile:  "/out.js",
+			InjectAbsPaths: []string{"/shims.js"},
+			Platform:       config.PlatformNode,
+			OutputFormat:   config.FormatIIFE,
+		},
+	})
+}
+
 func TestNoOverwriteInputFileError(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -3153,6 +3153,7 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 
 	// Add the top-level directive if present
 	if tree.Directive != "" {
+		p.printIndent()
 		p.printQuotedUTF8(tree.Directive, options.ASCIIOnly)
 		p.print(";")
 		p.printNewline()

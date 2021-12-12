@@ -14504,23 +14504,20 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 
 	// Strip off a leading "use strict" directive when not bundling
 	directive := ""
-	if p.options.mode != config.ModeBundle {
-		for i, stmt := range stmts {
-			switch s := stmt.Data.(type) {
-			case *js_ast.SComment:
+	for i, stmt := range stmts {
+		switch s := stmt.Data.(type) {
+		case *js_ast.SComment:
+			continue
+		case *js_ast.SDirective:
+			if !isDirectiveSupported(s) {
 				continue
-			case *js_ast.SDirective:
-				if !isDirectiveSupported(s) {
-					continue
-				}
-				directive = js_lexer.UTF16ToString(s.Value)
-
-				// Remove this directive from the statement list
-				copy(stmts[1:], stmts[:i])
-				stmts = stmts[1:]
 			}
-			break
+			directive = js_lexer.UTF16ToString(s.Value)
+
+			// Remove this directive from the statement list
+			stmts = append(stmts[:i], stmts[i+1:]...)
 		}
+		break
 	}
 
 	// Insert a variable for "import.meta" at the top of the file if it was used.
