@@ -214,11 +214,13 @@ const tests = {
                 path: '',
                 external: true,
                 namespace: '',
+                suffix: '',
               }
             })
             build.onLoad({filter: /./, namespace: ''}, args => {
               let path: string = args.path;
               let namespace: string = args.namespace;
+              let suffix: string = args.suffix;
               if (Math.random()) return
               if (Math.random()) return {}
               return {

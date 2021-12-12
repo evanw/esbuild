@@ -2060,13 +2060,136 @@ let pluginTests = {
         setup(build) {
           esbuildFromBuild = build.esbuild
           build.onResolve({ filter: /.*/ }, () => ({ path: 'foo', namespace: 'bar' }))
-          build.onLoad({ filter: /.*/ }, async () => ({ contents: '' }))
+          build.onLoad({ filter: /.*/ }, () => ({ contents: '' }))
         },
       }],
     })
     if (esbuildFromBuild !== esbuild) {
       throw new Error('Unexpected value for the "esbuild" property')
     }
+  },
+
+  async onResolveInvalidPathSuffix({ testDir, esbuild }) {
+    try {
+      await esbuild.build({
+        entryPoints: ['foo'],
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, () => ({ path: 'bar', suffix: '%what' }))
+          },
+        }],
+      })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.strictEqual(e.message, `Build failed with 1 error:
+error: Invalid path suffix "%what" returned from plugin (must start with "?" or "#")`)
+    }
+  },
+
+  async onResolveWithInternalOnLoadAndQuerySuffix({ testDir, esbuild }) {
+    const entry = path.join(testDir, 'entry.js')
+    await writeFileAsync(entry, `console.log('entry')`)
+    const onResolveSet = new Set()
+    const onLoadSet = new Set()
+    await esbuild.build({
+      stdin: {
+        resolveDir: testDir,
+        contents: `
+          import "foo%a"
+          import "foo%b"
+        `,
+      },
+      bundle: true,
+      write: false,
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => {
+            onResolveSet.add({ path: args.path, suffix: args.suffix })
+            if (args.path.startsWith('foo%')) {
+              return {
+                path: entry,
+                suffix: '?' + args.path.slice(args.path.indexOf('%') + 1),
+              }
+            }
+          })
+          build.onLoad({ filter: /.*/ }, args => {
+            onLoadSet.add({ path: args.path, suffix: args.suffix })
+          })
+        },
+      }],
+    })
+    const order = (a, b) => {
+      a = JSON.stringify(a)
+      b = JSON.stringify(b)
+      return (a > b) - (a < b)
+    }
+    const observed = JSON.stringify({
+      onResolve: [...onResolveSet].sort(order),
+      onLoad: [...onLoadSet].sort(order),
+    }, null, 2)
+    const expected = JSON.stringify({
+      onResolve: [
+        { path: 'foo%a' },
+        { path: 'foo%b' },
+      ],
+      onLoad: [
+        { path: path.join(testDir, 'entry.js'), suffix: '?a' },
+        { path: path.join(testDir, 'entry.js'), suffix: '?b' },
+      ],
+    }, null, 2)
+    if (observed !== expected) throw new Error(`Observed ${observed}, expected ${expected}`)
+  },
+
+  async onLoadWithInternalOnResolveAndQuerySuffix({ testDir, esbuild }) {
+    const entry = path.join(testDir, 'entry.js')
+    await writeFileAsync(entry, `console.log('entry')`)
+    const onResolveSet = new Set()
+    const onLoadSet = new Set()
+    await esbuild.build({
+      stdin: {
+        resolveDir: testDir,
+        contents: `
+          import "./entry?a"
+          import "./entry?b"
+        `,
+      },
+      bundle: true,
+      write: false,
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => {
+            onResolveSet.add({ path: args.path, suffix: args.suffix })
+          })
+          build.onLoad({ filter: /.*/ }, args => {
+            onLoadSet.add({ path: args.path, suffix: args.suffix })
+          })
+        },
+      }],
+    })
+    const order = (a, b) => {
+      a = JSON.stringify(a)
+      b = JSON.stringify(b)
+      return (a > b) - (a < b)
+    }
+    const observed = JSON.stringify({
+      onResolve: [...onResolveSet].sort(order),
+      onLoad: [...onLoadSet].sort(order),
+    }, null, 2)
+    const expected = JSON.stringify({
+      onResolve: [
+        { path: './entry?a' },
+        { path: './entry?b' },
+      ],
+      onLoad: [
+        { path: path.join(testDir, 'entry.js'), suffix: '?a' },
+        { path: path.join(testDir, 'entry.js'), suffix: '?b' },
+      ],
+    }, null, 2)
+    if (observed !== expected) throw new Error(`Observed ${observed}, expected ${expected}`)
   },
 }
 

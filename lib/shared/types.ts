@@ -327,6 +327,7 @@ export interface OnResolveResult {
   external?: boolean;
   sideEffects?: boolean;
   namespace?: string;
+  suffix?: string;
   pluginData?: any;
 
   watchFiles?: string[];
@@ -341,6 +342,7 @@ export interface OnLoadOptions {
 export interface OnLoadArgs {
   path: string;
   namespace: string;
+  suffix: string;
   pluginData: any;
 }
 

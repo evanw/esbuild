@@ -717,6 +717,9 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				if value, ok := response["namespace"]; ok {
 					result.Namespace = value.(string)
 				}
+				if value, ok := response["suffix"]; ok {
+					result.Suffix = value.(string)
+				}
 				if value, ok := response["external"]; ok {
 					result.External = value.(bool)
 				}
@@ -766,6 +769,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 					"ids":        ids,
 					"path":       args.Path,
 					"namespace":  args.Namespace,
+					"suffix":     args.Suffix,
 					"pluginData": args.PluginData,
 				}).(map[string]interface{})
 

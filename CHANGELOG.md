@@ -24,6 +24,36 @@
 
     If a CommonJS file contains a `"use strict"` directive, it could potentially be unintentionally disabled by esbuild when using the "inject" feature when bundling is enabled. This is because the inject feature was inserting a call to the initializer for the injected file before the `"use strict"` directive. In JavaScript, directives do not apply if they come after a non-directive statement. This release fixes the problem by moving the `"use strict"` directive before the initializer for the injected file so it isn't accidentally disabled.
 
+* Pass the ignored path query/hash suffix to `onLoad` plugins ([#1827](https://github.com/evanw/esbuild/issues/1827))
+
+    The built-in `onResolve` handler that comes with esbuild can strip the query/hash suffix off of a path during path resolution. For example, `url("fonts/icons.eot?#iefix")` can be resolved to the file `fonts/icons.eot`. For context, IE8 has a bug where it considers the font face URL to extend to the last `)` instead of the first `)`. In the example below, IE8 thinks the URL for the font is `Example.eot?#iefix') format('eot'), url('Example.ttf') format('truetype` so by adding `?#iefix`, IE8 thinks the URL has a path of `Example.eot` and a query string of `?#iefix') format('eot...` and can load the font file:
+
+    ```css
+    @font-face {
+      font-family: 'Example';
+      src: url('Example.eot?#iefix') format('eot'), url('Example.ttf') format('truetype');
+    }
+    ```
+
+    However, the suffix is not currently passed to esbuild and plugins may want to use this suffix for something. Previously plugins had to add their own `onResolve` handler if they wanted to use the query suffix. With this release, the suffix can now be returned by plugins from `onResolve` and is now passed to plugins in `onLoad`:
+
+    ```js
+    let examplePlugin = {
+      name: 'example',
+      setup(build) {
+        build.onResolve({ filter: /.*/ }, args => {
+          return { path: args.path, suffix: '?#iefix' }
+        })
+
+        build.onLoad({ filter: /.*/ }, args => {
+          console.log({ path: args.path, suffix: args.suffix })
+        })
+      },
+    }
+    ```
+
+    The suffix is deliberately not included in the path that's provided to plugins because most plugins won't know to handle this strange edge case and would likely break. Keeping the suffix out of the path means that plugins can opt-in to handling this edge case if they want to, and plugins that aren't aware of this edge case will likely still do something reasonable.
+
 ## 0.14.2
 
 * Add `[ext]` placeholder for path templates ([#1799](https://github.com/evanw/esbuild/pull/1799))

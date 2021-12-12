@@ -792,6 +792,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
                 let path = getFlag(result, keys, 'path', mustBeString);
                 let namespace = getFlag(result, keys, 'namespace', mustBeString);
+                let suffix = getFlag(result, keys, 'suffix', mustBeString);
                 let external = getFlag(result, keys, 'external', mustBeBoolean);
                 let sideEffects = getFlag(result, keys, 'sideEffects', mustBeBoolean);
                 let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
@@ -805,6 +806,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 if (pluginName != null) response.pluginName = pluginName;
                 if (path != null) response.path = path;
                 if (namespace != null) response.namespace = namespace;
+                if (suffix != null) response.suffix = suffix;
                 if (external != null) response.external = external;
                 if (sideEffects != null) response.sideEffects = sideEffects;
                 if (pluginData != null) response.pluginData = stash.store(pluginData);
@@ -829,6 +831,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               let result = await callback({
                 path: request.path,
                 namespace: request.namespace,
+                suffix: request.suffix,
                 pluginData: stash.load(request.pluginData),
               });
 

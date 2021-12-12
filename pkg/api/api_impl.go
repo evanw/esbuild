@@ -1489,12 +1489,21 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")
 			result.AbsWatchDirs = impl.validatePathsArray(response.WatchDirs, "watch directory")
 
+			// Restrict the suffix to start with "?" or "#" for now to match esbuild's behavior
+			if err == nil && response.Suffix != "" && response.Suffix[0] != '?' && response.Suffix[0] != '#' {
+				err = fmt.Errorf("Invalid path suffix %q returned from plugin (must start with \"?\" or \"#\")", response.Suffix)
+			}
+
 			if err != nil {
 				result.ThrownError = err
 				return
 			}
 
-			result.Path = logger.Path{Text: response.Path, Namespace: response.Namespace}
+			result.Path = logger.Path{
+				Text:          response.Path,
+				Namespace:     response.Namespace,
+				IgnoredSuffix: response.Suffix,
+			}
 			result.External = response.External
 			result.IsSideEffectFree = response.SideEffects == SideEffectsFalse
 			result.PluginData = response.PluginData
@@ -1527,6 +1536,7 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 				Path:       args.Path.Text,
 				Namespace:  args.Path.Namespace,
 				PluginData: args.PluginData,
+				Suffix:     args.Path.IgnoredSuffix,
 			})
 			result.PluginName = response.PluginName
 			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")

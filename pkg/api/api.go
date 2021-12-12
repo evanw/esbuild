@@ -486,6 +486,7 @@ type OnResolveResult struct {
 	External    bool
 	SideEffects SideEffects
 	Namespace   string
+	Suffix      string
 	PluginData  interface{}
 
 	WatchFiles []string
@@ -500,6 +501,7 @@ type OnLoadOptions struct {
 type OnLoadArgs struct {
 	Path       string
 	Namespace  string
+	Suffix     string
 	PluginData interface{}
 }
 

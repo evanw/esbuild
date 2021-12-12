@@ -170,6 +170,7 @@ export interface OnResolveResponse {
   external?: boolean;
   sideEffects?: boolean;
   namespace?: string;
+  suffix?: string;
   pluginData?: number;
 
   watchFiles?: string[];
@@ -182,6 +183,7 @@ export interface OnLoadRequest {
   ids: number[];
   path: string;
   namespace: string;
+  suffix: string;
   pluginData: number;
 }
 
