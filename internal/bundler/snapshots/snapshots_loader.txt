@@ -427,6 +427,14 @@ var x_txt = require_x();
 console.log(x_txt, y_default);
 
 ================================================================================
+TestMinifyIdentifiersImportPathFrequencyAnalysis
+---------- /out/import.js ----------
+var o=123;console.log(o,"no identifier in this file should be named W, X, Y, or Z");
+
+---------- /out/require.js ----------
+var i=r((t,e)=>{e.exports=123});var s=i();console.log(s,"no identifier in this file should be named A, B, C, or D");
+
+================================================================================
 TestRequireCustomExtensionBase64
 ---------- /out.js ----------
 // test.custom

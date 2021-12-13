@@ -5039,3 +5039,31 @@ func TestEntryNamesChunkNamesExtPlaceholder(t *testing.T) {
 		},
 	})
 }
+
+func TestMinifyIdentifiersImportPathFrequencyAnalysis(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/import.js": `
+				import foo from "./WWWWWWWWWWXXXXXXXXXXYYYYYYYYYYZZZZZZZZZZ"
+				console.log(foo, 'no identifier in this file should be named W, X, Y, or Z')
+			`,
+			"/WWWWWWWWWWXXXXXXXXXXYYYYYYYYYYZZZZZZZZZZ.js": `export default 123`,
+
+			"/require.js": `
+				const foo = require("./AAAAAAAAAABBBBBBBBBBCCCCCCCCCCDDDDDDDDDD")
+				console.log(foo, 'no identifier in this file should be named A, B, C, or D')
+			`,
+			"/AAAAAAAAAABBBBBBBBBBCCCCCCCCCCDDDDDDDDDD.js": `module.exports = 123`,
+		},
+		entryPaths: []string{
+			"/import.js",
+			"/require.js",
+		},
+		options: config.Options{
+			Mode:              config.ModeBundle,
+			AbsOutputDir:      "/out",
+			RemoveWhitespace:  true,
+			MinifyIdentifiers: true,
+		},
+	})
+}

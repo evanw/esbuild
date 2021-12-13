@@ -14855,6 +14855,13 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 		charFreq.Scan(comment.Text, -1)
 	}
 
+	// Subtract out all import paths
+	for _, record := range p.importRecords {
+		if !record.SourceIndex.IsValid() {
+			charFreq.Scan(record.Path.Text, -1)
+		}
+	}
+
 	// Subtract out all symbols that will be minified
 	var visit func(*js_ast.Scope)
 	visit = func(scope *js_ast.Scope) {
