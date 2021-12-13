@@ -18,7 +18,7 @@ import (
 type packageJSON struct {
 	source     logger.Source
 	mainFields map[string]mainField
-	moduleType config.ModuleType
+	moduleType js_ast.ModuleType
 
 	// Present if the "browser" field is present. This field is intended to be
 	// used by bundlers and lets you redirect the paths of certain 3rd-party
@@ -253,9 +253,9 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 		if typeValue, ok := getString(typeJSON); ok {
 			switch typeValue {
 			case "commonjs":
-				packageJSON.moduleType = config.ModuleCommonJS
+				packageJSON.moduleType = js_ast.ModuleCommonJS
 			case "module":
-				packageJSON.moduleType = config.ModuleESM
+				packageJSON.moduleType = js_ast.ModuleESM
 			default:
 				r.log.AddWithNotes(logger.Warning, &tracker, jsonSource.RangeOfString(typeJSON.Loc),
 					fmt.Sprintf("%q is not a valid value for the \"type\" field", typeValue),

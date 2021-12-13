@@ -348,7 +348,7 @@ type optionsThatSupportStructuralEquality struct {
 	mode                    config.Mode
 	platform                config.Platform
 	outputFormat            config.Format
-	moduleType              config.ModuleType
+	moduleType              js_ast.ModuleType
 	targetFromAPI           config.TargetFromAPI
 	asciiOnly               bool
 	keepNames               bool
@@ -14757,7 +14757,7 @@ func (p *parser) prepareForVisitPass() {
 	// CommonJS-style exports are only enabled if this isn't using ECMAScript-
 	// style exports. You can still use "require" in ESM, just not "module" or
 	// "exports". You can also still use "import" in CommonJS.
-	if p.options.moduleType != config.ModuleESM && p.options.mode != config.ModePassThrough &&
+	if p.options.moduleType != js_ast.ModuleESM && p.options.mode != config.ModePassThrough &&
 		p.es6ExportKeyword.Len == 0 && p.topLevelAwaitKeyword.Len == 0 {
 		p.exportsRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "exports")
 		p.moduleRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "module")
@@ -15084,15 +15084,15 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		// is by looking at node's "type" field in "package.json" and/or whether
 		// the file extension is ".mjs"/".mts" or ".cjs"/".cts".
 		switch p.options.moduleType {
-		case config.ModuleCommonJS:
+		case js_ast.ModuleCommonJS:
 			// "type: commonjs" or ".cjs" or ".cts"
 			exportsKind = js_ast.ExportsCommonJS
 
-		case config.ModuleESM:
+		case js_ast.ModuleESM:
 			// "type: module" or ".mjs" or ".mts"
 			exportsKind = js_ast.ExportsESM
 
-		case config.ModuleUnknown:
+		case js_ast.ModuleUnknown:
 			// Treat unknown modules containing an import statement as ESM. Otherwise
 			// the bundler will treat this file as CommonJS if it's imported and ESM
 			// if it's not imported.
@@ -15104,6 +15104,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 
 	return js_ast.AST{
 		Parts:                           parts,
+		ModuleType:                      p.options.moduleType,
 		ModuleScope:                     p.moduleScope,
 		CharFreq:                        p.computeCharacterFrequency(),
 		Symbols:                         p.symbols,

@@ -190,14 +190,6 @@ const (
 	ModeBundle
 )
 
-type ModuleType uint8
-
-const (
-	ModuleUnknown ModuleType = iota
-	ModuleCommonJS
-	ModuleESM
-)
-
 type MaybeBool uint8
 
 const (
@@ -208,7 +200,7 @@ const (
 
 type Options struct {
 	Mode              Mode
-	ModuleType        ModuleType
+	ModuleType        js_ast.ModuleType
 	PreserveSymlinks  bool
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool

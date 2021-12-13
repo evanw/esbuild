@@ -1883,6 +1883,18 @@ func (kind ExportsKind) IsDynamic() bool {
 	return kind == ExportsCommonJS || kind == ExportsESMWithDynamicFallback
 }
 
+type ModuleType uint8
+
+const (
+	ModuleUnknown ModuleType = iota
+
+	// ".cjs" or ".cts" or "type: commonjs" in package.json
+	ModuleCommonJS
+
+	// ".mjs" or ".mts" or "type: module" in package.json
+	ModuleESM
+)
+
 // This is the index to the automatically-generated part containing code that
 // calls "__export(exports, { ... getters ... })". This is used to generate
 // getters on an exports object for ES6 export statements, and is both for
@@ -1894,6 +1906,7 @@ type AST struct {
 	ApproximateLineCount  int32
 	NestedScopeSlotCounts SlotCounts
 	HasLazyExport         bool
+	ModuleType            ModuleType
 
 	// This is a list of CommonJS features. When a file uses CommonJS features,
 	// it's not a candidate for "flat bundling" and must be wrapped in its own

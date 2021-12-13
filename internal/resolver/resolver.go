@@ -122,7 +122,7 @@ type ResolveResult struct {
 	UnusedImportsTS config.UnusedImportsTS
 
 	// This is the "type" field from "package.json"
-	ModuleType config.ModuleType
+	ModuleType js_ast.ModuleType
 }
 
 type DebugMeta struct {

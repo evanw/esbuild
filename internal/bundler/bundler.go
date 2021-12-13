@@ -1125,9 +1125,9 @@ func (s *scanner) maybeParseFile(
 
 	// Set the module type preference using node's module type rules
 	if strings.HasSuffix(path.Text, ".mjs") || strings.HasSuffix(path.Text, ".mts") {
-		optionsClone.ModuleType = config.ModuleESM
+		optionsClone.ModuleType = js_ast.ModuleESM
 	} else if strings.HasSuffix(path.Text, ".cjs") || strings.HasSuffix(path.Text, ".cts") {
-		optionsClone.ModuleType = config.ModuleCommonJS
+		optionsClone.ModuleType = js_ast.ModuleCommonJS
 	} else {
 		optionsClone.ModuleType = resolveResult.ModuleType
 	}
