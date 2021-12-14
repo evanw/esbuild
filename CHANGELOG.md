@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.5
 
 * Fix an issue with the publishing script
 
