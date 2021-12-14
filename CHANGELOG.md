@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.4
 
 * Adjust esbuild's handling of `default` exports and the `__esModule` marker ([#532](https://github.com/evanw/esbuild/issues/532), [#1591](https://github.com/evanw/esbuild/issues/1591), [#1719](https://github.com/evanw/esbuild/issues/1719))
 
