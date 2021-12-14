@@ -28,7 +28,7 @@
 
     New behavior:
 
-    * If an `import` statement is used to load a CommonJS file and a) `module.exports` is an object, b) `module.exports.__esModule` is truthy, and c) the file name ends in either `.mjs` or `.mts` or the `package.json` file contains `"type": "module"`, then esbuild will set the `default` export to `module.exports.default` (like Babel). Otherwise the `default` export is set to `module.exports` (like Node).
+    * If an `import` statement is used to load a CommonJS file and a) `module.exports` is an object, b) `module.exports.__esModule` is truthy, and c) the file name does not end in either `.mjs` or `.mts` and the `package.json` file does not contain `"type": "module"`, then esbuild will set the `default` export to `module.exports.default` (like Babel). Otherwise the `default` export is set to `module.exports` (like Node).
 
         Note that this means the `default` export may now be undefined in situations where it previously wasn't undefined. This matches Webpack's behavior so it should hopefully be more compatible.
 
