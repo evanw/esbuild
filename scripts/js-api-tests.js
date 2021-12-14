@@ -3569,23 +3569,23 @@ let transformTests = {
 
   async es6_export_to_cjs({ esbuild }) {
     const { code } = await esbuild.transform(`export {exists} from "fs"`, { format: 'cjs' })
-    const exports = {}
-    new Function('require', 'exports', code)(require, exports)
-    if (exports.exists !== fs.exists) throw 'fail'
+    const module = { exports: {} }
+    new Function('module', 'exports', 'require', code)(module, module.exports, require)
+    if (module.exports.exists !== fs.exists) throw 'fail'
   },
 
   async es6_export_star_to_cjs({ esbuild }) {
     const { code } = await esbuild.transform(`export * from "fs"`, { format: 'cjs' })
-    const exports = {}
-    new Function('require', 'exports', code)(require, exports)
-    if (exports.exists !== fs.exists) throw 'fail'
+    const module = { exports: {} }
+    new Function('module', 'exports', 'require', code)(module, module.exports, require)
+    if (module.exports.exists !== fs.exists) throw 'fail'
   },
 
   async es6_export_star_as_to_cjs({ esbuild }) {
     const { code } = await esbuild.transform(`export * as fs from "fs"`, { format: 'cjs' })
-    const exports = {}
-    new Function('require', 'exports', code)(require, exports)
-    if (exports.fs.exists !== fs.exists) throw 'fail'
+    const module = { exports: {} }
+    new Function('module', 'exports', 'require', code)(module, module.exports, require)
+    if (module.exports.fs.exists !== fs.exists) throw 'fail'
   },
 
   async es6_import_to_esm({ esbuild }) {

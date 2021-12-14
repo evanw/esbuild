@@ -2064,9 +2064,7 @@ let pluginTests = {
         },
       }],
     })
-    if (esbuildFromBuild !== esbuild) {
-      throw new Error('Unexpected value for the "esbuild" property')
-    }
+    assert.deepStrictEqual({ ...esbuildFromBuild }, { ...esbuild })
   },
 
   async onResolveInvalidPathSuffix({ testDir, esbuild }) {

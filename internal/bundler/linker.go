@@ -1264,16 +1264,18 @@ func (c *linkerContext) scanImportsAndExports() {
 			c.matchImportsWithExportsForFile(uint32(sourceIndex))
 		}
 
-		// If we're exporting as CommonJS and this file doesn't need a wrapper,
+		// If we're exporting as CommonJS and this file was originally CommonJS,
 		// then we'll be using the actual CommonJS "exports" and/or "module"
 		// symbols. In that case make sure to mark them as such so they don't
 		// get minified.
-		if (c.options.OutputFormat == config.FormatPreserve || c.options.OutputFormat == config.FormatCommonJS) &&
-			repr.Meta.Wrap != graph.WrapCJS && file.IsEntryPoint() {
+		if file.IsEntryPoint() && repr.AST.ExportsKind == js_ast.ExportsCommonJS && repr.Meta.Wrap == graph.WrapNone &&
+			(c.options.OutputFormat == config.FormatPreserve || c.options.OutputFormat == config.FormatCommonJS) {
 			exportsRef := js_ast.FollowSymbols(c.graph.Symbols, repr.AST.ExportsRef)
 			moduleRef := js_ast.FollowSymbols(c.graph.Symbols, repr.AST.ModuleRef)
 			c.graph.Symbols.Get(exportsRef).Kind = js_ast.SymbolUnbound
 			c.graph.Symbols.Get(moduleRef).Kind = js_ast.SymbolUnbound
+		} else if repr.Meta.ForceIncludeExportsForEntryPoint || repr.AST.ExportsKind != js_ast.ExportsCommonJS {
+			repr.Meta.NeedsExportsVariable = true
 		}
 
 		// Create the wrapper part for wrapped files. This is needed by a later step.
@@ -1374,8 +1376,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// actual CommonJS files from being renamed. This is purely about
 		// aesthetics and is not about correctness. This is done here because by
 		// this point, we know the CommonJS status will not change further.
-		if repr.Meta.Wrap != graph.WrapCJS && repr.AST.ExportsKind != js_ast.ExportsCommonJS && (!file.IsEntryPoint() ||
-			c.options.OutputFormat != config.FormatCommonJS) {
+		if repr.Meta.Wrap != graph.WrapCJS && repr.AST.ExportsKind != js_ast.ExportsCommonJS {
 			name := file.InputFile.Source.IdentifierName
 			c.graph.Symbols.Get(repr.AST.ExportsRef).OriginalName = name + "_exports"
 			c.graph.Symbols.Get(repr.AST.ModuleRef).OriginalName = name + "_module"
@@ -1463,6 +1464,11 @@ func (c *linkerContext) scanImportsAndExports() {
 				CanBeRemovedIfUnused: false,
 			})
 			repr.Meta.EntryPointPartIndex = ast.MakeIndex32(entryPointPartIndex)
+
+			// Pull in the "__toCommonJS" symbol if we need it due to being an entry point
+			if repr.Meta.ForceIncludeExportsForEntryPoint {
+				c.graph.GenerateRuntimeSymbolImportAndUse(sourceIndex, entryPointPartIndex, "__toCommonJS", 1)
+			}
 		}
 
 		// Encode import-specific constraints in the dependency graph
@@ -1755,10 +1761,8 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	declaredSymbols := []js_ast.DeclaredSymbol{}
 	var nsExportStmts []js_ast.Stmt
 
-	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
-	needsExportsVariable := repr.AST.ExportsKind != js_ast.ExportsCommonJS &&
-		(!file.IsEntryPoint() || c.options.OutputFormat != config.FormatCommonJS)
-	if needsExportsVariable {
+	// Prefix this part with "var exports = {}" if this isn't a CommonJS entry point
+	if repr.Meta.NeedsExportsVariable {
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
 			Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.ExportsRef}},
 			ValueOrNil: js_ast.Expr{Data: &js_ast.EObject{}},
@@ -3832,10 +3836,14 @@ func (c *linkerContext) generateEntryPointTailJS(
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.AST.WrapperRef}},
 				}}}})
 			}
-			if repr.Meta.ForceIncludeExportsForEntryPoint && len(c.options.GlobalName) > 0 {
-				// "return exports;"
+
+			if repr.Meta.ForceIncludeExportsForEntryPoint {
+				// "return __toCommonJS(exports);"
 				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SReturn{
-					ValueOrNil: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
+					ValueOrNil: js_ast.Expr{Data: &js_ast.ECall{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: toCommonJSRef}},
+						Args:   []js_ast.Expr{{Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}}},
+					}},
 				}})
 			}
 		}
@@ -3852,11 +3860,32 @@ func (c *linkerContext) generateEntryPointTailJS(
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.AST.WrapperRef}},
 				}},
 			))
-		} else if repr.Meta.Wrap == graph.WrapESM {
-			// "init_foo();"
-			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
-				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.AST.WrapperRef}},
-			}}}})
+		} else {
+			if repr.Meta.Wrap == graph.WrapESM {
+				// "init_foo();"
+				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.AST.WrapperRef}},
+				}}}})
+			}
+
+			// Decorate "module.exports" with the "__esModule" flag to indicate that
+			// we used to be an ES module. This is done by wrapping the exports object
+			// instead of by mutating the exports object because other modules in the
+			// bundle (including the entry point module) may do "import * as" to get
+			// access to the exports object and should NOT see the "__esModule" flag.
+			if repr.Meta.ForceIncludeExportsForEntryPoint {
+				// "module.exports = __toCommonJS(exports);"
+				stmts = append(stmts, js_ast.AssignStmt(
+					js_ast.Expr{Data: &js_ast.EDot{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
+						Name:   "exports",
+					}},
+					js_ast.Expr{Data: &js_ast.ECall{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: toCommonJSRef}},
+						Args:   []js_ast.Expr{{Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}}},
+					}},
+				))
+			}
 		}
 
 		// If we are generating CommonJS for node, encode the known export names in
@@ -3921,7 +3950,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 				Left: js_ast.Expr{Data: &js_ast.ENumber{Value: 0}},
 				Right: js_ast.Assign(
 					js_ast.Expr{Data: &js_ast.EDot{
-						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.AST.ModuleRef}},
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
 						Name:   "exports",
 					}},
 					js_ast.Expr{Data: &js_ast.EObject{Properties: moduleExports}},
