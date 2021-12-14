@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased
+
+* Adjust esbuild's handling of `default` exports and the `__esModule` marker ([#532](https://github.com/evanw/esbuild/issues/532), [#1591](https://github.com/evanw/esbuild/issues/1591), [#1719](https://github.com/evanw/esbuild/issues/1719))
+
+    This change requires some background for context. Here's the history to the best of my understanding:
+
+    When the ECMAScript module `import`/`export` syntax was being developed, the CommonJS module format (used in Node.js) was already widely in use. Because of this the export name called `default` was given special a syntax. Instead of writing `import { default as foo } from 'bar'` you can just write `import foo from 'bar'`. The idea was that when ECMAScript modules (a.k.a. ES modules) were introduced, you could import existing CommonJS modules using the new import syntax for compatibility. Since CommonJS module exports are dynamic while ES module exports are static, it's not generally possible to determine a CommonJS module's export names at module instantiation time since the code hasn't been evaluated yet. So the value of `module.exports` is just exported as the `default` export and the special `default` import syntax gives you easy access to `module.exports` (i.e. `const foo = require('bar')` is the same as `import foo from 'bar'`).
+
+    However, it took a while for ES module syntax to be supported natively by JavaScript runtimes, and people still wanted to start using ES module syntax in the meantime. The [Babel](https://babeljs.io/) JavaScript compiler let you do this. You could transform each ES module file into a CommonJS module file that behaved the same. However, this transformation has a problem: emulating the `import` syntax accurately as described above means that `export default 0` and `import foo from 'bar'` will no longer line up when transformed to CommonJS. The code `export default 0` turns into `module.exports.default = 0` and the code `import foo from 'bar'` turns into `const foo = require('bar')`, meaning `foo` is `0` before the transformation but `foo` is `{ default: 0 }` after the transformation.
+
+    To fix this, Babel sets the property `__esModule` to true as a signal to itself when it converts an ES module to a CommonJS module. Then, when importing a `default` export, it can know to use the value of `module.exports.default` instead of `module.exports` to make sure the behavior of the CommonJS modules correctly matches the behavior of the original ES modules. This fix has been widely adopted across the ecosystem and has made it into other tools such as TypeScript and even esbuild.
+
+    However, when Node.js finally released their ES module implementation, they went with the original implementation where the `default` export is always `module.exports`, which broke compatibility with the existing ecosystem of ES modules that had been cross-compiled into CommonJS modules by Babel. You now have to either add or remove an additional `.default` property depending on whether your code needs to run in a Node environment or in a Babel environment, which created an interoperability headache. In addition, JavaScript tools such as esbuild now need to guess whether you want Node-style or Babel-style `default` imports. There's no way for a tool to know with certainty which one a given file is expecting and if your tool guesses wrong, your code will break.
+
+    This release changes esbuild's heuristics around `default` exports and the `__esModule` marker to attempt to improve compatibility with Webpack and Node, which is what most packages are tuned for. The behavior changes are as follows:
+
+    Old behavior:
+
+    * If an `import` statement is used to load a CommonJS file and a) `module.exports` is an object, b) `module.exports.__esModule` is truthy, and c) the property `default` exists in `module.exports`, then esbuild would set the `default` export to `module.exports.default` (like Babel). Otherwise the `default` export was set to `module.exports` (like Node).
+
+    * If a `require` call is used to load an ES module file, the returned module namespace object had the `__esModule` property set to true. This behaved as if the ES module had been converted to CommonJS via  a Babel-compatible transformation.
+
+    * The `__esModule` marker could inconsistently appear on module namespace objects (i.e. `import * as`) when writing pure ESM code. Specifically, if a module namespace object was materialized then the `__esModule` marker was present, but if it was optimized away then the `__esModule` marker was absent.
+
+    * It was not allowed to create an ES module export named `__esModule`. This avoided generating code that might break due to the inconsistency mentioned above, and also avoided issues with duplicate definitions of `__esModule`.
+
+    New behavior:
+
+    * If an `import` statement is used to load a CommonJS file and a) `module.exports` is an object, b) `module.exports.__esModule` is truthy, and c) the file name does not end in either `.mjs` or `.mts` and the `package.json` file does not contain `"type": "module"`, then esbuild will set the `default` export to `module.exports.default` (like Babel). Otherwise the `default` export is set to `module.exports` (like Node).
+
+        Note that this means the `default` export may now be undefined in situations where it previously wasn't undefined. This matches Webpack's behavior so it should hopefully be more compatible.
+
+        Also note that this means import behavior now depends on the file extension and on the contents of `package.json`. This also matches Webpack's behavior to hopefully improve compatibility.
+
+    * If a `require` call is used to load an ES module file, the returned module namespace object has the `__esModule` property set to `true`. This behaves as if the ES module had been converted to CommonJS via  a Babel-compatible transformation.
+
+    * If an `import` statement or `import()` expression is used to load an ES module, the `__esModule` marker should now never be present on the module namespace object. This frees up the `__esModule` export name for use with ES modules.
+
+    * It's now allowed to use `__esModule` as a normal export name in an ES module. This property will be accessible to other ES modules but will not be accessible to code that loads the ES module using `require`, where they will observe the property set to `true` instead.
+
 ## 0.14.3
 
 * Pass the current esbuild instance to JS plugins ([#1790](https://github.com/evanw/esbuild/issues/1790))

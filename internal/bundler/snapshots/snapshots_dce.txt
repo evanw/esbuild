@@ -251,7 +251,7 @@ var require_foo = __commonJS({
 });
 
 // Users/user/project/node_modules/pkg/index.js
-var import_foo = __toModule(require_foo());
+var import_foo = __toESM(require_foo());
 
 // Users/user/project/entry.js
 console.log(import_foo.default);
@@ -509,7 +509,7 @@ var require_demo_pkg = __commonJS({
 });
 
 // Users/user/project/src/entry.js
-var import_demo_pkg = __toModule(require_demo_pkg());
+var import_demo_pkg = __toESM(require_demo_pkg());
 console.log(import_demo_pkg.foo);
 
 ================================================================================
@@ -534,7 +534,7 @@ var require_demo_pkg = __commonJS({
 });
 
 // Users/user/project/src/entry.js
-var ns = __toModule(require_demo_pkg());
+var ns = __toESM(require_demo_pkg());
 console.log(ns);
 
 ================================================================================
@@ -662,7 +662,7 @@ var require_demo_pkg = __commonJS({
 });
 
 // Users/user/project/src/entry.js
-var import_demo_pkg = __toModule(require_demo_pkg());
+var import_demo_pkg = __toESM(require_demo_pkg());
 console.log("unused import");
 
 ================================================================================
@@ -848,7 +848,7 @@ var init_cjs = __esm({
 
 // entry.js
 init_lib();
-console.log(keep1(), (init_cjs(), cjs_exports));
+console.log(keep1(), (init_cjs(), __toCommonJS(cjs_exports)));
 
 ================================================================================
 TestTreeShakingNoBundleCJS

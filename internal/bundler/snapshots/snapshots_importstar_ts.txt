@@ -14,7 +14,7 @@ var init_foo = __esm({
 
 // entry.js
 init_foo();
-var ns2 = (init_foo(), foo_exports);
+var ns2 = (init_foo(), __toCommonJS(foo_exports));
 console.log(foo, ns2.foo);
 
 ================================================================================
@@ -42,7 +42,7 @@ var require_foo = __commonJS({
 });
 
 // entry.ts
-var ns = __toModule(require_foo());
+var ns = __toESM(require_foo());
 var foo2 = 234;
 console.log(ns, ns.foo, foo2);
 
@@ -57,7 +57,7 @@ var require_foo = __commonJS({
 });
 
 // entry.ts
-var ns = __toModule(require_foo());
+var ns = __toESM(require_foo());
 var foo2 = 234;
 console.log(ns.foo, ns.foo, foo2);
 

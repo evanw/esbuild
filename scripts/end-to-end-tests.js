@@ -1348,11 +1348,27 @@
       'foo.js': `exports.__esModule = true; exports.default = 123`,
     }),
     test(['in.js', '--outfile=node.js', '--format=cjs'], {
-      'in.js': `import def from './foo'; if (!def || def.foo !== 123) throw 'fail'`,
+      'in.js': `import def from './foo'; if (def !== void 0) throw 'fail'`,
       'foo.js': `exports.__esModule = true; exports.foo = 123`,
     }),
     test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `import * as ns from './foo'; if (ns.default !== void 0 || ns.foo !== 123) throw 'fail'`,
+      'foo.js': `exports.__esModule = true; exports.foo = 123`,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `import def from './foo'; if (!def || def.foo !== 123) throw 'fail'`,
+      'foo.js': `exports.__esModule = false; exports.foo = 123`,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
       'in.js': `import * as ns from './foo'; if (!ns.default || ns.default.foo !== 123) throw 'fail'`,
+      'foo.js': `exports.__esModule = false; exports.foo = 123`,
+    }),
+    test(['in.mjs', '--outfile=node.js', '--format=cjs'], {
+      'in.mjs': `import def from './foo'; if (!def || def.foo !== 123) throw 'fail'`,
+      'foo.js': `exports.__esModule = true; exports.foo = 123`,
+    }),
+    test(['in.mjs', '--outfile=node.js', '--format=cjs'], {
+      'in.mjs': `import * as ns from './foo'; if (!ns.default || ns.default.foo !== 123) throw 'fail'`,
       'foo.js': `exports.__esModule = true; exports.foo = 123`,
     }),
   )

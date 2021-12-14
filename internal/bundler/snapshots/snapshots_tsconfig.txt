@@ -10,7 +10,7 @@ var require_util = __commonJS({
 });
 
 // Users/user/project/src/app/entry.js
-var import_util = __toModule(require_util());
+var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
@@ -219,7 +219,7 @@ var require_util = __commonJS({
 });
 
 // Users/user/project/src/app/entry.js
-var import_util = __toModule(require_util());
+var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
@@ -235,7 +235,7 @@ var require_util = __commonJS({
 });
 
 // Users/user/project/src/app/entry.js
-var import_util = __toModule(require_util());
+var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
@@ -251,7 +251,7 @@ var require_util = __commonJS({
 });
 
 // Users/user/project/src/app/entry.js
-var import_util = __toModule(require_util());
+var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
@@ -324,7 +324,7 @@ var require_util = __commonJS({
 });
 
 // Users/user/project/src/app/entry.js
-var import_util = __toModule(require_util());
+var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================

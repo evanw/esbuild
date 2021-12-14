@@ -437,6 +437,7 @@ type printer struct {
 	options                Options
 	extractedLegalComments map[string]bool
 	needsSemicolon         bool
+	moduleType             js_ast.ModuleType
 	js                     []byte
 	stmtStart              int
 	exportDefaultStart     int
@@ -1041,10 +1042,10 @@ func (p *printer) printRequireOrImportExpr(
 	if !record.SourceIndex.IsValid() {
 		// External "require()"
 		if record.Kind != ast.ImportDynamic {
-			if record.WrapWithToModule {
-				p.printSymbol(p.options.ToModuleRef)
+			// Wrap this with a call to "__toESM()" if this is a CommonJS file
+			if record.WrapWithToESM {
+				p.printSymbol(p.options.ToESMRef)
 				p.print("(")
-				defer p.print(")")
 			}
 
 			// Potentially substitute our own "__require" stub for "require"
@@ -1059,6 +1060,16 @@ func (p *printer) printRequireOrImportExpr(
 			p.addSourceMapping(record.Range.Loc)
 			p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 			p.print(")")
+
+			// Finish the call to "__toESM()"
+			if record.WrapWithToESM {
+				if p.moduleType == js_ast.ModuleESM {
+					p.print(",")
+					p.printSpace()
+					p.print("1")
+				}
+				p.print(")")
+			}
 			return
 		}
 
@@ -1073,11 +1084,18 @@ func (p *printer) printRequireOrImportExpr(
 			p.printDotThenPrefix()
 			defer p.printDotThenSuffix()
 
-			// Wrap this with a call to "__toModule()" if this is a CommonJS file
-			if record.WrapWithToModule {
-				p.printSymbol(p.options.ToModuleRef)
+			// Wrap this with a call to "__toESM()" if this is a CommonJS file
+			if record.WrapWithToESM {
+				p.printSymbol(p.options.ToESMRef)
 				p.print("(")
-				defer p.print(")")
+				defer func() {
+					if p.moduleType == js_ast.ModuleESM {
+						p.print(",")
+						p.printSpace()
+						p.print("1")
+					}
+					p.print(")")
+				}()
 			}
 
 			// Potentially substitute our own "__require" stub for "require"
@@ -1145,11 +1163,10 @@ func (p *printer) printRequireOrImportExpr(
 		defer p.print(")")
 	}
 
-	// Wrap this with a call to "__toModule()" if this is a CommonJS file
-	if record.WrapWithToModule {
-		p.printSymbol(p.options.ToModuleRef)
+	// Wrap this with a call to "__toESM()" if this is a CommonJS file
+	if record.WrapWithToESM {
+		p.printSymbol(p.options.ToESMRef)
 		p.print("(")
-		defer p.print(")")
 	}
 
 	// Call the wrapper
@@ -1160,7 +1177,26 @@ func (p *printer) printRequireOrImportExpr(
 	if meta.ExportsRef != js_ast.InvalidRef {
 		p.print(",")
 		p.printSpace()
+
+		// Wrap this with a call to "__toCommonJS()" if this is an ESM file
+		if record.WrapWithToCJS {
+			p.printSymbol(p.options.ToCommonJSRef)
+			p.print("(")
+		}
 		p.printSymbol(meta.ExportsRef)
+		if record.WrapWithToCJS {
+			p.print(")")
+		}
+	}
+
+	// Finish the call to "__toESM()"
+	if record.WrapWithToESM {
+		if p.moduleType == js_ast.ModuleESM {
+			p.print(",")
+			p.printSpace()
+			p.print("1")
+		}
+		p.print(")")
 	}
 }
 
@@ -3101,7 +3137,8 @@ type Options struct {
 	LegalComments                config.LegalComments
 	AddSourceMappings            bool
 	Indent                       int
-	ToModuleRef                  js_ast.Ref
+	ToCommonJSRef                js_ast.Ref
+	ToESMRef                     js_ast.Ref
 	RuntimeRequireRef            js_ast.Ref
 	UnsupportedFeatures          compat.JSFeature
 	RequireOrImportMetaForSource func(uint32) RequireOrImportMeta
@@ -3141,6 +3178,7 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 		renamer:            r,
 		importRecords:      tree.ImportRecords,
 		options:            options,
+		moduleType:         tree.ModuleType,
 		stmtStart:          -1,
 		exportDefaultStart: -1,
 		arrowExprStart:     -1,

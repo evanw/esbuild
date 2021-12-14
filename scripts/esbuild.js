@@ -59,18 +59,18 @@ const buildNeutralLib = (esbuildPath) => {
   fs.writeFileSync(path.join(libDir, 'main.d.ts'), types_ts)
 
   // Get supported platforms
-  const platforms = {}
-  new Function('exports', 'require', childProcess.execFileSync(esbuildPath, [
+  const platforms = { exports: {} }
+  new Function('module', 'exports', 'require', childProcess.execFileSync(esbuildPath, [
     path.join(repoDir, 'lib', 'npm', 'node-platform.ts'),
     '--bundle',
     '--target=' + nodeTarget,
     '--external:esbuild',
     '--platform=node',
     '--log-level=warning',
-  ], { cwd: repoDir }))(platforms, require)
+  ], { cwd: repoDir }))(platforms, platforms.exports, require)
   const optionalDependencies = Object.fromEntries(Object.values({
-    ...platforms.knownWindowsPackages,
-    ...platforms.knownUnixlikePackages,
+    ...platforms.exports.knownWindowsPackages,
+    ...platforms.exports.knownUnixlikePackages,
   }).sort().map(x => [x, version]))
 
   // Update "npm/esbuild/package.json"
@@ -180,8 +180,8 @@ exports.buildWasmLib = async (esbuildPath) => {
     }
 
     // Generate "npm/esbuild-wasm/lib/browser.*"
-    const umdPrefix = `(exports=>{`
-    const umdSuffix = `})(typeof exports==="object"?exports:(typeof self!=="undefined"?self:this).esbuild={});`
+    const umdPrefix = `(module=>{`
+    const umdSuffix = `})(typeof module==="object"?module:{set exports(x){(typeof self!=="undefined"?self:this).esbuild=x}});`
     const browserCJS = childProcess.execFileSync(esbuildPath, [
       path.join(repoDir, 'lib', 'npm', 'browser.ts'),
       '--bundle',
@@ -323,7 +323,7 @@ exports.installForTests = () => {
   // Evaluate the code
   const ESBUILD_PACKAGE_PATH = path.join(installDir, 'node_modules', 'esbuild')
   const mod = require(ESBUILD_PACKAGE_PATH)
-  mod.ESBUILD_PACKAGE_PATH = ESBUILD_PACKAGE_PATH
+  Object.defineProperty(mod, 'ESBUILD_PACKAGE_PATH', { value: ESBUILD_PACKAGE_PATH })
   return mod
 }
 

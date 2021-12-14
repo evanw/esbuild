@@ -112,10 +112,10 @@ func code(isES6 bool) string {
 		}
 		export var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b))
 
-		// Tells importing modules that this can be considered an ES6 module
+		// Tells importing modules that this can be considered an ES module
 		var __markAsModule = target => __defProp(target, '__esModule', { value: true })
 
-		// Tells importing modules that this can be considered an ES6 module
+		// Update the "name" property on the function or class for "--keep-names"
 		export var __name = (target, value) => __defProp(target, 'name', { value, configurable: true })
 
 		// This fallback "require" function exists so that "typeof require" can
@@ -180,13 +180,12 @@ func code(isES6 bool) string {
 		}
 		export var __commonJSMin = (cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports)
 
-		// Used to implement ES6 exports to CommonJS
+		// Used to implement ESM exports both for "require()" and "import * as"
 		export var __export = (target, all) => {
-			__markAsModule(target)
 			for (var name in all)
 				__defProp(target, name, { get: all[name], enumerable: true })
 		}
-		export var __reExport = (target, module, desc) => {
+		export var __reExport = (target, module, copyDefault, desc) => {
 			if (module && typeof module === 'object' || typeof module === 'function')
 	`
 
@@ -194,14 +193,14 @@ func code(isES6 bool) string {
 	if isES6 {
 		text += `
 				for (let key of __getOwnPropNames(module))
-					if (!__hasOwnProp.call(target, key) && key !== 'default')
+					if (!__hasOwnProp.call(target, key) && (copyDefault || key !== 'default'))
 						__defProp(target, key, { get: () => module[key], enumerable: !(desc = __getOwnPropDesc(module, key)) || desc.enumerable })
 		`
 	} else {
 		text += `
 				for (var keys = __getOwnPropNames(module), i = 0, n = keys.length, key; i < n; i++) {
 					key = keys[i]
-					if (!__hasOwnProp.call(target, key) && key !== 'default')
+					if (!__hasOwnProp.call(target, key) && (copyDefault || key !== 'default'))
 						__defProp(target, key, { get: (k => module[k]).bind(null, key), enumerable: !(desc = __getOwnPropDesc(module, key)) || desc.enumerable })
 				}
 		`
@@ -211,23 +210,33 @@ func code(isES6 bool) string {
 			return target
 		}
 
-		// Converts the module from CommonJS to ES6 if necessary
-		export var __toModule = module => {
+		// Converts the module from CommonJS to ESM
+		export var __toESM = (module, isNodeMode) => {
 			return __reExport(__markAsModule(
 				__defProp(
 					module != null ? __create(__getProtoOf(module)) : {},
 					'default',
 
-					// If this is an ESM file that has been converted to a CommonJS file
-					// using a Babel-compatible transform (i.e. "__esModule" has been set)
-					// and there is already a "default" property, then forward "default"
-					// to that property. Otherwise set "default" to "module.exports" for
-					// node compatibility.
-					module && module.__esModule && 'default' in module
+					// If the importer is not in node compatibility mode and this is an ESM
+					// file that has been converted to a CommonJS file using a Babel-
+					// compatible transform (i.e. "__esModule" has been set), then forward
+					// "default" to the export named "default". Otherwise set "default" to
+					// "module.exports" for node compatibility.
+					!isNodeMode && module && module.__esModule
 						? { get: () => module.default, enumerable: true }
 						: { value: module, enumerable: true })
 			), module)
 		}
+
+		// Converts the module from ESM to CommonJS
+		export var __toCommonJS = /* @__PURE__ */ (cache => {
+			return (module, temp) => {
+				return (cache && cache.get(module)) || (
+					temp = __reExport(__markAsModule({}), module, /* copyDefault */ 1),
+					cache && cache.set(module, temp),
+					temp)
+			}
+		})(typeof WeakMap !== 'undefined' ? new WeakMap : 0)
 
 		// For TypeScript decorators
 		// - kind === undefined: class

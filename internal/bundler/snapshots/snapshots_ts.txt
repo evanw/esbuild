@@ -342,7 +342,7 @@ var require_b = __commonJS({
 });
 
 // a.ts
-var import_b = __toModule(require_b());
+var import_b = __toESM(require_b());
 console.log(import_b.default);
 
 ================================================================================
@@ -350,7 +350,6 @@ TestTSExportMissingES6
 ---------- /out.js ----------
 // foo.ts
 var foo_exports = {};
-__markAsModule(foo_exports);
 
 // entry.js
 console.log(foo_exports);

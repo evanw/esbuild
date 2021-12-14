@@ -301,9 +301,9 @@ var init_bar = __esm({
 });
 
 // entry.js
-var { foo: foo2 } = (init_foo(), foo_exports);
+var { foo: foo2 } = (init_foo(), __toCommonJS(foo_exports));
 console.log(foo2(), bar2());
-var { bar: bar2 } = (init_bar(), bar_exports);
+var { bar: bar2 } = (init_bar(), __toCommonJS(bar_exports));
 
 ================================================================================
 TestConditionalImport
@@ -316,7 +316,7 @@ var require_import = __commonJS({
 });
 
 // a.js
-x ? import("a") : y ? Promise.resolve().then(() => __toModule(require_import())) : import("c");
+x ? import("a") : y ? Promise.resolve().then(() => __toESM(require_import())) : import("c");
 
 ---------- /out/b.js ----------
 // import.js
@@ -327,7 +327,7 @@ var require_import = __commonJS({
 });
 
 // b.js
-x ? y ? import("a") : Promise.resolve().then(() => __toModule(require_import())) : import(c);
+x ? y ? import("a") : Promise.resolve().then(() => __toESM(require_import())) : import(c);
 
 ================================================================================
 TestConditionalRequire
@@ -465,7 +465,7 @@ var require_index = __commonJS({
 });
 
 // entry.js
-var import__ = __toModule(require_index());
+var import__ = __toESM(require_index());
 console.log(import__.x);
 
 ================================================================================
@@ -501,8 +501,8 @@ TestDynamicImportWithTemplateIIFE
   });
 
   // a.js
-  Promise.resolve().then(() => __toModule(require_b())).then((ns) => console.log(ns));
-  Promise.resolve().then(() => __toModule(require_b())).then((ns) => console.log(ns));
+  Promise.resolve().then(() => __toESM(require_b())).then((ns) => console.log(ns));
+  Promise.resolve().then(() => __toESM(require_b())).then((ns) => console.log(ns));
 })();
 
 ================================================================================
@@ -527,8 +527,8 @@ var require_bar = __commonJS({
 });
 
 // entry.js
-var import_foo = __toModule(require_foo());
-var import_bar = __toModule(require_bar());
+var import_foo = __toESM(require_foo());
+var import_bar = __toESM(require_bar());
 console.log((0, import_foo.foo)(), (0, import_bar.bar)());
 
 ================================================================================
@@ -536,14 +536,13 @@ TestEmptyExportClauseBundleAsCommonJSIssue910
 ---------- /out.js ----------
 // types.mjs
 var types_exports = {};
-__markAsModule(types_exports);
 var init_types = __esm({
   "types.mjs"() {
   }
 });
 
 // entry.js
-console.log((init_types(), types_exports));
+console.log((init_types(), __toCommonJS(types_exports)));
 
 ================================================================================
 TestEntryNamesNoSlashAfterDir
@@ -808,7 +807,7 @@ var globalName = (() => {
   }
   var Class = class {
   };
-  return entry_exports;
+  return __toCommonJS(entry_exports);
 })();
 
 ================================================================================
@@ -850,8 +849,9 @@ export default class o {
 TestExportWildcardFSNodeCommonJS
 ---------- /out.js ----------
 // entry.js
-__markAsModule(exports);
-__reExport(exports, __toModule(require("fs")));
+var entry_exports = {};
+__reExport(entry_exports, __toESM(require("fs")));
+module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
 TestExportWildcardFSNodeES6
@@ -928,7 +928,6 @@ var init_d = __esm({
 
 // e.js
 var e_exports = {};
-__markAsModule(e_exports);
 import * as x_star from "x";
 var init_e = __esm({
   "e.js"() {
@@ -1031,10 +1030,10 @@ console.log(file_default, file_default2);
 TestImportFSNodeCommonJS
 ---------- /out.js ----------
 // entry.js
-var import_fs = __toModule(require("fs"));
-var fs = __toModule(require("fs"));
-var import_fs2 = __toModule(require("fs"));
-var import_fs3 = __toModule(require("fs"));
+var import_fs = __toESM(require("fs"));
+var fs = __toESM(require("fs"));
+var import_fs2 = __toESM(require("fs"));
+var import_fs3 = __toESM(require("fs"));
 console.log(fs, import_fs3.readFileSync, import_fs2.default);
 
 ================================================================================
@@ -1112,7 +1111,7 @@ var require_foo = __commonJS({
 });
 
 // entry.js
-var import_foo = __toModule(require_foo());
+var import_foo = __toESM(require_foo());
 console.log((0, import_foo.default)(import_foo.x, import_foo.y));
 
 ================================================================================
@@ -1126,7 +1125,7 @@ var require_foo = __commonJS({
 });
 
 // named.js
-var import_foo = __toModule(require_foo());
+var import_foo = __toESM(require_foo());
 console.log((0, import_foo.default)(void 0, void 0));
 
 ---------- /out/star.js ----------
@@ -1138,7 +1137,7 @@ var require_foo = __commonJS({
 });
 
 // star.js
-var ns = __toModule(require_foo());
+var ns = __toESM(require_foo());
 console.log(ns.default(void 0, void 0));
 
 ---------- /out/star-capture.js ----------
@@ -1150,7 +1149,7 @@ var require_foo = __commonJS({
 });
 
 // star-capture.js
-var ns = __toModule(require_foo());
+var ns = __toESM(require_foo());
 console.log(ns);
 
 ---------- /out/bare.js ----------
@@ -1177,23 +1176,23 @@ var require_foo = __commonJS({
 });
 
 // import.js
-console.log(Promise.resolve().then(() => __toModule(require_foo())));
+console.log(Promise.resolve().then(() => __toESM(require_foo())));
 
 ================================================================================
 TestImportNamespaceThisValue
 ---------- /out/a.js ----------
 // a.js
-var ns = __toModule(require("external"));
+var ns = __toESM(require("external"));
 console.log(ns[foo](), new ns[foo]());
 
 ---------- /out/b.js ----------
 // b.js
-var ns = __toModule(require("external"));
+var ns = __toESM(require("external"));
 console.log(ns.foo(), new ns.foo());
 
 ---------- /out/c.js ----------
 // c.js
-var import_external = __toModule(require("external"));
+var import_external = __toESM(require("external"));
 console.log((0, import_external.default)(), (0, import_external.foo)());
 console.log(new import_external.default(), new import_external.foo());
 
@@ -1272,7 +1271,7 @@ var replace = {
 };
 
 // re-export.js
-var import_external_pkg = __toModule(require("external-pkg"));
+var import_external_pkg = __toESM(require("external-pkg"));
 
 // entry.js
 var sideEffects2 = console.log("this should be renamed");
@@ -1376,7 +1375,7 @@ var require_custom_react = __commonJS({
 });
 
 // entry.jsx
-var import_custom_react = __toModule(require_custom_react());
+var import_custom_react = __toESM(require_custom_react());
 console.log(/* @__PURE__ */ (0, import_custom_react.elem)("div", null), /* @__PURE__ */ (0, import_custom_react.elem)(import_custom_react.frag, null, "fragment"));
 
 ================================================================================
@@ -2075,21 +2074,21 @@ import("foo");import(foo());
 TestMinifiedExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
 // foo/test.js
+var o = {};
+p(o, {
+  foo: () => l
+});
+var l = 123;
+
+// bar/test.js
 var r = {};
-f(r, {
-  foo: () => m
+p(r, {
+  bar: () => m
 });
 var m = 123;
 
-// bar/test.js
-var t = {};
-f(t, {
-  bar: () => s
-});
-var s = 123;
-
 // entry.js
-console.log(exports, module.exports, r, t);
+console.log(exports, module.exports, o, r);
 
 ================================================================================
 TestMinifyArguments
@@ -2238,7 +2237,7 @@ var require_foo = __commonJS({
 });
 
 // entry.js
-var import_foo = __toModule(require_foo());
+var import_foo = __toESM(require_foo());
 (() => {
   console.log((0, import_foo.fn)());
 })();
@@ -2295,7 +2294,7 @@ var require_demo_pkg = __commonJS({
 });
 
 // Users/user/project/src/entry.js
-var import_demo_pkg = __toModule(require_demo_pkg());
+var import_demo_pkg = __toESM(require_demo_pkg());
 console.log((0, import_demo_pkg.default)());
 
 ================================================================================
@@ -2324,14 +2323,14 @@ console.log("test");
 TestQuotedProperty
 ---------- /out/entry.js ----------
 // entry.js
-var ns = __toModule(require("ext"));
+var ns = __toESM(require("ext"));
 console.log(ns.mustBeUnquoted, ns["mustBeQuoted"]);
 
 ================================================================================
 TestQuotedPropertyMangle
 ---------- /out/entry.js ----------
 // entry.js
-var ns = __toModule(require("ext"));
+var ns = __toESM(require("ext"));
 console.log(ns.mustBeUnquoted, ns.mustBeUnquoted2);
 
 ================================================================================
@@ -2345,7 +2344,7 @@ var require_foo = __commonJS({
 });
 
 // entry.js
-var import_foo = __toModule(require_foo());
+var import_foo = __toESM(require_foo());
 var export_bar = import_foo.bar;
 export {
   export_bar as bar
@@ -2355,14 +2354,16 @@ export {
 TestReExportDefaultExternalCommonJS
 ---------- /out.js ----------
 // entry.js
-__export(exports, {
+var entry_exports = {};
+__export(entry_exports, {
   bar: () => import_bar.default,
   foo: () => import_foo.default
 });
-var import_foo = __toModule(require("foo"));
+var import_foo = __toESM(require("foo"));
 
 // bar.js
-var import_bar = __toModule(require("bar"));
+var import_bar = __toESM(require("bar"));
+module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
 TestReExportDefaultExternalES6
@@ -2399,12 +2400,14 @@ export { default as bar } from "./bar";
 ================================================================================
 TestReExportDefaultNoBundleCommonJS
 ---------- /out.js ----------
-__export(exports, {
+var entry_exports = {};
+__export(entry_exports, {
   bar: () => import_bar.default,
   foo: () => import_foo.default
 });
-var import_foo = __toModule(require("./foo"));
-var import_bar = __toModule(require("./bar"));
+var import_foo = __toESM(require("./foo"));
+var import_bar = __toESM(require("./bar"));
+module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
 TestReExportDefaultNoBundleES6
@@ -2663,8 +2666,8 @@ console.log([
   __require(window.SOME_PATH),
   __require.resolve("some-path"),
   __require.resolve(window.SOME_PATH),
-  Promise.resolve().then(() => __toModule(__require("some-path"))),
-  Promise.resolve().then(() => __toModule(__require(window.SOME_PATH)))
+  Promise.resolve().then(() => __toESM(__require("some-path"))),
+  Promise.resolve().then(() => __toESM(__require(window.SOME_PATH)))
 ]);
 
 ================================================================================
@@ -3252,7 +3255,7 @@ var init_dummy = __esm({
 // es6-import-assign.ts
 var require_es6_import_assign = __commonJS({
   "es6-import-assign.ts"(exports) {
-    var x2 = (init_dummy(), dummy_exports);
+    var x2 = (init_dummy(), __toCommonJS(dummy_exports));
     console.log(exports);
   }
 });
@@ -3385,21 +3388,21 @@ var require_es6_ns_export_abstract_class = __commonJS({
 });
 
 // entry.js
-var import_cjs = __toModule(require_cjs());
+var import_cjs = __toESM(require_cjs());
 
 // es6-import-stmt.js
 init_dummy();
 console.log(void 0);
 
 // entry.js
-var import_es6_import_assign = __toModule(require_es6_import_assign());
-var import_es6_import_dynamic = __toModule(require_es6_import_dynamic());
+var import_es6_import_assign = __toESM(require_es6_import_assign());
+var import_es6_import_dynamic = __toESM(require_es6_import_dynamic());
 
 // es6-import-meta.js
 console.log(void 0);
 
 // entry.js
-var import_es6_expr_import_dynamic = __toModule(require_es6_expr_import_dynamic());
+var import_es6_expr_import_dynamic = __toESM(require_es6_expr_import_dynamic());
 
 // es6-expr-import-meta.js
 console.log(void 0);
@@ -3450,22 +3453,22 @@ init_dummy();
 console.log(void 0);
 
 // entry.js
-var import_es6_export_assign = __toModule(require_es6_export_assign());
+var import_es6_export_assign = __toESM(require_es6_export_assign());
 
 // es6-export-import-assign.ts
-var x = (init_dummy(), dummy_exports);
+var x = (init_dummy(), __toCommonJS(dummy_exports));
 console.log(void 0);
 
 // entry.js
-var import_es6_ns_export_variable = __toModule(require_es6_ns_export_variable());
-var import_es6_ns_export_function = __toModule(require_es6_ns_export_function());
-var import_es6_ns_export_async_function = __toModule(require_es6_ns_export_async_function());
-var import_es6_ns_export_enum = __toModule(require_es6_ns_export_enum());
-var import_es6_ns_export_const_enum = __toModule(require_es6_ns_export_const_enum());
-var import_es6_ns_export_module = __toModule(require_es6_ns_export_module());
-var import_es6_ns_export_namespace = __toModule(require_es6_ns_export_namespace());
-var import_es6_ns_export_class = __toModule(require_es6_ns_export_class());
-var import_es6_ns_export_abstract_class = __toModule(require_es6_ns_export_abstract_class());
+var import_es6_ns_export_variable = __toESM(require_es6_ns_export_variable());
+var import_es6_ns_export_function = __toESM(require_es6_ns_export_function());
+var import_es6_ns_export_async_function = __toESM(require_es6_ns_export_async_function());
+var import_es6_ns_export_enum = __toESM(require_es6_ns_export_enum());
+var import_es6_ns_export_const_enum = __toESM(require_es6_ns_export_const_enum());
+var import_es6_ns_export_module = __toESM(require_es6_ns_export_module());
+var import_es6_ns_export_namespace = __toESM(require_es6_ns_export_namespace());
+var import_es6_ns_export_class = __toESM(require_es6_ns_export_class());
+var import_es6_ns_export_abstract_class = __toESM(require_es6_ns_export_abstract_class());
 
 ================================================================================
 TestTopLevelAwaitAllowedImportWithSplitting
@@ -3499,7 +3502,6 @@ TestTopLevelAwaitAllowedImportWithoutSplitting
 ---------- /out.js ----------
 // c.js
 var c_exports = {};
-__markAsModule(c_exports);
 var init_c = __esm({
   async "c.js"() {
     await 0;
@@ -3508,7 +3510,6 @@ var init_c = __esm({
 
 // b.js
 var b_exports = {};
-__markAsModule(b_exports);
 var init_b = __esm({
   async "b.js"() {
     await init_c();
@@ -3517,7 +3518,6 @@ var init_b = __esm({
 
 // a.js
 var a_exports = {};
-__markAsModule(a_exports);
 var init_a = __esm({
   async "a.js"() {
     await init_b();
@@ -3526,7 +3526,6 @@ var init_a = __esm({
 
 // entry.js
 var entry_exports = {};
-__markAsModule(entry_exports);
 var init_entry = __esm({
   async "entry.js"() {
     init_a();
@@ -3568,7 +3567,7 @@ TestUseStrictDirectiveBundleIssue1837
   var import_process;
   var init_shims = __esm({
     "shims.js"() {
-      import_process = __toModule(__require("process"));
+      import_process = __toESM(__require("process"));
     }
   });
 
@@ -3652,9 +3651,9 @@ switch (x) {
 !a instanceof b;
 
 // entry.js
-var import_return_asi = __toModule(require_return_asi());
-var import_return_asi2 = __toModule(require_return_asi2());
-var import_return_asi3 = __toModule(require_return_asi3());
+var import_return_asi = __toESM(require_return_asi());
+var import_return_asi2 = __toESM(require_return_asi2());
+var import_return_asi3 = __toESM(require_return_asi3());
 
 // equals-neg-zero.js
 x === -0;

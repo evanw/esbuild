@@ -38,7 +38,7 @@ const (
 	//   });
 	//
 	//   // bar.ts
-	//   let foo = flag ? (init_foo(), foo_exports) : null;
+	//   let foo = flag ? (init_foo(), __toCommonJS(foo_exports)) : null;
 	//
 	WrapESM
 )
@@ -133,6 +133,11 @@ type JSReprMeta struct {
 
 	Wrap WrapKind
 
+	// If true, we need to insert "var exports = {};". This is the case for ESM
+	// files when the import namespace is captured via "import * as" and also
+	// when they are the target of a "require()" call.
+	NeedsExportsVariable bool
+
 	// If true, the "__export(exports, { ... })" call will be force-included even
 	// if there are no parts that reference "exports". Otherwise this call will
 	// be removed due to the tree shaking pass. This is used when for entry point
@@ -143,8 +148,7 @@ type JSReprMeta struct {
 	// This is set when we need to pull in the "__export" symbol in to the part
 	// at "nsExportPartIndex". This can't be done in "createExportsForFile"
 	// because of concurrent map hazards. Instead, it must be done later.
-	NeedsExportSymbolFromRuntime       bool
-	NeedsMarkAsModuleSymbolFromRuntime bool
+	NeedsExportSymbolFromRuntime bool
 
 	// Wrapped files must also ensure that their dependencies are wrapped. This
 	// flag is used during the traversal that enforces this invariant, and is used

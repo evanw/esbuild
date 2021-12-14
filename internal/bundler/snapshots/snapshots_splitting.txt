@@ -203,21 +203,21 @@ console.log(123);
 TestSplittingDynamicAndNotDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
 import {
-  __toModule,
+  __toESM,
   require_foo
-} from "./chunk-JPAPXZUJ.js";
+} from "./chunk-KUHUE66N.js";
 
 // entry.js
-var import_foo = __toModule(require_foo());
-import("./foo-2T7XICVR.js").then(({ default: { bar: b } }) => console.log(import_foo.bar, b));
+var import_foo = __toESM(require_foo());
+import("./foo-U6JCMRHQ.js").then(({ default: { bar: b } }) => console.log(import_foo.bar, b));
 
----------- /out/foo-2T7XICVR.js ----------
+---------- /out/foo-U6JCMRHQ.js ----------
 import {
   require_foo
-} from "./chunk-JPAPXZUJ.js";
+} from "./chunk-KUHUE66N.js";
 export default require_foo();
 
----------- /out/chunk-JPAPXZUJ.js ----------
+---------- /out/chunk-KUHUE66N.js ----------
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports) {
@@ -226,7 +226,7 @@ var require_foo = __commonJS({
 });
 
 export {
-  __toModule,
+  __toESM,
   require_foo
 };
 
@@ -259,16 +259,10 @@ export {
 ================================================================================
 TestSplittingDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
-import "./chunk-D343XTR4.js";
-
 // entry.js
-import("./foo-PKYCIAV6.js").then(({ default: { bar } }) => console.log(bar));
+import("./foo-PPQD77K4.js").then(({ default: { bar } }) => console.log(bar));
 
----------- /out/foo-PKYCIAV6.js ----------
-import {
-  __commonJS
-} from "./chunk-D343XTR4.js";
-
+---------- /out/foo-PPQD77K4.js ----------
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports) {
@@ -276,11 +270,6 @@ var require_foo = __commonJS({
   }
 });
 export default require_foo();
-
----------- /out/chunk-D343XTR4.js ----------
-export {
-  __commonJS
-};
 
 ================================================================================
 TestSplittingDynamicES6IntoES6
@@ -328,7 +317,7 @@ TestSplittingHybridESMAndCJSIssue617
 import {
   foo,
   init_a
-} from "./chunk-2OZ4VUMW.js";
+} from "./chunk-QRBKE4XE.js";
 init_a();
 export {
   foo
@@ -336,17 +325,18 @@ export {
 
 ---------- /out/b.js ----------
 import {
+  __toCommonJS,
   a_exports,
   init_a
-} from "./chunk-2OZ4VUMW.js";
+} from "./chunk-QRBKE4XE.js";
 
 // b.js
-var bar = (init_a(), a_exports);
+var bar = (init_a(), __toCommonJS(a_exports));
 export {
   bar
 };
 
----------- /out/chunk-2OZ4VUMW.js ----------
+---------- /out/chunk-QRBKE4XE.js ----------
 // a.js
 var a_exports = {};
 __export(a_exports, {
@@ -359,6 +349,7 @@ var init_a = __esm({
 });
 
 export {
+  __toCommonJS,
   foo,
   a_exports,
   init_a
@@ -399,7 +390,7 @@ TestSplittingMissingLazyExport
 ---------- /out/a.js ----------
 import {
   foo
-} from "./chunk-XM7WD27G.js";
+} from "./chunk-QVTGQSXT.js";
 
 // a.js
 console.log(foo());
@@ -407,15 +398,14 @@ console.log(foo());
 ---------- /out/b.js ----------
 import {
   bar
-} from "./chunk-XM7WD27G.js";
+} from "./chunk-QVTGQSXT.js";
 
 // b.js
 console.log(bar());
 
----------- /out/chunk-XM7WD27G.js ----------
+---------- /out/chunk-QVTGQSXT.js ----------
 // empty.js
 var empty_exports = {};
-__markAsModule(empty_exports);
 
 // common.js
 function foo() {

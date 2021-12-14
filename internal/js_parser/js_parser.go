@@ -12625,7 +12625,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			//     import(foo)
 			//
 			//   After:
-			//     Promise.resolve().then(() => require(foo))
+			//     Promise.resolve().then(() => __toESM(require(foo)))
 			//
 			// This is normally done by the printer since we don't know during the
 			// parsing stage whether this module is external or not. However, it's
@@ -12635,7 +12635,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// correctly, and you need a string literal to get an import record.
 			if p.options.unsupportedJSFeatures.Has(compat.DynamicImport) {
 				var then js_ast.Expr
-				value := p.callRuntime(arg.Loc, "__toModule", []js_ast.Expr{{Loc: expr.Loc, Data: &js_ast.ECall{
+				value := p.callRuntime(arg.Loc, "__toESM", []js_ast.Expr{{Loc: expr.Loc, Data: &js_ast.ECall{
 					Target: p.valueToSubstituteForRequire(expr.Loc),
 					Args:   []js_ast.Expr{arg},
 				}}})
@@ -13397,9 +13397,6 @@ func (p *parser) recordExport(loc logger.Loc, alias string, ref js_ast.Ref) {
 			fmt.Sprintf("Multiple exports with the same name %q", alias),
 			[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, name.AliasLoc),
 				fmt.Sprintf("The name %q was originally exported here:", alias))})
-	} else if alias == "__esModule" {
-		p.log.Add(logger.Error, &p.tracker, js_lexer.RangeOfIdentifier(p.source, loc),
-			"The export name \"__esModule\" is reserved and cannot be used (it's needed as an export marker when converting ES module syntax to CommonJS)")
 	} else {
 		p.namedExports[alias] = js_ast.NamedExport{AliasLoc: loc, Ref: ref}
 	}
