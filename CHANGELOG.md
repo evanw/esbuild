@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix an issue with the publishing script
+
+    This release fixes a missing dependency issue in the publishing script where it was previously possible for the published binary executable to have an incorrect version number.
+
 ## 0.14.4
 
 * Adjust esbuild's handling of `default` exports and the `__esModule` marker ([#532](https://github.com/evanw/esbuild/issues/532), [#1591](https://github.com/evanw/esbuild/issues/1591), [#1719](https://github.com/evanw/esbuild/issues/1719))

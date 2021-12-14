@@ -214,7 +214,7 @@ wasm-napi-exit0-windows:
 	main.bat
 	rm -f main.*
 
-platform-all: cmd/esbuild/version.go
+platform-all:
 	@$(MAKE) --no-print-directory -j4 \
 		platform-windows \
 		platform-windows-32 \
@@ -237,19 +237,19 @@ platform-all: cmd/esbuild/version.go
 		platform-neutral \
 		platform-deno
 
-platform-windows:
+platform-windows: cmd/esbuild/version.go
 	node scripts/esbuild.js npm/esbuild-windows-64/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GO_FLAGS) -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
 
-platform-windows-32:
+platform-windows-32: cmd/esbuild/version.go
 	node scripts/esbuild.js npm/esbuild-windows-32/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=386 go build $(GO_FLAGS) -o npm/esbuild-windows-32/esbuild.exe ./cmd/esbuild
 
-platform-windows-arm64:
+platform-windows-arm64: cmd/esbuild/version.go
 	node scripts/esbuild.js npm/esbuild-windows-arm64/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(GO_FLAGS) -o npm/esbuild-windows-arm64/esbuild.exe ./cmd/esbuild
 
-platform-unixlike:
+platform-unixlike: cmd/esbuild/version.go
 	@test -n "$(GOOS)" || (echo "The environment variable GOOS must be provided" && false)
 	@test -n "$(GOARCH)" || (echo "The environment variable GOARCH must be provided" && false)
 	@test -n "$(NPMDIR)" || (echo "The environment variable NPMDIR must be provided" && false)
@@ -308,9 +308,6 @@ platform-neutral: esbuild
 
 platform-deno: esbuild
 	node scripts/esbuild.js ./esbuild --deno
-
-test-otp:
-	test -n "$(OTP)" && echo publish --otp="$(OTP)"
 
 publish-all:
 	@npm --version > /dev/null || (echo "The 'npm' command must be in your path to publish" && false)
