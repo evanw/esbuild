@@ -180,8 +180,8 @@ exports.buildWasmLib = async (esbuildPath) => {
     }
 
     // Generate "npm/esbuild-wasm/lib/browser.*"
-    const umdPrefix = `(exports=>{`
-    const umdSuffix = `})(typeof exports==="object"?exports:(typeof self!=="undefined"?self:this).esbuild={});`
+    const umdPrefix = `(module=>{`
+    const umdSuffix = `})(typeof module==="object"?module:{set exports(x){(typeof self!=="undefined"?self:this).esbuild=x}});`
     const browserCJS = childProcess.execFileSync(esbuildPath, [
       path.join(repoDir, 'lib', 'npm', 'browser.ts'),
       '--bundle',
