@@ -86,8 +86,11 @@ type ImportRecord struct {
 	// calling the "__reExport()" helper function
 	CallsRunTimeReExportFn bool
 
-	// Tell the printer to wrap this call to "require()" in "__toModule(...)"
-	WrapWithToModule bool
+	// Tell the printer to wrap this call to "require()" in "__toESM(...)"
+	WrapWithToESM bool
+
+	// Tell the printer to wrap this ESM exports object in "__toCJS(...)"
+	WrapWithToCJS bool
 
 	// Tell the printer to use the runtime "__require()" instead of "require()"
 	CallRuntimeRequire bool

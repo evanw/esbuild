@@ -11,7 +11,7 @@ var require_foo = __commonJS({
 __export(exports, {
   ns: () => ns
 });
-var ns = __toModule(require_foo());
+var ns = __toESM(require_foo());
 
 ================================================================================
 TestExportOtherCommonJS
@@ -27,7 +27,7 @@ var require_foo = __commonJS({
 __export(exports, {
   bar: () => import_foo.bar
 });
-var import_foo = __toModule(require_foo());
+var import_foo = __toESM(require_foo());
 
 ================================================================================
 TestExportOtherNestedCommonJS
@@ -45,7 +45,7 @@ __export(exports, {
 });
 
 // bar.js
-var import_foo = __toModule(require_foo());
+var import_foo = __toESM(require_foo());
 
 ================================================================================
 TestExportSelfAndImportSelfCommonJS
@@ -68,7 +68,7 @@ var foo;
 var init_entry = __esm({
   "entry.js"() {
     foo = 123;
-    console.log((init_entry(), exports));
+    console.log((init_entry(), __toCommonJS(exports)));
   }
 });
 init_entry();
@@ -258,7 +258,7 @@ var require_foo = __commonJS({
 __export(exports, {
   ns: () => ns
 });
-var ns = __toModule(require_foo());
+var ns = __toESM(require_foo());
 
 ================================================================================
 TestImportExportSelfAsNamespaceES6
@@ -303,8 +303,8 @@ var require_empty2 = __commonJS({
 });
 
 // entry-nope.js
-var js = __toModule(require_empty());
-var cjs = __toModule(require_empty2());
+var js = __toESM(require_empty());
+var cjs = __toESM(require_empty2());
 console.log(void 0, void 0, void 0);
 
 ---------- /out/entry-default.js ----------
@@ -321,8 +321,8 @@ var require_empty2 = __commonJS({
 });
 
 // entry-default.js
-var js = __toModule(require_empty());
-var cjs = __toModule(require_empty2());
+var js = __toESM(require_empty());
+var cjs = __toESM(require_empty2());
 console.log(js.default, void 0, cjs.default);
 
 ================================================================================
@@ -343,8 +343,8 @@ var require_no_side_effects2 = __commonJS({
 });
 
 // entry-nope.js
-var js = __toModule(require_no_side_effects());
-var cjs = __toModule(require_no_side_effects2());
+var js = __toESM(require_no_side_effects());
+var cjs = __toESM(require_no_side_effects2());
 console.log(void 0, void 0, void 0);
 
 ---------- /out/entry-default.js ----------
@@ -363,8 +363,8 @@ var require_no_side_effects2 = __commonJS({
 });
 
 // entry-default.js
-var js = __toModule(require_no_side_effects());
-var cjs = __toModule(require_no_side_effects2());
+var js = __toESM(require_no_side_effects());
+var cjs = __toESM(require_no_side_effects2());
 console.log(js.default, void 0, cjs.default);
 
 ================================================================================
@@ -401,7 +401,7 @@ TestImportSelfCommonJS
 // entry.js
 var require_entry = __commonJS({
   "entry.js"(exports) {
-    var import_entry = __toModule(require_entry());
+    var import_entry = __toESM(require_entry());
     exports.foo = 123;
     console.log(import_entry.foo);
   }
@@ -425,7 +425,7 @@ var init_foo = __esm({
 
 // entry.js
 init_foo();
-var ns2 = (init_foo(), foo_exports);
+var ns2 = (init_foo(), __toCommonJS(foo_exports));
 console.log(foo, ns2.foo);
 
 ================================================================================
@@ -453,7 +453,7 @@ var require_foo = __commonJS({
 });
 
 // entry.js
-var ns = __toModule(require_foo());
+var ns = __toESM(require_foo());
 var foo2 = 234;
 console.log(ns, ns.foo, foo2);
 
@@ -468,7 +468,7 @@ var require_foo = __commonJS({
 });
 
 // entry.js
-var ns = __toModule(require_foo());
+var ns = __toESM(require_foo());
 var foo2 = 234;
 console.log(ns.foo, ns.foo, foo2);
 
@@ -483,7 +483,7 @@ var require_foo = __commonJS({
 });
 
 // entry.js
-var ns = __toModule(require_foo());
+var ns = __toESM(require_foo());
 var foo = 234;
 console.log(foo);
 
@@ -713,7 +713,7 @@ var require_foo = __commonJS({
 });
 
 // entry.js
-var ns = __toModule(require_foo());
+var ns = __toESM(require_foo());
 console.log(ns, ns.foo);
 
 ================================================================================
@@ -761,7 +761,7 @@ var require_foo = __commonJS({
 });
 
 // entry.js
-var ns = __toModule(require_foo());
+var ns = __toESM(require_foo());
 console.log(ns.foo);
 
 ================================================================================
@@ -850,7 +850,7 @@ TestReExportStarAsCommonJSNoBundle
 __export(exports, {
   out: () => out
 });
-var out = __toModule(require("foo"));
+var out = __toESM(require("foo"));
 
 ================================================================================
 TestReExportStarAsES6NoBundle
@@ -867,7 +867,7 @@ TestReExportStarAsExternalCommonJS
 __export(exports, {
   out: () => out
 });
-var out = __toModule(require("foo"));
+var out = __toESM(require("foo"));
 
 ================================================================================
 TestReExportStarAsExternalES6
@@ -887,7 +887,7 @@ var mod = (() => {
   __export(entry_exports, {
     out: () => out
   });
-  var out = __toModule(__require("foo"));
+  var out = __toESM(__require("foo"));
   return entry_exports;
 })();
 
@@ -899,7 +899,7 @@ var mod = (() => {
   __export(entry_exports, {
     out: () => out
   });
-  var out = __toModule(require("foo"));
+  var out = __toESM(require("foo"));
   return entry_exports;
 })();
 
@@ -907,7 +907,7 @@ var mod = (() => {
 TestReExportStarCommonJSNoBundle
 ---------- /out.js ----------
 __markAsModule(exports);
-__reExport(exports, __toModule(require("foo")));
+__reExport(exports, __toESM(require("foo")));
 
 ================================================================================
 TestReExportStarES6NoBundle
@@ -919,7 +919,7 @@ TestReExportStarExternalCommonJS
 ---------- /out.js ----------
 // entry.js
 __markAsModule(exports);
-__reExport(exports, __toModule(require("foo")));
+__reExport(exports, __toESM(require("foo")));
 
 ================================================================================
 TestReExportStarExternalES6
@@ -934,7 +934,7 @@ var mod = (() => {
   // entry.js
   var entry_exports = {};
   __markAsModule(entry_exports);
-  __reExport(entry_exports, __toModule(__require("foo")));
+  __reExport(entry_exports, __toESM(__require("foo")));
   return entry_exports;
 })();
 
@@ -944,7 +944,7 @@ TestReExportStarIIFENoBundle
 var mod = (() => {
   var entry_exports = {};
   __markAsModule(entry_exports);
-  __reExport(entry_exports, __toModule(require("foo")));
+  __reExport(entry_exports, __toESM(require("foo")));
   return entry_exports;
 })();
 

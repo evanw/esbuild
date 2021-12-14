@@ -342,7 +342,7 @@ var require_b = __commonJS({
 });
 
 // a.ts
-var import_b = __toModule(require_b());
+var import_b = __toESM(require_b());
 console.log(import_b.default);
 
 ================================================================================

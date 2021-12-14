@@ -38,7 +38,7 @@ const (
 	//   });
 	//
 	//   // bar.ts
-	//   let foo = flag ? (init_foo(), foo_exports) : null;
+	//   let foo = flag ? (init_foo(), __toCommonJS(foo_exports)) : null;
 	//
 	WrapESM
 )
@@ -143,8 +143,7 @@ type JSReprMeta struct {
 	// This is set when we need to pull in the "__export" symbol in to the part
 	// at "nsExportPartIndex". This can't be done in "createExportsForFile"
 	// because of concurrent map hazards. Instead, it must be done later.
-	NeedsExportSymbolFromRuntime       bool
-	NeedsMarkAsModuleSymbolFromRuntime bool
+	NeedsExportSymbolFromRuntime bool
 
 	// Wrapped files must also ensure that their dependencies are wrapped. This
 	// flag is used during the traversal that enforces this invariant, and is used
