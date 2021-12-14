@@ -13103,6 +13103,35 @@ func (p *parser) maybeMarkKnownGlobalConstructorAsPure(e *js_ast.ENew) {
 	if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok {
 		if symbol := p.symbols[id.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound {
 			switch symbol.OriginalName {
+			case "WeakSet", "WeakMap":
+				n := len(e.Args)
+
+				if n == 0 {
+					// "new WeakSet()" is pure
+					e.CanBeUnwrappedIfUnused = true
+					break
+				}
+
+				if n == 1 {
+					switch arg := e.Args[0].Data.(type) {
+					case *js_ast.ENull, *js_ast.EUndefined:
+						// "new WeakSet(null)" is pure
+						// "new WeakSet(void 0)" is pure
+						e.CanBeUnwrappedIfUnused = true
+
+					case *js_ast.EArray:
+						if len(arg.Items) == 0 {
+							// "new WeakSet([])" is pure
+							e.CanBeUnwrappedIfUnused = true
+						} else {
+							// "new WeakSet([x])" is impure because an exception is thrown if "x" is not an object
+						}
+
+					default:
+						// "new WeakSet(x)" is impure because the iterator for "x" could have side effects
+					}
+				}
+
 			case "Set":
 				n := len(e.Args)
 
