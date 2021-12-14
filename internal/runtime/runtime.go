@@ -168,7 +168,7 @@ func code(isES6 bool) string {
 		// compact one for minified code and a verbose one that generates friendly
 		// names in V8's profiler and in stack traces.
 		export var __esm = (fn, res) => function __init() {
-			return fn && (res = (0, fn[Object.keys(fn)[0]])(fn = 0)), res
+			return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res
 		}
 		export var __esmMin = (fn, res) => () => (fn && (res = fn(fn = 0)), res)
 
@@ -176,7 +176,7 @@ func code(isES6 bool) string {
 		// implementations, a compact one for minified code and a verbose one that
 		// generates friendly names in V8's profiler and in stack traces.
 		export var __commonJS = (cb, mod) => function __require() {
-			return mod || (0, cb[Object.keys(cb)[0]])((mod = {exports: {}}).exports, mod), mod.exports
+			return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = {exports: {}}).exports, mod), mod.exports
 		}
 		export var __commonJSMin = (cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports)
 
