@@ -190,9 +190,7 @@ test-e2e-yarn-berry:
 	rm -fr e2e-yb
 
 cmd/esbuild/version.go: version.txt
-	# Update this atomically to avoid issues with this being overwritten during use
-	node -e 'console.log(`package main\n\nconst esbuildVersion = "$(ESBUILD_VERSION)"`)' > cmd/esbuild/version.go.txt
-	mv cmd/esbuild/version.go.txt cmd/esbuild/version.go
+	node scripts/esbuild.js --update-version-go
 
 wasm-napi-exit0-darwin:
 	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \

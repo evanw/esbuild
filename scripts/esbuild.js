@@ -327,6 +327,17 @@ exports.installForTests = () => {
   return mod
 }
 
+const updateVersionGo = () => {
+  const version_txt = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
+  const version_go = `package main\n\nconst esbuildVersion = "${version_txt}"\n`
+  const version_go_path = path.join(repoDir, 'cmd', 'esbuild', 'version.go')
+
+  // Update this atomically to avoid issues with this being overwritten during use
+  const temp_path = version_go_path + Math.random().toString(36).slice(1)
+  fs.writeFileSync(temp_path, version_go)
+  fs.renameSync(temp_path, version_go_path)
+}
+
 // This is helpful for ES6 modules which don't have access to __dirname
 exports.dirname = __dirname
 
@@ -336,5 +347,6 @@ if (require.main === module) {
   else if (process.argv.indexOf('--deno') >= 0) buildDenoLib(process.argv[2])
   else if (process.argv.indexOf('--version') >= 0) updateVersionPackageJSON(process.argv[2])
   else if (process.argv.indexOf('--neutral') >= 0) buildNeutralLib(process.argv[2])
+  else if (process.argv.indexOf('--update-version-go') >= 0) updateVersionGo()
   else throw new Error('Expected a flag')
 }
