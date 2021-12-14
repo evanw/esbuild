@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -229,7 +230,7 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 
 	// Generate the condition sets for interpreting the "exports" field
 	esmConditionsDefault := map[string]bool{"default": true}
-	esmConditionsImport := map[string]bool{"import": true}
+	esmConditionsImport := map[string]bool{"import": true, "module": true}
 	esmConditionsRequire := map[string]bool{"require": true}
 	for _, condition := range options.Conditions {
 		esmConditionsDefault[condition] = true
@@ -239,6 +240,12 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 		esmConditionsDefault["browser"] = true
 	case config.PlatformNode:
 		esmConditionsDefault["node"] = true
+	}
+	switch os.Getenv("NODE_ENV") {
+		case "production":
+			esmConditionsDefault["production"] = true
+		case "development":
+			esmConditionsDefault["development"] = true
 	}
 	for key := range esmConditionsDefault {
 		esmConditionsImport[key] = true
