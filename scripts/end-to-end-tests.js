@@ -693,6 +693,30 @@
           if (foo() === bar()) throw 'fail'
         `,
       }),
+
+      // Unused minified template literals. See this for more info:
+      // https://github.com/terser/terser/issues/1128#issuecomment-994209801
+      test(['in.js', '--outfile=node.js', '--minify', target], {
+        'in.js': `
+          var text = '';
+          var foo = {
+            toString: () => text += 'toString',
+            valueOf: () => text += 'valueOf',
+          };
+          \`\${foo}\`;
+          if (text !== 'toString') throw 'fail: ' + text + ' !== toString'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', '--minify', target], {
+        'in.js': `
+          var text = '';
+          var foo = {
+            toString: () => text += 'toString',
+          };
+          \`abc \${text += 'A', foo} xyz \${text += 'B', foo} 123\`;
+          if (text !== 'AtoStringBtoString') throw 'fail: ' + text + ' !== AtoStringBtoString'
+        `,
+      }),
     )
   }
 

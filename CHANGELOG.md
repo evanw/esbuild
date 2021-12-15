@@ -26,10 +26,12 @@
     ""+1+2+3,""+(x?1:2)+y;
 
     // New output (with --minify)
-    x,""+y;
+    x,`${y}`;
     ```
 
     This can arise when the template literals are nested inside of another function call that was determined to be unnecessary such as an unused call to a function marked with the `/* @__PURE__ */` pragma.
+
+    This release also fixes a bug with this transformation where minifying the unused expression `` `foo ${bar}` `` into `"" + bar` changed the meaning of the expression. Template string interpolation always calls `toString` while string addition may call `valueOf` instead. This unused expression is now minified to `` `${bar}` ``, which is slightly longer but which avoids the behavior change.
 
 ## 0.14.5
 

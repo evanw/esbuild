@@ -14218,29 +14218,32 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 	case *js_ast.ETemplate:
 		if e.TagOrNil.Data == nil {
 			var comma js_ast.Expr
-			var concat js_ast.Expr
+			var templateLoc logger.Loc
+			var template *js_ast.ETemplate
 			for _, part := range e.Parts {
-				// If we know this value is some kind of primitive, then we know that "ToString" has no side effects
+				// If we know this value is some kind of primitive, then we know that
+				// "ToString" has no side effects and can be avoided.
 				if js_ast.KnownPrimitiveType(part.Value) != js_ast.PrimitiveUnknown {
-					if concat.Data != nil {
-						comma = js_ast.JoinWithComma(comma, concat)
-						concat.Data = nil
+					if template != nil {
+						comma = js_ast.JoinWithComma(comma, js_ast.Expr{Loc: templateLoc, Data: template})
+						template = nil
 					}
 					comma = js_ast.JoinWithComma(comma, p.simplifyUnusedExpr(part.Value))
 					continue
 				}
 
-				// Make sure "ToString" is still evaluated on the value
-				if concat.Data == nil {
-					concat = js_ast.Expr{Loc: part.Value.Loc, Data: &js_ast.EString{}}
+				// Make sure "ToString" is still evaluated on the value. We can't use
+				// string addition here because that may evaluate "ValueOf" instead.
+				if template == nil {
+					template = &js_ast.ETemplate{}
+					templateLoc = part.Value.Loc
 				}
-				concat = js_ast.Expr{Loc: part.Value.Loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpAdd,
-					Left:  concat,
-					Right: part.Value,
-				}}
+				template.Parts = append(template.Parts, js_ast.TemplatePart{Value: part.Value})
 			}
-			return js_ast.JoinWithComma(comma, concat)
+			if template != nil {
+				comma = js_ast.JoinWithComma(comma, js_ast.Expr{Loc: templateLoc, Data: template})
+			}
+			return comma
 		}
 
 	case *js_ast.EArray:

@@ -3813,14 +3813,16 @@ func TestMangleUnused(t *testing.T) {
 	}
 
 	expectPrintedMangle(t, "tag`a${b}c${d}e`", "tag`a${b}c${d}e`;\n")
-	expectPrintedMangle(t, "`a${b}c${d}e`", "\"\" + b + d;\n")
+	expectPrintedMangle(t, "`a${b}c${d}e`", "`${b}${d}`;\n")
 
-	expectPrintedMangle(t, "`${x}${1}`", "\"\" + x;\n")
-	expectPrintedMangle(t, "`${1}${y}`", "\"\" + y;\n")
-	expectPrintedMangle(t, "`${x}${y}`", "\"\" + x + y;\n")
-	expectPrintedMangle(t, "`${x ? 1 : 2}${y}`", "x, \"\" + y;\n")
-	expectPrintedMangle(t, "`${x}${y ? 1 : 2}`", "\"\" + x, y;\n")
-	expectPrintedMangle(t, "`${x}${y ? 1 : 2}${z}`", "\"\" + x, y, \"\" + z;\n")
+	// These can't be reduced to string addition due to "valueOf". See:
+	// https://github.com/terser/terser/issues/1128#issuecomment-994209801
+	expectPrintedMangle(t, "`stuff ${x} ${1}`", "`${x}`;\n")
+	expectPrintedMangle(t, "`stuff ${1} ${y}`", "`${y}`;\n")
+	expectPrintedMangle(t, "`stuff ${x} ${y}`", "`${x}${y}`;\n")
+	expectPrintedMangle(t, "`stuff ${x ? 1 : 2} ${y}`", "x, `${y}`;\n")
+	expectPrintedMangle(t, "`stuff ${x} ${y ? 1 : 2}`", "`${x}`, y;\n")
+	expectPrintedMangle(t, "`stuff ${x} ${y ? 1 : 2} ${z}`", "`${x}`, y, `${z}`;\n")
 
 	expectPrintedMangle(t, "'a' + b + 'c' + d", "\"\" + b + d;\n")
 	expectPrintedMangle(t, "a + 'b' + c + 'd'", "a + \"\" + c;\n")
