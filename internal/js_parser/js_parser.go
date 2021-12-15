@@ -10677,24 +10677,29 @@ func joinStrings(a []uint16, b []uint16) []uint16 {
 	return data
 }
 
-func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
+func foldStringAddition(left js_ast.Expr, right js_ast.Expr) js_ast.Expr {
 	switch l := left.Data.(type) {
 	case *js_ast.EString:
 		switch r := right.Data.(type) {
 		case *js_ast.EString:
-			return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.EString{
+			return js_ast.Expr{Loc: left.Loc, Data: &js_ast.EString{
 				Value:          joinStrings(l.Value, r.Value),
 				PreferTemplate: l.PreferTemplate || r.PreferTemplate,
 			}}
 
 		case *js_ast.ETemplate:
 			if r.TagOrNil.Data == nil {
-				return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
+				return js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
 					HeadLoc:    left.Loc,
 					HeadCooked: joinStrings(l.Value, r.HeadCooked),
 					Parts:      r.Parts,
 				}}
 			}
+		}
+
+		// "'' + typeof x" => "typeof x"
+		if len(l.Value) == 0 && js_ast.KnownPrimitiveType(right) == js_ast.PrimitiveString {
+			return right
 		}
 
 	case *js_ast.ETemplate:
@@ -10710,7 +10715,7 @@ func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
 					copy(parts, l.Parts)
 					parts[n-1].TailCooked = joinStrings(parts[n-1].TailCooked, r.Value)
 				}
-				return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
+				return js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
 					HeadLoc:    l.HeadLoc,
 					HeadCooked: head,
 					Parts:      parts,
@@ -10728,7 +10733,7 @@ func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
 						copy(parts[:n], l.Parts)
 						parts[n-1].TailCooked = joinStrings(parts[n-1].TailCooked, r.HeadCooked)
 					}
-					return &js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
+					return js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
 						HeadLoc:    l.HeadLoc,
 						HeadCooked: head,
 						Parts:      parts,
@@ -10738,7 +10743,12 @@ func foldStringAddition(left js_ast.Expr, right js_ast.Expr) *js_ast.Expr {
 		}
 	}
 
-	return nil
+	// "typeof x + ''" => "typeof x"
+	if r, ok := right.Data.(*js_ast.EString); ok && len(r.Value) == 0 && js_ast.KnownPrimitiveType(left) == js_ast.PrimitiveString {
+		return left
+	}
+
+	return js_ast.Expr{}
 }
 
 // Simplify syntax when we know it's used inside a boolean context
@@ -11653,14 +11663,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			// "'abc' + 'xyz'" => "'abcxyz'"
-			if result := foldStringAddition(e.Left, e.Right); result != nil {
-				return *result, exprOut{}
+			if result := foldStringAddition(e.Left, e.Right); result.Data != nil {
+				return result, exprOut{}
 			}
 
 			if left, ok := e.Left.Data.(*js_ast.EBinary); ok && left.Op == js_ast.BinOpAdd {
 				// "x + 'abc' + 'xyz'" => "x + 'abcxyz'"
-				if result := foldStringAddition(left.Right, e.Right); result != nil {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBinary{Op: left.Op, Left: left.Left, Right: *result}}, exprOut{}
+				if result := foldStringAddition(left.Right, e.Right); result.Data != nil {
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBinary{Op: left.Op, Left: left.Left, Right: result}}, exprOut{}
 				}
 			}
 
