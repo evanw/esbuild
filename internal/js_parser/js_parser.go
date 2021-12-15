@@ -14135,6 +14135,19 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 		case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe:
 			return canChangeStrictToLoose(e.Left, e.Right) && p.exprCanBeRemovedIfUnused(e.Left) && p.exprCanBeRemovedIfUnused(e.Right)
 		}
+
+	case *js_ast.ETemplate:
+		// A template can be removed if it has no tag and every value has no side
+		// effects and results in some kind of primitive, since all primitives
+		// have a "ToString" operation with no side effects.
+		if e.TagOrNil.Data == nil {
+			for _, part := range e.Parts {
+				if !p.exprCanBeRemovedIfUnused(part.Value) || js_ast.KnownPrimitiveType(part.Value) == js_ast.PrimitiveUnknown {
+					return false
+				}
+			}
+			return true
+		}
 	}
 
 	// Assume all other expression types have side effects and cannot be removed
@@ -14194,19 +14207,30 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 
 	case *js_ast.ETemplate:
 		if e.TagOrNil.Data == nil {
-			var result js_ast.Expr
+			var comma js_ast.Expr
+			var concat js_ast.Expr
 			for _, part := range e.Parts {
-				// Make sure "ToString" is still evaluated on the value
-				if result.Data == nil {
-					result = js_ast.Expr{Loc: part.Value.Loc, Data: &js_ast.EString{}}
+				// If we know this value is some kind of primitive, then we know that "ToString" has no side effects
+				if js_ast.KnownPrimitiveType(part.Value) != js_ast.PrimitiveUnknown {
+					if concat.Data != nil {
+						comma = js_ast.JoinWithComma(comma, concat)
+						concat.Data = nil
+					}
+					comma = js_ast.JoinWithComma(comma, p.simplifyUnusedExpr(part.Value))
+					continue
 				}
-				result = js_ast.Expr{Loc: part.Value.Loc, Data: &js_ast.EBinary{
+
+				// Make sure "ToString" is still evaluated on the value
+				if concat.Data == nil {
+					concat = js_ast.Expr{Loc: part.Value.Loc, Data: &js_ast.EString{}}
+				}
+				concat = js_ast.Expr{Loc: part.Value.Loc, Data: &js_ast.EBinary{
 					Op:    js_ast.BinOpAdd,
-					Left:  result,
+					Left:  concat,
 					Right: part.Value,
 				}}
 			}
-			return result
+			return js_ast.JoinWithComma(comma, concat)
 		}
 
 	case *js_ast.EArray:

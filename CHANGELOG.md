@@ -13,6 +13,24 @@
 
     The type checking logic has been rewritten to take into account BigInt literals in this release, so this incorrect simplification is no longer applied.
 
+* Enable removal of certain unused template literals ([#1853](https://github.com/evanw/esbuild/issues/1853))
+
+    This release contains improvements to the minification of unused template literals containing primitive values:
+
+    ```js
+    // Original code
+    `${1}${2}${3}`;
+    `${x ? 1 : 2}${y}`;
+
+    // Old output (with --minify)
+    ""+1+2+3,""+(x?1:2)+y;
+
+    // New output (with --minify)
+    x,""+y;
+    ```
+
+    This can arise when the template literals are nested inside of another function call that was determined to be unnecessary such as an unused call to a function marked with the `/* @__PURE__ */` pragma.
+
 ## 0.14.5
 
 * Fix an issue with the publishing script
