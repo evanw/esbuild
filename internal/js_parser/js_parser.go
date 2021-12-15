@@ -761,10 +761,10 @@ func isJumpStatement(data js_ast.S) bool {
 	return false
 }
 
-func isPrimitiveToReorder(data js_ast.E) bool {
+func isPrimitiveLiteral(data js_ast.E) bool {
 	switch e := data.(type) {
 	case *js_ast.EInlinedEnum:
-		return isPrimitiveToReorder(e.Value.Data)
+		return isPrimitiveLiteral(e.Value.Data)
 
 	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EString, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt:
 		return true
@@ -11450,7 +11450,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// can only reorder expressions that do not have any side effects.
 		switch e.Op {
 		case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe, js_ast.BinOpStrictEq, js_ast.BinOpStrictNe:
-			if isPrimitiveToReorder(e.Left.Data) && !isPrimitiveToReorder(e.Right.Data) {
+			if isPrimitiveLiteral(e.Left.Data) && !isPrimitiveLiteral(e.Right.Data) {
 				e.Left, e.Right = e.Right, e.Left
 			}
 		}
