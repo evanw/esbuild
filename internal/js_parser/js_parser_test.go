@@ -3517,13 +3517,17 @@ func TestMangleEquals(t *testing.T) {
 
 	expectPrintedMangle(t, "return a === 0", "return a === 0;\n")
 	expectPrintedMangle(t, "return a !== 0", "return a !== 0;\n")
-	expectPrintedMangle(t, "return (a & 1) === 0", "return (a & 1) == 0;\n")
-	expectPrintedMangle(t, "return (a & 1) !== 0", "return (a & 1) != 0;\n")
+	expectPrintedMangle(t, "return +a === 0", "return +a == 0;\n") // No BigInt hazard
+	expectPrintedMangle(t, "return +a !== 0", "return +a != 0;\n")
+	expectPrintedMangle(t, "return -a === 0", "return -a === 0;\n") // BigInt hazard
+	expectPrintedMangle(t, "return -a !== 0", "return -a !== 0;\n")
 
 	expectPrintedMangle(t, "return a === ''", "return a === \"\";\n")
 	expectPrintedMangle(t, "return a !== ''", "return a !== \"\";\n")
 	expectPrintedMangle(t, "return (a + '!') === 'a!'", "return a + \"!\" == \"a!\";\n")
 	expectPrintedMangle(t, "return (a + '!') !== 'a!'", "return a + \"!\" != \"a!\";\n")
+	expectPrintedMangle(t, "return (a += '!') === 'a!'", "return (a += \"!\") == \"a!\";\n")
+	expectPrintedMangle(t, "return (a += '!') !== 'a!'", "return (a += \"!\") != \"a!\";\n")
 
 	expectPrintedMangle(t, "return a === false", "return a === false;\n")
 	expectPrintedMangle(t, "return a === true", "return a === true;\n")
@@ -3546,6 +3550,18 @@ func TestMangleEquals(t *testing.T) {
 	expectPrintedMangle(t, "return !a === !b", "return !a == !b;\n")
 	expectPrintedMangle(t, "return !a !== !b", "return !a != !b;\n")
 	expectPrintedMangle(t, "return !a !== !b", "return !a != !b;\n")
+
+	// These have BigInt hazards and should not be changed
+	expectPrintedMangle(t, "return (a, -1n) !== -1", "return a, -1n !== -1;\n")
+	expectPrintedMangle(t, "return (a, ~1n) !== -1", "return a, ~1n !== -1;\n")
+	expectPrintedMangle(t, "return (a -= 1n) !== -1", "return (a -= 1n) !== -1;\n")
+	expectPrintedMangle(t, "return (a *= 1n) !== -1", "return (a *= 1n) !== -1;\n")
+	expectPrintedMangle(t, "return (a **= 1n) !== -1", "return (a **= 1n) !== -1;\n")
+	expectPrintedMangle(t, "return (a /= 1n) !== -1", "return (a /= 1n) !== -1;\n")
+	expectPrintedMangle(t, "return (a %= 1n) !== -1", "return (a %= 1n) !== -1;\n")
+	expectPrintedMangle(t, "return (a &= 1n) !== -1", "return (a &= 1n) !== -1;\n")
+	expectPrintedMangle(t, "return (a |= 1n) !== -1", "return (a |= 1n) !== -1;\n")
+	expectPrintedMangle(t, "return (a ^= 1n) !== -1", "return (a ^= 1n) !== -1;\n")
 }
 
 func TestMangleUnaryInsideComma(t *testing.T) {

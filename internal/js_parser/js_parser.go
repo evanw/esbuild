@@ -10396,9 +10396,9 @@ func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr) {
 }
 
 func canChangeStrictToLoose(a js_ast.Expr, b js_ast.Expr) bool {
-	return (js_ast.IsBooleanValue(a) && js_ast.IsBooleanValue(b)) ||
-		(js_ast.IsNumericValue(a) && js_ast.IsNumericValue(b)) ||
-		(js_ast.IsStringValue(a) && js_ast.IsStringValue(b))
+	x := js_ast.KnownPrimitiveType(a)
+	y := js_ast.KnownPrimitiveType(b)
+	return x == y && x != js_ast.PrimitiveUnknown && x != js_ast.PrimitiveMixed
 }
 
 func maybeSimplifyEqualityComparison(e *js_ast.EBinary, isNotEqual bool) (js_ast.Expr, bool) {
@@ -10406,7 +10406,7 @@ func maybeSimplifyEqualityComparison(e *js_ast.EBinary, isNotEqual bool) (js_ast
 	// "!x === false" => "!!x"
 	// "!x !== true" => "!!x"
 	// "!x !== false" => "!x"
-	if boolean, ok := e.Right.Data.(*js_ast.EBoolean); ok && js_ast.IsBooleanValue(e.Left) {
+	if boolean, ok := e.Right.Data.(*js_ast.EBoolean); ok && js_ast.KnownPrimitiveType(e.Left) == js_ast.PrimitiveBoolean {
 		if boolean.Value == isNotEqual {
 			return js_ast.Not(e.Left), true
 		} else {

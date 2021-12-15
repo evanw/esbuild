@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+* Fix a minifier bug with BigInt literals
+
+    Previously expression simplification optimizations in the minifier incorrectly assumed that numeric operators always return numbers. This used to be true but has no longer been true since the introduction of BigInt literals in ES2020. Now numeric operators can return either a number or a BigInt depending on the arguments. This oversight could potentially have resulted in behavior changes. For example, this code printed `false` before being minified and `true` after being minified because esbuild shortened `===` to `==` under the false assumption that both operands were numbers:
+
+    ```js
+    var x = 0;
+    console.log((x ? 2 : -1n) === -1);
+    ```
+
+    The type checking logic has been rewritten to take into account BigInt literals in this release, so this incorrect simplification is no longer applied.
+
 ## 0.14.5
 
 * Fix an issue with the publishing script

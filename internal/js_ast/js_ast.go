@@ -776,7 +776,7 @@ func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 
 	case *EUnary:
 		// "!!!a" => "!a"
-		if e.Op == UnOpNot && IsBooleanValue(e.Value) {
+		if e.Op == UnOpNot && KnownPrimitiveType(e.Value) == PrimitiveBoolean {
 			return e.Value, true
 		}
 
@@ -815,109 +815,158 @@ func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 	return Expr{}, false
 }
 
-func IsBooleanValue(a Expr) bool {
+type PrimitiveType uint8
+
+const (
+	PrimitiveUnknown PrimitiveType = iota
+	PrimitiveMixed
+	PrimitiveNull
+	PrimitiveUndefined
+	PrimitiveBoolean
+	PrimitiveNumber
+	PrimitiveString
+	PrimitiveBigInt
+)
+
+// This can be used when the returned type is either one or the other
+func MergedKnownPrimitiveTypes(a Expr, b Expr) PrimitiveType {
+	x := KnownPrimitiveType(a)
+	y := KnownPrimitiveType(b)
+	if x == PrimitiveUnknown || y == PrimitiveUnknown {
+		return PrimitiveUnknown
+	}
+	if x == y {
+		return x
+	}
+	return PrimitiveMixed // Definitely some kind of primitive
+}
+
+func KnownPrimitiveType(a Expr) PrimitiveType {
 	switch e := a.Data.(type) {
 	case *EInlinedEnum:
-		return IsBooleanValue(e.Value)
+		return KnownPrimitiveType(e.Value)
+
+	case *ENull:
+		return PrimitiveNull
+
+	case *EUndefined:
+		return PrimitiveUndefined
 
 	case *EBoolean:
-		return true
+		return PrimitiveBoolean
+
+	case *ENumber:
+		return PrimitiveNumber
+
+	case *EString:
+		return PrimitiveString
+
+	case *EBigInt:
+		return PrimitiveBigInt
+
+	case *ETemplate:
+		if e.TagOrNil.Data == nil {
+			return PrimitiveString
+		}
 
 	case *EIf:
-		return IsBooleanValue(e.Yes) && IsBooleanValue(e.No)
+		return MergedKnownPrimitiveTypes(e.Yes, e.No)
 
 	case *EUnary:
-		return e.Op == UnOpNot || e.Op == UnOpDelete
+		switch e.Op {
+		case UnOpVoid:
+			return PrimitiveUndefined
+
+		case UnOpTypeof:
+			return PrimitiveString
+
+		case UnOpNot, UnOpDelete:
+			return PrimitiveBoolean
+
+		case UnOpPos:
+			return PrimitiveNumber // Cannot be bigint because that throws an exception
+
+		case UnOpNeg, UnOpCpl:
+			value := KnownPrimitiveType(e.Value)
+			if value == PrimitiveBigInt {
+				return PrimitiveBigInt
+			}
+			if value != PrimitiveUnknown && value != PrimitiveMixed {
+				return PrimitiveNumber
+			}
+			return PrimitiveMixed // Can be number or bigint
+
+		case UnOpPreDec, UnOpPreInc, UnOpPostDec, UnOpPostInc:
+			return PrimitiveMixed // Can be number or bigint
+		}
 
 	case *EBinary:
 		switch e.Op {
 		case BinOpStrictEq, BinOpStrictNe, BinOpLooseEq, BinOpLooseNe,
 			BinOpLt, BinOpGt, BinOpLe, BinOpGe,
 			BinOpInstanceof, BinOpIn:
-			return true
+			return PrimitiveBoolean
 
 		case BinOpLogicalOr, BinOpLogicalAnd:
-			return IsBooleanValue(e.Left) && IsBooleanValue(e.Right)
+			return MergedKnownPrimitiveTypes(e.Left, e.Right)
 
 		case BinOpNullishCoalescing:
-			return IsBooleanValue(e.Left)
-		}
-	}
+			left := KnownPrimitiveType(e.Left)
+			right := KnownPrimitiveType(e.Right)
+			if left == PrimitiveNull || left == PrimitiveUndefined {
+				return right
+			}
+			if left != PrimitiveUnknown {
+				if left != PrimitiveMixed {
+					return left // Definitely not null or undefined
+				}
+				if right != PrimitiveUnknown {
+					return PrimitiveMixed // Definitely some kind of primitive
+				}
+			}
 
-	return false
-}
-
-func IsNumericValue(a Expr) bool {
-	switch e := a.Data.(type) {
-	case *EInlinedEnum:
-		return IsNumericValue(e.Value)
-
-	case *ENumber:
-		return true
-
-	case *EIf:
-		return IsNumericValue(e.Yes) && IsNumericValue(e.No)
-
-	case *EUnary:
-		switch e.Op {
-		case UnOpPos, UnOpNeg, UnOpCpl, UnOpPreDec, UnOpPreInc, UnOpPostDec, UnOpPostInc:
-			return true
-		}
-
-	case *EBinary:
-		switch e.Op {
 		case BinOpAdd:
-			return IsNumericValue(e.Left) && IsNumericValue(e.Right)
+			left := KnownPrimitiveType(e.Left)
+			right := KnownPrimitiveType(e.Right)
+			if left == PrimitiveString || right == PrimitiveString {
+				return PrimitiveString
+			}
+			if left == PrimitiveBigInt && right == PrimitiveBigInt {
+				return PrimitiveBigInt
+			}
+			if left != PrimitiveUnknown && left != PrimitiveMixed && left != PrimitiveBigInt &&
+				right != PrimitiveUnknown && right != PrimitiveMixed && right != PrimitiveBigInt {
+				return PrimitiveNumber
+			}
+			return PrimitiveMixed // Can be number or bigint or string (or an exception)
+
+		case BinOpAddAssign:
+			right := KnownPrimitiveType(e.Right)
+			if right == PrimitiveString {
+				return PrimitiveString
+			}
+			return PrimitiveMixed // Can be number or bigint or string (or an exception)
 
 		case
 			BinOpSub, BinOpSubAssign,
 			BinOpMul, BinOpMulAssign,
 			BinOpDiv, BinOpDivAssign,
 			BinOpRem, BinOpRemAssign,
+			BinOpPow, BinOpPowAssign,
 			BinOpBitwiseAnd, BinOpBitwiseAndAssign,
 			BinOpBitwiseOr, BinOpBitwiseOrAssign,
 			BinOpBitwiseXor, BinOpBitwiseXorAssign,
 			BinOpShl, BinOpShlAssign,
 			BinOpShr, BinOpShrAssign,
 			BinOpUShr, BinOpUShrAssign:
-			return true
+			return PrimitiveMixed // Can be number or bigint (or an exception)
 
 		case BinOpAssign, BinOpComma:
-			return IsNumericValue(e.Right)
+			return KnownPrimitiveType(e.Right)
 		}
 	}
 
-	return false
-}
-
-func IsStringValue(a Expr) bool {
-	switch e := a.Data.(type) {
-	case *EInlinedEnum:
-		return IsStringValue(e.Value)
-
-	case *EString:
-		return true
-
-	case *ETemplate:
-		return e.TagOrNil.Data == nil
-
-	case *EIf:
-		return IsStringValue(e.Yes) && IsStringValue(e.No)
-
-	case *EUnary:
-		return e.Op == UnOpTypeof
-
-	case *EBinary:
-		switch e.Op {
-		case BinOpAdd:
-			return IsStringValue(e.Left) || IsStringValue(e.Right)
-
-		case BinOpAssign, BinOpAddAssign, BinOpComma:
-			return IsNumericValue(e.Right)
-		}
-	}
-
-	return false
+	return PrimitiveUnknown
 }
 
 // The goal of this function is to "rotate" the AST if it's possible to use the
