@@ -23,6 +23,7 @@
     "esbuild-linux-arm64": "0.14.5",
     "esbuild-linux-mips64le": "0.14.5",
     "esbuild-linux-ppc64le": "0.14.5",
+    "esbuild-linux-s390x": "0.14.5",
     "esbuild-netbsd-64": "0.14.5",
     "esbuild-openbsd-64": "0.14.5",
     "esbuild-sunos-64": "0.14.5",
