@@ -209,7 +209,7 @@ func (t Token) DimensionUnitIsSafeLength() bool {
 	switch t.DimensionUnit() {
 	// These units can be reasonably expected to be supported everywhere.
 	// Information used: https://developer.mozilla.org/en-US/docs/Web/CSS/length
-	case "cm", "em", "in", "mm", "pc", "pt", "px":
+	case "cm", "em", "in", "mm", "pc", "pt", "px", "rem", "vh", "vw":
 		return true
 	}
 	return false
