@@ -280,7 +280,12 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 
 			if kind == tsTypeIdentifierPrefix {
 				p.lexer.Next()
-				p.skipTypeScriptType(js_ast.LPrefix)
+				// {[keyof: string]: number}
+				// {[readonly: string]: number}
+				// {[infer: string]: number}
+				if p.lexer.Token != js_lexer.TColon {
+					p.skipTypeScriptType(js_ast.LPrefix)
+				}
 				break
 			}
 
