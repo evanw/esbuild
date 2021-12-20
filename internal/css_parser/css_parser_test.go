@@ -899,11 +899,11 @@ func TestAtKeyframes(t *testing.T) {
 }
 
 func TestAtRuleValidation(t *testing.T) {
-	expectParseError(t, "a {} @charset \"UTF-8\";",
+	expectParseError(t, "a {} b {} c {} @charset \"UTF-8\";",
 		"<stdin>: WARNING: \"@charset\" must be the first rule in the file\n"+
 			"<stdin>: NOTE: This rule cannot come before a \"@charset\" rule\n")
 
-	expectParseError(t, "a {} @import \"foo\";",
+	expectParseError(t, "a {} b {} c {} @import \"foo\";",
 		"<stdin>: WARNING: All \"@import\" rules must come first\n"+
 			"<stdin>: NOTE: This rule cannot come before an \"@import\" rule\n")
 }

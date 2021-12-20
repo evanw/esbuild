@@ -219,6 +219,7 @@ loop:
 									[]logger.MsgData{p.tracker.MsgData(logger.Range{Loc: locs[i]},
 										"This rule cannot come before a \"@charset\" rule")})
 								didWarnAboutCharset = true
+								break
 							}
 						}
 					}
