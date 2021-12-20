@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.6
 
 * Fix a minifier bug with BigInt literals
 
