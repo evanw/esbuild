@@ -33,6 +33,10 @@
 
     This release also fixes a bug with this transformation where minifying the unused expression `` `foo ${bar}` `` into `"" + bar` changed the meaning of the expression. Template string interpolation always calls `toString` while string addition may call `valueOf` instead. This unused expression is now minified to `` `${bar}` ``, which is slightly longer but which avoids the behavior change.
 
+* Avoid warning about `import.meta` if it's replaced ([#1868](https://github.com/evanw/esbuild/issues/1868))
+
+    It's possible to replace the `import.meta` expression using the `--define:` feature. Previously doing that still warned that the `import.meta` syntax was not supported when targeting ES5. With this release, there will no longer be a warning in this case.
+
 ## 0.14.5
 
 * Fix an issue with the publishing script

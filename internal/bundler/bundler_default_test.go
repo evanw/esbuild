@@ -4240,6 +4240,43 @@ func TestDefineImportMeta(t *testing.T) {
 	})
 }
 
+func TestDefineImportMetaES5(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"import.meta.x": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.ENumber{Value: 1}
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/replaced.js": `
+				console.log(import.meta.x)
+			`,
+			"/kept.js": `
+				console.log(import.meta.y)
+			`,
+			"/dead-code.js": `
+				var x = () => console.log(import.meta.z)
+			`,
+		},
+		entryPaths: []string{
+			"/replaced.js",
+			"/kept.js",
+			"/dead-code.js",
+		},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputDir:          "/out",
+			Defines:               &defines,
+			UnsupportedJSFeatures: compat.ImportMeta,
+		},
+		expectedScanLog: `dead-code.js: WARNING: "import.meta" is not available in the configured target environment and will be empty
+kept.js: WARNING: "import.meta" is not available in the configured target environment and will be empty
+`,
+	})
+}
+
 func TestDefineThis(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"this": {

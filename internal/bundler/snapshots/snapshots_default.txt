@@ -408,6 +408,19 @@ TestDefineImportMeta
 console.log(1, 2, 3, 2 .baz, 1 .bar);
 
 ================================================================================
+TestDefineImportMetaES5
+---------- /out/replaced.js ----------
+// replaced.js
+console.log(1);
+
+---------- /out/kept.js ----------
+// kept.js
+var import_meta = {};
+console.log(import_meta.y);
+
+---------- /out/dead-code.js ----------
+
+================================================================================
 TestDefineThis
 ---------- /out.js ----------
 // entry.js

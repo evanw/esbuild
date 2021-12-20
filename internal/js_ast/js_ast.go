@@ -460,7 +460,9 @@ type ENewTarget struct {
 	Range logger.Range
 }
 
-type EImportMeta struct{}
+type EImportMeta struct {
+	RangeLen int32
+}
 
 // These help reduce unnecessary memory allocations
 var BMissingShared = &BMissing{}
@@ -469,7 +471,6 @@ var ESuperShared = &ESuper{}
 var ENullShared = &ENull{}
 var EUndefinedShared = &EUndefined{}
 var EThisShared = &EThis{}
-var EImportMetaShared = &EImportMeta{}
 
 type ENew struct {
 	Target Expr

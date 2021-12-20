@@ -43,7 +43,6 @@ type parser struct {
 	allowPrivateIdentifiers    bool
 	hasTopLevelReturn          bool
 	latestReturnHadSemicolon   bool
-	hasImportMeta              bool
 	hasESModuleSyntax          bool
 	warnedThisIsUndefined      bool
 	topLevelAwaitKeyword       logger.Range
@@ -3619,14 +3618,9 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 		p.es6ImportKeyword = js_lexer.RangeOfIdentifier(p.source, loc)
 		p.lexer.Next()
 		if p.lexer.IsContextualKeyword("meta") {
-			r := p.lexer.Range()
+			rangeLen := p.lexer.Range().End() - loc.Start
 			p.lexer.Next()
-			p.hasImportMeta = true
-			if p.options.unsupportedJSFeatures.Has(compat.ImportMeta) {
-				r = logger.Range{Loc: loc, Len: r.End() - loc.Start}
-				p.markSyntaxFeature(compat.ImportMeta, r)
-			}
-			return js_ast.Expr{Loc: loc, Data: js_ast.EImportMetaShared}
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EImportMeta{RangeLen: rangeLen}}
 		} else {
 			p.lexer.ExpectedString("\"meta\"")
 		}
@@ -11164,7 +11158,21 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		if p.importMetaRef != js_ast.InvalidRef {
+		// Warn about "import.meta" if it's not replaced by a define
+		if p.options.unsupportedJSFeatures.Has(compat.ImportMeta) {
+			r := logger.Range{Loc: expr.Loc, Len: e.RangeLen}
+			p.markSyntaxFeature(compat.ImportMeta, r)
+		}
+
+		// Convert "import.meta" to a variable if it's not supported in the output format
+		if p.options.unsupportedJSFeatures.Has(compat.ImportMeta) ||
+			(p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepES6ImportExportSyntax()) {
+			// Generate the variable if it doesn't exist yet
+			if p.importMetaRef == js_ast.InvalidRef {
+				p.importMetaRef = p.newSymbol(js_ast.SymbolOther, "import_meta")
+				p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
+			}
+
 			// Replace "import.meta" with a reference to the symbol
 			p.recordUsage(p.importMetaRef)
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.importMetaRef}}, exprOut{}
@@ -14457,6 +14465,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		runtimeImports:    make(map[string]js_ast.Ref),
 		promiseRef:        js_ast.InvalidRef,
 		afterArrowBodyLoc: logger.Loc{Start: -1},
+		importMetaRef:     js_ast.InvalidRef,
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,
@@ -14583,21 +14592,6 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		break
 	}
 
-	// Insert a variable for "import.meta" at the top of the file if it was used.
-	// We don't need to worry about "use strict" directives because this only
-	// happens when bundling, in which case we are flatting the module scopes of
-	// all modules together anyway so such directives are meaningless.
-	if p.importMetaRef != js_ast.InvalidRef {
-		importMetaStmt := js_ast.Stmt{Data: &js_ast.SLocal{
-			Kind: p.selectLocalKind(js_ast.LocalConst),
-			Decls: []js_ast.Decl{{
-				Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: p.importMetaRef}},
-				ValueOrNil: js_ast.Expr{Data: &js_ast.EObject{}},
-			}},
-		}}
-		stmts = append(append(make([]js_ast.Stmt, 0, len(stmts)+1), importMetaStmt), stmts...)
-	}
-
 	// Add an empty part for the namespace export that we can fill in later
 	nsExportPart := js_ast.Part{
 		SymbolUses:           make(map[js_ast.Ref]js_ast.SymbolUse),
@@ -14685,6 +14679,26 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 				parts = p.appendPart(parts, []js_ast.Stmt{stmt})
 			}
 		}
+	}
+
+	// Insert a variable for "import.meta" at the top of the file if it was used.
+	// We don't need to worry about "use strict" directives because this only
+	// happens when bundling, in which case we are flatting the module scopes of
+	// all modules together anyway so such directives are meaningless.
+	if p.importMetaRef != js_ast.InvalidRef {
+		importMetaStmt := js_ast.Stmt{Data: &js_ast.SLocal{
+			Kind: p.selectLocalKind(js_ast.LocalConst),
+			Decls: []js_ast.Decl{{
+				Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: p.importMetaRef}},
+				ValueOrNil: js_ast.Expr{Data: &js_ast.EObject{}},
+			}},
+		}}
+		before = append(before, js_ast.Part{
+			Stmts:                []js_ast.Stmt{importMetaStmt},
+			SymbolUses:           make(map[js_ast.Ref]js_ast.SymbolUse),
+			DeclaredSymbols:      []js_ast.DeclaredSymbol{{Ref: p.importMetaRef, IsTopLevel: true}},
+			CanBeRemovedIfUnused: true,
+		})
 	}
 
 	// Pop the module scope to apply the "ContainsDirectEval" rules
@@ -14827,15 +14841,6 @@ func (p *parser) prepareForVisitPass() {
 	} else {
 		p.exportsRef = p.newSymbol(js_ast.SymbolHoisted, "exports")
 		p.moduleRef = p.newSymbol(js_ast.SymbolHoisted, "module")
-	}
-
-	// Convert "import.meta" to a variable if it's not supported in the output format
-	if p.hasImportMeta && (p.options.unsupportedJSFeatures.Has(compat.ImportMeta) ||
-		(p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepES6ImportExportSyntax())) {
-		p.importMetaRef = p.newSymbol(js_ast.SymbolOther, "import_meta")
-		p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
-	} else {
-		p.importMetaRef = js_ast.InvalidRef
 	}
 
 	// Handle "@jsx" and "@jsxFrag" pragmas now that lexing is done
