@@ -161,6 +161,7 @@ func (p *parser) skipTypeScriptType(level js_ast.L) {
 
 type skipTypeOpts struct {
 	isReturnType     bool
+	isIndexSignature bool
 	allowTupleLabels bool
 }
 
@@ -280,10 +281,15 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 
 			if kind == tsTypeIdentifierPrefix {
 				p.lexer.Next()
-				// {[keyof: string]: number}
-				// {[readonly: string]: number}
-				// {[infer: string]: number}
-				if p.lexer.Token != js_lexer.TColon {
+
+				// Valid:
+				//   "[keyof: string]"
+				//   "{[keyof: string]: number}"
+				//
+				// Invalid:
+				//   "A extends B ? keyof : string"
+				//
+				if p.lexer.Token != js_lexer.TColon || (!opts.isIndexSignature && !opts.allowTupleLabels) {
 					p.skipTypeScriptType(js_ast.LPrefix)
 				}
 				break
@@ -507,7 +513,7 @@ func (p *parser) skipTypeScriptObjectType() {
 		if p.lexer.Token == js_lexer.TOpenBracket {
 			// Index signature or computed property
 			p.lexer.Next()
-			p.skipTypeScriptType(js_ast.LLowest)
+			p.skipTypeScriptTypeWithOpts(js_ast.LLowest, skipTypeOpts{isIndexSignature: true})
 
 			// "{ [key: string]: number }"
 			// "{ readonly [K in keyof T]: T[K] }"
