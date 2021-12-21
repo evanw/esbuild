@@ -201,12 +201,9 @@ loop:
 			break loop
 
 		case css_lexer.TCloseBrace:
-			if context.isTopLevel {
-				p.unexpected()
-				p.advance()
-				continue
+			if !context.isTopLevel {
+				break loop
 			}
-			break loop
 
 		case css_lexer.TWhitespace:
 			p.advance()

@@ -46,6 +46,32 @@
 
     Note that these modules are only automatically considered side-effect when bundling for node, since they are only known to be side-effect free imports in that environment. However, you can customize this behavior with a plugin by returning `external: true` and `sideEffects: false` in an `onResolve` callback for whatever paths you want to be treated this way.
 
+* Recover from a stray top-level `}` in CSS ([#1876](https://github.com/evanw/esbuild/pull/1876))
+
+    This release fixes a bug where a stray `}` at the top-level of a CSS file would incorrectly truncate the remainder of the file in the output (although not without a warning). With this release, the remainder of the file is now still parsed and printed:
+
+    ```css
+    /* Original code */
+    .red {
+      color: red;
+    }
+    }
+    .blue {
+      color: blue;
+    }
+    .green {
+      color: green;
+    }
+
+    /* Old output (with --minify) */
+    .red{color:red}
+
+    /* New output (with --minify) */
+    .red{color:red}} .blue{color:#00f}.green{color:green}
+    ```
+
+    This fix was contributed by [@sbfaulkner](https://github.com/sbfaulkner).
+
 ## 0.14.6
 
 * Fix a minifier bug with BigInt literals

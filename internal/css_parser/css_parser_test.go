@@ -1621,7 +1621,7 @@ func TestWarningUnexpectedCloseBrace(t *testing.T) {
 		`.red {
   color: red;
 }
-.blue {
+} .blue {
   color: blue;
 }
 .green {
