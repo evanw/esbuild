@@ -102,6 +102,9 @@ type LinkerGraph struct {
 	entryPoints []EntryPoint
 	Symbols     js_ast.SymbolMap
 
+	// This is for cross-module inlining of TypeScript enum constants
+	TSEnums map[js_ast.Ref]map[string]js_ast.TSEnumValue
+
 	// We should avoid traversing all files in the bundle, because the linker
 	// should be able to run a linking operation on a large bundle where only
 	// a few files are needed (e.g. an incremental compilation scenario). This
@@ -252,14 +255,31 @@ func CloneLinkerGraph(
 		entryPoints = append(entryPoints, EntryPoint{SourceIndex: reachableFiles[stableIndex]})
 	}
 
-	// Allocate the entry bit set now that the number of entry points is known
+	// Do a final quick pass over all files
+	var tsEnums map[js_ast.Ref]map[string]js_ast.TSEnumValue
 	bitCount := uint(len(entryPoints))
 	for _, sourceIndex := range reachableFiles {
-		files[sourceIndex].EntryBits = helpers.NewBitSet(bitCount)
+		file := &files[sourceIndex]
+
+		// Allocate the entry bit set now that the number of entry points is known
+		file.EntryBits = helpers.NewBitSet(bitCount)
+
+		// Merge TypeScript enums together into one big map. There likely aren't
+		// too many enum definitions relative to the overall size of the code so
+		// it should be fine to just merge them together in serial.
+		if repr, ok := file.InputFile.Repr.(*JSRepr); ok && repr.AST.TSEnums != nil {
+			if tsEnums == nil {
+				tsEnums = make(map[js_ast.Ref]map[string]js_ast.TSEnumValue)
+			}
+			for ref, enum := range repr.AST.TSEnums {
+				tsEnums[ref] = enum
+			}
+		}
 	}
 
 	return LinkerGraph{
 		Symbols:             symbols,
+		TSEnums:             tsEnums,
 		entryPoints:         entryPoints,
 		Files:               files,
 		ReachableFiles:      reachableFiles,

@@ -106,6 +106,7 @@ type parser struct {
 	emittedNamespaceVars       map[js_ast.Ref]bool
 	isExportedInsideNamespace  map[js_ast.Ref]js_ast.Ref
 	localTypeNames             map[string]bool
+	tsEnums                    map[js_ast.Ref]map[string]js_ast.TSEnumValue
 
 	// This is the reference to the generated function argument for the namespace,
 	// which is different than the reference to the namespace itself:
@@ -9509,6 +9510,12 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		return stmts
 
 	case *js_ast.SEnum:
+		// Track cross-module enum constants during bundling
+		var tsExportedTopLevelEnumValues map[string]js_ast.TSEnumValue
+		if s.IsExport && p.currentScope == p.moduleScope && p.options.mode == config.ModeBundle {
+			tsExportedTopLevelEnumValues = make(map[string]js_ast.TSEnumValue)
+		}
+
 		p.recordDeclaredSymbol(s.Name.Ref)
 		p.pushScopeForVisitPass(js_ast.ScopeEntry, stmt.Loc)
 		p.recordDeclaredSymbol(s.Arg)
@@ -9552,6 +9559,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 				switch e := value.ValueOrNil.Data.(type) {
 				case *js_ast.ENumber:
+					if tsExportedTopLevelEnumValues != nil {
+						tsExportedTopLevelEnumValues[name] = js_ast.TSEnumValue{Number: e.Value}
+					}
 					member := exportedMembers[name]
 					member.Data = &js_ast.TSNamespaceMemberEnumNumber{Value: e.Value}
 					exportedMembers[name] = member
@@ -9560,6 +9570,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					nextNumericValue = e.Value + 1
 
 				case *js_ast.EString:
+					if tsExportedTopLevelEnumValues != nil {
+						tsExportedTopLevelEnumValues[name] = js_ast.TSEnumValue{String: e.Value}
+					}
 					member := exportedMembers[name]
 					member.Data = &js_ast.TSNamespaceMemberEnumString{Value: e.Value}
 					exportedMembers[name] = member
@@ -9572,6 +9585,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					}
 				}
 			} else if hasNumericValue {
+				if tsExportedTopLevelEnumValues != nil {
+					tsExportedTopLevelEnumValues[name] = js_ast.TSEnumValue{Number: nextNumericValue}
+				}
 				member := exportedMembers[name]
 				member.Data = &js_ast.TSNamespaceMemberEnumNumber{Value: nextNumericValue}
 				exportedMembers[name] = member
@@ -9622,6 +9638,14 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		p.popScope()
 		p.shouldFoldNumericConstants = oldShouldFoldNumericConstants
+
+		// Track all exported top-level enums for cross-module inlining
+		if tsExportedTopLevelEnumValues != nil {
+			if p.tsEnums == nil {
+				p.tsEnums = make(map[js_ast.Ref]map[string]js_ast.TSEnumValue)
+			}
+			p.tsEnums[s.Name.Ref] = tsExportedTopLevelEnumValues
+		}
 
 		// Wrap this enum definition in a closure
 		stmts = p.generateClosureForTypeScriptEnum(
@@ -15191,6 +15215,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		Directive:                       directive,
 		NamedImports:                    p.namedImports,
 		NamedExports:                    p.namedExports,
+		TSEnums:                         p.tsEnums,
 		NestedScopeSlotCounts:           nestedScopeSlotCounts,
 		TopLevelSymbolToPartsFromParser: p.topLevelSymbolToParts,
 		ExportStarImportRecords:         p.exportStarImportRecords,

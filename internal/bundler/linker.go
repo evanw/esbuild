@@ -3782,6 +3782,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		ToCommonJSRef:                toCommonJSRef,
 		ToESMRef:                     toESMRef,
 		RuntimeRequireRef:            runtimeRequireRef,
+		TSEnums:                      c.graph.TSEnums,
 		LegalComments:                c.options.LegalComments,
 		UnsupportedFeatures:          c.options.UnsupportedJSFeatures,
 		AddSourceMappings:            addSourceMappings,

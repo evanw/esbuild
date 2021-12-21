@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+* Cross-module inlining of TypeScript `enum` constants ([#128](https://github.com/evanw/esbuild/issues/128))
+
+    This release adds inlining of TypeScript `enum` constants across separate modules. It activates when bundling is enabled and when the enum is exported via the `export` keyword and imported via the `import` keyword:
+
+    ```js
+    // foo.ts
+    export enum Foo { Bar }
+
+    // bar.ts
+    import { Foo } from './foo.ts'
+    console.log(Foo.Bar)
+    ```
+
+    The access to `Foo.Bar` will now be compiled into `0 /* Bar */` even though the enum is defined in a separate file. This inlining was added without adding another pass (which would have introduced a speed penalty) by splitting the code for the inlining between the existing parsing and printing passes. Enum inlining is active whether or not you use `enum` or `const enum` because it improves performance.
+
+    To demonstrate the performance improvement, I compared the performance of the TypeScript compiler built by bundling the TypeScript compiler source code with esbuild before and after this change. The speed of the compiler was measured by using it to type check a small TypeScript code base. Here are the results:
+
+    |      | `tsc` | w/ esbuild 0.14.6 | w/ esbuild 0.14.7 |
+    |------|-------|-------------------|-------------------|
+    | Time | 2.96s | 3.45s             | 2.95s             |
+
+    As you can see, enum inlining gives around a 15% speedup, which puts the esbuild-bundled version at the same speed as the offical TypeScript compiler build (the `tsc` column)!
+
+    The specifics of the benchmark aren't important here since it's just a demonstration of how enum inlining can affect performance. But if you're wondering, I type checked the [Rollup](https://github.com/rollup/rollup) code base using a work-in-progress branch of the TypeScript compiler that's part of the ongoing effort to convert their use of namespaces into ES modules.
+
 * Mark node built-in modules as having no side effects ([#705](https://github.com/evanw/esbuild/issues/705))
 
     This release marks node built-in modules such as `fs` as being side-effect free. That means unused imports to these modules are now removed when bundling, which sometimes results in slightly smaller code. For example:

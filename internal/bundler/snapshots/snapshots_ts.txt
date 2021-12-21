@@ -102,6 +102,84 @@ TestTSDeclareVar
 var foo = bar();
 
 ================================================================================
+TestTSEnumCrossModuleInliningAccess
+---------- /out/entry.js ----------
+// enums.ts
+var a = /* @__PURE__ */ ((a2) => {
+  a2[a2["x"] = 123] = "x";
+  return a2;
+})(a || {});
+var b = /* @__PURE__ */ ((b2) => {
+  b2[b2["x"] = 123] = "x";
+  return b2;
+})(b || {});
+var c = /* @__PURE__ */ ((c2) => {
+  c2[c2["x"] = 123] = "x";
+  return c2;
+})(c || {});
+var d = /* @__PURE__ */ ((d2) => {
+  d2[d2["x"] = 123] = "x";
+  return d2;
+})(d || {});
+var e = /* @__PURE__ */ ((e2) => {
+  e2[e2["x"] = 123] = "x";
+  return e2;
+})(e || {});
+
+// entry.ts
+console.log([
+  123 /* x */,
+  123 /* x */,
+  c?.x,
+  d?.["x"],
+  e
+]);
+
+================================================================================
+TestTSEnumCrossModuleInliningDefinitions
+---------- /out/entry.js ----------
+// enums.ts
+var a = ((a2) => {
+  a2[a2["implicit_number"] = 0] = "implicit_number";
+  a2[a2["explicit_number"] = 123] = "explicit_number";
+  a2["explicit_string"] = "xyz";
+  a2[a2["non_constant"] = foo] = "non_constant";
+  return a2;
+})(a || {});
+
+// entry.ts
+console.log([
+  0 /* implicit_number */,
+  123 /* explicit_number */,
+  "xyz" /* explicit_string */,
+  a.non_constant
+]);
+
+================================================================================
+TestTSEnumCrossModuleInliningReExport
+---------- /out/entry.js ----------
+// enums.ts
+var a = /* @__PURE__ */ ((a2) => {
+  a2["x"] = "a";
+  return a2;
+})(a || {});
+var b = /* @__PURE__ */ ((b2) => {
+  b2["x"] = "b";
+  return b2;
+})(b || {});
+var c = /* @__PURE__ */ ((c2) => {
+  c2["x"] = "c";
+  return c2;
+})(c || {});
+
+// entry.js
+console.log([
+  "a" /* x */,
+  "b" /* x */,
+  "c" /* x */
+]);
+
+================================================================================
 TestTSEnumDefine
 ---------- /out/entry.js ----------
 var a = /* @__PURE__ */ ((a2) => {
@@ -161,6 +239,30 @@ var x;
     console.log(/* @__PURE__ */ y2.React.createElement("div" /* Fragment */, null, "test"));
   })(y = x2.y || (x2.y = {}));
 })(x || (x = {}));
+
+================================================================================
+TestTSEnumSameModuleInliningAccess
+---------- /out/entry.js ----------
+// entry.ts
+var c = /* @__PURE__ */ ((c2) => {
+  c2[c2["x"] = 123] = "x";
+  return c2;
+})(c || {});
+var d = /* @__PURE__ */ ((d2) => {
+  d2[d2["x"] = 123] = "x";
+  return d2;
+})(d || {});
+var e = /* @__PURE__ */ ((e2) => {
+  e2[e2["x"] = 123] = "x";
+  return e2;
+})(e || {});
+console.log([
+  123 /* x */,
+  123 /* x */,
+  c?.x,
+  d?.["x"],
+  e
+]);
 
 ================================================================================
 TestTSEnumTreeShaking

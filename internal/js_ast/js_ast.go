@@ -1983,6 +1983,10 @@ type AST struct {
 	ModuleRef   Ref
 	WrapperRef  Ref
 
+	// This contains all top-level exported TypeScript enum constants. It exists
+	// to enable cross-module inlining of constant enums.
+	TSEnums map[Ref]map[string]TSEnumValue
+
 	// These are stored at the AST level instead of on individual AST nodes so
 	// they can be manipulated efficiently without a full AST traversal
 	ImportRecords []ast.ImportRecord
@@ -2002,6 +2006,11 @@ type AST struct {
 	TopLevelSymbolToPartsFromParser map[Ref][]uint32
 
 	SourceMapComment logger.Span
+}
+
+type TSEnumValue struct {
+	String []uint16 // Use this if it's not nil
+	Number float64  // Use this if "String" is nil
 }
 
 // This is a histogram of character frequencies for minification
