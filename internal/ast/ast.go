@@ -59,41 +59,35 @@ func (kind ImportKind) IsFromCSS() bool {
 	return kind == ImportAt || kind == ImportURL
 }
 
-type ImportRecord struct {
-	Range      logger.Range
-	Path       logger.Path
-	Assertions *[]AssertEntry
+type ImportRecordFlags uint16
 
-	// The resolved source index for an internal import (within the bundle) or
-	// nil for an external import (not included in the bundle)
-	SourceIndex Index32
-
+const (
 	// Sometimes the parser creates an import record and decides it isn't needed.
 	// For example, TypeScript code may have import statements that later turn
 	// out to be type-only imports after analyzing the whole file.
-	IsUnused bool
+	IsUnused ImportRecordFlags = 1 << iota
 
 	// If this is true, the import contains syntax like "* as ns". This is used
 	// to determine whether modules that have no exports need to be wrapped in a
 	// CommonJS wrapper or not.
-	ContainsImportStar bool
+	ContainsImportStar
 
 	// If this is true, the import contains an import for the alias "default",
 	// either via the "import x from" or "import {default as x} from" syntax.
-	ContainsDefaultAlias bool
+	ContainsDefaultAlias
 
 	// If true, this "export * from 'path'" statement is evaluated at run-time by
 	// calling the "__reExport()" helper function
-	CallsRunTimeReExportFn bool
+	CallsRunTimeReExportFn
 
 	// Tell the printer to wrap this call to "require()" in "__toESM(...)"
-	WrapWithToESM bool
+	WrapWithToESM
 
 	// Tell the printer to wrap this ESM exports object in "__toCJS(...)"
-	WrapWithToCJS bool
+	WrapWithToCJS
 
 	// Tell the printer to use the runtime "__require()" instead of "require()"
-	CallRuntimeRequire bool
+	CallRuntimeRequire
 
 	// True for the following cases:
 	//
@@ -105,15 +99,30 @@ type ImportRecord struct {
 	//
 	// In these cases we shouldn't generate an error if the path could not be
 	// resolved.
-	HandlesImportErrors bool
+	HandlesImportErrors
 
 	// If true, this was originally written as a bare "import 'file'" statement
-	WasOriginallyBareImport bool
+	WasOriginallyBareImport
 
 	// If true, this import can be removed if it's unused
-	IsExternalWithoutSideEffects bool
+	IsExternalWithoutSideEffects
+)
 
-	Kind ImportKind
+func (flags ImportRecordFlags) Has(flag ImportRecordFlags) bool {
+	return (flags & flag) != 0
+}
+
+type ImportRecord struct {
+	Range      logger.Range
+	Path       logger.Path
+	Assertions *[]AssertEntry
+
+	// The resolved source index for an internal import (within the bundle) or
+	// nil for an external import (not included in the bundle)
+	SourceIndex Index32
+
+	Kind  ImportKind
+	Flags ImportRecordFlags
 }
 
 type AssertEntry struct {

@@ -1043,13 +1043,14 @@ func (p *printer) printRequireOrImportExpr(
 		// External "require()"
 		if record.Kind != ast.ImportDynamic {
 			// Wrap this with a call to "__toESM()" if this is a CommonJS file
-			if record.WrapWithToESM {
+			wrapWithToESM := record.Flags.Has(ast.WrapWithToESM)
+			if wrapWithToESM {
 				p.printSymbol(p.options.ToESMRef)
 				p.print("(")
 			}
 
 			// Potentially substitute our own "__require" stub for "require"
-			if record.CallRuntimeRequire {
+			if record.Flags.Has(ast.CallRuntimeRequire) {
 				p.printSymbol(p.options.RuntimeRequireRef)
 			} else {
 				p.printSpaceBeforeIdentifier()
@@ -1062,7 +1063,7 @@ func (p *printer) printRequireOrImportExpr(
 			p.print(")")
 
 			// Finish the call to "__toESM()"
-			if record.WrapWithToESM {
+			if wrapWithToESM {
 				if p.moduleType == js_ast.ModuleESM {
 					p.print(",")
 					p.printSpace()
@@ -1085,7 +1086,7 @@ func (p *printer) printRequireOrImportExpr(
 			defer p.printDotThenSuffix()
 
 			// Wrap this with a call to "__toESM()" if this is a CommonJS file
-			if record.WrapWithToESM {
+			if record.Flags.Has(ast.WrapWithToESM) {
 				p.printSymbol(p.options.ToESMRef)
 				p.print("(")
 				defer func() {
@@ -1099,7 +1100,7 @@ func (p *printer) printRequireOrImportExpr(
 			}
 
 			// Potentially substitute our own "__require" stub for "require"
-			if record.CallRuntimeRequire {
+			if record.Flags.Has(ast.CallRuntimeRequire) {
 				p.printSymbol(p.options.RuntimeRequireRef)
 			} else {
 				p.printSpaceBeforeIdentifier()
@@ -1164,7 +1165,8 @@ func (p *printer) printRequireOrImportExpr(
 	}
 
 	// Wrap this with a call to "__toESM()" if this is a CommonJS file
-	if record.WrapWithToESM {
+	wrapWithToESM := record.Flags.Has(ast.WrapWithToESM)
+	if wrapWithToESM {
 		p.printSymbol(p.options.ToESMRef)
 		p.print("(")
 	}
@@ -1179,18 +1181,19 @@ func (p *printer) printRequireOrImportExpr(
 		p.printSpace()
 
 		// Wrap this with a call to "__toCommonJS()" if this is an ESM file
-		if record.WrapWithToCJS {
+		wrapWithTpCJS := record.Flags.Has(ast.WrapWithToCJS)
+		if wrapWithTpCJS {
 			p.printSymbol(p.options.ToCommonJSRef)
 			p.print("(")
 		}
 		p.printSymbol(meta.ExportsRef)
-		if record.WrapWithToCJS {
+		if wrapWithTpCJS {
 			p.print(")")
 		}
 	}
 
 	// Finish the call to "__toESM()"
-	if record.WrapWithToESM {
+	if wrapWithToESM {
 		if p.moduleType == js_ast.ModuleESM {
 			p.print(",")
 			p.printSpace()

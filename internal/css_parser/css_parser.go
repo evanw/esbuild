@@ -967,11 +967,15 @@ loop:
 
 		case css_lexer.TURL:
 			token.ImportRecordIndex = uint32(len(p.importRecords))
+			var flags ast.ImportRecordFlags
+			if !opts.allowImports {
+				flags |= ast.IsUnused
+			}
 			p.importRecords = append(p.importRecords, ast.ImportRecord{
-				Kind:     ast.ImportURL,
-				Path:     logger.Path{Text: token.Text},
-				Range:    t.Range,
-				IsUnused: !opts.allowImports,
+				Kind:  ast.ImportURL,
+				Path:  logger.Path{Text: token.Text},
+				Range: t.Range,
+				Flags: flags,
 			})
 			token.Text = ""
 
@@ -1000,11 +1004,15 @@ loop:
 				token.Text = ""
 				token.Children = nil
 				token.ImportRecordIndex = uint32(len(p.importRecords))
+				var flags ast.ImportRecordFlags
+				if !opts.allowImports {
+					flags |= ast.IsUnused
+				}
 				p.importRecords = append(p.importRecords, ast.ImportRecord{
-					Kind:     ast.ImportURL,
-					Path:     logger.Path{Text: nested[0].Text},
-					Range:    original[0].Range,
-					IsUnused: !opts.allowImports,
+					Kind:  ast.ImportURL,
+					Path:  logger.Path{Text: nested[0].Text},
+					Range: original[0].Range,
+					Flags: flags,
 				})
 			}
 

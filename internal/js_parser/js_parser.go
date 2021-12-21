@@ -6665,7 +6665,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		pathLoc, pathText, assertions := p.parsePath()
 		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertions)
-		p.importRecords[stmt.ImportRecordIndex].WasOriginallyBareImport = wasOriginallyBareImport
+		if wasOriginallyBareImport {
+			p.importRecords[stmt.ImportRecordIndex].Flags |= ast.WasOriginallyBareImport
+		}
 		p.lexer.ExpectOrInsertSemicolon()
 
 		if stmt.StarNameLoc != nil {
@@ -12623,7 +12625,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, js_lexer.UTF16ToString(str.Value), assertions)
-				p.importRecords[importRecordIndex].HandlesImportErrors = (isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0) || isThenCatchTarget
+				if (isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0) || isThenCatchTarget {
+					p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
+				}
 				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportString{
 					ImportRecordIndex:       importRecordIndex,
@@ -12750,7 +12754,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								}
 
 								importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value), nil)
-								p.importRecords[importRecordIndex].HandlesImportErrors = p.fnOrArrowDataVisit.tryBodyCount != 0
+								if p.fnOrArrowDataVisit.tryBodyCount != 0 {
+									p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
+								}
 								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 								// Create a new expression to represent the operation
@@ -12884,7 +12890,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								}
 
 								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value), nil)
-								p.importRecords[importRecordIndex].HandlesImportErrors = p.fnOrArrowDataVisit.tryBodyCount != 0
+								if p.fnOrArrowDataVisit.tryBodyCount != 0 {
+									p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
+								}
 								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 								// Create a new expression to represent the operation
@@ -13638,7 +13646,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					// Ignore import records with a pre-filled source index. These are
 					// for injected files and we definitely do not want to trim these.
 					if !record.SourceIndex.IsValid() {
-						record.IsUnused = true
+						record.Flags |= ast.IsUnused
 						continue
 					}
 				}
@@ -13718,15 +13726,15 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
 			if s.StarNameLoc != nil {
-				record.ContainsImportStar = true
+				record.Flags |= ast.ContainsImportStar
 			}
 
 			if s.DefaultName != nil {
-				record.ContainsDefaultAlias = true
+				record.Flags |= ast.ContainsDefaultAlias
 			} else if s.Items != nil {
 				for _, item := range *s.Items {
 					if item.Alias == "default" {
-						record.ContainsDefaultAlias = true
+						record.Flags |= ast.ContainsDefaultAlias
 					}
 				}
 			}
