@@ -20,7 +20,7 @@ test-all:
 	@$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 check-go-version:
-	@go version | grep ' go1\.17\.4 ' || (echo 'Please install Go version 1.17.4' && false)
+	@go version | grep ' go1\.17\.5 ' || (echo 'Please install Go version 1.17.5' && false)
 
 # This "ESBUILD_RACE" variable exists at the request of a user on GitHub who
 # wants to run "make test" on an unsupported version of macOS (version 10.9).
