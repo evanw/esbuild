@@ -197,7 +197,15 @@ loop:
 		}
 
 		switch p.current().Kind {
-		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
+		case css_lexer.TEndOfFile:
+			break loop
+
+		case css_lexer.TCloseBrace:
+			if context.isTopLevel {
+				p.unexpected()
+				p.advance()
+				continue
+			}
 			break loop
 
 		case css_lexer.TWhitespace:
