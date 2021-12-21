@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.7
 
 * Cross-module inlining of TypeScript `enum` constants ([#128](https://github.com/evanw/esbuild/issues/128))
 
@@ -19,9 +19,9 @@
 
     To demonstrate the performance improvement, I compared the performance of the TypeScript compiler built by bundling the TypeScript compiler source code with esbuild before and after this change. The speed of the compiler was measured by using it to type check a small TypeScript code base. Here are the results:
 
-    |      | `tsc` | w/ esbuild 0.14.6 | w/ esbuild 0.14.7 |
-    |------|-------|-------------------|-------------------|
-    | Time | 2.96s | 3.45s             | 2.95s             |
+    |      | `tsc` | with esbuild 0.14.6 | with esbuild 0.14.7 |
+    |------|-------|---------------------|---------------------|
+    | Time | 2.96s | 3.45s               | 2.95s               |
 
     As you can see, enum inlining gives around a 15% speedup, which puts the esbuild-bundled version at the same speed as the offical TypeScript compiler build (the `tsc` column)!
 
