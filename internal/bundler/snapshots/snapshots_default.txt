@@ -138,6 +138,8 @@ TestAutoExternalNode
 ---------- /out/entry.js ----------
 // entry.js
 import fs from "node:fs/promises";
+import "node:what-is-this";
+fs.readFile();
 
 ================================================================================
 TestAvoidTDZ
@@ -1043,17 +1045,15 @@ console.log(file_default, file_default2);
 TestImportFSNodeCommonJS
 ---------- /out.js ----------
 // entry.js
-var import_fs = __toESM(require("fs"));
 var fs = __toESM(require("fs"));
+var import_fs = __toESM(require("fs"));
 var import_fs2 = __toESM(require("fs"));
-var import_fs3 = __toESM(require("fs"));
-console.log(fs, import_fs3.readFileSync, import_fs2.default);
+console.log(fs, import_fs2.readFileSync, import_fs.default);
 
 ================================================================================
 TestImportFSNodeES6
 ---------- /out.js ----------
 // entry.js
-import "fs";
 import * as fs from "fs";
 import defaultValue from "fs";
 import { readFileSync } from "fs";

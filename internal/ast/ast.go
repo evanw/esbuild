@@ -110,6 +110,9 @@ type ImportRecord struct {
 	// If true, this was originally written as a bare "import 'file'" statement
 	WasOriginallyBareImport bool
 
+	// If true, this import can be removed if it's unused
+	IsExternalWithoutSideEffects bool
+
 	Kind ImportKind
 }
 

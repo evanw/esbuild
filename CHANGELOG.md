@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+* Mark node built-in modules as having no side effects ([#705](https://github.com/evanw/esbuild/issues/705))
+
+    This release marks node built-in modules such as `fs` as being side-effect free. That means unused imports to these modules are now removed when bundling, which sometimes results in slightly smaller code. For example:
+
+    ```js
+    // Original code
+    import fs from 'fs';
+    import path from 'path';
+    console.log(path.delimiter);
+
+    // Old output (with --bundle --minify --platform=node --format=esm)
+    import"fs";import o from"path";console.log(o.delimiter);
+
+    // New output (with --bundle --minify --platform=node --format=esm)
+    import o from"path";console.log(o.delimiter);
+    ```
+
+    Note that these modules are only automatically considered side-effect when bundling for node, since they are only known to be side-effect free imports in that environment. However, you can customize this behavior with a plugin by returning `external: true` and `sideEffects: false` in an `onResolve` callback for whatever paths you want to be treated this way.
+
 ## 0.14.6
 
 * Fix a minifier bug with BigInt literals

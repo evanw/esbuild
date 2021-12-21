@@ -2576,6 +2576,9 @@ func (c *linkerContext) markFileLiveForTreeShaking(sourceIndex uint32) {
 
 					// Otherwise, include this module for its side effects
 					c.markFileLiveForTreeShaking(otherSourceIndex)
+				} else if record.IsExternalWithoutSideEffects {
+					// This can be removed if it's unused
+					continue
 				}
 
 				// If we get here then the import was included for its side effects, so

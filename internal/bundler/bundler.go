@@ -1584,6 +1584,11 @@ func (s *scanner) scanAllDependencies() {
 						&result.file.inputFile.Source, record.Range, resolveResult.PluginData, inputKindNormal, nil)
 					record.SourceIndex = ast.MakeIndex32(sourceIndex)
 				} else {
+					// Allow this import statement to be removed if something marked it as "sideEffects: false"
+					if resolveResult.PrimarySideEffectsData != nil {
+						record.IsExternalWithoutSideEffects = true
+					}
+
 					// If the path to the external module is relative to the source
 					// file, rewrite the path to be relative to the working directory
 					if path.Namespace == "file" {
