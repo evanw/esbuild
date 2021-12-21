@@ -1612,3 +1612,20 @@ func TestFont(t *testing.T) {
 	expectPrintedMangleMinify(t, "a { font: italic small-caps bold ultra-condensed 1rem/1.2 'aaa bbb' }", "a{font:italic small-caps 700 ultra-condensed 1rem/1.2 aaa bbb}")
 	expectPrintedMangleMinify(t, "a { font: italic small-caps bold ultra-condensed 1rem / 1.2 'aaa bbb' }", "a{font:italic small-caps 700 ultra-condensed 1rem/1.2 aaa bbb}")
 }
+
+func TestWarningUnexpectedCloseBrace(t *testing.T) {
+	expectParseError(t, ".red {\n  color: red;\n}\n}\n.blue {\n  color: blue;\n}\n.green {\n color: green;\n}\n",
+		`<stdin>: WARNING: Unexpected "}"
+`)
+	expectPrinted(t, ".red {\n  color: red;\n}\n}\n.blue {\n  color: blue;\n}\n.green {\n color: green;\n}\n",
+		`.red {
+  color: red;
+}
+.blue {
+  color: blue;
+}
+.green {
+  color: green;
+}
+`)
+}
