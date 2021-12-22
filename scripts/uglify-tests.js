@@ -239,7 +239,6 @@ async function test_case(esbuild, test, basename) {
       'const.js: use_before_init_3',
       'destructured.js: funarg_side_effects_2',
       'destructured.js: funarg_side_effects_3',
-      'drop-unused.js: issue_4464_3',
       'let.js: issue_4225',
       'let.js: issue_4229',
       'let.js: issue_4245',
