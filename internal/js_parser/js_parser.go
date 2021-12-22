@@ -4455,6 +4455,36 @@ func (p *parser) parseCallArgs() []js_ast.Expr {
 	return args
 }
 
+func (p *parser) parseJSXNamespacedName() (logger.Range, string) {
+	nameRange := p.lexer.Range()
+	name := p.lexer.Identifier
+	p.lexer.ExpectInsideJSXElement(js_lexer.TIdentifier)
+
+	// Parse JSX namespaces. These are not supported by React or TypeScript
+	// but someone using JSX syntax in more obscure ways may find a use for
+	// them. A namespaced name is just always turned into a string so you
+	// can't use this feature to reference JavaScript identifiers.
+	if p.lexer.Token == js_lexer.TColon {
+		// Parse the colon
+		nameRange.Len = p.lexer.Range().End() - nameRange.Loc.Start
+		name += ":"
+		p.lexer.NextInsideJSXElement()
+
+		// Parse the second identifier
+		if p.lexer.Token == js_lexer.TIdentifier {
+			nameRange.Len = p.lexer.Range().End() - nameRange.Loc.Start
+			name += p.lexer.Identifier
+			p.lexer.NextInsideJSXElement()
+		} else {
+			p.log.Add(logger.Error, &p.tracker, logger.Range{Loc: logger.Loc{Start: nameRange.End()}},
+				fmt.Sprintf("Expected identifier after %q in namespaced JSX name", name))
+			panic(js_lexer.LexerPanic{})
+		}
+	}
+
+	return nameRange, name
+}
+
 func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 	loc := p.lexer.Loc()
 
@@ -4464,17 +4494,15 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 	}
 
 	// The tag is an identifier
-	name := p.lexer.Identifier
-	tagRange := p.lexer.Range()
-	p.lexer.ExpectInsideJSXElement(js_lexer.TIdentifier)
+	tagRange, tagName := p.parseJSXNamespacedName()
 
 	// Certain identifiers are strings
-	if strings.ContainsAny(name, "-:") || (p.lexer.Token != js_lexer.TDot && name[0] >= 'a' && name[0] <= 'z') {
-		return tagRange, name, js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}}
+	if strings.ContainsAny(tagName, "-:") || (p.lexer.Token != js_lexer.TDot && tagName[0] >= 'a' && tagName[0] <= 'z') {
+		return tagRange, tagName, js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(tagName)}}
 	}
 
 	// Otherwise, this is an identifier
-	tag := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
+	tag := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(tagName)}}
 
 	// Parse a member expression chain
 	for p.lexer.Token == js_lexer.TDot {
@@ -4491,7 +4519,7 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 			panic(js_lexer.LexerPanic{})
 		}
 
-		name += "." + member
+		tagName += "." + member
 		tag = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
 			Target:  tag,
 			Name:    member,
@@ -4500,7 +4528,7 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 		tagRange.Len = memberRange.Loc.Start + memberRange.Len - tagRange.Loc.Start
 	}
 
-	return tagRange, name, tag
+	return tagRange, tagName, tag
 }
 
 func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
@@ -4525,9 +4553,8 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			switch p.lexer.Token {
 			case js_lexer.TIdentifier:
 				// Parse the key
-				keyRange := p.lexer.Range()
-				key := js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(p.lexer.Identifier)}}
-				p.lexer.NextInsideJSXElement()
+				keyRange, keyName := p.parseJSXNamespacedName()
+				key := js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(keyName)}}
 
 				// Parse the value
 				var value js_ast.Expr

@@ -962,6 +962,10 @@ func (lexer *Lexer) NextInsideJSXElement() {
 			lexer.step()
 			lexer.Token = TDot
 
+		case ':':
+			lexer.step()
+			lexer.Token = TColon
+
 		case '=':
 			lexer.step()
 			lexer.Token = TEquals
@@ -1099,23 +1103,6 @@ func (lexer *Lexer) NextInsideJSXElement() {
 				lexer.step()
 				for IsIdentifierContinue(lexer.codePoint) || lexer.codePoint == '-' {
 					lexer.step()
-				}
-
-				// Parse JSX namespaces. These are not supported by React or TypeScript
-				// but someone using JSX syntax in more obscure ways may find a use for
-				// them. A namespaced name is just always turned into a string so you
-				// can't use this feature to reference JavaScript identifiers.
-				if lexer.codePoint == ':' {
-					lexer.step()
-					if IsIdentifierStart(lexer.codePoint) {
-						lexer.step()
-						for IsIdentifierContinue(lexer.codePoint) || lexer.codePoint == '-' {
-							lexer.step()
-						}
-					} else {
-						lexer.addRangeError(logger.Range{Loc: logger.Loc{Start: lexer.Range().End()}},
-							fmt.Sprintf("Expected identifier after %q in namespaced JSX name", lexer.Raw()))
-					}
 				}
 
 				lexer.Identifier = lexer.Raw()
