@@ -1494,9 +1494,23 @@ func (c *linkerContext) scanImportsAndExports() {
 							runtimeRequireUses++
 						}
 
-						// It needs the "__toESM" wrapper if it wasn't originally a
-						// CommonJS import (i.e. it wasn't a "require()" call).
-						if record.Kind != ast.ImportRequire {
+						// If this wasn't originally a "require()" call, then we may need
+						// to wrap this in a call to the "__toESM" wrapper to convert from
+						// CommonJS semantics to ESM semantics.
+						//
+						// Unfortunately this adds some additional code since the conversion
+						// is somewhat complex. As an optimization, we can avoid this if the
+						// following things are true:
+						//
+						// - The import is an ES module statement (e.g. not an "import()" expression)
+						// - The ES module namespace object must not be captured
+						// - The "default" and "__esModule" exports must not be accessed
+						//
+						if record.Kind != ast.ImportRequire &&
+							(record.Kind != ast.ImportStmt ||
+								record.Flags.Has(ast.ContainsImportStar) ||
+								record.Flags.Has(ast.ContainsDefaultAlias) ||
+								record.Flags.Has(ast.ContainsESModuleAlias)) {
 							record.Flags |= ast.WrapWithToESM
 							toESMUses++
 						}

@@ -13793,6 +13793,8 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 				for _, item := range *s.Items {
 					if item.Alias == "default" {
 						record.Flags |= ast.ContainsDefaultAlias
+					} else if item.Alias == "__esModule" {
+						record.Flags |= ast.ContainsESModuleAlias
 					}
 				}
 			}

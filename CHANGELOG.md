@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+* Avoid CJS-to-ESM wrapper in some cases ([#1831](https://github.com/evanw/esbuild/issues/1831))
+
+    Import statements are converted into `require()` calls when the output format is set to CommonJS. To convert from CommonJS semantics to ES module semantics, esbuild wraps the return value in a call to esbuild's `__toESM()` helper function. However, the conversion is only needed if it's possible that the exports named `default` or `__esModule` could be accessed.
+
+    This release avoids calling this helper function in cases where esbuild knows it's impossible for the `default` or `__esModule` exports to be accessed, which results in smaller and faster code. To get this behavior, you have to use the `import {} from` import syntax:
+
+    ```js
+    // Original code
+    import { readFile } from "fs";
+    readFile();
+
+    // Old output (with --format=cjs)
+    var __toESM = (module, isNodeMode) => {
+      ...
+    };
+    var import_fs = __toESM(require("fs"));
+    (0, import_fs.readFile)();
+
+    // New output (with --format=cjs)
+    var import_fs = require("fs");
+    (0, import_fs.readFile)();
+    ```
+
 * Allow whitespace around `:` in JSX elements ([#1877](https://github.com/evanw/esbuild/issues/1877))
 
     This release allows you to write the JSX `<rdf:Description rdf:ID="foo" />` as `<rdf : Description rdf : ID="foo" />` instead. Doing this is not forbidden by [the JSX specification](https://facebook.github.io/jsx/). While this doesn't work in TypeScript, it does work with other JSX parsers in the ecosystem, so support for this has been added to esbuild.
@@ -12,7 +35,7 @@
 
     This release adds inlining of TypeScript `enum` constants across separate modules. It activates when bundling is enabled and when the enum is exported via the `export` keyword and imported via the `import` keyword:
 
-    ```js
+    ```ts
     // foo.ts
     export enum Foo { Bar }
 

@@ -76,6 +76,10 @@ const (
 	// either via the "import x from" or "import {default as x} from" syntax.
 	ContainsDefaultAlias
 
+	// If this is true, the import contains an import for the alias "__esModule",
+	// via the "import {__esModule} from" syntax.
+	ContainsESModuleAlias
+
 	// If true, this "export * from 'path'" statement is evaluated at run-time by
 	// calling the "__reExport()" helper function
 	CallsRunTimeReExportFn

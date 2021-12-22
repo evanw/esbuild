@@ -869,7 +869,7 @@ var entry_exports = {};
 __export(entry_exports, {
   out: () => out
 });
-var out = __toESM(require("foo"));
+var out = require("foo");
 module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
@@ -888,7 +888,7 @@ var entry_exports = {};
 __export(entry_exports, {
   out: () => out
 });
-var out = __toESM(require("foo"));
+var out = require("foo");
 module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
@@ -909,7 +909,7 @@ var mod = (() => {
   __export(entry_exports, {
     out: () => out
   });
-  var out = __toESM(__require("foo"));
+  var out = __require("foo");
   return __toCommonJS(entry_exports);
 })();
 
@@ -921,7 +921,7 @@ var mod = (() => {
   __export(entry_exports, {
     out: () => out
   });
-  var out = __toESM(require("foo"));
+  var out = require("foo");
   return __toCommonJS(entry_exports);
 })();
 
@@ -929,7 +929,7 @@ var mod = (() => {
 TestReExportStarCommonJSNoBundle
 ---------- /out.js ----------
 var entry_exports = {};
-__reExport(entry_exports, __toESM(require("foo")));
+__reExport(entry_exports, require("foo"));
 module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
@@ -942,7 +942,7 @@ TestReExportStarExternalCommonJS
 ---------- /out.js ----------
 // entry.js
 var entry_exports = {};
-__reExport(entry_exports, __toESM(require("foo")));
+__reExport(entry_exports, require("foo"));
 module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
@@ -957,7 +957,7 @@ TestReExportStarExternalIIFE
 var mod = (() => {
   // entry.js
   var entry_exports = {};
-  __reExport(entry_exports, __toESM(__require("foo")));
+  __reExport(entry_exports, __require("foo"));
   return __toCommonJS(entry_exports);
 })();
 
@@ -966,7 +966,7 @@ TestReExportStarIIFENoBundle
 ---------- /out.js ----------
 var mod = (() => {
   var entry_exports = {};
-  __reExport(entry_exports, __toESM(require("foo")));
+  __reExport(entry_exports, require("foo"));
   return __toCommonJS(entry_exports);
 })();
 
