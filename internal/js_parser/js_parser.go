@@ -43,7 +43,6 @@ type parser struct {
 	allowPrivateIdentifiers    bool
 	hasTopLevelReturn          bool
 	latestReturnHadSemicolon   bool
-	hasImportMeta              bool
 	hasESModuleSyntax          bool
 	warnedThisIsUndefined      bool
 	topLevelAwaitKeyword       logger.Range
@@ -107,6 +106,7 @@ type parser struct {
 	emittedNamespaceVars       map[js_ast.Ref]bool
 	isExportedInsideNamespace  map[js_ast.Ref]js_ast.Ref
 	localTypeNames             map[string]bool
+	tsEnums                    map[js_ast.Ref]map[string]js_ast.TSEnumValue
 
 	// This is the reference to the generated function argument for the namespace,
 	// which is different than the reference to the namespace itself:
@@ -3619,14 +3619,9 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 		p.es6ImportKeyword = js_lexer.RangeOfIdentifier(p.source, loc)
 		p.lexer.Next()
 		if p.lexer.IsContextualKeyword("meta") {
-			r := p.lexer.Range()
+			rangeLen := p.lexer.Range().End() - loc.Start
 			p.lexer.Next()
-			p.hasImportMeta = true
-			if p.options.unsupportedJSFeatures.Has(compat.ImportMeta) {
-				r = logger.Range{Loc: loc, Len: r.End() - loc.Start}
-				p.markSyntaxFeature(compat.ImportMeta, r)
-			}
-			return js_ast.Expr{Loc: loc, Data: js_ast.EImportMetaShared}
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EImportMeta{RangeLen: rangeLen}}
 		} else {
 			p.lexer.ExpectedString("\"meta\"")
 		}
@@ -6671,7 +6666,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		pathLoc, pathText, assertions := p.parsePath()
 		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertions)
-		p.importRecords[stmt.ImportRecordIndex].WasOriginallyBareImport = wasOriginallyBareImport
+		if wasOriginallyBareImport {
+			p.importRecords[stmt.ImportRecordIndex].Flags |= ast.WasOriginallyBareImport
+		}
 		p.lexer.ExpectOrInsertSemicolon()
 
 		if stmt.StarNameLoc != nil {
@@ -9513,6 +9510,12 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		return stmts
 
 	case *js_ast.SEnum:
+		// Track cross-module enum constants during bundling
+		var tsExportedTopLevelEnumValues map[string]js_ast.TSEnumValue
+		if s.IsExport && p.currentScope == p.moduleScope && p.options.mode == config.ModeBundle {
+			tsExportedTopLevelEnumValues = make(map[string]js_ast.TSEnumValue)
+		}
+
 		p.recordDeclaredSymbol(s.Name.Ref)
 		p.pushScopeForVisitPass(js_ast.ScopeEntry, stmt.Loc)
 		p.recordDeclaredSymbol(s.Arg)
@@ -9556,6 +9559,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 				switch e := value.ValueOrNil.Data.(type) {
 				case *js_ast.ENumber:
+					if tsExportedTopLevelEnumValues != nil {
+						tsExportedTopLevelEnumValues[name] = js_ast.TSEnumValue{Number: e.Value}
+					}
 					member := exportedMembers[name]
 					member.Data = &js_ast.TSNamespaceMemberEnumNumber{Value: e.Value}
 					exportedMembers[name] = member
@@ -9564,6 +9570,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					nextNumericValue = e.Value + 1
 
 				case *js_ast.EString:
+					if tsExportedTopLevelEnumValues != nil {
+						tsExportedTopLevelEnumValues[name] = js_ast.TSEnumValue{String: e.Value}
+					}
 					member := exportedMembers[name]
 					member.Data = &js_ast.TSNamespaceMemberEnumString{Value: e.Value}
 					exportedMembers[name] = member
@@ -9576,6 +9585,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					}
 				}
 			} else if hasNumericValue {
+				if tsExportedTopLevelEnumValues != nil {
+					tsExportedTopLevelEnumValues[name] = js_ast.TSEnumValue{Number: nextNumericValue}
+				}
 				member := exportedMembers[name]
 				member.Data = &js_ast.TSNamespaceMemberEnumNumber{Value: nextNumericValue}
 				exportedMembers[name] = member
@@ -9626,6 +9638,14 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		p.popScope()
 		p.shouldFoldNumericConstants = oldShouldFoldNumericConstants
+
+		// Track all exported top-level enums for cross-module inlining
+		if tsExportedTopLevelEnumValues != nil {
+			if p.tsEnums == nil {
+				p.tsEnums = make(map[js_ast.Ref]map[string]js_ast.TSEnumValue)
+			}
+			p.tsEnums[s.Name.Ref] = tsExportedTopLevelEnumValues
+		}
 
 		// Wrap this enum definition in a closure
 		stmts = p.generateClosureForTypeScriptEnum(
@@ -11164,7 +11184,21 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		if p.importMetaRef != js_ast.InvalidRef {
+		// Warn about "import.meta" if it's not replaced by a define
+		if p.options.unsupportedJSFeatures.Has(compat.ImportMeta) {
+			r := logger.Range{Loc: expr.Loc, Len: e.RangeLen}
+			p.markSyntaxFeature(compat.ImportMeta, r)
+		}
+
+		// Convert "import.meta" to a variable if it's not supported in the output format
+		if p.options.unsupportedJSFeatures.Has(compat.ImportMeta) ||
+			(p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepES6ImportExportSyntax()) {
+			// Generate the variable if it doesn't exist yet
+			if p.importMetaRef == js_ast.InvalidRef {
+				p.importMetaRef = p.newSymbol(js_ast.SymbolOther, "import_meta")
+				p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
+			}
+
 			// Replace "import.meta" with a reference to the symbol
 			p.recordUsage(p.importMetaRef)
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.importMetaRef}}, exprOut{}
@@ -12615,7 +12649,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, js_lexer.UTF16ToString(str.Value), assertions)
-				p.importRecords[importRecordIndex].HandlesImportErrors = (isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0) || isThenCatchTarget
+				if (isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0) || isThenCatchTarget {
+					p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
+				}
 				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportString{
 					ImportRecordIndex:       importRecordIndex,
@@ -12742,7 +12778,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								}
 
 								importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value), nil)
-								p.importRecords[importRecordIndex].HandlesImportErrors = p.fnOrArrowDataVisit.tryBodyCount != 0
+								if p.fnOrArrowDataVisit.tryBodyCount != 0 {
+									p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
+								}
 								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 								// Create a new expression to represent the operation
@@ -12876,7 +12914,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								}
 
 								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value), nil)
-								p.importRecords[importRecordIndex].HandlesImportErrors = p.fnOrArrowDataVisit.tryBodyCount != 0
+								if p.fnOrArrowDataVisit.tryBodyCount != 0 {
+									p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
+								}
 								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 								// Create a new expression to represent the operation
@@ -13630,7 +13670,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					// Ignore import records with a pre-filled source index. These are
 					// for injected files and we definitely do not want to trim these.
 					if !record.SourceIndex.IsValid() {
-						record.IsUnused = true
+						record.Flags |= ast.IsUnused
 						continue
 					}
 				}
@@ -13710,15 +13750,15 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
 			if s.StarNameLoc != nil {
-				record.ContainsImportStar = true
+				record.Flags |= ast.ContainsImportStar
 			}
 
 			if s.DefaultName != nil {
-				record.ContainsDefaultAlias = true
+				record.Flags |= ast.ContainsDefaultAlias
 			} else if s.Items != nil {
 				for _, item := range *s.Items {
 					if item.Alias == "default" {
-						record.ContainsDefaultAlias = true
+						record.Flags |= ast.ContainsDefaultAlias
 					}
 				}
 			}
@@ -14457,6 +14497,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		runtimeImports:    make(map[string]js_ast.Ref),
 		promiseRef:        js_ast.InvalidRef,
 		afterArrowBodyLoc: logger.Loc{Start: -1},
+		importMetaRef:     js_ast.InvalidRef,
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,
@@ -14583,21 +14624,6 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		break
 	}
 
-	// Insert a variable for "import.meta" at the top of the file if it was used.
-	// We don't need to worry about "use strict" directives because this only
-	// happens when bundling, in which case we are flatting the module scopes of
-	// all modules together anyway so such directives are meaningless.
-	if p.importMetaRef != js_ast.InvalidRef {
-		importMetaStmt := js_ast.Stmt{Data: &js_ast.SLocal{
-			Kind: p.selectLocalKind(js_ast.LocalConst),
-			Decls: []js_ast.Decl{{
-				Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: p.importMetaRef}},
-				ValueOrNil: js_ast.Expr{Data: &js_ast.EObject{}},
-			}},
-		}}
-		stmts = append(append(make([]js_ast.Stmt, 0, len(stmts)+1), importMetaStmt), stmts...)
-	}
-
 	// Add an empty part for the namespace export that we can fill in later
 	nsExportPart := js_ast.Part{
 		SymbolUses:           make(map[js_ast.Ref]js_ast.SymbolUse),
@@ -14685,6 +14711,26 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 				parts = p.appendPart(parts, []js_ast.Stmt{stmt})
 			}
 		}
+	}
+
+	// Insert a variable for "import.meta" at the top of the file if it was used.
+	// We don't need to worry about "use strict" directives because this only
+	// happens when bundling, in which case we are flatting the module scopes of
+	// all modules together anyway so such directives are meaningless.
+	if p.importMetaRef != js_ast.InvalidRef {
+		importMetaStmt := js_ast.Stmt{Data: &js_ast.SLocal{
+			Kind: p.selectLocalKind(js_ast.LocalConst),
+			Decls: []js_ast.Decl{{
+				Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: p.importMetaRef}},
+				ValueOrNil: js_ast.Expr{Data: &js_ast.EObject{}},
+			}},
+		}}
+		before = append(before, js_ast.Part{
+			Stmts:                []js_ast.Stmt{importMetaStmt},
+			SymbolUses:           make(map[js_ast.Ref]js_ast.SymbolUse),
+			DeclaredSymbols:      []js_ast.DeclaredSymbol{{Ref: p.importMetaRef, IsTopLevel: true}},
+			CanBeRemovedIfUnused: true,
+		})
 	}
 
 	// Pop the module scope to apply the "ContainsDirectEval" rules
@@ -14827,15 +14873,6 @@ func (p *parser) prepareForVisitPass() {
 	} else {
 		p.exportsRef = p.newSymbol(js_ast.SymbolHoisted, "exports")
 		p.moduleRef = p.newSymbol(js_ast.SymbolHoisted, "module")
-	}
-
-	// Convert "import.meta" to a variable if it's not supported in the output format
-	if p.hasImportMeta && (p.options.unsupportedJSFeatures.Has(compat.ImportMeta) ||
-		(p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepES6ImportExportSyntax())) {
-		p.importMetaRef = p.newSymbol(js_ast.SymbolOther, "import_meta")
-		p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
-	} else {
-		p.importMetaRef = js_ast.InvalidRef
 	}
 
 	// Handle "@jsx" and "@jsxFrag" pragmas now that lexing is done
@@ -15178,6 +15215,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		Directive:                       directive,
 		NamedImports:                    p.namedImports,
 		NamedExports:                    p.namedExports,
+		TSEnums:                         p.tsEnums,
 		NestedScopeSlotCounts:           nestedScopeSlotCounts,
 		TopLevelSymbolToPartsFromParser: p.topLevelSymbolToParts,
 		ExportStarImportRecords:         p.exportStarImportRecords,

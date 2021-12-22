@@ -569,6 +569,60 @@ func (p *printer) printIdentifierUTF16(name []uint16) {
 	}
 }
 
+func (p *printer) printNumber(value float64, level js_ast.L) {
+	absValue := math.Abs(value)
+
+	if value != value {
+		p.printSpaceBeforeIdentifier()
+		p.print("NaN")
+	} else if value == positiveInfinity || value == negativeInfinity {
+		wrap := (p.options.MangleSyntax && level >= js_ast.LMultiply) ||
+			(value == negativeInfinity && level >= js_ast.LPrefix)
+		if wrap {
+			p.print("(")
+		}
+		if value == negativeInfinity {
+			p.printSpaceBeforeOperator(js_ast.UnOpNeg)
+			p.print("-")
+		} else {
+			p.printSpaceBeforeIdentifier()
+		}
+		if !p.options.MangleSyntax {
+			p.print("Infinity")
+		} else if p.options.RemoveWhitespace {
+			p.print("1/0")
+		} else {
+			p.print("1 / 0")
+		}
+		if wrap {
+			p.print(")")
+		}
+	} else {
+		if !math.Signbit(value) {
+			p.printSpaceBeforeIdentifier()
+			p.printNonNegativeFloat(absValue)
+
+			// Remember the end of the latest number
+			p.prevNumEnd = len(p.js)
+		} else if level >= js_ast.LPrefix {
+			// Expressions such as "(-1).toString" need to wrap negative numbers.
+			// Instead of testing for "value < 0" we test for "signbit(value)" and
+			// "!isNaN(value)" because we need this to be true for "-0" and "-0 < 0"
+			// is false.
+			p.print("(-")
+			p.printNonNegativeFloat(absValue)
+			p.print(")")
+		} else {
+			p.printSpaceBeforeOperator(js_ast.UnOpNeg)
+			p.print("-")
+			p.printNonNegativeFloat(absValue)
+
+			// Remember the end of the latest number
+			p.prevNumEnd = len(p.js)
+		}
+	}
+}
+
 func (p *printer) printBinding(binding js_ast.Binding) {
 	p.addSourceMapping(binding.Loc)
 
@@ -1043,13 +1097,14 @@ func (p *printer) printRequireOrImportExpr(
 		// External "require()"
 		if record.Kind != ast.ImportDynamic {
 			// Wrap this with a call to "__toESM()" if this is a CommonJS file
-			if record.WrapWithToESM {
+			wrapWithToESM := record.Flags.Has(ast.WrapWithToESM)
+			if wrapWithToESM {
 				p.printSymbol(p.options.ToESMRef)
 				p.print("(")
 			}
 
 			// Potentially substitute our own "__require" stub for "require"
-			if record.CallRuntimeRequire {
+			if record.Flags.Has(ast.CallRuntimeRequire) {
 				p.printSymbol(p.options.RuntimeRequireRef)
 			} else {
 				p.printSpaceBeforeIdentifier()
@@ -1062,7 +1117,7 @@ func (p *printer) printRequireOrImportExpr(
 			p.print(")")
 
 			// Finish the call to "__toESM()"
-			if record.WrapWithToESM {
+			if wrapWithToESM {
 				if p.moduleType == js_ast.ModuleESM {
 					p.print(",")
 					p.printSpace()
@@ -1085,7 +1140,7 @@ func (p *printer) printRequireOrImportExpr(
 			defer p.printDotThenSuffix()
 
 			// Wrap this with a call to "__toESM()" if this is a CommonJS file
-			if record.WrapWithToESM {
+			if record.Flags.Has(ast.WrapWithToESM) {
 				p.printSymbol(p.options.ToESMRef)
 				p.print("(")
 				defer func() {
@@ -1099,7 +1154,7 @@ func (p *printer) printRequireOrImportExpr(
 			}
 
 			// Potentially substitute our own "__require" stub for "require"
-			if record.CallRuntimeRequire {
+			if record.Flags.Has(ast.CallRuntimeRequire) {
 				p.printSymbol(p.options.RuntimeRequireRef)
 			} else {
 				p.printSpaceBeforeIdentifier()
@@ -1164,7 +1219,8 @@ func (p *printer) printRequireOrImportExpr(
 	}
 
 	// Wrap this with a call to "__toESM()" if this is a CommonJS file
-	if record.WrapWithToESM {
+	wrapWithToESM := record.Flags.Has(ast.WrapWithToESM)
+	if wrapWithToESM {
 		p.printSymbol(p.options.ToESMRef)
 		p.print("(")
 	}
@@ -1179,18 +1235,19 @@ func (p *printer) printRequireOrImportExpr(
 		p.printSpace()
 
 		// Wrap this with a call to "__toCommonJS()" if this is an ESM file
-		if record.WrapWithToCJS {
+		wrapWithTpCJS := record.Flags.Has(ast.WrapWithToCJS)
+		if wrapWithTpCJS {
 			p.printSymbol(p.options.ToCommonJSRef)
 			p.print("(")
 		}
 		p.printSymbol(meta.ExportsRef)
-		if record.WrapWithToCJS {
+		if wrapWithTpCJS {
 			p.print(")")
 		}
 	}
 
 	// Finish the call to "__toESM()"
-	if record.WrapWithToESM {
+	if wrapWithToESM {
 		if p.moduleType == js_ast.ModuleESM {
 			p.print(",")
 			p.printSpace()
@@ -1541,6 +1598,28 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		wrap := false
 		if e.OptionalChain == js_ast.OptionalChainNone {
 			flags |= hasNonOptionalChainParent
+
+			// Inline cross-module TypeScript enum references here
+			if id, ok := e.Target.Data.(*js_ast.EImportIdentifier); ok {
+				ref := js_ast.FollowSymbols(p.symbols, id.Ref)
+				if symbol := p.symbols.Get(ref); symbol.Kind == js_ast.SymbolTSEnum {
+					if enum, ok := p.options.TSEnums[ref]; ok {
+						if value, ok := enum[e.Name]; ok {
+							if value.String != nil {
+								p.printQuotedUTF16(value.String, true /* allowBacktick */)
+							} else {
+								p.printNumber(value.Number, level)
+							}
+							if !p.options.RemoveWhitespace {
+								p.print(" /* ")
+								p.print(e.Name)
+								p.print(" */")
+							}
+							break
+						}
+					}
+				}
+			}
 		} else {
 			if (flags & hasNonOptionalChainParent) != 0 {
 				wrap = true
@@ -1578,6 +1657,31 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		wrap := false
 		if e.OptionalChain == js_ast.OptionalChainNone {
 			flags |= hasNonOptionalChainParent
+
+			// Inline cross-module TypeScript enum references here
+			if index, ok := e.Index.Data.(*js_ast.EString); ok {
+				if id, ok := e.Target.Data.(*js_ast.EImportIdentifier); ok {
+					ref := js_ast.FollowSymbols(p.symbols, id.Ref)
+					if symbol := p.symbols.Get(ref); symbol.Kind == js_ast.SymbolTSEnum {
+						if enum, ok := p.options.TSEnums[ref]; ok {
+							name := js_lexer.UTF16ToString(index.Value)
+							if value, ok := enum[name]; ok {
+								if value.String != nil {
+									p.printQuotedUTF16(value.String, true /* allowBacktick */)
+								} else {
+									p.printNumber(value.Number, level)
+								}
+								if !p.options.RemoveWhitespace {
+									p.print(" /* ")
+									p.print(name)
+									p.print(" */")
+								}
+								break
+							}
+						}
+					}
+				}
+			}
 		} else {
 			if (flags & hasNonOptionalChainParent) != 0 {
 				wrap = true
@@ -1866,58 +1970,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.print("n")
 
 	case *js_ast.ENumber:
-		value := e.Value
-		absValue := math.Abs(value)
-
-		if value != value {
-			p.printSpaceBeforeIdentifier()
-			p.print("NaN")
-		} else if value == positiveInfinity || value == negativeInfinity {
-			wrap := (p.options.MangleSyntax && level >= js_ast.LMultiply) ||
-				(value == negativeInfinity && level >= js_ast.LPrefix)
-			if wrap {
-				p.print("(")
-			}
-			if value == negativeInfinity {
-				p.printSpaceBeforeOperator(js_ast.UnOpNeg)
-				p.print("-")
-			} else {
-				p.printSpaceBeforeIdentifier()
-			}
-			if !p.options.MangleSyntax {
-				p.print("Infinity")
-			} else if p.options.RemoveWhitespace {
-				p.print("1/0")
-			} else {
-				p.print("1 / 0")
-			}
-			if wrap {
-				p.print(")")
-			}
-		} else {
-			if !math.Signbit(value) {
-				p.printSpaceBeforeIdentifier()
-				p.printNonNegativeFloat(absValue)
-
-				// Remember the end of the latest number
-				p.prevNumEnd = len(p.js)
-			} else if level >= js_ast.LPrefix {
-				// Expressions such as "(-1).toString" need to wrap negative numbers.
-				// Instead of testing for "value < 0" we test for "signbit(value)" and
-				// "!isNaN(value)" because we need this to be true for "-0" and "-0 < 0"
-				// is false.
-				p.print("(-")
-				p.printNonNegativeFloat(absValue)
-				p.print(")")
-			} else {
-				p.printSpaceBeforeOperator(js_ast.UnOpNeg)
-				p.print("-")
-				p.printNonNegativeFloat(absValue)
-
-				// Remember the end of the latest number
-				p.prevNumEnd = len(p.js)
-			}
-		}
+		p.printNumber(e.Value, level)
 
 	case *js_ast.EIdentifier:
 		name := p.renamer.NameForSymbol(e.Ref)
@@ -3142,6 +3195,9 @@ type Options struct {
 	RuntimeRequireRef            js_ast.Ref
 	UnsupportedFeatures          compat.JSFeature
 	RequireOrImportMetaForSource func(uint32) RequireOrImportMeta
+
+	// Cross-module inlining of TypeScript enums is actually done during printing
+	TSEnums map[js_ast.Ref]map[string]js_ast.TSEnumValue
 
 	// If we're writing out a source map, this table of line start indices lets
 	// us do binary search on to figure out what line a given AST node came from

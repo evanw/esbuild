@@ -1,6 +1,78 @@
 # Changelog
 
-## Unreleased
+## 0.14.7
+
+* Cross-module inlining of TypeScript `enum` constants ([#128](https://github.com/evanw/esbuild/issues/128))
+
+    This release adds inlining of TypeScript `enum` constants across separate modules. It activates when bundling is enabled and when the enum is exported via the `export` keyword and imported via the `import` keyword:
+
+    ```js
+    // foo.ts
+    export enum Foo { Bar }
+
+    // bar.ts
+    import { Foo } from './foo.ts'
+    console.log(Foo.Bar)
+    ```
+
+    The access to `Foo.Bar` will now be compiled into `0 /* Bar */` even though the enum is defined in a separate file. This inlining was added without adding another pass (which would have introduced a speed penalty) by splitting the code for the inlining between the existing parsing and printing passes. Enum inlining is active whether or not you use `enum` or `const enum` because it improves performance.
+
+    To demonstrate the performance improvement, I compared the performance of the TypeScript compiler built by bundling the TypeScript compiler source code with esbuild before and after this change. The speed of the compiler was measured by using it to type check a small TypeScript code base. Here are the results:
+
+    |      | `tsc` | with esbuild 0.14.6 | with esbuild 0.14.7 |
+    |------|-------|---------------------|---------------------|
+    | Time | 2.96s | 3.45s               | 2.95s               |
+
+    As you can see, enum inlining gives around a 15% speedup, which puts the esbuild-bundled version at the same speed as the offical TypeScript compiler build (the `tsc` column)!
+
+    The specifics of the benchmark aren't important here since it's just a demonstration of how enum inlining can affect performance. But if you're wondering, I type checked the [Rollup](https://github.com/rollup/rollup) code base using a work-in-progress branch of the TypeScript compiler that's part of the ongoing effort to convert their use of namespaces into ES modules.
+
+* Mark node built-in modules as having no side effects ([#705](https://github.com/evanw/esbuild/issues/705))
+
+    This release marks node built-in modules such as `fs` as being side-effect free. That means unused imports to these modules are now removed when bundling, which sometimes results in slightly smaller code. For example:
+
+    ```js
+    // Original code
+    import fs from 'fs';
+    import path from 'path';
+    console.log(path.delimiter);
+
+    // Old output (with --bundle --minify --platform=node --format=esm)
+    import"fs";import o from"path";console.log(o.delimiter);
+
+    // New output (with --bundle --minify --platform=node --format=esm)
+    import o from"path";console.log(o.delimiter);
+    ```
+
+    Note that these modules are only automatically considered side-effect when bundling for node, since they are only known to be side-effect free imports in that environment. However, you can customize this behavior with a plugin by returning `external: true` and `sideEffects: false` in an `onResolve` callback for whatever paths you want to be treated this way.
+
+* Recover from a stray top-level `}` in CSS ([#1876](https://github.com/evanw/esbuild/pull/1876))
+
+    This release fixes a bug where a stray `}` at the top-level of a CSS file would incorrectly truncate the remainder of the file in the output (although not without a warning). With this release, the remainder of the file is now still parsed and printed:
+
+    ```css
+    /* Original code */
+    .red {
+      color: red;
+    }
+    }
+    .blue {
+      color: blue;
+    }
+    .green {
+      color: green;
+    }
+
+    /* Old output (with --minify) */
+    .red{color:red}
+
+    /* New output (with --minify) */
+    .red{color:red}} .blue{color:#00f}.green{color:green}
+    ```
+
+    This fix was contributed by [@sbfaulkner](https://github.com/sbfaulkner).
+
+## 0.14.6
 
 * Fix a minifier bug with BigInt literals
 
@@ -32,6 +104,22 @@
     This can arise when the template literals are nested inside of another function call that was determined to be unnecessary such as an unused call to a function marked with the `/* @__PURE__ */` pragma.
 
     This release also fixes a bug with this transformation where minifying the unused expression `` `foo ${bar}` `` into `"" + bar` changed the meaning of the expression. Template string interpolation always calls `toString` while string addition may call `valueOf` instead. This unused expression is now minified to `` `${bar}` ``, which is slightly longer but which avoids the behavior change.
+
+* Allow `keyof`/`readonly`/`infer` in TypeScript index signatures ([#1859](https://github.com/evanw/esbuild/pull/1859))
+
+    This release fixes a bug that prevented these keywords from being used as names in index signatures. The following TypeScript code was previously rejected, but is now accepted:
+
+    ```ts
+    interface Foo {
+      [keyof: string]: number
+    }
+    ```
+
+    This fix was contributed by [@magic-akari](https://github.com/magic-akari).
+
+* Avoid warning about `import.meta` if it's replaced ([#1868](https://github.com/evanw/esbuild/issues/1868))
+
+    It's possible to replace the `import.meta` expression using the `--define:` feature. Previously doing that still warned that the `import.meta` syntax was not supported when targeting ES5. With this release, there will no longer be a warning in this case.
 
 ## 0.14.5
 

@@ -377,7 +377,7 @@ func parseFile(args parseArgs) {
 
 				// Ignore records that the parser has discarded. This is used to remove
 				// type-only imports in TypeScript files.
-				if record.IsUnused {
+				if record.Flags.Has(ast.IsUnused) {
 					continue
 				}
 
@@ -415,7 +415,7 @@ func parseFile(args parseArgs) {
 					if resolveResult != nil && resolveResult.IsExternal {
 						// Allow path substitution as long as the result is external
 						result.resolveResults[importRecordIndex] = resolveResult
-					} else if !record.HandlesImportErrors {
+					} else if !record.Flags.Has(ast.HandlesImportErrors) {
 						args.log.Add(logger.Warning, &tracker, record.Range,
 							fmt.Sprintf("%q should be marked as external for use with \"require.resolve\"", record.Path.Text))
 					}
@@ -427,7 +427,7 @@ func parseFile(args parseArgs) {
 					// external imports instead of causing errors. This matches a common
 					// code pattern for conditionally importing a module with a graceful
 					// fallback.
-					if !didLogError && !record.HandlesImportErrors {
+					if !didLogError && !record.Flags.Has(ast.HandlesImportErrors) {
 						hint := ""
 						if resolver.IsPackagePath(record.Path.Text) {
 							hint = fmt.Sprintf("You can mark the path %q as external to exclude it from the bundle, which will remove this error.", record.Path.Text)
@@ -468,7 +468,7 @@ func parseFile(args parseArgs) {
 							notes = append(notes, logger.MsgData{Text: hint})
 						}
 						debug.LogErrorMsg(args.log, &source, record.Range, fmt.Sprintf("Could not resolve %q", record.Path.Text), notes)
-					} else if args.log.Level <= logger.LevelDebug && !didLogError && record.HandlesImportErrors {
+					} else if args.log.Level <= logger.LevelDebug && !didLogError && record.Flags.Has(ast.HandlesImportErrors) {
 						args.log.Add(logger.Debug, &tracker, record.Range,
 							fmt.Sprintf("Importing %q was allowed even though it could not be resolved because dynamic import failures appear to be handled here:",
 								record.Path.Text))
@@ -1584,6 +1584,11 @@ func (s *scanner) scanAllDependencies() {
 						&result.file.inputFile.Source, record.Range, resolveResult.PluginData, inputKindNormal, nil)
 					record.SourceIndex = ast.MakeIndex32(sourceIndex)
 				} else {
+					// Allow this import statement to be removed if something marked it as "sideEffects: false"
+					if resolveResult.PrimarySideEffectsData != nil {
+						record.Flags |= ast.IsExternalWithoutSideEffects
+					}
+
 					// If the path to the external module is relative to the source
 					// file, rewrite the path to be relative to the working directory
 					if path.Namespace == "file" {
@@ -1751,7 +1756,7 @@ func (s *scanner) processScannedFiles() []scannerFile {
 				// about it. Note that this can result in esbuild silently generating
 				// broken code. If this actually happens for people, it's probably worth
 				// re-enabling the warning about code inside "node_modules".
-				if record.WasOriginallyBareImport && !s.options.IgnoreDCEAnnotations &&
+				if record.Flags.Has(ast.WasOriginallyBareImport) && !s.options.IgnoreDCEAnnotations &&
 					!helpers.IsInsideNodeModules(result.file.inputFile.Source.KeyPath.Text) {
 					if otherModule := &s.results[record.SourceIndex.GetIndex()].file.inputFile; otherModule.SideEffects.Kind != graph.HasSideEffects &&
 						// Do not warn if this is from a plugin, since removing the import

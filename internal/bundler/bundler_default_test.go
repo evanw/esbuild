@@ -2369,6 +2369,13 @@ func TestAutoExternalNode(t *testing.T) {
 			"/entry.js": `
 				// These URLs should be external automatically
 				import fs from "node:fs/promises";
+				fs.readFile();
+
+				// This should be external and should be tree-shaken because it's side-effect free
+				import "node:path";
+
+				// This should be external too, but shouldn't be tree-shaken because it could be a run-time error
+				import "node:what-is-this";
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -4237,6 +4244,43 @@ func TestDefineImportMeta(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Defines:       &defines,
 		},
+	})
+}
+
+func TestDefineImportMetaES5(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"import.meta.x": {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.ENumber{Value: 1}
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/replaced.js": `
+				console.log(import.meta.x)
+			`,
+			"/kept.js": `
+				console.log(import.meta.y)
+			`,
+			"/dead-code.js": `
+				var x = () => console.log(import.meta.z)
+			`,
+		},
+		entryPaths: []string{
+			"/replaced.js",
+			"/kept.js",
+			"/dead-code.js",
+		},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputDir:          "/out",
+			Defines:               &defines,
+			UnsupportedJSFeatures: compat.ImportMeta,
+		},
+		expectedScanLog: `dead-code.js: WARNING: "import.meta" is not available in the configured target environment and will be empty
+kept.js: WARNING: "import.meta" is not available in the configured target environment and will be empty
+`,
 	})
 }
 

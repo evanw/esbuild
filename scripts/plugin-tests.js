@@ -2189,6 +2189,34 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
     }, null, 2)
     if (observed !== expected) throw new Error(`Observed ${observed}, expected ${expected}`)
   },
+
+  async externalSideEffectsFalse({ esbuild }) {
+    const build = await esbuild.build({
+      entryPoints: ['entry'],
+      bundle: true,
+      write: false,
+      platform: 'node',
+      format: 'esm',
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => {
+            if (args.importer === '') return { path: args.path, namespace: 'entry' }
+            else return { path: args.path, external: true, sideEffects: args.path !== 'noSideEffects' }
+          })
+          build.onLoad({ filter: /.*/, namespace: 'entry' }, () => {
+            return {
+              contents: `
+                import "sideEffects"
+                import "noSideEffects"
+              `,
+            }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(build.outputFiles[0].text, `// entry:entry\nimport "sideEffects";\n`)
+  },
 }
 
 // These tests have to run synchronously

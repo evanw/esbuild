@@ -284,10 +284,7 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		strings.HasPrefix(importPath, "https://") ||
 
 		// "background: url(//example.com/images/image.png);"
-		strings.HasPrefix(importPath, "//") ||
-
-		// "import fs from 'fs'"
-		(r.options.Platform == config.PlatformNode && BuiltInNodeModules[importPath]) {
+		strings.HasPrefix(importPath, "//") {
 
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Marking this path as implicitly external")
@@ -300,11 +297,31 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		}, debugMeta
 	}
 
+	// "import fs from 'fs'"
+	if r.options.Platform == config.PlatformNode && BuiltInNodeModules[importPath] {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Marking this path as implicitly external due to it being a node built-in")
+		}
+
+		r.flushDebugLogs(flushDueToSuccess)
+		return &ResolveResult{
+			PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal:             true,
+			PrimarySideEffectsData: &SideEffectsData{}, // Mark this with "sideEffects: false"
+		}, debugMeta
+	}
+
 	// "import fs from 'node:fs'"
 	// "require('node:fs')"
 	if r.options.Platform == config.PlatformNode && strings.HasPrefix(importPath, "node:") {
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Marking this path as implicitly external due to the \"node:\" prefix")
+		}
+
+		// If this is a known node built-in module, mark it with "sideEffects: false"
+		var sideEffects *SideEffectsData
+		if BuiltInNodeModules[strings.TrimPrefix(importPath, "node:")] {
+			sideEffects = &SideEffectsData{}
 		}
 
 		// Check whether the path will end up as "import" or "require"
@@ -335,8 +352,9 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 
 		r.flushDebugLogs(flushDueToSuccess)
 		return &ResolveResult{
-			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
-			IsExternal: true,
+			PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal:             true,
+			PrimarySideEffectsData: sideEffects,
 		}, debugMeta
 	}
 

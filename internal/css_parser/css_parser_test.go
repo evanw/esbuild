@@ -899,11 +899,11 @@ func TestAtKeyframes(t *testing.T) {
 }
 
 func TestAtRuleValidation(t *testing.T) {
-	expectParseError(t, "a {} @charset \"UTF-8\";",
+	expectParseError(t, "a {} b {} c {} @charset \"UTF-8\";",
 		"<stdin>: WARNING: \"@charset\" must be the first rule in the file\n"+
 			"<stdin>: NOTE: This rule cannot come before a \"@charset\" rule\n")
 
-	expectParseError(t, "a {} @import \"foo\";",
+	expectParseError(t, "a {} b {} c {} @import \"foo\";",
 		"<stdin>: WARNING: All \"@import\" rules must come first\n"+
 			"<stdin>: NOTE: This rule cannot come before an \"@import\" rule\n")
 }
@@ -1611,4 +1611,21 @@ func TestFont(t *testing.T) {
 
 	expectPrintedMangleMinify(t, "a { font: italic small-caps bold ultra-condensed 1rem/1.2 'aaa bbb' }", "a{font:italic small-caps 700 ultra-condensed 1rem/1.2 aaa bbb}")
 	expectPrintedMangleMinify(t, "a { font: italic small-caps bold ultra-condensed 1rem / 1.2 'aaa bbb' }", "a{font:italic small-caps 700 ultra-condensed 1rem/1.2 aaa bbb}")
+}
+
+func TestWarningUnexpectedCloseBrace(t *testing.T) {
+	expectParseError(t, ".red {\n  color: red;\n}\n}\n.blue {\n  color: blue;\n}\n.green {\n color: green;\n}\n",
+		`<stdin>: WARNING: Unexpected "}"
+`)
+	expectPrinted(t, ".red {\n  color: red;\n}\n}\n.blue {\n  color: blue;\n}\n.green {\n color: green;\n}\n",
+		`.red {
+  color: red;
+}
+} .blue {
+  color: blue;
+}
+.green {
+  color: green;
+}
+`)
 }

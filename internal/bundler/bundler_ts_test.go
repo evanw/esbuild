@@ -1571,3 +1571,120 @@ func TestTSEnumDefine(t *testing.T) {
 		},
 	})
 }
+
+func TestTSEnumSameModuleInliningAccess(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				enum a { x = 123 }
+				enum b { x = 123 }
+				enum c { x = 123 }
+				enum d { x = 123 }
+				enum e { x = 123 }
+				console.log([
+					a.x,
+					b['x'],
+					c?.x,
+					d?.['x'],
+					e,
+				])
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestTSEnumCrossModuleInliningAccess(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import { a, b, c, d, e } from './enums'
+				console.log([
+					a.x,
+					b['x'],
+					c?.x,
+					d?.['x'],
+					e,
+				])
+			`,
+			"/enums.ts": `
+				export enum a { x = 123 }
+				export enum b { x = 123 }
+				export enum c { x = 123 }
+				export enum d { x = 123 }
+				export enum e { x = 123 }
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestTSEnumCrossModuleInliningDefinitions(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import { a } from './enums'
+				console.log([
+					a.implicit_number,
+					a.explicit_number,
+					a.explicit_string,
+					a.non_constant,
+				])
+			`,
+			"/enums.ts": `
+				export enum a {
+					implicit_number,
+					explicit_number = 123,
+					explicit_string = 'xyz',
+					non_constant = foo,
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestTSEnumCrossModuleInliningReExport(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { a } from './re-export'
+				import { b } from './re-export-star'
+				import * as ns from './enums'
+				console.log([
+					a.x,
+					b.x,
+					ns.c.x,
+				])
+			`,
+			"/re-export.js": `
+				export { a } from './enums'
+			`,
+			"/re-export-star.js": `
+				export * from './enums'
+			`,
+			"/enums.ts": `
+				export enum a { x = 'a' }
+				export enum b { x = 'b' }
+				export enum c { x = 'c' }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}

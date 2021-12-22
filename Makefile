@@ -20,7 +20,7 @@ test-all:
 	@$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 check-go-version:
-	@go version | grep ' go1\.17\.4 ' || (echo 'Please install Go version 1.17.4' && false)
+	@go version | grep ' go1\.17\.5 ' || (echo 'Please install Go version 1.17.5' && false)
 
 # This "ESBUILD_RACE" variable exists at the request of a user on GitHub who
 # wants to run "make test" on an unsupported version of macOS (version 10.9).
@@ -315,7 +315,7 @@ platform-neutral: esbuild
 platform-deno: esbuild
 	node scripts/esbuild.js ./esbuild --deno
 
-publish-all:
+publish-all: check-go-version
 	@npm --version > /dev/null || (echo "The 'npm' command must be in your path to publish" && false)
 	@echo "Checking for uncommitted/untracked changes..." && test -z "`git status --porcelain | grep -vE 'M (CHANGELOG\.md|version\.txt)'`" || \
 		(echo "Refusing to publish with these uncommitted/untracked changes:" && \

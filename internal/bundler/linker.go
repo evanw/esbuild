@@ -1140,7 +1140,8 @@ func (c *linkerContext) scanImportsAndExports() {
 					//
 					// In that case the module *is* considered a CommonJS module because
 					// the namespace object must be created.
-					if (record.ContainsImportStar || record.ContainsDefaultAlias) && otherRepr.AST.ExportsKind == js_ast.ExportsNone && !otherRepr.AST.HasLazyExport {
+					if (record.Flags.Has(ast.ContainsImportStar) || record.Flags.Has(ast.ContainsDefaultAlias)) &&
+						otherRepr.AST.ExportsKind == js_ast.ExportsNone && !otherRepr.AST.HasLazyExport {
 						otherRepr.Meta.Wrap = graph.WrapCJS
 						otherRepr.AST.ExportsKind = js_ast.ExportsCommonJS
 					}
@@ -1489,14 +1490,14 @@ func (c *linkerContext) scanImportsAndExports() {
 						// We should use "__require" instead of "require" if we're not
 						// generating a CommonJS output file, since it won't exist otherwise
 						if config.ShouldCallRuntimeRequire(c.options.Mode, c.options.OutputFormat) {
-							record.CallRuntimeRequire = true
+							record.Flags |= ast.CallRuntimeRequire
 							runtimeRequireUses++
 						}
 
 						// It needs the "__toESM" wrapper if it wasn't originally a
 						// CommonJS import (i.e. it wasn't a "require()" call).
 						if record.Kind != ast.ImportRequire {
-							record.WrapWithToESM = true
+							record.Flags |= ast.WrapWithToESM
 							toESMUses++
 						}
 					}
@@ -1514,7 +1515,7 @@ func (c *linkerContext) scanImportsAndExports() {
 					// This is an ES6 import of a CommonJS module, so it needs the
 					// "__toESM" wrapper as long as it's not a bare "require()"
 					if record.Kind != ast.ImportRequire && otherRepr.AST.ExportsKind == js_ast.ExportsCommonJS {
-						record.WrapWithToESM = true
+						record.Flags |= ast.WrapWithToESM
 						toESMUses++
 					}
 
@@ -1536,7 +1537,7 @@ func (c *linkerContext) scanImportsAndExports() {
 						// and subtle set of bundler interop issues. See for example
 						// https://github.com/evanw/esbuild/issues/1591.
 						if record.Kind == ast.ImportRequire {
-							record.WrapWithToCJS = true
+							record.Flags |= ast.WrapWithToCJS
 							toCommonJSUses++
 						}
 					}
@@ -1587,7 +1588,7 @@ func (c *linkerContext) scanImportsAndExports() {
 				if happensAtRunTime {
 					// Depend on this file's "exports" object for the first argument to "__reExport"
 					c.graph.GenerateSymbolImportAndUse(sourceIndex, uint32(partIndex), repr.AST.ExportsRef, 1, sourceIndex)
-					record.CallsRunTimeReExportFn = true
+					record.Flags |= ast.CallsRunTimeReExportFn
 					repr.AST.UsesExportsRef = true
 					reExportUses++
 				}
@@ -2576,6 +2577,9 @@ func (c *linkerContext) markFileLiveForTreeShaking(sourceIndex uint32) {
 
 					// Otherwise, include this module for its side effects
 					c.markFileLiveForTreeShaking(otherSourceIndex)
+				} else if record.Flags.Has(ast.IsExternalWithoutSideEffects) {
+					// This can be removed if it's unused
+					continue
 				}
 
 				// If we get here then the import was included for its side effects, so
@@ -3312,7 +3316,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 
 			// Is this export star evaluated at run time?
 			if !record.SourceIndex.IsValid() && c.options.OutputFormat.KeepES6ImportExportSyntax() {
-				if record.CallsRunTimeReExportFn {
+				if record.Flags.Has(ast.CallsRunTimeReExportFn) {
 					// Turn this statement into "import * as ns from 'path'"
 					stmt.Data = &js_ast.SImport{
 						NamespaceRef:      s.NamespaceRef,
@@ -3348,7 +3352,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					}
 				}
 
-				if record.CallsRunTimeReExportFn {
+				if record.Flags.Has(ast.CallsRunTimeReExportFn) {
 					var target js_ast.E
 					if record.SourceIndex.IsValid() {
 						if otherRepr := c.graph.Files[record.SourceIndex.GetIndex()].InputFile.Repr.(*graph.JSRepr); otherRepr.AST.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
@@ -3778,6 +3782,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		ToCommonJSRef:                toCommonJSRef,
 		ToESMRef:                     toESMRef,
 		RuntimeRequireRef:            runtimeRequireRef,
+		TSEnums:                      c.graph.TSEnums,
 		LegalComments:                c.options.LegalComments,
 		UnsupportedFeatures:          c.options.UnsupportedJSFeatures,
 		AddSourceMappings:            addSourceMappings,
