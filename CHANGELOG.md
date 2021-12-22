@@ -41,6 +41,10 @@
     function foo(){console.log(2)}
     ```
 
+* Add support for the Linux IBM Z 64-bit Big Endian platform ([#1864](https://github.com/evanw/esbuild/pull/1864))
+
+    With this release, the esbuild package now includes a Linux binary executable for the IBM System/390 64-bit architecture. This new platform was contributed by [@shahidhs-ibm](https://github.com/shahidhs-ibm).
+
 * Allow whitespace around `:` in JSX elements ([#1877](https://github.com/evanw/esbuild/issues/1877))
 
     This release allows you to write the JSX `<rdf:Description rdf:ID="foo" />` as `<rdf : Description rdf : ID="foo" />` instead. Doing this is not forbidden by [the JSX specification](https://facebook.github.io/jsx/). While this doesn't work in TypeScript, it does work with other JSX parsers in the ecosystem, so support for this has been added to esbuild.
