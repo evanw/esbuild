@@ -1342,6 +1342,21 @@ func TestFunction(t *testing.T) {
 	expectPrintedMangle(t, "function* foo() { return undefined }", "function* foo() {\n}\n")
 	expectPrintedMangle(t, "async function foo() { return undefined }", "async function foo() {\n}\n")
 	expectPrintedMangle(t, "async function* foo() { return undefined }", "async function* foo() {\n  return void 0;\n}\n")
+
+	// Strip overwritten function declarations
+	expectPrintedMangle(t, "function f() { x() } function f() { y() }", "function f() {\n  y();\n}\n")
+	expectPrintedMangle(t, "function f() { x() } function *f() { y() }", "function* f() {\n  y();\n}\n")
+	expectPrintedMangle(t, "function *f() { x() } function f() { y() }", "function f() {\n  y();\n}\n")
+	expectPrintedMangle(t, "function *f() { x() } function *f() { y() }", "function* f() {\n  y();\n}\n")
+	expectPrintedMangle(t, "function f() { x() } async function f() { y() }", "async function f() {\n  y();\n}\n")
+	expectPrintedMangle(t, "async function f() { x() } function f() { y() }", "function f() {\n  y();\n}\n")
+	expectPrintedMangle(t, "async function f() { x() } async function f() { y() }", "async function f() {\n  y();\n}\n")
+	expectPrintedMangle(t, "var f; function f() {}", "var f;\nfunction f() {\n}\n")
+	expectPrintedMangle(t, "function f() {} var f", "function f() {\n}\nvar f;\n")
+	expectPrintedMangle(t, "var f; function f() { x() } function f() { y() }", "var f;\nfunction f() {\n  y();\n}\n")
+	expectPrintedMangle(t, "function f() { x() } function f() { y() } var f", "function f() {\n  y();\n}\nvar f;\n")
+	expectPrintedMangle(t, "function f() { x() } var f; function f() { y() }", "function f() {\n  x();\n}\nvar f;\nfunction f() {\n  y();\n}\n")
+	expectPrintedMangle(t, "export function f() { x() } function f() { y() }", "export function f() {\n  x();\n}\nfunction f() {\n  y();\n}\n")
 }
 
 func TestClass(t *testing.T) {

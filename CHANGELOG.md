@@ -25,6 +25,22 @@
     (0, import_fs.readFile)();
     ```
 
+* Strip overwritten function declarations when minifying ([#610](https://github.com/evanw/esbuild/issues/610))
+
+    JavaScript allows functions to be re-declared, with each declaration overwriting the previous declaration. This type of code can sometimes be emitted by automatic code generators. With this release, esbuild now takes this behavior into account when minifying to drop all but the last declaration for a given function:
+
+    ```js
+    // Original code
+    function foo() { console.log(1) }
+    function foo() { console.log(2) }
+
+    // Old output (with --minify)
+    function foo(){console.log(1)}function foo(){console.log(2)}
+
+    // New output (with --minify)
+    function foo(){console.log(2)}
+    ```
+
 * Allow whitespace around `:` in JSX elements ([#1877](https://github.com/evanw/esbuild/issues/1877))
 
     This release allows you to write the JSX `<rdf:Description rdf:ID="foo" />` as `<rdf : Description rdf : ID="foo" />` instead. Doing this is not forbidden by [the JSX specification](https://facebook.github.io/jsx/). While this doesn't work in TypeScript, it does work with other JSX parsers in the ecosystem, so support for this has been added to esbuild.

@@ -1426,7 +1426,7 @@ func (p *parser) canMergeSymbols(scope *js_ast.Scope, existing js_ast.SymbolKind
 	if new.IsHoistedOrFunction() && existing.IsHoistedOrFunction() &&
 		(scope.Kind == js_ast.ScopeEntry || scope.Kind == js_ast.ScopeFunctionBody ||
 			(new.IsHoisted() && existing.IsHoisted())) {
-		return mergeKeepExisting
+		return mergeReplaceWithNew
 	}
 
 	// "get #foo() {} set #foo() {}"
@@ -1490,6 +1490,11 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 
 		case mergeReplaceWithNew:
 			symbol.Link = ref
+
+			// If these are both functions, remove the overwritten declaration
+			if p.options.mangleSyntax && kind.IsFunction() && symbol.Kind.IsFunction() {
+				symbol.Flags |= js_ast.RemoveOverwrittenFunctionDeclaration
+			}
 
 		case mergeBecomePrivateGetSetPair:
 			ref = existing.Ref
@@ -9484,6 +9489,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 	case *js_ast.SFunction:
 		p.visitFn(&s.Fn, s.Fn.OpenParenLoc)
+
+		// Strip this function declaration if it was overwritten
+		if p.symbols[s.Fn.Name.Ref.InnerIndex].Flags.Has(js_ast.RemoveOverwrittenFunctionDeclaration) && !s.IsExport {
+			return stmts
+		}
 
 		// Handle exporting this function from a namespace
 		if s.IsExport && p.enclosingNamespaceArgRef != nil {

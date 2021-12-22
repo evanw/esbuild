@@ -1561,6 +1561,14 @@ const (
 	//   Foo.#foo = Foo;
 	//
 	PrivateSymbolMustBeLowered
+
+	// This is used to remove the all but the last function re-declaration if a
+	// function is re-declared multiple times like this:
+	//
+	//   function foo() { console.log(1) }
+	//   function foo() { console.log(2) }
+	//
+	RemoveOverwrittenFunctionDeclaration
 )
 
 func (flags SymbolFlags) Has(flag SymbolFlags) bool {
