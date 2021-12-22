@@ -221,7 +221,7 @@ func (p *parser) markLoweredSyntaxFeature(feature compat.JSFeature, r logger.Ran
 
 func (p *parser) privateSymbolNeedsToBeLowered(private *js_ast.EPrivateIdentifier) bool {
 	symbol := &p.symbols[private.Ref.InnerIndex]
-	return p.options.unsupportedJSFeatures.Has(symbol.Kind.Feature()) || symbol.PrivateSymbolMustBeLowered
+	return p.options.unsupportedJSFeatures.Has(symbol.Kind.Feature()) || symbol.Flags.Has(js_ast.PrivateSymbolMustBeLowered)
 }
 
 func (p *parser) captureThis() js_ast.Ref {

@@ -34,13 +34,13 @@ func ComputeReservedNames(moduleScopes []*js_ast.Scope, symbols js_ast.SymbolMap
 func computeReservedNamesForScope(scope *js_ast.Scope, symbols js_ast.SymbolMap, names map[string]uint32) {
 	for _, member := range scope.Members {
 		symbol := symbols.Get(member.Ref)
-		if symbol.Kind == js_ast.SymbolUnbound || symbol.MustNotBeRenamed {
+		if symbol.Kind == js_ast.SymbolUnbound || symbol.Flags.Has(js_ast.MustNotBeRenamed) {
 			names[symbol.OriginalName] = 1
 		}
 	}
 	for _, ref := range scope.Generated {
 		symbol := symbols.Get(ref)
-		if symbol.Kind == js_ast.SymbolUnbound || symbol.MustNotBeRenamed {
+		if symbol.Kind == js_ast.SymbolUnbound || symbol.Flags.Has(js_ast.MustNotBeRenamed) {
 			names[symbol.OriginalName] = 1
 		}
 	}
@@ -212,7 +212,7 @@ func (r *MinifyRenamer) AccumulateSymbolCount(
 		// If it is, accumulate the count using a parallel-safe atomic increment
 		slot := &r.slots[ns][i.GetIndex()]
 		atomic.AddUint32(&slot.count, count)
-		if symbol.MustStartWithCapitalLetterForJSX {
+		if symbol.Flags.Has(js_ast.MustStartWithCapitalLetterForJSX) {
 			atomic.StoreUint32(&slot.needsCapitalForJSX, 1)
 		}
 		return
@@ -238,12 +238,12 @@ func (r *MinifyRenamer) AllocateTopLevelSymbolSlots(topLevelSymbols DeferredTopL
 		if i, ok := r.topLevelSymbolToSlot[stable.Ref]; ok {
 			slot := &(*slots)[i]
 			slot.count += stable.Count
-			if symbol.MustStartWithCapitalLetterForJSX {
+			if symbol.Flags.Has(js_ast.MustStartWithCapitalLetterForJSX) {
 				slot.needsCapitalForJSX = 1
 			}
 		} else {
 			needsCapitalForJSX := uint32(0)
-			if symbol.MustStartWithCapitalLetterForJSX {
+			if symbol.Flags.Has(js_ast.MustStartWithCapitalLetterForJSX) {
 				needsCapitalForJSX = 1
 			}
 			i = uint32(len(*slots))
@@ -444,7 +444,7 @@ func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
 
 	// Make sure names of symbols used in JSX elements start with a capital letter
 	originalName := symbol.OriginalName
-	if symbol.MustStartWithCapitalLetterForJSX {
+	if symbol.Flags.Has(js_ast.MustStartWithCapitalLetterForJSX) {
 		if first := rune(originalName[0]); first >= 'a' && first <= 'z' {
 			originalName = fmt.Sprintf("%c%s", first+('A'-'a'), originalName[1:])
 		}

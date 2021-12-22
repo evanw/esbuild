@@ -1275,7 +1275,7 @@ func (p *parser) popScope() {
 				continue
 			}
 
-			p.symbols[member.Ref.InnerIndex].MustNotBeRenamed = true
+			p.symbols[member.Ref.InnerIndex].Flags |= js_ast.MustNotBeRenamed
 		}
 	}
 
@@ -1370,10 +1370,7 @@ func (p *parser) mergeSymbols(old js_ast.Ref, new js_ast.Ref) {
 	oldSymbol := &p.symbols[old.InnerIndex]
 	newSymbol := &p.symbols[new.InnerIndex]
 	oldSymbol.Link = new
-	newSymbol.UseCountEstimate += oldSymbol.UseCountEstimate
-	if oldSymbol.MustNotBeRenamed {
-		newSymbol.MustNotBeRenamed = true
-	}
+	newSymbol.MergeContentsWith(oldSymbol)
 }
 
 type mergeResult int
@@ -1594,7 +1591,7 @@ func (p *parser) hoistSymbols(scope *js_ast.Scope) {
 				//   assert(obj.foo === 2)
 				//
 				if s.Kind == js_ast.ScopeWith {
-					symbol.MustNotBeRenamed = true
+					symbol.Flags |= js_ast.MustNotBeRenamed
 				}
 
 				if existingMember, ok := s.Members[symbol.OriginalName]; ok {
@@ -5398,7 +5395,7 @@ func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_as
 	// be called "arguments", in which case the real "arguments" is inaccessible.
 	if _, ok := p.currentScope.Members["arguments"]; !ok {
 		fn.ArgumentsRef = p.declareSymbol(js_ast.SymbolArguments, fn.OpenParenLoc, "arguments")
-		p.symbols[fn.ArgumentsRef.InnerIndex].MustNotBeRenamed = true
+		p.symbols[fn.ArgumentsRef.InnerIndex].Flags |= js_ast.MustNotBeRenamed
 	}
 
 	p.lexer.Expect(js_lexer.TCloseParen)
@@ -7225,7 +7222,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 	// property on the target object of the "with" statement. We must not rename
 	// it or we risk changing the behavior of the code.
 	if isInsideWithScope {
-		p.symbols[ref.InnerIndex].MustNotBeRenamed = true
+		p.symbols[ref.InnerIndex].Flags |= js_ast.MustNotBeRenamed
 	}
 
 	// Track how many times we've referenced this symbol
@@ -7603,7 +7600,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 							// case there is actually more than one use even though it says
 							// there is only one. The "__name" use isn't counted so that
 							// tree shaking still works when names are kept.
-							if symbol := p.symbols[id.Ref.InnerIndex]; symbol.UseCountEstimate == 1 && !symbol.DidKeepName {
+							if symbol := p.symbols[id.Ref.InnerIndex]; symbol.UseCountEstimate == 1 && !symbol.Flags.Has(js_ast.DidKeepName) {
 								// Try to substitute the identifier with the initializer. This will
 								// fail if something with side effects is in between the declaration
 								// and the usage.
@@ -8875,7 +8872,7 @@ func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr 
 }
 
 func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string) js_ast.Stmt {
-	p.symbols[ref.InnerIndex].DidKeepName = true
+	p.symbols[ref.InnerIndex].Flags |= js_ast.DidKeepName
 
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
 		Value: p.callRuntime(loc, "__name", []js_ast.Expr{
@@ -10002,7 +9999,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 			//
 			// The private getter must be lowered too.
 			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
-				p.symbols[private.Ref.InnerIndex].PrivateSymbolMustBeLowered = true
+				p.symbols[private.Ref.InnerIndex].Flags |= js_ast.PrivateSymbolMustBeLowered
 			}
 		}
 	}
@@ -10013,7 +10010,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		for _, prop := range class.Properties {
 			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
 				if symbol := &p.symbols[private.Ref.InnerIndex]; p.classPrivateBrandChecksToLower[symbol.OriginalName] {
-					symbol.PrivateSymbolMustBeLowered = true
+					symbol.Flags |= js_ast.PrivateSymbolMustBeLowered
 				}
 			}
 		}
@@ -11345,10 +11342,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// If the tag is an identifier, mark it as needing to be upper-case
 			switch tag := e.TagOrNil.Data.(type) {
 			case *js_ast.EIdentifier:
-				p.symbols[tag.Ref.InnerIndex].MustStartWithCapitalLetterForJSX = true
+				p.symbols[tag.Ref.InnerIndex].Flags |= js_ast.MustStartWithCapitalLetterForJSX
 
 			case *js_ast.EImportIdentifier:
-				p.symbols[tag.Ref.InnerIndex].MustStartWithCapitalLetterForJSX = true
+				p.symbols[tag.Ref.InnerIndex].Flags |= js_ast.MustStartWithCapitalLetterForJSX
 			}
 		} else {
 			// A missing tag is a fragment

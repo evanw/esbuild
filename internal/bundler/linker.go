@@ -5319,7 +5319,7 @@ func preventBindingsFromBeingRenamed(binding js_ast.Binding, symbols js_ast.Symb
 	case *js_ast.BMissing:
 
 	case *js_ast.BIdentifier:
-		symbols.Get(b.Ref).MustNotBeRenamed = true
+		symbols.Get(b.Ref).Flags |= js_ast.MustNotBeRenamed
 
 	case *js_ast.BArray:
 		for _, i := range b.Items {
@@ -5400,7 +5400,7 @@ func (c *linkerContext) preventExportsFromBeingRenamed(sourceIndex uint32) {
 	// <script> tag). All symbols in nested scopes are still minified.
 	if !hasImportOrExport {
 		for _, member := range repr.AST.ModuleScope.Members {
-			c.graph.Symbols.Get(member.Ref).MustNotBeRenamed = true
+			c.graph.Symbols.Get(member.Ref).Flags |= js_ast.MustNotBeRenamed
 		}
 	}
 }

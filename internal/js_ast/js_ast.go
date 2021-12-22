@@ -1487,94 +1487,27 @@ const (
 	ImportItemMissing
 )
 
-// Note: the order of values in this struct matters to reduce struct size.
-type Symbol struct {
-	// This is the name that came from the parser. Printed names may be renamed
-	// during minification or to avoid name collisions. Do not use the original
-	// name during printing.
-	OriginalName string
+type SymbolFlags uint8
 
-	// This is used for symbols that represent items in the import clause of an
-	// ES6 import statement. These should always be referenced by EImportIdentifier
-	// instead of an EIdentifier. When this is present, the expression should
-	// be printed as a property access off the namespace instead of as a bare
-	// identifier.
-	//
-	// For correctness, this must be stored on the symbol instead of indirectly
-	// associated with the Ref for the symbol somehow. In ES6 "flat bundling"
-	// mode, re-exported symbols are collapsed using MergeSymbols() and renamed
-	// symbols from other files that end up at this symbol must be able to tell
-	// if it has a namespace alias.
-	NamespaceAlias *NamespaceAlias
-
-	// Used by the parser for single pass parsing. Symbols that have been merged
-	// form a linked-list where the last link is the symbol to use. This link is
-	// an invalid ref if it's the last link. If this isn't invalid, you need to
-	// FollowSymbols to get the real one.
-	Link Ref
-
-	// An estimate of the number of uses of this symbol. This is used to detect
-	// whether a symbol is used or not. For example, TypeScript imports that are
-	// unused must be removed because they are probably type-only imports. This
-	// is an estimate and may not be completely accurate due to oversights in the
-	// code. But it should always be non-zero when the symbol is used.
-	UseCountEstimate uint32
-
-	// This is for generating cross-chunk imports and exports for code splitting.
-	ChunkIndex ast.Index32
-
-	// This is used for minification. Symbols that are declared in sibling scopes
-	// can share a name. A good heuristic (from Google Closure Compiler) is to
-	// assign names to symbols from sibling scopes in declaration order. That way
-	// local variable names are reused in each global function like this, which
-	// improves gzip compression:
-	//
-	//   function x(a, b) { ... }
-	//   function y(a, b, c) { ... }
-	//
-	// The parser fills this in for symbols inside nested scopes. There are three
-	// slot namespaces: regular symbols, label symbols, and private symbols.
-	NestedScopeSlot ast.Index32
-
-	Kind SymbolKind
-
+const (
 	// Certain symbols must not be renamed or minified. For example, the
 	// "arguments" variable is declared by the runtime for every function.
 	// Renaming can also break any identifier used inside a "with" statement.
-	MustNotBeRenamed bool
+	MustNotBeRenamed SymbolFlags = 1 << iota
 
 	// In React's version of JSX, lower-case names are strings while upper-case
 	// names are identifiers. If we are preserving JSX syntax (i.e. not
 	// transforming it), then we need to be careful to name the identifiers
 	// something with a capital letter so further JSX processing doesn't treat
 	// them as strings instead.
-	MustStartWithCapitalLetterForJSX bool
+	MustStartWithCapitalLetterForJSX
 
 	// If true, this symbol is the target of a "__name" helper function call.
 	// This call is special because it deliberately doesn't count as a use
 	// of the symbol (otherwise keeping names would disable tree shaking)
 	// so "UseCountEstimate" is not incremented. This flag helps us know to
 	// avoid optimizing this symbol when "UseCountEstimate" is 1 in this case.
-	DidKeepName bool
-
-	// We automatically generate import items for property accesses off of
-	// namespace imports. This lets us remove the expensive namespace imports
-	// while bundling in many cases, replacing them with a cheap import item
-	// instead:
-	//
-	//   import * as ns from 'path'
-	//   ns.foo()
-	//
-	// That can often be replaced by this, which avoids needing the namespace:
-	//
-	//   import {foo} from 'path'
-	//   foo()
-	//
-	// However, if the import is actually missing then we don't want to report a
-	// compile-time error like we do for real import items. This status lets us
-	// avoid this. We also need to be able to replace such import items with
-	// undefined, which this status is also used for.
-	ImportItemStatus ImportItemStatus
+	DidKeepName
 
 	// Sometimes we lower private symbols even if they are supported. For example,
 	// consider the following TypeScript code:
@@ -1627,7 +1560,97 @@ type Symbol struct {
 	//   };
 	//   Foo.#foo = Foo;
 	//
-	PrivateSymbolMustBeLowered bool
+	PrivateSymbolMustBeLowered
+)
+
+func (flags SymbolFlags) Has(flag SymbolFlags) bool {
+	return (flags & flag) != 0
+}
+
+// Note: the order of values in this struct matters to reduce struct size.
+type Symbol struct {
+	// This is the name that came from the parser. Printed names may be renamed
+	// during minification or to avoid name collisions. Do not use the original
+	// name during printing.
+	OriginalName string
+
+	// This is used for symbols that represent items in the import clause of an
+	// ES6 import statement. These should always be referenced by EImportIdentifier
+	// instead of an EIdentifier. When this is present, the expression should
+	// be printed as a property access off the namespace instead of as a bare
+	// identifier.
+	//
+	// For correctness, this must be stored on the symbol instead of indirectly
+	// associated with the Ref for the symbol somehow. In ES6 "flat bundling"
+	// mode, re-exported symbols are collapsed using MergeSymbols() and renamed
+	// symbols from other files that end up at this symbol must be able to tell
+	// if it has a namespace alias.
+	NamespaceAlias *NamespaceAlias
+
+	// Used by the parser for single pass parsing. Symbols that have been merged
+	// form a linked-list where the last link is the symbol to use. This link is
+	// an invalid ref if it's the last link. If this isn't invalid, you need to
+	// FollowSymbols to get the real one.
+	Link Ref
+
+	// An estimate of the number of uses of this symbol. This is used to detect
+	// whether a symbol is used or not. For example, TypeScript imports that are
+	// unused must be removed because they are probably type-only imports. This
+	// is an estimate and may not be completely accurate due to oversights in the
+	// code. But it should always be non-zero when the symbol is used.
+	UseCountEstimate uint32
+
+	// This is for generating cross-chunk imports and exports for code splitting.
+	ChunkIndex ast.Index32
+
+	// This is used for minification. Symbols that are declared in sibling scopes
+	// can share a name. A good heuristic (from Google Closure Compiler) is to
+	// assign names to symbols from sibling scopes in declaration order. That way
+	// local variable names are reused in each global function like this, which
+	// improves gzip compression:
+	//
+	//   function x(a, b) { ... }
+	//   function y(a, b, c) { ... }
+	//
+	// The parser fills this in for symbols inside nested scopes. There are three
+	// slot namespaces: regular symbols, label symbols, and private symbols.
+	NestedScopeSlot ast.Index32
+
+	Kind SymbolKind
+
+	// We automatically generate import items for property accesses off of
+	// namespace imports. This lets us remove the expensive namespace imports
+	// while bundling in many cases, replacing them with a cheap import item
+	// instead:
+	//
+	//   import * as ns from 'path'
+	//   ns.foo()
+	//
+	// That can often be replaced by this, which avoids needing the namespace:
+	//
+	//   import {foo} from 'path'
+	//   foo()
+	//
+	// However, if the import is actually missing then we don't want to report a
+	// compile-time error like we do for real import items. This status lets us
+	// avoid this. We also need to be able to replace such import items with
+	// undefined, which this status is also used for.
+	ImportItemStatus ImportItemStatus
+
+	// Boolean values should all be flags instead to save space
+	Flags SymbolFlags
+}
+
+// You should call "MergeSymbols" instead of calling this directly
+func (newSymbol *Symbol) MergeContentsWith(oldSymbol *Symbol) {
+	newSymbol.UseCountEstimate += oldSymbol.UseCountEstimate
+	if oldSymbol.Flags.Has(MustNotBeRenamed) {
+		newSymbol.OriginalName = oldSymbol.OriginalName
+		newSymbol.Flags |= MustNotBeRenamed
+	}
+	if oldSymbol.Flags.Has(MustStartWithCapitalLetterForJSX) {
+		newSymbol.Flags |= MustStartWithCapitalLetterForJSX
+	}
 }
 
 type SlotNamespace uint8
@@ -1640,7 +1663,7 @@ const (
 )
 
 func (s *Symbol) SlotNamespace() SlotNamespace {
-	if s.Kind == SymbolUnbound || s.MustNotBeRenamed {
+	if s.Kind == SymbolUnbound || s.Flags.Has(MustNotBeRenamed) {
 		return SlotMustNotBeRenamed
 	}
 	if s.Kind.IsPrivate() {
@@ -2242,14 +2265,7 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	}
 
 	oldSymbol.Link = new
-	newSymbol.UseCountEstimate += oldSymbol.UseCountEstimate
-	if oldSymbol.MustNotBeRenamed {
-		newSymbol.OriginalName = oldSymbol.OriginalName
-		newSymbol.MustNotBeRenamed = true
-	}
-	if oldSymbol.MustStartWithCapitalLetterForJSX {
-		newSymbol.MustStartWithCapitalLetterForJSX = true
-	}
+	newSymbol.MergeContentsWith(oldSymbol)
 	return new
 }
 
