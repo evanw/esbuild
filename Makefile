@@ -307,7 +307,7 @@ platform-neutral: esbuild
 platform-deno: esbuild
 	node scripts/esbuild.js ./esbuild --deno
 
-publish-all:
+publish-all: check-go-version
 	@npm --version > /dev/null || (echo "The 'npm' command must be in your path to publish" && false)
 	@echo "Checking for uncommitted/untracked changes..." && test -z "`git status --porcelain | grep -vE 'M (CHANGELOG\.md|version\.txt)'`" || \
 		(echo "Refusing to publish with these uncommitted/untracked changes:" && \
