@@ -24,10 +24,10 @@ import (
 	"github.com/evanw/esbuild/pkg/cli"
 )
 
-type responseCallback = func(interface{})
-type rebuildCallback = func(uint32) []byte
-type watchStopCallback = func()
-type serverStopCallback = func()
+type responseCallback func(interface{})
+type rebuildCallback func(uint32) []byte
+type watchStopCallback func()
+type serverStopCallback func()
 
 type serviceType struct {
 	mutex           sync.Mutex
@@ -631,7 +631,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				result := api.OnStartResult{}
 
 				response := service.sendRequest(map[string]interface{}{
-					"command": "start",
+					"command": "on-start",
 					"key":     key,
 				}).(map[string]interface{})
 
@@ -685,7 +685,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				}
 
 				response := service.sendRequest(map[string]interface{}{
-					"command":    "resolve",
+					"command":    "on-resolve",
 					"key":        key,
 					"ids":        ids,
 					"path":       args.Path,
@@ -764,7 +764,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				}
 
 				response := service.sendRequest(map[string]interface{}{
-					"command":    "load",
+					"command":    "on-load",
 					"key":        key,
 					"ids":        ids,
 					"path":       args.Path,

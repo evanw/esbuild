@@ -539,21 +539,21 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           break;
         }
 
-        case 'start': {
+        case 'on-start': {
           let callback = pluginCallbacks.get(request.key);
           if (!callback) sendResponse(id, {});
           else sendResponse(id, await callback!(request) as any);
           break;
         }
 
-        case 'resolve': {
+        case 'on-resolve': {
           let callback = pluginCallbacks.get(request.key);
           if (!callback) sendResponse(id, {});
           else sendResponse(id, await callback!(request) as any);
           break;
         }
 
-        case 'load': {
+        case 'on-load': {
           let callback = pluginCallbacks.get(request.key);
           if (!callback) sendResponse(id, {});
           else sendResponse(id, await callback!(request) as any);
@@ -749,7 +749,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
     const callback: PluginCallback = async (request) => {
       switch (request.command) {
-        case 'start': {
+        case 'on-start': {
           let response: protocol.OnStartResponse = { errors: [], warnings: [] };
           await Promise.all(onStartCallbacks.map(async ({ name, callback, note }) => {
             try {
@@ -772,7 +772,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           return response;
         }
 
-        case 'resolve': {
+        case 'on-resolve': {
           let response: protocol.OnResolveResponse = {}, name = '', callback, note;
           for (let id of request.ids) {
             try {
@@ -823,7 +823,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           return response;
         }
 
-        case 'load': {
+        case 'on-load': {
           let response: protocol.OnLoadResponse = {}, name = '', callback, note;
           for (let id of request.ids) {
             try {

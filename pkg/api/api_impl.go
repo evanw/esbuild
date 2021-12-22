@@ -1203,7 +1203,7 @@ func (w *watcher) tryToFindDirtyPath() string {
 			items = append(items, path)
 		}
 		rand.Seed(time.Now().UnixNano())
-		for i := int32(len(items) - 1); i > 0; i-- { // Fisher–Yates shuffle
+		for i := int32(len(items) - 1); i > 0; i-- { // Fisher-Yates shuffle
 			j := rand.Int31n(i + 1)
 			items[i], items[j] = items[j], items[i]
 		}
@@ -1421,7 +1421,7 @@ type pluginImpl struct {
 	plugin config.Plugin
 }
 
-func (impl *pluginImpl) OnStart(callback func() (OnStartResult, error)) {
+func (impl *pluginImpl) onStart(callback func() (OnStartResult, error)) {
 	impl.plugin.OnStart = append(impl.plugin.OnStart, config.OnStart{
 		Name: impl.plugin.Name,
 		Callback: func() (result config.OnStartResult) {
@@ -1445,7 +1445,28 @@ func (impl *pluginImpl) OnStart(callback func() (OnStartResult, error)) {
 	})
 }
 
-func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error)) {
+func importKindToResolveKind(kind ast.ImportKind) ResolveKind {
+	switch kind {
+	case ast.ImportEntryPoint:
+		return ResolveEntryPoint
+	case ast.ImportStmt:
+		return ResolveJSImportStatement
+	case ast.ImportRequire:
+		return ResolveJSRequireCall
+	case ast.ImportDynamic:
+		return ResolveJSDynamicImport
+	case ast.ImportRequireResolve:
+		return ResolveJSRequireResolve
+	case ast.ImportAt, ast.ImportAtConditional:
+		return ResolveCSSImportRule
+	case ast.ImportURL:
+		return ResolveCSSURLToken
+	default:
+		panic("Internal error")
+	}
+}
+
+func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnResolve", options.Filter)
 	if filter == nil {
 		impl.log.Add(logger.Error, nil, logger.Range{}, err.Error())
@@ -1457,32 +1478,12 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 		Filter:    filter,
 		Namespace: options.Namespace,
 		Callback: func(args config.OnResolveArgs) (result config.OnResolveResult) {
-			var kind ResolveKind
-			switch args.Kind {
-			case ast.ImportEntryPoint:
-				kind = ResolveEntryPoint
-			case ast.ImportStmt:
-				kind = ResolveJSImportStatement
-			case ast.ImportRequire:
-				kind = ResolveJSRequireCall
-			case ast.ImportDynamic:
-				kind = ResolveJSDynamicImport
-			case ast.ImportRequireResolve:
-				kind = ResolveJSRequireResolve
-			case ast.ImportAt, ast.ImportAtConditional:
-				kind = ResolveCSSImportRule
-			case ast.ImportURL:
-				kind = ResolveCSSURLToken
-			default:
-				panic("Internal error")
-			}
-
 			response, err := callback(OnResolveArgs{
 				Path:       args.Path,
 				Importer:   args.Importer.Text,
 				Namespace:  args.Importer.Namespace,
 				ResolveDir: args.ResolveDir,
-				Kind:       kind,
+				Kind:       importKindToResolveKind(args.Kind),
 				PluginData: args.PluginData,
 			})
 			result.PluginName = response.PluginName
@@ -1521,7 +1522,7 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 	})
 }
 
-func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error)) {
+func (impl *pluginImpl) onLoad(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnLoad", options.Filter)
 	if filter == nil {
 		impl.log.Add(logger.Error, nil, logger.Range{}, err.Error())
@@ -1602,10 +1603,10 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (plugin
 
 		item.Setup(PluginBuild{
 			InitialOptions: initialOptions,
-			OnStart:        impl.OnStart,
+			OnStart:        impl.onStart,
 			OnEnd:          onEnd,
-			OnResolve:      impl.OnResolve,
-			OnLoad:         impl.OnLoad,
+			OnResolve:      impl.onResolve,
+			OnLoad:         impl.onLoad,
 		})
 
 		plugins = append(plugins, impl.plugin)

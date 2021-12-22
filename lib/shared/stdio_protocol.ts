@@ -138,7 +138,7 @@ export interface AnalyzeMetafileResponse {
 }
 
 export interface OnStartRequest {
-  command: 'start';
+  command: 'on-start';
   key: number;
 }
 
@@ -148,7 +148,7 @@ export interface OnStartResponse {
 }
 
 export interface OnResolveRequest {
-  command: 'resolve';
+  command: 'on-resolve';
   key: number;
   ids: number[];
   path: string;
@@ -178,7 +178,7 @@ export interface OnResolveResponse {
 }
 
 export interface OnLoadRequest {
-  command: 'load';
+  command: 'on-load';
   key: number;
   ids: number[];
   path: string;

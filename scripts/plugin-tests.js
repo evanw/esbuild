@@ -2055,6 +2055,7 @@ let pluginTests = {
     let esbuildFromBuild
     await esbuild.build({
       entryPoints: ['xyz'],
+      write: false,
       plugins: [{
         name: 'plugin',
         setup(build) {
@@ -2067,7 +2068,7 @@ let pluginTests = {
     assert.deepStrictEqual({ ...esbuildFromBuild }, { ...esbuild })
   },
 
-  async onResolveInvalidPathSuffix({ testDir, esbuild }) {
+  async onResolveInvalidPathSuffix({ esbuild }) {
     try {
       await esbuild.build({
         entryPoints: ['foo'],
