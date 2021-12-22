@@ -12148,6 +12148,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: -number}}, exprOut{}
 				}
 
+			case js_ast.UnOpCpl:
+				if p.shouldFoldNumericConstants {
+					if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
+						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(^toInt32(number))}}, exprOut{}
+					}
+				}
+
 				////////////////////////////////////////////////////////////////////////////////
 				// All assignment operators below here
 

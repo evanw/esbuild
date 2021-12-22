@@ -1239,6 +1239,10 @@ func TestTSEnumConstantFolding(t *testing.T) {
 
 	expectPrintedTS(t, `
 		enum Foo {
+			pos = +54321012345,
+			neg = -54321012345,
+			cpl = ~54321012345,
+
 			shl0 = 987654321 << 2,
 			shl1 = 987654321 << 31,
 			shl2 = 987654321 << 34,
@@ -1256,6 +1260,9 @@ func TestTSEnumConstantFolding(t *testing.T) {
 			bitxor = 0xDEADF00D ^ 0xBADCAFE,
 		}
 	`, `var Foo = /* @__PURE__ */ ((Foo) => {
+  Foo[Foo["pos"] = 54321012345] = "pos";
+  Foo[Foo["neg"] = -54321012345] = "neg";
+  Foo[Foo["cpl"] = 1513562502] = "cpl";
   Foo[Foo["shl0"] = -344350012] = "shl0";
   Foo[Foo["shl1"] = -2147483648] = "shl1";
   Foo[Foo["shl2"] = -344350012] = "shl2";
