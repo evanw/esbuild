@@ -22,18 +22,25 @@ test-all:
 check-go-version:
 	@go version | grep ' go1\.17\.5 ' || (echo 'Please install Go version 1.17.5' && false)
 
-# This "ESBUILD_RACE" variable exists at the request of a user on GitHub who
-# wants to run "make test" on an unsupported version of macOS (version 10.9).
-# Go's race detector does not run correctly on that version. With this flag
-# you can run "ESBUILD_RACE= make test" to disable the race detector.
-ESBUILD_RACE ?= -race
-
+# Note: Don't add "-race" here by default. The Go race detector is currently
+# only supported on the following configurations:
+#
+#   darwin/amd64
+#   darwin/arm64
+#   freebsd/amd64,
+#   linux/amd64
+#   linux/arm64
+#   linux/ppc64le
+#   netbsd/amd64
+#   windows/amd64
+#
+# Also, it isn't necessarily supported on older OS versions even if the OS/CPU
+# combination is supported, such as on macOS 10.9. If you want to test using
+# the race detector, you can manually add it using the ESBUILD_RACE environment
+# variable like this: "ESBUILD_RACE=-race make test". Or you can permanently
+# enable it by adding "export ESBUILD_RACE=-race" to your shell profile.
 test-go:
-ifeq (s390x,$(shell uname -p))
-	go test ./internal/...
-else
 	go test $(ESBUILD_RACE) ./internal/...
-endif
 
 vet-go:
 	go vet ./cmd/... ./internal/... ./pkg/...
