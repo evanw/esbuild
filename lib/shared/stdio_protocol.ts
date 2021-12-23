@@ -146,6 +146,30 @@ export interface OnStartResponse {
   warnings?: types.PartialMessage[];
 }
 
+export interface ResolveRequest {
+  command: 'resolve';
+  key: number;
+  path: string;
+  pluginName: string;
+  importer?: string;
+  namespace?: string;
+  resolveDir?: string;
+  kind?: string;
+  pluginData?: number;
+}
+
+export interface ResolveResponse {
+  errors: types.Message[];
+  warnings: types.Message[];
+
+  path: string;
+  external: boolean;
+  sideEffects: boolean;
+  namespace: string;
+  suffix: string;
+  pluginData: number;
+}
+
 export interface OnResolveRequest {
   command: 'on-resolve';
   key: number;

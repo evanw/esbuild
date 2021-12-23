@@ -451,10 +451,32 @@ type Plugin struct {
 
 type PluginBuild struct {
 	InitialOptions *BuildOptions
+	Resolve        func(path string, options ResolveOptions) ResolveResult
 	OnStart        func(callback func() (OnStartResult, error))
 	OnEnd          func(callback func(result *BuildResult))
 	OnResolve      func(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
 	OnLoad         func(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
+}
+
+type ResolveOptions struct {
+	PluginName string
+	Importer   string
+	Namespace  string
+	ResolveDir string
+	Kind       ResolveKind
+	PluginData interface{}
+}
+
+type ResolveResult struct {
+	Errors   []Message
+	Warnings []Message
+
+	Path        string
+	External    bool
+	SideEffects bool
+	Namespace   string
+	Suffix      string
+	PluginData  interface{}
 }
 
 type OnStartResult struct {

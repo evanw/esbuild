@@ -631,6 +631,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     plugins: types.Plugin[],
     buildKey: number,
     stash: ObjectStash,
+    refs: Refs | null,
   ): Promise<
     | { ok: true, requestPlugins: protocol.BuildPlugin[], runOnEndCallbacks: RunOnEndCallbacks, pluginRefs: Refs }
     | { ok: false, error: any, pluginName: string }
@@ -668,6 +669,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let nextCallbackID = 0;
     let i = 0;
     let requestPlugins: protocol.BuildPlugin[] = [];
+    let isSetupDone = false;
 
     // Clone the plugin array to guard against mutation during iteration
     plugins = [...plugins];
@@ -675,7 +677,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     for (let item of plugins) {
       let keys: OptionKeys = {};
       if (typeof item !== 'object') throw new Error(`Plugin at index ${i} must be an object`);
-      let name = getFlag(item, keys, 'name', mustBeString);
+      const name = getFlag(item, keys, 'name', mustBeString);
       if (typeof name !== 'string' || name === '') throw new Error(`Plugin at index ${i} is missing a name`);
       try {
         let setup = getFlag(item, keys, 'setup', mustBeFunction);
@@ -689,8 +691,50 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         };
         i++;
 
+        let resolve = (path: string, options: types.ResolveOptions = {}): Promise<types.ResolveResult> => {
+          if (!isSetupDone) throw new Error('Cannot call "resolve" before plugin setup has completed');
+          if (typeof path !== 'string') throw new Error(`The path to resolve must be a string`);
+          let keys: OptionKeys = Object.create(null);
+          let importer = getFlag(options, keys, 'importer', mustBeString);
+          let namespace = getFlag(options, keys, 'namespace', mustBeString);
+          let resolveDir = getFlag(options, keys, 'resolveDir', mustBeString);
+          let kind = getFlag(options, keys, 'kind', mustBeString);
+          let pluginData = getFlag(options, keys, 'pluginData', canBeAnything);
+          checkForInvalidFlags(options, keys, 'in resolve() call');
+
+          return new Promise((resolve, reject) => {
+            const request: protocol.ResolveRequest = {
+              command: 'resolve',
+              path,
+              key: buildKey,
+              pluginName: name,
+            }
+            if (importer != null) request.importer = importer
+            if (namespace != null) request.namespace = namespace
+            if (resolveDir != null) request.resolveDir = resolveDir
+            if (kind != null) request.kind = kind
+            if (pluginData != null) request.pluginData = stash.store(pluginData)
+
+            sendRequest<protocol.ResolveRequest, protocol.ResolveResponse>(refs, request, (error, response) => {
+              if (error !== null) reject(new Error(error))
+              else resolve({
+                errors: replaceDetailsInMessages(response!.errors, stash),
+                warnings: replaceDetailsInMessages(response!.warnings, stash),
+                path: response!.path,
+                external: response!.external,
+                sideEffects: response!.sideEffects,
+                namespace: response!.namespace,
+                suffix: response!.suffix,
+                pluginData: stash.load(response!.pluginData),
+              })
+            })
+          })
+        }
+
         let promise = setup({
           initialOptions,
+
+          resolve,
 
           onStart(callback) {
             let registeredText = `This error came from the "onStart" callback registered here:`
@@ -889,6 +933,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       }
     }
 
+    isSetupDone = true;
     let refCount = 0;
     return {
       ok: true,
@@ -972,7 +1017,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       if (streamIn.isSync) return handleError(new Error('Cannot use plugins in synchronous API calls'), '');
 
       // Plugins can use async/await because they can't be run with "buildSync"
-      handlePlugins(options, plugins, key, details).then(
+      handlePlugins(options, plugins, key, details, refs).then(
         result => {
           if (!result.ok) {
             handleError(result.error, result.pluginName);

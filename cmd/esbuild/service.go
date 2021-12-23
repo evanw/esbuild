@@ -28,13 +28,15 @@ type responseCallback func(interface{})
 type rebuildCallback func(uint32) []byte
 type watchStopCallback func()
 type serveStopCallback func()
+type pluginResolveCallback func(uint32, map[string]interface{}) []byte
 
 type activeBuild struct {
-	mutex     sync.Mutex
-	refCount  int
-	rebuild   rebuildCallback
-	watchStop watchStopCallback
-	serveStop serveStopCallback
+	mutex         sync.Mutex
+	refCount      int
+	rebuild       rebuildCallback
+	watchStop     watchStopCallback
+	serveStop     serveStopCallback
+	pluginResolve pluginResolveCallback
 }
 
 type serviceType struct {
@@ -56,8 +58,11 @@ func (service *serviceType) getActiveBuild(key int) *activeBuild {
 func (service *serviceType) trackActiveBuild(key int, activeBuild *activeBuild) {
 	if activeBuild.refCount > 0 {
 		service.mutex.Lock()
+		defer service.mutex.Unlock()
+		if service.activeBuilds[key] != nil {
+			panic("Internal error")
+		}
 		service.activeBuilds[key] = activeBuild
-		service.mutex.Unlock()
 
 		// This pairs with "Done()" in "decRefCount"
 		service.keepAliveWaitGroup.Add(1)
@@ -229,6 +234,27 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 		case "transform":
 			return outgoingPacket{
 				bytes: service.handleTransformRequest(p.id, request),
+			}
+
+		case "resolve":
+			key := request["key"].(int)
+			if build := service.getActiveBuild(key); build != nil {
+				build.mutex.Lock()
+				pluginResolve := build.pluginResolve
+				build.mutex.Unlock()
+				if pluginResolve != nil {
+					return outgoingPacket{
+						bytes: pluginResolve(p.id, request),
+					}
+				}
+			}
+			return outgoingPacket{
+				bytes: encodePacket(packet{
+					id: p.id,
+					value: map[string]interface{}{
+						"error": "Cannot call \"resolve\" on an inactive build",
+					},
+				}),
 			}
 
 		case "rebuild":
@@ -418,8 +444,12 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		}
 	}
 
+	activeBuild := &activeBuild{refCount: 1}
+	service.trackActiveBuild(key, activeBuild)
+	defer service.decRefCount(key, activeBuild)
+
 	if plugins, ok := request["plugins"]; ok {
-		if plugins, err := service.convertPlugins(key, plugins); err != nil {
+		if plugins, err := service.convertPlugins(key, plugins, activeBuild); err != nil {
 			return outgoingPacket{bytes: encodeErrorPacket(id, err)}
 		} else {
 			options.Plugins = plugins
@@ -427,7 +457,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	}
 
 	if isServe {
-		return service.handleServeRequest(id, options, serveObj, key)
+		return service.handleServeRequest(id, options, serveObj, key, activeBuild)
 	}
 
 	resultToResponse := func(result api.BuildResult) map[string]interface{} {
@@ -466,8 +496,6 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	options.Incremental = incremental
 	result := api.Build(options)
 	response := resultToResponse(result)
-	activeBuild := &activeBuild{refCount: 1}
-	service.trackActiveBuild(key, activeBuild)
 
 	if incremental {
 		activeBuild.rebuild = func(id uint32) []byte {
@@ -492,7 +520,6 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		activeBuild.refCount++
 	}
 
-	service.decRefCount(key, activeBuild)
 	return outgoingPacket{
 		bytes: encodePacket(packet{
 			id:    id,
@@ -501,7 +528,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	}
 }
 
-func (service *serviceType) handleServeRequest(id uint32, options api.BuildOptions, serveObj interface{}, key int) outgoingPacket {
+func (service *serviceType) handleServeRequest(id uint32, options api.BuildOptions, serveObj interface{}, key int, activeBuild *activeBuild) outgoingPacket {
 	var serveOptions api.ServeOptions
 	serve := serveObj.(map[string]interface{})
 	if port, ok := serve["port"]; ok {
@@ -535,11 +562,8 @@ func (service *serviceType) handleServeRequest(id uint32, options api.BuildOptio
 		"host": result.Host,
 	}
 
-	activeBuild := &activeBuild{
-		refCount:  1, // Make sure the serve doesn't finish until "Wait" finishes
-		serveStop: result.Stop,
-	}
-	service.trackActiveBuild(key, activeBuild)
+	activeBuild.refCount++ // Make sure the serve doesn't finish until "Wait" finishes
+	activeBuild.serveStop = result.Stop
 
 	// Asynchronously wait for the server to stop, then fulfil the "wait" promise
 	go func() {
@@ -566,9 +590,58 @@ func (service *serviceType) handleServeRequest(id uint32, options api.BuildOptio
 	}
 }
 
-func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]api.Plugin, error) {
-	var goPlugins []api.Plugin
+func resolveKindToString(kind api.ResolveKind) string {
+	switch kind {
+	case api.ResolveEntryPoint:
+		return "entry-point"
 
+	// JS
+	case api.ResolveJSImportStatement:
+		return "import-statement"
+	case api.ResolveJSRequireCall:
+		return "require-call"
+	case api.ResolveJSDynamicImport:
+		return "dynamic-import"
+	case api.ResolveJSRequireResolve:
+		return "require-resolve"
+
+	// CSS
+	case api.ResolveCSSImportRule:
+		return "import-rule"
+	case api.ResolveCSSURLToken:
+		return "url-token"
+
+	default:
+		panic("Internal error")
+	}
+}
+
+func stringToResolveKind(kind string) (api.ResolveKind, bool) {
+	switch kind {
+	case "entry-point":
+		return api.ResolveEntryPoint, true
+
+	// JS
+	case "import-statement":
+		return api.ResolveJSImportStatement, true
+	case "require-call":
+		return api.ResolveJSRequireCall, true
+	case "dynamic-import":
+		return api.ResolveJSDynamicImport, true
+	case "require-resolve":
+		return api.ResolveJSRequireResolve, true
+
+	// CSS
+	case "import-rule":
+		return api.ResolveCSSImportRule, true
+	case "url-token":
+		return api.ResolveCSSURLToken, true
+	}
+
+	return api.ResolveEntryPoint, false
+}
+
+func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activeBuild *activeBuild) ([]api.Plugin, error) {
 	type filteredCallback struct {
 		filter     *regexp.Regexp
 		pluginName string
@@ -616,9 +689,59 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 	// We want to minimize the amount of IPC traffic. Instead of adding one Go
 	// plugin for every JavaScript plugin, we just add a single Go plugin that
 	// proxies the plugin queries to the list of JavaScript plugins in the host.
-	goPlugins = append(goPlugins, api.Plugin{
+	return []api.Plugin{{
 		Name: "JavaScript plugins",
 		Setup: func(build api.PluginBuild) {
+			activeBuild.mutex.Lock()
+			activeBuild.pluginResolve = func(id uint32, request map[string]interface{}) []byte {
+				path := request["path"].(string)
+				var options api.ResolveOptions
+				if value, ok := request["pluginName"]; ok {
+					options.PluginName = value.(string)
+				}
+				if value, ok := request["importer"]; ok {
+					options.Importer = value.(string)
+				}
+				if value, ok := request["namespace"]; ok {
+					options.Namespace = value.(string)
+				}
+				if value, ok := request["resolveDir"]; ok {
+					options.ResolveDir = value.(string)
+				}
+				if value, ok := request["kind"]; ok {
+					str := value.(string)
+					kind, ok := stringToResolveKind(str)
+					if !ok {
+						return encodePacket(packet{
+							id: id,
+							value: map[string]interface{}{
+								"error": fmt.Sprintf("Invalid kind: %q", str),
+							},
+						})
+					}
+					options.Kind = kind
+				}
+				if value, ok := request["pluginData"]; ok {
+					options.PluginData = value.(int)
+				}
+
+				result := build.Resolve(path, options)
+				return encodePacket(packet{
+					id: id,
+					value: map[string]interface{}{
+						"errors":      encodeMessages(result.Errors),
+						"warnings":    encodeMessages(result.Warnings),
+						"path":        result.Path,
+						"external":    result.External,
+						"sideEffects": result.SideEffects,
+						"namespace":   result.Namespace,
+						"suffix":      result.Suffix,
+						"pluginData":  result.PluginData,
+					},
+				})
+			}
+			activeBuild.mutex.Unlock()
+
 			build.OnStart(func() (api.OnStartResult, error) {
 				result := api.OnStartResult{}
 
@@ -651,31 +774,6 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 					return result, nil
 				}
 
-				var kind string
-				switch args.Kind {
-				case api.ResolveEntryPoint:
-					kind = "entry-point"
-
-				// JS
-				case api.ResolveJSImportStatement:
-					kind = "import-statement"
-				case api.ResolveJSRequireCall:
-					kind = "require-call"
-				case api.ResolveJSDynamicImport:
-					kind = "dynamic-import"
-				case api.ResolveJSRequireResolve:
-					kind = "require-resolve"
-
-				// CSS
-				case api.ResolveCSSImportRule:
-					kind = "import-rule"
-				case api.ResolveCSSURLToken:
-					kind = "url-token"
-
-				default:
-					panic("Internal error")
-				}
-
 				response := service.sendRequest(map[string]interface{}{
 					"command":    "on-resolve",
 					"key":        key,
@@ -684,7 +782,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 					"importer":   args.Importer,
 					"namespace":  args.Namespace,
 					"resolveDir": args.ResolveDir,
-					"kind":       kind,
+					"kind":       resolveKindToString(args.Kind),
 					"pluginData": args.PluginData,
 				}).(map[string]interface{})
 
@@ -813,9 +911,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}) ([]ap
 				return result, nil
 			})
 		},
-	})
-
-	return goPlugins, nil
+	}}, nil
 }
 
 func (service *serviceType) handleTransformRequest(id uint32, request map[string]interface{}) []byte {

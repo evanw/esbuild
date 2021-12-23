@@ -2218,6 +2218,141 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
     })
     assert.strictEqual(build.outputFiles[0].text, `// entry:entry\nimport "sideEffects";\n`)
   },
+
+  async callResolveTooEarlyError({ esbuild }) {
+    try {
+      await esbuild.build({
+        entryPoints: [],
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          async setup(build) {
+            await build.resolve('foo')
+          },
+        }],
+      })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert(e.message.includes('Cannot call "resolve" before plugin setup has completed'), e.message)
+    }
+  },
+
+  async callResolveTooLateError({ esbuild }) {
+    let resolve
+    await esbuild.build({
+      entryPoints: [],
+      plugins: [{
+        name: 'plugin',
+        async setup(build) {
+          resolve = build.resolve
+        },
+      }],
+    })
+    try {
+      const result = await resolve('foo')
+      console.log(result.errors)
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert(e.message.includes('Cannot call \"resolve\" on an inactive build'), e.message)
+    }
+  },
+
+  async callResolveBadKindError({ esbuild }) {
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          async setup(build) {
+            build.onResolve({ filter: /^entry$/ }, async () => {
+              return await build.resolve('foo', { kind: 'what' })
+            })
+          },
+        }],
+      })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert(e.message.includes('Invalid kind: "what"'), e.message)
+    }
+  },
+
+  // Test that user options are taken into account
+  async callResolveUserOptionsExternal({ esbuild, testDir }) {
+    const result = await esbuild.build({
+      stdin: { contents: `import "foo"` },
+      write: false,
+      bundle: true,
+      external: ['bar'],
+      format: 'esm',
+      plugins: [{
+        name: 'plugin',
+        async setup(build) {
+          build.onResolve({ filter: /^foo$/ }, async () => {
+            const result = await build.resolve('bar', { resolveDir: testDir })
+            assert(result.external)
+            return { path: 'baz', external: true }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(result.outputFiles[0].text, `// <stdin>\nimport "baz";\n`)
+  },
+
+  async callResolveBuiltInHandler({ esbuild, testDir }) {
+    const srcDir = path.join(testDir, 'src')
+    const input = path.join(srcDir, 'input.js')
+    await mkdirAsync(srcDir, { recursive: true })
+    await writeFileAsync(input, `console.log(123)`)
+    const result = await esbuild.build({
+      entryPoints: ['entry'],
+      write: false,
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /^entry$/ }, async () => {
+            return await build.resolve('./' + path.basename(input), { resolveDir: srcDir })
+          })
+        },
+      }],
+    })
+    assert.strictEqual(result.outputFiles[0].text, `console.log(123);\n`)
+  },
+
+  async callResolvePluginHandler({ esbuild, testDir }) {
+    const srcDir = path.join(testDir, 'src')
+    const input = path.join(srcDir, 'input.js')
+    await mkdirAsync(srcDir, { recursive: true })
+    await writeFileAsync(input, `console.log(123)`)
+    const result = await esbuild.build({
+      entryPoints: ['entry'],
+      write: false,
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /^entry$/ }, async () => {
+            return await build.resolve('foo', {
+              importer: 'foo-importer',
+              namespace: 'foo-namespace',
+              resolveDir: 'foo-resolveDir',
+              pluginData: 'foo-pluginData',
+              kind: 'dynamic-import',
+            })
+          })
+          build.onResolve({ filter: /^foo$/ }, async (args) => {
+            assert.strictEqual(args.path, 'foo')
+            assert.strictEqual(args.importer, 'foo-importer')
+            assert.strictEqual(args.namespace, 'foo-namespace')
+            assert.strictEqual(args.resolveDir, path.join(process.cwd(), 'foo-resolveDir'))
+            assert.strictEqual(args.pluginData, 'foo-pluginData')
+            assert.strictEqual(args.kind, 'dynamic-import')
+            return { path: input }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(result.outputFiles[0].text, `console.log(123);\n`)
+  },
 }
 
 // These tests have to run synchronously

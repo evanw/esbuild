@@ -393,7 +393,7 @@ func parseFile(args parseArgs) {
 				}
 
 				// Run the resolver and log an error if the path couldn't be resolved
-				resolveResult, didLogError, debug := runOnResolvePlugins(
+				resolveResult, didLogError, debug := RunOnResolvePlugins(
 					args.options.Plugins,
 					args.res,
 					args.log,
@@ -401,7 +401,7 @@ func parseFile(args parseArgs) {
 					&args.caches.FSCache,
 					&source,
 					record.Range,
-					source.KeyPath.Namespace,
+					source.KeyPath,
 					record.Path.Text,
 					record.Kind,
 					absResolveDir,
@@ -428,46 +428,9 @@ func parseFile(args parseArgs) {
 					// code pattern for conditionally importing a module with a graceful
 					// fallback.
 					if !didLogError && !record.Flags.Has(ast.HandlesImportErrors) {
-						hint := ""
-						if resolver.IsPackagePath(record.Path.Text) {
-							hint = fmt.Sprintf("You can mark the path %q as external to exclude it from the bundle, which will remove this error.", record.Path.Text)
-							if record.Kind == ast.ImportRequire {
-								hint += " You can also surround this \"require\" call with a try/catch block to handle this failure at run-time instead of bundle-time."
-							} else if record.Kind == ast.ImportDynamic {
-								hint += " You can also add \".catch()\" here to handle this failure at run-time instead of bundle-time."
-							}
-							if pluginName == "" && !args.fs.IsAbs(record.Path.Text) {
-								if query := args.res.ProbeResolvePackageAsRelative(absResolveDir, record.Path.Text, record.Kind); query != nil {
-									hint = fmt.Sprintf("Use the relative path %q to reference the file %q. "+
-										"Without the leading \"./\", the path %q is being interpreted as a package path instead.",
-										"./"+record.Path.Text, args.res.PrettyPath(query.PathPair.Primary), record.Path.Text)
-								}
-							}
-						}
-						if args.options.Platform != config.PlatformNode {
-							if _, ok := resolver.BuiltInNodeModules[record.Path.Text]; ok {
-								var how string
-								switch logger.API {
-								case logger.CLIAPI:
-									how = "--platform=node"
-								case logger.JSAPI:
-									how = "platform: 'node'"
-								case logger.GoAPI:
-									how = "Platform: api.PlatformNode"
-								}
-								hint = fmt.Sprintf("The package %q wasn't found on the file system but is built into node. "+
-									"Are you trying to bundle for node? You can use %q to do that, which will remove this error.", record.Path.Text, how)
-							}
-						}
-						if absResolveDir == "" && pluginName != "" {
-							hint = fmt.Sprintf("The plugin %q didn't set a resolve directory for the file %q, "+
-								"so esbuild did not search for %q on the file system.", pluginName, source.PrettyPath, record.Path.Text)
-						}
-						var notes []logger.MsgData
-						if hint != "" {
-							notes = append(notes, logger.MsgData{Text: hint})
-						}
-						debug.LogErrorMsg(args.log, &source, record.Range, fmt.Sprintf("Could not resolve %q", record.Path.Text), notes)
+						text, notes := ResolveFailureErrorTextAndNotes(args.res, record.Path.Text, record.Kind,
+							pluginName, args.fs, absResolveDir, args.options.Platform, source.PrettyPath)
+						debug.LogErrorMsg(args.log, &source, record.Range, text, notes)
 					} else if args.log.Level <= logger.LevelDebug && !didLogError && record.Flags.Has(ast.HandlesImportErrors) {
 						args.log.Add(logger.Debug, &tracker, record.Range,
 							fmt.Sprintf("Importing %q was allowed even though it could not be resolved because dynamic import failures appear to be handled here:",
@@ -503,6 +466,66 @@ func parseFile(args parseArgs) {
 	}
 
 	args.results <- result
+}
+
+func ResolveFailureErrorTextAndNotes(
+	res resolver.Resolver,
+	path string,
+	kind ast.ImportKind,
+	pluginName string,
+	fs fs.FS,
+	absResolveDir string,
+	platform config.Platform,
+	originatingFilePath string,
+) (string, []logger.MsgData) {
+	hint := ""
+
+	if resolver.IsPackagePath(path) {
+		hint = fmt.Sprintf("You can mark the path %q as external to exclude it from the bundle, which will remove this error.", path)
+		if kind == ast.ImportRequire {
+			hint += " You can also surround this \"require\" call with a try/catch block to handle this failure at run-time instead of bundle-time."
+		} else if kind == ast.ImportDynamic {
+			hint += " You can also add \".catch()\" here to handle this failure at run-time instead of bundle-time."
+		}
+		if pluginName == "" && !fs.IsAbs(path) {
+			if query := res.ProbeResolvePackageAsRelative(absResolveDir, path, kind); query != nil {
+				hint = fmt.Sprintf("Use the relative path %q to reference the file %q. "+
+					"Without the leading \"./\", the path %q is being interpreted as a package path instead.",
+					"./"+path, res.PrettyPath(query.PathPair.Primary), path)
+			}
+		}
+	}
+
+	if platform != config.PlatformNode {
+		if _, ok := resolver.BuiltInNodeModules[path]; ok {
+			var how string
+			switch logger.API {
+			case logger.CLIAPI:
+				how = "--platform=node"
+			case logger.JSAPI:
+				how = "platform: 'node'"
+			case logger.GoAPI:
+				how = "Platform: api.PlatformNode"
+			}
+			hint = fmt.Sprintf("The package %q wasn't found on the file system but is built into node. "+
+				"Are you trying to bundle for node? You can use %q to do that, which will remove this error.", path, how)
+		}
+	}
+
+	if absResolveDir == "" && pluginName != "" {
+		where := ""
+		if originatingFilePath != "" {
+			where = fmt.Sprintf(" for the file %q", originatingFilePath)
+		}
+		hint = fmt.Sprintf("The plugin %q didn't set a resolve directory%s, "+
+			"so esbuild did not search for %q on the file system.", pluginName, where, path)
+	}
+
+	var notes []logger.MsgData
+	if hint != "" {
+		notes = append(notes, logger.MsgData{Text: hint})
+	}
+	return fmt.Sprintf("Could not resolve %q", path), notes
 }
 
 func joinWithPublicPath(publicPath string, relPath string) string {
@@ -667,7 +690,7 @@ func logPluginMessages(
 	return didLogError
 }
 
-func runOnResolvePlugins(
+func RunOnResolvePlugins(
 	plugins []config.Plugin,
 	res resolver.Resolver,
 	log logger.Log,
@@ -675,7 +698,7 @@ func runOnResolvePlugins(
 	fsCache *cache.FSCache,
 	importSource *logger.Source,
 	importPathRange logger.Range,
-	importNamespace string,
+	importer logger.Path,
 	path string,
 	kind ast.ImportKind,
 	absResolveDir string,
@@ -686,15 +709,11 @@ func runOnResolvePlugins(
 		ResolveDir: absResolveDir,
 		Kind:       kind,
 		PluginData: pluginData,
+		Importer:   importer,
 	}
 	applyPath := logger.Path{
 		Text:      path,
-		Namespace: importNamespace,
-	}
-	if importSource != nil {
-		resolverArgs.Importer = importSource.KeyPath
-	} else {
-		resolverArgs.Importer.Namespace = importNamespace
+		Namespace: importer.Namespace,
 	}
 	tracker := logger.MakeLineColumnTracker(importSource)
 
@@ -1362,13 +1381,13 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 	entryPointWaitGroup.Add(len(entryPoints))
 	for i, entryPoint := range entryPoints {
 		go func(i int, entryPoint EntryPoint) {
-			namespace := ""
+			var importer logger.Path
 			if entryPoint.IsFile {
-				namespace = "file"
+				importer.Namespace = "file"
 			}
 
 			// Run the resolver and log an error if the path couldn't be resolved
-			resolveResult, didLogError, debug := runOnResolvePlugins(
+			resolveResult, didLogError, debug := RunOnResolvePlugins(
 				s.options.Plugins,
 				s.res,
 				s.log,
@@ -1376,7 +1395,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 				&s.caches.FSCache,
 				nil,
 				logger.Range{},
-				namespace,
+				importer,
 				entryPoint.InputPath,
 				ast.ImportEntryPoint,
 				entryPointAbsResolveDir,
