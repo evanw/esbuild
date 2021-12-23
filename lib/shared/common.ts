@@ -445,7 +445,6 @@ export function createChannel(streamIn: StreamIn): StreamOut {
   let pluginCallbacks = new Map<number, PluginCallback>();
   let watchCallbacks = new Map<number, WatchCallback>();
   let serveCallbacks = new Map<number, ServeCallbacks>();
-  let nextServeID = 0;
   let isClosed = false;
   let nextRequestID = 0;
   let nextBuildKey = 0;
@@ -561,21 +560,21 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         }
 
         case 'serve-request': {
-          let callbacks = serveCallbacks.get(request.serveID);
+          let callbacks = serveCallbacks.get(request.key);
           if (callbacks && callbacks.onRequest) callbacks.onRequest(request.args);
           sendResponse(id, {});
           break;
         }
 
         case 'serve-wait': {
-          let callbacks = serveCallbacks.get(request.serveID);
+          let callbacks = serveCallbacks.get(request.key);
           if (callbacks) callbacks.onWait(request.error);
           sendResponse(id, {});
           break;
         }
 
         case 'watch-rebuild': {
-          let callback = watchCallbacks.get(request.watchID);
+          let callback = watchCallbacks.get(request.key);
           try {
             if (callback) callback(null, request.args);
           } catch (err) {
@@ -907,34 +906,33 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     stop: () => void
   }
 
-  let buildServeData = (refs: Refs | null, options: types.ServeOptions, request: protocol.BuildRequest): ServeData => {
+  let buildServeData = (refs: Refs | null, options: types.ServeOptions, request: protocol.BuildRequest, key: number): ServeData => {
     let keys: OptionKeys = {};
     let port = getFlag(options, keys, 'port', mustBeInteger);
     let host = getFlag(options, keys, 'host', mustBeString);
     let servedir = getFlag(options, keys, 'servedir', mustBeString);
     let onRequest = getFlag(options, keys, 'onRequest', mustBeFunction);
-    let serveID = nextServeID++;
     let onWait: ServeCallbacks['onWait'];
     let wait = new Promise<void>((resolve, reject) => {
       onWait = error => {
-        serveCallbacks.delete(serveID);
+        serveCallbacks.delete(key);
         if (error !== null) reject(new Error(error));
         else resolve();
       };
     });
-    request.serve = { serveID };
+    request.serve = {};
     checkForInvalidFlags(options, keys, `in serve() call`);
     if (port !== void 0) request.serve.port = port;
     if (host !== void 0) request.serve.host = host;
     if (servedir !== void 0) request.serve.servedir = servedir;
-    serveCallbacks.set(serveID, {
+    serveCallbacks.set(key, {
       onRequest,
       onWait: onWait!,
     });
     return {
       wait,
       stop() {
-        sendRequest<protocol.ServeStopRequest, null>(refs, { command: 'serve-stop', serveID }, () => {
+        sendRequest<protocol.ServeStopRequest, null>(refs, { command: 'serve-stop', key }, () => {
           // We don't care about the result
         });
       },
@@ -1082,7 +1080,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       nodePaths,
     };
     if (requestPlugins) request.plugins = requestPlugins;
-    let serve = serveOptions && buildServeData(refs, serveOptions, request);
+    let serve = serveOptions && buildServeData(refs, serveOptions, request, key);
 
     // Factor out response handling so it can be reused for rebuilds
     let rebuild: types.BuildResult['rebuild'] | undefined;
@@ -1107,12 +1105,12 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         }
 
         // Handle incremental rebuilds
-        if (response!.rebuildID !== void 0) {
+        if (response!.rebuild) {
           if (!rebuild) {
             let isDisposed = false;
             (rebuild as any) = () => new Promise<types.BuildResult>((resolve, reject) => {
               if (isDisposed || isClosed) throw new Error('Cannot rebuild');
-              sendRequest<protocol.RebuildRequest, protocol.BuildResponse>(refs, { command: 'rebuild', rebuildID: response!.rebuildID! },
+              sendRequest<protocol.RebuildRequest, protocol.BuildResponse>(refs, { command: 'rebuild', key },
                 (error2, response2) => {
                   if (error2) {
                     const message: types.Message = { pluginName: '', text: error2, location: null, notes: [], detail: void 0 };
@@ -1128,7 +1126,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             rebuild!.dispose = () => {
               if (isDisposed) return;
               isDisposed = true;
-              sendRequest<protocol.RebuildDisposeRequest, null>(refs, { command: 'rebuild-dispose', rebuildID: response!.rebuildID! }, () => {
+              sendRequest<protocol.RebuildDisposeRequest, null>(refs, { command: 'rebuild-dispose', key }, () => {
                 // We don't care about the result
               });
               refs.unref() // Do this after the callback so "sendRequest" can extend the lifetime
@@ -1138,21 +1136,21 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         }
 
         // Handle watch mode
-        if (response!.watchID !== void 0) {
+        if (response!.watch) {
           if (!stop) {
             let isStopped = false;
             refs.ref()
             stop = () => {
               if (isStopped) return;
               isStopped = true;
-              watchCallbacks.delete(response!.watchID!);
-              sendRequest<protocol.WatchStopRequest, null>(refs, { command: 'watch-stop', watchID: response!.watchID! }, () => {
+              watchCallbacks.delete(key);
+              sendRequest<protocol.WatchStopRequest, null>(refs, { command: 'watch-stop', key }, () => {
                 // We don't care about the result
               });
               refs.unref() // Do this after the callback so "sendRequest" can extend the lifetime
             }
             if (watch) {
-              watchCallbacks.set(response!.watchID, (serviceStopError, watchResponse) => {
+              watchCallbacks.set(key, (serviceStopError, watchResponse) => {
                 if (serviceStopError) {
                   if (watch!.onRebuild) watch!.onRebuild(serviceStopError as any, null);
                   return;

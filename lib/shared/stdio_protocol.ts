@@ -22,7 +22,6 @@ export interface BuildRequest {
 }
 
 export interface ServeRequest {
-  serveID: number;
   port?: number;
   host?: string;
   servedir?: string;
@@ -35,7 +34,7 @@ export interface ServeResponse {
 
 export interface ServeStopRequest {
   command: 'serve-stop';
-  serveID: number;
+  key: number;
 }
 
 export interface BuildPlugin {
@@ -47,11 +46,11 @@ export interface BuildPlugin {
 export interface BuildResponse {
   errors: types.Message[];
   warnings: types.Message[];
-  outputFiles: BuildOutputFile[];
-  metafile: string;
+  rebuild: boolean;
+  watch: boolean;
+  outputFiles?: BuildOutputFile[];
+  metafile?: string;
   writeToStdout?: Uint8Array;
-  rebuildID?: number;
-  watchID?: number;
 }
 
 export interface BuildOutputFile {
@@ -65,34 +64,34 @@ export interface PingRequest {
 
 export interface RebuildRequest {
   command: 'rebuild';
-  rebuildID: number;
+  key: number;
 }
 
 export interface RebuildDisposeRequest {
   command: 'rebuild-dispose';
-  rebuildID: number;
+  key: number;
 }
 
 export interface WatchStopRequest {
   command: 'watch-stop';
-  watchID: number;
+  key: number;
 }
 
 export interface OnRequestRequest {
   command: 'serve-request';
-  serveID: number;
+  key: number;
   args: types.ServeOnRequestArgs;
 }
 
 export interface OnWaitRequest {
   command: 'serve-wait';
-  serveID: number;
+  key: number;
   error: string | null;
 }
 
 export interface OnWatchRebuildRequest {
   command: 'watch-rebuild';
-  watchID: number;
+  key: number;
   args: types.BuildResult;
 }
 
