@@ -719,6 +719,11 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 	// Validate that the current working directory is an absolute path
 	realFS, err := fs.RealFS(fs.RealFSOptions{
 		AbsWorkingDir: buildOpts.AbsWorkingDir,
+
+		// This is a long-lived file system object so do not cache calls to
+		// ReadDirectory() (they are normally cached for the duration of a build
+		// for performance).
+		DoNotCache: true,
 	})
 	if err != nil {
 		log.Add(logger.Error, nil, logger.Range{}, err.Error())
@@ -728,13 +733,14 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 	// Do not re-evaluate plugins when rebuilding. Also make sure the working
 	// directory doesn't change, since breaking that invariant would break the
 	// validation that we just did above.
+	caches := cache.MakeCacheSet()
 	oldAbsWorkingDir := buildOpts.AbsWorkingDir
-	plugins, onEndCallbacks := loadPlugins(&buildOpts, realFS, log)
+	plugins, onEndCallbacks, finalizeBuildOptions := loadPlugins(&buildOpts, realFS, log, caches)
 	if buildOpts.AbsWorkingDir != oldAbsWorkingDir {
 		panic("Mutating \"AbsWorkingDir\" is not allowed")
 	}
 
-	internalResult := rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, onEndCallbacks, logOptions, log, false /* isRebuild */)
+	internalResult := rebuildImpl(buildOpts, caches, plugins, finalizeBuildOptions, onEndCallbacks, logOptions, log, false /* isRebuild */)
 
 	// Print a summary of the generated files to stderr. Except don't do
 	// this if the terminal is already being used for something else.
@@ -801,6 +807,7 @@ func rebuildImpl(
 	buildOpts BuildOptions,
 	caches *cache.CacheSet,
 	plugins []config.Plugin,
+	finalizeBuildOptions func(*config.Options),
 	onEndCallbacks []func(*BuildResult),
 	logOptions logger.OutputOptions,
 	log logger.Log,
@@ -976,6 +983,11 @@ func rebuildImpl(
 			timer = &helpers.Timer{}
 		}
 
+		// Finalize the build options, which will enable API methods that need them such as the "resolve" API
+		if finalizeBuildOptions != nil {
+			finalizeBuildOptions(&options)
+		}
+
 		// Scan over the bundle
 		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPoints, options, timer)
 		watchData = realFS.WatchData()
@@ -1061,7 +1073,7 @@ func rebuildImpl(
 			data:     watchData,
 			resolver: resolver,
 			rebuild: func() fs.WatchData {
-				value := rebuildImpl(buildOpts, caches, plugins, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
+				value := rebuildImpl(buildOpts, caches, plugins, nil, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
 				if onRebuild != nil {
 					go onRebuild(value.result)
 				}
@@ -1078,7 +1090,7 @@ func rebuildImpl(
 	var rebuild func() BuildResult
 	if buildOpts.Incremental {
 		rebuild = func() BuildResult {
-			value := rebuildImpl(buildOpts, caches, plugins, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
+			value := rebuildImpl(buildOpts, caches, plugins, nil, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
 			if watch != nil {
 				watch.setWatchData(value.watchData)
 			}
@@ -1466,6 +1478,27 @@ func importKindToResolveKind(kind ast.ImportKind) ResolveKind {
 	}
 }
 
+func resolveKindToImportKind(kind ResolveKind) ast.ImportKind {
+	switch kind {
+	case ResolveEntryPoint:
+		return ast.ImportEntryPoint
+	case ResolveJSImportStatement:
+		return ast.ImportStmt
+	case ResolveJSRequireCall:
+		return ast.ImportRequire
+	case ResolveJSDynamicImport:
+		return ast.ImportDynamic
+	case ResolveJSRequireResolve:
+		return ast.ImportRequireResolve
+	case ResolveCSSImportRule:
+		return ast.ImportAt
+	case ResolveCSSURLToken:
+		return ast.ImportURL
+	default:
+		panic("Internal error")
+	}
+}
+
 func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnResolve", options.Filter)
 	if filter == nil {
@@ -1581,13 +1614,80 @@ func (impl *pluginImpl) validatePathsArray(pathsIn []string, name string) (paths
 	return
 }
 
-func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (plugins []config.Plugin, onEndCallbacks []func(*BuildResult)) {
+func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches *cache.CacheSet) (
+	plugins []config.Plugin,
+	onEndCallbacks []func(*BuildResult),
+	finalizeBuildOptions func(*config.Options),
+) {
 	onEnd := func(callback func(*BuildResult)) {
 		onEndCallbacks = append(onEndCallbacks, callback)
 	}
 
 	// Clone the plugin array to guard against mutation during iteration
 	clone := append(make([]Plugin, 0, len(initialOptions.Plugins)), initialOptions.Plugins...)
+
+	var resolveMutex sync.Mutex
+	var optionsForResolve *config.Options
+
+	// This is called when the build options are finalized
+	finalizeBuildOptions = func(options *config.Options) {
+		resolveMutex.Lock()
+		if optionsForResolve == nil {
+			optionsForResolve = options
+		}
+		resolveMutex.Unlock()
+	}
+
+	resolve := func(path string, options ResolveOptions) (result ResolveResult) {
+		// Try to grab the resolver options
+		resolveMutex.Lock()
+		buildOptions := optionsForResolve
+		resolveMutex.Unlock()
+
+		// If we couldn't grab them, then this is being called before plugin setup
+		// has finished. That isn't allowed because plugin setup is allowed to
+		// change the initial options object, which can affect path resolution.
+		if buildOptions == nil {
+			return ResolveResult{Errors: []Message{{Text: "Cannot resolve paths before plugin setup has completed"}}}
+		}
+
+		// Make a new resolver so it has its own log
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+		resolver := resolver.NewResolver(fs, log, caches, *buildOptions)
+
+		// Run path resolution
+		resolveResult, _, _ := bundler.RunOnResolvePlugins(
+			plugins,
+			resolver,
+			log,
+			fs,
+			&caches.FSCache,
+			nil,            // importSource
+			logger.Range{}, // importPathRange
+			logger.Path{Text: options.Importer, Namespace: options.Namespace},
+			path,
+			resolveKindToImportKind(options.Kind),
+			options.ResolveDir,
+			options.PluginData,
+		)
+		msgs := log.Done()
+
+		// Populate the result
+		result.Errors = convertMessagesToPublic(logger.Error, msgs)
+		result.Warnings = convertMessagesToPublic(logger.Warning, msgs)
+		if resolveResult != nil {
+			result.Path = resolveResult.PathPair.Primary.Text
+			result.External = resolveResult.IsExternal
+			result.SideEffects = resolveResult.PrimarySideEffectsData == nil
+			result.Namespace = resolveResult.PathPair.Primary.Namespace
+			result.Suffix = resolveResult.PathPair.Primary.IgnoredSuffix
+			result.PluginData = resolveResult.PluginData
+		} else if len(result.Errors) == 0 {
+			// Always fail with at least one error
+			result.Errors = append(result.Errors, Message{Text: fmt.Sprintf("Could not resolve %q", path)})
+		}
+		return
+	}
 
 	for i, item := range clone {
 		if item.Name == "" {
@@ -1603,6 +1703,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (plugin
 
 		item.Setup(PluginBuild{
 			InitialOptions: initialOptions,
+			Resolve:        resolve,
 			OnStart:        impl.onStart,
 			OnEnd:          onEnd,
 			OnResolve:      impl.onResolve,
@@ -1611,6 +1712,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log) (plugin
 
 		plugins = append(plugins, impl.plugin)
 	}
+
 	return
 }
 

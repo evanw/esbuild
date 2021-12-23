@@ -393,7 +393,7 @@ func parseFile(args parseArgs) {
 				}
 
 				// Run the resolver and log an error if the path couldn't be resolved
-				resolveResult, didLogError, debug := runOnResolvePlugins(
+				resolveResult, didLogError, debug := RunOnResolvePlugins(
 					args.options.Plugins,
 					args.res,
 					args.log,
@@ -401,7 +401,7 @@ func parseFile(args parseArgs) {
 					&args.caches.FSCache,
 					&source,
 					record.Range,
-					source.KeyPath.Namespace,
+					source.KeyPath,
 					record.Path.Text,
 					record.Kind,
 					absResolveDir,
@@ -667,7 +667,7 @@ func logPluginMessages(
 	return didLogError
 }
 
-func runOnResolvePlugins(
+func RunOnResolvePlugins(
 	plugins []config.Plugin,
 	res resolver.Resolver,
 	log logger.Log,
@@ -675,7 +675,7 @@ func runOnResolvePlugins(
 	fsCache *cache.FSCache,
 	importSource *logger.Source,
 	importPathRange logger.Range,
-	importNamespace string,
+	importer logger.Path,
 	path string,
 	kind ast.ImportKind,
 	absResolveDir string,
@@ -686,15 +686,11 @@ func runOnResolvePlugins(
 		ResolveDir: absResolveDir,
 		Kind:       kind,
 		PluginData: pluginData,
+		Importer:   importer,
 	}
 	applyPath := logger.Path{
 		Text:      path,
-		Namespace: importNamespace,
-	}
-	if importSource != nil {
-		resolverArgs.Importer = importSource.KeyPath
-	} else {
-		resolverArgs.Importer.Namespace = importNamespace
+		Namespace: importer.Namespace,
 	}
 	tracker := logger.MakeLineColumnTracker(importSource)
 
@@ -1362,13 +1358,13 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 	entryPointWaitGroup.Add(len(entryPoints))
 	for i, entryPoint := range entryPoints {
 		go func(i int, entryPoint EntryPoint) {
-			namespace := ""
+			var importer logger.Path
 			if entryPoint.IsFile {
-				namespace = "file"
+				importer.Namespace = "file"
 			}
 
 			// Run the resolver and log an error if the path couldn't be resolved
-			resolveResult, didLogError, debug := runOnResolvePlugins(
+			resolveResult, didLogError, debug := RunOnResolvePlugins(
 				s.options.Plugins,
 				s.res,
 				s.log,
@@ -1376,7 +1372,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 				&s.caches.FSCache,
 				nil,
 				logger.Range{},
-				namespace,
+				importer,
 				entryPoint.InputPath,
 				ast.ImportEntryPoint,
 				entryPointAbsResolveDir,
