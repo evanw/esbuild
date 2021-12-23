@@ -27,21 +27,65 @@ import (
 type responseCallback func(interface{})
 type rebuildCallback func(uint32) []byte
 type watchStopCallback func()
-type serverStopCallback func()
+type serveStopCallback func()
+
+type activeBuild struct {
+	mutex     sync.Mutex
+	refCount  int
+	rebuild   rebuildCallback
+	watchStop watchStopCallback
+	serveStop serveStopCallback
+}
 
 type serviceType struct {
-	mutex           sync.Mutex
-	callbacks       map[uint32]responseCallback
-	rebuilds        map[int]rebuildCallback
-	watchStops      map[int]watchStopCallback
-	serveStops      map[int]serverStopCallback
-	nextRequestID   uint32
-	outgoingPackets chan outgoingPacket
+	mutex              sync.Mutex
+	callbacks          map[uint32]responseCallback
+	activeBuilds       map[int]*activeBuild
+	nextRequestID      uint32
+	outgoingPackets    chan outgoingPacket
+	keepAliveWaitGroup sync.WaitGroup
+}
+
+func (service *serviceType) getActiveBuild(key int) *activeBuild {
+	service.mutex.Lock()
+	activeBuild := service.activeBuilds[key]
+	service.mutex.Unlock()
+	return activeBuild
+}
+
+func (service *serviceType) trackActiveBuild(key int, activeBuild *activeBuild) {
+	if activeBuild.refCount > 0 {
+		service.mutex.Lock()
+		service.activeBuilds[key] = activeBuild
+		service.mutex.Unlock()
+
+		// This pairs with "Done()" in "decRefCount"
+		service.keepAliveWaitGroup.Add(1)
+	}
+}
+
+func (service *serviceType) decRefCount(key int, activeBuild *activeBuild) {
+	activeBuild.mutex.Lock()
+	activeBuild.refCount--
+	remaining := activeBuild.refCount
+	activeBuild.mutex.Unlock()
+
+	if remaining < 0 {
+		panic("Internal error")
+	}
+
+	if remaining == 0 {
+		service.mutex.Lock()
+		delete(service.activeBuilds, key)
+		service.mutex.Unlock()
+
+		// This pairs with "Add()" in "trackActiveBuild"
+		service.keepAliveWaitGroup.Done()
+	}
 }
 
 type outgoingPacket struct {
-	bytes    []byte
-	refCount int
+	bytes []byte
 }
 
 func runService(sendPings bool) {
@@ -49,16 +93,13 @@ func runService(sendPings bool) {
 
 	service := serviceType{
 		callbacks:       make(map[uint32]responseCallback),
-		rebuilds:        make(map[int]rebuildCallback),
-		watchStops:      make(map[int]watchStopCallback),
-		serveStops:      make(map[int]serverStopCallback),
+		activeBuilds:    make(map[int]*activeBuild),
 		outgoingPackets: make(chan outgoingPacket),
 	}
 	buffer := make([]byte, 16*1024)
 	stream := []byte{}
 
 	// Write packets on a single goroutine so they aren't interleaved
-	waitGroup := &sync.WaitGroup{}
 	go func() {
 		for {
 			packet, ok := <-service.outgoingPackets
@@ -68,11 +109,7 @@ func runService(sendPings bool) {
 			if _, err := os.Stdout.Write(packet.bytes); err != nil {
 				os.Exit(1) // I/O error
 			}
-
-			// Only signal that this request is done when it has actually been written
-			if packet.refCount != 0 {
-				waitGroup.Add(packet.refCount)
-			}
+			service.keepAliveWaitGroup.Done() // This pairs with the "Add()" when putting stuff into "outgoingPackets"
 		}
 	}()
 
@@ -116,15 +153,14 @@ func runService(sendPings bool) {
 
 			// Clone the input and run it on another goroutine
 			clone := append([]byte{}, packet...)
-			waitGroup.Add(1)
+			service.keepAliveWaitGroup.Add(1)
 			go func() {
 				out := service.handleIncomingPacket(clone)
-				out.refCount--
 				if out.bytes != nil {
+					service.keepAliveWaitGroup.Add(1) // The writer thread will call "Done()"
 					service.outgoingPackets <- out
-				} else if out.refCount != 0 {
-					waitGroup.Add(out.refCount)
 				}
+				service.keepAliveWaitGroup.Done() // This pairs with the "Add()" in the stdin thread
 			}()
 		}
 
@@ -133,7 +169,7 @@ func runService(sendPings bool) {
 	}
 
 	// Wait for the last response to be written to stdout
-	waitGroup.Wait()
+	service.keepAliveWaitGroup.Wait()
 }
 
 func (service *serviceType) sendRequest(request interface{}) interface{} {
@@ -151,6 +187,7 @@ func (service *serviceType) sendRequest(request interface{}) interface{} {
 		service.callbacks[id] = callback
 		return id
 	}()
+	service.keepAliveWaitGroup.Add(1) // The writer thread will call "Done()"
 	service.outgoingPackets <- outgoingPacket{
 		bytes: encodePacket(packet{
 			id:        id,
@@ -196,98 +233,84 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 
 		case "rebuild":
 			key := request["key"].(int)
-			rebuild, ok := func() (rebuildCallback, bool) {
-				service.mutex.Lock()
-				defer service.mutex.Unlock()
-				rebuild, ok := service.rebuilds[key]
-				return rebuild, ok
-			}()
-			if !ok {
-				return outgoingPacket{
-					bytes: encodePacket(packet{
-						id: p.id,
-						value: map[string]interface{}{
-							"error": "Cannot rebuild",
-						},
-					}),
+			if build := service.getActiveBuild(key); build != nil {
+				build.mutex.Lock()
+				rebuild := build.rebuild
+				build.mutex.Unlock()
+				if rebuild != nil {
+					return outgoingPacket{
+						bytes: rebuild(p.id),
+					}
 				}
 			}
 			return outgoingPacket{
-				bytes: rebuild(p.id),
+				bytes: encodePacket(packet{
+					id: p.id,
+					value: map[string]interface{}{
+						"error": "Cannot rebuild",
+					},
+				}),
 			}
 
 		case "watch-stop":
 			key := request["key"].(int)
-			refCount := 0
-			watchStop := func() watchStopCallback {
-				// Only mutate the map while inside a mutex
-				service.mutex.Lock()
-				defer service.mutex.Unlock()
-				if watchStop, ok := service.watchStops[key]; ok {
-					// This watch is now considered finished. This matches the +1 reference
-					// count at the return of the build call.
-					refCount = -1
-					return watchStop
+			if build := service.getActiveBuild(key); build != nil {
+				build.mutex.Lock()
+				watchStop := build.watchStop
+				build.watchStop = nil
+				build.mutex.Unlock()
+
+				// Stop watch mode and release this ref count if it was held
+				if watchStop != nil {
+					watchStop()
+					service.decRefCount(key, build)
 				}
-				return nil
-			}()
-			if watchStop != nil {
-				watchStop()
 			}
 			return outgoingPacket{
 				bytes: encodePacket(packet{
 					id:    p.id,
 					value: make(map[string]interface{}),
 				}),
-				refCount: refCount,
 			}
 
 		case "serve-stop":
 			key := request["key"].(int)
-			refCount := 0
-			serveStop := func() serverStopCallback {
-				// Only mutate the map while inside a mutex
-				service.mutex.Lock()
-				defer service.mutex.Unlock()
-				if serveStop, ok := service.serveStops[key]; ok {
-					// This serve is now considered finished. This matches the +1 reference
-					// count at the return of the serve call.
-					refCount = -1
-					return serveStop
+			if build := service.getActiveBuild(key); build != nil {
+				build.mutex.Lock()
+				serveStop := build.serveStop
+				build.serveStop = nil
+				build.mutex.Unlock()
+
+				// Stop serving but do not release the ref count (that's done elsewhere)
+				if serveStop != nil {
+					serveStop()
 				}
-				return nil
-			}()
-			if serveStop != nil {
-				serveStop()
 			}
 			return outgoingPacket{
 				bytes: encodePacket(packet{
 					id:    p.id,
 					value: make(map[string]interface{}),
 				}),
-				refCount: refCount,
 			}
 
 		case "rebuild-dispose":
 			key := request["key"].(int)
-			refCount := 0
-			func() {
-				// Only mutate the map while inside a mutex
-				service.mutex.Lock()
-				defer service.mutex.Unlock()
-				if _, ok := service.rebuilds[key]; ok {
-					// This build is now considered finished. This matches the +1 reference
-					// count at the return of the first build call for this rebuild chain.
-					refCount = -1
-					delete(service.rebuilds, key)
+			if build := service.getActiveBuild(key); build != nil {
+				build.mutex.Lock()
+				rebuild := build.rebuild
+				build.rebuild = nil
+				build.mutex.Unlock()
+
+				// Release this ref count if it was held
+				if rebuild != nil {
+					service.decRefCount(key, build)
 				}
-			}()
+			}
 			return outgoingPacket{
 				bytes: encodePacket(packet{
 					id:    p.id,
 					value: make(map[string]interface{}),
 				}),
-				refCount: refCount,
 			}
 
 		case "error":
@@ -443,47 +466,38 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	options.Incremental = incremental
 	result := api.Build(options)
 	response := resultToResponse(result)
-	refCount := 0
+	activeBuild := &activeBuild{refCount: 1}
+	service.trackActiveBuild(key, activeBuild)
 
 	if incremental {
-		func() {
-			// Only mutate the map while inside a mutex
-			service.mutex.Lock()
-			defer service.mutex.Unlock()
-			service.rebuilds[key] = func(id uint32) []byte {
-				result := result.Rebuild()
-				response := resultToResponse(result)
-				return encodePacket(packet{
-					id:    id,
-					value: response,
-				})
-			}
-		}()
+		activeBuild.rebuild = func(id uint32) []byte {
+			result := result.Rebuild()
+			response := resultToResponse(result)
+			return encodePacket(packet{
+				id:    id,
+				value: response,
+			})
+		}
 
 		// Make sure the build doesn't finish until "dispose" has been called
-		refCount++
+		activeBuild.refCount++
 	}
 
 	if options.Watch != nil {
-		func() {
-			// Only mutate the map while inside a mutex
-			service.mutex.Lock()
-			defer service.mutex.Unlock()
-			service.watchStops[key] = func() {
-				result.Stop()
-			}
-		}()
+		activeBuild.watchStop = func() {
+			result.Stop()
+		}
 
 		// Make sure the build doesn't finish until "stop" has been called
-		refCount++
+		activeBuild.refCount++
 	}
 
+	service.decRefCount(key, activeBuild)
 	return outgoingPacket{
 		bytes: encodePacket(packet{
 			id:    id,
 			value: response,
 		}),
-		refCount: refCount,
 	}
 }
 
@@ -521,6 +535,12 @@ func (service *serviceType) handleServeRequest(id uint32, options api.BuildOptio
 		"host": result.Host,
 	}
 
+	activeBuild := &activeBuild{
+		refCount:  1, // Make sure the serve doesn't finish until "Wait" finishes
+		serveStop: result.Stop,
+	}
+	service.trackActiveBuild(key, activeBuild)
+
 	// Asynchronously wait for the server to stop, then fulfil the "wait" promise
 	go func() {
 		request := map[string]interface{}{
@@ -534,17 +554,8 @@ func (service *serviceType) handleServeRequest(id uint32, options api.BuildOptio
 		}
 		service.sendRequest(request)
 
-		// Only mutate the map while inside a mutex
-		service.mutex.Lock()
-		defer service.mutex.Unlock()
-		delete(service.serveStops, key)
-	}()
-
-	func() {
-		// Only mutate the map while inside a mutex
-		service.mutex.Lock()
-		defer service.mutex.Unlock()
-		service.serveStops[key] = result.Stop
+		// Release the ref count now that the server has shut down
+		service.decRefCount(key, activeBuild)
 	}()
 
 	return outgoingPacket{
@@ -552,9 +563,6 @@ func (service *serviceType) handleServeRequest(id uint32, options api.BuildOptio
 			id:    id,
 			value: response,
 		}),
-
-		// Make sure the serve doesn't finish until "stop" has been called
-		refCount: 1,
 	}
 }
 
