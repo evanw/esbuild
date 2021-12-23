@@ -1660,7 +1660,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 			// has finished. That isn't allowed because plugin setup is allowed to
 			// change the initial options object, which can affect path resolution.
 			if buildOptions == nil {
-				return ResolveResult{Errors: []Message{{Text: "Cannot resolve paths before plugin setup has completed"}}}
+				return ResolveResult{Errors: []Message{{Text: "Cannot call \"resolve\" before plugin setup has completed"}}}
 			}
 
 			// Make a new resolver so it has its own log

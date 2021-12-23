@@ -2233,7 +2233,7 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
       })
       throw new Error('Expected an error to be thrown')
     } catch (e) {
-      assert(e.message.includes('Cannot call \"resolve\" on an inactive build'), e.message)
+      assert(e.message.includes('Cannot call "resolve" before plugin setup has completed'), e.message)
     }
   },
 

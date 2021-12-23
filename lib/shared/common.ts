@@ -669,6 +669,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let nextCallbackID = 0;
     let i = 0;
     let requestPlugins: protocol.BuildPlugin[] = [];
+    let isSetupDone = false;
 
     // Clone the plugin array to guard against mutation during iteration
     plugins = [...plugins];
@@ -691,6 +692,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         i++;
 
         let resolve = (path: string, options: types.ResolveOptions = {}): Promise<types.ResolveResult> => {
+          if (!isSetupDone) throw new Error('Cannot call "resolve" before plugin setup has completed');
           if (typeof path !== 'string') throw new Error(`The path to resolve must be a string`);
           let keys: OptionKeys = Object.create(null);
           let importer = getFlag(options, keys, 'importer', mustBeString);
@@ -931,6 +933,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       }
     }
 
+    isSetupDone = true;
     let refCount = 0;
     return {
       ok: true,

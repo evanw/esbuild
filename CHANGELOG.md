@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+* Add a `resolve` API for plugins ([#641](https://github.com/evanw/esbuild/issues/641), [#1652](https://github.com/evanw/esbuild/issues/1652))
+
+    Plugins now have access to a new API called `resolve` that runs esbuild's path resolution logic and returns the result to the caller. This lets you write plugins that can reuse esbuild's complex built-in path resolution logic to change the inputs and/or adjust the outputs. Here's an example:
+
+    ```js
+    let examplePlugin = {
+      name: 'example',
+      setup(build) {
+        build.onResolve({ filter: /^example$/ }, async () => {
+          const result = await build.resolve('./foo', { resolveDir: '/bar' })
+          if (result.errors.length > 0) return result
+          return { ...result, external: true }
+        })
+      },
+    }
+    ```
+
+    This plugin intercepts imports to the path `example`, tells esbuild to resolve the import `./foo` in the directory `/bar`, and then forces whatever path esbuild returns to be considered external. Here are some additional details:
+
+    * If you don't pass the optional `resolveDir` parameter, esbuild will still run `onResolve` plugin callbacks but will not attempt any path resolution itself. All of esbuild's path resolution logic depends on the `resolveDir` parameter including looking for packages in `node_modules` directories (since it needs to know where those `node_modules` directories might be).
+
+    * If you want to resolve a file name in a specific directory, make sure the input path starts with `./`. Otherwise the input path will be treated as a package path instead of a relative path. This behavior is identical to esbuild's normal path resolution logic.
+
+    * If path resolution fails, the `errors` property on the returned object will be a non-empty array containing the error information. This function does not always throw an error when it fails. You need to check for errors after calling it.
+
+    * The behavior of this function depends on the build configuration. That's why it's a property of the `build` object instead of being a top-level API call. This also means you can't call it until all plugin `setup` functions have finished since these give plugins the opportunity to adjust the build configuration before it's frozen at the start of the build. So the new `resolve` function is going to be most useful inside your `onResolve` and/or `onLoad` callbacks.
+
 * Avoid CJS-to-ESM wrapper in some cases ([#1831](https://github.com/evanw/esbuild/issues/1831))
 
     Import statements are converted into `require()` calls when the output format is set to CommonJS. To convert from CommonJS semantics to ES module semantics, esbuild wraps the return value in a call to esbuild's `__toESM()` helper function. However, the conversion is only needed if it's possible that the exports named `default` or `__esModule` could be accessed.
