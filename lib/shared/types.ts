@@ -260,6 +260,8 @@ export interface Plugin {
 
 export interface PluginBuild {
   initialOptions: BuildOptions;
+  resolve(path: string, options?: ResolveOptions): Promise<ResolveResult>;
+
   onStart(callback: () =>
     (OnStartResult | null | void | Promise<OnStartResult | null | void>)): void;
   onEnd(callback: (result: BuildResult) =>
@@ -283,6 +285,26 @@ export interface PluginBuild {
     initialize: typeof initialize,
     version: typeof version,
   };
+}
+
+export interface ResolveOptions {
+  importer?: string;
+  namespace?: string;
+  resolveDir?: string;
+  kind?: ImportKind;
+  pluginData?: any;
+}
+
+export interface ResolveResult {
+  errors: Message[];
+  warnings: Message[];
+
+  path: string;
+  external: boolean;
+  sideEffects: boolean;
+  namespace: string;
+  suffix: string;
+  pluginData: any;
 }
 
 export interface OnStartResult {
