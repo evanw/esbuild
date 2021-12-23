@@ -288,6 +288,7 @@ export interface PluginBuild {
 }
 
 export interface ResolveOptions {
+  pluginName?: string;
   importer?: string;
   namespace?: string;
   resolveDir?: string;

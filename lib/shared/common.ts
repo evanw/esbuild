@@ -695,6 +695,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           if (!isSetupDone) throw new Error('Cannot call "resolve" before plugin setup has completed');
           if (typeof path !== 'string') throw new Error(`The path to resolve must be a string`);
           let keys: OptionKeys = Object.create(null);
+          let pluginName = getFlag(options, keys, 'pluginName', mustBeString);
           let importer = getFlag(options, keys, 'importer', mustBeString);
           let namespace = getFlag(options, keys, 'namespace', mustBeString);
           let resolveDir = getFlag(options, keys, 'resolveDir', mustBeString);
@@ -709,6 +710,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               key: buildKey,
               pluginName: name,
             }
+            if (pluginName != null) request.pluginName = pluginName
             if (importer != null) request.importer = importer
             if (namespace != null) request.namespace = namespace
             if (resolveDir != null) request.resolveDir = resolveDir
