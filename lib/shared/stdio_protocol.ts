@@ -150,6 +150,7 @@ export interface ResolveRequest {
   command: 'resolve';
   key: number;
   path: string;
+  pluginName: string;
   importer?: string;
   namespace?: string;
   resolveDir?: string;

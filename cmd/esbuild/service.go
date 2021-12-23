@@ -696,6 +696,9 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 			activeBuild.pluginResolve = func(id uint32, request map[string]interface{}) []byte {
 				path := request["path"].(string)
 				var options api.ResolveOptions
+				if value, ok := request["pluginName"]; ok {
+					options.PluginName = value.(string)
+				}
 				if value, ok := request["importer"]; ok {
 					options.Importer = value.(string)
 				}

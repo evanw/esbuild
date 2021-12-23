@@ -2343,7 +2343,7 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
             assert.strictEqual(args.path, 'foo')
             assert.strictEqual(args.importer, 'foo-importer')
             assert.strictEqual(args.namespace, 'foo-namespace')
-            assert.strictEqual(args.resolveDir, 'foo-resolveDir')
+            assert.strictEqual(args.resolveDir, path.join(process.cwd(), 'foo-resolveDir'))
             assert.strictEqual(args.pluginData, 'foo-pluginData')
             assert.strictEqual(args.kind, 'dynamic-import')
             return { path: input }

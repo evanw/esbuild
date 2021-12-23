@@ -459,6 +459,7 @@ type PluginBuild struct {
 }
 
 type ResolveOptions struct {
+	PluginName string
 	Importer   string
 	Namespace  string
 	ResolveDir string

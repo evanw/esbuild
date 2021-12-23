@@ -1638,57 +1638,6 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 		resolveMutex.Unlock()
 	}
 
-	resolve := func(path string, options ResolveOptions) (result ResolveResult) {
-		// Try to grab the resolver options
-		resolveMutex.Lock()
-		buildOptions := optionsForResolve
-		resolveMutex.Unlock()
-
-		// If we couldn't grab them, then this is being called before plugin setup
-		// has finished. That isn't allowed because plugin setup is allowed to
-		// change the initial options object, which can affect path resolution.
-		if buildOptions == nil {
-			return ResolveResult{Errors: []Message{{Text: "Cannot resolve paths before plugin setup has completed"}}}
-		}
-
-		// Make a new resolver so it has its own log
-		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
-		resolver := resolver.NewResolver(fs, log, caches, *buildOptions)
-
-		// Run path resolution
-		resolveResult, _, _ := bundler.RunOnResolvePlugins(
-			plugins,
-			resolver,
-			log,
-			fs,
-			&caches.FSCache,
-			nil,            // importSource
-			logger.Range{}, // importPathRange
-			logger.Path{Text: options.Importer, Namespace: options.Namespace},
-			path,
-			resolveKindToImportKind(options.Kind),
-			options.ResolveDir,
-			options.PluginData,
-		)
-		msgs := log.Done()
-
-		// Populate the result
-		result.Errors = convertMessagesToPublic(logger.Error, msgs)
-		result.Warnings = convertMessagesToPublic(logger.Warning, msgs)
-		if resolveResult != nil {
-			result.Path = resolveResult.PathPair.Primary.Text
-			result.External = resolveResult.IsExternal
-			result.SideEffects = resolveResult.PrimarySideEffectsData == nil
-			result.Namespace = resolveResult.PathPair.Primary.Namespace
-			result.Suffix = resolveResult.PathPair.Primary.IgnoredSuffix
-			result.PluginData = resolveResult.PluginData
-		} else if len(result.Errors) == 0 {
-			// Always fail with at least one error
-			result.Errors = append(result.Errors, Message{Text: fmt.Sprintf("Could not resolve %q", path)})
-		}
-		return
-	}
-
 	for i, item := range clone {
 		if item.Name == "" {
 			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Plugin at index %d is missing a name", i))
@@ -1699,6 +1648,75 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 			fs:     fs,
 			log:    log,
 			plugin: config.Plugin{Name: item.Name},
+		}
+
+		resolve := func(path string, options ResolveOptions) (result ResolveResult) {
+			// Try to grab the resolver options
+			resolveMutex.Lock()
+			buildOptions := optionsForResolve
+			resolveMutex.Unlock()
+
+			// If we couldn't grab them, then this is being called before plugin setup
+			// has finished. That isn't allowed because plugin setup is allowed to
+			// change the initial options object, which can affect path resolution.
+			if buildOptions == nil {
+				return ResolveResult{Errors: []Message{{Text: "Cannot resolve paths before plugin setup has completed"}}}
+			}
+
+			// Make a new resolver so it has its own log
+			log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+			resolver := resolver.NewResolver(fs, log, caches, *buildOptions)
+
+			// Make sure the resolve directory is an absolute path, which can fail
+			absResolveDir := validatePath(log, fs, options.ResolveDir, "resolve directory")
+			if log.HasErrors() {
+				msgs := log.Done()
+				result.Errors = convertMessagesToPublic(logger.Error, msgs)
+				result.Warnings = convertMessagesToPublic(logger.Warning, msgs)
+				return
+			}
+
+			// Run path resolution
+			kind := resolveKindToImportKind(options.Kind)
+			resolveResult, _, _ := bundler.RunOnResolvePlugins(
+				plugins,
+				resolver,
+				log,
+				fs,
+				&caches.FSCache,
+				nil,            // importSource
+				logger.Range{}, // importPathRange
+				logger.Path{Text: options.Importer, Namespace: options.Namespace},
+				path,
+				kind,
+				absResolveDir,
+				options.PluginData,
+			)
+			msgs := log.Done()
+
+			// Populate the result
+			result.Errors = convertMessagesToPublic(logger.Error, msgs)
+			result.Warnings = convertMessagesToPublic(logger.Warning, msgs)
+			if resolveResult != nil {
+				result.Path = resolveResult.PathPair.Primary.Text
+				result.External = resolveResult.IsExternal
+				result.SideEffects = resolveResult.PrimarySideEffectsData == nil
+				result.Namespace = resolveResult.PathPair.Primary.Namespace
+				result.Suffix = resolveResult.PathPair.Primary.IgnoredSuffix
+				result.PluginData = resolveResult.PluginData
+			} else if len(result.Errors) == 0 {
+				// Always fail with at least one error
+				pluginName := item.Name
+				if options.PluginName != "" {
+					pluginName = options.PluginName
+				}
+				text, notes := bundler.ResolveFailureErrorTextAndNotes(resolver, path, kind, pluginName, fs, absResolveDir, buildOptions.Platform, "")
+				result.Errors = append(result.Errors, convertMessagesToPublic(logger.Error, []logger.Msg{{
+					Data:  logger.MsgData{Text: text},
+					Notes: notes,
+				}})...)
+			}
+			return
 		}
 
 		item.Setup(PluginBuild{
