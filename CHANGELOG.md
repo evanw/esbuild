@@ -29,6 +29,8 @@
 
     * The behavior of this function depends on the build configuration. That's why it's a property of the `build` object instead of being a top-level API call. This also means you can't call it until all plugin `setup` functions have finished since these give plugins the opportunity to adjust the build configuration before it's frozen at the start of the build. So the new `resolve` function is going to be most useful inside your `onResolve` and/or `onLoad` callbacks.
 
+    * There is currently no attempt made to detect infinite path resolution loops. Calling `resolve` from within `onResolve` with the same parameters is almost certainly a bad idea.
+
 * Avoid CJS-to-ESM wrapper in some cases ([#1831](https://github.com/evanw/esbuild/issues/1831))
 
     Import statements are converted into `require()` calls when the output format is set to CommonJS. To convert from CommonJS semantics to ES module semantics, esbuild wraps the return value in a call to esbuild's `__toESM()` helper function. However, the conversion is only needed if it's possible that the exports named `default` or `__esModule` could be accessed.
