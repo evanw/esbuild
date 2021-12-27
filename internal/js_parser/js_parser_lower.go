@@ -156,55 +156,60 @@ const (
 func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range, detail string) {
 	var text string
 	canBeTransformed := false
+
 	switch feature {
 	case withStatement:
 		text = "With statements"
+
 	case deleteBareName:
 		text = "Delete of a bare identifier"
+
 	case forInVarInit:
 		text = "Variable initializers inside for-in loops"
 		canBeTransformed = true
+
 	case evalOrArguments:
 		text = fmt.Sprintf("Declarations with the name %q", detail)
+
 	case reservedWord:
 		text = fmt.Sprintf("%q is a reserved word and", detail)
+
 	case legacyOctalLiteral:
 		text = "Legacy octal literals"
+
 	case legacyOctalEscape:
 		text = "Legacy octal escape sequences"
+
 	case ifElseFunctionStmt:
 		text = "Function declarations inside if statements"
+
 	case labelFunctionStmt:
 		text = "Function declarations inside labels"
+
 	default:
 		text = "This feature"
 	}
+
 	if p.isStrictMode() {
-		var why string
 		var notes []logger.MsgData
-		var where logger.Range
+		where := "in strict mode"
+
 		switch p.currentScope.StrictMode {
-		case js_ast.ImplicitStrictModeImport:
-			where = p.es6ImportKeyword
-		case js_ast.ImplicitStrictModeExport:
-			where = p.es6ExportKeyword
-		case js_ast.ImplicitStrictModeTopLevelAwait:
-			where = p.topLevelAwaitKeyword
 		case js_ast.ImplicitStrictModeClass:
-			why = "All code inside a class is implicitly in strict mode"
-			where = p.enclosingClassKeyword
+			notes = []logger.MsgData{p.tracker.MsgData(p.enclosingClassKeyword,
+				"All code inside a class is implicitly in strict mode")}
+
 		case js_ast.ExplicitStrictMode:
-			why = "Strict mode is triggered by the \"use strict\" directive here:"
-			where = p.source.RangeOfString(p.currentScope.UseStrictLoc)
+			notes = []logger.MsgData{p.tracker.MsgData(p.source.RangeOfString(p.currentScope.UseStrictLoc),
+				"Strict mode is triggered by the \"use strict\" directive here:")}
+
+		case js_ast.ImplicitStrictModeESM:
+			notes = p.whyESModule()
+			where = "in an ECMAScript module"
 		}
-		if where.Len > 0 {
-			if why == "" {
-				why = fmt.Sprintf("This file is implicitly in strict mode because of the %q keyword here:", p.source.TextForRange(where))
-			}
-			notes = []logger.MsgData{p.tracker.MsgData(where, why)}
-		}
+
 		p.log.AddWithNotes(logger.Error, &p.tracker, r,
-			fmt.Sprintf("%s cannot be used in strict mode", text), notes)
+			fmt.Sprintf("%s cannot be used %s", text, where), notes)
 	} else if !canBeTransformed && p.isStrictModeOutputFormat() {
 		p.log.Add(logger.Error, &p.tracker, r,
 			fmt.Sprintf("%s cannot be used with the \"esm\" output format due to strict mode", text))

@@ -43,7 +43,6 @@ type parser struct {
 	allowPrivateIdentifiers    bool
 	hasTopLevelReturn          bool
 	latestReturnHadSemicolon   bool
-	hasESModuleSyntax          bool
 	warnedThisIsUndefined      bool
 	topLevelAwaitKeyword       logger.Range
 	fnOrArrowDataParse         fnOrArrowDataParse
@@ -71,6 +70,19 @@ type parser struct {
 	duplicateCaseChecker       duplicateCaseChecker
 	unrepresentableIdentifiers map[string]bool
 	legacyOctalLiterals        map[js_ast.E]logger.Range
+
+	// A file is considered to be an ECMAScript module if it has any of the
+	// features of one (e.g. the "export" keyword), otherwise it's considered
+	// a CommonJS module.
+	//
+	// However, we have a single exception: a file where the only ESM feature
+	// is the "import" keyword is allowed to have CommonJS exports. This feature
+	// is necessary to be able to synchronously import ESM code into CommonJS,
+	// which we need to enable in a few important cases. Some examples are:
+	// our runtime code, injected files (the "inject" feature is ESM-only),
+	// and certain automatically-generated virtual modules from plugins.
+	isFileConsideredToHaveESMExports bool // Use only for export-related stuff
+	isFileConsideredESM              bool // Use for all other stuff
 
 	// For strict mode handling
 	hoistedRefForSloppyModeBlockFn map[js_ast.Ref]js_ast.Ref
@@ -130,15 +142,16 @@ type parser struct {
 	exportStarImportRecords     []uint32
 
 	// These are for handling ES6 imports and exports
-	es6ImportKeyword        logger.Range
-	es6ExportKeyword        logger.Range
-	enclosingClassKeyword   logger.Range
-	importItemsForNamespace map[js_ast.Ref]map[string]js_ast.LocRef
-	isImportItem            map[js_ast.Ref]bool
-	namedImports            map[js_ast.Ref]js_ast.NamedImport
-	namedExports            map[string]js_ast.NamedExport
-	topLevelSymbolToParts   map[js_ast.Ref][]uint32
-	importNamespaceCCMap    map[importNamespaceCall]bool
+	esmImportStatementKeyword logger.Range
+	esmImportMeta             logger.Range
+	esmExportKeyword          logger.Range
+	enclosingClassKeyword     logger.Range
+	importItemsForNamespace   map[js_ast.Ref]map[string]js_ast.LocRef
+	isImportItem              map[js_ast.Ref]bool
+	namedImports              map[js_ast.Ref]js_ast.NamedImport
+	namedExports              map[string]js_ast.NamedExport
+	topLevelSymbolToParts     map[js_ast.Ref][]uint32
+	importNamespaceCCMap      map[importNamespaceCall]bool
 
 	// The parser does two passes and we need to pass the scope tree information
 	// from the first pass to the second pass. That's done by tracking the calls
@@ -1271,7 +1284,7 @@ func (p *parser) popScope() {
 			// symbols in an ESM file when bundling is enabled. We make no guarantee
 			// that "eval" will be able to reach these symbols and we allow them to be
 			// renamed or removed by tree shaking.
-			if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil && p.hasESModuleSyntax {
+			if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil && p.isFileConsideredESM {
 				continue
 			}
 
@@ -3618,15 +3631,13 @@ func (p *parser) willNeedBindingPattern() bool {
 func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 	// Parse an "import.meta" expression
 	if p.lexer.Token == js_lexer.TDot {
-		p.es6ImportKeyword = js_lexer.RangeOfIdentifier(p.source, loc)
 		p.lexer.Next()
-		if p.lexer.IsContextualKeyword("meta") {
-			rangeLen := p.lexer.Range().End() - loc.Start
-			p.lexer.Next()
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EImportMeta{RangeLen: rangeLen}}
-		} else {
+		if !p.lexer.IsContextualKeyword("meta") {
 			p.lexer.ExpectedString("\"meta\"")
 		}
+		p.esmImportMeta = logger.Range{Loc: loc, Len: p.lexer.Range().End() - loc.Start}
+		p.lexer.Next()
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EImportMeta{RangeLen: p.esmImportMeta.Len}}
 	}
 
 	if level > js_ast.LCall {
@@ -5845,9 +5856,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SEmpty{}}
 
 	case js_lexer.TExport:
-		previousExportKeyword := p.es6ExportKeyword
+		previousExportKeyword := p.esmExportKeyword
 		if opts.isModuleScope {
-			p.es6ExportKeyword = p.lexer.Range()
+			p.esmExportKeyword = p.lexer.Range()
 		} else if !opts.isNamespaceScope {
 			p.lexer.Unexpected()
 		}
@@ -6128,7 +6139,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		case js_lexer.TEquals:
 			// "export = value;"
-			p.es6ExportKeyword = previousExportKeyword // This wasn't an ESM export statement after all
+			p.esmExportKeyword = previousExportKeyword // This wasn't an ESM export statement after all
 			if p.options.ts.Parse {
 				p.lexer.Next()
 				value := p.parseExpr(js_ast.LLowest)
@@ -6544,8 +6555,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		}}
 
 	case js_lexer.TImport:
-		previousImportKeyword := p.es6ImportKeyword
-		p.es6ImportKeyword = p.lexer.Range()
+		previousImportStatementKeyword := p.esmImportStatementKeyword
+		p.esmImportStatementKeyword = p.lexer.Range()
 		p.lexer.Next()
 		stmt := js_ast.SImport{}
 		wasOriginallyBareImport := false
@@ -6560,7 +6571,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		case js_lexer.TOpenParen, js_lexer.TDot:
 			// "import('path')"
 			// "import.meta"
-			p.es6ImportKeyword = previousImportKeyword // This wasn't an ESM import statement after all
+			p.esmImportStatementKeyword = previousImportStatementKeyword // This wasn't an ESM import statement after all
 			expr := p.parseSuffix(p.parseImportExpr(loc, js_ast.LLowest), js_ast.LLowest, nil, 0)
 			p.lexer.ExpectOrInsertSemicolon()
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}}
@@ -6658,7 +6669,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 				// Parse TypeScript import assignment statements
 				if p.lexer.Token == js_lexer.TEquals || opts.isExport || (opts.isNamespaceScope && !opts.isTypeScriptDeclare) {
-					p.es6ImportKeyword = previousImportKeyword // This wasn't an ESM import statement after all
+					p.esmImportStatementKeyword = previousImportStatementKeyword // This wasn't an ESM import statement after all
 					return p.parseTypeScriptImportEqualsStmt(loc, opts, stmt.DefaultName.Loc, defaultName)
 				}
 			}
@@ -9215,7 +9226,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 	case *js_ast.SReturn:
 		// Forbid top-level return inside modules with ECMAScript syntax
 		if p.fnOrArrowDataVisit.isOutsideFnOrArrow {
-			if p.hasESModuleSyntax {
+			if p.isFileConsideredESM {
 				p.log.AddWithNotes(logger.Error, &p.tracker, js_lexer.RangeOfIdentifier(p.source, stmt.Loc),
 					"Top-level return cannot be used inside an ECMAScript module", p.whyESModule())
 			} else {
@@ -10978,7 +10989,7 @@ func (p *parser) valueForThis(
 
 		// Otherwise, replace top-level "this" with either "undefined" or "exports"
 		if p.options.mode != config.ModePassThrough {
-			if p.hasESModuleSyntax {
+			if p.isFileConsideredToHaveESMExports {
 				// Warn about "this" becoming undefined, but only once per file
 				if shouldWarn && !p.warnedThisIsUndefined {
 					p.warnedThisIsUndefined = true
@@ -12859,9 +12870,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					e.IsDirectEval = true
 
 					// Pessimistically assume that if this looks like a CommonJS module
-					// (no "import" or "export" keywords), a direct call to "eval" means
-					// that code could potentially access "module" or "exports".
-					if p.options.mode == config.ModeBundle && !p.hasESModuleSyntax {
+					// (e.g. no "export" keywords), a direct call to "eval" means that
+					// code could potentially access "module" or "exports".
+					if p.options.mode == config.ModeBundle && !p.isFileConsideredToHaveESMExports {
 						p.recordUsage(p.moduleRef)
 						p.recordUsage(p.exportsRef)
 					}
@@ -12880,7 +12891,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					if p.options.mode == config.ModeBundle {
 						text := "Using direct eval with a bundler is not recommended and may cause problems"
 						kind := logger.Debug
-						if p.hasESModuleSyntax && !p.suppressWarningsAboutWeirdCode {
+						if p.isFileConsideredESM && !p.suppressWarningsAboutWeirdCode {
 							kind = logger.Warning
 						}
 						p.log.AddWithNotes(kind, &p.tracker, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc), text,
@@ -14860,18 +14871,37 @@ func ParseJSXExpr(text string, kind JSXExprKind) (config.JSXExpr, bool) {
 
 // Say why this the current file is being considered an ES module
 func (p *parser) whyESModule() (notes []logger.MsgData) {
-	var where logger.Range
+	because := "This file is considered to be an ECMAScript module because"
 	switch {
-	case p.es6ImportKeyword.Len > 0:
-		where = p.es6ImportKeyword
-	case p.es6ExportKeyword.Len > 0:
-		where = p.es6ExportKeyword
+	case p.esmExportKeyword.Len > 0:
+		notes = append(notes, p.tracker.MsgData(p.esmExportKeyword,
+			because+" of the \"export\" keyword here:"))
+
+	case p.esmImportMeta.Len > 0:
+		notes = append(notes, p.tracker.MsgData(p.esmImportMeta,
+			because+" of the use of \"import.meta\" here:"))
+
 	case p.topLevelAwaitKeyword.Len > 0:
-		where = p.topLevelAwaitKeyword
-	}
-	if where.Len > 0 {
-		notes = []logger.MsgData{p.tracker.MsgData(where,
-			fmt.Sprintf("This file is considered an ECMAScript module because of the %q keyword here:", p.source.TextForRange(where)))}
+		notes = append(notes, p.tracker.MsgData(p.topLevelAwaitKeyword,
+			because+" of the top-level \"await\" keyword here:"))
+
+	case p.options.moduleTypeData.Type == js_ast.ModuleESM_MJS:
+		notes = append(notes, logger.MsgData{Text: because + " the file name ends in \".mjs\"."})
+
+	case p.options.moduleTypeData.Type == js_ast.ModuleESM_MTS:
+		notes = append(notes, logger.MsgData{Text: because + " the file name ends in \".mts\"."})
+
+	case p.options.moduleTypeData.Type == js_ast.ModuleESM_PackageJSON:
+		tracker := logger.MakeLineColumnTracker(p.options.moduleTypeData.Source)
+		notes = append(notes, tracker.MsgData(p.options.moduleTypeData.Range,
+			because+" the enclosing \"package.json\" file sets the type of this file to \"module\":"))
+
+	// This case must come last because some code cares about the "import"
+	// statement keyword and some doesn't, and we don't want to give code
+	// that doesn't care about the "import" statement the wrong error message.
+	case p.esmImportStatementKeyword.Len > 0:
+		notes = append(notes, p.tracker.MsgData(p.esmImportStatementKeyword,
+			because+" of the \"import\" keyword here:"))
 	}
 	return
 }
@@ -14880,22 +14910,27 @@ func (p *parser) prepareForVisitPass() {
 	p.pushScopeForVisitPass(js_ast.ScopeEntry, logger.Loc{Start: locModuleScope})
 	p.fnOrArrowDataVisit.isOutsideFnOrArrow = true
 	p.moduleScope = p.currentScope
-	p.hasESModuleSyntax = p.es6ImportKeyword.Len > 0 || p.es6ExportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0
+
+	// Determine whether or not this file is ESM
+	p.isFileConsideredToHaveESMExports =
+		p.esmExportKeyword.Len > 0 ||
+			p.esmImportMeta.Len > 0 ||
+			p.topLevelAwaitKeyword.Len > 0 ||
+			p.options.moduleTypeData.Type.IsESM()
+	p.isFileConsideredESM =
+		p.isFileConsideredToHaveESMExports ||
+			p.esmImportStatementKeyword.Len > 0
 
 	// Legacy HTML comments are not allowed in ESM files
-	if p.hasESModuleSyntax && p.lexer.LegacyHTMLCommentRange.Len > 0 {
+	if p.isFileConsideredESM && p.lexer.LegacyHTMLCommentRange.Len > 0 {
 		p.log.AddWithNotes(logger.Error, &p.tracker, p.lexer.LegacyHTMLCommentRange,
 			"Legacy HTML single-line comments are not allowed in ECMAScript modules", p.whyESModule())
 	}
 
 	// ECMAScript modules are always interpreted as strict mode. This has to be
 	// done before "hoistSymbols" because strict mode can alter hoisting (!).
-	if p.es6ImportKeyword.Len > 0 {
-		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeImport)
-	} else if p.es6ExportKeyword.Len > 0 {
-		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeExport)
-	} else if p.topLevelAwaitKeyword.Len > 0 {
-		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeTopLevelAwait)
+	if p.isFileConsideredESM {
+		p.moduleScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeESM)
 	}
 
 	p.hoistSymbols(p.moduleScope)
@@ -14909,11 +14944,12 @@ func (p *parser) prepareForVisitPass() {
 	// CommonJS-style exports are only enabled if this isn't using ECMAScript-
 	// style exports. You can still use "require" in ESM, just not "module" or
 	// "exports". You can also still use "import" in CommonJS.
-	if !p.options.moduleTypeData.Type.IsESM() && p.options.mode != config.ModePassThrough &&
-		p.es6ExportKeyword.Len == 0 && p.topLevelAwaitKeyword.Len == 0 {
+	if p.options.mode != config.ModePassThrough && !p.isFileConsideredToHaveESMExports {
+		// CommonJS-style exports
 		p.exportsRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "exports")
 		p.moduleRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "module")
 	} else {
+		// ESM-style exports
 		p.exportsRef = p.newSymbol(js_ast.SymbolHoisted, "exports")
 		p.moduleRef = p.newSymbol(js_ast.SymbolHoisted, "module")
 	}
@@ -14957,7 +14993,7 @@ func (p *parser) declareCommonJSSymbol(kind js_ast.SymbolKind, name string) js_a
 	// Both the "exports" argument and "var exports" are hoisted variables, so
 	// they don't collide.
 	if ok && p.symbols[member.Ref.InnerIndex].Kind == js_ast.SymbolHoisted &&
-		kind == js_ast.SymbolHoisted && !p.hasESModuleSyntax {
+		kind == js_ast.SymbolHoisted && !p.isFileConsideredToHaveESMExports {
 		return member.Ref
 	}
 
@@ -15218,7 +15254,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 	usesExportsRef := p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0
 	usesModuleRef := p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0
 
-	if p.es6ExportKeyword.Len > 0 || p.topLevelAwaitKeyword.Len > 0 {
+	if p.esmExportKeyword.Len > 0 || p.esmImportMeta.Len > 0 || p.topLevelAwaitKeyword.Len > 0 {
 		exportsKind = js_ast.ExportsESM
 	} else if usesExportsRef || usesModuleRef || p.hasTopLevelReturn {
 		exportsKind = js_ast.ExportsCommonJS
@@ -15239,7 +15275,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 			// Treat unknown modules containing an import statement as ESM. Otherwise
 			// the bundler will treat this file as CommonJS if it's imported and ESM
 			// if it's not imported.
-			if p.es6ImportKeyword.Len > 0 {
+			if p.esmImportStatementKeyword.Len > 0 {
 				exportsKind = js_ast.ExportsESM
 			}
 		}
@@ -15271,7 +15307,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		ExportsKind:    exportsKind,
 
 		// ES6 features
-		ExportKeyword:        p.es6ExportKeyword,
+		ExportKeyword:        p.esmExportKeyword,
 		TopLevelAwaitKeyword: p.topLevelAwaitKeyword,
 	}
 }

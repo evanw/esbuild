@@ -501,8 +501,8 @@ func TestTSNamespace(t *testing.T) {
 	expectParseErrorTS(t, "namespace x { function y() { this } }", "")
 	expectParseErrorTS(t, "namespace x { class y { x = this } }", "")
 	expectParseErrorTS(t, "export namespace x { export let yield = 1 }",
-		"<stdin>: ERROR: \"yield\" is a reserved word and cannot be used in strict mode\n"+
-			"<stdin>: NOTE: This file is implicitly in strict mode because of the \"export\" keyword here:\n")
+		"<stdin>: ERROR: \"yield\" is a reserved word and cannot be used in an ECMAScript module\n"+
+			"<stdin>: NOTE: This file is considered to be an ECMAScript module because of the \"export\" keyword here:\n")
 	expectPrintedTS(t, "namespace x { export let await = 1, y = await }", `var x;
 ((x) => {
   x.await = 1;
@@ -1173,8 +1173,8 @@ y = [0 /* A */, Foo?.["A"], Foo?.["A"]()];
 	expectParseErrorTS(t, "function *f() { enum x { y = yield 1 } }", "<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
 	expectParseErrorTS(t, "async function f() { enum x { y = await 1 } }", "<stdin>: ERROR: \"await\" can only be used inside an \"async\" function\n")
 	expectParseErrorTS(t, "export enum x { yield = 1, y = yield }",
-		"<stdin>: ERROR: \"yield\" is a reserved word and cannot be used in strict mode\n"+
-			"<stdin>: NOTE: This file is implicitly in strict mode because of the \"export\" keyword here:\n")
+		"<stdin>: ERROR: \"yield\" is a reserved word and cannot be used in an ECMAScript module\n"+
+			"<stdin>: NOTE: This file is considered to be an ECMAScript module because of the \"export\" keyword here:\n")
 }
 
 func TestTSEnumConstantFolding(t *testing.T) {

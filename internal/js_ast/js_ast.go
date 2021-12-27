@@ -1759,10 +1759,8 @@ type StrictModeKind uint8
 const (
 	SloppyMode StrictModeKind = iota
 	ExplicitStrictMode
-	ImplicitStrictModeImport
-	ImplicitStrictModeExport
-	ImplicitStrictModeTopLevelAwait
 	ImplicitStrictModeClass
+	ImplicitStrictModeESM
 )
 
 func (s *Scope) RecursiveSetStrictMode(kind StrictModeKind) {

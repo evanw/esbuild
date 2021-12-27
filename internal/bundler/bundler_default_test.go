@@ -1641,7 +1641,7 @@ func TestTopLevelReturnForbiddenImport(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `entry.js: ERROR: Top-level return cannot be used inside an ECMAScript module
-entry.js: NOTE: This file is considered an ECMAScript module because of the "import" keyword here:
+entry.js: NOTE: This file is considered to be an ECMAScript module because of the "import" keyword here:
 `,
 	})
 }
@@ -1660,7 +1660,7 @@ func TestTopLevelReturnForbiddenExport(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `entry.js: ERROR: Top-level return cannot be used inside an ECMAScript module
-entry.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+entry.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 `,
 	})
 }
@@ -1678,7 +1678,7 @@ func TestTopLevelReturnForbiddenTLA(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `entry.js: ERROR: Top-level return cannot be used inside an ECMAScript module
-entry.js: NOTE: This file is considered an ECMAScript module because of the "await" keyword here:
+entry.js: NOTE: This file is considered to be an ECMAScript module because of the top-level "await" keyword here:
 `,
 	})
 }
@@ -1838,41 +1838,39 @@ func TestThisWithES6Syntax(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `es6-export-abstract-class.ts: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-abstract-class.ts: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-abstract-class.ts: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-async-function.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-async-function.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-async-function.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-class.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-class.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-class.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-clause-from.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-clause-from.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-clause-from.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-clause.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-clause.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-clause.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-const-enum.ts: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-const-enum.ts: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-const-enum.ts: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-default.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-default.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-default.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-enum.ts: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-enum.ts: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-enum.ts: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-function.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-function.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-function.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-import-assign.ts: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-import-assign.ts: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-import-assign.ts: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-module.ts: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-module.ts: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-module.ts: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-namespace.ts: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-namespace.ts: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-namespace.ts: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-star-as.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-star-as.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-star-as.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-star.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-star.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-star.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-export-variable.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-export-variable.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+es6-export-variable.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 es6-expr-import-meta.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-expr-import-meta.js: NOTE: This file is considered an ECMAScript module because of the "import" keyword here:
+es6-expr-import-meta.js: NOTE: This file is considered to be an ECMAScript module because of the use of "import.meta" here:
 es6-import-meta.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-import-meta.js: NOTE: This file is considered an ECMAScript module because of the "import" keyword here:
-es6-import-stmt.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-es6-import-stmt.js: NOTE: This file is considered an ECMAScript module because of the "import" keyword here:
+es6-import-meta.js: NOTE: This file is considered to be an ECMAScript module because of the use of "import.meta" here:
 `,
 	})
 }
@@ -3618,12 +3616,12 @@ bad10.js: ERROR: Cannot assign to import "y z"
 NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file and then import and call that function here instead.
 bad11.js: ERROR: Cannot assign to import "x"
 NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
-bad11.js: ERROR: Delete of a bare identifier cannot be used in strict mode
-bad11.js: NOTE: This file is implicitly in strict mode because of the "import" keyword here:
+bad11.js: ERROR: Delete of a bare identifier cannot be used in an ECMAScript module
+bad11.js: NOTE: This file is considered to be an ECMAScript module because of the "import" keyword here:
 bad12.js: ERROR: Cannot assign to import "x"
 NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
-bad12.js: ERROR: Delete of a bare identifier cannot be used in strict mode
-bad12.js: NOTE: This file is implicitly in strict mode because of the "import" keyword here:
+bad12.js: ERROR: Delete of a bare identifier cannot be used in an ECMAScript module
+bad12.js: NOTE: This file is considered to be an ECMAScript module because of the "import" keyword here:
 bad13.js: ERROR: Cannot assign to import "y"
 NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setY") and then import and call that function here instead.
 bad14.js: ERROR: Cannot assign to import "y"
@@ -4826,7 +4824,7 @@ func TestThisUndefinedWarningESM(t *testing.T) {
 			AbsOutputDir: "/out",
 		},
 		expectedScanLog: `file1.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
-file1.js: NOTE: This file is considered an ECMAScript module because of the "export" keyword here:
+file1.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 `,
 	})
 }

@@ -3265,6 +3265,14 @@ var init_dummy = __esm({
   }
 });
 
+// es6-import-stmt.js
+var require_es6_import_stmt = __commonJS({
+  "es6-import-stmt.js"(exports) {
+    init_dummy();
+    console.log(exports);
+  }
+});
+
 // es6-import-assign.ts
 var require_es6_import_assign = __commonJS({
   "es6-import-assign.ts"(exports) {
@@ -3402,12 +3410,7 @@ var require_es6_ns_export_abstract_class = __commonJS({
 
 // entry.js
 var import_cjs = __toESM(require_cjs());
-
-// es6-import-stmt.js
-init_dummy();
-console.log(void 0);
-
-// entry.js
+var import_es6_import_stmt = __toESM(require_es6_import_stmt());
 var import_es6_import_assign = __toESM(require_es6_import_assign());
 var import_es6_import_dynamic = __toESM(require_es6_import_dynamic());
 
