@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+* Warn about using `module` or `exports` in ESM code ([#1887](https://github.com/evanw/esbuild/issues/1887))
+
+    CommonJS export variables cannot be referenced in ESM code. If you do this, they are treated as global variables instead. This release includes a warning for people that try to use both CommonJS and ES module export styles in the same file. Here's an example:
+
+    ```ts
+    export enum Something {
+      a,
+      b,
+    }
+    module.exports = { a: 1, b: 2 }
+    ```
+
+    Running esbuild on that code now generates a warning that looks like this:
+
+    ```
+    ▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected
+
+        example.ts:5:0:
+          5 │ module.exports = { a: 1, b: 2 }
+            ╵ ~~~~~~
+
+      This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+        example.ts:1:0:
+          1 │ export enum Something {
+            ╵ ~~~~~~
+    ```
+
 ## 0.14.8
 
 * Add a `resolve` API for plugins ([#641](https://github.com/evanw/esbuild/issues/641), [#1652](https://github.com/evanw/esbuild/issues/1652))

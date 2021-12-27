@@ -443,6 +443,18 @@ let x = function(foo) {
 };
 
 ================================================================================
+TestNoWarnCommonJSExportsInESMPassThrough
+---------- /out/cjs-in-esm.js ----------
+export let foo = 1;
+exports.foo = 2;
+module.exports.foo = 3;
+
+---------- /out/import-in-cjs.js ----------
+import { foo } from "bar";
+exports.foo = foo;
+module.exports.foo = foo;
+
+================================================================================
 TestRequireCustomExtensionBase64
 ---------- /out.js ----------
 // test.custom
@@ -525,3 +537,39 @@ i.x();
 j.x``;
 x = Promise.resolve().then(() => __toESM(require("k_WRAP")));
 module.exports = __toCommonJS(entry_exports);
+
+================================================================================
+TestWarnCommonJSExportsInESMBundle
+---------- /out/cjs-in-esm.js ----------
+// cjs-in-esm.js
+var cjs_in_esm_exports = {};
+__export(cjs_in_esm_exports, {
+  foo: () => foo
+});
+var foo = 1;
+exports.foo = 2;
+module.exports.foo = 3;
+module.exports = __toCommonJS(cjs_in_esm_exports);
+
+---------- /out/import-in-cjs.js ----------
+// import-in-cjs.js
+var import_bar = require("bar");
+exports.foo = import_bar.foo;
+module.exports.foo = import_bar.foo;
+
+================================================================================
+TestWarnCommonJSExportsInESMConvert
+---------- /out/cjs-in-esm.js ----------
+var cjs_in_esm_exports = {};
+__export(cjs_in_esm_exports, {
+  foo: () => foo
+});
+let foo = 1;
+exports.foo = 2;
+module.exports.foo = 3;
+module.exports = __toCommonJS(cjs_in_esm_exports);
+
+---------- /out/import-in-cjs.js ----------
+var import_bar = require("bar");
+exports.foo = import_bar.foo;
+module.exports.foo = import_bar.foo;

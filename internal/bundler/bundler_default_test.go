@@ -5180,3 +5180,95 @@ func TestNamedFunctionExpressionArgumentCollision(t *testing.T) {
 		},
 	})
 }
+
+func TestNoWarnCommonJSExportsInESMPassThrough(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/cjs-in-esm.js": `
+				export let foo = 1
+				exports.foo = 2
+				module.exports.foo = 3
+			`,
+			"/import-in-cjs.js": `
+				import { foo } from 'bar'
+				exports.foo = foo
+				module.exports.foo = foo
+			`,
+		},
+		entryPaths: []string{
+			"/cjs-in-esm.js",
+			"/import-in-cjs.js",
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestWarnCommonJSExportsInESMConvert(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/cjs-in-esm.js": `
+				export let foo = 1
+				exports.foo = 2
+				module.exports.foo = 3
+			`,
+			"/import-in-cjs.js": `
+				import { foo } from 'bar'
+				exports.foo = foo
+				module.exports.foo = foo
+			`,
+		},
+		entryPaths: []string{
+			"/cjs-in-esm.js",
+			"/import-in-cjs.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeConvertFormat,
+			AbsOutputDir: "/out",
+			OutputFormat: config.FormatCommonJS,
+		},
+		expectedScanLog: `cjs-in-esm.js: WARNING: The CommonJS "exports" variable is treated as a global variable in an ECMAScript module and may not work as expected
+cjs-in-esm.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+cjs-in-esm.js: WARNING: The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected
+cjs-in-esm.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+`,
+	})
+}
+
+func TestWarnCommonJSExportsInESMBundle(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/cjs-in-esm.js": `
+				export let foo = 1
+				exports.foo = 2
+				module.exports.foo = 3
+			`,
+			"/import-in-cjs.js": `
+				import { foo } from 'bar'
+				exports.foo = foo
+				module.exports.foo = foo
+			`,
+		},
+		entryPaths: []string{
+			"/cjs-in-esm.js",
+			"/import-in-cjs.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			OutputFormat: config.FormatCommonJS,
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"bar": true,
+				},
+			},
+		},
+		expectedScanLog: `cjs-in-esm.js: WARNING: The CommonJS "exports" variable is treated as a global variable in an ECMAScript module and may not work as expected
+cjs-in-esm.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+cjs-in-esm.js: WARNING: The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected
+cjs-in-esm.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+`,
+	})
+}
