@@ -1118,7 +1118,7 @@ func (p *printer) printRequireOrImportExpr(
 
 			// Finish the call to "__toESM()"
 			if wrapWithToESM {
-				if p.moduleType == js_ast.ModuleESM {
+				if p.moduleType.IsESM() {
 					p.print(",")
 					p.printSpace()
 					p.print("1")
@@ -1144,7 +1144,7 @@ func (p *printer) printRequireOrImportExpr(
 				p.printSymbol(p.options.ToESMRef)
 				p.print("(")
 				defer func() {
-					if p.moduleType == js_ast.ModuleESM {
+					if p.moduleType.IsESM() {
 						p.print(",")
 						p.printSpace()
 						p.print("1")
@@ -1248,7 +1248,7 @@ func (p *printer) printRequireOrImportExpr(
 
 	// Finish the call to "__toESM()"
 	if wrapWithToESM {
-		if p.moduleType == js_ast.ModuleESM {
+		if p.moduleType.IsESM() {
 			p.print(",")
 			p.printSpace()
 			p.print("1")
@@ -3234,7 +3234,7 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 		renamer:            r,
 		importRecords:      tree.ImportRecords,
 		options:            options,
-		moduleType:         tree.ModuleType,
+		moduleType:         tree.ModuleTypeData.Type,
 		stmtStart:          -1,
 		exportDefaultStart: -1,
 		arrowExprStart:     -1,

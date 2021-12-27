@@ -348,7 +348,7 @@ type optionsThatSupportStructuralEquality struct {
 	mode                    config.Mode
 	platform                config.Platform
 	outputFormat            config.Format
-	moduleType              js_ast.ModuleType
+	moduleTypeData          js_ast.ModuleTypeData
 	targetFromAPI           config.TargetFromAPI
 	asciiOnly               bool
 	keepNames               bool
@@ -374,7 +374,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			mode:                    options.Mode,
 			platform:                options.Platform,
 			outputFormat:            options.OutputFormat,
-			moduleType:              options.ModuleType,
+			moduleTypeData:          options.ModuleTypeData,
 			targetFromAPI:           options.TargetFromAPI,
 			asciiOnly:               options.ASCIIOnly,
 			keepNames:               options.KeepNames,
@@ -14909,7 +14909,7 @@ func (p *parser) prepareForVisitPass() {
 	// CommonJS-style exports are only enabled if this isn't using ECMAScript-
 	// style exports. You can still use "require" in ESM, just not "module" or
 	// "exports". You can also still use "import" in CommonJS.
-	if p.options.moduleType != js_ast.ModuleESM && p.options.mode != config.ModePassThrough &&
+	if !p.options.moduleTypeData.Type.IsESM() && p.options.mode != config.ModePassThrough &&
 		p.es6ExportKeyword.Len == 0 && p.topLevelAwaitKeyword.Len == 0 {
 		p.exportsRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "exports")
 		p.moduleRef = p.declareCommonJSSymbol(js_ast.SymbolHoisted, "module")
@@ -15226,16 +15226,16 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		// If this module has no exports, try to determine what kind of module it
 		// is by looking at node's "type" field in "package.json" and/or whether
 		// the file extension is ".mjs"/".mts" or ".cjs"/".cts".
-		switch p.options.moduleType {
-		case js_ast.ModuleCommonJS:
+		switch {
+		case p.options.moduleTypeData.Type.IsCommonJS():
 			// "type: commonjs" or ".cjs" or ".cts"
 			exportsKind = js_ast.ExportsCommonJS
 
-		case js_ast.ModuleESM:
+		case p.options.moduleTypeData.Type.IsESM():
 			// "type: module" or ".mjs" or ".mts"
 			exportsKind = js_ast.ExportsESM
 
-		case js_ast.ModuleUnknown:
+		default:
 			// Treat unknown modules containing an import statement as ESM. Otherwise
 			// the bundler will treat this file as CommonJS if it's imported and ESM
 			// if it's not imported.
@@ -15247,7 +15247,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 
 	return js_ast.AST{
 		Parts:                           parts,
-		ModuleType:                      p.options.moduleType,
+		ModuleTypeData:                  p.options.moduleTypeData,
 		ModuleScope:                     p.moduleScope,
 		CharFreq:                        p.computeCharacterFrequency(),
 		Symbols:                         p.symbols,
@@ -15271,7 +15271,6 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		ExportsKind:    exportsKind,
 
 		// ES6 features
-		ImportKeyword:        p.es6ImportKeyword,
 		ExportKeyword:        p.es6ExportKeyword,
 		TopLevelAwaitKeyword: p.topLevelAwaitKeyword,
 	}

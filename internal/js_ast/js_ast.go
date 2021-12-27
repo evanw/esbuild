@@ -1970,11 +1970,29 @@ const (
 	ModuleUnknown ModuleType = iota
 
 	// ".cjs" or ".cts" or "type: commonjs" in package.json
-	ModuleCommonJS
+	ModuleCommonJS_CJS
+	ModuleCommonJS_CTS
+	ModuleCommonJS_PackageJSON
 
 	// ".mjs" or ".mts" or "type: module" in package.json
-	ModuleESM
+	ModuleESM_MJS
+	ModuleESM_MTS
+	ModuleESM_PackageJSON
 )
+
+func (mt ModuleType) IsCommonJS() bool {
+	return mt >= ModuleCommonJS_CJS && mt <= ModuleCommonJS_PackageJSON
+}
+
+func (mt ModuleType) IsESM() bool {
+	return mt >= ModuleESM_MJS && mt <= ModuleESM_PackageJSON
+}
+
+type ModuleTypeData struct {
+	Source *logger.Source
+	Range  logger.Range
+	Type   ModuleType
+}
 
 // This is the index to the automatically-generated part containing code that
 // calls "__export(exports, { ... getters ... })". This is used to generate
@@ -1987,7 +2005,7 @@ type AST struct {
 	ApproximateLineCount  int32
 	NestedScopeSlotCounts SlotCounts
 	HasLazyExport         bool
-	ModuleType            ModuleType
+	ModuleTypeData        ModuleTypeData
 
 	// This is a list of CommonJS features. When a file uses CommonJS features,
 	// it's not a candidate for "flat bundling" and must be wrapped in its own
@@ -1999,7 +2017,6 @@ type AST struct {
 
 	// This is a list of ES6 features. They are ranges instead of booleans so
 	// that they can be used in log messages. Check to see if "Len > 0".
-	ImportKeyword        logger.Range // Does not include TypeScript-specific syntax or "import()"
 	ExportKeyword        logger.Range // Does not include TypeScript-specific syntax
 	TopLevelAwaitKeyword logger.Range
 

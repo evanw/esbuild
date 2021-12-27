@@ -122,7 +122,7 @@ type ResolveResult struct {
 	UnusedImportsTS config.UnusedImportsTS
 
 	// This is the "type" field from "package.json"
-	ModuleType js_ast.ModuleType
+	ModuleTypeData js_ast.ModuleTypeData
 }
 
 type DebugMeta struct {
@@ -549,7 +549,7 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 					}
 
 					// Also copy over the "type" field
-					result.ModuleType = pkgJSON.moduleType
+					result.ModuleTypeData = pkgJSON.moduleTypeData
 				}
 
 				// Copy various fields from the nearest enclosing "tsconfig.json" file if present

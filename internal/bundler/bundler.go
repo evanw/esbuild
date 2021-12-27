@@ -1143,12 +1143,16 @@ func (s *scanner) maybeParseFile(
 	optionsClone.TSTarget = resolveResult.TSTarget
 
 	// Set the module type preference using node's module type rules
-	if strings.HasSuffix(path.Text, ".mjs") || strings.HasSuffix(path.Text, ".mts") {
-		optionsClone.ModuleType = js_ast.ModuleESM
-	} else if strings.HasSuffix(path.Text, ".cjs") || strings.HasSuffix(path.Text, ".cts") {
-		optionsClone.ModuleType = js_ast.ModuleCommonJS
+	if strings.HasSuffix(path.Text, ".mjs") {
+		optionsClone.ModuleTypeData.Type = js_ast.ModuleESM_MJS
+	} else if strings.HasSuffix(path.Text, ".mts") {
+		optionsClone.ModuleTypeData.Type = js_ast.ModuleESM_MTS
+	} else if strings.HasSuffix(path.Text, ".cjs") {
+		optionsClone.ModuleTypeData.Type = js_ast.ModuleCommonJS_CJS
+	} else if strings.HasSuffix(path.Text, ".cts") {
+		optionsClone.ModuleTypeData.Type = js_ast.ModuleCommonJS_CTS
 	} else {
-		optionsClone.ModuleType = resolveResult.ModuleType
+		optionsClone.ModuleTypeData = resolveResult.ModuleTypeData
 	}
 
 	// Enable bundling for injected files so we always do tree shaking. We

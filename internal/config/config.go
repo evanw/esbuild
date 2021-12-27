@@ -200,7 +200,7 @@ const (
 
 type Options struct {
 	Mode              Mode
-	ModuleType        js_ast.ModuleType
+	ModuleTypeData    js_ast.ModuleTypeData
 	PreserveSymlinks  bool
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
