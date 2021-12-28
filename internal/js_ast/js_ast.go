@@ -2203,6 +2203,13 @@ type Part struct {
 	// An estimate of the number of uses of all symbols used within this part.
 	SymbolUses map[Ref]SymbolUse
 
+	// This tracks property accesses off of imported symbols. We don't know
+	// during parsing if an imported symbol is going to be an inlined enum
+	// value or not. This is only known during linking. So we defer adding
+	// a dependency on these imported symbols until we know whether the
+	// property access is an inlined enum value or not.
+	ImportSymbolPropertyUses map[Ref]map[string]SymbolUse
+
 	// The indices of the other parts in this file that are needed if this part
 	// is needed.
 	Dependencies []Dependency

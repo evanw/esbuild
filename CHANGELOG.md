@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+* Implement cross-module tree shaking of TypeScript enum values ([#128](https://github.com/evanw/esbuild/issues/128))
+
+    If your bundle uses TypeScript enums across multiple files, esbuild is able to inline the enum values as long as you export and import the enum using the ES module `export` and `import` keywords. However, this previously still left the definition of the enum in the bundle even when it wasn't used anymore. This was because esbuild's tree shaking (i.e. dead code elimination) is based on information recorded during parsing, and at that point we don't know which imported symbols are inlined enum values and which aren't.
+
+    With this release, esbuild will now remove enum definitions that become unused due to cross-module enum value inlining. Property accesses off of imported symbols are now tracked separately during parsing and then resolved during linking once all inlined enum values are known. This behavior change means esbuild's support for cross-module inlining of TypeScript enums is now finally complete. Here's an example:
+
+    ```js
+    // entry.ts
+    import { Foo } from './enum'
+    console.log(Foo.Bar)
+
+    // enum.ts
+    export enum Foo { Bar }
+    ```
+
+    Bundling the example code above now results in the enum definition being completely removed from the bundle:
+
+    ```js
+    // Old output (with --bundle --minify --format=esm)
+    var r=(o=>(o[o.Bar=0]="Bar",o))(r||{});console.log(0);
+
+    // New output (with --bundle --minify --format=esm)
+    console.log(0);
+    ```
+
 * Fix a regression with `export {} from` and CommonJS ([#1890](https://github.com/evanw/esbuild/issues/1890))
 
     This release fixes a regression that was introduced by the change in 0.14.7 that avoids calling the `__toESM` wrapper for import statements that are converted to `require` calls and that don't use the `default` or `__esModule` export names. The previous change was correct for the `import {} from` syntax but not for the `export {} from` syntax, which meant that in certain cases with re-exported values, the value of the `default` import could be different than expected. This release fixes the regression.

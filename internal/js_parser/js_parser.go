@@ -65,6 +65,7 @@ type parser struct {
 	injectedDefineSymbols      []js_ast.Ref
 	injectedSymbolSources      map[js_ast.Ref]injectedSymbolSource
 	symbolUses                 map[js_ast.Ref]js_ast.SymbolUse
+	importSymbolPropertyUses   map[js_ast.Ref]map[string]js_ast.SymbolUse
 	declaredSymbols            []js_ast.DeclaredSymbol
 	runtimeImports             map[string]js_ast.Ref
 	duplicateCaseChecker       duplicateCaseChecker
@@ -10732,6 +10733,34 @@ func (p *parser) maybeRewritePropertyAccess(
 		}
 	}
 
+	// Symbol uses due to a property access off of an imported symbol are tracked
+	// specially. This lets us do tree shaking for cross-file TypeScript enums.
+	if p.options.mode == config.ModeBundle && !p.isControlFlowDead {
+		if id, ok := target.Data.(*js_ast.EImportIdentifier); ok {
+			// Remove the normal symbol use
+			use := p.symbolUses[id.Ref]
+			use.CountEstimate--
+			if use.CountEstimate == 0 {
+				delete(p.symbolUses, id.Ref)
+			} else {
+				p.symbolUses[id.Ref] = use
+			}
+
+			// Add a special symbol use instead
+			if p.importSymbolPropertyUses == nil {
+				p.importSymbolPropertyUses = make(map[js_ast.Ref]map[string]js_ast.SymbolUse)
+			}
+			properties := p.importSymbolPropertyUses[id.Ref]
+			if properties == nil {
+				properties = make(map[string]js_ast.SymbolUse)
+				p.importSymbolPropertyUses[id.Ref] = properties
+			}
+			use = properties[name]
+			use.CountEstimate++
+			properties[name] = use
+		}
+	}
+
 	return js_ast.Expr{}, false
 }
 
@@ -13905,6 +13934,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 
 func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.Part {
 	p.symbolUses = make(map[js_ast.Ref]js_ast.SymbolUse)
+	p.importSymbolPropertyUses = nil
 	p.declaredSymbols = nil
 	p.importRecordsForCurrentPart = nil
 	p.scopesForCurrentPart = nil
@@ -13944,6 +13974,7 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 		part.CanBeRemovedIfUnused = p.stmtsCanBeRemovedIfUnused(part.Stmts)
 		part.DeclaredSymbols = p.declaredSymbols
 		part.ImportRecordIndices = p.importRecordsForCurrentPart
+		part.ImportSymbolPropertyUses = p.importSymbolPropertyUses
 		part.Scopes = p.scopesForCurrentPart
 		parts = append(parts, part)
 	}

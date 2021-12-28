@@ -1345,6 +1345,40 @@ func (c *linkerContext) scanImportsAndExports() {
 			namedImports := repr.AST.NamedImports
 			for partIndex := range parts {
 				part := &parts[partIndex]
+
+				// Now that all files have been parsed, determine which property
+				// accesses off of imported symbols are inlined enum values and
+				// which ones aren't
+				for ref, properties := range part.ImportSymbolPropertyUses {
+					use := part.SymbolUses[ref]
+
+					// Rare path: this import is a TypeScript enum
+					if importData, ok := repr.Meta.ImportsToBind[ref]; ok {
+						if symbol := c.graph.Symbols.Get(importData.Ref); symbol.Kind == js_ast.SymbolTSEnum {
+							if enum, ok := c.graph.TSEnums[importData.Ref]; ok {
+								foundNonInlinedEnum := false
+								for name, propertyUse := range properties {
+									if _, ok := enum[name]; !ok {
+										foundNonInlinedEnum = true
+										use.CountEstimate += propertyUse.CountEstimate
+									}
+								}
+								if foundNonInlinedEnum {
+									part.SymbolUses[ref] = use
+								}
+							}
+							continue
+						}
+					}
+
+					// Common path: this import isn't a TypeScript enum
+					for _, propertyUse := range properties {
+						use.CountEstimate += propertyUse.CountEstimate
+					}
+					part.SymbolUses[ref] = use
+				}
+
+				// Now that we know this, we can determine cross-part dependencies
 				for ref := range part.SymbolUses {
 					for _, otherPartIndex := range repr.TopLevelSymbolToParts(ref) {
 						if oldPartIndex, ok := localDependencies[otherPartIndex]; !ok || oldPartIndex != uint32(partIndex) {

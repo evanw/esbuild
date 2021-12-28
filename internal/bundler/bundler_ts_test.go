@@ -1808,3 +1808,55 @@ func TestTSEnumCrossModuleInliningReExport(t *testing.T) {
 		},
 	})
 }
+
+func TestTSEnumCrossModuleTreeShaking(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import {
+					a_DROP,
+					b_DROP,
+					c_DROP,
+				} from './enums'
+
+				console.log([
+					a_DROP.x,
+					b_DROP['x'],
+					c_DROP.x,
+				])
+
+				import {
+					a_keep,
+					b_keep,
+					c_keep,
+					d_keep,
+					e_keep,
+				} from './enums'
+
+				console.log([
+					a_keep.x,
+					b_keep.x,
+					c_keep,
+					d_keep.y,
+					e_keep.x,
+				])
+			`,
+			"/enums.ts": `
+				export enum a_DROP { x = 1 }  // test a dot access
+				export enum b_DROP { x = 2 }  // test an index access
+				export enum c_DROP { x = '' } // test a string enum
+
+				export enum a_keep { x = false } // false is not inlinable
+				export enum b_keep { x = foo }   // foo has side effects
+				export enum c_keep { x = 3 }     // this enum object is captured
+				export enum d_keep { x = 4 }     // we access "y" on this object
+				export let e_keep = {}           // non-enum properties should be kept
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
