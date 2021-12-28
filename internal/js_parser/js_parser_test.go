@@ -2399,12 +2399,12 @@ func TestConstantFolding(t *testing.T) {
 func TestConstantFoldingScopes(t *testing.T) {
 	// Parsing will crash if somehow the scope traversal is misaligned between
 	// the parsing and binding passes. This checks for those cases.
-	expectPrintedMangle(t, "x; 1 ? 0 : ()=>{}; (()=>{})()", "x, (() => {\n})();\n")
-	expectPrintedMangle(t, "x; 0 ? ()=>{} : 1; (()=>{})()", "x, (() => {\n})();\n")
+	expectPrintedMangle(t, "x; 1 ? 0 : ()=>{}; (()=>{})()", "x;\n")
+	expectPrintedMangle(t, "x; 0 ? ()=>{} : 1; (()=>{})()", "x;\n")
 	expectPrinted(t, "x; 0 && (()=>{}); (()=>{})()", "x;\n0;\n(() => {\n})();\n")
 	expectPrinted(t, "x; 1 || (()=>{}); (()=>{})()", "x;\n1;\n(() => {\n})();\n")
-	expectPrintedMangle(t, "if (1) 0; else ()=>{}; (()=>{})()", "(() => {\n})();\n")
-	expectPrintedMangle(t, "if (0) ()=>{}; else 1; (()=>{})()", "(() => {\n})();\n")
+	expectPrintedMangle(t, "if (1) 0; else ()=>{}; (()=>{})()", "")
+	expectPrintedMangle(t, "if (0) ()=>{}; else 1; (()=>{})()", "")
 }
 
 func TestImport(t *testing.T) {
@@ -3480,6 +3480,27 @@ func TestMangleArrow(t *testing.T) {
 	expectPrintedMangle(t, "var a = () => {return}", "var a = () => {\n};\n")
 	expectPrintedMangle(t, "var a = () => {return 123}", "var a = () => 123;\n")
 	expectPrintedMangle(t, "var a = () => {throw 123}", "var a = () => {\n  throw 123;\n};\n")
+}
+
+func TestMangleIIFE(t *testing.T) {
+	expectPrintedMangle(t, "var a = (() => {})()", "var a = (() => {\n})();\n")
+	expectPrintedMangle(t, "(() => {})()", "")
+	expectPrintedMangle(t, "(() => a())()", "a();\n")
+	expectPrintedMangle(t, "(() => { a() })()", "a();\n")
+	expectPrintedMangle(t, "(() => { return a() })()", "a();\n")
+	expectPrintedMangle(t, "(() => { let b = a; b() })()", "a();\n")
+	expectPrintedMangle(t, "(() => { let b = a; return b() })()", "a();\n")
+	expectPrintedMangle(t, "(async () => {})()", "")
+	expectPrintedMangle(t, "(async () => { a() })()", "(async () => a())();\n")
+	expectPrintedMangle(t, "(async () => { let b = a; b() })()", "(async () => a())();\n")
+
+	expectPrintedMangle(t, "var a = (function() {})()", "var a = function() {\n}();\n")
+	expectPrintedMangle(t, "(function() {})()", "")
+	expectPrintedMangle(t, "(function*() {})()", "")
+	expectPrintedMangle(t, "(async function() {})()", "")
+	expectPrintedMangle(t, "(function() { a() })()", "(function() {\n  a();\n})();\n")
+	expectPrintedMangle(t, "(function*() { a() })()", "(function* () {\n  a();\n})();\n")
+	expectPrintedMangle(t, "(async function() { a() })()", "(async function() {\n  a();\n})();\n")
 }
 
 func TestMangleTemplate(t *testing.T) {

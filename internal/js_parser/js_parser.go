@@ -14490,6 +14490,51 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 			}
 		}
 
+		// Attempt to shorten IIFEs
+		if len(e.Args) == 0 {
+			switch target := e.Target.Data.(type) {
+			case *js_ast.EFunction:
+				if len(target.Fn.Args) != 0 {
+					break
+				}
+
+				// Just delete "(function() {})()" completely
+				if len(target.Fn.Body.Stmts) == 0 {
+					return js_ast.Expr{}
+				}
+
+			case *js_ast.EArrow:
+				if len(target.Args) != 0 {
+					break
+				}
+
+				// Just delete "(() => {})()" completely
+				if len(target.Body.Stmts) == 0 {
+					return js_ast.Expr{}
+				}
+
+				if len(target.Body.Stmts) == 1 {
+					switch s := target.Body.Stmts[0].Data.(type) {
+					case *js_ast.SExpr:
+						if !target.IsAsync {
+							// Replace "(() => { foo() })()" with "foo()"
+							return s.Value
+						} else {
+							// Replace "(async () => { foo() })()" with "(async () => foo())()"
+							target.Body.Stmts[0].Data = &js_ast.SReturn{ValueOrNil: s.Value}
+							target.PreferExpr = true
+						}
+
+					case *js_ast.SReturn:
+						if !target.IsAsync {
+							// Replace "(() => foo())()" with "foo()"
+							return s.ValueOrNil
+						}
+					}
+				}
+			}
+		}
+
 	case *js_ast.ENew:
 		// A constructor call that has been marked "__PURE__" can be removed if all
 		// arguments can be removed. The annotation causes us to ignore the target.
