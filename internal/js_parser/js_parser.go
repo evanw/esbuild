@@ -13849,6 +13849,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 			}
 
 		case *js_ast.SExportStar:
+			record := &p.importRecords[s.ImportRecordIndex]
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
 			if s.Alias != nil {
@@ -13861,12 +13862,15 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					IsExported:        true,
 				}
 				p.recordExport(s.Alias.Loc, s.Alias.OriginalName, s.NamespaceRef)
+
+				record.Flags |= ast.ContainsImportStar
 			} else {
 				// "export * from 'path'"
 				p.exportStarImportRecords = append(p.exportStarImportRecords, s.ImportRecordIndex)
 			}
 
 		case *js_ast.SExportFrom:
+			record := &p.importRecords[s.ImportRecordIndex]
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
 			for _, item := range s.Items {
@@ -13881,6 +13885,12 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					IsExported:        true,
 				}
 				p.recordExport(item.Name.Loc, item.Alias, item.Name.Ref)
+
+				if item.OriginalName == "default" {
+					record.Flags |= ast.ContainsDefaultAlias
+				} else if item.OriginalName == "__esModule" {
+					record.Flags |= ast.ContainsESModuleAlias
+				}
 			}
 		}
 

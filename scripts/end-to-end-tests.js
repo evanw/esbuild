@@ -1395,6 +1395,39 @@
       'in.mjs': `import * as ns from './foo'; if (!ns.default || ns.default.foo !== 123) throw 'fail'`,
       'foo.js': `exports.__esModule = true; exports.foo = 123`,
     }),
+
+    // Make sure "import {} from; export {}" behaves like "export {} from"
+    // https://github.com/evanw/esbuild/issues/1890
+    test(['node.ts', 'foo.ts', '--outdir=.', '--format=cjs'], {
+      'node.ts': `import * as foo from './foo.js'; if (foo.bar !== 123) throw 'fail'`,
+      'foo.ts': `import bar from './lib.js'; export { bar }`,
+      'lib.js': `module.exports = 123`,
+    }),
+    test(['node.ts', 'foo.ts', '--outdir=.', '--format=cjs'], {
+      'node.ts': `import * as foo from './foo.js'; if (foo.bar !== 123) throw 'fail'`,
+      'foo.ts': `import { default as bar } from './lib.js'; export { bar }`,
+      'lib.js': `module.exports = 123`,
+    }),
+    test(['node.ts', 'foo.ts', '--outdir=.', '--format=cjs'], {
+      'node.ts': `import * as foo from './foo.js'; if (foo.bar !== 123) throw 'fail'`,
+      'foo.ts': `export { default as bar } from './lib.js'`,
+      'lib.js': `module.exports = 123`,
+    }),
+    test(['node.ts', 'foo.ts', '--outdir=.', '--format=cjs'], {
+      'node.ts': `import { foo } from './foo.js'; if (foo.default !== 123) throw 'fail'`,
+      'foo.ts': `import * as foo from './lib.js'; export { foo }`,
+      'lib.js': `module.exports = 123`,
+    }),
+    test(['node.ts', 'foo.ts', '--outdir=.', '--format=cjs'], {
+      'node.ts': `import { foo } from './foo.js'; if (foo.default !== 123) throw 'fail'`,
+      'foo.ts': `export * as foo from './lib.js'`,
+      'lib.js': `module.exports = 123`,
+    }),
+    test(['node.ts', 'foo.ts', '--outdir=.', '--format=cjs'], {
+      'node.ts': `import * as foo from './foo.js'; if (foo.default !== void 0) throw 'fail'`,
+      'foo.ts': `export * from './lib.js'`,
+      'lib.js': `module.exports = 123`,
+    }),
   )
 
   // Test external CommonJS export

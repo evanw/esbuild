@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix a regression with `export {} from` and CommonJS ([#1890](https://github.com/evanw/esbuild/issues/1890))
+
+    This release fixes a regression that was introduced by the change in 0.14.7 that avoids calling the `__toESM` wrapper for import statements that are converted to `require` calls and that don't use the `default` or `__esModule` export names. The previous change was correct for the `import {} from` syntax but not for the `export {} from` syntax, which meant that in certain cases with re-exported values, the value of the `default` import could be different than expected. This release fixes the regression.
+
 * Warn about using `module` or `exports` in ESM code ([#1887](https://github.com/evanw/esbuild/issues/1887))
 
     CommonJS export variables cannot be referenced in ESM code. If you do this, they are treated as global variables instead. This release includes a warning for people that try to use both CommonJS and ES module export styles in the same file. Here's an example:

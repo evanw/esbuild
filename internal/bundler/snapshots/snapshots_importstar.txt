@@ -869,7 +869,7 @@ var entry_exports = {};
 __export(entry_exports, {
   out: () => out
 });
-var out = require("foo");
+var out = __toESM(require("foo"));
 module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
@@ -888,7 +888,7 @@ var entry_exports = {};
 __export(entry_exports, {
   out: () => out
 });
-var out = require("foo");
+var out = __toESM(require("foo"));
 module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
@@ -909,7 +909,7 @@ var mod = (() => {
   __export(entry_exports, {
     out: () => out
   });
-  var out = __require("foo");
+  var out = __toESM(__require("foo"));
   return __toCommonJS(entry_exports);
 })();
 
@@ -921,7 +921,7 @@ var mod = (() => {
   __export(entry_exports, {
     out: () => out
   });
-  var out = require("foo");
+  var out = __toESM(require("foo"));
   return __toCommonJS(entry_exports);
 })();
 
