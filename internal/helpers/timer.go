@@ -71,7 +71,7 @@ func (t *Timer) Log(log logger.Log) {
 	for _, item := range t.data {
 		if !item.isEnd {
 			top := pair{timerData: item, index: uint32(len(notes))}
-			notes = append(notes, logger.MsgData{})
+			notes = append(notes, logger.MsgData{DisableMaximumWidth: true})
 			stack = append(stack, top)
 			indent++
 		} else {

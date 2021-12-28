@@ -152,8 +152,9 @@ type Msg struct {
 }
 
 type MsgData struct {
-	Text     string
-	Location *MsgLocation
+	Text                string
+	Location            *MsgLocation
+	DisableMaximumWidth bool
 
 	// Optional user-specified data that is passed through unmodified
 	UserDetail interface{}
@@ -1093,7 +1094,7 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 		for _, line := range strings.Split(data.Text, "\n") {
 			// Special-case word wrapping
 			if wrapWidth := terminalInfo.Width; wrapWidth > 2 {
-				if wrapWidth > 100 {
+				if !data.DisableMaximumWidth && wrapWidth > 100 {
 					wrapWidth = 100 // Enforce a maximum paragraph width for readability
 				}
 				for _, run := range wrapWordsInString(line, wrapWidth-2) {

@@ -481,7 +481,7 @@ func (d *debugLogs) addNote(text string) {
 	if d.indent != "" {
 		text = d.indent + text
 	}
-	d.notes = append(d.notes, logger.MsgData{Text: text})
+	d.notes = append(d.notes, logger.MsgData{Text: text, DisableMaximumWidth: true})
 }
 
 func (d *debugLogs) increaseIndent() {
