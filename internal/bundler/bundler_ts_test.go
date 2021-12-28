@@ -408,6 +408,68 @@ func TestTSMinifyEnum(t *testing.T) {
 	})
 }
 
+func TestTSMinifyNestedEnum(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": `
+				function foo() { enum Foo { A, B, C = Foo } return Foo }
+			`,
+			"/b.ts": `
+				export function foo() { enum Foo { X, Y, Z = Foo } return Foo }
+			`,
+		},
+		entryPaths: []string{"/a.ts", "/b.ts"},
+		options: config.Options{
+			MangleSyntax:      true,
+			RemoveWhitespace:  true,
+			MinifyIdentifiers: true,
+			AbsOutputDir:      "/",
+		},
+	})
+}
+
+func TestTSMinifyNestedEnumNoLogicalAssignment(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": `
+				function foo() { enum Foo { A, B, C = Foo } return Foo }
+			`,
+			"/b.ts": `
+				export function foo() { enum Foo { X, Y, Z = Foo } return Foo }
+			`,
+		},
+		entryPaths: []string{"/a.ts", "/b.ts"},
+		options: config.Options{
+			MangleSyntax:          true,
+			RemoveWhitespace:      true,
+			MinifyIdentifiers:     true,
+			AbsOutputDir:          "/",
+			UnsupportedJSFeatures: compat.LogicalAssignment,
+		},
+	})
+}
+
+func TestTSMinifyNestedEnumNoArrow(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": `
+				function foo() { enum Foo { A, B, C = Foo } return Foo }
+			`,
+			"/b.ts": `
+				export function foo() { enum Foo { X, Y, Z = Foo } return Foo }
+			`,
+		},
+		entryPaths: []string{"/a.ts", "/b.ts"},
+		options: config.Options{
+			MangleSyntax:          true,
+			RemoveWhitespace:      true,
+			MinifyIdentifiers:     true,
+			AbsOutputDir:          "/",
+			UnsupportedJSFeatures: compat.Arrow,
+		},
+	})
+}
+
 func TestTSMinifyNamespace(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -432,6 +494,64 @@ func TestTSMinifyNamespace(t *testing.T) {
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputDir:      "/",
+		},
+	})
+}
+
+func TestTSMinifyNamespaceNoLogicalAssignment(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": `
+				namespace Foo {
+					export namespace Bar {
+						foo(Foo, Bar)
+					}
+				}
+			`,
+			"/b.ts": `
+				export namespace Foo {
+					export namespace Bar {
+						foo(Foo, Bar)
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/a.ts", "/b.ts"},
+		options: config.Options{
+			MangleSyntax:          true,
+			RemoveWhitespace:      true,
+			MinifyIdentifiers:     true,
+			AbsOutputDir:          "/",
+			UnsupportedJSFeatures: compat.LogicalAssignment,
+		},
+	})
+}
+
+func TestTSMinifyNamespaceNoArrow(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": `
+				namespace Foo {
+					export namespace Bar {
+						foo(Foo, Bar)
+					}
+				}
+			`,
+			"/b.ts": `
+				export namespace Foo {
+					export namespace Bar {
+						foo(Foo, Bar)
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/a.ts", "/b.ts"},
+		options: config.Options{
+			MangleSyntax:          true,
+			RemoveWhitespace:      true,
+			MinifyIdentifiers:     true,
+			AbsOutputDir:          "/",
+			UnsupportedJSFeatures: compat.Arrow,
 		},
 	})
 }

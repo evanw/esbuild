@@ -585,10 +585,50 @@ export var Foo=(e=>(e[e.X=0]="X",e[e.Y=1]="Y",e[e.Z=e]="Z",e))(Foo||{});
 ================================================================================
 TestTSMinifyNamespace
 ---------- /a.js ----------
-var Foo;(e=>{let a;(p=>{foo(e,p)})(a=e.Bar||(e.Bar={}))})(Foo||(Foo={}));
+var Foo;(e=>{let a;(p=>foo(e,p))(a=e.Bar||={})})(Foo||={});
 
 ---------- /b.js ----------
-export var Foo;(e=>{let a;(p=>{foo(e,p)})(a=e.Bar||(e.Bar={}))})(Foo||(Foo={}));
+export var Foo;(e=>{let a;(p=>foo(e,p))(a=e.Bar||={})})(Foo||={});
+
+================================================================================
+TestTSMinifyNamespaceNoArrow
+---------- /a.js ----------
+var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||={})})(Foo||={});
+
+---------- /b.js ----------
+export var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||={})})(Foo||={});
+
+================================================================================
+TestTSMinifyNamespaceNoLogicalAssignment
+---------- /a.js ----------
+var Foo;(e=>{let a;(p=>foo(e,p))(a=e.Bar||(e.Bar={}))})(Foo||(Foo={}));
+
+---------- /b.js ----------
+export var Foo;(e=>{let a;(p=>foo(e,p))(a=e.Bar||(e.Bar={}))})(Foo||(Foo={}));
+
+================================================================================
+TestTSMinifyNestedEnum
+---------- /a.js ----------
+function foo(){let u;return(n=>(n[n.A=0]="A",n[n.B=1]="B",n[n.C=n]="C"))(u||={}),u}
+
+---------- /b.js ----------
+export function foo(){let e;return(n=>(n[n.X=0]="X",n[n.Y=1]="Y",n[n.Z=n]="Z"))(e||={}),e}
+
+================================================================================
+TestTSMinifyNestedEnumNoArrow
+---------- /a.js ----------
+function foo(){let u;return function(n){n[n.A=0]="A",n[n.B=1]="B",n[n.C=n]="C"}(u||={}),u}
+
+---------- /b.js ----------
+export function foo(){let e;return function(n){n[n.X=0]="X",n[n.Y=1]="Y",n[n.Z=n]="Z"}(e||={}),e}
+
+================================================================================
+TestTSMinifyNestedEnumNoLogicalAssignment
+---------- /a.js ----------
+function foo(){let u;return(n=>(n[n.A=0]="A",n[n.B=1]="B",n[n.C=n]="C"))(u||(u={})),u}
+
+---------- /b.js ----------
+export function foo(){let e;return(n=>(n[n.X=0]="X",n[n.Y=1]="Y",n[n.Z=n]="Z"))(e||(e={})),e}
 
 ================================================================================
 TestTSSiblingEnum

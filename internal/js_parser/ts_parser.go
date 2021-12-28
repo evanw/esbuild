@@ -1412,43 +1412,73 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	}
 
 	var argExpr js_ast.Expr
-	if isExport && p.enclosingNamespaceArgRef != nil {
-		// "name = enclosing.name || (enclosing.name = {})"
-		name := p.symbols[nameRef.InnerIndex].OriginalName
-		argExpr = js_ast.Assign(
-			js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
-			js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
-				Op: js_ast.BinOpLogicalOr,
-				Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
-					Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
-					Name:    name,
-					NameLoc: nameLoc,
-				}},
-				Right: js_ast.Assign(
-					js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
+	if p.options.mangleSyntax && !p.options.unsupportedJSFeatures.Has(compat.LogicalAssignment) {
+		// If the "||=" operator is supported, our minified output can be slightly smaller
+		if isExport && p.enclosingNamespaceArgRef != nil {
+			// "name = (enclosing.name ||= {})"
+			name := p.symbols[nameRef.InnerIndex].OriginalName
+			argExpr = js_ast.Assign(
+				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
+					Op: js_ast.BinOpLogicalOrAssign,
+					Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
 						Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
 						Name:    name,
 						NameLoc: nameLoc,
 					}},
+					Right: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
+				}},
+			)
+			p.recordUsage(*p.enclosingNamespaceArgRef)
+			p.recordUsage(nameRef)
+		} else {
+			// "name ||= {}"
+			argExpr = js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
+				Op:    js_ast.BinOpLogicalOrAssign,
+				Left:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+				Right: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
+			}}
+			p.recordUsage(nameRef)
+		}
+	} else {
+		if isExport && p.enclosingNamespaceArgRef != nil {
+			// "name = enclosing.name || (enclosing.name = {})"
+			name := p.symbols[nameRef.InnerIndex].OriginalName
+			argExpr = js_ast.Assign(
+				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
+					Op: js_ast.BinOpLogicalOr,
+					Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
+						Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
+						Name:    name,
+						NameLoc: nameLoc,
+					}},
+					Right: js_ast.Assign(
+						js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
+							Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
+							Name:    name,
+							NameLoc: nameLoc,
+						}},
+						js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
+					),
+				}},
+			)
+			p.recordUsage(*p.enclosingNamespaceArgRef)
+			p.recordUsage(*p.enclosingNamespaceArgRef)
+			p.recordUsage(nameRef)
+		} else {
+			// "name || (name = {})"
+			argExpr = js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
+				Op:   js_ast.BinOpLogicalOr,
+				Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+				Right: js_ast.Assign(
+					js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
 					js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
 				),
-			}},
-		)
-		p.recordUsage(*p.enclosingNamespaceArgRef)
-		p.recordUsage(*p.enclosingNamespaceArgRef)
-		p.recordUsage(nameRef)
-	} else {
-		// "name || (name = {})"
-		argExpr = js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
-			Op:   js_ast.BinOpLogicalOr,
-			Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
-			Right: js_ast.Assign(
-				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
-				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
-			),
-		}}
-		p.recordUsage(nameRef)
-		p.recordUsage(nameRef)
+			}}
+			p.recordUsage(nameRef)
+			p.recordUsage(nameRef)
+		}
 	}
 
 	// Try to use an arrow function if possible for compactness
@@ -1460,9 +1490,16 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
 		}}}
 	} else {
+		// "(() => { foo() })()" => "(() => foo())()"
+		if p.options.mangleSyntax && len(stmtsInsideClosure) == 1 {
+			if expr, ok := stmtsInsideClosure[0].Data.(*js_ast.SExpr); ok {
+				stmtsInsideClosure[0].Data = &js_ast.SReturn{ValueOrNil: expr.Value}
+			}
+		}
 		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EArrow{
-			Args: args,
-			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			Args:       args,
+			Body:       js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			PreferExpr: true,
 		}}
 	}
 
