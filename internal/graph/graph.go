@@ -174,7 +174,6 @@ func CloneLinkerGraph(
 						clone[ref] = uses
 					}
 					part.SymbolUses = clone
-					part.Dependencies = append([]js_ast.Dependency{}, part.Dependencies...)
 				}
 
 				// Clone the import records

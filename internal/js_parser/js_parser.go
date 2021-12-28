@@ -15291,29 +15291,6 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 
 		// Pulling in the exports of this module always pulls in the export part
 		p.topLevelSymbolToParts[p.exportsRef] = append(p.topLevelSymbolToParts[p.exportsRef], js_ast.NSExportPartIndex)
-
-		// Each part tracks the other parts it depends on within this file
-		localDependencies := make(map[uint32]uint32)
-		for partIndex := range parts {
-			part := &parts[partIndex]
-			for ref := range part.SymbolUses {
-				for _, otherPartIndex := range p.topLevelSymbolToParts[ref] {
-					if oldPartIndex, ok := localDependencies[otherPartIndex]; !ok || oldPartIndex != uint32(partIndex) {
-						localDependencies[otherPartIndex] = uint32(partIndex)
-						part.Dependencies = append(part.Dependencies, js_ast.Dependency{
-							SourceIndex: p.source.Index,
-							PartIndex:   otherPartIndex,
-						})
-					}
-				}
-
-				// Also map from imports to parts that use them
-				if namedImport, ok := p.namedImports[ref]; ok {
-					namedImport.LocalPartsWithUses = append(namedImport.LocalPartsWithUses, uint32(partIndex))
-					p.namedImports[ref] = namedImport
-				}
-			}
-		}
 	}
 
 	// Make a wrapper symbol in case we need to be wrapped in a closure

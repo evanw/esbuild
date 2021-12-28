@@ -1339,6 +1339,31 @@ func (c *linkerContext) scanImportsAndExports() {
 			// come second after we fill in that array
 			c.createExportsForFile(uint32(sourceIndex))
 
+			// Each part tracks the other parts it depends on within this file
+			localDependencies := make(map[uint32]uint32)
+			parts := repr.AST.Parts
+			namedImports := repr.AST.NamedImports
+			for partIndex := range parts {
+				part := &parts[partIndex]
+				for ref := range part.SymbolUses {
+					for _, otherPartIndex := range repr.TopLevelSymbolToParts(ref) {
+						if oldPartIndex, ok := localDependencies[otherPartIndex]; !ok || oldPartIndex != uint32(partIndex) {
+							localDependencies[otherPartIndex] = uint32(partIndex)
+							part.Dependencies = append(part.Dependencies, js_ast.Dependency{
+								SourceIndex: sourceIndex,
+								PartIndex:   otherPartIndex,
+							})
+						}
+					}
+
+					// Also map from imports to parts that use them
+					if namedImport, ok := namedImports[ref]; ok {
+						namedImport.LocalPartsWithUses = append(namedImport.LocalPartsWithUses, uint32(partIndex))
+						namedImports[ref] = namedImport
+					}
+				}
+			}
+
 			waitGroup.Done()
 		}(sourceIndex, repr)
 	}
