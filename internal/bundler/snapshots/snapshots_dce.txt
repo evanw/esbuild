@@ -272,14 +272,14 @@ TestInlineEmptyFunctionCalls
 function DROP() {
 }
 console.log((foo(), bar(), void 0));
-console.log((foo(), 1, void 0));
-console.log((1, foo(), void 0));
-console.log((1, void 0));
+console.log((foo(), void 0));
+console.log((foo(), void 0));
 console.log(void 0);
-foo(), bar(), void 0;
-foo(), 1, void 0;
-1, foo(), void 0;
-1, void 0;
+console.log(void 0);
+foo(), bar();
+foo();
+foo();
+void 0;
 void 0;
 
 ---------- /out/empty-comma.js ----------
