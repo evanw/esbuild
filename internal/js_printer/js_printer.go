@@ -1299,6 +1299,7 @@ const (
 	forbidIn
 	hasNonOptionalChainParent
 	exprResultIsUnused
+	didAlreadySimplifyUnusedExprs
 	isFollowedByOf
 	isInsideForAwait
 )
@@ -1376,7 +1377,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	originalFlags := flags
 
 	// Turn these flags off so we don't unintentionally propagate them to child calls
-	flags &= ^(isFollowedByOf | exprResultIsUnused)
+	flags &= ^(isFollowedByOf | exprResultIsUnused | didAlreadySimplifyUnusedExprs)
 
 	p.addSourceMapping(expr.Loc)
 
@@ -2187,6 +2188,27 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 	case *js_ast.EBinary:
+		// If this is a comma operator then either the result is unused (and we
+		// should have already simplified unused expressions), or the result is used
+		// (and we can still simplify unused expressions inside the left operand)
+		if e.Op == js_ast.BinOpComma {
+			if (originalFlags & didAlreadySimplifyUnusedExprs) == 0 {
+				left := p.simplifyUnusedExpr(e.Left)
+				right := e.Right
+				if (originalFlags & exprResultIsUnused) != 0 {
+					right = p.simplifyUnusedExpr(right)
+				}
+				if left.Data != e.Left.Data || right.Data != e.Right.Data {
+					// Pass a flag so we don't needlessly re-simplify the same expression
+					p.printExpr(js_ast.JoinWithComma(left, e.Right), level, originalFlags|didAlreadySimplifyUnusedExprs)
+					break
+				}
+			} else {
+				// Pass a flag so we don't needlessly re-simplify the same expression
+				flags |= didAlreadySimplifyUnusedExprs
+			}
+		}
+
 		entry := js_ast.OpTable[e.Op]
 		wrap := level >= entry.Level || (e.Op == js_ast.BinOpIn && (flags&forbidIn) != 0)
 
