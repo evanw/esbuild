@@ -583,7 +583,7 @@ flatten:
 	if p.options.mangleSyntax {
 		if isNullOrUndefined, sideEffects, ok := toNullOrUndefinedWithSideEffects(expr.Data); ok && isNullOrUndefined {
 			if sideEffects == couldHaveSideEffects {
-				return js_ast.JoinWithComma(p.simplifyUnusedExpr(expr), valueWhenUndefined), exprOut{}
+				return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(expr, p.isUnbound), valueWhenUndefined), exprOut{}
 			}
 			return valueWhenUndefined, exprOut{}
 		}

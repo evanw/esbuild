@@ -54,6 +54,7 @@ type parser struct {
 	currentScope               *js_ast.Scope
 	scopesForCurrentPart       []*js_ast.Scope
 	symbols                    []js_ast.Symbol
+	isUnbound                  func(js_ast.Ref) bool
 	tsUseCounts                []uint32
 	exportsRef                 js_ast.Ref
 	requireRef                 js_ast.Ref
@@ -978,65 +979,6 @@ func typeofWithoutSideEffects(data js_ast.E) (string, bool) {
 	}
 
 	return "", false
-}
-
-// Returns true if this expression is known to result in a primitive value (i.e.
-// null, undefined, boolean, number, bigint, or string), even if the expression
-// cannot be removed due to side effects.
-func isPrimitiveWithSideEffects(data js_ast.E) bool {
-	switch e := data.(type) {
-	case *js_ast.EInlinedEnum:
-		return isPrimitiveWithSideEffects(e.Value.Data)
-
-	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt, *js_ast.EString:
-		return true
-
-	case *js_ast.EUnary:
-		switch e.Op {
-		case
-			// Number or bigint
-			js_ast.UnOpPos, js_ast.UnOpNeg, js_ast.UnOpCpl,
-			js_ast.UnOpPreDec, js_ast.UnOpPreInc, js_ast.UnOpPostDec, js_ast.UnOpPostInc,
-			// Boolean
-			js_ast.UnOpNot, js_ast.UnOpDelete,
-			// Undefined
-			js_ast.UnOpVoid,
-			// String
-			js_ast.UnOpTypeof:
-			return true
-		}
-
-	case *js_ast.EBinary:
-		switch e.Op {
-		case
-			// Boolean
-			js_ast.BinOpLt, js_ast.BinOpLe, js_ast.BinOpGt, js_ast.BinOpGe, js_ast.BinOpIn,
-			js_ast.BinOpInstanceof, js_ast.BinOpLooseEq, js_ast.BinOpLooseNe, js_ast.BinOpStrictEq, js_ast.BinOpStrictNe,
-			// String, number, or bigint
-			js_ast.BinOpAdd, js_ast.BinOpAddAssign,
-			// Number or bigint
-			js_ast.BinOpSub, js_ast.BinOpMul, js_ast.BinOpDiv, js_ast.BinOpRem, js_ast.BinOpPow,
-			js_ast.BinOpSubAssign, js_ast.BinOpMulAssign, js_ast.BinOpDivAssign, js_ast.BinOpRemAssign, js_ast.BinOpPowAssign,
-			js_ast.BinOpShl, js_ast.BinOpShr, js_ast.BinOpUShr,
-			js_ast.BinOpShlAssign, js_ast.BinOpShrAssign, js_ast.BinOpUShrAssign,
-			js_ast.BinOpBitwiseOr, js_ast.BinOpBitwiseAnd, js_ast.BinOpBitwiseXor,
-			js_ast.BinOpBitwiseOrAssign, js_ast.BinOpBitwiseAndAssign, js_ast.BinOpBitwiseXorAssign:
-			return true
-
-		// These always return one of the arguments unmodified
-		case js_ast.BinOpLogicalAnd, js_ast.BinOpLogicalOr, js_ast.BinOpNullishCoalescing,
-			js_ast.BinOpLogicalAndAssign, js_ast.BinOpLogicalOrAssign, js_ast.BinOpNullishCoalescingAssign:
-			return isPrimitiveWithSideEffects(e.Left.Data) && isPrimitiveWithSideEffects(e.Right.Data)
-
-		case js_ast.BinOpComma:
-			return isPrimitiveWithSideEffects(e.Right.Data)
-		}
-
-	case *js_ast.EIf:
-		return isPrimitiveWithSideEffects(e.Yes.Data) && isPrimitiveWithSideEffects(e.No.Data)
-	}
-
-	return false
 }
 
 // Returns "equal, ok". If "ok" is false, then nothing is known about the two
@@ -8587,7 +8529,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 				// We can drop the "no" branch
 				if sideEffects == couldHaveSideEffects {
 					// Keep the condition if it could have side effects (but is still known to be truthy)
-					if test := p.simplifyUnusedExpr(s.Test); test.Data != nil {
+					if test := js_ast.SimplifyUnusedExpr(s.Test, p.isUnbound); test.Data != nil {
 						stmts = append(stmts, js_ast.Stmt{Loc: s.Test.Loc, Data: &js_ast.SExpr{Value: test}})
 					}
 				}
@@ -8601,7 +8543,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 				// We can drop the "yes" branch
 				if sideEffects == couldHaveSideEffects {
 					// Keep the condition if it could have side effects (but is still known to be falsy)
-					if test := p.simplifyUnusedExpr(s.Test); test.Data != nil {
+					if test := js_ast.SimplifyUnusedExpr(s.Test, p.isUnbound); test.Data != nil {
 						stmts = append(stmts, js_ast.Stmt{Loc: s.Test.Loc, Data: &js_ast.SExpr{Value: test}})
 					}
 				}
@@ -9242,7 +9184,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Trim expressions without side effects
 		if p.options.mangleSyntax {
-			s.Value = p.simplifyUnusedExpr(s.Value)
+			s.Value = js_ast.SimplifyUnusedExpr(s.Value, p.isUnbound)
 			if s.Value.Data == nil {
 				return stmts
 			}
@@ -11643,7 +11585,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// "(1, 2)" => "2"
 			// "(sideEffects(), 2)" => "(sideEffects(), 2)"
 			if p.options.mangleSyntax {
-				e.Left = p.simplifyUnusedExpr(e.Left)
+				e.Left = js_ast.SimplifyUnusedExpr(e.Left, p.isUnbound)
 				if e.Left.Data == nil {
 					// "(1, fn)()" => "fn()"
 					// "(1, this.fn)" => "this.fn"
@@ -12459,7 +12401,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.options.mangleSyntax {
 					// "(a, true) ? b : c" => "a, b"
 					if sideEffects == couldHaveSideEffects {
-						return js_ast.JoinWithComma(p.simplifyUnusedExpr(e.Test), e.Yes), exprOut{}
+						return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(e.Test, p.isUnbound), e.Yes), exprOut{}
 					}
 
 					// "(1 ? fn : 2)()" => "fn()"
@@ -12482,7 +12424,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.options.mangleSyntax {
 					// "(a, false) ? b : c" => "a, c"
 					if sideEffects == couldHaveSideEffects {
-						return js_ast.JoinWithComma(p.simplifyUnusedExpr(e.Test), e.No), exprOut{}
+						return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(e.Test, p.isUnbound), e.No), exprOut{}
 					}
 
 					// "(0 ? 1 : fn)()" => "fn()"
@@ -14478,300 +14420,6 @@ func (p *parser) isSideEffectFreeUnboundIdentifierRef(value js_ast.Expr, guardCo
 	return false
 }
 
-// This will return a nil expression if the expression can be totally removed
-func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
-	switch e := expr.Data.(type) {
-	case *js_ast.EInlinedEnum:
-		return p.simplifyUnusedExpr(e.Value)
-
-	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EMissing, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt,
-		*js_ast.EString, *js_ast.EThis, *js_ast.ERegExp, *js_ast.EFunction, *js_ast.EArrow, *js_ast.EImportMeta:
-		return js_ast.Expr{}
-
-	case *js_ast.EDot:
-		if e.CanBeRemovedIfUnused {
-			return js_ast.Expr{}
-		}
-
-	case *js_ast.EIdentifier:
-		if e.MustKeepDueToWithStmt {
-			break
-		}
-		if e.CanBeRemovedIfUnused || p.symbols[e.Ref.InnerIndex].Kind != js_ast.SymbolUnbound {
-			return js_ast.Expr{}
-		}
-
-	case *js_ast.ETemplate:
-		if e.TagOrNil.Data == nil {
-			var comma js_ast.Expr
-			var templateLoc logger.Loc
-			var template *js_ast.ETemplate
-			for _, part := range e.Parts {
-				// If we know this value is some kind of primitive, then we know that
-				// "ToString" has no side effects and can be avoided.
-				if js_ast.KnownPrimitiveType(part.Value) != js_ast.PrimitiveUnknown {
-					if template != nil {
-						comma = js_ast.JoinWithComma(comma, js_ast.Expr{Loc: templateLoc, Data: template})
-						template = nil
-					}
-					comma = js_ast.JoinWithComma(comma, p.simplifyUnusedExpr(part.Value))
-					continue
-				}
-
-				// Make sure "ToString" is still evaluated on the value. We can't use
-				// string addition here because that may evaluate "ValueOf" instead.
-				if template == nil {
-					template = &js_ast.ETemplate{}
-					templateLoc = part.Value.Loc
-				}
-				template.Parts = append(template.Parts, js_ast.TemplatePart{Value: part.Value})
-			}
-			if template != nil {
-				comma = js_ast.JoinWithComma(comma, js_ast.Expr{Loc: templateLoc, Data: template})
-			}
-			return comma
-		}
-
-	case *js_ast.EArray:
-		// Arrays with "..." spread expressions can't be unwrapped because the
-		// "..." triggers code evaluation via iterators. In that case, just trim
-		// the other items instead and leave the array expression there.
-		for _, spread := range e.Items {
-			if _, ok := spread.Data.(*js_ast.ESpread); ok {
-				end := 0
-				for _, item := range e.Items {
-					item = p.simplifyUnusedExpr(item)
-					if item.Data != nil {
-						e.Items[end] = item
-						end++
-					}
-				}
-				e.Items = e.Items[:end]
-				return expr
-			}
-		}
-
-		// Otherwise, the array can be completely removed. We only need to keep any
-		// array items with side effects. Apply this simplification recursively.
-		var result js_ast.Expr
-		for _, item := range e.Items {
-			result = js_ast.JoinWithComma(result, p.simplifyUnusedExpr(item))
-		}
-		return result
-
-	case *js_ast.EObject:
-		// Objects with "..." spread expressions can't be unwrapped because the
-		// "..." triggers code evaluation via getters. In that case, just trim
-		// the other items instead and leave the object expression there.
-		for _, spread := range e.Properties {
-			if spread.Kind == js_ast.PropertySpread {
-				end := 0
-				for _, property := range e.Properties {
-					// Spread properties must always be evaluated
-					if property.Kind != js_ast.PropertySpread {
-						value := p.simplifyUnusedExpr(property.ValueOrNil)
-						if value.Data != nil {
-							// Keep the value
-							property.ValueOrNil = value
-						} else if !property.IsComputed {
-							// Skip this property if the key doesn't need to be computed
-							continue
-						} else {
-							// Replace values without side effects with "0" because it's short
-							property.ValueOrNil.Data = &js_ast.ENumber{}
-						}
-					}
-					e.Properties[end] = property
-					end++
-				}
-				e.Properties = e.Properties[:end]
-				return expr
-			}
-		}
-
-		// Otherwise, the object can be completely removed. We only need to keep any
-		// object properties with side effects. Apply this simplification recursively.
-		var result js_ast.Expr
-		for _, property := range e.Properties {
-			if property.IsComputed {
-				// Make sure "ToString" is still evaluated on the key
-				result = js_ast.JoinWithComma(result, js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpAdd,
-					Left:  property.Key,
-					Right: js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EString{}},
-				}})
-			}
-			result = js_ast.JoinWithComma(result, p.simplifyUnusedExpr(property.ValueOrNil))
-		}
-		return result
-
-	case *js_ast.EIf:
-		e.Yes = p.simplifyUnusedExpr(e.Yes)
-		e.No = p.simplifyUnusedExpr(e.No)
-
-		// "foo() ? 1 : 2" => "foo()"
-		if e.Yes.Data == nil && e.No.Data == nil {
-			return p.simplifyUnusedExpr(e.Test)
-		}
-
-		// "foo() ? 1 : bar()" => "foo() || bar()"
-		if e.Yes.Data == nil {
-			return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, e.Test, e.No)
-		}
-
-		// "foo() ? bar() : 2" => "foo() && bar()"
-		if e.No.Data == nil {
-			return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, e.Test, e.Yes)
-		}
-
-	case *js_ast.EUnary:
-		switch e.Op {
-		// These operators must not have any type conversions that can execute code
-		// such as "toString" or "valueOf". They must also never throw any exceptions.
-		case js_ast.UnOpVoid, js_ast.UnOpNot:
-			return p.simplifyUnusedExpr(e.Value)
-
-		case js_ast.UnOpTypeof:
-			if _, ok := e.Value.Data.(*js_ast.EIdentifier); ok {
-				// "typeof x" must not be transformed into if "x" since doing so could
-				// cause an exception to be thrown. Instead we can just remove it since
-				// "typeof x" is special-cased in the standard to never throw.
-				return js_ast.Expr{}
-			}
-			return p.simplifyUnusedExpr(e.Value)
-		}
-
-	case *js_ast.EBinary:
-		switch e.Op {
-		// These operators must not have any type conversions that can execute code
-		// such as "toString" or "valueOf". They must also never throw any exceptions.
-		case js_ast.BinOpStrictEq, js_ast.BinOpStrictNe, js_ast.BinOpComma:
-			return js_ast.JoinWithComma(p.simplifyUnusedExpr(e.Left), p.simplifyUnusedExpr(e.Right))
-
-		// We can simplify "==" and "!=" even though they can call "toString" and/or
-		// "valueOf" if we can statically determine that the types of both sides are
-		// primitives. In that case there won't be any chance for user-defined
-		// "toString" and/or "valueOf" to be called.
-		case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe:
-			if isPrimitiveWithSideEffects(e.Left.Data) && isPrimitiveWithSideEffects(e.Right.Data) {
-				return js_ast.JoinWithComma(p.simplifyUnusedExpr(e.Left), p.simplifyUnusedExpr(e.Right))
-			}
-
-		case js_ast.BinOpLogicalAnd, js_ast.BinOpLogicalOr, js_ast.BinOpNullishCoalescing:
-			// Preserve short-circuit behavior: the left expression is only unused if
-			// the right expression can be completely removed. Otherwise, the left
-			// expression is important for the branch.
-			e.Right = p.simplifyUnusedExpr(e.Right)
-			if e.Right.Data == nil {
-				return p.simplifyUnusedExpr(e.Left)
-			}
-
-		case js_ast.BinOpAdd:
-			if result, isStringAddition := simplifyUnusedStringAdditionChain(expr); isStringAddition {
-				return result
-			}
-		}
-
-	case *js_ast.ECall:
-		// A call that has been marked "__PURE__" can be removed if all arguments
-		// can be removed. The annotation causes us to ignore the target.
-		if e.CanBeUnwrappedIfUnused {
-			expr = js_ast.Expr{}
-			for _, arg := range e.Args {
-				expr = js_ast.JoinWithComma(expr, p.simplifyUnusedExpr(arg))
-			}
-		}
-
-		// Attempt to shorten IIFEs
-		if len(e.Args) == 0 {
-			switch target := e.Target.Data.(type) {
-			case *js_ast.EFunction:
-				if len(target.Fn.Args) != 0 {
-					break
-				}
-
-				// Just delete "(function() {})()" completely
-				if len(target.Fn.Body.Stmts) == 0 {
-					return js_ast.Expr{}
-				}
-
-			case *js_ast.EArrow:
-				if len(target.Args) != 0 {
-					break
-				}
-
-				// Just delete "(() => {})()" completely
-				if len(target.Body.Stmts) == 0 {
-					return js_ast.Expr{}
-				}
-
-				if len(target.Body.Stmts) == 1 {
-					switch s := target.Body.Stmts[0].Data.(type) {
-					case *js_ast.SExpr:
-						if !target.IsAsync {
-							// Replace "(() => { foo() })()" with "foo()"
-							return s.Value
-						} else {
-							// Replace "(async () => { foo() })()" with "(async () => foo())()"
-							target.Body.Stmts[0].Data = &js_ast.SReturn{ValueOrNil: s.Value}
-							target.PreferExpr = true
-						}
-
-					case *js_ast.SReturn:
-						if !target.IsAsync {
-							// Replace "(() => foo())()" with "foo()"
-							return s.ValueOrNil
-						}
-					}
-				}
-			}
-		}
-
-	case *js_ast.ENew:
-		// A constructor call that has been marked "__PURE__" can be removed if all
-		// arguments can be removed. The annotation causes us to ignore the target.
-		if e.CanBeUnwrappedIfUnused {
-			expr = js_ast.Expr{}
-			for _, arg := range e.Args {
-				expr = js_ast.JoinWithComma(expr, p.simplifyUnusedExpr(arg))
-			}
-		}
-	}
-
-	return expr
-}
-
-func simplifyUnusedStringAdditionChain(expr js_ast.Expr) (js_ast.Expr, bool) {
-	switch e := expr.Data.(type) {
-	case *js_ast.EString:
-		// "'x' + y" => "'' + y"
-		return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{}}, true
-
-	case *js_ast.EBinary:
-		if e.Op == js_ast.BinOpAdd {
-			left, leftIsStringAddition := simplifyUnusedStringAdditionChain(e.Left)
-			e.Left = left
-
-			if _, rightIsString := e.Right.Data.(*js_ast.EString); rightIsString {
-				// "('' + x) + 'y'" => "'' + x"
-				if leftIsStringAddition {
-					return left, true
-				}
-
-				// "x + 'y'" => "x + ''"
-				if !leftIsStringAddition {
-					e.Right.Data = &js_ast.EString{}
-					return expr, true
-				}
-			}
-
-			return expr, leftIsStringAddition
-		}
-	}
-
-	return expr, false
-}
-
 func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, options *Options) *parser {
 	if options.defines == nil {
 		defaultDefines := config.ProcessDefines(nil)
@@ -14810,6 +14458,10 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		namedExports:            make(map[string]js_ast.NamedExport),
 
 		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
+	}
+
+	p.isUnbound = func(ref js_ast.Ref) bool {
+		return p.symbols[ref.InnerIndex].Kind == js_ast.SymbolUnbound
 	}
 
 	p.findSymbolHelper = func(loc logger.Loc, name string) js_ast.Ref {
