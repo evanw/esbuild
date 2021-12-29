@@ -92,7 +92,7 @@
     function assertFoo(o){}const val=getFoo();assertFoo(val),console.log(val.bar);
 
     // New output (with --minify --define:window.DEBUG=false)
-    function assertFoo(o){}const val=getFoo();void 0,console.log(val.bar);
+    function assertFoo(o){}const val=getFoo();console.log(val.bar);
     ```
 
 ## 0.14.9

@@ -1313,6 +1313,65 @@ func (p *printer) printUndefined(level js_ast.L) {
 	}
 }
 
+// Call this before printing an expression to see if it turned out to be empty.
+// We use this to do inlining of empty functions at print time. It can't happen
+// during parse time because a) parse time only has two passes and we only know
+// if a function can be inlined at the end of the second pass (due to is-mutated
+// analysis) and b) we want to enable cross-module inlining of empty functions
+// which has to happen after linking.
+//
+// This function returns "nil" to indicate that the expression should be removed
+// completely.
+//
+// This function doesn't need to search everywhere inside the entire expression
+// for calls to inline. Calls are automatically inlined when printed. However,
+// the printer replaces the call with "undefined" since the result may still
+// be needed by the caller. If the caller knows that it doesn't need the result,
+// it should call this function first instead so we don't print "undefined".
+//
+// This is a separate function instead of trying to work this logic into the
+// printer because it's too late to eliminate the expression entirely when we're
+// in the printer. We may have already printed the leading indent, for example.
+func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
+	switch e := expr.Data.(type) {
+	case *js_ast.EBinary:
+		// Calls to be inlined may be hidden inside a comma operator chain
+		if e.Op == js_ast.BinOpComma {
+			left := p.simplifyUnusedExpr(e.Left)
+			right := p.simplifyUnusedExpr(e.Right)
+			if left.Data != e.Left.Data || right.Data != e.Right.Data {
+				return js_ast.JoinWithComma(left, right)
+			}
+		}
+
+	case *js_ast.ECall:
+		var symbolFlags js_ast.SymbolFlags
+		switch target := e.Target.Data.(type) {
+		case *js_ast.EIdentifier:
+			symbolFlags = p.symbols.Get(target.Ref).Flags
+		case *js_ast.EImportIdentifier:
+			ref := js_ast.FollowSymbols(p.symbols, target.Ref)
+			symbolFlags = p.symbols.Get(ref).Flags
+		}
+
+		// Replace non-mutated empty functions with their arguments at print time
+		if (symbolFlags & (js_ast.IsEmptyFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction {
+			var replacement js_ast.Expr
+			for _, arg := range e.Args {
+				replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(arg), p.isUnbound))
+			}
+			return replacement // Don't add "undefined" here because the result isn't used
+		}
+
+		// Inline non-mutated identity functions at print time
+		if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
+			return js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(e.Args[0]), p.isUnbound)
+		}
+	}
+
+	return expr
+}
+
 func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFlags) {
 	originalFlags := flags
 
@@ -1509,7 +1568,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 			// Inline non-mutated identity functions at print time
 			if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
-				p.printExpr(e.Args[0], level, originalFlags)
+				arg := e.Args[0]
+				if (originalFlags & exprResultIsUnused) != 0 {
+					arg = js_ast.SimplifyUnusedExpr(arg, p.isUnbound)
+				}
+				p.printExpr(arg, level, originalFlags)
 				break
 			}
 		}
@@ -2182,6 +2245,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		// Special-case "#foo in bar"
 		if private, ok := e.Left.Data.(*js_ast.EPrivateIdentifier); ok && e.Op == js_ast.BinOpIn {
 			p.printSymbol(private.Ref)
+		} else if e.Op == js_ast.BinOpComma {
+			// The result of the left operand of the comma operator is unused
+			p.printExpr(e.Left, leftLevel, (flags&forbidIn)|exprResultIsUnused)
 		} else {
 			p.printExpr(e.Left, leftLevel, flags&forbidIn)
 		}
@@ -2202,7 +2268,12 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		p.printSpace()
 
-		p.printExpr(e.Right, rightLevel, flags&forbidIn)
+		if e.Op == js_ast.BinOpComma {
+			// The result of the right operand of the comma operator is unused if the caller doesn't use it
+			p.printExpr(e.Right, rightLevel, (flags&forbidIn)|(originalFlags&exprResultIsUnused))
+		} else {
+			p.printExpr(e.Right, rightLevel, flags&forbidIn)
+		}
 
 		if wrap {
 			p.print(")")
@@ -2443,7 +2514,7 @@ func (p *printer) printBody(body js_ast.Stmt) {
 	} else {
 		p.printNewline()
 		p.options.Indent++
-		p.printStmt(body)
+		p.printStmt(body, 0)
 		p.options.Indent--
 	}
 }
@@ -2456,7 +2527,7 @@ func (p *printer) printBlock(loc logger.Loc, stmts []js_ast.Stmt) {
 	p.options.Indent++
 	for _, stmt := range stmts {
 		p.printSemicolonIfNeeded()
-		p.printStmt(stmt)
+		p.printStmt(stmt, canOmitStatement)
 	}
 	p.options.Indent--
 	p.needsSemicolon = false
@@ -2518,7 +2589,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 		p.printNewline()
 
 		p.options.Indent++
-		p.printStmt(s.Yes)
+		p.printStmt(s.Yes, canOmitStatement)
 		p.options.Indent--
 		p.needsSemicolon = false
 
@@ -2533,7 +2604,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 	} else {
 		p.printNewline()
 		p.options.Indent++
-		p.printStmt(s.Yes)
+		p.printStmt(s.Yes, 0)
 		p.options.Indent--
 
 		if s.NoOrNil.Data != nil {
@@ -2555,7 +2626,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 		} else {
 			p.printNewline()
 			p.options.Indent++
-			p.printStmt(s.NoOrNil)
+			p.printStmt(s.NoOrNil, 0)
 			p.options.Indent--
 		}
 	}
@@ -2653,7 +2724,13 @@ func (p *printer) printImportAssertionsClause(assertions []ast.AssertEntry) {
 	p.print("}")
 }
 
-func (p *printer) printStmt(stmt js_ast.Stmt) {
+type printStmtFlags uint8
+
+const (
+	canOmitStatement printStmtFlags = 1 << iota
+)
+
+func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 	p.addSourceMapping(stmt.Loc)
 
 	switch s := stmt.Data.(type) {
@@ -2891,7 +2968,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		} else {
 			p.printNewline()
 			p.options.Indent++
-			p.printStmt(s.Body)
+			p.printStmt(s.Body, 0)
 			p.printSemicolonIfNeeded()
 			p.options.Indent--
 			p.printIndent()
@@ -2997,13 +3074,30 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printNewline()
 
 	case *js_ast.SFor:
+		init := s.InitOrNil
+		update := s.UpdateOrNil
+
+		// Omit calls to empty functions from the output completely
+		if p.options.MangleSyntax {
+			if expr, ok := init.Data.(*js_ast.SExpr); ok {
+				if value := p.simplifyUnusedExpr(expr.Value); value.Data == nil {
+					init.Data = nil
+				} else if value.Data != expr.Value.Data {
+					init.Data = &js_ast.SExpr{Value: value}
+				}
+			}
+			if update.Data != nil {
+				update = p.simplifyUnusedExpr(update)
+			}
+		}
+
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("for")
 		p.printSpace()
 		p.print("(")
-		if s.InitOrNil.Data != nil {
-			p.printForLoopInit(s.InitOrNil, forbidIn|exprResultIsUnused)
+		if init.Data != nil {
+			p.printForLoopInit(init, forbidIn|exprResultIsUnused)
 		}
 		p.print(";")
 		p.printSpace()
@@ -3012,8 +3106,8 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		}
 		p.print(";")
 		p.printSpace()
-		if s.UpdateOrNil.Data != nil {
-			p.printExpr(s.UpdateOrNil, js_ast.LLowest, exprResultIsUnused)
+		if update.Data != nil {
+			p.printExpr(update, js_ast.LLowest, exprResultIsUnused)
 		}
 		p.print(")")
 		p.printBody(s.Body)
@@ -3057,7 +3151,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			p.options.Indent++
 			for _, stmt := range c.Body {
 				p.printSemicolonIfNeeded()
-				p.printStmt(stmt)
+				p.printStmt(stmt, canOmitStatement)
 			}
 			p.options.Indent--
 		}
@@ -3205,9 +3299,28 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SExpr:
+		value := s.Value
+
+		// Omit calls to empty functions from the output completely
+		if p.options.MangleSyntax {
+			value = p.simplifyUnusedExpr(value)
+			if value.Data == nil {
+				// If this statement is not in a block, then we still need to emit something
+				if (flags & canOmitStatement) == 0 {
+					// "if (x) empty();" => "if (x) ;"
+					p.printIndent()
+					p.print(";")
+					p.printNewline()
+				} else {
+					// "if (x) { empty(); }" => "if (x) {}"
+				}
+				break
+			}
+		}
+
 		p.printIndent()
 		p.stmtStart = len(p.js)
-		p.printExpr(s.Value, js_ast.LLowest, exprResultIsUnused)
+		p.printExpr(value, js_ast.LLowest, exprResultIsUnused)
 		p.printSemicolonAfterStatement()
 
 	default:
@@ -3293,7 +3406,7 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 
 	for _, part := range tree.Parts {
 		for _, stmt := range part.Stmts {
-			p.printStmt(stmt)
+			p.printStmt(stmt, canOmitStatement)
 			p.printSemicolonIfNeeded()
 		}
 	}
