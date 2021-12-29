@@ -13569,6 +13569,11 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 		return p.valueToSubstituteForRequire(loc)
 	}
 
+	// Mark any mutated symbols as mutable
+	if opts.assignTarget != js_ast.AssignTargetNone {
+		p.symbols[e.Ref.InnerIndex].Flags |= js_ast.CouldPotentiallyBeMutated
+	}
+
 	return js_ast.Expr{Loc: loc, Data: e}
 }
 
