@@ -3,6 +3,7 @@ package bundler
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 )
 
@@ -1978,6 +1979,109 @@ func TestDCETemplateLiteral(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
+		},
+	})
+}
+
+// Calls to the runtime "__publicField" function are not considered side effects
+func TestTreeShakingLoweredClassStaticField(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class REMOVE_ME {
+					static x = 'x'
+					static y = 'y'
+					static z = 'z'
+				}
+				function REMOVE_ME_TOO() {
+					new REMOVE_ME()
+				}
+				class KeepMe1 {
+					static x = 'x'
+					static y = sideEffects()
+					static z = 'z'
+				}
+				class KeepMe2 {
+					static x = 'x'
+					static y = 'y'
+					static z = 'z'
+				}
+				new KeepMe2()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: compat.ClassField,
+		},
+	})
+}
+
+func TestTreeShakingLoweredClassStaticFieldMinified(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class REMOVE_ME {
+					static x = 'x'
+					static y = 'y'
+					static z = 'z'
+				}
+				function REMOVE_ME_TOO() {
+					new REMOVE_ME()
+				}
+				class KeepMe1 {
+					static x = 'x'
+					static y = sideEffects()
+					static z = 'z'
+				}
+				class KeepMe2 {
+					static x = 'x'
+					static y = 'y'
+					static z = 'z'
+				}
+				new KeepMe2()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: compat.ClassField,
+			MangleSyntax:          true,
+		},
+	})
+}
+
+// Assignments are considered side effects
+func TestTreeShakingLoweredClassStaticFieldAssignment(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class KeepMe1 {
+					static x = 'x'
+					static y = 'y'
+					static z = 'z'
+				}
+				class KeepMe2 {
+					static x = 'x'
+					static y = sideEffects()
+					static z = 'z'
+				}
+				class KeepMe3 {
+					static x = 'x'
+					static y = 'y'
+					static z = 'z'
+				}
+				new KeepMe3()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                    config.ModeBundle,
+			AbsOutputDir:            "/out",
+			UnsupportedJSFeatures:   compat.ClassField,
+			UseDefineForClassFields: config.False,
 		},
 	})
 }

@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+* Enable tree shaking of classes with lowered static fields ([#175](https://github.com/evanw/esbuild/issues/175))
+
+    If the configured target environment doesn't support static class fields, they are converted into a call to esbuild's `__publicField` function instead. However, esbuild's tree-shaking pass treated this call as a side effect, which meant that all classes with static fields were ineligible for tree shaking. This release fixes the problem by explicitly ignoring calls to the `__publicField` function during tree shaking side-effect determination. Tree shaking is now enabled for these classes:
+
+    ```js
+    // Original code
+    class Foo { static foo = 'foo' }
+    class Bar { static bar = 'bar' }
+    new Bar()
+
+    // Old output (with --tree-shaking=true --target=es6)
+    class Foo {
+    }
+    __publicField(Foo, "foo", "foo");
+    class Bar {
+    }
+    __publicField(Bar, "bar", "bar");
+    new Bar();
+
+    // New output (with --tree-shaking=true --target=es6)
+    class Bar {
+    }
+    __publicField(Bar, "bar", "bar");
+    new Bar();
+    ```
+
 * Treat `--define:foo=undefined` as an undefined literal instead of an identifier ([#1407](https://github.com/evanw/esbuild/issues/1407))
 
     References to the global variable `undefined` are automatically replaced with the literal value for undefined, which appears as `void 0` when printed. This allows for additional optimizations such as collapsing `undefined ?? bar` into just `bar`. However, this substitution was not done for values specified via `--define:`. As a result, esbuild could potentially miss out on certain optimizations in these cases. With this release, it's now possible to use `--define:` to substitute something with an undefined literal:

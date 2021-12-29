@@ -68,6 +68,7 @@ type parser struct {
 	importSymbolPropertyUses   map[js_ast.Ref]map[string]js_ast.SymbolUse
 	declaredSymbols            []js_ast.DeclaredSymbol
 	runtimeImports             map[string]js_ast.Ref
+	runtimePublicFieldImport   js_ast.Ref
 	duplicateCaseChecker       duplicateCaseChecker
 	unrepresentableIdentifiers map[string]bool
 	legacyOctalLiterals        map[js_ast.E]logger.Range
@@ -1758,6 +1759,9 @@ func (p *parser) importFromRuntime(loc logger.Loc, name string) js_ast.Expr {
 		ref = p.newSymbol(js_ast.SymbolOther, name)
 		p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
 		p.runtimeImports[name] = ref
+		if name == "__publicField" {
+			p.runtimePublicFieldImport = ref
+		}
 	}
 	p.recordUsage(ref)
 	return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
@@ -14311,9 +14315,20 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 		return true
 
 	case *js_ast.ECall:
+		canCallBeRemoved := e.CanBeUnwrappedIfUnused
+
+		// Consider calls to our runtime "__publicField" function to be free of
+		// side effects for the purpose of expression removal. This allows class
+		// declarations with lowered static fields to be eligible for tree shaking.
+		if !canCallBeRemoved {
+			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && id.Ref == p.runtimePublicFieldImport {
+				canCallBeRemoved = true
+			}
+		}
+
 		// A call that has been marked "__PURE__" can be removed if all arguments
 		// can be removed. The annotation causes us to ignore the target.
-		if e.CanBeUnwrappedIfUnused {
+		if canCallBeRemoved {
 			for _, arg := range e.Args {
 				if !p.exprCanBeRemovedIfUnused(arg) {
 					return false
@@ -14732,16 +14747,17 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 	}
 
 	p := &parser{
-		log:               log,
-		source:            source,
-		tracker:           logger.MakeLineColumnTracker(&source),
-		lexer:             lexer,
-		allowIn:           true,
-		options:           *options,
-		runtimeImports:    make(map[string]js_ast.Ref),
-		promiseRef:        js_ast.InvalidRef,
-		afterArrowBodyLoc: logger.Loc{Start: -1},
-		importMetaRef:     js_ast.InvalidRef,
+		log:                      log,
+		source:                   source,
+		tracker:                  logger.MakeLineColumnTracker(&source),
+		lexer:                    lexer,
+		allowIn:                  true,
+		options:                  *options,
+		runtimeImports:           make(map[string]js_ast.Ref),
+		promiseRef:               js_ast.InvalidRef,
+		afterArrowBodyLoc:        logger.Loc{Start: -1},
+		importMetaRef:            js_ast.InvalidRef,
+		runtimePublicFieldImport: js_ast.InvalidRef,
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,

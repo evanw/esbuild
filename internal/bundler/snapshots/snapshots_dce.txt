@@ -860,6 +860,55 @@ init_lib();
 console.log(keep1(), (init_cjs(), __toCommonJS(cjs_exports)));
 
 ================================================================================
+TestTreeShakingLoweredClassStaticField
+---------- /out/entry.js ----------
+// entry.js
+var KeepMe1 = class {
+};
+__publicField(KeepMe1, "x", "x");
+__publicField(KeepMe1, "y", sideEffects());
+__publicField(KeepMe1, "z", "z");
+var KeepMe2 = class {
+};
+__publicField(KeepMe2, "x", "x");
+__publicField(KeepMe2, "y", "y");
+__publicField(KeepMe2, "z", "z");
+new KeepMe2();
+
+================================================================================
+TestTreeShakingLoweredClassStaticFieldAssignment
+---------- /out/entry.js ----------
+// entry.ts
+var KeepMe1 = class {
+};
+KeepMe1.x = "x";
+KeepMe1.y = "y";
+KeepMe1.z = "z";
+var KeepMe2 = class {
+};
+KeepMe2.x = "x";
+KeepMe2.y = sideEffects();
+KeepMe2.z = "z";
+var KeepMe3 = class {
+};
+KeepMe3.x = "x";
+KeepMe3.y = "y";
+KeepMe3.z = "z";
+new KeepMe3();
+
+================================================================================
+TestTreeShakingLoweredClassStaticFieldMinified
+---------- /out/entry.js ----------
+// entry.js
+var KeepMe1 = class {
+};
+__publicField(KeepMe1, "x", "x"), __publicField(KeepMe1, "y", sideEffects()), __publicField(KeepMe1, "z", "z");
+var KeepMe2 = class {
+};
+__publicField(KeepMe2, "x", "x"), __publicField(KeepMe2, "y", "y"), __publicField(KeepMe2, "z", "z");
+new KeepMe2();
+
+================================================================================
 TestTreeShakingNoBundleCJS
 ---------- /out.js ----------
 function keep() {
