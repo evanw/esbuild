@@ -2422,3 +2422,356 @@ func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, Ref) 
 		panic("Internal error")
 	}
 }
+
+// Returns true if this expression is known to result in a primitive value (i.e.
+// null, undefined, boolean, number, bigint, or string), even if the expression
+// cannot be removed due to side effects.
+func IsPrimitiveWithSideEffects(data E) bool {
+	switch e := data.(type) {
+	case *EInlinedEnum:
+		return IsPrimitiveWithSideEffects(e.Value.Data)
+
+	case *ENull, *EUndefined, *EBoolean, *ENumber, *EBigInt, *EString:
+		return true
+
+	case *EUnary:
+		switch e.Op {
+		case
+			// Number or bigint
+			UnOpPos, UnOpNeg, UnOpCpl,
+			UnOpPreDec, UnOpPreInc, UnOpPostDec, UnOpPostInc,
+			// Boolean
+			UnOpNot, UnOpDelete,
+			// Undefined
+			UnOpVoid,
+			// String
+			UnOpTypeof:
+			return true
+		}
+
+	case *EBinary:
+		switch e.Op {
+		case
+			// Boolean
+			BinOpLt, BinOpLe, BinOpGt, BinOpGe, BinOpIn,
+			BinOpInstanceof, BinOpLooseEq, BinOpLooseNe, BinOpStrictEq, BinOpStrictNe,
+			// String, number, or bigint
+			BinOpAdd, BinOpAddAssign,
+			// Number or bigint
+			BinOpSub, BinOpMul, BinOpDiv, BinOpRem, BinOpPow,
+			BinOpSubAssign, BinOpMulAssign, BinOpDivAssign, BinOpRemAssign, BinOpPowAssign,
+			BinOpShl, BinOpShr, BinOpUShr,
+			BinOpShlAssign, BinOpShrAssign, BinOpUShrAssign,
+			BinOpBitwiseOr, BinOpBitwiseAnd, BinOpBitwiseXor,
+			BinOpBitwiseOrAssign, BinOpBitwiseAndAssign, BinOpBitwiseXorAssign:
+			return true
+
+		// These always return one of the arguments unmodified
+		case BinOpLogicalAnd, BinOpLogicalOr, BinOpNullishCoalescing,
+			BinOpLogicalAndAssign, BinOpLogicalOrAssign, BinOpNullishCoalescingAssign:
+			return IsPrimitiveWithSideEffects(e.Left.Data) && IsPrimitiveWithSideEffects(e.Right.Data)
+
+		case BinOpComma:
+			return IsPrimitiveWithSideEffects(e.Right.Data)
+		}
+
+	case *EIf:
+		return IsPrimitiveWithSideEffects(e.Yes.Data) && IsPrimitiveWithSideEffects(e.No.Data)
+	}
+
+	return false
+}
+
+// This will return a nil expression if the expression can be totally removed
+func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
+	switch e := expr.Data.(type) {
+	case *EInlinedEnum:
+		return SimplifyUnusedExpr(e.Value, isUnbound)
+
+	case *ENull, *EUndefined, *EMissing, *EBoolean, *ENumber, *EBigInt,
+		*EString, *EThis, *ERegExp, *EFunction, *EArrow, *EImportMeta:
+		return Expr{}
+
+	case *EDot:
+		if e.CanBeRemovedIfUnused {
+			return Expr{}
+		}
+
+	case *EIdentifier:
+		if e.MustKeepDueToWithStmt {
+			break
+		}
+		if e.CanBeRemovedIfUnused || !isUnbound(e.Ref) {
+			return Expr{}
+		}
+
+	case *ETemplate:
+		if e.TagOrNil.Data == nil {
+			var comma Expr
+			var templateLoc logger.Loc
+			var template *ETemplate
+			for _, part := range e.Parts {
+				// If we know this value is some kind of primitive, then we know that
+				// "ToString" has no side effects and can be avoided.
+				if KnownPrimitiveType(part.Value) != PrimitiveUnknown {
+					if template != nil {
+						comma = JoinWithComma(comma, Expr{Loc: templateLoc, Data: template})
+						template = nil
+					}
+					comma = JoinWithComma(comma, SimplifyUnusedExpr(part.Value, isUnbound))
+					continue
+				}
+
+				// Make sure "ToString" is still evaluated on the value. We can't use
+				// string addition here because that may evaluate "ValueOf" instead.
+				if template == nil {
+					template = &ETemplate{}
+					templateLoc = part.Value.Loc
+				}
+				template.Parts = append(template.Parts, TemplatePart{Value: part.Value})
+			}
+			if template != nil {
+				comma = JoinWithComma(comma, Expr{Loc: templateLoc, Data: template})
+			}
+			return comma
+		}
+
+	case *EArray:
+		// Arrays with "..." spread expressions can't be unwrapped because the
+		// "..." triggers code evaluation via iterators. In that case, just trim
+		// the other items instead and leave the array expression there.
+		for _, spread := range e.Items {
+			if _, ok := spread.Data.(*ESpread); ok {
+				end := 0
+				for _, item := range e.Items {
+					item = SimplifyUnusedExpr(item, isUnbound)
+					if item.Data != nil {
+						e.Items[end] = item
+						end++
+					}
+				}
+				e.Items = e.Items[:end]
+				return expr
+			}
+		}
+
+		// Otherwise, the array can be completely removed. We only need to keep any
+		// array items with side effects. Apply this simplification recursively.
+		var result Expr
+		for _, item := range e.Items {
+			result = JoinWithComma(result, SimplifyUnusedExpr(item, isUnbound))
+		}
+		return result
+
+	case *EObject:
+		// Objects with "..." spread expressions can't be unwrapped because the
+		// "..." triggers code evaluation via getters. In that case, just trim
+		// the other items instead and leave the object expression there.
+		for _, spread := range e.Properties {
+			if spread.Kind == PropertySpread {
+				end := 0
+				for _, property := range e.Properties {
+					// Spread properties must always be evaluated
+					if property.Kind != PropertySpread {
+						value := SimplifyUnusedExpr(property.ValueOrNil, isUnbound)
+						if value.Data != nil {
+							// Keep the value
+							property.ValueOrNil = value
+						} else if !property.IsComputed {
+							// Skip this property if the key doesn't need to be computed
+							continue
+						} else {
+							// Replace values without side effects with "0" because it's short
+							property.ValueOrNil.Data = &ENumber{}
+						}
+					}
+					e.Properties[end] = property
+					end++
+				}
+				e.Properties = e.Properties[:end]
+				return expr
+			}
+		}
+
+		// Otherwise, the object can be completely removed. We only need to keep any
+		// object properties with side effects. Apply this simplification recursively.
+		var result Expr
+		for _, property := range e.Properties {
+			if property.IsComputed {
+				// Make sure "ToString" is still evaluated on the key
+				result = JoinWithComma(result, Expr{Loc: property.Key.Loc, Data: &EBinary{
+					Op:    BinOpAdd,
+					Left:  property.Key,
+					Right: Expr{Loc: property.Key.Loc, Data: &EString{}},
+				}})
+			}
+			result = JoinWithComma(result, SimplifyUnusedExpr(property.ValueOrNil, isUnbound))
+		}
+		return result
+
+	case *EIf:
+		e.Yes = SimplifyUnusedExpr(e.Yes, isUnbound)
+		e.No = SimplifyUnusedExpr(e.No, isUnbound)
+
+		// "foo() ? 1 : 2" => "foo()"
+		if e.Yes.Data == nil && e.No.Data == nil {
+			return SimplifyUnusedExpr(e.Test, isUnbound)
+		}
+
+		// "foo() ? 1 : bar()" => "foo() || bar()"
+		if e.Yes.Data == nil {
+			return JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, e.No)
+		}
+
+		// "foo() ? bar() : 2" => "foo() && bar()"
+		if e.No.Data == nil {
+			return JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, e.Yes)
+		}
+
+	case *EUnary:
+		switch e.Op {
+		// These operators must not have any type conversions that can execute code
+		// such as "toString" or "valueOf". They must also never throw any exceptions.
+		case UnOpVoid, UnOpNot:
+			return SimplifyUnusedExpr(e.Value, isUnbound)
+
+		case UnOpTypeof:
+			if _, ok := e.Value.Data.(*EIdentifier); ok {
+				// "typeof x" must not be transformed into if "x" since doing so could
+				// cause an exception to be thrown. Instead we can just remove it since
+				// "typeof x" is special-cased in the standard to never throw.
+				return Expr{}
+			}
+			return SimplifyUnusedExpr(e.Value, isUnbound)
+		}
+
+	case *EBinary:
+		switch e.Op {
+		// These operators must not have any type conversions that can execute code
+		// such as "toString" or "valueOf". They must also never throw any exceptions.
+		case BinOpStrictEq, BinOpStrictNe, BinOpComma:
+			return JoinWithComma(SimplifyUnusedExpr(e.Left, isUnbound), SimplifyUnusedExpr(e.Right, isUnbound))
+
+		// We can simplify "==" and "!=" even though they can call "toString" and/or
+		// "valueOf" if we can statically determine that the types of both sides are
+		// primitives. In that case there won't be any chance for user-defined
+		// "toString" and/or "valueOf" to be called.
+		case BinOpLooseEq, BinOpLooseNe:
+			if IsPrimitiveWithSideEffects(e.Left.Data) && IsPrimitiveWithSideEffects(e.Right.Data) {
+				return JoinWithComma(SimplifyUnusedExpr(e.Left, isUnbound), SimplifyUnusedExpr(e.Right, isUnbound))
+			}
+
+		case BinOpLogicalAnd, BinOpLogicalOr, BinOpNullishCoalescing:
+			// Preserve short-circuit behavior: the left expression is only unused if
+			// the right expression can be completely removed. Otherwise, the left
+			// expression is important for the branch.
+			e.Right = SimplifyUnusedExpr(e.Right, isUnbound)
+			if e.Right.Data == nil {
+				return SimplifyUnusedExpr(e.Left, isUnbound)
+			}
+
+		case BinOpAdd:
+			if result, isStringAddition := simplifyUnusedStringAdditionChain(expr); isStringAddition {
+				return result
+			}
+		}
+
+	case *ECall:
+		// A call that has been marked "__PURE__" can be removed if all arguments
+		// can be removed. The annotation causes us to ignore the target.
+		if e.CanBeUnwrappedIfUnused {
+			expr = Expr{}
+			for _, arg := range e.Args {
+				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, isUnbound))
+			}
+		}
+
+		// Attempt to shorten IIFEs
+		if len(e.Args) == 0 {
+			switch target := e.Target.Data.(type) {
+			case *EFunction:
+				if len(target.Fn.Args) != 0 {
+					break
+				}
+
+				// Just delete "(function() {})()" completely
+				if len(target.Fn.Body.Stmts) == 0 {
+					return Expr{}
+				}
+
+			case *EArrow:
+				if len(target.Args) != 0 {
+					break
+				}
+
+				// Just delete "(() => {})()" completely
+				if len(target.Body.Stmts) == 0 {
+					return Expr{}
+				}
+
+				if len(target.Body.Stmts) == 1 {
+					switch s := target.Body.Stmts[0].Data.(type) {
+					case *SExpr:
+						if !target.IsAsync {
+							// Replace "(() => { foo() })()" with "foo()"
+							return s.Value
+						} else {
+							// Replace "(async () => { foo() })()" with "(async () => foo())()"
+							target.Body.Stmts[0].Data = &SReturn{ValueOrNil: s.Value}
+							target.PreferExpr = true
+						}
+
+					case *SReturn:
+						if !target.IsAsync {
+							// Replace "(() => foo())()" with "foo()"
+							return s.ValueOrNil
+						}
+					}
+				}
+			}
+		}
+
+	case *ENew:
+		// A constructor call that has been marked "__PURE__" can be removed if all
+		// arguments can be removed. The annotation causes us to ignore the target.
+		if e.CanBeUnwrappedIfUnused {
+			expr = Expr{}
+			for _, arg := range e.Args {
+				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, isUnbound))
+			}
+		}
+	}
+
+	return expr
+}
+
+func simplifyUnusedStringAdditionChain(expr Expr) (Expr, bool) {
+	switch e := expr.Data.(type) {
+	case *EString:
+		// "'x' + y" => "'' + y"
+		return Expr{Loc: expr.Loc, Data: &EString{}}, true
+
+	case *EBinary:
+		if e.Op == BinOpAdd {
+			left, leftIsStringAddition := simplifyUnusedStringAdditionChain(e.Left)
+			e.Left = left
+
+			if _, rightIsString := e.Right.Data.(*EString); rightIsString {
+				// "('' + x) + 'y'" => "'' + x"
+				if leftIsStringAddition {
+					return left, true
+				}
+
+				// "x + 'y'" => "x + ''"
+				if !leftIsStringAddition {
+					e.Right.Data = &EString{}
+					return expr, true
+				}
+			}
+
+			return expr, leftIsStringAddition
+		}
+	}
+
+	return expr, false
+}
