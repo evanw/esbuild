@@ -2189,13 +2189,6 @@ func TestInlineIdentityFunctionCalls(t *testing.T) {
 				keep(1)
 			`,
 
-			"/not-identity-no-args.js": `
-				function keep() { return }
-				console.log(keep(1))
-				keep(foo())
-				keep(1)
-			`,
-
 			"/not-identity-two-args.js": `
 				function keep(x, y) { return x }
 				console.log(keep(1))
@@ -2252,13 +2245,141 @@ func TestInlineIdentityFunctionCalls(t *testing.T) {
 			"/reassign-div.js",
 			"/reassign-array.js",
 			"/reassign-object.js",
-			"/not-identity-no-args.js",
 			"/not-identity-two-args.js",
 			"/not-identity-default.js",
 			"/not-identity-array.js",
 			"/not-identity-object.js",
 			"/not-identity-rest.js",
 			"/not-identity-return.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MangleSyntax: true,
+		},
+	})
+}
+
+func TestInlineEmptyFunctionCalls(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/empty.js": `
+				function DROP() {}
+				console.log(DROP(foo(), bar()))
+				console.log(DROP(foo(), 1))
+				console.log(DROP(1, foo()))
+				console.log(DROP(1))
+				console.log(DROP())
+				DROP(foo(), bar())
+				DROP(foo(), 1)
+				DROP(1, foo())
+				DROP(1)
+				DROP()
+			`,
+
+			"/empty-comma.js": `
+				function DROP() {}
+				console.log((DROP(), DROP(), foo()))
+				console.log((DROP(), foo(), DROP()))
+				console.log((foo(), DROP(), DROP()))
+				for (DROP(); DROP(); DROP()) DROP();
+				DROP(), DROP(), foo();
+				DROP(), foo(), DROP();
+				foo(), DROP(), DROP();
+			`,
+
+			"/empty-last.js": `
+				function DROP() { return x }
+				function DROP() { return }
+				console.log(DROP())
+				DROP()
+			`,
+
+			"/empty-cross-module.js": `
+				import { DROP } from './empty-cross-module-def'
+				console.log(DROP())
+				DROP()
+			`,
+
+			"/empty-cross-module-def.js": `
+				export function DROP() {}
+			`,
+
+			"/empty-first.js": `
+				function keep() { return }
+				function keep() { return x }
+				console.log(keep())
+				keep(foo())
+				keep(1)
+			`,
+
+			"/empty-generator.js": `
+				function* keep() {}
+				console.log(keep())
+				keep(foo())
+				keep(1)
+			`,
+
+			"/empty-async.js": `
+				async function keep() {}
+				console.log(keep())
+				keep(foo())
+				keep(1)
+			`,
+
+			"/reassign.js": `
+				function keep() {}
+				keep = reassigned
+				console.log(keep())
+				keep(foo())
+				keep(1)
+			`,
+
+			"/reassign-inc.js": `
+				function keep() {}
+				keep++
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/reassign-div.js": `
+				function keep() {}
+				keep /= reassigned
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/reassign-array.js": `
+				function keep() {}
+				[keep] = reassigned
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/reassign-object.js": `
+				function keep() {}
+				({keep} = reassigned)
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+		},
+		entryPaths: []string{
+			"/empty.js",
+			"/empty-comma.js",
+			"/empty-last.js",
+			"/empty-cross-module.js",
+			"/empty-first.js",
+			"/empty-generator.js",
+			"/empty-async.js",
+			"/reassign.js",
+			"/reassign-inc.js",
+			"/reassign-div.js",
+			"/reassign-array.js",
+			"/reassign-object.js",
 		},
 		options: config.Options{
 			Mode:         config.ModeBundle,

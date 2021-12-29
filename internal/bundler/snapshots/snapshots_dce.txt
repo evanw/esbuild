@@ -266,6 +266,122 @@ var import_foo = __toESM(require_foo());
 console.log(import_foo.default);
 
 ================================================================================
+TestInlineEmptyFunctionCalls
+---------- /out/empty.js ----------
+// empty.js
+function DROP() {
+}
+console.log((foo(), bar(), void 0));
+console.log((foo(), 1, void 0));
+console.log((1, foo(), void 0));
+console.log((1, void 0));
+console.log(void 0);
+foo(), bar(), void 0;
+foo(), 1, void 0;
+1, foo(), void 0;
+1, void 0;
+void 0;
+
+---------- /out/empty-comma.js ----------
+// empty-comma.js
+function DROP() {
+}
+console.log((void 0, void 0, foo()));
+console.log((void 0, foo(), void 0));
+console.log((foo(), void 0, void 0));
+for (void 0; void 0; void 0)
+  void 0;
+void 0, void 0, foo();
+void 0, foo(), void 0;
+foo(), void 0, void 0;
+
+---------- /out/empty-last.js ----------
+// empty-last.js
+function DROP() {
+}
+console.log(void 0);
+void 0;
+
+---------- /out/empty-cross-module.js ----------
+// empty-cross-module-def.js
+function DROP() {
+}
+
+// empty-cross-module.js
+console.log(void 0);
+void 0;
+
+---------- /out/empty-first.js ----------
+// empty-first.js
+function keep() {
+  return x;
+}
+console.log(keep());
+keep(foo());
+keep(1);
+
+---------- /out/empty-generator.js ----------
+// empty-generator.js
+function* keep() {
+}
+console.log(keep());
+keep(foo());
+keep(1);
+
+---------- /out/empty-async.js ----------
+// empty-async.js
+async function keep() {
+}
+console.log(keep());
+keep(foo());
+keep(1);
+
+---------- /out/reassign.js ----------
+// reassign.js
+function keep() {
+}
+keep = reassigned;
+console.log(keep());
+keep(foo());
+keep(1);
+
+---------- /out/reassign-inc.js ----------
+// reassign-inc.js
+function keep() {
+}
+keep++;
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/reassign-div.js ----------
+// reassign-div.js
+function keep() {
+}
+keep /= reassigned;
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/reassign-array.js ----------
+// reassign-array.js
+function keep() {
+}
+[keep] = reassigned;
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/reassign-object.js ----------
+// reassign-object.js
+function keep() {
+}
+({ keep } = reassigned);
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+================================================================================
 TestInlineIdentityFunctionCalls
 ---------- /out/identity.js ----------
 // identity.js
@@ -385,14 +501,6 @@ function keep(x) {
   return x;
 }
 ({ keep } = reassigned);
-console.log(keep(1));
-keep(foo());
-keep(1);
-
----------- /out/not-identity-no-args.js ----------
-// not-identity-no-args.js
-function keep() {
-}
 console.log(keep(1));
 keep(foo());
 keep(1);

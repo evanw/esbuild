@@ -1491,6 +1491,17 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				symbolFlags = p.symbols.Get(ref).Flags
 			}
 
+			// Replace non-mutated empty functions with their arguments at print time
+			if (symbolFlags & (js_ast.IsEmptyFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction {
+				var replacement js_ast.Expr
+				for _, arg := range e.Args {
+					replacement = js_ast.JoinWithComma(replacement, arg)
+				}
+				replacement = js_ast.JoinWithComma(replacement, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
+				p.printExpr(replacement, level, flags)
+				break
+			}
+
 			// Inline non-mutated identity functions at print time
 			if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
 				p.printExpr(e.Args[0], level, flags)
