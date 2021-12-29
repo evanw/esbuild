@@ -845,6 +845,12 @@ type DefineData struct {
 	// example, a bare call to "Object()" can be removed because it does not
 	// have any observable side effects.
 	CallCanBeUnwrappedIfUnused bool
+
+	// If true, the user has indicated that every direct calls to a property on
+	// this object and all of that call's arguments are to be removed from the
+	// output, even when the arguments have side effects. This is used to
+	// implement the "--drop:console" flag.
+	MethodCallsMustBeReplacedWithUndefined bool
 }
 
 func mergeDefineData(old DefineData, new DefineData) DefineData {

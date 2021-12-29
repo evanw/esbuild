@@ -67,7 +67,7 @@ var helpText = func(colors logger.Colors) string {
   --chunk-names=...         Path template to use for code splitting chunks
                             (default "[name]-[hash]")
   --color=...               Force use of color terminal escapes (true | false)
-  --drop:...                Remove certain constructs (debugger)
+  --drop:...                Remove certain constructs (console | debugger)
   --entry-names=...         Path template to use for entry point output paths
                             (default "[dir]/[name]", can also use "[hash]")
   --footer:T=...            Text to be appended to each output file of type T

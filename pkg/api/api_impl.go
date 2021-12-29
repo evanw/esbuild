@@ -449,6 +449,7 @@ func validateDefines(
 	pureFns []string,
 	platform Platform,
 	minify bool,
+	drop Drop,
 ) (*config.ProcessedDefines, []config.InjectedDefine) {
 	rawDefines := make(map[string]config.DefineData)
 	var valueToInject map[string]config.InjectedDefine
@@ -552,6 +553,13 @@ func validateDefines(
 				}
 			}
 		}
+	}
+
+	// If we're dropping all console API calls, replace each one with undefined
+	if (drop & DropConsole) != 0 {
+		define := rawDefines["console"]
+		define.MethodCallsMustBeReplacedWithUndefined = true
+		rawDefines["console"] = define
 	}
 
 	for _, key := range pureFns {
@@ -827,7 +835,7 @@ func rebuildImpl(
 	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
 	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
 	minify := buildOpts.MinifyWhitespace && buildOpts.MinifyIdentifiers && buildOpts.MinifySyntax
-	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, buildOpts.Platform, minify)
+	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, buildOpts.Platform, minify, buildOpts.Drop)
 	options := config.Options{
 		TargetFromAPI:          targetFromAPI,
 		UnsupportedJSFeatures:  jsFeatures,
@@ -1321,7 +1329,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Convert and validate the transformOpts
 	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
-	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, PlatformNeutral, false /* minify */)
+	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, PlatformNeutral, false /* minify */, transformOpts.Drop)
 	options := config.Options{
 		TargetFromAPI:           targetFromAPI,
 		UnsupportedJSFeatures:   jsFeatures,

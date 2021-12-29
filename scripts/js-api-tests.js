@@ -3692,6 +3692,25 @@ let transformTests = {
     assert.strictEqual(code, `console.log("ab"+c);\n`)
   },
 
+  async keepConsole({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log('foo')`, { drop: [] })
+    assert.strictEqual(code, `console.log("foo");\n`)
+  },
+
+  async dropConsole({ esbuild }) {
+    const { code } = await esbuild.transform(`
+      console('foo')
+      console.log('foo')
+      console.log(foo())
+      x = console.log(bar())
+      console.abc.xyz('foo')
+      console['log']('foo')
+      console[abc][xyz]('foo')
+      console[foo()][bar()]('foo')
+    `, { drop: ['console'] })
+    assert.strictEqual(code, `console("foo");\nx = void 0;\n`)
+  },
+
   async keepDebugger({ esbuild }) {
     const { code } = await esbuild.transform(`if (x) debugger`, { drop: [] })
     assert.strictEqual(code, `if (x)\n  debugger;\n`)

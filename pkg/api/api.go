@@ -242,7 +242,8 @@ const (
 type Drop uint8
 
 const (
-	DropDebugger Drop = 1 << iota
+	DropConsole Drop = 1 << iota
+	DropDebugger
 )
 
 ////////////////////////////////////////////////////////////////////////////////

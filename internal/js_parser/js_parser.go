@@ -9217,14 +9217,30 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 	case *js_ast.SExpr:
+		shouldTrimUndefined := false
+		if !p.options.mangleSyntax {
+			if _, ok := s.Value.Data.(*js_ast.ECall); ok {
+				shouldTrimUndefined = true
+			}
+		}
+
 		p.stmtExprValue = s.Value.Data
 		s.Value = p.visitExpr(s.Value)
+
+		// If this was a call and is now undefined, then it probably was a console
+		// API call that was dropped with "--drop:console". Manually discard the
+		// undefined value even when we're not minifying for aesthetic reasons.
+		if shouldTrimUndefined {
+			if _, ok := s.Value.Data.(*js_ast.EUndefined); ok {
+				return stmts
+			}
+		}
 
 		// Trim expressions without side effects
 		if p.options.mangleSyntax {
 			s.Value = p.simplifyUnusedExpr(s.Value)
 			if s.Value.Data == nil {
-				stmt = js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SEmpty{}}
+				return stmts
 			}
 		}
 
@@ -10970,6 +10986,10 @@ type exprOut struct {
 	// with an IsOptionalChain value of true)
 	childContainsOptionalChain bool
 
+	// If true and this is used as a call target, the whole call expression
+	// must be replaced with undefined.
+	methodCallMustBeReplacedWithUndefined bool
+
 	// If our parent is an ECall node with an OptionalChain value of
 	// OptionalChainContinue, then we may need to return the value for "this"
 	// from this node or one of this node's children so that the parent that is
@@ -11330,6 +11350,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Substitute user-specified defines for unbound or injected symbols
+		methodCallMustBeReplacedWithUndefined := false
 		if p.symbols[e.Ref.InnerIndex].Kind.IsUnboundOrInjected() && !result.isInsideWithScope && e != p.deleteTarget {
 			if data, ok := p.options.defines.IdentifierDefines[name]; ok {
 				if data.DefineFunc != nil {
@@ -11354,15 +11375,20 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if data.CallCanBeUnwrappedIfUnused && !p.options.ignoreDCEAnnotations {
 					e.CallCanBeUnwrappedIfUnused = true
 				}
+				if data.MethodCallsMustBeReplacedWithUndefined {
+					methodCallMustBeReplacedWithUndefined = true
+				}
 			}
 		}
 
 		return p.handleIdentifier(expr.Loc, e, identifierOpts{
-			assignTarget:            in.assignTarget,
-			isCallTarget:            isCallTarget,
-			isDeleteTarget:          isDeleteTarget,
-			wasOriginallyIdentifier: true,
-		}), exprOut{}
+				assignTarget:            in.assignTarget,
+				isCallTarget:            isCallTarget,
+				isDeleteTarget:          isDeleteTarget,
+				wasOriginallyIdentifier: true,
+			}), exprOut{
+				methodCallMustBeReplacedWithUndefined: methodCallMustBeReplacedWithUndefined,
+			}
 
 	case *js_ast.EPrivateIdentifier:
 		// We should never get here
@@ -12118,9 +12144,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Potentially rewrite this property access
 		out = exprOut{
-			childContainsOptionalChain: containsOptionalChain,
-			thisArgFunc:                out.thisArgFunc,
-			thisArgWrapFunc:            out.thisArgWrapFunc,
+			childContainsOptionalChain:            containsOptionalChain,
+			methodCallMustBeReplacedWithUndefined: out.methodCallMustBeReplacedWithUndefined,
+			thisArgFunc:                           out.thisArgFunc,
+			thisArgWrapFunc:                       out.thisArgWrapFunc,
 		}
 		if !in.hasChainParent {
 			out.thisArgFunc = nil
@@ -12359,9 +12386,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Potentially rewrite this property access
 		out = exprOut{
-			childContainsOptionalChain: containsOptionalChain,
-			thisArgFunc:                out.thisArgFunc,
-			thisArgWrapFunc:            out.thisArgWrapFunc,
+			childContainsOptionalChain:            containsOptionalChain,
+			methodCallMustBeReplacedWithUndefined: out.methodCallMustBeReplacedWithUndefined,
+			thisArgFunc:                           out.thisArgFunc,
+			thisArgWrapFunc:                       out.thisArgWrapFunc,
 		}
 		if !in.hasChainParent {
 			out.thisArgFunc = nil
@@ -12879,12 +12907,31 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		p.warnAboutImportNamespaceCall(e.Target, exprKindCall)
 
 		hasSpread := false
+		oldIsControlFlowDead := p.isControlFlowDead
+
+		// If we're removing this call, don't count any arguments as symbol uses
+		if out.methodCallMustBeReplacedWithUndefined {
+			switch e.Target.Data.(type) {
+			case *js_ast.EDot, *js_ast.EIndex:
+				p.isControlFlowDead = true
+			default:
+				out.methodCallMustBeReplacedWithUndefined = false
+			}
+		}
+
+		// Visit the arguments
 		for i, arg := range e.Args {
 			arg = p.visitExpr(arg)
 			if _, ok := arg.Data.(*js_ast.ESpread); ok {
 				hasSpread = true
 			}
 			e.Args[i] = arg
+		}
+
+		// Stop now if this call must be removed
+		if out.methodCallMustBeReplacedWithUndefined {
+			p.isControlFlowDead = oldIsControlFlowDead
+			return js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}, exprOut{}
 		}
 
 		// Recognize "require.resolve()" calls

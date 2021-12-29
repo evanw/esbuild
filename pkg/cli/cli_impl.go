@@ -99,6 +99,12 @@ func parseOptionsImpl(
 		case strings.HasPrefix(arg, "--drop:"):
 			value := arg[len("--drop:"):]
 			switch value {
+			case "console":
+				if buildOpts != nil {
+					buildOpts.Drop |= api.DropConsole
+				} else {
+					transformOpts.Drop |= api.DropConsole
+				}
 			case "debugger":
 				if buildOpts != nil {
 					buildOpts.Drop |= api.DropDebugger
@@ -108,7 +114,7 @@ func parseOptionsImpl(
 			default:
 				return cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
-					"Valid values are \"debugger\".",
+					"Valid values are \"console\" or \"debugger\".",
 				), nil
 			}
 
