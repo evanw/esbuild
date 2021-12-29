@@ -1410,7 +1410,6 @@ TestKeepNamesTreeShaking
 function fnStmtKeep() {
 }
 __name(fnStmtKeep, "fnStmtKeep");
-void 0;
 var fnExprKeep = /* @__PURE__ */ __name(function() {
 }, "keep");
 fnExprKeep();

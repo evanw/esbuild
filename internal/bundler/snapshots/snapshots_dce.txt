@@ -279,8 +279,6 @@ console.log(void 0);
 foo(), bar();
 foo();
 foo();
-void 0;
-void 0;
 
 ---------- /out/empty-comma.js ----------
 // empty-comma.js
@@ -289,18 +287,17 @@ function DROP() {
 console.log((void 0, void 0, foo()));
 console.log((void 0, foo(), void 0));
 console.log((foo(), void 0, void 0));
-for (void 0; void 0; void 0)
-  void 0;
-void 0, void 0, foo();
-void 0, foo(), void 0;
-foo(), void 0, void 0;
+for (; void 0; )
+  ;
+foo();
+foo();
+foo();
 
 ---------- /out/empty-last.js ----------
 // empty-last.js
 function DROP() {
 }
 console.log(void 0);
-void 0;
 
 ---------- /out/empty-cross-module.js ----------
 // empty-cross-module-def.js
@@ -309,7 +306,6 @@ function DROP() {
 
 // empty-cross-module.js
 console.log(void 0);
-void 0;
 
 ---------- /out/empty-first.js ----------
 // empty-first.js
@@ -390,7 +386,6 @@ function DROP(x) {
 }
 console.log(1);
 foo();
-1;
 
 ---------- /out/identity-last.js ----------
 // identity-last.js
@@ -399,7 +394,6 @@ function DROP(x) {
 }
 console.log(1);
 foo();
-1;
 
 ---------- /out/identity-first.js ----------
 // identity-first.js
@@ -437,7 +431,6 @@ function DROP(x) {
 // identity-cross-module.js
 console.log(1);
 foo();
-1;
 
 ---------- /out/identity-no-args.js ----------
 // identity-no-args.js
