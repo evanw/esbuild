@@ -3727,6 +3727,12 @@ let transformTests = {
     assert.strictEqual(code, `console.log("production");\n`)
   },
 
+  async defineBuiltInConstants({ esbuild }) {
+    const define = { a: 'NaN', b: 'Infinity', c: 'undefined', d: 'something' }
+    const { code } = await esbuild.transform(`console.log([typeof a, typeof b, typeof c, typeof d])`, { define })
+    assert.strictEqual(code, `console.log(["number", "number", "undefined", typeof something]);\n`)
+  },
+
   async defineArray({ esbuild }) {
     const define = { 'process.env.NODE_ENV': '[1,2,3]', 'something.else': '[2,3,4]' }
     const { code } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })

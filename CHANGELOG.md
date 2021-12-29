@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+* Treat `--define:foo=undefined` as an undefined literal instead of an identifier ([#1407](https://github.com/evanw/esbuild/issues/1407))
+
+    References to the global variable `undefined` are automatically replaced with the literal value for undefined, which appears as `void 0` when printed. This allows for additional optimizations such as collapsing `undefined ?? bar` into just `bar`. However, this substitution was not done for values specified via `--define:`. As a result, esbuild could potentially miss out on certain optimizations in these cases. With this release, it's now possible to use `--define:` to substitute something with an undefined literal:
+
+    ```js
+    // Original code
+    let win = typeof window !== 'undefined' ? window : {}
+
+    // Old output (with --define:window=undefined --minify)
+    let win=typeof undefined!="undefined"?undefined:{};
+
+    // New output (with --define:window=undefined --minify)
+    let win={};
+    ```
+
 * Add the `--drop:debugger` flag ([#1809](https://github.com/evanw/esbuild/issues/1809))
 
     Passing this flag causes all [`debugger;` statements](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/debugger) to be removed from the output. This is similar to the `drop_debugger: true` flag available in the popular UglifyJS and Terser JavaScript minifiers.

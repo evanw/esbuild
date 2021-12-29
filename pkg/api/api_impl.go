@@ -471,11 +471,26 @@ func validateDefines(
 		// Allow substituting for an identifier
 		if js_lexer.IsIdentifier(value) {
 			if _, ok := js_lexer.Keywords[value]; !ok {
-				name := value // The closure must close over a variable inside the loop
-				rawDefines[key] = config.DefineData{
-					DefineFunc: func(args config.DefineArgs) js_ast.E {
-						return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, name)}
-					},
+				switch value {
+				case "undefined":
+					rawDefines[key] = config.DefineData{
+						DefineFunc: func(config.DefineArgs) js_ast.E { return js_ast.EUndefinedShared },
+					}
+				case "NaN":
+					rawDefines[key] = config.DefineData{
+						DefineFunc: func(config.DefineArgs) js_ast.E { return &js_ast.ENumber{Value: math.NaN()} },
+					}
+				case "Infinity":
+					rawDefines[key] = config.DefineData{
+						DefineFunc: func(config.DefineArgs) js_ast.E { return &js_ast.ENumber{Value: math.Inf(1)} },
+					}
+				default:
+					name := value // The closure must close over a variable inside the loop
+					rawDefines[key] = config.DefineData{
+						DefineFunc: func(args config.DefineArgs) js_ast.E {
+							return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, name)}
+						},
+					}
 				}
 				continue
 			}
