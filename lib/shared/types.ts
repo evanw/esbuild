@@ -3,6 +3,7 @@ export type Format = 'iife' | 'cjs' | 'esm';
 export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'css' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary' | 'default';
 export type LogLevel = 'verbose' | 'debug' | 'info' | 'warning' | 'error' | 'silent';
 export type Charset = 'ascii' | 'utf8';
+export type Drop = 'debugger';
 
 interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#sourcemap */
@@ -21,6 +22,7 @@ interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#target */
   target?: string | string[];
 
+  drop?: Drop[];
   /** Documentation: https://esbuild.github.io/api/#minify */
   minify?: boolean;
   /** Documentation: https://esbuild.github.io/api/#minify */

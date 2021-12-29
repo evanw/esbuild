@@ -371,6 +371,7 @@ type optionsThatSupportStructuralEquality struct {
 	omitRuntimeForTests     bool
 	ignoreDCEAnnotations    bool
 	treeShaking             bool
+	dropDebugger            bool
 	unusedImportsTS         config.UnusedImportsTS
 	useDefineForClassFields config.MaybeBool
 }
@@ -397,6 +398,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			omitRuntimeForTests:     options.OmitRuntimeForTests,
 			ignoreDCEAnnotations:    options.IgnoreDCEAnnotations,
 			treeShaking:             options.TreeShaking,
+			dropDebugger:            options.DropDebugger,
 			unusedImportsTS:         options.UnusedImportsTS,
 			useDefineForClassFields: options.UseDefineForClassFields,
 		},
@@ -8904,8 +8906,13 @@ func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string)
 
 func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_ast.Stmt {
 	switch s := stmt.Data.(type) {
-	case *js_ast.SDebugger, *js_ast.SEmpty, *js_ast.SComment:
+	case *js_ast.SEmpty, *js_ast.SComment:
 		// These don't contain anything to traverse
+
+	case *js_ast.SDebugger:
+		if p.options.dropDebugger {
+			return stmts
+		}
 
 	case *js_ast.STypeScript:
 		// Erase TypeScript constructs from the output completely

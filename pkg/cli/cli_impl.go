@@ -96,6 +96,22 @@ func parseOptionsImpl(
 				transformOpts.MinifyIdentifiers = true
 			}
 
+		case strings.HasPrefix(arg, "--drop:"):
+			value := arg[len("--drop:"):]
+			switch value {
+			case "debugger":
+				if buildOpts != nil {
+					buildOpts.Drop |= api.DropDebugger
+				} else {
+					transformOpts.Drop |= api.DropDebugger
+				}
+			default:
+				return cli_helpers.MakeErrorWithNote(
+					fmt.Sprintf("Invalid value %q in %q", value, arg),
+					"Valid values are \"debugger\".",
+				), nil
+			}
+
 		case strings.HasPrefix(arg, "--legal-comments="):
 			value := arg[len("--legal-comments="):]
 			var legalComments api.LegalComments
@@ -638,6 +654,7 @@ func parseOptionsImpl(
 			colon := map[string]bool{
 				"banner":        true,
 				"define":        true,
+				"drop":          true,
 				"external":      true,
 				"footer":        true,
 				"inject":        true,

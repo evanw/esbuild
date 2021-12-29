@@ -3692,6 +3692,16 @@ let transformTests = {
     assert.strictEqual(code, `console.log("ab"+c);\n`)
   },
 
+  async keepDebugger({ esbuild }) {
+    const { code } = await esbuild.transform(`if (x) debugger`, { drop: [] })
+    assert.strictEqual(code, `if (x)\n  debugger;\n`)
+  },
+
+  async dropDebugger({ esbuild }) {
+    const { code } = await esbuild.transform(`if (x) debugger`, { drop: ['debugger'] })
+    assert.strictEqual(code, `if (x)\n  ;\n`)
+  },
+
   async define({ esbuild }) {
     const define = { 'process.env.NODE_ENV': '"production"' }
     const { code } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })

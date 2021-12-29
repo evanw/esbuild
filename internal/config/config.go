@@ -221,6 +221,7 @@ type Options struct {
 	KeepNames               bool
 	IgnoreDCEAnnotations    bool
 	TreeShaking             bool
+	DropDebugger            bool
 
 	Defines  *ProcessedDefines
 	TS       TSOptions

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add the `--drop:debugger` flag ([#1809](https://github.com/evanw/esbuild/issues/1809))
+
+    Passing this flag causes all [`debugger;` statements](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/debugger) to be removed from the output. This is similar to the `drop_debugger: true` flag available in the popular UglifyJS and Terser JavaScript minifiers.
+
 ## 0.14.9
 
 * Implement cross-module tree shaking of TypeScript enum values ([#128](https://github.com/evanw/esbuild/issues/128))

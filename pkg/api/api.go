@@ -239,6 +239,12 @@ const (
 	TreeShakingTrue
 )
 
+type Drop uint8
+
+const (
+	DropDebugger Drop = 1 << iota
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
@@ -254,6 +260,7 @@ type BuildOptions struct {
 	Target  Target   // Documentation: https://esbuild.github.io/api/#target
 	Engines []Engine // Documentation: https://esbuild.github.io/api/#target
 
+	Drop              Drop
 	MinifyWhitespace  bool          // Documentation: https://esbuild.github.io/api/#minify
 	MinifyIdentifiers bool          // Documentation: https://esbuild.github.io/api/#minify
 	MinifySyntax      bool          // Documentation: https://esbuild.github.io/api/#minify
@@ -365,6 +372,7 @@ type TransformOptions struct {
 	Format     Format // Documentation: https://esbuild.github.io/api/#format
 	GlobalName string // Documentation: https://esbuild.github.io/api/#global-name
 
+	Drop              Drop
 	MinifyWhitespace  bool          // Documentation: https://esbuild.github.io/api/#minify
 	MinifyIdentifiers bool          // Documentation: https://esbuild.github.io/api/#minify
 	MinifySyntax      bool          // Documentation: https://esbuild.github.io/api/#minify
