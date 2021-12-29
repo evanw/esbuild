@@ -1487,7 +1487,7 @@ const (
 	ImportItemMissing
 )
 
-type SymbolFlags uint8
+type SymbolFlags uint16
 
 const (
 	// Certain symbols must not be renamed or minified. For example, the
@@ -1578,6 +1578,9 @@ const (
 	// it's not safe to make assumptions about this symbol from the initializer.
 	CouldPotentiallyBeMutated
 
+	// This means the symbol is a normal function that has no body statements.
+	IsEmptyFunction
+
 	// This means the symbol is a normal function that takes a single argument
 	// and returns that argument.
 	IsIdentityFunction
@@ -1636,6 +1639,9 @@ type Symbol struct {
 	// slot namespaces: regular symbols, label symbols, and private symbols.
 	NestedScopeSlot ast.Index32
 
+	// Boolean values should all be flags instead to save space
+	Flags SymbolFlags
+
 	Kind SymbolKind
 
 	// We automatically generate import items for property accesses off of
@@ -1656,9 +1662,6 @@ type Symbol struct {
 	// avoid this. We also need to be able to replace such import items with
 	// undefined, which this status is also used for.
 	ImportItemStatus ImportItemStatus
-
-	// Boolean values should all be flags instead to save space
-	Flags SymbolFlags
 }
 
 // You should call "MergeSymbols" instead of calling this directly

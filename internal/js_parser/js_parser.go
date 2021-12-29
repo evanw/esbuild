@@ -9534,9 +9534,21 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			return stmts
 		}
 
-		// Mark if this function is an identity function
 		if p.options.mangleSyntax && !s.Fn.IsGenerator && !s.Fn.IsAsync && !s.Fn.HasRestArg && s.Fn.Name != nil {
-			if len(s.Fn.Args) == 1 && len(s.Fn.Body.Stmts) == 1 {
+			if len(s.Fn.Body.Stmts) == 0 {
+				// Mark if this function is an empty function
+				hasSideEffectFreeArguments := true
+				for _, arg := range s.Fn.Args {
+					if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok {
+						hasSideEffectFreeArguments = false
+						break
+					}
+				}
+				if hasSideEffectFreeArguments {
+					p.symbols[s.Fn.Name.Ref.InnerIndex].Flags |= js_ast.IsEmptyFunction
+				}
+			} else if len(s.Fn.Args) == 1 && len(s.Fn.Body.Stmts) == 1 {
+				// Mark if this function is an identity function
 				if arg := s.Fn.Args[0]; arg.DefaultOrNil.Data == nil {
 					if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
 						if ret, ok := s.Fn.Body.Stmts[0].Data.(*js_ast.SReturn); ok {

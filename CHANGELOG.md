@@ -75,6 +75,26 @@
     function o(n){return n}export const foo=function(){};
     ```
 
+* Inline calls to empty functions when minifying ([#290](https://github.com/evanw/esbuild/issues/290))
+
+    An empty function is a function that just returns its argument. It most commonly arises when most of the function body is eliminated as dead code. This release replaces calls to empty functions with their arguments when minifying, resulting in slightly smaller code. Tree shaking has not yet been updated to remove empty functions that are now unreferenced. Here's an example:
+
+    ```ts
+    // Original code
+    function assertFoo(val: Foo | null): asserts val is Foo {
+      if (window.DEBUG && val === null) throw new Error('null assertion failed');
+    }
+    const val = getFoo();
+    assertFoo(val);
+    console.log(val.bar);
+
+    // Old output (with --minify --define:window.DEBUG=false)
+    function assertFoo(o){}const val=getFoo();assertFoo(val),console.log(val.bar);
+
+    // New output (with --minify --define:window.DEBUG=false)
+    function assertFoo(o){}const val=getFoo();val,void 0,console.log(val.bar);
+    ```
+
 ## 0.14.9
 
 * Implement cross-module tree shaking of TypeScript enum values ([#128](https://github.com/evanw/esbuild/issues/128))
