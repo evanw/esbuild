@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.9
 
 * Implement cross-module tree shaking of TypeScript enum values ([#128](https://github.com/evanw/esbuild/issues/128))
 
