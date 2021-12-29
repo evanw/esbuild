@@ -432,6 +432,7 @@ func (p *printer) printJSXTag(tagOrNil js_ast.Expr) {
 
 type printer struct {
 	symbols                js_ast.SymbolMap
+	isUnbound              func(js_ast.Ref) bool
 	renamer                renamer.Renamer
 	importRecords          []ast.ImportRecord
 	options                Options
@@ -1313,8 +1314,10 @@ func (p *printer) printUndefined(level js_ast.L) {
 }
 
 func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFlags) {
-	wasFollowedByOf := (flags & isFollowedByOf) != 0
-	flags &= ^isFollowedByOf
+	originalFlags := flags
+
+	// Turn these flags off so we don't unintentionally propagate them to child calls
+	flags &= ^(isFollowedByOf | exprResultIsUnused)
 
 	p.addSourceMapping(expr.Loc)
 
@@ -1495,16 +1498,18 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if (symbolFlags & (js_ast.IsEmptyFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction {
 				var replacement js_ast.Expr
 				for _, arg := range e.Args {
-					replacement = js_ast.JoinWithComma(replacement, arg)
+					replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(arg, p.isUnbound))
 				}
-				replacement = js_ast.JoinWithComma(replacement, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
-				p.printExpr(replacement, level, flags)
+				if replacement.Data == nil || (originalFlags&exprResultIsUnused) == 0 {
+					replacement = js_ast.JoinWithComma(replacement, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
+				}
+				p.printExpr(replacement, level, originalFlags)
 				break
 			}
 
 			// Inline non-mutated identity functions at print time
 			if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
-				p.printExpr(e.Args[0], level, flags)
+				p.printExpr(e.Args[0], level, originalFlags)
 				break
 			}
 		}
@@ -1565,7 +1570,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 	case *js_ast.ERequireString:
-		p.printRequireOrImportExpr(e.ImportRecordIndex, nil, level, flags)
+		p.printRequireOrImportExpr(e.ImportRecordIndex, nil, level, originalFlags)
 
 	case *js_ast.ERequireResolveString:
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
@@ -1585,7 +1590,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if !p.options.RemoveWhitespace {
 			leadingInteriorComments = e.LeadingInteriorComments
 		}
-		p.printRequireOrImportExpr(e.ImportRecordIndex, leadingInteriorComments, level, flags)
+		p.printRequireOrImportExpr(e.ImportRecordIndex, leadingInteriorComments, level, originalFlags)
 
 	case *js_ast.EImportCall:
 		var leadingInteriorComments []js_ast.Comment
@@ -2003,7 +2008,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	case *js_ast.EIdentifier:
 		name := p.renamer.NameForSymbol(e.Ref)
 		wrap := len(p.js) == p.forOfInitStart && (name == "let" ||
-			(wasFollowedByOf && (flags&isInsideForAwait) == 0 && name == "async"))
+			((originalFlags&isFollowedByOf) != 0 && (flags&isInsideForAwait) == 0 && name == "async"))
 
 		if wrap {
 			p.print("(")
@@ -2998,7 +3003,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSpace()
 		p.print("(")
 		if s.InitOrNil.Data != nil {
-			p.printForLoopInit(s.InitOrNil, forbidIn)
+			p.printForLoopInit(s.InitOrNil, forbidIn|exprResultIsUnused)
 		}
 		p.print(";")
 		p.printSpace()
@@ -3008,7 +3013,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.print(";")
 		p.printSpace()
 		if s.UpdateOrNil.Data != nil {
-			p.printExpr(s.UpdateOrNil, js_ast.LLowest, 0)
+			p.printExpr(s.UpdateOrNil, js_ast.LLowest, exprResultIsUnused)
 		}
 		p.print(")")
 		p.printBody(s.Body)
@@ -3271,6 +3276,11 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 		prevNumEnd:         -1,
 		prevRegExpEnd:      -1,
 		builder:            sourcemap.MakeChunkBuilder(options.InputSourceMap, options.LineOffsetTables),
+	}
+
+	p.isUnbound = func(ref js_ast.Ref) bool {
+		ref = js_ast.FollowSymbols(symbols, ref)
+		return symbols.Get(ref).Kind == js_ast.SymbolUnbound
 	}
 
 	// Add the top-level directive if present
