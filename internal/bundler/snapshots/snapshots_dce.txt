@@ -266,6 +266,192 @@ var import_foo = __toESM(require_foo());
 console.log(import_foo.default);
 
 ================================================================================
+TestInlineIdentityFunctionCalls
+---------- /out/identity.js ----------
+// identity.js
+function DROP(x) {
+  return x;
+}
+console.log(1);
+foo();
+1;
+
+---------- /out/identity-last.js ----------
+// identity-last.js
+function DROP(x) {
+  return x;
+}
+console.log(1);
+foo();
+1;
+
+---------- /out/identity-first.js ----------
+// identity-first.js
+function keep(x) {
+  return [x];
+}
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/identity-generator.js ----------
+// identity-generator.js
+function* keep(x) {
+  return x;
+}
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/identity-async.js ----------
+// identity-async.js
+async function keep(x) {
+  return x;
+}
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/identity-cross-module.js ----------
+// identity-cross-module-def.js
+function DROP(x) {
+  return x;
+}
+
+// identity-cross-module.js
+console.log(1);
+foo();
+1;
+
+---------- /out/identity-no-args.js ----------
+// identity-no-args.js
+function keep(x) {
+  return x;
+}
+console.log(keep());
+keep();
+
+---------- /out/identity-two-args.js ----------
+// identity-two-args.js
+function keep(x) {
+  return x;
+}
+console.log(keep(1, 2));
+keep(1, 2);
+
+---------- /out/reassign.js ----------
+// reassign.js
+function keep(x) {
+  return x;
+}
+keep = reassigned;
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/reassign-inc.js ----------
+// reassign-inc.js
+function keep(x) {
+  return x;
+}
+keep++;
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/reassign-div.js ----------
+// reassign-div.js
+function keep(x) {
+  return x;
+}
+keep /= reassigned;
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/reassign-array.js ----------
+// reassign-array.js
+function keep(x) {
+  return x;
+}
+[keep] = reassigned;
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/reassign-object.js ----------
+// reassign-object.js
+function keep(x) {
+  return x;
+}
+({ keep } = reassigned);
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/not-identity-no-args.js ----------
+// not-identity-no-args.js
+function keep() {
+}
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/not-identity-two-args.js ----------
+// not-identity-two-args.js
+function keep(x, y) {
+  return x;
+}
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/not-identity-default.js ----------
+// not-identity-default.js
+function keep(x = foo()) {
+  return x;
+}
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/not-identity-array.js ----------
+// not-identity-array.js
+function keep([x]) {
+  return x;
+}
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/not-identity-object.js ----------
+// not-identity-object.js
+function keep({ x }) {
+  return x;
+}
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/not-identity-rest.js ----------
+// not-identity-rest.js
+function keep(...x) {
+  return x;
+}
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+---------- /out/not-identity-return.js ----------
+// not-identity-return.js
+function keep(x) {
+  return [x];
+}
+console.log(keep(1));
+keep(foo());
+keep(1);
+
+================================================================================
 TestJSONLoaderRemoveUnused
 ---------- /out.js ----------
 // entry.js
