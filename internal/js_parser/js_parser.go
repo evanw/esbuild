@@ -9534,6 +9534,21 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			return stmts
 		}
 
+		// Mark if this function is an identity function
+		if p.options.mangleSyntax && !s.Fn.IsGenerator && !s.Fn.IsAsync && !s.Fn.HasRestArg && s.Fn.Name != nil {
+			if len(s.Fn.Args) == 1 && len(s.Fn.Body.Stmts) == 1 {
+				if arg := s.Fn.Args[0]; arg.DefaultOrNil.Data == nil {
+					if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
+						if ret, ok := s.Fn.Body.Stmts[0].Data.(*js_ast.SReturn); ok {
+							if retID, ok := ret.ValueOrNil.Data.(*js_ast.EIdentifier); ok && id.Ref == retID.Ref {
+								p.symbols[s.Fn.Name.Ref.InnerIndex].Flags |= js_ast.IsIdentityFunction
+							}
+						}
+					}
+				}
+			}
+		}
+
 		// Handle exporting this function from a namespace
 		if s.IsExport && p.enclosingNamespaceArgRef != nil {
 			s.IsExport = false

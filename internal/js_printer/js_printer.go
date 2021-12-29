@@ -1481,6 +1481,23 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 	case *js_ast.ECall:
+		if p.options.MangleSyntax {
+			var symbolFlags js_ast.SymbolFlags
+			switch target := e.Target.Data.(type) {
+			case *js_ast.EIdentifier:
+				symbolFlags = p.symbols.Get(target.Ref).Flags
+			case *js_ast.EImportIdentifier:
+				ref := js_ast.FollowSymbols(p.symbols, target.Ref)
+				symbolFlags = p.symbols.Get(ref).Flags
+			}
+
+			// Inline non-mutated identity functions at print time
+			if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
+				p.printExpr(e.Args[0], level, flags)
+				break
+			}
+		}
+
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
 		var targetFlags printExprFlags
 		if e.OptionalChain == js_ast.OptionalChainNone {

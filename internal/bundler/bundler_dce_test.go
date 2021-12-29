@@ -2085,3 +2085,185 @@ func TestTreeShakingLoweredClassStaticFieldAssignment(t *testing.T) {
 		},
 	})
 }
+
+func TestInlineIdentityFunctionCalls(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/identity.js": `
+				function DROP(x) { return x }
+				console.log(DROP(1))
+				DROP(foo())
+				DROP(1)
+			`,
+
+			"/identity-last.js": `
+				function DROP(x) { return [x] }
+				function DROP(x) { return x }
+				console.log(DROP(1))
+				DROP(foo())
+				DROP(1)
+			`,
+
+			"/identity-cross-module.js": `
+				import { DROP } from './identity-cross-module-def'
+				console.log(DROP(1))
+				DROP(foo())
+				DROP(1)
+			`,
+
+			"/identity-cross-module-def.js": `
+				export function DROP(x) { return x }
+			`,
+
+			"/identity-no-args.js": `
+				function keep(x) { return x }
+				console.log(keep())
+				keep()
+			`,
+
+			"/identity-two-args.js": `
+				function keep(x) { return x }
+				console.log(keep(1, 2))
+				keep(1, 2)
+			`,
+
+			"/identity-first.js": `
+				function keep(x) { return x }
+				function keep(x) { return [x] }
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/identity-generator.js": `
+				function* keep(x) { return x }
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/identity-async.js": `
+				async function keep(x) { return x }
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/reassign.js": `
+				function keep(x) { return x }
+				keep = reassigned
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/reassign-inc.js": `
+				function keep(x) { return x }
+				keep++
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/reassign-div.js": `
+				function keep(x) { return x }
+				keep /= reassigned
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/reassign-array.js": `
+				function keep(x) { return x }
+				[keep] = reassigned
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/reassign-object.js": `
+				function keep(x) { return x }
+				({keep} = reassigned)
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/not-identity-no-args.js": `
+				function keep() { return }
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/not-identity-two-args.js": `
+				function keep(x, y) { return x }
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/not-identity-default.js": `
+				function keep(x = foo()) { return x }
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/not-identity-array.js": `
+				function keep([x]) { return x }
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/not-identity-object.js": `
+				function keep({x}) { return x }
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/not-identity-rest.js": `
+				function keep(...x) { return x }
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+
+			"/not-identity-return.js": `
+				function keep(x) { return [x] }
+				console.log(keep(1))
+				keep(foo())
+				keep(1)
+			`,
+		},
+		entryPaths: []string{
+			"/identity.js",
+			"/identity-last.js",
+			"/identity-first.js",
+			"/identity-generator.js",
+			"/identity-async.js",
+			"/identity-cross-module.js",
+			"/identity-no-args.js",
+			"/identity-two-args.js",
+			"/reassign.js",
+			"/reassign-inc.js",
+			"/reassign-div.js",
+			"/reassign-array.js",
+			"/reassign-object.js",
+			"/not-identity-no-args.js",
+			"/not-identity-two-args.js",
+			"/not-identity-default.js",
+			"/not-identity-array.js",
+			"/not-identity-object.js",
+			"/not-identity-rest.js",
+			"/not-identity-return.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MangleSyntax: true,
+		},
+	})
+}

@@ -53,6 +53,28 @@
 
     WARNING: Using this flag can introduce bugs into your code! This flag removes the entire call expression including all call arguments. If any of those arguments had important side effects, using this flag will change the behavior of your code. Be very careful when using this flag. If you want to remove console API calls without removing arguments with side effects (which does not introduce bugs), you should mark the relevant API calls as pure instead like this: `--pure:console.log --minify`.
 
+* Inline calls to identity functions when minifying ([#907](https://github.com/evanw/esbuild/issues/907))
+
+    An identity function is a function that just returns its argument. It most commonly arises when most of the function body is eliminated as dead code. This release replaces calls to identity functions with their argument when minifying, resulting in slightly smaller code. Tree shaking has not yet been updated to remove identity functions that are now unreferenced. Here's an example:
+
+    ```js
+    // Original code
+    function logCalls(fn) {
+      if (window.DEBUG) return function(...args) {
+        console.log('calling', fn.name, 'with', ...args)
+        return fn.apply(this, args)
+      }
+      return fn
+    }
+    export const foo = logCalls(function foo() {})
+
+    // Old output (with --minify --define:window.DEBUG=false)
+    function o(n){return n}export const foo=o(function(){});
+
+    // New output (with --minify --define:window.DEBUG=false)
+    function o(n){return n}export const foo=function(){};
+    ```
+
 ## 0.14.9
 
 * Implement cross-module tree shaking of TypeScript enum values ([#128](https://github.com/evanw/esbuild/issues/128))

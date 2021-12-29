@@ -1577,6 +1577,10 @@ const (
 	// If this is present, the symbol could potentially be overwritten. This means
 	// it's not safe to make assumptions about this symbol from the initializer.
 	CouldPotentiallyBeMutated
+
+	// This means the symbol is a normal function that takes a single argument
+	// and returns that argument.
+	IsIdentityFunction
 )
 
 func (flags SymbolFlags) Has(flag SymbolFlags) bool {
