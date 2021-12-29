@@ -5187,17 +5187,21 @@ func TestNoWarnCommonJSExportsInESMPassThrough(t *testing.T) {
 			"/cjs-in-esm.js": `
 				export let foo = 1
 				exports.foo = 2
-				module.exports.foo = 3
+				module.exports = 3
 			`,
 			"/import-in-cjs.js": `
 				import { foo } from 'bar'
 				exports.foo = foo
-				module.exports.foo = foo
+				module.exports = foo
+			`,
+			"/no-warnings-here.js": `
+				console.log(module, exports)
 			`,
 		},
 		entryPaths: []string{
 			"/cjs-in-esm.js",
 			"/import-in-cjs.js",
+			"/no-warnings-here.js",
 		},
 		options: config.Options{
 			Mode:         config.ModePassThrough,
@@ -5212,17 +5216,21 @@ func TestWarnCommonJSExportsInESMConvert(t *testing.T) {
 			"/cjs-in-esm.js": `
 				export let foo = 1
 				exports.foo = 2
-				module.exports.foo = 3
+				module.exports = 3
 			`,
 			"/import-in-cjs.js": `
 				import { foo } from 'bar'
 				exports.foo = foo
-				module.exports.foo = foo
+				module.exports = foo
+			`,
+			"/no-warnings-here.js": `
+				console.log(module, exports)
 			`,
 		},
 		entryPaths: []string{
 			"/cjs-in-esm.js",
 			"/import-in-cjs.js",
+			"/no-warnings-here.js",
 		},
 		options: config.Options{
 			Mode:         config.ModeConvertFormat,
@@ -5243,17 +5251,21 @@ func TestWarnCommonJSExportsInESMBundle(t *testing.T) {
 			"/cjs-in-esm.js": `
 				export let foo = 1
 				exports.foo = 2
-				module.exports.foo = 3
+				module.exports = 3
 			`,
 			"/import-in-cjs.js": `
 				import { foo } from 'bar'
 				exports.foo = foo
-				module.exports.foo = foo
+				module.exports = foo
+			`,
+			"/no-warnings-here.js": `
+				console.log(module, exports)
 			`,
 		},
 		entryPaths: []string{
 			"/cjs-in-esm.js",
 			"/import-in-cjs.js",
+			"/no-warnings-here.js",
 		},
 		options: config.Options{
 			Mode:         config.ModeBundle,

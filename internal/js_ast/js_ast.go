@@ -1569,6 +1569,10 @@ const (
 	//   function foo() { console.log(2) }
 	//
 	RemoveOverwrittenFunctionDeclaration
+
+	// This flag is to avoid warning about this symbol more than once. It only
+	// applies to the "module" and "exports" unbound symbols.
+	DidWarnAboutCommonJSInESM
 )
 
 func (flags SymbolFlags) Has(flag SymbolFlags) bool {

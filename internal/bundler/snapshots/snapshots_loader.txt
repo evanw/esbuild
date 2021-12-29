@@ -447,12 +447,15 @@ TestNoWarnCommonJSExportsInESMPassThrough
 ---------- /out/cjs-in-esm.js ----------
 export let foo = 1;
 exports.foo = 2;
-module.exports.foo = 3;
+module.exports = 3;
 
 ---------- /out/import-in-cjs.js ----------
 import { foo } from "bar";
 exports.foo = foo;
-module.exports.foo = foo;
+module.exports = foo;
+
+---------- /out/no-warnings-here.js ----------
+console.log(module, exports);
 
 ================================================================================
 TestRequireCustomExtensionBase64
@@ -548,14 +551,18 @@ __export(cjs_in_esm_exports, {
 });
 var foo = 1;
 exports.foo = 2;
-module.exports.foo = 3;
+module.exports = 3;
 module.exports = __toCommonJS(cjs_in_esm_exports);
 
 ---------- /out/import-in-cjs.js ----------
 // import-in-cjs.js
 var import_bar = require("bar");
 exports.foo = import_bar.foo;
-module.exports.foo = import_bar.foo;
+module.exports = import_bar.foo;
+
+---------- /out/no-warnings-here.js ----------
+// no-warnings-here.js
+console.log(module, exports);
 
 ================================================================================
 TestWarnCommonJSExportsInESMConvert
@@ -566,10 +573,13 @@ __export(cjs_in_esm_exports, {
 });
 let foo = 1;
 exports.foo = 2;
-module.exports.foo = 3;
+module.exports = 3;
 module.exports = __toCommonJS(cjs_in_esm_exports);
 
 ---------- /out/import-in-cjs.js ----------
 var import_bar = require("bar");
 exports.foo = import_bar.foo;
-module.exports.foo = import_bar.foo;
+module.exports = import_bar.foo;
+
+---------- /out/no-warnings-here.js ----------
+console.log(module, exports);

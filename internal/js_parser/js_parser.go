@@ -7229,7 +7229,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 			p.checkForUnrepresentableIdentifier(loc, name)
 			ref = p.newSymbol(js_ast.SymbolUnbound, name)
 			declareLoc = loc
-			p.moduleScope.Members[name] = js_ast.ScopeMember{Ref: ref, Loc: loc}
+			p.moduleScope.Members[name] = js_ast.ScopeMember{Ref: ref, Loc: logger.Loc{Start: -1}}
 			break
 		}
 	}
@@ -11893,6 +11893,38 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if result, ok := p.lowerAssign(e.Left, e.Right, mode); ok {
 					return result, exprOut{}
 				}
+
+				// If CommonJS-style exports are disabled, then references to them are
+				// treated as global variable references. This is consistent with how
+				// they work in node and the browser, so it's the correct interpretation.
+				//
+				// However, people sometimes try to use both types of exports within the
+				// same module and expect it to work. We warn about this when module
+				// format conversion is enabled.
+				//
+				// Only warn about this for uses in assignment position since there are
+				// some legitimate other uses. For example, some people do "typeof module"
+				// to check for a CommonJS environment, and we shouldn't warn on that.
+				if p.options.mode != config.ModePassThrough && p.isFileConsideredToHaveESMExports && !p.isControlFlowDead {
+					if dot, ok := e.Left.Data.(*js_ast.EDot); ok {
+						if id, ok := dot.Target.Data.(*js_ast.EIdentifier); ok {
+							if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound &&
+								((symbol.OriginalName == "module" && dot.Name == "exports") || symbol.OriginalName == "exports") &&
+								!symbol.Flags.Has(js_ast.DidWarnAboutCommonJSInESM) {
+								// "module.exports = ..."
+								// "exports.something = ..."
+								kind := logger.Warning
+								if p.suppressWarningsAboutWeirdCode {
+									kind = logger.Debug
+								}
+								p.log.AddWithNotes(kind, &p.tracker, js_lexer.RangeOfIdentifier(p.source, dot.Target.Loc),
+									fmt.Sprintf("The CommonJS %q variable is treated as a global variable in an ECMAScript module and may not work as expected", symbol.OriginalName),
+									p.whyESModule())
+								symbol.Flags |= js_ast.DidWarnAboutCommonJSInESM
+							}
+						}
+					}
+				}
 			}
 
 		case js_ast.BinOpAddAssign:
@@ -14875,29 +14907,6 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 
 	// Pop the module scope to apply the "ContainsDirectEval" rules
 	p.popScope()
-
-	// If CommonJS-style exports are disabled, then references to them are
-	// treated as global variable references. This is consistent with how
-	// they work in node and the browser, so it's the correct interpretation.
-	//
-	// However, people sometimes try to use both types of exports within the
-	// same module and expect it to work. We warn about this when module
-	// format conversion is enabled because surely it's a bug?
-	//
-	// This is probed by checking the state of the scope after parsing has
-	// finished so we don't have to pay the cost of additional string
-	// comparisons in the hot path of identifier lookup.
-	if p.options.mode != config.ModePassThrough && p.isFileConsideredToHaveESMExports && !p.suppressWarningsAboutWeirdCode {
-		for _, name := range []string{"exports", "module"} {
-			if member, ok := p.moduleScope.Members[name]; ok {
-				if symbol := &p.symbols[member.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound && symbol.UseCountEstimate > 0 {
-					p.log.AddWithNotes(logger.Warning, &p.tracker, js_lexer.RangeOfIdentifier(p.source, member.Loc),
-						fmt.Sprintf("The CommonJS %q variable is treated as a global variable in an ECMAScript module and may not work as expected", name),
-						p.whyESModule())
-				}
-			}
-		}
-	}
 
 	parts = append(append(before, parts...), after...)
 	result = p.toAST(parts, hashbang, directive)
