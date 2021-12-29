@@ -1573,6 +1573,10 @@ const (
 	// This flag is to avoid warning about this symbol more than once. It only
 	// applies to the "module" and "exports" unbound symbols.
 	DidWarnAboutCommonJSInESM
+
+	// If this is present, the symbol could potentially be overwritten. This means
+	// it's not safe to make assumptions about this symbol from the initializer.
+	CouldPotentiallyBeMutated
 )
 
 func (flags SymbolFlags) Has(flag SymbolFlags) bool {
