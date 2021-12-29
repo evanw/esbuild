@@ -4953,6 +4953,15 @@ func TestMangleCatch(t *testing.T) {
 	expectPrintedMangle(t, "if (y) try { throw 1 } catch (x) {} else eval('x')", "if (y)\n  try {\n    throw 1;\n  } catch {\n  }\nelse\n  eval(\"x\");\n")
 }
 
+func TestAutoPureForObjectCreate(t *testing.T) {
+	expectPrinted(t, "Object.create(null)", "/* @__PURE__ */ Object.create(null);\n")
+	expectPrinted(t, "Object.create({})", "/* @__PURE__ */ Object.create({});\n")
+
+	expectPrinted(t, "Object.create()", "Object.create();\n")
+	expectPrinted(t, "Object.create(x)", "Object.create(x);\n")
+	expectPrinted(t, "Object.create(undefined)", "Object.create(void 0);\n")
+}
+
 func TestAutoPureForSet(t *testing.T) {
 	expectPrinted(t, "new Set", "/* @__PURE__ */ new Set();\n")
 	expectPrinted(t, "new Set(null)", "/* @__PURE__ */ new Set(null);\n")
