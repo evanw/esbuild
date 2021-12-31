@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.10
 
 * Enable tree shaking of classes with lowered static fields ([#175](https://github.com/evanw/esbuild/issues/175))
 
