@@ -378,6 +378,56 @@ keep(foo());
 keep(1);
 
 ================================================================================
+TestInlineFunctionCallBehaviorChanges
+---------- /out/entry.js ----------
+function empty() {
+}
+function id(x) {
+  return x;
+}
+export let shouldBeWrapped = [
+  (0, foo.bar)(),
+  (0, foo[bar])(),
+  (0, foo?.bar)(),
+  (0, foo?.[bar])(),
+  (0, foo.bar)(),
+  (0, foo[bar])(),
+  (0, foo?.bar)(),
+  (0, foo?.[bar])(),
+  (0, eval)(),
+  (0, eval)?.(),
+  (0, eval)(),
+  (0, eval)?.(),
+  (0, foo.bar)``,
+  (0, foo[bar])``,
+  (0, foo?.bar)``,
+  (0, foo?.[bar])``,
+  (0, foo.bar)``,
+  (0, foo[bar])``,
+  (0, foo?.bar)``,
+  (0, foo?.[bar])``,
+  delete (0, foo),
+  delete (0, foo.bar),
+  delete (0, foo[bar]),
+  delete (0, foo?.bar),
+  delete (0, foo?.[bar]),
+  delete (0, foo),
+  delete (0, foo.bar),
+  delete (0, foo[bar]),
+  delete (0, foo?.bar),
+  delete (0, foo?.[bar]),
+  delete (0, void 0)
+], shouldNotBeWrapped = [
+  foo(),
+  foo(),
+  foo``,
+  foo``
+], shouldNotBeDoubleWrapped = [
+  delete (foo(), bar()),
+  delete (foo(), bar())
+];
+
+================================================================================
 TestInlineIdentityFunctionCalls
 ---------- /out/identity.js ----------
 // identity.js
