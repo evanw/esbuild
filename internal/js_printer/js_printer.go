@@ -2241,7 +2241,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				}
 				if left.Data != e.Left.Data || right.Data != e.Right.Data {
 					// Pass a flag so we don't needlessly re-simplify the same expression
-					p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(js_ast.JoinWithComma(left, e.Right), flags), level, flags|didAlreadySimplifyUnusedExprs)
+					p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(js_ast.JoinWithComma(left, right), flags), level, flags|didAlreadySimplifyUnusedExprs)
 					break
 				}
 			} else {
@@ -2333,7 +2333,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		if e.Op == js_ast.BinOpComma {
 			// The result of the right operand of the comma operator is unused if the caller doesn't use it
-			p.printExpr(e.Right, rightLevel, (flags&forbidIn)|(flags&exprResultIsUnused))
+			p.printExpr(e.Right, rightLevel, flags&(forbidIn|exprResultIsUnused))
 		} else {
 			p.printExpr(e.Right, rightLevel, flags&forbidIn)
 		}

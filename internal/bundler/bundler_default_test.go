@@ -4354,11 +4354,11 @@ func TestKeepNamesTreeShaking(t *testing.T) {
 			"/entry.js": `
 				function fnStmtRemove() {}
 				function fnStmtKeep() {}
-				fnStmtKeep()
+				x = fnStmtKeep
 
 				let fnExprRemove = function remove() {}
 				let fnExprKeep = function keep() {}
-				fnExprKeep()
+				x = fnExprKeep
 
 				class clsStmtRemove {}
 				class clsStmtKeep {}

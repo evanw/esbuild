@@ -67,6 +67,7 @@ type parser struct {
 	injectedSymbolSources      map[js_ast.Ref]injectedSymbolSource
 	symbolUses                 map[js_ast.Ref]js_ast.SymbolUse
 	importSymbolPropertyUses   map[js_ast.Ref]map[string]js_ast.SymbolUse
+	symbolCallUses             map[js_ast.Ref]js_ast.SymbolCallUse
 	declaredSymbols            []js_ast.DeclaredSymbol
 	runtimeImports             map[string]js_ast.Ref
 	runtimePublicFieldImport   js_ast.Ref
@@ -13007,13 +13008,26 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		// Copy the call side effect flag over if this is a known target
 		switch t := target.Data.(type) {
+		case *js_ast.EImportIdentifier:
+			// If this function is inlined, allow it to be tree-shaken
+			if p.options.mangleSyntax && !p.isControlFlowDead {
+				p.convertSymbolUseToCall(t.Ref, len(e.Args) == 1)
+			}
+
 		case *js_ast.EIdentifier:
+			// Copy the call side effect flag over if this is a known target
 			if t.CallCanBeUnwrappedIfUnused {
 				e.CanBeUnwrappedIfUnused = true
 			}
+
+			// If this function is inlined, allow it to be tree-shaken
+			if p.options.mangleSyntax && !p.isControlFlowDead {
+				p.convertSymbolUseToCall(t.Ref, len(e.Args) == 1)
+			}
+
 		case *js_ast.EDot:
+			// Copy the call side effect flag over if this is a known target
 			if t.CallCanBeUnwrappedIfUnused {
 				e.CanBeUnwrappedIfUnused = true
 			}
@@ -13235,6 +13249,28 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	}
 
 	return expr, exprOut{}
+}
+
+func (p *parser) convertSymbolUseToCall(ref js_ast.Ref, isSingleArgCall bool) {
+	// Remove the normal symbol use
+	use := p.symbolUses[ref]
+	use.CountEstimate--
+	if use.CountEstimate == 0 {
+		delete(p.symbolUses, ref)
+	} else {
+		p.symbolUses[ref] = use
+	}
+
+	// Add a special symbol use instead
+	if p.symbolCallUses == nil {
+		p.symbolCallUses = make(map[js_ast.Ref]js_ast.SymbolCallUse)
+	}
+	callUse := p.symbolCallUses[ref]
+	callUse.CallCountEstimate++
+	if isSingleArgCall {
+		callUse.SingleArgCallCountEstimate++
+	}
+	p.symbolCallUses[ref] = callUse
 }
 
 func (p *parser) warnAboutImportNamespaceCall(target js_ast.Expr, kind importNamespaceCallKind) {
@@ -14017,6 +14053,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.Part {
 	p.symbolUses = make(map[js_ast.Ref]js_ast.SymbolUse)
 	p.importSymbolPropertyUses = nil
+	p.symbolCallUses = nil
 	p.declaredSymbols = nil
 	p.importRecordsForCurrentPart = nil
 	p.scopesForCurrentPart = nil
@@ -14057,6 +14094,7 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 		part.DeclaredSymbols = p.declaredSymbols
 		part.ImportRecordIndices = p.importRecordsForCurrentPart
 		part.ImportSymbolPropertyUses = p.importSymbolPropertyUses
+		part.SymbolCallUses = p.symbolCallUses
 		part.Scopes = p.scopesForCurrentPart
 		parts = append(parts, part)
 	}
