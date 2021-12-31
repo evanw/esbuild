@@ -1380,6 +1380,7 @@ func (p *printer) guardAgainstBehaviorChangeDueToSubstitution(expr js_ast.Expr, 
 		// "id(x.y)()" must not become "x.y()"
 		// "id(x.y)``" must not become "x.y``"
 		// "(empty(), x.y)()" must not become "x.y()"
+		// "(empty(), eval)()" must not become "eval()"
 		switch expr.Data.(type) {
 		case *js_ast.EDot, *js_ast.EIndex:
 			wrap = true
@@ -3160,7 +3161,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printSpace()
 		p.print("(")
 		if init.Data != nil {
-			p.printForLoopInit(init, forbidIn|exprResultIsUnused)
+			p.printForLoopInit(init, forbidIn)
 		}
 		p.print(";")
 		p.printSpace()
