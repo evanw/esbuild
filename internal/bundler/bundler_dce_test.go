@@ -2459,3 +2459,23 @@ func TestInlineFunctionCallBehaviorChanges(t *testing.T) {
 		},
 	})
 }
+
+func TestInlineFunctionCallForInitDecl(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function empty() {}
+				function id(x) { return x }
+
+				for (var y = empty(); false; ) ;
+				for (var z = id(123); false; ) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MangleSyntax: true,
+		},
+	})
+}
