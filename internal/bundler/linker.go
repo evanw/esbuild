@@ -1378,6 +1378,38 @@ func (c *linkerContext) scanImportsAndExports() {
 					part.SymbolUses[ref] = use
 				}
 
+				// Also determine which function calls will be inlined (and so should
+				// not count as uses), and which ones will not be (and so should count
+				// as uses)
+				for ref, callUse := range part.SymbolCallUses {
+					use := part.SymbolUses[ref]
+
+					// Find the symbol that was called
+					symbol := c.graph.Symbols.Get(ref)
+					if symbol.Kind == js_ast.SymbolImport {
+						if importData, ok := repr.Meta.ImportsToBind[ref]; ok {
+							symbol = c.graph.Symbols.Get(importData.Ref)
+						}
+					}
+					flags := symbol.Flags
+
+					// Rare path: this is a function that will be inlined
+					if (flags & (js_ast.IsEmptyFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction {
+						// Every call will be inlined
+						continue
+					} else if (flags & (js_ast.IsIdentityFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction {
+						// Every single-argument call will be inlined
+						callUse.CallCountEstimate -= callUse.SingleArgCallCountEstimate
+						if callUse.CallCountEstimate == 0 {
+							continue
+						}
+					}
+
+					// Common path: this isn't a function that will be inlined
+					use.CountEstimate += callUse.CallCountEstimate
+					part.SymbolUses[ref] = use
+				}
+
 				// Now that we know this, we can determine cross-part dependencies
 				for ref := range part.SymbolUses {
 					for _, otherPartIndex := range repr.TopLevelSymbolToParts(ref) {

@@ -53,47 +53,55 @@
 
     WARNING: Using this flag can introduce bugs into your code! This flag removes the entire call expression including all call arguments. If any of those arguments had important side effects, using this flag will change the behavior of your code. Be very careful when using this flag. If you want to remove console API calls without removing arguments with side effects (which does not introduce bugs), you should mark the relevant API calls as pure instead like this: `--pure:console.log --minify`.
 
-* Inline calls to identity functions when minifying ([#907](https://github.com/evanw/esbuild/issues/907))
+* Inline calls to certain no-op functions when minifying ([#290](https://github.com/evanw/esbuild/issues/290), [#907](https://github.com/evanw/esbuild/issues/907))
 
-    An identity function is a function that just returns its argument. It most commonly arises when most of the function body is eliminated as dead code. This release replaces calls to identity functions with their argument when minifying, resulting in slightly smaller code. Tree shaking has not yet been updated to remove identity functions that are now unreferenced. Here's an example:
+    This release makes esbuild inline two types of no-op functions: empty functions and identity functions. These most commonly arise when most of the function body is eliminated as dead code. In the examples below, this happens because we use `--define:window.DEBUG=false` to cause dead code elimination inside the function body of the resulting `if (false)` statement. This inlining is a small code size and performance win but, more importantly, it allows for people to use these features to add useful abstractions that improve the development experience without needing to worry about the run-time performance impact.
+
+    An identity function is a function that just returns its argument. Here's an example of inlining an identity function:
 
     ```js
     // Original code
     function logCalls(fn) {
       if (window.DEBUG) return function(...args) {
-        console.log('calling', fn.name, 'with', ...args)
+        console.log('calling', fn.name, 'with', args)
         return fn.apply(this, args)
       }
       return fn
     }
     export const foo = logCalls(function foo() {})
 
-    // Old output (with --minify --define:window.DEBUG=false)
+    // Old output (with --minify --define:window.DEBUG=false --tree-shaking=true)
     function o(n){return n}export const foo=o(function(){});
 
-    // New output (with --minify --define:window.DEBUG=false)
-    function o(n){return n}export const foo=function(){};
+    // New output (with --minify --define:window.DEBUG=false --tree-shaking=true)
+    export const foo=function(){};
     ```
 
-* Inline calls to empty functions when minifying ([#290](https://github.com/evanw/esbuild/issues/290))
-
-    An empty function is a function that just returns its argument. It most commonly arises when most of the function body is eliminated as dead code. This release replaces calls to empty functions with their arguments when minifying, resulting in slightly smaller code. Tree shaking has not yet been updated to remove empty functions that are now unreferenced. Here's an example:
+    An empty function is a function with an empty body. Here's an example of inlining an empty function:
 
     ```ts
     // Original code
-    function assertFoo(val: Foo | null): asserts val is Foo {
+    function assertNotNull(val: Object | null): asserts val is Object {
       if (window.DEBUG && val === null) throw new Error('null assertion failed');
     }
-    const val = getFoo();
-    assertFoo(val);
+    export const val = getFoo();
+    assertNotNull(val);
     console.log(val.bar);
 
-    // Old output (with --minify --define:window.DEBUG=false)
-    function assertFoo(o){}const val=getFoo();assertFoo(val),console.log(val.bar);
+    // Old output (with --minify --define:window.DEBUG=false --tree-shaking=true)
+    function l(o){}export const val=getFoo();l(val);console.log(val.bar);
 
-    // New output (with --minify --define:window.DEBUG=false)
-    function assertFoo(o){}const val=getFoo();console.log(val.bar);
+    // New output (with --minify --define:window.DEBUG=false --tree-shaking=true)
+    export const val=getFoo();console.log(val.bar);
     ```
+
+    To get this behavior you'll need to use the `function` keyword to define your function since that causes the definition to be hoisted, which eliminates concerns around initialization order. These features also work across modules, so functions are still inlined even if the definition of the function is in a separate module from the call to the function. To get cross-module function inlining to work, you'll need to have bundling enabled and use the `import` and `export` keywords to access the function so that esbuild can see which functions are called. And all of this has been added without an observable impact to compile times.
+
+    I previously wasn't able to add this to esbuild easily because of esbuild's low-pass compilation approach. The compiler only does three full passes over the data for speed. The passes are roughly for parsing, binding, and printing. It's only possible to inline something after binding but it needs to be inlined before printing. Also the way module linking was done made it difficult to roll back uses of symbols that were inlined, so the symbol definitions were not tree shaken even when they became unused due to inlining.
+
+    The linking issue was somewhat resolved when I fixed #128 in the previous release. To implement cross-module inlining of TypeScript enums, I came up with a hack to defer certain symbol uses until the linking phase, which happens after binding but before printing. Another hack is that inlining of TypeScript enums is done directly in the printer to avoid needing another pass.
+
+    The possibility of these two hacks has unblocked these simple function inlining use cases that are now handled. This isn't a fully general approach because optimal inlining is recursive. Inlining something may open up further inlining opportunities, which either requires multiple iterations or a worklist algorithm, both of which don't work when doing late-stage inlining in the printer. But the function inlining that esbuild now implements is still useful even though it's one level deep, and so I believe it's still worth adding.
 
 ## 0.14.9
 

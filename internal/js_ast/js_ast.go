@@ -2218,6 +2218,10 @@ type Part struct {
 	// An estimate of the number of uses of all symbols used within this part.
 	SymbolUses map[Ref]SymbolUse
 
+	// An estimate of the number of uses of all symbols used as the target of
+	// function calls within this part.
+	SymbolCallUses map[Ref]SymbolCallUse
+
 	// This tracks property accesses off of imported symbols. We don't know
 	// during parsing if an imported symbol is going to be an inlined enum
 	// value or not. This is only known during linking. So we defer adding
@@ -2256,6 +2260,11 @@ type DeclaredSymbol struct {
 
 type SymbolUse struct {
 	CountEstimate uint32
+}
+
+type SymbolCallUse struct {
+	CallCountEstimate          uint32
+	SingleArgCallCountEstimate uint32
 }
 
 // Returns the canonical ref that represents the ref for the provided symbol.

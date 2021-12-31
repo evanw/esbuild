@@ -269,8 +269,6 @@ console.log(import_foo.default);
 TestInlineEmptyFunctionCalls
 ---------- /out/empty.js ----------
 // empty.js
-function DROP() {
-}
 console.log((foo(), bar(), void 0));
 console.log((foo(), void 0));
 console.log((foo(), void 0));
@@ -282,8 +280,6 @@ foo();
 
 ---------- /out/empty-comma.js ----------
 // empty-comma.js
-function DROP() {
-}
 console.log(foo());
 console.log((foo(), void 0));
 console.log((foo(), void 0));
@@ -295,15 +291,9 @@ foo();
 
 ---------- /out/empty-last.js ----------
 // empty-last.js
-function DROP() {
-}
 console.log(void 0);
 
 ---------- /out/empty-cross-module.js ----------
-// empty-cross-module-def.js
-function DROP() {
-}
-
 // empty-cross-module.js
 console.log(void 0);
 
@@ -431,17 +421,11 @@ export let shouldBeWrapped = [
 TestInlineIdentityFunctionCalls
 ---------- /out/identity.js ----------
 // identity.js
-function DROP(x) {
-  return x;
-}
 console.log(1);
 foo();
 
 ---------- /out/identity-last.js ----------
 // identity-last.js
-function DROP(x) {
-  return x;
-}
 console.log(1);
 foo();
 
@@ -473,11 +457,6 @@ keep(foo());
 keep(1);
 
 ---------- /out/identity-cross-module.js ----------
-// identity-cross-module-def.js
-function DROP(x) {
-  return x;
-}
-
 // identity-cross-module.js
 console.log(1);
 foo();
