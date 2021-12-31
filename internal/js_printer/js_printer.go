@@ -1292,18 +1292,6 @@ func (p *printer) printDotThenSuffix() {
 	}
 }
 
-type printExprFlags uint8
-
-const (
-	forbidCall printExprFlags = 1 << iota
-	forbidIn
-	hasNonOptionalChainParent
-	exprResultIsUnused
-	didAlreadySimplifyUnusedExprs
-	isFollowedByOf
-	isInsideForAwait
-)
-
 func (p *printer) printUndefined(level js_ast.L) {
 	if level >= js_ast.LPrefix {
 		p.print("(void 0)")
@@ -1373,12 +1361,19 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 	return expr
 }
 
+type printExprFlags uint8
+
+const (
+	forbidCall printExprFlags = 1 << iota
+	forbidIn
+	hasNonOptionalChainParent
+	exprResultIsUnused
+	didAlreadySimplifyUnusedExprs
+	isFollowedByOf
+	isInsideForAwait
+)
+
 func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFlags) {
-	originalFlags := flags
-
-	// Turn these flags off so we don't unintentionally propagate them to child calls
-	flags &= ^(isFollowedByOf | exprResultIsUnused | didAlreadySimplifyUnusedExprs)
-
 	p.addSourceMapping(expr.Loc)
 
 	switch e := expr.Data.(type) {
@@ -1560,20 +1555,20 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				for _, arg := range e.Args {
 					replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(arg, p.isUnbound))
 				}
-				if replacement.Data == nil || (originalFlags&exprResultIsUnused) == 0 {
+				if replacement.Data == nil || (flags&exprResultIsUnused) == 0 {
 					replacement = js_ast.JoinWithComma(replacement, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
 				}
-				p.printExpr(replacement, level, originalFlags)
+				p.printExpr(replacement, level, flags)
 				break
 			}
 
 			// Inline non-mutated identity functions at print time
 			if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
 				arg := e.Args[0]
-				if (originalFlags & exprResultIsUnused) != 0 {
+				if (flags & exprResultIsUnused) != 0 {
 					arg = js_ast.SimplifyUnusedExpr(arg, p.isUnbound)
 				}
-				p.printExpr(arg, level, originalFlags)
+				p.printExpr(arg, level, flags)
 				break
 			}
 		}
@@ -1634,7 +1629,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 	case *js_ast.ERequireString:
-		p.printRequireOrImportExpr(e.ImportRecordIndex, nil, level, originalFlags)
+		p.printRequireOrImportExpr(e.ImportRecordIndex, nil, level, flags)
 
 	case *js_ast.ERequireResolveString:
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
@@ -1654,7 +1649,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if !p.options.RemoveWhitespace {
 			leadingInteriorComments = e.LeadingInteriorComments
 		}
-		p.printRequireOrImportExpr(e.ImportRecordIndex, leadingInteriorComments, level, originalFlags)
+		p.printRequireOrImportExpr(e.ImportRecordIndex, leadingInteriorComments, level, flags)
 
 	case *js_ast.EImportCall:
 		var leadingInteriorComments []js_ast.Comment
@@ -1724,7 +1719,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 			flags &= ^hasNonOptionalChainParent
 		}
-		p.printExpr(e.Target, js_ast.LPostfix, flags)
+		p.printExpr(e.Target, js_ast.LPostfix, flags&(forbidCall|hasNonOptionalChainParent))
 		if p.canPrintIdentifier(e.Name) {
 			if e.OptionalChain != js_ast.OptionalChainStart && p.prevNumEnd == len(p.js) {
 				// "1.toString" is a syntax error, so print "1 .toString" instead
@@ -1786,7 +1781,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 			flags &= ^hasNonOptionalChainParent
 		}
-		p.printExpr(e.Target, js_ast.LPostfix, flags)
+		p.printExpr(e.Target, js_ast.LPostfix, flags&(forbidCall|hasNonOptionalChainParent))
 		if e.OptionalChain == js_ast.OptionalChainStart {
 			p.print("?.")
 		}
@@ -2072,7 +2067,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	case *js_ast.EIdentifier:
 		name := p.renamer.NameForSymbol(e.Ref)
 		wrap := len(p.js) == p.forOfInitStart && (name == "let" ||
-			((originalFlags&isFollowedByOf) != 0 && (flags&isInsideForAwait) == 0 && name == "async"))
+			((flags&isFollowedByOf) != 0 && (flags&isInsideForAwait) == 0 && name == "async"))
 
 		if wrap {
 			p.print("(")
@@ -2192,15 +2187,15 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		// should have already simplified unused expressions), or the result is used
 		// (and we can still simplify unused expressions inside the left operand)
 		if e.Op == js_ast.BinOpComma {
-			if (originalFlags & didAlreadySimplifyUnusedExprs) == 0 {
+			if (flags & didAlreadySimplifyUnusedExprs) == 0 {
 				left := p.simplifyUnusedExpr(e.Left)
 				right := e.Right
-				if (originalFlags & exprResultIsUnused) != 0 {
+				if (flags & exprResultIsUnused) != 0 {
 					right = p.simplifyUnusedExpr(right)
 				}
 				if left.Data != e.Left.Data || right.Data != e.Right.Data {
 					// Pass a flag so we don't needlessly re-simplify the same expression
-					p.printExpr(js_ast.JoinWithComma(left, e.Right), level, originalFlags|didAlreadySimplifyUnusedExprs)
+					p.printExpr(js_ast.JoinWithComma(left, e.Right), level, flags|didAlreadySimplifyUnusedExprs)
 					break
 				}
 			} else {
@@ -2292,7 +2287,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		if e.Op == js_ast.BinOpComma {
 			// The result of the right operand of the comma operator is unused if the caller doesn't use it
-			p.printExpr(e.Right, rightLevel, (flags&forbidIn)|(originalFlags&exprResultIsUnused))
+			p.printExpr(e.Right, rightLevel, (flags&forbidIn)|(flags&exprResultIsUnused))
 		} else {
 			p.printExpr(e.Right, rightLevel, flags&forbidIn)
 		}
