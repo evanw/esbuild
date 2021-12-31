@@ -1361,7 +1361,47 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 	return expr
 }
 
-type printExprFlags uint8
+// This assumes the original expression was some form of indirect value, such
+// as a value returned from a function call or the result of a comma operator.
+// In this case, there is no special behavior with the "delete" operator or
+// with function calls. If we substitute this indirect value for another value
+// due to inlining, we have to make sure we don't accidentally introduce special
+// behavior.
+func (p *printer) guardAgainstBehaviorChangeDueToSubstitution(expr js_ast.Expr, flags printExprFlags) js_ast.Expr {
+	wrap := false
+
+	if (flags & isDeleteTarget) != 0 {
+		// "delete id(x)" must not become "delete x"
+		// "delete (empty(), x)" must not become "delete x"
+		if binary, ok := expr.Data.(*js_ast.EBinary); !ok || binary.Op != js_ast.BinOpComma {
+			wrap = true
+		}
+	} else if (flags & isCallTargetOrTemplateTag) != 0 {
+		// "id(x.y)()" must not become "x.y()"
+		// "id(x.y)``" must not become "x.y``"
+		// "(empty(), x.y)()" must not become "x.y()"
+		switch expr.Data.(type) {
+		case *js_ast.EDot, *js_ast.EIndex:
+			wrap = true
+		case *js_ast.EIdentifier:
+			if p.isUnboundEvalIdentifier(expr) {
+				wrap = true
+			}
+		}
+	}
+
+	if wrap {
+		expr.Data = &js_ast.EBinary{
+			Op:    js_ast.BinOpComma,
+			Left:  js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: 0}},
+			Right: expr,
+		}
+	}
+
+	return expr
+}
+
+type printExprFlags uint16
 
 const (
 	forbidCall printExprFlags = 1 << iota
@@ -1371,6 +1411,8 @@ const (
 	didAlreadySimplifyUnusedExprs
 	isFollowedByOf
 	isInsideForAwait
+	isDeleteTarget
+	isCallTargetOrTemplateTag
 )
 
 func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFlags) {
@@ -1558,7 +1600,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				if replacement.Data == nil || (flags&exprResultIsUnused) == 0 {
 					replacement = js_ast.JoinWithComma(replacement, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
 				}
-				p.printExpr(replacement, level, flags)
+				p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(replacement, flags), level, flags)
 				break
 			}
 
@@ -1568,7 +1610,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				if (flags & exprResultIsUnused) != 0 {
 					arg = js_ast.SimplifyUnusedExpr(arg, p.isUnbound)
 				}
-				p.printExpr(arg, level, flags)
+				p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(arg, flags), level, flags)
 				break
 			}
 		}
@@ -1606,10 +1648,10 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			} else {
 				p.print("(0, ")
 			}
-			p.printExpr(e.Target, js_ast.LPostfix, 0)
+			p.printExpr(e.Target, js_ast.LPostfix, isCallTargetOrTemplateTag)
 			p.print(")")
 		} else {
-			p.printExpr(e.Target, js_ast.LPostfix, targetFlags)
+			p.printExpr(e.Target, js_ast.LPostfix, isCallTargetOrTemplateTag|targetFlags)
 		}
 
 		if e.OptionalChain == js_ast.OptionalChainStart {
@@ -2008,10 +2050,10 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			// Optional chains are forbidden in template tags
 			if js_ast.IsOptionalChain(e.TagOrNil) {
 				p.print("(")
-				p.printExpr(e.TagOrNil, js_ast.LLowest, 0)
+				p.printExpr(e.TagOrNil, js_ast.LLowest, isCallTargetOrTemplateTag)
 				p.print(")")
 			} else {
-				p.printExpr(e.TagOrNil, js_ast.LPostfix, 0)
+				p.printExpr(e.TagOrNil, js_ast.LPostfix, isCallTargetOrTemplateTag)
 			}
 		}
 		p.print("`")
@@ -2175,7 +2217,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 		if e.Op.IsPrefix() {
-			p.printExpr(e.Value, js_ast.LPrefix-1, 0)
+			var valueFlags printExprFlags
+			if e.Op == js_ast.UnOpDelete {
+				valueFlags |= isDeleteTarget
+			}
+			p.printExpr(e.Value, js_ast.LPrefix-1, valueFlags)
 		}
 
 		if wrap {
@@ -2195,7 +2241,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				}
 				if left.Data != e.Left.Data || right.Data != e.Right.Data {
 					// Pass a flag so we don't needlessly re-simplify the same expression
-					p.printExpr(js_ast.JoinWithComma(left, e.Right), level, flags|didAlreadySimplifyUnusedExprs)
+					p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(js_ast.JoinWithComma(left, e.Right), flags), level, flags|didAlreadySimplifyUnusedExprs)
 					break
 				}
 			} else {
