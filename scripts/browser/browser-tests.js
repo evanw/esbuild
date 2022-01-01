@@ -284,6 +284,10 @@ async function main() {
   async function runPage(key) {
     try {
       const page = await browser.newPage()
+      page.on('pageerror', error => {
+        console.error(`❌ page error: ${error?.message ?? error}`)
+        allTestsPassed = false
+      })
       page.on('console', obj => console.log(`[console.${obj.type()}] ${obj.text()}`))
       page.exposeFunction('testFail', error => {
         console.log(`❌ ${error}`)

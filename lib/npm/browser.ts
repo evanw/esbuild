@@ -104,7 +104,13 @@ const startRunningService = async (wasmURL: string, useWorker: boolean): Promise
     }
   }
 
-  worker.onmessage = ({ data }) => readFromStdout(data)
+  worker.onmessage = ({ data }) => {
+    if (data.type === 'done') {
+      worker.onmessage = ({ data }) => readFromStdout(data)
+      return
+    }
+    throw new Error(data?.error ?? 'Failed to compile wasm code')
+  }
 
   let { readFromStdout, service } = common.createChannel({
     writeToStdin(bytes) {

@@ -78,4 +78,8 @@ let go = new (global as any).Go()
 go.argv = ['', `--service=${ESBUILD_VERSION}`]
 
 loadWasm((global as any).WASM_URL, go.importObject)
-  .then(({ instance }) => go.run(instance))
+  .then(async ({ instance }) => {
+    postMessage({ type: 'done' })
+    return go.run(instance)
+  })
+  .catch(err => postMessage({ type: 'error', error: err?.message ?? err }))
