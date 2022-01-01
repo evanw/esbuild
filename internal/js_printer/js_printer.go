@@ -213,6 +213,9 @@ func (p *printer) printUnquotedUTF16(text []uint16, quote rune) {
 		case '\v':
 			js = append(js, "\\v"...)
 
+		case '\x1B':
+			js = append(js, "\\x1B"...)
+
 		case '\\':
 			js = append(js, "\\\\"...)
 

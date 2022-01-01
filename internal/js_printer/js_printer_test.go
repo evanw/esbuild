@@ -391,6 +391,8 @@ func TestString(t *testing.T) {
 	expectPrinted(t, "let x = '\\01'", "let x = \"\x01\";\n")
 	expectPrinted(t, "let x = '\x10'", "let x = \"\x10\";\n")
 	expectPrinted(t, "let x = '\\x10'", "let x = \"\x10\";\n")
+	expectPrinted(t, "let x = '\x1B'", "let x = \"\\x1B\";\n")
+	expectPrinted(t, "let x = '\\x1B'", "let x = \"\\x1B\";\n")
 	expectPrinted(t, "let x = '\uABCD'", "let x = \"\uABCD\";\n")
 	expectPrinted(t, "let x = '\\uABCD'", "let x = \"\uABCD\";\n")
 	expectPrinted(t, "let x = '\U000123AB'", "let x = \"\U000123AB\";\n")
