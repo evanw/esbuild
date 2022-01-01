@@ -60,7 +60,10 @@ export const initialize: typeof types.initialize = options => {
   let wasmURL = options.wasmURL;
   let useWorker = options.worker !== false;
   if (!wasmURL) throw new Error('Must provide the "wasmURL" option');
-  wasmURL += '';
+  wasmURL = new URL(
+    wasmURL + "",
+    `${location.origin}${wasmURL.startsWith('.') ? location.pathname : "/"}`
+  ).href
   if (initializePromise) throw new Error('Cannot call "initialize" more than once');
   initializePromise = startRunningService(wasmURL, useWorker);
   initializePromise.catch(() => {
@@ -71,11 +74,8 @@ export const initialize: typeof types.initialize = options => {
 }
 
 const startRunningService = async (wasmURL: string, useWorker: boolean): Promise<void> => {
-  let res = await fetch(wasmURL);
-  if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
-  let wasm = await res.arrayBuffer();
   let code = `{` +
-    `let global={};` +
+    `let global={WASM_URL:"${wasmURL}"};` +
     `for(let o=self;o;o=Object.getPrototypeOf(o))` +
     `for(let k of Object.getOwnPropertyNames(o))` +
     `if(!(k in global))` +
@@ -104,7 +104,6 @@ const startRunningService = async (wasmURL: string, useWorker: boolean): Promise
     }
   }
 
-  worker.postMessage(wasm)
   worker.onmessage = ({ data }) => readFromStdout(data)
 
   let { readFromStdout, service } = common.createChannel({
