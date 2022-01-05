@@ -11914,21 +11914,43 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// to check for a CommonJS environment, and we shouldn't warn on that.
 				if p.options.mode != config.ModePassThrough && p.isFileConsideredToHaveESMExports && !p.isControlFlowDead {
 					if dot, ok := e.Left.Data.(*js_ast.EDot); ok {
-						if id, ok := dot.Target.Data.(*js_ast.EIdentifier); ok {
-							if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound &&
+						var name string
+						var loc logger.Loc
+
+						switch target := dot.Target.Data.(type) {
+						case *js_ast.EIdentifier:
+							if symbol := &p.symbols[target.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound &&
 								((symbol.OriginalName == "module" && dot.Name == "exports") || symbol.OriginalName == "exports") &&
 								!symbol.Flags.Has(js_ast.DidWarnAboutCommonJSInESM) {
 								// "module.exports = ..."
 								// "exports.something = ..."
-								kind := logger.Warning
-								if p.suppressWarningsAboutWeirdCode {
-									kind = logger.Debug
-								}
-								p.log.AddWithNotes(kind, &p.tracker, js_lexer.RangeOfIdentifier(p.source, dot.Target.Loc),
-									fmt.Sprintf("The CommonJS %q variable is treated as a global variable in an ECMAScript module and may not work as expected", symbol.OriginalName),
-									p.whyESModule())
+								name = symbol.OriginalName
+								loc = dot.Target.Loc
 								symbol.Flags |= js_ast.DidWarnAboutCommonJSInESM
 							}
+
+						case *js_ast.EDot:
+							if target.Name == "exports" {
+								if id, ok := target.Target.Data.(*js_ast.EIdentifier); ok {
+									if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound &&
+										symbol.OriginalName == "module" && !symbol.Flags.Has(js_ast.DidWarnAboutCommonJSInESM) {
+										// "module.exports.foo = ..."
+										name = symbol.OriginalName
+										loc = target.Target.Loc
+										symbol.Flags |= js_ast.DidWarnAboutCommonJSInESM
+									}
+								}
+							}
+						}
+
+						if name != "" {
+							kind := logger.Warning
+							if p.suppressWarningsAboutWeirdCode {
+								kind = logger.Debug
+							}
+							p.log.AddWithNotes(kind, &p.tracker, js_lexer.RangeOfIdentifier(p.source, loc),
+								fmt.Sprintf("The CommonJS %q variable is treated as a global variable in an ECMAScript module and may not work as expected", name),
+								p.whyESModule())
 						}
 					}
 				}

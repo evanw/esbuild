@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Warn about `module.exports.foo = ...` in ESM ([#1907](https://github.com/evanw/esbuild/issues/1907))
+
+    The `module` variable is treated as a global variable reference instead of as a CommonJS module reference in ESM code, which can cause problems for people that try to use both CommonJS and ESM exports in the same file. There has been a warning about this since version 0.14.9. However, the warning only covered cases like `exports.foo = bar` and `module.exports = bar` but not `module.exports.foo = bar`. This last case is now handled;
+
+    ```
+    ▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected
+
+        example.ts:2:0:
+          2 │ module.exports.b = 1
+            ╵ ~~~~~~
+
+      This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+        example.ts:1:0:
+          1 │ export let a = 1
+            ╵ ~~~~~~
+    ```
+
 ## 0.14.10
 
 * Enable tree shaking of classes with lowered static fields ([#175](https://github.com/evanw/esbuild/issues/175))

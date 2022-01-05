@@ -5218,10 +5218,15 @@ func TestWarnCommonJSExportsInESMConvert(t *testing.T) {
 				exports.foo = 2
 				module.exports = 3
 			`,
+			"/cjs-in-esm2.js": `
+				export let foo = 1
+				module.exports.bar = 3
+			`,
 			"/import-in-cjs.js": `
 				import { foo } from 'bar'
 				exports.foo = foo
 				module.exports = foo
+				module.exports.bar = foo
 			`,
 			"/no-warnings-here.js": `
 				console.log(module, exports)
@@ -5229,6 +5234,7 @@ func TestWarnCommonJSExportsInESMConvert(t *testing.T) {
 		},
 		entryPaths: []string{
 			"/cjs-in-esm.js",
+			"/cjs-in-esm2.js",
 			"/import-in-cjs.js",
 			"/no-warnings-here.js",
 		},
@@ -5241,6 +5247,8 @@ func TestWarnCommonJSExportsInESMConvert(t *testing.T) {
 cjs-in-esm.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 cjs-in-esm.js: WARNING: The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected
 cjs-in-esm.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+cjs-in-esm2.js: WARNING: The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected
+cjs-in-esm2.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 `,
 	})
 }
