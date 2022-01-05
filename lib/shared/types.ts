@@ -449,7 +449,9 @@ export interface AnalyzeMetafileOptions {
  * Documentation: https://esbuild.github.io/api/#build-api
  */
 export declare function build(options: BuildOptions & { write: false }): Promise<BuildResult & { outputFiles: OutputFile[] }>;
+export declare function build(options: BuildOptions & { incremental: true, metafile: true }): Promise<BuildIncremental & { metafile: Metafile }>;
 export declare function build(options: BuildOptions & { incremental: true }): Promise<BuildIncremental>;
+export declare function build(options: BuildOptions & { metafile: true }): Promise<BuildResult & { metafile: Metafile }>;
 export declare function build(options: BuildOptions): Promise<BuildResult>;
 
 /**
