@@ -60,6 +60,21 @@ const tests = {
       result.rebuild.dispose()
     }
   `,
+  metafileTrue: `
+    import {build, analyzeMetafile} from 'esbuild';
+    build({ metafile: true }).then(result => {
+      analyzeMetafile(result.metafile)
+    })
+  `,
+  incrementalAndMetafileTrue: `
+    import {build, analyzeMetafile} from 'esbuild';
+    build({
+      incremental: true,
+      metafile: true,
+    }).then(result => {
+      analyzeMetafile(result.metafile)
+    })
+  `,
   ifRebuild: `
     import * as esbuild from 'esbuild'
     let options: any
