@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "module": "es2020", // Allow the "import.meta" syntax
+    "module": "esnext", // Allow the "import.meta" and top-level await syntax
     "target": "es2017", // Allow calling APIs such as "Object.entries"
     "strict": true,
   },
