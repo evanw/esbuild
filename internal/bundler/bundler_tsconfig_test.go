@@ -1325,3 +1325,57 @@ func TestTsconfigUnrecognizedTargetWarning(t *testing.T) {
 `,
 	})
 }
+
+// This should point to "tsconfig.json" as the source of the
+// problem because it was not overridden with configuration
+func TestTsconfigTargetWarning(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				await 0
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "es6"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/Users/user/project/out.js",
+			UnsupportedJSFeatures: es(6),
+			TargetFromAPI:         config.TargetWasUnconfigured,
+		},
+		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: Top-level await is not available in the configured target environment ("es6")
+Users/user/project/src/tsconfig.json: NOTE: The target environment was set to "es6" here:
+`,
+	})
+}
+
+// This should not point to "tsconfig.json" as the source of the
+// problem because it was overridden with explicit configuration
+func TestTsconfigOverriddenTargetWarning(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				await 0
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "es6"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/Users/user/project/out.js",
+			UnsupportedJSFeatures: es(2020),
+			TargetFromAPI:         config.TargetWasConfigured,
+			OriginalTargetEnv:     "es2020",
+		},
+		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: Top-level await is not available in the configured target environment (es2020)
+`,
+	})
+}
