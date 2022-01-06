@@ -20,6 +20,14 @@
             ╵ ~~~~~~
     ```
 
+* Enable esbuild's CLI with Deno ([#1913](https://github.com/evanw/esbuild/issues/1913))
+
+    This release allows you to use Deno as an esbuild installer, without also needing to use esbuild's JavaScript API. You can now use esbuild's CLI with Deno:
+
+    ```
+    deno run --allow-all "https://deno.land/x/esbuild@v0.14.11/mod.js" --version
+    ```
+
 ## 0.14.10
 
 * Enable tree shaking of classes with lowered static fields ([#175](https://github.com/evanw/esbuild/issues/175))

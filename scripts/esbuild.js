@@ -237,7 +237,7 @@ const buildDenoLib = (esbuildPath) => {
     path.join(repoDir, 'lib', 'deno', 'mod.ts'),
     '--bundle',
     '--outfile=' + path.join(denoDir, 'mod.js'),
-    '--target=es2020',
+    '--target=esnext',
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
     '--platform=neutral',
     '--log-level=warning',

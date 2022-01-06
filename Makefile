@@ -93,7 +93,8 @@ node-unref-tests: | scripts/node_modules
 	node scripts/node-unref-tests.js
 
 lib-typecheck: | lib/node_modules
-	cd lib && node_modules/.bin/tsc -noEmit -p .
+	cd lib && node_modules/.bin/tsc -noEmit -p tsconfig.json
+	cd lib && node_modules/.bin/tsc -noEmit -p tsconfig-deno.json
 
 # End-to-end tests
 test-e2e: test-e2e-npm test-e2e-pnpm test-e2e-yarn-berry

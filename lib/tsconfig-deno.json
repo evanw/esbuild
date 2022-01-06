@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
-    "module": "CommonJS", // Allow the "import assignment" syntax
+    "module": "es2020", // Allow the "import.meta" syntax
     "target": "es2017", // Allow calling APIs such as "Object.entries"
     "strict": true,
   },
   "exclude": [
-    "deno",
+    "npm",
   ],
 }

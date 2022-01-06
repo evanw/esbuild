@@ -328,3 +328,16 @@ let ensureServiceIsRunning = (): Promise<Service> => {
   }
   return longLivedService
 }
+
+// If we're called as the main script, forward the CLI to the underlying executable
+if (import.meta.main) {
+  Deno.run({
+    cmd: [await install()].concat(Deno.args),
+    cwd: defaultWD,
+    stdin: 'inherit',
+    stdout: 'inherit',
+    stderr: 'inherit',
+  }).status().then(({ code }) => {
+    Deno.exit(code)
+  })
+}
