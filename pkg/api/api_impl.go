@@ -1093,9 +1093,14 @@ func rebuildImpl(
 	var stop func()
 	if buildOpts.Watch != nil && !isRebuild {
 		onRebuild := buildOpts.Watch.OnRebuild
+		intervalSleep := 100 * time.Millisecond // default sleep for 100ms
+		if buildOpts.Watch.Interval > 0 {
+			intervalSleep = time.Duration(buildOpts.Watch.Interval) * time.Millisecond
+		}
 		watch = &watcher{
-			data:     watchData,
-			resolver: resolver,
+			data:          watchData,
+			intervalSleep: intervalSleep,
+			resolver:      resolver,
 			rebuild: func() fs.WatchData {
 				value := rebuildImpl(buildOpts, caches, plugins, nil, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
 				if onRebuild != nil {
@@ -1151,6 +1156,7 @@ type watcher struct {
 	recentItems       []string
 	itemsToScan       []string
 	itemsPerIteration int
+	intervalSleep     time.Duration
 }
 
 func (w *watcher) setWatchData(data fs.WatchData) {
@@ -1169,9 +1175,6 @@ func (w *watcher) setWatchData(data fs.WatchData) {
 	}
 	w.recentItems = w.recentItems[:end]
 }
-
-// The time to wait between watch intervals
-const watchIntervalSleep = 100 * time.Millisecond
 
 // The maximum number of recently-edited items to check every interval
 const maxRecentItemCount = 16
@@ -1200,7 +1203,7 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor, mode WatchMode) {
 
 		for atomic.LoadInt32(&w.shouldStop) == 0 {
 			// Sleep for the watch interval
-			time.Sleep(watchIntervalSleep)
+			time.Sleep(w.intervalSleep)
 
 			// Rebuild if we're dirty
 			if absPath := w.tryToFindDirtyPath(); absPath != "" {
