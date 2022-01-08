@@ -59,11 +59,11 @@ type bundled struct {
 }
 
 type suite struct {
+	expectedSnapshots  map[string]string
+	generatedSnapshots map[string]string
 	name               string
 	path               string
 	mutex              sync.Mutex
-	expectedSnapshots  map[string]string
-	generatedSnapshots map[string]string
 }
 
 func (s *suite) expectBundled(t *testing.T, args bundled) {

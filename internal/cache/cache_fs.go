@@ -12,8 +12,8 @@ import (
 // reading the file contents.
 
 type FSCache struct {
-	mutex   sync.Mutex
 	entries map[string]*fsEntry
+	mutex   sync.Mutex
 }
 
 type fsEntry struct {

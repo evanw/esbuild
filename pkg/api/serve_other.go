@@ -25,21 +25,21 @@ import (
 // Serve API
 
 type apiHandler struct {
-	mutex            sync.Mutex
-	outdirPathPrefix string
-	servedir         string
 	options          *config.Options
 	onRequest        func(ServeOnRequestArgs)
 	rebuild          func() BuildResult
 	currentBuild     *runningBuild
 	fs               fs.FS
-	serveWaitGroup   sync.WaitGroup
 	serveError       error
+	outdirPathPrefix string
+	servedir         string
+	serveWaitGroup   sync.WaitGroup
+	mutex            sync.Mutex
 }
 
 type runningBuild struct {
-	waitGroup sync.WaitGroup
 	result    BuildResult
+	waitGroup sync.WaitGroup
 }
 
 func (h *apiHandler) build() BuildResult {

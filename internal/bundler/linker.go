@@ -41,13 +41,6 @@ type linkerContext struct {
 	// This helps avoid an infinite loop when matching imports to exports
 	cycleDetector []importTracker
 
-	// We may need to refer to the CommonJS "module" symbol for exports
-	unboundModuleRef js_ast.Ref
-
-	// We may need to refer to the "__esm" and/or "__commonJS" runtime symbols
-	cjsRuntimeRef js_ast.Ref
-	esmRuntimeRef js_ast.Ref
-
 	// This represents the parallel computation of source map related data.
 	// Calling this will block until the computation is done. The resulting value
 	// is shared between threads and must be treated as immutable.
@@ -56,6 +49,13 @@ type linkerContext struct {
 	// This is passed to us from the bundling phase
 	uniqueKeyPrefix      string
 	uniqueKeyPrefixBytes []byte // This is just "uniqueKeyPrefix" in byte form
+
+	// We may need to refer to the CommonJS "module" symbol for exports
+	unboundModuleRef js_ast.Ref
+
+	// We may need to refer to the "__esm" and/or "__commonJS" runtime symbols
+	cjsRuntimeRef js_ast.Ref
+	esmRuntimeRef js_ast.Ref
 }
 
 type partRange struct {
@@ -71,11 +71,6 @@ type chunkInfo struct {
 
 	filesWithPartsInChunk map[uint32]bool
 	entryBits             helpers.BitSet
-
-	// This information is only useful if "isEntryPoint" is true
-	isEntryPoint  bool
-	sourceIndex   uint32 // An index into "c.sources"
-	entryPointBit uint   // An index into "c.graph.EntryPoints"
 
 	// For code splitting
 	crossChunkImports []chunkImport
@@ -94,11 +89,6 @@ type chunkInfo struct {
 	// If non-empty, this chunk needs to generate an external legal comments file.
 	externalLegalComments []byte
 
-	// When this chunk is initially generated in isolation, the output pieces
-	// will contain slices of the output with the unique keys of other chunks
-	// omitted.
-	intermediateOutput intermediateOutput
-
 	// This contains the hash for just this chunk without including information
 	// from the hashes of other chunks. Later on in the linking process, the
 	// final hash for this chunk will be constructed by merging the isolated
@@ -109,7 +99,18 @@ type chunkInfo struct {
 	// Other fields relating to the output file for this chunk
 	jsonMetadataChunkCallback func(finalOutputSize int) helpers.Joiner
 	outputSourceMap           sourcemap.SourceMapPieces
-	isExecutable              bool
+
+	// When this chunk is initially generated in isolation, the output pieces
+	// will contain slices of the output with the unique keys of other chunks
+	// omitted.
+	intermediateOutput intermediateOutput
+
+	// This information is only useful if "isEntryPoint" is true
+	entryPointBit uint   // An index into "c.graph.EntryPoints"
+	sourceIndex   uint32 // An index into "c.sources"
+	isEntryPoint  bool
+
+	isExecutable bool
 }
 
 type chunkImport struct {
@@ -141,15 +142,15 @@ type outputPiece struct {
 }
 
 type intermediateOutput struct {
+	// If the chunk has references to other chunks, then "pieces" contains the
+	// contents of the chunk and "joiner" should not be used. Another joiner
+	// will have to be constructed later when merging the pieces together.
+	pieces []outputPiece
+
 	// If the chunk doesn't have any references to other chunks, then "pieces" is
 	// nil and "joiner" contains the contents of the chunk. This is more efficient
 	// because it avoids doing a join operation twice.
 	joiner helpers.Joiner
-
-	// Otherwise, "pieces" contains the contents of the chunk and "joiner" should
-	// not be used. Another joiner will have to be constructed later when merging
-	// the pieces together.
-	pieces []outputPiece
 }
 
 type chunkRepr interface{ isChunk() }
@@ -162,10 +163,10 @@ type chunkReprJS struct {
 	partsInChunkInOrder []partRange
 
 	// For code splitting
-	crossChunkPrefixStmts  []js_ast.Stmt
-	crossChunkSuffixStmts  []js_ast.Stmt
 	exportsToOtherChunks   map[js_ast.Ref]string
 	importsFromOtherChunks map[uint32]crossChunkImportItemArray
+	crossChunkPrefixStmts  []js_ast.Stmt
+	crossChunkSuffixStmts  []js_ast.Stmt
 }
 
 type chunkReprCSS struct {
@@ -994,8 +995,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 }
 
 type crossChunkImport struct {
-	chunkIndex        uint32
 	sortedImportItems crossChunkImportItemArray
+	chunkIndex        uint32
 }
 
 // This type is just so we can use Go's native sort function
@@ -1031,8 +1032,8 @@ func (c *linkerContext) sortedCrossChunkImports(chunks []chunkInfo, importsFromO
 }
 
 type crossChunkImportItem struct {
-	ref         js_ast.Ref
 	exportAlias string
+	ref         js_ast.Ref
 }
 
 // This type is just so we can use Go's native sort function
@@ -2128,9 +2129,9 @@ const (
 )
 
 type matchImportResult struct {
+	alias            string
 	kind             matchImportKind
 	namespaceRef     js_ast.Ref
-	alias            string
 	sourceIndex      uint32
 	nameLoc          logger.Loc // Optional, goes with sourceIndex, ignore if zero
 	otherSourceIndex uint32
@@ -2859,8 +2860,8 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 // traversal order is B D C A.
 func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (externalOrder []externalImportCSS, internalOrder []uint32) {
 	type externalImportsCSS struct {
-		unconditional bool
 		conditions    [][]css_ast.Token
+		unconditional bool
 	}
 
 	visited := make(map[uint32]bool)
@@ -4893,13 +4894,12 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 type compileResultCSS struct {
 	css_printer.PrintResult
 
-	sourceIndex uint32
-
 	// This is the line and column offset since the previous CSS string
 	// or the start of the file if this is the first CSS string.
 	generatedOffset sourcemap.LineColumnOffset
 
-	hasCharset bool
+	sourceIndex uint32
+	hasCharset  bool
 }
 
 func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {

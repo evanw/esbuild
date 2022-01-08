@@ -21,12 +21,11 @@ type boxSide struct {
 }
 
 type boxTracker struct {
-	key       css_ast.D
 	keyText   string
-	allowAuto bool // If true, allow the "auto" keyword
-
 	sides     [4]boxSide
+	allowAuto bool // If true, allow the "auto" keyword
 	important bool // True if all active rules were flagged as "!important"
+	key       css_ast.D
 }
 
 type unitSafetyStatus uint8
@@ -51,8 +50,8 @@ const (
 //     inset: 1Q 0 0 0; top: 0;
 //
 type unitSafetyTracker struct {
-	status unitSafetyStatus
 	unit   string
+	status unitSafetyStatus
 }
 
 func (a unitSafetyTracker) isSafeWith(b unitSafetyTracker) bool {

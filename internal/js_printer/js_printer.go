@@ -438,22 +438,22 @@ type printer struct {
 	isUnbound              func(js_ast.Ref) bool
 	renamer                renamer.Renamer
 	importRecords          []ast.ImportRecord
-	options                Options
+	callTarget             js_ast.E
 	extractedLegalComments map[string]bool
-	needsSemicolon         bool
-	moduleType             js_ast.ModuleType
 	js                     []byte
+	options                Options
+	builder                sourcemap.ChunkBuilder
 	stmtStart              int
 	exportDefaultStart     int
 	arrowExprStart         int
 	forOfInitStart         int
-	prevOp                 js_ast.OpCode
 	prevOpEnd              int
 	prevNumEnd             int
 	prevRegExpEnd          int
-	callTarget             js_ast.E
 	intToBytesBuffer       [64]byte
-	builder                sourcemap.ChunkBuilder
+	needsSemicolon         bool
+	prevOp                 js_ast.OpCode
+	moduleType             js_ast.ModuleType
 }
 
 func (p *printer) print(text string) {
@@ -3396,29 +3396,30 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 }
 
 type Options struct {
-	OutputFormat                 config.Format
-	RemoveWhitespace             bool
-	MangleSyntax                 bool
-	ASCIIOnly                    bool
-	LegalComments                config.LegalComments
-	AddSourceMappings            bool
-	Indent                       int
-	ToCommonJSRef                js_ast.Ref
-	ToESMRef                     js_ast.Ref
-	RuntimeRequireRef            js_ast.Ref
-	UnsupportedFeatures          compat.JSFeature
 	RequireOrImportMetaForSource func(uint32) RequireOrImportMeta
 
 	// Cross-module inlining of TypeScript enums is actually done during printing
 	TSEnums map[js_ast.Ref]map[string]js_ast.TSEnumValue
 
+	// This will be present if the input file had a source map. In that case we
+	// want to map all the way back to the original input file(s).
+	InputSourceMap *sourcemap.SourceMap
+
 	// If we're writing out a source map, this table of line start indices lets
 	// us do binary search on to figure out what line a given AST node came from
 	LineOffsetTables []sourcemap.LineOffsetTable
 
-	// This will be present if the input file had a source map. In that case we
-	// want to map all the way back to the original input file(s).
-	InputSourceMap *sourcemap.SourceMap
+	ToCommonJSRef       js_ast.Ref
+	ToESMRef            js_ast.Ref
+	RuntimeRequireRef   js_ast.Ref
+	UnsupportedFeatures compat.JSFeature
+	Indent              int
+	OutputFormat        config.Format
+	RemoveWhitespace    bool
+	MangleSyntax        bool
+	ASCIIOnly           bool
+	LegalComments       config.LegalComments
+	AddSourceMappings   bool
 }
 
 type RequireOrImportMeta struct {
@@ -3431,14 +3432,13 @@ type RequireOrImportMeta struct {
 }
 
 type PrintResult struct {
-	JS []byte
+	JS                     []byte
+	ExtractedLegalComments map[string]bool
 
 	// This source map chunk just contains the VLQ-encoded offsets for the "JS"
 	// field above. It's not a full source map. The bundler will be joining many
 	// source map chunks together to form the final source map.
 	SourceMapChunk sourcemap.Chunk
-
-	ExtractedLegalComments map[string]bool
 }
 
 func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {

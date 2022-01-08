@@ -20,8 +20,8 @@ type JSXOptions struct {
 }
 
 type JSXExpr struct {
-	Parts    []string
 	Constant js_ast.E
+	Parts    []string
 }
 
 type TSOptions struct {
@@ -72,7 +72,7 @@ func (lc LegalComments) HasExternalFile() bool {
 	return lc == LegalCommentsLinkedWithComment || lc == LegalCommentsExternalWithoutComment
 }
 
-type Loader int
+type Loader uint8
 
 const (
 	LoaderNone Loader = iota
@@ -165,10 +165,10 @@ func (f Format) String() string {
 }
 
 type StdinInfo struct {
-	Loader        Loader
 	Contents      string
 	SourceFile    string
 	AbsResolveDir string
+	Loader        Loader
 }
 
 type WildcardPattern struct {
@@ -199,8 +199,53 @@ const (
 )
 
 type Options struct {
+	ModuleTypeData js_ast.ModuleTypeData
+	Defines        *ProcessedDefines
+	TSTarget       *TSTarget
+
+	// This is the original information that was used to generate the
+	// unsupported feature sets above. It's used for error messages.
+	OriginalTargetEnv string
+
+	ExtensionOrder  []string
+	MainFields      []string
+	Conditions      []string
+	AbsNodePaths    []string // The "NODE_PATH" variable from Node.js
+	ExternalModules ExternalModules
+
+	AbsOutputFile      string
+	AbsOutputDir       string
+	AbsOutputBase      string
+	OutputExtensionJS  string
+	OutputExtensionCSS string
+	GlobalName         []string
+	TsConfigOverride   string
+	ExtensionToLoader  map[string]Loader
+
+	PublicPath      string
+	InjectAbsPaths  []string
+	InjectedDefines []InjectedDefine
+	InjectedFiles   []InjectedFile
+
+	JSBanner  string
+	JSFooter  string
+	CSSBanner string
+	CSSFooter string
+
+	EntryPathTemplate []PathTemplate
+	ChunkPathTemplate []PathTemplate
+	AssetPathTemplate []PathTemplate
+
+	Plugins    []Plugin
+	SourceRoot string
+	Stdin      *StdinInfo
+	JSX        JSXOptions
+
+	UnsupportedJSFeatures  compat.JSFeature
+	UnsupportedCSSFeatures compat.CSSFeature
+
+	TS                TSOptions
 	Mode              Mode
-	ModuleTypeData    js_ast.ModuleTypeData
 	PreserveSymlinks  bool
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
@@ -222,59 +267,12 @@ type Options struct {
 	IgnoreDCEAnnotations    bool
 	TreeShaking             bool
 	DropDebugger            bool
-
-	Defines  *ProcessedDefines
-	TS       TSOptions
-	JSX      JSXOptions
-	Platform Platform
-
-	TargetFromAPI          TargetFromAPI
-	UnsupportedJSFeatures  compat.JSFeature
-	UnsupportedCSSFeatures compat.CSSFeature
-	TSTarget               *TSTarget
-
-	// This is the original information that was used to generate the
-	// unsupported feature sets above. It's used for error messages.
-	OriginalTargetEnv string
-
-	ExtensionOrder  []string
-	MainFields      []string
-	Conditions      []string
-	AbsNodePaths    []string // The "NODE_PATH" variable from Node.js
-	ExternalModules ExternalModules
-
-	AbsOutputFile      string
-	AbsOutputDir       string
-	AbsOutputBase      string
-	OutputExtensionJS  string
-	OutputExtensionCSS string
-	GlobalName         []string
-	TsConfigOverride   string
-	ExtensionToLoader  map[string]Loader
-	OutputFormat       Format
-	PublicPath         string
-	InjectAbsPaths     []string
-	InjectedDefines    []InjectedDefine
-	InjectedFiles      []InjectedFile
-
-	JSBanner  string
-	JSFooter  string
-	CSSBanner string
-	CSSFooter string
-
-	EntryPathTemplate []PathTemplate
-	ChunkPathTemplate []PathTemplate
-	AssetPathTemplate []PathTemplate
-
-	Plugins []Plugin
-
-	NeedsMetafile bool
-
-	SourceMap             SourceMap
-	SourceRoot            string
-	ExcludeSourcesContent bool
-
-	Stdin *StdinInfo
+	Platform                Platform
+	TargetFromAPI           TargetFromAPI
+	OutputFormat            Format
+	NeedsMetafile           bool
+	SourceMap               SourceMap
+	ExcludeSourcesContent   bool
 }
 
 type TargetFromAPI uint8
@@ -314,9 +312,9 @@ func UnusedImportsFromTsconfigValues(preserveImportsNotUsedAsValues bool, preser
 }
 
 type TSTarget struct {
+	Target                string
 	Source                logger.Source
 	Range                 logger.Range
-	Target                string
 	UnsupportedJSFeatures compat.JSFeature
 }
 
@@ -435,15 +433,15 @@ func ShouldCallRuntimeRequire(mode Mode, outputFormat Format) bool {
 }
 
 type InjectedDefine struct {
-	Source logger.Source
 	Data   js_ast.E
 	Name   string
+	Source logger.Source
 }
 
 type InjectedFile struct {
-	Source     logger.Source
 	Exports    []InjectableExport
 	DefineName string
+	Source     logger.Source
 }
 
 type InjectableExport struct {
@@ -517,55 +515,55 @@ type Plugin struct {
 }
 
 type OnStart struct {
-	Name     string
 	Callback func() OnStartResult
+	Name     string
 }
 
 type OnStartResult struct {
-	Msgs        []logger.Msg
 	ThrownError error
+	Msgs        []logger.Msg
 }
 
 type OnResolve struct {
-	Name      string
 	Filter    *regexp.Regexp
-	Namespace string
 	Callback  func(OnResolveArgs) OnResolveResult
+	Name      string
+	Namespace string
 }
 
 type OnResolveArgs struct {
 	Path       string
-	Importer   logger.Path
 	ResolveDir string
-	Kind       ast.ImportKind
 	PluginData interface{}
+	Importer   logger.Path
+	Kind       ast.ImportKind
 }
 
 type OnResolveResult struct {
 	PluginName string
-
-	Path             logger.Path
-	External         bool
-	IsSideEffectFree bool
-	PluginData       interface{}
 
 	Msgs        []logger.Msg
 	ThrownError error
 
 	AbsWatchFiles []string
 	AbsWatchDirs  []string
+
+	PluginData       interface{}
+	Path             logger.Path
+	External         bool
+	IsSideEffectFree bool
 }
 
 type OnLoad struct {
-	Name      string
 	Filter    *regexp.Regexp
-	Namespace string
 	Callback  func(OnLoadArgs) OnLoadResult
+	Name      string
+	Namespace string
 }
 
 type OnLoadArgs struct {
-	Path       logger.Path
 	PluginData interface{}
+	Path       logger.Path
 }
 
 type OnLoadResult struct {
@@ -573,7 +571,6 @@ type OnLoadResult struct {
 
 	Contents      *string
 	AbsResolveDir string
-	Loader        Loader
 	PluginData    interface{}
 
 	Msgs        []logger.Msg
@@ -581,4 +578,6 @@ type OnLoadResult struct {
 
 	AbsWatchFiles []string
 	AbsWatchDirs  []string
+
+	Loader Loader
 }

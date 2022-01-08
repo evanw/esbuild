@@ -117,16 +117,16 @@ func (flags ImportRecordFlags) Has(flag ImportRecordFlags) bool {
 }
 
 type ImportRecord struct {
-	Range      logger.Range
-	Path       logger.Path
 	Assertions *[]AssertEntry
+	Path       logger.Path
+	Range      logger.Range
 
 	// The resolved source index for an internal import (within the bundle) or
 	// nil for an external import (not included in the bundle)
 	SourceIndex Index32
 
-	Kind  ImportKind
 	Flags ImportRecordFlags
+	Kind  ImportKind
 }
 
 type AssertEntry struct {

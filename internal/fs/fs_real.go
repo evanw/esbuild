@@ -13,27 +13,28 @@ import (
 
 type realFS struct {
 	// Stores the file entries for directories we've listed before
-	entriesMutex sync.Mutex
-	entries      map[string]entriesOrErr
-
-	// If true, do not use the "entries" cache
-	doNotCacheEntries bool
+	entries map[string]entriesOrErr
 
 	// This stores data that will end up being returned by "WatchData()"
-	watchMutex sync.Mutex
-	watchData  map[string]privateWatchData
+	watchData map[string]privateWatchData
 
 	// When building with WebAssembly, the Go compiler doesn't correctly handle
 	// platform-specific path behavior. Hack around these bugs by compiling
 	// support for both Unix and Windows paths into all executables and switch
 	// between them at run-time instead.
 	fp goFilepath
+
+	entriesMutex sync.Mutex
+	watchMutex   sync.Mutex
+
+	// If true, do not use the "entries" cache
+	doNotCacheEntries bool
 }
 
 type entriesOrErr struct {
-	entries        DirEntries
 	canonicalError error
 	originalError  error
+	entries        DirEntries
 }
 
 type watchState uint8
@@ -56,8 +57,8 @@ type privateWatchData struct {
 }
 
 type RealFSOptions struct {
-	WantWatchData bool
 	AbsWorkingDir string
+	WantWatchData bool
 	DoNotCache    bool
 }
 
@@ -134,7 +135,7 @@ func (fs *realFS) ReadDirectory(dir string) (entries DirEntries, canonicalError 
 
 	// Cache miss: read the directory entries
 	names, canonicalError, originalError := fs.readdir(dir)
-	entries = DirEntries{dir, make(map[string]*Entry), nil}
+	entries = DirEntries{dir: dir, data: make(map[string]*Entry)}
 
 	// Unwrap to get the underlying error
 	if pathErr, ok := canonicalError.(*os.PathError); ok {

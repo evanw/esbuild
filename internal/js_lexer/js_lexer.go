@@ -25,7 +25,7 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
-type T uint
+type T uint8
 
 // If you add a new token, remember to add it to "tokenToString" too
 const (
@@ -216,9 +216,27 @@ type json struct {
 }
 
 type Lexer struct {
-	log                             logger.Log
-	source                          logger.Source
-	tracker                         logger.LineColumnTracker
+	CommentsToPreserveBefore []js_ast.Comment
+	AllOriginalComments      []js_ast.Comment
+	Identifier               string
+	log                      logger.Log
+	source                   logger.Source
+	JSXFactoryPragmaComment  logger.Span
+	JSXFragmentPragmaComment logger.Span
+	SourceMappingURL         logger.Span
+
+	// Escape sequences in string literals are decoded lazily because they are
+	// not interpreted inside tagged templates, and tagged templates can contain
+	// invalid escape sequences. If the decoded array is nil, the encoded value
+	// should be passed to "tryToDecodeEscapeSequences" first.
+	decodedStringLiteralOrNil []uint16
+	encodedStringLiteralText  string
+
+	tracker logger.LineColumnTracker
+
+	encodedStringLiteralStart int
+
+	Number                          float64
 	current                         int
 	start                           int
 	end                             int
@@ -228,32 +246,17 @@ type Lexer struct {
 	FnOrArrowStartLoc               logger.Loc
 	PreviousBackslashQuoteInJSX     logger.Range
 	LegacyHTMLCommentRange          logger.Range
+	codePoint                       rune
+	prevErrorLoc                    logger.Loc
+	json                            json
 	Token                           T
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
 	PreserveAllCommentsBefore       bool
 	IsLegacyOctalLiteral            bool
 	PrevTokenWasAwaitKeyword        bool
-	CommentsToPreserveBefore        []js_ast.Comment
-	AllOriginalComments             []js_ast.Comment
-	codePoint                       rune
-	Identifier                      string
-	JSXFactoryPragmaComment         logger.Span
-	JSXFragmentPragmaComment        logger.Span
-	SourceMappingURL                logger.Span
-	Number                          float64
 	rescanCloseBraceAsTemplateToken bool
 	forGlobalName                   bool
-	json                            json
-	prevErrorLoc                    logger.Loc
-
-	// Escape sequences in string literals are decoded lazily because they are
-	// not interpreted inside tagged templates, and tagged templates can contain
-	// invalid escape sequences. If the decoded array is nil, the encoded value
-	// should be passed to "tryToDecodeEscapeSequences" first.
-	decodedStringLiteralOrNil []uint16
-	encodedStringLiteralStart int
-	encodedStringLiteralText  string
 
 	// The log is disabled during speculative scans that may backtrack
 	IsLogDisabled bool

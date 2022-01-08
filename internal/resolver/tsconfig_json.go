@@ -35,9 +35,9 @@ type TSConfigJSON struct {
 	// "baseUrl" value in the "tsconfig.json" file.
 	Paths map[string][]string
 
+	TSTarget                       *config.TSTarget
 	JSXFactory                     []string
 	JSXFragmentFactory             []string
-	TSTarget                       *config.TSTarget
 	UseDefineForClassFields        config.MaybeBool
 	PreserveImportsNotUsedAsValues bool
 	PreserveValueImports           bool

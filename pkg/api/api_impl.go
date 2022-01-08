@@ -725,8 +725,8 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 
 type internalBuildResult struct {
 	result    BuildResult
-	options   config.Options
 	watchData fs.WatchData
+	options   config.Options
 }
 
 func buildImpl(buildOpts BuildOptions) internalBuildResult {
@@ -1143,14 +1143,14 @@ func rebuildImpl(
 }
 
 type watcher struct {
-	mutex             sync.Mutex
 	data              fs.WatchData
 	resolver          resolver.Resolver
-	shouldStop        int32
 	rebuild           func() fs.WatchData
 	recentItems       []string
 	itemsToScan       []string
+	mutex             sync.Mutex
 	itemsPerIteration int
+	shouldStop        int32
 }
 
 func (w *watcher) setWatchData(data fs.WatchData) {

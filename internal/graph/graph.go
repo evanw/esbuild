@@ -33,8 +33,6 @@ const (
 )
 
 type LinkerFile struct {
-	InputFile InputFile
-
 	// This holds all entry points that can reach this file. It will be used to
 	// assign the parts in this file to a chunk.
 	EntryBits helpers.BitSet
@@ -42,6 +40,8 @@ type LinkerFile struct {
 	// This is lazily-allocated because it's only needed if there are warnings
 	// logged, which should be relatively rare.
 	lazyLineColumnTracker *logger.LineColumnTracker
+
+	InputFile InputFile
 
 	// The minimum number of links in the module graph to get from an entry point
 	// to this file

@@ -296,9 +296,9 @@ func (fp goFilepath) evalSymlinks(path string) (string, error) {
 // to hold the output until that output diverges from s.
 type lazybuf struct {
 	path       string
+	volAndPath string
 	buf        []byte
 	w          int
-	volAndPath string
 	volLen     int
 }
 

@@ -38,29 +38,14 @@ type parser struct {
 	log                        logger.Log
 	source                     logger.Source
 	tracker                    logger.LineColumnTracker
-	lexer                      js_lexer.Lexer
-	allowIn                    bool
-	allowPrivateIdentifiers    bool
-	hasTopLevelReturn          bool
-	latestReturnHadSemicolon   bool
-	warnedThisIsUndefined      bool
-	topLevelAwaitKeyword       logger.Range
 	fnOrArrowDataParse         fnOrArrowDataParse
-	fnOrArrowDataVisit         fnOrArrowDataVisit
 	fnOnlyDataVisit            fnOnlyDataVisit
 	allocatedNames             []string
-	latestArrowArgLoc          logger.Loc
-	forbidSuffixAfterAsLoc     logger.Loc
 	currentScope               *js_ast.Scope
 	scopesForCurrentPart       []*js_ast.Scope
 	symbols                    []js_ast.Symbol
 	isUnbound                  func(js_ast.Ref) bool
 	tsUseCounts                []uint32
-	exportsRef                 js_ast.Ref
-	requireRef                 js_ast.Ref
-	moduleRef                  js_ast.Ref
-	importMetaRef              js_ast.Ref
-	promiseRef                 js_ast.Ref
 	findSymbolHelper           func(loc logger.Loc, name string) js_ast.Ref
 	symbolForDefineHelper      func(int) js_ast.Ref
 	injectedDefineSymbols      []js_ast.Ref
@@ -70,30 +55,14 @@ type parser struct {
 	symbolCallUses             map[js_ast.Ref]js_ast.SymbolCallUse
 	declaredSymbols            []js_ast.DeclaredSymbol
 	runtimeImports             map[string]js_ast.Ref
-	runtimePublicFieldImport   js_ast.Ref
 	duplicateCaseChecker       duplicateCaseChecker
 	unrepresentableIdentifiers map[string]bool
 	legacyOctalLiterals        map[js_ast.E]logger.Range
-
-	// A file is considered to be an ECMAScript module if it has any of the
-	// features of one (e.g. the "export" keyword), otherwise it's considered
-	// a CommonJS module.
-	//
-	// However, we have a single exception: a file where the only ESM feature
-	// is the "import" keyword is allowed to have CommonJS exports. This feature
-	// is necessary to be able to synchronously import ESM code into CommonJS,
-	// which we need to enable in a few important cases. Some examples are:
-	// our runtime code, injected files (the "inject" feature is ESM-only),
-	// and certain automatically-generated virtual modules from plugins.
-	isFileConsideredToHaveESMExports bool // Use only for export-related stuff
-	isFileConsideredESM              bool // Use for all other stuff
 
 	// For strict mode handling
 	hoistedRefForSloppyModeBlockFn map[js_ast.Ref]js_ast.Ref
 
 	// For lowering private methods
-	weakMapRef     js_ast.Ref
-	weakSetRef     js_ast.Ref
 	privateGetters map[js_ast.Ref]js_ast.Ref
 	privateSetters map[js_ast.Ref]js_ast.Ref
 
@@ -112,13 +81,9 @@ type parser struct {
 	// recently visited node. If namespace metadata is present, "tsNamespaceTarget"
 	// will be set to the most recently visited node (as a way to mark that this
 	// node has metadata) and "tsNamespaceMemberData" will be set to the metadata.
-	//
-	// The "shouldFoldNumericConstants" flag is enabled inside each enum body block
-	// since TypeScript requires numeric constant folding in enum definitions.
 	refToTSNamespaceMemberData map[js_ast.Ref]js_ast.TSNamespaceMemberData
 	tsNamespaceTarget          js_ast.E
 	tsNamespaceMemberData      js_ast.TSNamespaceMemberData
-	shouldFoldNumericConstants bool
 	emittedNamespaceVars       map[js_ast.Ref]bool
 	isExportedInsideNamespace  map[js_ast.Ref]js_ast.Ref
 	localTypeNames             map[string]bool
@@ -146,16 +111,12 @@ type parser struct {
 	exportStarImportRecords     []uint32
 
 	// These are for handling ES6 imports and exports
-	esmImportStatementKeyword logger.Range
-	esmImportMeta             logger.Range
-	esmExportKeyword          logger.Range
-	enclosingClassKeyword     logger.Range
-	importItemsForNamespace   map[js_ast.Ref]map[string]js_ast.LocRef
-	isImportItem              map[js_ast.Ref]bool
-	namedImports              map[js_ast.Ref]js_ast.NamedImport
-	namedExports              map[string]js_ast.NamedExport
-	topLevelSymbolToParts     map[js_ast.Ref][]uint32
-	importNamespaceCCMap      map[importNamespaceCall]bool
+	importItemsForNamespace map[js_ast.Ref]map[string]js_ast.LocRef
+	isImportItem            map[js_ast.Ref]bool
+	namedImports            map[js_ast.Ref]js_ast.NamedImport
+	namedExports            map[string]js_ast.NamedExport
+	topLevelSymbolToParts   map[js_ast.Ref][]uint32
+	importNamespaceCCMap    map[importNamespaceCall]bool
 
 	// The parser does two passes and we need to pass the scope tree information
 	// from the first pass to the second pass. That's done by tracking the calls
@@ -177,13 +138,121 @@ type parser struct {
 	// The visit pass binds identifiers to declared symbols, does constant
 	// folding, substitutes compile-time variable definitions, and lowers certain
 	// syntactic constructs as appropriate.
-	stmtExprValue     js_ast.E
-	callTarget        js_ast.E
-	templateTag       js_ast.E
-	deleteTarget      js_ast.E
-	loopBody          js_ast.S
-	moduleScope       *js_ast.Scope
-	isControlFlowDead bool
+	stmtExprValue js_ast.E
+	callTarget    js_ast.E
+	templateTag   js_ast.E
+	deleteTarget  js_ast.E
+	loopBody      js_ast.S
+	moduleScope   *js_ast.Scope
+
+	// This helps recognize the "await import()" pattern. When this is present,
+	// warnings about non-string import paths will be omitted inside try blocks.
+	awaitTarget js_ast.E
+
+	// This helps recognize the "import().catch()" pattern. We also try to avoid
+	// warning about this just like the "try { await import() }" pattern.
+	thenCatchChain thenCatchChain
+
+	// When bundling, hoisted top-level local variables declared with "var" in
+	// nested scopes are moved up to be declared in the top-level scope instead.
+	// The old "var" statements are turned into regular assignments instead. This
+	// makes it easier to quickly scan the top-level statements for "var" locals
+	// with the guarantee that all will be found.
+	relocatedTopLevelVars []js_ast.LocRef
+
+	// We need to lower private names such as "#foo" if they are used in a brand
+	// check such as "#foo in x" even if the private name syntax would otherwise
+	// be supported. This is because private names are a newly-added feature.
+	//
+	// However, this parser operates in only two passes for speed. The first pass
+	// parses things and declares variables, and the second pass lowers things and
+	// resolves references to declared variables. So the existence of a "#foo in x"
+	// expression for a specific "#foo" cannot be used to decide to lower "#foo"
+	// because it's too late by that point. There may be another expression such
+	// as "x.#foo" before that point and that must be lowered as well even though
+	// it has already been visited.
+	//
+	// Instead what we do is track just the names of fields used in private brand
+	// checks during the first pass. This tracks the names themselves, not symbol
+	// references. Then, during the second pass when we are about to enter into
+	// a class, we conservatively decide to lower all private names in that class
+	// which are used in a brand check anywhere in the file.
+	classPrivateBrandChecksToLower map[string]bool
+
+	// Temporary variables used for lowering
+	tempRefsToDeclare         []tempRef
+	topLevelTempRefsToDeclare []tempRef
+
+	lexer js_lexer.Lexer
+
+	// Temporary variables used for lowering
+	tempRefCount         int
+	topLevelTempRefCount int
+
+	exportsRef               js_ast.Ref
+	requireRef               js_ast.Ref
+	moduleRef                js_ast.Ref
+	importMetaRef            js_ast.Ref
+	promiseRef               js_ast.Ref
+	runtimePublicFieldImport js_ast.Ref
+
+	// For lowering private methods
+	weakMapRef js_ast.Ref
+	weakSetRef js_ast.Ref
+
+	esmImportStatementKeyword logger.Range
+	esmImportMeta             logger.Range
+	esmExportKeyword          logger.Range
+	enclosingClassKeyword     logger.Range
+	topLevelAwaitKeyword      logger.Range
+
+	latestArrowArgLoc      logger.Loc
+	forbidSuffixAfterAsLoc logger.Loc
+
+	fnOrArrowDataVisit fnOrArrowDataVisit
+
+	// ArrowFunction is a special case in the grammar. Although it appears to be
+	// a PrimaryExpression, it's actually an AssignmentExpression. This means if
+	// a AssignmentExpression ends up producing an ArrowFunction then nothing can
+	// come after it other than the comma operator, since the comma operator is
+	// the only thing above AssignmentExpression under the Expression rule:
+	//
+	//   AssignmentExpression:
+	//     ArrowFunction
+	//     ConditionalExpression
+	//     LeftHandSideExpression = AssignmentExpression
+	//     LeftHandSideExpression AssignmentOperator AssignmentExpression
+	//
+	//   Expression:
+	//     AssignmentExpression
+	//     Expression , AssignmentExpression
+	//
+	afterArrowBodyLoc logger.Loc
+
+	// Setting this to true disables warnings about code that is very likely to
+	// be a bug. This is used to ignore issues inside "node_modules" directories.
+	// This has caught real issues in the past. However, it's not esbuild's job
+	// to find bugs in other libraries, and these warnings are problematic for
+	// people using these libraries with esbuild. The only fix is to either
+	// disable all esbuild warnings and not get warnings about your own code, or
+	// to try to get the warning fixed in the affected library. This is
+	// especially annoying if the warning is a false positive as was the case in
+	// https://github.com/firebase/firebase-js-sdk/issues/3814. So these warnings
+	// are now disabled for code inside "node_modules" directories.
+	suppressWarningsAboutWeirdCode bool
+
+	// A file is considered to be an ECMAScript module if it has any of the
+	// features of one (e.g. the "export" keyword), otherwise it's considered
+	// a CommonJS module.
+	//
+	// However, we have a single exception: a file where the only ESM feature
+	// is the "import" keyword is allowed to have CommonJS exports. This feature
+	// is necessary to be able to synchronously import ESM code into CommonJS,
+	// which we need to enable in a few important cases. Some examples are:
+	// our runtime code, injected files (the "inject" feature is ESM-only),
+	// and certain automatically-generated virtual modules from plugins.
+	isFileConsideredToHaveESMExports bool // Use only for export-related stuff
+	isFileConsideredESM              bool // Use for all other stuff
 
 	// Inside a TypeScript namespace, an "export declare" statement can be used
 	// to cause a namespace to be emitted even though it has no other observable
@@ -241,75 +310,16 @@ type parser struct {
 	// Relevant issue: https://github.com/evanw/esbuild/issues/1158
 	hasNonLocalExportDeclareInsideNamespace bool
 
-	// This helps recognize the "await import()" pattern. When this is present,
-	// warnings about non-string import paths will be omitted inside try blocks.
-	awaitTarget js_ast.E
+	// The "shouldFoldNumericConstants" flag is enabled inside each enum body block
+	// since TypeScript requires numeric constant folding in enum definitions.
+	shouldFoldNumericConstants bool
 
-	// This helps recognize the "import().catch()" pattern. We also try to avoid
-	// warning about this just like the "try { await import() }" pattern.
-	thenCatchChain thenCatchChain
-
-	// Temporary variables used for lowering
-	tempRefsToDeclare         []tempRef
-	tempRefCount              int
-	topLevelTempRefsToDeclare []tempRef
-	topLevelTempRefCount      int
-
-	// When bundling, hoisted top-level local variables declared with "var" in
-	// nested scopes are moved up to be declared in the top-level scope instead.
-	// The old "var" statements are turned into regular assignments instead. This
-	// makes it easier to quickly scan the top-level statements for "var" locals
-	// with the guarantee that all will be found.
-	relocatedTopLevelVars []js_ast.LocRef
-
-	// ArrowFunction is a special case in the grammar. Although it appears to be
-	// a PrimaryExpression, it's actually an AssignmentExpression. This means if
-	// a AssignmentExpression ends up producing an ArrowFunction then nothing can
-	// come after it other than the comma operator, since the comma operator is
-	// the only thing above AssignmentExpression under the Expression rule:
-	//
-	//   AssignmentExpression:
-	//     ArrowFunction
-	//     ConditionalExpression
-	//     LeftHandSideExpression = AssignmentExpression
-	//     LeftHandSideExpression AssignmentOperator AssignmentExpression
-	//
-	//   Expression:
-	//     AssignmentExpression
-	//     Expression , AssignmentExpression
-	//
-	afterArrowBodyLoc logger.Loc
-
-	// We need to lower private names such as "#foo" if they are used in a brand
-	// check such as "#foo in x" even if the private name syntax would otherwise
-	// be supported. This is because private names are a newly-added feature.
-	//
-	// However, this parser operates in only two passes for speed. The first pass
-	// parses things and declares variables, and the second pass lowers things and
-	// resolves references to declared variables. So the existence of a "#foo in x"
-	// expression for a specific "#foo" cannot be used to decide to lower "#foo"
-	// because it's too late by that point. There may be another expression such
-	// as "x.#foo" before that point and that must be lowered as well even though
-	// it has already been visited.
-	//
-	// Instead what we do is track just the names of fields used in private brand
-	// checks during the first pass. This tracks the names themselves, not symbol
-	// references. Then, during the second pass when we are about to enter into
-	// a class, we conservatively decide to lower all private names in that class
-	// which are used in a brand check anywhere in the file.
-	classPrivateBrandChecksToLower map[string]bool
-
-	// Setting this to true disables warnings about code that is very likely to
-	// be a bug. This is used to ignore issues inside "node_modules" directories.
-	// This has caught real issues in the past. However, it's not esbuild's job
-	// to find bugs in other libraries, and these warnings are problematic for
-	// people using these libraries with esbuild. The only fix is to either
-	// disable all esbuild warnings and not get warnings about your own code, or
-	// to try to get the warning fixed in the affected library. This is
-	// especially annoying if the warning is a false positive as was the case in
-	// https://github.com/firebase/firebase-js-sdk/issues/3814. So these warnings
-	// are now disabled for code inside "node_modules" directories.
-	suppressWarningsAboutWeirdCode bool
+	allowIn                  bool
+	allowPrivateIdentifiers  bool
+	hasTopLevelReturn        bool
+	latestReturnHadSemicolon bool
+	warnedThisIsUndefined    bool
+	isControlFlowDead        bool
 }
 
 type injectedSymbolSource struct {
@@ -357,15 +367,15 @@ type Options struct {
 }
 
 type optionsThatSupportStructuralEquality struct {
-	unsupportedJSFeatures compat.JSFeature
 	originalTargetEnv     string
+	moduleTypeData        js_ast.ModuleTypeData
+	unsupportedJSFeatures compat.JSFeature
 
 	// Byte-sized values go here (gathered together here to keep this object compact)
 	ts                      config.TSOptions
 	mode                    config.Mode
 	platform                config.Platform
 	outputFormat            config.Format
-	moduleTypeData          js_ast.ModuleTypeData
 	targetFromAPI           config.TargetFromAPI
 	asciiOnly               bool
 	keepNames               bool
@@ -480,8 +490,8 @@ func stringArraysEqual(a []string, b []string) bool {
 }
 
 type tempRef struct {
-	ref        js_ast.Ref
 	valueOrNil js_ast.Expr
+	ref        js_ast.Ref
 }
 
 const (
@@ -489,8 +499,8 @@ const (
 )
 
 type scopeOrder struct {
-	loc   logger.Loc
 	scope *js_ast.Scope
+	loc   logger.Loc
 }
 
 type awaitOrYield uint8
@@ -510,9 +520,9 @@ const (
 // restored on the call stack around code that parses nested functions and
 // arrow expressions.
 type fnOrArrowDataParse struct {
-	needsAsyncLoc       logger.Loc
-	asyncRange          logger.Range
 	arrowArgErrors      *deferredArrowArgErrors
+	asyncRange          logger.Range
+	needsAsyncLoc       logger.Loc
 	await               awaitOrYield
 	yield               awaitOrYield
 	allowSuperCall      bool
@@ -607,13 +617,13 @@ type fnOnlyDataVisit struct {
 const bloomFilterSize = 251
 
 type duplicateCaseValue struct {
-	hash  uint32
 	value js_ast.Expr
+	hash  uint32
 }
 
 type duplicateCaseChecker struct {
-	bloomFilter [(bloomFilterSize + 7) / 8]byte
 	cases       []duplicateCaseValue
+	bloomFilter [(bloomFilterSize + 7) / 8]byte
 }
 
 func (dc *duplicateCaseChecker) reset() {
@@ -1182,7 +1192,7 @@ func (p *parser) pushScopeForParsePass(kind js_ast.ScopeKind, loc logger.Loc) in
 
 	// Remember the length in case we call popAndDiscardScope() later
 	scopeIndex := len(p.scopesInOrder)
-	p.scopesInOrder = append(p.scopesInOrder, scopeOrder{loc, scope})
+	p.scopesInOrder = append(p.scopesInOrder, scopeOrder{loc: loc, scope: scope})
 	return scopeIndex
 }
 
@@ -1894,6 +1904,8 @@ func (p *parser) parseStringLiteral() js_ast.Expr {
 }
 
 type propertyOpts struct {
+	tsDecorators []js_ast.Expr
+
 	asyncRange     logger.Range
 	tsDeclareRange logger.Range
 	isAsync        bool
@@ -1905,7 +1917,6 @@ type propertyOpts struct {
 	isClass           bool
 	classHasExtends   bool
 	allowTSDecorators bool
-	tsDecorators      []js_ast.Expr
 }
 
 func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, errors *deferredErrors) (js_ast.Property, bool) {
@@ -10956,14 +10967,6 @@ type exprIn struct {
 }
 
 type exprOut struct {
-	// True if the child node is an optional chain node (EDot, EIndex, or ECall
-	// with an IsOptionalChain value of true)
-	childContainsOptionalChain bool
-
-	// If true and this is used as a call target, the whole call expression
-	// must be replaced with undefined.
-	methodCallMustBeReplacedWithUndefined bool
-
 	// If our parent is an ECall node with an OptionalChain value of
 	// OptionalChainContinue, then we may need to return the value for "this"
 	// from this node or one of this node's children so that the parent that is
@@ -10984,6 +10987,14 @@ type exprOut struct {
 	// "storeThisArgForParentOptionalChain" in "exprIn".
 	thisArgFunc     func() js_ast.Expr
 	thisArgWrapFunc func(js_ast.Expr) js_ast.Expr
+
+	// True if the child node is an optional chain node (EDot, EIndex, or ECall
+	// with an IsOptionalChain value of true)
+	childContainsOptionalChain bool
+
+	// If true and this is used as a call target, the whole call expression
+	// must be replaced with undefined.
+	methodCallMustBeReplacedWithUndefined bool
 }
 
 func (p *parser) visitExpr(expr js_ast.Expr) js_ast.Expr {

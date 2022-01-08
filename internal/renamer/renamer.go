@@ -88,10 +88,10 @@ type symbolSlot struct {
 }
 
 type MinifyRenamer struct {
-	symbols              js_ast.SymbolMap
 	reservedNames        map[string]uint32
 	slots                [3][]symbolSlot
 	topLevelSymbolToSlot map[js_ast.Ref]uint32
+	symbols              js_ast.SymbolMap
 }
 
 func NewMinifyRenamer(symbols js_ast.SymbolMap, firstTopLevelSlots js_ast.SlotCounts, reservedNames map[string]uint32) *MinifyRenamer {
@@ -401,8 +401,8 @@ func (a slotAndCountArray) Less(i int, j int) bool {
 
 type NumberRenamer struct {
 	symbols js_ast.SymbolMap
-	names   [][]string
 	root    numberScope
+	names   [][]string
 }
 
 func NewNumberRenamer(symbols js_ast.SymbolMap, reservedNames map[string]uint32) *NumberRenamer {
@@ -593,8 +593,8 @@ func (s *numberScope) findUnusedName(name string) string {
 // ExportRenamer
 
 type ExportRenamer struct {
-	count int
 	used  map[string]uint32
+	count int
 }
 
 func (r *ExportRenamer) NextRenamedName(name string) string {

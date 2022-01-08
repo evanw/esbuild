@@ -32,11 +32,11 @@ import (
 //   reused even if the contents of that "package.json" file have changed.
 //
 type CacheSet struct {
-	SourceIndexCache SourceIndexCache
 	FSCache          FSCache
 	CSSCache         CSSCache
 	JSONCache        JSONCache
 	JSCache          JSCache
+	SourceIndexCache SourceIndexCache
 }
 
 func MakeCacheSet() *CacheSet {
@@ -61,8 +61,8 @@ func MakeCacheSet() *CacheSet {
 }
 
 type SourceIndexCache struct {
-	mutex           sync.Mutex
 	entries         map[sourceIndexKey]uint32
+	mutex           sync.Mutex
 	nextSourceIndex uint32
 }
 

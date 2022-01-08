@@ -46,7 +46,6 @@ func (e *Entry) Symlink(fs FS) string {
 }
 
 type accessedEntries struct {
-	mutex      sync.Mutex
 	wasPresent map[string]bool
 
 	// If this is nil, "SortedKeys()" was not accessed. This means we should
@@ -66,16 +65,18 @@ type accessedEntries struct {
 	// or removed. But if "SortedKeys()" is called, we need to invalidate the
 	// build if anything about the set of entries in this directory is changed.
 	allEntries []string
+
+	mutex sync.Mutex
 }
 
 type DirEntries struct {
-	dir             string
 	data            map[string]*Entry
 	accessedEntries *accessedEntries
+	dir             string
 }
 
 func MakeEmptyDirEntries(dir string) DirEntries {
-	return DirEntries{dir, make(map[string]*Entry), nil}
+	return DirEntries{dir: dir, data: make(map[string]*Entry)}
 }
 
 type DifferentCase struct {

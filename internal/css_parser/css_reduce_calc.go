@@ -51,8 +51,8 @@ type calcInvert struct {
 }
 
 type calcNumeric struct {
-	number float64
 	unit   string
+	number float64
 }
 
 type calcValue struct {

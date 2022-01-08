@@ -19,8 +19,6 @@ import (
 const defaultTerminalWidth = 80
 
 type Log struct {
-	Level LogLevel
-
 	AddMsg    func(Msg)
 	HasErrors func() bool
 
@@ -30,6 +28,8 @@ type Log struct {
 	AlmostDone func()
 
 	Done func() []Msg
+
+	Level LogLevel
 }
 
 type LogLevel int8
@@ -145,29 +145,30 @@ func isProbablyWindowsCommandPrompt() bool {
 }
 
 type Msg struct {
-	PluginName string
-	Kind       MsgKind
-	Data       MsgData
 	Notes      []MsgData
+	PluginName string
+	Data       MsgData
+	Kind       MsgKind
 }
 
 type MsgData struct {
-	Text                string
-	Location            *MsgLocation
-	DisableMaximumWidth bool
-
 	// Optional user-specified data that is passed through unmodified
 	UserDetail interface{}
+
+	Location *MsgLocation
+	Text     string
+
+	DisableMaximumWidth bool
 }
 
 type MsgLocation struct {
 	File       string
 	Namespace  string
+	LineText   string
+	Suggestion string
 	Line       int // 1-based
 	Column     int // 0-based, in bytes
 	Length     int // in bytes
-	LineText   string
-	Suggestion string
 }
 
 type Loc struct {
@@ -301,21 +302,6 @@ func PlatformIndependentPathDirBaseExt(path string) (dir string, base string, ex
 }
 
 type Source struct {
-	Index uint32
-
-	// This is used as a unique key to identify this source file. It should never
-	// be shown to the user (e.g. never print this to the terminal).
-	//
-	// If it's marked as an absolute path, it's a platform-dependent path that
-	// includes environment-specific things such as Windows backslash path
-	// separators and potentially the user's home directory. Only use this for
-	// passing to syscalls for reading and writing to the file system. Do not
-	// include this in any output data.
-	//
-	// If it's marked as not an absolute path, it's an opaque string that is used
-	// to refer to an automatically-generated module.
-	KeyPath Path
-
 	// This is used for error messages and the metadata JSON file.
 	//
 	// This is a mostly platform-independent path. It's relative to the current
@@ -331,6 +317,21 @@ type Source struct {
 	IdentifierName string
 
 	Contents string
+
+	// This is used as a unique key to identify this source file. It should never
+	// be shown to the user (e.g. never print this to the terminal).
+	//
+	// If it's marked as an absolute path, it's a platform-dependent path that
+	// includes environment-specific things such as Windows backslash path
+	// separators and potentially the user's home directory. Only use this for
+	// passing to syscalls for reading and writing to the file system. Do not
+	// include this in any output data.
+	//
+	// If it's marked as not an absolute path, it's an opaque string that is used
+	// to refer to an automatically-generated module.
+	KeyPath Path
+
+	Index uint32
 }
 
 func (s *Source) TextForRange(r Range) string {
@@ -978,8 +979,8 @@ const (
 )
 
 type OutputOptions struct {
-	IncludeSource bool
 	MessageLimit  int
+	IncludeSource bool
 	Color         UseColor
 	LogLevel      LogLevel
 }
@@ -1229,10 +1230,6 @@ outer:
 }
 
 type MsgDetail struct {
-	Path   string
-	Line   int
-	Column int
-
 	SourceBefore string
 	SourceMarked string
 	SourceAfter  string
@@ -1242,6 +1239,10 @@ type MsgDetail struct {
 	Suggestion string
 
 	ContentAfter string
+
+	Path   string
+	Line   int
+	Column int
 }
 
 // It's not common for large files to have many warnings. But when it happens,

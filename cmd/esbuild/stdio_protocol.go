@@ -34,9 +34,9 @@ func readLengthPrefixedSlice(bytes []byte) (slice []byte, leftOver []byte, ok bo
 }
 
 type packet struct {
+	value     interface{}
 	id        uint32
 	isRequest bool
-	value     interface{}
 }
 
 func encodePacket(p packet) []byte {

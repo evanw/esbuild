@@ -35,13 +35,13 @@ import (
 )
 
 type scannerFile struct {
-	inputFile  graph.InputFile
-	pluginData interface{}
-
 	// If "AbsMetadataFile" is present, this will be filled out with information
 	// about this file in JSON format. This is a partial JSON file that will be
 	// fully assembled later.
 	jsonMetadataChunk string
+
+	pluginData interface{}
+	inputFile  graph.InputFile
 }
 
 // This is data related to source maps. It's computed in parallel with linking
@@ -60,16 +60,16 @@ type dataForSourceMap struct {
 }
 
 type Bundle struct {
-	fs          fs.FS
-	res         resolver.Resolver
-	files       []scannerFile
-	entryPoints []graph.EntryPoint
-
 	// The unique key prefix is a random string that is unique to every bundling
 	// operation. It is used as a prefix for the unique keys assigned to every
 	// chunk during linking. These unique keys are used to identify each chunk
 	// before the final output paths have been computed.
 	uniqueKeyPrefix string
+
+	fs          fs.FS
+	res         resolver.Resolver
+	files       []scannerFile
+	entryPoints []graph.EntryPoint
 }
 
 type parseArgs struct {
@@ -77,23 +77,23 @@ type parseArgs struct {
 	log             logger.Log
 	res             resolver.Resolver
 	caches          *cache.CacheSet
-	keyPath         logger.Path
 	prettyPath      string
-	sourceIndex     uint32
 	importSource    *logger.Source
 	sideEffects     graph.SideEffects
-	importPathRange logger.Range
 	pluginData      interface{}
-	options         config.Options
 	results         chan parseResult
 	inject          chan config.InjectedFile
-	skipResolve     bool
 	uniqueKeyPrefix string
+	keyPath         logger.Path
+	options         config.Options
+	importPathRange logger.Range
+	sourceIndex     uint32
+	skipResolve     bool
 }
 
 type parseResult struct {
-	file           scannerFile
 	resolveResults []*resolver.ResolveResult
+	file           scannerFile
 	tlaCheck       tlaCheck
 	ok             bool
 }
@@ -810,10 +810,10 @@ func RunOnResolvePlugins(
 }
 
 type loaderPluginResult struct {
-	loader        config.Loader
+	pluginData    interface{}
 	absResolveDir string
 	pluginName    string
-	pluginData    interface{}
+	loader        config.Loader
 }
 
 func runOnLoadPlugins(
@@ -982,17 +982,20 @@ type scanner struct {
 	fs              fs.FS
 	res             resolver.Resolver
 	caches          *cache.CacheSet
-	options         config.Options
 	timer           *helpers.Timer
 	uniqueKeyPrefix string
 
-	// This is not guarded by a mutex because it's only ever modified by a single
+	// These are not guarded by a mutex because it's only ever modified by a single
 	// thread. Note that not all results in the "results" array are necessarily
 	// valid. Make sure to check the "ok" flag before using them.
 	results       []parseResult
 	visited       map[logger.Path]uint32
 	resultChannel chan parseResult
-	remaining     int
+
+	options config.Options
+
+	// Also not guarded by a mutex for the same reason
+	remaining int
 }
 
 type EntryPoint struct {
@@ -2328,8 +2331,8 @@ type runtimeCacheKey struct {
 }
 
 type runtimeCache struct {
-	astMutex sync.Mutex
 	astMap   map[runtimeCacheKey]js_ast.AST
+	astMutex sync.Mutex
 }
 
 var globalRuntimeCache runtimeCache

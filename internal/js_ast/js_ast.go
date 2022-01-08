@@ -24,7 +24,7 @@ import (
 // has been parsed should create a copy of the mutated parts of the tree
 // instead of mutating the original tree.
 
-type L int
+type L uint8
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
 const (
@@ -53,7 +53,7 @@ const (
 	LMember
 )
 
-type OpCode int
+type OpCode uint8
 
 func (op OpCode) IsPrefix() bool {
 	return op < UnOpPostDec
@@ -249,11 +249,11 @@ type LocRef struct {
 }
 
 type Comment struct {
-	Loc  logger.Loc
 	Text string
+	Loc  logger.Loc
 }
 
-type PropertyKind int
+type PropertyKind uint8
 
 const (
 	PropertyNormal PropertyKind = iota
@@ -265,12 +265,11 @@ const (
 )
 
 type ClassStaticBlock struct {
-	Loc   logger.Loc
 	Stmts []Stmt
+	Loc   logger.Loc
 }
 
 type Property struct {
-	TSDecorators     []Expr
 	ClassStaticBlock *ClassStaticBlock
 
 	Key Expr
@@ -288,6 +287,8 @@ type Property struct {
 	//   class Foo { a = 1 }
 	//
 	InitializerOrNil Expr
+
+	TSDecorators []Expr
 
 	Kind            PropertyKind
 	IsComputed      bool
@@ -307,9 +308,9 @@ type PropertyBinding struct {
 }
 
 type Arg struct {
-	TSDecorators []Expr
 	Binding      Binding
 	DefaultOrNil Expr
+	TSDecorators []Expr
 
 	// "constructor(public x: boolean) {}"
 	IsTypeScriptCtorField bool
@@ -317,10 +318,10 @@ type Arg struct {
 
 type Fn struct {
 	Name         *LocRef
-	OpenParenLoc logger.Loc
 	Args         []Arg
 	Body         FnBody
 	ArgumentsRef Ref
+	OpenParenLoc logger.Loc
 
 	IsAsync     bool
 	IsGenerator bool
@@ -332,17 +333,17 @@ type Fn struct {
 }
 
 type FnBody struct {
-	Loc   logger.Loc
 	Stmts []Stmt
+	Loc   logger.Loc
 }
 
 type Class struct {
-	ClassKeyword logger.Range
 	TSDecorators []Expr
 	Name         *LocRef
 	ExtendsOrNil Expr
-	BodyLoc      logger.Loc
 	Properties   []Property
+	ClassKeyword logger.Range
+	BodyLoc      logger.Loc
 }
 
 type ArrayBinding struct {
@@ -351,8 +352,8 @@ type ArrayBinding struct {
 }
 
 type Binding struct {
-	Loc  logger.Loc
 	Data B
+	Loc  logger.Loc
 }
 
 // This interface is never called. Its purpose is to encode a variant type in
@@ -380,8 +381,8 @@ type BObject struct {
 }
 
 type Expr struct {
-	Loc  logger.Loc
 	Data E
+	Loc  logger.Loc
 }
 
 // This interface is never called. Its purpose is to encode a variant type in
@@ -434,8 +435,8 @@ type EArray struct {
 }
 
 type EUnary struct {
-	Op    OpCode
 	Value Expr
+	Op    OpCode
 }
 
 type EBinary struct {
@@ -649,17 +650,17 @@ type EString struct {
 
 type TemplatePart struct {
 	Value      Expr
-	TailLoc    logger.Loc
-	TailCooked []uint16 // Only use when "TagOrNil" is nil
 	TailRaw    string   // Only use when "TagOrNil" is not nil
+	TailCooked []uint16 // Only use when "TagOrNil" is nil
+	TailLoc    logger.Loc
 }
 
 type ETemplate struct {
 	TagOrNil       Expr
-	HeadLoc        logger.Loc
-	HeadCooked     []uint16 // Only use when "TagOrNil" is nil
 	HeadRaw        string   // Only use when "TagOrNil" is not nil
+	HeadCooked     []uint16 // Only use when "TagOrNil" is nil
 	Parts          []TemplatePart
+	HeadLoc        logger.Loc
 	LegacyOctalLoc logger.Loc
 }
 
@@ -694,8 +695,6 @@ type ERequireResolveString struct {
 }
 
 type EImportString struct {
-	ImportRecordIndex uint32
-
 	// Comments inside "import()" expressions have special meaning for Webpack.
 	// Preserving comments inside these expressions makes it possible to use
 	// esbuild as a TypeScript-to-JavaScript frontend for Webpack to improve
@@ -704,6 +703,8 @@ type EImportString struct {
 	// harmless, easy to maintain, and useful to people. See the Webpack docs for
 	// more info: https://webpack.js.org/api/module-methods/#magic-comments.
 	LeadingInteriorComments []Comment
+
+	ImportRecordIndex uint32
 }
 
 type EImportCall struct {
@@ -1016,8 +1017,8 @@ func JoinAllWithComma(all []Expr) (result Expr) {
 }
 
 type Stmt struct {
-	Loc  logger.Loc
 	Data S
+	Loc  logger.Loc
 }
 
 // This interface is never called. Its purpose is to encode a variant type in
@@ -1092,22 +1093,22 @@ type SExportFrom struct {
 }
 
 type SExportDefault struct {
-	DefaultName LocRef
 	Value       Stmt // May be a SExpr or SFunction or SClass
+	DefaultName LocRef
 }
 
 type ExportStarAlias struct {
-	Loc logger.Loc
-
 	// Although this alias name starts off as being the same as the statement's
 	// namespace symbol, it may diverge if the namespace symbol name is minified.
 	// The original alias name is preserved here to avoid this scenario.
 	OriginalName string
+
+	Loc logger.Loc
 }
 
 type SExportStar struct {
-	NamespaceRef      Ref
 	Alias             *ExportStarAlias
+	NamespaceRef      Ref
 	ImportRecordIndex uint32
 }
 
@@ -1132,23 +1133,23 @@ type SExpr struct {
 }
 
 type EnumValue struct {
-	Name       []uint16
 	ValueOrNil Expr
+	Name       []uint16
 	Ref        Ref
 	Loc        logger.Loc
 }
 
 type SEnum struct {
+	Values   []EnumValue
 	Name     LocRef
 	Arg      Ref
-	Values   []EnumValue
 	IsExport bool
 }
 
 type SNamespace struct {
+	Stmts    []Stmt
 	Name     LocRef
 	Arg      Ref
-	Stmts    []Stmt
 	IsExport bool
 }
 
@@ -1163,8 +1164,8 @@ type SClass struct {
 }
 
 type SLabel struct {
-	Name LocRef
 	Stmt Stmt
+	Name LocRef
 }
 
 type SIf struct {
@@ -1187,10 +1188,10 @@ type SForIn struct {
 }
 
 type SForOf struct {
-	IsAwait bool
 	Init    Stmt // May be a SConst, SLet, SVar, or SExpr
 	Value   Expr
 	Body    Stmt
+	IsAwait bool
 }
 
 type SDoWhile struct {
@@ -1205,8 +1206,8 @@ type SWhile struct {
 
 type SWith struct {
 	Value   Expr
-	BodyLoc logger.Loc
 	Body    Stmt
+	BodyLoc logger.Loc
 }
 
 type Catch struct {
@@ -1217,15 +1218,15 @@ type Catch struct {
 }
 
 type Finally struct {
-	Loc   logger.Loc
 	Stmts []Stmt
+	Loc   logger.Loc
 }
 
 type STry struct {
-	BodyLoc logger.Loc
-	Body    []Stmt
 	Catch   *Catch
 	Finally *Finally
+	Body    []Stmt
+	BodyLoc logger.Loc
 }
 
 type Case struct {
@@ -1235,8 +1236,8 @@ type Case struct {
 
 type SSwitch struct {
 	Test    Expr
-	BodyLoc logger.Loc
 	Cases   []Case
+	BodyLoc logger.Loc
 }
 
 // This object represents all of these types of import statements:
@@ -1250,6 +1251,10 @@ type SSwitch struct {
 // Many parts are optional and can be combined in different ways. The only
 // restriction is that you cannot have both a clause and a star namespace.
 type SImport struct {
+	DefaultName *LocRef
+	Items       *[]ClauseItem
+	StarNameLoc *logger.Loc
+
 	// If this is a star import: This is a Ref for the namespace symbol. The Loc
 	// for the symbol is StarLoc.
 	//
@@ -1258,9 +1263,6 @@ type SImport struct {
 	// when converting this module to a CommonJS module.
 	NamespaceRef Ref
 
-	DefaultName       *LocRef
-	Items             *[]ClauseItem
-	StarNameLoc       *logger.Loc
 	ImportRecordIndex uint32
 	IsSingleLine      bool
 }
@@ -1311,9 +1313,7 @@ func IsSuperCall(stmt Stmt) bool {
 }
 
 type ClauseItem struct {
-	Alias    string
-	AliasLoc logger.Loc
-	Name     LocRef
+	Alias string
 
 	// This is the original name of the symbol stored in "Name". It's needed for
 	// "SExportClause" statements such as this:
@@ -1324,6 +1324,9 @@ type ClauseItem struct {
 	// We need to preserve both aliases in case the symbol is renamed. In this
 	// example, "foo" is "OriginalName" and "bar" is "Alias".
 	OriginalName string
+
+	AliasLoc logger.Loc
+	Name     LocRef
 }
 
 type Decl struct {
@@ -1596,11 +1599,6 @@ func (flags SymbolFlags) Has(flag SymbolFlags) bool {
 
 // Note: the order of values in this struct matters to reduce struct size.
 type Symbol struct {
-	// This is the name that came from the parser. Printed names may be renamed
-	// during minification or to avoid name collisions. Do not use the original
-	// name during printing.
-	OriginalName string
-
 	// This is used for symbols that represent items in the import clause of an
 	// ES6 import statement. These should always be referenced by EImportIdentifier
 	// instead of an EIdentifier. When this is present, the expression should
@@ -1613,6 +1611,11 @@ type Symbol struct {
 	// symbols from other files that end up at this symbol must be able to tell
 	// if it has a namespace alias.
 	NamespaceAlias *NamespaceAlias
+
+	// This is the name that came from the parser. Printed names may be renamed
+	// during minification or to avoid name collisions. Do not use the original
+	// name during printing.
+	OriginalName string
 
 	// Used by the parser for single pass parsing. Symbols that have been merged
 	// form a linked-list where the last link is the symbol to use. This link is
@@ -1715,11 +1718,11 @@ func (a *SlotCounts) UnionMax(b SlotCounts) {
 }
 
 type NamespaceAlias struct {
-	NamespaceRef Ref
 	Alias        string
+	NamespaceRef Ref
 }
 
-type ScopeKind int
+type ScopeKind uint8
 
 const (
 	ScopeBlock ScopeKind = iota
@@ -1746,14 +1749,13 @@ type ScopeMember struct {
 }
 
 type Scope struct {
-	Kind      ScopeKind
+	// This will be non-nil if this is a TypeScript "namespace" or "enum"
+	TSNamespace *TSNamespaceScope
+
 	Parent    *Scope
 	Children  []*Scope
 	Members   map[string]ScopeMember
 	Generated []Ref
-
-	// This will be non-nil if this is a TypeScript "namespace" or "enum"
-	TSNamespace *TSNamespaceScope
 
 	// The location of the "use strict" directive for ExplicitStrictMode
 	UseStrictLoc logger.Loc
@@ -1771,6 +1773,7 @@ type Scope struct {
 	ForbidArguments bool
 
 	StrictMode StrictModeKind
+	Kind       ScopeKind
 }
 
 type StrictModeKind uint8
@@ -1826,19 +1829,6 @@ type TSNamespaceScope struct {
 	// This is shared between all sibling namespace blocks
 	ExportedMembers TSNamespaceMembers
 
-	// This is specific to this namespace block. It's the argument of the
-	// immediately-invoked function expression that the namespace block is
-	// compiled into:
-	//
-	//   var ns;
-	//   (function (ns2) {
-	//     ns2.x = 123;
-	//   })(ns || (ns = {}));
-	//
-	// This variable is "ns2" in the above example. It's the symbol to use when
-	// generating property accesses off of this namespace when it's in scope.
-	ArgRef Ref
-
 	// This is a lazily-generated map of identifiers that actually represent
 	// property accesses to this namespace's properties. For example:
 	//
@@ -1864,6 +1854,19 @@ type TSNamespaceScope struct {
 	// map is unique per namespace block because "x3" is the argument symbol that
 	// is specific to that particular namespace block.
 	LazilyGeneratedProperyAccesses map[string]Ref
+
+	// This is specific to this namespace block. It's the argument of the
+	// immediately-invoked function expression that the namespace block is
+	// compiled into:
+	//
+	//   var ns;
+	//   (function (ns2) {
+	//     ns2.x = 123;
+	//   })(ns || (ns = {}));
+	//
+	// This variable is "ns2" in the above example. It's the symbol to use when
+	// generating property accesses off of this namespace when it's in scope.
+	ArgRef Ref
 
 	// Even though enums are like namespaces and both enums and namespaces allow
 	// implicit references to properties of sibling scopes, they behave like
@@ -2019,34 +2022,22 @@ type ModuleTypeData struct {
 const NSExportPartIndex = uint32(0)
 
 type AST struct {
-	ApproximateLineCount  int32
-	NestedScopeSlotCounts SlotCounts
-	HasLazyExport         bool
-	ModuleTypeData        ModuleTypeData
+	ModuleTypeData ModuleTypeData
+	Parts          []Part
+	Symbols        []Symbol
+	ModuleScope    *Scope
+	CharFreq       *CharFreq
 
-	// This is a list of CommonJS features. When a file uses CommonJS features,
-	// it's not a candidate for "flat bundling" and must be wrapped in its own
-	// closure. Note that this also includes top-level "return" but these aren't
-	// here because only the parser checks those.
-	UsesExportsRef bool
-	UsesModuleRef  bool
-	ExportsKind    ExportsKind
+	Hashbang  string
+	Directive string
+	URLForCSS string
 
-	// This is a list of ES6 features. They are ranges instead of booleans so
-	// that they can be used in log messages. Check to see if "Len > 0".
-	ExportKeyword        logger.Range // Does not include TypeScript-specific syntax
-	TopLevelAwaitKeyword logger.Range
-
-	Hashbang    string
-	Directive   string
-	URLForCSS   string
-	Parts       []Part
-	Symbols     []Symbol
-	ModuleScope *Scope
-	CharFreq    *CharFreq
-	ExportsRef  Ref
-	ModuleRef   Ref
-	WrapperRef  Ref
+	// Note: If you're in the linker, do not use this map directly. This map is
+	// filled in by the parser and is considered immutable. For performance reasons,
+	// the linker doesn't mutate this map (cloning a map is slow in Go). Instead the
+	// linker super-imposes relevant information on top in a method call. You should
+	// call "TopLevelSymbolToParts" instead.
+	TopLevelSymbolToPartsFromParser map[Ref][]uint32
 
 	// This contains all top-level exported TypeScript enum constants. It exists
 	// to enable cross-module inlining of constant enums.
@@ -2063,14 +2054,28 @@ type AST struct {
 	NamedExports            map[string]NamedExport
 	ExportStarImportRecords []uint32
 
-	// Note: If you're in the linker, do not use this map directly. This map is
-	// filled in by the parser and is considered immutable. For performance reasons,
-	// the linker doesn't mutate this map (cloning a map is slow in Go). Instead the
-	// linker super-imposes relevant information on top in a method call. You should
-	// call "TopLevelSymbolToParts" instead.
-	TopLevelSymbolToPartsFromParser map[Ref][]uint32
-
 	SourceMapComment logger.Span
+
+	// This is a list of ES6 features. They are ranges instead of booleans so
+	// that they can be used in log messages. Check to see if "Len > 0".
+	ExportKeyword        logger.Range // Does not include TypeScript-specific syntax
+	TopLevelAwaitKeyword logger.Range
+
+	ExportsRef Ref
+	ModuleRef  Ref
+	WrapperRef Ref
+
+	ApproximateLineCount  int32
+	NestedScopeSlotCounts SlotCounts
+	HasLazyExport         bool
+
+	// This is a list of CommonJS features. When a file uses CommonJS features,
+	// it's not a candidate for "flat bundling" and must be wrapped in its own
+	// closure. Note that this also includes top-level "return" but these aren't
+	// here because only the parser checks those.
+	UsesExportsRef bool
+	UsesModuleRef  bool
+	ExportsKind    ExportsKind
 }
 
 type TSEnumValue struct {
@@ -2121,9 +2126,9 @@ var DefaultNameMinifier = NameMinifier{
 }
 
 type charAndCount struct {
-	index byte
-	count int32
 	char  string
+	count int32
+	index byte
 }
 
 // This type is just so we can use Go's native sort function
@@ -2177,10 +2182,11 @@ func (minifier *NameMinifier) NumberToMinifiedName(i int) string {
 }
 
 type NamedImport struct {
+	Alias string
+
 	// Parts within this file that use this import
 	LocalPartsWithUses []uint32
 
-	Alias             string
 	AliasLoc          logger.Loc
 	NamespaceRef      Ref
 	ImportRecordIndex uint32

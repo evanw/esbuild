@@ -10,10 +10,10 @@ import (
 // by measuring exactly how big the buffer should be and then allocating once.
 // This is a measurable speedup.
 type Joiner struct {
-	lastByte byte
 	strings  []joinerString
 	bytes    []joinerBytes
 	length   uint32
+	lastByte byte
 }
 
 type joinerString struct {

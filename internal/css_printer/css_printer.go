@@ -24,18 +24,18 @@ type printer struct {
 }
 
 type Options struct {
-	RemoveWhitespace  bool
-	ASCIIOnly         bool
-	AddSourceMappings bool
-	LegalComments     config.LegalComments
+	// This will be present if the input file had a source map. In that case we
+	// want to map all the way back to the original input file(s).
+	InputSourceMap *sourcemap.SourceMap
 
 	// If we're writing out a source map, this table of line start indices lets
 	// us do binary search on to figure out what line a given AST node came from
 	LineOffsetTables []sourcemap.LineOffsetTable
 
-	// This will be present if the input file had a source map. In that case we
-	// want to map all the way back to the original input file(s).
-	InputSourceMap *sourcemap.SourceMap
+	RemoveWhitespace  bool
+	ASCIIOnly         bool
+	AddSourceMappings bool
+	LegalComments     config.LegalComments
 }
 
 type PrintResult struct {

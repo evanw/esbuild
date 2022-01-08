@@ -86,10 +86,11 @@ func (pp *PathPair) HasSecondary() bool {
 
 type SideEffectsData struct {
 	Source *logger.Source
-	Range  logger.Range
 
 	// If non-empty, this false value came from a plugin
 	PluginName string
+
+	Range logger.Range
 
 	// If true, "sideEffects" was an array. If false, "sideEffects" was false.
 	IsSideEffectsArrayInJSON bool
@@ -113,6 +114,9 @@ type ResolveResult struct {
 
 	TSTarget *config.TSTarget
 
+	// This is the "type" field from "package.json"
+	ModuleTypeData js_ast.ModuleTypeData
+
 	IsExternal bool
 
 	// If true, the class field transform should use Object.defineProperty().
@@ -120,15 +124,12 @@ type ResolveResult struct {
 
 	// This is the "importsNotUsedAsValues" and "preserveValueImports" fields from "package.json"
 	UnusedImportsTS config.UnusedImportsTS
-
-	// This is the "type" field from "package.json"
-	ModuleTypeData js_ast.ModuleTypeData
 }
 
 type DebugMeta struct {
-	notes             []logger.MsgData
 	suggestionText    string
 	suggestionMessage string
+	notes             []logger.MsgData
 }
 
 func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string, notes []logger.MsgData) {
@@ -160,10 +161,9 @@ type Resolver interface {
 }
 
 type resolver struct {
-	fs      fs.FS
-	log     logger.Log
-	caches  *cache.CacheSet
-	options config.Options
+	fs     fs.FS
+	log    logger.Log
+	caches *cache.CacheSet
 
 	// These are sets that represent various conditions for the "exports" field
 	// in package.json.
@@ -195,6 +195,12 @@ type resolver struct {
 	// picture but it's better than some alternatives and probably pretty good.
 	atImportExtensionOrder []string
 
+	// This cache maps a directory path to information about that directory and
+	// all parent directories
+	dirCache map[string]*dirInfo
+
+	options config.Options
+
 	// This mutex serves two purposes. First of all, it guards access to "dirCache"
 	// which is potentially mutated during path resolution. But this mutex is also
 	// necessary for performance. The "React admin" benchmark mysteriously runs
@@ -204,10 +210,6 @@ type resolver struct {
 	// faster. I'm not sure why this is but please don't change this unless you
 	// do a lot of testing with various benchmarks and there aren't any regressions.
 	mutex sync.Mutex
-
-	// This cache maps a directory path to information about that directory and
-	// all parent directories
-	dirCache map[string]*dirInfo
 }
 
 type resolverQuery struct {
@@ -822,12 +824,12 @@ type dirInfo struct {
 	// All relevant information about this directory
 	absPath               string
 	entries               fs.DirEntries
-	isNodeModules         bool          // Is the base name "node_modules"?
-	hasNodeModules        bool          // Is there a "node_modules" subdirectory?
 	packageJSON           *packageJSON  // Is there a "package.json" file in this directory?
 	enclosingPackageJSON  *packageJSON  // Is there a "package.json" file in this directory or a parent directory?
 	enclosingTSConfigJSON *TSConfigJSON // Is there a "tsconfig.json" file in this directory or a parent directory?
 	absRealPath           string        // If non-empty, this is the real absolute path resolving any symlinks
+	isNodeModules         bool          // Is the base name "node_modules"?
+	hasNodeModules        bool          // Is there a "node_modules" subdirectory?
 }
 
 func (r resolverQuery) dirInfoCached(path string) *dirInfo {

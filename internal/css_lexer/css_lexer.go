@@ -154,13 +154,13 @@ func (token Token) DecodedText(contents string) string {
 type lexer struct {
 	log                     logger.Log
 	source                  logger.Source
+	legalCommentsBefore     []Comment
+	sourceMappingURL        logger.Span
 	tracker                 logger.LineColumnTracker
+	approximateNewlineCount int
 	current                 int
 	codePoint               rune
 	Token                   Token
-	legalCommentsBefore     []Comment
-	approximateNewlineCount int
-	sourceMappingURL        logger.Span
 }
 
 type Comment struct {
@@ -172,8 +172,8 @@ type Comment struct {
 type TokenizeResult struct {
 	Tokens               []Token
 	LegalComments        []Comment
-	ApproximateLineCount int32
 	SourceMapComment     logger.Span
+	ApproximateLineCount int32
 }
 
 func Tokenize(log logger.Log, source logger.Source) TokenizeResult {

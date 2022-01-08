@@ -455,8 +455,6 @@ func appendMappingToBuffer(buffer []byte, lastByte byte, prevState SourceMapStat
 }
 
 type LineOffsetTable struct {
-	byteOffsetToStartOfLine int32
-
 	// The source map specification is very loose and does not specify what
 	// column numbers actually mean. The popular "source-map" library from Mozilla
 	// appears to interpret them as counts of UTF-16 code units, so we generate
@@ -467,8 +465,10 @@ type LineOffsetTable struct {
 	// and generates a lot of garbage. Since most JavaScript is ASCII and the
 	// mapping for ASCII is 1:1, we avoid creating a table for ASCII-only lines
 	// as an optimization.
-	byteOffsetToFirstNonASCII int32
 	columnsForNonASCII        []int32
+	byteOffsetToFirstNonASCII int32
+
+	byteOffsetToStartOfLine int32
 }
 
 func GenerateLineOffsetTables(contents string, approximateLineCount int32) []LineOffsetTable {
@@ -567,12 +567,12 @@ type Chunk struct {
 type ChunkBuilder struct {
 	inputSourceMap      *SourceMap
 	sourceMap           []byte
-	prevLoc             logger.Loc
+	lineOffsetTables    []LineOffsetTable
 	prevState           SourceMapState
 	lastGeneratedUpdate int
 	generatedColumn     int
+	prevLoc             logger.Loc
 	hasPrevState        bool
-	lineOffsetTables    []LineOffsetTable
 
 	// This is a workaround for a bug in the popular "source-map" library:
 	// https://github.com/mozilla/source-map/issues/261. The library will

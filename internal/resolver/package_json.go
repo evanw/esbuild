@@ -16,7 +16,6 @@ import (
 )
 
 type packageJSON struct {
-	source         logger.Source
 	mainFields     map[string]mainField
 	moduleTypeData js_ast.ModuleTypeData
 
@@ -66,11 +65,13 @@ type packageJSON struct {
 
 	// This represents the "exports" field in this package.json file.
 	exportsMap *pjMap
+
+	source logger.Source
 }
 
 type mainField struct {
-	keyLoc  logger.Loc
 	relPath string
+	keyLoc  logger.Loc
 }
 
 type browserPathKind uint8
@@ -282,17 +283,17 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 		mainFields = defaultMainFields[r.options.Platform]
 	}
 	for _, field := range mainFields {
-		if mainJSON, mainRange, ok := getProperty(json, field); ok {
+		if mainJSON, mainLoc, ok := getProperty(json, field); ok {
 			if main, ok := getString(mainJSON); ok && main != "" {
-				packageJSON.mainFields[field] = mainField{mainRange, main}
+				packageJSON.mainFields[field] = mainField{keyLoc: mainLoc, relPath: main}
 			}
 		}
 	}
 	for _, field := range mainFieldsForFailure {
 		if _, ok := packageJSON.mainFields[field]; !ok {
-			if mainJSON, mainRange, ok := getProperty(json, field); ok {
+			if mainJSON, mainLoc, ok := getProperty(json, field); ok {
 				if main, ok := getString(mainJSON); ok && main != "" {
-					packageJSON.mainFields[field] = mainField{mainRange, main}
+					packageJSON.mainFields[field] = mainField{keyLoc: mainLoc, relPath: main}
 				}
 			}
 		}
@@ -500,8 +501,8 @@ type pjEntry struct {
 
 type pjMapEntry struct {
 	key      string
-	keyRange logger.Range
 	value    pjEntry
+	keyRange logger.Range
 }
 
 // This type is just so we can use Go's native sort function
@@ -675,12 +676,12 @@ func (status pjStatus) isUndefined() bool {
 }
 
 type pjDebug struct {
-	// This is the range of the token to use for error messages
-	token logger.Range
-
 	// If the status is "pjStatusUndefinedNoConditionsMatch", this is the set of
 	// conditions that didn't match. This information is used for error messages.
 	unmatchedConditions []string
+
+	// This is the range of the token to use for error messages
+	token logger.Range
 }
 
 func (r resolverQuery) esmHandlePostConditions(

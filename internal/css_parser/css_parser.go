@@ -17,16 +17,16 @@ import (
 type parser struct {
 	log               logger.Log
 	source            logger.Source
-	tracker           logger.LineColumnTracker
-	options           Options
 	tokens            []css_lexer.Token
 	legalComments     []css_lexer.Comment
 	stack             []css_lexer.T
+	importRecords     []ast.ImportRecord
+	tracker           logger.LineColumnTracker
 	index             int
 	end               int
 	legalCommentIndex int
 	prevError         logger.Loc
-	importRecords     []ast.ImportRecord
+	options           Options
 }
 
 type Options struct {

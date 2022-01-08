@@ -10,13 +10,13 @@ import (
 )
 
 type Timer struct {
-	mutex sync.Mutex
 	data  []timerData
+	mutex sync.Mutex
 }
 
 type timerData struct {
-	name  string
 	time  time.Time
+	name  string
 	isEnd bool
 }
 

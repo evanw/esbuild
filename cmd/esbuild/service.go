@@ -31,21 +31,21 @@ type serveStopCallback func()
 type pluginResolveCallback func(uint32, map[string]interface{}) []byte
 
 type activeBuild struct {
-	mutex         sync.Mutex
-	refCount      int
 	rebuild       rebuildCallback
 	watchStop     watchStopCallback
 	serveStop     serveStopCallback
 	pluginResolve pluginResolveCallback
+	mutex         sync.Mutex
+	refCount      int
 }
 
 type serviceType struct {
-	mutex              sync.Mutex
 	callbacks          map[uint32]responseCallback
 	activeBuilds       map[int]*activeBuild
-	nextRequestID      uint32
 	outgoingPackets    chan outgoingPacket
 	keepAliveWaitGroup sync.WaitGroup
+	mutex              sync.Mutex
+	nextRequestID      uint32
 }
 
 func (service *serviceType) getActiveBuild(key int) *activeBuild {
