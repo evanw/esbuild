@@ -1578,6 +1578,10 @@ const (
 	// it's not safe to make assumptions about this symbol from the initializer.
 	CouldPotentiallyBeMutated
 
+	// This flags all symbols that were exported from the module using the ES6
+	// "export" keyword, either directly on the declaration or using "export {}".
+	WasExported
+
 	// This means the symbol is a normal function that has no body statements.
 	IsEmptyFunction
 

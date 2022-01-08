@@ -1860,3 +1860,37 @@ func TestTSEnumCrossModuleTreeShaking(t *testing.T) {
 		},
 	})
 }
+
+func TestTSEnumExportClause(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import {
+					A,
+					B,
+					C as c,
+					d as dd,
+				} from './enums'
+
+				console.log([
+					A.A,
+					B.B,
+					c.C,
+					dd.D,
+				])
+			`,
+			"/enums.ts": `
+					export enum A { A = 1 }
+					enum B { B = 2 }
+					export enum C { C = 3 }
+					enum D { D = 4 }
+					export { B, D as d }
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
