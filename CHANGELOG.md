@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.11
 
 * Fix a bug with enum inlining ([#1903](https://github.com/evanw/esbuild/issues/1903))
 
