@@ -289,6 +289,13 @@ foo();
 foo();
 foo();
 
+---------- /out/empty-if-else.js ----------
+// empty-if-else.js
+if (foo) {
+  let bar = baz();
+  bar(), bar();
+}
+
 ---------- /out/empty-last.js ----------
 // empty-last.js
 console.log(void 0);

@@ -2288,6 +2288,11 @@ func TestInlineEmptyFunctionCalls(t *testing.T) {
 				foo(), DROP(), DROP();
 			`,
 
+			"/empty-if-else.js": `
+				function DROP() {}
+				if (foo) { let bar = baz(); bar(); bar() } else DROP();
+			`,
+
 			"/empty-last.js": `
 				function DROP() { return x }
 				function DROP() { return }
@@ -2370,6 +2375,7 @@ func TestInlineEmptyFunctionCalls(t *testing.T) {
 		entryPaths: []string{
 			"/empty.js",
 			"/empty-comma.js",
+			"/empty-if-else.js",
 			"/empty-last.js",
 			"/empty-cross-module.js",
 			"/empty-first.js",

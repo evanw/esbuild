@@ -2641,11 +2641,21 @@ func (p *printer) printIf(s *js_ast.SIf) {
 	p.printExpr(s.Test, js_ast.LLowest, 0)
 	p.print(")")
 
+	// Simplify the else branch, which may disappear entirely
+	no := s.NoOrNil
+	if expr, ok := no.Data.(*js_ast.SExpr); ok {
+		if value := p.simplifyUnusedExpr(expr.Value); value.Data == nil {
+			no.Data = nil
+		} else if value.Data != expr.Value.Data {
+			no.Data = &js_ast.SExpr{Value: value}
+		}
+	}
+
 	if yes, ok := s.Yes.Data.(*js_ast.SBlock); ok {
 		p.printSpace()
 		p.printBlock(s.Yes.Loc, yes.Stmts)
 
-		if s.NoOrNil.Data != nil {
+		if no.Data != nil {
 			p.printSpace()
 		} else {
 			p.printNewline()
@@ -2663,7 +2673,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 		p.printIndent()
 		p.print("}")
 
-		if s.NoOrNil.Data != nil {
+		if no.Data != nil {
 			p.printSpace()
 		} else {
 			p.printNewline()
@@ -2674,26 +2684,26 @@ func (p *printer) printIf(s *js_ast.SIf) {
 		p.printStmt(s.Yes, 0)
 		p.options.Indent--
 
-		if s.NoOrNil.Data != nil {
+		if no.Data != nil {
 			p.printIndent()
 		}
 	}
 
-	if s.NoOrNil.Data != nil {
+	if no.Data != nil {
 		p.printSemicolonIfNeeded()
 		p.printSpaceBeforeIdentifier()
 		p.print("else")
 
-		if no, ok := s.NoOrNil.Data.(*js_ast.SBlock); ok {
+		if block, ok := no.Data.(*js_ast.SBlock); ok {
 			p.printSpace()
-			p.printBlock(s.NoOrNil.Loc, no.Stmts)
+			p.printBlock(no.Loc, block.Stmts)
 			p.printNewline()
-		} else if no, ok := s.NoOrNil.Data.(*js_ast.SIf); ok {
-			p.printIf(no)
+		} else if ifStmt, ok := no.Data.(*js_ast.SIf); ok {
+			p.printIf(ifStmt)
 		} else {
 			p.printNewline()
 			p.options.Indent++
-			p.printStmt(s.NoOrNil, 0)
+			p.printStmt(no, 0)
 			p.options.Indent--
 		}
 	}
