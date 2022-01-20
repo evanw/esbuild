@@ -407,6 +407,7 @@ func (r *RUnknownAt) Hash() (uint32, bool) {
 type RSelector struct {
 	Selectors []ComplexSelector
 	Rules     []Rule
+	HasAtNest bool
 }
 
 func (a *RSelector) Equal(rule R) bool {

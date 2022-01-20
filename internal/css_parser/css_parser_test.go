@@ -693,6 +693,26 @@ func TestNestedSelector(t *testing.T) {
 		"<stdin>: WARNING: Every selector in a nested style rule must start with \"&\"\n"+
 			"<stdin>: NOTE: This is a nested style rule because of the \"&\" here:\n")
 	expectParseError(t, "a { & b, & c {} }", "")
+
+	expectParseError(t, "a { b & {} }", "<stdin>: WARNING: Expected \":\"\n")
+	expectParseError(t, "a { @nest b & {} }", "")
+	expectParseError(t, "a { @nest & b, c {} }",
+		"<stdin>: WARNING: Every selector in a nested style rule must contain \"&\"\n"+
+			"<stdin>: NOTE: This is a nested style rule because of the \"@nest\" here:\n")
+	expectParseError(t, "a { @nest b &, c {} }",
+		"<stdin>: WARNING: Every selector in a nested style rule must contain \"&\"\n"+
+			"<stdin>: NOTE: This is a nested style rule because of the \"@nest\" here:\n")
+	expectPrinted(t, "a { @nest b & { color: red } }", "a {\n  @nest b & {\n    color: red;\n  }\n}\n")
+
+	// Don't drop "@nest" for invalid rules
+	expectParseError(t, "a { @nest @invalid { color: red } }", "<stdin>: WARNING: Unexpected \"@invalid\"\n")
+	expectPrinted(t, "a { @nest @invalid { color: red } }", "a {\n  @nest @invalid {\n    color: red;\n  }\n}\n")
+
+	// Check removal of "@nest" when minifying
+	expectPrinted(t, "a { @nest & b, & c { color: red } }", "a {\n  @nest & b,\n  & c {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "a { @nest & b, & c { color: red } }", "a {\n  & b,\n  & c {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "a { @nest b &, & c { color: red } }", "a {\n  @nest b &,\n  & c {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "a { @nest & b, c & { color: red } }", "a {\n  @nest & b,\n  c & {\n    color: red;\n  }\n}\n")
 }
 
 func TestBadQualifiedRules(t *testing.T) {

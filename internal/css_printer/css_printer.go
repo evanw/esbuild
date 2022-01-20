@@ -187,7 +187,10 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		}
 
 	case *css_ast.RSelector:
-		p.printComplexSelectors(r.Selectors, indent)
+		if r.HasAtNest {
+			p.print("@nest")
+		}
+		p.printComplexSelectors(r.Selectors, indent, r.HasAtNest)
 		if !p.options.RemoveWhitespace {
 			p.print(" ")
 		}
@@ -272,7 +275,7 @@ func (p *printer) printRuleBlock(rules []css_ast.Rule, indent int32) {
 	p.print("}")
 }
 
-func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, indent int32) {
+func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, indent int32, hasAtNest bool) {
 	for i, complex := range selectors {
 		if i > 0 {
 			if p.options.RemoveWhitespace {
@@ -284,7 +287,7 @@ func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, ind
 		}
 
 		for j, compound := range complex.Selectors {
-			p.printCompoundSelector(compound, j == 0, j+1 == len(complex.Selectors))
+			p.printCompoundSelector(compound, (!hasAtNest || i != 0) && j == 0, j+1 == len(complex.Selectors))
 		}
 	}
 }

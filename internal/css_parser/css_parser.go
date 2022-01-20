@@ -250,7 +250,7 @@ loop:
 		}
 
 		if context.parseSelectors {
-			rules = append(rules, p.parseSelectorRule())
+			rules = append(rules, p.parseSelectorRuleFrom(p.index, parseSelectorOpts{}))
 		} else {
 			rules = append(rules, p.parseQualifiedRuleFrom(p.index, false /* isAlreadyInvalid */))
 		}
@@ -282,7 +282,7 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 
 		case css_lexer.TDelimAmpersand:
 			// Reference: https://drafts.csswg.org/css-nesting-1/
-			list = append(list, p.parseSelectorRule())
+			list = append(list, p.parseSelectorRuleFrom(p.index, parseSelectorOpts{}))
 
 		default:
 			list = append(list, p.parseDeclaration())
@@ -614,6 +614,9 @@ var specialAtRules = map[string]atRuleKind{
 	"media":    atRuleInheritContext,
 	"scope":    atRuleInheritContext,
 	"supports": atRuleInheritContext,
+
+	// Reference: https://drafts.csswg.org/css-nesting-1/
+	"nest": atRuleDeclarations,
 }
 
 type atRuleValidity uint8
@@ -813,6 +816,14 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 				Name:    name,
 				Blocks:  blocks,
 			}}
+		}
+
+	case "nest":
+		// Reference: https://drafts.csswg.org/css-nesting-1/
+		p.eat(css_lexer.TWhitespace)
+		if kind := p.current().Kind; kind != css_lexer.TSemicolon && kind != css_lexer.TOpenBrace &&
+			kind != css_lexer.TCloseBrace && kind != css_lexer.TEndOfFile {
+			return p.parseSelectorRuleFrom(preludeStart-1, parseSelectorOpts{atNestRange: atRange})
 		}
 
 	default:
@@ -1217,15 +1228,31 @@ func mangleNumber(t string) (string, bool) {
 	return t, t != original
 }
 
-func (p *parser) parseSelectorRule() css_ast.Rule {
-	preludeStart := p.index
-
+func (p *parser) parseSelectorRuleFrom(preludeStart int, opts parseSelectorOpts) css_ast.Rule {
 	// Try parsing the prelude as a selector list
-	if list, ok := p.parseSelectorList(); ok {
-		selector := css_ast.RSelector{Selectors: list}
+	if list, ok := p.parseSelectorList(opts); ok {
+		selector := css_ast.RSelector{
+			Selectors: list,
+			HasAtNest: opts.atNestRange.Len != 0,
+		}
 		if p.expect(css_lexer.TOpenBrace) {
 			selector.Rules = p.parseListOfDeclarations()
 			p.expect(css_lexer.TCloseBrace)
+
+			// Minify "@nest" when possible
+			if p.options.MangleSyntax && selector.HasAtNest {
+				allHaveNestPrefix := true
+				for _, complex := range selector.Selectors {
+					if len(complex.Selectors) == 0 || !complex.Selectors[0].HasNestPrefix {
+						allHaveNestPrefix = false
+						break
+					}
+				}
+				if allHaveNestPrefix {
+					selector.HasAtNest = false
+				}
+			}
+
 			return css_ast.Rule{Loc: p.tokens[preludeStart].Range.Loc, Data: &selector}
 		}
 	}

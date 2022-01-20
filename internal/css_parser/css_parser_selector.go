@@ -9,10 +9,10 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
-func (p *parser) parseSelectorList() (list []css_ast.ComplexSelector, ok bool) {
+func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.ComplexSelector, ok bool) {
 	// Parse the first selector
 	firstRange := p.current().Range
-	sel, good, firstHasNestPrefix := p.parseComplexSelector()
+	sel, good, firstHasNestPrefix := p.parseComplexSelector(opts)
 	if !good {
 		return
 	}
@@ -26,14 +26,14 @@ func (p *parser) parseSelectorList() (list []css_ast.ComplexSelector, ok bool) {
 		}
 		p.eat(css_lexer.TWhitespace)
 		loc := p.current().Range.Loc
-		sel, good, hasNestPrefix := p.parseComplexSelector()
+		sel, good, hasNestPrefix := p.parseComplexSelector(opts)
 		if !good {
 			return
 		}
 		list = append(list, sel)
 
 		// Validate nest prefix consistency
-		if firstHasNestPrefix && !hasNestPrefix {
+		if firstHasNestPrefix && !hasNestPrefix && opts.atNestRange.Len == 0 {
 			data := p.tracker.MsgData(logger.Range{Loc: loc}, "Every selector in a nested style rule must start with \"&\"")
 			data.Location.Suggestion = "&"
 			p.log.AddMsg(logger.Msg{
@@ -48,13 +48,19 @@ func (p *parser) parseSelectorList() (list []css_ast.ComplexSelector, ok bool) {
 	return
 }
 
-func (p *parser) parseComplexSelector() (result css_ast.ComplexSelector, ok bool, hasNestPrefix bool) {
+type parseSelectorOpts struct {
+	atNestRange logger.Range
+}
+
+func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.ComplexSelector, ok bool, hasNestPrefix bool) {
 	// Parent
+	loc := p.current().Range.Loc
 	sel, good := p.parseCompoundSelector()
 	if !good {
 		return
 	}
 	hasNestPrefix = sel.HasNestPrefix
+	hasNestSelector := sel.HasNestPrefix
 	result.Selectors = append(result.Selectors, sel)
 
 	for {
@@ -76,6 +82,15 @@ func (p *parser) parseComplexSelector() (result css_ast.ComplexSelector, ok bool
 		}
 		sel.Combinator = combinator
 		result.Selectors = append(result.Selectors, sel)
+		if sel.HasNestPrefix {
+			hasNestSelector = true
+		}
+	}
+
+	// Validate nest selector consistency
+	if opts.atNestRange.Len != 0 && !hasNestSelector {
+		p.log.AddWithNotes(logger.Warning, &p.tracker, logger.Range{Loc: loc}, "Every selector in a nested style rule must contain \"&\"",
+			[]logger.MsgData{p.tracker.MsgData(opts.atNestRange, "This is a nested style rule because of the \"@nest\" here:")})
 	}
 
 	ok = true
