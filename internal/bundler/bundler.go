@@ -224,6 +224,7 @@ func parseFile(args parseArgs) {
 			MangleSyntax:           args.options.MangleSyntax,
 			RemoveWhitespace:       args.options.RemoveWhitespace,
 			UnsupportedCSSFeatures: args.options.UnsupportedCSSFeatures,
+			OriginalTargetEnv:      args.options.OriginalTargetEnv,
 		})
 		result.file.inputFile.Repr = &graph.CSSRepr{AST: ast}
 		result.ok = true

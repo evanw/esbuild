@@ -15,6 +15,7 @@ const (
 	Modern_RGB_HSL
 
 	InsetProperty
+	Nesting
 )
 
 func (features CSSFeature) Has(feature CSSFeature) bool {
@@ -53,6 +54,9 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{14, 5, 0}}},
 		Safari:  {{start: v{14, 1, 0}}},
 	},
+
+	// This isn't supported anywhere right now: https://caniuse.com/css-nesting
+	Nesting: {},
 }
 
 // Return all features that are not available in at least one environment

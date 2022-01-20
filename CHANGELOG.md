@@ -22,6 +22,10 @@
     .bad{@import url(other);}.red{background:red}
     ```
 
+* Warn about CSS nesting syntax ([#1945](https://github.com/evanw/esbuild/issues/1945))
+
+    There's a proposed [CSS syntax for nesting rules](https://drafts.csswg.org/css-nesting/) using the `&` selector, but it's not currently implemented in any browser. Previously esbuild silently passed the syntax through untransformed. With this release, esbuild will now warn when you use nesting syntax with a `--target=` setting that includes a browser.
+
 ## 0.14.11
 
 * Fix a bug with enum inlining ([#1903](https://github.com/evanw/esbuild/issues/1903))

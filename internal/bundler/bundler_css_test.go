@@ -3,6 +3,7 @@ package bundler
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 )
 
@@ -684,5 +685,24 @@ func TestCSSExternalQueryAndHashMatchIssue1822(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestCSSNestingOldBrowser(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				a { &:hover { color: red; } }
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:                   config.ModeBundle,
+			AbsOutputFile:          "/out.css",
+			UnsupportedCSSFeatures: compat.Nesting,
+			OriginalTargetEnv:      "chrome10",
+		},
+		expectedScanLog: `entry.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+`,
 	})
 }

@@ -1,14 +1,18 @@
 package css_parser
 
 import (
+	"fmt"
+
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 func (p *parser) parseSelectorList() (list []css_ast.ComplexSelector, ok bool) {
 	// Parse the first selector
-	p.eat(css_lexer.TWhitespace)
-	sel, good := p.parseComplexSelector()
+	firstRange := p.current().Range
+	sel, good, firstHasNestPrefix := p.parseComplexSelector()
 	if !good {
 		return
 	}
@@ -21,23 +25,36 @@ func (p *parser) parseSelectorList() (list []css_ast.ComplexSelector, ok bool) {
 			break
 		}
 		p.eat(css_lexer.TWhitespace)
-		sel, good := p.parseComplexSelector()
+		loc := p.current().Range.Loc
+		sel, good, hasNestPrefix := p.parseComplexSelector()
 		if !good {
 			return
 		}
 		list = append(list, sel)
+
+		// Validate nest prefix consistency
+		if firstHasNestPrefix && !hasNestPrefix {
+			data := p.tracker.MsgData(logger.Range{Loc: loc}, "Every selector in a nested style rule must start with \"&\"")
+			data.Location.Suggestion = "&"
+			p.log.AddMsg(logger.Msg{
+				Kind:  logger.Warning,
+				Data:  data,
+				Notes: []logger.MsgData{p.tracker.MsgData(firstRange, "This is a nested style rule because of the \"&\" here:")},
+			})
+		}
 	}
 
 	ok = true
 	return
 }
 
-func (p *parser) parseComplexSelector() (result css_ast.ComplexSelector, ok bool) {
+func (p *parser) parseComplexSelector() (result css_ast.ComplexSelector, ok bool, hasNestPrefix bool) {
 	// Parent
 	sel, good := p.parseCompoundSelector()
 	if !good {
 		return
 	}
+	hasNestPrefix = sel.HasNestPrefix
 	result.Selectors = append(result.Selectors, sel)
 
 	for {
@@ -74,8 +91,19 @@ func (p *parser) nameToken() css_ast.NameToken {
 
 func (p *parser) parseCompoundSelector() (sel css_ast.CompoundSelector, ok bool) {
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
+	r := p.current().Range
 	if p.eat(css_lexer.TDelimAmpersand) {
 		sel.HasNestPrefix = true
+
+		// Warn if we're targeting a browser, since it won't work
+		if p.options.UnsupportedCSSFeatures.Has(compat.Nesting) {
+			where := "the configured target environment"
+			if p.options.OriginalTargetEnv != "" {
+				where = fmt.Sprintf("%s (%s)", where, p.options.OriginalTargetEnv)
+			}
+			p.log.Add(logger.Warning, &p.tracker, r, fmt.Sprintf(
+				"CSS nesting syntax is not supported in %s", where))
+		}
 	}
 
 	// Parse the type selector

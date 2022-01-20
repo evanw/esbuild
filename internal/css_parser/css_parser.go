@@ -30,6 +30,7 @@ type parser struct {
 }
 
 type Options struct {
+	OriginalTargetEnv      string
 	UnsupportedCSSFeatures compat.CSSFeature
 	MangleSyntax           bool
 	RemoveWhitespace       bool

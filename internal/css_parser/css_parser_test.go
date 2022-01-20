@@ -688,6 +688,11 @@ func TestNestedSelector(t *testing.T) {
 	expectPrinted(t, "a { &*|b {} }", "a {\n  &*|b {\n  }\n}\n")
 	expectPrinted(t, "a { &a|b {} }", "a {\n  &a|b {\n  }\n}\n")
 	expectPrinted(t, "a { &[b] {} }", "a {\n  &[b] {\n  }\n}\n")
+
+	expectParseError(t, "a { & b, c {} }",
+		"<stdin>: WARNING: Every selector in a nested style rule must start with \"&\"\n"+
+			"<stdin>: NOTE: This is a nested style rule because of the \"&\" here:\n")
+	expectParseError(t, "a { & b, & c {} }", "")
 }
 
 func TestBadQualifiedRules(t *testing.T) {
