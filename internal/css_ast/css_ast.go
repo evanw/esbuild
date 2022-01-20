@@ -412,7 +412,7 @@ type RSelector struct {
 
 func (a *RSelector) Equal(rule R) bool {
 	b, ok := rule.(*RSelector)
-	if ok && len(a.Selectors) == len(b.Selectors) {
+	if ok && len(a.Selectors) == len(b.Selectors) && a.HasAtNest == b.HasAtNest {
 		for i, sel := range a.Selectors {
 			if !sel.Equal(b.Selectors[i]) {
 				return false
@@ -524,7 +524,7 @@ func (a ComplexSelector) Equal(b ComplexSelector) bool {
 
 	for i, ai := range a.Selectors {
 		bi := b.Selectors[i]
-		if ai.HasNestPrefix != bi.HasNestPrefix || ai.Combinator != bi.Combinator {
+		if ai.NestingSelector != bi.NestingSelector || ai.Combinator != bi.Combinator {
 			return false
 		}
 
@@ -547,11 +547,19 @@ func (a ComplexSelector) Equal(b ComplexSelector) bool {
 	return true
 }
 
+type NestingSelector uint8
+
+const (
+	NestingSelectorNone                NestingSelector = iota
+	NestingSelectorPrefix                              // "&a {}"
+	NestingSelectorPresentButNotPrefix                 // "a& {}"
+)
+
 type CompoundSelector struct {
 	Combinator        string // Optional, may be ""
 	TypeSelector      *NamespacedName
 	SubclassSelectors []SS
-	HasNestPrefix     bool // "&"
+	NestingSelector   NestingSelector // "&"
 }
 
 type NameToken struct {

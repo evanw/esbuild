@@ -300,7 +300,7 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		p.print(" ")
 	}
 
-	if sel.HasNestPrefix {
+	if sel.NestingSelector == css_ast.NestingSelectorPrefix {
 		p.print("&")
 	}
 
@@ -377,6 +377,12 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		case *css_ast.SSPseudoClass:
 			p.printPseudoClassSelector(*s, whitespace)
 		}
+	}
+
+	// It doesn't matter where the "&" goes since all non-prefix cases are
+	// treated the same. This just always puts it as a suffix for simplicity.
+	if sel.NestingSelector == css_ast.NestingSelectorPresentButNotPrefix {
+		p.print("&")
 	}
 }
 

@@ -473,7 +473,7 @@ var nonDeprecatedElementsSupportedByIE7 = map[string]bool{
 func isSafeSelectors(complexSelectors []css_ast.ComplexSelector) bool {
 	for _, complex := range complexSelectors {
 		for _, compound := range complex.Selectors {
-			if compound.HasNestPrefix {
+			if compound.NestingSelector != css_ast.NestingSelectorNone {
 				// Bail because this is an extension: https://drafts.csswg.org/css-nesting-1/
 				return false
 			}
@@ -1243,7 +1243,7 @@ func (p *parser) parseSelectorRuleFrom(preludeStart int, opts parseSelectorOpts)
 			if p.options.MangleSyntax && selector.HasAtNest {
 				allHaveNestPrefix := true
 				for _, complex := range selector.Selectors {
-					if len(complex.Selectors) == 0 || !complex.Selectors[0].HasNestPrefix {
+					if len(complex.Selectors) == 0 || complex.Selectors[0].NestingSelector != css_ast.NestingSelectorPrefix {
 						allHaveNestPrefix = false
 						break
 					}

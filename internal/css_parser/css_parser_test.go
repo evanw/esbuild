@@ -63,6 +63,13 @@ func expectPrintedLower(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedMinify(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [minify]", contents, expected, config.Options{
+		RemoveWhitespace: true,
+	})
+}
+
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [mangle]", contents, expected, config.Options{
@@ -703,6 +710,12 @@ func TestNestedSelector(t *testing.T) {
 		"<stdin>: WARNING: Every selector in a nested style rule must contain \"&\"\n"+
 			"<stdin>: NOTE: This is a nested style rule because of the \"@nest\" here:\n")
 	expectPrinted(t, "a { @nest b & { color: red } }", "a {\n  @nest b & {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "a { @nest b& { color: red } }", "a {\n  @nest b& {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "a { @nest b&[c] { color: red } }", "a {\n  @nest b[c]& {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "a { @nest &[c] { color: red } }", "a {\n  @nest &[c] {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "a { @nest [c]& { color: red } }", "a {\n  @nest [c]& {\n    color: red;\n  }\n}\n")
+	expectPrintedMinify(t, "a { @nest b & { color: red } }", "a{@nest b &{color:red}}")
+	expectPrintedMinify(t, "a { @nest b& { color: red } }", "a{@nest b&{color:red}}")
 
 	// Don't drop "@nest" for invalid rules
 	expectParseError(t, "a { @nest @invalid { color: red } }", "<stdin>: WARNING: Unexpected \"@invalid\"\n")
