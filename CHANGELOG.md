@@ -26,6 +26,39 @@
 
     There's a proposed [CSS syntax for nesting rules](https://drafts.csswg.org/css-nesting/) using the `&` selector, but it's not currently implemented in any browser. Previously esbuild silently passed the syntax through untransformed. With this release, esbuild will now warn when you use nesting syntax with a `--target=` setting that includes a browser.
 
+* Warn about `}` and `>` inside JSX elements
+
+    The `}` and `>` characters are invalid inside JSX elements according to [the JSX specification](https://facebook.github.io/jsx/) because they commonly result from typos like these that are hard to catch in code reviews:
+
+    ```jsx
+    function F() {
+      return <div>></div>;
+    }
+    function G() {
+      return <div>{1}}</div>;
+    }
+    ```
+
+    The TypeScript compiler already [treats this as an error](https://github.com/microsoft/TypeScript/issues/36341), so esbuild now treats this as an error in TypeScript files too. That looks like this:
+
+    ```
+    ✘ [ERROR] The character ">" is not valid inside a JSX element, but can be escaped as "{'>'}" instead
+
+        example.tsx:2:14:
+          2 │   return <div>></div>;
+            │               ^
+            ╵               {'>'}
+
+    ✘ [ERROR] The character "}" is not valid inside a JSX element, but can be escaped as "{'}'}" instead
+
+        example.tsx:5:17:
+          5 │   return <div>{1}}</div>;
+            │                  ^
+            ╵                  {'}'}
+    ```
+
+    Babel doesn't yet treat this as an error, so esbuild only warns about these characters in JavaScript files for now. Babel 8 [treats this as an error](https://github.com/babel/babel/issues/11042) but Babel 8 [hasn't been released yet](https://github.com/babel/babel/issues/10746). If you see this warning, I recommend fixing the invalid JSX syntax because it will become an error in the future.
+
 ## 0.14.11
 
 * Fix a bug with enum inlining ([#1903](https://github.com/evanw/esbuild/issues/1903))

@@ -14601,7 +14601,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		options.unsupportedJSFeatures |= options.tsTarget.UnsupportedJSFeatures
 	}
 
-	p := newParser(log, source, js_lexer.NewLexer(log, source), &options)
+	p := newParser(log, source, js_lexer.NewLexer(log, source, options.ts), &options)
 
 	// Consume a leading hashbang comment
 	hashbang := ""

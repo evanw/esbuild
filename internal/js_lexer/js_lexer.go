@@ -20,6 +20,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
@@ -250,6 +251,7 @@ type Lexer struct {
 	prevErrorLoc                    logger.Loc
 	json                            json
 	Token                           T
+	ts                              config.TSOptions
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
 	PreserveAllCommentsBefore       bool
@@ -264,13 +266,14 @@ type Lexer struct {
 
 type LexerPanic struct{}
 
-func NewLexer(log logger.Log, source logger.Source) Lexer {
+func NewLexer(log logger.Log, source logger.Source, ts config.TSOptions) Lexer {
 	lexer := Lexer{
 		log:               log,
 		source:            source,
 		tracker:           logger.MakeLineColumnTracker(&source),
 		prevErrorLoc:      logger.Loc{Start: -1},
 		FnOrArrowStartLoc: logger.Loc{Start: -1},
+		ts:                ts,
 	}
 	lexer.step()
 	lexer.Next()
@@ -897,6 +900,37 @@ func (lexer *Lexer) NextJSXElementChild() {
 				case '{', '<':
 					// Stop when the string ends
 					break stringLiteral
+
+				case '}', '>':
+					// These technically aren't valid JSX: https://facebook.github.io/jsx/
+					//
+					//   JSXTextCharacter :
+					//     * SourceCharacter but not one of {, <, > or }
+					//
+					var replacement string
+					if lexer.codePoint == '}' {
+						replacement = "{'}'}"
+					} else {
+						replacement = "{'>'}"
+					}
+					msg := logger.Msg{Kind: logger.Error, Data: lexer.tracker.MsgData(logger.Range{Loc: logger.Loc{Start: int32(lexer.end)}, Len: 1},
+						fmt.Sprintf("The character \"%c\" is not valid inside a JSX element, but can be escaped as %q instead", lexer.codePoint, replacement))}
+					msg.Data.Location.Suggestion = replacement
+					if !lexer.ts.Parse {
+						// TypeScript treats this as an error but Babel doesn't treat this
+						// as an error yet, so allow this in JS for now. Babel version 8
+						// was supposed to be released in 2021 but was never released. If
+						// it's released in the future, this can be changed to an error too.
+						//
+						// More context:
+						// * TypeScript change: https://github.com/microsoft/TypeScript/issues/36341
+						// * Babel 8 change: https://github.com/babel/babel/issues/11042
+						// * Babel 8 release: https://github.com/babel/babel/issues/10746
+						//
+						msg.Kind = logger.Warning
+					}
+					lexer.log.AddMsg(msg)
+					lexer.step()
 
 				default:
 					// Non-ASCII strings need the slow path

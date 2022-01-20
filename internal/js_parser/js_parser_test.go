@@ -4242,6 +4242,11 @@ func TestNewTarget(t *testing.T) {
 }
 
 func TestJSX(t *testing.T) {
+	expectParseErrorJSX(t, "<div>></div>", "<stdin>: WARNING: The character \">\" is not valid inside a JSX element, but can be escaped as \"{'>'}\" instead\n")
+	expectParseErrorJSX(t, "<div>{1}}</div>", "<stdin>: WARNING: The character \"}\" is not valid inside a JSX element, but can be escaped as \"{'}'}\" instead\n")
+	expectPrintedJSX(t, "<div>></div>", "/* @__PURE__ */ React.createElement(\"div\", null, \">\");\n")
+	expectPrintedJSX(t, "<div>{1}}</div>", "/* @__PURE__ */ React.createElement(\"div\", null, 1, \"}\");\n")
+
 	expectParseError(t, "<a/>", "<stdin>: ERROR: The JSX syntax extension is not currently enabled\n"+
 		"NOTE: The esbuild loader for this file is currently set to \"js\" but it must be set to \"jsx\" to be able to parse JSX syntax. "+
 		"You can use 'Loader: map[string]api.Loader{\".js\": api.LoaderJSX}' to do that.\n")

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/test"
 )
@@ -32,7 +33,7 @@ func assertEqualStrings(t *testing.T, a string, b string) {
 
 func lexToken(t *testing.T, contents string) T {
 	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
-	lexer := NewLexer(log, test.SourceForTest(contents))
+	lexer := NewLexer(log, test.SourceForTest(contents), config.TSOptions{})
 	return lexer.Token
 }
 
@@ -48,7 +49,7 @@ func expectLexerError(t *testing.T, contents string, expected string) {
 					panic(r)
 				}
 			}()
-			NewLexer(log, test.SourceForTest(contents))
+			NewLexer(log, test.SourceForTest(contents), config.TSOptions{})
 		}()
 		msgs := log.Done()
 		text := ""
@@ -78,7 +79,7 @@ func expectHashbang(t *testing.T, contents string, expected string) {
 					panic(r)
 				}
 			}()
-			return NewLexer(log, test.SourceForTest(contents))
+			return NewLexer(log, test.SourceForTest(contents), config.TSOptions{})
 		}()
 		msgs := log.Done()
 		test.AssertEqual(t, len(msgs), 0)
@@ -106,7 +107,7 @@ func expectIdentifier(t *testing.T, contents string, expected string) {
 					panic(r)
 				}
 			}()
-			return NewLexer(log, test.SourceForTest(contents))
+			return NewLexer(log, test.SourceForTest(contents), config.TSOptions{})
 		}()
 		msgs := log.Done()
 		test.AssertEqual(t, len(msgs), 0)
@@ -145,7 +146,7 @@ func expectNumber(t *testing.T, contents string, expected float64) {
 					panic(r)
 				}
 			}()
-			return NewLexer(log, test.SourceForTest(contents))
+			return NewLexer(log, test.SourceForTest(contents), config.TSOptions{})
 		}()
 		msgs := log.Done()
 		test.AssertEqual(t, len(msgs), 0)
@@ -352,7 +353,7 @@ func expectBigInteger(t *testing.T, contents string, expected string) {
 					panic(r)
 				}
 			}()
-			return NewLexer(log, test.SourceForTest(contents))
+			return NewLexer(log, test.SourceForTest(contents), config.TSOptions{})
 		}()
 		msgs := log.Done()
 		test.AssertEqual(t, len(msgs), 0)
@@ -407,7 +408,7 @@ func expectString(t *testing.T, contents string, expected string) {
 					panic(r)
 				}
 			}()
-			return NewLexer(log, test.SourceForTest(contents))
+			return NewLexer(log, test.SourceForTest(contents), config.TSOptions{})
 		}()
 		text := lexer.StringLiteral()
 		msgs := log.Done()
@@ -429,7 +430,7 @@ func expectLexerErrorString(t *testing.T, contents string, expected string) {
 					panic(r)
 				}
 			}()
-			lexer := NewLexer(log, test.SourceForTest(contents))
+			lexer := NewLexer(log, test.SourceForTest(contents), config.TSOptions{})
 			lexer.StringLiteral()
 		}()
 		msgs := log.Done()

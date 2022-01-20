@@ -1796,6 +1796,9 @@ func TestTSOptionalChain(t *testing.T) {
 }
 
 func TestTSJSX(t *testing.T) {
+	expectParseErrorTSX(t, "<div>></div>", "<stdin>: ERROR: The character \">\" is not valid inside a JSX element, but can be escaped as \"{'>'}\" instead\n")
+	expectParseErrorTSX(t, "<div>{1}}</div>", "<stdin>: ERROR: The character \"}\" is not valid inside a JSX element, but can be escaped as \"{'}'}\" instead\n")
+
 	expectPrintedTS(t, "const x = <number>1", "const x = 1;\n")
 	expectPrintedTSX(t, "const x = <number>1</number>", "const x = /* @__PURE__ */ React.createElement(\"number\", null, \"1\");\n")
 	expectParseErrorTSX(t, "const x = <number>1", "<stdin>: ERROR: Unexpected end of file\n")
@@ -1846,15 +1849,16 @@ func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = <[]>(y, z)", "const x = (y, z);\n")
 	expectPrintedTS(t, "const x = <[]>(y, z) => {}", "const x = (y, z) => {\n};\n")
 
-	expectPrintedTSX(t, "(<T>(y) => {}</T>)", "/* @__PURE__ */ React.createElement(T, null, \"(y) => \");\n")
-	expectPrintedTSX(t, "(<T extends>(y) => {}</T>)", "/* @__PURE__ */ React.createElement(T, {\n  extends: true\n}, \"(y) => \");\n")
-	expectPrintedTSX(t, "(<T extends={false}>(y) => {}</T>)", "/* @__PURE__ */ React.createElement(T, {\n  extends: false\n}, \"(y) => \");\n")
+	invalid := "<stdin>: ERROR: The character \">\" is not valid inside a JSX element, but can be escaped as \"{'>'}\" instead\n"
+	expectParseErrorTSX(t, "(<T>(y) => {}</T>)", invalid)
+	expectParseErrorTSX(t, "(<T extends>(y) => {}</T>)", invalid)
+	expectParseErrorTSX(t, "(<T extends={false}>(y) => {}</T>)", invalid)
 	expectPrintedTSX(t, "(<T extends X>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T extends X = Y>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T,>() => {})", "() => {\n};\n")
 	expectPrintedTSX(t, "(<T, X>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T, X>(y): (() => {}) => {})", "(y) => {\n};\n")
-	expectParseErrorTSX(t, "(<T>() => {})", "<stdin>: ERROR: Unexpected end of file\n")
+	expectParseErrorTSX(t, "(<T>() => {})", invalid+"<stdin>: ERROR: Unexpected end of file\n")
 	expectParseErrorTSX(t, "(<[]>(y))", "<stdin>: ERROR: Expected identifier but found \"[\"\n")
 	expectParseErrorTSX(t, "(<T[]>(y))", "<stdin>: ERROR: Expected \">\" but found \"[\"\n")
 	expectParseErrorTSX(t, "(<T = X>(y))", "<stdin>: ERROR: Expected \">\" but found \"=\"\n")
