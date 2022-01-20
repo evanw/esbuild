@@ -4242,8 +4242,12 @@ func TestNewTarget(t *testing.T) {
 }
 
 func TestJSX(t *testing.T) {
-	expectParseErrorJSX(t, "<div>></div>", "<stdin>: WARNING: The character \">\" is not valid inside a JSX element, but can be escaped as \"{'>'}\" instead\n")
-	expectParseErrorJSX(t, "<div>{1}}</div>", "<stdin>: WARNING: The character \"}\" is not valid inside a JSX element, but can be escaped as \"{'}'}\" instead\n")
+	expectParseErrorJSX(t, "<div>></div>",
+		"<stdin>: WARNING: The character \">\" is not valid inside a JSX element\n"+
+			"NOTE: Did you mean to escape it as \"{'>'}\" instead?\n")
+	expectParseErrorJSX(t, "<div>{1}}</div>",
+		"<stdin>: WARNING: The character \"}\" is not valid inside a JSX element\n"+
+			"NOTE: Did you mean to escape it as \"{'}'}\" instead?\n")
 	expectPrintedJSX(t, "<div>></div>", "/* @__PURE__ */ React.createElement(\"div\", null, \">\");\n")
 	expectPrintedJSX(t, "<div>{1}}</div>", "/* @__PURE__ */ React.createElement(\"div\", null, 1, \"}\");\n")
 

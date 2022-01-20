@@ -42,22 +42,41 @@
     The TypeScript compiler already [treats this as an error](https://github.com/microsoft/TypeScript/issues/36341), so esbuild now treats this as an error in TypeScript files too. That looks like this:
 
     ```
-    ✘ [ERROR] The character ">" is not valid inside a JSX element, but can be escaped as "{'>'}" instead
+    ✘ [ERROR] The character ">" is not valid inside a JSX element
 
         example.tsx:2:14:
           2 │   return <div>></div>;
             │               ^
             ╵               {'>'}
 
-    ✘ [ERROR] The character "}" is not valid inside a JSX element, but can be escaped as "{'}'}" instead
+      Did you mean to escape it as "{'>'}" instead?
+
+    ✘ [ERROR] The character "}" is not valid inside a JSX element
 
         example.tsx:5:17:
           5 │   return <div>{1}}</div>;
             │                  ^
             ╵                  {'}'}
+
+      Did you mean to escape it as "{'}'}" instead?
     ```
 
     Babel doesn't yet treat this as an error, so esbuild only warns about these characters in JavaScript files for now. Babel 8 [treats this as an error](https://github.com/babel/babel/issues/11042) but Babel 8 [hasn't been released yet](https://github.com/babel/babel/issues/10746). If you see this warning, I recommend fixing the invalid JSX syntax because it will become an error in the future.
+
+* Warn about basic CSS property typos
+
+    This release now generates a warning if you use a CSS property that is one character off from a known CSS property:
+
+    ```
+    ▲ [WARNING] "marign-left" is not a known CSS property
+
+        example.css:2:2:
+          2 │   marign-left: 12px;
+            │   ~~~~~~~~~~~
+            ╵   margin-left
+
+      Did you mean "margin-left" instead?
+    ```
 
 ## 0.14.11
 

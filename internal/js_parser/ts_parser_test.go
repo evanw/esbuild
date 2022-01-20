@@ -1796,8 +1796,12 @@ func TestTSOptionalChain(t *testing.T) {
 }
 
 func TestTSJSX(t *testing.T) {
-	expectParseErrorTSX(t, "<div>></div>", "<stdin>: ERROR: The character \">\" is not valid inside a JSX element, but can be escaped as \"{'>'}\" instead\n")
-	expectParseErrorTSX(t, "<div>{1}}</div>", "<stdin>: ERROR: The character \"}\" is not valid inside a JSX element, but can be escaped as \"{'}'}\" instead\n")
+	expectParseErrorTSX(t, "<div>></div>",
+		"<stdin>: ERROR: The character \">\" is not valid inside a JSX element\n"+
+			"NOTE: Did you mean to escape it as \"{'>'}\" instead?\n")
+	expectParseErrorTSX(t, "<div>{1}}</div>",
+		"<stdin>: ERROR: The character \"}\" is not valid inside a JSX element\n"+
+			"NOTE: Did you mean to escape it as \"{'}'}\" instead?\n")
 
 	expectPrintedTS(t, "const x = <number>1", "const x = 1;\n")
 	expectPrintedTSX(t, "const x = <number>1</number>", "const x = /* @__PURE__ */ React.createElement(\"number\", null, \"1\");\n")
@@ -1849,7 +1853,7 @@ func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = <[]>(y, z)", "const x = (y, z);\n")
 	expectPrintedTS(t, "const x = <[]>(y, z) => {}", "const x = (y, z) => {\n};\n")
 
-	invalid := "<stdin>: ERROR: The character \">\" is not valid inside a JSX element, but can be escaped as \"{'>'}\" instead\n"
+	invalid := "<stdin>: ERROR: The character \">\" is not valid inside a JSX element\nNOTE: Did you mean to escape it as \"{'>'}\" instead?\n"
 	expectParseErrorTSX(t, "(<T>(y) => {}</T>)", invalid)
 	expectParseErrorTSX(t, "(<T extends>(y) => {}</T>)", invalid)
 	expectParseErrorTSX(t, "(<T extends={false}>(y) => {}</T>)", invalid)

@@ -1377,8 +1377,20 @@ stop:
 		}
 	}
 
+	key := css_ast.KnownDeclarations[keyText]
+
+	// Attempt to point out trivial typos
+	if key == css_ast.DUnknown {
+		if corrected, ok := css_ast.MaybeCorrectDeclarationTypo(keyText); ok {
+			data := p.tracker.MsgData(keyToken.Range, fmt.Sprintf("%q is not a known CSS property", keyText))
+			data.Location.Suggestion = corrected
+			p.log.AddMsg(logger.Msg{Kind: logger.Warning, Data: data,
+				Notes: []logger.MsgData{{Text: fmt.Sprintf("Did you mean %q instead?", corrected)}}})
+		}
+	}
+
 	return css_ast.Rule{Loc: keyLoc, Data: &css_ast.RDeclaration{
-		Key:       css_ast.KnownDeclarations[keyText],
+		Key:       key,
 		KeyText:   keyText,
 		KeyRange:  keyToken.Range,
 		Value:     result,
