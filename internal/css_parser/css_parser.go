@@ -173,10 +173,12 @@ type ruleContext struct {
 }
 
 func (p *parser) parseListOfRules(context ruleContext) []css_ast.Rule {
-	didWarnAboutCharset := false
-	didWarnAboutImport := false
+	atRuleContext := atRuleContext{}
+	if context.isTopLevel {
+		atRuleContext.charsetValidity = atRuleValid
+		atRuleContext.importValidity = atRuleValid
+	}
 	rules := []css_ast.Rule{}
-	locs := []logger.Loc{}
 
 loop:
 	for {
@@ -189,9 +191,6 @@ loop:
 			}
 			if comment.TokenIndexAfter == uint32(p.index) {
 				rules = append(rules, css_ast.Rule{Loc: comment.Loc, Data: &css_ast.RComment{Text: comment.Text}})
-				if context.isTopLevel {
-					locs = append(locs, comment.Loc)
-				}
 			}
 			p.legalCommentIndex++
 		}
@@ -210,47 +209,30 @@ loop:
 			continue
 
 		case css_lexer.TAtKeyword:
-			first := p.current().Range
-			rule := p.parseAtRule(atRuleContext{})
+			rule := p.parseAtRule(atRuleContext)
 
-			// Validate structure
+			// Disallow "@charset" and "@import" after other rules
 			if context.isTopLevel {
 				switch rule.Data.(type) {
 				case *css_ast.RAtCharset:
-					if !didWarnAboutCharset {
-						for i, before := range rules {
-							if _, ok := before.Data.(*css_ast.RComment); !ok {
-								p.log.AddWithNotes(logger.Warning, &p.tracker, first, "\"@charset\" must be the first rule in the file",
-									[]logger.MsgData{p.tracker.MsgData(logger.Range{Loc: locs[i]},
-										"This rule cannot come before a \"@charset\" rule")})
-								didWarnAboutCharset = true
-								break
-							}
-						}
-					}
+					// This doesn't invalidate anything because it always comes first
 
 				case *css_ast.RAtImport:
-					if !didWarnAboutImport {
-					importLoop:
-						for i, before := range rules {
-							switch before.Data.(type) {
-							case *css_ast.RComment, *css_ast.RAtCharset, *css_ast.RAtImport:
-							default:
-								p.log.AddWithNotes(logger.Warning, &p.tracker, first, "All \"@import\" rules must come first",
-									[]logger.MsgData{p.tracker.MsgData(logger.Range{Loc: locs[i]},
-										"This rule cannot come before an \"@import\" rule")})
-								didWarnAboutImport = true
-								break importLoop
-							}
-						}
+					if atRuleContext.charsetValidity == atRuleValid {
+						atRuleContext.afterLoc = rule.Loc
+						atRuleContext.charsetValidity = atRuleInvalidAfter
+					}
+
+				default:
+					if atRuleContext.importValidity == atRuleValid {
+						atRuleContext.afterLoc = rule.Loc
+						atRuleContext.charsetValidity = atRuleInvalidAfter
+						atRuleContext.importValidity = atRuleInvalidAfter
 					}
 				}
 			}
 
 			rules = append(rules, rule)
-			if context.isTopLevel {
-				locs = append(locs, first.Loc)
-			}
 			continue
 
 		case css_lexer.TCDO, css_lexer.TCDC:
@@ -260,9 +242,12 @@ loop:
 			}
 		}
 
-		if context.isTopLevel {
-			locs = append(locs, p.current().Range.Loc)
+		if atRuleContext.importValidity == atRuleValid {
+			atRuleContext.afterLoc = p.current().Range.Loc
+			atRuleContext.charsetValidity = atRuleInvalidAfter
+			atRuleContext.importValidity = atRuleInvalidAfter
 		}
+
 		if context.parseSelectors {
 			rules = append(rules, p.parseSelectorRule())
 		} else {
@@ -630,7 +615,18 @@ var specialAtRules = map[string]atRuleKind{
 	"supports": atRuleInheritContext,
 }
 
+type atRuleValidity uint8
+
+const (
+	atRuleInvalid atRuleValidity = iota
+	atRuleValid
+	atRuleInvalidAfter
+)
+
 type atRuleContext struct {
+	afterLoc          logger.Loc
+	charsetValidity   atRuleValidity
+	importValidity    atRuleValidity
 	isDeclarationList bool
 }
 
@@ -645,59 +641,81 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 	preludeStart := p.index
 	switch atToken {
 	case "charset":
-		kind = atRuleEmpty
-		p.expect(css_lexer.TWhitespace)
-		if p.peek(css_lexer.TString) {
-			encoding := p.decoded()
-			if !strings.EqualFold(encoding, "UTF-8") {
-				p.log.Add(logger.Warning, &p.tracker, p.current().Range,
-					fmt.Sprintf("\"UTF-8\" will be used instead of unsupported charset %q", encoding))
+		switch context.charsetValidity {
+		case atRuleInvalid:
+			p.log.Add(logger.Warning, &p.tracker, atRange, "\"@charset\" must be the first rule in the file")
+
+		case atRuleInvalidAfter:
+			p.log.AddWithNotes(logger.Warning, &p.tracker, atRange, "\"@charset\" must be the first rule in the file",
+				[]logger.MsgData{p.tracker.MsgData(logger.Range{Loc: context.afterLoc},
+					"This rule cannot come before a \"@charset\" rule")})
+
+		case atRuleValid:
+			kind = atRuleEmpty
+			p.expect(css_lexer.TWhitespace)
+			if p.peek(css_lexer.TString) {
+				encoding := p.decoded()
+				if !strings.EqualFold(encoding, "UTF-8") {
+					p.log.Add(logger.Warning, &p.tracker, p.current().Range,
+						fmt.Sprintf("\"UTF-8\" will be used instead of unsupported charset %q", encoding))
+				}
+				p.advance()
+				p.expect(css_lexer.TSemicolon)
+				return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtCharset{Encoding: encoding}}
 			}
-			p.advance()
-			p.expect(css_lexer.TSemicolon)
-			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtCharset{Encoding: encoding}}
+			p.expect(css_lexer.TString)
 		}
-		p.expect(css_lexer.TString)
 
 	case "import":
-		kind = atRuleEmpty
-		p.eat(css_lexer.TWhitespace)
-		if path, r, ok := p.expectURLOrString(); ok {
-			importConditionsStart := p.index
-			for {
-				if kind := p.current().Kind; kind == css_lexer.TSemicolon || kind == css_lexer.TOpenBrace ||
-					kind == css_lexer.TCloseBrace || kind == css_lexer.TEndOfFile {
-					break
-				}
-				p.parseComponentValue()
-			}
-			if p.current().Kind == css_lexer.TOpenBrace {
-				break // Avoid parsing an invalid "@import" rule
-			}
-			importConditions := p.convertTokens(p.tokens[importConditionsStart:p.index])
-			kind := ast.ImportAt
+		switch context.importValidity {
+		case atRuleInvalid:
+			p.log.Add(logger.Warning, &p.tracker, atRange, "\"@import\" is only valid at the top level")
 
-			// Insert or remove whitespace before the first token
-			if len(importConditions) > 0 {
-				kind = ast.ImportAtConditional
-				if p.options.RemoveWhitespace {
-					importConditions[0].Whitespace &= ^css_ast.WhitespaceBefore
-				} else {
-					importConditions[0].Whitespace |= css_ast.WhitespaceBefore
-				}
-			}
+		case atRuleInvalidAfter:
+			p.log.AddWithNotes(logger.Warning, &p.tracker, atRange, "All \"@import\" rules must come first",
+				[]logger.MsgData{p.tracker.MsgData(logger.Range{Loc: context.afterLoc},
+					"This rule cannot come before an \"@import\" rule")})
 
-			p.expect(css_lexer.TSemicolon)
-			importRecordIndex := uint32(len(p.importRecords))
-			p.importRecords = append(p.importRecords, ast.ImportRecord{
-				Kind:  kind,
-				Path:  logger.Path{Text: path},
-				Range: r,
-			})
-			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtImport{
-				ImportRecordIndex: importRecordIndex,
-				ImportConditions:  importConditions,
-			}}
+		case atRuleValid:
+			kind = atRuleEmpty
+			p.eat(css_lexer.TWhitespace)
+			if path, r, ok := p.expectURLOrString(); ok {
+				importConditionsStart := p.index
+				for {
+					if kind := p.current().Kind; kind == css_lexer.TSemicolon || kind == css_lexer.TOpenBrace ||
+						kind == css_lexer.TCloseBrace || kind == css_lexer.TEndOfFile {
+						break
+					}
+					p.parseComponentValue()
+				}
+				if p.current().Kind == css_lexer.TOpenBrace {
+					break // Avoid parsing an invalid "@import" rule
+				}
+				importConditions := p.convertTokens(p.tokens[importConditionsStart:p.index])
+				kind := ast.ImportAt
+
+				// Insert or remove whitespace before the first token
+				if len(importConditions) > 0 {
+					kind = ast.ImportAtConditional
+					if p.options.RemoveWhitespace {
+						importConditions[0].Whitespace &= ^css_ast.WhitespaceBefore
+					} else {
+						importConditions[0].Whitespace |= css_ast.WhitespaceBefore
+					}
+				}
+
+				p.expect(css_lexer.TSemicolon)
+				importRecordIndex := uint32(len(p.importRecords))
+				p.importRecords = append(p.importRecords, ast.ImportRecord{
+					Kind:  kind,
+					Path:  logger.Path{Text: path},
+					Range: r,
+				})
+				return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtImport{
+					ImportRecordIndex: importRecordIndex,
+					ImportConditions:  importConditions,
+				}}
+			}
 		}
 
 	case "keyframes", "-webkit-keyframes", "-moz-keyframes", "-ms-keyframes", "-o-keyframes":

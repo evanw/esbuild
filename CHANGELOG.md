@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Ignore invalid `@import` rules in CSS ([#1946](https://github.com/evanw/esbuild/issues/1946))
+
+    In CSS, `@import` rules must come first before any other kind of rule (except for `@charset` rules). Previously esbuild would warn about incorrectly ordered `@import` rules and then hoist them to the top of the file. This broke people who wrote invalid `@import` rules in the middle of their files and then relied on them being ignored. With this release, esbuild will now ignore invalid `@import` rules and pass them through unmodified. This more accurately follows the CSS specification. Note that this behavior differs from other tools like Parcel, which does hoist CSS `@import` rules.
+
 * Print invalid CSS differently ([#1947](https://github.com/evanw/esbuild/issues/1947))
 
     This changes how esbuild prints nested `@import` statements that are missing a trailing `;`, which is invalid CSS. The result is still partially invalid CSS, but now printed in a better-looking way:
@@ -15,7 +19,7 @@
     .bad{@import url(other) } .red{background: red;}}
 
     /* New output (with --minify) */
-    .bad{@import"other";}.red{background:red}
+    .bad{@import url(other);}.red{background:red}
     ```
 
 ## 0.14.11
