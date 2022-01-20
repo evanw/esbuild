@@ -2,6 +2,7 @@ package css_ast
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/evanw/esbuild/internal/helpers"
 )
@@ -648,14 +649,19 @@ var KnownDeclarations = map[string]D{
 }
 
 var typoDetector *helpers.TypoDetector
+var typoDetectorMutex sync.Mutex
 
 func MaybeCorrectDeclarationTypo(text string) (string, bool) {
+	// Ignore CSS variables, which should not be corrected to CSS properties
 	if strings.HasPrefix(text, "--") {
-		// Ignore CSS variables, which should not be corrected to CSS properties
 		return "", false
 	}
+
+	typoDetectorMutex.Lock()
+	defer typoDetectorMutex.Unlock()
+
+	// Lazily-initialize the typo detector for speed when it's not needed
 	if typoDetector == nil {
-		// Lazily-initialize the typo detector for speed when it's not needed
 		valid := make([]string, 0, len(KnownDeclarations))
 		for key := range KnownDeclarations {
 			valid = append(valid, key)
@@ -663,5 +669,6 @@ func MaybeCorrectDeclarationTypo(text string) (string, bool) {
 		detector := helpers.MakeTypoDetector(valid)
 		typoDetector = &detector
 	}
+
 	return typoDetector.MaybeCorrectTypo(text)
 }
