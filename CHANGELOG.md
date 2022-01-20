@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.12
 
 * Ignore invalid `@import` rules in CSS ([#1946](https://github.com/evanw/esbuild/issues/1946))
 
