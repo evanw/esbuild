@@ -1,6 +1,10 @@
 package css_ast
 
-import "github.com/evanw/esbuild/internal/helpers"
+import (
+	"strings"
+
+	"github.com/evanw/esbuild/internal/helpers"
+)
 
 type D uint16
 
@@ -646,6 +650,10 @@ var KnownDeclarations = map[string]D{
 var typoDetector *helpers.TypoDetector
 
 func MaybeCorrectDeclarationTypo(text string) (string, bool) {
+	if strings.HasPrefix(text, "--") {
+		// Ignore CSS variables, which should not be corrected to CSS properties
+		return "", false
+	}
 	if typoDetector == nil {
 		// Lazily-initialize the typo detector for speed when it's not needed
 		valid := make([]string, 0, len(KnownDeclarations))

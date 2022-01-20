@@ -1676,3 +1676,14 @@ func TestWarningUnexpectedCloseBrace(t *testing.T) {
 }
 `)
 }
+
+func TestPropertyTypoWarning(t *testing.T) {
+	expectParseError(t, "a { z-idnex: 0 }", "<stdin>: WARNING: \"z-idnex\" is not a known CSS property\nNOTE: Did you mean \"z-index\" instead?\n")
+	expectParseError(t, "a { x-index: 0 }", "<stdin>: WARNING: \"x-index\" is not a known CSS property\nNOTE: Did you mean \"z-index\" instead?\n")
+
+	// CSS variables should not be corrected
+	expectParseError(t, "a { --index: 0 }", "")
+
+	// Short names should not be corrected ("alt" is actually valid in WebKit, and should not become "all")
+	expectParseError(t, "a { alt: \"\" }", "")
+}

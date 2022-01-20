@@ -11,7 +11,7 @@ func MakeTypoDetector(valid []string) TypoDetector {
 
 	// Add all combinations of each valid word with one character missing
 	for _, correct := range valid {
-		if len(correct) > 2 {
+		if len(correct) > 3 {
 			for i, ch := range correct {
 				detector.oneCharTypos[correct[:i]+correct[i+utf8.RuneLen(ch):]] = correct
 			}
