@@ -838,6 +838,9 @@ func TestAtImport(t *testing.T) {
 
 	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: WARNING: Expected \";\"\n")
 	expectPrinted(t, "@import \"foo\"\na { color: red }\nb { color: blue }", "@import \"foo\" a { color: red }\nb {\n  color: blue;\n}\n")
+
+	expectParseError(t, "a { @import \"foo.css\" }", "<stdin>: WARNING: Expected \";\"\n")
+	expectPrinted(t, "a { @import \"foo.css\" }", "a {\n  @import \"foo.css\";\n}\n")
 }
 
 func TestLegalComment(t *testing.T) {

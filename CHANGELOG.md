@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+* Print invalid CSS differently ([#1947](https://github.com/evanw/esbuild/issues/1947))
+
+    This changes how esbuild prints nested `@import` statements that are missing a trailing `;`, which is invalid CSS. The result is still partially invalid CSS, but now printed in a better-looking way:
+
+    ```css
+    /* Original code */
+    .bad { @import url("other") }
+    .red { background: red; }
+
+    /* Old output (with --minify) */
+    .bad{@import url(other) } .red{background: red;}}
+
+    /* New output (with --minify) */
+    .bad{@import"other";}.red{background:red}
+    ```
+
 ## 0.14.11
 
 * Fix a bug with enum inlining ([#1903](https://github.com/evanw/esbuild/issues/1903))

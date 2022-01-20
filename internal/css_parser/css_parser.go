@@ -665,7 +665,8 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 		if path, r, ok := p.expectURLOrString(); ok {
 			importConditionsStart := p.index
 			for {
-				if kind := p.current().Kind; kind == css_lexer.TSemicolon || kind == css_lexer.TOpenBrace || kind == css_lexer.TEndOfFile {
+				if kind := p.current().Kind; kind == css_lexer.TSemicolon || kind == css_lexer.TOpenBrace ||
+					kind == css_lexer.TCloseBrace || kind == css_lexer.TEndOfFile {
 					break
 				}
 				p.parseComponentValue()
