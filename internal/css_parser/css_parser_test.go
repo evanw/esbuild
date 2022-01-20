@@ -726,6 +726,12 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedMangle(t, "a { @nest & b, & c { color: red } }", "a {\n  & b,\n  & c {\n    color: red;\n  }\n}\n")
 	expectPrintedMangle(t, "a { @nest b &, & c { color: red } }", "a {\n  @nest b &,\n  & c {\n    color: red;\n  }\n}\n")
 	expectPrintedMangle(t, "a { @nest & b, c & { color: red } }", "a {\n  @nest & b,\n  c & {\n    color: red;\n  }\n}\n")
+
+	outside := "<stdin>: WARNING: CSS nesting syntax cannot be used outside of a style rule\n"
+	expectParseError(t, "& a {}", outside)
+	expectParseError(t, "@nest a & {}", outside)
+	expectParseError(t, "@media screen { & a {} }", outside)
+	expectParseError(t, "@media screen { @nest a & {} }", outside)
 }
 
 func TestBadQualifiedRules(t *testing.T) {

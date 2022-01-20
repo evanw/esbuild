@@ -278,11 +278,12 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 		case css_lexer.TAtKeyword:
 			list = append(list, p.parseAtRule(atRuleContext{
 				isDeclarationList: true,
+				allowNesting:      true,
 			}))
 
 		case css_lexer.TDelimAmpersand:
 			// Reference: https://drafts.csswg.org/css-nesting-1/
-			list = append(list, p.parseSelectorRuleFrom(p.index, parseSelectorOpts{}))
+			list = append(list, p.parseSelectorRuleFrom(p.index, parseSelectorOpts{allowNesting: true}))
 
 		default:
 			list = append(list, p.parseDeclaration())
@@ -632,6 +633,7 @@ type atRuleContext struct {
 	charsetValidity   atRuleValidity
 	importValidity    atRuleValidity
 	isDeclarationList bool
+	allowNesting      bool
 }
 
 func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
@@ -823,7 +825,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 		p.eat(css_lexer.TWhitespace)
 		if kind := p.current().Kind; kind != css_lexer.TSemicolon && kind != css_lexer.TOpenBrace &&
 			kind != css_lexer.TCloseBrace && kind != css_lexer.TEndOfFile {
-			return p.parseSelectorRuleFrom(preludeStart-1, parseSelectorOpts{atNestRange: atRange})
+			return p.parseSelectorRuleFrom(preludeStart-1, parseSelectorOpts{atNestRange: atRange, allowNesting: context.allowNesting})
 		}
 
 	default:
