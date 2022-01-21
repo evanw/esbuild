@@ -53,6 +53,31 @@ export function pkgAndSubpathForCurrentPlatform(): { pkg: string, subpath: strin
   return { pkg, subpath };
 }
 
+function pkgForSomeOtherPlatform(): string | null {
+  const libMainJS = require.resolve('esbuild');
+  const nodeModulesDirectory = path.dirname(path.dirname(path.dirname(libMainJS)));
+
+  if (path.basename(nodeModulesDirectory) === 'node_modules') {
+    for (const unixKey in knownUnixlikePackages) {
+      try {
+        const pkg = knownUnixlikePackages[unixKey];
+        if (fs.existsSync(path.join(nodeModulesDirectory, pkg))) return pkg;
+      } catch {
+      }
+    }
+
+    for (const windowsKey in knownWindowsPackages) {
+      try {
+        const pkg = knownWindowsPackages[windowsKey];
+        if (fs.existsSync(path.join(nodeModulesDirectory, pkg))) return pkg;
+      } catch {
+      }
+    }
+  }
+
+  return null;
+}
+
 export function downloadedBinPath(pkg: string, subpath: string): string {
   const esbuildLibDir = path.dirname(require.resolve('esbuild'));
   return path.join(esbuildLibDir, `downloaded-${pkg}-${path.basename(subpath)}`);
@@ -79,15 +104,54 @@ export function generateBinPath(): string {
     // by manually downloading the package instead. Check for that next.
     binPath = downloadedBinPath(pkg, subpath);
     if (!fs.existsSync(binPath)) {
-      // If that didn't work too, then we're out of options. This can happen
-      // when someone installs esbuild with both the "--no-optional" and the
-      // "--ignore-scripts" flags. The fix for this is to just not do that.
-      //
-      // In that case we try to have a nice error message if we think we know
-      // what's happening. Otherwise we just rethrow the original error message.
+      // If that didn't work too, check to see whether the package is even there
+      // at all. It may not be (for a few different reasons).
       try {
         require.resolve(pkg);
       } catch {
+        // If we can't find the package for this platform, then it's possible
+        // that someone installed this for some other platform and is trying
+        // to use it without reinstalling. That won't work of course, but
+        // people do this all the time with systems like Docker. Try to be
+        // helpful in that case.
+        const otherPkg = pkgForSomeOtherPlatform();
+        if (otherPkg) {
+          throw new Error(`
+You installed esbuild on another platform than the one you're currently using.
+This won't work because esbuild is written with native code and needs to
+install a platform-specific binary executable.
+
+Specifically the "${otherPkg}" package is present but this platform
+needs the "${pkg}" package instead. People often get into this
+situation by installing esbuild on Windows or macOS and copying "node_modules"
+into a Docker image that runs Linux, or by copying "node_modules" between
+Windows and WSL environments.
+
+If you are installing with npm, you can try not copying the "node_modules"
+directory when you copy the files over, and running "npm ci" or "npm install"
+on the destination platform after the copy. Or you could consider using yarn
+instead which has built-in support for installing a package on multiple
+platforms simultaneously.
+
+If you are installing with yarn, you can try listing both this platform and the
+other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+feature: https://yarnpkg.com/configuration/yarnrc/#supportedArchitectures
+Keep in mind that this means multiple copies of esbuild will be present.
+
+Another alternative is to use the "esbuild-wasm" package instead, which works
+the same way on all platforms. But it comes with a heavy performance cost and
+can sometimes be 10x slower than the "esbuild" package, so you may also not
+want to do that.
+`);
+        }
+
+        // If that didn't work too, then maybe someone installed esbuild with
+        // both the "--no-optional" and the "--ignore-scripts" flags. The fix
+        // for this is to just not do that. We don't attempt to handle this
+        // case at all.
+        //
+        // In that case we try to have a nice error message if we think we know
+        // what's happening. Otherwise we just rethrow the original error message.
         throw new Error(`The package "${pkg}" could not be found, and is needed by esbuild.
 
 If you are installing esbuild with npm, make sure that you don't specify the

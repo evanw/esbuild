@@ -1,5 +1,54 @@
 # Changelog
 
+## Unreleased
+
+* Attempt to explain why esbuild can't run ([#1819](https://github.com/evanw/esbuild/issues/1819))
+
+    People sometimes try to install esbuild on one OS and then copy the `node_modules` directory over to another OS without reinstalling. This works with JavaScript code but doesn't work with esbuild because esbuild is a native binary executable. This release attempts to offer a helpful error message when this happens. It looks like this:
+
+    ```
+    $ ./node_modules/.bin/esbuild
+    ./node_modules/esbuild/bin/esbuild:106
+              throw new Error(`
+              ^
+
+    Error:
+    You installed esbuild on another platform than the one you're currently using.
+    This won't work because esbuild is written with native code and needs to
+    install a platform-specific binary executable.
+
+    Specifically the "esbuild-linux-arm64" package is present but this platform
+    needs the "esbuild-darwin-arm64" package instead. People often get into this
+    situation by installing esbuild on Windows or macOS and copying "node_modules"
+    into a Docker image that runs Linux, or by copying "node_modules" between
+    Windows and WSL environments.
+
+    If you are installing with npm, you can try not copying the "node_modules"
+    directory when you copy the files over, and running "npm ci" or "npm install"
+    on the destination platform after the copy. Or you could consider using yarn
+    instead which has built-in support for installing a package on multiple
+    platforms simultaneously.
+
+    If you are installing with yarn, you can try listing both this platform and the
+    other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+    feature: https://yarnpkg.com/configuration/yarnrc/#supportedArchitectures
+    Keep in mind that this means multiple copies of esbuild will be present.
+
+    Another alternative is to use the "esbuild-wasm" package instead, which works
+    the same way on all platforms. But it comes with a heavy performance cost and
+    can sometimes be 10x slower than the "esbuild" package, so you may also not
+    want to do that.
+
+        at generateBinPath (./node_modules/esbuild/bin/esbuild:106:17)
+        at Object.<anonymous> (./node_modules/esbuild/bin/esbuild:161:39)
+        at Module._compile (node:internal/modules/cjs/loader:1101:14)
+        at Object.Module._extensions..js (node:internal/modules/cjs/loader:1153:10)
+        at Module.load (node:internal/modules/cjs/loader:981:32)
+        at Function.Module._load (node:internal/modules/cjs/loader:822:12)
+        at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:81:12)
+        at node:internal/main/run_main_module:17:47
+    ```
+
 ## 0.14.12
 
 * Ignore invalid `@import` rules in CSS ([#1946](https://github.com/evanw/esbuild/issues/1946))
