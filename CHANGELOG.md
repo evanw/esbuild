@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.13
 
 * Be more consistent about external paths ([#619](https://github.com/evanw/esbuild/issues/619))
 
