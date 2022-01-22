@@ -83,14 +83,14 @@ func TestCSSAtImportExternal(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
-			ExternalModules: config.ExternalModules{
-				AbsPaths: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PostResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"/external1.css": true,
 					"/external2.css": true,
 					"/external3.css": true,
 					"/external4.css": true,
 					"/external5.css": true,
-				},
+				}},
 			},
 		},
 	})
@@ -296,10 +296,10 @@ func TestExternalImportURLInCSS(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
-			ExternalModules: config.ExternalModules{
-				AbsPaths: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PostResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"/src/external.png": true,
-				},
+				}},
 			},
 		},
 	})
@@ -652,10 +652,10 @@ func TestCSSExternalQueryAndHashNoMatchIssue1822(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.css",
-			ExternalModules: config.ExternalModules{
-				Patterns: []config.WildcardPattern{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Patterns: []config.WildcardPattern{
 					{Suffix: ".png"},
-				},
+				}},
 			},
 		},
 		expectedScanLog: `entry.css: ERROR: Could not resolve "foo/bar.png?baz"
@@ -678,11 +678,11 @@ func TestCSSExternalQueryAndHashMatchIssue1822(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.css",
-			ExternalModules: config.ExternalModules{
-				Patterns: []config.WildcardPattern{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Patterns: []config.WildcardPattern{
 					{Suffix: ".png?baz"},
 					{Suffix: ".png#baz"},
-				},
+				}},
 			},
 		},
 	})

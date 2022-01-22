@@ -274,10 +274,10 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 	}
 
 	// Certain types of URLs default to being external for convenience
-	if r.isExternalPattern(importPath) ||
+	if isExplicitlyExternal := r.isExternal(r.options.ExternalSettings.PreResolve, importPath); isExplicitlyExternal ||
 
 		// "fill: url(#filter);"
-		(kind.IsFromCSS() && strings.HasPrefix(importPath, "#")) ||
+		(kind == ast.ImportURL && strings.HasPrefix(importPath, "#")) ||
 
 		// "background: url(http://example.com/images/image.png);"
 		strings.HasPrefix(importPath, "http://") ||
@@ -289,7 +289,11 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		strings.HasPrefix(importPath, "//") {
 
 		if r.debugLogs != nil {
-			r.debugLogs.addNote("Marking this path as implicitly external")
+			if isExplicitlyExternal {
+				r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", importPath))
+			} else {
+				r.debugLogs.addNote("Marking this path as implicitly external")
+			}
 		}
 
 		r.flushDebugLogs(flushDueToSuccess)
@@ -426,8 +430,11 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 	return result, debugMeta
 }
 
-func (r resolverQuery) isExternalPattern(path string) bool {
-	for _, pattern := range r.options.ExternalModules.Patterns {
+func (r resolverQuery) isExternal(matchers config.ExternalMatchers, path string) bool {
+	if _, ok := matchers.Exact[path]; ok {
+		return true
+	}
+	for _, pattern := range matchers.Patterns {
 		if len(path) >= len(pattern.Prefix)+len(pattern.Suffix) &&
 			strings.HasPrefix(path, pattern.Prefix) &&
 			strings.HasSuffix(path, pattern.Suffix) {
@@ -512,6 +519,14 @@ func (r resolverQuery) flushDebugLogs(mode flushMode) {
 }
 
 func (r resolverQuery) finalizeResolve(result *ResolveResult) {
+	if !result.IsExternal && r.isExternal(r.options.ExternalSettings.PostResolve, result.PathPair.Primary.Text) {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", result.PathPair.Primary.Text))
+		}
+		result.IsExternal = true
+		return
+	}
+
 	for _, path := range result.PathPair.iter() {
 		if path.Namespace == "file" {
 			if dirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); dirInfo != nil {
@@ -659,17 +674,6 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 			}
 		}
 
-		if r.options.ExternalModules.AbsPaths != nil && r.options.ExternalModules.AbsPaths[importPath] {
-			// If the string literal in the source text is an absolute path and has
-			// been marked as an external module, mark it as *not* an absolute path.
-			// That way we preserve the literal text in the output and don't generate
-			// a relative path from the output directory to that path.
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", importPath))
-			}
-			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}
-		}
-
 		// Run node's resolution rules (e.g. adding ".js")
 		if absolute, ok, diffCase := r.loadAsFileOrDirectory(importPath); ok {
 			return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
@@ -688,7 +692,7 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 		absPath := r.fs.Join(sourceDir, importPath)
 
 		// Check for external packages first
-		if r.options.ExternalModules.AbsPaths != nil && r.options.ExternalModules.AbsPaths[absPath] {
+		if r.isExternal(r.options.ExternalSettings.PostResolve, absPath) {
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", absPath))
 			}
@@ -720,27 +724,6 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 	}
 
 	if checkPackage {
-		// Check for external packages first
-		if r.options.ExternalModules.NodeModules != nil {
-			query := importPath
-			for {
-				if r.options.ExternalModules.NodeModules[query] {
-					if r.debugLogs != nil {
-						r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", query))
-					}
-					return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}
-				}
-
-				// If the module "foo" has been marked as external, we also want to treat
-				// paths into that module such as "foo/bar" as external too.
-				slash := strings.LastIndexByte(query, '/')
-				if slash == -1 {
-					break
-				}
-				query = query[:slash]
-			}
-		}
-
 		sourceDirInfo := r.dirInfoCached(sourceDir)
 		if sourceDirInfo == nil {
 			// Bail if the directory is missing for some reason

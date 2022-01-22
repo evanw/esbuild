@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+* Be more consistent about external paths ([#619](https://github.com/evanw/esbuild/issues/619))
+
+    The rules for marking paths as external using `--external:` grew over time as more special-cases were added. This release reworks the internal representation to be more straightforward and robust. A side effect is that wildcard patterns can now match post-resolve paths in addition to pre-resolve paths. Specifically you can now do `--external:./node_modules/*` to mark all files in the `./node_modules/` directory as external.
+
+    This is the updated logic:
+
+    * Before path resolution begins, import paths are checked against everything passed via an `--external:` flag. In addition, if something looks like a package path (i.e. doesn't start with `/` or `./` or `../`), import paths are checked to see if they have that package path as a path prefix (so `--external:@foo/bar` matches the import path `@foo/bar/baz`).
+
+    * After path resolution ends, the absolute paths are checked against everything passed via `--external:` that doesn't look like a package path (i.e. that starts with `/` or `./` or `../`). But before checking, the pattern is transformed to be relative to the current working directory.
+
 * Attempt to explain why esbuild can't run ([#1819](https://github.com/evanw/esbuild/issues/1819))
 
     People sometimes try to install esbuild on one OS and then copy the `node_modules` directory over to another OS without reinstalling. This works with JavaScript code but doesn't work with esbuild because esbuild is a native binary executable. This release attempts to offer a helpful error message when this happens. It looks like this:

@@ -912,12 +912,12 @@ func TestConditionalRequireResolve(t *testing.T) {
 			Platform:      config.PlatformNode,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"a": true,
 					"b": true,
 					"c": true,
-				},
+				}},
 			},
 		},
 	})
@@ -938,11 +938,11 @@ func TestConditionalRequire(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"a": true,
 					"c": true,
-				},
+				}},
 			},
 		},
 	})
@@ -965,11 +965,11 @@ func TestConditionalImport(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"a": true,
 					"c": true,
-				},
+				}},
 			},
 		},
 	})
@@ -2093,10 +2093,10 @@ func TestImportReExportES6Issue149(t *testing.T) {
 				Factory: config.JSXExpr{Parts: []string{"h"}},
 			},
 			AbsOutputFile: "/out.js",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"preact": true,
-				},
+				}},
 			},
 		},
 	})
@@ -2116,10 +2116,12 @@ func TestExternalModuleExclusionPackage(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"aws-sdk": true,
-				},
+				}, Patterns: []config.WildcardPattern{
+					{Prefix: "aws-sdk/"},
+				}},
 			},
 		},
 	})
@@ -2149,12 +2151,16 @@ func TestExternalModuleExclusionScopedPackage(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"@a1":       true,
 					"@b1/b2":    true,
 					"@c1/c2/c3": true,
-				},
+				}, Patterns: []config.WildcardPattern{
+					{Prefix: "@a1/"},
+					{Prefix: "@b1/b2/"},
+					{Prefix: "@c1/c2/c3/"},
+				}},
 			},
 		},
 		expectedScanLog: `index.js: ERROR: Could not resolve "@a1-a2"
@@ -2187,10 +2193,12 @@ func TestScopedExternalModuleExclusion(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"@scope/foo": true,
-				},
+				}, Patterns: []config.WildcardPattern{
+					{Prefix: "@scope/foo/"},
+				}},
 			},
 		},
 	})
@@ -2214,13 +2222,15 @@ func TestExternalModuleExclusionRelativePath(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/Users/user/project/out",
-			ExternalModules: config.ExternalModules{
-				AbsPaths: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PostResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"/Users/user/project/out/in-out-dir.js":        true,
 					"/Users/user/project/src/nested/folder/foo.js": true,
 					"/Users/user/project/src/sha256.min.js":        true,
-					"/api/config?a=1&b=2":                          true,
-				},
+				}},
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"/api/config?a=1&b=2": true,
+				}},
 			},
 		},
 	})
@@ -2405,12 +2415,12 @@ func TestExternalWithWildcard(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
-			ExternalModules: config.ExternalModules{
-				Patterns: []config.WildcardPattern{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Patterns: []config.WildcardPattern{
 					{Prefix: "/assets/"},
 					{Suffix: ".png"},
 					{Prefix: "/dir/", Suffix: "/file.gif"},
-				},
+				}},
 			},
 		},
 		expectedScanLog: `entry.js: ERROR: Could not resolve "/sassets/images/test.jpg"
@@ -2899,11 +2909,11 @@ func TestReExportDefaultExternalES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			OutputFormat:  config.FormatESModule,
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"foo": true,
 					"bar": true,
-				},
+				}},
 			},
 		},
 	})
@@ -2925,11 +2935,11 @@ func TestReExportDefaultExternalCommonJS(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			OutputFormat:  config.FormatCommonJS,
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"foo": true,
 					"bar": true,
-				},
+				}},
 			},
 		},
 	})
@@ -3814,14 +3824,14 @@ func TestRequireResolve(t *testing.T) {
 			Platform:      config.PlatformNode,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-			ExternalModules: config.ExternalModules{
-				AbsPaths: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PostResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"/external-file": true,
-				},
-				NodeModules: map[string]bool{
+				}},
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"external-pkg":        true,
 					"@scope/external-pkg": true,
-				},
+				}},
 			},
 		},
 		expectedScanLog: `entry.js: WARNING: "./present-file" should be marked as external for use with "require.resolve"
@@ -3941,10 +3951,10 @@ func TestInject(t *testing.T) {
 				"/collision.js",
 				"/re-export.js",
 			},
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"external-pkg": true,
-				},
+				}},
 			},
 		},
 	})
@@ -4105,12 +4115,12 @@ func TestInjectImportOrder(t *testing.T) {
 				"/inject-1.js",
 				"/inject-2.js",
 			},
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"first":  true,
 					"second": true,
 					"third":  true,
-				},
+				}},
 			},
 		},
 	})
@@ -4564,10 +4574,10 @@ func TestExternalES6ConvertedToCommonJS(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			OutputFormat:  config.FormatESModule,
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"x": true,
-				},
+				}},
 			},
 		},
 	})
@@ -4794,10 +4804,10 @@ func TestImportNamespaceThisValue(t *testing.T) {
 			Mode:         config.ModeBundle,
 			OutputFormat: config.FormatCommonJS,
 			AbsOutputDir: "/out",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"external": true,
-				},
+				}},
 			},
 		},
 	})
@@ -4842,10 +4852,10 @@ func TestQuotedProperty(t *testing.T) {
 			Mode:         config.ModeBundle,
 			OutputFormat: config.FormatCommonJS,
 			AbsOutputDir: "/out",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"ext": true,
-				},
+				}},
 			},
 		},
 	})
@@ -4865,10 +4875,10 @@ func TestQuotedPropertyMangle(t *testing.T) {
 			OutputFormat: config.FormatCommonJS,
 			AbsOutputDir: "/out",
 			MangleSyntax: true,
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"ext": true,
-				},
+				}},
 			},
 		},
 	})
@@ -4932,10 +4942,10 @@ func TestRequireShimSubstitution(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"some-path": true,
-				},
+				}},
 			},
 			UnsupportedJSFeatures: compat.DynamicImport,
 		},
@@ -5279,10 +5289,10 @@ func TestWarnCommonJSExportsInESMBundle(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 			OutputFormat: config.FormatCommonJS,
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"bar": true,
-				},
+				}},
 			},
 		},
 		expectedScanLog: `cjs-in-esm.js: WARNING: The CommonJS "exports" variable is treated as a global variable in an ECMAScript module and may not work as expected

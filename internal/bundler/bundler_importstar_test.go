@@ -1370,10 +1370,10 @@ func TestReExportStarExternalIIFE(t *testing.T) {
 			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
 			GlobalName:    []string{"mod"},
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"foo": true,
-				},
+				}},
 			},
 		},
 	})
@@ -1391,10 +1391,10 @@ func TestReExportStarExternalES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"foo": true,
-				},
+				}},
 			},
 		},
 	})
@@ -1412,10 +1412,10 @@ func TestReExportStarExternalCommonJS(t *testing.T) {
 			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"foo": true,
-				},
+				}},
 			},
 		},
 	})
@@ -1483,10 +1483,10 @@ func TestReExportStarAsExternalIIFE(t *testing.T) {
 			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
 			GlobalName:    []string{"mod"},
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"foo": true,
-				},
+				}},
 			},
 		},
 	})
@@ -1504,10 +1504,10 @@ func TestReExportStarAsExternalES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"foo": true,
-				},
+				}},
 			},
 		},
 	})
@@ -1525,10 +1525,10 @@ func TestReExportStarAsExternalCommonJS(t *testing.T) {
 			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"foo": true,
-				},
+				}},
 			},
 		},
 	})
@@ -1655,10 +1655,10 @@ func TestImportDefaultNamespaceComboIssue446(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"external": true,
-				},
+				}},
 			},
 		},
 		expectedCompileLog: `internal-def.js: WARNING: Import "def" will always be undefined because there is no matching export in "internal.js"

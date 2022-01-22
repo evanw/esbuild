@@ -1732,11 +1732,11 @@ func TestLowerExportStarAsNameCollision(t *testing.T) {
 			Mode:                  config.ModeBundle,
 			UnsupportedJSFeatures: es(2019),
 			AbsOutputFile:         "/out.js",
-			ExternalModules: config.ExternalModules{
-				NodeModules: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"path1": true,
 					"path2": true,
-				},
+				}},
 			},
 		},
 	})

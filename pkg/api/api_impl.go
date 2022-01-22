@@ -382,27 +382,38 @@ func validateGlobalName(log logger.Log, text string) []string {
 	return nil
 }
 
-func validateExternals(log logger.Log, fs fs.FS, paths []string) config.ExternalModules {
-	result := config.ExternalModules{
-		NodeModules: make(map[string]bool),
-		AbsPaths:    make(map[string]bool),
+func validateExternals(log logger.Log, fs fs.FS, paths []string) config.ExternalSettings {
+	result := config.ExternalSettings{
+		PreResolve:  config.ExternalMatchers{Exact: make(map[string]bool)},
+		PostResolve: config.ExternalMatchers{Exact: make(map[string]bool)},
 	}
+
 	for _, path := range paths {
 		if index := strings.IndexByte(path, '*'); index != -1 {
+			// Wildcard behavior
 			if strings.ContainsRune(path[index+1:], '*') {
 				log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("External path %q cannot have more than one \"*\" wildcard", path))
 			} else {
-				result.Patterns = append(result.Patterns, config.WildcardPattern{
-					Prefix: path[:index],
-					Suffix: path[index+1:],
-				})
+				result.PreResolve.Patterns = append(result.PreResolve.Patterns, config.WildcardPattern{Prefix: path[:index], Suffix: path[index+1:]})
+				if !resolver.IsPackagePath(path) {
+					if absPath := validatePath(log, fs, path, "external path"); absPath != "" {
+						if absIndex := strings.IndexByte(absPath, '*'); absIndex != -1 && !strings.ContainsRune(absPath[absIndex+1:], '*') {
+							result.PostResolve.Patterns = append(result.PostResolve.Patterns, config.WildcardPattern{Prefix: path[:index], Suffix: path[index+1:]})
+						}
+					}
+				}
 			}
-		} else if resolver.IsPackagePath(path) {
-			result.NodeModules[path] = true
-		} else if absPath := validatePath(log, fs, path, "external path"); absPath != "" {
-			result.AbsPaths[absPath] = true
+		} else {
+			// Non-wildcard behavior
+			result.PreResolve.Exact[path] = true
+			if resolver.IsPackagePath(path) {
+				result.PreResolve.Patterns = append(result.PreResolve.Patterns, config.WildcardPattern{Prefix: path + "/"})
+			} else if absPath := validatePath(log, fs, path, "external path"); absPath != "" {
+				result.PostResolve.Exact[absPath] = true
+			}
 		}
 	}
+
 	return result
 }
 
@@ -890,7 +901,7 @@ func rebuildImpl(
 		OutputExtensionCSS:    outCSS,
 		ExtensionToLoader:     validateLoaders(log, buildOpts.Loader),
 		ExtensionOrder:        validateResolveExtensions(log, buildOpts.ResolveExtensions),
-		ExternalModules:       validateExternals(log, realFS, buildOpts.External),
+		ExternalSettings:      validateExternals(log, realFS, buildOpts.External),
 		TsConfigOverride:      validatePath(log, realFS, buildOpts.Tsconfig, "tsconfig path"),
 		MainFields:            buildOpts.MainFields,
 		Conditions:            append([]string{}, buildOpts.Conditions...),
@@ -968,7 +979,7 @@ func rebuildImpl(
 
 	if !buildOpts.Bundle {
 		// Disallow bundle-only options when not bundling
-		if len(options.ExternalModules.NodeModules) > 0 || len(options.ExternalModules.AbsPaths) > 0 {
+		if options.ExternalSettings.PreResolve.HasMatchers() || options.ExternalSettings.PostResolve.HasMatchers() {
 			log.Add(logger.Error, nil, logger.Range{}, "Cannot use \"external\" without \"bundle\"")
 		}
 	} else if options.OutputFormat == config.FormatPreserve {

@@ -1082,10 +1082,10 @@ func TestTsconfigPreserveUnusedImports(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
-			ExternalModules: config.ExternalModules{
-				AbsPaths: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PostResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"/Users/user/project/src/foo": true,
-				},
+				}},
 			},
 		},
 	})
@@ -1111,10 +1111,10 @@ func TestTsconfigImportsNotUsedAsValuesPreserve(t *testing.T) {
 			Mode:          config.ModeConvertFormat,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/Users/user/project/out.js",
-			ExternalModules: config.ExternalModules{
-				AbsPaths: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PostResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"/Users/user/project/src/foo": true,
-				},
+				}},
 			},
 		},
 	})
@@ -1140,10 +1140,10 @@ func TestTsconfigPreserveValueImports(t *testing.T) {
 			Mode:          config.ModeConvertFormat,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/Users/user/project/out.js",
-			ExternalModules: config.ExternalModules{
-				AbsPaths: map[string]bool{
+			ExternalSettings: config.ExternalSettings{
+				PostResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"/Users/user/project/src/foo": true,
-				},
+				}},
 			},
 		},
 	})

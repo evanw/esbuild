@@ -165,10 +165,18 @@ type WildcardPattern struct {
 	Suffix string
 }
 
-type ExternalModules struct {
-	NodeModules map[string]bool
-	AbsPaths    map[string]bool
-	Patterns    []WildcardPattern
+type ExternalMatchers struct {
+	Exact    map[string]bool
+	Patterns []WildcardPattern
+}
+
+func (matchers ExternalMatchers) HasMatchers() bool {
+	return len(matchers.Exact) > 0 || len(matchers.Patterns) > 0
+}
+
+type ExternalSettings struct {
+	PreResolve  ExternalMatchers
+	PostResolve ExternalMatchers
 }
 
 type Mode uint8
@@ -196,11 +204,11 @@ type Options struct {
 	// unsupported feature sets above. It's used for error messages.
 	OriginalTargetEnv string
 
-	ExtensionOrder  []string
-	MainFields      []string
-	Conditions      []string
-	AbsNodePaths    []string // The "NODE_PATH" variable from Node.js
-	ExternalModules ExternalModules
+	ExtensionOrder   []string
+	MainFields       []string
+	Conditions       []string
+	AbsNodePaths     []string // The "NODE_PATH" variable from Node.js
+	ExternalSettings ExternalSettings
 
 	AbsOutputFile      string
 	AbsOutputDir       string
