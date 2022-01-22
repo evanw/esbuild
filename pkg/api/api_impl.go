@@ -398,7 +398,7 @@ func validateExternals(log logger.Log, fs fs.FS, paths []string) config.External
 				if !resolver.IsPackagePath(path) {
 					if absPath := validatePath(log, fs, path, "external path"); absPath != "" {
 						if absIndex := strings.IndexByte(absPath, '*'); absIndex != -1 && !strings.ContainsRune(absPath[absIndex+1:], '*') {
-							result.PostResolve.Patterns = append(result.PostResolve.Patterns, config.WildcardPattern{Prefix: path[:index], Suffix: path[index+1:]})
+							result.PostResolve.Patterns = append(result.PostResolve.Patterns, config.WildcardPattern{Prefix: absPath[:absIndex], Suffix: absPath[absIndex+1:]})
 						}
 					}
 				}

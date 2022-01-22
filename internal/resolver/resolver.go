@@ -435,6 +435,9 @@ func (r resolverQuery) isExternal(matchers config.ExternalMatchers, path string)
 		return true
 	}
 	for _, pattern := range matchers.Patterns {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("Checking %q against the external pattern %q", path, pattern.Prefix+"*"+pattern.Suffix))
+		}
 		if len(path) >= len(pattern.Prefix)+len(pattern.Suffix) &&
 			strings.HasPrefix(path, pattern.Prefix) &&
 			strings.HasSuffix(path, pattern.Suffix) {

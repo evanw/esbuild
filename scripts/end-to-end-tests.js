@@ -1430,6 +1430,30 @@
     }),
   )
 
+  // Test external wildcards
+  tests.push(
+    test(['--bundle', 'src/foo.js', '--outfile=node.js', '--external:./src/dir/*', '--format=cjs'], {
+      'src/foo.js': `
+        function foo() {
+          require('./dir/bar')
+        }
+        let worked = false
+        try {
+          foo()
+          worked = true
+        } catch (e) {
+        }
+        if (worked) throw 'fail'
+      `,
+    }),
+    test(['--bundle', 'src/foo.js', '--outfile=node.js', '--external:./src/dir/*', '--format=cjs'], {
+      'src/foo.js': `
+        require('./dir/bar')
+      `,
+      'src/dir/bar.js': ``,
+    }),
+  )
+
   // Test external CommonJS export
   tests.push(
     test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs'], {
