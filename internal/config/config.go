@@ -37,17 +37,6 @@ const (
 	PlatformNeutral
 )
 
-type StrictOptions struct {
-	// Loose:  "class Foo { foo = 1 }" => "class Foo { constructor() { this.foo = 1; } }"
-	// Strict: "class Foo { foo = 1 }" => "class Foo { constructor() { __publicField(this, 'foo', 1); } }"
-	//
-	// The disadvantage of strictness here is code bloat and performance. The
-	// advantage is following the class field specification accurately. For
-	// example, loose mode will incorrectly trigger setter methods while strict
-	// mode won't.
-	ClassFields bool
-}
-
 type SourceMap uint8
 
 const (
