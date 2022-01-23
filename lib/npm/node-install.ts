@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { downloadedBinPath, ESBUILD_BINARY_PATH, pkgAndSubpathForCurrentPlatform } from './node-platform';
 
 import fs = require('fs');
