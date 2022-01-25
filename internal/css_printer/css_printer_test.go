@@ -145,9 +145,11 @@ func TestNestedSelector(t *testing.T) {
 }
 
 func TestBadQualifiedRules(t *testing.T) {
-	expectPrinted(t, "$bad: rule;", "$bad: rule {\n}\n")
-	expectPrinted(t, "a { div.major { color: blue } color: red }", "a {\n  div.major { color: blue };\n  color: red;\n}\n")
-	expectPrinted(t, "a { div:hover { color: blue } color: red }", "a {\n  div: hover { color: blue };\n  color: red;\n}\n")
+	expectPrinted(t, ";", "; {\n}\n")
+	expectPrinted(t, "$bad: rule;", "$bad: rule; {\n}\n")
+	expectPrinted(t, "a {}; b {};", "a {\n}\n; b {\n}\n; {\n}\n")
+	expectPrinted(t, "a { div.major { color: blue } color: red }", "a {\n  div.major { color: blue } color: red;\n}\n")
+	expectPrinted(t, "a { div:hover { color: blue } color: red }", "a {\n  div: hover { color: blue } color: red;\n}\n")
 	expectPrinted(t, "a { div:hover { color: blue }; color: red }", "a {\n  div: hover { color: blue };\n  color: red;\n}\n")
 
 	expectPrinted(t, "$bad{ color: red }", "$bad {\n  color: red;\n}\n")

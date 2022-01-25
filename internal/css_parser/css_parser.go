@@ -1295,15 +1295,6 @@ loop:
 		case css_lexer.TOpenBrace, css_lexer.TEndOfFile:
 			break loop
 
-		case css_lexer.TSemicolon:
-			// Error recovery if the block is omitted (likely some CSS meta-syntax)
-			if !isAlreadyInvalid {
-				p.expect(css_lexer.TOpenBrace)
-			}
-			prelude := p.convertTokens(p.tokens[preludeStart:p.index])
-			p.advance()
-			return css_ast.Rule{Loc: preludeLoc, Data: &css_ast.RQualified{Prelude: prelude}}
-
 		default:
 			p.parseComponentValue()
 		}
@@ -1341,15 +1332,6 @@ stop:
 	for {
 		switch p.current().Kind {
 		case css_lexer.TEndOfFile, css_lexer.TSemicolon, css_lexer.TCloseBrace:
-			break stop
-
-		case css_lexer.TOpenBrace:
-			// Error recovery if there is an unexpected block (likely some CSS meta-syntax)
-			p.parseComponentValue()
-			p.eat(css_lexer.TWhitespace)
-			if ok && !p.peek(css_lexer.TSemicolon) {
-				p.expect(css_lexer.TSemicolon)
-			}
 			break stop
 
 		default:

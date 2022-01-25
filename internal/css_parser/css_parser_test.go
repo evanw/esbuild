@@ -738,9 +738,10 @@ func TestBadQualifiedRules(t *testing.T) {
 	expectParseError(t, "$bad: rule;", "<stdin>: WARNING: Unexpected \"$\"\n")
 	expectParseError(t, "$bad { color: red }", "<stdin>: WARNING: Unexpected \"$\"\n")
 	expectParseError(t, "a { div.major { color: blue } color: red }", "<stdin>: WARNING: Expected \":\" but found \".\"\n")
-	expectParseError(t, "a { div:hover { color: blue } color: red }", "<stdin>: WARNING: Expected \";\"\n")
+	expectParseError(t, "a { div:hover { color: blue } color: red }", "")
 	expectParseError(t, "a { div:hover { color: blue }; color: red }", "")
 	expectParseError(t, "a { div:hover { color: blue } ; color: red }", "")
+	expectParseError(t, "! { x: {} }", "<stdin>: WARNING: Unexpected \"!\"\n")
 }
 
 func TestAtRule(t *testing.T) {
