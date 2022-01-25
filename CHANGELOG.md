@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.14
 
 * Fix bug with filename hashes and the `file` loader ([#1957](https://github.com/evanw/esbuild/issues/1957))
 
