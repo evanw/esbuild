@@ -374,7 +374,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 		if config.HasPlaceholder(chunk.finalTemplate, config.HashPlaceholder) {
 			// Compute the final hash using the isolated hashes of the dependencies
 			hash := xxhash.New()
-			appendIsolatedHashesForImportedChunks(hash, chunks, uint32(chunkIndex), visited, ^uint32(chunkIndex))
+			c.appendIsolatedHashesForImportedChunks(hash, chunks, uint32(chunkIndex), visited, ^uint32(chunkIndex))
 			finalBytes = hash.Sum(finalBytes[:0])
 			finalString := hashForFileName(finalBytes)
 			hashSubstitution = &finalString
@@ -5200,7 +5200,7 @@ func maybeAppendLegalComments(
 	}
 }
 
-func appendIsolatedHashesForImportedChunks(
+func (c *linkerContext) appendIsolatedHashesForImportedChunks(
 	hash hash.Hash,
 	chunks []chunkInfo,
 	chunkIndex uint32,
@@ -5219,7 +5219,24 @@ func appendIsolatedHashesForImportedChunks(
 
 	// Visit the other chunks that this chunk imports before visiting this chunk
 	for _, chunkImport := range chunk.crossChunkImports {
-		appendIsolatedHashesForImportedChunks(hash, chunks, chunkImport.chunkIndex, visited, visitedKey)
+		c.appendIsolatedHashesForImportedChunks(hash, chunks, chunkImport.chunkIndex, visited, visitedKey)
+	}
+
+	// Mix in hashes for referenced asset paths (i.e. the "file" loader)
+	for _, piece := range chunk.intermediateOutput.pieces {
+		if piece.kind == outputPieceAssetIndex {
+			file := c.graph.Files[piece.index]
+			if len(file.InputFile.AdditionalFiles) != 1 {
+				panic("Internal error")
+			}
+			relPath, _ := c.fs.Rel(c.options.AbsOutputDir, file.InputFile.AdditionalFiles[0].AbsPath)
+
+			// Make sure to always use forward slashes, even on Windows
+			relPath = strings.ReplaceAll(relPath, "\\", "/")
+
+			// Mix in the hash for the relative path, which ends up as a JS string
+			hashWriteLengthPrefixed(hash, []byte(relPath))
+		}
 	}
 
 	// Mix in the hash for this chunk

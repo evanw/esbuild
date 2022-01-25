@@ -583,6 +583,77 @@ let buildTests = {
     assert.strictEqual(result.__esModule, true)
   },
 
+  async fileLoaderEntryHash({ esbuild, testDir }) {
+    const input = path.join(testDir, 'index.js')
+    const data = path.join(testDir, 'data.bin')
+    const outdir = path.join(testDir, 'out')
+    await writeFileAsync(input, `export {default as value} from ${JSON.stringify(data)}`)
+    await writeFileAsync(data, `stuff`)
+    const result1 = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outdir,
+      format: 'cjs',
+      loader: { '.bin': 'file' },
+      entryNames: '[name]-[hash]',
+      write: false,
+    })
+    await writeFileAsync(data, `more stuff`)
+    const result2 = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outdir,
+      format: 'cjs',
+      loader: { '.bin': 'file' },
+      entryNames: '[name]-[hash]',
+      write: false,
+    })
+    assert.strictEqual(result1.outputFiles.length, 2)
+    assert.strictEqual(result2.outputFiles.length, 2)
+
+    // Make sure each path is unique. This tests for a bug where the hash in
+    // the output filename corresponding to the "index.js" entry point wasn't
+    // including the filename for the "file" loader.
+    assert.strictEqual(new Set(result1.outputFiles.concat(result2.outputFiles).map(x => x.path)).size, 4)
+  },
+
+  async fileLoaderEntryHashNoChange({ esbuild, testDir }) {
+    const input = path.join(testDir, 'index.js')
+    const data = path.join(testDir, 'data.bin')
+    const outdir = path.join(testDir, 'out')
+    await writeFileAsync(input, `export {default as value} from ${JSON.stringify(data)}`)
+    await writeFileAsync(data, `stuff`)
+    const result1 = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outdir,
+      format: 'cjs',
+      loader: { '.bin': 'file' },
+      entryNames: '[name]-[hash]',
+      assetNames: '[name]',
+      write: false,
+    })
+    await writeFileAsync(data, `more stuff`)
+    const result2 = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outdir,
+      format: 'cjs',
+      loader: { '.bin': 'file' },
+      entryNames: '[name]-[hash]',
+      assetNames: '[name]',
+      write: false,
+    })
+    assert.strictEqual(result1.outputFiles.length, 2)
+    assert.strictEqual(result2.outputFiles.length, 2)
+
+    // The paths should be the same. The hash augmentation from the previous
+    // test should only be checking for a file name difference, not a difference
+    // in content, because the JS output file only contains the file name for
+    // something using the "file" loader.
+    assert.strictEqual(new Set(result1.outputFiles.concat(result2.outputFiles).map(x => x.path)).size, 2)
+  },
+
   async splittingPublicPath({ esbuild, testDir }) {
     const input1 = path.join(testDir, 'a', 'in1.js')
     const input2 = path.join(testDir, 'b', 'in2.js')
