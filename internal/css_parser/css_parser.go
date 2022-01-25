@@ -739,22 +739,32 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 		}
 
 		p.eat(css_lexer.TWhitespace)
+		blockStart := p.index
+
 		if p.expect(css_lexer.TOpenBrace) {
 			var blocks []css_ast.KeyframeBlock
 
-		blocks:
+		badSyntax:
 			for {
 				switch p.current().Kind {
 				case css_lexer.TWhitespace:
 					p.advance()
 					continue
 
-				case css_lexer.TCloseBrace, css_lexer.TEndOfFile:
-					break blocks
+				case css_lexer.TCloseBrace:
+					p.advance()
+					return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtKeyframes{
+						AtToken: atToken,
+						Name:    name,
+						Blocks:  blocks,
+					}}
+
+				case css_lexer.TEndOfFile:
+					break badSyntax
 
 				case css_lexer.TOpenBrace:
 					p.expect(css_lexer.TPercentage)
-					p.parseComponentValue()
+					break badSyntax
 
 				default:
 					var selectors []string
@@ -767,8 +777,13 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 							p.advance()
 							continue
 
-						case css_lexer.TOpenBrace, css_lexer.TEndOfFile:
+						case css_lexer.TOpenBrace:
+							p.advance()
 							break selectors
+
+						case css_lexer.TCloseBrace, css_lexer.TEndOfFile:
+							p.expect(css_lexer.TOpenBrace)
+							break badSyntax
 
 						case css_lexer.TIdent, css_lexer.TPercentage:
 							text := p.decoded()
@@ -786,38 +801,46 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 							selectors = append(selectors, text)
 							p.advance()
 
+							// Keyframe selectors are comma-separated
+							p.eat(css_lexer.TWhitespace)
+							if p.eat(css_lexer.TComma) {
+								p.eat(css_lexer.TWhitespace)
+								if k := p.current().Kind; k != css_lexer.TIdent && k != css_lexer.TPercentage {
+									p.expect(css_lexer.TPercentage)
+									break badSyntax
+								}
+							} else if k := p.current().Kind; k != css_lexer.TOpenBrace && k != css_lexer.TCloseBrace && k != css_lexer.TEndOfFile {
+								p.expect(css_lexer.TComma)
+								break badSyntax
+							}
+
 						default:
 							p.expect(css_lexer.TPercentage)
-							p.parseComponentValue()
-						}
-
-						p.eat(css_lexer.TWhitespace)
-						if t.Kind != css_lexer.TComma && !p.peek(css_lexer.TOpenBrace) {
-							p.expect(css_lexer.TComma)
+							break badSyntax
 						}
 					}
 
-					if p.expect(css_lexer.TOpenBrace) {
-						rules := p.parseListOfDeclarations()
-						p.expect(css_lexer.TCloseBrace)
+					rules := p.parseListOfDeclarations()
+					p.expect(css_lexer.TCloseBrace)
 
-						// "@keyframes { from {} to { color: red } }" => "@keyframes { to { color: red } }"
-						if !p.options.MangleSyntax || len(rules) > 0 {
-							blocks = append(blocks, css_ast.KeyframeBlock{
-								Selectors: selectors,
-								Rules:     rules,
-							})
-						}
+					// "@keyframes { from {} to { color: red } }" => "@keyframes { to { color: red } }"
+					if !p.options.MangleSyntax || len(rules) > 0 {
+						blocks = append(blocks, css_ast.KeyframeBlock{
+							Selectors: selectors,
+							Rules:     rules,
+						})
 					}
 				}
 			}
 
+			// Otherwise, finish parsing the body and return an unknown rule
+			for !p.peek(css_lexer.TCloseBrace) && !p.peek(css_lexer.TEndOfFile) {
+				p.parseComponentValue()
+			}
 			p.expect(css_lexer.TCloseBrace)
-			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtKeyframes{
-				AtToken: atToken,
-				Name:    name,
-				Blocks:  blocks,
-			}}
+			prelude := p.convertTokens(p.tokens[preludeStart:blockStart])
+			block, _ := p.convertTokensHelper(p.tokens[blockStart:p.index], css_lexer.TEndOfFile, convertTokensOpts{allowImports: true})
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}}
 		}
 
 	case "nest":

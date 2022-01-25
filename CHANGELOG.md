@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+* Make parsing of invalid `@keyframes` rules more robust ([#1959](https://github.com/evanw/esbuild/issues/1959))
+
+    This improves esbuild's parsing of certain malformed `@keyframes` rules to avoid them affecting the following rule. This fix only affects invalid CSS files, and does not change any behavior for files containing valid CSS. Here's an example of the fix:
+
+    ```css
+    /* Original code */
+    @keyframes x { . }
+    @keyframes y { 1% { a: b; } }
+
+    /* Old output (with --minify) */
+    @keyframes x{y{1% {a: b;}}}
+
+    /* New output (with --minify) */
+    @keyframes x{.}@keyframes y{1%{a:b}}
+    ```
+
 ## 0.14.13
 
 * Be more consistent about external paths ([#619](https://github.com/evanw/esbuild/issues/619))
