@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Prefer the `import` condition for entry points ([#1956](https://github.com/evanw/esbuild/issues/1956))
+
+    The `exports` field in `package.json` maps package subpaths to file paths. The mapping can be conditional, which lets it vary in different situations. For example, you can have an `import` condition that applies when the subpath originated from a JS import statement, and a `require` condition that applies when the subpath originated from a JS require call. These are supposed to be mutually exclusive according to the specification: https://nodejs.org/api/packages.html#conditional-exports.
+
+    However, there's a situation with esbuild where it's not immediately obvious which one should be applied: when a package name is specified as an entry point. For example, this can happen if you do `esbuild --bundle some-pkg` on the command line. In this situation `some-pkg` does not originate from either a JS import statement or a JS require call. Previously esbuild just didn't apply the `import` or `require` conditions. But that could result in path resolution failure if the package doesn't provide a back-up `default` condition, as is the case with the `is-plain-object` package.
+
+    Starting with this release, esbuild will now use the `import` condition in this case. This appears to be how Webpack and Rollup handle this situation so this change makes esbuild consistent with other tools in the ecosystem. Parcel (the other major bundler) just doesn't handle this case at all so esbuild's behavior is not at odds with Parcel's behavior here.
+
 * Make parsing of invalid `@keyframes` rules more robust ([#1959](https://github.com/evanw/esbuild/issues/1959))
 
     This improves esbuild's parsing of certain malformed `@keyframes` rules to avoid them affecting the following rule. This fix only affects invalid CSS files, and does not change any behavior for files containing valid CSS. Here's an example of the fix:

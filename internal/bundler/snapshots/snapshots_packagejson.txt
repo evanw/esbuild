@@ -499,6 +499,24 @@ TestPackageJsonExportsDefaultOverImportAndRequire
 console.log("SUCCESS");
 
 ================================================================================
+TestPackageJsonExportsEntryPointImportOverRequire
+---------- /out.js ----------
+// node_modules/pkg/import.js
+console.log("SUCCESS");
+
+================================================================================
+TestPackageJsonExportsEntryPointMainOnly
+---------- /out.js ----------
+// node_modules/pkg/main.js
+console.log("SUCCESS");
+
+================================================================================
+TestPackageJsonExportsEntryPointModuleOverMain
+---------- /out.js ----------
+// node_modules/pkg/module.js
+console.log("SUCCESS");
+
+================================================================================
 TestPackageJsonExportsImportOverRequire
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/pkg/import.js

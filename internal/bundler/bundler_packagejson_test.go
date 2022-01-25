@@ -1490,6 +1490,118 @@ func TestPackageJsonExportsDefaultOverImportAndRequire(t *testing.T) {
 	})
 }
 
+func TestPackageJsonExportsEntryPointImportOverRequire(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"import": "./import.js",
+						"require": "./require.js"
+					},
+					"module": "./module.js",
+					"main": "./main.js"
+				}
+			`,
+			"/node_modules/pkg/import.js": `
+				console.log('SUCCESS')
+			`,
+			"/node_modules/pkg/require.js": `
+				console.log('FAILURE')
+			`,
+			"/node_modules/pkg/module.js": `
+				console.log('FAILURE')
+			`,
+			"/node_modules/pkg/main.js": `
+				console.log('FAILURE')
+			`,
+		},
+		entryPaths: []string{"pkg"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonExportsEntryPointRequireOnly(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"require": "./require.js"
+					},
+					"module": "./module.js",
+					"main": "./main.js"
+				}
+			`,
+			"/node_modules/pkg/require.js": `
+				console.log('FAILURE')
+			`,
+			"/node_modules/pkg/module.js": `
+				console.log('FAILURE')
+			`,
+			"/node_modules/pkg/main.js": `
+				console.log('FAILURE')
+			`,
+		},
+		entryPaths: []string{"pkg"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `ERROR: Could not resolve "pkg"
+node_modules/pkg/package.json: NOTE: The path "." is not currently exported by package "pkg":
+node_modules/pkg/package.json: NOTE: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import"):
+`,
+	})
+}
+
+func TestPackageJsonExportsEntryPointModuleOverMain(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/node_modules/pkg/package.json": `
+				{
+					"module": "./module.js",
+					"main": "./main.js"
+				}
+			`,
+			"/node_modules/pkg/module.js": `
+				console.log('SUCCESS')
+			`,
+			"/node_modules/pkg/main.js": `
+				console.log('FAILURE')
+			`,
+		},
+		entryPaths: []string{"pkg"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonExportsEntryPointMainOnly(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/node_modules/pkg/package.json": `
+				{
+					"main": "./main.js"
+				}
+			`,
+			"/node_modules/pkg/main.js": `
+				console.log('SUCCESS')
+			`,
+		},
+		entryPaths: []string{"pkg"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestPackageJsonExportsBrowser(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{

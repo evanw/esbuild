@@ -1679,6 +1679,15 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 							conditions = r.esmConditionsImport
 						case ast.ImportRequire, ast.ImportRequireResolve:
 							conditions = r.esmConditionsRequire
+						case ast.ImportEntryPoint:
+							// Treat entry points as imports instead of requires for consistency with
+							// Webpack and Rollup. More information:
+							//
+							// * https://github.com/evanw/esbuild/issues/1956
+							// * https://github.com/nodejs/node/issues/41686
+							// * https://github.com/evanw/entry-point-resolve-test
+							//
+							conditions = r.esmConditionsImport
 						}
 
 						// Resolve against the path "/", then join it with the absolute
