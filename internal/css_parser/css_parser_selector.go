@@ -154,7 +154,7 @@ subclassSelectors:
 	for {
 		switch p.current().Kind {
 		case css_lexer.THash:
-			if !p.current().IsID {
+			if (p.current().Flags & css_lexer.IsID) == 0 {
 				break subclassSelectors
 			}
 			name := p.decoded()

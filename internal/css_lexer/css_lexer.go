@@ -107,6 +107,13 @@ func (t T) IsNumeric() bool {
 	return t == TNumber || t == TPercentage || t == TDimension
 }
 
+type TokenFlags uint8
+
+const (
+	IsID TokenFlags = 1 << iota
+	DidWarnAboutSingleLineComment
+)
+
 // This token struct is designed to be memory-efficient. It just references a
 // range in the input file instead of directly containing the substring of text
 // since a range takes up less memory than a string.
@@ -114,7 +121,7 @@ type Token struct {
 	Range      logger.Range // 8 bytes
 	UnitOffset uint16       // 2 bytes
 	Kind       T            // 1 byte
-	IsID       bool         // 1 byte
+	Flags      TokenFlags   // 1 byte
 }
 
 func (token Token) DecodedText(contents string) string {
@@ -159,6 +166,7 @@ type lexer struct {
 	tracker                 logger.LineColumnTracker
 	approximateNewlineCount int
 	current                 int
+	oldSingleLineCommentEnd logger.Loc
 	codePoint               rune
 	Token                   Token
 }
@@ -264,9 +272,19 @@ func (lexer *lexer) next() {
 				lexer.consumeToEndOfMultiLineComment(lexer.Token.Range)
 				continue
 			case '/':
-				lexer.step()
-				lexer.consumeToEndOfSingleLineComment()
-				continue
+				// Warn when people use "//" comments, which are invalid in CSS
+				loc := lexer.Token.Range.Loc
+				if loc.Start >= lexer.oldSingleLineCommentEnd.Start {
+					contents := lexer.source.Contents
+					end := lexer.current
+					for end < len(contents) && !isNewline(rune(contents[end])) {
+						end++
+					}
+					lexer.log.Add(logger.Warning, &lexer.tracker, logger.Range{Loc: loc, Len: 2},
+						"Comments in CSS use \"/* ... */\" instead of \"//\"")
+					lexer.oldSingleLineCommentEnd.Start = int32(end)
+					lexer.Token.Flags |= DidWarnAboutSingleLineComment
+				}
 			}
 			lexer.Token.Kind = TDelimSlash
 
@@ -294,7 +312,7 @@ func (lexer *lexer) next() {
 			if IsNameContinue(lexer.codePoint) || lexer.isValidEscape() {
 				lexer.Token.Kind = THash
 				if lexer.wouldStartIdentifier() {
-					lexer.Token.IsID = true
+					lexer.Token.Flags |= IsID
 				}
 				lexer.consumeName()
 			} else {
@@ -512,13 +530,6 @@ func containsAtPreserveOrAtLicense(text string) bool {
 		}
 	}
 	return false
-}
-
-func (lexer *lexer) consumeToEndOfSingleLineComment() {
-	for !isNewline(lexer.codePoint) && lexer.codePoint != eof {
-		lexer.step()
-	}
-	lexer.log.Add(logger.Warning, &lexer.tracker, lexer.Token.Range, "Comments in CSS use \"/* ... */\" instead of \"//\"")
 }
 
 func (lexer *lexer) isValidEscape() bool {

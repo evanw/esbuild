@@ -117,6 +117,9 @@ func (p *parser) expect(kind css_lexer.T) bool {
 		return true
 	}
 	t := p.current()
+	if (t.Flags & css_lexer.DidWarnAboutSingleLineComment) != 0 {
+		return false
+	}
 
 	var text string
 	var suggestion string
@@ -152,7 +155,7 @@ func (p *parser) expect(kind css_lexer.T) bool {
 }
 
 func (p *parser) unexpected() {
-	if t := p.current(); t.Range.Loc.Start > p.prevError.Start {
+	if t := p.current(); t.Range.Loc.Start > p.prevError.Start && (t.Flags&css_lexer.DidWarnAboutSingleLineComment) == 0 {
 		var text string
 		switch t.Kind {
 		case css_lexer.TEndOfFile, css_lexer.TWhitespace:

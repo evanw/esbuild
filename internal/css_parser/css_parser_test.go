@@ -93,6 +93,17 @@ func expectPrintedMangleMinify(t *testing.T, contents string, expected string) {
 	})
 }
 
+func TestSingleLineComment(t *testing.T) {
+	expectParseError(t, "a, // a\nb // b\n{}",
+		"<stdin>: WARNING: Comments in CSS use \"/* ... */\" instead of \"//\"\n"+
+			"<stdin>: WARNING: Comments in CSS use \"/* ... */\" instead of \"//\"\n")
+	expectParseError(t, "a, ///// a /////\n{}",
+		"<stdin>: WARNING: Comments in CSS use \"/* ... */\" instead of \"//\"\n")
+
+	expectPrinted(t, "a, // a\nb // b\n{}", "a, // a b // b {\n}\n")
+	expectPrinted(t, "a, ///// a /////\n{}", "a, ///// a ///// {\n}\n")
+}
+
 func TestEscapes(t *testing.T) {
 	// TIdent
 	expectPrinted(t, "a { value: id\\65nt }", "a {\n  value: ident;\n}\n")

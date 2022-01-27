@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* Remove error recovery for invalid `//` comments in CSS ([#1965](https://github.com/evanw/esbuild/issues/1965))
+
+    Previously esbuild treated `//` as a comment in CSS and generated a warning, even though comments in CSS use `/* ... */` instead. This allowed you to run esbuild on CSS intended for certain CSS preprocessors that support single-line comments.
+
+    However, some people are changing from another build tool to esbuild and have a code base that relies on `//` being preserved even though it's nonsense CSS and causes the entire surrounding rule to be discarded by the browser. Presumably this nonsense CSS ended up there at some point due to an incorrectly-configured build pipeline and the site now relies on that entire rule being discarded. If esbuild interprets `//` as a comment, it could cause the rule to no longer be discarded or even cause something else to happen.
+
+    With this release, esbuild no longer treats `//` as a comment in CSS. It still warns about it but now passes it through unmodified. This means it's no longer possible to run esbuild on CSS code containing single-line comments but it means that esbuild's behavior regarding these nonsensical CSS rules more accurately represents what happens in a browser.
+
 ## 0.14.14
 
 * Fix bug with filename hashes and the `file` loader ([#1957](https://github.com/evanw/esbuild/issues/1957))
