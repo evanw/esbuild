@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* Mark esbuild as supporting node v12+ ([#1970](https://github.com/evanw/esbuild/issues/1970))
+
+    Someone requested that esbuild populate the `engines.node` field in `package.json`. This release adds the following to each `package.json` file that esbuild publishes:
+
+    ```json
+    "engines": {
+      "node": ">=12"
+    },
+    ```
+
+    This was chosen because it's the oldest version of node that's currently still receiving support from the node team, and so is the oldest version of node that esbuild supports: https://nodejs.org/en/about/releases/.
+
 * Remove error recovery for invalid `//` comments in CSS ([#1965](https://github.com/evanw/esbuild/issues/1965))
 
     Previously esbuild treated `//` as a comment in CSS and generated a warning, even though comments in CSS use `/* ... */` instead. This allowed you to run esbuild on CSS intended for certain CSS preprocessors that support single-line comments.

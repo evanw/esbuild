@@ -5,6 +5,9 @@
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
   "preferUnplugged": false,
+  "engines": {
+    "node": ">=12"
+  },
   "os": [
     "openbsd"
   ],

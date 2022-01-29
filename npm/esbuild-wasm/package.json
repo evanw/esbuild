@@ -5,7 +5,7 @@
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
   "engines": {
-    "node": ">=8"
+    "node": ">=12"
   },
   "main": "lib/main.js",
   "browser": "lib/browser.js",
