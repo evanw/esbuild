@@ -5489,3 +5489,75 @@ func TestReserveProps(t *testing.T) {
 		},
 	})
 }
+
+func TestManglePropsImportExport(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			// These don't count as property names, and aren't mangled
+			"/esm.js": `
+				export let foo_ = 123
+				import { bar_ } from 'xyz'
+			`,
+
+			// These do count as property names, and are mangled
+			"/cjs.js": `
+				exports.foo_ = 123
+				let bar_ = require('xyz').bar_
+			`,
+		},
+		entryPaths: []string{
+			"/esm.js",
+			"/cjs.js",
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MangleProps:  regexp.MustCompile("_$"),
+		},
+	})
+}
+
+func TestManglePropsImportExportBundled(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			// Note: import and export syntax does not count as a property name. That
+			// means the following code is broken. This test just serves to document
+			// this behavior and to detect if something about this behavior changes.
+			"/entry-esm.js": `
+				import { esm_foo_ } from './esm'
+				import { cjs_foo_ } from './cjs'
+				import * as esm from './esm'
+				import * as cjs from './cjs'
+				export let bar_ = [
+					esm_foo_,
+					cjs_foo_,
+					esm.esm_foo_,
+					cjs.cjs_foo_,
+				]
+			`,
+			"/entry-cjs.js": `
+				let { esm_foo_ } = require('./esm')
+				let { cjs_foo_ } = require('./cjs')
+				exports.bar_ = [
+					esm_foo_,
+					cjs_foo_,
+				]
+			`,
+			"/esm.js": `
+				export let esm_foo_ = 'foo'
+			`,
+			"/cjs.js": `
+				exports.cjs_foo_ = 'foo'
+			`,
+		},
+		entryPaths: []string{
+			"/entry-esm.js",
+			"/entry-cjs.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MangleProps:  regexp.MustCompile("_$"),
+		},
+	})
+}
