@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.15
 
 * Add property name mangling with `--mangle-props=` ([#218](https://github.com/evanw/esbuild/issues/218))
 
