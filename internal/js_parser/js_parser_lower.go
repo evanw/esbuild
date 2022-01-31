@@ -2443,21 +2443,12 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 						for _, arg := range ctor.Fn.Args {
 							if arg.IsTypeScriptCtorField {
 								if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
-									var target js_ast.Expr
-									if name := p.symbols[id.Ref.InnerIndex].OriginalName; p.isMangledProperty(name) {
-										target = js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIndex{
-											Target: js_ast.Expr{Loc: arg.Binding.Loc, Data: js_ast.EThisShared},
-											Index:  js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EMangledProp{Ref: p.symbolForMangledProperty(name)}},
-										}}
-									} else {
-										target = js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EDot{
-											Target:  js_ast.Expr{Loc: arg.Binding.Loc, Data: js_ast.EThisShared},
-											Name:    name,
-											NameLoc: arg.Binding.Loc,
-										}}
-									}
 									parameterFields = append(parameterFields, js_ast.AssignStmt(
-										target,
+										js_ast.Expr{Loc: arg.Binding.Loc, Data: p.dotOrMangledPropVisit(
+											js_ast.Expr{Loc: arg.Binding.Loc, Data: js_ast.EThisShared},
+											p.symbols[id.Ref.InnerIndex].OriginalName,
+											arg.Binding.Loc,
+										)},
 										js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
 									))
 								}
