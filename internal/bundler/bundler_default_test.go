@@ -5661,26 +5661,77 @@ func TestManglePropsAvoidCollisions(t *testing.T) {
 	})
 }
 
-func TestManglePropsTSParameterProperties(t *testing.T) {
+func TestManglePropsTypeScriptFeatures(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.ts": `
+			"/parameter-properties.ts": `
 				class Foo {
 					constructor(
-						public bar: number,
-						public baz_: number,
+						public KEEP_FIELD: number,
+						public MANGLE_FIELD_: number,
 					) {
 					}
 				}
+
 				let foo = new Foo
-				console.log(foo.bar, foo.baz_)
+				console.log(foo.KEEP_FIELD, foo.MANGLE_FIELD_)
+			`,
+			"/namespace-exports.ts": `
+				namespace ns {
+					export var MANGLE_VAR_ = 1
+					export let MANGLE_LET_ = 2
+					export const MANGLE_CONST_ = 3
+					export let { NESTED_: { DESTRUCTURING_ } } = 4
+					export function MANGLE_FUNCTION_() {}
+					export class MANGLE_CLASS_ {}
+					export namespace MANGLE_NAMESPACE_ { ; }
+					export enum MANGLE_ENUM_ {}
+
+					console.log({
+						VAR: MANGLE_VAR_,
+						LET: MANGLE_LET_,
+						CONST: MANGLE_CONST_,
+						DESTRUCTURING: DESTRUCTURING_,
+						FUNCTION: MANGLE_FUNCTION_,
+						CLASS: MANGLE_CLASS_,
+						NAMESPACE: MANGLE_NAMESPACE_,
+						ENUM: MANGLE_ENUM_,
+					})
+				}
+
+				console.log({
+					VAR: ns.MANGLE_VAR_,
+					LET: ns.MANGLE_LET_,
+					CONST: ns.MANGLE_CONST_,
+					DESTRUCTURING: ns.DESTRUCTURING_,
+					FUNCTION: ns.MANGLE_FUNCTION_,
+					CLASS: ns.MANGLE_CLASS_,
+					NAMESPACE: ns.MANGLE_NAMESPACE_,
+					ENUM: ns.MANGLE_ENUM_,
+				})
+
+				namespace ns {
+					console.log({
+						VAR: MANGLE_VAR_,
+						LET: MANGLE_LET_,
+						CONST: MANGLE_CONST_,
+						DESTRUCTURING: DESTRUCTURING_,
+						FUNCTION: MANGLE_FUNCTION_,
+						CLASS: MANGLE_CLASS_,
+						NAMESPACE: MANGLE_NAMESPACE_,
+						ENUM: MANGLE_ENUM_,
+					})
+				}
 			`,
 		},
-		entryPaths: []string{"/entry.js"},
+		entryPaths: []string{
+			"/parameter-properties.ts",
+			"/namespace-exports.ts",
+		},
 		options: config.Options{
-			Mode:          config.ModePassThrough,
-			AbsOutputFile: "/out.js",
-			MangleProps:   regexp.MustCompile("_$"),
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MangleProps:  regexp.MustCompile("_$"),
 		},
 	})
 }

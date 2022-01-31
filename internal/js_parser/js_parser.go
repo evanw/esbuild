@@ -9230,11 +9230,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		if s.IsExport && p.enclosingNamespaceArgRef != nil {
 			wrapIdentifier := func(loc logger.Loc, ref js_ast.Ref) js_ast.Expr {
 				p.recordUsage(*p.enclosingNamespaceArgRef)
-				return js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
-					Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
-					Name:    p.symbols[ref.InnerIndex].OriginalName,
-					NameLoc: loc,
-				}}
+				return js_ast.Expr{Loc: loc, Data: p.dotOrMangledPropVisit(
+					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
+					p.symbols[ref.InnerIndex].OriginalName,
+					loc,
+				)}
 			}
 			for _, decl := range s.Decls {
 				if decl.ValueOrNil.Data != nil {
@@ -9608,11 +9608,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		if s.IsExport && p.enclosingNamespaceArgRef != nil {
 			s.IsExport = false
 			stmts = append(stmts, stmt, js_ast.AssignStmt(
-				js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EDot{
-					Target:  js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
-					Name:    p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName,
-					NameLoc: s.Fn.Name.Loc,
-				}},
+				js_ast.Expr{Loc: stmt.Loc, Data: p.dotOrMangledPropVisit(
+					js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
+					p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName,
+					s.Fn.Name.Loc,
+				)},
 				js_ast.Expr{Loc: s.Fn.Name.Loc, Data: &js_ast.EIdentifier{Ref: s.Fn.Name.Ref}},
 			))
 		} else {
@@ -9641,11 +9641,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// Handle exporting this class from a namespace
 		if wasExportInsideNamespace {
 			stmts = append(stmts, js_ast.AssignStmt(
-				js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EDot{
-					Target:  js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
-					Name:    p.symbols[s.Class.Name.Ref.InnerIndex].OriginalName,
-					NameLoc: s.Class.Name.Loc,
-				}},
+				js_ast.Expr{Loc: stmt.Loc, Data: p.dotOrMangledPropVisit(
+					js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
+					p.symbols[s.Class.Name.Ref.InnerIndex].OriginalName,
+					s.Class.Name.Loc,
+				)},
 				js_ast.Expr{Loc: s.Class.Name.Loc, Data: &js_ast.EIdentifier{Ref: s.Class.Name.Ref}},
 			))
 		}
@@ -10826,11 +10826,7 @@ func (p *parser) maybeRewritePropertyAccess(
 							Index:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}},
 						}
 					} else {
-						p.tsNamespaceTarget = &js_ast.EDot{
-							Target:  target,
-							Name:    name,
-							NameLoc: nameLoc,
-						}
+						p.tsNamespaceTarget = p.dotOrMangledPropVisit(target, name, nameLoc)
 					}
 					p.tsNamespaceMemberData = member.Data
 					return js_ast.Expr{Loc: loc, Data: p.tsNamespaceTarget}, true
@@ -13638,12 +13634,11 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 
 	// Substitute an EImportIdentifier now if this has a namespace alias
 	if opts.assignTarget == js_ast.AssignTargetNone && !opts.isDeleteTarget {
-		if nsAlias := p.symbols[ref.InnerIndex].NamespaceAlias; nsAlias != nil {
-			data := &js_ast.EImportIdentifier{
-				Ref:                     ref,
-				PreferQuotedKey:         opts.preferQuotedKey,
-				WasOriginallyIdentifier: opts.wasOriginallyIdentifier,
-			}
+		symbol := &p.symbols[ref.InnerIndex]
+		if nsAlias := symbol.NamespaceAlias; nsAlias != nil {
+			data := p.dotOrMangledPropVisit(
+				js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: nsAlias.NamespaceRef}},
+				symbol.OriginalName, loc)
 
 			// Handle references to namespaces or namespace members
 			if tsMemberData, ok := p.refToTSNamespaceMemberData[nsAlias.NamespaceRef]; ok {
@@ -13699,11 +13694,7 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 
 			// Otherwise, create a property access on the namespace
 			p.recordUsage(nsRef)
-			propertyAccess := &js_ast.EDot{
-				Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: nsRef}},
-				Name:    name,
-				NameLoc: loc,
-			}
+			propertyAccess := p.dotOrMangledPropVisit(js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: nsRef}}, name, loc)
 			if p.tsNamespaceTarget == e {
 				p.tsNamespaceTarget = propertyAccess
 			}

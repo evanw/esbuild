@@ -4,17 +4,39 @@
 
 * Fix property name mangling for TypeScript parameter properties
 
-    This release adds TypeScript parameter properties to the set of syntax constructs affected by the new `--mangle-props=` setting. Parameter properties are a TypeScript-only shorthand way of initializing a class field directly from the constructor argument list like this:
+    This release adds TypeScript parameter properties to the set of syntax constructs affected by the new `--mangle-props=` setting. Parameter properties are a TypeScript-only shorthand way of initializing a class field directly from the constructor argument list. Previously parameter properties were not treated as properties to be mangled:
 
     ```ts
     // Original code
-    class Foo { constructor(public foo_) {} }
+    class Foo {
+      constructor(public foo_) {}
+    }
+    new Foo().foo_
 
     // Old output (with --minify --mangle-props=_)
-    class Foo{constructor(c){this.foo_=c}}
+    class Foo{constructor(c){this.foo_=c}}new Foo().o;
 
     // New output (with --minify --mangle-props=_)
-    class Foo{constructor(o){this.c=o}}
+    class Foo{constructor(o){this.c=o}}new Foo().c;
+    ```
+
+* Fix property name mangling for members exported from TypeScript namespaces
+
+    This release adds TypeScript namespaces to the set of syntax constructs affected by the new `--mangle-props=` setting. Previously exported namespace members were not treated as properties to be mangled:
+
+    ```ts
+    // Original code
+    namespace ns {
+      export let foo_ = 1
+      export function bar_(x) { }
+    }
+    ns.bar_(ns.foo_)
+
+    // Old output (with --minify --mangle-props=_)
+    var ns;(e=>{e.foo_=1;function t(a){}e.bar_=t})(ns||={}),ns.e(ns.o);
+
+    // New output (with --minify --mangle-props=_)
+    var ns;(e=>{e.e=1;function o(p){}e.t=o})(ns||={}),ns.t(ns.e);
     ```
 
 ## 0.14.15

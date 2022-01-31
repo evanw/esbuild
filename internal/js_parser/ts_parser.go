@@ -1416,16 +1416,15 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 		// If the "||=" operator is supported, our minified output can be slightly smaller
 		if isExport && p.enclosingNamespaceArgRef != nil {
 			// "name = (enclosing.name ||= {})"
-			name := p.symbols[nameRef.InnerIndex].OriginalName
 			argExpr = js_ast.Assign(
 				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
 				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
 					Op: js_ast.BinOpLogicalOrAssign,
-					Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
-						Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
-						Name:    name,
-						NameLoc: nameLoc,
-					}},
+					Left: js_ast.Expr{Loc: nameLoc, Data: p.dotOrMangledPropVisit(
+						js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
+						p.symbols[nameRef.InnerIndex].OriginalName,
+						nameLoc,
+					)},
 					Right: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
 				}},
 			)
@@ -1448,17 +1447,17 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
 				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
 					Op: js_ast.BinOpLogicalOr,
-					Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
-						Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
-						Name:    name,
-						NameLoc: nameLoc,
-					}},
+					Left: js_ast.Expr{Loc: nameLoc, Data: p.dotOrMangledPropVisit(
+						js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
+						name,
+						nameLoc,
+					)},
 					Right: js_ast.Assign(
-						js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
-							Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
-							Name:    name,
-							NameLoc: nameLoc,
-						}},
+						js_ast.Expr{Loc: nameLoc, Data: p.dotOrMangledPropVisit(
+							js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
+							name,
+							nameLoc,
+						)},
 						js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
 					),
 				}},
