@@ -732,6 +732,8 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 							}
 							continue
 						}
+					} else if mangled, ok := property.Key.Data.(*js_ast.EMangledProperty); ok {
+						p.printSymbol(mangled.Ref)
 					} else {
 						p.printExpr(property.Key, js_ast.LLowest, 0)
 					}
@@ -965,6 +967,9 @@ func (p *printer) printProperty(item js_ast.Property) {
 
 	switch key := item.Key.Data.(type) {
 	case *js_ast.EPrivateIdentifier:
+		p.printSymbol(key.Ref)
+
+	case *js_ast.EMangledProperty:
 		p.printSymbol(key.Ref)
 
 	case *js_ast.EString:
@@ -1831,16 +1836,26 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if e.OptionalChain == js_ast.OptionalChainStart {
 			p.print("?.")
 		}
-		if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok {
+
+		switch index := e.Index.Data.(type) {
+		case *js_ast.EPrivateIdentifier:
 			if e.OptionalChain != js_ast.OptionalChainStart {
 				p.print(".")
 			}
-			p.printSymbol(private.Ref)
-		} else {
+			p.printSymbol(index.Ref)
+
+		case *js_ast.EMangledProperty:
+			if e.OptionalChain != js_ast.OptionalChainStart {
+				p.print(".")
+			}
+			p.printSymbol(index.Ref)
+
+		default:
 			p.print("[")
 			p.printExpr(e.Index, js_ast.LLowest, 0)
 			p.print("]")
 		}
+
 		if wrap {
 			p.print(")")
 		}

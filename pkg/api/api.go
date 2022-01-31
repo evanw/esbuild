@@ -261,7 +261,9 @@ type BuildOptions struct {
 	Target  Target   // Documentation: https://esbuild.github.io/api/#target
 	Engines []Engine // Documentation: https://esbuild.github.io/api/#target
 
-	Drop              Drop
+	MangleProps       string        // Documentation: https://esbuild.github.io/api/#mangle-props
+	ReserveProps      string        // Documentation: https://esbuild.github.io/api/#mangle-props
+	Drop              Drop          // Documentation: https://esbuild.github.io/api/#drop
 	MinifyWhitespace  bool          // Documentation: https://esbuild.github.io/api/#minify
 	MinifyIdentifiers bool          // Documentation: https://esbuild.github.io/api/#minify
 	MinifySyntax      bool          // Documentation: https://esbuild.github.io/api/#minify
@@ -373,7 +375,9 @@ type TransformOptions struct {
 	Format     Format // Documentation: https://esbuild.github.io/api/#format
 	GlobalName string // Documentation: https://esbuild.github.io/api/#global-name
 
-	Drop              Drop
+	MangleProps       string        // Documentation: https://esbuild.github.io/api/#mangle-props
+	ReserveProps      string        // Documentation: https://esbuild.github.io/api/#mangle-props
+	Drop              Drop          // Documentation: https://esbuild.github.io/api/#drop
 	MinifyWhitespace  bool          // Documentation: https://esbuild.github.io/api/#minify
 	MinifyIdentifiers bool          // Documentation: https://esbuild.github.io/api/#minify
 	MinifySyntax      bool          // Documentation: https://esbuild.github.io/api/#minify

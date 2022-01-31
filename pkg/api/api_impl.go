@@ -382,6 +382,19 @@ func validateGlobalName(log logger.Log, text string) []string {
 	return nil
 }
 
+func validateRegex(log logger.Log, what string, value string) *regexp.Regexp {
+	if value == "" {
+		return nil
+	}
+	regex, err := regexp.Compile(value)
+	if err != nil {
+		log.Add(logger.Error, nil, logger.Range{},
+			fmt.Sprintf("The %q setting is not a valid Go regular expression: %s", what, value))
+		return nil
+	}
+	return regex
+}
+
 func validateExternals(log logger.Log, fs fs.FS, paths []string) config.ExternalSettings {
 	result := config.ExternalSettings{
 		PreResolve:  config.ExternalMatchers{Exact: make(map[string]bool)},
@@ -882,6 +895,8 @@ func rebuildImpl(
 		MangleSyntax:          buildOpts.MinifySyntax,
 		RemoveWhitespace:      buildOpts.MinifyWhitespace,
 		MinifyIdentifiers:     buildOpts.MinifyIdentifiers,
+		MangleProps:           validateRegex(log, "mangle props", buildOpts.MangleProps),
+		ReserveProps:          validateRegex(log, "reserve props", buildOpts.ReserveProps),
 		DropDebugger:          (buildOpts.Drop & DropDebugger) != 0,
 		AllowOverwrite:        buildOpts.AllowOverwrite,
 		ASCIIOnly:             validateASCIIOnly(buildOpts.Charset),
@@ -1374,6 +1389,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		MangleSyntax:            transformOpts.MinifySyntax,
 		RemoveWhitespace:        transformOpts.MinifyWhitespace,
 		MinifyIdentifiers:       transformOpts.MinifyIdentifiers,
+		MangleProps:             validateRegex(log, "mangle props", transformOpts.MangleProps),
+		ReserveProps:            validateRegex(log, "reserve props", transformOpts.ReserveProps),
 		DropDebugger:            (transformOpts.Drop & DropDebugger) != 0,
 		ASCIIOnly:               validateASCIIOnly(transformOpts.Charset),
 		IgnoreDCEAnnotations:    transformOpts.IgnoreAnnotations,

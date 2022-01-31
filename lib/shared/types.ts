@@ -22,6 +22,11 @@ interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#target */
   target?: string | string[];
 
+  /** Documentation: https://esbuild.github.io/api/#mangle-props */
+  mangleProps?: RegExp;
+  /** Documentation: https://esbuild.github.io/api/#mangle-props */
+  reserveProps?: RegExp;
+  /** Documentation: https://esbuild.github.io/api/#drop */
   drop?: Drop[];
   /** Documentation: https://esbuild.github.io/api/#minify */
   minify?: boolean;

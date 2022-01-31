@@ -199,6 +199,8 @@ type Options struct {
 	ModuleTypeData js_ast.ModuleTypeData
 	Defines        *ProcessedDefines
 	TSTarget       *TSTarget
+	MangleProps    *regexp.Regexp
+	ReserveProps   *regexp.Regexp
 
 	// This is the original information that was used to generate the
 	// unsupported feature sets above. It's used for error messages.

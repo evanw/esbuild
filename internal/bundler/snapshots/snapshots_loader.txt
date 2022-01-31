@@ -427,6 +427,125 @@ var x_txt = require_x();
 console.log(x_txt, y_default);
 
 ================================================================================
+TestMangleProps
+---------- /out/entry1.js ----------
+export function shouldMangle() {
+  let foo = {
+    a: 0,
+    b() {
+    }
+  };
+  let { a: bar_ } = foo;
+  ({ a: bar_ } = foo);
+  class foo_ {
+    a = 0;
+    b() {
+    }
+    static a = 0;
+    static b() {
+    }
+  }
+  return { a: bar_, c: foo_ };
+}
+export function shouldNotMangle() {
+  let foo = {
+    "bar_": 0,
+    "baz_"() {
+    }
+  };
+  let { "bar_": bar_ } = foo;
+  ({ "bar_": bar_ } = foo);
+  class foo_ {
+    "bar_" = 0;
+    "baz_"() {
+    }
+    static "bar_" = 0;
+    static "baz_"() {
+    }
+  }
+  return { "bar_": bar_, "foo_": foo_ };
+}
+
+---------- /out/entry2.js ----------
+export default {
+  a: 0,
+  "baz_": 1
+};
+
+================================================================================
+TestManglePropsLoweredOptionalChain
+---------- /out.js ----------
+export default function(x) {
+  var _a;
+  x.a;
+  (_a = x.a) == null ? void 0 : _a.call(x);
+  x == null ? void 0 : x.a;
+  x == null ? void 0 : x.a();
+  x == null ? void 0 : x.a.b;
+  x == null ? void 0 : x.a.b();
+  x == null ? void 0 : x["foo_"].b;
+  x == null ? void 0 : x.a["bar_"];
+}
+
+================================================================================
+TestManglePropsMinify
+---------- /out/entry1.js ----------
+export function shouldMangle_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX() {
+  let X = {
+    X: 0,
+    Y() {
+    }
+  }, { X: Y } = X;
+  ({ X: Y } = X);
+  class t {
+    X = 0;
+    Y() {
+    }
+    static X = 0;
+    static Y() {
+    }
+  }
+  return { X: Y, t: t };
+}
+export function shouldNotMangle_YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY() {
+  let X = {
+    bar_: 0,
+    baz_() {
+    }
+  }, { bar_: Y } = X;
+  ({ bar_: Y } = X);
+  class t {
+    bar_ = 0;
+    baz_() {
+    }
+    static bar_ = 0;
+    static baz_() {
+    }
+  }
+  return { bar_: Y, foo_: t };
+}
+
+---------- /out/entry2.js ----------
+export default {
+  a: 0,
+  baz_: 1
+};
+
+================================================================================
+TestManglePropsOptionalChain
+---------- /out.js ----------
+export default function(x) {
+  x.a;
+  x.a?.();
+  x?.a;
+  x?.a();
+  x?.a.b;
+  x?.a.b();
+  x?.["foo_"].b;
+  x?.a["bar_"];
+}
+
+================================================================================
 TestMinifyIdentifiersImportPathFrequencyAnalysis
 ---------- /out/import.js ----------
 var o=123;console.log(o,"no identifier in this file should be named W, X, Y, or Z");
@@ -515,6 +634,14 @@ var require_test = __commonJS({
 
 // entry.js
 console.log(require_test());
+
+================================================================================
+TestReserveProps
+---------- /out.js ----------
+export default {
+  a: 0,
+  _bar_: 1
+};
 
 ================================================================================
 TestToESMWrapperOmission

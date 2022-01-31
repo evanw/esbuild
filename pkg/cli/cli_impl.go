@@ -96,6 +96,22 @@ func parseOptionsImpl(
 				transformOpts.MinifyIdentifiers = true
 			}
 
+		case strings.HasPrefix(arg, "--mangle-props="):
+			value := arg[len("--mangle-props="):]
+			if buildOpts != nil {
+				buildOpts.MangleProps = value
+			} else {
+				transformOpts.MangleProps = value
+			}
+
+		case strings.HasPrefix(arg, "--reserve-props="):
+			value := arg[len("--reserve-props="):]
+			if buildOpts != nil {
+				buildOpts.ReserveProps = value
+			} else {
+				transformOpts.ReserveProps = value
+			}
+
 		case strings.HasPrefix(arg, "--drop:"):
 			value := arg[len("--drop:"):]
 			switch value {

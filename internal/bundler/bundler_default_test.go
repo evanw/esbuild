@@ -5302,3 +5302,190 @@ cjs-in-esm.js: NOTE: This file is considered to be an ECMAScript module because 
 `,
 	})
 }
+
+func TestMangleProps(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry1.js": `
+				export function shouldMangle() {
+					let foo = {
+						bar_: 0,
+						baz_() {},
+					};
+					let { bar_ } = foo;
+					({ bar_ } = foo);
+					class foo_ {
+						bar_ = 0
+						baz_() {}
+						static bar_ = 0
+						static baz_() {}
+					}
+					return { bar_, foo_ }
+				}
+
+				export function shouldNotMangle() {
+					let foo = {
+						'bar_': 0,
+						'baz_'() {},
+					};
+					let { 'bar_': bar_ } = foo;
+					({ 'bar_': bar_ } = foo);
+					class foo_ {
+						'bar_' = 0
+						'baz_'() {}
+						static 'bar_' = 0
+						static 'baz_'() {}
+					}
+					return { 'bar_': bar_, 'foo_': foo_ }
+				}
+			`,
+
+			"/entry2.js": `
+				export default {
+					bar_: 0,
+					'baz_': 1,
+				}
+			`,
+		},
+		entryPaths: []string{
+			"/entry1.js",
+			"/entry2.js",
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MangleProps:  regexp.MustCompile("_$"),
+		},
+	})
+}
+
+func TestManglePropsMinify(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			// These repeating characters test for frequency analysis
+
+			"/entry1.js": `
+				export function shouldMangle_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX() {
+					let foo = {
+						bar_: 0,
+						baz_() {},
+					};
+					let { bar_ } = foo;
+					({ bar_ } = foo);
+					class foo_ {
+						bar_ = 0
+						baz_() {}
+						static bar_ = 0
+						static baz_() {}
+					}
+					return { bar_, foo_ }
+				}
+
+				export function shouldNotMangle_YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY() {
+					let foo = {
+						'bar_': 0,
+						'baz_'() {},
+					};
+					let { 'bar_': bar_ } = foo;
+					({ 'bar_': bar_ } = foo);
+					class foo_ {
+						'bar_' = 0
+						'baz_'() {}
+						static 'bar_' = 0
+						static 'baz_'() {}
+					}
+					return { 'bar_': bar_, 'foo_': foo_ }
+				}
+			`,
+
+			"/entry2.js": `
+				export default {
+					bar_: 0,
+					'baz_': 1,
+				}
+			`,
+		},
+		entryPaths: []string{
+			"/entry1.js",
+			"/entry2.js",
+		},
+		options: config.Options{
+			Mode:              config.ModePassThrough,
+			AbsOutputDir:      "/out",
+			MangleProps:       regexp.MustCompile("_$"),
+			MinifyIdentifiers: true,
+			MangleSyntax:      true,
+		},
+	})
+}
+
+func TestManglePropsOptionalChain(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export default function(x) {
+					x.foo_;
+					x.foo_?.();
+					x?.foo_;
+					x?.foo_();
+					x?.foo_.bar_;
+					x?.foo_.bar_();
+					x?.['foo_'].bar_;
+					x?.foo_['bar_'];
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
+		},
+	})
+}
+
+func TestManglePropsLoweredOptionalChain(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export default function(x) {
+					x.foo_;
+					x.foo_?.();
+					x?.foo_;
+					x?.foo_();
+					x?.foo_.bar_;
+					x?.foo_.bar_();
+					x?.['foo_'].bar_;
+					x?.foo_['bar_'];
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			MangleProps:           regexp.MustCompile("_$"),
+			UnsupportedJSFeatures: compat.OptionalChain,
+		},
+	})
+}
+
+func TestReserveProps(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export default {
+					foo_: 0,
+					_bar_: 1,
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
+			ReserveProps:  regexp.MustCompile("^_.*_$"),
+		},
+	})
+}

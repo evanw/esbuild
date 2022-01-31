@@ -89,7 +89,7 @@ type symbolSlot struct {
 
 type MinifyRenamer struct {
 	reservedNames        map[string]uint32
-	slots                [3][]symbolSlot
+	slots                [4][]symbolSlot
 	topLevelSymbolToSlot map[js_ast.Ref]uint32
 	symbols              js_ast.SymbolMap
 }
@@ -98,10 +98,11 @@ func NewMinifyRenamer(symbols js_ast.SymbolMap, firstTopLevelSlots js_ast.SlotCo
 	return &MinifyRenamer{
 		symbols:       symbols,
 		reservedNames: reservedNames,
-		slots: [3][]symbolSlot{
+		slots: [4][]symbolSlot{
 			make([]symbolSlot, firstTopLevelSlots[0]),
 			make([]symbolSlot, firstTopLevelSlots[1]),
 			make([]symbolSlot, firstTopLevelSlots[2]),
+			make([]symbolSlot, firstTopLevelSlots[3]),
 		},
 		topLevelSymbolToSlot: make(map[js_ast.Ref]uint32),
 	}
@@ -138,43 +139,43 @@ func (r *MinifyRenamer) NameForSymbol(ref js_ast.Ref) string {
 	return r.slots[ns][i.GetIndex()].name
 }
 
-// The sort order here is arbitrary but needs to be consistent between builds.
 // The InnerIndex should be stable because the parser for a single file is
 // single-threaded and deterministically assigns out InnerIndex values
 // sequentially. But the SourceIndex should be unstable because the main thread
 // assigns out source index values sequentially to newly-discovered dependencies
 // in a multi-threaded producer/consumer relationship. So instead we use the
 // index of the source in the DFS order over all entry points for stability.
-type DeferredTopLevelSymbol struct {
+type StableSymbolCount struct {
 	StableSourceIndex uint32
 	Ref               js_ast.Ref
 	Count             uint32
 }
 
 // This type is just so we can use Go's native sort function
-type DeferredTopLevelSymbolArray []DeferredTopLevelSymbol
+type StableSymbolCountArray []StableSymbolCount
 
-func (a DeferredTopLevelSymbolArray) Len() int          { return len(a) }
-func (a DeferredTopLevelSymbolArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
-func (a DeferredTopLevelSymbolArray) Less(i int, j int) bool {
+func (a StableSymbolCountArray) Len() int          { return len(a) }
+func (a StableSymbolCountArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a StableSymbolCountArray) Less(i int, j int) bool {
 	ai, aj := a[i], a[j]
+	if ai.Count > aj.Count {
+		return true
+	}
+	if ai.Count < aj.Count {
+		return false
+	}
 	if ai.StableSourceIndex < aj.StableSourceIndex {
 		return true
 	}
 	if ai.StableSourceIndex > aj.StableSourceIndex {
 		return false
 	}
-	if ai.Ref.InnerIndex < aj.Ref.InnerIndex {
-		return true
-	}
-	if ai.Ref.InnerIndex > aj.Ref.InnerIndex {
-		return false
-	}
-	return ai.Count < aj.Count
+	return ai.Ref.InnerIndex < aj.Ref.InnerIndex
 }
 
 func (r *MinifyRenamer) AccumulateSymbolUseCounts(
-	topLevelSymbols *DeferredTopLevelSymbolArray,
+	topLevelSymbols *StableSymbolCountArray,
 	symbolUses map[js_ast.Ref]js_ast.SymbolUse,
 	stableSourceIndices []uint32,
 ) {
@@ -186,7 +187,7 @@ func (r *MinifyRenamer) AccumulateSymbolUseCounts(
 }
 
 func (r *MinifyRenamer) AccumulateSymbolCount(
-	topLevelSymbols *DeferredTopLevelSymbolArray,
+	topLevelSymbols *StableSymbolCountArray,
 	ref js_ast.Ref,
 	count uint32,
 	stableSourceIndices []uint32,
@@ -220,7 +221,7 @@ func (r *MinifyRenamer) AccumulateSymbolCount(
 
 	// If it's a top-level symbol, defer it to later since we have
 	// to allocate slots for these in serial instead of in parallel
-	*topLevelSymbols = append(*topLevelSymbols, DeferredTopLevelSymbol{
+	*topLevelSymbols = append(*topLevelSymbols, StableSymbolCount{
 		StableSourceIndex: stableSourceIndices[ref.SourceIndex],
 		Ref:               ref,
 		Count:             count,
@@ -228,10 +229,10 @@ func (r *MinifyRenamer) AccumulateSymbolCount(
 }
 
 // The parallel part of the symbol count accumulation algorithm above processes
-// nested symbols and generates on an array of top-level symbols to process later.
+// nested symbols and generates an array of top-level symbols to process later.
 // After the parallel part has finished, that array of top-level symbols is passed
 // to this function which processes them in serial.
-func (r *MinifyRenamer) AllocateTopLevelSymbolSlots(topLevelSymbols DeferredTopLevelSymbolArray) {
+func (r *MinifyRenamer) AllocateTopLevelSymbolSlots(topLevelSymbols StableSymbolCountArray) {
 	for _, stable := range topLevelSymbols {
 		symbol := r.symbols.Get(stable.Ref)
 		slots := &r.slots[symbol.SlotNamespace()]

@@ -90,6 +90,7 @@ var helpText = func(colors logger.Colors) string {
   --main-fields=...         Override the main file order in package.json
                             (default "browser,module,main" when platform is
                             browser and "main,module" when platform is node)
+  --mangle-props=...        Rename all properties matching a regular expression
   --metafile=...            Write metadata about the build to a JSON file
   --minify-whitespace       Remove whitespace in output files
   --minify-identifiers      Shorten identifiers in output files
@@ -100,6 +101,7 @@ var helpText = func(colors logger.Colors) string {
   --preserve-symlinks       Disable symlink resolution for module lookup
   --public-path=...         Set the base URL for the "file" loader
   --pure:N                  Mark the name N as a pure function for tree shaking
+  --reserve-props=...       Do not mangle these properties
   --resolve-extensions=...  A comma-separated list of implicit extensions
                             (default ".tsx,.ts,.jsx,.js,.css,.json")
   --servedir=...            What to serve in addition to generated output files
