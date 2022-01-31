@@ -711,7 +711,7 @@ type EImportCall struct {
 	Expr         Expr
 	OptionsOrNil Expr
 
-	// See the comment for this same field on "EImportCall" for more information
+	// See the comment for this same field on "EImportString" for more information
 	LeadingInteriorComments []Comment
 }
 
