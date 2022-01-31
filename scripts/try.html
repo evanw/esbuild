@@ -1,4 +1,5 @@
 <!-- This is a simple playground to try out esbuild in your browser -->
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -233,6 +234,11 @@
         Keep Names
       </label>
       &nbsp; &nbsp;
+      <label for="mangleProps">
+        <input id="mangleProps" type="checkbox">
+        Mangle Props
+      </label>
+      &nbsp; &nbsp;
       Minify:
       <label for="minify-syntax"><input id="minify-syntax" type="checkbox"> Syntax</label>
       <label for="minify-idents"><input id="minify-idents" type="checkbox"> Identifiers</label>
@@ -256,6 +262,7 @@
     const ascii = document.querySelector('#ascii')
     const bundle = document.querySelector('#bundle')
     const keepNames = document.querySelector('#keepNames')
+    const mangleProps = document.querySelector('#mangleProps')
     let runIfIdle
 
     function persistValue(el, key) {
@@ -297,6 +304,7 @@
     persistChecked(ascii, 'ascii')
     persistChecked(bundle, 'bundle')
     persistChecked(keepNames, 'keepNames')
+    persistChecked(mangleProps, 'mangleProps')
 
     try {
       const old = sessionStorage.getItem('input')
@@ -345,6 +353,7 @@
               minifyWhitespace: minifySpaces.checked,
               charset: ascii.checked ? 'ascii' : 'utf8',
               keepNames: keepNames.checked,
+              mangleProps: mangleProps.checked ? /_$/ : void 0,
               plugins: [{
                 name: 'external-all',
                 setup(build) {
@@ -366,6 +375,7 @@
               minifyWhitespace: minifySpaces.checked,
               charset: ascii.checked ? 'ascii' : 'utf8',
               keepNames: keepNames.checked,
+              mangleProps: mangleProps.checked ? /_$/ : void 0,
             }))
           }
         } catch (error) {
