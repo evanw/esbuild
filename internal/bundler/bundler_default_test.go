@@ -5638,3 +5638,25 @@ func TestManglePropsJSXTransformNamespace(t *testing.T) {
 		},
 	})
 }
+
+func TestManglePropsAvoidCollisions(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export default {
+					foo_: 0, // Must not be named "a"
+					bar_: 1, // Must not be named "b"
+					a: 2,
+					b: 3,
+					__proto__: {}, // Always avoid mangling this
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
+		},
+	})
+}

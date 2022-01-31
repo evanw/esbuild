@@ -409,7 +409,7 @@ func (*EClass) isExpr()                {}
 func (*EIdentifier) isExpr()           {}
 func (*EImportIdentifier) isExpr()     {}
 func (*EPrivateIdentifier) isExpr()    {}
-func (*EMangledProperty) isExpr()      {}
+func (*EMangledProp) isExpr()          {}
 func (*EJSXElement) isExpr()           {}
 func (*EMissing) isExpr()              {}
 func (*ENumber) isExpr()               {}
@@ -622,8 +622,8 @@ type EPrivateIdentifier struct {
 }
 
 // This represents an internal property name that can be mangled. The symbol
-// referenced by this expression should be a "SymbolMangledProperty" symbol.
-type EMangledProperty struct {
+// referenced by this expression should be a "SymbolMangledProp" symbol.
+type EMangledProp struct {
 	Ref Ref
 }
 
@@ -1425,7 +1425,7 @@ const (
 	SymbolInjected
 
 	// Properties can optionally be renamed to shorter names
-	SymbolMangledProperty
+	SymbolMangledProp
 
 	// This annotates all other symbols that don't have special behavior.
 	SymbolOther
@@ -1699,7 +1699,7 @@ const (
 	SlotDefault SlotNamespace = iota
 	SlotLabel
 	SlotPrivateName
-	SlotMangledProperty
+	SlotMangledProp
 	SlotMustNotBeRenamed
 )
 
@@ -1713,8 +1713,8 @@ func (s *Symbol) SlotNamespace() SlotNamespace {
 	if s.Kind == SymbolLabel {
 		return SlotLabel
 	}
-	if s.Kind == SymbolMangledProperty {
-		return SlotMangledProperty
+	if s.Kind == SymbolMangledProp {
+		return SlotMangledProp
 	}
 	return SlotDefault
 }
@@ -2058,8 +2058,12 @@ type AST struct {
 	TSEnums map[Ref]map[string]TSEnumValue
 
 	// Properties in here are represented as symbols instead of strings, which
-	// allows them to be renamed to smaller names during minification.
-	MangledProperties map[string]Ref
+	// allows them to be renamed to smaller names.
+	MangledProps map[string]Ref
+
+	// Properties in here are existing non-mangled properties in the source code
+	// and must not be used when generating mangled names to avoid a collision.
+	ReservedProps map[string]bool
 
 	// These are stored at the AST level instead of on individual AST nodes so
 	// they can be manipulated efficiently without a full AST traversal

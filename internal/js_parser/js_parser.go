@@ -51,7 +51,8 @@ type parser struct {
 	symbolForDefineHelper      func(int) js_ast.Ref
 	injectedDefineSymbols      []js_ast.Ref
 	injectedSymbolSources      map[js_ast.Ref]injectedSymbolSource
-	mangledProperties          map[string]js_ast.Ref
+	mangledProps               map[string]js_ast.Ref
+	reservedProps              map[string]bool
 	symbolUses                 map[js_ast.Ref]js_ast.SymbolUse
 	importSymbolPropertyUses   map[js_ast.Ref]map[string]js_ast.SymbolUse
 	symbolCallUses             map[js_ast.Ref]js_ast.SymbolCallUse
@@ -2126,7 +2127,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 		}
 
 		if p.isMangledProperty(name) {
-			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EMangledProperty{Ref: p.storeNameInRef(name)}}
+			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(name)}}
 		} else {
 			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}}
 		}
@@ -2438,7 +2439,7 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 		}
 		p.lexer.Next()
 		if p.isMangledProperty(name) {
-			key = js_ast.Expr{Loc: loc, Data: &js_ast.EMangledProperty{Ref: p.storeNameInRef(name)}}
+			key = js_ast.Expr{Loc: loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(name)}}
 		} else {
 			key = js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}}
 		}
@@ -2480,28 +2481,31 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 }
 
 func (p *parser) isMangledProperty(name string) bool {
-	if p.options.mangleProps != nil && p.options.mangleProps.MatchString(name) {
-		if name == "__proto__" {
-			return false
-		}
-		if p.options.reserveProps != nil && p.options.reserveProps.MatchString(name) {
-			return false
-		}
+	if p.options.mangleProps == nil {
+		return false
+	}
+	if p.options.mangleProps.MatchString(name) && name != "__proto__" && (p.options.reserveProps == nil || !p.options.reserveProps.MatchString(name)) {
 		return true
 	}
+	reservedProps := p.reservedProps
+	if reservedProps == nil {
+		reservedProps = make(map[string]bool)
+		p.reservedProps = reservedProps
+	}
+	reservedProps[name] = true
 	return false
 }
 
 func (p *parser) symbolForMangledProperty(name string) js_ast.Ref {
-	mangledProperties := p.mangledProperties
-	if mangledProperties == nil {
-		mangledProperties = make(map[string]js_ast.Ref)
-		p.mangledProperties = mangledProperties
+	mangledProps := p.mangledProps
+	if mangledProps == nil {
+		mangledProps = make(map[string]js_ast.Ref)
+		p.mangledProps = mangledProps
 	}
-	ref, ok := mangledProperties[name]
+	ref, ok := mangledProps[name]
 	if !ok {
-		ref = p.newSymbol(js_ast.SymbolMangledProperty, name)
-		mangledProperties[name] = ref
+		ref = p.newSymbol(js_ast.SymbolMangledProp, name)
+		mangledProps[name] = ref
 	}
 	if !p.isControlFlowDead {
 		p.symbols[ref.InnerIndex].UseCountEstimate++
@@ -3796,7 +3800,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 					ref := p.storeNameInRef(name)
 					left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EIndex{
 						Target:        left,
-						Index:         js_ast.Expr{Loc: nameLoc, Data: &js_ast.EMangledProperty{Ref: ref}},
+						Index:         js_ast.Expr{Loc: nameLoc, Data: &js_ast.EMangledProp{Ref: ref}},
 						OptionalChain: oldOptionalChain,
 					}}
 				} else {
@@ -3895,7 +3899,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 						ref := p.storeNameInRef(name)
 						left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EIndex{
 							Target:        left,
-							Index:         js_ast.Expr{Loc: nameLoc, Data: &js_ast.EMangledProperty{Ref: ref}},
+							Index:         js_ast.Expr{Loc: nameLoc, Data: &js_ast.EMangledProp{Ref: ref}},
 							OptionalChain: optionalStart,
 						}}
 					} else {
@@ -4573,7 +4577,7 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 		if p.isMangledProperty(member) {
 			tag = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
 				Target: tag,
-				Index:  js_ast.Expr{Loc: memberRange.Loc, Data: &js_ast.EMangledProperty{Ref: p.storeNameInRef(member)}},
+				Index:  js_ast.Expr{Loc: memberRange.Loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(member)}},
 			}}
 		} else {
 			tag = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
@@ -4613,7 +4617,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 				keyRange, keyName := p.parseJSXNamespacedName()
 				var key js_ast.Expr
 				if p.isMangledProperty(keyName) && !strings.ContainsRune(keyName, ':') {
-					key = js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EMangledProperty{Ref: p.storeNameInRef(keyName)}}
+					key = js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(keyName)}}
 				} else {
 					key = js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(keyName)}}
 				}
@@ -8493,7 +8497,7 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 	case *js_ast.BObject:
 		for i, property := range b.Properties {
 			if !property.IsSpread {
-				if mangled, ok := property.Key.Data.(*js_ast.EMangledProperty); ok {
+				if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
 					mangled.Ref = p.symbolForMangledProperty(p.loadNameFromRef(mangled.Ref))
 				} else {
 					property.Key = p.visitExpr(property.Key)
@@ -10232,7 +10236,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		case *js_ast.EPrivateIdentifier:
 			p.recordDeclaredSymbol(k.Ref)
 
-		case *js_ast.EMangledProperty:
+		case *js_ast.EMangledProp:
 			k.Ref = p.symbolForMangledProperty(p.loadNameFromRef(k.Ref))
 
 		default:
@@ -10508,7 +10512,7 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 		} else if p.isMangledProperty(part) {
 			value = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
 				Target: value,
-				Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EMangledProperty{Ref: p.symbolForMangledProperty(part)}},
+				Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EMangledProp{Ref: p.symbolForMangledProperty(part)}},
 			}}
 		} else {
 			value = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
@@ -11485,7 +11489,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Visit properties
 		for i, property := range e.Properties {
 			if property.Kind != js_ast.PropertySpread {
-				if mangled, ok := property.Key.Data.(*js_ast.EMangledProperty); ok {
+				if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
 					mangled.Ref = p.symbolForMangledProperty(p.loadNameFromRef(mangled.Ref))
 				} else {
 					property.Key = p.visitExpr(property.Key)
@@ -12235,7 +12239,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				return p.lowerPrivateGet(e.Target, e.Index.Loc, index), exprOut{}
 			}
 
-		case *js_ast.EMangledProperty:
+		case *js_ast.EMangledProp:
 			index.Ref = p.symbolForMangledProperty(p.loadNameFromRef(index.Ref))
 
 		default:
@@ -12650,7 +12654,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			if property.Kind != js_ast.PropertySpread {
 				key := property.Key
-				if mangled, ok := key.Data.(*js_ast.EMangledProperty); ok {
+				if mangled, ok := key.Data.(*js_ast.EMangledProp); ok {
 					mangled.Ref = p.symbolForMangledProperty(p.loadNameFromRef(mangled.Ref))
 				} else {
 					key = p.visitExpr(property.Key)
@@ -15136,7 +15140,7 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 	visit(p.moduleScope)
 
 	// Subtract out all properties that will be mangled
-	for _, ref := range p.mangledProperties {
+	for _, ref := range p.mangledProps {
 		symbol := &p.symbols[ref.InnerIndex]
 		charFreq.Scan(symbol.OriginalName, -int32(symbol.UseCountEstimate))
 	}
@@ -15356,7 +15360,8 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		ExportStarImportRecords:         p.exportStarImportRecords,
 		ImportRecords:                   p.importRecords,
 		ApproximateLineCount:            int32(p.lexer.ApproximateNewlineCount) + 1,
-		MangledProperties:               p.mangledProperties,
+		MangledProps:                    p.mangledProps,
+		ReservedProps:                   p.reservedProps,
 
 		// CommonJS features
 		UsesExportsRef: usesExportsRef,

@@ -473,6 +473,17 @@ export default {
 };
 
 ================================================================================
+TestManglePropsAvoidCollisions
+---------- /out.js ----------
+export default {
+  c: 0,
+  d: 1,
+  a: 2,
+  b: 3,
+  __proto__: {}
+};
+
+================================================================================
 TestManglePropsImportExport
 ---------- /out/esm.js ----------
 export let foo_ = 123;

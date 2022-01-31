@@ -302,7 +302,7 @@ func link(
 	// Merge mangled properties before chunks are generated since the names must
 	// be consistent across all chunks, or the generated code will break
 	if c.options.MangleProps != nil {
-		c.mangleProperties()
+		c.mangleProps()
 	}
 
 	// Make sure calls to "js_ast.FollowSymbols()" in parallel goroutines after this
@@ -312,13 +312,17 @@ func link(
 	return c.generateChunksInParallel(chunks)
 }
 
-func (c *linkerContext) mangleProperties() {
-	c.timer.Begin("Merge mangled properties")
-	defer c.timer.End("Merge mangled properties")
+func (c *linkerContext) mangleProps() {
+	c.timer.Begin("Mangle props")
+	defer c.timer.End("Mangle props")
 
 	// Merge all mangled property symbols together
 	freq := js_ast.CharFreq{}
-	mangledProperties := make(map[string]js_ast.Ref)
+	mangledProps := make(map[string]js_ast.Ref)
+	reservedProps := make(map[string]bool)
+	for keyword := range js_lexer.Keywords {
+		reservedProps[keyword] = true
+	}
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		// Don't mangle anything in the runtime code
 		if sourceIndex == runtime.SourceIndex {
@@ -326,13 +330,18 @@ func (c *linkerContext) mangleProperties() {
 		}
 
 		if repr, ok := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr); ok {
-			for name, ref := range repr.AST.MangledProperties {
-				if existing, ok := mangledProperties[name]; ok {
+			for prop := range repr.AST.ReservedProps {
+				reservedProps[prop] = true
+			}
+
+			for name, ref := range repr.AST.MangledProps {
+				if existing, ok := mangledProps[name]; ok {
 					js_ast.MergeSymbols(c.graph.Symbols, ref, existing)
 				} else {
-					mangledProperties[name] = ref
+					mangledProps[name] = ref
 				}
 			}
+
 			if repr.AST.CharFreq != nil {
 				freq.Include(repr.AST.CharFreq)
 			}
@@ -340,9 +349,9 @@ func (c *linkerContext) mangleProperties() {
 	}
 
 	// Sort by use count (note: does not currently account for live vs. dead code)
-	sorted := make(renamer.StableSymbolCountArray, 0, len(mangledProperties))
+	sorted := make(renamer.StableSymbolCountArray, 0, len(mangledProps))
 	stableSourceIndices := c.graph.StableSourceIndices
-	for _, ref := range mangledProperties {
+	for _, ref := range mangledProps {
 		sorted = append(sorted, renamer.StableSymbolCount{
 			StableSourceIndex: stableSourceIndices[ref.SourceIndex],
 			Ref:               ref,
@@ -358,8 +367,8 @@ func (c *linkerContext) mangleProperties() {
 		name := minifier.NumberToMinifiedName(nextName)
 		nextName++
 
-		// Avoid JavaScript keywords
-		for js_lexer.Keywords[name] != 0 {
+		// Avoid reserved properties
+		for reservedProps[name] {
 			name = minifier.NumberToMinifiedName(nextName)
 			nextName++
 		}

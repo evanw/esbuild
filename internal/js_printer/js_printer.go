@@ -732,7 +732,7 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 							}
 							continue
 						}
-					} else if mangled, ok := property.Key.Data.(*js_ast.EMangledProperty); ok {
+					} else if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
 						p.printSymbol(mangled.Ref)
 					} else {
 						p.printExpr(property.Key, js_ast.LLowest, 0)
@@ -969,7 +969,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 	case *js_ast.EPrivateIdentifier:
 		p.printSymbol(key.Ref)
 
-	case *js_ast.EMangledProperty:
+	case *js_ast.EMangledProp:
 		p.printSymbol(key.Ref)
 
 	case *js_ast.EString:
@@ -1475,7 +1475,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 			p.printSpaceBeforeIdentifier()
 			p.addSourceMapping(property.Key.Loc)
-			if mangled, ok := property.Key.Data.(*js_ast.EMangledProperty); ok {
+			if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
 				p.printSymbol(mangled.Ref)
 			} else {
 				p.print(js_lexer.UTF16ToString(property.Key.Data.(*js_ast.EString).Value))
@@ -1848,7 +1848,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 			p.printSymbol(index.Ref)
 
-		case *js_ast.EMangledProperty:
+		case *js_ast.EMangledProp:
 			if e.OptionalChain != js_ast.OptionalChainStart {
 				p.print(".")
 			}
