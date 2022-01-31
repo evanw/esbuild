@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Fix property name mangling for TypeScript parameter properties
+
+    This release adds TypeScript parameter properties to the set of syntax constructs affected by the new `--mangle-props=` setting. Parameter properties are a TypeScript-only shorthand way of initializing a class field directly from the constructor argument list like this:
+
+    ```ts
+    // Original code
+    class Foo { constructor(public foo_) {} }
+
+    // Old output (with --minify --mangle-props=_)
+    class Foo{constructor(c){this.foo_=c}}
+
+    // New output (with --minify --mangle-props=_)
+    class Foo{constructor(o){this.c=o}}
+    ```
+
 ## 0.14.15
 
 * Add property name mangling with `--mangle-props=` ([#218](https://github.com/evanw/esbuild/issues/218))

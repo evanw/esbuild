@@ -5660,3 +5660,27 @@ func TestManglePropsAvoidCollisions(t *testing.T) {
 		},
 	})
 }
+
+func TestManglePropsTSParameterProperties(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					constructor(
+						public bar: number,
+						public baz_: number,
+					) {
+					}
+				}
+				let foo = new Foo
+				console.log(foo.bar, foo.baz_)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
+		},
+	})
+}
