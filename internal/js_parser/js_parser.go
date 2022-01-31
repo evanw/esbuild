@@ -4570,11 +4570,18 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 		}
 
 		tagName += "." + member
-		tag = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
-			Target:  tag,
-			Name:    member,
-			NameLoc: memberRange.Loc,
-		}}
+		if p.isMangledProperty(member) {
+			tag = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
+				Target: tag,
+				Index:  js_ast.Expr{Loc: memberRange.Loc, Data: &js_ast.EMangledProperty{Ref: p.storeNameInRef(member)}},
+			}}
+		} else {
+			tag = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+				Target:  tag,
+				Name:    member,
+				NameLoc: memberRange.Loc,
+			}}
+		}
 		tagRange.Len = memberRange.Loc.Start + memberRange.Len - tagRange.Loc.Start
 	}
 
@@ -4604,7 +4611,12 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			case js_lexer.TIdentifier:
 				// Parse the key
 				keyRange, keyName := p.parseJSXNamespacedName()
-				key := js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(keyName)}}
+				var key js_ast.Expr
+				if p.isMangledProperty(keyName) && !strings.ContainsRune(keyName, ':') {
+					key = js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EMangledProperty{Ref: p.storeNameInRef(keyName)}}
+				} else {
+					key = js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(keyName)}}
+				}
 
 				// Parse the value
 				var value js_ast.Expr
@@ -10490,13 +10502,18 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 	})
 
 	// Build up a chain of property access expressions for subsequent parts
-	for i := 1; i < len(parts); i++ {
-		if expr, ok := p.maybeRewritePropertyAccess(loc, js_ast.AssignTargetNone, false, value, parts[i], loc, false, false); ok {
+	for _, part := range parts[1:] {
+		if expr, ok := p.maybeRewritePropertyAccess(loc, js_ast.AssignTargetNone, false, value, part, loc, false, false); ok {
 			value = expr
+		} else if p.isMangledProperty(part) {
+			value = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
+				Target: value,
+				Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EMangledProperty{Ref: p.symbolForMangledProperty(part)}},
+			}}
 		} else {
 			value = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
 				Target:  value,
-				Name:    parts[i],
+				Name:    part,
 				NameLoc: loc,
 
 				// Enable tree shaking
@@ -11468,7 +11485,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Visit properties
 		for i, property := range e.Properties {
 			if property.Kind != js_ast.PropertySpread {
-				property.Key = p.visitExpr(property.Key)
+				if mangled, ok := property.Key.Data.(*js_ast.EMangledProperty); ok {
+					mangled.Ref = p.symbolForMangledProperty(p.loadNameFromRef(mangled.Ref))
+				} else {
+					property.Key = p.visitExpr(property.Key)
+				}
 			}
 			if property.ValueOrNil.Data != nil {
 				property.ValueOrNil = p.visitExpr(property.ValueOrNil)

@@ -29,6 +29,8 @@
     | Class methods                   | `class x { foo_() {} }` |
     | Object destructuring binding    | `let { foo_: x } = y`   |
     | Object destructuring assignment | `({ foo_: x } = y)`     |
+    | JSX element names               | `<X.foo_></X.foo_>`     |
+    | JSX attribute names             | `<X foo_={y} />`        |
 
     You can avoid property mangling for an individual property by quoting it as a string. However, you must consistently use quotes or no quotes for a given property everywhere for this to work. For example, `print({ foo_: 0 }.foo_)` will be mangled into `print({ a: 0 }.a)` while `print({ 'foo_': 0 }['foo_'])` will not be mangled.
 

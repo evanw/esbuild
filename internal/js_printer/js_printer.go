@@ -1475,7 +1475,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 			p.printSpaceBeforeIdentifier()
 			p.addSourceMapping(property.Key.Loc)
-			p.print(js_lexer.UTF16ToString(property.Key.Data.(*js_ast.EString).Value))
+			if mangled, ok := property.Key.Data.(*js_ast.EMangledProperty); ok {
+				p.printSymbol(mangled.Ref)
+			} else {
+				p.print(js_lexer.UTF16ToString(property.Key.Data.(*js_ast.EString).Value))
+			}
 
 			// Special-case string values
 			if str, ok := property.ValueOrNil.Data.(*js_ast.EString); ok {

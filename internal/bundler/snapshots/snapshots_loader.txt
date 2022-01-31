@@ -546,6 +546,47 @@ var require_entry_cjs = __commonJS({
 export default require_entry_cjs();
 
 ================================================================================
+TestManglePropsJSXPreserve
+---------- /out.jsx ----------
+let Foo = {
+  a(props) {
+    return <>{props.b}</>;
+  },
+  c: "hello, world"
+};
+export default <Foo.a b={Foo.c} />;
+
+================================================================================
+TestManglePropsJSXTransform
+---------- /out.js ----------
+let Foo = {
+  b(props) {
+    return /* @__PURE__ */ Foo.a(Foo.d, null, props.c);
+  },
+  e: "hello, world",
+  a(...args) {
+    console.log("createElement", ...args);
+  },
+  d(...args) {
+    console.log("Fragment", ...args);
+  }
+};
+export default /* @__PURE__ */ Foo.a(Foo.b, {
+  c: Foo.e
+});
+
+================================================================================
+TestManglePropsJSXTransformNamespace
+---------- /out.js ----------
+export default [
+  /* @__PURE__ */ React.createElement(KEEP_THIS_, null),
+  /* @__PURE__ */ React.createElement("KEEP:THIS_", null),
+  /* @__PURE__ */ React.createElement("foo", {
+    "KEEP:THIS_": true
+  })
+];
+
+================================================================================
 TestManglePropsLoweredOptionalChain
 ---------- /out.js ----------
 export default function(x) {

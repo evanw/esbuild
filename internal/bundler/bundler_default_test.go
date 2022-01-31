@@ -5561,3 +5561,80 @@ func TestManglePropsImportExportBundled(t *testing.T) {
 		},
 	})
 }
+
+func TestManglePropsJSXTransform(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				let Foo = {
+					Bar_(props) {
+						return <>{props.text_}</>
+					},
+					hello_: 'hello, world',
+					createElement_(...args) {
+						console.log('createElement', ...args)
+					},
+					Fragment_(...args) {
+						console.log('Fragment', ...args)
+					},
+				}
+				export default <Foo.Bar_ text_={Foo.hello_}></Foo.Bar_>
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
+			JSX: config.JSXOptions{
+				Factory:  config.JSXExpr{Parts: []string{"Foo", "createElement_"}},
+				Fragment: config.JSXExpr{Parts: []string{"Foo", "Fragment_"}},
+			},
+		},
+	})
+}
+
+func TestManglePropsJSXPreserve(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				let Foo = {
+					Bar_(props) {
+						return <>{props.text_}</>
+					},
+					hello_: 'hello, world',
+				}
+				export default <Foo.Bar_ text_={Foo.hello_}></Foo.Bar_>
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.jsx",
+			MangleProps:   regexp.MustCompile("_$"),
+			JSX: config.JSXOptions{
+				Preserve: true,
+			},
+		},
+	})
+}
+
+func TestManglePropsJSXTransformNamespace(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				export default [
+					<KEEP_THIS_ />,
+					<KEEP:THIS_ />,
+					<foo KEEP:THIS_ />,
+				]
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
+		},
+	})
+}
