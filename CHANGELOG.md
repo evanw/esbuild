@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.16
 
 * Support property name mangling with some TypeScript syntax features
 
