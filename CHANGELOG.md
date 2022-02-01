@@ -2,42 +2,46 @@
 
 ## Unreleased
 
-* Fix property name mangling for TypeScript parameter properties
+* Fix property name mangling for some TypeScript syntax features
 
-    This release adds TypeScript parameter properties to the set of syntax constructs affected by the new `--mangle-props=` setting. Parameter properties are a TypeScript-only shorthand way of initializing a class field directly from the constructor argument list. Previously parameter properties were not treated as properties to be mangled:
+    The newly-released `--mangle-props=` feature previously only affected JavaScript syntax features. This release adds support for using mangle props with certain TypeScript syntax features:
 
-    ```ts
-    // Original code
-    class Foo {
-      constructor(public foo_) {}
-    }
-    new Foo().foo_
+    * **TypeScript parameter properties**
 
-    // Old output (with --minify --mangle-props=_)
-    class Foo{constructor(c){this.foo_=c}}new Foo().o;
+        Parameter properties are a TypeScript-only shorthand way of initializing a class field directly from the constructor argument list. Previously parameter properties were not treated as properties to be mangled. They should now be handled correctly:
 
-    // New output (with --minify --mangle-props=_)
-    class Foo{constructor(o){this.c=o}}new Foo().c;
-    ```
+        ```ts
+        // Original code
+        class Foo {
+          constructor(public foo_) {}
+        }
+        new Foo().foo_;
 
-* Fix property name mangling for members exported from TypeScript namespaces
+        // Old output (with --minify --mangle-props=_)
+        class Foo{constructor(c){this.foo_=c}}new Foo().o;
 
-    This release adds TypeScript namespaces to the set of syntax constructs affected by the new `--mangle-props=` setting. Previously exported namespace members were not treated as properties to be mangled:
+        // New output (with --minify --mangle-props=_)
+        class Foo{constructor(o){this.c=o}}new Foo().c;
+        ```
 
-    ```ts
-    // Original code
-    namespace ns {
-      export let foo_ = 1
-      export function bar_(x) { }
-    }
-    ns.bar_(ns.foo_)
+    * **TypeScript namespaces**
 
-    // Old output (with --minify --mangle-props=_)
-    var ns;(e=>{e.foo_=1;function t(a){}e.bar_=t})(ns||={}),ns.e(ns.o);
+        Namespaces are a TypeScript-only way to add properties to an object. Previously exported namespace members were not treated as properties to be mangled. They should now be handled correctly:
 
-    // New output (with --minify --mangle-props=_)
-    var ns;(e=>{e.e=1;function o(p){}e.t=o})(ns||={}),ns.t(ns.e);
-    ```
+        ```ts
+        // Original code
+        namespace ns {
+          export let foo_ = 1;
+          export function bar_(x) {}
+        }
+        ns.bar_(ns.foo_);
+
+        // Old output (with --minify --mangle-props=_)
+        var ns;(e=>{e.foo_=1;function t(a){}e.bar_=t})(ns||={}),ns.e(ns.o);
+
+        // New output (with --minify --mangle-props=_)
+        var ns;(e=>{e.e=1;function o(p){}e.t=o})(ns||={}),ns.t(ns.e);
+        ```
 
 ## 0.14.15
 
