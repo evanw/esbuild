@@ -1501,6 +1501,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.printSpaceBeforeIdentifier()
 		p.print("import.meta")
 
+	case *js_ast.EMangledProp:
+		p.printQuotedUTF8(p.renamer.NameForSymbol(e.Ref), true)
+
 	case *js_ast.EJSXElement:
 		// Start the opening tag
 		p.print("<")

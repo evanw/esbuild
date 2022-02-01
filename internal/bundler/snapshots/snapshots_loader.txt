@@ -598,6 +598,17 @@ export default [
 ];
 
 ================================================================================
+TestManglePropsLoweredClassFields
+---------- /out.js ----------
+class Foo {
+  constructor() {
+    __publicField(this, "a", 123);
+  }
+}
+__publicField(Foo, "b", 234);
+Foo.b = new Foo().a;
+
+================================================================================
 TestManglePropsLoweredOptionalChain
 ---------- /out.js ----------
 export default function(x) {

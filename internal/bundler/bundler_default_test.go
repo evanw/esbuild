@@ -5725,17 +5725,11 @@ func TestManglePropsTypeScriptFeatures(t *testing.T) {
 				}
 			`,
 
-			// Mangle props deliberately doesn't work with TypeScript enums. Rationale:
-			//
-			// * The TypeScript compiler outputs quoted strings for enum values, so our
-			//   JavaScript implementation of mangle props wouldn't pick them up.
-			//   Therefore for consistency our TypeScript implementation of mangle props
-			//   shouldn't either.
-			//
-			// * Number-valued enums generate a map with the name of the enum as a bare
-			//   string. To support that with the mangled name, we'd have to expose the
-			//   mangled name as a string expression in the AST, which is currently
-			//   impossible since these names are a special kind of property instead.
+			// Mangle props deliberately doesn't work with TypeScript enums. The
+			// rationale is that the TypeScript compiler outputs quoted strings
+			// for enum values, so our JavaScript implementation of mangle props
+			// wouldn't pick them up. Therefore for consistency our TypeScript
+			// implementation of mangle props shouldn't either.
 			//
 			// This should be ok because esbuild supports inlining of enums instead,
 			// which is superior to using mangle props with enums because it results
@@ -5808,6 +5802,27 @@ func TestManglePropsNoShorthand(t *testing.T) {
 			MangleProps:           regexp.MustCompile("x"),
 			MinifyIdentifiers:     true,
 			UnsupportedJSFeatures: compat.ObjectExtensions,
+		},
+	})
+}
+
+func TestManglePropsLoweredClassFields(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					foo_ = 123
+					static bar_ = 234
+				}
+				Foo.bar_ = new Foo().foo_
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			MangleProps:           regexp.MustCompile("_$"),
+			UnsupportedJSFeatures: compat.ClassField | compat.ClassStaticField,
 		},
 	})
 }

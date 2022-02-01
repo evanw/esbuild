@@ -43,6 +43,24 @@
         var ns;(e=>{e.e=1;function o(p){}e.t=o})(ns||={}),ns.t(ns.e);
         ```
 
+* Fix property name mangling for lowered class fields
+
+    This release fixes a compiler crash with `--mangle-props=` and class fields that need to be transformed to older versions of TypeScript. The problem was that doing this is an unusual case where the mangled property name must be represented as a string instead of as a property name, which previously wasn't implemented. This case should now work correctly:
+
+    ```js
+    // Original code
+    class Foo {
+      static foo_;
+    }
+    Foo.foo_ = 0;
+
+    // New output (with --mangle-props=_ --target=es6)
+    class Foo {
+    }
+    __publicField(Foo, "a");
+    Foo.a = 0;
+    ```
+
 ## 0.14.15
 
 * Add property name mangling with `--mangle-props=` ([#218](https://github.com/evanw/esbuild/issues/218))
