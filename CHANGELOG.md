@@ -45,7 +45,7 @@
 
 * Fix property name mangling for lowered class fields
 
-    This release fixes a compiler crash with `--mangle-props=` and class fields that need to be transformed to older versions of TypeScript. The problem was that doing this is an unusual case where the mangled property name must be represented as a string instead of as a property name, which previously wasn't implemented. This case should now work correctly:
+    This release fixes a compiler crash with `--mangle-props=` and class fields that need to be transformed to older versions of JavaScript. The problem was that doing this is an unusual case where the mangled property name must be represented as a string instead of as a property name, which previously wasn't implemented. This case should now work correctly:
 
     ```js
     // Original code
