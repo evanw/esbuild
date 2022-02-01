@@ -5826,3 +5826,28 @@ func TestManglePropsLoweredClassFields(t *testing.T) {
 		},
 	})
 }
+
+// This tests for a case where "constructor" was being mangled, which made the
+// method become a non-constructor, and then "super()" caused a parse error.
+// The fix was to prevent the property "constructor" from being mangled.
+// See: https://github.com/evanw/esbuild/issues/1976
+func TestManglePropsSuperCall(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {}
+				class Bar extends Foo {
+					constructor() {
+						super();
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("."),
+		},
+	})
+}

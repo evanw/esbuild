@@ -692,6 +692,17 @@ TestManglePropsShorthand
 export let yyyyy = ({ y }) => ({ y });
 
 ================================================================================
+TestManglePropsSuperCall
+---------- /out.js ----------
+class Foo {
+}
+class Bar extends Foo {
+  constructor() {
+    super();
+  }
+}
+
+================================================================================
 TestManglePropsTypeScriptFeatures
 ---------- /out/parameter-properties.js ----------
 class Foo {

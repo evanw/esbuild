@@ -2480,11 +2480,25 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 	}
 }
 
+// These properties have special semantics in JavaScript. They must not be
+// mangled or we could potentially fail to parse valid JavaScript syntax or
+// generate invalid JavaScript syntax as output.
+//
+// This list is only intended to contain properties specific to the JavaScript
+// language itself to avoid syntax errors in the generated output. It's not
+// intended to contain properties for JavaScript APIs. Those must be provided
+// by the user.
+var permanentReservedProps = map[string]bool{
+	"__proto__":   true,
+	"constructor": true,
+	"prototype":   true,
+}
+
 func (p *parser) isMangledProp(name string) bool {
 	if p.options.mangleProps == nil {
 		return false
 	}
-	if p.options.mangleProps.MatchString(name) && name != "__proto__" && (p.options.reserveProps == nil || !p.options.reserveProps.MatchString(name)) {
+	if p.options.mangleProps.MatchString(name) && !permanentReservedProps[name] && (p.options.reserveProps == nil || !p.options.reserveProps.MatchString(name)) {
 		return true
 	}
 	reservedProps := p.reservedProps
