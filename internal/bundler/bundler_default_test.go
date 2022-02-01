@@ -5676,6 +5676,7 @@ func TestManglePropsTypeScriptFeatures(t *testing.T) {
 				let foo = new Foo
 				console.log(foo.KEEP_FIELD, foo.MANGLE_FIELD_)
 			`,
+
 			"/namespace-exports.ts": `
 				namespace ns {
 					export var MANGLE_VAR_ = 1
@@ -5723,10 +5724,48 @@ func TestManglePropsTypeScriptFeatures(t *testing.T) {
 					})
 				}
 			`,
+
+			// Mangle props deliberately doesn't work with TypeScript enums. Rationale:
+			//
+			// * The TypeScript compiler outputs quoted strings for enum values, so our
+			//   JavaScript implementation of mangle props wouldn't pick them up.
+			//   Therefore for consistency our TypeScript implementation of mangle props
+			//   shouldn't either.
+			//
+			// * Number-valued enums generate a map with the name of the enum as a bare
+			//   string. To support that with the mangled name, we'd have to expose the
+			//   mangled name as a string expression in the AST, which is currently
+			//   impossible since these names are a special kind of property instead.
+			//
+			// This should be ok because esbuild supports inlining of enums instead,
+			// which is superior to using mangle props with enums because it results
+			// in even smaller and faster code. So people should just use enum inlining
+			// instead of mangle props with TypeScript enums.
+			//
+			// This test just serves to document that this behavior deliberately
+			// doesn't work.
+			"/enum-values.ts": `
+				enum TopLevelNumber { foo_ = 0 }
+				enum TopLevelString { bar_ = '' }
+				console.log({
+					foo: TopLevelNumber.foo_,
+					bar: TopLevelString.bar_,
+				})
+
+				function fn() {
+					enum NestedNumber { foo_ = 0 }
+					enum NestedString { bar_ = '' }
+					console.log({
+						foo: TopLevelNumber.foo_,
+						bar: TopLevelString.bar_,
+					})
+				}
+			`,
 		},
 		entryPaths: []string{
 			"/parameter-properties.ts",
 			"/namespace-exports.ts",
+			"/enum-values.ts",
 		},
 		options: config.Options{
 			Mode:         config.ModePassThrough,
