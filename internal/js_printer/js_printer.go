@@ -484,7 +484,7 @@ func (p *printer) printIndent() {
 	}
 }
 
-func (p *printer) printSymbol(ref js_ast.Ref) {
+func (p *printer) printSymbol(ref js_ast.Ref) string {
 	name := p.renamer.NameForSymbol(ref)
 
 	// Minify "return #foo in bar" to "return#foo in bar"
@@ -493,6 +493,7 @@ func (p *printer) printSymbol(ref js_ast.Ref) {
 	}
 
 	p.printIdentifier(name)
+	return name
 }
 
 func (p *printer) printClauseAlias(alias string) {
@@ -733,7 +734,18 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 							continue
 						}
 					} else if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
-						p.printSymbol(mangled.Ref)
+						name := p.printSymbol(mangled.Ref)
+
+						// Use a shorthand property if the names are the same
+						if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok && name == p.renamer.NameForSymbol(id.Ref) {
+							if property.DefaultValueOrNil.Data != nil {
+								p.printSpace()
+								p.print("=")
+								p.printSpace()
+								p.printExpr(property.DefaultValueOrNil, js_ast.LComma, 0)
+							}
+							continue
+						}
 					} else {
 						p.printExpr(property.Key, js_ast.LLowest, 0)
 					}
@@ -967,10 +979,42 @@ func (p *printer) printProperty(item js_ast.Property) {
 
 	switch key := item.Key.Data.(type) {
 	case *js_ast.EPrivateIdentifier:
+		p.addSourceMapping(item.Key.Loc)
 		p.printSymbol(key.Ref)
 
 	case *js_ast.EMangledProp:
-		p.printSymbol(key.Ref)
+		p.addSourceMapping(item.Key.Loc)
+		name := p.printSymbol(key.Ref)
+
+		// Use a shorthand property if the names are the same
+		if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.ValueOrNil.Data != nil {
+			switch e := item.ValueOrNil.Data.(type) {
+			case *js_ast.EIdentifier:
+				if name == p.renamer.NameForSymbol(e.Ref) {
+					if item.InitializerOrNil.Data != nil {
+						p.printSpace()
+						p.print("=")
+						p.printSpace()
+						p.printExpr(item.InitializerOrNil, js_ast.LComma, 0)
+					}
+					return
+				}
+
+			case *js_ast.EImportIdentifier:
+				// Make sure we're not using a property access instead of an identifier
+				ref := js_ast.FollowSymbols(p.symbols, e.Ref)
+				symbol := p.symbols.Get(ref)
+				if symbol.NamespaceAlias == nil && name == p.renamer.NameForSymbol(e.Ref) {
+					if item.InitializerOrNil.Data != nil {
+						p.printSpace()
+						p.print("=")
+						p.printSpace()
+						p.printExpr(item.InitializerOrNil, js_ast.LComma, 0)
+					}
+					return
+				}
+			}
+		}
 
 	case *js_ast.EString:
 		p.addSourceMapping(item.Key.Loc)

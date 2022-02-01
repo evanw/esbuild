@@ -630,7 +630,7 @@ export function shouldMangle_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX() {
     static Y() {
     }
   }
-  return { X: Y, t: t };
+  return { X: Y, t };
 }
 export function shouldNotMangle_YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY() {
   let X = {
@@ -657,6 +657,11 @@ export default {
 };
 
 ================================================================================
+TestManglePropsNoShorthand
+---------- /out.js ----------
+export let yyyyy = ({ y }) => ({ y: y });
+
+================================================================================
 TestManglePropsOptionalChain
 ---------- /out.js ----------
 export default function(x) {
@@ -669,6 +674,11 @@ export default function(x) {
   x?.["foo_"].b;
   x?.a["bar_"];
 }
+
+================================================================================
+TestManglePropsShorthand
+---------- /out.js ----------
+export let yyyyy = ({ y }) => ({ y });
 
 ================================================================================
 TestManglePropsTypeScriptFeatures

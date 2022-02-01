@@ -5774,3 +5774,40 @@ func TestManglePropsTypeScriptFeatures(t *testing.T) {
 		},
 	})
 }
+
+func TestManglePropsShorthand(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// This should print as "({ y }) => ({ y })" not "({ y: y }) => ({ y: y })"
+				export let yyyyy = ({ xxxxx }) => ({ xxxxx })
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:              config.ModePassThrough,
+			AbsOutputFile:     "/out.js",
+			MangleProps:       regexp.MustCompile("x"),
+			MinifyIdentifiers: true,
+		},
+	})
+}
+
+func TestManglePropsNoShorthand(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// This should print as "({ y }) => ({ y: y })" not "({ y: y }) => ({ y: y })"
+				export let yyyyy = ({ xxxxx }) => ({ xxxxx })
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			MangleProps:           regexp.MustCompile("x"),
+			MinifyIdentifiers:     true,
+			UnsupportedJSFeatures: compat.ObjectExtensions,
+		},
+	})
+}
