@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* Fix property name mangling for some TypeScript syntax features
+* Support property name mangling with some TypeScript syntax features
 
     The newly-released `--mangle-props=` feature previously only affected JavaScript syntax features. This release adds support for using mangle props with certain TypeScript syntax features:
 
