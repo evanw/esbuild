@@ -779,6 +779,7 @@ func parseTargets(targets []string, arg string) (target api.Target, engines []ap
 		"chrome":  api.EngineChrome,
 		"edge":    api.EngineEdge,
 		"firefox": api.EngineFirefox,
+		"ie":      api.EngineIE,
 		"ios":     api.EngineIOS,
 		"node":    api.EngineNode,
 		"opera":   api.EngineOpera,

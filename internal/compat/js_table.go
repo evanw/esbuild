@@ -9,6 +9,7 @@ const (
 	Edge
 	ES
 	Firefox
+	IE
 	IOS
 	Node
 	Opera
@@ -25,6 +26,8 @@ func (e Engine) String() string {
 		return "es"
 	case Firefox:
 		return "firefox"
+	case IE:
+		return "ie"
 	case IOS:
 		return "ios"
 	case Node:
@@ -247,6 +250,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{51, 0, 0}}},
+		IE:      {{start: v{11, 0, 0}}},
 		IOS:     {{start: v{11, 0, 0}}},
 		Node:    {{start: v{6, 0, 0}}},
 		Opera:   {{start: v{36, 0, 0}}},
@@ -354,6 +358,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{51, 0, 0}}},
+		IE:      {{start: v{11, 0, 0}}},
 		IOS:     {{start: v{11, 0, 0}}},
 		Node:    {{start: v{6, 0, 0}}},
 		Opera:   {{start: v{36, 0, 0}}},
@@ -410,6 +415,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{12, 0, 0}}},
 		ES:      {{start: v{5, 0, 0}}},
 		Firefox: {{start: v{2, 0, 0}}},
+		IE:      {{start: v{9, 0, 0}}},
 		IOS:     {{start: v{6, 0, 0}}},
 		Node:    {{start: v{0, 10, 0}}},
 		Opera:   {{start: v{10, 10, 0}}},

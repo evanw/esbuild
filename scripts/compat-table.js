@@ -82,6 +82,7 @@ const engines = [
   'edge',
   'es',
   'firefox',
+  'ie',
   'ios',
   'node',
   'opera',
@@ -292,7 +293,7 @@ for (const feature in features) {
 }
 
 function upper(text) {
-  if (text === 'es' || text === 'ios') return text.toUpperCase()
+  if (text === 'es' || text === 'ios' || text === 'ie') return text.toUpperCase()
   return text[0].toUpperCase() + text.slice(1)
 }
 

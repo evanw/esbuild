@@ -168,6 +168,7 @@ const (
 	EngineChrome EngineName = iota
 	EngineEdge
 	EngineFirefox
+	EngineIE
 	EngineIOS
 	EngineNode
 	EngineOpera

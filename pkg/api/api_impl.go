@@ -331,6 +331,8 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (config.T
 					constraints[compat.Edge] = version
 				case EngineFirefox:
 					constraints[compat.Firefox] = version
+				case EngineIE:
+					constraints[compat.IE] = version
 				case EngineIOS:
 					constraints[compat.IOS] = version
 				case EngineNode:
