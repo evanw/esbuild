@@ -777,11 +777,12 @@ func parseTargets(targets []string, arg string) (target api.Target, engines []ap
 
 	validEngines := map[string]api.EngineName{
 		"chrome":  api.EngineChrome,
-		"firefox": api.EngineFirefox,
-		"safari":  api.EngineSafari,
 		"edge":    api.EngineEdge,
-		"node":    api.EngineNode,
+		"firefox": api.EngineFirefox,
 		"ios":     api.EngineIOS,
+		"node":    api.EngineNode,
+		"opera":   api.EngineOpera,
+		"safari":  api.EngineSafari,
 	}
 
 outer:

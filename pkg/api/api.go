@@ -170,6 +170,7 @@ const (
 	EngineFirefox
 	EngineIOS
 	EngineNode
+	EngineOpera
 	EngineSafari
 )
 

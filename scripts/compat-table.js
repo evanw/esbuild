@@ -84,6 +84,7 @@ const engines = [
   'firefox',
   'ios',
   'node',
+  'opera',
   'safari',
 ]
 
