@@ -63,6 +63,19 @@ let buildTests = {
     }
   },
 
+  async mangleCacheBuild({ esbuild }) {
+    var result = await esbuild.build({
+      stdin: {
+        contents: `x = { x_: 0, y_: 1, z_: 2 }`,
+      },
+      mangleProps: /_/,
+      mangleCache: { x_: 'FIXED', z_: false },
+      write: false,
+    })
+    assert.strictEqual(result.outputFiles[0].text, 'x = { FIXED: 0, a: 1, z_: 2 };\n')
+    assert.deepStrictEqual(result.mangleCache, { x_: 'FIXED', y_: 'a', z_: false })
+  },
+
   async windowsBackslashPathTest({ esbuild, testDir }) {
     let entry = path.join(testDir, 'entry.js');
     let nested = path.join(testDir, 'nested.js');
@@ -3175,6 +3188,15 @@ let transformTests = {
       loader: 'ts',
     })
     new Function(code)()
+  },
+
+  async mangleCacheTransform({ esbuild }) {
+    var { code, mangleCache } = await esbuild.transform(`x = { x_: 0, y_: 1, z_: 2 }`, {
+      mangleProps: /_/,
+      mangleCache: { x_: 'FIXED', z_: false },
+    })
+    assert.strictEqual(code, 'x = { FIXED: 0, a: 1, z_: 2 };\n')
+    assert.deepStrictEqual(mangleCache, { x_: 'FIXED', y_: 'a', z_: false })
   },
 
   async jsBannerTransform({ esbuild }) {

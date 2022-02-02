@@ -19,6 +19,7 @@ export interface BuildRequest {
   nodePaths: string[];
   plugins?: BuildPlugin[];
   serve?: ServeRequest;
+  mangleCache?: Record<string, string | false>;
 }
 
 export interface ServeRequest {
@@ -50,6 +51,7 @@ export interface BuildResponse {
   watch: boolean;
   outputFiles?: BuildOutputFile[];
   metafile?: string;
+  mangleCache?: Record<string, string | false>;
   writeToStdout?: Uint8Array;
 }
 
@@ -100,6 +102,7 @@ export interface TransformRequest {
   flags: string[];
   input: string;
   inputFS: boolean;
+  mangleCache?: Record<string, string | false>;
 }
 
 export interface TransformResponse {
@@ -111,6 +114,8 @@ export interface TransformResponse {
 
   map: string;
   mapFS: boolean;
+
+  mangleCache?: Record<string, string | false>;
 }
 
 export interface FormatMsgsRequest {

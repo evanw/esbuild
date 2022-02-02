@@ -26,6 +26,8 @@ interface CommonOptions {
   mangleProps?: RegExp;
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
   reserveProps?: RegExp;
+  /** Documentation: https://esbuild.github.io/api/#mangle-props */
+  mangleCache?: Record<string, string | false>;
   /** Documentation: https://esbuild.github.io/api/#drop */
   drop?: Drop[];
   /** Documentation: https://esbuild.github.io/api/#minify */
@@ -200,6 +202,8 @@ export interface BuildResult {
   stop?: () => void;
   /** Only when "metafile: true" */
   metafile?: Metafile;
+  /** Only when "mangleCache" is present */
+  mangleCache?: Record<string, string | false>;
 }
 
 export interface BuildFailure extends Error {
@@ -253,6 +257,8 @@ export interface TransformResult {
   code: string;
   map: string;
   warnings: Message[];
+  /** Only when "mangleCache" is present */
+  mangleCache?: Record<string, string | false>;
 }
 
 export interface TransformFailure extends Error {

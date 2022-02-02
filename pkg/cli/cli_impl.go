@@ -42,7 +42,8 @@ const (
 )
 
 type parseOptionsExtras struct {
-	metafile *string
+	metafile    *string
+	mangleCache *string
 }
 
 func parseOptionsImpl(
@@ -118,6 +119,10 @@ func parseOptionsImpl(
 			} else {
 				transformOpts.ReserveProps = value
 			}
+
+		case strings.HasPrefix(arg, "--mangle-cache=") && buildOpts != nil && kind == kindInternal:
+			value := arg[len("--mangle-cache="):]
+			extras.mangleCache = &value
 
 		case strings.HasPrefix(arg, "--drop:"):
 			value := arg[len("--drop:"):]
@@ -313,9 +318,9 @@ func parseOptionsImpl(
 			buildOpts.Metafile = true
 
 		case strings.HasPrefix(arg, "--metafile=") && buildOpts != nil && kind == kindInternal:
-			metafilePath := arg[len("--metafile="):]
+			value := arg[len("--metafile="):]
 			buildOpts.Metafile = true
-			extras.metafile = &metafilePath
+			extras.metafile = &value
 
 		case strings.HasPrefix(arg, "--outfile=") && buildOpts != nil:
 			buildOpts.Outfile = arg[len("--outfile="):]
@@ -664,6 +669,7 @@ func parseOptionsImpl(
 				"log-level":          true,
 				"log-limit":          true,
 				"main-fields":        true,
+				"mangle-cache":       true,
 				"mangle-props":       true,
 				"outbase":            true,
 				"outdir":             true,
@@ -995,6 +1001,53 @@ func runImpl(osArgs []string) int {
 					}
 				}
 			}
+		}
+
+		// Also validate the mangle cache absolute path and directory ahead of time
+		// for the same reason
+		var writeMangleCache func(map[string]interface{})
+		if extras.mangleCache != nil {
+			var mangleCacheAbsPath string
+			var mangleCacheAbsDir string
+			var mangleCacheOrder []string
+			realFS, realFSErr := fs.RealFS(fs.RealFSOptions{AbsWorkingDir: buildOptions.AbsWorkingDir})
+			if realFSErr == nil {
+				absPath, ok := realFS.Abs(*extras.mangleCache)
+				if !ok {
+					logger.PrintErrorToStderr(osArgs, fmt.Sprintf("Invalid mangle cache path: %s", *extras.mangleCache))
+					return 1
+				}
+				mangleCacheAbsPath = absPath
+				mangleCacheAbsDir = realFS.Dir(absPath)
+				buildOptions.MangleCache, mangleCacheOrder = parseMangleCache(osArgs, realFS, *extras.mangleCache)
+				if buildOptions.MangleCache == nil {
+					return 1 // Stop now if parsing failed
+				}
+			} else {
+				// Don't fail in this case since the error will be reported by "api.Build"
+			}
+
+			writeMangleCache = func(mangleCache map[string]interface{}) {
+				if mangleCache == nil || realFSErr != nil {
+					return // Don't write out the metafile on build errors
+				}
+				if err != nil {
+					// This should already have been checked above
+					panic(err.Text)
+				}
+				fs.BeforeFileOpen()
+				defer fs.AfterFileClose()
+				if err := fs.MkdirAll(realFS, mangleCacheAbsDir, 0755); err != nil {
+					logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
+						"Failed to create output directory: %s", err.Error()))
+				} else {
+					bytes := printMangleCache(mangleCache, mangleCacheOrder, buildOptions.Charset == api.CharsetASCII)
+					if err := ioutil.WriteFile(mangleCacheAbsPath, bytes, 0644); err != nil {
+						logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
+							"Failed to write to output file: %s", err.Error()))
+					}
+				}
+			}
 
 			// Write out the metafile whenever we rebuild
 			if buildOptions.Watch != nil {
@@ -1026,6 +1079,11 @@ func runImpl(osArgs []string) int {
 		// Write the metafile to the file system
 		if writeMetafile != nil {
 			writeMetafile(result.Metafile)
+		}
+
+		// Write the mangle cache to the file system
+		if writeMangleCache != nil {
+			writeMangleCache(result.MangleCache)
 		}
 
 		// Do not exit if we're in watch mode

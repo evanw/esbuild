@@ -1,5 +1,80 @@
 # Changelog
 
+## Unreleased
+
+* Add the `--mangle-cache=` feature ([#1977](https://github.com/evanw/esbuild/issues/1977))
+
+    This release adds a cache API for the newly-released `--mangle-props=` feature. When enabled, all mangled property renamings are recorded in the cache during the initial build. Subsequent builds reuse the renamings stored in the cache and add additional renamings for any newly-added properties. This has a few consequences:
+
+    * You can customize what mangled properties are renamed to by editing the cache before passing it to esbuild (the cache is a map of the original name to the mangled name).
+
+    * The cache serves as a list of all properties that were mangled. You can easily scan it to see if there are any unexpected property renamings.
+
+    * You can disable mangling for individual properties by setting the renamed value to `false` instead of to a string. This is similar to the `--reserve-props=` setting but on a per-property basis.
+
+    * You can ensure consistent renaming between builds (e.g. a main-thread file and a web worker, or a library and a plugin). Without this feature, each build would do an independent renaming operation and the mangled property names likely wouldn't be consistent.
+
+    Here's how to use it:
+
+    * CLI
+
+        ```sh
+        $ esbuild example.ts --mangle-props=_$ --mangle-cache=cache.json
+        ```
+
+    * JS API
+
+        ```js
+        let result = await esbuild.build({
+          entryPoints: ['example.ts'],
+          mangleProps: /_$/,
+          mangleCache: {
+            customRenaming_: '__c',
+            disabledRenaming_: false,
+          },
+        })
+        let updatedMangleCache = result.mangleCache
+        ```
+
+    * Go API
+
+        ```go
+        result := api.Build(api.BuildOptions{
+          EntryPoints: []string{"example.ts"},
+          MangleProps: "_$",
+          MangleCache: map[string]interface{}{
+            "customRenaming_":   "__c",
+            "disabledRenaming_": false,
+          },
+        })
+        updatedMangleCache := result.MangleCache
+        ```
+
+    The above code would do something like the following:
+
+    ```js
+    // Original code
+    x = {
+      customRenaming_: 1,
+      disabledRenaming_: 2,
+      otherProp_: 3,
+    }
+
+    // Generated code
+    x = {
+      __c: 1,
+      disabledRenaming_: 2,
+      a: 3
+    };
+
+    // Updated mangle cache
+    {
+      "customRenaming_": "__c",
+      "disabledRenaming_": false,
+      "otherProp_": "a"
+    }
+    ```
+
 ## 0.14.17
 
 * Attempt to fix an install script issue on Ubuntu Linux ([#1711](https://github.com/evanw/esbuild/issues/1711))

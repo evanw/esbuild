@@ -101,7 +101,7 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 
 		log = logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		args.options.OmitRuntimeForTests = true
-		results, _ := bundle.Compile(log, args.options, nil)
+		results, _ := bundle.Compile(log, args.options, nil, nil)
 		msgs = log.Done()
 		assertLog(t, msgs, args.expectedCompileLog)
 

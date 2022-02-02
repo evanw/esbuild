@@ -744,6 +744,27 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 	return msgs
 }
 
+func cloneMangleCache(log logger.Log, mangleCache map[string]interface{}) map[string]interface{} {
+	if mangleCache == nil {
+		return nil
+	}
+	clone := make(map[string]interface{}, len(mangleCache))
+	for k, v := range mangleCache {
+		if v == "__proto__" {
+			// This could cause problems for our binary serialization protocol. It's
+			// also unnecessary because we already avoid mangling this property name.
+			log.Add(logger.Error, nil, logger.Range{},
+				fmt.Sprintf("Invalid identifier name %q in mangle cache", k))
+		} else if _, ok := v.(string); ok || v == false {
+			clone[k] = v
+		} else {
+			log.Add(logger.Error, nil, logger.Range{},
+				fmt.Sprintf("Expected %q in mangle cache to map to either a string or false", k))
+		}
+	}
+	return clone
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
@@ -875,6 +896,7 @@ func rebuildImpl(
 	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
 	minify := buildOpts.MinifyWhitespace && buildOpts.MinifyIdentifiers && buildOpts.MinifySyntax
 	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, buildOpts.Platform, minify, buildOpts.Drop)
+	mangleCache := cloneMangleCache(log, buildOpts.MangleCache)
 	options := config.Options{
 		TargetFromAPI:          targetFromAPI,
 		UnsupportedJSFeatures:  jsFeatures,
@@ -1045,7 +1067,7 @@ func rebuildImpl(
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, metafile := bundle.Compile(log, options, timer)
+			results, metafile := bundle.Compile(log, options, timer, mangleCache)
 
 			// Stop now if there were errors
 			if !log.HasErrors() {
@@ -1148,6 +1170,11 @@ func rebuildImpl(
 		}
 	}
 
+	// Only return the mangle cache for a successful build
+	if log.HasErrors() {
+		mangleCache = nil
+	}
+
 	result := BuildResult{
 		Errors:      convertMessagesToPublic(logger.Error, msgs),
 		Warnings:    convertMessagesToPublic(logger.Warning, msgs),
@@ -1155,6 +1182,7 @@ func rebuildImpl(
 		Metafile:    metafileJSON,
 		Rebuild:     rebuild,
 		Stop:        stop,
+		MangleCache: mangleCache,
 	}
 
 	for _, onEnd := range onEndCallbacks {
@@ -1371,6 +1399,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	// Convert and validate the transformOpts
 	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
 	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, PlatformNeutral, false /* minify */, transformOpts.Drop)
+	mangleCache := cloneMangleCache(log, transformOpts.MangleCache)
 	options := config.Options{
 		TargetFromAPI:           targetFromAPI,
 		UnsupportedJSFeatures:   jsFeatures,
@@ -1446,7 +1475,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, _ = bundle.Compile(log, options, timer)
+			results, _ = bundle.Compile(log, options, timer, mangleCache)
 		}
 
 		timer.Log(log)
@@ -1468,12 +1497,18 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		}
 	}
 
+	// Only return the mangle cache for a successful build
+	if log.HasErrors() {
+		mangleCache = nil
+	}
+
 	msgs := log.Done()
 	return TransformResult{
-		Errors:   convertMessagesToPublic(logger.Error, msgs),
-		Warnings: convertMessagesToPublic(logger.Warning, msgs),
-		Code:     code,
-		Map:      sourceMap,
+		Errors:      convertMessagesToPublic(logger.Error, msgs),
+		Warnings:    convertMessagesToPublic(logger.Warning, msgs),
+		Code:        code,
+		Map:         sourceMap,
+		MangleCache: mangleCache,
 	}
 }
 

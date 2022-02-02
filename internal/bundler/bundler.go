@@ -2036,7 +2036,7 @@ func applyOptionDefaults(options *config.Options) {
 	options.ProfilerNames = !options.MinifyIdentifiers
 }
 
-func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.Timer) ([]graph.OutputFile, string) {
+func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.Timer, mangleCache map[string]interface{}) ([]graph.OutputFile, string) {
 	timer.Begin("Compile phase")
 	defer timer.End("Compile phase")
 
@@ -2045,6 +2045,11 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 	// The format can't be "preserve" while bundling
 	if options.Mode == config.ModeBundle && options.OutputFormat == config.FormatPreserve {
 		options.OutputFormat = config.FormatESModule
+	}
+
+	// In most cases we don't need synchronized access to the mangle cache
+	options.ExclusiveMangleCacheUpdate = func(cb func(mangleCache map[string]interface{})) {
+		cb(mangleCache)
 	}
 
 	files := make([]graph.InputFile, len(b.files))
@@ -2063,20 +2068,35 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 	var resultGroups [][]graph.OutputFile
 	if options.CodeSplitting || len(b.entryPoints) == 1 {
 		// If code splitting is enabled or if there's only one entry point, link all entry points together
-		resultGroups = [][]graph.OutputFile{link(
-			&options, timer, log, b.fs, b.res, files, b.entryPoints, b.uniqueKeyPrefix, allReachableFiles, dataForSourceMaps)}
+		resultGroups = [][]graph.OutputFile{link(&options, timer, log, b.fs, b.res,
+			files, b.entryPoints, b.uniqueKeyPrefix, allReachableFiles, dataForSourceMaps)}
 	} else {
 		// Otherwise, link each entry point with the runtime file separately
 		waitGroup := sync.WaitGroup{}
 		resultGroups = make([][]graph.OutputFile, len(b.entryPoints))
+		serializer := helpers.MakeSerializer(len(b.entryPoints))
 		for i, entryPoint := range b.entryPoints {
 			waitGroup.Add(1)
 			go func(i int, entryPoint graph.EntryPoint) {
 				entryPoints := []graph.EntryPoint{entryPoint}
 				forked := timer.Fork()
-				reachableFiles := findReachableFiles(files, entryPoints)
-				resultGroups[i] = link(
-					&options, forked, log, b.fs, b.res, files, entryPoints, b.uniqueKeyPrefix, reachableFiles, dataForSourceMaps)
+				var optionsPtr *config.Options
+				if mangleCache != nil {
+					// Each goroutine needs a separate options object
+					optionsClone := options
+					optionsClone.ExclusiveMangleCacheUpdate = func(cb func(mangleCache map[string]interface{})) {
+						// Serialize all accesses to the mangle cache in entry point order for determinism
+						serializer.Enter(i)
+						defer serializer.Leave(i)
+						cb(mangleCache)
+					}
+					optionsPtr = &optionsClone
+				} else {
+					// Each goroutine can share an options object
+					optionsPtr = &options
+				}
+				resultGroups[i] = link(optionsPtr, forked, log, b.fs, b.res, files, entryPoints,
+					b.uniqueKeyPrefix, findReachableFiles(files, entryPoints), dataForSourceMaps)
 				timer.Join(forked)
 				waitGroup.Done()
 			}(i, entryPoint)

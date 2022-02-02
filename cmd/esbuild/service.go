@@ -411,6 +411,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	options, err := cli.ParseBuildOptions(flags)
 	options.AbsWorkingDir = request["absWorkingDir"].(string)
 	options.NodePaths = decodeStringArray(request["nodePaths"].([]interface{}))
+	options.MangleCache, _ = request["mangleCache"].(map[string]interface{})
 
 	for _, entry := range entries {
 		entry := entry.([]interface{})
@@ -473,6 +474,9 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		}
 		if options.Metafile {
 			response["metafile"] = result.Metafile
+		}
+		if options.MangleCache != nil {
+			response["mangleCache"] = result.MangleCache
 		}
 		if writeToStdout && len(result.OutputFiles) == 1 {
 			response["writeToStdout"] = result.OutputFiles[0].Contents
@@ -923,6 +927,7 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 	if err != nil {
 		return encodeErrorPacket(id, err)
 	}
+	options.MangleCache, _ = request["mangleCache"].(map[string]interface{})
 
 	transformInput := input
 	if inputFS {
@@ -962,18 +967,24 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 		fs.AfterFileClose()
 	}
 
+	response := map[string]interface{}{
+		"errors":   encodeMessages(result.Errors),
+		"warnings": encodeMessages(result.Warnings),
+
+		"codeFS": codeFS,
+		"code":   string(result.Code),
+
+		"mapFS": mapFS,
+		"map":   string(result.Map),
+	}
+
+	if result.MangleCache != nil {
+		response["mangleCache"] = result.MangleCache
+	}
+
 	return encodePacket(packet{
-		id: id,
-		value: map[string]interface{}{
-			"errors":   encodeMessages(result.Errors),
-			"warnings": encodeMessages(result.Warnings),
-
-			"codeFS": codeFS,
-			"code":   string(result.Code),
-
-			"mapFS": mapFS,
-			"map":   string(result.Map),
-		},
+		id:    id,
+		value: response,
 	})
 }
 

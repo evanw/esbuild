@@ -83,6 +83,24 @@ export function validateInitializeOptions(options: types.InitializeOptions): typ
   };
 }
 
+type MangleCache = Record<string, string | false>
+
+function validateMangleCache(mangleCache: MangleCache | undefined): MangleCache | undefined {
+  let validated: MangleCache | undefined
+  if (mangleCache !== undefined) {
+    validated = Object.create(null) as MangleCache
+    for (let key of Object.keys(mangleCache)) {
+      let value = mangleCache[key]
+      if (typeof value === 'string' || value === false) {
+        validated[key] = value
+      } else {
+        throw new Error(`Expected ${JSON.stringify(key)} in mangle cache to map to either a string or false`)
+      }
+    }
+  }
+  return validated
+}
+
 type CommonOptions = types.BuildOptions | types.TransformOptions;
 
 function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys, isTTY: boolean, logLevelDefault: types.LogLevel): void {
@@ -171,6 +189,7 @@ function flagsForBuildOptions(
   incremental: boolean,
   nodePaths: string[],
   watch: types.WatchMode | null,
+  mangleCache: MangleCache | undefined,
 } {
   let flags: string[] = [];
   let entries: [string, string][] = [];
@@ -212,6 +231,7 @@ function flagsForBuildOptions(
   let write = getFlag(options, keys, 'write', mustBeBoolean) ?? writeDefault; // Default to true if not specified
   let allowOverwrite = getFlag(options, keys, 'allowOverwrite', mustBeBoolean);
   let incremental = getFlag(options, keys, 'incremental', mustBeBoolean) === true;
+  let mangleCache = getFlag(options, keys, 'mangleCache', mustBeObject);
   keys.plugins = true; // "plugins" has already been read earlier
   checkForInvalidFlags(options, keys, `in ${callName}() call`);
 
@@ -339,6 +359,7 @@ function flagsForBuildOptions(
     incremental,
     nodePaths,
     watch: watchMode,
+    mangleCache: validateMangleCache(mangleCache),
   };
 }
 
@@ -347,7 +368,10 @@ function flagsForTransformOptions(
   options: types.TransformOptions,
   isTTY: boolean,
   logLevelDefault: types.LogLevel,
-): string[] {
+): {
+  flags: string[],
+  mangleCache: MangleCache | undefined,
+} {
   let flags: string[] = [];
   let keys: OptionKeys = Object.create(null);
   pushLogFlags(flags, options, keys, isTTY, logLevelDefault);
@@ -359,6 +383,7 @@ function flagsForTransformOptions(
   let loader = getFlag(options, keys, 'loader', mustBeString);
   let banner = getFlag(options, keys, 'banner', mustBeString);
   let footer = getFlag(options, keys, 'footer', mustBeString);
+  let mangleCache = getFlag(options, keys, 'mangleCache', mustBeObject);
   checkForInvalidFlags(options, keys, `in ${callName}() call`);
 
   if (sourcemap) flags.push(`--sourcemap=${sourcemap === true ? 'external' : sourcemap}`);
@@ -368,7 +393,10 @@ function flagsForTransformOptions(
   if (banner) flags.push(`--banner=${banner}`);
   if (footer) flags.push(`--footer=${footer}`);
 
-  return flags;
+  return {
+    flags,
+    mangleCache: validateMangleCache(mangleCache),
+  };
 }
 
 export interface StreamIn {
@@ -1119,6 +1147,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       incremental,
       nodePaths,
       watch,
+      mangleCache,
     } = flagsForBuildOptions(callName, options, isTTY, buildLogLevelDefault, writeDefault);
     let request: protocol.BuildRequest = {
       command: 'build',
@@ -1133,6 +1162,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       nodePaths,
     };
     if (requestPlugins) request.plugins = requestPlugins;
+    if (mangleCache) request.mangleCache = mangleCache;
     let serve = serveOptions && buildServeData(refs, serveOptions, request, key);
 
     // Factor out response handling so it can be reused for rebuilds
@@ -1141,6 +1171,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let copyResponseToResult = (response: protocol.BuildResponse, result: types.BuildResult) => {
       if (response.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
       if (response.metafile) result.metafile = JSON.parse(response!.metafile);
+      if (response.mangleCache) result.mangleCache = response!.mangleCache;
       if (response.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''));
     };
     let buildResponseToResult = (
@@ -1292,19 +1323,29 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let start = (inputPath: string | null) => {
       try {
         if (typeof input !== 'string') throw new Error('The input to "transform" must be a string');
-        let flags = flagsForTransformOptions(callName, options, isTTY, transformLogLevelDefault);
+        let {
+          flags,
+          mangleCache,
+        } = flagsForTransformOptions(callName, options, isTTY, transformLogLevelDefault);
         let request: protocol.TransformRequest = {
           command: 'transform',
           flags,
           inputFS: inputPath !== null,
           input: inputPath !== null ? inputPath : input,
         };
+        if (mangleCache) request.mangleCache = mangleCache;
         sendRequest<protocol.TransformRequest, protocol.TransformResponse>(refs, request, (error, response) => {
           if (error) return callback(new Error(error), null);
           let errors = replaceDetailsInMessages(response!.errors, details);
           let warnings = replaceDetailsInMessages(response!.warnings, details);
           let outstanding = 1;
-          let next = () => --outstanding === 0 && callback(null, { warnings, code: response!.code, map: response!.map });
+          let next = () => {
+            if (--outstanding === 0) {
+              let result: types.TransformResult = { warnings, code: response!.code, map: response!.map }
+              if (response!.mangleCache) result.mangleCache = response?.mangleCache
+              callback(null, result)
+            }
+          };
           if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
 
           // Read the JavaScript file from the file system

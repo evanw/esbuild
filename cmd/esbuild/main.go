@@ -90,6 +90,7 @@ var helpText = func(colors logger.Colors) string {
   --main-fields=...         Override the main file order in package.json
                             (default "browser,module,main" when platform is
                             browser and "main,module" when platform is node)
+  --mangle-cache=...        Save "mangle props" decisions to a JSON file
   --mangle-props=...        Rename all properties matching a regular expression
   --metafile=...            Write metadata about the build to a JSON file
   --minify-whitespace       Remove whitespace in output files

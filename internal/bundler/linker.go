@@ -302,7 +302,11 @@ func link(
 	// Merge mangled properties before chunks are generated since the names must
 	// be consistent across all chunks, or the generated code will break
 	if c.options.MangleProps != nil {
-		c.mangleProps()
+		c.timer.Begin("Waiting for mangle cache")
+		c.options.ExclusiveMangleCacheUpdate(func(mangleCache map[string]interface{}) {
+			c.timer.End("Waiting for mangle cache")
+			c.mangleProps(mangleCache)
+		})
 	}
 
 	// Make sure calls to "js_ast.FollowSymbols()" in parallel goroutines after this
@@ -312,28 +316,42 @@ func link(
 	return c.generateChunksInParallel(chunks)
 }
 
-func (c *linkerContext) mangleProps() {
+func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 	c.timer.Begin("Mangle props")
 	defer c.timer.End("Mangle props")
 
-	// Merge all mangled property symbols together
-	freq := js_ast.CharFreq{}
-	mangledProps := make(map[string]js_ast.Ref)
+	// Reserve all JS keywords
 	reservedProps := make(map[string]bool)
 	for keyword := range js_lexer.Keywords {
 		reservedProps[keyword] = true
 	}
+
+	// Reserve all target properties in the cache
+	for original, remapped := range mangleCache {
+		if remapped == false {
+			reservedProps[original] = true
+		} else {
+			reservedProps[remapped.(string)] = true
+		}
+	}
+
+	// Merge all mangled property symbols together
+	freq := js_ast.CharFreq{}
+	mangledProps := make(map[string]js_ast.Ref)
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		// Don't mangle anything in the runtime code
 		if sourceIndex == runtime.SourceIndex {
 			continue
 		}
 
+		// For each file
 		if repr, ok := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.JSRepr); ok {
+			// Reserve all non-mangled properties
 			for prop := range repr.AST.ReservedProps {
 				reservedProps[prop] = true
 			}
 
+			// Merge each mangled property with other ones of the same name
 			for name, ref := range repr.AST.MangledProps {
 				if existing, ok := mangledProps[name]; ok {
 					js_ast.MergeSymbols(c.graph.Symbols, ref, existing)
@@ -342,6 +360,7 @@ func (c *linkerContext) mangleProps() {
 				}
 			}
 
+			// Include this file's frequency histogram, which affects the mangled names
 			if repr.AST.CharFreq != nil {
 				freq.Include(repr.AST.CharFreq)
 			}
@@ -363,7 +382,18 @@ func (c *linkerContext) mangleProps() {
 	// Assign names in order of use count
 	minifier := freq.Compile()
 	nextName := 0
-	for _, symbol := range sorted {
+	for _, symbolCount := range sorted {
+		symbol := c.graph.Symbols.Get(symbolCount.Ref)
+
+		// Don't change existing mappings
+		if existing, ok := mangleCache[symbol.OriginalName]; ok {
+			if existing != false {
+				symbol.OriginalName = existing.(string)
+			}
+			continue
+		}
+
+		// Generate a new name
 		name := minifier.NumberToMinifiedName(nextName)
 		nextName++
 
@@ -373,7 +403,11 @@ func (c *linkerContext) mangleProps() {
 			nextName++
 		}
 
-		c.graph.Symbols.Get(symbol.Ref).OriginalName = name
+		// Track the new mapping
+		if mangleCache != nil {
+			mangleCache[symbol.OriginalName] = name
+		}
+		symbol.OriginalName = name
 	}
 }
 

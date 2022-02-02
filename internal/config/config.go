@@ -202,6 +202,21 @@ type Options struct {
 	MangleProps    *regexp.Regexp
 	ReserveProps   *regexp.Regexp
 
+	// When mangling property names, call this function with a callback and do
+	// the property name mangling inside the callback. The callback takes an
+	// argument which is the mangle cache map to mutate. These callbacks are
+	// serialized so mutating the map does not require extra synchronization.
+	//
+	// This is a callback for determinism reasons. We may be building multiple
+	// entry points in parallel that are supposed to share a single cache. We
+	// don't want the order that each entry point mangles properties in to cause
+	// the output to change, so we serialize the property mangling over all entry
+	// points in entry point order. However, we still want to link everything in
+	// parallel so only property mangling is serialized, which is implemented by
+	// this function blocking until the previous entry point's property mangling
+	// has finished.
+	ExclusiveMangleCacheUpdate func(cb func(mangleCache map[string]interface{}))
+
 	// This is the original information that was used to generate the
 	// unsupported feature sets above. It's used for error messages.
 	OriginalTargetEnv string
