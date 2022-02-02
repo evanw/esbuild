@@ -81,7 +81,7 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, expected, config.Options{
-		MangleSyntax: true,
+		MinifySyntax: true,
 	})
 }
 
@@ -100,7 +100,7 @@ func expectPrintedMangleTarget(t *testing.T, esVersion int, contents string, exp
 		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
-		MangleSyntax: true,
+		MinifySyntax: true,
 	})
 }
 

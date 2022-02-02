@@ -246,9 +246,9 @@ type Options struct {
 	TS                TSOptions
 	Mode              Mode
 	PreserveSymlinks  bool
-	RemoveWhitespace  bool
+	MinifyWhitespace  bool
 	MinifyIdentifiers bool
-	MangleSyntax      bool
+	MinifySyntax      bool
 	ProfilerNames     bool
 	CodeSplitting     bool
 	WatchMode         bool

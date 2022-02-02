@@ -39,8 +39,8 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		r := renamer.NewNoOpRenamer(symbols)
 		js := Print(tree, symbols, r, Options{
 			ASCIIOnly:           options.ASCIIOnly,
-			MangleSyntax:        options.MangleSyntax,
-			RemoveWhitespace:    options.RemoveWhitespace,
+			MinifySyntax:        options.MinifySyntax,
+			MinifyWhitespace:    options.MinifyWhitespace,
 			UnsupportedFeatures: options.UnsupportedJSFeatures,
 		}).JS
 		test.AssertEqualWithDiff(t, string(js), expected)
@@ -55,22 +55,22 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [minified]", contents, expected, config.Options{
-		RemoveWhitespace: true,
+		MinifyWhitespace: true,
 	})
 }
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [mangled]", contents, expected, config.Options{
-		MangleSyntax: true,
+		MinifySyntax: true,
 	})
 }
 
 func expectPrintedMangleMinify(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [mangled, minified]", contents, expected, config.Options{
-		MangleSyntax:     true,
-		RemoveWhitespace: true,
+		MinifySyntax:     true,
+		MinifyWhitespace: true,
 	})
 }
 
@@ -84,7 +84,7 @@ func expectPrintedASCII(t *testing.T, contents string, expected string) {
 func expectPrintedMinifyASCII(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [ascii]", contents, expected, config.Options{
-		RemoveWhitespace: true,
+		MinifyWhitespace: true,
 		ASCIIOnly:        true,
 	})
 }
@@ -104,7 +104,7 @@ func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, exp
 		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
-		RemoveWhitespace: true,
+		MinifyWhitespace: true,
 	})
 }
 
@@ -114,7 +114,7 @@ func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, exp
 		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
-		MangleSyntax: true,
+		MinifySyntax: true,
 	})
 }
 
@@ -156,7 +156,7 @@ func expectPrintedJSXMinify(t *testing.T, contents string, expected string) {
 			Parse:    true,
 			Preserve: true,
 		},
-		RemoveWhitespace: true,
+		MinifyWhitespace: true,
 	})
 }
 

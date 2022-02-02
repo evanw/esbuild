@@ -88,7 +88,7 @@ func (p *parser) mangleFont(tokens []css_ast.Token) []css_ast.Token {
 		pos += 2
 
 		// Remove the whitespace around the "/" character
-		if p.options.RemoveWhitespace {
+		if p.options.MinifyWhitespace {
 			result[len(result)-3].Whitespace &= ^css_ast.WhitespaceAfter
 			result[len(result)-2].Whitespace = 0
 			result[len(result)-1].Whitespace &= ^css_ast.WhitespaceBefore

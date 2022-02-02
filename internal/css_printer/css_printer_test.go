@@ -21,7 +21,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		t.Helper()
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		tree := css_parser.Parse(log, test.SourceForTest(contents), css_parser.Options{
-			RemoveWhitespace: options.RemoveWhitespace,
+			MinifyWhitespace: options.MinifyWhitespace,
 		})
 		msgs := log.Done()
 		text := ""
@@ -44,7 +44,7 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [minified]", contents, expected, Options{
-		RemoveWhitespace: true,
+		MinifyWhitespace: true,
 	})
 }
 

@@ -92,7 +92,7 @@ func (box *boxTracker) updateSide(rules []css_ast.Rule, side int, new boxSide) {
 	box.sides[side] = new
 }
 
-func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, removeWhitespace bool) {
+func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, minifyWhitespace bool) {
 	// Reset if we see a change in the "!important" flag
 	if box.important != decl.Important {
 		box.sides = [4]boxSide{}
@@ -121,13 +121,13 @@ func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclarat
 				unitSafety: unitSafety,
 			})
 		}
-		box.compactRules(rules, decl.KeyRange, removeWhitespace)
+		box.compactRules(rules, decl.KeyRange, minifyWhitespace)
 	} else {
 		box.sides = [4]boxSide{}
 	}
 }
 
-func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, removeWhitespace bool, side int) {
+func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, minifyWhitespace bool, side int) {
 	// Reset if we see a change in the "!important" flag
 	if box.important != decl.Important {
 		box.sides = [4]boxSide{}
@@ -149,7 +149,7 @@ func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclarati
 				wasSingleRule: true,
 				unitSafety:    unitSafety,
 			})
-			box.compactRules(rules, decl.KeyRange, removeWhitespace)
+			box.compactRules(rules, decl.KeyRange, minifyWhitespace)
 			return
 		}
 	}
@@ -157,7 +157,7 @@ func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclarati
 	box.sides = [4]boxSide{}
 }
 
-func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range, removeWhitespace bool) {
+func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range, minifyWhitespace bool) {
 	// All tokens must be present
 	if eof := css_lexer.TEndOfFile; box.sides[0].token.Kind == eof || box.sides[1].token.Kind == eof ||
 		box.sides[2].token.Kind == eof || box.sides[3].token.Kind == eof {
@@ -177,7 +177,7 @@ func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range,
 		box.sides[1].token,
 		box.sides[2].token,
 		box.sides[3].token,
-		removeWhitespace,
+		minifyWhitespace,
 	)
 
 	// Remove all of the existing declarations

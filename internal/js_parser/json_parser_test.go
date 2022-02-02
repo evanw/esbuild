@@ -55,7 +55,7 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 		}
 
 		js := js_printer.Print(tree, js_ast.SymbolMap{}, nil, js_printer.Options{
-			RemoveWhitespace: true,
+			MinifyWhitespace: true,
 		}).JS
 
 		// Remove the trailing semicolon

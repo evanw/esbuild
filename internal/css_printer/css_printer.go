@@ -32,7 +32,7 @@ type Options struct {
 	// us do binary search on to figure out what line a given AST node came from
 	LineOffsetTables []sourcemap.LineOffsetTable
 
-	RemoveWhitespace  bool
+	MinifyWhitespace  bool
 	ASCIIOnly         bool
 	AddSourceMappings bool
 	LegalComments     config.LegalComments
@@ -81,7 +81,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		p.builder.AddSourceMapping(rule.Loc, p.css)
 	}
 
-	if !p.options.RemoveWhitespace {
+	if !p.options.MinifyWhitespace {
 		p.printIndent(indent)
 	}
 
@@ -95,7 +95,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		p.print(";")
 
 	case *css_ast.RAtImport:
-		if p.options.RemoveWhitespace {
+		if p.options.MinifyWhitespace {
 			p.print("@import")
 		} else {
 			p.print("@import ")
@@ -113,22 +113,22 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		} else {
 			p.printIdent(r.Name, identNormal, canDiscardWhitespaceAfter)
 		}
-		if !p.options.RemoveWhitespace {
+		if !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
-		if p.options.RemoveWhitespace {
+		if p.options.MinifyWhitespace {
 			p.print("{")
 		} else {
 			p.print("{\n")
 		}
 		indent++
 		for _, block := range r.Blocks {
-			if !p.options.RemoveWhitespace {
+			if !p.options.MinifyWhitespace {
 				p.printIndent(indent)
 			}
 			for i, sel := range block.Selectors {
 				if i > 0 {
-					if p.options.RemoveWhitespace {
+					if p.options.MinifyWhitespace {
 						p.print(",")
 					} else {
 						p.print(", ")
@@ -136,16 +136,16 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 				}
 				p.print(sel)
 			}
-			if !p.options.RemoveWhitespace {
+			if !p.options.MinifyWhitespace {
 				p.print(" ")
 			}
 			p.printRuleBlock(block.Rules, indent)
-			if !p.options.RemoveWhitespace {
+			if !p.options.MinifyWhitespace {
 				p.print("\n")
 			}
 		}
 		indent--
-		if !p.options.RemoveWhitespace {
+		if !p.options.MinifyWhitespace {
 			p.printIndent(indent)
 		}
 		p.print("}")
@@ -157,11 +157,11 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			whitespace = canDiscardWhitespaceAfter
 		}
 		p.printIdent(r.AtToken, identNormal, whitespace)
-		if !p.options.RemoveWhitespace || len(r.Prelude) > 0 {
+		if !p.options.MinifyWhitespace || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		p.printTokens(r.Prelude, printTokensOpts{})
-		if !p.options.RemoveWhitespace && len(r.Prelude) > 0 {
+		if !p.options.MinifyWhitespace && len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		p.printRuleBlock(r.Rules, indent)
@@ -173,11 +173,11 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			whitespace = canDiscardWhitespaceAfter
 		}
 		p.printIdent(r.AtToken, identNormal, whitespace)
-		if (!p.options.RemoveWhitespace && r.Block != nil) || len(r.Prelude) > 0 {
+		if (!p.options.MinifyWhitespace && r.Block != nil) || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		p.printTokens(r.Prelude, printTokensOpts{})
-		if !p.options.RemoveWhitespace && r.Block != nil && len(r.Prelude) > 0 {
+		if !p.options.MinifyWhitespace && r.Block != nil && len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		if r.Block == nil {
@@ -191,14 +191,14 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			p.print("@nest")
 		}
 		p.printComplexSelectors(r.Selectors, indent, r.HasAtNest)
-		if !p.options.RemoveWhitespace {
+		if !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RQualified:
 		hasWhitespaceAfter := p.printTokens(r.Prelude, printTokensOpts{})
-		if !hasWhitespaceAfter && !p.options.RemoveWhitespace {
+		if !hasWhitespaceAfter && !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
 		p.printRuleBlock(r.Rules, indent)
@@ -211,7 +211,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			isDeclaration: true,
 		})
 		if r.Important {
-			if !hasWhitespaceAfter && !p.options.RemoveWhitespace && len(r.Value) > 0 {
+			if !hasWhitespaceAfter && !p.options.MinifyWhitespace && len(r.Value) > 0 {
 				p.print(" ")
 			}
 			p.print("!important")
@@ -233,7 +233,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		panic("Internal error")
 	}
 
-	if !p.options.RemoveWhitespace {
+	if !p.options.MinifyWhitespace {
 		p.print("\n")
 	}
 }
@@ -249,7 +249,7 @@ func (p *printer) printIndentedComment(indent int32, text string) {
 			break
 		}
 		p.print(text[:newline+1])
-		if !p.options.RemoveWhitespace {
+		if !p.options.MinifyWhitespace {
 			p.printIndent(indent)
 		}
 		text = text[newline+1:]
@@ -258,18 +258,18 @@ func (p *printer) printIndentedComment(indent int32, text string) {
 }
 
 func (p *printer) printRuleBlock(rules []css_ast.Rule, indent int32) {
-	if p.options.RemoveWhitespace {
+	if p.options.MinifyWhitespace {
 		p.print("{")
 	} else {
 		p.print("{\n")
 	}
 
 	for i, decl := range rules {
-		omitTrailingSemicolon := p.options.RemoveWhitespace && i+1 == len(rules)
+		omitTrailingSemicolon := p.options.MinifyWhitespace && i+1 == len(rules)
 		p.printRule(decl, indent+1, omitTrailingSemicolon)
 	}
 
-	if !p.options.RemoveWhitespace {
+	if !p.options.MinifyWhitespace {
 		p.printIndent(indent)
 	}
 	p.print("}")
@@ -278,7 +278,7 @@ func (p *printer) printRuleBlock(rules []css_ast.Rule, indent int32) {
 func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, indent int32, hasAtNest bool) {
 	for i, complex := range selectors {
 		if i > 0 {
-			if p.options.RemoveWhitespace {
+			if p.options.MinifyWhitespace {
 				p.print(",")
 			} else {
 				p.print(",\n")
@@ -305,11 +305,11 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 	}
 
 	if sel.Combinator != "" {
-		if !p.options.RemoveWhitespace {
+		if !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
 		p.print(sel.Combinator)
-		if !p.options.RemoveWhitespace {
+		if !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
 	}
@@ -645,7 +645,7 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 
 	// Pretty-print long comma-separated declarations of 3 or more items
 	isMultiLineValue := false
-	if !p.options.RemoveWhitespace && opts.isDeclaration {
+	if !p.options.MinifyWhitespace && opts.isDeclaration {
 		commaCount := 0
 		for _, t := range tokens {
 			if t.Kind == css_lexer.TComma {

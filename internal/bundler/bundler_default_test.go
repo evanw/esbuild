@@ -893,7 +893,7 @@ func TestMinifiedDynamicImportWithExpressionCJS(t *testing.T) {
 			Mode:             config.ModeConvertFormat,
 			OutputFormat:     config.FormatCommonJS,
 			AbsOutputFile:    "/out.js",
-			RemoveWhitespace: true,
+			MinifyWhitespace: true,
 		},
 	})
 }
@@ -1358,7 +1358,7 @@ func TestRequireFSNodeMinify(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:             config.ModeBundle,
-			RemoveWhitespace: true,
+			MinifyWhitespace: true,
 			OutputFormat:     config.FormatCommonJS,
 			AbsOutputFile:    "/out.js",
 			Platform:         config.PlatformNode,
@@ -1560,8 +1560,8 @@ func TestMinifiedBundleES6(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:              config.ModeBundle,
-			MangleSyntax:      true,
-			RemoveWhitespace:  true,
+			MinifySyntax:      true,
+			MinifyWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -1587,8 +1587,8 @@ func TestMinifiedBundleCommonJS(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:              config.ModeBundle,
-			MangleSyntax:      true,
-			RemoveWhitespace:  true,
+			MinifySyntax:      true,
+			MinifyWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -1605,7 +1605,7 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:             config.ModeBundle,
-			RemoveWhitespace: true,
+			MinifyWhitespace: true,
 			OutputFormat:     config.FormatIIFE,
 			AbsOutputFile:    "/out.js",
 		},
@@ -2658,9 +2658,9 @@ func TestMinifyNestedLabelsNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			RemoveWhitespace:  true,
+			MinifyWhitespace:  true,
 			MinifyIdentifiers: true,
-			MangleSyntax:      true,
+			MinifySyntax:      true,
 			AbsOutputFile:     "/out.js",
 		},
 	})
@@ -2755,8 +2755,8 @@ func TestUseStrictDirectiveMinifyNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			MangleSyntax:     true,
-			RemoveWhitespace: true,
+			MinifySyntax:     true,
+			MinifyWhitespace: true,
 			AbsOutputFile:    "/out.js",
 		},
 	})
@@ -4384,7 +4384,7 @@ func TestKeepNamesTreeShaking(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			KeepNames:     true,
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 		},
 	})
 }
@@ -4474,7 +4474,7 @@ func TestConstWithLet(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 		},
 	})
 }
@@ -4495,7 +4495,7 @@ func TestConstWithLetNoBundle(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModePassThrough,
 			AbsOutputFile: "/out.js",
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 		},
 	})
 }
@@ -4874,7 +4874,7 @@ func TestQuotedPropertyMangle(t *testing.T) {
 			Mode:         config.ModeBundle,
 			OutputFormat: config.FormatCommonJS,
 			AbsOutputDir: "/out",
-			MangleSyntax: true,
+			MinifySyntax: true,
 			ExternalSettings: config.ExternalSettings{
 				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
 					"ext": true,
@@ -4976,7 +4976,7 @@ func TestStrictModeNestedFnDeclKeepNamesVariableInliningIssue1552(t *testing.T) 
 			Mode:         config.ModePassThrough,
 			AbsOutputDir: "/out",
 			KeepNames:    true,
-			MangleSyntax: true,
+			MinifySyntax: true,
 		},
 	})
 }
@@ -5114,7 +5114,7 @@ func TestMinifyIdentifiersImportPathFrequencyAnalysis(t *testing.T) {
 		options: config.Options{
 			Mode:              config.ModeBundle,
 			AbsOutputDir:      "/out",
-			RemoveWhitespace:  true,
+			MinifyWhitespace:  true,
 			MinifyIdentifiers: true,
 		},
 	})
@@ -5186,7 +5186,7 @@ func TestNamedFunctionExpressionArgumentCollision(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModePassThrough,
 			AbsOutputDir: "/out",
-			MangleSyntax: true,
+			MinifySyntax: true,
 		},
 	})
 }
@@ -5414,7 +5414,7 @@ func TestManglePropsMinify(t *testing.T) {
 			AbsOutputDir:      "/out",
 			MangleProps:       regexp.MustCompile("_$"),
 			MinifyIdentifiers: true,
-			MangleSyntax:      true,
+			MinifySyntax:      true,
 		},
 	})
 }

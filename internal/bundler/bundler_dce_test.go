@@ -1384,7 +1384,7 @@ func TestDeadCodeFollowingJump(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 		},
 	})
 }
@@ -1427,7 +1427,7 @@ func TestRemoveTrailingReturn(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 			OutputFormat:  config.FormatESModule,
 		},
 	})
@@ -1719,7 +1719,7 @@ func TestDCETypeOfEqualsStringMangle(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatIIFE,
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1843,7 +1843,7 @@ func TestRemoveUnusedImports(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModePassThrough,
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1864,7 +1864,7 @@ func TestRemoveUnusedImportsEval(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModePassThrough,
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1888,7 +1888,7 @@ func TestRemoveUnusedImportsEvalTS(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModePassThrough,
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -2048,7 +2048,7 @@ func TestTreeShakingLoweredClassStaticFieldMinified(t *testing.T) {
 			Mode:                  config.ModeBundle,
 			AbsOutputDir:          "/out",
 			UnsupportedJSFeatures: compat.ClassField,
-			MangleSyntax:          true,
+			MinifySyntax:          true,
 		},
 	})
 }
@@ -2255,7 +2255,7 @@ func TestInlineIdentityFunctionCalls(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
-			MangleSyntax: true,
+			MinifySyntax: true,
 		},
 	})
 }
@@ -2390,7 +2390,7 @@ func TestInlineEmptyFunctionCalls(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
-			MangleSyntax: true,
+			MinifySyntax: true,
 		},
 	})
 }
@@ -2461,7 +2461,7 @@ func TestInlineFunctionCallBehaviorChanges(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModePassThrough,
 			AbsOutputDir: "/out",
-			MangleSyntax: true,
+			MinifySyntax: true,
 		},
 	})
 }
@@ -2481,7 +2481,7 @@ func TestInlineFunctionCallForInitDecl(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
-			MangleSyntax: true,
+			MinifySyntax: true,
 		},
 	})
 }

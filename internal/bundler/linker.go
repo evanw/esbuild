@@ -3810,7 +3810,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	if len(stmtList.insideWrapperPrefix) > 0 {
 		stmts = append(stmtList.insideWrapperPrefix, stmts...)
 	}
-	if c.options.MangleSyntax {
+	if c.options.MinifySyntax {
 		stmts = mergeAdjacentLocalStmts(stmts)
 	}
 
@@ -3916,7 +3916,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			}}
 
 			// "var foo, bar;"
-			if !c.options.MangleSyntax && len(decls) > 0 {
+			if !c.options.MinifySyntax && len(decls) > 0 {
 				stmtList.outsideWrapperPrefix = append(stmtList.outsideWrapperPrefix, js_ast.Stmt{Data: &js_ast.SLocal{
 					Decls: decls,
 				}})
@@ -3953,8 +3953,8 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	printOptions := js_printer.Options{
 		Indent:                       indent,
 		OutputFormat:                 c.options.OutputFormat,
-		RemoveWhitespace:             c.options.RemoveWhitespace,
-		MangleSyntax:                 c.options.MangleSyntax,
+		MinifyWhitespace:             c.options.MinifyWhitespace,
+		MinifySyntax:                 c.options.MinifySyntax,
 		ASCIIOnly:                    c.options.ASCIIOnly,
 		ToCommonJSRef:                toCommonJSRef,
 		ToESMRef:                     toESMRef,
@@ -4095,7 +4095,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 			// instead of "__export" but support for that would need to be added to
 			// "cjs-module-lexer" and then we would need to be ok with not supporting
 			// older versions of node that don't have that newly-added support.
-			if !c.options.RemoveWhitespace {
+			if !c.options.MinifyWhitespace {
 				stmts = append(stmts,
 					js_ast.Stmt{Data: &js_ast.SComment{Text: `// Annotate the CommonJS export names for ESM import in node:`}},
 				)
@@ -4290,8 +4290,8 @@ func (c *linkerContext) generateEntryPointTailJS(
 	printOptions := js_printer.Options{
 		Indent:                       indent,
 		OutputFormat:                 c.options.OutputFormat,
-		RemoveWhitespace:             c.options.RemoveWhitespace,
-		MangleSyntax:                 c.options.MangleSyntax,
+		MinifyWhitespace:             c.options.MinifyWhitespace,
+		MinifySyntax:                 c.options.MinifySyntax,
 		ASCIIOnly:                    c.options.ASCIIOnly,
 		ToCommonJSRef:                toCommonJSRef,
 		ToESMRef:                     toESMRef,
@@ -4608,8 +4608,8 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		printOptions := js_printer.Options{
 			Indent:           indent,
 			OutputFormat:     c.options.OutputFormat,
-			RemoveWhitespace: c.options.RemoveWhitespace,
-			MangleSyntax:     c.options.MangleSyntax,
+			MinifyWhitespace: c.options.MinifyWhitespace,
+			MinifySyntax:     c.options.MinifySyntax,
 		}
 		crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
 		for i, chunkImport := range chunk.crossChunkImports {
@@ -4649,7 +4649,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	indent := ""
 	space := " "
 	newline := "\n"
-	if c.options.RemoveWhitespace {
+	if c.options.MinifyWhitespace {
 		space = ""
 		newline = ""
 	}
@@ -4792,7 +4792,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		}
 
 		// Add a comment with the file path before the file contents
-		if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace &&
+		if c.options.Mode == config.ModeBundle && !c.options.MinifyWhitespace &&
 			prevFileNameComment != compileResult.sourceIndex && len(compileResult.JS) > 0 {
 			if newlineBeforeComment {
 				prevOffset.AdvanceString("\n")
@@ -4932,7 +4932,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 	space := " "
 	join := ";\n"
 
-	if c.options.RemoveWhitespace {
+	if c.options.MinifyWhitespace {
 		space = ""
 		join = ";"
 	}
@@ -5038,7 +5038,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			}
 
 			cssOptions := css_printer.Options{
-				RemoveWhitespace:  c.options.RemoveWhitespace,
+				MinifyWhitespace:  c.options.MinifyWhitespace,
 				ASCIIOnly:         c.options.ASCIIOnly,
 				LegalComments:     c.options.LegalComments,
 				AddSourceMappings: addSourceMappings,
@@ -5098,7 +5098,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 
 		if len(tree.Rules) > 0 {
 			result := css_printer.Print(tree, css_printer.Options{
-				RemoveWhitespace: c.options.RemoveWhitespace,
+				MinifyWhitespace: c.options.MinifyWhitespace,
 				ASCIIOnly:        c.options.ASCIIOnly,
 			})
 			if len(result.CSS) > 0 {
@@ -5157,7 +5157,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			}
 		}
 
-		if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace {
+		if c.options.Mode == config.ModeBundle && !c.options.MinifyWhitespace {
 			var newline string
 			if newlineBeforeComment {
 				newline = "\n"

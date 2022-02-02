@@ -35,7 +35,7 @@ func (borderRadius *borderRadiusTracker) updateCorner(rules []css_ast.Rule, corn
 	borderRadius.corners[corner] = new
 }
 
-func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, removeWhitespace bool) {
+func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, minifyWhitespace bool) {
 	// Reset if we see a change in the "!important" flag
 	if borderRadius.important != decl.Important {
 		borderRadius.corners = [4]borderRadiusCorner{}
@@ -102,10 +102,10 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, dec
 	}
 
 	// Success
-	borderRadius.compactRules(rules, decl.KeyRange, removeWhitespace)
+	borderRadius.compactRules(rules, decl.KeyRange, minifyWhitespace)
 }
 
-func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, removeWhitespace bool, corner int) {
+func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, minifyWhitespace bool, corner int) {
 	// Reset if we see a change in the "!important" flag
 	if borderRadius.important != decl.Important {
 		borderRadius.corners = [4]borderRadiusCorner{}
@@ -148,13 +148,13 @@ func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.Rule, decl
 			ruleIndex:     uint32(index),
 			wasSingleRule: true,
 		})
-		borderRadius.compactRules(rules, decl.KeyRange, removeWhitespace)
+		borderRadius.compactRules(rules, decl.KeyRange, minifyWhitespace)
 	} else {
 		borderRadius.corners = [4]borderRadiusCorner{}
 	}
 }
 
-func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range, removeWhitespace bool) {
+func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range, minifyWhitespace bool) {
 	// All tokens must be present
 	if eof := css_lexer.TEndOfFile; borderRadius.corners[0].firstToken.Kind == eof || borderRadius.corners[1].firstToken.Kind == eof ||
 		borderRadius.corners[2].firstToken.Kind == eof || borderRadius.corners[3].firstToken.Kind == eof {
@@ -174,18 +174,18 @@ func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.Rule, keyR
 		borderRadius.corners[1].firstToken,
 		borderRadius.corners[2].firstToken,
 		borderRadius.corners[3].firstToken,
-		removeWhitespace,
+		minifyWhitespace,
 	)
 	secondTokens := compactTokenQuad(
 		borderRadius.corners[0].secondToken,
 		borderRadius.corners[1].secondToken,
 		borderRadius.corners[2].secondToken,
 		borderRadius.corners[3].secondToken,
-		removeWhitespace,
+		minifyWhitespace,
 	)
 	if !css_ast.TokensEqualIgnoringWhitespace(tokens, secondTokens) {
 		var whitespace css_ast.WhitespaceFlags
-		if !removeWhitespace {
+		if !minifyWhitespace {
 			whitespace = css_ast.WhitespaceBefore | css_ast.WhitespaceAfter
 		}
 		tokens = append(tokens, css_ast.Token{

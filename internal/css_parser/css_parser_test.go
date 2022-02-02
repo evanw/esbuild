@@ -32,8 +32,8 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		t.Helper()
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
 		tree := Parse(log, test.SourceForTest(contents), Options{
-			MangleSyntax:           options.MangleSyntax,
-			RemoveWhitespace:       options.RemoveWhitespace,
+			MinifySyntax:           options.MinifySyntax,
+			MinifyWhitespace:       options.MinifyWhitespace,
 			UnsupportedCSSFeatures: options.UnsupportedCSSFeatures,
 		})
 		msgs := log.Done()
@@ -45,7 +45,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		}
 		test.AssertEqualWithDiff(t, text, "")
 		result := css_printer.Print(tree, css_printer.Options{
-			RemoveWhitespace: options.RemoveWhitespace,
+			MinifyWhitespace: options.MinifyWhitespace,
 		})
 		test.AssertEqualWithDiff(t, string(result.CSS), expected)
 	})
@@ -66,14 +66,14 @@ func expectPrintedLower(t *testing.T, contents string, expected string) {
 func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [minify]", contents, expected, config.Options{
-		RemoveWhitespace: true,
+		MinifyWhitespace: true,
 	})
 }
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [mangle]", contents, expected, config.Options{
-		MangleSyntax: true,
+		MinifySyntax: true,
 	})
 }
 
@@ -81,15 +81,15 @@ func expectPrintedLowerMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [mangle]", contents, expected, config.Options{
 		UnsupportedCSSFeatures: ^compat.CSSFeature(0),
-		MangleSyntax:           true,
+		MinifySyntax:           true,
 	})
 }
 
 func expectPrintedMangleMinify(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [mangle, minify]", contents, expected, config.Options{
-		MangleSyntax:     true,
-		RemoveWhitespace: true,
+		MinifySyntax:     true,
+		MinifyWhitespace: true,
 	})
 }
 

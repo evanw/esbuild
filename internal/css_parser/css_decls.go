@@ -11,7 +11,7 @@ func (p *parser) commaToken() css_ast.Token {
 		Kind: css_lexer.TComma,
 		Text: ",",
 	}
-	if !p.options.RemoveWhitespace {
+	if !p.options.MinifyWhitespace {
 		t.Whitespace = css_ast.WhitespaceAfter
 	}
 	return t
@@ -51,7 +51,7 @@ func expandTokenQuad(tokens []css_ast.Token, allowedIdent string) (result [4]css
 	return
 }
 
-func compactTokenQuad(a css_ast.Token, b css_ast.Token, c css_ast.Token, d css_ast.Token, removeWhitespace bool) []css_ast.Token {
+func compactTokenQuad(a css_ast.Token, b css_ast.Token, c css_ast.Token, d css_ast.Token, minifyWhitespace bool) []css_ast.Token {
 	tokens := []css_ast.Token{a, b, c, d}
 	if tokens[3].EqualIgnoringWhitespace(tokens[1]) {
 		if tokens[2].EqualIgnoringWhitespace(tokens[0]) {
@@ -66,7 +66,7 @@ func compactTokenQuad(a css_ast.Token, b css_ast.Token, c css_ast.Token, d css_a
 	}
 	for i := range tokens {
 		var whitespace css_ast.WhitespaceFlags
-		if !removeWhitespace || i > 0 {
+		if !minifyWhitespace || i > 0 {
 			whitespace |= css_ast.WhitespaceBefore
 		}
 		if i+1 < len(tokens) {
@@ -115,7 +115,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) []css_ast.Rule {
 			if len(decl.Value) == 1 {
 				decl.Value[0] = p.lowerColor(decl.Value[0])
 
-				if p.options.MangleSyntax {
+				if p.options.MinifySyntax {
 					t := decl.Value[0]
 					if hex, ok := parseColor(t); ok {
 						decl.Value[0] = p.mangleColor(t, hex)
@@ -124,124 +124,124 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) []css_ast.Rule {
 			}
 
 		case css_ast.DFont:
-			if p.options.MangleSyntax {
+			if p.options.MinifySyntax {
 				decl.Value = p.mangleFont(decl.Value)
 			}
 
 		case css_ast.DFontFamily:
-			if p.options.MangleSyntax {
+			if p.options.MinifySyntax {
 				if value, ok := p.mangleFontFamily(decl.Value); ok {
 					decl.Value = value
 				}
 			}
 
 		case css_ast.DFontWeight:
-			if len(decl.Value) == 1 && p.options.MangleSyntax {
+			if len(decl.Value) == 1 && p.options.MinifySyntax {
 				decl.Value[0] = p.mangleFontWeight(decl.Value[0])
 			}
 
 		case css_ast.DTransform:
-			if p.options.MangleSyntax {
+			if p.options.MinifySyntax {
 				decl.Value = p.mangleTransforms(decl.Value)
 			}
 
 		case css_ast.DBoxShadow:
-			if p.options.MangleSyntax {
+			if p.options.MinifySyntax {
 				decl.Value = p.mangleBoxShadows(decl.Value)
 			}
 
 		// Margin
 		case css_ast.DMargin:
-			if p.options.MangleSyntax {
-				margin.mangleSides(rules, decl, i, p.options.RemoveWhitespace)
+			if p.options.MinifySyntax {
+				margin.mangleSides(rules, decl, i, p.options.MinifyWhitespace)
 			}
 		case css_ast.DMarginTop:
-			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxTop)
+			if p.options.MinifySyntax {
+				margin.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxTop)
 			}
 		case css_ast.DMarginRight:
-			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxRight)
+			if p.options.MinifySyntax {
+				margin.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxRight)
 			}
 		case css_ast.DMarginBottom:
-			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxBottom)
+			if p.options.MinifySyntax {
+				margin.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxBottom)
 			}
 		case css_ast.DMarginLeft:
-			if p.options.MangleSyntax {
-				margin.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxLeft)
+			if p.options.MinifySyntax {
+				margin.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxLeft)
 			}
 
 		// Padding
 		case css_ast.DPadding:
-			if p.options.MangleSyntax {
-				padding.mangleSides(rules, decl, i, p.options.RemoveWhitespace)
+			if p.options.MinifySyntax {
+				padding.mangleSides(rules, decl, i, p.options.MinifyWhitespace)
 			}
 		case css_ast.DPaddingTop:
-			if p.options.MangleSyntax {
-				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxTop)
+			if p.options.MinifySyntax {
+				padding.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxTop)
 			}
 		case css_ast.DPaddingRight:
-			if p.options.MangleSyntax {
-				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxRight)
+			if p.options.MinifySyntax {
+				padding.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxRight)
 			}
 		case css_ast.DPaddingBottom:
-			if p.options.MangleSyntax {
-				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxBottom)
+			if p.options.MinifySyntax {
+				padding.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxBottom)
 			}
 		case css_ast.DPaddingLeft:
-			if p.options.MangleSyntax {
-				padding.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxLeft)
+			if p.options.MinifySyntax {
+				padding.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxLeft)
 			}
 
 		// Inset
 		case css_ast.DInset:
-			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MangleSyntax {
-				inset.mangleSides(rules, decl, i, p.options.RemoveWhitespace)
+			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MinifySyntax {
+				inset.mangleSides(rules, decl, i, p.options.MinifyWhitespace)
 			}
 		case css_ast.DTop:
-			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MangleSyntax {
-				inset.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxTop)
+			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MinifySyntax {
+				inset.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxTop)
 			}
 		case css_ast.DRight:
-			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MangleSyntax {
-				inset.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxRight)
+			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MinifySyntax {
+				inset.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxRight)
 			}
 		case css_ast.DBottom:
-			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MangleSyntax {
-				inset.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxBottom)
+			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MinifySyntax {
+				inset.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxBottom)
 			}
 		case css_ast.DLeft:
-			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MangleSyntax {
-				inset.mangleSide(rules, decl, i, p.options.RemoveWhitespace, boxLeft)
+			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MinifySyntax {
+				inset.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxLeft)
 			}
 
 		// Border radius
 		case css_ast.DBorderRadius:
-			if p.options.MangleSyntax {
-				borderRadius.mangleCorners(rules, decl, i, p.options.RemoveWhitespace)
+			if p.options.MinifySyntax {
+				borderRadius.mangleCorners(rules, decl, i, p.options.MinifyWhitespace)
 			}
 		case css_ast.DBorderTopLeftRadius:
-			if p.options.MangleSyntax {
-				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusTopLeft)
+			if p.options.MinifySyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.MinifyWhitespace, borderRadiusTopLeft)
 			}
 		case css_ast.DBorderTopRightRadius:
-			if p.options.MangleSyntax {
-				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusTopRight)
+			if p.options.MinifySyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.MinifyWhitespace, borderRadiusTopRight)
 			}
 		case css_ast.DBorderBottomRightRadius:
-			if p.options.MangleSyntax {
-				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusBottomRight)
+			if p.options.MinifySyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.MinifyWhitespace, borderRadiusBottomRight)
 			}
 		case css_ast.DBorderBottomLeftRadius:
-			if p.options.MangleSyntax {
-				borderRadius.mangleCorner(rules, decl, i, p.options.RemoveWhitespace, borderRadiusBottomLeft)
+			if p.options.MinifySyntax {
+				borderRadius.mangleCorner(rules, decl, i, p.options.MinifyWhitespace, borderRadiusBottomLeft)
 			}
 		}
 	}
 
 	// Compact removed rules
-	if p.options.MangleSyntax {
+	if p.options.MinifySyntax {
 		end := 0
 		for _, rule := range rules {
 			if rule.Data != nil {

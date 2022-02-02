@@ -221,8 +221,8 @@ func parseFile(args parseArgs) {
 
 	case config.LoaderCSS:
 		ast := args.caches.CSSCache.Parse(args.log, source, css_parser.Options{
-			MangleSyntax:           args.options.MangleSyntax,
-			RemoveWhitespace:       args.options.RemoveWhitespace,
+			MinifySyntax:           args.options.MinifySyntax,
+			MinifyWhitespace:       args.options.MinifyWhitespace,
 			UnsupportedCSSFeatures: args.options.UnsupportedCSSFeatures,
 			OriginalTargetEnv:      args.options.OriginalTargetEnv,
 		})
@@ -2326,7 +2326,7 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 }
 
 type runtimeCacheKey struct {
-	MangleSyntax      bool
+	MinifySyntax      bool
 	MinifyIdentifiers bool
 	ES6               bool
 }
@@ -2341,7 +2341,7 @@ var globalRuntimeCache runtimeCache
 func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.Source, runtimeAST js_ast.AST, ok bool) {
 	key := runtimeCacheKey{
 		// All configuration options that the runtime code depends on must go here
-		MangleSyntax:      options.MangleSyntax,
+		MinifySyntax:      options.MinifySyntax,
 		MinifyIdentifiers: options.MinifyIdentifiers,
 		ES6:               runtime.CanUseES6(options.UnsupportedJSFeatures),
 	}
@@ -2375,7 +2375,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 	log := logger.NewDeferLog(logger.DeferLogAll)
 	runtimeAST, ok = js_parser.Parse(log, source, js_parser.OptionsFromConfig(&config.Options{
 		// These configuration options must only depend on the key
-		MangleSyntax:      key.MangleSyntax,
+		MinifySyntax:      key.MinifySyntax,
 		MinifyIdentifiers: key.MinifyIdentifiers,
 		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(
 			map[compat.Engine][]int{compat.ES: {constraint}}),

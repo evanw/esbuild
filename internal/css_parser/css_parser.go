@@ -32,8 +32,8 @@ type parser struct {
 type Options struct {
 	OriginalTargetEnv      string
 	UnsupportedCSSFeatures compat.CSSFeature
-	MangleSyntax           bool
-	RemoveWhitespace       bool
+	MinifySyntax           bool
+	MinifyWhitespace       bool
 }
 
 func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
@@ -259,7 +259,7 @@ loop:
 		}
 	}
 
-	if p.options.MangleSyntax {
+	if p.options.MinifySyntax {
 		rules = mangleRules(rules)
 	}
 	return rules
@@ -273,7 +273,7 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
 			list = p.processDeclarations(list)
-			if p.options.MangleSyntax {
+			if p.options.MinifySyntax {
 				list = mangleRules(list)
 			}
 			return
@@ -706,7 +706,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 				// Insert or remove whitespace before the first token
 				if len(importConditions) > 0 {
 					kind = ast.ImportAtConditional
-					if p.options.RemoveWhitespace {
+					if p.options.MinifyWhitespace {
 						importConditions[0].Whitespace &= ^css_ast.WhitespaceBefore
 					} else {
 						importConditions[0].Whitespace |= css_ast.WhitespaceBefore
@@ -792,13 +792,13 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 							text := p.decoded()
 							if t.Kind == css_lexer.TIdent {
 								if text == "from" {
-									if p.options.MangleSyntax {
+									if p.options.MinifySyntax {
 										text = "0%" // "0%" is equivalent to but shorter than "from"
 									}
 								} else if text != "to" {
 									p.expect(css_lexer.TPercentage)
 								}
-							} else if p.options.MangleSyntax && text == "100%" {
+							} else if p.options.MinifySyntax && text == "100%" {
 								text = "to" // "to" is equivalent to but shorter than "100%"
 							}
 							selectors = append(selectors, text)
@@ -827,7 +827,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 					p.expect(css_lexer.TCloseBrace)
 
 					// "@keyframes { from {} to { color: red } }" => "@keyframes { to { color: red } }"
-					if !p.options.MangleSyntax || len(rules) > 0 {
+					if !p.options.MinifySyntax || len(rules) > 0 {
 						blocks = append(blocks, css_ast.KeyframeBlock{
 							Selectors: selectors,
 							Rules:     rules,
@@ -1001,14 +1001,14 @@ loop:
 			}
 
 		case css_lexer.TNumber:
-			if p.options.MangleSyntax {
+			if p.options.MinifySyntax {
 				if text, ok := mangleNumber(token.Text); ok {
 					token.Text = text
 				}
 			}
 
 		case css_lexer.TPercentage:
-			if p.options.MangleSyntax {
+			if p.options.MinifySyntax {
 				if text, ok := mangleNumber(token.PercentageValue()); ok {
 					token.Text = text + "%"
 				}
@@ -1017,7 +1017,7 @@ loop:
 		case css_lexer.TDimension:
 			token.UnitOffset = t.UnitOffset
 
-			if p.options.MangleSyntax {
+			if p.options.MinifySyntax {
 				if text, ok := mangleNumber(token.DimensionValue()); ok {
 					token.Text = text + token.DimensionUnit()
 					token.UnitOffset = uint16(len(text))
@@ -1058,7 +1058,7 @@ loop:
 			token.Children = &nested
 
 			// Apply "calc" simplification rules when minifying
-			if p.options.MangleSyntax && token.Text == "calc" {
+			if p.options.MinifySyntax && token.Text == "calc" {
 				token = p.tryToReduceCalcExpression(token)
 			}
 
@@ -1090,7 +1090,7 @@ loop:
 			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBrace, opts)
 
 			// Pretty-printing: insert leading and trailing whitespace when not minifying
-			if !opts.verbatimWhitespace && !p.options.RemoveWhitespace && len(nested) > 0 {
+			if !opts.verbatimWhitespace && !p.options.MinifyWhitespace && len(nested) > 0 {
 				nested[0].Whitespace |= css_ast.WhitespaceBefore
 				nested[len(nested)-1].Whitespace |= css_ast.WhitespaceAfter
 			}
@@ -1127,7 +1127,7 @@ loop:
 				}
 
 				// Assume whitespace can always be added after a comma
-				if p.options.RemoveWhitespace {
+				if p.options.MinifyWhitespace {
 					token.Whitespace &= ^css_ast.WhitespaceAfter
 					if i+1 < len(result) {
 						result[i+1].Whitespace &= ^css_ast.WhitespaceBefore
@@ -1268,7 +1268,7 @@ func (p *parser) parseSelectorRuleFrom(preludeStart int, opts parseSelectorOpts)
 			p.expect(css_lexer.TCloseBrace)
 
 			// Minify "@nest" when possible
-			if p.options.MangleSyntax && selector.HasAtNest {
+			if p.options.MinifySyntax && selector.HasAtNest {
 				allHaveNestPrefix := true
 				for _, complex := range selector.Selectors {
 					if len(complex.Selectors) == 0 || complex.Selectors[0].NestingSelector != css_ast.NestingSelectorPrefix {
@@ -1380,7 +1380,7 @@ stop:
 
 	// Insert or remove whitespace before the first token
 	if !verbatimWhitespace && len(result) > 0 {
-		if p.options.RemoveWhitespace {
+		if p.options.MinifyWhitespace {
 			result[0].Whitespace &= ^css_ast.WhitespaceBefore
 		} else {
 			result[0].Whitespace |= css_ast.WhitespaceBefore

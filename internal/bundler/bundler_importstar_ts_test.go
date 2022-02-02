@@ -419,7 +419,7 @@ func TestTSImportStarMangleNoBundleUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -436,7 +436,7 @@ func TestTSImportStarMangleNoBundleCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -453,7 +453,7 @@ func TestTSImportStarMangleNoBundleNoCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			MangleSyntax:  true,
+			MinifySyntax:  true,
 			AbsOutputFile: "/out.js",
 		},
 	})

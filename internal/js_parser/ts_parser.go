@@ -1412,7 +1412,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	}
 
 	var argExpr js_ast.Expr
-	if p.options.mangleSyntax && !p.options.unsupportedJSFeatures.Has(compat.LogicalAssignment) {
+	if p.options.minifySyntax && !p.options.unsupportedJSFeatures.Has(compat.LogicalAssignment) {
 		// If the "||=" operator is supported, our minified output can be slightly smaller
 		if isExport && p.enclosingNamespaceArgRef != nil {
 			// "name = (enclosing.name ||= {})"
@@ -1490,7 +1490,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 		}}}
 	} else {
 		// "(() => { foo() })()" => "(() => foo())()"
-		if p.options.mangleSyntax && len(stmtsInsideClosure) == 1 {
+		if p.options.minifySyntax && len(stmtsInsideClosure) == 1 {
 			if expr, ok := stmtsInsideClosure[0].Data.(*js_ast.SExpr); ok {
 				stmtsInsideClosure[0].Data = &js_ast.SReturn{ValueOrNil: expr.Value}
 			}
@@ -1524,7 +1524,7 @@ func (p *parser) generateClosureForTypeScriptEnum(
 	if p.currentScope != p.moduleScope {
 		stmtsInsideClosure := []js_ast.Stmt{}
 		if len(exprsInsideClosure) > 0 {
-			if p.options.mangleSyntax {
+			if p.options.minifySyntax {
 				// "a; b; c;" => "a, b, c;"
 				joined := js_ast.JoinAllWithComma(exprsInsideClosure)
 				stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SExpr{Value: joined}})
@@ -1579,7 +1579,7 @@ func (p *parser) generateClosureForTypeScriptEnum(
 	stmtsInsideClosure := []js_ast.Stmt{}
 	if len(exprsInsideClosure) > 0 {
 		argExpr := js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: argRef}}
-		if p.options.mangleSyntax {
+		if p.options.minifySyntax {
 			// "a; b; return c;" => "return a, b, c;"
 			joined := js_ast.JoinAllWithComma(exprsInsideClosure)
 			joined = js_ast.JoinWithComma(joined, argExpr)
@@ -1604,7 +1604,7 @@ func (p *parser) generateClosureForTypeScriptEnum(
 		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EArrow{
 			Args:       args,
 			Body:       js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
-			PreferExpr: p.options.mangleSyntax,
+			PreferExpr: p.options.minifySyntax,
 		}}
 	}
 
@@ -1635,7 +1635,7 @@ func (p *parser) generateClosureForTypeScriptEnum(
 }
 
 func (p *parser) wrapInlinedEnum(value js_ast.Expr, comment string) js_ast.Expr {
-	if p.shouldFoldNumericConstants || p.options.mangleSyntax || strings.Contains(comment, "*/") {
+	if p.shouldFoldNumericConstants || p.options.minifySyntax || strings.Contains(comment, "*/") {
 		// Don't wrap with a comment
 		return value
 	}

@@ -190,7 +190,7 @@ subclassSelectors:
 					// and ::first-letter) may, for legacy reasons, be represented using
 					// the <pseudo-class-selector> grammar, with only a single ":"
 					// character at their start.
-					if p.options.MangleSyntax && isElement && len(pseudo.Args) == 0 {
+					if p.options.MinifySyntax && isElement && len(pseudo.Args) == 0 {
 						switch pseudo.Name {
 						case "before", "after", "first-line", "first-letter":
 							isElement = false

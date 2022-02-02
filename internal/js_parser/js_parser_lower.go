@@ -582,7 +582,7 @@ flatten:
 
 	// Stop now if we can strip the whole chain as dead code. Since the chain is
 	// lazily evaluated, it's safe to just drop the code entirely.
-	if p.options.mangleSyntax {
+	if p.options.minifySyntax {
 		if isNullOrUndefined, sideEffects, ok := toNullOrUndefinedWithSideEffects(expr.Data); ok && isNullOrUndefined {
 			if sideEffects == couldHaveSideEffects {
 				return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(expr, p.isUnbound), valueWhenUndefined), exprOut{}
@@ -2018,7 +2018,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 			// Remove unused class names when minifying. Check this after we merge in
 			// the shadowing name above since that will adjust the use count.
-			if p.options.mangleSyntax && symbol.UseCountEstimate == 0 {
+			if p.options.minifySyntax && symbol.UseCountEstimate == 0 {
 				class.Name = nil
 			}
 		}

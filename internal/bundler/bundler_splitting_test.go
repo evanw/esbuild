@@ -449,7 +449,7 @@ func TestSplittingDuplicateChunkCollision(t *testing.T) {
 		options: config.Options{
 			Mode:             config.ModeBundle,
 			CodeSplitting:    true,
-			RemoveWhitespace: true,
+			MinifyWhitespace: true,
 			OutputFormat:     config.FormatESModule,
 			AbsOutputDir:     "/out",
 		},

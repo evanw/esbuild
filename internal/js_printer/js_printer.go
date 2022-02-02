@@ -477,7 +477,7 @@ func (p *printer) addSourceMapping(loc logger.Loc) {
 }
 
 func (p *printer) printIndent() {
-	if !p.options.RemoveWhitespace {
+	if !p.options.MinifyWhitespace {
 		for i := 0; i < p.options.Indent; i++ {
 			p.print("  ")
 		}
@@ -580,7 +580,7 @@ func (p *printer) printNumber(value float64, level js_ast.L) {
 		p.printSpaceBeforeIdentifier()
 		p.print("NaN")
 	} else if value == positiveInfinity || value == negativeInfinity {
-		wrap := (p.options.MangleSyntax && level >= js_ast.LMultiply) ||
+		wrap := (p.options.MinifySyntax && level >= js_ast.LMultiply) ||
 			(value == negativeInfinity && level >= js_ast.LPrefix)
 		if wrap {
 			p.print("(")
@@ -591,9 +591,9 @@ func (p *printer) printNumber(value float64, level js_ast.L) {
 		} else {
 			p.printSpaceBeforeIdentifier()
 		}
-		if !p.options.MangleSyntax {
+		if !p.options.MinifySyntax {
 			p.print("Infinity")
-		} else if p.options.RemoveWhitespace {
+		} else if p.options.MinifyWhitespace {
 			p.print("1/0")
 		} else {
 			p.print("1 / 0")
@@ -782,13 +782,13 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 }
 
 func (p *printer) printSpace() {
-	if !p.options.RemoveWhitespace {
+	if !p.options.MinifyWhitespace {
 		p.print(" ")
 	}
 }
 
 func (p *printer) printNewline() {
-	if !p.options.RemoveWhitespace {
+	if !p.options.MinifyWhitespace {
 		p.print("\n")
 	}
 }
@@ -814,7 +814,7 @@ func (p *printer) printSpaceBeforeOperator(next js_ast.OpCode) {
 }
 
 func (p *printer) printSemicolonAfterStatement() {
-	if !p.options.RemoveWhitespace {
+	if !p.options.MinifyWhitespace {
 		p.print(";\n")
 	} else {
 		p.needsSemicolon = true
@@ -840,7 +840,7 @@ func (p *printer) printFnArgs(args []js_ast.Arg, hasRestArg bool, isArrow bool) 
 	wrap := true
 
 	// Minify "(a) => {}" as "a=>{}"
-	if p.options.RemoveWhitespace && !hasRestArg && isArrow && len(args) == 1 {
+	if p.options.MinifyWhitespace && !hasRestArg && isArrow && len(args) == 1 {
 		if _, ok := args[0].Binding.Data.(*js_ast.BIdentifier); ok && args[0].DefaultOrNil.Data == nil {
 			wrap = false
 		}
@@ -1105,7 +1105,7 @@ func (p *printer) printQuotedUTF16(data []uint16, allowBacktick bool) {
 	for i, c := range data {
 		switch c {
 		case '\n':
-			if p.options.MangleSyntax {
+			if p.options.MinifySyntax {
 				// The backslash for the newline costs an extra character for old-style
 				// string literals when compared to a template literal
 				backtickCost--
@@ -1339,7 +1339,7 @@ func (p *printer) printDotThenPrefix() js_ast.L {
 
 func (p *printer) printDotThenSuffix() {
 	if p.options.UnsupportedFeatures.Has(compat.Arrow) {
-		if !p.options.RemoveWhitespace {
+		if !p.options.MinifyWhitespace {
 			p.print(";")
 		}
 		p.printNewline()
@@ -1568,7 +1568,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.print(">")
 
 		isSingleLine := true
-		if !p.options.RemoveWhitespace {
+		if !p.options.MinifyWhitespace {
 			isSingleLine = len(e.Children) < 2
 			if len(e.Children) == 1 {
 				if _, ok := e.Children[0].Data.(*js_ast.EJSXElement); !ok {
@@ -1612,7 +1612,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	case *js_ast.ENew:
 		wrap := level >= js_ast.LCall
 
-		hasPureComment := !p.options.RemoveWhitespace && e.CanBeUnwrappedIfUnused
+		hasPureComment := !p.options.MinifyWhitespace && e.CanBeUnwrappedIfUnused
 		if hasPureComment && level >= js_ast.LPostfix {
 			wrap = true
 		}
@@ -1631,7 +1631,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.printExpr(e.Target, js_ast.LNew, forbidCall)
 
 		// Omit the "()" when minifying, but only when safe to do so
-		if !p.options.RemoveWhitespace || len(e.Args) > 0 || level >= js_ast.LPostfix {
+		if !p.options.MinifyWhitespace || len(e.Args) > 0 || level >= js_ast.LPostfix {
 			p.print("(")
 			for i, arg := range e.Args {
 				if i != 0 {
@@ -1648,7 +1648,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 	case *js_ast.ECall:
-		if p.options.MangleSyntax {
+		if p.options.MinifySyntax {
 			var symbolFlags js_ast.SymbolFlags
 			switch target := e.Target.Data.(type) {
 			case *js_ast.EIdentifier:
@@ -1690,7 +1690,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			wrap = true
 		}
 
-		hasPureComment := !p.options.RemoveWhitespace && e.CanBeUnwrappedIfUnused
+		hasPureComment := !p.options.MinifyWhitespace && e.CanBeUnwrappedIfUnused
 		if hasPureComment && level >= js_ast.LPostfix {
 			wrap = true
 		}
@@ -1710,7 +1710,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		// We don't ever want to accidentally generate a direct eval expression here
 		p.callTarget = e.Target.Data
 		if !e.IsDirectEval && p.isUnboundEvalIdentifier(e.Target) {
-			if p.options.RemoveWhitespace {
+			if p.options.MinifyWhitespace {
 				p.print("(0,")
 			} else {
 				p.print("(0, ")
@@ -1755,14 +1755,14 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 	case *js_ast.EImportString:
 		var leadingInteriorComments []js_ast.Comment
-		if !p.options.RemoveWhitespace {
+		if !p.options.MinifyWhitespace {
 			leadingInteriorComments = e.LeadingInteriorComments
 		}
 		p.printRequireOrImportExpr(e.ImportRecordIndex, leadingInteriorComments, level, flags)
 
 	case *js_ast.EImportCall:
 		var leadingInteriorComments []js_ast.Comment
-		if !p.options.RemoveWhitespace {
+		if !p.options.MinifyWhitespace {
 			leadingInteriorComments = e.LeadingInteriorComments
 		}
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
@@ -1811,7 +1811,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 							} else {
 								p.printNumber(value.Number, level)
 							}
-							if !p.options.RemoveWhitespace {
+							if !p.options.MinifyWhitespace {
 								p.print(" /* ")
 								p.print(e.Name)
 								p.print(" */")
@@ -1872,7 +1872,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 								} else {
 									p.printNumber(value.Number, level)
 								}
-								if !p.options.RemoveWhitespace {
+								if !p.options.MinifyWhitespace {
 									p.print(" /* ")
 									p.print(name)
 									p.print(" */")
@@ -2088,7 +2088,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 	case *js_ast.EBoolean:
-		if p.options.MangleSyntax {
+		if p.options.MinifySyntax {
 			if level >= js_ast.LPrefix {
 				if e.Value {
 					p.print("(!0)")
@@ -2113,7 +2113,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 	case *js_ast.EString:
 		// If this was originally a template literal, print it as one as long as we're not minifying
-		if e.PreferTemplate && !p.options.MangleSyntax && !p.options.UnsupportedFeatures.Has(compat.TemplateLiteral) {
+		if e.PreferTemplate && !p.options.MinifySyntax && !p.options.UnsupportedFeatures.Has(compat.TemplateLiteral) {
 			p.print("`")
 			p.printUnquotedUTF16(e.Value, '`')
 			p.print("`")
@@ -2124,7 +2124,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 	case *js_ast.ETemplate:
 		// Convert no-substitution template literals into strings if it's smaller
-		if p.options.MangleSyntax && e.TagOrNil.Data == nil && len(e.Parts) == 0 {
+		if p.options.MinifySyntax && e.TagOrNil.Data == nil && len(e.Parts) == 0 {
 			p.printQuotedUTF16(e.HeadCooked, true /* allowBacktick */)
 			return
 		}
@@ -2175,7 +2175,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	case *js_ast.EInlinedEnum:
 		p.printExpr(e.Value, level, flags)
 
-		if !p.options.RemoveWhitespace {
+		if !p.options.MinifyWhitespace {
 			p.print(" /* ")
 			p.print(e.Comment)
 			p.print(" */")
@@ -2215,7 +2215,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		} else if symbol.NamespaceAlias != nil {
 			wrap := p.callTarget == e && e.WasOriginallyIdentifier
 			if wrap {
-				if p.options.RemoveWhitespace {
+				if p.options.MinifyWhitespace {
 					p.print("(0,")
 				} else {
 					p.print("(0, ")
@@ -2380,7 +2380,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			} else if _, ok := e.Left.Data.(*js_ast.ENumber); ok {
 				// Negative numbers are printed using a unary operator
 				leftLevel = js_ast.LCall
-			} else if p.options.MangleSyntax {
+			} else if p.options.MinifySyntax {
 				// When minifying, booleans are printed as "!0 and "!1"
 				if _, ok := e.Left.Data.(*js_ast.EBoolean); ok {
 					leftLevel = js_ast.LCall
@@ -2539,7 +2539,7 @@ func (p *printer) printNonNegativeFloat(absValue float64) {
 
 		// Strip off the leading zero when minifying
 		// "0.5" => ".5"
-		if p.options.RemoveWhitespace {
+		if p.options.MinifyWhitespace {
 			result = result[1:]
 			afterDot--
 		}
@@ -3234,7 +3234,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		update := s.UpdateOrNil
 
 		// Omit calls to empty functions from the output completely
-		if p.options.MangleSyntax {
+		if p.options.MinifySyntax {
 			if expr, ok := init.Data.(*js_ast.SExpr); ok {
 				if value := p.simplifyUnusedExpr(expr.Value); value.Data == nil {
 					init.Data = nil
@@ -3458,7 +3458,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		value := s.Value
 
 		// Omit calls to empty functions from the output completely
-		if p.options.MangleSyntax {
+		if p.options.MinifySyntax {
 			value = p.simplifyUnusedExpr(value)
 			if value.Data == nil {
 				// If this statement is not in a block, then we still need to emit something
@@ -3504,8 +3504,8 @@ type Options struct {
 	UnsupportedFeatures compat.JSFeature
 	Indent              int
 	OutputFormat        config.Format
-	RemoveWhitespace    bool
-	MangleSyntax        bool
+	MinifyWhitespace    bool
+	MinifySyntax        bool
 	ASCIIOnly           bool
 	LegalComments       config.LegalComments
 	AddSourceMappings   bool
