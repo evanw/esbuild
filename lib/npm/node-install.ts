@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { downloadedBinPath, ESBUILD_BINARY_PATH, pkgAndSubpathForCurrentPlatform } from './node-platform';
 
 import fs = require('fs');
@@ -14,7 +13,20 @@ let isToPathJS = true;
 
 function validateBinaryVersion(...command: string[]): void {
   command.push('--version');
-  const stdout = child_process.execFileSync(command.shift()!, command).toString().trim();
+  const stdout = child_process.execFileSync(command.shift()!, command, {
+    // Without this, this install script strangely crashes with the error
+    // "EACCES: permission denied, write" but only on Ubuntu Linux when node is
+    // installed from the Snap Store. This is not a problem when you download
+    // the official version of node. The problem appears to be that stderr
+    // (i.e. file descriptor 2) isn't writable?
+    //
+    // More info:
+    // - https://snapcraft.io/ (what the Snap Store is)
+    // - https://nodejs.org/dist/ (download the official version of node)
+    // - https://github.com/evanw/esbuild/issues/1711#issuecomment-1027554035
+    //
+    stdio: 'pipe',
+  }).toString().trim();
   if (stdout !== ESBUILD_VERSION) {
     throw new Error(`Expected ${JSON.stringify(ESBUILD_VERSION)} but got ${JSON.stringify(stdout)}`);
   }

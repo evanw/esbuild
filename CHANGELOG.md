@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Attempt to fix an install script issue on Ubuntu Linux ([#1711](https://github.com/evanw/esbuild/issues/1711))
+
+    There have been some reports of esbuild failing to install on Ubuntu Linux for a while now. I haven't been able to reproduce this myself due to lack of reproduction instructions until today, when I learned that the issue only happens when you install node from the [Snap Store](https://snapcraft.io/) instead of downloading the [official version of node](https://nodejs.org/dist/).
+
+    The problem appears to be that when node is installed from the Snap Store, install scripts are run with stderr not being writable? This then appears to cause a problem for esbuild's install script when it uses `execFileSync` to validate that the esbuild binary is working correctly. This throws the error `EACCES: permission denied, write` even though this particular command never writes to stderr.
+
+    Node's documentation says that stderr for `execFileSync` defaults to that of the parent process. Forcing it to `'pipe'` instead appears to fix the issue, although I still don't fully understand what's happening or why. I'm publishing this small change regardless to see if it fixes this install script edge case.
+
 * Avoid a syntax error due to `--mangle-props=.` and `super()` ([#1976](https://github.com/evanw/esbuild/issues/1976))
 
     This release fixes an issue where passing `--mangle-props=.` (i.e. telling esbuild to mangle every single property) caused a syntax error with code like this:
