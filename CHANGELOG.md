@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.17
 
 * Attempt to fix an install script issue on Ubuntu Linux ([#1711](https://github.com/evanw/esbuild/issues/1711))
 

@@ -1,6 +1,6 @@
 {
   "name": "esbuild-sunos-64",
-  "version": "0.14.16",
+  "version": "0.14.17",
   "description": "The illumos 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
