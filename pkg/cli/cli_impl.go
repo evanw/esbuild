@@ -34,16 +34,23 @@ func newTransformOptions() api.TransformOptions {
 type parseOptionsKind uint8
 
 const (
+	// This means we're parsing it for our own internal use
 	kindInternal parseOptionsKind = iota
+
+	// This means the result is returned through a public API
 	kindExternal
 )
+
+type parseOptionsExtras struct {
+	metafile *string
+}
 
 func parseOptionsImpl(
 	osArgs []string,
 	buildOpts *api.BuildOptions,
 	transformOpts *api.TransformOptions,
 	kind parseOptionsKind,
-) (err *cli_helpers.ErrorWithNote, metafile *string) {
+) (extras parseOptionsExtras, err *cli_helpers.ErrorWithNote) {
 	hasBareSourceMapFlag := false
 
 	// Parse the arguments now that we know what we're parsing
@@ -128,10 +135,10 @@ func parseOptionsImpl(
 					transformOpts.Drop |= api.DropDebugger
 				}
 			default:
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"Valid values are \"console\" or \"debugger\".",
-				), nil
+				)
 			}
 
 		case strings.HasPrefix(arg, "--legal-comments="):
@@ -149,10 +156,10 @@ func parseOptionsImpl(
 			case "external":
 				legalComments = api.LegalCommentsExternal
 			default:
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"Valid values are \"none\", \"inline\", \"eof\", \"linked\", or \"external\".",
-				), nil
+				)
 			}
 			if buildOpts != nil {
 				buildOpts.LegalComments = legalComments
@@ -174,10 +181,10 @@ func parseOptionsImpl(
 			case "utf8":
 				*value = api.CharsetUTF8
 			default:
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", name, arg),
 					"Valid values are \"ascii\" or \"utf8\".",
-				), nil
+				)
 			}
 
 		case strings.HasPrefix(arg, "--tree-shaking="):
@@ -194,10 +201,10 @@ func parseOptionsImpl(
 			case "true":
 				*value = api.TreeShakingTrue
 			default:
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", name, arg),
 					"Valid values are \"true\" or \"false\".",
-				), nil
+				)
 			}
 
 		case arg == "--ignore-annotations":
@@ -233,10 +240,10 @@ func parseOptionsImpl(
 			case "both":
 				sourcemap = api.SourceMapInlineAndExternal
 			default:
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"Valid values are \"inline\", \"external\", or \"both\".",
-				), nil
+				)
 			}
 			if buildOpts != nil {
 				buildOpts.Sourcemap = sourcemap
@@ -262,10 +269,10 @@ func parseOptionsImpl(
 			case "true":
 				sourcesContent = api.SourcesContentInclude
 			default:
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"Valid values are \"true\" or \"false\".",
-				), nil
+				)
 			}
 			if buildOpts != nil {
 				buildOpts.SourcesContent = sourcesContent
@@ -308,7 +315,7 @@ func parseOptionsImpl(
 		case strings.HasPrefix(arg, "--metafile=") && buildOpts != nil && kind == kindInternal:
 			metafilePath := arg[len("--metafile="):]
 			buildOpts.Metafile = true
-			metafile = &metafilePath
+			extras.metafile = &metafilePath
 
 		case strings.HasPrefix(arg, "--outfile=") && buildOpts != nil:
 			buildOpts.Outfile = arg[len("--outfile="):]
@@ -338,11 +345,11 @@ func parseOptionsImpl(
 			value := arg[len("--define:"):]
 			equals := strings.IndexByte(value, '=')
 			if equals == -1 {
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Missing \"=\" in %q", arg),
 					"You need to use \"=\" to specify both the original value and the replacement value. "+
 						"For example, \"--define:DEBUG=true\" replaces \"DEBUG\" with \"true\".",
-				), nil
+				)
 			}
 			if buildOpts != nil {
 				buildOpts.Define[value[:equals]] = value[equals+1:]
@@ -362,16 +369,16 @@ func parseOptionsImpl(
 			value := arg[len("--loader:"):]
 			equals := strings.IndexByte(value, '=')
 			if equals == -1 {
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Missing \"=\" in %q", arg),
 					"You need to specify the file extension that the loader applies to. "+
 						"For example, \"--loader:.js=jsx\" applies the \"jsx\" loader to files with the \".js\" extension.",
-				), nil
+				)
 			}
 			ext, text := value[:equals], value[equals+1:]
 			loader, err := cli_helpers.ParseLoader(text)
 			if err != nil {
-				return err, nil
+				return parseOptionsExtras{}, err
 			}
 			buildOpts.Loader[ext] = loader
 
@@ -379,14 +386,14 @@ func parseOptionsImpl(
 			value := arg[len("--loader="):]
 			loader, err := cli_helpers.ParseLoader(value)
 			if err != nil {
-				return err, nil
+				return parseOptionsExtras{}, err
 			}
 			if loader == api.LoaderFile {
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("%q is not supported when transforming stdin", arg),
 					"Using esbuild to transform stdin only generates one output file, so you cannot use the \"file\" loader "+
 						"since that needs to generate two output files.",
-				), nil
+				)
 			}
 			if buildOpts != nil {
 				if buildOpts.Stdin == nil {
@@ -400,7 +407,7 @@ func parseOptionsImpl(
 		case strings.HasPrefix(arg, "--target="):
 			target, engines, err := parseTargets(splitWithEmptyCheck(arg[len("--target="):], ","), arg)
 			if err != nil {
-				return err, nil
+				return parseOptionsExtras{}, err
 			}
 			if buildOpts != nil {
 				buildOpts.Target = target
@@ -414,11 +421,11 @@ func parseOptionsImpl(
 			value := arg[len("--out-extension:"):]
 			equals := strings.IndexByte(value, '=')
 			if equals == -1 {
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Missing \"=\" in %q", arg),
 					"You need to use either \"--out-extension:.js=...\" or \"--out-extension:.css=...\" "+
 						"to specify the file type that the output extension applies to .",
-				), nil
+				)
 			}
 			if buildOpts.OutExtensions == nil {
 				buildOpts.OutExtensions = make(map[string]string)
@@ -435,10 +442,10 @@ func parseOptionsImpl(
 			case "neutral":
 				buildOpts.Platform = api.PlatformNeutral
 			default:
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"Valid values are \"browser\", \"node\", or \"neutral\".",
-				), nil
+				)
 			}
 
 		case strings.HasPrefix(arg, "--format="):
@@ -463,10 +470,10 @@ func parseOptionsImpl(
 					transformOpts.Format = api.FormatESModule
 				}
 			default:
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"Valid values are \"iife\", \"cjs\", or \"esm\".",
-				), nil
+				)
 			}
 
 		case strings.HasPrefix(arg, "--external:") && buildOpts != nil:
@@ -484,10 +491,10 @@ func parseOptionsImpl(
 			case "preserve":
 				mode = api.JSXModePreserve
 			default:
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"Valid values are \"transform\" or \"preserve\".",
-				), nil
+				)
 			}
 			if buildOpts != nil {
 				buildOpts.JSXMode = mode
@@ -521,10 +528,10 @@ func parseOptionsImpl(
 			value := arg[len("--banner:"):]
 			equals := strings.IndexByte(value, '=')
 			if equals == -1 {
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Missing \"=\" in %q", arg),
 					"You need to use either \"--banner:js=...\" or \"--banner:css=...\" to specify the language that the banner applies to.",
-				), nil
+				)
 			}
 			buildOpts.Banner[value[:equals]] = value[equals+1:]
 
@@ -532,10 +539,10 @@ func parseOptionsImpl(
 			value := arg[len("--footer:"):]
 			equals := strings.IndexByte(value, '=')
 			if equals == -1 {
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Missing \"=\" in %q", arg),
 					"You need to use either \"--footer:js=...\" or \"--footer:css=...\" to specify the language that the footer applies to.",
-				), nil
+				)
 			}
 			buildOpts.Footer[value[:equals]] = value[equals+1:]
 
@@ -543,10 +550,10 @@ func parseOptionsImpl(
 			value := arg[len("--log-limit="):]
 			limit, err := strconv.Atoi(value)
 			if err != nil || limit < 0 {
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"The log limit must be a non-negative integer.",
-				), nil
+				)
 			}
 			if buildOpts != nil {
 				buildOpts.LogLimit = limit
@@ -564,10 +571,10 @@ func parseOptionsImpl(
 			case "true":
 				color = api.ColorAlways
 			default:
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"Valid values are \"true\" or \"false\".",
-				), nil
+				)
 			}
 			if buildOpts != nil {
 				buildOpts.Color = color
@@ -593,10 +600,10 @@ func parseOptionsImpl(
 			case "silent":
 				logLevel = api.LogLevelSilent
 			default:
-				return cli_helpers.MakeErrorWithNote(
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"Valid values are \"verbose\", \"debug\", \"info\", \"warning\", \"error\", or \"silent\".",
-				), nil
+				)
 			}
 			if buildOpts != nil {
 				buildOpts.LogLevel = logLevel
@@ -605,11 +612,11 @@ func parseOptionsImpl(
 			}
 
 		case strings.HasPrefix(arg, "'--"):
-			return cli_helpers.MakeErrorWithNote(
+			return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 				fmt.Sprintf("Unexpected single quote character before flag: %s", arg),
 				"This typically happens when attempting to use single quotes to quote arguments with a shell that doesn't recognize single quotes. "+
 					"Try using double quote characters to quote arguments instead.",
-			), nil
+			)
 
 		case !strings.HasPrefix(arg, "-") && buildOpts != nil:
 			if equals := strings.IndexByte(arg, '='); equals != -1 {
@@ -731,9 +738,9 @@ func parseOptionsImpl(
 			}
 
 			if buildOpts != nil {
-				return cli_helpers.MakeErrorWithNote(fmt.Sprintf("Invalid build flag: %q", arg), note), nil
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(fmt.Sprintf("Invalid build flag: %q", arg), note)
 			} else {
-				return cli_helpers.MakeErrorWithNote(fmt.Sprintf("Invalid transform flag: %q", arg), note), nil
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(fmt.Sprintf("Invalid transform flag: %q", arg), note)
 			}
 		}
 	}
@@ -808,7 +815,7 @@ outer:
 }
 
 // This returns either BuildOptions, TransformOptions, or an error
-func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *string, *api.TransformOptions, *cli_helpers.ErrorWithNote) {
+func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *api.TransformOptions, parseOptionsExtras, *cli_helpers.ErrorWithNote) {
 	// If there's an entry point or we're bundling, then we're building
 	for _, arg := range osArgs {
 		if !strings.HasPrefix(arg, "-") || arg == "--bundle" {
@@ -819,11 +826,11 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *string, *api.Trans
 			options.LogLevel = api.LogLevelInfo
 			options.Write = true
 
-			err, metafile := parseOptionsImpl(osArgs, &options, nil, kindInternal)
+			extras, err := parseOptionsImpl(osArgs, &options, nil, kindInternal)
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, nil, parseOptionsExtras{}, err
 			}
-			return &options, metafile, nil, nil
+			return &options, nil, extras, nil
 		}
 	}
 
@@ -834,9 +841,9 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *string, *api.Trans
 	options.LogLimit = 6
 	options.LogLevel = api.LogLevelInfo
 
-	err, _ := parseOptionsImpl(osArgs, nil, &options, kindInternal)
+	_, err := parseOptionsImpl(osArgs, nil, &options, kindInternal)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, parseOptionsExtras{}, err
 	}
 	if options.Sourcemap != api.SourceMapNone && options.Sourcemap != api.SourceMapInline {
 		var sourceMapMode string
@@ -848,13 +855,13 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *string, *api.Trans
 		case api.SourceMapLinked:
 			sourceMapMode = "linked"
 		}
-		return nil, nil, nil, cli_helpers.MakeErrorWithNote(
+		return nil, nil, parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 			fmt.Sprintf("Use \"--sourcemap\" instead of \"--sourcemap=%s\" when transforming stdin", sourceMapMode),
 			fmt.Sprintf("Using esbuild to transform stdin only generates one output file, so you cannot use the %q source map mode "+
 				"since that needs to generate two output files.", sourceMapMode),
 		)
 	}
-	return nil, nil, &options, nil
+	return nil, &options, parseOptionsExtras{}, nil
 }
 
 func splitWithEmptyCheck(s string, sep string) []string {
@@ -898,7 +905,7 @@ func runImpl(osArgs []string) int {
 	}
 	osArgs = osArgs[:end]
 
-	buildOptions, metafile, transformOptions, err := parseOptionsForRun(osArgs)
+	buildOptions, transformOptions, extras, err := parseOptionsForRun(osArgs)
 
 	switch {
 	case buildOptions != nil:
@@ -946,7 +953,7 @@ func runImpl(osArgs []string) int {
 		// don't write any output files if it's incorrect. That makes this API
 		// option consistent with how we handle all other API options.
 		var writeMetafile func(string)
-		if metafile != nil {
+		if extras.metafile != nil {
 			var metafileAbsPath string
 			var metafileAbsDir string
 
@@ -957,9 +964,9 @@ func runImpl(osArgs []string) int {
 			}
 			realFS, realFSErr := fs.RealFS(fs.RealFSOptions{AbsWorkingDir: buildOptions.AbsWorkingDir})
 			if realFSErr == nil {
-				absPath, ok := realFS.Abs(*metafile)
+				absPath, ok := realFS.Abs(*extras.metafile)
 				if !ok {
-					logger.PrintErrorToStderr(osArgs, fmt.Sprintf("Invalid metafile path: %s", *metafile))
+					logger.PrintErrorToStderr(osArgs, fmt.Sprintf("Invalid metafile path: %s", *extras.metafile))
 					return 1
 				}
 				metafileAbsPath = absPath
@@ -1120,7 +1127,7 @@ func serveImpl(osArgs []string) error {
 	options.LogLimit = 5
 	options.LogLevel = api.LogLevelInfo
 
-	if err, _ := parseOptionsImpl(filteredArgs, &options, nil, kindInternal); err != nil {
+	if _, err := parseOptionsImpl(filteredArgs, &options, nil, kindInternal); err != nil {
 		logger.PrintErrorToStderr(filteredArgs, err.Text)
 		return errors.New(err.Text)
 	}

@@ -48,7 +48,7 @@ func Run(osArgs []string) int {
 //
 func ParseBuildOptions(osArgs []string) (options api.BuildOptions, err error) {
 	options = newBuildOptions()
-	errWithNote, _ := parseOptionsImpl(osArgs, &options, nil, kindExternal)
+	_, errWithNote := parseOptionsImpl(osArgs, &options, nil, kindExternal)
 	if errWithNote != nil {
 		err = errors.New(errWithNote.Text)
 	}
@@ -71,7 +71,7 @@ func ParseBuildOptions(osArgs []string) (options api.BuildOptions, err error) {
 //
 func ParseTransformOptions(osArgs []string) (options api.TransformOptions, err error) {
 	options = newTransformOptions()
-	errWithNote, _ := parseOptionsImpl(osArgs, nil, &options, kindExternal)
+	_, errWithNote := parseOptionsImpl(osArgs, nil, &options, kindExternal)
 	if errWithNote != nil {
 		err = errors.New(errWithNote.Text)
 	}
