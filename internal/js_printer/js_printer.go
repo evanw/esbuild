@@ -484,7 +484,7 @@ func (p *printer) printIndent() {
 	}
 }
 
-func (p *printer) printSymbol(ref js_ast.Ref) string {
+func (p *printer) printSymbol(ref js_ast.Ref) {
 	name := p.renamer.NameForSymbol(ref)
 
 	// Minify "return #foo in bar" to "return#foo in bar"
@@ -493,7 +493,6 @@ func (p *printer) printSymbol(ref js_ast.Ref) string {
 	}
 
 	p.printIdentifier(name)
-	return name
 }
 
 func (p *printer) printClauseAlias(alias string) {
@@ -720,7 +719,6 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 
 					if str, ok := property.Key.Data.(*js_ast.EString); ok && !property.PreferQuotedKey && p.canPrintIdentifierUTF16(str.Value) {
 						p.addSourceMapping(property.Key.Loc)
-						p.printSpaceBeforeIdentifier()
 						p.printIdentifierUTF16(str.Value)
 
 						// Use a shorthand property if the names are the same
@@ -734,17 +732,22 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 							continue
 						}
 					} else if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
-						name := p.printSymbol(mangled.Ref)
+						p.addSourceMapping(property.Key.Loc)
+						if name := p.renamer.NameForSymbol(mangled.Ref); p.canPrintIdentifier(name) {
+							p.printIdentifier(name)
 
-						// Use a shorthand property if the names are the same
-						if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok && name == p.renamer.NameForSymbol(id.Ref) {
-							if property.DefaultValueOrNil.Data != nil {
-								p.printSpace()
-								p.print("=")
-								p.printSpace()
-								p.printExpr(property.DefaultValueOrNil, js_ast.LComma, 0)
+							// Use a shorthand property if the names are the same
+							if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok && name == p.renamer.NameForSymbol(id.Ref) {
+								if property.DefaultValueOrNil.Data != nil {
+									p.printSpace()
+									p.print("=")
+									p.printSpace()
+									p.printExpr(property.DefaultValueOrNil, js_ast.LComma, 0)
+								}
+								continue
 							}
-							continue
+						} else {
+							p.printQuotedUTF8(name, false /* allowBacktick */)
 						}
 					} else {
 						p.printExpr(property.Key, js_ast.LLowest, 0)
@@ -984,36 +987,40 @@ func (p *printer) printProperty(item js_ast.Property) {
 
 	case *js_ast.EMangledProp:
 		p.addSourceMapping(item.Key.Loc)
-		name := p.printSymbol(key.Ref)
+		if name := p.renamer.NameForSymbol(key.Ref); p.canPrintIdentifier(name) {
+			p.printIdentifier(name)
 
-		// Use a shorthand property if the names are the same
-		if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.ValueOrNil.Data != nil {
-			switch e := item.ValueOrNil.Data.(type) {
-			case *js_ast.EIdentifier:
-				if name == p.renamer.NameForSymbol(e.Ref) {
-					if item.InitializerOrNil.Data != nil {
-						p.printSpace()
-						p.print("=")
-						p.printSpace()
-						p.printExpr(item.InitializerOrNil, js_ast.LComma, 0)
+			// Use a shorthand property if the names are the same
+			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.ValueOrNil.Data != nil {
+				switch e := item.ValueOrNil.Data.(type) {
+				case *js_ast.EIdentifier:
+					if name == p.renamer.NameForSymbol(e.Ref) {
+						if item.InitializerOrNil.Data != nil {
+							p.printSpace()
+							p.print("=")
+							p.printSpace()
+							p.printExpr(item.InitializerOrNil, js_ast.LComma, 0)
+						}
+						return
 					}
-					return
-				}
 
-			case *js_ast.EImportIdentifier:
-				// Make sure we're not using a property access instead of an identifier
-				ref := js_ast.FollowSymbols(p.symbols, e.Ref)
-				symbol := p.symbols.Get(ref)
-				if symbol.NamespaceAlias == nil && name == p.renamer.NameForSymbol(e.Ref) {
-					if item.InitializerOrNil.Data != nil {
-						p.printSpace()
-						p.print("=")
-						p.printSpace()
-						p.printExpr(item.InitializerOrNil, js_ast.LComma, 0)
+				case *js_ast.EImportIdentifier:
+					// Make sure we're not using a property access instead of an identifier
+					ref := js_ast.FollowSymbols(p.symbols, e.Ref)
+					symbol := p.symbols.Get(ref)
+					if symbol.NamespaceAlias == nil && name == p.renamer.NameForSymbol(e.Ref) {
+						if item.InitializerOrNil.Data != nil {
+							p.printSpace()
+							p.print("=")
+							p.printSpace()
+							p.printExpr(item.InitializerOrNil, js_ast.LComma, 0)
+						}
+						return
 					}
-					return
 				}
 			}
+		} else {
+			p.printQuotedUTF8(name, false /* allowBacktick */)
 		}
 
 	case *js_ast.EString:
@@ -1896,10 +1903,16 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.printSymbol(index.Ref)
 
 		case *js_ast.EMangledProp:
-			if e.OptionalChain != js_ast.OptionalChainStart {
-				p.print(".")
+			if name := p.renamer.NameForSymbol(index.Ref); p.canPrintIdentifier(name) {
+				if e.OptionalChain != js_ast.OptionalChainStart {
+					p.print(".")
+				}
+				p.printIdentifier(name)
+			} else {
+				p.print("[")
+				p.printQuotedUTF8(name, true /* allowBacktick */)
+				p.print("]")
 			}
-			p.printSymbol(index.Ref)
 
 		default:
 			p.print("[")
