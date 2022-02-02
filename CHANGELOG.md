@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.18
 
 * Add the `--mangle-cache=` feature ([#1977](https://github.com/evanw/esbuild/issues/1977))
 
