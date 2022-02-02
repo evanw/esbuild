@@ -79,6 +79,23 @@
 
     You can now target [Opera](https://www.opera.com/) and/or [Internet Explorer](https://www.microsoft.com/en-us/download/internet-explorer.aspx) using the `--target=` setting. For example, `--target=opera45,ie9` targets Opera 45 and Internet Explorer 9. This change does not add any additional features to esbuild's code transformation pipeline to transform newer syntax so that it works in Internet Explorer. It just adds information about what features are supported in these browsers to esbuild's internal feature compatibility table.
 
+* Minify `typeof x !== 'undefined'` to `typeof x < 'u'`
+
+    This release introduces a small improvement for code that does a lot of `typeof` checks against `undefined`:
+
+    ```js
+    // Original code
+    y = typeof x !== 'undefined';
+
+    // Old output (with --minify)
+    y=typeof x!="undefined";
+
+    // New output (with --minify)
+    y=typeof x<"u";
+    ```
+
+    This transformation is only active when minification is enabled, and is disabled if the language target is set lower than ES2020 or if Internet Explorer is set as a target environment. Before ES2020, implementations were allowed to return non-standard values from the `typeof` operator for a few objects. Internet Explorer took advantage of this to sometimes return the string `'unknown'` instead of `'undefined'`. But this has been removed from the specification and Internet Explorer was the only engine to do this, so this minification is valid for code that does not need to target Internet Explorer.
+
 ## 0.14.17
 
 * Attempt to fix an install script issue on Ubuntu Linux ([#1711](https://github.com/evanw/esbuild/issues/1711))

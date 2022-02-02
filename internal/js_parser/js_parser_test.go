@@ -3554,6 +3554,18 @@ func TestMangleTypeofIdentifier(t *testing.T) {
 	expectPrintedMangle(t, "return typeof (false || x); var x", "return typeof x;\nvar x;\n")
 }
 
+func TestMangleTypeofEqualsUndefined(t *testing.T) {
+	expectPrintedMangle(t, "return typeof x !== 'undefined'", "return typeof x < \"u\";\n")
+	expectPrintedMangle(t, "return typeof x != 'undefined'", "return typeof x < \"u\";\n")
+	expectPrintedMangle(t, "return 'undefined' !== typeof x", "return typeof x < \"u\";\n")
+	expectPrintedMangle(t, "return 'undefined' != typeof x", "return typeof x < \"u\";\n")
+
+	expectPrintedMangle(t, "return typeof x === 'undefined'", "return typeof x > \"u\";\n")
+	expectPrintedMangle(t, "return typeof x == 'undefined'", "return typeof x > \"u\";\n")
+	expectPrintedMangle(t, "return 'undefined' === typeof x", "return typeof x > \"u\";\n")
+	expectPrintedMangle(t, "return 'undefined' == typeof x", "return typeof x > \"u\";\n")
+}
+
 func TestMangleEquals(t *testing.T) {
 	expectPrintedMangle(t, "return typeof x === y", "return typeof x === y;\n")
 	expectPrintedMangle(t, "return typeof x !== y", "return typeof x !== y;\n")

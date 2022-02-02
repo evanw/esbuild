@@ -10587,16 +10587,38 @@ func canChangeStrictToLoose(a js_ast.Expr, b js_ast.Expr) bool {
 	return x == y && x != js_ast.PrimitiveUnknown && x != js_ast.PrimitiveMixed
 }
 
-func maybeSimplifyEqualityComparison(e *js_ast.EBinary, isNotEqual bool) (js_ast.Expr, bool) {
+func (p *parser) maybeSimplifyEqualityComparison(loc logger.Loc, e *js_ast.EBinary) (js_ast.Expr, bool) {
 	// "!x === true" => "!x"
 	// "!x === false" => "!!x"
 	// "!x !== true" => "!!x"
 	// "!x !== false" => "!x"
 	if boolean, ok := e.Right.Data.(*js_ast.EBoolean); ok && js_ast.KnownPrimitiveType(e.Left) == js_ast.PrimitiveBoolean {
-		if boolean.Value == isNotEqual {
+		if boolean.Value == (e.Op == js_ast.BinOpLooseNe || e.Op == js_ast.BinOpStrictNe) {
 			return js_ast.Not(e.Left), true
 		} else {
 			return e.Left, true
+		}
+	}
+
+	// "typeof x != 'undefined'" => "typeof x < 'u'"
+	// "typeof x == 'undefined'" => "typeof x > 'u'"
+	if !p.options.unsupportedJSFeatures.Has(compat.TypeofExoticObjectIsObject) {
+		// Only do this optimization if we know that the "typeof" operator won't
+		// return something random. The only case of this happening was Internet
+		// Explorer returning "unknown" for some objects, which messes with this
+		// optimization. So we don't do this when targeting Internet Explorer.
+		if typeof, ok := e.Left.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
+			if str, ok := e.Right.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(str.Value, "undefined") {
+				op := js_ast.BinOpLt
+				if e.Op == js_ast.BinOpLooseEq || e.Op == js_ast.BinOpStrictEq {
+					op = js_ast.BinOpGt
+				}
+				return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+					Op:    op,
+					Left:  e.Left,
+					Right: js_ast.Expr{Loc: e.Right.Loc, Data: &js_ast.EString{Value: []uint16{'u'}}},
+				}}, true
+			}
 		}
 	}
 
@@ -11733,7 +11755,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					e.Right.Data = js_ast.ENullShared
 				}
 
-				if result, ok := maybeSimplifyEqualityComparison(e, false /* isNotEqual */); ok {
+				if result, ok := p.maybeSimplifyEqualityComparison(expr.Loc, e); ok {
 					return result, exprOut{}
 				}
 			}
@@ -11754,7 +11776,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					e.Op = js_ast.BinOpLooseEq
 				}
 
-				if result, ok := maybeSimplifyEqualityComparison(e, false /* isNotEqual */); ok {
+				if result, ok := p.maybeSimplifyEqualityComparison(expr.Loc, e); ok {
 					return result, exprOut{}
 				}
 			}
@@ -11775,7 +11797,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					e.Right.Data = js_ast.ENullShared
 				}
 
-				if result, ok := maybeSimplifyEqualityComparison(e, true /* isNotEqual */); ok {
+				if result, ok := p.maybeSimplifyEqualityComparison(expr.Loc, e); ok {
 					return result, exprOut{}
 				}
 			}
@@ -11796,7 +11818,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					e.Op = js_ast.BinOpLooseNe
 				}
 
-				if result, ok := maybeSimplifyEqualityComparison(e, true /* isNotEqual */); ok {
+				if result, ok := p.maybeSimplifyEqualityComparison(expr.Loc, e); ok {
 					return result, exprOut{}
 				}
 			}
@@ -14557,6 +14579,14 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 		// we must also consider "typeof x == 'object'" to be side-effect free.
 		case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe:
 			return canChangeStrictToLoose(e.Left, e.Right) && p.exprCanBeRemovedIfUnused(e.Left) && p.exprCanBeRemovedIfUnused(e.Right)
+
+		// Special-case "<" and ">" with string, number, or bigint arguments
+		case js_ast.BinOpLt, js_ast.BinOpGt, js_ast.BinOpLe, js_ast.BinOpGe:
+			left := js_ast.KnownPrimitiveType(e.Left)
+			switch left {
+			case js_ast.PrimitiveString, js_ast.PrimitiveNumber, js_ast.PrimitiveBigInt:
+				return js_ast.KnownPrimitiveType(e.Right) == left && p.exprCanBeRemovedIfUnused(e.Left) && p.exprCanBeRemovedIfUnused(e.Right)
+			}
 		}
 
 	case *js_ast.ETemplate:
@@ -14593,6 +14623,25 @@ func (p *parser) isSideEffectFreeUnboundIdentifierRef(value js_ast.Expr, guardCo
 						// In "typeof x === 'object' ? x : null", the reference to "x" is side-effect free
 						if (js_lexer.UTF16EqualsString(text.Value, "undefined") == isYesBranch) ==
 							(binary.Op == js_ast.BinOpStrictNe || binary.Op == js_ast.BinOpLooseNe) {
+							if id2, ok := typeof.Value.Data.(*js_ast.EIdentifier); ok && id2.Ref == id.Ref {
+								return true
+							}
+						}
+					}
+				}
+
+			case js_ast.BinOpLt, js_ast.BinOpGt, js_ast.BinOpLe, js_ast.BinOpGe:
+				// Pattern match for "typeof x < <string>"
+				typeof, string := binary.Left, binary.Right
+				if _, ok := typeof.Data.(*js_ast.EString); ok {
+					typeof, string = string, typeof
+					isYesBranch = !isYesBranch
+				}
+				if typeof, ok := typeof.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
+					if text, ok := string.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(text.Value, "u") {
+						// In "typeof x < 'u' ? x : null", the reference to "x" is side-effect free
+						// In "typeof x > 'u' ? x : null", the reference to "x" is side-effect free
+						if isYesBranch == (binary.Op == js_ast.BinOpLt || binary.Op == js_ast.BinOpLe) {
 							if id2, ok := typeof.Value.Data.(*js_ast.EIdentifier); ok && id2.Ref == id.Ref {
 								return true
 							}

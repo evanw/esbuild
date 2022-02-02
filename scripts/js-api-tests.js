@@ -4249,6 +4249,15 @@ let transformTests = {
     assert.strictEqual(fromPromiseResolve(code4), `Promise.resolve().then(function(){return __toESM(require(foo))});\n`)
   },
 
+  async typeofEqualsUndefinedTarget({ esbuild }) {
+    assert.strictEqual((await esbuild.transform(`a = typeof b !== 'undefined'`, { minify: true })).code, `a=typeof b<"u";\n`)
+    assert.strictEqual((await esbuild.transform(`a = typeof b !== 'undefined'`, { minify: true, target: 'es2020' })).code, `a=typeof b<"u";\n`)
+    assert.strictEqual((await esbuild.transform(`a = typeof b !== 'undefined'`, { minify: true, target: 'chrome11' })).code, `a=typeof b<"u";\n`)
+
+    assert.strictEqual((await esbuild.transform(`a = typeof b !== 'undefined'`, { minify: true, target: 'es2019' })).code, `a=typeof b!="undefined";\n`)
+    assert.strictEqual((await esbuild.transform(`a = typeof b !== 'undefined'`, { minify: true, target: 'ie11' })).code, `a=typeof b!="undefined";\n`)
+  },
+
   async caseInsensitiveTarget({ esbuild }) {
     assert.strictEqual((await esbuild.transform(`a ||= b`, { target: 'eS5' })).code, `a || (a = b);\n`)
     assert.strictEqual((await esbuild.transform(`a ||= b`, { target: 'eSnExT' })).code, `a ||= b;\n`)

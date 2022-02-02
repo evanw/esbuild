@@ -87,6 +87,7 @@ const (
 	RestArgument
 	TemplateLiteral
 	TopLevelAwait
+	TypeofExoticObjectIsObject
 	UnicodeEscapes
 )
 
@@ -484,6 +485,16 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Firefox: {{start: v{89, 0, 0}}},
 		Node:    {{start: v{14, 8, 0}}},
 		Safari:  {{start: v{15, 0, 0}}},
+	},
+	TypeofExoticObjectIsObject: {
+		Chrome:  {{start: v{0, 0, 0}}},
+		Edge:    {{start: v{0, 0, 0}}},
+		ES:      {{start: v{2020, 0, 0}}},
+		Firefox: {{start: v{0, 0, 0}}},
+		IOS:     {{start: v{0, 0, 0}}},
+		Node:    {{start: v{0, 0, 0}}},
+		Opera:   {{start: v{0, 0, 0}}},
+		Safari:  {{start: v{0, 0, 0}}},
 	},
 	UnicodeEscapes: {
 		Chrome:  {{start: v{44, 0, 0}}},
