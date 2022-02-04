@@ -91,6 +91,7 @@ type parser struct {
 	isExportedInsideNamespace  map[js_ast.Ref]js_ast.Ref
 	localTypeNames             map[string]bool
 	tsEnums                    map[js_ast.Ref]map[string]js_ast.TSEnumValue
+	constValues                map[js_ast.Ref]js_ast.ConstValue
 
 	// This is the reference to the generated function argument for the namespace,
 	// which is different than the reference to the namespace itself:
@@ -6166,6 +6167,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			}
 			importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertions)
 
+			// Export-star statements anywhere in the file disable top-level const
+			// local prefix because import cycles can be used to trigger TDZ
+			p.currentScope.IsAfterConstLocalPrefix = true
+
 			p.lexer.ExpectOrInsertSemicolon()
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportStar{
 				NamespaceRef:      namespaceRef,
@@ -6186,6 +6191,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertions)
 				name := "import_" + js_ast.GenerateNonUniqueNameFromPath(pathText)
 				namespaceRef := p.storeNameInRef(name)
+
+				// Export clause statements anywhere in the file disable top-level const
+				// local prefix because import cycles can be used to trigger TDZ
+				p.currentScope.IsAfterConstLocalPrefix = true
+
 				p.lexer.ExpectOrInsertSemicolon()
 				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportFrom{
 					Items:             items,
@@ -6194,6 +6204,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					IsSingleLine:      isSingleLine,
 				}}
 			}
+
 			p.lexer.ExpectOrInsertSemicolon()
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportClause{Items: items, IsSingleLine: isSingleLine}}
 
@@ -6805,6 +6816,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		// Track the items for this namespace
 		p.importItemsForNamespace[stmt.NamespaceRef] = itemRefs
 
+		// Import statements anywhere in the file disable top-level const
+		// local prefix because import cycles can be used to trigger TDZ
+		p.currentScope.IsAfterConstLocalPrefix = true
 		return js_ast.Stmt{Loc: loc, Data: &stmt}
 
 	case js_lexer.TBreak:
@@ -8966,20 +8980,34 @@ func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string)
 }
 
 func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_ast.Stmt {
+	// By default any statement ends the const local prefix
+	wasAfterAfterConstLocalPrefix := p.currentScope.IsAfterConstLocalPrefix
+	p.currentScope.IsAfterConstLocalPrefix = true
+
 	switch s := stmt.Data.(type) {
 	case *js_ast.SEmpty, *js_ast.SComment:
-		// These don't contain anything to traverse
+		// Comments do not end the const local prefix
+		p.currentScope.IsAfterConstLocalPrefix = wasAfterAfterConstLocalPrefix
 
 	case *js_ast.SDebugger:
+		// Debugger statements do not end the const local prefix
+		p.currentScope.IsAfterConstLocalPrefix = wasAfterAfterConstLocalPrefix
+
 		if p.options.dropDebugger {
 			return stmts
 		}
 
 	case *js_ast.STypeScript:
+		// Type annotations do not end the const local prefix
+		p.currentScope.IsAfterConstLocalPrefix = wasAfterAfterConstLocalPrefix
+
 		// Erase TypeScript constructs from the output completely
 		return stmts
 
 	case *js_ast.SDirective:
+		// Directives do not end the const local prefix
+		p.currentScope.IsAfterConstLocalPrefix = wasAfterAfterConstLocalPrefix
+
 		if p.isStrictMode() && s.LegacyOctalLoc.Start > 0 {
 			p.markStrictModeFeature(legacyOctalEscape, p.source.RangeOfLegacyOctalEscape(s.LegacyOctalLoc), "")
 		}
@@ -9204,12 +9232,25 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.popScope()
 
 	case *js_ast.SLocal:
+		// Local statements do not end the const local prefix
+		p.currentScope.IsAfterConstLocalPrefix = wasAfterAfterConstLocalPrefix
+
+		end := 0
 		for i := range s.Decls {
-			d := &s.Decls[i]
+			d := s.Decls[i]
 			p.visitBinding(d.Binding, bindingOpts{})
+
+			// Visit the initializer
 			if d.ValueOrNil.Data != nil {
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(d.ValueOrNil)
+
+				// Fold numeric constants in the initializer
+				oldShouldFoldNumericConstants := p.shouldFoldNumericConstants
+				p.shouldFoldNumericConstants = p.options.minifySyntax && !p.currentScope.IsAfterConstLocalPrefix
+
 				d.ValueOrNil = p.visitExpr(d.ValueOrNil)
+
+				p.shouldFoldNumericConstants = oldShouldFoldNumericConstants
 
 				// Optionally preserve the name
 				if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
@@ -9238,7 +9279,48 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					}
 				}
 			}
+
+			// Attempt to continue the const local prefix
+			if p.options.minifySyntax && !p.currentScope.IsAfterConstLocalPrefix {
+				if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
+					if s.Kind == js_ast.LocalConst && d.ValueOrNil.Data != nil {
+						if value := js_ast.ExprToConstValue(d.ValueOrNil); value.Kind != js_ast.ConstValueNone {
+							if p.constValues == nil {
+								p.constValues = make(map[js_ast.Ref]js_ast.ConstValue)
+							}
+							p.constValues[id.Ref] = value
+
+							// Only keep this declaration if it's top-level or exported (which
+							// could be in a nested TypeScript namespace), otherwise erase it
+							if p.currentScope.Parent == nil || s.IsExport {
+								s.Decls[end] = d
+								end++
+							}
+							continue
+						}
+					}
+
+					if d.ValueOrNil.Data != nil && !isSafeForConstLocalPrefix(d.ValueOrNil) {
+						p.currentScope.IsAfterConstLocalPrefix = true
+					}
+				} else {
+					// A non-identifier binding ends the const local prefix
+					p.currentScope.IsAfterConstLocalPrefix = true
+				}
+			}
+
+			// Keep the declaration if we didn't continue the loop above
+			s.Decls[end] = d
+			end++
 		}
+
+		// Remove this declaration entirely if all symbols are inlined constants
+		if end == 0 {
+			return stmts
+		}
+
+		// Trim the removed declarations
+		s.Decls = s.Decls[:end]
 
 		// Handle being exported inside a namespace
 		if s.IsExport && p.enclosingNamespaceArgRef != nil {
@@ -9843,6 +9925,47 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 	stmts = append(stmts, stmt)
 	return stmts
+}
+
+// If we encounter a variable initializer that could possibly trigger access to
+// a constant declared later on, then we need to end the const local prefix.
+// We want to avoid situations like this:
+//
+//   const x = y; // This is supposed to throw due to TDZ
+//   const y = 1;
+//
+// or this:
+//
+//   const x = 1;
+//   const y = foo(); // This is supposed to throw due to TDZ
+//   const z = 2;
+//   const foo = () => z;
+//
+// But a situation like this is ok:
+//
+//   const x = 1;
+//   const y = [() => z];
+//   const z = 2;
+//
+func isSafeForConstLocalPrefix(expr js_ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *js_ast.EMissing, *js_ast.EString, *js_ast.ERegExp, *js_ast.EBigInt, *js_ast.EFunction, *js_ast.EArrow:
+		return true
+
+	case *js_ast.EArray:
+		for _, item := range e.Items {
+			if !isSafeForConstLocalPrefix(item) {
+				return false
+			}
+		}
+		return true
+
+	case *js_ast.EObject:
+		// For now just allow "{}" and forbid everything else
+		return len(e.Properties) == 0
+	}
+
+	return false
 }
 
 type relocateVarsMode uint8
@@ -11443,8 +11566,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					fmt.Sprintf("The symbol %q was declared a constant here:", name))}
 
 				// Make this an error when bundling because we may need to convert this
-				// "const" into a "var" during bundling.
-				if p.options.mode == config.ModeBundle {
+				// "const" into a "var" during bundling. Also make this an error when
+				// the constant is inlined because we will otherwise generate code with
+				// a syntax error.
+				if _, isInlinedConstant := p.constValues[result.ref]; isInlinedConstant || p.options.mode == config.ModeBundle {
 					p.log.AddWithNotes(logger.Error, &p.tracker, r,
 						fmt.Sprintf("Cannot assign to %q because it is a constant", name), notes)
 				} else {
@@ -11992,21 +12117,24 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpBitwiseAnd:
-			if p.shouldFoldNumericConstants {
+			// Minification folds bitwise operations since they are unlikely to result in larger output
+			if p.shouldFoldNumericConstants || p.options.minifySyntax {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(toInt32(left) & toInt32(right))}}, exprOut{}
 				}
 			}
 
 		case js_ast.BinOpBitwiseOr:
-			if p.shouldFoldNumericConstants {
+			// Minification folds bitwise operations since they are unlikely to result in larger output
+			if p.shouldFoldNumericConstants || p.options.minifySyntax {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(toInt32(left) | toInt32(right))}}, exprOut{}
 				}
 			}
 
 		case js_ast.BinOpBitwiseXor:
-			if p.shouldFoldNumericConstants {
+			// Minification folds bitwise operations since they are unlikely to result in larger output
+			if p.shouldFoldNumericConstants || p.options.minifySyntax {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(toInt32(left) ^ toInt32(right))}}, exprOut{}
 				}
@@ -13635,6 +13763,14 @@ type identifierOpts struct {
 
 func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts identifierOpts) js_ast.Expr {
 	ref := e.Ref
+
+	// Substitute inlined constants
+	if p.options.minifySyntax {
+		if value, ok := p.constValues[ref]; ok {
+			p.ignoreUsage(ref)
+			return js_ast.ConstValueToExpr(loc, value)
+		}
+	}
 
 	// Capture the "arguments" variable if necessary
 	if p.fnOnlyDataVisit.argumentsRef != nil && ref == *p.fnOnlyDataVisit.argumentsRef {
@@ -15402,6 +15538,7 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		NamedImports:                    p.namedImports,
 		NamedExports:                    p.namedExports,
 		TSEnums:                         p.tsEnums,
+		ConstValues:                     p.constValues,
 		NestedScopeSlotCounts:           nestedScopeSlotCounts,
 		TopLevelSymbolToPartsFromParser: p.topLevelSymbolToParts,
 		ExportStarImportRecords:         p.exportStarImportRecords,

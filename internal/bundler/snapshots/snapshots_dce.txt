@@ -4,6 +4,171 @@ TestBase64LoaderRemoveUnused
 console.log("unused import");
 
 ================================================================================
+TestConstValueInliningBundle
+---------- /out/exported-entry.js ----------
+// exported-entry.js
+var y_keep = 2;
+console.log(1, 2);
+export {
+  y_keep
+};
+
+---------- /out/re-exported-entry.js ----------
+// re-exported-constants.js
+var y_keep = 2;
+
+// re-exported-entry.js
+console.log(1, 2);
+export {
+  y_keep
+};
+
+---------- /out/re-exported-2-entry.js ----------
+// re-exported-2-constants.js
+var y_keep = 2;
+export {
+  y_keep
+};
+
+---------- /out/re-exported-star-entry.js ----------
+// re-exported-star-constants.js
+var x_keep = 1, y_keep = 2;
+export {
+  x_keep,
+  y_keep
+};
+
+---------- /out/cross-module-entry.js ----------
+// cross-module-constants.js
+foo();
+var y_keep = 1;
+function foo() {
+  return [1, y_keep];
+}
+
+// cross-module-entry.js
+console.log(1, y_keep);
+
+---------- /out/print-shorthand-entry.js ----------
+// print-shorthand-entry.js
+console.log({ foo: 123, a: -321 });
+
+---------- /out/circular-import-entry.js ----------
+// circular-import-cycle.js
+console.log(bar());
+
+// circular-import-constants.js
+var foo = 123;
+function bar() {
+  return foo;
+}
+
+---------- /out/circular-re-export-entry.js ----------
+// circular-re-export-cycle.js
+var baz = 0;
+console.log(bar());
+
+// circular-re-export-constants.js
+var foo = 123;
+function bar() {
+  return foo;
+}
+
+// circular-re-export-entry.js
+console.log(baz);
+
+---------- /out/circular-re-export-star-entry.js ----------
+// circular-re-export-star-cycle.js
+console.log(bar());
+
+// circular-re-export-star-constants.js
+var foo = 123;
+function bar() {
+  return foo;
+}
+
+---------- /out/non-circular-export-entry.js ----------
+// non-circular-export-constants.js
+function bar() {
+  return 123;
+}
+
+// non-circular-export-entry.js
+console.log(123, bar());
+
+================================================================================
+TestConstValueInliningNoBundle
+---------- /out/top-level.js ----------
+const n_keep = null, u_keep = void 0, i_keep = 1234567, f_keep = 123.456, s_keep = "";
+console.log(null, null, void 0, void 0, 1234567, 1234567, 123.456, 123.456, s_keep, s_keep);
+
+---------- /out/nested-block.js ----------
+{
+  const s_keep = "";
+  console.log(null, null, void 0, void 0, 1234567, 1234567, 123.456, 123.456, s_keep, s_keep);
+}
+
+---------- /out/nested-function.js ----------
+function nested() {
+  const s_keep = "";
+  console.log(null, null, void 0, void 0, 1234567, 1234567, 123.456, 123.456, s_keep, s_keep);
+}
+
+---------- /out/namespace-export.js ----------
+var ns;
+((ns2) => (ns2.y_keep = 2, console.log(1, 1, 2, 2)))(ns ||= {});
+
+---------- /out/comment-before.js ----------
+{
+  //! comment
+  x = [1, 1];
+}
+
+---------- /out/directive-before.js ----------
+function nested() {
+  x = [1, 1];
+}
+
+---------- /out/semicolon-before.js ----------
+x = [1, 1];
+
+---------- /out/debugger-before.js ----------
+{
+  debugger;
+  x = [1, 1];
+}
+
+---------- /out/type-before.js ----------
+x = [1, 1];
+
+---------- /out/exprs-before.js ----------
+function nested() {
+  const x = [, "", {}, 0n, /./, function() {
+  }, () => {
+  }];
+  function foo() {
+    return 1;
+  }
+}
+
+---------- /out/disabled-tdz.js ----------
+foo();
+const x_keep = 1;
+function foo() {
+  return x_keep;
+}
+
+---------- /out/backwards-reference-top-level.js ----------
+const x = y, y = 1;
+console.log(x, x, y, y);
+
+---------- /out/backwards-reference-nested-function.js ----------
+function foo() {
+  const x = y, y = 1;
+  console.log(x, x, y, y);
+}
+
+================================================================================
 TestDCEClassStaticBlocks
 ---------- /out.js ----------
 // entry.ts

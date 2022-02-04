@@ -105,6 +105,9 @@ type LinkerGraph struct {
 	// This is for cross-module inlining of TypeScript enum constants
 	TSEnums map[js_ast.Ref]map[string]js_ast.TSEnumValue
 
+	// This is for cross-module inlining of detected inlinable constants
+	ConstValues map[js_ast.Ref]js_ast.ConstValue
+
 	// We should avoid traversing all files in the bundle, because the linker
 	// should be able to run a linking operation on a large bundle where only
 	// a few files are needed (e.g. an incremental compilation scenario). This
@@ -256,6 +259,7 @@ func CloneLinkerGraph(
 
 	// Do a final quick pass over all files
 	var tsEnums map[js_ast.Ref]map[string]js_ast.TSEnumValue
+	var constValues map[js_ast.Ref]js_ast.ConstValue
 	bitCount := uint(len(entryPoints))
 	for _, sourceIndex := range reachableFiles {
 		file := &files[sourceIndex]
@@ -274,11 +278,22 @@ func CloneLinkerGraph(
 				tsEnums[ref] = enum
 			}
 		}
+
+		// Also merge const values into one big map as well
+		if repr, ok := file.InputFile.Repr.(*JSRepr); ok && repr.AST.ConstValues != nil {
+			if constValues == nil {
+				constValues = make(map[js_ast.Ref]js_ast.ConstValue)
+			}
+			for ref, value := range repr.AST.ConstValues {
+				constValues[ref] = value
+			}
+		}
 	}
 
 	return LinkerGraph{
 		Symbols:             symbols,
 		TSEnums:             tsEnums,
+		ConstValues:         constValues,
 		entryPoints:         entryPoints,
 		Files:               files,
 		ReachableFiles:      reachableFiles,

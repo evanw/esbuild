@@ -1,6 +1,7 @@
 package bundler
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/compat"
@@ -2550,6 +2551,312 @@ func TestInlineFunctionCallForInitDecl(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 			MinifySyntax: true,
+		},
+	})
+}
+
+func TestConstValueInliningNoBundle(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/top-level.js": `
+				// These should be kept because they are top-level and tree shaking is not enabled
+				const n_keep = null
+				const u_keep = undefined
+				const i_keep = 1234567
+				const f_keep = 123.456
+				const s_keep = ''
+
+				// Values should still be inlined
+				console.log(
+					// These are doubled to avoid the "inline const/let into next statement if used once" optimization
+					n_keep, n_keep,
+					u_keep, u_keep,
+					i_keep, i_keep,
+					f_keep, f_keep,
+					s_keep, s_keep,
+				)
+			`,
+			"/nested-block.js": `
+				{
+					const REMOVE_n = null
+					const REMOVE_u = undefined
+					const REMOVE_i = 1234567
+					const REMOVE_f = 123.456
+					const s_keep = '' // String inlining is intentionally not supported right now
+					console.log(
+						// These are doubled to avoid the "inline const/let into next statement if used once" optimization
+						REMOVE_n, REMOVE_n,
+						REMOVE_u, REMOVE_u,
+						REMOVE_i, REMOVE_i,
+						REMOVE_f, REMOVE_f,
+						s_keep, s_keep,
+					)
+				}
+			`,
+			"/nested-function.js": `
+				function nested() {
+					const REMOVE_n = null
+					const REMOVE_u = undefined
+					const REMOVE_i = 1234567
+					const REMOVE_f = 123.456
+					const s_keep = '' // String inlining is intentionally not supported right now
+					console.log(
+						// These are doubled to avoid the "inline const/let into next statement if used once" optimization
+						REMOVE_n, REMOVE_n,
+						REMOVE_u, REMOVE_u,
+						REMOVE_i, REMOVE_i,
+						REMOVE_f, REMOVE_f,
+						s_keep, s_keep,
+					)
+				}
+			`,
+			"/namespace-export.ts": `
+				namespace ns {
+					const x_REMOVE = 1
+					export const y_keep = 2
+					console.log(
+						x_REMOVE, x_REMOVE,
+						y_keep, y_keep,
+					)
+				}
+			`,
+
+			"/comment-before.js": `
+				{
+					//! comment
+					const REMOVE = 1
+					x = [REMOVE, REMOVE]
+				}
+			`,
+			"/directive-before.js": `
+				function nested() {
+					'directive'
+					const REMOVE = 1
+					x = [REMOVE, REMOVE]
+				}
+			`,
+			"/semicolon-before.js": `
+				{
+					;
+					const REMOVE = 1
+					x = [REMOVE, REMOVE]
+				}
+			`,
+			"/debugger-before.js": `
+				{
+					debugger
+					const REMOVE = 1
+					x = [REMOVE, REMOVE]
+				}
+			`,
+			"/type-before.ts": `
+				{
+					declare let x
+					const REMOVE = 1
+					x = [REMOVE, REMOVE]
+				}
+			`,
+			"/exprs-before.js": `
+				function nested() {
+					const x = [, '', {}, 0n, /./, function() {}, () => {}]
+					const y_REMOVE = 1
+					function foo() {
+						return y_REMOVE
+					}
+				}
+			`,
+
+			"/disabled-tdz.js": `
+				foo()
+				const x_keep = 1
+				function foo() {
+					return x_keep
+				}
+			`,
+			"/backwards-reference-top-level.js": `
+				const x = y
+				const y = 1
+				console.log(
+					x, x,
+					y, y,
+				)
+			`,
+			"/backwards-reference-nested-function.js": `
+				function foo() {
+					const x = y
+					const y = 1
+					console.log(
+						x, x,
+						y, y,
+					)
+				}
+			`,
+		},
+		entryPaths: []string{
+			"/top-level.js",
+			"/nested-block.js",
+			"/nested-function.js",
+			"/namespace-export.ts",
+
+			"/comment-before.js",
+			"/directive-before.js",
+			"/semicolon-before.js",
+			"/debugger-before.js",
+			"/type-before.ts",
+			"/exprs-before.js",
+
+			"/disabled-tdz.js",
+			"/backwards-reference-top-level.js",
+			"/backwards-reference-nested-function.js",
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}
+
+func TestConstValueInliningBundle(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/exported-entry.js": `
+				const x_REMOVE = 1
+				export const y_keep = 2
+				console.log(
+					x_REMOVE,
+					y_keep,
+				)
+			`,
+
+			"/re-exported-entry.js": `
+				import { x_REMOVE, y_keep } from './re-exported-constants'
+				console.log(x_REMOVE, y_keep)
+				export { y_keep }
+			`,
+			"/re-exported-constants.js": `
+				export const x_REMOVE = 1
+				export const y_keep = 2
+			`,
+
+			"/re-exported-2-entry.js": `
+				export { y_keep } from './re-exported-2-constants'
+			`,
+			"/re-exported-2-constants.js": `
+				export const x_REMOVE = 1
+				export const y_keep = 2
+			`,
+
+			"/re-exported-star-entry.js": `
+				export * from './re-exported-star-constants'
+			`,
+			"/re-exported-star-constants.js": `
+				export const x_keep = 1
+				export const y_keep = 2
+			`,
+
+			"/cross-module-entry.js": `
+				import { x_REMOVE, y_keep } from './cross-module-constants'
+				console.log(x_REMOVE, y_keep)
+			`,
+			"/cross-module-constants.js": `
+				export const x_REMOVE = 1
+				foo()
+				export const y_keep = 1
+				export function foo() {
+					return [x_REMOVE, y_keep]
+				}
+			`,
+
+			"/print-shorthand-entry.js": `
+				import { foo, _bar } from './print-shorthand-constants'
+				// The inlined constants must still be present in the output! We don't
+				// want the printer to use the shorthand syntax here to refer to the
+				// name of the constant itself because the constant declaration is omitted.
+				console.log({ foo, _bar })
+			`,
+			"/print-shorthand-constants.js": `
+				export const foo = 123
+				export const _bar = -321
+			`,
+
+			"/circular-import-entry.js": `
+				import './circular-import-constants'
+			`,
+			"/circular-import-constants.js": `
+				export const foo = 123 // Inlining should be prevented by the cycle
+				export function bar() {
+					return foo
+				}
+				import './circular-import-cycle'
+			`,
+			"/circular-import-cycle.js": `
+				import { bar } from './circular-import-constants'
+				console.log(bar()) // This accesses "foo" before it's initialized
+			`,
+
+			"/circular-re-export-entry.js": `
+				import { baz } from './circular-re-export-constants'
+				console.log(baz)
+			`,
+			"/circular-re-export-constants.js": `
+				export const foo = 123 // Inlining should be prevented by the cycle
+				export function bar() {
+					return foo
+				}
+				export { baz } from './circular-re-export-cycle'
+			`,
+			"/circular-re-export-cycle.js": `
+				export const baz = 0
+				import { bar } from './circular-re-export-constants'
+				console.log(bar()) // This accesses "foo" before it's initialized
+			`,
+
+			"/circular-re-export-star-entry.js": `
+				import './circular-re-export-star-constants'
+			`,
+			"/circular-re-export-star-constants.js": `
+				export const foo = 123 // Inlining should be prevented by the cycle
+				export function bar() {
+					return foo
+				}
+				export * from './circular-re-export-star-cycle'
+			`,
+			"/circular-re-export-star-cycle.js": `
+				import { bar } from './circular-re-export-star-constants'
+				console.log(bar()) // This accesses "foo" before it's initialized
+			`,
+
+			"/non-circular-export-entry.js": `
+				import { foo, bar } from './non-circular-export-constants'
+				console.log(foo, bar())
+			`,
+			"/non-circular-export-constants.js": `
+				const foo = 123 // Inlining should be prevented by the cycle
+				function bar() {
+					return foo
+				}
+				export { foo, bar }
+			`,
+		},
+		entryPaths: []string{
+			"/exported-entry.js",
+			"/re-exported-entry.js",
+			"/re-exported-2-entry.js",
+			"/re-exported-star-entry.js",
+			"/cross-module-entry.js",
+			"/print-shorthand-entry.js",
+			"/circular-import-entry.js",
+			"/circular-re-export-entry.js",
+			"/circular-re-export-star-entry.js",
+			"/non-circular-export-entry.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			OutputFormat: config.FormatESModule,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+			MangleProps:  regexp.MustCompile("^_"),
 		},
 	})
 }

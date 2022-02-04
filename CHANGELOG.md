@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+* Special-case `const` inlining at the top of a scope ([#1317](https://github.com/evanw/esbuild/issues/1317), [#1981](https://github.com/evanw/esbuild/issues/1981))
+
+    The minifier now inlines `const` variables (even across modules during bundling) if a certain set of specific requirements are met:
+
+    * All `const` variables to be inlined are at the top of their scope
+    * That scope doesn't contain any `import` or `export` statements with paths
+    * All constants to be inlined are `null`, `undefined`, `true`, `false`, an integer, or a short real number
+    * Any expression outside of a small list of allowed ones stops constant identification
+
+    Practically speaking this basically means that you can trigger this optimization by just putting the constants you want inlined into a separate file (e.g. `constants.js`) and bundling everything together.
+
+    These specific conditions are present to avoid esbuild unintentionally causing any behavior changes by inlining constants when the variable reference could potentially be evaluated before being declared. It's possible to identify more cases where constants can be inlined but doing so may require complex call graph analysis so it has not been implemented. Although these specific heuristics may change over time, this general approach to constant inlining should continue to work going forward.
+
+    Here's an example:
+
+    ```js
+    // Original code
+    const bold = 1 << 0;
+    const italic = 2 << 1;
+    const underline = 3 << 2;
+    const font = bold | italic | underline;
+    console.log(font);
+
+    // Old output (with --minify --bundle)
+    (()=>{var o=1<<0,n=2<<1,c=3<<2,t=o|n|c;console.log(t);})();
+
+    // New output (with --minify --bundle)
+    (()=>{console.log(13);})();
+    ```
+
 ## 0.14.18
 
 * Add the `--mangle-cache=` feature ([#1977](https://github.com/evanw/esbuild/issues/1977))

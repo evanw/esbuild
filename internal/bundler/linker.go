@@ -1449,6 +1449,7 @@ func (c *linkerContext) scanImportsAndExports() {
 			localDependencies := make(map[uint32]uint32)
 			parts := repr.AST.Parts
 			namedImports := repr.AST.NamedImports
+			graph := c.graph
 			for partIndex := range parts {
 				part := &parts[partIndex]
 
@@ -1460,8 +1461,8 @@ func (c *linkerContext) scanImportsAndExports() {
 
 					// Rare path: this import is a TypeScript enum
 					if importData, ok := repr.Meta.ImportsToBind[ref]; ok {
-						if symbol := c.graph.Symbols.Get(importData.Ref); symbol.Kind == js_ast.SymbolTSEnum {
-							if enum, ok := c.graph.TSEnums[importData.Ref]; ok {
+						if symbol := graph.Symbols.Get(importData.Ref); symbol.Kind == js_ast.SymbolTSEnum {
+							if enum, ok := graph.TSEnums[importData.Ref]; ok {
 								foundNonInlinedEnum := false
 								for name, propertyUse := range properties {
 									if _, ok := enum[name]; !ok {
@@ -1491,10 +1492,10 @@ func (c *linkerContext) scanImportsAndExports() {
 					use := part.SymbolUses[ref]
 
 					// Find the symbol that was called
-					symbol := c.graph.Symbols.Get(ref)
+					symbol := graph.Symbols.Get(ref)
 					if symbol.Kind == js_ast.SymbolImport {
 						if importData, ok := repr.Meta.ImportsToBind[ref]; ok {
-							symbol = c.graph.Symbols.Get(importData.Ref)
+							symbol = graph.Symbols.Get(importData.Ref)
 						}
 					}
 					flags := symbol.Flags
@@ -1518,6 +1519,17 @@ func (c *linkerContext) scanImportsAndExports() {
 
 				// Now that we know this, we can determine cross-part dependencies
 				for ref := range part.SymbolUses {
+
+					// Rare path: this import is an inlined const value
+					if graph.ConstValues != nil {
+						if importData, ok := repr.Meta.ImportsToBind[ref]; ok {
+							if _, isConstValue := graph.ConstValues[importData.Ref]; isConstValue {
+								delete(part.SymbolUses, importData.Ref)
+								continue
+							}
+						}
+					}
+
 					for _, otherPartIndex := range repr.TopLevelSymbolToParts(ref) {
 						if oldPartIndex, ok := localDependencies[otherPartIndex]; !ok || oldPartIndex != uint32(partIndex) {
 							localDependencies[otherPartIndex] = uint32(partIndex)
@@ -3994,6 +4006,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		ToESMRef:                     toESMRef,
 		RuntimeRequireRef:            runtimeRequireRef,
 		TSEnums:                      c.graph.TSEnums,
+		ConstValues:                  c.graph.ConstValues,
 		LegalComments:                c.options.LegalComments,
 		UnsupportedFeatures:          c.options.UnsupportedJSFeatures,
 		AddSourceMappings:            addSourceMappings,

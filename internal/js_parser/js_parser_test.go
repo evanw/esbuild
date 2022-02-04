@@ -2886,7 +2886,7 @@ func TestMangleIndex(t *testing.T) {
 
 func TestMangleBlock(t *testing.T) {
 	expectPrintedMangle(t, "while(1) { while (1) {} }", "for (; ; )\n  for (; ; )\n    ;\n")
-	expectPrintedMangle(t, "while(1) { const x = 0; }", "for (; ; ) {\n  const x = 0;\n}\n")
+	expectPrintedMangle(t, "while(1) { const x = y; }", "for (; ; ) {\n  const x = y;\n}\n")
 	expectPrintedMangle(t, "while(1) { let x; }", "for (; ; ) {\n  let x;\n}\n")
 	expectPrintedMangle(t, "while(1) { var x; }", "for (; ; )\n  var x;\n")
 	expectPrintedMangle(t, "while(1) { class X {} }", "for (; ; ) {\n  class X {\n  }\n}\n")
@@ -3643,6 +3643,39 @@ func TestMangleBinaryInsideComma(t *testing.T) {
 	expectPrintedMangle(t, "a && (b, c)", "a && (b, c);\n")
 	expectPrintedMangle(t, "a == (b, c)", "a == (b, c);\n")
 	expectPrintedMangle(t, "a + (b, c)", "a + (b, c);\n")
+}
+
+func TestMangleBinaryConstantFolding(t *testing.T) {
+	expectPrintedMangle(t, "x = 3 + 6", "x = 3 + 6;\n")
+	expectPrintedMangle(t, "x = 3 - 6", "x = 3 - 6;\n")
+	expectPrintedMangle(t, "x = 3 * 6", "x = 3 * 6;\n")
+	expectPrintedMangle(t, "x = 3 / 6", "x = 3 / 6;\n")
+	expectPrintedMangle(t, "x = 3 % 6", "x = 3 % 6;\n")
+	expectPrintedMangle(t, "x = 3 ** 6", "x = 3 ** 6;\n")
+
+	expectPrintedMangle(t, "x = 3 < 6", "x = 3 < 6;\n")
+	expectPrintedMangle(t, "x = 3 > 6", "x = 3 > 6;\n")
+	expectPrintedMangle(t, "x = 3 <= 6", "x = 3 <= 6;\n")
+	expectPrintedMangle(t, "x = 3 >= 6", "x = 3 >= 6;\n")
+	expectPrintedMangle(t, "x = 3 == 6", "x = false;\n")
+	expectPrintedMangle(t, "x = 3 != 6", "x = true;\n")
+	expectPrintedMangle(t, "x = 3 === 6", "x = false;\n")
+	expectPrintedMangle(t, "x = 3 !== 6", "x = true;\n")
+
+	expectPrintedMangle(t, "x = 3 in 6", "x = 3 in 6;\n")
+	expectPrintedMangle(t, "x = 3 instanceof 6", "x = 3 instanceof 6;\n")
+	expectPrintedMangle(t, "x = (3, 6)", "x = 6;\n")
+
+	expectPrintedMangle(t, "x = 3 << 6", "x = 3 << 6;\n")
+	expectPrintedMangle(t, "x = 3 >> 6", "x = 3 >> 6;\n")
+	expectPrintedMangle(t, "x = 3 >>> 6", "x = 3 >>> 6;\n")
+	expectPrintedMangle(t, "x = 3 & 6", "x = 2;\n")
+	expectPrintedMangle(t, "x = 3 | 6", "x = 7;\n")
+	expectPrintedMangle(t, "x = 3 ^ 6", "x = 5;\n")
+
+	expectPrintedMangle(t, "x = 3 && 6", "x = 6;\n")
+	expectPrintedMangle(t, "x = 3 || 6", "x = 3;\n")
+	expectPrintedMangle(t, "x = 3 ?? 6", "x = 3;\n")
 }
 
 func TestMangleNestedLogical(t *testing.T) {

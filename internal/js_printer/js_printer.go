@@ -1007,8 +1007,8 @@ func (p *printer) printProperty(item js_ast.Property) {
 				case *js_ast.EImportIdentifier:
 					// Make sure we're not using a property access instead of an identifier
 					ref := js_ast.FollowSymbols(p.symbols, e.Ref)
-					symbol := p.symbols.Get(ref)
-					if symbol.NamespaceAlias == nil && name == p.renamer.NameForSymbol(e.Ref) {
+					if symbol := p.symbols.Get(ref); symbol.NamespaceAlias == nil && name == p.renamer.NameForSymbol(ref) &&
+						p.options.ConstValues[ref].Kind == js_ast.ConstValueNone {
 						if item.InitializerOrNil.Data != nil {
 							p.printSpace()
 							p.print("=")
@@ -1046,8 +1046,8 @@ func (p *printer) printProperty(item js_ast.Property) {
 				case *js_ast.EImportIdentifier:
 					// Make sure we're not using a property access instead of an identifier
 					ref := js_ast.FollowSymbols(p.symbols, e.Ref)
-					symbol := p.symbols.Get(ref)
-					if symbol.NamespaceAlias == nil && js_lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
+					if symbol := p.symbols.Get(ref); symbol.NamespaceAlias == nil && js_lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(ref)) &&
+						p.options.ConstValues[ref].Kind == js_ast.ConstValueNone {
 						if item.InitializerOrNil.Data != nil {
 							p.printSpace()
 							p.print("=")
@@ -2234,6 +2234,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if wrap {
 				p.print(")")
 			}
+		} else if value := p.options.ConstValues[ref]; value.Kind != js_ast.ConstValueNone {
+			// Handle inlined constants
+			p.printExpr(js_ast.ConstValueToExpr(expr.Loc, value), level, flags)
 		} else {
 			p.printSymbol(e.Ref)
 		}
@@ -3489,6 +3492,9 @@ type Options struct {
 
 	// Cross-module inlining of TypeScript enums is actually done during printing
 	TSEnums map[js_ast.Ref]map[string]js_ast.TSEnumValue
+
+	// Cross-module inlining of detected inlinable constants is also done during printing
+	ConstValues map[js_ast.Ref]js_ast.ConstValue
 
 	// This will be present if the input file had a source map. In that case we
 	// want to map all the way back to the original input file(s).
