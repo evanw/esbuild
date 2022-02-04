@@ -110,12 +110,21 @@ func RealFS(options RealFSOptions) (FS, error) {
 		watchData = make(map[string]privateWatchData)
 	}
 
-	return &realFS{
+	var result FS = &realFS{
 		entries:           make(map[string]entriesOrErr),
 		fp:                fp,
 		watchData:         watchData,
 		doNotCacheEntries: options.DoNotCache,
-	}, nil
+	}
+
+	// Add a wrapper that lets us traverse into ".zip" files. This is what yarn
+	// uses as a package format when in yarn is in its "PnP" mode.
+	result = &zipFS{
+		inner:    result,
+		zipFiles: make(map[string]*zipFile),
+	}
+
+	return result, nil
 }
 
 func (fs *realFS) ReadDirectory(dir string) (entries DirEntries, canonicalError error, originalError error) {
