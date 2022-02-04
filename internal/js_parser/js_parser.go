@@ -12103,7 +12103,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpShr:
-			if p.shouldFoldNumericConstants {
+			if p.shouldFoldNumericConstants || p.options.minifySyntax {
+				// Minification folds right signed shift operations since they are unlikely to result in larger output
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(toInt32(left) >> (toUint32(right) & 31))}}, exprOut{}
 				}
@@ -12111,6 +12112,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		case js_ast.BinOpUShr:
 			if p.shouldFoldNumericConstants {
+				// Note: ">>>" could result in bigger output such as "-1 >>> 0" becoming "4294967295"
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(toUint32(left) >> (toUint32(right) & 31))}}, exprOut{}
 				}

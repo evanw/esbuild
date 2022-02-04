@@ -3666,9 +3666,9 @@ func TestMangleBinaryConstantFolding(t *testing.T) {
 	expectPrintedMangle(t, "x = 3 instanceof 6", "x = 3 instanceof 6;\n")
 	expectPrintedMangle(t, "x = (3, 6)", "x = 6;\n")
 
-	expectPrintedMangle(t, "x = 3 << 6", "x = 3 << 6;\n")
-	expectPrintedMangle(t, "x = 3 >> 6", "x = 3 >> 6;\n")
-	expectPrintedMangle(t, "x = 3 >>> 6", "x = 3 >>> 6;\n")
+	expectPrintedMangle(t, "x = 10 << 1", "x = 10 << 1;\n")
+	expectPrintedMangle(t, "x = 10 >> 1", "x = 5;\n")
+	expectPrintedMangle(t, "x = 10 >>> 1", "x = 10 >>> 1;\n")
 	expectPrintedMangle(t, "x = 3 & 6", "x = 2;\n")
 	expectPrintedMangle(t, "x = 3 | 6", "x = 7;\n")
 	expectPrintedMangle(t, "x = 3 ^ 6", "x = 5;\n")
