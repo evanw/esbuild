@@ -2860,3 +2860,37 @@ func TestConstValueInliningBundle(t *testing.T) {
 		},
 	})
 }
+
+// Assignment to an inlined constant is not allowed since that would cause a
+// syntax error in the output. We don't just keep the reference there because
+// the declaration may actually have been completely removed already by the
+// time we discover the assignment. I think making these cases an error is
+// fine because it's bad code anyway.
+func TestConstValueInliningAssign(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/const-assign.js": `
+				const x = 1
+				x = 2
+			`,
+			"/const-update.js": `
+				const x = 1
+				x += 2
+			`,
+		},
+		entryPaths: []string{
+			"/const-assign.js",
+			"/const-update.js",
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+		expectedScanLog: `const-assign.js: ERROR: Cannot assign to "x" because it is a constant
+const-assign.js: NOTE: The symbol "x" was declared a constant here:
+const-update.js: ERROR: Cannot assign to "x" because it is a constant
+const-update.js: NOTE: The symbol "x" was declared a constant here:
+`,
+	})
+}

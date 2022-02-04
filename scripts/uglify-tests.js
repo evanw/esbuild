@@ -189,6 +189,18 @@ async function test_case(esbuild, test, basename) {
       return SKIP;
     }
 
+    // These tests fail because esbuild makes assigning to an inlined constant
+    // a compile error to avoid code with incorrect behavior. This is a limitation
+    // due to esbuild's three-pass design but it shouldn't matter in practice. It
+    // just means esbuild rejects bad code at compile time instead of at run time.
+    if ([
+      'const.js: issue_4212_1',
+      'const.js: issue_4212_2',
+    ].indexOf(`${basename}: ${test.name}`) >= 0) {
+      console.error(`*** skipping test with assignment to an inlined constant: ${basename}: ${test.name}`);
+      return SKIP;
+    }
+
     log("!!! esbuild failed\n---INPUT---\n{input}\n---ERROR---\n{error}\n", {
       input: input_code,
       error: e && e.message || e,
