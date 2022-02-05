@@ -1934,6 +1934,12 @@ func TestMangleTSStringEnumLength(t *testing.T) {
 	expectPrintedTS(t, "enum x { y = '' } z = x.y.length",
 		"var x = /* @__PURE__ */ ((x) => {\n  x[\"y\"] = \"\";\n  return x;\n})(x || {});\nz = \"\" /* y */.length;\n")
 
+	expectPrintedMangleTS(t, "enum x { y = '' } x.y.length++",
+		"var x = /* @__PURE__ */ ((x) => (x.y = \"\", x))(x || {});\n\"\" /* y */.length++;\n")
+
+	expectPrintedMangleTS(t, "enum x { y = '' } x.y.length = z",
+		"var x = /* @__PURE__ */ ((x) => (x.y = \"\", x))(x || {});\n\"\" /* y */.length = z;\n")
+
 	expectPrintedMangleTS(t, "enum x { y = '' } z = x.y.length",
 		"var x = /* @__PURE__ */ ((x) => (x.y = \"\", x))(x || {});\nz = 0;\n")
 

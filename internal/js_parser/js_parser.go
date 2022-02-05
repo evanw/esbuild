@@ -11004,7 +11004,7 @@ func (p *parser) maybeRewritePropertyAccess(
 	}
 
 	// Minify "foo".length
-	if p.options.minifySyntax {
+	if p.options.minifySyntax && assignTarget == js_ast.AssignTargetNone {
 		switch t := target.Data.(type) {
 		case *js_ast.EString:
 			if name == "length" {

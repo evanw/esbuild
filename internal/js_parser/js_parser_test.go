@@ -2915,6 +2915,8 @@ func TestMangleAddEmptyString(t *testing.T) {
 
 func TestMangleStringLength(t *testing.T) {
 	expectPrinted(t, "a = ''.length", "a = \"\".length;\n")
+	expectPrintedMangle(t, "''.length++", "\"\".length++;\n")
+	expectPrintedMangle(t, "''.length = a", "\"\".length = a;\n")
 
 	expectPrintedMangle(t, "a = ''.len", "a = \"\".len;\n")
 	expectPrintedMangle(t, "a = [].length", "a = [].length;\n")
