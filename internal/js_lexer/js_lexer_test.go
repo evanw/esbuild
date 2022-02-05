@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/test"
 )
@@ -414,7 +415,7 @@ func expectString(t *testing.T, contents string, expected string) {
 		msgs := log.Done()
 		test.AssertEqual(t, len(msgs), 0)
 		test.AssertEqual(t, lexer.Token, TStringLiteral)
-		assertEqualStrings(t, UTF16ToString(text), expected)
+		assertEqualStrings(t, helpers.UTF16ToString(text), expected)
 	})
 }
 

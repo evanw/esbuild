@@ -7,8 +7,8 @@ import (
 
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
-	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -530,7 +530,7 @@ func TestJSXConstantFragments(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			JSX: config.JSXOptions{
 				Fragment: config.JSXExpr{
-					Constant: &js_ast.EString{Value: js_lexer.StringToUTF16("]")},
+					Constant: &js_ast.EString{Value: helpers.StringToUTF16("]")},
 				},
 			},
 		},
@@ -3889,12 +3889,12 @@ func TestInject(t *testing.T) {
 		},
 		"obj.defined": {
 			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.EString{Value: js_lexer.StringToUTF16("defined")}
+				return &js_ast.EString{Value: helpers.StringToUTF16("defined")}
 			},
 		},
 		"injectedAndDefined": {
 			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.EString{Value: js_lexer.StringToUTF16("should be used")}
+				return &js_ast.EString{Value: helpers.StringToUTF16("should be used")}
 			},
 		},
 	})
@@ -3969,12 +3969,12 @@ func TestInjectNoBundle(t *testing.T) {
 		},
 		"obj.defined": {
 			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.EString{Value: js_lexer.StringToUTF16("defined")}
+				return &js_ast.EString{Value: helpers.StringToUTF16("defined")}
 			},
 		},
 		"injectedAndDefined": {
 			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.EString{Value: js_lexer.StringToUTF16("should be used")}
+				return &js_ast.EString{Value: helpers.StringToUTF16("should be used")}
 			},
 		},
 	})

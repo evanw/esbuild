@@ -1904,7 +1904,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok &&
 				(!file.IsEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value) ||
 					!c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames)) {
-				name := js_lexer.UTF16ToString(str.Value)
+				name := helpers.UTF16ToString(str.Value)
 				exportRef := generateExport(name, name, property.ValueOrNil).ref
 				prevExports = append(prevExports, exportRef)
 				clone.Properties[i].ValueOrNil = js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EIdentifier{Ref: exportRef}}
@@ -1966,7 +1966,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			getter = js_ast.Expr{Data: &js_ast.EArrow{PreferExpr: true, Body: body}}
 		}
 		properties = append(properties, js_ast.Property{
-			Key:        js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(alias)}},
+			Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(alias)}},
 			ValueOrNil: getter,
 		})
 		nsExportSymbolUses[export.Ref] = js_ast.SymbolUse{CountEstimate: 1}
@@ -3805,7 +3805,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	// by the chunk generation code, although only for the entry point)
 	if repr.AST.Directive != "" && repr.Meta.Wrap != graph.WrapNone && !file.IsEntryPoint() {
 		stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
-			Data: &js_ast.SDirective{Value: js_lexer.StringToUTF16(repr.AST.Directive)},
+			Data: &js_ast.SDirective{Value: helpers.StringToUTF16(repr.AST.Directive)},
 		})
 	}
 
@@ -3878,7 +3878,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				// "__commonJS({ 'file.js'(exports, module) { ... } })"
 				cjsArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
 					IsMethod:   !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
-					Key:        js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(file.InputFile.Source.PrettyPath)}},
+					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
 					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
 				}}}}}
 			} else if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
@@ -3946,7 +3946,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				// "__esm({ 'file.js'() { ... } })"
 				esmArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
 					IsMethod:   !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
-					Key:        js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(file.InputFile.Source.PrettyPath)}},
+					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
 					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}},
 				}}}}}
 			} else if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
@@ -4168,7 +4168,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 				}
 
 				moduleExports = append(moduleExports, js_ast.Property{
-					Key:        js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(export)}},
+					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(export)}},
 					ValueOrNil: valueOrNil,
 				})
 			}

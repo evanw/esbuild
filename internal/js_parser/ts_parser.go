@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/internal/compat"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -949,10 +950,10 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 		var nameText string
 		if p.lexer.Token == js_lexer.TStringLiteral {
 			value.Name = p.lexer.StringLiteral()
-			nameText = js_lexer.UTF16ToString(value.Name)
+			nameText = helpers.UTF16ToString(value.Name)
 		} else if p.lexer.IsIdentifierOrKeyword() {
 			nameText = p.lexer.Identifier
-			value.Name = js_lexer.StringToUTF16(nameText)
+			value.Name = helpers.StringToUTF16(nameText)
 		} else {
 			p.lexer.Expect(js_lexer.TIdentifier)
 		}
@@ -960,7 +961,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 
 		// Identifiers can be referenced by other values
 		if !opts.isTypeScriptDeclare && js_lexer.IsIdentifierUTF16(value.Name) {
-			value.Ref = p.declareSymbol(js_ast.SymbolOther, value.Loc, js_lexer.UTF16ToString(value.Name))
+			value.Ref = p.declareSymbol(js_ast.SymbolOther, value.Loc, helpers.UTF16ToString(value.Name))
 		}
 
 		// Parse the initializer
@@ -989,7 +990,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 				} else {
 					var nextName string
 					if p.lexer.Token == js_lexer.TStringLiteral {
-						nextName = js_lexer.UTF16ToString(p.lexer.StringLiteral())
+						nextName = helpers.UTF16ToString(p.lexer.StringLiteral())
 					} else {
 						nextName = p.lexer.Identifier
 					}

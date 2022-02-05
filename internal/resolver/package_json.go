@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
@@ -371,7 +372,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 				}
 
 				// Reference: https://github.com/webpack/webpack/blob/ed175cd22f89eb9fecd0a70572a3fd0be028e77c/lib/optimize/SideEffectsFlagPlugin.js
-				pattern := js_lexer.UTF16ToString(item.Value)
+				pattern := helpers.UTF16ToString(item.Value)
 				if !strings.ContainsRune(pattern, '/') {
 					pattern = "**/" + pattern
 				}
@@ -542,7 +543,7 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 			return pjEntry{
 				kind:       pjString,
 				firstToken: source.RangeOfString(expr.Loc),
-				strData:    js_lexer.UTF16ToString(e.Value),
+				strData:    helpers.UTF16ToString(e.Value),
 			}
 
 		case *js_ast.EArray:
@@ -564,7 +565,7 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 
 			for i, property := range e.Properties {
 				keyStr, _ := property.Key.Data.(*js_ast.EString)
-				key := js_lexer.UTF16ToString(keyStr.Value)
+				key := helpers.UTF16ToString(keyStr.Value)
 				keyRange := source.RangeOfString(property.Key.Loc)
 
 				// If exports is an Object with both a key starting with "." and a key

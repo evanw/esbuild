@@ -24,7 +24,6 @@ import (
 	"github.com/evanw/esbuild/internal/graph"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
-	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -242,7 +241,7 @@ func parseFile(args parseArgs) {
 
 	case config.LoaderText:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(source.Contents)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(source.Contents)}}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		ast.URLForCSS = "data:text/plain;base64," + encoded
 		if pluginName != "" {
@@ -256,7 +255,7 @@ func parseFile(args parseArgs) {
 	case config.LoaderBase64:
 		mimeType := guessMimeType(ext, source.Contents)
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(encoded)}}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		ast.URLForCSS = "data:" + mimeType + ";base64," + encoded
 		if pluginName != "" {
@@ -269,7 +268,7 @@ func parseFile(args parseArgs) {
 
 	case config.LoaderBinary:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(encoded)}}
 		helper := "__toBinary"
 		if args.options.Platform == config.PlatformNode {
 			helper = "__toBinaryNode"
@@ -288,7 +287,7 @@ func parseFile(args parseArgs) {
 		mimeType := guessMimeType(ext, source.Contents)
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := fmt.Sprintf("data:%s;base64,%s", mimeType, encoded)
-		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(url)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(url)}}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		ast.URLForCSS = url
 		if pluginName != "" {
@@ -302,7 +301,7 @@ func parseFile(args parseArgs) {
 	case config.LoaderFile:
 		uniqueKey := fmt.Sprintf("%sA%08d", args.uniqueKeyPrefix, args.sourceIndex)
 		uniqueKeyPath := uniqueKey + source.KeyPath.IgnoredSuffix
-		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(uniqueKeyPath)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(uniqueKeyPath)}}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		ast.URLForCSS = uniqueKeyPath
 		if pluginName != "" {
@@ -2274,7 +2273,7 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 								if value := sm.SourcesContent[i]; value.Quoted != "" {
 									if options.ASCIIOnly && !isASCIIOnly(value.Quoted) {
 										// Re-quote non-ASCII values if output is ASCII-only
-										quotedContents = js_printer.QuoteForJSON(js_lexer.UTF16ToString(value.Value), options.ASCIIOnly)
+										quotedContents = js_printer.QuoteForJSON(helpers.UTF16ToString(value.Value), options.ASCIIOnly)
 									} else {
 										// Otherwise just use the value directly from the input file
 										quotedContents = []byte(value.Quoted)

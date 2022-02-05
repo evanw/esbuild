@@ -9,8 +9,8 @@ import (
 
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
-	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -629,7 +629,7 @@ flatten:
 				if _, ok := e.Target.Data.(*js_ast.ESuper); ok {
 					// Lower "super.prop" if necessary
 					if p.shouldLowerSuperPropertyAccess(e.Target) {
-						key := js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(e.Name)}}
+						key := js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(e.Name)}}
 						expr = p.lowerSuperPropertyGet(expr.Loc, key)
 					}
 
@@ -1207,7 +1207,7 @@ func (p *parser) extractSuperProperty(target js_ast.Expr) js_ast.Expr {
 	switch e := target.Data.(type) {
 	case *js_ast.EDot:
 		if p.shouldLowerSuperPropertyAccess(e.Target) {
-			return js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(e.Name)}}
+			return js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(e.Name)}}
 		}
 	case *js_ast.EIndex:
 		if p.shouldLowerSuperPropertyAccess(e.Target) {
@@ -1388,7 +1388,7 @@ func (p *parser) lowerSuperPropertyOrPrivateInAssign(expr js_ast.Expr) (js_ast.E
 	case *js_ast.EDot:
 		// "[super.foo] = [bar]" => "[__superWrapper(this, 'foo')._] = [bar]"
 		if p.shouldLowerSuperPropertyAccess(e.Target) {
-			key := js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(e.Name)}}
+			key := js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(e.Name)}}
 			expr = p.callSuperPropertyWrapper(expr.Loc, key, false /* includeGet */)
 			didLower = true
 		}
@@ -2148,7 +2148,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
 				isConstructor := false
 				if key, ok := prop.Key.Data.(*js_ast.EString); ok {
-					isConstructor = js_lexer.UTF16EqualsString(key.Value, "constructor")
+					isConstructor = helpers.UTF16EqualsString(key.Value, "constructor")
 				}
 				for i, arg := range fn.Fn.Args {
 					for _, decorator := range arg.TSDecorators {
@@ -2337,7 +2337,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.IsComputed {
 						target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
 							Target:  target,
-							Name:    js_lexer.UTF16ToString(key.Value),
+							Name:    helpers.UTF16ToString(key.Value),
 							NameLoc: loc,
 						}}
 					} else {
@@ -2433,7 +2433,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 					prop.ValueOrNil,
 				))
 				continue
-			} else if key, ok := prop.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(key.Value, "constructor") {
+			} else if key, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
 				if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
 					// Remember where the constructor is for later
 					ctor = fn
@@ -2476,7 +2476,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			// Append it to the list to reuse existing allocation space
 			class.Properties = append(class.Properties, js_ast.Property{
 				IsMethod:   true,
-				Key:        js_ast.Expr{Loc: classLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("constructor")}},
+				Key:        js_ast.Expr{Loc: classLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16("constructor")}},
 				ValueOrNil: js_ast.Expr{Loc: classLoc, Data: ctor},
 			})
 
@@ -2781,11 +2781,11 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 		needsRaw = true
 	} else {
 		cooked = append(cooked, js_ast.Expr{Loc: e.HeadLoc, Data: &js_ast.EString{Value: e.HeadCooked}})
-		if !js_lexer.UTF16EqualsString(e.HeadCooked, e.HeadRaw) {
+		if !helpers.UTF16EqualsString(e.HeadCooked, e.HeadRaw) {
 			needsRaw = true
 		}
 	}
-	raw = append(raw, js_ast.Expr{Loc: e.HeadLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(e.HeadRaw)}})
+	raw = append(raw, js_ast.Expr{Loc: e.HeadLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(e.HeadRaw)}})
 
 	// Handle the tail
 	for _, part := range e.Parts {
@@ -2795,11 +2795,11 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 			needsRaw = true
 		} else {
 			cooked = append(cooked, js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: part.TailCooked}})
-			if !js_lexer.UTF16EqualsString(part.TailCooked, part.TailRaw) {
+			if !helpers.UTF16EqualsString(part.TailCooked, part.TailRaw) {
 				needsRaw = true
 			}
 		}
-		raw = append(raw, js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(part.TailRaw)}})
+		raw = append(raw, js_ast.Expr{Loc: part.TailLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(part.TailRaw)}})
 	}
 
 	// Construct the template object
@@ -2944,7 +2944,7 @@ func (p *parser) maybeLowerSuperPropertyGetInsideCall(call *js_ast.ECall) {
 		if !p.shouldLowerSuperPropertyAccess(e.Target) {
 			return
 		}
-		key = js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(e.Name)}}
+		key = js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(e.Name)}}
 
 	case *js_ast.EIndex:
 		// Lower "super[prop]" if necessary

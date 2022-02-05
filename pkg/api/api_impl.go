@@ -584,9 +584,9 @@ func validateDefines(
 				if _, processEnvNodeEnv := rawDefines["process.env.NODE_ENV"]; !processEnvNodeEnv {
 					var value []uint16
 					if minify {
-						value = js_lexer.StringToUTF16("production")
+						value = helpers.StringToUTF16("production")
 					} else {
-						value = js_lexer.StringToUTF16("development")
+						value = helpers.StringToUTF16("development")
 					}
 					rawDefines["process.env.NODE_ENV"] = config.DefineData{
 						DefineFunc: func(args config.DefineArgs) js_ast.E {
@@ -1874,7 +1874,7 @@ func (a metafileArray) Less(i int, j int) bool {
 func getObjectProperty(expr js_ast.Expr, key string) js_ast.Expr {
 	if obj, ok := expr.Data.(*js_ast.EObject); ok {
 		for _, prop := range obj.Properties {
-			if js_lexer.UTF16EqualsString(prop.Key.Data.(*js_ast.EString).Value, key) {
+			if helpers.UTF16EqualsString(prop.Key.Data.(*js_ast.EString).Value, key) {
 				return prop.ValueOrNil
 			}
 		}
@@ -1913,10 +1913,10 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 
 			// Scan over the "outputs" object
 			for _, output := range outputs.Properties {
-				if key := js_lexer.UTF16ToString(output.Key.Data.(*js_ast.EString).Value); !strings.HasSuffix(key, ".map") {
+				if key := helpers.UTF16ToString(output.Key.Data.(*js_ast.EString).Value); !strings.HasSuffix(key, ".map") {
 					entryPointPath := ""
 					if entryPoint := getObjectPropertyString(output.ValueOrNil, "entryPoint"); entryPoint != nil {
-						entryPointPath = js_lexer.UTF16ToString(entryPoint.Value)
+						entryPointPath = helpers.UTF16ToString(entryPoint.Value)
 						entryPoints = append(entryPoints, entryPointPath)
 					}
 
@@ -1927,7 +1927,7 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 							for _, input := range inputs.Properties {
 								if bytesInOutput := getObjectPropertyNumber(input.ValueOrNil, "bytesInOutput"); bytesInOutput != nil && bytesInOutput.Value > 0 {
 									children = append(children, metafileEntry{
-										name: js_lexer.UTF16ToString(input.Key.Data.(*js_ast.EString).Value),
+										name: helpers.UTF16ToString(input.Key.Data.(*js_ast.EString).Value),
 										size: int(bytesInOutput.Value),
 									})
 								}
@@ -1967,11 +1967,11 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 
 						for _, item := range imports.Items {
 							if path := getObjectPropertyString(item, "path"); path != nil {
-								data.imports = append(data.imports, js_lexer.UTF16ToString(path.Value))
+								data.imports = append(data.imports, helpers.UTF16ToString(path.Value))
 							}
 						}
 
-						importsForPath[js_lexer.UTF16ToString(prop.Key.Data.(*js_ast.EString).Value)] = data
+						importsForPath[helpers.UTF16ToString(prop.Key.Data.(*js_ast.EString).Value)] = data
 					}
 				}
 			}

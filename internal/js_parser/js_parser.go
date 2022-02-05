@@ -775,7 +775,7 @@ func duplicateCaseEquals(left js_ast.Expr, right js_ast.Expr) (equals bool, coul
 
 	case *js_ast.EString:
 		b, ok := right.Data.(*js_ast.EString)
-		return ok && js_lexer.UTF16EqualsUTF16(a.Value, b.Value), false
+		return ok && helpers.UTF16EqualsUTF16(a.Value, b.Value), false
 
 	case *js_ast.EBigInt:
 		b, ok := right.Data.(*js_ast.EBigInt)
@@ -1048,7 +1048,7 @@ func checkEqualityIfNoSideEffects(left js_ast.E, right js_ast.E) (bool, bool) {
 
 	case *js_ast.EString:
 		r, ok := right.(*js_ast.EString)
-		return ok && js_lexer.UTF16EqualsUTF16(l.Value, r.Value), ok
+		return ok && helpers.UTF16EqualsUTF16(l.Value, r.Value), ok
 	}
 
 	return false, false
@@ -1892,7 +1892,7 @@ func (p *parser) logArrowArgErrors(errors *deferredArrowArgErrors) {
 func (p *parser) keyNameForError(key js_ast.Expr) string {
 	switch k := key.Data.(type) {
 	case *js_ast.EString:
-		return fmt.Sprintf("%q", js_lexer.UTF16ToString(k.Value))
+		return fmt.Sprintf("%q", helpers.UTF16ToString(k.Value))
 	case *js_ast.EPrivateIdentifier:
 		return fmt.Sprintf("%q", p.loadNameFromRef(k.Ref))
 	}
@@ -2130,7 +2130,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 		if p.isMangledProp(name) {
 			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(name)}}
 		} else {
-			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}}
+			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}}
 		}
 
 		// Parse a shorthand property
@@ -2181,9 +2181,9 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 
 		// Forbid the names "constructor" and "prototype" in some cases
 		if !isComputed {
-			if str, ok := key.Data.(*js_ast.EString); ok && (js_lexer.UTF16EqualsString(str.Value, "constructor") ||
-				(opts.isStatic && js_lexer.UTF16EqualsString(str.Value, "prototype"))) {
-				p.log.Add(logger.Error, &p.tracker, keyRange, fmt.Sprintf("Invalid field name %q", js_lexer.UTF16ToString(str.Value)))
+			if str, ok := key.Data.(*js_ast.EString); ok && (helpers.UTF16EqualsString(str.Value, "constructor") ||
+				(opts.isStatic && helpers.UTF16EqualsString(str.Value, "prototype"))) {
+				p.log.Add(logger.Error, &p.tracker, keyRange, fmt.Sprintf("Invalid field name %q", helpers.UTF16ToString(str.Value)))
 			}
 		}
 
@@ -2262,7 +2262,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 		// Forbid the names "constructor" and "prototype" in some cases
 		if opts.isClass && !isComputed {
 			if str, ok := key.Data.(*js_ast.EString); ok {
-				if !opts.isStatic && js_lexer.UTF16EqualsString(str.Value, "constructor") {
+				if !opts.isStatic && helpers.UTF16EqualsString(str.Value, "constructor") {
 					switch {
 					case kind == js_ast.PropertyGet:
 						p.log.Add(logger.Error, &p.tracker, keyRange, "Class constructor cannot be a getter")
@@ -2275,7 +2275,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 					default:
 						isConstructor = true
 					}
-				} else if opts.isStatic && js_lexer.UTF16EqualsString(str.Value, "prototype") {
+				} else if opts.isStatic && helpers.UTF16EqualsString(str.Value, "prototype") {
 					p.log.Add(logger.Error, &p.tracker, keyRange, "Invalid static method name \"prototype\"")
 				}
 			}
@@ -2442,7 +2442,7 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 		if p.isMangledProp(name) {
 			key = js_ast.Expr{Loc: loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(name)}}
 		} else {
-			key = js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}}
+			key = js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}}
 		}
 
 		if p.lexer.Token != js_lexer.TColon && p.lexer.Token != js_lexer.TOpenParen {
@@ -4571,7 +4571,7 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 
 	// Certain identifiers are strings
 	if strings.ContainsAny(tagName, "-:") || (p.lexer.Token != js_lexer.TDot && tagName[0] >= 'a' && tagName[0] <= 'z') {
-		return tagRange, tagName, js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(tagName)}}
+		return tagRange, tagName, js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(tagName)}}
 	}
 
 	// Otherwise, this is an identifier
@@ -4627,7 +4627,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 				if p.isMangledProp(keyName) && !strings.ContainsRune(keyName, ':') {
 					key = js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(keyName)}}
 				} else {
-					key = js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(keyName)}}
+					key = js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(keyName)}}
 				}
 
 				// Parse the value
@@ -4928,7 +4928,7 @@ func (p *parser) parseClauseAlias(kind string) string {
 	// The alias may now be a string (see https://github.com/tc39/ecma262/pull/2154)
 	if p.lexer.Token == js_lexer.TStringLiteral {
 		r := p.source.RangeOfString(loc)
-		alias, problem, ok := js_lexer.UTF16ToStringWithValidation(p.lexer.StringLiteral())
+		alias, problem, ok := helpers.UTF16ToStringWithValidation(p.lexer.StringLiteral())
 		if !ok {
 			p.log.Add(logger.Error, &p.tracker, r,
 				fmt.Sprintf("This %s alias is invalid because it contains the unpaired Unicode surrogate U+%X", kind, problem))
@@ -5652,7 +5652,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 			properties = append(properties, property)
 
 			// Forbid decorators on class constructors
-			if key, ok := property.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(key.Value, "constructor") {
+			if key, ok := property.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
 				if len(opts.tsDecorators) > 0 {
 					p.log.Add(logger.Error, &p.tracker, logger.Range{Loc: firstDecoratorLoc},
 						"TypeScript does not allow decorators on class constructors")
@@ -5701,7 +5701,7 @@ func (p *parser) parseLabelName() *js_ast.LocRef {
 
 func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry) {
 	pathLoc := p.lexer.Loc()
-	pathText := js_lexer.UTF16ToString(p.lexer.StringLiteral())
+	pathText := helpers.UTF16ToString(p.lexer.StringLiteral())
 	if p.lexer.Token == js_lexer.TNoSubstitutionTemplateLiteral {
 		p.lexer.Next()
 	} else {
@@ -5725,10 +5725,10 @@ func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry) {
 			var keyText string
 			if p.lexer.IsIdentifierOrKeyword() {
 				keyText = p.lexer.Identifier
-				key = js_lexer.StringToUTF16(keyText)
+				key = helpers.StringToUTF16(keyText)
 			} else if p.lexer.Token == js_lexer.TStringLiteral {
 				key = p.lexer.StringLiteral()
-				keyText = js_lexer.UTF16ToString(key)
+				keyText = helpers.UTF16ToString(key)
 				preferQuotedKey = !p.options.minifySyntax
 			} else {
 				p.lexer.Expect(js_lexer.TIdentifier)
@@ -7127,7 +7127,7 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 					stmt.Data = &js_ast.SDirective{Value: str.Value, LegacyOctalLoc: str.LegacyOctalLoc}
 					isDirectivePrologue = true
 
-					if js_lexer.UTF16EqualsString(str.Value, "use strict") {
+					if helpers.UTF16EqualsString(str.Value, "use strict") {
 						// Track "use strict" directives
 						p.currentScope.StrictMode = js_ast.ExplicitStrictMode
 						p.currentScope.UseStrictLoc = expr.Value.Loc
@@ -7146,7 +7146,7 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 							p.currentScope.Parent.StrictMode = js_ast.ExplicitStrictMode
 							p.currentScope.Parent.UseStrictLoc = expr.Value.Loc
 						}
-					} else if js_lexer.UTF16EqualsString(str.Value, "use asm") {
+					} else if helpers.UTF16EqualsString(str.Value, "use asm") {
 						// Deliberately remove "use asm" directives. The asm.js subset of
 						// JavaScript has complicated validation rules that are triggered
 						// by this directive. This parser is not designed with asm.js in
@@ -7629,7 +7629,7 @@ func isDirectiveSupported(s *js_ast.SDirective) bool {
 	// practice. We don't support "use asm" even though that's also
 	// technically used in practice because the rest of our minifier would
 	// likely cause asm.js code to fail validation anyway.
-	return js_lexer.UTF16EqualsString(s.Value, "use strict")
+	return helpers.UTF16EqualsString(s.Value, "use strict")
 }
 
 func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
@@ -8957,7 +8957,7 @@ func (p *parser) maybeKeepExprSymbolName(value js_ast.Expr, name string, wasAnon
 
 func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr {
 	value = p.callRuntime(value.Loc, "__name", []js_ast.Expr{value,
-		{Loc: value.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}},
+		{Loc: value.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
 	})
 
 	// Make sure tree shaking removes this if the function is never used
@@ -8971,7 +8971,7 @@ func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string)
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
 		Value: p.callRuntime(loc, "__name", []js_ast.Expr{
 			{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
-			{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}},
+			{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
 		}),
 
 		// Make sure tree shaking removes this if the function is never used
@@ -9788,7 +9788,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Create an assignment for each enum value
 		for _, value := range s.Values {
-			name := js_lexer.UTF16ToString(value.Name)
+			name := helpers.UTF16ToString(value.Name)
 			var assignTarget js_ast.Expr
 			hasStringValue := false
 
@@ -10377,7 +10377,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 			if p.options.minifySyntax && property.IsComputed {
 				if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
 					isInvalidConstructor := false
-					if js_lexer.UTF16EqualsString(str.Value, "constructor") {
+					if helpers.UTF16EqualsString(str.Value, "constructor") {
 						if !property.IsMethod {
 							// "constructor" is an invalid name for both instance and static fields
 							isInvalidConstructor = true
@@ -10388,7 +10388,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 					}
 
 					// A static property must not be called "prototype"
-					isInvalidPrototype := property.IsStatic && js_lexer.UTF16EqualsString(str.Value, "prototype")
+					isInvalidPrototype := property.IsStatic && helpers.UTF16EqualsString(str.Value, "prototype")
 
 					if !isInvalidConstructor && !isInvalidPrototype {
 						property.IsComputed = false
@@ -10418,7 +10418,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 			((!property.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassField)) ||
 				(property.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassStaticField))) {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok {
-				nameToKeep = js_lexer.UTF16ToString(str.Value)
+				nameToKeep = helpers.UTF16ToString(str.Value)
 			}
 		}
 
@@ -10501,7 +10501,7 @@ func fnBodyContainsUseStrict(body []js_ast.Stmt) (logger.Loc, bool) {
 		case *js_ast.SComment:
 			continue
 		case *js_ast.SDirective:
-			if js_lexer.UTF16EqualsString(s.Value, "use strict") {
+			if helpers.UTF16EqualsString(s.Value, "use strict") {
 				return stmt.Loc, true
 			}
 		default:
@@ -10661,7 +10661,7 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 
 func (p *parser) checkForUnrepresentableIdentifier(loc logger.Loc, name string) {
 	if p.options.asciiOnly && p.options.unsupportedJSFeatures.Has(compat.UnicodeEscapes) &&
-		js_lexer.ContainsNonBMPCodePoint(name) {
+		helpers.ContainsNonBMPCodePoint(name) {
 		if p.unrepresentableIdentifiers == nil {
 			p.unrepresentableIdentifiers = make(map[string]bool)
 		}
@@ -10678,7 +10678,7 @@ func (p *parser) checkForUnrepresentableIdentifier(loc logger.Loc, name string) 
 func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr) {
 	if typeof, ok := a.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
 		if str, ok := b.Data.(*js_ast.EString); ok {
-			value := js_lexer.UTF16ToString(str.Value)
+			value := helpers.UTF16ToString(str.Value)
 			switch value {
 			case "undefined", "object", "boolean", "number", "bigint", "string", "symbol", "function", "unknown":
 			default:
@@ -10731,7 +10731,7 @@ func (p *parser) maybeSimplifyEqualityComparison(loc logger.Loc, e *js_ast.EBina
 		// Explorer returning "unknown" for some objects, which messes with this
 		// optimization. So we don't do this when targeting Internet Explorer.
 		if typeof, ok := e.Left.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
-			if str, ok := e.Right.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(str.Value, "undefined") {
+			if str, ok := e.Right.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "undefined") {
 				op := js_ast.BinOpLt
 				if e.Op == js_ast.BinOpLooseEq || e.Op == js_ast.BinOpStrictEq {
 					op = js_ast.BinOpGt
@@ -10928,7 +10928,7 @@ func (p *parser) maybeRewritePropertyAccess(
 				}
 
 				// The "__proto__" key has special behavior
-				if js_lexer.UTF16EqualsString(key.Value, "__proto__") {
+				if helpers.UTF16EqualsString(key.Value, "__proto__") {
 					if _, ok := prop.ValueOrNil.Data.(*js_ast.ENull); ok {
 						// Replacing "{__proto__: null}.a" with undefined should be safe
 						hasProtoNull = true
@@ -10942,7 +10942,7 @@ func (p *parser) maybeRewritePropertyAccess(
 				}
 
 				// Note that we need to take the last value if there are duplicate keys
-				if js_lexer.UTF16EqualsString(key.Value, name) {
+				if helpers.UTF16EqualsString(key.Value, name) {
 					replace = prop.ValueOrNil
 				}
 			}
@@ -10982,7 +10982,7 @@ func (p *parser) maybeRewritePropertyAccess(
 					if preferQuotedKey || !js_lexer.IsIdentifier(name) {
 						p.tsNamespaceTarget = &js_ast.EIndex{
 							Target: target,
-							Index:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}},
+							Index:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
 						}
 					} else {
 						p.tsNamespaceTarget = p.dotOrMangledPropVisit(target, name, nameLoc)
@@ -12313,7 +12313,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if str, ok := e.Index.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
 				dot := &js_ast.EDot{
 					Target:        e.Target,
-					Name:          js_lexer.UTF16ToString(str.Value),
+					Name:          helpers.UTF16ToString(str.Value),
 					NameLoc:       e.Index.Loc,
 					OptionalChain: e.OptionalChain,
 				}
@@ -12409,7 +12409,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if str, ok := e.Index.Data.(*js_ast.EString); ok && e.OptionalChain == js_ast.OptionalChainNone {
 			preferQuotedKey := !p.options.minifySyntax
 			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, isDeleteTarget,
-				e.Target, js_lexer.UTF16ToString(str.Value), e.Index.Loc, isCallTarget, preferQuotedKey); ok {
+				e.Target, helpers.UTF16ToString(str.Value), e.Index.Loc, isCallTarget, preferQuotedKey); ok {
 				return value, out
 			}
 		}
@@ -12446,7 +12446,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
-				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(typeof)}}, exprOut{}
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(typeof)}}, exprOut{}
 			}
 
 		case js_ast.UnOpDelete:
@@ -12628,7 +12628,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if e.OptionalChain == js_ast.OptionalChainNone && in.assignTarget == js_ast.AssignTargetNone &&
 			!isCallTarget && p.shouldLowerSuperPropertyAccess(e.Target) {
 			// "super.foo" => "__superGet('foo')"
-			key := js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(e.Name)}}
+			key := js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(e.Name)}}
 			return p.lowerSuperPropertyGet(expr.Loc, key), exprOut{}
 		}
 
@@ -12800,7 +12800,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				// Forbid duplicate "__proto__" properties according to the specification
 				if !property.IsComputed && !property.WasShorthand && !property.IsMethod && in.assignTarget == js_ast.AssignTargetNone {
-					if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(str.Value, "__proto__") {
+					if str, ok := key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "__proto__") {
 						r := js_lexer.RangeOfIdentifier(p.source, key.Loc)
 						if protoRange.Len > 0 {
 							p.log.AddWithNotes(logger.Error, &p.tracker, r,
@@ -12814,7 +12814,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				// "{['x']: y}" => "{x: y}"
 				if p.options.minifySyntax && property.IsComputed {
-					if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) && !js_lexer.UTF16EqualsString(str.Value, "__proto__") {
+					if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) && !helpers.UTF16EqualsString(str.Value, "__proto__") {
 						property.IsComputed = false
 					}
 				}
@@ -12865,7 +12865,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			for _, property := range e.Properties {
 				if property.Kind != js_ast.PropertySpread {
 					if str, ok := property.Key.Data.(*js_ast.EString); ok {
-						key := js_lexer.UTF16ToString(str.Value)
+						key := helpers.UTF16ToString(str.Value)
 						prevKey := keys[key]
 						nextKey := existingKey{kind: keyNormal, loc: property.Key.Loc}
 						if property.Kind == js_ast.PropertyGet {
@@ -12917,7 +12917,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								// actually set the prototype of the object being spread so
 								// inlining it is not correct.
 								if p.Kind == js_ast.PropertyNormal && !p.IsComputed && !p.IsMethod {
-									if str, ok := p.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(str.Value, "__proto__") {
+									if str, ok := p.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "__proto__") {
 										v.Properties = v.Properties[i:]
 										properties = append(properties, property)
 										break
@@ -12961,7 +12961,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if object, ok := e.OptionsOrNil.Data.(*js_ast.EObject); ok {
 				if len(object.Properties) == 1 {
 					if prop := object.Properties[0]; prop.Kind == js_ast.PropertyNormal && !prop.IsComputed && !prop.IsMethod {
-						if str, ok := prop.Key.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(str.Value, "assert") {
+						if str, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "assert") {
 							if value, ok := prop.ValueOrNil.Data.(*js_ast.EObject); ok {
 								entries := []ast.AssertEntry{}
 								for _, p := range value.Properties {
@@ -12978,7 +12978,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 												continue
 											} else {
 												why = fmt.Sprintf("the value for the property %q was not a string literal",
-													js_lexer.UTF16ToString(key.Value))
+													helpers.UTF16ToString(key.Value))
 												whyLoc = p.ValueOrNil.Loc
 											}
 										} else {
@@ -13055,7 +13055,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
 				}
 
-				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, js_lexer.UTF16ToString(str.Value), assertions)
+				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, helpers.UTF16ToString(str.Value), assertions)
 				if (isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0) || isThenCatchTarget {
 					p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
 				}
@@ -13207,7 +13207,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
 							}
 
-							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value), nil)
+							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, helpers.UTF16ToString(str.Value), nil)
 							if p.fnOrArrowDataVisit.tryBodyCount != 0 {
 								p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
 							}
@@ -13370,7 +13370,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 									return js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared}
 								}
 
-								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value), nil)
+								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, helpers.UTF16ToString(str.Value), nil)
 								if p.fnOrArrowDataVisit.tryBodyCount != 0 {
 									p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
 								}
@@ -14741,7 +14741,7 @@ func (p *parser) isSideEffectFreeUnboundIdentifierRef(value js_ast.Expr, guardCo
 					if text, ok := string.Data.(*js_ast.EString); ok {
 						// In "typeof x !== 'undefined' ? x : null", the reference to "x" is side-effect free
 						// In "typeof x === 'object' ? x : null", the reference to "x" is side-effect free
-						if (js_lexer.UTF16EqualsString(text.Value, "undefined") == isYesBranch) ==
+						if (helpers.UTF16EqualsString(text.Value, "undefined") == isYesBranch) ==
 							(binary.Op == js_ast.BinOpStrictNe || binary.Op == js_ast.BinOpLooseNe) {
 							if id2, ok := typeof.Value.Data.(*js_ast.EIdentifier); ok && id2.Ref == id.Ref {
 								return true
@@ -14758,7 +14758,7 @@ func (p *parser) isSideEffectFreeUnboundIdentifierRef(value js_ast.Expr, guardCo
 					isYesBranch = !isYesBranch
 				}
 				if typeof, ok := typeof.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
-					if text, ok := string.Data.(*js_ast.EString); ok && js_lexer.UTF16EqualsString(text.Value, "u") {
+					if text, ok := string.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(text.Value, "u") {
 						// In "typeof x < 'u' ? x : null", the reference to "x" is side-effect free
 						// In "typeof x > 'u' ? x : null", the reference to "x" is side-effect free
 						if isYesBranch == (binary.Op == js_ast.BinOpLt || binary.Op == js_ast.BinOpLe) {
@@ -14914,7 +14914,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 			if !isDirectiveSupported(s) {
 				continue
 			}
-			directive = js_lexer.UTF16ToString(s.Value)
+			directive = helpers.UTF16ToString(s.Value)
 
 			// Remove this directive from the statement list
 			stmts = append(stmts[:i], stmts[i+1:]...)

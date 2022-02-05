@@ -65,14 +65,14 @@ func QuoteForJSON(text string, asciiOnly bool) []byte {
 	bytes = append(bytes, '"')
 
 	for i < n {
-		c, width := js_lexer.DecodeWTF8Rune(text[i:])
+		c, width := helpers.DecodeWTF8Rune(text[i:])
 
 		// Fast path: a run of characters that don't need escaping
 		if canPrintWithoutEscape(c, asciiOnly) {
 			start := i
 			i += width
 			for i < n {
-				c, width = js_lexer.DecodeWTF8Rune(text[i:])
+				c, width = helpers.DecodeWTF8Rune(text[i:])
 				if !canPrintWithoutEscape(c, asciiOnly) {
 					break
 				}
@@ -413,7 +413,7 @@ func (p *printer) printJSXTag(tagOrNil js_ast.Expr) {
 	switch e := tagOrNil.Data.(type) {
 	case *js_ast.EString:
 		p.addSourceMapping(tagOrNil.Loc)
-		p.print(js_lexer.UTF16ToString(e.Value))
+		p.print(helpers.UTF16ToString(e.Value))
 
 	case *js_ast.EIdentifier:
 		name := p.renamer.NameForSymbol(e.Ref)
@@ -467,7 +467,7 @@ func (p *printer) printBytes(bytes []byte) {
 }
 
 func (p *printer) printQuotedUTF8(text string, allowBacktick bool) {
-	p.printQuotedUTF16(js_lexer.StringToUTF16(text), allowBacktick)
+	p.printQuotedUTF16(helpers.StringToUTF16(text), allowBacktick)
 }
 
 func (p *printer) addSourceMapping(loc logger.Loc) {
@@ -518,19 +518,19 @@ func (p *printer) printClauseAlias(alias string) {
 func CanEscapeIdentifier(name string, unsupportedJSFeatures compat.JSFeature, asciiOnly bool) bool {
 	return js_lexer.IsIdentifierES5AndESNext(name) && (!asciiOnly ||
 		!unsupportedJSFeatures.Has(compat.UnicodeEscapes) ||
-		!js_lexer.ContainsNonBMPCodePoint(name))
+		!helpers.ContainsNonBMPCodePoint(name))
 }
 
 func (p *printer) canPrintIdentifier(name string) bool {
 	return js_lexer.IsIdentifierES5AndESNext(name) && (!p.options.ASCIIOnly ||
 		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
-		!js_lexer.ContainsNonBMPCodePoint(name))
+		!helpers.ContainsNonBMPCodePoint(name))
 }
 
 func (p *printer) canPrintIdentifierUTF16(name []uint16) bool {
 	return js_lexer.IsIdentifierES5AndESNextUTF16(name) && (!p.options.ASCIIOnly ||
 		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
-		!js_lexer.ContainsNonBMPCodePointUTF16(name))
+		!helpers.ContainsNonBMPCodePointUTF16(name))
 }
 
 func (p *printer) printIdentifier(name string) {
@@ -722,7 +722,7 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 						p.printIdentifierUTF16(str.Value)
 
 						// Use a shorthand property if the names are the same
-						if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok && js_lexer.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
+						if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok && helpers.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
 							if property.DefaultValueOrNil.Data != nil {
 								p.printSpace()
 								p.print("=")
@@ -1033,7 +1033,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.ValueOrNil.Data != nil {
 				switch e := item.ValueOrNil.Data.(type) {
 				case *js_ast.EIdentifier:
-					if js_lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
+					if helpers.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
 						if item.InitializerOrNil.Data != nil {
 							p.printSpace()
 							p.print("=")
@@ -1046,7 +1046,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 				case *js_ast.EImportIdentifier:
 					// Make sure we're not using a property access instead of an identifier
 					ref := js_ast.FollowSymbols(p.symbols, e.Ref)
-					if symbol := p.symbols.Get(ref); symbol.NamespaceAlias == nil && js_lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(ref)) &&
+					if symbol := p.symbols.Get(ref); symbol.NamespaceAlias == nil && helpers.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(ref)) &&
 						p.options.ConstValues[ref].Kind == js_ast.ConstValueNone {
 						if item.InitializerOrNil.Data != nil {
 							p.printSpace()
@@ -1631,7 +1631,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
 				p.printSymbol(mangled.Ref)
 			} else {
-				p.print(js_lexer.UTF16ToString(property.Key.Data.(*js_ast.EString).Value))
+				p.print(helpers.UTF16ToString(property.Key.Data.(*js_ast.EString).Value))
 			}
 
 			// Special-case string values
@@ -1640,7 +1640,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 					p.print("=")
 					p.addSourceMapping(property.ValueOrNil.Loc)
 					p.print(quote)
-					p.print(js_lexer.UTF16ToString(str.Value))
+					p.print(helpers.UTF16ToString(str.Value))
 					p.print(quote)
 					continue
 				}
@@ -1689,7 +1689,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				p.printExpr(child, js_ast.LLowest, 0)
 			} else if str, ok := child.Data.(*js_ast.EString); ok && isSingleLine && p.canPrintTextAsJSXChild(str.Value) {
 				p.addSourceMapping(child.Loc)
-				p.print(js_lexer.UTF16ToString(str.Value))
+				p.print(helpers.UTF16ToString(str.Value))
 			} else {
 				p.print("{")
 				p.printExpr(child, js_ast.LComma, 0)
@@ -1964,7 +1964,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 					ref := js_ast.FollowSymbols(p.symbols, id.Ref)
 					if symbol := p.symbols.Get(ref); symbol.Kind == js_ast.SymbolTSEnum {
 						if enum, ok := p.options.TSEnums[ref]; ok {
-							name := js_lexer.UTF16ToString(index.Value)
+							name := helpers.UTF16ToString(index.Value)
 							if value, ok := enum[name]; ok {
 								if value.String != nil {
 									p.printQuotedUTF16(value.String, true /* allowBacktick */)

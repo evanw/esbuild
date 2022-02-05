@@ -121,7 +121,7 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 
 			// Warn about duplicate keys
 			if !p.suppressWarningsAboutWeirdCode {
-				keyText := js_lexer.UTF16ToString(keyString)
+				keyText := helpers.UTF16ToString(keyString)
 				if prevRange, ok := duplicates[keyText]; ok {
 					p.log.AddWithNotes(logger.Warning, &p.tracker, keyRange, fmt.Sprintf("Duplicate key %q in object literal", keyText),
 						[]logger.MsgData{p.tracker.MsgData(prevRange, fmt.Sprintf("The original key %q is here:", keyText))})

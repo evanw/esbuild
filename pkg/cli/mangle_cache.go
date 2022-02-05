@@ -65,7 +65,7 @@ func parseMangleCache(osArgs []string, fs fs.FS, absPath string) (map[string]int
 	order := make([]string, 0, len(root.Properties))
 
 	for _, property := range root.Properties {
-		key := js_lexer.UTF16ToString(property.Key.Data.(*js_ast.EString).Value)
+		key := helpers.UTF16ToString(property.Key.Data.(*js_ast.EString).Value)
 		order = append(order, key)
 
 		switch v := property.ValueOrNil.Data.(type) {
@@ -78,7 +78,7 @@ func parseMangleCache(osArgs []string, fs fs.FS, absPath string) (map[string]int
 			}
 
 		case *js_ast.EString:
-			mangleCache[key] = js_lexer.UTF16ToString(v.Value)
+			mangleCache[key] = helpers.UTF16ToString(v.Value)
 
 		default:
 			log.Add(logger.Error, &tracker, logger.Range{Loc: property.ValueOrNil.Loc},

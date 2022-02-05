@@ -7,8 +7,8 @@ import (
 
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
-	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
@@ -4248,13 +4248,13 @@ func TestUnicodeWhitespace(t *testing.T) {
 
 	// Test "js_lexer.Next()"
 	for _, s := range invalidWhitespaceInJS {
-		r, _ := js_lexer.DecodeWTF8Rune(s)
+		r, _ := helpers.DecodeWTF8Rune(s)
 		expectParseError(t, "var"+s+"x", fmt.Sprintf("<stdin>: ERROR: Expected identifier but found \"\\u%04x\"\n", r))
 	}
 
 	// Test "js_lexer.NextInsideJSXElement()"
 	for _, s := range invalidWhitespaceInJS {
-		r, _ := js_lexer.DecodeWTF8Rune(s)
+		r, _ := helpers.DecodeWTF8Rune(s)
 		expectParseErrorJSX(t, "<x"+s+"y/>", fmt.Sprintf("<stdin>: ERROR: Expected \">\" but found \"\\u%04x\"\n", r))
 	}
 
