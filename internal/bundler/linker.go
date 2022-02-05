@@ -3999,6 +3999,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	printOptions := js_printer.Options{
 		Indent:                       indent,
 		OutputFormat:                 c.options.OutputFormat,
+		MinifyIdentifiers:            c.options.MinifyIdentifiers,
 		MinifyWhitespace:             c.options.MinifyWhitespace,
 		MinifySyntax:                 c.options.MinifySyntax,
 		ASCIIOnly:                    c.options.ASCIIOnly,
@@ -4337,6 +4338,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 	printOptions := js_printer.Options{
 		Indent:                       indent,
 		OutputFormat:                 c.options.OutputFormat,
+		MinifyIdentifiers:            c.options.MinifyIdentifiers,
 		MinifyWhitespace:             c.options.MinifyWhitespace,
 		MinifySyntax:                 c.options.MinifySyntax,
 		ASCIIOnly:                    c.options.ASCIIOnly,
@@ -4653,10 +4655,11 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			indent++
 		}
 		printOptions := js_printer.Options{
-			Indent:           indent,
-			OutputFormat:     c.options.OutputFormat,
-			MinifyWhitespace: c.options.MinifyWhitespace,
-			MinifySyntax:     c.options.MinifySyntax,
+			Indent:            indent,
+			OutputFormat:      c.options.OutputFormat,
+			MinifyIdentifiers: c.options.MinifyIdentifiers,
+			MinifyWhitespace:  c.options.MinifyWhitespace,
+			MinifySyntax:      c.options.MinifySyntax,
 		}
 		crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
 		for i, chunkImport := range chunk.crossChunkImports {

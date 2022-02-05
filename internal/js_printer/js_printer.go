@@ -1480,9 +1480,17 @@ func (p *printer) lateConstantFoldUnaryOrBinaryExpr(expr js_ast.Expr) js_ast.Exp
 			if symbol := p.symbols.Get(ref); symbol.Kind == js_ast.SymbolTSEnum {
 				if enum, ok := p.options.TSEnums[ref]; ok {
 					if value, ok := enum[e.Name]; ok && value.String == nil {
-						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EInlinedEnum{
+						value := js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: value.Number}}
+
+						if strings.Contains(e.Name, "*/") {
+							// Don't wrap with a comment
+							return value
+						}
+
+						// Wrap with a comment
+						return js_ast.Expr{Loc: value.Loc, Data: &js_ast.EInlinedEnum{
+							Value:   value,
 							Comment: e.Name,
-							Value:   js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: value.Number}},
 						}}
 					}
 				}
@@ -1911,7 +1919,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 							} else {
 								p.printNumber(value.Number, level)
 							}
-							if !p.options.MinifyWhitespace {
+							if !p.options.MinifyWhitespace && !p.options.MinifyIdentifiers {
 								p.print(" /* ")
 								p.print(e.Name)
 								p.print(" */")
@@ -1972,7 +1980,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 								} else {
 									p.printNumber(value.Number, level)
 								}
-								if !p.options.MinifyWhitespace {
+								if !p.options.MinifyWhitespace && !p.options.MinifyIdentifiers {
 									p.print(" /* ")
 									p.print(name)
 									p.print(" */")
@@ -2275,7 +2283,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	case *js_ast.EInlinedEnum:
 		p.printExpr(e.Value, level, flags)
 
-		if !p.options.MinifyWhitespace {
+		if !p.options.MinifyWhitespace && !p.options.MinifyIdentifiers {
 			p.print(" /* ")
 			p.print(e.Comment)
 			p.print(" */")
@@ -3611,6 +3619,7 @@ type Options struct {
 	Indent              int
 	OutputFormat        config.Format
 	MinifyWhitespace    bool
+	MinifyIdentifiers   bool
 	MinifySyntax        bool
 	ASCIIOnly           bool
 	LegalComments       config.LegalComments

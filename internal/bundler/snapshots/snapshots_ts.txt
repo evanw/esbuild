@@ -198,7 +198,7 @@ TestTSEnumDefine
 ---------- /out/entry.js ----------
 var a = /* @__PURE__ */ ((a2) => {
   a2[a2["b"] = 123] = "b";
-  a2[a2["c"] = 123] = "c";
+  a2[a2["c"] = 123 /* b */] = "c";
   return a2;
 })(a || {});
 
@@ -660,7 +660,7 @@ TestTSSiblingEnum
 ---------- /out/number.js ----------
 export var x = /* @__PURE__ */ ((x2) => {
   x2[x2["y"] = 0] = "y";
-  x2[x2["yy"] = 0] = "yy";
+  x2[x2["yy"] = 0 /* y */] = "yy";
   return x2;
 })(x || {});
 var x = /* @__PURE__ */ ((x2) => {
@@ -675,11 +675,11 @@ console.log(0 /* y */, 1 /* z */);
 ---------- /out/string.js ----------
 export var x = /* @__PURE__ */ ((x2) => {
   x2["y"] = "a";
-  x2["yy"] = "a";
+  x2["yy"] = "a" /* y */;
   return x2;
 })(x || {});
 var x = /* @__PURE__ */ ((x2) => {
-  x2["z"] = "a";
+  x2["z"] = "a" /* y */;
   return x2;
 })(x || {});
 ((x2) => {
@@ -693,7 +693,7 @@ export var a = /* @__PURE__ */ ((a2) => {
   return a2;
 })(a || {});
 export var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["c"] = 100] = "c";
+  x2[x2["c"] = 100 /* b */] = "c";
   x2[x2["d"] = 200] = "d";
   x2[x2["e"] = 4e4] = "e";
   x2[x2["f"] = 1e4] = "f";
@@ -711,7 +711,7 @@ export var foo;
   let x;
   ((x2) => {
     x2[x2["y"] = 0] = "y";
-    x2[x2["yy"] = 0] = "yy";
+    x2[x2["yy"] = 0 /* y */] = "yy";
   })(x = foo2.x || (foo2.x = {}));
 })(foo || (foo = {}));
 ((foo2) => {
@@ -734,13 +734,13 @@ export var foo;
   let x;
   ((x2) => {
     x2["y"] = "a";
-    x2["yy"] = "a";
+    x2["yy"] = "a" /* y */;
   })(x = foo2.x || (foo2.x = {}));
 })(foo || (foo = {}));
 ((foo2) => {
   let x;
   ((x2) => {
-    x2["z"] = "a";
+    x2["z"] = "a" /* y */;
   })(x = foo2.x || (foo2.x = {}));
 })(foo || (foo = {}));
 ((foo2) => {
@@ -762,7 +762,7 @@ export var n;
 ((n2) => {
   let x;
   ((x2) => {
-    x2[x2["c"] = 100] = "c";
+    x2[x2["c"] = 100 /* b */] = "c";
     x2[x2["d"] = 200] = "d";
     x2[x2["e"] = 4e4] = "e";
     x2[x2["f"] = 1e4] = "f";

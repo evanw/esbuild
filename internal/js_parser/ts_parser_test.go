@@ -1117,7 +1117,7 @@ var Foo = /* @__PURE__ */ ((Foo) => {
   return Foo;
 })(Foo || {});
 var Bar = /* @__PURE__ */ ((Bar) => {
-  Bar[Bar["a"] = 10.01] = "a";
+  Bar[Bar["a"] = 10.01 /* a */] = "a";
   return Bar;
 })(Bar || {});
 `)
@@ -1147,7 +1147,7 @@ y = [0 /* A */, Foo?.["A"], Foo?.["A"]()];
 `)
 	expectPrintedTS(t, "enum Foo { Foo = 1, Bar = Foo }", `var Foo = /* @__PURE__ */ ((_Foo) => {
   _Foo[_Foo["Foo"] = 1] = "Foo";
-  _Foo[_Foo["Bar"] = 1] = "Bar";
+  _Foo[_Foo["Bar"] = 1 /* Foo */] = "Bar";
   return _Foo;
 })(Foo || {});
 `)
@@ -1159,13 +1159,13 @@ y = [0 /* A */, Foo?.["A"], Foo?.["A"]()];
 	// Check "await" and "yield"
 	expectPrintedTS(t, "enum x { await = 1, y = await }", `var x = /* @__PURE__ */ ((x) => {
   x[x["await"] = 1] = "await";
-  x[x["y"] = 1] = "y";
+  x[x["y"] = 1 /* await */] = "y";
   return x;
 })(x || {});
 `)
 	expectPrintedTS(t, "enum x { yield = 1, y = yield }", `var x = /* @__PURE__ */ ((x) => {
   x[x["yield"] = 1] = "yield";
-  x[x["y"] = 1] = "y";
+  x[x["y"] = 1 /* yield */] = "y";
   return x;
 })(x || {});
 `)

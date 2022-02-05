@@ -1636,7 +1636,7 @@ func (p *parser) generateClosureForTypeScriptEnum(
 }
 
 func (p *parser) wrapInlinedEnum(value js_ast.Expr, comment string) js_ast.Expr {
-	if p.shouldFoldNumericConstants || p.options.minifySyntax || strings.Contains(comment, "*/") {
+	if strings.Contains(comment, "*/") {
 		// Don't wrap with a comment
 		return value
 	}

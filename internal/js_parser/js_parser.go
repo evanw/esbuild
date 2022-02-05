@@ -9771,7 +9771,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				value.ValueOrNil = p.visitExpr(value.ValueOrNil)
 				hasNumericValue = false
 
-				switch e := value.ValueOrNil.Data.(type) {
+				// "See through" any wrapped comments
+				underlyingValue := value.ValueOrNil
+				if inlined, ok := value.ValueOrNil.Data.(*js_ast.EInlinedEnum); ok {
+					underlyingValue = inlined.Value
+				}
+
+				switch e := underlyingValue.Data.(type) {
 				case *js_ast.ENumber:
 					if tsTopLevelEnumValues != nil {
 						tsTopLevelEnumValues[name] = js_ast.TSEnumValue{Number: e.Value}
@@ -9794,7 +9800,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					hasStringValue = true
 
 				default:
-					if !p.exprCanBeRemovedIfUnused(value.ValueOrNil) {
+					if !p.exprCanBeRemovedIfUnused(underlyingValue) {
 						allValuesArePure = false
 					}
 				}
