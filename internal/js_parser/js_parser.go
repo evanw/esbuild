@@ -956,31 +956,6 @@ func toBooleanWithSideEffects(data js_ast.E) (boolean bool, sideEffects sideEffe
 	return false, couldHaveSideEffects, false
 }
 
-func toNumberWithoutSideEffects(data js_ast.E) (float64, bool) {
-	switch e := data.(type) {
-	case *js_ast.EInlinedEnum:
-		return toNumberWithoutSideEffects(e.Value.Data)
-
-	case *js_ast.ENull:
-		return 0, true
-
-	case *js_ast.EUndefined:
-		return math.NaN(), true
-
-	case *js_ast.EBoolean:
-		if e.Value {
-			return 1, true
-		} else {
-			return 0, true
-		}
-
-	case *js_ast.ENumber:
-		return e.Value, true
-	}
-
-	return 0, false
-}
-
 // Returns true if the result of the "typeof" operator on this expression is
 // statically determined and this expression has no side effects (i.e. can be
 // removed without consequence).
@@ -12019,7 +11994,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		case js_ast.BinOpAdd:
 			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: left + right}}, exprOut{}
 				}
 			}
@@ -12038,35 +12013,35 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		case js_ast.BinOpSub:
 			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: left - right}}, exprOut{}
 				}
 			}
 
 		case js_ast.BinOpMul:
 			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: left * right}}, exprOut{}
 				}
 			}
 
 		case js_ast.BinOpDiv:
 			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: left / right}}, exprOut{}
 				}
 			}
 
 		case js_ast.BinOpRem:
 			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: math.Mod(left, right)}}, exprOut{}
 				}
 			}
 
 		case js_ast.BinOpPow:
 			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: math.Pow(left, right)}}, exprOut{}
 				}
 			}
@@ -12078,7 +12053,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		case js_ast.BinOpShl:
 			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) << (js_ast.ToUint32(right) & 31))}}, exprOut{}
 				}
 			}
@@ -12086,7 +12061,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		case js_ast.BinOpShr:
 			if p.shouldFoldNumericConstants || p.options.minifySyntax {
 				// Minification folds right signed shift operations since they are unlikely to result in larger output
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) >> (js_ast.ToUint32(right) & 31))}}, exprOut{}
 				}
 			}
@@ -12094,7 +12069,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		case js_ast.BinOpUShr:
 			if p.shouldFoldNumericConstants {
 				// Note: ">>>" could result in bigger output such as "-1 >>> 0" becoming "4294967295"
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToUint32(left) >> (js_ast.ToUint32(right) & 31))}}, exprOut{}
 				}
 			}
@@ -12102,7 +12077,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		case js_ast.BinOpBitwiseAnd:
 			// Minification folds bitwise operations since they are unlikely to result in larger output
 			if p.shouldFoldNumericConstants || p.options.minifySyntax {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) & js_ast.ToInt32(right))}}, exprOut{}
 				}
 			}
@@ -12110,7 +12085,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		case js_ast.BinOpBitwiseOr:
 			// Minification folds bitwise operations since they are unlikely to result in larger output
 			if p.shouldFoldNumericConstants || p.options.minifySyntax {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) | js_ast.ToInt32(right))}}, exprOut{}
 				}
 			}
@@ -12118,7 +12093,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		case js_ast.BinOpBitwiseXor:
 			// Minification folds bitwise operations since they are unlikely to result in larger output
 			if p.shouldFoldNumericConstants || p.options.minifySyntax {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) ^ js_ast.ToInt32(right))}}, exprOut{}
 				}
 			}
@@ -12532,19 +12507,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 			case js_ast.UnOpPos:
-				if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
+				if number, ok := js_ast.ToNumberWithoutSideEffects(e.Value.Data); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: number}}, exprOut{}
 				}
 
 			case js_ast.UnOpNeg:
-				if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
+				if number, ok := js_ast.ToNumberWithoutSideEffects(e.Value.Data); ok {
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: -number}}, exprOut{}
 				}
 
 			case js_ast.UnOpCpl:
 				if p.shouldFoldNumericConstants || p.options.minifySyntax {
 					// Minification folds complement operations since they are unlikely to result in larger output
-					if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
+					if number, ok := js_ast.ToNumberWithoutSideEffects(e.Value.Data); ok {
 						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(^js_ast.ToInt32(number))}}, exprOut{}
 					}
 				}
@@ -13869,15 +13844,6 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 	}
 
 	return js_ast.Expr{Loc: loc, Data: e}
-}
-
-func extractNumericValues(left js_ast.Expr, right js_ast.Expr) (float64, float64, bool) {
-	if a, ok := left.Data.(*js_ast.ENumber); ok {
-		if b, ok := right.Data.(*js_ast.ENumber); ok {
-			return a.Value, b.Value, true
-		}
-	}
-	return 0, 0, false
 }
 
 func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {

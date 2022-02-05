@@ -2917,3 +2917,49 @@ func ToInt32(f float64) int32 {
 func ToUint32(f float64) uint32 {
 	return uint32(ToInt32(f))
 }
+
+func ToNumberWithoutSideEffects(data E) (float64, bool) {
+	switch e := data.(type) {
+	case *EInlinedEnum:
+		return ToNumberWithoutSideEffects(e.Value.Data)
+
+	case *ENull:
+		return 0, true
+
+	case *EUndefined:
+		return math.NaN(), true
+
+	case *EBoolean:
+		if e.Value {
+			return 1, true
+		} else {
+			return 0, true
+		}
+
+	case *ENumber:
+		return e.Value, true
+	}
+
+	return 0, false
+}
+
+func extractNumericValue(data E) (float64, bool) {
+	switch e := data.(type) {
+	case *EInlinedEnum:
+		return extractNumericValue(e.Value.Data)
+
+	case *ENumber:
+		return e.Value, true
+	}
+
+	return 0, false
+}
+
+func ExtractNumericValues(left Expr, right Expr) (float64, float64, bool) {
+	if a, ok := extractNumericValue(left.Data); ok {
+		if b, ok := extractNumericValue(right.Data); ok {
+			return a, b, true
+		}
+	}
+	return 0, 0, false
+}

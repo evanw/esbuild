@@ -1480,7 +1480,10 @@ func (p *printer) lateConstantFoldUnaryOrBinaryExpr(expr js_ast.Expr) js_ast.Exp
 			if symbol := p.symbols.Get(ref); symbol.Kind == js_ast.SymbolTSEnum {
 				if enum, ok := p.options.TSEnums[ref]; ok {
 					if value, ok := enum[e.Name]; ok && value.String == nil {
-						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: value.Number}}
+						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EInlinedEnum{
+							Comment: e.Name,
+							Value:   js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: value.Number}},
+						}}
 					}
 				}
 			}
@@ -1492,16 +1495,16 @@ func (p *printer) lateConstantFoldUnaryOrBinaryExpr(expr js_ast.Expr) js_ast.Exp
 		// Only fold again if something chained
 		if value.Data != e.Value.Data {
 			// Only fold certain operations (just like the parser)
-			if v, ok := value.Data.(*js_ast.ENumber); ok {
+			if v, ok := js_ast.ToNumberWithoutSideEffects(value.Data); ok {
 				switch e.Op {
 				case js_ast.UnOpPos:
-					return value
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: v}}
 
 				case js_ast.UnOpNeg:
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: -v.Value}}
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: -v}}
 
 				case js_ast.UnOpCpl:
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(^js_ast.ToInt32(v.Value))}}
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(^js_ast.ToInt32(v))}}
 				}
 			}
 
@@ -1516,21 +1519,19 @@ func (p *printer) lateConstantFoldUnaryOrBinaryExpr(expr js_ast.Expr) js_ast.Exp
 		// Only fold again if something chained
 		if left.Data != e.Left.Data || right.Data != e.Right.Data {
 			// Only fold certain operations (just like the parser)
-			if l, ok := left.Data.(*js_ast.ENumber); ok {
-				if r, ok := right.Data.(*js_ast.ENumber); ok {
-					switch e.Op {
-					case js_ast.BinOpShr:
-						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l.Value) >> js_ast.ToInt32(r.Value))}}
+			if l, r, ok := js_ast.ExtractNumericValues(left, right); ok {
+				switch e.Op {
+				case js_ast.BinOpShr:
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l) >> js_ast.ToInt32(r))}}
 
-					case js_ast.BinOpBitwiseAnd:
-						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l.Value) & js_ast.ToInt32(r.Value))}}
+				case js_ast.BinOpBitwiseAnd:
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l) & js_ast.ToInt32(r))}}
 
-					case js_ast.BinOpBitwiseOr:
-						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l.Value) | js_ast.ToInt32(r.Value))}}
+				case js_ast.BinOpBitwiseOr:
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l) | js_ast.ToInt32(r))}}
 
-					case js_ast.BinOpBitwiseXor:
-						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l.Value) ^ js_ast.ToInt32(r.Value))}}
-					}
+				case js_ast.BinOpBitwiseXor:
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l) ^ js_ast.ToInt32(r))}}
 				}
 			}
 
