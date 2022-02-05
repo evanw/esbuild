@@ -3645,6 +3645,14 @@ func TestMangleBinaryInsideComma(t *testing.T) {
 	expectPrintedMangle(t, "a + (b, c)", "a + (b, c);\n")
 }
 
+func TestMangleUnaryConstantFolding(t *testing.T) {
+	expectPrintedMangle(t, "x = +5", "x = 5;\n")
+	expectPrintedMangle(t, "x = -5", "x = -5;\n")
+	expectPrintedMangle(t, "x = ~5", "x = -6;\n")
+	expectPrintedMangle(t, "x = !5", "x = false;\n")
+	expectPrintedMangle(t, "x = typeof 5", "x = \"number\";\n")
+}
+
 func TestMangleBinaryConstantFolding(t *testing.T) {
 	expectPrintedMangle(t, "x = 3 + 6", "x = 3 + 6;\n")
 	expectPrintedMangle(t, "x = 3 - 6", "x = 3 - 6;\n")

@@ -12561,7 +12561,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 			case js_ast.UnOpCpl:
-				if p.shouldFoldNumericConstants {
+				if p.shouldFoldNumericConstants || p.options.minifySyntax {
+					// Minification folds complement operations since they are unlikely to result in larger output
 					if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
 						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(^toInt32(number))}}, exprOut{}
 					}
