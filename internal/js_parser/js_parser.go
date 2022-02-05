@@ -11003,6 +11003,20 @@ func (p *parser) maybeRewritePropertyAccess(
 		}
 	}
 
+	// Minify "foo".length
+	if p.options.minifySyntax {
+		switch t := target.Data.(type) {
+		case *js_ast.EString:
+			if name == "length" {
+				return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: float64(len(t.Value))}}, true
+			}
+		case *js_ast.EInlinedEnum:
+			if s, ok := t.Value.Data.(*js_ast.EString); ok && name == "length" {
+				return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: float64(len(s.Value))}}, true
+			}
+		}
+	}
+
 	return js_ast.Expr{}, false
 }
 

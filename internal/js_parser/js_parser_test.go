@@ -2913,6 +2913,19 @@ func TestMangleAddEmptyString(t *testing.T) {
 	expectPrintedMangle(t, "a = typeof b + ''", "a = typeof b;\n")
 }
 
+func TestMangleStringLength(t *testing.T) {
+	expectPrinted(t, "a = ''.length", "a = \"\".length;\n")
+
+	expectPrintedMangle(t, "a = ''.len", "a = \"\".len;\n")
+	expectPrintedMangle(t, "a = [].length", "a = [].length;\n")
+	expectPrintedMangle(t, "a = ''.length", "a = 0;\n")
+	expectPrintedMangle(t, "a = ``.length", "a = 0;\n")
+	expectPrintedMangle(t, "a = b``.length", "a = b``.length;\n")
+	expectPrintedMangle(t, "a = 'abc'.length", "a = 3;\n")
+	expectPrintedMangle(t, "a = 'ȧḃċ'.length", "a = 3;\n")
+	expectPrintedMangle(t, "a = '👯‍♂️'.length", "a = 5;\n")
+}
+
 func TestMangleNot(t *testing.T) {
 	// These can be mangled
 	expectPrintedMangle(t, "a = !(b == c)", "a = b != c;\n")

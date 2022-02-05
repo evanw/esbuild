@@ -37,6 +37,16 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedMangleTS(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
+		MinifySyntax: true,
+	})
+}
+
 func expectPrintedTargetTS(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, expected, config.Options{
@@ -1918,4 +1928,21 @@ class Foo {
 h();
 Foo[_b] = 1;
 `)
+}
+
+func TestMangleTSStringEnumLength(t *testing.T) {
+	expectPrintedTS(t, "enum x { y = '' } z = x.y.length",
+		"var x = /* @__PURE__ */ ((x) => {\n  x[\"y\"] = \"\";\n  return x;\n})(x || {});\nz = \"\" /* y */.length;\n")
+
+	expectPrintedMangleTS(t, "enum x { y = '' } z = x.y.length",
+		"var x = /* @__PURE__ */ ((x) => (x.y = \"\", x))(x || {});\nz = 0;\n")
+
+	expectPrintedMangleTS(t, "enum x { y = 'abc' } z = x.y.length",
+		"var x = /* @__PURE__ */ ((x) => (x.y = \"abc\", x))(x || {});\nz = 3;\n")
+
+	expectPrintedMangleTS(t, "enum x { y = 'ȧḃċ' } z = x.y.length",
+		"var x = /* @__PURE__ */ ((x) => (x.y = \"ȧḃċ\", x))(x || {});\nz = 3;\n")
+
+	expectPrintedMangleTS(t, "enum x { y = '👯‍♂️' } z = x.y.length",
+		"var x = /* @__PURE__ */ ((x) => (x.y = \"👯‍♂️\", x))(x || {});\nz = 5;\n")
 }
