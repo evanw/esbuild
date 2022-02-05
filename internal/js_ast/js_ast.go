@@ -2898,3 +2898,22 @@ func simplifyUnusedStringAdditionChain(expr Expr) (Expr, bool) {
 
 	return expr, false
 }
+
+func ToInt32(f float64) int32 {
+	// The easy way
+	i := int32(f)
+	if float64(i) == f {
+		return i
+	}
+
+	// The hard way
+	i = int32(uint32(math.Mod(math.Abs(f), 4294967296)))
+	if math.Signbit(f) {
+		return -i
+	}
+	return i
+}
+
+func ToUint32(f float64) uint32 {
+	return uint32(ToInt32(f))
+}

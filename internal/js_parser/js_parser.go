@@ -11138,25 +11138,6 @@ func (p *parser) simplifyBooleanExpr(expr js_ast.Expr) js_ast.Expr {
 	return expr
 }
 
-func toInt32(f float64) int32 {
-	// The easy way
-	i := int32(f)
-	if float64(i) == f {
-		return i
-	}
-
-	// The hard way
-	i = int32(uint32(math.Mod(math.Abs(f), 4294967296)))
-	if math.Signbit(f) {
-		return -i
-	}
-	return i
-}
-
-func toUint32(f float64) uint32 {
-	return uint32(toInt32(f))
-}
-
 type exprIn struct {
 	// This tells us if there are optional chain expressions (EDot, EIndex, or
 	// ECall) that are chained on to this expression. Because of the way the AST
@@ -12098,7 +12079,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		case js_ast.BinOpShl:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(toInt32(left) << (toUint32(right) & 31))}}, exprOut{}
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) << (js_ast.ToUint32(right) & 31))}}, exprOut{}
 				}
 			}
 
@@ -12106,7 +12087,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if p.shouldFoldNumericConstants || p.options.minifySyntax {
 				// Minification folds right signed shift operations since they are unlikely to result in larger output
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(toInt32(left) >> (toUint32(right) & 31))}}, exprOut{}
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) >> (js_ast.ToUint32(right) & 31))}}, exprOut{}
 				}
 			}
 
@@ -12114,7 +12095,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if p.shouldFoldNumericConstants {
 				// Note: ">>>" could result in bigger output such as "-1 >>> 0" becoming "4294967295"
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(toUint32(left) >> (toUint32(right) & 31))}}, exprOut{}
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToUint32(left) >> (js_ast.ToUint32(right) & 31))}}, exprOut{}
 				}
 			}
 
@@ -12122,7 +12103,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Minification folds bitwise operations since they are unlikely to result in larger output
 			if p.shouldFoldNumericConstants || p.options.minifySyntax {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(toInt32(left) & toInt32(right))}}, exprOut{}
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) & js_ast.ToInt32(right))}}, exprOut{}
 				}
 			}
 
@@ -12130,7 +12111,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Minification folds bitwise operations since they are unlikely to result in larger output
 			if p.shouldFoldNumericConstants || p.options.minifySyntax {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(toInt32(left) | toInt32(right))}}, exprOut{}
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) | js_ast.ToInt32(right))}}, exprOut{}
 				}
 			}
 
@@ -12138,7 +12119,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Minification folds bitwise operations since they are unlikely to result in larger output
 			if p.shouldFoldNumericConstants || p.options.minifySyntax {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(toInt32(left) ^ toInt32(right))}}, exprOut{}
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) ^ js_ast.ToInt32(right))}}, exprOut{}
 				}
 			}
 
@@ -12564,7 +12545,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.shouldFoldNumericConstants || p.options.minifySyntax {
 					// Minification folds complement operations since they are unlikely to result in larger output
 					if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
-						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(^toInt32(number))}}, exprOut{}
+						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(^js_ast.ToInt32(number))}}, exprOut{}
 					}
 				}
 

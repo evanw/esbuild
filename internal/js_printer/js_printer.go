@@ -1461,6 +1461,87 @@ func (p *printer) guardAgainstBehaviorChangeDueToSubstitution(expr js_ast.Expr, 
 	return expr
 }
 
+// Constant folding is already implemented once in the parser. A smaller form
+// of constant folding (just for numbers) is implemented here to clean up cross-
+// module numeric constants and bitwise operations. This is not an general-
+// purpose/optimal approach and never will be. For example, we can't affect
+// tree shaking at this stage because it has already happened.
+func (p *printer) lateConstantFoldUnaryOrBinaryExpr(expr js_ast.Expr) js_ast.Expr {
+	switch e := expr.Data.(type) {
+	case *js_ast.EImportIdentifier:
+		ref := js_ast.FollowSymbols(p.symbols, e.Ref)
+		if value := p.options.ConstValues[ref]; value.Kind != js_ast.ConstValueNone {
+			return js_ast.ConstValueToExpr(expr.Loc, value)
+		}
+
+	case *js_ast.EDot:
+		if id, ok := e.Target.Data.(*js_ast.EImportIdentifier); ok {
+			ref := js_ast.FollowSymbols(p.symbols, id.Ref)
+			if symbol := p.symbols.Get(ref); symbol.Kind == js_ast.SymbolTSEnum {
+				if enum, ok := p.options.TSEnums[ref]; ok {
+					if value, ok := enum[e.Name]; ok && value.String == nil {
+						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: value.Number}}
+					}
+				}
+			}
+		}
+
+	case *js_ast.EUnary:
+		value := p.lateConstantFoldUnaryOrBinaryExpr(e.Value)
+
+		// Only fold again if something chained
+		if value.Data != e.Value.Data {
+			// Only fold certain operations (just like the parser)
+			if v, ok := value.Data.(*js_ast.ENumber); ok {
+				switch e.Op {
+				case js_ast.UnOpPos:
+					return value
+
+				case js_ast.UnOpNeg:
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: -v.Value}}
+
+				case js_ast.UnOpCpl:
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(^js_ast.ToInt32(v.Value))}}
+				}
+			}
+
+			// Don't mutate the original AST
+			expr.Data = &js_ast.EUnary{Op: e.Op, Value: value}
+		}
+
+	case *js_ast.EBinary:
+		left := p.lateConstantFoldUnaryOrBinaryExpr(e.Left)
+		right := p.lateConstantFoldUnaryOrBinaryExpr(e.Right)
+
+		// Only fold again if something chained
+		if left.Data != e.Left.Data || right.Data != e.Right.Data {
+			// Only fold certain operations (just like the parser)
+			if l, ok := left.Data.(*js_ast.ENumber); ok {
+				if r, ok := right.Data.(*js_ast.ENumber); ok {
+					switch e.Op {
+					case js_ast.BinOpShr:
+						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l.Value) >> js_ast.ToInt32(r.Value))}}
+
+					case js_ast.BinOpBitwiseAnd:
+						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l.Value) & js_ast.ToInt32(r.Value))}}
+
+					case js_ast.BinOpBitwiseOr:
+						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l.Value) | js_ast.ToInt32(r.Value))}}
+
+					case js_ast.BinOpBitwiseXor:
+						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l.Value) ^ js_ast.ToInt32(r.Value))}}
+					}
+				}
+			}
+
+			// Don't mutate the original AST
+			expr.Data = &js_ast.EBinary{Op: e.Op, Left: left, Right: right}
+		}
+	}
+
+	return expr
+}
+
 type printExprFlags uint16
 
 const (
@@ -1473,9 +1554,27 @@ const (
 	isInsideForAwait
 	isDeleteTarget
 	isCallTargetOrTemplateTag
+	parentWasUnaryOrBinary
 )
 
 func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFlags) {
+	// If syntax compression is enabled, do a pre-pass over unary and binary
+	// operators to inline bitwise operations of cross-module inlined constants.
+	// This makes the output a little tighter if people construct bit masks in
+	// other files. This is not a general-purpose constant folding pass. In
+	// particular, it has no effect on tree shaking because that pass has already
+	// been run.
+	//
+	// This sets a flag to avoid doing this when the parent is a unary or binary
+	// operator so that we don't trigger O(n^2) behavior when traversing over a
+	// large expression tree.
+	if p.options.MinifySyntax && (flags&parentWasUnaryOrBinary) == 0 {
+		switch expr.Data.(type) {
+		case *js_ast.EUnary, *js_ast.EBinary:
+			expr = p.lateConstantFoldUnaryOrBinaryExpr(expr)
+		}
+	}
+
 	p.addSourceMapping(expr.Loc)
 
 	switch e := expr.Data.(type) {
@@ -2288,7 +2387,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 		if !e.Op.IsPrefix() {
-			p.printExpr(e.Value, js_ast.LPostfix-1, 0)
+			p.printExpr(e.Value, js_ast.LPostfix-1, parentWasUnaryOrBinary)
 		}
 
 		if entry.IsKeyword {
@@ -2303,7 +2402,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 		if e.Op.IsPrefix() {
-			var valueFlags printExprFlags
+			valueFlags := parentWasUnaryOrBinary
 			if e.Op == js_ast.UnOpDelete {
 				valueFlags |= isDeleteTarget
 			}
@@ -2396,9 +2495,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.printSymbol(private.Ref)
 		} else if e.Op == js_ast.BinOpComma {
 			// The result of the left operand of the comma operator is unused
-			p.printExpr(e.Left, leftLevel, (flags&forbidIn)|exprResultIsUnused)
+			p.printExpr(e.Left, leftLevel, (flags&forbidIn)|exprResultIsUnused|parentWasUnaryOrBinary)
 		} else {
-			p.printExpr(e.Left, leftLevel, flags&forbidIn)
+			p.printExpr(e.Left, leftLevel, (flags&forbidIn)|parentWasUnaryOrBinary)
 		}
 
 		if e.Op != js_ast.BinOpComma {
@@ -2419,9 +2518,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		if e.Op == js_ast.BinOpComma {
 			// The result of the right operand of the comma operator is unused if the caller doesn't use it
-			p.printExpr(e.Right, rightLevel, flags&(forbidIn|exprResultIsUnused))
+			p.printExpr(e.Right, rightLevel, (flags&(forbidIn|exprResultIsUnused))|parentWasUnaryOrBinary)
 		} else {
-			p.printExpr(e.Right, rightLevel, flags&forbidIn)
+			p.printExpr(e.Right, rightLevel, (flags&forbidIn)|parentWasUnaryOrBinary)
 		}
 
 		if wrap {
