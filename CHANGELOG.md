@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.19
 
 * Special-case `const` inlining at the top of a scope ([#1317](https://github.com/evanw/esbuild/issues/1317), [#1981](https://github.com/evanw/esbuild/issues/1981))
 
