@@ -20,16 +20,16 @@
     ```js
     // Original code
     const bold = 1 << 0;
-    const italic = 2 << 1;
-    const underline = 3 << 2;
+    const italic = 1 << 1;
+    const underline = 1 << 2;
     const font = bold | italic | underline;
     console.log(font);
 
     // Old output (with --minify --bundle)
-    (()=>{var o=1<<0,n=2<<1,c=3<<2,t=o|n|c;console.log(t);})();
+    (()=>{var o=1<<0,n=1<<1,c=1<<2,t=o|n|c;console.log(t);})();
 
     // New output (with --minify --bundle)
-    (()=>{console.log(13);})();
+    (()=>{console.log(7);})();
     ```
 
 ## 0.14.18
