@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+* Fix property mangling and keyword properties ([#1998](https://github.com/evanw/esbuild/issues/1998))
+
+    Previously enabling property mangling with `--mangle-props=` failed to add a space before property names after a keyword. This bug has been fixed:
+
+    ```js
+    // Original code
+    class Foo {
+      static foo = {
+        get bar() {}
+      }
+    }
+
+    // Old output (with --minify --mangle-props=.)
+    class Foo{statics={gett(){}}}
+
+    // New output (with --minify --mangle-props=.)
+    class Foo{static s={get t(){}}}
+    ```
+
 ## 0.14.19
 
 * Special-case `const` inlining at the top of a scope ([#1317](https://github.com/evanw/esbuild/issues/1317), [#1981](https://github.com/evanw/esbuild/issues/1981))

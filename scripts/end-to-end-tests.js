@@ -2906,6 +2906,18 @@
     }),
   )
 
+  // Test minification of mangled properties (class and object) with a keyword before them
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--minify', '--mangle-props=.'], {
+      'in.js': `
+        class Foo {
+          static bar = { get baz() { return 123 } }
+        }
+        if (Foo.bar.baz !== 123) throw 'fail'
+      `,
+    }),
+  )
+
   // Test minification of hoisted top-level symbols declared in nested scopes.
   // Previously this code was incorrectly transformed into this, which crashes:
   //

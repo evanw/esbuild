@@ -988,6 +988,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 	case *js_ast.EMangledProp:
 		p.addSourceMapping(item.Key.Loc)
 		if name := p.renamer.NameForSymbol(key.Ref); p.canPrintIdentifier(name) {
+			p.printSpaceBeforeIdentifier()
 			p.printIdentifier(name)
 
 			// Use a shorthand property if the names are the same

@@ -5419,6 +5419,27 @@ func TestManglePropsMinify(t *testing.T) {
 	})
 }
 
+func TestManglePropsKeywordPropertyMinify(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					static bar = { get baz() { return 123 } }
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:              config.ModePassThrough,
+			AbsOutputDir:      "/out",
+			MangleProps:       regexp.MustCompile("."),
+			MinifyIdentifiers: true,
+			MinifySyntax:      true,
+			MinifyWhitespace:  true,
+		},
+	})
+}
+
 func TestManglePropsOptionalChain(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -598,6 +598,11 @@ export default [
 ];
 
 ================================================================================
+TestManglePropsKeywordPropertyMinify
+---------- /out/entry.js ----------
+class Foo{static t={get s(){return 123}}}
+
+================================================================================
 TestManglePropsLoweredClassFields
 ---------- /out.js ----------
 class Foo {
