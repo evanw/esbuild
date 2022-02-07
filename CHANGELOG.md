@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.20
 
 * Fix property mangling and keyword properties ([#1998](https://github.com/evanw/esbuild/issues/1998))
 
