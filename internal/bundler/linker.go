@@ -2347,15 +2347,15 @@ loop:
 
 			// Report mismatched imports and exports
 			if symbol.ImportItemStatus == js_ast.ImportItemGenerated {
-				// This is a warning instead of an error because although it appears
-				// to be a named import, it's actually an automatically-generated
-				// named import that was originally a property access on an import
-				// star namespace object. Normally this property access would just
-				// resolve to undefined at run-time instead of failing at binding-
-				// time, so we emit a warning and rewrite the value to the literal
+				// This is a debug message instead of an error because although it
+				// appears to be a named import, it's actually an automatically-
+				// generated named import that was originally a property access on an
+				// import star namespace object. Normally this property access would
+				// just resolve to undefined at run-time instead of failing at binding-
+				// time, so we emit a debug message and rewrite the value to the literal
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
-				c.log.Add(logger.Warning, trackerFile.LineColumnTracker(), r, fmt.Sprintf(
+				c.log.Add(logger.Debug, trackerFile.LineColumnTracker(), r, fmt.Sprintf(
 					"Import %q will always be undefined because there is no matching export in %q",
 					namedImport.Alias, c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath))
 			} else {
