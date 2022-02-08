@@ -240,6 +240,7 @@ platform-all:
 		platform-linux-32 \
 		platform-linux-arm \
 		platform-linux-arm64 \
+		platform-linux-riscv64 \
 		platform-linux-mips64le \
 		platform-linux-ppc64le \
 		platform-linux-s390x \
@@ -299,6 +300,9 @@ platform-linux-arm:
 
 platform-linux-arm64:
 	@$(MAKE) --no-print-directory GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
+
+platform-linux-riscv64:
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=riscv64 NPMDIR=npm/esbuild-linux-riscv64 platform-unixlike
 
 platform-linux-mips64le:
 	@$(MAKE) --no-print-directory GOOS=linux GOARCH=mips64le NPMDIR=npm/esbuild-linux-mips64le platform-unixlike
@@ -374,8 +378,12 @@ publish-all: check-go-version
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-linux-arm64 \
+		publish-linux-riscv64 \
 		publish-linux-mips64le \
 		publish-linux-ppc64le \
+
+	@echo Enter one-time password:
+	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-linux-s390x
 
 	# Do these last to avoid race conditions
@@ -429,6 +437,9 @@ publish-linux-arm: platform-linux-arm
 publish-linux-arm64: platform-linux-arm64
 	test -n "$(OTP)" && cd npm/esbuild-linux-arm64 && npm publish --otp="$(OTP)"
 
+publish-linux-riscv64: platform-linux-riscv64
+	test -n "$(OTP)" && cd npm/esbuild-linux-riscv64 && npm publish --otp="$(OTP)"
+
 publish-linux-mips64le: platform-linux-mips64le
 	test -n "$(OTP)" && cd npm/esbuild-linux-mips64le && npm publish --otp="$(OTP)"
 
@@ -471,6 +482,7 @@ clean:
 	rm -rf npm/esbuild-linux-64/bin
 	rm -rf npm/esbuild-linux-arm/bin
 	rm -rf npm/esbuild-linux-arm64/bin
+	rm -rf npm/esbuild-linux-riscv64/bin
 	rm -rf npm/esbuild-linux-mips64le/bin
 	rm -rf npm/esbuild-linux-ppc64le/bin
 	rm -rf npm/esbuild-linux-s390x/bin
