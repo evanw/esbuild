@@ -324,6 +324,17 @@
       'node_modules/pkg/package.json': `{ "browser": { "./pkg2": "./file" } }`,
       'node_modules/pkg/file.js': `var works = true`,
     }),
+    test(['entry.js', '--bundle', '--outfile=node.js'], {
+      'entry.js': `
+          import { v } from "pkg/sub"
+          if (v !== 123) throw 'fail'
+        `,
+      'node_modules/pkg/package.json': `{ "browser": { "./sub": "./sub/index.js" } }`,
+      'node_modules/pkg/sub/index.js': `
+          export { version as v } from "sub";
+        `,
+      'node_modules/sub/index.js': `exports.version = 123`,
+    }),
   )
 
   // Test arbitrary module namespace identifier names
