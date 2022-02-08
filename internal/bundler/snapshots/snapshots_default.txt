@@ -2568,6 +2568,15 @@ var version = 123;
 console.log(version);
 
 ================================================================================
+TestSubImportModulePkgBrowser
+---------- /out.js ----------
+// node_modules/sub2/index.js
+var version = 123;
+
+// entry.js
+console.log(version);
+
+================================================================================
 TestRequireJson
 ---------- /out.js ----------
 // test.json

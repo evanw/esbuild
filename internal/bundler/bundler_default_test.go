@@ -1410,6 +1410,27 @@ func TestSubImportModuleWithPkgBrowser(t *testing.T) {
 	})
 }
 
+func TestSubImportModulePkgBrowser(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+			import { v } from "pkg/sub";
+			console.log(v);
+		`,
+			"/node_modules/pkg/package.json": `{ "browser": { "./sub": "./sub/index.js" } }`,
+			"/node_modules/pkg/sub/index.js": `
+				export { version as v } from "sub2";
+			`,
+			"/node_modules/sub2/index.js": `export const version = 123`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestImportFSNodeCommonJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
