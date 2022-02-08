@@ -179,7 +179,7 @@ func (r resolverQuery) checkBrowserMap(resolveDirInfo *dirInfo, inputPath string
 		// If a package path didn't work, try the import path as a relative path
 		switch kind {
 		case absolutePathKind:
-			checkPath("./" + inputPath)
+			checkPath(inputPath)
 
 		case packagePathKind:
 			// Browserify allows a browser map entry of "./pkg" to override a package
