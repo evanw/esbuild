@@ -1034,6 +1034,15 @@ var file_default2 = "This is some text";
 console.log(file_default, file_default2);
 
 ================================================================================
+TestSubImportModule
+---------- /out.js ----------
+// node_modules/sub/index.js
+var version = 123;
+
+// entry.js
+console.log(version);
+
+================================================================================
 TestImportFSNodeCommonJS
 ---------- /out.js ----------
 // entry.js
@@ -2557,6 +2566,15 @@ return require("fs");
 TestRequireFSNodeMinify
 ---------- /out.js ----------
 return require("fs");
+
+================================================================================
+TestSubImportModuleWithPkgBrowser
+---------- /out.js ----------
+// node_modules/sub/index.js
+var version = 123;
+
+// entry.js
+console.log(version);
 
 ================================================================================
 TestRequireJson

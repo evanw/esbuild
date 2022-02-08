@@ -1389,6 +1389,27 @@ NOTE: The package "fs" wasn't found on the file system but is built into node. A
 	})
 }
 
+func TestSubImportModuleWithPkgBrowser(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+			import { v } from "pkg/sub";
+			console.log(v);
+		`,
+			"/node_modules/pkg/package.json": `{ "browser": { "./sub": "./sub/index.js" } }`,
+			"/node_modules/pkg/sub/index.js": `
+				export { version as v } from "sub";
+			`,
+			"/node_modules/sub/index.js": `export const version = 123`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestImportFSNodeCommonJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

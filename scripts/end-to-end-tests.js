@@ -327,13 +327,13 @@
     test(['entry.js', '--bundle', '--outfile=node.js'], {
       'entry.js': `
           import { v } from "pkg/sub"
-          if (v !== 123) throw 'fail'
+          console.log(v)
         `,
       'node_modules/pkg/package.json': `{ "browser": { "./sub": "./sub/index.js" } }`,
       'node_modules/pkg/sub/index.js': `
           export { version as v } from "sub";
         `,
-      'node_modules/sub/index.js': `exports.version = 123`,
+      'node_modules/sub/index.js': `export const version = 123`,
     }),
   )
 
