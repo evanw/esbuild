@@ -32,6 +32,46 @@ console.log(browser2);
 console.log(browser2);
 
 ================================================================================
+TestPackageJsonBrowserIssue2002A
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/node_modules/sub/bar.js
+var require_bar = __commonJS({
+  "Users/user/project/src/node_modules/sub/bar.js"() {
+    works();
+  }
+});
+
+// Users/user/project/src/node_modules/pkg/sub/foo.js
+var require_foo = __commonJS({
+  "Users/user/project/src/node_modules/pkg/sub/foo.js"() {
+    require_bar();
+  }
+});
+
+// Users/user/project/src/entry.js
+require_foo();
+
+================================================================================
+TestPackageJsonBrowserIssue2002B
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/node_modules/pkg/sub/bar.js
+var require_bar = __commonJS({
+  "Users/user/project/src/node_modules/pkg/sub/bar.js"() {
+    works();
+  }
+});
+
+// Users/user/project/src/node_modules/pkg/sub/foo.js
+var require_foo = __commonJS({
+  "Users/user/project/src/node_modules/pkg/sub/foo.js"() {
+    require_bar();
+  }
+});
+
+// Users/user/project/src/entry.js
+require_foo();
+
+================================================================================
 TestPackageJsonBrowserMapAvoidMissing
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/component-indexof/index.js

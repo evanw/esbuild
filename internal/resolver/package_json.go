@@ -197,7 +197,16 @@ func (r resolverQuery) checkBrowserMap(resolveDirInfo *dirInfo, inputPath string
 				}
 			}
 			if isInSamePackage {
-				checkPath("./" + inputPath)
+				relativePathPrefix := "./"
+
+				// Use the relative path from the file containing the import path to the
+				// enclosing package.json file. This includes any subdirectories within the
+				// package if there are any.
+				if relPath, ok := r.fs.Rel(resolveDirInfo.enclosingBrowserScope.absPath, resolveDirInfo.absPath); ok && relPath != "." {
+					relativePathPrefix += strings.ReplaceAll(relPath, "\\", "/") + "/"
+				}
+
+				checkPath(relativePathPrefix + inputPath)
 			}
 		}
 	}

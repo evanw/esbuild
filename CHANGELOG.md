@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+* Handle an additional `browser` map edge case ([#2001](https://github.com/evanw/esbuild/pull/2001), [#2002](https://github.com/evanw/esbuild/issues/2002))
+
+    There is a community convention around the `browser` field in `package.json` that allows remapping import paths within a package when the package is bundled for use within a browser. There isn't a rigorous definition of how it's supposed to work and every bundler implements it differently. The approach esbuild uses is to try to be "maximally compatible" in that if at least one bundler exhibits a particular behavior regarding the `browser` map that allows a mapping to work, then esbuild also attempts to make that work.
+
+    I have a collection of test cases for this going here: https://github.com/evanw/package-json-browser-tests. However, I was missing test coverage for the edge case where a package path import in a subdirectory of the package could potentially match a remapping. The "maximally compatible" approach means replicating bugs in Browserify's implementation of the feature where package paths are mistaken for relative paths and are still remapped. Here's a specific example of an edge case that's now handled:
+
+    ```js
+    // entry.js
+    require('pkg/sub')
+    ```
+
+    ```json
+    // node_modules/pkg/package.json:
+    {
+      "browser": {
+        "./sub": "./sub/foo.js",
+        "./sub/sub": "./sub/bar.js"
+      }
+    }
+    ```
+
+    ```js
+    // node_modules/pkg/sub/foo.js:
+    require('sub')
+    ```
+
+    ```js
+    // node_modules/pkg/sub/bar.js:
+    console.log('works')
+    ```
+
+    The import path `sub` in `require('sub')` is mistaken for a relative path by Browserify due to a bug in Browserify, so Browserify treats it as if it were `./sub` instead. This is a Browserify-specific behavior and currently doesn't happen in any other bundler (except for esbuild, which attempts to replicate Browserify's bug).
+
+    Previously esbuild was incorrectly resolving `./sub` relative to the top-level package directory instead of to the subdirectory in this case, which meant `./sub` was incorrectly matching `"./sub": "./sub/foo.js"` instead of `"./sub/sub": "./sub/bar.js"`. This has been fixed so esbuild can now emulate Browserify's bug correctly in this edge case.
+
 * Support for esbuild with Linux on RISC-V 64bit ([#1624](https://github.com/evanw/esbuild/pull/1624))
 
     With this release, esbuild now has a published binary executable for the RISC-V 64bit architecture in the [`platform-linux-riscv64`](https://www.npmjs.com/package/platform-linux-riscv64) npm package. This change was contributed by [@piggynl](https://github.com/piggynl).
