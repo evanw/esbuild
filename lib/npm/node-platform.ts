@@ -22,6 +22,7 @@ export const knownUnixlikePackages: Record<string, string> = {
   'linux arm LE': 'esbuild-linux-arm',
   'linux arm64 LE': 'esbuild-linux-arm64',
   'linux ia32 LE': 'esbuild-linux-32',
+  'linux riscv64 LE': 'esbuild-linux-riscv64',
   'linux mips64el LE': 'esbuild-linux-mips64le',
   'linux ppc64 LE': 'esbuild-linux-ppc64le',
   'linux s390x BE': 'esbuild-linux-s390x',
