@@ -226,28 +226,28 @@ wasm-napi-exit0-windows:
 
 platform-all:
 	@$(MAKE) --no-print-directory -j4 \
-		platform-windows \
-		platform-windows-32 \
-		platform-windows-arm64 \
 		platform-android-arm64 \
 		platform-darwin \
 		platform-darwin-arm64 \
+		platform-deno \
 		platform-freebsd \
 		platform-freebsd-arm64 \
-		platform-netbsd \
-		platform-openbsd \
 		platform-linux \
 		platform-linux-32 \
 		platform-linux-arm \
 		platform-linux-arm64 \
-		platform-linux-riscv64 \
 		platform-linux-mips64le \
 		platform-linux-ppc64le \
+		platform-linux-riscv64 \
 		platform-linux-s390x \
+		platform-netbsd \
+		platform-neutral \
+		platform-openbsd \
 		platform-sunos \
 		platform-wasm \
-		platform-neutral \
-		platform-deno
+		platform-windows \
+		platform-windows-32 \
+		platform-windows-arm64
 
 platform-windows: cmd/esbuild/version.go
 	node scripts/esbuild.js npm/esbuild-windows-64/package.json --version
@@ -301,14 +301,14 @@ platform-linux-arm:
 platform-linux-arm64:
 	@$(MAKE) --no-print-directory GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
 
-platform-linux-riscv64:
-	@$(MAKE) --no-print-directory GOOS=linux GOARCH=riscv64 NPMDIR=npm/esbuild-linux-riscv64 platform-unixlike
-
 platform-linux-mips64le:
 	@$(MAKE) --no-print-directory GOOS=linux GOARCH=mips64le NPMDIR=npm/esbuild-linux-mips64le platform-unixlike
 
 platform-linux-ppc64le:
 	@$(MAKE) --no-print-directory GOOS=linux GOARCH=ppc64le NPMDIR=npm/esbuild-linux-ppc64le platform-unixlike
+
+platform-linux-riscv64:
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=riscv64 NPMDIR=npm/esbuild-linux-riscv64 platform-unixlike
 
 platform-linux-s390x:
 	@$(MAKE) --no-print-directory GOOS=linux GOARCH=s390x NPMDIR=npm/esbuild-linux-s390x platform-unixlike
@@ -364,26 +364,23 @@ publish-all: check-go-version
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
-		publish-sunos \
+		publish-android-arm64 \
 		publish-darwin \
-		publish-darwin-arm64
+		publish-darwin-arm64 \
+		publish-sunos
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
-		publish-android-arm64 \
 		publish-linux \
 		publish-linux-32 \
-		publish-linux-arm
+		publish-linux-arm \
+		publish-linux-riscv64
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-linux-arm64 \
-		publish-linux-riscv64 \
 		publish-linux-mips64le \
 		publish-linux-ppc64le \
-
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-linux-s390x
 
 	# Do these last to avoid race conditions
@@ -437,14 +434,14 @@ publish-linux-arm: platform-linux-arm
 publish-linux-arm64: platform-linux-arm64
 	test -n "$(OTP)" && cd npm/esbuild-linux-arm64 && npm publish --otp="$(OTP)"
 
-publish-linux-riscv64: platform-linux-riscv64
-	test -n "$(OTP)" && cd npm/esbuild-linux-riscv64 && npm publish --otp="$(OTP)"
-
 publish-linux-mips64le: platform-linux-mips64le
 	test -n "$(OTP)" && cd npm/esbuild-linux-mips64le && npm publish --otp="$(OTP)"
 
 publish-linux-ppc64le: platform-linux-ppc64le
 	test -n "$(OTP)" && cd npm/esbuild-linux-ppc64le && npm publish --otp="$(OTP)"
+
+publish-linux-riscv64: platform-linux-riscv64
+	test -n "$(OTP)" && cd npm/esbuild-linux-riscv64 && npm publish --otp="$(OTP)"
 
 publish-linux-s390x: platform-linux-s390x
 	test -n "$(OTP)" && cd npm/esbuild-linux-s390x && npm publish --otp="$(OTP)"
@@ -476,16 +473,16 @@ clean:
 	rm -rf npm/esbuild-darwin-arm64/bin
 	rm -rf npm/esbuild-freebsd-64/bin
 	rm -rf npm/esbuild-freebsd-amd64/bin
-	rm -rf npm/esbuild-netbsd-64/bin
-	rm -rf npm/esbuild-openbsd-64/bin
 	rm -rf npm/esbuild-linux-32/bin
 	rm -rf npm/esbuild-linux-64/bin
 	rm -rf npm/esbuild-linux-arm/bin
 	rm -rf npm/esbuild-linux-arm64/bin
-	rm -rf npm/esbuild-linux-riscv64/bin
 	rm -rf npm/esbuild-linux-mips64le/bin
 	rm -rf npm/esbuild-linux-ppc64le/bin
+	rm -rf npm/esbuild-linux-riscv64/bin
 	rm -rf npm/esbuild-linux-s390x/bin
+	rm -rf npm/esbuild-netbsd-64/bin
+	rm -rf npm/esbuild-openbsd-64/bin
 	rm -rf npm/esbuild-sunos-64/bin
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
 	rm -rf npm/esbuild/lib
