@@ -43,7 +43,7 @@
 
 * Support for esbuild with Linux on RISC-V 64bit ([#1624](https://github.com/evanw/esbuild/pull/1624))
 
-    With this release, esbuild now has a published binary executable for the RISC-V 64bit architecture in the [`platform-linux-riscv64`](https://www.npmjs.com/package/platform-linux-riscv64) npm package. This change was contributed by [@piggynl](https://github.com/piggynl).
+    With this release, esbuild now has a published binary executable for the RISC-V 64bit architecture in the [`esbuild-linux-riscv64`](https://www.npmjs.com/package/esbuild-linux-riscv64) npm package. This change was contributed by [@piggynl](https://github.com/piggynl).
 
 ## 0.14.20
 
