@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.21
 
 * Handle an additional `browser` map edge case ([#2001](https://github.com/evanw/esbuild/pull/2001), [#2002](https://github.com/evanw/esbuild/issues/2002))
 
