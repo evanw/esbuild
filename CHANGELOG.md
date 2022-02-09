@@ -8,30 +8,34 @@
 
     I have a collection of test cases for this going here: https://github.com/evanw/package-json-browser-tests. However, I was missing test coverage for the edge case where a package path import in a subdirectory of the package could potentially match a remapping. The "maximally compatible" approach means replicating bugs in Browserify's implementation of the feature where package paths are mistaken for relative paths and are still remapped. Here's a specific example of an edge case that's now handled:
 
-    ```js
-    // entry.js
-    require('pkg/sub')
-    ```
+    * `entry.js`:
 
-    ```json
-    // node_modules/pkg/package.json:
-    {
-      "browser": {
-        "./sub": "./sub/foo.js",
-        "./sub/sub": "./sub/bar.js"
-      }
-    }
-    ```
+        ```js
+        require('pkg/sub')
+        ```
 
-    ```js
-    // node_modules/pkg/sub/foo.js:
-    require('sub')
-    ```
+    * `node_modules/pkg/package.json`:
 
-    ```js
-    // node_modules/pkg/sub/bar.js:
-    console.log('works')
-    ```
+        ```json
+        {
+          "browser": {
+            "./sub": "./sub/foo.js",
+            "./sub/sub": "./sub/bar.js"
+          }
+        }
+        ```
+
+    * `node_modules/pkg/sub/foo.js`:
+
+        ```js
+        require('sub')
+        ```
+
+    * `node_modules/pkg/sub/bar.js`:
+
+        ```js
+        console.log('works')
+        ```
 
     The import path `sub` in `require('sub')` is mistaken for a relative path by Browserify due to a bug in Browserify, so Browserify treats it as if it were `./sub` instead. This is a Browserify-specific behavior and currently doesn't happen in any other bundler (except for esbuild, which attempts to replicate Browserify's bug).
 
