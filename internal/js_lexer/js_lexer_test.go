@@ -85,7 +85,7 @@ func expectHashbang(t *testing.T, contents string, expected string) {
 		msgs := log.Done()
 		test.AssertEqual(t, len(msgs), 0)
 		test.AssertEqual(t, lexer.Token, THashbang)
-		test.AssertEqual(t, lexer.Identifier, expected)
+		test.AssertEqual(t, lexer.Identifier.String, expected)
 	})
 }
 
@@ -113,7 +113,7 @@ func expectIdentifier(t *testing.T, contents string, expected string) {
 		msgs := log.Done()
 		test.AssertEqual(t, len(msgs), 0)
 		test.AssertEqual(t, lexer.Token, TIdentifier)
-		test.AssertEqual(t, lexer.Identifier, expected)
+		test.AssertEqual(t, lexer.Identifier.String, expected)
 	})
 }
 
@@ -359,7 +359,7 @@ func expectBigInteger(t *testing.T, contents string, expected string) {
 		msgs := log.Done()
 		test.AssertEqual(t, len(msgs), 0)
 		test.AssertEqual(t, lexer.Token, TBigIntegerLiteral)
-		test.AssertEqual(t, lexer.Identifier, expected)
+		test.AssertEqual(t, lexer.Identifier.String, expected)
 	})
 }
 

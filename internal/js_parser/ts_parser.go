@@ -278,7 +278,7 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 			p.skipTypeScriptParenOrFnType()
 
 		case js_lexer.TIdentifier:
-			kind := tsTypeIdentifierMap[p.lexer.Identifier]
+			kind := tsTypeIdentifierMap[p.lexer.Identifier.String]
 
 			if kind == tsTypeIdentifierPrefix {
 				p.lexer.Next()
@@ -823,7 +823,7 @@ func (p *parser) canFollowTypeArgumentsInExpression() bool {
 }
 
 func (p *parser) skipTypeScriptInterfaceStmt(opts parseStmtOpts) {
-	name := p.lexer.Identifier
+	name := p.lexer.Identifier.String
 	p.lexer.Expect(js_lexer.TIdentifier)
 
 	if opts.isModuleScope {
@@ -870,7 +870,7 @@ func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 		return
 	}
 
-	name := p.lexer.Identifier
+	name := p.lexer.Identifier.String
 	p.lexer.Expect(js_lexer.TIdentifier)
 
 	if opts.isModuleScope {
@@ -906,7 +906,7 @@ func (p *parser) parseTypeScriptDecorators() []js_ast.Expr {
 func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
 	p.lexer.Expect(js_lexer.TEnum)
 	nameLoc := p.lexer.Loc()
-	nameText := p.lexer.Identifier
+	nameText := p.lexer.Identifier.String
 	p.lexer.Expect(js_lexer.TIdentifier)
 	name := js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
 
@@ -952,7 +952,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 			value.Name = p.lexer.StringLiteral()
 			nameText = helpers.UTF16ToString(value.Name)
 		} else if p.lexer.IsIdentifierOrKeyword() {
-			nameText = p.lexer.Identifier
+			nameText = p.lexer.Identifier.String
 			value.Name = helpers.StringToUTF16(nameText)
 		} else {
 			p.lexer.Expect(js_lexer.TIdentifier)
@@ -992,7 +992,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 					if p.lexer.Token == js_lexer.TStringLiteral {
 						nextName = helpers.UTF16ToString(p.lexer.StringLiteral())
 					} else {
-						nextName = p.lexer.Identifier
+						nextName = p.lexer.Identifier.String
 					}
 					errorLoc = p.lexer.Loc()
 					errorText = fmt.Sprintf("Expected \",\" before %q in enum", nextName)
@@ -1081,7 +1081,7 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 	value := js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
 	p.lexer.Expect(js_lexer.TIdentifier)
 
-	if name == "require" && p.lexer.Token == js_lexer.TOpenParen {
+	if name.String == "require" && p.lexer.Token == js_lexer.TOpenParen {
 		// "import ns = require('x')"
 		p.lexer.Next()
 		path := js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral()}}
@@ -1098,7 +1098,7 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 			p.lexer.Next()
 			value.Data = &js_ast.EDot{
 				Target:  value,
-				Name:    p.lexer.Identifier,
+				Name:    p.lexer.Identifier.String,
 				NameLoc: p.lexer.Loc(),
 			}
 			p.lexer.Expect(js_lexer.TIdentifier)
@@ -1158,7 +1158,7 @@ func (p *parser) getOrCreateExportedNamespaceMembers(name string, isExport bool)
 func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
 	// "namespace Foo {}"
 	nameLoc := p.lexer.Loc()
-	nameText := p.lexer.Identifier
+	nameText := p.lexer.Identifier.String
 	p.lexer.Next()
 
 	// Generate the namespace object
