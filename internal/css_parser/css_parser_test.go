@@ -1635,6 +1635,11 @@ func TestMangleDuplicateSelectorRules(t *testing.T) {
 	expectPrintedMangle(t, "a { color: red } a[b=c] { color: red }", "a,\na[b=c] {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a { color: red } a#id { color: red }", "a,\na#id {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a { color: red } a.cls { color: red }", "a,\na.cls {\n  color: red;\n}\n")
+
+	// Skip over comments
+	expectPrintedMangle(t, "c { color: green } a { color: red } /*!x*/ /*!y*/ b { color: blue }", "c {\n  color: green;\n}\na {\n  color: red;\n}\n/*!x*/\n/*!y*/\nb {\n  color: #00f;\n}\n")
+	expectPrintedMangle(t, "c { color: green } a { color: red } /*!x*/ /*!y*/ b { color: red }", "c {\n  color: green;\n}\na,\nb {\n  color: red;\n}\n/*!x*/\n/*!y*/\n")
+	expectPrintedMangle(t, "c { color: green } a { color: red } /*!x*/ /*!y*/ a { color: red }", "c {\n  color: green;\n}\na {\n  color: red;\n}\n/*!x*/\n/*!y*/\n")
 }
 
 func TestFontWeight(t *testing.T) {

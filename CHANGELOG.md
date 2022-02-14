@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+* Ignore legal comments when merging adjacent duplicate CSS rules ([#2016](https://github.com/evanw/esbuild/issues/2016))
+
+    This release now generates more compact minified CSS when there are legal comments in between two adjacent rules with identical content:
+
+    ```css
+    /* Original code */
+    a { color: red }
+    /* @preserve */
+    b { color: red }
+
+    /* Old output (with --minify) */
+    a{color:red}/* @preserve */b{color:red}
+
+    /* New output (with --minify) */
+    a,b{color:red}/* @preserve */
+    ```
+
 ## 0.14.21
 
 * Handle an additional `browser` map edge case ([#2001](https://github.com/evanw/esbuild/pull/2001), [#2002](https://github.com/evanw/esbuild/issues/2002))

@@ -331,11 +331,20 @@ skipRule:
 	for i := n - 1; i >= 0; i-- {
 		rule := rules[i]
 
+		// Skip over preserved comments
+		next := i - 1
+		for next >= 0 {
+			if _, ok := rules[next].Data.(*css_ast.RComment); !ok {
+				break
+			}
+			next--
+		}
+
 		// Merge adjacent selectors with the same content
 		// "a { color: red; } b { color: red; }" => "a, b { color: red; }"
-		if i > 0 {
+		if next >= 0 {
 			if r, ok := rule.Data.(*css_ast.RSelector); ok {
-				if prev, ok := rules[i-1].Data.(*css_ast.RSelector); ok && css_ast.RulesEqual(r.Rules, prev.Rules) &&
+				if prev, ok := rules[next].Data.(*css_ast.RSelector); ok && css_ast.RulesEqual(r.Rules, prev.Rules) &&
 					isSafeSelectors(r.Selectors) && isSafeSelectors(prev.Selectors) {
 				nextSelector:
 					for _, sel := range r.Selectors {
