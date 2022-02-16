@@ -49,6 +49,13 @@ async function runAllTests({ esbuild }) {
   }
 
   const tests = {
+    async defaultExport({ esbuild }) {
+      assertStrictEqual(typeof esbuild.version, 'string')
+      assertStrictEqual(esbuild.version, esbuild.default.version)
+      assertStrictEqual(esbuild.version, esbuild.default.default.version)
+      assertStrictEqual(esbuild.version, esbuild.default.default.default.version)
+    },
+
     async transformJS() {
       const { code } = await esbuild.transform('1+2')
       assertStrictEqual(code, '1 + 2;\n')

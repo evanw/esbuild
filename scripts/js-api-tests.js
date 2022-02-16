@@ -4504,6 +4504,13 @@ let functionScopeCases = [
 }
 
 let syncTests = {
+  async defaultExport({ esbuild }) {
+    assert.strictEqual(typeof esbuild.version, 'string')
+    assert.strictEqual(esbuild.version, esbuild.default.version)
+    assert.strictEqual(esbuild.version, esbuild.default.default.version)
+    assert.strictEqual(esbuild.version, esbuild.default.default.default.version)
+  },
+
   async buildSync({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')

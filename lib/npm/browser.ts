@@ -162,3 +162,8 @@ const startRunningService = async (wasmURL: string, useWorker: boolean): Promise
         })),
   }
 }
+
+// Export this module's exports as an export named "default" to try to work
+// around problems due to the "default" import mess. See the comment in
+// "node.ts" for more detail.
+export default ourselves
