@@ -280,6 +280,14 @@ func TestVerbatimWhitespace(t *testing.T) {
 	expectPrintedMinify(t, "* { --x: {y}; }", "*{--x: {y}}")
 	expectPrintedMinify(t, "* { --x:{y }; }", "*{--x:{y }}")
 	expectPrintedMinify(t, "* { --x:{ y}; }", "*{--x:{ y}}")
+
+	expectPrintedMinify(t, "@supports ( --x : y , z ) { a { color: red; } }", "@supports ( --x : y , z ){a{color:red}}")
+	expectPrintedMinify(t, "@supports ( --x : ) { a { color: red; } }", "@supports ( --x : ){a{color:red}}")
+	expectPrintedMinify(t, "@supports (--x: ) { a { color: red; } }", "@supports (--x: ){a{color:red}}")
+	expectPrintedMinify(t, "@supports ( --x y , z ) { a { color: red; } }", "@supports (--x y,z){a{color:red}}")
+	expectPrintedMinify(t, "@supports ( --x ) { a { color: red; } }", "@supports (--x){a{color:red}}")
+	expectPrintedMinify(t, "@supports ( ) { a { color: red; } }", "@supports (){a{color:red}}")
+	expectPrintedMinify(t, "@supports ( . --x : y , z ) { a { color: red; } }", "@supports (. --x : y,z){a{color:red}}")
 }
 
 func TestAtRule(t *testing.T) {

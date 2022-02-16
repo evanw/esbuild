@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* Preserve whitespace for token lists that look like CSS variable declarations ([#2020](https://github.com/evanw/esbuild/issues/2020))
+
+    Previously esbuild removed the whitespace after the CSS variable declaration in the following CSS:
+
+    ```css
+    /* Original input */
+    @supports (--foo: ){html{background:green}}
+
+    /* Previous output */
+    @supports (--foo:){html{background:green}}
+    ```
+
+    However, that broke rendering in Chrome as it caused Chrome to ignore the entire rule. This did not break rendering in Firefox and Safari, so there's a browser by either with Chrome or with both Firefox and Safari. In any case, esbuild now preserves whitespace after the CSS variable declaration in this case.
+
 * Ignore legal comments when merging adjacent duplicate CSS rules ([#2016](https://github.com/evanw/esbuild/issues/2016))
 
     This release now generates more compact minified CSS when there are legal comments in between two adjacent rules with identical content:
