@@ -14406,7 +14406,7 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
 
 		case *js_ast.SLocal:
 			for _, decl := range s.Decls {
-				if !p.bindingCanBeRemovedIfUnused(decl.Binding) {
+				if _, ok := decl.Binding.Data.(*js_ast.BIdentifier); !ok {
 					return false
 				}
 				if decl.ValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(decl.ValueOrNil) {
@@ -14479,35 +14479,6 @@ func (p *parser) classCanBeRemovedIfUnused(class js_ast.Class) bool {
 		}
 		if property.InitializerOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.InitializerOrNil) {
 			return false
-		}
-	}
-
-	return true
-}
-
-func (p *parser) bindingCanBeRemovedIfUnused(binding js_ast.Binding) bool {
-	switch b := binding.Data.(type) {
-	case *js_ast.BArray:
-		for _, item := range b.Items {
-			if !p.bindingCanBeRemovedIfUnused(item.Binding) {
-				return false
-			}
-			if item.DefaultValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(item.DefaultValueOrNil) {
-				return false
-			}
-		}
-
-	case *js_ast.BObject:
-		for _, property := range b.Properties {
-			if !property.IsSpread && !p.exprCanBeRemovedIfUnused(property.Key) {
-				return false
-			}
-			if !p.bindingCanBeRemovedIfUnused(property.Value) {
-				return false
-			}
-			if property.DefaultValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.DefaultValueOrNil) {
-				return false
-			}
 		}
 	}
 

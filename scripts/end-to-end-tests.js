@@ -3055,6 +3055,34 @@
       'foo/dir/x.js': `global.dce6 = 123`,
       'foo/package.json': `{ "main": "dir/x", "sideEffects": ["**/x.*"] }`,
     }),
+
+    // Test side effect detection for destructuring
+    test(['--bundle', 'entry.js', '--outfile=out.js'], {
+      'entry.js': `
+        let [a] = {}; // This must not be tree-shaken
+      `,
+      'node.js': `
+        pass: {
+          try {
+            require('./out.js')
+          } catch (e) {
+            break pass
+          }
+          throw 'fail'
+        }
+      `,
+    }),
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `
+        let sideEffect = false
+        let { a } = { // This must not be tree-shaken
+          get a() {
+            sideEffect = true
+          },
+        };
+        if (!sideEffect) throw 'fail'
+      `,
+    }),
   )
 
   // Test obscure CommonJS symbol edge cases

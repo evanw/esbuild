@@ -53,6 +53,17 @@
 
     More detail: When Go panics, it prints a stack trace to stderr (i.e. file descriptor 2). Go's WebAssembly shim calls out to node's `fs.writeSync()` function to do this, and it converts calls to `fs.writeSync()` into calls to `console.log()` in the browser by providing a shim for `fs`. However, Go's shim code stores the shim on `window.fs` in the browser. This is undesirable because it pollutes the global scope and leads to brittle code that can break if other code also uses `window.fs`. To avoid this, esbuild shadows the global object by wrapping Go's shim. But that broke bare references to `fs` since the shim is no longer stored on `window.fs`. This release now stores the shim in a local variable named `fs` so that bare references to `fs` work correctly.
 
+* Undo incorrect dead-code elimination with destructuring ([#1183](https://github.com/evanw/esbuild/issues/1183))
+
+    Previously esbuild eliminated these statements as dead code if tree-shaking was enabled:
+
+    ```js
+    let [a] = {}
+    let { b } = null
+    ```
+
+    This is incorrect because both of these lines will throw an error when evaluated. With this release, esbuild now preserves these statements even when tree shaking is enabled.
+
 * Update to Go 1.17.7
 
     The version of the Go compiler used to compile esbuild has been upgraded from Go 1.17.6 to Go 1.17.7, which contains a few [compiler and security bug fixes](https://github.com/golang/go/issues?q=milestone%3AGo1.17.7+label%3ACherryPickApproved).
