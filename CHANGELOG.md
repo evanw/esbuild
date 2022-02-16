@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.22
 
 * Preserve whitespace for token lists that look like CSS variable declarations ([#2020](https://github.com/evanw/esbuild/issues/2020))
 
