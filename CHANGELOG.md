@@ -33,6 +33,10 @@
     a,b{color:red}/* @preserve */
     ```
 
+* Update to Go 1.17.7
+
+    The version of the Go compiler used to compile esbuild has been upgraded from Go 1.17.6 to Go 1.17.7, which contains a few [compiler and security bug fixes](https://github.com/golang/go/issues?q=milestone%3AGo1.17.7+label%3ACherryPickApproved).
+
 ## 0.14.21
 
 * Handle an additional `browser` map edge case ([#2001](https://github.com/evanw/esbuild/pull/2001), [#2002](https://github.com/evanw/esbuild/issues/2002))
