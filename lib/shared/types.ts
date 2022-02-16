@@ -53,7 +53,7 @@ interface CommonOptions {
   jsxFragment?: string;
 
   /** Documentation: https://esbuild.github.io/api/#define */
-  define?: { [key: string]: string };
+  define?: Record<string, any>;
   /** Documentation: https://esbuild.github.io/api/#pure */
   pure?: string[];
   /** Documentation: https://esbuild.github.io/api/#keep-names */
