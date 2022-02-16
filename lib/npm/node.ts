@@ -250,13 +250,19 @@ let ensureServiceIsRunning = (): Service => {
 
   let { readFromStdout, afterClose, service } = common.createChannel({
     writeToStdin(bytes) {
-      child.stdin.write(bytes);
+      child.stdin.write(bytes, err => {
+        // Assume the service was stopped if we get an error writing to stdin
+        if (err) afterClose();
+      });
     },
     readFileSync: fs.readFileSync,
     isSync: false,
     isBrowser: false,
     esbuild: ourselves,
   });
+
+  // Assume the service was stopped if we get an error writing to stdin
+  child.stdin.on('error', afterClose);
 
   const stdin: typeof child.stdin & { unref?(): void } = child.stdin;
   const stdout: typeof child.stdout & { unref?(): void } = child.stdout;
