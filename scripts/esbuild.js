@@ -99,12 +99,13 @@ exports.buildWasmLib = async (esbuildPath) => {
   fs.mkdirSync(esmDir, { recursive: true })
 
   // Generate "npm/esbuild-wasm/wasm_exec.js"
-  const toReplace = 'global.fs = fs;';
   const GOROOT = childProcess.execFileSync('go', ['env', 'GOROOT']).toString().trim();
   let wasm_exec_js = fs.readFileSync(path.join(GOROOT, 'misc', 'wasm', 'wasm_exec.js'), 'utf8');
-  let index = wasm_exec_js.indexOf(toReplace);
-  if (index === -1) throw new Error(`Failed to find ${JSON.stringify(toReplace)} in Go JS shim code`);
-  wasm_exec_js = wasm_exec_js.replace(toReplace, `
+  const replace = (toReplace, replacement) => {
+    if (wasm_exec_js.indexOf(toReplace) === -1) throw new Error(`Failed to find ${JSON.stringify(toReplace)} in Go JS shim code`);
+    wasm_exec_js = wasm_exec_js.replace(toReplace, replacement);
+  }
+  replace('global.fs = fs;', `
     global.fs = Object.assign({}, fs, {
       // Hack around a Unicode bug in node: https://github.com/nodejs/node/issues/24550
       write(fd, buf, offset, length, position, callback) {
@@ -129,6 +130,10 @@ exports.buildWasmLib = async (esbuildPath) => {
         fs.write(fd, buf, offset, length, position, callback);
       },
     });
+  `);
+  replace('// End of polyfills for common API.', `
+    // Make sure Go sees the shadowed "fs" global
+    const { fs } = global;
   `);
   fs.writeFileSync(path.join(npmWasmDir, 'wasm_exec.js'), wasm_exec_js);
 
