@@ -1,4 +1,5 @@
 {
+  "private": true,
   "dependencies": {
     "@types/node": "17.0.2",
     "typescript": "4.5.4"
