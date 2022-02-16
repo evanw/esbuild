@@ -1077,12 +1077,48 @@ func ScanBundle(
 		}
 	}()
 
+	// Wait for all "onStart" plugins here before continuing. People sometimes run
+	// setup code in "onStart" that "onLoad" expects to be able to use without
+	// "onLoad" needing to block on the completion of their "onStart" callback.
+	//
+	// We want to enable this:
+	//
+	//   let plugin = {
+	//     name: 'example',
+	//     setup(build) {
+	//       let started = false
+	//       build.onStart(() => started = true)
+	//       build.onLoad({ filter: /.*/ }, () => {
+	//         assert(started === true)
+	//       })
+	//     },
+	//   }
+	//
+	// without people having to write something like this:
+	//
+	//   let plugin = {
+	//     name: 'example',
+	//     setup(build) {
+	//       let started = {}
+	//       started.promise = new Promise(resolve => {
+	//         started.resolve = resolve
+	//       })
+	//       build.onStart(() => {
+	//         started.resolve(true)
+	//       })
+	//       build.onLoad({ filter: /.*/ }, async () => {
+	//         assert(await started.promise === true)
+	//       })
+	//     },
+	//   }
+	//
+	onStartWaitGroup.Wait()
+
 	s.preprocessInjectedFiles()
 	entryPointMeta := s.addEntryPoints(entryPoints)
 	s.scanAllDependencies()
 	files := s.processScannedFiles()
 
-	onStartWaitGroup.Wait()
 	return Bundle{
 		fs:              fs,
 		res:             res,

@@ -2650,6 +2650,36 @@ let syncTests = {
     result.rebuild.dispose()
   },
 
+  async onStartCallbackWithDelay({ esbuild }) {
+    await esbuild.build({
+      entryPoints: ['foo'],
+      write: false,
+      logLevel: 'silent',
+      plugins: [
+        {
+          name: 'some-plugin',
+          setup(build) {
+            let isStarted = false
+            build.onStart(async () => {
+              await new Promise(r => setTimeout(r, 1000))
+              isStarted = true
+            })
+
+            // Verify that "onStart" is finished before "onResolve" and "onLoad" run
+            build.onResolve({ filter: /foo/ }, () => {
+              assert.strictEqual(isStarted, true)
+              return { path: 'foo', namespace: 'foo' }
+            })
+            build.onLoad({ filter: /foo/ }, () => {
+              assert.strictEqual(isStarted, true)
+              return { contents: '' }
+            })
+          },
+        },
+      ],
+    })
+  },
+
   async onEndCallback({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     await writeFileAsync(input, ``)
