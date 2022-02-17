@@ -183,6 +183,7 @@ func (p *parser) parseListOfRules(context ruleContext) []css_ast.Rule {
 		atRuleContext.importValidity = atRuleValid
 	}
 	rules := []css_ast.Rule{}
+	didFindAtImport := false
 
 loop:
 	for {
@@ -217,14 +218,31 @@ loop:
 
 			// Disallow "@charset" and "@import" after other rules
 			if context.isTopLevel {
-				switch rule.Data.(type) {
+				switch r := rule.Data.(type) {
 				case *css_ast.RAtCharset:
 					// This doesn't invalidate anything because it always comes first
 
 				case *css_ast.RAtImport:
+					didFindAtImport = true
 					if atRuleContext.charsetValidity == atRuleValid {
 						atRuleContext.afterLoc = rule.Loc
 						atRuleContext.charsetValidity = atRuleInvalidAfter
+					}
+
+				case *css_ast.RAtLayer:
+					if atRuleContext.charsetValidity == atRuleValid {
+						atRuleContext.afterLoc = rule.Loc
+						atRuleContext.charsetValidity = atRuleInvalidAfter
+					}
+
+					// From the specification: "Note: No @layer rules are allowed between
+					// @import and @namespace rules. Any @layer rule that comes after an
+					// @import or @namespace rule will cause any subsequent @import or
+					// @namespace rules to be ignored."
+					if atRuleContext.importValidity == atRuleValid && (r.Rules != nil || didFindAtImport) {
+						atRuleContext.afterLoc = rule.Loc
+						atRuleContext.charsetValidity = atRuleInvalidAfter
+						atRuleContext.importValidity = atRuleInvalidAfter
 					}
 
 				default:
@@ -266,6 +284,7 @@ loop:
 }
 
 func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
+	list = []css_ast.Rule{}
 	for {
 		switch p.current().Kind {
 		case css_lexer.TWhitespace, css_lexer.TSemicolon:
@@ -307,6 +326,28 @@ func mangleRules(rules []css_ast.Rule) []css_ast.Rule {
 			// Do not remove empty "@keyframe foo {}" rules. Even empty rules still
 			// dispatch JavaScript animation events, so removing them changes
 			// behavior: https://bugzilla.mozilla.org/show_bug.cgi?id=1004377.
+
+		case *css_ast.RAtLayer:
+			if len(r.Rules) == 0 && len(r.Names) > 0 {
+				// Do not remove empty "@layer foo {}" rules. The specification says:
+				// "Cascade layers are sorted by the order in which they first are
+				// declared, with nested layers grouped within their parent layers
+				// before any unlayered rules." So removing empty rules could change
+				// the order in which they are first declared, and is therefore invalid.
+				//
+				// We can turn "@layer foo {}" into "@layer foo;" to be shorter. But
+				// don't collapse anonymous "@layer {}" into "@layer;" because that is
+				// a syntax error.
+				r.Rules = nil
+			} else if len(r.Rules) == 1 && len(r.Names) == 1 {
+				// Only collapse layers if each layer has exactly one name
+				if r2, ok := r.Rules[0].Data.(*css_ast.RAtLayer); ok && len(r2.Names) == 1 {
+					// "@layer a { @layer b {} }" => "@layer a.b;"
+					// "@layer a { @layer b { c {} } }" => "@layer a.b { c {} }"
+					r.Names[0] = append(r.Names[0], r2.Names[0]...)
+					r.Rules = r2.Rules
+				}
+			}
 
 		case *css_ast.RKnownAt:
 			if len(r.Rules) == 0 {
@@ -578,6 +619,7 @@ const (
 	atRuleUnknown atRuleKind = iota
 	atRuleDeclarations
 	atRuleInheritContext
+	atRuleQualifiedOrEmpty
 	atRuleEmpty
 )
 
@@ -624,6 +666,15 @@ var specialAtRules = map[string]atRuleKind{
 	"document":      atRuleInheritContext,
 	"-moz-document": atRuleInheritContext,
 
+	// This is a new feature that changes how the CSS rule cascade works. It can
+	// end in either a "{}" block or a ";" rule terminator so we need this special
+	// case to support both.
+	//
+	//   Documentation: https://developer.mozilla.org/en-US/docs/Web/CSS/@layer
+	//   Motivation: https://developer.chrome.com/blog/cascade-layers/
+	//
+	"layer": atRuleQualifiedOrEmpty,
+
 	"media":    atRuleInheritContext,
 	"scope":    atRuleInheritContext,
 	"supports": atRuleInheritContext,
@@ -657,6 +708,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 
 	// Parse the prelude
 	preludeStart := p.index
+abortRuleParser:
 	switch atToken {
 	case "charset":
 		switch context.charsetValidity {
@@ -863,6 +915,61 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 			return p.parseSelectorRuleFrom(preludeStart-1, parseSelectorOpts{atNestRange: atRange, allowNesting: context.allowNesting})
 		}
 
+	case "layer":
+		// Reference: https://developer.mozilla.org/en-US/docs/Web/CSS/@layer
+
+		// Read the layer name list
+		var names [][]string
+		p.eat(css_lexer.TWhitespace)
+		if p.peek(css_lexer.TIdent) {
+			for {
+				ident, ok := p.expectValidLayerNameIdent()
+				if !ok {
+					break abortRuleParser
+				}
+				name := []string{ident}
+				for {
+					p.eat(css_lexer.TWhitespace)
+					if !p.eat(css_lexer.TDelimDot) {
+						break
+					}
+					p.eat(css_lexer.TWhitespace)
+					ident, ok := p.expectValidLayerNameIdent()
+					if !ok {
+						break abortRuleParser
+					}
+					name = append(name, ident)
+				}
+				names = append(names, name)
+				p.eat(css_lexer.TWhitespace)
+				if !p.eat(css_lexer.TComma) {
+					break
+				}
+				p.eat(css_lexer.TWhitespace)
+			}
+		}
+
+		// Read the optional block
+		if len(names) <= 1 && p.eat(css_lexer.TOpenBrace) {
+			rules := p.parseListOfRules(ruleContext{
+				parseSelectors: true,
+			})
+			p.expect(css_lexer.TCloseBrace)
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtLayer{Names: names, Rules: rules}}
+		}
+
+		// Handle lack of a block
+		if len(names) >= 1 && p.eat(css_lexer.TSemicolon) {
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtLayer{Names: names}}
+		}
+
+		// Otherwise there's some kind of syntax error
+		if kind := p.current().Kind; kind == css_lexer.TOpenBrace || kind == css_lexer.TCloseBrace || kind == css_lexer.TEndOfFile {
+			p.expect(css_lexer.TSemicolon)
+		} else {
+			p.unexpected()
+		}
+
 	default:
 		if kind == atRuleUnknown && atToken == "namespace" {
 			// CSS namespaces are a weird feature that appears to only really be
@@ -895,16 +1002,22 @@ prelude:
 		case css_lexer.TSemicolon, css_lexer.TCloseBrace:
 			prelude := p.convertTokens(p.tokens[preludeStart:p.index])
 
-			// Report an error for rules that should have blocks
-			if kind != atRuleEmpty && kind != atRuleUnknown {
+			switch kind {
+			case atRuleQualifiedOrEmpty:
+				// Parse a known at rule below
+				break prelude
+
+			case atRuleEmpty, atRuleUnknown:
+				// Parse an unknown at rule
+				p.expect(css_lexer.TSemicolon)
+				return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude}}
+
+			default:
+				// Report an error for rules that should have blocks
 				p.expect(css_lexer.TOpenBrace)
 				p.eat(css_lexer.TSemicolon)
 				return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude}}
 			}
-
-			// Otherwise, parse an unknown at rule
-			p.expect(css_lexer.TSemicolon)
-			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude}}
 
 		default:
 			p.parseComponentValue()
@@ -922,15 +1035,15 @@ prelude:
 		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}}
 
 	case atRuleDeclarations:
-		// Parse known rules whose blocks consist of whatever the current context is
-		p.advance()
+		// Parse known rules whose blocks always consist of declarations
+		p.expect(css_lexer.TOpenBrace)
 		rules := p.parseListOfDeclarations()
 		p.expect(css_lexer.TCloseBrace)
 		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}}
 
 	case atRuleInheritContext:
 		// Parse known rules whose blocks consist of whatever the current context is
-		p.advance()
+		p.expect(css_lexer.TOpenBrace)
 		var rules []css_ast.Rule
 		if context.isDeclarationList {
 			rules = p.parseListOfDeclarations()
@@ -942,12 +1055,38 @@ prelude:
 		p.expect(css_lexer.TCloseBrace)
 		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}}
 
+	case atRuleQualifiedOrEmpty:
+		if p.eat(css_lexer.TOpenBrace) {
+			rules := p.parseListOfRules(ruleContext{
+				parseSelectors: true,
+			})
+			p.expect(css_lexer.TCloseBrace)
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}}
+		}
+		p.expect(css_lexer.TSemicolon)
+		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude}}
+
 	default:
 		// Otherwise, parse an unknown rule
 		p.parseBlock(css_lexer.TOpenBrace, css_lexer.TCloseBrace)
 		block, _ := p.convertTokensHelper(p.tokens[blockStart:p.index], css_lexer.TEndOfFile, convertTokensOpts{allowImports: true})
 		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}}
 	}
+}
+
+func (p *parser) expectValidLayerNameIdent() (string, bool) {
+	r := p.current().Range
+	text := p.decoded()
+	if !p.expect(css_lexer.TIdent) {
+		return "", false
+	}
+	switch text {
+	case "initial", "inherit", "unset":
+		p.log.Add(logger.Warning, &p.tracker, r, fmt.Sprintf("%q cannot be used as a layer name", text))
+		p.prevError = r.Loc
+		return "", false
+	}
+	return text, true
 }
 
 func (p *parser) convertTokens(tokens []css_lexer.Token) []css_ast.Token {

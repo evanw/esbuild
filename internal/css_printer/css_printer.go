@@ -157,14 +157,18 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			whitespace = canDiscardWhitespaceAfter
 		}
 		p.printIdent(r.AtToken, identNormal, whitespace)
-		if !p.options.MinifyWhitespace || len(r.Prelude) > 0 {
+		if (!p.options.MinifyWhitespace && r.Rules != nil) || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		p.printTokens(r.Prelude, printTokensOpts{})
-		if !p.options.MinifyWhitespace && len(r.Prelude) > 0 {
-			p.print(" ")
+		if r.Rules == nil {
+			p.print(";")
+		} else {
+			if !p.options.MinifyWhitespace && len(r.Prelude) > 0 {
+				p.print(" ")
+			}
+			p.printRuleBlock(r.Rules, indent)
 		}
-		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RUnknownAt:
 		p.print("@")
@@ -228,6 +232,27 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 
 	case *css_ast.RComment:
 		p.printIndentedComment(indent, r.Text)
+
+	case *css_ast.RAtLayer:
+		p.print("@layer")
+		for i, parts := range r.Names {
+			if i == 0 {
+				p.print(" ")
+			} else if !p.options.MinifyWhitespace {
+				p.print(", ")
+			} else {
+				p.print(",")
+			}
+			p.print(strings.Join(parts, "."))
+		}
+		if r.Rules == nil {
+			p.print(";")
+		} else {
+			if !p.options.MinifyWhitespace {
+				p.print(" ")
+			}
+			p.printRuleBlock(r.Rules, indent)
+		}
 
 	default:
 		panic("Internal error")

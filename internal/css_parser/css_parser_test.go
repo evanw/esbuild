@@ -984,6 +984,66 @@ func TestAtRuleValidation(t *testing.T) {
 			"<stdin>: NOTE: This rule cannot come before an \"@import\" rule\n")
 }
 
+func TestAtLayer(t *testing.T) {
+	expectParseError(t, "@layer a, b;", "")
+	expectParseError(t, "@layer a {}", "")
+	expectParseError(t, "@layer {}", "")
+	expectParseError(t, "@layer a, b {}", "<stdin>: WARNING: Expected \";\"\n")
+	expectParseError(t, "@layer;", "<stdin>: WARNING: Unexpected \";\"\n")
+	expectParseError(t, "@layer , b {}", "<stdin>: WARNING: Unexpected \",\"\n")
+	expectParseError(t, "@layer a", "<stdin>: WARNING: Expected \";\" but found end of file\n")
+	expectParseError(t, "@layer a { @layer b }", "<stdin>: WARNING: Expected \";\"\n")
+	expectParseError(t, "@layer a b", "<stdin>: WARNING: Unexpected \"b\"\n<stdin>: WARNING: Expected \";\" but found end of file\n")
+	expectParseError(t, "@layer a b ;", "<stdin>: WARNING: Unexpected \"b\"\n")
+	expectParseError(t, "@layer a b {}", "<stdin>: WARNING: Unexpected \"b\"\n")
+
+	expectPrinted(t, "@layer a, b;", "@layer a, b;\n")
+	expectPrinted(t, "@layer a {}", "@layer a {\n}\n")
+	expectPrinted(t, "@layer {}", "@layer {\n}\n")
+	expectPrinted(t, "@layer foo { div { color: red } }", "@layer foo {\n  div {\n    color: red;\n  }\n}\n")
+
+	// Check semicolon error recovery
+	expectPrinted(t, "@layer", "@layer;\n")
+	expectPrinted(t, "@layer a", "@layer a;\n")
+	expectPrinted(t, "@layer a { @layer }", "@layer a {\n  @layer;\n}\n")
+	expectPrinted(t, "@layer a { @layer b }", "@layer a {\n  @layer b;\n}\n")
+
+	// Check mangling
+	expectPrintedMangle(t, "@layer foo { div {} }", "@layer foo;\n")
+	expectPrintedMangle(t, "@layer foo { div { color: yellow } }", "@layer foo {\n  div {\n    color: #ff0;\n  }\n}\n")
+	expectPrintedMangle(t, "@layer a { @layer b {} }", "@layer a.b;\n")
+	expectPrintedMangle(t, "@layer a { @layer {} }", "@layer a {\n  @layer {\n  }\n}\n")
+	expectPrintedMangle(t, "@layer { @layer a {} }", "@layer {\n  @layer a;\n}\n")
+	expectPrintedMangle(t, "@layer a.b { @layer c.d {} }", "@layer a.b.c.d;\n")
+	expectPrintedMangle(t, "@layer a.b { @layer c.d {} @layer e.f {} }", "@layer a.b {\n  @layer c.d;\n  @layer e.f;\n}\n")
+	expectPrintedMangle(t, "@layer a.b { @layer c.d { e { f: g } } }", "@layer a.b.c.d {\n  e {\n    f: g;\n  }\n}\n")
+
+	// Invalid layer names should not be merged, since that causes the rule to
+	// become invalid. It would be a change in semantics if we merged an invalid
+	// rule with a valid rule since then the other valid rule would be invalid.
+	expectParseError(t, "@layer foo { @layer initial; }", "<stdin>: WARNING: \"initial\" cannot be used as a layer name\n")
+	expectParseError(t, "@layer foo { @layer inherit; }", "<stdin>: WARNING: \"inherit\" cannot be used as a layer name\n")
+	expectParseError(t, "@layer foo { @layer unset; }", "<stdin>: WARNING: \"unset\" cannot be used as a layer name\n")
+	expectParseError(t, "@layer initial { @layer foo; }", "<stdin>: WARNING: \"initial\" cannot be used as a layer name\n")
+	expectParseError(t, "@layer inherit { @layer foo; }", "<stdin>: WARNING: \"inherit\" cannot be used as a layer name\n")
+	expectParseError(t, "@layer unset { @layer foo; }", "<stdin>: WARNING: \"unset\" cannot be used as a layer name\n")
+	expectPrintedMangle(t, "@layer foo { @layer initial { a { b: c } } }", "@layer foo {\n  @layer initial {\n    a {\n      b: c;\n    }\n  }\n}\n")
+	expectPrintedMangle(t, "@layer initial { @layer foo { a { b: c } } }", "@layer initial {\n  @layer foo {\n    a {\n      b: c;\n    }\n  }\n}\n")
+
+	// Order matters here. Do not drop the first "@layer a;" or the order will be changed.
+	expectPrintedMangle(t, "@layer a; @layer b; @layer a;", "@layer a;\n@layer b;\n@layer a;\n")
+
+	// Validate ordering with "@layer" and "@import"
+	expectParseError(t, "@layer a; @import url(b);", "")
+	expectParseError(t, "@layer a; @layer b; @import url(c);", "")
+	expectParseError(t, "@layer a {} @import url(b);",
+		"<stdin>: WARNING: All \"@import\" rules must come first\n<stdin>: NOTE: This rule cannot come before an \"@import\" rule\n")
+	expectParseError(t, "@import url(a); @layer b; @import url(c);",
+		"<stdin>: WARNING: All \"@import\" rules must come first\n<stdin>: NOTE: This rule cannot come before an \"@import\" rule\n")
+	expectParseError(t, "@layer a; @charset \"UTF-8\";",
+		"<stdin>: WARNING: \"@charset\" must be the first rule in the file\n<stdin>: NOTE: This rule cannot come before a \"@charset\" rule\n")
+}
+
 func TestEmptyRule(t *testing.T) {
 	expectPrinted(t, "div {}", "div {\n}\n")
 	expectPrinted(t, "@media screen {}", "@media screen {\n}\n")

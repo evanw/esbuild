@@ -330,8 +330,7 @@ type KeyframeBlock struct {
 }
 
 func (a *RAtKeyframes) Equal(rule R) bool {
-	b, ok := rule.(*RAtKeyframes)
-	if ok && a.AtToken == b.AtToken && a.Name == b.Name && len(a.Blocks) == len(b.Blocks) {
+	if b, ok := rule.(*RAtKeyframes); ok && a.AtToken == b.AtToken && a.Name == b.Name && len(a.Blocks) == len(b.Blocks) {
 		for i, ai := range a.Blocks {
 			bi := b.Blocks[i]
 			if len(ai.Selectors) != len(bi.Selectors) {
@@ -510,6 +509,44 @@ func (a *RComment) Equal(rule R) bool {
 func (r *RComment) Hash() (uint32, bool) {
 	hash := uint32(9)
 	hash = helpers.HashCombineString(hash, r.Text)
+	return hash, true
+}
+
+type RAtLayer struct {
+	Names [][]string
+	Rules []Rule
+}
+
+func (a *RAtLayer) Equal(rule R) bool {
+	if b, ok := rule.(*RAtLayer); ok && len(a.Names) == len(b.Names) && len(a.Rules) == len(b.Rules) {
+		for i, ai := range a.Names {
+			bi := b.Names[i]
+			if len(ai) != len(bi) {
+				return false
+			}
+			for j, aj := range ai {
+				if aj != bi[j] {
+					return false
+				}
+			}
+		}
+		if !RulesEqual(a.Rules, b.Rules) {
+			return false
+		}
+	}
+	return false
+}
+
+func (r *RAtLayer) Hash() (uint32, bool) {
+	hash := uint32(10)
+	hash = helpers.HashCombine(hash, uint32(len(r.Names)))
+	for _, parts := range r.Names {
+		hash = helpers.HashCombine(hash, uint32(len(parts)))
+		for _, part := range parts {
+			hash = helpers.HashCombineString(hash, part)
+		}
+	}
+	hash = HashRules(hash, r.Rules)
 	return hash, true
 }
 
