@@ -256,6 +256,9 @@ mergeVersions('ImportAssertions', {
   // From https://www.chromestatus.com/feature/5765269513306112
   chrome91: true,
 
+  // From https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V16.md#16.14.0
+  node16_14: true,
+
   // Not yet in Firefox: https://bugzilla.mozilla.org/show_bug.cgi?id=1668330
 })
 

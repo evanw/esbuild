@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+* Update feature database to indicate that node 16.14+ supports import assertions ([#2030](https://github.com/evanw/esbuild/issues/2030))
+
+    Node versions 16.14 and above now support import assertions according to [these release notes](https://github.com/nodejs/node/blob/6db686710ee1579452b2908a7a41b91cb729b944/doc/changelogs/CHANGELOG_V16.md#16.14.0). This release updates esbuild's internal feature compatibility database with this information, so esbuild no longer strips import assertions with `--target=node16.14`:
+
+    ```js
+    // Original code
+    import data from './package.json' assert { type: 'json' }
+    console.log(data)
+
+    // Old output (with --target=node16.14)
+    import data from "./package.json";
+    console.log(data);
+
+    // New output (with --target=node16.14)
+    import data from "./package.json" assert { type: "json" };
+    console.log(data);
+    ```
+
 * Basic support for CSS `@layer` rules ([#2027](https://github.com/evanw/esbuild/issues/2027))
 
     This adds basic parsing support for a new CSS feature called `@layer` that changes how the CSS cascade works. Adding parsing support for this rule to esbuild means esbuild can now minify the contents of `@layer` rules:
