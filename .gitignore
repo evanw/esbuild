@@ -18,3 +18,5 @@
 bin
 esbuild.exe
 node_modules/
+.vscode/
+.idea/
