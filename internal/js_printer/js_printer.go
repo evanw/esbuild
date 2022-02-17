@@ -770,7 +770,8 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 				p.options.Indent--
 				p.printNewline()
 				p.printIndent()
-			} else if len(b.Properties) > 0 {
+				// This block is only reached if len(b.Properties) > 0
+			} else {
 				p.printSpace()
 			}
 		}
