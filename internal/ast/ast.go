@@ -121,6 +121,10 @@ type ImportRecord struct {
 	Path       logger.Path
 	Range      logger.Range
 
+	// If the "HandlesImportErrors" flag is present, then this is the location
+	// of the error handler. This is used for error reporting.
+	ErrorHandlerLoc logger.Loc
+
 	// The resolved source index for an internal import (within the bundle) or
 	// nil for an external import (not included in the bundle)
 	SourceIndex Index32

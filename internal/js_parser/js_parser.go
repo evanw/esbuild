@@ -344,6 +344,7 @@ type importNamespaceCall struct {
 
 type thenCatchChain struct {
 	nextTarget      js_ast.E
+	catchLoc        logger.Loc
 	hasMultipleArgs bool
 	hasCatch        bool
 }
@@ -564,6 +565,12 @@ type fnOrArrowDataParse struct {
 // restored on the call stack around code that parses nested functions and
 // arrow expressions.
 type fnOrArrowDataVisit struct {
+	// This is used to silence unresolvable imports due to "require" calls inside
+	// a try/catch statement. The assumption is that the try/catch statement is
+	// there to handle the case where the reference to "require" crashes.
+	tryBodyCount int32
+	tryCatchLoc  logger.Loc
+
 	isArrow            bool
 	isAsync            bool
 	isGenerator        bool
@@ -571,11 +578,6 @@ type fnOrArrowDataVisit struct {
 	isInsideSwitch     bool
 	isOutsideFnOrArrow bool
 	shouldLowerSuper   bool
-
-	// This is used to silence unresolvable imports due to "require" calls inside
-	// a try/catch statement. The assumption is that the try/catch statement is
-	// there to handle the case where the reference to "require" crashes.
-	tryBodyCount int
 }
 
 type superHelpers struct {
@@ -9588,6 +9590,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 	case *js_ast.STry:
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)
+		if p.fnOrArrowDataVisit.tryBodyCount == 0 {
+			if s.Catch != nil {
+				p.fnOrArrowDataVisit.tryCatchLoc = s.Catch.Loc
+			} else {
+				p.fnOrArrowDataVisit.tryCatchLoc = stmt.Loc
+			}
+		}
 		p.fnOrArrowDataVisit.tryBodyCount++
 		s.Body = p.visitStmts(s.Body, stmtsNormal)
 		p.fnOrArrowDataVisit.tryBodyCount--
@@ -12605,11 +12614,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				p.thenCatchChain = thenCatchChain{
 					nextTarget: e.Target.Data,
 					hasCatch:   true,
+					catchLoc:   e.NameLoc,
 				}
 			} else if e.Name == "then" {
 				p.thenCatchChain = thenCatchChain{
 					nextTarget: e.Target.Data,
 					hasCatch:   p.thenCatchChain.hasCatch || p.thenCatchChain.hasMultipleArgs,
+					catchLoc:   p.thenCatchChain.catchLoc,
 				}
 			}
 		}
@@ -13051,8 +13062,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, helpers.UTF16ToString(str.Value), assertions)
-				if (isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0) || isThenCatchTarget {
-					p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
+				if isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0 {
+					record := &p.importRecords[importRecordIndex]
+					record.Flags |= ast.HandlesImportErrors
+					record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
+				} else if isThenCatchTarget {
+					record := &p.importRecords[importRecordIndex]
+					record.Flags |= ast.HandlesImportErrors
+					record.ErrorHandlerLoc = p.thenCatchChain.catchLoc
 				}
 				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportString{
@@ -13124,6 +13141,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			nextTarget:      e.Target.Data,
 			hasMultipleArgs: len(e.Args) >= 2,
 			hasCatch:        p.thenCatchChain.nextTarget == e && p.thenCatchChain.hasCatch,
+			catchLoc:        p.thenCatchChain.catchLoc,
+		}
+		if p.thenCatchChain.hasMultipleArgs {
+			p.thenCatchChain.catchLoc = e.Args[1].Loc
 		}
 
 		// Prepare to recognize "require.resolve()" and "Object.create" calls
@@ -13204,7 +13225,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, helpers.UTF16ToString(str.Value), nil)
 							if p.fnOrArrowDataVisit.tryBodyCount != 0 {
-								p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
+								record := &p.importRecords[importRecordIndex]
+								record.Flags |= ast.HandlesImportErrors
+								record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
 							}
 							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
@@ -13367,7 +13390,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, helpers.UTF16ToString(str.Value), nil)
 								if p.fnOrArrowDataVisit.tryBodyCount != 0 {
-									p.importRecords[importRecordIndex].Flags |= ast.HandlesImportErrors
+									record := &p.importRecords[importRecordIndex]
+									record.Flags |= ast.HandlesImportErrors
+									record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
 								}
 								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 

@@ -24,6 +24,7 @@ import (
 	"github.com/evanw/esbuild/internal/graph"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -432,9 +433,10 @@ func parseFile(args parseArgs) {
 							pluginName, args.fs, absResolveDir, args.options.Platform, source.PrettyPath)
 						debug.LogErrorMsg(args.log, &source, record.Range, text, notes)
 					} else if args.log.Level <= logger.LevelDebug && !didLogError && record.Flags.Has(ast.HandlesImportErrors) {
-						args.log.Add(logger.Debug, &tracker, record.Range,
+						args.log.AddWithNotes(logger.Debug, &tracker, record.Range,
 							fmt.Sprintf("Importing %q was allowed even though it could not be resolved because dynamic import failures appear to be handled here:",
-								record.Path.Text))
+								record.Path.Text), []logger.MsgData{tracker.MsgData(js_lexer.RangeOfIdentifier(source, record.ErrorHandlerLoc),
+								"The handler for dynamic import failures is here:")})
 					}
 					continue
 				}
