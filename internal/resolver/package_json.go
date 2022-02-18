@@ -260,7 +260,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	}
 
 	// Read the "type" field
-	if typeJSON, _, ok := getProperty(json, "type"); ok {
+	if typeJSON, typeKeyLoc, ok := getProperty(json, "type"); ok {
 		if typeValue, ok := getString(typeJSON); ok {
 			switch typeValue {
 			case "commonjs":
@@ -276,10 +276,24 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 					Range:  jsonSource.RangeOfString(typeJSON.Loc),
 				}
 			default:
-				r.log.AddWithNotes(logger.Warning, &tracker, jsonSource.RangeOfString(typeJSON.Loc),
+				notes := []logger.MsgData{{Text: "The \"type\" field must be set to either \"commonjs\" or \"module\"."}}
+				kind := logger.Warning
+
+				// If someone does something like "type": "./index.d.ts" then they
+				// likely meant "types" instead of "type". Customize the message
+				// for this and hide it if it's inside a published npm package.
+				if strings.HasSuffix(typeValue, ".d.ts") {
+					notes[0] = tracker.MsgData(jsonSource.RangeOfString(typeKeyLoc),
+						"TypeScript type declarations use the \"types\" field, not the \"type\" field:")
+					notes[0].Location.Suggestion = "\"types\""
+					if helpers.IsInsideNodeModules(jsonSource.KeyPath.Text) {
+						kind = logger.Debug
+					}
+				}
+
+				r.log.AddWithNotes(kind, &tracker, jsonSource.RangeOfString(typeJSON.Loc),
 					fmt.Sprintf("%q is not a valid value for the \"type\" field", typeValue),
-					[]logger.MsgData{{Text: "The \"type\" field must be set to either \"commonjs\" or \"module\"."}},
-				)
+					notes)
 			}
 		} else {
 			r.log.Add(logger.Warning, &tracker, logger.Range{Loc: typeJSON.Loc},

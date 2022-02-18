@@ -697,3 +697,7 @@ var require_main = __commonJS({
 // Users/user/project/src/entry.js
 var import_demo_pkg = __toESM(require_main());
 console.log((0, import_demo_pkg.default)());
+
+================================================================================
+TestPackageJsonTypeShouldBeTypes
+---------- /Users/user/project/out.js ----------

@@ -2348,3 +2348,26 @@ NOTE: You can mark the path "foo" as external to exclude it from the bundle, whi
 `,
 	})
 }
+
+func TestPackageJsonTypeShouldBeTypes(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": ``,
+			"/Users/user/project/package.json": `
+				{
+					"main": "./src/index.js",
+					"type": "./src/index.d.ts"
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+		expectedScanLog: `Users/user/project/package.json: WARNING: "./src/index.d.ts" is not a valid value for the "type" field
+Users/user/project/package.json: NOTE: TypeScript type declarations use the "types" field, not the "type" field:
+`,
+	})
+}
