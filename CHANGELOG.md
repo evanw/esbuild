@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.23
 
 * Update feature database to indicate that node 16.14+ supports import assertions ([#2030](https://github.com/evanw/esbuild/issues/2030))
 
