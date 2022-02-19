@@ -280,9 +280,9 @@ export interface PluginBuild {
   onEnd(callback: (result: BuildResult) =>
     (void | Promise<void>)): void;
   onResolve(options: OnResolveOptions, callback: (args: OnResolveArgs) =>
-    (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): void;
+    (OnResolveResult | null | void | Promise<OnResolveResult | null | void>)): void;
   onLoad(options: OnLoadOptions, callback: (args: OnLoadArgs) =>
-    (OnLoadResult | null | undefined | Promise<OnLoadResult | null | undefined>)): void;
+    (OnLoadResult | null | void | Promise<OnLoadResult | null | void>)): void;
 
   // This is a full copy of the esbuild library in case you need it
   esbuild: {
