@@ -364,6 +364,7 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 					}
 					p.lexer.Next()
 				}
+				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
 			}
 
 		case js_lexer.TOpenBracket:
@@ -785,10 +786,12 @@ func (p *parser) canFollowTypeArgumentsInExpression() bool {
 		return true
 
 	case
-		// These cases can't legally follow a type arg list. However, they're not
-		// legal expressions either. The user is probably in the middle of a
-		// generic type. So treat it as such.
+		// These tokens can't follow in a call expression,
+		// nor can they start an expression.
+		// So, consider the type argument list part of an instantiation expression.
+		js_lexer.TComma,                   // foo<x>,
 		js_lexer.TDot,                     // foo<x>.
+		js_lexer.TQuestionDot,             // foo<x>?.
 		js_lexer.TCloseParen,              // foo<x>)
 		js_lexer.TCloseBracket,            // foo<x>]
 		js_lexer.TColon,                   // foo<x>:
@@ -807,14 +810,6 @@ func (p *parser) canFollowTypeArgumentsInExpression() bool {
 		js_lexer.TCloseBrace,              // foo<x> }
 		js_lexer.TEndOfFile:               // foo<x>
 		return true
-
-	case
-		// We don't want to treat these as type arguments. Otherwise we'll parse
-		// this as an invocation expression. Instead, we want to parse out the
-		// expression in isolation from the type arguments.
-		js_lexer.TComma,     // foo<x>,
-		js_lexer.TOpenBrace: // foo<x> {
-		return false
 
 	default:
 		// Anything else treat as an expression.

@@ -1549,6 +1549,8 @@ func TestTSNew(t *testing.T) {
 	expectPrintedTS(t, "new Foo()", "new Foo();\n")
 	expectPrintedTS(t, "new Foo<number>()", "new Foo();\n")
 	expectPrintedTS(t, "new Foo<number, boolean>()", "new Foo();\n")
+	expectPrintedTS(t, "new Foo<number>", "new Foo();\n")
+	expectPrintedTS(t, "new Foo<number, boolean>", "new Foo();\n")
 
 	expectPrintedTS(t, "new Foo!()", "new Foo();\n")
 	expectPrintedTS(t, "new Foo!<number>()", "new Foo();\n")
@@ -1560,6 +1562,49 @@ func TestTSNew(t *testing.T) {
 	expectParseErrorTS(t, "new Foo<number>!()", "<stdin>: ERROR: Unexpected \")\"\n")
 	expectParseErrorTS(t, "new Foo\n!.Bar()", "<stdin>: ERROR: Unexpected \".\"\n")
 	expectParseError(t, "new Foo!()", "<stdin>: ERROR: Unexpected \"!\"\n")
+}
+
+func TestTSInstantiationExpression(t *testing.T) {
+	expectPrintedTS(t, "f<number>", "f;\n")
+	expectPrintedTS(t, "f<number, boolean>", "f;\n")
+	expectPrintedTS(t, "f.g<number>", "f.g;\n")
+	expectPrintedTS(t, "f<number>.g", "f.g;\n")
+	expectPrintedTS(t, "f<number>.g<number>", "f.g;\n")
+	expectPrintedTS(t, "f['g']<number>", "f[\"g\"];\n")
+	expectPrintedTS(t, "(f<number>)<number>", "f;\n")
+
+	// function call
+	expectPrintedTS(t, "const x1 = f<true>\n(true);", "const x1 = f(true);\n")
+	// relational expression
+	expectPrintedTS(t, "const x1 = f<true>\ntrue;", "const x1 = f < true > true;\n")
+	// instantiation expression
+	expectPrintedTS(t, "const x1 = f<true>;\n(true);", "const x1 = f;\ntrue;\n")
+
+	expectPrintedTS(t, "f<number>?.();", "f?.();\n")
+	expectPrintedTS(t, "f?.<number>();", "f?.();\n")
+
+	expectPrintedTS(t, "f<number>['g'];", "f < number > [\"g\"];\n")
+
+	expectPrintedTS(t, "type T21 = typeof Array<string>; f();", "f();\n")
+	expectPrintedTS(t, "type T22 = typeof Array<string, number>; f();", "f();\n")
+
+	expectPrintedTS(t, "f<x>, g<y>;", "f, g;\n")
+	expectPrintedTS(t, "[f<x>];", "[f];\n")
+	expectPrintedTS(t, "f<x> ? g<y> : h<z>;", "f ? g : h;\n")
+	expectPrintedTS(t, "f<x> ^ g<y>;", "f ^ g;\n")
+	expectPrintedTS(t, "f<x> & g<y>;", "f & g;\n")
+	expectPrintedTS(t, "f<x> | g<y>;", "f | g;\n")
+	expectPrintedTS(t, "f<x> && g<y>;", "f && g;\n")
+	expectPrintedTS(t, "f<x> || g<y>;", "f || g;\n")
+	expectPrintedTS(t, "f<x> ?? g<y>;", "f ?? g;\n")
+	expectPrintedTS(t, "{ f<x> }", "{\n  f;\n}\n")
+	expectPrintedTS(t, "f<x> == g<y>;", "f == g;\n")
+	expectPrintedTS(t, "f<x> === g<y>;", "f === g;\n")
+	expectPrintedTS(t, "f<x> != g<y>;", "f != g;\n")
+	expectPrintedTS(t, "f<x> !== g<y>;", "f !== g;\n")
+
+	expectParseErrorTS(t, "const a8 = f<number><number>;", "<stdin>: ERROR: Unexpected \";\"\n")
+	expectParseErrorTS(t, "const b1 = f?.<number>;", "<stdin>: ERROR: Expected \"(\" but found \";\"\n")
 }
 
 func TestTSExponentiation(t *testing.T) {
