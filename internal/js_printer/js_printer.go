@@ -1890,11 +1890,14 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.printIndent()
 		}
 		p.printExpr(e.Expr, js_ast.LComma, 0)
-		if e.OptionsOrNil.Data != nil {
+
+		// Just omit import assertions if they aren't supported
+		if e.OptionsOrNil.Data != nil && !p.options.UnsupportedFeatures.Has(compat.ImportAssertions) {
 			p.print(",")
 			p.printSpace()
 			p.printExpr(e.OptionsOrNil, js_ast.LComma, 0)
 		}
+
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent--

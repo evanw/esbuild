@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Strip import assertions from unrecognized `import()` expressions ([#2036](https://github.com/evanw/esbuild/issues/2036))
+
+    The new "import assertions" JavaScript language feature adds an optional second argument to dynamic `import()` expressions, which esbuild does support. However, this optional argument must be stripped when targeting older JavaScript environments for which this second argument would be a syntax error. Previously esbuild failed to strip this second argument in cases when the first argument to `import()` wasn't a string literal. This problem is now fixed:
+
+    ```js
+    // Original code
+    console.log(import(foo, { assert: { type: 'json' } }))
+
+    // Old output (with --target=es6)
+    console.log(import(foo, { assert: { type: "json" } }));
+
+    // New output (with --target=es6)
+    console.log(import(foo));
+    ```
+
 ## 0.14.23
 
 * Update feature database to indicate that node 16.14+ supports import assertions ([#2030](https://github.com/evanw/esbuild/issues/2030))

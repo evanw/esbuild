@@ -4741,6 +4741,9 @@ func TestImportAssertions(t *testing.T) {
 	expectPrinted(t, "import(x ? 'y' : 'z', {assert: {x: 1}})", "import(x ? \"y\" : \"z\", { assert: { x: 1 } });\n")
 
 	expectPrintedTarget(t, 2015, "import 'x' assert {x: 'y'}", "import \"x\";\n")
+	expectPrintedTarget(t, 2015, "import(x, {assert: {x: 'y'}})", "import(x);\n")
+	expectPrintedTarget(t, 2015, "import(x, {assert: {x: 1}})", "import(x);\n")
+	expectPrintedTarget(t, 2015, "import(x ? 'y' : 'z', {assert: {x: 'y'}})", "x ? import(\"y\") : import(\"z\");\n")
 	expectPrintedTarget(t, 2015, "import(x ? 'y' : 'z', {assert: {x: 1}})", "import(x ? \"y\" : \"z\");\n")
 	expectParseErrorTarget(t, 2015, "import(x ? 'y' : 'z', {assert: {x: foo()}})",
 		"<stdin>: ERROR: Using an arbitrary value as the second argument to \"import()\" is not possible in the configured target environment\n")
