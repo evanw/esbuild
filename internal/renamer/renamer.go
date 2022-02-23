@@ -425,10 +425,10 @@ func (r *NumberRenamer) NameForSymbol(ref js_ast.Ref) string {
 }
 
 func (r *NumberRenamer) AddTopLevelSymbol(ref js_ast.Ref) {
-	r.assignName(&r.root, ref)
+	r.assignName(&r.root, ref, false)
 }
 
-func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
+func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref, shallowLookup bool) {
 	ref = js_ast.FollowSymbols(r.symbols, ref)
 
 	// Don't rename the same symbol more than once
@@ -452,7 +452,7 @@ func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
 	}
 
 	// Compute a new name
-	name := scope.findUnusedName(originalName)
+	name := scope.findUnusedName(originalName, shallowLookup)
 
 	// Store the new name
 	if inner == nil {
@@ -483,10 +483,10 @@ func (r *NumberRenamer) assignNamesRecursive(scope *js_ast.Scope, sourceIndex ui
 
 	// Rename all symbols in this scope
 	for _, innerIndex := range *sorted {
-		r.assignName(s, js_ast.Ref{SourceIndex: sourceIndex, InnerIndex: uint32(innerIndex)})
+		r.assignName(s, js_ast.Ref{SourceIndex: sourceIndex, InnerIndex: uint32(innerIndex)}, scope.Kind.StopsHoisting())
 	}
 	for _, ref := range scope.Generated {
-		r.assignName(s, ref)
+		r.assignName(s, ref, false)
 	}
 
 	// Symbols in child scopes may also have to be renamed to avoid conflicts
@@ -533,7 +533,7 @@ const (
 	nameUsedInSameScope
 )
 
-func (s *numberScope) findNameUse(name string) nameUse {
+func (s *numberScope) findNameUse(name string, shallowLookup bool) nameUse {
 	original := s
 	for {
 		if _, ok := s.nameCounts[name]; ok {
@@ -543,16 +543,16 @@ func (s *numberScope) findNameUse(name string) nameUse {
 			return nameUsed
 		}
 		s = s.parent
-		if s == nil {
+		if s == nil || shallowLookup {
 			return nameUnused
 		}
 	}
 }
 
-func (s *numberScope) findUnusedName(name string) string {
+func (s *numberScope) findUnusedName(name string, shallowLookup bool) string {
 	name = js_lexer.ForceValidIdentifier(name)
 
-	if use := s.findNameUse(name); use != nameUnused {
+	if use := s.findNameUse(name, shallowLookup); use != nameUnused {
 		// If the name is already in use, generate a new name by appending a number
 		tries := uint32(1)
 		if use == nameUsedInSameScope {
@@ -573,7 +573,7 @@ func (s *numberScope) findUnusedName(name string) string {
 			name = prefix + strconv.Itoa(int(tries))
 
 			// Make sure this new name is unused
-			if s.findNameUse(name) == nameUnused {
+			if s.findNameUse(name, shallowLookup) == nameUnused {
 				// Store the count so we can start here next time instead of starting
 				// from 1. This means we avoid O(n^2) behavior.
 				if use == nameUsedInSameScope {

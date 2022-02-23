@@ -105,17 +105,17 @@ var foo = bar();
 TestTSEnumCrossModuleInliningAccess
 ---------- /out/entry.js ----------
 // enums.ts
-var c = /* @__PURE__ */ ((c2) => {
-  c2[c2["x"] = 123] = "x";
-  return c2;
+var c = /* @__PURE__ */ ((c) => {
+  c[c["x"] = 123] = "x";
+  return c;
 })(c || {});
-var d = /* @__PURE__ */ ((d2) => {
-  d2[d2["x"] = 123] = "x";
-  return d2;
+var d = /* @__PURE__ */ ((d) => {
+  d[d["x"] = 123] = "x";
+  return d;
 })(d || {});
-var e = /* @__PURE__ */ ((e2) => {
-  e2[e2["x"] = 123] = "x";
-  return e2;
+var e = /* @__PURE__ */ ((e) => {
+  e[e["x"] = 123] = "x";
+  return e;
 })(e || {});
 
 // entry.ts
@@ -131,12 +131,12 @@ console.log([
 TestTSEnumCrossModuleInliningDefinitions
 ---------- /out/entry.js ----------
 // enums.ts
-var a = ((a2) => {
-  a2[a2["implicit_number"] = 0] = "implicit_number";
-  a2[a2["explicit_number"] = 123] = "explicit_number";
-  a2["explicit_string"] = "xyz";
-  a2[a2["non_constant"] = foo] = "non_constant";
-  return a2;
+var a = ((a) => {
+  a[a["implicit_number"] = 0] = "implicit_number";
+  a[a["explicit_number"] = 123] = "explicit_number";
+  a["explicit_string"] = "xyz";
+  a[a["non_constant"] = foo] = "non_constant";
+  return a;
 })(a || {});
 
 // entry.ts
@@ -161,21 +161,21 @@ console.log([
 TestTSEnumCrossModuleTreeShaking
 ---------- /out/entry.js ----------
 // enums.ts
-var a_keep = /* @__PURE__ */ ((a_keep2) => {
-  a_keep2[a_keep2["x"] = false] = "x";
-  return a_keep2;
+var a_keep = /* @__PURE__ */ ((a_keep) => {
+  a_keep[a_keep["x"] = false] = "x";
+  return a_keep;
 })(a_keep || {});
-var b_keep = ((b_keep2) => {
-  b_keep2[b_keep2["x"] = foo] = "x";
-  return b_keep2;
+var b_keep = ((b_keep) => {
+  b_keep[b_keep["x"] = foo] = "x";
+  return b_keep;
 })(b_keep || {});
-var c_keep = /* @__PURE__ */ ((c_keep2) => {
-  c_keep2[c_keep2["x"] = 3] = "x";
-  return c_keep2;
+var c_keep = /* @__PURE__ */ ((c_keep) => {
+  c_keep[c_keep["x"] = 3] = "x";
+  return c_keep;
 })(c_keep || {});
-var d_keep = /* @__PURE__ */ ((d_keep2) => {
-  d_keep2[d_keep2["x"] = 4] = "x";
-  return d_keep2;
+var d_keep = /* @__PURE__ */ ((d_keep) => {
+  d_keep[d_keep["x"] = 4] = "x";
+  return d_keep;
 })(d_keep || {});
 var e_keep = {};
 
@@ -196,10 +196,10 @@ console.log([
 ================================================================================
 TestTSEnumDefine
 ---------- /out/entry.js ----------
-var a = /* @__PURE__ */ ((a2) => {
-  a2[a2["b"] = 123] = "b";
-  a2[a2["c"] = 123 /* b */] = "c";
-  return a2;
+var a = /* @__PURE__ */ ((a) => {
+  a[a["b"] = 123] = "b";
+  a[a["c"] = 123 /* b */] = "c";
+  return a;
 })(a || {});
 
 ================================================================================
@@ -216,70 +216,70 @@ console.log([
 ================================================================================
 TestTSEnumJSX
 ---------- /out/element.js ----------
-export var Foo = /* @__PURE__ */ ((Foo2) => {
-  Foo2["Div"] = "div";
-  return Foo2;
+export var Foo = /* @__PURE__ */ ((Foo) => {
+  Foo["Div"] = "div";
+  return Foo;
 })(Foo || {});
 console.log(/* @__PURE__ */ React.createElement("div" /* Div */, null));
 
 ---------- /out/fragment.js ----------
-export var React = /* @__PURE__ */ ((React2) => {
-  React2["Fragment"] = "div";
-  return React2;
+export var React = /* @__PURE__ */ ((React) => {
+  React["Fragment"] = "div";
+  return React;
 })(React || {});
 console.log(/* @__PURE__ */ React.createElement("div" /* Fragment */, null, "test"));
 
 ---------- /out/nested-element.js ----------
 var x;
-((x2) => {
+((x) => {
   let y;
-  ((y2) => {
+  ((y) => {
     let Foo;
-    ((Foo2) => {
-      Foo2["Div"] = "div";
-    })(Foo = y2.Foo || (y2.Foo = {}));
-  })(y = x2.y || (x2.y = {}));
+    ((Foo) => {
+      Foo["Div"] = "div";
+    })(Foo = y.Foo || (y.Foo = {}));
+  })(y = x.y || (x.y = {}));
 })(x || (x = {}));
-((x2) => {
+((x) => {
   let y;
-  ((y2) => {
+  ((y) => {
     console.log(/* @__PURE__ */ React.createElement("div" /* Div */, null));
-  })(y = x2.y || (x2.y = {}));
+  })(y = x.y || (x.y = {}));
 })(x || (x = {}));
 
 ---------- /out/nested-fragment.js ----------
 var x;
-((x2) => {
+((x) => {
   let y;
-  ((y2) => {
+  ((y) => {
     let React;
-    ((React2) => {
-      React2["Fragment"] = "div";
-    })(React = y2.React || (y2.React = {}));
-  })(y = x2.y || (x2.y = {}));
+    ((React) => {
+      React["Fragment"] = "div";
+    })(React = y.React || (y.React = {}));
+  })(y = x.y || (x.y = {}));
 })(x || (x = {}));
-((x2) => {
+((x) => {
   let y;
-  ((y2) => {
-    console.log(/* @__PURE__ */ y2.React.createElement("div" /* Fragment */, null, "test"));
-  })(y = x2.y || (x2.y = {}));
+  ((y) => {
+    console.log(/* @__PURE__ */ y.React.createElement("div" /* Fragment */, null, "test"));
+  })(y = x.y || (x.y = {}));
 })(x || (x = {}));
 
 ================================================================================
 TestTSEnumSameModuleInliningAccess
 ---------- /out/entry.js ----------
 // entry.ts
-var c = /* @__PURE__ */ ((c2) => {
-  c2[c2["x"] = 123] = "x";
-  return c2;
+var c = /* @__PURE__ */ ((c) => {
+  c[c["x"] = 123] = "x";
+  return c;
 })(c || {});
-var d = /* @__PURE__ */ ((d2) => {
-  d2[d2["x"] = 123] = "x";
-  return d2;
+var d = /* @__PURE__ */ ((d) => {
+  d[d["x"] = 123] = "x";
+  return d;
 })(d || {});
-var e = /* @__PURE__ */ ((e2) => {
-  e2[e2["x"] = 123] = "x";
-  return e2;
+var e = /* @__PURE__ */ ((e) => {
+  e[e["x"] = 123] = "x";
+  return e;
 })(e || {});
 console.log([
   123 /* x */,
@@ -297,9 +297,9 @@ console.log(123 /* y */);
 
 ---------- /out/simple-enum.js ----------
 // simple-enum.ts
-var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["y"] = 123] = "y";
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x[x["y"] = 123] = "y";
+  return x;
 })(x || {});
 console.log(x);
 
@@ -310,58 +310,58 @@ console.log(123 /* y */, 246 /* z */);
 ---------- /out/sibling-enum-before.js ----------
 // sibling-enum-before.ts
 console.log(x);
-var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["y"] = 123] = "y";
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x[x["y"] = 123] = "y";
+  return x;
 })(x || {});
-var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["z"] = 246] = "z";
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x[x["z"] = 246] = "z";
+  return x;
 })(x || {});
 
 ---------- /out/sibling-enum-middle.js ----------
 // sibling-enum-middle.ts
-var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["y"] = 123] = "y";
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x[x["y"] = 123] = "y";
+  return x;
 })(x || {});
 console.log(x);
-var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["z"] = 246] = "z";
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x[x["z"] = 246] = "z";
+  return x;
 })(x || {});
 
 ---------- /out/sibling-enum-after.js ----------
 // sibling-enum-after.ts
-var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["y"] = 123] = "y";
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x[x["y"] = 123] = "y";
+  return x;
 })(x || {});
-var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["z"] = 246] = "z";
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x[x["z"] = 246] = "z";
+  return x;
 })(x || {});
 console.log(x);
 
 ---------- /out/namespace-before.js ----------
 // namespace-before.ts
 var x;
-((x2) => {
-  console.log(x2, y);
+((x) => {
+  console.log(x, y);
 })(x || (x = {}));
-var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["y"] = 123] = "y";
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x[x["y"] = 123] = "y";
+  return x;
 })(x || {});
 
 ---------- /out/namespace-after.js ----------
 // namespace-after.ts
-var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["y"] = 123] = "y";
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x[x["y"] = 123] = "y";
+  return x;
 })(x || {});
-((x2) => {
-  console.log(x2, y);
+((x) => {
+  console.log(x, y);
 })(x || (x = {}));
 
 ================================================================================
@@ -397,16 +397,16 @@ var bar5 = 123;
 
 // keep/value-namespace.ts
 var foo3;
-((foo5) => {
-  foo5.num = 0;
+((foo) => {
+  foo.num = 0;
 })(foo3 || (foo3 = {}));
 var value_namespace_default = foo3;
 var bar6 = 123;
 
 // keep/value-namespace-merged.ts
 var foo4;
-((foo5) => {
-  foo5.num = 0;
+((foo) => {
+  foo.num = 0;
 })(foo4 || (foo4 = {}));
 var value_namespace_merged_default = foo4;
 var bar7 = 123;
@@ -487,11 +487,11 @@ TestTSExportNamespace
 // b.ts
 var Foo = class {
 };
-((Foo2) => {
-  Foo2.foo = 1;
+((Foo) => {
+  Foo.foo = 1;
 })(Foo || (Foo = {}));
-((Foo2) => {
-  Foo2.bar = 2;
+((Foo) => {
+  Foo.bar = 2;
 })(Foo || (Foo = {}));
 
 // a.ts
@@ -658,121 +658,121 @@ export function foo(){let e;return(n=>(n[n.X=0]="X",n[n.Y=1]="Y",n[n.Z=n]="Z"))(
 ================================================================================
 TestTSSiblingEnum
 ---------- /out/number.js ----------
-export var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["y"] = 0] = "y";
-  x2[x2["yy"] = 0 /* y */] = "yy";
-  return x2;
+export var x = /* @__PURE__ */ ((x) => {
+  x[x["y"] = 0] = "y";
+  x[x["yy"] = 0 /* y */] = "yy";
+  return x;
 })(x || {});
-var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["z"] = 1] = "z";
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x[x["z"] = 1] = "z";
+  return x;
 })(x || {});
-((x2) => {
+((x) => {
   console.log(y, z);
 })(x || (x = {}));
 console.log(0 /* y */, 1 /* z */);
 
 ---------- /out/string.js ----------
-export var x = /* @__PURE__ */ ((x2) => {
-  x2["y"] = "a";
-  x2["yy"] = "a" /* y */;
-  return x2;
+export var x = /* @__PURE__ */ ((x) => {
+  x["y"] = "a";
+  x["yy"] = "a" /* y */;
+  return x;
 })(x || {});
-var x = /* @__PURE__ */ ((x2) => {
-  x2["z"] = "a" /* y */;
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x["z"] = "a" /* y */;
+  return x;
 })(x || {});
-((x2) => {
+((x) => {
   console.log(y, z);
 })(x || (x = {}));
 console.log("a" /* y */, "a" /* z */);
 
 ---------- /out/propagation.js ----------
-export var a = /* @__PURE__ */ ((a2) => {
-  a2[a2["b"] = 100] = "b";
-  return a2;
+export var a = /* @__PURE__ */ ((a) => {
+  a[a["b"] = 100] = "b";
+  return a;
 })(a || {});
-export var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["c"] = 100 /* b */] = "c";
-  x2[x2["d"] = 200] = "d";
-  x2[x2["e"] = 4e4] = "e";
-  x2[x2["f"] = 1e4] = "f";
-  return x2;
+export var x = /* @__PURE__ */ ((x) => {
+  x[x["c"] = 100 /* b */] = "c";
+  x[x["d"] = 200] = "d";
+  x[x["e"] = 4e4] = "e";
+  x[x["f"] = 1e4] = "f";
+  return x;
 })(x || {});
-var x = /* @__PURE__ */ ((x2) => {
-  x2[x2["g"] = 625] = "g";
-  return x2;
+var x = /* @__PURE__ */ ((x) => {
+  x[x["g"] = 625] = "g";
+  return x;
 })(x || {});
 console.log(100 /* b */, 100 /* b */, 625 /* g */, 625 /* g */);
 
 ---------- /out/nested-number.js ----------
 export var foo;
-((foo2) => {
+((foo) => {
   let x;
-  ((x2) => {
-    x2[x2["y"] = 0] = "y";
-    x2[x2["yy"] = 0 /* y */] = "yy";
-  })(x = foo2.x || (foo2.x = {}));
+  ((x) => {
+    x[x["y"] = 0] = "y";
+    x[x["yy"] = 0 /* y */] = "yy";
+  })(x = foo.x || (foo.x = {}));
 })(foo || (foo = {}));
-((foo2) => {
+((foo) => {
   let x;
-  ((x2) => {
-    x2[x2["z"] = 1] = "z";
-  })(x = foo2.x || (foo2.x = {}));
+  ((x) => {
+    x[x["z"] = 1] = "z";
+  })(x = foo.x || (foo.x = {}));
 })(foo || (foo = {}));
-((foo2) => {
+((foo) => {
   let x;
-  ((x2) => {
+  ((x) => {
     console.log(y, z);
     console.log(0 /* y */, 1 /* z */);
-  })(x = foo2.x || (foo2.x = {}));
+  })(x = foo.x || (foo.x = {}));
 })(foo || (foo = {}));
 
 ---------- /out/nested-string.js ----------
 export var foo;
-((foo2) => {
+((foo) => {
   let x;
-  ((x2) => {
-    x2["y"] = "a";
-    x2["yy"] = "a" /* y */;
-  })(x = foo2.x || (foo2.x = {}));
+  ((x) => {
+    x["y"] = "a";
+    x["yy"] = "a" /* y */;
+  })(x = foo.x || (foo.x = {}));
 })(foo || (foo = {}));
-((foo2) => {
+((foo) => {
   let x;
-  ((x2) => {
-    x2["z"] = "a" /* y */;
-  })(x = foo2.x || (foo2.x = {}));
+  ((x) => {
+    x["z"] = "a" /* y */;
+  })(x = foo.x || (foo.x = {}));
 })(foo || (foo = {}));
-((foo2) => {
+((foo) => {
   let x;
-  ((x2) => {
+  ((x) => {
     console.log(y, z);
     console.log("a" /* y */, "a" /* z */);
-  })(x = foo2.x || (foo2.x = {}));
+  })(x = foo.x || (foo.x = {}));
 })(foo || (foo = {}));
 
 ---------- /out/nested-propagation.js ----------
 export var n;
-((n2) => {
+((n) => {
   let a;
-  ((a2) => {
-    a2[a2["b"] = 100] = "b";
-  })(a = n2.a || (n2.a = {}));
+  ((a) => {
+    a[a["b"] = 100] = "b";
+  })(a = n.a || (n.a = {}));
 })(n || (n = {}));
-((n2) => {
+((n) => {
   let x;
-  ((x2) => {
-    x2[x2["c"] = 100 /* b */] = "c";
-    x2[x2["d"] = 200] = "d";
-    x2[x2["e"] = 4e4] = "e";
-    x2[x2["f"] = 1e4] = "f";
-  })(x = n2.x || (n2.x = {}));
+  ((x) => {
+    x[x["c"] = 100 /* b */] = "c";
+    x[x["d"] = 200] = "d";
+    x[x["e"] = 4e4] = "e";
+    x[x["f"] = 1e4] = "f";
+  })(x = n.x || (n.x = {}));
 })(n || (n = {}));
-((n2) => {
+((n) => {
   let x;
-  ((x2) => {
-    x2[x2["g"] = 625] = "g";
-  })(x = n2.x || (n2.x = {}));
+  ((x) => {
+    x[x["g"] = 625] = "g";
+  })(x = n.x || (n.x = {}));
   console.log(100 /* b */, 100 /* b */, 100 /* b */, 625 /* g */, 625 /* g */, 625 /* g */);
 })(n || (n = {}));
 
@@ -780,56 +780,56 @@ export var n;
 TestTSSiblingNamespace
 ---------- /out/let.js ----------
 export var x;
-((x2) => {
-  x2.y = 123;
+((x) => {
+  x.y = 123;
 })(x || (x = {}));
-((x2) => {
-  x2.z = x2.y;
+((x) => {
+  x.z = x.y;
 })(x || (x = {}));
 
 ---------- /out/function.js ----------
 export var x;
-((x2) => {
+((x) => {
   function y() {
   }
-  x2.y = y;
+  x.y = y;
 })(x || (x = {}));
-((x2) => {
-  x2.z = x2.y;
+((x) => {
+  x.z = x.y;
 })(x || (x = {}));
 
 ---------- /out/class.js ----------
 export var x;
-((x2) => {
+((x) => {
   class y {
   }
-  x2.y = y;
+  x.y = y;
 })(x || (x = {}));
-((x2) => {
-  x2.z = x2.y;
+((x) => {
+  x.z = x.y;
 })(x || (x = {}));
 
 ---------- /out/namespace.js ----------
 export var x;
-((x2) => {
+((x) => {
   let y;
-  ((y2) => {
+  ((y) => {
     0;
-  })(y = x2.y || (x2.y = {}));
+  })(y = x.y || (x.y = {}));
 })(x || (x = {}));
-((x2) => {
-  x2.z = x2.y;
+((x) => {
+  x.z = x.y;
 })(x || (x = {}));
 
 ---------- /out/enum.js ----------
 export var x;
-((x2) => {
+((x) => {
   let y;
-  ((y2) => {
-  })(y = x2.y || (x2.y = {}));
+  ((y) => {
+  })(y = x.y || (x.y = {}));
 })(x || (x = {}));
-((x2) => {
-  x2.z = x2.y;
+((x) => {
+  x.z = x.y;
 })(x || (x = {}));
 
 ================================================================================
@@ -1070,27 +1070,27 @@ __decorateClass([
 
 // k.ts
 var k_default = class {
-  foo(x2) {
+  foo(x) {
   }
 };
 __decorateClass([
-  __decorateParam(0, x2(() => 0)),
+  __decorateParam(0, x(() => 0)),
   __decorateParam(0, y(() => 1))
 ], k_default.prototype, "foo", 1);
 
 // arguments.ts
-function dec(x2) {
+function dec(x) {
 }
-function fn(x2) {
+function fn(x) {
   var _a2;
-  class Foo3 {
+  class Foo {
     [_a2 = arguments[0]]() {
     }
   }
   __decorateClass([
     dec(arguments[0])
-  ], Foo3.prototype, _a2, 1);
-  return Foo3;
+  ], Foo.prototype, _a2, 1);
+  return Foo;
 }
 
 // entry.js

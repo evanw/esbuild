@@ -1279,6 +1279,69 @@ func TestNestedScopeBug(t *testing.T) {
 	})
 }
 
+// This test checks that function expression's name is placed in correct scope
+// and not changed by NumberRenamer, as well as function arguments not clashing
+// with the top-level scope and not being renamed
+func TestRenamerFnExprName(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export const a = function a(b) {
+					return b;
+				}
+
+				export const b = function b(a) {
+					return a;
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+// Here we verify that conflicting exports are properly renamed when bundled.
+func TestRenamerBundleConflicts(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export { Foo, makeFoo } from './a';
+				export { Foo as Bar, makeFoo as makeBar } from './b';
+			`,
+			"/a.js": `
+				export class Foo {
+					constructor() {
+						this.name = 'a';
+					}
+				}
+
+				export function makeFoo() {
+					return new Foo('a');
+				}
+			`,
+			"/b.js": `
+				export class Foo {
+					constructor() {
+						this.name = 'b';
+					}
+				}
+
+				export function makeFoo() {
+					return new Foo('b');
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestHashbangBundle(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

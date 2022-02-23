@@ -976,7 +976,7 @@ console.log(foo, out, sha256, config);
 TestFalseRequire
 ---------- /out.js ----------
 // entry.js
-((require2) => require2("/test.txt"))();
+((require) => require("/test.txt"))();
 
 ================================================================================
 TestHashbangBundle
@@ -2580,8 +2580,8 @@ TestRequireMainCacheCommonJS
 ---------- /out.js ----------
 // is-main.js
 var require_is_main = __commonJS({
-  "is-main.js"(exports2, module2) {
-    module2.exports = require.main === module2;
+  "is-main.js"(exports, module) {
+    module.exports = require.main === module;
   }
 });
 
@@ -3268,7 +3268,7 @@ var require_es6_import_stmt = __commonJS({
 // es6-import-assign.ts
 var require_es6_import_assign = __commonJS({
   "es6-import-assign.ts"(exports) {
-    var x2 = (init_dummy(), __toCommonJS(dummy_exports));
+    var x = (init_dummy(), __toCommonJS(dummy_exports));
     console.log(exports);
   }
 });
@@ -3301,8 +3301,8 @@ var require_es6_export_assign = __commonJS({
 var require_es6_ns_export_variable = __commonJS({
   "es6-ns-export-variable.ts"(exports) {
     var ns;
-    ((ns2) => {
-      ns2.foo = 123;
+    ((ns) => {
+      ns.foo = 123;
     })(ns || (ns = {}));
     console.log(exports);
   }
@@ -3312,10 +3312,10 @@ var require_es6_ns_export_variable = __commonJS({
 var require_es6_ns_export_function = __commonJS({
   "es6-ns-export-function.ts"(exports) {
     var ns;
-    ((ns2) => {
+    ((ns) => {
       function foo() {
       }
-      ns2.foo = foo;
+      ns.foo = foo;
     })(ns || (ns = {}));
     console.log(exports);
   }
@@ -3325,10 +3325,10 @@ var require_es6_ns_export_function = __commonJS({
 var require_es6_ns_export_async_function = __commonJS({
   "es6-ns-export-async-function.ts"(exports) {
     var ns;
-    ((ns2) => {
+    ((ns) => {
       async function foo() {
       }
-      ns2.foo = foo;
+      ns.foo = foo;
     })(ns || (ns = {}));
     console.log(exports);
   }
@@ -3338,10 +3338,10 @@ var require_es6_ns_export_async_function = __commonJS({
 var require_es6_ns_export_enum = __commonJS({
   "es6-ns-export-enum.ts"(exports) {
     var ns;
-    ((ns2) => {
+    ((ns) => {
       let Foo;
-      ((Foo2) => {
-      })(Foo = ns2.Foo || (ns2.Foo = {}));
+      ((Foo) => {
+      })(Foo = ns.Foo || (ns.Foo = {}));
     })(ns || (ns = {}));
     console.log(exports);
   }
@@ -3351,10 +3351,10 @@ var require_es6_ns_export_enum = __commonJS({
 var require_es6_ns_export_const_enum = __commonJS({
   "es6-ns-export-const-enum.ts"(exports) {
     var ns;
-    ((ns2) => {
+    ((ns) => {
       let Foo;
-      ((Foo2) => {
-      })(Foo = ns2.Foo || (ns2.Foo = {}));
+      ((Foo) => {
+      })(Foo = ns.Foo || (ns.Foo = {}));
     })(ns || (ns = {}));
     console.log(exports);
   }
@@ -3378,10 +3378,10 @@ var require_es6_ns_export_namespace = __commonJS({
 var require_es6_ns_export_class = __commonJS({
   "es6-ns-export-class.ts"(exports) {
     var ns;
-    ((ns2) => {
+    ((ns) => {
       class Foo {
       }
-      ns2.Foo = Foo;
+      ns.Foo = Foo;
     })(ns || (ns = {}));
     console.log(exports);
   }
@@ -3391,10 +3391,10 @@ var require_es6_ns_export_class = __commonJS({
 var require_es6_ns_export_abstract_class = __commonJS({
   "es6-ns-export-abstract-class.ts"(exports) {
     var ns;
-    ((ns2) => {
+    ((ns) => {
       class Foo {
       }
-      ns2.Foo = Foo;
+      ns.Foo = Foo;
     })(ns || (ns = {}));
     console.log(exports);
   }
@@ -3719,7 +3719,7 @@ var Foo3 = class {
 
 // read-setter.js
 var Foo4 = class {
-  set #foo(x2) {
+  set #foo(x) {
   }
   foo() {
     return this.#foo;
@@ -3728,7 +3728,7 @@ var Foo4 = class {
 
 // node_modules/read-setter.js
 var Foo5 = class {
-  set #foo(x2) {
+  set #foo(x) {
   }
   foo() {
     return this.#foo;
@@ -3737,7 +3737,7 @@ var Foo5 = class {
 
 // plugin-dir/node_modules/read-setter.js
 var Foo6 = class {
-  set #foo(x2) {
+  set #foo(x) {
   }
   foo() {
     return this.#foo;
@@ -3789,3 +3789,47 @@ TestWithStatementTaintingNoBundle
     outerDead++;
   }
 })();
+
+================================================================================
+TestRenamerFnExprName
+---------- /out.js ----------
+// entry.js
+var a = function a(b) {
+  return b;
+};
+var b = function b(a) {
+  return a;
+};
+export {
+  a,
+  b
+};
+
+================================================================================
+TestRenamerBundleConflicts
+---------- /out.js ----------
+// a.js
+var Foo = class {
+  constructor() {
+    this.name = "a";
+  }
+};
+function makeFoo() {
+  return new Foo("a");
+}
+
+// b.js
+var Foo2 = class {
+  constructor() {
+    this.name = "b";
+  }
+};
+function makeFoo2() {
+  return new Foo2("b");
+}
+export {
+  Foo2 as Bar,
+  Foo,
+  makeFoo2 as makeBar,
+  makeFoo
+};
