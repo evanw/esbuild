@@ -2024,6 +2024,32 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		repr.AST.UsesExportsRef = true
 	}
 
+	// Decorate "module.exports" with the "__esModule" flag to indicate that
+	// we used to be an ES module. This is done by wrapping the exports object
+	// instead of by mutating the exports object because other modules in the
+	// bundle (including the entry point module) may do "import * as" to get
+	// access to the exports object and should NOT see the "__esModule" flag.
+	if repr.Meta.NeedsExportsVariable &&
+		repr.Meta.ForceIncludeExportsForEntryPoint &&
+		c.options.OutputFormat == config.FormatCommonJS {
+
+		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
+		toCommonJSRef := runtimeRepr.AST.NamedExports["__toCommonJS"].Ref
+
+		// "module.exports = __toCommonJS(exports);"
+		nsExportStmts = append(nsExportStmts, js_ast.AssignStmt(
+			js_ast.Expr{Data: &js_ast.EDot{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
+				Name:   "exports",
+			}},
+
+			js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: toCommonJSRef}},
+				Args:   []js_ast.Expr{{Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}}},
+			}},
+		))
+	}
+
 	// No need to generate a part if it'll be empty
 	if len(nsExportStmts) > 0 {
 		// Initialize the part that was allocated for us earlier. The information
@@ -3492,6 +3518,16 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 	repr := file.InputFile.Repr.(*graph.JSRepr)
 	shouldExtractESMStmtsForWrap := repr.Meta.Wrap != graph.WrapNone
 
+	var moduleExportsOrNil js_ast.Expr
+	if c.options.OutputFormat == config.FormatCommonJS {
+		moduleExportsOrNil = js_ast.Expr{Data: &js_ast.EDot{
+			Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
+			Name:   "exports",
+		}}
+	} else {
+		moduleExportsOrNil = js_ast.Expr{Data: js_ast.ENullShared}
+	}
+
 	for _, stmt := range partStmts {
 		switch s := stmt.Data.(type) {
 		case *js_ast.SImport:
@@ -3547,7 +3583,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 						ImportRecordIndex: s.ImportRecordIndex,
 					}
 
-					// Prefix this module with "__reExport(exports, ns)"
+					// Prefix this module with "__reExport(exports, module.exports, ns)"
 					exportStarRef := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.ModuleScope.Members["__reExport"].Ref
 					stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
 						Loc: stmt.Loc,
@@ -3555,6 +3591,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 							Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
 							Args: []js_ast.Expr{
 								{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
+								moduleExportsOrNil,
 								{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: s.NamespaceRef}},
 							},
 						}}},
@@ -3579,12 +3616,12 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					var target js_ast.E
 					if record.SourceIndex.IsValid() {
 						if otherRepr := c.graph.Files[record.SourceIndex.GetIndex()].InputFile.Repr.(*graph.JSRepr); otherRepr.AST.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
-							// Prefix this module with "__reExport(exports, otherExports)"
+							// Prefix this module with "__reExport(exports, module.exports, otherExports)"
 							target = &js_ast.EIdentifier{Ref: otherRepr.AST.ExportsRef}
 						}
 					}
 					if target == nil {
-						// Prefix this module with "__reExport(exports, require(path))"
+						// Prefix this module with "__reExport(exports, module.exports, require(path))"
 						target = &js_ast.ERequireString{
 							ImportRecordIndex: s.ImportRecordIndex,
 						}
@@ -3596,6 +3633,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 							Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
 							Args: []js_ast.Expr{
 								{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
+								moduleExportsOrNil,
 								{Loc: record.Range.Loc, Data: target},
 							},
 						}}},
@@ -4096,25 +4134,6 @@ func (c *linkerContext) generateEntryPointTailJS(
 				stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.AST.WrapperRef}},
 				}}}})
-			}
-
-			// Decorate "module.exports" with the "__esModule" flag to indicate that
-			// we used to be an ES module. This is done by wrapping the exports object
-			// instead of by mutating the exports object because other modules in the
-			// bundle (including the entry point module) may do "import * as" to get
-			// access to the exports object and should NOT see the "__esModule" flag.
-			if repr.Meta.ForceIncludeExportsForEntryPoint {
-				// "module.exports = __toCommonJS(exports);"
-				stmts = append(stmts, js_ast.AssignStmt(
-					js_ast.Expr{Data: &js_ast.EDot{
-						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
-						Name:   "exports",
-					}},
-					js_ast.Expr{Data: &js_ast.ECall{
-						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: toCommonJSRef}},
-						Args:   []js_ast.Expr{{Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}}},
-					}},
-				))
 			}
 		}
 

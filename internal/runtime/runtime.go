@@ -185,7 +185,9 @@ func code(isES6 bool) string {
 			for (var name in all)
 				__defProp(target, name, { get: all[name], enumerable: true })
 		}
-		export var __reExport = (target, module, copyDefault, desc) => {
+		export var __reExport = (target, secondTarget, module, copyDefault, desc) => {
+			if (secondTarget && secondTarget !== target)
+			  __reExport(secondTarget, null, module, copyDefault, desc)
 			if (module && typeof module === 'object' || typeof module === 'function')
 	`
 
@@ -225,14 +227,14 @@ func code(isES6 bool) string {
 					!isNodeMode && module && module.__esModule
 						? { get: () => module.default, enumerable: true }
 						: { value: module, enumerable: true })
-			), module)
+			), null, module)
 		}
 
 		// Converts the module from ESM to CommonJS
 		export var __toCommonJS = /* @__PURE__ */ (cache => {
 			return (module, temp) => {
 				return (cache && cache.get(module)) || (
-					temp = __reExport(__markAsModule({}), module, /* copyDefault */ 1),
+					temp = __reExport(__markAsModule({}), null, module, /* copyDefault */ 1),
 					cache && cache.set(module, temp),
 					temp)
 			}

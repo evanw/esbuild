@@ -1101,10 +1101,7 @@
         import {a} from './re-export'
         let fn = a()
 
-        // Note: The "void 0" is different here. This case broke when fixing
-        // something else ("default" export semantics in node). This test still
-        // exists to document this broken behavior.
-        if (fn === a || fn() !== void 0) throw 'fail'
+        if (fn === a) throw 'fail'
       `,
       're-export.ts': `
         export * from './a'
