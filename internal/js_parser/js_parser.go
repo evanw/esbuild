@@ -4765,8 +4765,13 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			p.lexer.NextInsideJSXElement()
 			endRange, endText, _ := p.parseJSXTag()
 			if startText != endText {
-				p.log.AddWithNotes(logger.Error, &p.tracker, endRange, fmt.Sprintf("Expected closing tag %q to match opening tag %q", endText, startText),
-					[]logger.MsgData{p.tracker.MsgData(startRange, fmt.Sprintf("The opening tag %q is here:", startText))})
+				msg := logger.Msg{
+					Kind:  logger.Error,
+					Data:  p.tracker.MsgData(endRange, fmt.Sprintf("Expected closing tag %q to match opening tag %q", endText, startText)),
+					Notes: []logger.MsgData{p.tracker.MsgData(startRange, fmt.Sprintf("The opening tag %q is here:", startText))},
+				}
+				msg.Data.Location.Suggestion = startText
+				p.log.AddMsg(msg)
 			}
 			if p.lexer.Token != js_lexer.TGreaterThan {
 				p.lexer.Expected(js_lexer.TGreaterThan)
