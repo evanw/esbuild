@@ -1401,14 +1401,12 @@ TestKeepNamesTreeShaking
 // entry.js
 function fnStmtKeep() {
 }
-__name(fnStmtKeep, "fnStmtKeep");
 x = fnStmtKeep;
 var fnExprKeep = /* @__PURE__ */ __name(function() {
 }, "keep");
 x = fnExprKeep;
 var clsStmtKeep = class {
 };
-__name(clsStmtKeep, "clsStmtKeep");
 new clsStmtKeep();
 var clsExprKeep = /* @__PURE__ */ __name(class {
 }, "keep");
@@ -2810,12 +2808,11 @@ export function outer() {
     let inner = function() {
       return Math.random();
     };
-    __name(inner, "inner");
     const x = inner();
     console.log(x);
   }
 }
-__name(outer, "outer"), outer();
+outer();
 
 ================================================================================
 TestSwitchScopeNoBundle

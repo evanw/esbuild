@@ -513,6 +513,8 @@ type ECall struct {
 	// call itself is removed due to this annotation, the arguments must remain
 	// if they have side effects.
 	CanBeUnwrappedIfUnused bool
+
+	IsKeepName bool
 }
 
 func (a *ECall) HasSameFlagsAs(b *ECall) bool {

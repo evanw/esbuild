@@ -1395,6 +1395,10 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		}
 
 	case *js_ast.ECall:
+		if p.isCallExprSuperfluous(e) {
+			return js_ast.Expr{Loc: expr.Loc}
+		}
+
 		var symbolFlags js_ast.SymbolFlags
 		switch target := e.Target.Data.(type) {
 		case *js_ast.EIdentifier:
@@ -1790,6 +1794,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(arg, flags), level, flags)
 				break
 			}
+		}
+
+		if p.isCallExprSuperfluous(e) {
+			p.printExpr(e.Args[0], level, flags)
+			return
 		}
 
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
@@ -2544,6 +2553,32 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	default:
 		panic(fmt.Sprintf("Unexpected expression of type %T", expr.Data))
 	}
+}
+
+func (p *printer) isCallExprSuperfluous(value *js_ast.ECall) bool {
+	if !value.IsKeepName {
+		return false
+	}
+
+	fn := value.Args[0]
+
+	var fnNameOrNil *js_ast.Ref
+	switch e := fn.Data.(type) {
+	case *js_ast.EIdentifier:
+		fnNameOrNil = &e.Ref
+	case *js_ast.EFunction:
+		if e.Fn.Name != nil {
+			fnNameOrNil = &e.Fn.Name.Ref
+		}
+	}
+
+	keptName := helpers.UTF16ToString(value.Args[1].Data.(*js_ast.EString).Value)
+
+	if fnNameOrNil != nil && keptName == p.renamer.NameForSymbol(*fnNameOrNil) {
+		return true
+	}
+
+	return false
 }
 
 func (p *printer) isUnboundEvalIdentifier(value js_ast.Expr) bool {

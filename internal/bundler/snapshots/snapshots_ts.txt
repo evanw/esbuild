@@ -1102,7 +1102,7 @@ TestTypeScriptDecoratorsKeepNames
 // entry.ts
 var Foo = class {
 };
-__name(Foo, "Foo");
+Foo;
 Foo = __decorateClass([
   decoratorMustComeAfterName
 ], Foo);

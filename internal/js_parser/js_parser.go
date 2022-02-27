@@ -8944,17 +8944,21 @@ func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr 
 
 	// Make sure tree shaking removes this if the function is never used
 	value.Data.(*js_ast.ECall).CanBeUnwrappedIfUnused = true
+	value.Data.(*js_ast.ECall).IsKeepName = true
 	return value
 }
 
 func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string) js_ast.Stmt {
 	p.symbols[ref.InnerIndex].Flags |= js_ast.DidKeepName
 
+	call := p.callRuntime(loc, "__name", []js_ast.Expr{
+		{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
+		{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
+	})
+	call.Data.(*js_ast.ECall).IsKeepName = true
+
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
-		Value: p.callRuntime(loc, "__name", []js_ast.Expr{
-			{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
-			{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
-		}),
+		Value: call,
 
 		// Make sure tree shaking removes this if the function is never used
 		DoesNotAffectTreeShaking: true,
