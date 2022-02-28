@@ -181,6 +181,12 @@ func parseFile(args parseArgs) {
 		}
 	}()
 
+	// When building for Node, we mark all Node built-in modules as safe to rewrite
+	// as import statements if needed.
+	if args.options.Platform == config.PlatformNode {
+		args.options.RewriteRequireForPaths = resolver.BuiltInNodeModules
+	}
+
 	switch loader {
 	case config.LoaderJS:
 		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))

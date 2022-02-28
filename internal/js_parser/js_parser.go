@@ -322,6 +322,12 @@ type parser struct {
 	latestReturnHadSemicolon bool
 	warnedThisIsUndefined    bool
 	isControlFlowDead        bool
+
+	// In certain situations, we might want to rewrite require() calls to use an
+	// import statement rather than a runtime require. When this happens, we use
+	// this map to keep track of the import statement's default namespace symbol
+	// used for each import record.
+	rewrittenRequireSymbols map[uint32]js_ast.Ref
 }
 
 type injectedSymbolSource struct {
@@ -369,6 +375,8 @@ type Options struct {
 	// the name "optionsThatSupportStructuralEquality". This is only grouped like
 	// this to make the equality comparison easier and safer (and hopefully faster).
 	optionsThatSupportStructuralEquality
+
+	rewriteRequireForPaths map[string]bool
 }
 
 type optionsThatSupportStructuralEquality struct {
@@ -423,6 +431,8 @@ func OptionsFromConfig(options *config.Options) Options {
 			unusedImportsTS:         options.UnusedImportsTS,
 			useDefineForClassFields: options.UseDefineForClassFields,
 		},
+
+		rewriteRequireForPaths: options.RewriteRequireForPaths,
 	}
 }
 
@@ -13393,13 +13403,30 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 									return js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared}
 								}
 
-								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, helpers.UTF16ToString(str.Value), nil)
+								importRecordPath := helpers.UTF16ToString(str.Value)
+								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, importRecordPath, nil)
+
 								if p.fnOrArrowDataVisit.tryBodyCount != 0 {
 									record := &p.importRecords[importRecordIndex]
 									record.Flags |= ast.HandlesImportErrors
 									record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
 								}
 								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+
+								// All require() calls will be replaced by a runtime require if the
+								// output format is ESM. For external imports, this will lead to a
+								// runtime error. There are some situations where we can avoid that,
+								// such as when dealing with a Node built-in, for which we know we
+								// can rewrite the require as an import statement. We do that here.
+								if p.shouldRewriteRequireToImport(importRecordPath) {
+									importRef := p.newSymbol(js_ast.SymbolOther, "import_"+js_ast.GenerateNonUniqueNameFromPath(importRecordPath))
+									p.moduleScope.Generated = append(p.moduleScope.Generated, importRef)
+									p.rewrittenRequireSymbols[importRecordIndex] = importRef
+
+									return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{
+										Ref: importRef,
+									}}
+								}
 
 								// Create a new expression to represent the operation
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireString{
@@ -13582,6 +13609,10 @@ func (p *parser) convertSymbolUseToCall(ref js_ast.Ref, isSingleArgCall bool) {
 		callUse.SingleArgCallCountEstimate++
 	}
 	p.symbolCallUses[ref] = callUse
+}
+
+func (p *parser) shouldRewriteRequireToImport(path string) bool {
+	return p.options.outputFormat == config.FormatESModule && p.options.rewriteRequireForPaths[path]
 }
 
 func (p *parser) warnAboutImportNamespaceCall(target js_ast.Expr, kind importNamespaceCallKind) {
@@ -14797,6 +14828,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		isImportItem:            make(map[js_ast.Ref]bool),
 		namedImports:            make(map[js_ast.Ref]js_ast.NamedImport),
 		namedExports:            make(map[string]js_ast.NamedExport),
+		rewrittenRequireSymbols: make(map[uint32]js_ast.Ref),
 
 		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
 	}
@@ -14998,6 +15030,8 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		}
 	}
 
+	parts = p.createImportsForRewrittenRequires(parts)
+
 	// Insert a variable for "import.meta" at the top of the file if it was used.
 	// We don't need to worry about "use strict" directives because this only
 	// happens when bundling, in which case we are flatting the module scopes of
@@ -15025,6 +15059,28 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	result = p.toAST(parts, hashbang, directive)
 	result.SourceMapComment = p.lexer.SourceMappingURL
 	return
+}
+
+func (p *parser) createImportsForRewrittenRequires(parts []js_ast.Part) []js_ast.Part {
+	var newParts []js_ast.Part
+
+	for _, part := range parts {
+		for _, importIndex := range part.ImportRecordIndices {
+			if importRef, ok := p.rewrittenRequireSymbols[importIndex]; ok {
+				newParts = append(newParts, js_ast.Part{
+					DeclaredSymbols:     part.DeclaredSymbols,
+					ImportRecordIndices: part.ImportRecordIndices,
+					Stmts: []js_ast.Stmt{{Data: &js_ast.SImport{
+						NamespaceRef:      importRef,
+						DefaultName:       &js_ast.LocRef{Ref: importRef},
+						ImportRecordIndex: importIndex,
+					}}},
+				})
+			}
+		}
+	}
+
+	return append(parts, newParts...)
 }
 
 func LazyExportAST(log logger.Log, source logger.Source, options Options, expr js_ast.Expr, apiCall string) js_ast.AST {

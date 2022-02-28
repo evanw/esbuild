@@ -287,6 +287,8 @@ type Options struct {
 	NeedsMetafile           bool
 	SourceMap               SourceMap
 	ExcludeSourcesContent   bool
+
+	RewriteRequireForPaths map[string]bool
 }
 
 type TargetFromAPI uint8

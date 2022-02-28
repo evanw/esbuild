@@ -4706,6 +4706,25 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: ERROR: Unexpecte
    └ entry.js ── 25b ─── 25.0%
 `)
   },
+
+  async rewriteRequireToImport({ esbuild, testDir }) {
+    const outfile = path.join(testDir, 'out.mjs');
+    await esbuild.build({
+      stdin: {
+        contents: `const { extname } = require("path"); export { extname };`,
+      },
+      bundle: true,
+      bundle: true,
+      platform: 'node',
+      format: 'esm',
+      outfile
+    })
+
+    // This needs to use relative paths to avoid breaking on Windows.
+    // Importing by absolute path doesn't work on Windows in node.
+    const result = await import('./' + path.relative(__dirname, outfile))
+    assert.strictEqual(result.extname('one.ts'), '.ts')
+  },
 }
 
 async function assertSourceMap(jsSourceMap, source) {
