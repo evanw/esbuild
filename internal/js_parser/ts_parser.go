@@ -887,6 +887,7 @@ func (p *parser) parseTypeScriptDecorators() []js_ast.Expr {
 	var tsDecorators []js_ast.Expr
 	if p.options.ts.Parse {
 		for p.lexer.Token == js_lexer.TAt {
+			loc := p.lexer.Loc()
 			p.lexer.Next()
 
 			// Parse a new/call expression with "exprFlagTSDecorator" so we ignore
@@ -897,10 +898,39 @@ func (p *parser) parseTypeScriptDecorators() []js_ast.Expr {
 			//   }
 			//
 			// This matches the behavior of the TypeScript compiler.
-			tsDecorators = append(tsDecorators, p.parseExprWithFlags(js_ast.LNew, exprFlagTSDecorator))
+			value := p.parseExprWithFlags(js_ast.LNew, exprFlagTSDecorator)
+			value.Loc = loc
+			tsDecorators = append(tsDecorators, value)
 		}
 	}
 	return tsDecorators
+}
+
+func (p *parser) logInvalidDecoratorError(classKeyword logger.Range) {
+	if p.options.ts.Parse && p.lexer.Token == js_lexer.TAt {
+		// Forbid decorators inside class expressions
+		p.lexer.AddRangeErrorWithNotes(p.lexer.Range(), "Decorators can only be used with class declarations in TypeScript",
+			[]logger.MsgData{p.tracker.MsgData(classKeyword, "This is a class expression, not a class declaration:")})
+
+		// Parse and discard decorators for error recovery
+		scopeIndex := len(p.scopesInOrder)
+		p.parseTypeScriptDecorators()
+		p.discardScopesUpTo(scopeIndex)
+	}
+}
+
+func (p *parser) logMisplacedDecoratorError(tsDecorators *deferredTSDecorators) {
+	found := fmt.Sprintf("%q", p.lexer.Raw())
+	if p.lexer.Token == js_lexer.TEndOfFile {
+		found = "end of file"
+	}
+
+	// Try to be helpful by pointing out the decorator
+	p.lexer.AddRangeErrorWithNotes(p.lexer.Range(), fmt.Sprintf("Expected \"class\" after TypeScript decorator but found %s", found), []logger.MsgData{
+		p.tracker.MsgData(logger.Range{Loc: tsDecorators.values[0].Loc}, "The preceding TypeScript decorator is here:"),
+		{Text: "Decorators can only be used with class declarations in TypeScript."},
+	})
+	p.discardScopesUpTo(tsDecorators.scopeIndex)
 }
 
 func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {

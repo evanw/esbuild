@@ -1902,6 +1902,7 @@ type propertyOpts struct {
 
 	asyncRange     logger.Range
 	tsDeclareRange logger.Range
+	classKeyword   logger.Range
 	isAsync        bool
 	isGenerator    bool
 
@@ -2262,7 +2263,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 			yield = allowExpr
 		}
 
-		fn, hadBody := p.parseFn(nil, fnOrArrowDataParse{
+		fn, hadBody := p.parseFn(nil, opts.classKeyword, fnOrArrowDataParse{
 			needsAsyncLoc:      key.Loc,
 			asyncRange:         opts.asyncRange,
 			await:              await,
@@ -2717,7 +2718,7 @@ func (p *parser) parseFnExpr(loc logger.Loc, isAsync bool, asyncRange logger.Ran
 		yield = allowExpr
 	}
 
-	fn, _ := p.parseFn(name, fnOrArrowDataParse{
+	fn, _ := p.parseFn(name, logger.Range{}, fnOrArrowDataParse{
 		needsAsyncLoc: loc,
 		asyncRange:    asyncRange,
 		await:         await,
@@ -5319,7 +5320,7 @@ func (p *parser) parseBinding() js_ast.Binding {
 	return js_ast.Binding{}
 }
 
-func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_ast.Fn, hadBody bool) {
+func (p *parser) parseFn(name *js_ast.LocRef, classKeyword logger.Range, data fnOrArrowDataParse) (fn js_ast.Fn, hadBody bool) {
 	if data.await == allowExpr && data.yield == allowExpr {
 		p.markSyntaxFeature(compat.AsyncGenerator, data.asyncRange)
 	}
@@ -5367,6 +5368,8 @@ func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_as
 		var tsDecorators []js_ast.Expr
 		if data.allowTSDecorators {
 			tsDecorators = p.parseTypeScriptDecorators()
+		} else if classKeyword.Len > 0 {
+			p.logInvalidDecoratorError(classKeyword)
 		}
 
 		if !fn.HasRestArg && p.lexer.Token == js_lexer.TDotDotDot {
@@ -5612,6 +5615,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 		isClass:           true,
 		allowTSDecorators: classOpts.allowTSDecorators,
 		classHasExtends:   extendsOrNil.Data != nil,
+		classKeyword:      classKeyword,
 	}
 	hasConstructor := false
 
@@ -5627,6 +5631,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 			opts.tsDecorators = p.parseTypeScriptDecorators()
 		} else {
 			opts.tsDecorators = nil
+			p.logInvalidDecoratorError(classKeyword)
 		}
 
 		// This property may turn out to be a type in TypeScript, which should be ignored
@@ -5807,7 +5812,7 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 		yield = allowExpr
 	}
 
-	fn, hadBody := p.parseFn(name, fnOrArrowDataParse{
+	fn, hadBody := p.parseFn(name, logger.Range{}, fnOrArrowDataParse{
 		needsAsyncLoc:       loc,
 		asyncRange:          asyncRange,
 		await:               await,
@@ -5916,7 +5921,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		// "@decorator export declare abstract class Foo {}"
 		if opts.tsDecorators != nil && p.lexer.Token != js_lexer.TClass && p.lexer.Token != js_lexer.TDefault &&
 			!p.lexer.IsContextualKeyword("abstract") && !p.lexer.IsContextualKeyword("declare") {
-			p.lexer.Expected(js_lexer.TClass)
+			p.logMisplacedDecoratorError(opts.tsDecorators)
 		}
 
 		switch p.lexer.Token {
@@ -6023,7 +6028,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			// "@decorator export default class Foo {}"
 			// "@decorator export default abstract class Foo {}"
 			if opts.tsDecorators != nil && p.lexer.Token != js_lexer.TClass && !p.lexer.IsContextualKeyword("abstract") {
-				p.lexer.Expected(js_lexer.TClass)
+				p.logMisplacedDecoratorError(opts.tsDecorators)
 			}
 
 			if p.lexer.IsContextualKeyword("async") {
@@ -6249,7 +6254,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			// "@decorator export default abstract class Foo {}"
 			if p.lexer.Token != js_lexer.TClass && p.lexer.Token != js_lexer.TExport &&
 				!p.lexer.IsContextualKeyword("abstract") && !p.lexer.IsContextualKeyword("declare") {
-				p.lexer.Expected(js_lexer.TClass)
+				p.logMisplacedDecoratorError(opts.tsDecorators)
 			}
 
 			return p.parseStmt(opts)
@@ -6941,7 +6946,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						// "@decorator declare class Foo {}"
 						// "@decorator declare abstract class Foo {}"
 						if opts.tsDecorators != nil && p.lexer.Token != js_lexer.TClass && !p.lexer.IsContextualKeyword("abstract") {
-							p.lexer.Expected(js_lexer.TClass)
+							p.logMisplacedDecoratorError(opts.tsDecorators)
 						}
 
 						// "declare global { ... }"
