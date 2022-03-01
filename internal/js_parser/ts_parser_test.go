@@ -146,6 +146,8 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x = 'x' as keyof typeof Foo", "let x = \"x\";\n")
 	expectPrintedTS(t, "let fs: typeof import('fs') = require('fs')", "let fs = require(\"fs\");\n")
 	expectPrintedTS(t, "let fs: typeof import('fs').exists = require('fs').exists", "let fs = require(\"fs\").exists;\n")
+	expectPrintedTS(t, "let fs: typeof import('fs', { assert: { type: 'json' } }) = require('fs')", "let fs = require(\"fs\");\n")
+	expectPrintedTS(t, "let fs: typeof import('fs', { assert: { 'resolution-mode': 'import' } }) = require('fs')", "let fs = require(\"fs\");\n")
 	expectPrintedTS(t, "let x: <T>() => Foo<T>", "let x;\n")
 	expectPrintedTS(t, "let x: new <T>() => Foo<T>", "let x;\n")
 	expectPrintedTS(t, "let x: <T extends object>() => Foo<T>", "let x;\n")

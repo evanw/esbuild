@@ -253,6 +253,18 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 
 			p.lexer.Expect(js_lexer.TOpenParen)
 			p.lexer.Expect(js_lexer.TStringLiteral)
+
+			// "import('./foo.json', { assert: { type: 'json' } })"
+			if p.lexer.Token == js_lexer.TComma {
+				p.lexer.Next()
+				p.skipTypeScriptObjectType()
+
+				// "import('./foo.json', { assert: { type: 'json' } }, )"
+				if p.lexer.Token == js_lexer.TComma {
+					p.lexer.Next()
+				}
+			}
+
 			p.lexer.Expect(js_lexer.TCloseParen)
 
 		case js_lexer.TNew:
