@@ -1486,6 +1486,10 @@ func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path strin
 				r.debugLogs.addNote(fmt.Sprintf("Found an exact match for %q in \"paths\"", key))
 			}
 			for _, originalPath := range originalPaths {
+				if strings.HasSuffix(originalPath, ".d.ts") || strings.HasSuffix(strings.ToLower(originalPath), ".d.ts") {
+					continue
+				}
+
 				// Load the original path relative to the "baseUrl" from tsconfig.json
 				absoluteOriginalPath := originalPath
 				if !r.fs.IsAbs(originalPath) {
@@ -1542,6 +1546,10 @@ func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path strin
 			// Swap out the "*" in the original path for whatever the "*" matched
 			matchedText := path[len(longestMatch.prefix) : len(path)-len(longestMatch.suffix)]
 			originalPath = strings.Replace(originalPath, "*", matchedText, 1)
+
+			if strings.HasSuffix(originalPath, ".d.ts") || strings.HasSuffix(strings.ToLower(originalPath), ".d.ts") {
+				continue
+			}
 
 			// Load the original path relative to the "baseUrl" from tsconfig.json
 			absoluteOriginalPath := originalPath

@@ -111,6 +111,20 @@ var baseurl_nested_default = {
 console.log(baseurl_dot_default, baseurl_nested_default);
 
 ================================================================================
+TestTsConfigPathsIsType
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/fib/index.js
+function fib(input) {
+  if (input < 2) {
+    return input;
+  }
+  return fib(input - 1) + fib(input - 2);
+}
+
+// Users/user/project/entry.ts
+console.log(fib(10));
+
+================================================================================
 TestTsConfigPathsNoBaseURL
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/simple/test0-success.ts
