@@ -491,6 +491,44 @@ NOTE: You can mark the path "#/test" as external to exclude it from the bundle, 
 	})
 }
 
+func TestTsConfigPathsIsType(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.ts": `
+				import { fib } from "fib";
+
+				console.log(fib(10));
+			`,
+			"/Users/user/project/node_modules/fib/index.js": `
+				export function fib(input) {
+					if (input < 2) {
+						return input;
+					}
+					return fib(input - 1) + fib(input - 2);
+				}
+			`,
+			"/Users/user/project/fib-local.d.ts": `
+				export function fib(input: number): number;
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": ".",
+						"paths": {
+							"fib": ["fib-local.d.ts"]
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestTsConfigJSX(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
