@@ -502,21 +502,21 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2019, "(delete a?.[b])[c]", "(a == null ? true : delete a[b])[c];\n")
 	expectPrintedTarget(t, 2019, "(delete a?.(b))(c)", "(a == null ? true : delete a(b))(c);\n")
 
-	expectPrintedTarget(t, 2019, "null?.x", "void 0;\n")
-	expectPrintedTarget(t, 2019, "null?.[x]", "void 0;\n")
+	expectPrintedTarget(t, 2019, "null?.x", "")
+	expectPrintedTarget(t, 2019, "null?.[x]", "")
 	expectPrintedTarget(t, 2019, "null?.(x)", "")
 
-	expectPrintedTarget(t, 2019, "delete null?.x", "true;\n")
-	expectPrintedTarget(t, 2019, "delete null?.[x]", "true;\n")
-	expectPrintedTarget(t, 2019, "delete null?.(x)", "true;\n")
+	expectPrintedTarget(t, 2019, "delete null?.x", "")
+	expectPrintedTarget(t, 2019, "delete null?.[x]", "")
+	expectPrintedTarget(t, 2019, "delete null?.(x)", "")
 
-	expectPrintedTarget(t, 2019, "undefined?.x", "void 0;\n")
-	expectPrintedTarget(t, 2019, "undefined?.[x]", "void 0;\n")
+	expectPrintedTarget(t, 2019, "undefined?.x", "")
+	expectPrintedTarget(t, 2019, "undefined?.[x]", "")
 	expectPrintedTarget(t, 2019, "undefined?.(x)", "")
 
-	expectPrintedTarget(t, 2019, "delete undefined?.x", "true;\n")
-	expectPrintedTarget(t, 2019, "delete undefined?.[x]", "true;\n")
-	expectPrintedTarget(t, 2019, "delete undefined?.(x)", "true;\n")
+	expectPrintedTarget(t, 2019, "delete undefined?.x", "")
+	expectPrintedTarget(t, 2019, "delete undefined?.[x]", "")
+	expectPrintedTarget(t, 2019, "delete undefined?.(x)", "")
 
 	expectPrintedMangleTarget(t, 2019, "(foo(), null)?.x; y = (bar(), null)?.x", "foo(), y = (bar(), void 0);\n")
 	expectPrintedMangleTarget(t, 2019, "(foo(), null)?.[x]; y = (bar(), null)?.[x]", "foo(), y = (bar(), void 0);\n")
@@ -530,12 +530,12 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2020, "x?.[y]", "x?.[y];\n")
 	expectPrintedTarget(t, 2020, "x?.(y)", "x?.(y);\n")
 
-	expectPrintedTarget(t, 2020, "null?.x", "void 0;\n")
-	expectPrintedTarget(t, 2020, "null?.[x]", "void 0;\n")
+	expectPrintedTarget(t, 2020, "null?.x", "")
+	expectPrintedTarget(t, 2020, "null?.[x]", "")
 	expectPrintedTarget(t, 2020, "null?.(x)", "")
 
-	expectPrintedTarget(t, 2020, "undefined?.x", "void 0;\n")
-	expectPrintedTarget(t, 2020, "undefined?.[x]", "void 0;\n")
+	expectPrintedTarget(t, 2020, "undefined?.x", "")
+	expectPrintedTarget(t, 2020, "undefined?.[x]", "")
 	expectPrintedTarget(t, 2020, "undefined?.(x)", "")
 
 	expectPrintedTarget(t, 2020, "(foo(), null)?.x", "(foo(), null)?.x;\n")

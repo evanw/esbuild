@@ -37,6 +37,10 @@
     console.log(import(foo));
     ```
 
+* Remove simplified statement-level literal expressions ([#2063](https://github.com/evanw/esbuild/issues/2063))
+
+    With this release, esbuild now removes simplified statement-level expressions if the simplified result is a literal expression even when minification is disabled. Previously this was only done when minification is enabled. This change was only made because some people are bothered by seeing top-level literal expressions. This change has no effect on code behavior.
+
 ## 0.14.23
 
 * Update feature database to indicate that node 16.14+ supports import assertions ([#2030](https://github.com/evanw/esbuild/issues/2030))

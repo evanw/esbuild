@@ -9347,23 +9347,16 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 	case *js_ast.SExpr:
-		shouldTrimUndefined := false
-		if !p.options.minifySyntax {
-			if _, ok := s.Value.Data.(*js_ast.ECall); ok {
-				shouldTrimUndefined = true
-			}
-		}
-
+		shouldTrimUnsightlyPrimitives := !p.options.minifySyntax && !isUnsightlyPrimitive(s.Value.Data)
 		p.stmtExprValue = s.Value.Data
 		s.Value = p.visitExpr(s.Value)
 
-		// If this was a call and is now undefined, then it probably was a console
-		// API call that was dropped with "--drop:console". Manually discard the
-		// undefined value even when we're not minifying for aesthetic reasons.
-		if shouldTrimUndefined {
-			if _, ok := s.Value.Data.(*js_ast.EUndefined); ok {
-				return stmts
-			}
+		// Expressions that have been simplified down to a single primitive don't
+		// have any effect, and are automatically removed during minification.
+		// However, some people are really bothered by seeing them. Remove them
+		// so we don't bother these people.
+		if shouldTrimUnsightlyPrimitives && isUnsightlyPrimitive(s.Value.Data) {
+			return stmts
 		}
 
 		// Trim expressions without side effects
@@ -9925,6 +9918,14 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 	stmts = append(stmts, stmt)
 	return stmts
+}
+
+func isUnsightlyPrimitive(data js_ast.E) bool {
+	switch data.(type) {
+	case *js_ast.EBoolean, *js_ast.ENull, *js_ast.EUndefined, *js_ast.ENumber, *js_ast.EBigInt, *js_ast.EString:
+		return true
+	}
+	return false
 }
 
 // If we encounter a variable initializer that could possibly trigger access to
