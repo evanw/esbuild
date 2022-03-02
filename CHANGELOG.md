@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+* Match `define` to strings in index expressions ([#2050](https://github.com/evanw/esbuild/issues/2050))
+
+    With this release, configuring `--define:foo.bar=baz` now matches and replaces both `foo.bar` and `foo['bar']` expressions in the original source code. This is necessary for people who have enabled TypeScript's `noPropertyAccessFromIndexSignature` feature, which prevents you from using normal property access syntax on a type with an index signature such as in the following code:
+
+    ```ts
+    declare let foo: { [key: string]: any }
+    foo.bar // This is a type error if noPropertyAccessFromIndexSignature is enabled
+    foo['bar']
+    ```
+
+    Previously esbuild would generate the following output with `--define:foo.bar=baz`:
+
+    ```js
+    baz;
+    foo["bar"];
+    ```
+
+    Now esbuild will generate the following output instead:
+
+    ```js
+    baz;
+    baz;
+    ```
+
 * Parse and discard TypeScript `export as namespace` statements ([#2070](https://github.com/evanw/esbuild/issues/2070))
 
     TypeScript `.d.ts` type declaration files can sometimes contain statements of the form `export as namespace foo;`. I believe these serve to declare that the module adds a property of that name to the global object. You aren't supposed to feed `.d.ts` files to esbuild so this normally doesn't matter, but sometimes esbuild can end up having to parse them. One such case is if you import a type-only package who's `main` field in `package.json` is a `.d.ts` file.

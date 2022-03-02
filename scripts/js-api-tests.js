@@ -3838,8 +3838,18 @@ let transformTests = {
 
   async define({ esbuild }) {
     const define = { 'process.env.NODE_ENV': '"production"' }
-    const { code } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })
-    assert.strictEqual(code, `console.log("production");\n`)
+
+    const { code: code1 } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })
+    assert.strictEqual(code1, `console.log("production");\n`)
+
+    const { code: code2 } = await esbuild.transform(`console.log(process.env['NODE_ENV'])`, { define })
+    assert.strictEqual(code2, `console.log("production");\n`)
+
+    const { code: code3 } = await esbuild.transform(`console.log(process['env'].NODE_ENV)`, { define })
+    assert.strictEqual(code3, `console.log("production");\n`)
+
+    const { code: code4 } = await esbuild.transform(`console.log(process['env']['NODE_ENV'])`, { define })
+    assert.strictEqual(code4, `console.log("production");\n`)
   },
 
   async defineBuiltInConstants({ esbuild }) {

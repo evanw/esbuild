@@ -547,10 +547,21 @@ type EIndex struct {
 	Target        Expr
 	Index         Expr
 	OptionalChain OptionalChain
+
+	// If true, this property access is known to be free of side-effects. That
+	// means it can be removed if the resulting value isn't used.
+	CanBeRemovedIfUnused bool
+
+	// If true, this property access is a function that, when called, can be
+	// unwrapped if the resulting value is unused. Unwrapping means discarding
+	// the call target but keeping any arguments with side effects.
+	CallCanBeUnwrappedIfUnused bool
 }
 
 func (a *EIndex) HasSameFlagsAs(b *EIndex) bool {
-	return a.OptionalChain == b.OptionalChain
+	return a.OptionalChain == b.OptionalChain &&
+		a.CanBeRemovedIfUnused == b.CanBeRemovedIfUnused &&
+		a.CallCanBeUnwrappedIfUnused == b.CallCanBeUnwrappedIfUnused
 }
 
 type EArrow struct {

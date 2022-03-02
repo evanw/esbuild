@@ -10553,14 +10553,24 @@ func (p *parser) visitArgs(args []js_ast.Arg, opts visitArgsOpts) {
 	}
 }
 
-func (p *parser) isDotDefineMatch(expr js_ast.Expr, parts []string) bool {
+func (p *parser) isDotOrIndexDefineMatch(expr js_ast.Expr, parts []string) bool {
 	switch e := expr.Data.(type) {
 	case *js_ast.EDot:
 		if len(parts) > 1 {
 			// Intermediates must be dot expressions
 			last := len(parts) - 1
-			return parts[last] == e.Name && e.OptionalChain == js_ast.OptionalChainNone &&
-				p.isDotDefineMatch(e.Target, parts[:last])
+			return e.OptionalChain == js_ast.OptionalChainNone && parts[last] == e.Name &&
+				p.isDotOrIndexDefineMatch(e.Target, parts[:last])
+		}
+
+	case *js_ast.EIndex:
+		if len(parts) > 1 {
+			if str, ok := e.Index.Data.(*js_ast.EString); ok {
+				// Intermediates must be dot expressions
+				last := len(parts) - 1
+				return e.OptionalChain == js_ast.OptionalChainNone && parts[last] == helpers.UTF16ToString(str.Value) &&
+					p.isDotOrIndexDefineMatch(e.Target, parts[:last])
+			}
 		}
 
 	case *js_ast.EThis:
@@ -11506,7 +11516,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Check both user-specified defines and known globals
 		if defines, ok := p.options.defines.DotDefines["meta"]; ok {
 			for _, define := range defines {
-				if p.isDotDefineMatch(expr, define.Parts) {
+				if p.isDotOrIndexDefineMatch(expr, define.Parts) {
 					// Substitute user-specified defines
 					if define.Data.DefineFunc != nil {
 						return p.valueForDefine(expr.Loc, define.Data.DefineFunc, identifierOpts{
@@ -12325,7 +12335,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Check both user-specified defines and known globals
 		if defines, ok := p.options.defines.DotDefines[e.Name]; ok {
 			for _, define := range defines {
-				if p.isDotDefineMatch(expr, define.Parts) {
+				if p.isDotOrIndexDefineMatch(expr, define.Parts) {
 					// Substitute user-specified defines
 					if define.Data.DefineFunc != nil {
 						return p.valueForDefine(expr.Loc, define.Data.DefineFunc, identifierOpts{
@@ -12406,6 +12416,33 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		isCallTarget := e == p.callTarget
 		isTemplateTag := e == p.templateTag
 		isDeleteTarget := e == p.deleteTarget
+
+		// Check both user-specified defines and known globals
+		if str, ok := e.Index.Data.(*js_ast.EString); ok {
+			if defines, ok := p.options.defines.DotDefines[helpers.UTF16ToString(str.Value)]; ok {
+				for _, define := range defines {
+					if p.isDotOrIndexDefineMatch(expr, define.Parts) {
+						// Substitute user-specified defines
+						if define.Data.DefineFunc != nil {
+							return p.valueForDefine(expr.Loc, define.Data.DefineFunc, identifierOpts{
+								assignTarget:   in.assignTarget,
+								isCallTarget:   isCallTarget,
+								isDeleteTarget: isDeleteTarget,
+							}), exprOut{}
+						}
+
+						// Copy the side effect flags over in case this expression is unused
+						if define.Data.CanBeRemovedIfUnused {
+							e.CanBeRemovedIfUnused = true
+						}
+						if define.Data.CallCanBeUnwrappedIfUnused && !p.options.ignoreDCEAnnotations {
+							e.CallCanBeUnwrappedIfUnused = true
+						}
+						break
+					}
+				}
+			}
+		}
 
 		// "a['b']" => "a.b"
 		if p.options.minifySyntax {
@@ -13341,6 +13378,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case *js_ast.EDot:
+			// Copy the call side effect flag over if this is a known target
+			if t.CallCanBeUnwrappedIfUnused {
+				e.CanBeUnwrappedIfUnused = true
+			}
+
+		case *js_ast.EIndex:
 			// Copy the call side effect flag over if this is a known target
 			if t.CallCanBeUnwrappedIfUnused {
 				e.CanBeUnwrappedIfUnused = true
