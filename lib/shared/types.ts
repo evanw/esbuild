@@ -7,7 +7,7 @@ export type Drop = 'console' | 'debugger';
 
 interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#sourcemap */
-  sourcemap?: boolean | 'inline' | 'external' | 'both';
+  sourcemap?: boolean | 'linked' | 'inline' | 'external' | 'both';
   /** Documentation: https://esbuild.github.io/api/#legal-comments */
   legalComments?: 'none' | 'inline' | 'eof' | 'linked' | 'external';
   /** Documentation: https://esbuild.github.io/api/#source-root */

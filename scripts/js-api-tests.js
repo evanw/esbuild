@@ -274,7 +274,7 @@ let buildTests = {
     assert.strictEqual(notcss, 'body {\n}\n')
   },
 
-  async sourceMap({ esbuild, testDir }) {
+  async sourceMapTrue({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
     const content = 'exports.foo = 123'
@@ -283,6 +283,28 @@ let buildTests = {
       entryPoints: [input],
       outfile: output,
       sourcemap: true,
+    })
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    const outputFile = await readFileAsync(output, 'utf8')
+    const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile)
+    assert.strictEqual(match[1], 'out.js.map')
+    const resultMap = await readFileAsync(output + '.map', 'utf8')
+    const json = JSON.parse(resultMap)
+    assert.strictEqual(json.version, 3)
+    assert.strictEqual(json.sources[0], path.basename(input))
+    assert.strictEqual(json.sourcesContent[0], content)
+  },
+
+  async sourceMapLinked({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    const content = 'exports.foo = 123'
+    await writeFileAsync(input, content)
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: 'linked',
     })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
@@ -3875,10 +3897,19 @@ let transformTests = {
     assert.strictEqual(code, `module.exports = "data:application/octet-stream;base64,AAEC";\n`)
   },
 
-  async sourceMapWithName({ esbuild }) {
+  async sourceMapTrueWithName({ esbuild }) {
     const { code, map } = await esbuild.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js' })
     assert.strictEqual(code, `let x;\n`)
     await assertSourceMap(map, 'afile.js')
+  },
+
+  async sourceMapLinkedWithName({ esbuild }) {
+    try {
+      await esbuild.transform(`let       x`, { sourcemap: 'linked', sourcefile: 'afile.js' })
+      throw new Error('Expected a transform failure')
+    } catch (e) {
+      assert.strictEqual(e + '', `Error: Transform failed with 1 error:\nerror: Cannot transform with linked source maps`)
+    }
   },
 
   async sourceMapExternalWithName({ esbuild }) {

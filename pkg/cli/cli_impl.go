@@ -238,6 +238,8 @@ func parseOptionsImpl(
 			value := arg[len("--sourcemap="):]
 			var sourcemap api.SourceMap
 			switch value {
+			case "linked":
+				sourcemap = api.SourceMapLinked
 			case "inline":
 				sourcemap = api.SourceMapInline
 			case "external":
@@ -865,7 +867,7 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *api.TransformOptio
 		}
 		return nil, nil, parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 			fmt.Sprintf("Use \"--sourcemap\" instead of \"--sourcemap=%s\" when transforming stdin", sourceMapMode),
-			fmt.Sprintf("Using esbuild to transform stdin only generates one output file, so you cannot use the %q source map mode "+
+			fmt.Sprintf("Using esbuild to transform stdin only generates one output file. You cannot use the %q source map mode "+
 				"since that needs to generate two output files.", sourceMapMode),
 		)
 	}
