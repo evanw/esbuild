@@ -1083,14 +1083,14 @@ function dec(x) {
 }
 function fn(x) {
   var _a2;
-  class Foo {
+  class Foo3 {
     [_a2 = arguments[0]]() {
     }
   }
   __decorateClass([
     dec(arguments[0])
-  ], Foo.prototype, _a2, 1);
-  return Foo;
+  ], Foo3.prototype, _a2, 1);
+  return Foo3;
 }
 
 // entry.js

@@ -3162,15 +3162,28 @@
         if (first(1) !== 1 || second(1) !== 1) throw 'fail';
       `,
       'first.js': `
-         export const outer = function outer(self = outer) {
-           return self;
-         }
-       `,
-       'second.js': `
-         export const outer = function outer(self = outer) {
-           return self;
-         }
-       `,
+        export const outer = function outer(self = outer) {
+          return self;
+        }
+      `,
+      'second.js': `
+        export const outer = function outer(self = outer) {
+          return self;
+        }
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        import { num as otherNum } from './first.js';
+
+        function sum(num) {
+          return num + otherNum;
+        }
+        if (sum(321) !== 123 + 321) throw 'fail';
+      `,
+      'first.js': `
+         export const num = 123;
+      `,
     }),
   );
 
