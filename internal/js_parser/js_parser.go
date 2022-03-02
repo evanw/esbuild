@@ -12318,6 +12318,90 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
+	case *js_ast.EDot:
+		isDeleteTarget := e == p.deleteTarget
+		isCallTarget := e == p.callTarget
+
+		// Check both user-specified defines and known globals
+		if defines, ok := p.options.defines.DotDefines[e.Name]; ok {
+			for _, define := range defines {
+				if p.isDotDefineMatch(expr, define.Parts) {
+					// Substitute user-specified defines
+					if define.Data.DefineFunc != nil {
+						return p.valueForDefine(expr.Loc, define.Data.DefineFunc, identifierOpts{
+							assignTarget:   in.assignTarget,
+							isCallTarget:   isCallTarget,
+							isDeleteTarget: isDeleteTarget,
+						}), exprOut{}
+					}
+
+					// Copy the side effect flags over in case this expression is unused
+					if define.Data.CanBeRemovedIfUnused {
+						e.CanBeRemovedIfUnused = true
+					}
+					if define.Data.CallCanBeUnwrappedIfUnused && !p.options.ignoreDCEAnnotations {
+						e.CallCanBeUnwrappedIfUnused = true
+					}
+					break
+				}
+			}
+		}
+
+		// Track ".then().catch()" chains
+		if isCallTarget && p.thenCatchChain.nextTarget == e {
+			if e.Name == "catch" {
+				p.thenCatchChain = thenCatchChain{
+					nextTarget: e.Target.Data,
+					hasCatch:   true,
+					catchLoc:   e.NameLoc,
+				}
+			} else if e.Name == "then" {
+				p.thenCatchChain = thenCatchChain{
+					nextTarget: e.Target.Data,
+					hasCatch:   p.thenCatchChain.hasCatch || p.thenCatchChain.hasMultipleArgs,
+					catchLoc:   p.thenCatchChain.catchLoc,
+				}
+			}
+		}
+
+		target, out := p.visitExprInOut(e.Target, exprIn{
+			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
+		})
+		e.Target = target
+
+		// Lower "super.prop" if necessary
+		if e.OptionalChain == js_ast.OptionalChainNone && in.assignTarget == js_ast.AssignTargetNone &&
+			!isCallTarget && p.shouldLowerSuperPropertyAccess(e.Target) {
+			// "super.foo" => "__superGet('foo')"
+			key := js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(e.Name)}}
+			return p.lowerSuperPropertyGet(expr.Loc, key), exprOut{}
+		}
+
+		// Lower optional chaining if we're the top of the chain
+		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
+		if containsOptionalChain && !in.hasChainParent {
+			return p.lowerOptionalChain(expr, in, out)
+		}
+
+		// Potentially rewrite this property access
+		out = exprOut{
+			childContainsOptionalChain:            containsOptionalChain,
+			methodCallMustBeReplacedWithUndefined: out.methodCallMustBeReplacedWithUndefined,
+			thisArgFunc:                           out.thisArgFunc,
+			thisArgWrapFunc:                       out.thisArgWrapFunc,
+		}
+		if !in.hasChainParent {
+			out.thisArgFunc = nil
+			out.thisArgWrapFunc = nil
+		}
+		if e.OptionalChain == js_ast.OptionalChainNone {
+			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget,
+				isDeleteTarget, e.Target, e.Name, e.NameLoc, isCallTarget, false); ok {
+				return value, out
+			}
+		}
+		return js_ast.Expr{Loc: expr.Loc, Data: e}, out
+
 	case *js_ast.EIndex:
 		isCallTarget := e == p.callTarget
 		isTemplateTag := e == p.templateTag
@@ -12589,90 +12673,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}), exprOut{}
 			}
 		}
-
-	case *js_ast.EDot:
-		isDeleteTarget := e == p.deleteTarget
-		isCallTarget := e == p.callTarget
-
-		// Check both user-specified defines and known globals
-		if defines, ok := p.options.defines.DotDefines[e.Name]; ok {
-			for _, define := range defines {
-				if p.isDotDefineMatch(expr, define.Parts) {
-					// Substitute user-specified defines
-					if define.Data.DefineFunc != nil {
-						return p.valueForDefine(expr.Loc, define.Data.DefineFunc, identifierOpts{
-							assignTarget:   in.assignTarget,
-							isCallTarget:   isCallTarget,
-							isDeleteTarget: isDeleteTarget,
-						}), exprOut{}
-					}
-
-					// Copy the side effect flags over in case this expression is unused
-					if define.Data.CanBeRemovedIfUnused {
-						e.CanBeRemovedIfUnused = true
-					}
-					if define.Data.CallCanBeUnwrappedIfUnused && !p.options.ignoreDCEAnnotations {
-						e.CallCanBeUnwrappedIfUnused = true
-					}
-					break
-				}
-			}
-		}
-
-		// Track ".then().catch()" chains
-		if isCallTarget && p.thenCatchChain.nextTarget == e {
-			if e.Name == "catch" {
-				p.thenCatchChain = thenCatchChain{
-					nextTarget: e.Target.Data,
-					hasCatch:   true,
-					catchLoc:   e.NameLoc,
-				}
-			} else if e.Name == "then" {
-				p.thenCatchChain = thenCatchChain{
-					nextTarget: e.Target.Data,
-					hasCatch:   p.thenCatchChain.hasCatch || p.thenCatchChain.hasMultipleArgs,
-					catchLoc:   p.thenCatchChain.catchLoc,
-				}
-			}
-		}
-
-		target, out := p.visitExprInOut(e.Target, exprIn{
-			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
-		})
-		e.Target = target
-
-		// Lower "super.prop" if necessary
-		if e.OptionalChain == js_ast.OptionalChainNone && in.assignTarget == js_ast.AssignTargetNone &&
-			!isCallTarget && p.shouldLowerSuperPropertyAccess(e.Target) {
-			// "super.foo" => "__superGet('foo')"
-			key := js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(e.Name)}}
-			return p.lowerSuperPropertyGet(expr.Loc, key), exprOut{}
-		}
-
-		// Lower optional chaining if we're the top of the chain
-		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
-		if containsOptionalChain && !in.hasChainParent {
-			return p.lowerOptionalChain(expr, in, out)
-		}
-
-		// Potentially rewrite this property access
-		out = exprOut{
-			childContainsOptionalChain:            containsOptionalChain,
-			methodCallMustBeReplacedWithUndefined: out.methodCallMustBeReplacedWithUndefined,
-			thisArgFunc:                           out.thisArgFunc,
-			thisArgWrapFunc:                       out.thisArgWrapFunc,
-		}
-		if !in.hasChainParent {
-			out.thisArgFunc = nil
-			out.thisArgWrapFunc = nil
-		}
-		if e.OptionalChain == js_ast.OptionalChainNone {
-			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget,
-				isDeleteTarget, e.Target, e.Name, e.NameLoc, isCallTarget, false); ok {
-				return value, out
-			}
-		}
-		return js_ast.Expr{Loc: expr.Loc, Data: e}, out
 
 	case *js_ast.EIf:
 		isCallTarget := e == p.callTarget
