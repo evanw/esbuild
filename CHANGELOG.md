@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+* Parse and discard TypeScript `export as namespace` statements ([#2070](https://github.com/evanw/esbuild/issues/2070))
+
+    TypeScript `.d.ts` type declaration files can sometimes contain statements of the form `export as namespace foo;`. I believe these serve to declare that the module adds a property of that name to the global object. You aren't supposed to feed `.d.ts` files to esbuild so this normally doesn't matter, but sometimes esbuild can end up having to parse them. One such case is if you import a type-only package who's `main` field in `package.json` is a `.d.ts` file.
+
+    Previously esbuild only allowed `export as namespace` statements inside a `declare` context:
+
+    ```ts
+    declare module Foo {
+      export as namespace foo;
+    }
+    ```
+
+    Now esbuild will also allow these statements outside of a `declare` context:
+
+    ```ts
+    export as namespace foo;
+    ```
+
+    These statements are still just ignored and discarded.
+
 * Strip import assertions from unrecognized `import()` expressions ([#2036](https://github.com/evanw/esbuild/issues/2036))
 
     The new "import assertions" JavaScript language feature adds an optional second argument to dynamic `import()` expressions, which esbuild does support. However, this optional argument must be stripped when targeting older JavaScript environments for which this second argument would be a syntax error. Previously esbuild failed to strip this second argument in cases when the first argument to `import()` wasn't a string literal. This problem is now fixed:

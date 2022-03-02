@@ -1389,6 +1389,10 @@ func TestTSDeclare(t *testing.T) {
 	expectParseErrorTS(t, "function fn(x: any, ...y, ) {}", "<stdin>: ERROR: Expected \")\" but found \",\"\n")
 	expectParseErrorTS(t, "function fn(x: any, ...y: any, )", "<stdin>: ERROR: Expected \")\" but found \",\"\n")
 	expectParseErrorTS(t, "function fn(x: any, ...y: any, ) {}", "<stdin>: ERROR: Expected \")\" but found \",\"\n")
+
+	// This declares a global module
+	expectPrintedTS(t, "export as namespace ns", "")
+	expectParseErrorTS(t, "export as namespace ns.foo", "<stdin>: ERROR: Expected \";\" but found \".\"\n")
 }
 
 func TestTSDecorator(t *testing.T) {
