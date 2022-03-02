@@ -721,6 +721,11 @@ async function foo() {
 }
 
 func TestTSNamespaceExports(t *testing.T) {
+	expectPrintedTS(t, "export as namespace ns", "")
+	expectPrintedTS(t, "export as namespace ns;", "")
+	expectParseErrorTS(t, "export as namespace ns.foo", "<stdin>: ERROR: Expected \";\" but found \".\"\n")
+	expectParseErrorTS(t, "export as namespace ns function foo() {}", "<stdin>: ERROR: Expected \";\" but found \"function\"\n")
+
 	expectPrintedTS(t, `
 		namespace A {
 			export namespace B {

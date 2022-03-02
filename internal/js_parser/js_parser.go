@@ -5952,7 +5952,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				return p.parseStmt(opts)
 			}
 
-			if opts.isTypeScriptDeclare && p.lexer.IsContextualKeyword("as") {
+			if p.lexer.IsContextualKeyword("as") {
 				// "export as namespace ns;"
 				p.lexer.Next()
 				p.lexer.ExpectContextualKeyword("namespace")
