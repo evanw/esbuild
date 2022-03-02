@@ -491,7 +491,7 @@ NOTE: You can mark the path "#/test" as external to exclude it from the bundle, 
 	})
 }
 
-func TestTsConfigPathsIsType(t *testing.T) {
+func TestTsConfigPathsTypeOnly(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
