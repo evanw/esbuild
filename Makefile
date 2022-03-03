@@ -6,7 +6,7 @@ GO_FLAGS += "-ldflags=-s -w"
 # Avoid embedding the build path in the executable for more reproducible builds
 GO_FLAGS += -trimpath
 
-# Temporary workaround for golang/go#51101 before Go 1.18/1.17.8 is released
+# Temporary workaround for https://github.com/golang/go/issues/51101 before Go 1.18/1.17.8 is released
 ifeq ($(GOARCH), riscv64)
 	GO_FLAGS += "-gcflags=all=-N -l"
 endif

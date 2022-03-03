@@ -104,6 +104,10 @@
 
     With this release, esbuild will now ignore rules in `paths` that result in a `.d.ts` file during path resolution. This means code that does this should now be able to be bundled without modifying its `tsconfig.json` file to remove the `.d.ts` rule. This change was contributed by [@magic-akari](https://github.com/magic-akari).
 
+* Disable Go compiler optimizations for the Linux RISC-V 64bit build ([#2035](https://github.com/evanw/esbuild/pull/2035))
+
+    Go's RISC-V 64bit compiler target has a fatal compiler optimization bug that causes esbuild to crash when it's run: https://github.com/golang/go/issues/51101. As a temporary workaround until a version of the Go compiler with the fix is published, Go compiler optimizations have been disabled for RISC-V. The 7.7mb esbuild binary executable for RISC-V is now 8.7mb instead. This workaround was contributed by [@piggynl](https://github.com/piggynl).
+
 ## 0.14.23
 
 * Update feature database to indicate that node 16.14+ supports import assertions ([#2030](https://github.com/evanw/esbuild/issues/2030))
