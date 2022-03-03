@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* Add source mapping information for some non-executable tokens ([#1448](https://github.com/evanw/esbuild/issues/1448))
+
+    Code coverage tools can generate reports that tell you if any code exists that has not been run (or "covered") during your tests. You can use this information to add additional tests for code that isn't currently covered.
+
+    Some popular JavaScript code coverage tools have bugs where they incorrectly consider lines without any executable code as uncovered, even though there's no test you could possibly write that would cause those lines to be executed. For example, they apparently complain about the lines that only contain the trailing `}` token of an object literal.
+
+    With this release, esbuild now generates source mappings for some of these trailing non-executable tokens. This may not successfully work around bugs in code coverage tools because there are many non-executable tokens in JavaScript and esbuild doesn't map them all (the drawback of mapping these extra tokens is that esbuild will use more memory, build more slowly, and output a bigger source map). The true solution is to fix the bugs in the code coverage tools in the first place.
+
 ## 0.14.24
 
 * Allow `es2022` as a target environment ([#2012](https://github.com/evanw/esbuild/issues/2012))

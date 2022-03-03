@@ -1529,7 +1529,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
 		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
 			Args: args,
-			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			Body: js_ast.FnBody{Loc: stmtLoc, Block: js_ast.SBlock{Stmts: stmtsInsideClosure}},
 		}}}
 	} else {
 		// "(() => { foo() })()" => "(() => foo())()"
@@ -1540,7 +1540,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 		}
 		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EArrow{
 			Args:       args,
-			Body:       js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			Body:       js_ast.FnBody{Loc: stmtLoc, Block: js_ast.SBlock{Stmts: stmtsInsideClosure}},
 			PreferExpr: true,
 		}}
 	}
@@ -1641,12 +1641,12 @@ func (p *parser) generateClosureForTypeScriptEnum(
 	if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
 		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
 			Args: args,
-			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			Body: js_ast.FnBody{Loc: stmtLoc, Block: js_ast.SBlock{Stmts: stmtsInsideClosure}},
 		}}}
 	} else {
 		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EArrow{
 			Args:       args,
-			Body:       js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			Body:       js_ast.FnBody{Loc: stmtLoc, Block: js_ast.SBlock{Stmts: stmtsInsideClosure}},
 			PreferExpr: p.options.minifySyntax,
 		}}
 	}

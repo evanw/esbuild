@@ -266,7 +266,7 @@ const (
 )
 
 type ClassStaticBlock struct {
-	Stmts []Stmt
+	Block SBlock
 	Loc   logger.Loc
 }
 
@@ -334,17 +334,18 @@ type Fn struct {
 }
 
 type FnBody struct {
-	Stmts []Stmt
+	Block SBlock
 	Loc   logger.Loc
 }
 
 type Class struct {
-	TSDecorators []Expr
-	Name         *LocRef
-	ExtendsOrNil Expr
-	Properties   []Property
-	ClassKeyword logger.Range
-	BodyLoc      logger.Loc
+	TSDecorators  []Expr
+	Name          *LocRef
+	ExtendsOrNil  Expr
+	Properties    []Property
+	ClassKeyword  logger.Range
+	BodyLoc       logger.Loc
+	CloseBraceLoc logger.Loc
 }
 
 type ArrayBinding struct {
@@ -432,6 +433,7 @@ func (*EImportCall) isExpr()           {}
 type EArray struct {
 	Items            []Expr
 	CommaAfterSpread logger.Loc
+	CloseBracketLoc  logger.Loc
 	IsSingleLine     bool
 	IsParenthesized  bool
 }
@@ -476,8 +478,9 @@ var EUndefinedShared = &EUndefined{}
 var EThisShared = &EThis{}
 
 type ENew struct {
-	Target Expr
-	Args   []Expr
+	Target        Expr
+	Args          []Expr
+	CloseParenLoc logger.Loc
 
 	// True if there is a comment containing "@__PURE__" or "#__PURE__" preceding
 	// this call expression. See the comment inside ECall for more details.
@@ -501,6 +504,7 @@ const (
 type ECall struct {
 	Target        Expr
 	Args          []Expr
+	CloseParenLoc logger.Loc
 	OptionalChain OptionalChain
 	IsDirectEval  bool
 
@@ -653,6 +657,7 @@ type EBigInt struct{ Value string }
 type EObject struct {
 	Properties       []Property
 	CommaAfterSpread logger.Loc
+	CloseBraceLoc    logger.Loc
 	IsSingleLine     bool
 	IsParenthesized  bool
 }
@@ -1079,7 +1084,8 @@ func (*SBreak) isStmt()         {}
 func (*SContinue) isStmt()      {}
 
 type SBlock struct {
-	Stmts []Stmt
+	Stmts         []Stmt
+	CloseBraceLoc logger.Loc
 }
 
 type SEmpty struct{}
@@ -1231,21 +1237,21 @@ type SWith struct {
 
 type Catch struct {
 	BindingOrNil Binding
-	Body         []Stmt
+	Block        SBlock
 	Loc          logger.Loc
-	BodyLoc      logger.Loc
+	BlockLoc     logger.Loc
 }
 
 type Finally struct {
-	Stmts []Stmt
+	Block SBlock
 	Loc   logger.Loc
 }
 
 type STry struct {
-	Catch   *Catch
-	Finally *Finally
-	Body    []Stmt
-	BodyLoc logger.Loc
+	Catch    *Catch
+	Finally  *Finally
+	Block    SBlock
+	BlockLoc logger.Loc
 }
 
 type Case struct {
@@ -2829,7 +2835,7 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 				}
 
 				// Just delete "(function() {})()" completely
-				if len(target.Fn.Body.Stmts) == 0 {
+				if len(target.Fn.Body.Block.Stmts) == 0 {
 					return Expr{}
 				}
 
@@ -2839,19 +2845,19 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 				}
 
 				// Just delete "(() => {})()" completely
-				if len(target.Body.Stmts) == 0 {
+				if len(target.Body.Block.Stmts) == 0 {
 					return Expr{}
 				}
 
-				if len(target.Body.Stmts) == 1 {
-					switch s := target.Body.Stmts[0].Data.(type) {
+				if len(target.Body.Block.Stmts) == 1 {
+					switch s := target.Body.Block.Stmts[0].Data.(type) {
 					case *SExpr:
 						if !target.IsAsync {
 							// Replace "(() => { foo() })()" with "foo()"
 							return s.Value
 						} else {
 							// Replace "(async () => { foo() })()" with "(async () => foo())()"
-							target.Body.Stmts[0].Data = &SReturn{ValueOrNil: s.Value}
+							target.Body.Block.Stmts[0].Data = &SReturn{ValueOrNil: s.Value}
 							target.PreferExpr = true
 						}
 

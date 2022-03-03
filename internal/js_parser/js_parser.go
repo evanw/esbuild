@@ -2091,12 +2091,13 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 
 				p.fnOrArrowDataParse = oldFnOrArrowDataParse
 
+				closeBraceLoc := p.lexer.Loc()
 				p.lexer.Expect(js_lexer.TCloseBrace)
 				return js_ast.Property{
 					Kind: js_ast.PropertyClassStaticBlock,
 					ClassStaticBlock: &js_ast.ClassStaticBlock{
 						Loc:   loc,
-						Stmts: stmts,
+						Block: js_ast.SBlock{Stmts: stmts, CloseBraceLoc: closeBraceLoc},
 					},
 				}, true
 			}
@@ -2571,7 +2572,7 @@ func (p *parser) parseArrowBody(args []js_ast.Arg, data fnOrArrowDataParse) *js_
 	return &js_ast.EArrow{
 		Args:       args,
 		PreferExpr: true,
-		Body:       js_ast.FnBody{Loc: arrowLoc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{ValueOrNil: expr}}}},
+		Body:       js_ast.FnBody{Loc: arrowLoc, Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{ValueOrNil: expr}}}}},
 	}
 }
 
@@ -3379,12 +3380,13 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		target := p.parseExprWithFlags(js_ast.LMember, flags)
 		args := []js_ast.Expr{}
+		var closeParenLoc logger.Loc
 
 		if p.lexer.Token == js_lexer.TOpenParen {
-			args = p.parseCallArgs()
+			args, closeParenLoc = p.parseCallArgs()
 		}
 
-		return js_ast.Expr{Loc: loc, Data: &js_ast.ENew{Target: target, Args: args}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.ENew{Target: target, Args: args, CloseParenLoc: closeParenLoc}}
 
 	case js_lexer.TOpenBracket:
 		p.lexer.Next()
@@ -3438,6 +3440,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
+		closeBracketLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TCloseBracket)
 		p.allowIn = oldAllowIn
 
@@ -3455,6 +3458,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			Items:            items,
 			CommaAfterSpread: commaAfterSpread,
 			IsSingleLine:     isSingleLine,
+			CloseBracketLoc:  closeBracketLoc,
 		}}
 
 	case js_lexer.TOpenBrace:
@@ -3503,6 +3507,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
+		closeBraceLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TCloseBrace)
 		p.allowIn = oldAllowIn
 
@@ -3520,6 +3525,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			Properties:       properties,
 			CommaAfterSpread: commaAfterSpread,
 			IsSingleLine:     isSingleLine,
+			CloseBraceLoc:    closeBraceLoc,
 		}}
 
 	case js_lexer.TLessThan:
@@ -3862,9 +3868,11 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				if level >= js_ast.LCall {
 					return left
 				}
+				args, closeParenLoc := p.parseCallArgs()
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 					Target:        left,
-					Args:          p.parseCallArgs(),
+					Args:          args,
+					CloseParenLoc: closeParenLoc,
 					OptionalChain: optionalStart,
 				}}
 
@@ -3880,9 +3888,11 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				if level >= js_ast.LCall {
 					return left
 				}
+				args, closeParenLoc := p.parseCallArgs()
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 					Target:        left,
-					Args:          p.parseCallArgs(),
+					Args:          args,
+					CloseParenLoc: closeParenLoc,
 					OptionalChain: optionalStart,
 				}}
 
@@ -3979,9 +3989,11 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			if level >= js_ast.LCall {
 				return left
 			}
+			args, closeParenLoc := p.parseCallArgs()
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 				Target:        left,
-				Args:          p.parseCallArgs(),
+				Args:          args,
+				CloseParenLoc: closeParenLoc,
 				OptionalChain: oldOptionalChain,
 			}}
 			optionalChain = oldOptionalChain
@@ -4475,12 +4487,11 @@ func (p *parser) parseExprOrLetStmt(opts parseStmtOpts) (js_ast.Expr, js_ast.Stm
 	return p.parseSuffix(expr, js_ast.LLowest, nil, 0), js_ast.Stmt{}, nil
 }
 
-func (p *parser) parseCallArgs() []js_ast.Expr {
+func (p *parser) parseCallArgs() (args []js_ast.Expr, closeParenLoc logger.Loc) {
 	// Allow "in" inside call arguments
 	oldAllowIn := p.allowIn
 	p.allowIn = true
 
-	args := []js_ast.Expr{}
 	p.lexer.Expect(js_lexer.TOpenParen)
 
 	for p.lexer.Token != js_lexer.TCloseParen {
@@ -4501,9 +4512,10 @@ func (p *parser) parseCallArgs() []js_ast.Expr {
 		p.lexer.Next()
 	}
 
+	closeParenLoc = p.lexer.Loc()
 	p.lexer.Expect(js_lexer.TCloseParen)
 	p.allowIn = oldAllowIn
-	return args
+	return
 }
 
 func (p *parser) parseJSXNamespacedName() (logger.Range, js_lexer.MaybeSubstring) {
@@ -5667,14 +5679,16 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 	p.allowIn = oldAllowIn
 	p.allowPrivateIdentifiers = oldAllowPrivateIdentifiers
 
+	closeBraceLoc := p.lexer.Loc()
 	p.lexer.Expect(js_lexer.TCloseBrace)
 	return js_ast.Class{
-		ClassKeyword: classKeyword,
-		TSDecorators: classOpts.tsDecorators,
-		Name:         name,
-		ExtendsOrNil: extendsOrNil,
-		BodyLoc:      bodyLoc,
-		Properties:   properties,
+		ClassKeyword:  classKeyword,
+		TSDecorators:  classOpts.tsDecorators,
+		Name:          name,
+		ExtendsOrNil:  extendsOrNil,
+		BodyLoc:       bodyLoc,
+		Properties:    properties,
+		CloseBraceLoc: closeBraceLoc,
 	}
 }
 
@@ -6410,11 +6424,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 	case js_lexer.TTry:
 		p.lexer.Next()
-		bodyLoc := p.lexer.Loc()
+		blockLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TOpenBrace)
 		p.pushScopeForParsePass(js_ast.ScopeBlock, loc)
 		body := p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{})
 		p.popScope()
+		closeBraceLoc := p.lexer.Loc()
 		p.lexer.Next()
 
 		var catch *js_ast.Catch = nil
@@ -6454,15 +6469,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.declareBinding(kind, bindingOrNil, parseStmtOpts{})
 			}
 
-			bodyLoc := p.lexer.Loc()
+			blockLoc := p.lexer.Loc()
 			p.lexer.Expect(js_lexer.TOpenBrace)
 
-			p.pushScopeForParsePass(js_ast.ScopeBlock, bodyLoc)
+			p.pushScopeForParsePass(js_ast.ScopeBlock, blockLoc)
 			stmts := p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{})
 			p.popScope()
 
+			closeBraceLoc := p.lexer.Loc()
 			p.lexer.Next()
-			catch = &js_ast.Catch{Loc: catchLoc, BindingOrNil: bindingOrNil, BodyLoc: bodyLoc, Body: stmts}
+			catch = &js_ast.Catch{Loc: catchLoc, BindingOrNil: bindingOrNil, BlockLoc: blockLoc, Block: js_ast.SBlock{Stmts: stmts, CloseBraceLoc: closeBraceLoc}}
 			p.popScope()
 		}
 
@@ -6472,16 +6488,17 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			p.lexer.Expect(js_lexer.TFinally)
 			p.lexer.Expect(js_lexer.TOpenBrace)
 			stmts := p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{})
+			closeBraceLoc := p.lexer.Loc()
 			p.lexer.Next()
-			finally = &js_ast.Finally{Loc: finallyLoc, Stmts: stmts}
+			finally = &js_ast.Finally{Loc: finallyLoc, Block: js_ast.SBlock{Stmts: stmts, CloseBraceLoc: closeBraceLoc}}
 			p.popScope()
 		}
 
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.STry{
-			BodyLoc: bodyLoc,
-			Body:    body,
-			Catch:   catch,
-			Finally: finally,
+			BlockLoc: blockLoc,
+			Block:    js_ast.SBlock{Stmts: body, CloseBraceLoc: closeBraceLoc},
+			Catch:    catch,
+			Finally:  finally,
 		}}
 
 	case js_lexer.TFor:
@@ -6860,8 +6877,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		p.lexer.Next()
 		stmts := p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{})
+		closeBraceLoc := p.lexer.Loc()
 		p.lexer.Next()
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.SBlock{Stmts: stmts}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.SBlock{Stmts: stmts, CloseBraceLoc: closeBraceLoc}}
 
 	default:
 		isIdentifier := p.lexer.Token == js_lexer.TIdentifier
@@ -7062,11 +7080,12 @@ func (p *parser) parseFnBody(data fnOrArrowDataParse) js_ast.FnBody {
 	stmts := p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{
 		allowDirectivePrologue: true,
 	})
+	closeBraceLoc := p.lexer.Loc()
 	p.lexer.Next()
 
 	p.allowIn = oldAllowIn
 	p.fnOrArrowDataParse = oldFnOrArrowData
-	return js_ast.FnBody{Loc: loc, Stmts: stmts}
+	return js_ast.FnBody{Loc: loc, Block: js_ast.SBlock{Stmts: stmts, CloseBraceLoc: closeBraceLoc}}
 }
 
 func (p *parser) forbidLexicalDecl(loc logger.Loc) {
@@ -9605,7 +9624,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 		}
 		p.fnOrArrowDataVisit.tryBodyCount++
-		s.Body = p.visitStmts(s.Body, stmtsNormal)
+		s.Block.Stmts = p.visitStmts(s.Block.Stmts, stmtsNormal)
 		p.fnOrArrowDataVisit.tryBodyCount--
 		p.popScope()
 
@@ -9615,8 +9634,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				p.visitBinding(s.Catch.BindingOrNil, bindingOpts{})
 			}
 
-			p.pushScopeForVisitPass(js_ast.ScopeBlock, s.Catch.BodyLoc)
-			s.Catch.Body = p.visitStmts(s.Catch.Body, stmtsNormal)
+			p.pushScopeForVisitPass(js_ast.ScopeBlock, s.Catch.BlockLoc)
+			s.Catch.Block.Stmts = p.visitStmts(s.Catch.Block.Stmts, stmtsNormal)
 			p.popScope()
 
 			p.lowerObjectRestInCatchBinding(s.Catch)
@@ -9625,7 +9644,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		if s.Finally != nil {
 			p.pushScopeForVisitPass(js_ast.ScopeBlock, s.Finally.Loc)
-			s.Finally.Stmts = p.visitStmts(s.Finally.Stmts, stmtsNormal)
+			s.Finally.Block.Stmts = p.visitStmts(s.Finally.Block.Stmts, stmtsNormal)
 			p.popScope()
 		}
 
@@ -9665,7 +9684,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		if p.options.minifySyntax && !s.Fn.IsGenerator && !s.Fn.IsAsync && !s.Fn.HasRestArg && s.Fn.Name != nil {
-			if len(s.Fn.Body.Stmts) == 0 {
+			if len(s.Fn.Body.Block.Stmts) == 0 {
 				// Mark if this function is an empty function
 				hasSideEffectFreeArguments := true
 				for _, arg := range s.Fn.Args {
@@ -9677,11 +9696,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				if hasSideEffectFreeArguments {
 					p.symbols[s.Fn.Name.Ref.InnerIndex].Flags |= js_ast.IsEmptyFunction
 				}
-			} else if len(s.Fn.Args) == 1 && len(s.Fn.Body.Stmts) == 1 {
+			} else if len(s.Fn.Args) == 1 && len(s.Fn.Body.Block.Stmts) == 1 {
 				// Mark if this function is an identity function
 				if arg := s.Fn.Args[0]; arg.DefaultOrNil.Data == nil {
 					if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
-						if ret, ok := s.Fn.Body.Stmts[0].Data.(*js_ast.SReturn); ok {
+						if ret, ok := s.Fn.Body.Block.Stmts[0].Data.(*js_ast.SReturn); ok {
 							if retID, ok := ret.ValueOrNil.Data.(*js_ast.EIdentifier); ok && id.Ref == retID.Ref {
 								p.symbols[s.Fn.Name.Ref.InnerIndex].Flags |= js_ast.IsIdentityFunction
 							}
@@ -10196,7 +10215,7 @@ func (p *parser) captureValueWithPossibleSideEffects(
 					Target: js_ast.Expr{Loc: loc, Data: &js_ast.EArrow{
 						Args:       []js_ast.Arg{{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: tempRef}}}},
 						PreferExpr: true,
-						Body:       js_ast.FnBody{Loc: loc, Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SReturn{ValueOrNil: expr}}}},
+						Body:       js_ast.FnBody{Loc: loc, Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SReturn{ValueOrNil: expr}}}}},
 					}},
 					Args: []js_ast.Expr{},
 				}}
@@ -10347,14 +10366,14 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 			// Make it an error to use "arguments" in a static class block
 			p.currentScope.ForbidArguments = true
 
-			property.ClassStaticBlock.Stmts = p.visitStmts(property.ClassStaticBlock.Stmts, stmtsFnBody)
+			property.ClassStaticBlock.Block.Stmts = p.visitStmts(property.ClassStaticBlock.Block.Stmts, stmtsFnBody)
 			p.popScope()
 
 			p.fnOrArrowDataVisit = oldFnOrArrowData
 			p.fnOnlyDataVisit = oldFnOnlyDataVisit
 
 			// "class { static {} }" => "class {}"
-			if p.options.minifySyntax && len(property.ClassStaticBlock.Stmts) == 0 {
+			if p.options.minifySyntax && len(property.ClassStaticBlock.Block.Stmts) == 0 {
 				continue
 			}
 
@@ -11656,7 +11675,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 	case *js_ast.EJSXElement:
+		propsLoc := expr.Loc
 		if e.TagOrNil.Data != nil {
+			propsLoc = e.TagOrNil.Loc
 			e.TagOrNil = p.visitExpr(e.TagOrNil)
 			p.warnAboutImportNamespaceCall(e.TagOrNil, exprKindJSXTag)
 		}
@@ -11710,11 +11731,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Arguments to createElement()
 			args := []js_ast.Expr{e.TagOrNil}
 			if len(e.Properties) > 0 {
-				args = append(args, p.lowerObjectSpread(expr.Loc, &js_ast.EObject{
+				args = append(args, p.lowerObjectSpread(propsLoc, &js_ast.EObject{
 					Properties: e.Properties,
 				}))
 			} else {
-				args = append(args, js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared})
+				args = append(args, js_ast.Expr{Loc: propsLoc, Data: js_ast.ENullShared})
 			}
 			if len(e.Children) > 0 {
 				args = append(args, e.Children...)
@@ -11724,8 +11745,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			target := p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Factory.Parts)
 			p.warnAboutImportNamespaceCall(target, exprKindCall)
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-				Target: target,
-				Args:   args,
+				Target:        target,
+				Args:          args,
+				CloseParenLoc: e.CloseLoc,
 
 				// Enable tree shaking
 				CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations,
@@ -13188,7 +13210,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					Target: p.valueToSubstituteForRequire(expr.Loc),
 					Args:   []js_ast.Expr{arg},
 				}}})
-				body := js_ast.FnBody{Loc: expr.Loc, Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{ValueOrNil: value}}}}
+				body := js_ast.FnBody{Loc: expr.Loc, Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{ValueOrNil: value}}}}}
 				if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
 					then = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
 				} else {
@@ -13577,13 +13599,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, expr.Loc)
 		p.visitArgs(e.Args, visitArgsOpts{
 			hasRestArg:               e.HasRestArg,
-			body:                     e.Body.Stmts,
+			body:                     e.Body.Block.Stmts,
 			isUniqueFormalParameters: true,
 		})
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, e.Body.Loc)
-		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts, prependTempRefsOpts{kind: stmtsFnBody})
+		e.Body.Block.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Block.Stmts, prependTempRefsOpts{kind: stmtsFnBody})
 		p.popScope()
-		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Stmts, &e.PreferExpr, &e.HasRestArg, true /* isArrow */, superHelpersOrNil)
+		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Block, &e.PreferExpr, &e.HasRestArg, true /* isArrow */, superHelpersOrNil)
 		p.popScope()
 
 		// If we intercepted "super" accesses above, clear out the helpers so they
@@ -13592,11 +13614,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			p.fnOnlyDataVisit.superHelpers = nil
 		}
 
-		if p.options.minifySyntax && len(e.Body.Stmts) == 1 {
-			if s, ok := e.Body.Stmts[0].Data.(*js_ast.SReturn); ok {
+		if p.options.minifySyntax && len(e.Body.Block.Stmts) == 1 {
+			if s, ok := e.Body.Block.Stmts[0].Data.(*js_ast.SReturn); ok {
 				if s.ValueOrNil.Data == nil {
 					// "() => { return }" => "() => {}"
-					e.Body.Stmts = []js_ast.Stmt{}
+					e.Body.Block.Stmts = []js_ast.Stmt{}
 				} else {
 					// "() => { return x }" => "() => x"
 					e.PreferExpr = true
@@ -14013,16 +14035,16 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, scopeLoc)
 	p.visitArgs(fn.Args, visitArgsOpts{
 		hasRestArg:               fn.HasRestArg,
-		body:                     fn.Body.Stmts,
+		body:                     fn.Body.Block.Stmts,
 		isUniqueFormalParameters: fn.IsUniqueFormalParameters,
 	})
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, fn.Body.Loc)
 	if fn.Name != nil {
 		p.validateDeclaredSymbolName(fn.Name.Loc, p.symbols[fn.Name.Ref.InnerIndex].OriginalName)
 	}
-	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts, prependTempRefsOpts{fnBodyLoc: &fn.Body.Loc, kind: stmtsFnBody})
+	fn.Body.Block.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Block.Stmts, prependTempRefsOpts{fnBodyLoc: &fn.Body.Loc, kind: stmtsFnBody})
 	p.popScope()
-	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil, &fn.HasRestArg, false /* isArrow */, p.fnOnlyDataVisit.superHelpers)
+	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Block, nil, &fn.HasRestArg, false /* isArrow */, p.fnOnlyDataVisit.superHelpers)
 	p.popScope()
 
 	p.fnOrArrowDataVisit = oldFnOrArrowData
@@ -14530,7 +14552,7 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
 			}
 
 		case *js_ast.STry:
-			if !p.stmtsCanBeRemovedIfUnused(s.Body) || (s.Finally != nil && !p.stmtsCanBeRemovedIfUnused(s.Finally.Stmts)) {
+			if !p.stmtsCanBeRemovedIfUnused(s.Block.Stmts) || (s.Finally != nil && !p.stmtsCanBeRemovedIfUnused(s.Finally.Block.Stmts)) {
 				return false
 			}
 
@@ -14581,7 +14603,7 @@ func (p *parser) classCanBeRemovedIfUnused(class js_ast.Class) bool {
 
 	for _, property := range class.Properties {
 		if property.Kind == js_ast.PropertyClassStaticBlock {
-			if !p.stmtsCanBeRemovedIfUnused(property.ClassStaticBlock.Stmts) {
+			if !p.stmtsCanBeRemovedIfUnused(property.ClassStaticBlock.Block.Stmts) {
 				return false
 			}
 			continue
