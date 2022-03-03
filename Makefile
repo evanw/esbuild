@@ -225,6 +225,12 @@ wasm-napi-exit0-linux:
 	strip lib/npm/exit0/linux-x64-LE.node
 	ls -l lib/npm/exit0/linux-x64-LE.node
 
+wasm-napi-exit0-linux-arm:
+	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
+		| gcc -x c -shared -o lib/npm/exit0/linux-arm64-LE.node -
+	strip lib/npm/exit0/linux-arm64-LE.node
+	ls -l lib/npm/exit0/linux-arm64-LE.node
+
 wasm-napi-exit0-windows:
 	# This isn't meant to be run directly but is a rough overview of the instructions
 	echo '__declspec(dllexport) void* napi_register_module_v1(void* a, void* b) { ExitProcess(0); }' > main.c
