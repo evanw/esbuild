@@ -15,6 +15,7 @@
     "esbuild": "bin/esbuild"
   },
   "optionalDependencies": {
+    "esbuild-android-64": "0.14.23",
     "esbuild-android-arm64": "0.14.23",
     "esbuild-darwin-64": "0.14.23",
     "esbuild-darwin-arm64": "0.14.23",
