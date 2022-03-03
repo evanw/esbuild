@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.24
 
 * Allow `es2022` as a target environment ([#2012](https://github.com/evanw/esbuild/issues/2012))
 
