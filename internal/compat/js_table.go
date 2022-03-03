@@ -98,6 +98,7 @@ func (features JSFeature) Has(feature JSFeature) bool {
 var jsTable = map[JSFeature]map[Engine][]versionRange{
 	ArbitraryModuleNamespaceNames: {
 		Chrome:  {{start: v{90, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{87, 0, 0}}},
 		Node:    {{start: v{16, 0, 0}}},
 	},
@@ -164,6 +165,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	ClassField: {
 		Chrome:  {{start: v{73, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{69, 0, 0}}},
 		IOS:     {{start: v{14, 0, 0}}},
 		Node:    {{start: v{12, 0, 0}}},
@@ -173,6 +175,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	ClassPrivateAccessor: {
 		Chrome:  {{start: v{84, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
 		IOS:     {{start: v{15, 0, 0}}},
 		Node:    {{start: v{14, 6, 0}}},
@@ -182,6 +185,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	ClassPrivateBrandCheck: {
 		Chrome:  {{start: v{91, 0, 0}}},
 		Edge:    {{start: v{91, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
 		IOS:     {{start: v{15, 0, 0}}},
 		Node:    {{start: v{16, 9, 0}}},
@@ -191,6 +195,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	ClassPrivateField: {
 		Chrome:  {{start: v{84, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
 		IOS:     {{start: v{15, 0, 0}}},
 		Node:    {{start: v{14, 6, 0}}},
@@ -200,6 +205,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	ClassPrivateMethod: {
 		Chrome:  {{start: v{84, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
 		IOS:     {{start: v{15, 0, 0}}},
 		Node:    {{start: v{14, 6, 0}}},
@@ -209,6 +215,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	ClassPrivateStaticAccessor: {
 		Chrome:  {{start: v{84, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
 		IOS:     {{start: v{15, 0, 0}}},
 		Node:    {{start: v{14, 6, 0}}},
@@ -218,6 +225,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	ClassPrivateStaticField: {
 		Chrome:  {{start: v{74, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
 		IOS:     {{start: v{15, 0, 0}}},
 		Node:    {{start: v{12, 0, 0}}},
@@ -227,6 +235,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	ClassPrivateStaticMethod: {
 		Chrome:  {{start: v{84, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
 		IOS:     {{start: v{15, 0, 0}}},
 		Node:    {{start: v{14, 6, 0}}},
@@ -235,11 +244,13 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ClassStaticBlocks: {
 		Chrome: {{start: v{91, 0, 0}}},
+		ES:     {{start: v{2022, 0, 0}}},
 		Node:   {{start: v{16, 11, 0}}},
 	},
 	ClassStaticField: {
 		Chrome:  {{start: v{73, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{75, 0, 0}}},
 		IOS:     {{start: v{15, 0, 0}}},
 		Node:    {{start: v{12, 0, 0}}},
@@ -483,6 +494,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	TopLevelAwait: {
 		Chrome:  {{start: v{89, 0, 0}}},
 		Edge:    {{start: v{89, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{89, 0, 0}}},
 		Node:    {{start: v{14, 8, 0}}},
 		Safari:  {{start: v{15, 0, 0}}},

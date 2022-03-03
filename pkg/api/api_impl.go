@@ -307,6 +307,8 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (config.T
 		constraints[compat.ES] = []int{2020}
 	case ES2021:
 		constraints[compat.ES] = []int{2021}
+	case ES2022:
+		constraints[compat.ES] = []int{2022}
 	case ESNext:
 		targetFromAPI = config.TargetWasConfiguredIncludingESNext
 	case DefaultTarget:

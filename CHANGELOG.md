@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* Allow `es2022` as a target environment ([#2012](https://github.com/evanw/esbuild/issues/2012))
+
+    TypeScript recently [added support for `es2022`](https://devblogs.microsoft.com/typescript/announcing-typescript-4-6/#target-es2022) as a compilation target so esbuild now supports this too. Support for this is preliminary as there is no published ES2022 specification yet (i.e. https://tc39.es/ecma262/2021/ exists but https://tc39.es/ecma262/2022/ is a 404 error). The meaning of esbuild's `es2022` target may change in the future when the specification is finalized. Right now I have made the `es2022` target enable support for the syntax-related [finished proposals](https://github.com/tc39/proposals/blob/main/finished-proposals.md) that are marked as `2022`:
+
+    * Class fields
+    * Class private members
+    * Class static blocks
+    * Ergonomic class private member checks
+    * Top-level await
+
+    I have also included the "arbitrary module namespace names" feature since I'm guessing it will end up in the ES2022 specification (this syntax feature was added to the specification without a proposal). TypeScript has [not added support for this yet](https://github.com/microsoft/TypeScript/issues/40594).
+
 * Match `define` to strings in index expressions ([#2050](https://github.com/evanw/esbuild/issues/2050))
 
     With this release, configuring `--define:foo.bar=baz` now matches and replaces both `foo.bar` and `foo['bar']` expressions in the original source code. This is necessary for people who have enabled TypeScript's [`noPropertyAccessFromIndexSignature` feature](https://www.typescriptlang.org/tsconfig#noPropertyAccessFromIndexSignature), which prevents you from using normal property access syntax on a type with an index signature such as in the following code:
