@@ -1459,11 +1459,17 @@ func (r resolverQuery) loadAsMainField(dirInfo *dirInfo, path string, extensionO
 	return PathPair{}, false, nil
 }
 
+func hasCaseInsensitiveSuffix(s string, suffix string) bool {
+	return len(s) >= len(suffix) && strings.EqualFold(s[len(s)-len(suffix):], suffix)
+}
+
 // This closely follows the behavior of "tryLoadModuleUsingPaths()" in the
 // official TypeScript compiler
 func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string) (PathPair, bool, *fs.DifferentCase) {
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Matching %q against \"paths\" in %q", path, tsConfigJSON.AbsPath))
+		r.debugLogs.increaseIndent()
+		defer r.debugLogs.decreaseIndent()
 	}
 
 	absBaseURL := tsConfigJSON.BaseURLForPaths
@@ -1486,7 +1492,11 @@ func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path strin
 				r.debugLogs.addNote(fmt.Sprintf("Found an exact match for %q in \"paths\"", key))
 			}
 			for _, originalPath := range originalPaths {
-				if strings.HasSuffix(originalPath, ".d.ts") || strings.HasSuffix(strings.ToLower(originalPath), ".d.ts") {
+				// Ignore ".d.ts" files because this rule is obviously only here for type checking
+				if hasCaseInsensitiveSuffix(originalPath, ".d.ts") {
+					if r.debugLogs != nil {
+						r.debugLogs.addNote(fmt.Sprintf("Ignoring substitution %q because it ends in \".d.ts\"", originalPath))
+					}
 					continue
 				}
 
@@ -1547,7 +1557,11 @@ func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path strin
 			matchedText := path[len(longestMatch.prefix) : len(path)-len(longestMatch.suffix)]
 			originalPath = strings.Replace(originalPath, "*", matchedText, 1)
 
-			if strings.HasSuffix(originalPath, ".d.ts") || strings.HasSuffix(strings.ToLower(originalPath), ".d.ts") {
+			// Ignore ".d.ts" files because this rule is obviously only here for type checking
+			if hasCaseInsensitiveSuffix(originalPath, ".d.ts") {
+				if r.debugLogs != nil {
+					r.debugLogs.addNote(fmt.Sprintf("Ignoring substitution %q because it ends in \".d.ts\"", originalPath))
+				}
 				continue
 			}
 

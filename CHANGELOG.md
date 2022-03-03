@@ -86,6 +86,12 @@
 
     With this release, esbuild now removes simplified statement-level expressions if the simplified result is a literal expression even when minification is disabled. Previously this was only done when minification is enabled. This change was only made because some people are bothered by seeing top-level literal expressions. This change has no effect on code behavior.
 
+* Ignore `.d.ts` rules in `paths` in `tsconfig.json` files ([#2074](https://github.com/evanw/esbuild/issues/2074), [#2075](https://github.com/evanw/esbuild/pull/2075))
+
+    TypeScript's `tsconfig.json` configuration file has a `paths` field that lets you remap import paths to alternative files on the file system. This field is interpreted by esbuild during bundling so that esbuild's behavior matches that of the TypeScript type checker. However, people sometimes override import paths to JavaScript files to instead point to a `.d.ts` TypeScript type declaration file for that JavaScript file. The intent of this is to just use the remapping for type information and not to actually import the `.d.ts` file during the build.
+
+    With this release, esbuild will now ignore rules in `paths` that result in a `.d.ts` file during path resolution. This means code that does this should now be able to be bundled without modifying its `tsconfig.json` file to remove the `.d.ts` rule. This change was contributed by [@magic-akari](https://github.com/magic-akari).
+
 ## 0.14.23
 
 * Update feature database to indicate that node 16.14+ supports import assertions ([#2030](https://github.com/evanw/esbuild/issues/2030))
