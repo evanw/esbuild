@@ -199,6 +199,20 @@ var test_default = 123;
 console.log(test_default);
 
 ================================================================================
+TestTsConfigPathsTypeOnly
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/fib/index.js
+function fib(input) {
+  if (input < 2) {
+    return input;
+  }
+  return fib(input - 1) + fib(input - 2);
+}
+
+// Users/user/project/entry.ts
+console.log(fib(10));
+
+================================================================================
 TestTsconfigImportsNotUsedAsValuesPreserve
 ---------- /Users/user/project/out.js ----------
 import "./foo";
