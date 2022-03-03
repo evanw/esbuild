@@ -5922,12 +5922,21 @@ func TestMangleQuotedProps(t *testing.T) {
 				x?.[y ? '_mangleThis' : z];
 				x[y ? z : '_mangleThis'];
 				x?.[y ? z : '_mangleThis'];
+				x[y, '_mangleThis'];
+				x?.[y, '_mangleThis'];
 				({ '_mangleThis': x });
+				({ ['_mangleThis']: x });
+				({ [(y, '_mangleThis')]: x });
 				(class { '_mangleThis' = x });
+				(class { ['_mangleThis'] = x });
+				(class { [(y, '_mangleThis')] = x });
 				var { '_mangleThis': x } = y;
+				var { ['_mangleThis']: x } = y;
+				var { [(z, '_mangleThis')]: x } = y;
 				'_mangleThis' in x;
 				(y ? '_mangleThis' : z) in x;
 				(y ? z : '_mangleThis') in x;
+				(y, '_mangleThis') in x;
 			`,
 		},
 		entryPaths: []string{"/keep.js", "/mangle.js"},
