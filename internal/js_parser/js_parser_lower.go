@@ -2210,7 +2210,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			if !needsKey {
 				// Just evaluate the key for its side effects
 				computedPropertyCache = js_ast.JoinWithComma(computedPropertyCache, prop.Key)
-			} else {
+			} else if _, ok := prop.Key.Data.(*js_ast.EString); !ok {
 				// Store the key in a temporary so we can assign to it later
 				ref := p.generateTempRef(tempRefNeedsDeclare, "")
 				computedPropertyCache = js_ast.JoinWithComma(computedPropertyCache,
@@ -2335,7 +2335,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 						memberExpr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key, init})
 					}
 				} else {
-					if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.IsComputed {
+					if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.IsComputed && !prop.PreferQuotedKey {
 						target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
 							Target:  target,
 							Name:    helpers.UTF16ToString(key.Value),

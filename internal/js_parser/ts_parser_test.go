@@ -407,6 +407,12 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { foo!(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectParseErrorTS(t, "class Foo { foo!(): void foo(): void {} }", "<stdin>: ERROR: Expected \";\" but found \"foo\"\n")
 
+	expectPrintedTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { [foo] = 0 }", "var _a;\nclass Foo {\n  constructor() {\n    this[_a] = 0;\n  }\n}\n_a = foo;\n")
+	expectPrintedMangleTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+	expectPrintedMangleTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+
 	expectPrintedTS(t, "class Foo { foo \n ?: number }", "class Foo {\n}\n")
 	expectParseErrorTS(t, "class Foo { foo \n !: number }", "<stdin>: ERROR: Expected identifier but found \"!\"\n")
 
