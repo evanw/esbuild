@@ -427,6 +427,24 @@ var x_txt = require_x();
 console.log(x_txt, y_default);
 
 ================================================================================
+TestMangleNoQuotedProps
+---------- /out/entry.js ----------
+x["_doNotMangleThis"];
+x?.["_doNotMangleThis"];
+x[y ? "_doNotMangleThis" : z];
+x?.[y ? "_doNotMangleThis" : z];
+x[y ? z : "_doNotMangleThis"];
+x?.[y ? z : "_doNotMangleThis"];
+({ "_doNotMangleThis": x });
+(class {
+  "_doNotMangleThis" = x;
+});
+var { "_doNotMangleThis": x } = y;
+"_doNotMangleThis" in x;
+(y ? "_doNotMangleThis" : z) in x;
+(y ? z : "_doNotMangleThis") in x;
+
+================================================================================
 TestMangleProps
 ---------- /out/entry1.js ----------
 export function shouldMangle() {
@@ -800,6 +818,37 @@ function fn() {
     bar: TopLevelString.b
   });
 }
+
+================================================================================
+TestMangleQuotedProps
+---------- /out/keep.js ----------
+foo("_keepThisProperty");
+foo((x, "_keepThisProperty"));
+foo(x ? "_keepThisProperty" : "_keepThisPropertyToo");
+x[foo("_keepThisProperty")];
+x?.[foo("_keepThisProperty")];
+({ [foo("_keepThisProperty")]: x });
+(class {
+  [foo("_keepThisProperty")] = x;
+});
+var { [foo("_keepThisProperty")]: x } = y;
+foo("_keepThisProperty") in x;
+
+---------- /out/mangle.js ----------
+x.a;
+x?.a;
+x[y ? "a" : z];
+x?.[y ? "a" : z];
+x[y ? z : "a"];
+x?.[y ? z : "a"];
+({ a: x });
+(class {
+  a = x;
+});
+var { a: x } = y;
+"a" in x;
+(y ? "a" : z) in x;
+(y ? z : "a") in x;
 
 ================================================================================
 TestMinifyIdentifiersImportPathFrequencyAnalysis
