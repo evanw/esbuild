@@ -211,21 +211,26 @@ cmd/esbuild/version.go: version.txt
 
 wasm-napi-exit0-darwin:
 	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
-		| clang -x c -dynamiclib -mmacosx-version-min=10.5 -o npm/esbuild-wasm/exit0/darwin-x64-LE.node -
-	ls -l npm/esbuild-wasm/exit0/darwin-x64-LE.node
+		| clang -x c -dynamiclib -mmacosx-version-min=10.5 -o lib/npm/exit0/darwin-x64-LE.node -
+	ls -l lib/npm/exit0/darwin-x64-LE.node
+
+wasm-napi-exit0-darwin-arm:
+	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
+		| clang -x c -dynamiclib -mmacosx-version-min=10.5 -o lib/npm/exit0/darwin-arm64-LE.node -
+	ls -l lib/npm/exit0/darwin-arm64-LE.node
 
 wasm-napi-exit0-linux:
 	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
-		| gcc -x c -shared -o npm/esbuild-wasm/exit0/linux-x64-LE.node -
-	strip npm/esbuild-wasm/exit0/linux-x64-LE.node
-	ls -l npm/esbuild-wasm/exit0/linux-x64-LE.node
+		| gcc -x c -shared -o lib/npm/exit0/linux-x64-LE.node -
+	strip lib/npm/exit0/linux-x64-LE.node
+	ls -l lib/npm/exit0/linux-x64-LE.node
 
 wasm-napi-exit0-windows:
 	# This isn't meant to be run directly but is a rough overview of the instructions
 	echo '__declspec(dllexport) void* napi_register_module_v1(void* a, void* b) { ExitProcess(0); }' > main.c
 	echo 'setlocal' > main.bat
 	echo 'call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" x64' >> main.bat
-	echo 'cl.exe /LD main.c /link /DLL /NODEFAULTLIB /NOENTRY kernel32.lib /OUT:npm/esbuild-wasm/exit0/win32-x64-LE.node' >> main.bat
+	echo 'cl.exe /LD main.c /link /DLL /NODEFAULTLIB /NOENTRY kernel32.lib /OUT:lib/npm/exit0/win32-x64-LE.node' >> main.bat
 	main.bat
 	rm -f main.*
 
