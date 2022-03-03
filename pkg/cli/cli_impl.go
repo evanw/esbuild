@@ -46,6 +46,32 @@ type parseOptionsExtras struct {
 	mangleCache *string
 }
 
+func isBoolFlag(arg string, flag string) bool {
+	if strings.HasPrefix(arg, flag) {
+		remainder := arg[len(flag):]
+		return len(remainder) == 0 || remainder[0] == '='
+	}
+	return false
+}
+
+func parseBoolFlag(arg string, defaultValue bool) (bool, *cli_helpers.ErrorWithNote) {
+	equals := strings.IndexByte(arg, '=')
+	if equals == -1 {
+		return defaultValue, nil
+	}
+	value := arg[equals+1:]
+	switch value {
+	case "false":
+		return false, nil
+	case "true":
+		return true, nil
+	}
+	return false, cli_helpers.MakeErrorWithNote(
+		fmt.Sprintf("Invalid value %q in %q", value, arg),
+		"Valid values are \"true\" or \"false\".",
+	)
+}
+
 func parseOptionsImpl(
 	osArgs []string,
 	buildOpts *api.BuildOptions,
@@ -57,51 +83,81 @@ func parseOptionsImpl(
 	// Parse the arguments now that we know what we're parsing
 	for _, arg := range osArgs {
 		switch {
-		case arg == "--bundle" && buildOpts != nil:
-			buildOpts.Bundle = true
-
-		case arg == "--preserve-symlinks" && buildOpts != nil:
-			buildOpts.PreserveSymlinks = true
-
-		case arg == "--splitting" && buildOpts != nil:
-			buildOpts.Splitting = true
-
-		case arg == "--allow-overwrite" && buildOpts != nil:
-			buildOpts.AllowOverwrite = true
-
-		case arg == "--watch" && buildOpts != nil:
-			buildOpts.Watch = &api.WatchMode{}
-
-		case arg == "--minify":
-			if buildOpts != nil {
-				buildOpts.MinifySyntax = true
-				buildOpts.MinifyWhitespace = true
-				buildOpts.MinifyIdentifiers = true
+		case isBoolFlag(arg, "--bundle") && buildOpts != nil:
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
 			} else {
-				transformOpts.MinifySyntax = true
-				transformOpts.MinifyWhitespace = true
-				transformOpts.MinifyIdentifiers = true
+				buildOpts.Bundle = value
 			}
 
-		case arg == "--minify-syntax":
-			if buildOpts != nil {
-				buildOpts.MinifySyntax = true
+		case isBoolFlag(arg, "--preserve-symlinks") && buildOpts != nil:
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
 			} else {
-				transformOpts.MinifySyntax = true
+				buildOpts.PreserveSymlinks = value
 			}
 
-		case arg == "--minify-whitespace":
-			if buildOpts != nil {
-				buildOpts.MinifyWhitespace = true
+		case isBoolFlag(arg, "--splitting") && buildOpts != nil:
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
 			} else {
-				transformOpts.MinifyWhitespace = true
+				buildOpts.Splitting = value
 			}
 
-		case arg == "--minify-identifiers":
-			if buildOpts != nil {
-				buildOpts.MinifyIdentifiers = true
+		case isBoolFlag(arg, "--allow-overwrite") && buildOpts != nil:
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
 			} else {
-				transformOpts.MinifyIdentifiers = true
+				buildOpts.AllowOverwrite = value
+			}
+
+		case isBoolFlag(arg, "--watch") && buildOpts != nil:
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if value {
+				buildOpts.Watch = &api.WatchMode{}
+			} else {
+				buildOpts.Watch = nil
+			}
+
+		case isBoolFlag(arg, "--minify"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if buildOpts != nil {
+				buildOpts.MinifySyntax = value
+				buildOpts.MinifyWhitespace = value
+				buildOpts.MinifyIdentifiers = value
+			} else {
+				transformOpts.MinifySyntax = value
+				transformOpts.MinifyWhitespace = value
+				transformOpts.MinifyIdentifiers = value
+			}
+
+		case isBoolFlag(arg, "--minify-syntax"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if buildOpts != nil {
+				buildOpts.MinifySyntax = value
+			} else {
+				transformOpts.MinifySyntax = value
+			}
+
+		case isBoolFlag(arg, "--minify-whitespace"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if buildOpts != nil {
+				buildOpts.MinifyWhitespace = value
+			} else {
+				transformOpts.MinifyWhitespace = value
+			}
+
+		case isBoolFlag(arg, "--minify-identifiers"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if buildOpts != nil {
+				buildOpts.MinifyIdentifiers = value
+			} else {
+				transformOpts.MinifyIdentifiers = value
 			}
 
 		case strings.HasPrefix(arg, "--mangle-props="):
@@ -192,38 +248,39 @@ func parseOptionsImpl(
 				)
 			}
 
-		case strings.HasPrefix(arg, "--tree-shaking="):
-			var value *api.TreeShaking
-			if buildOpts != nil {
-				value = &buildOpts.TreeShaking
+		case isBoolFlag(arg, "--tree-shaking"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
 			} else {
-				value = &transformOpts.TreeShaking
-			}
-			name := arg[len("--tree-shaking="):]
-			switch name {
-			case "false":
-				*value = api.TreeShakingFalse
-			case "true":
-				*value = api.TreeShakingTrue
-			default:
-				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
-					fmt.Sprintf("Invalid value %q in %q", name, arg),
-					"Valid values are \"true\" or \"false\".",
-				)
+				var treeShaking *api.TreeShaking
+				if buildOpts != nil {
+					treeShaking = &buildOpts.TreeShaking
+				} else {
+					treeShaking = &transformOpts.TreeShaking
+				}
+				if value {
+					*treeShaking = api.TreeShakingTrue
+				} else {
+					*treeShaking = api.TreeShakingFalse
+				}
 			}
 
-		case arg == "--ignore-annotations":
-			if buildOpts != nil {
-				buildOpts.IgnoreAnnotations = true
+		case isBoolFlag(arg, "--ignore-annotations"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if buildOpts != nil {
+				buildOpts.IgnoreAnnotations = value
 			} else {
-				transformOpts.IgnoreAnnotations = true
+				transformOpts.IgnoreAnnotations = value
 			}
 
-		case arg == "--keep-names":
-			if buildOpts != nil {
-				buildOpts.KeepNames = true
+		case isBoolFlag(arg, "--keep-names"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if buildOpts != nil {
+				buildOpts.KeepNames = value
 			} else {
-				transformOpts.KeepNames = true
+				transformOpts.KeepNames = value
 			}
 
 		case arg == "--sourcemap":
@@ -267,24 +324,21 @@ func parseOptionsImpl(
 				transformOpts.SourceRoot = sourceRoot
 			}
 
-		case strings.HasPrefix(arg, "--sources-content="):
-			value := arg[len("--sources-content="):]
-			var sourcesContent api.SourcesContent
-			switch value {
-			case "false":
-				sourcesContent = api.SourcesContentExclude
-			case "true":
-				sourcesContent = api.SourcesContentInclude
-			default:
-				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
-					fmt.Sprintf("Invalid value %q in %q", value, arg),
-					"Valid values are \"true\" or \"false\".",
-				)
-			}
-			if buildOpts != nil {
-				buildOpts.SourcesContent = sourcesContent
+		case isBoolFlag(arg, "--sources-content"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
 			} else {
-				transformOpts.SourcesContent = sourcesContent
+				var sourcesContent *api.SourcesContent
+				if buildOpts != nil {
+					sourcesContent = &buildOpts.SourcesContent
+				} else {
+					sourcesContent = &transformOpts.SourcesContent
+				}
+				if value {
+					*sourcesContent = api.SourcesContentInclude
+				} else {
+					*sourcesContent = api.SourcesContentExclude
+				}
 			}
 
 		case strings.HasPrefix(arg, "--sourcefile="):
@@ -569,24 +623,21 @@ func parseOptionsImpl(
 			}
 
 			// Make sure this stays in sync with "PrintErrorToStderr"
-		case strings.HasPrefix(arg, "--color="):
-			value := arg[len("--color="):]
-			var color api.StderrColor
-			switch value {
-			case "false":
-				color = api.ColorNever
-			case "true":
-				color = api.ColorAlways
-			default:
-				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
-					fmt.Sprintf("Invalid value %q in %q", value, arg),
-					"Valid values are \"true\" or \"false\".",
-				)
-			}
-			if buildOpts != nil {
-				buildOpts.Color = color
+		case isBoolFlag(arg, "--color"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
 			} else {
-				transformOpts.Color = color
+				var color *api.StderrColor
+				if buildOpts != nil {
+					color = &buildOpts.Color
+				} else {
+					color = &transformOpts.Color
+				}
+				if value {
+					*color = api.ColorAlways
+				} else {
+					*color = api.ColorNever
+				}
 			}
 
 		// Make sure this stays in sync with "PrintErrorToStderr"
@@ -641,7 +692,6 @@ func parseOptionsImpl(
 				"bundle":             true,
 				"ignore-annotations": true,
 				"keep-names":         true,
-				"metafile":           true,
 				"minify-identifiers": true,
 				"minify-syntax":      true,
 				"minify-whitespace":  true,
@@ -653,8 +703,10 @@ func parseOptionsImpl(
 			}
 
 			equals := map[string]bool{
+				"allow-overwrite":    true,
 				"asset-names":        true,
 				"banner":             true,
+				"bundle":             true,
 				"charset":            true,
 				"chunk-names":        true,
 				"color":              true,
@@ -663,9 +715,11 @@ func parseOptionsImpl(
 				"footer":             true,
 				"format":             true,
 				"global-name":        true,
+				"ignore-annotations": true,
 				"jsx-factory":        true,
 				"jsx-fragment":       true,
 				"jsx":                true,
+				"keep-names":         true,
 				"legal-comments":     true,
 				"loader":             true,
 				"log-level":          true,
@@ -673,10 +727,16 @@ func parseOptionsImpl(
 				"main-fields":        true,
 				"mangle-cache":       true,
 				"mangle-props":       true,
+				"metafile":           true,
+				"minify-identifiers": true,
+				"minify-syntax":      true,
+				"minify-whitespace":  true,
+				"minify":             true,
 				"outbase":            true,
 				"outdir":             true,
 				"outfile":            true,
 				"platform":           true,
+				"preserve-symlinks":  true,
 				"public-path":        true,
 				"reserve-props":      true,
 				"resolve-extensions": true,
@@ -684,10 +744,12 @@ func parseOptionsImpl(
 				"sourcefile":         true,
 				"sourcemap":          true,
 				"sources-content":    true,
+				"splitting":          true,
 				"target":             true,
 				"tree-shaking":       true,
 				"tsconfig-raw":       true,
 				"tsconfig":           true,
+				"watch":              true,
 			}
 
 			colon := map[string]bool{
