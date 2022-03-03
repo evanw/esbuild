@@ -27,6 +27,8 @@ interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
   reserveProps?: RegExp;
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
+  mangleQuoted?: boolean;
+  /** Documentation: https://esbuild.github.io/api/#mangle-props */
   mangleCache?: Record<string, string | false>;
   /** Documentation: https://esbuild.github.io/api/#drop */
   drop?: Drop[];

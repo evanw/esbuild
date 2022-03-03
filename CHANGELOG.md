@@ -4,7 +4,7 @@
 
 * Match `define` to strings in index expressions ([#2050](https://github.com/evanw/esbuild/issues/2050))
 
-    With this release, configuring `--define:foo.bar=baz` now matches and replaces both `foo.bar` and `foo['bar']` expressions in the original source code. This is necessary for people who have enabled TypeScript's `noPropertyAccessFromIndexSignature` feature, which prevents you from using normal property access syntax on a type with an index signature such as in the following code:
+    With this release, configuring `--define:foo.bar=baz` now matches and replaces both `foo.bar` and `foo['bar']` expressions in the original source code. This is necessary for people who have enabled TypeScript's [`noPropertyAccessFromIndexSignature` feature](https://www.typescriptlang.org/tsconfig#noPropertyAccessFromIndexSignature), which prevents you from using normal property access syntax on a type with an index signature such as in the following code:
 
     ```ts
     declare let foo: { [key: string]: any }
@@ -24,6 +24,27 @@
     ```js
     baz;
     baz;
+    ```
+
+* Add `--mangle-quoted` to mangle quoted properties ([#218](https://github.com/evanw/esbuild/issues/218))
+
+    The `--mangle-props=` flag tells esbuild to automatically rename all properties matching the provided regular expression to shorter names to save space. Previously esbuild never modified the contents of string literals. In particular, `--mangle-props=_` would mangle `foo._bar` but not `foo['_bar']`. There are some coding patterns where renaming quoted property names is desirable, such as when using TypeScript's [`noPropertyAccessFromIndexSignature` feature](https://www.typescriptlang.org/tsconfig#noPropertyAccessFromIndexSignature) or when using TypeScript's [discriminated union narrowing behavior](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions):
+
+    ```ts
+    interface Foo { _foo: string }
+    interface Bar { _bar: number }
+    declare const value: Foo | Bar
+    console.log('_foo' in value ? value._foo : value._bar)
+    ```
+
+    The `'_foo' in value` check tells TypeScript to narrow the type of `value` to `Foo` in the true branch and to `Bar` in the false branch. Previously esbuild didn't mangle the property name `'_foo'` because it was inside a string literal. With this release, you can now use `--mangle-quoted` to also rename property names inside string literals:
+
+    ```js
+    // Old output (with --mangle-props=_)
+    console.log("_foo" in value ? value.a : value.b);
+
+    // New output (with --mangle-props=_ --mangle-quoted)
+    console.log("a" in value ? value.a : value.b);
     ```
 
 * Parse and discard TypeScript `export as namespace` statements ([#2070](https://github.com/evanw/esbuild/issues/2070))

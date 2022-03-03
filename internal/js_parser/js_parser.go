@@ -390,6 +390,7 @@ type optionsThatSupportStructuralEquality struct {
 	ignoreDCEAnnotations    bool
 	treeShaking             bool
 	dropDebugger            bool
+	mangleQuoted            bool
 	unusedImportsTS         config.UnusedImportsTS
 	useDefineForClassFields config.MaybeBool
 }
@@ -420,6 +421,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			ignoreDCEAnnotations:    options.IgnoreDCEAnnotations,
 			treeShaking:             options.TreeShaking,
 			dropDebugger:            options.DropDebugger,
+			mangleQuoted:            options.MangleQuoted,
 			unusedImportsTS:         options.UnusedImportsTS,
 			useDefineForClassFields: options.UseDefineForClassFields,
 		},
@@ -8508,7 +8510,9 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 				if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
 					mangled.Ref = p.symbolForMangledProp(p.loadNameFromRef(mangled.Ref))
 				} else {
-					property.Key = p.visitExpr(property.Key)
+					property.Key, _ = p.visitExprInOut(property.Key, exprIn{
+						shouldMangleStringsAsProps: true,
+					})
 				}
 			}
 			p.visitBinding(property.Value, opts)
@@ -10371,7 +10375,9 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 			k.Ref = p.symbolForMangledProp(p.loadNameFromRef(k.Ref))
 
 		default:
-			key := p.visitExpr(property.Key)
+			key, _ := p.visitExprInOut(property.Key, exprIn{
+				shouldMangleStringsAsProps: true,
+			})
 			property.Key = key
 
 			// "class {['x'] = y}" => "class {x = y}"
@@ -11218,6 +11224,11 @@ type exprIn struct {
 	// See also "thisArgFunc" and "thisArgWrapFunc" in "exprOut".
 	storeThisArgForParentOptionalChain bool
 
+	// If true, string literals that match the current property mangling pattern
+	// should be turned into EMangledProp expressions, which will cause us to
+	// rename them in the linker.
+	shouldMangleStringsAsProps bool
+
 	// Certain substitutions of identifiers are disallowed for assignment targets.
 	// For example, we shouldn't transform "undefined = 1" into "void 0 = 1". This
 	// isn't something real-world code would do but it matters for conformance
@@ -11485,6 +11496,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					"Legacy octal escape sequences cannot be used in template literals")
 			} else if p.isStrictMode() {
 				p.markStrictModeFeature(legacyOctalEscape, p.source.RangeOfLegacyOctalEscape(e.LegacyOctalLoc), "")
+			}
+		}
+
+		if in.shouldMangleStringsAsProps && p.options.mangleQuoted && !e.PreferTemplate {
+			if name := helpers.UTF16ToString(e.Value); p.isMangledProp(name) {
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EMangledProp{
+					Ref: p.symbolForMangledProp(name),
+				}}, exprOut{}
 			}
 		}
 
@@ -11801,7 +11820,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		isTemplateTag := e == p.templateTag
 		isStmtExpr := e == p.stmtExprValue
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
-		e.Left, _ = p.visitExprInOut(e.Left, exprIn{assignTarget: e.Op.BinaryAssignTarget()})
+		e.Left, _ = p.visitExprInOut(e.Left, exprIn{
+			assignTarget:               e.Op.BinaryAssignTarget(),
+			shouldMangleStringsAsProps: e.Op == js_ast.BinOpIn,
+		})
 
 		// Mark the control flow as dead if the branch is never taken
 		switch e.Op {
@@ -11837,6 +11859,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			} else {
 				e.Right = p.visitExpr(e.Right)
 			}
+
+		case js_ast.BinOpComma:
+			e.Right, _ = p.visitExprInOut(e.Right, exprIn{
+				shouldMangleStringsAsProps: in.shouldMangleStringsAsProps,
+			})
 
 		default:
 			e.Right = p.visitExpr(e.Right)
@@ -12515,7 +12542,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			index.Ref = p.symbolForMangledProp(p.loadNameFromRef(index.Ref))
 
 		default:
-			e.Index = p.visitExpr(e.Index)
+			e.Index, _ = p.visitExprInOut(e.Index, exprIn{
+				shouldMangleStringsAsProps: true,
+			})
 		}
 
 		// Lower "super[prop]" if necessary
@@ -12719,18 +12748,23 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			e.Test = p.simplifyBooleanExpr(e.Test)
 		}
 
+		// Propagate these flags into the branches
+		childIn := exprIn{
+			shouldMangleStringsAsProps: in.shouldMangleStringsAsProps,
+		}
+
 		// Fold constants
 		if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Test.Data); !ok {
-			e.Yes = p.visitExpr(e.Yes)
-			e.No = p.visitExpr(e.No)
+			e.Yes, _ = p.visitExprInOut(e.Yes, childIn)
+			e.No, _ = p.visitExprInOut(e.No, childIn)
 		} else {
 			// Mark the control flow as dead if the branch is never taken
 			if boolean {
 				// "true ? live : dead"
-				e.Yes = p.visitExpr(e.Yes)
+				e.Yes, _ = p.visitExprInOut(e.Yes, childIn)
 				old := p.isControlFlowDead
 				p.isControlFlowDead = true
-				e.No = p.visitExpr(e.No)
+				e.No, _ = p.visitExprInOut(e.No, childIn)
 				p.isControlFlowDead = old
 
 				if p.options.minifySyntax {
@@ -12752,9 +12786,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// "false ? dead : live"
 				old := p.isControlFlowDead
 				p.isControlFlowDead = true
-				e.Yes = p.visitExpr(e.Yes)
+				e.Yes, _ = p.visitExprInOut(e.Yes, childIn)
 				p.isControlFlowDead = old
-				e.No = p.visitExpr(e.No)
+				e.No, _ = p.visitExprInOut(e.No, childIn)
 
 				if p.options.minifySyntax {
 					// "(a, false) ? b : c" => "a, c"
@@ -12848,7 +12882,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if mangled, ok := key.Data.(*js_ast.EMangledProp); ok {
 					mangled.Ref = p.symbolForMangledProp(p.loadNameFromRef(mangled.Ref))
 				} else {
-					key = p.visitExpr(property.Key)
+					key, _ = p.visitExprInOut(property.Key, exprIn{
+						shouldMangleStringsAsProps: true,
+					})
 					property.Key = key
 				}
 

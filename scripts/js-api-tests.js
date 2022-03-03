@@ -3212,6 +3212,14 @@ let transformTests = {
     new Function(code)()
   },
 
+  async mangleQuotedTransform({ esbuild }) {
+    var { code } = await esbuild.transform(`x.foo_ = 'foo_' in x`, {
+      mangleProps: /_/,
+      mangleQuoted: true,
+    })
+    assert.strictEqual(code, 'x.a = "a" in x;\n')
+  },
+
   async mangleCacheTransform({ esbuild }) {
     var { code, mangleCache } = await esbuild.transform(`x = { x_: 0, y_: 1, z_: 2 }`, {
       mangleProps: /_/,

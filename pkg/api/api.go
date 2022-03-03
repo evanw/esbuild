@@ -248,6 +248,13 @@ const (
 	DropDebugger
 )
 
+type MangleQuoted uint8
+
+const (
+	MangleQuotedFalse MangleQuoted = iota
+	MangleQuotedTrue
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
@@ -265,6 +272,7 @@ type BuildOptions struct {
 
 	MangleProps       string                 // Documentation: https://esbuild.github.io/api/#mangle-props
 	ReserveProps      string                 // Documentation: https://esbuild.github.io/api/#mangle-props
+	MangleQuoted      MangleQuoted           // Documentation: https://esbuild.github.io/api/#mangle-props
 	MangleCache       map[string]interface{} // Documentation: https://esbuild.github.io/api/#mangle-props
 	Drop              Drop                   // Documentation: https://esbuild.github.io/api/#drop
 	MinifyWhitespace  bool                   // Documentation: https://esbuild.github.io/api/#minify
@@ -381,6 +389,7 @@ type TransformOptions struct {
 
 	MangleProps       string                 // Documentation: https://esbuild.github.io/api/#mangle-props
 	ReserveProps      string                 // Documentation: https://esbuild.github.io/api/#mangle-props
+	MangleQuoted      MangleQuoted           // Documentation: https://esbuild.github.io/api/#mangle-props
 	MangleCache       map[string]interface{} // Documentation: https://esbuild.github.io/api/#mangle-props
 	Drop              Drop                   // Documentation: https://esbuild.github.io/api/#drop
 	MinifyWhitespace  bool                   // Documentation: https://esbuild.github.io/api/#minify

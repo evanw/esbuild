@@ -160,6 +160,23 @@ func parseOptionsImpl(
 				transformOpts.MinifyIdentifiers = value
 			}
 
+		case isBoolFlag(arg, "--mangle-quoted"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else {
+				var mangleQuoted *api.MangleQuoted
+				if buildOpts != nil {
+					mangleQuoted = &buildOpts.MangleQuoted
+				} else {
+					mangleQuoted = &transformOpts.MangleQuoted
+				}
+				if value {
+					*mangleQuoted = api.MangleQuotedTrue
+				} else {
+					*mangleQuoted = api.MangleQuotedFalse
+				}
+			}
+
 		case strings.HasPrefix(arg, "--mangle-props="):
 			value := arg[len("--mangle-props="):]
 			if buildOpts != nil {
@@ -727,6 +744,7 @@ func parseOptionsImpl(
 				"main-fields":        true,
 				"mangle-cache":       true,
 				"mangle-props":       true,
+				"mangle-quoted":      true,
 				"metafile":           true,
 				"minify-identifiers": true,
 				"minify-syntax":      true,
