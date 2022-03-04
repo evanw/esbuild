@@ -11245,6 +11245,27 @@ func (p *parser) simplifyBooleanExpr(expr js_ast.Expr) js_ast.Expr {
 				return e.Left
 			}
 		}
+
+	case *js_ast.EIf:
+		if boolean, sideEffects, ok := toBooleanWithSideEffects(e.Yes.Data); ok && sideEffects == noSideEffects {
+			if boolean {
+				// "if (anything1 ? truthyNoSideEffects : anything2)" => "if (anything1 || anything2)"
+				return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, e.Test, e.No)
+			} else {
+				// "if (anything1 ? falsyNoSideEffects : anything2)" => "if (!anything1 || anything2)"
+				return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, js_ast.Not(e.Test), e.No)
+			}
+		}
+
+		if boolean, sideEffects, ok := toBooleanWithSideEffects(e.No.Data); ok && sideEffects == noSideEffects {
+			if boolean {
+				// "if (anything1 ? anything2 : truthyNoSideEffects)" => "if (!anything1 || anything2)"
+				return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, js_ast.Not(e.Test), e.Yes)
+			} else {
+				// "if (anything1 ? anything2 : falsyNoSideEffects)" => "if (anything1 && anything2)"
+				return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, e.Test, e.Yes)
+			}
+		}
 	}
 
 	return expr

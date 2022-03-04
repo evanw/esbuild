@@ -3170,6 +3170,11 @@ func TestMangleIf(t *testing.T) {
 		"x:\n  for (; x; )\n    y:\n      for (; y; )\n        if (a || b)\n          break x;\n")
 	expectPrintedMangle(t, "x: while (x) y: while (y) { if (a) continue x; if (b) continue x; }",
 		"x:\n  for (; x; )\n    y:\n      for (; y; )\n        if (a || b)\n          continue x;\n")
+
+	expectPrintedMangle(t, "if (x ? y : 0) foo()", "x && y && foo();\n")
+	expectPrintedMangle(t, "if (x ? y : 1) foo()", "(!x || y) && foo();\n")
+	expectPrintedMangle(t, "if (x ? 0 : y) foo()", "!x && y && foo();\n")
+	expectPrintedMangle(t, "if (x ? 1 : y) foo()", "(x || y) && foo();\n")
 }
 
 func TestMangleOptionalChain(t *testing.T) {
@@ -4042,12 +4047,12 @@ func TestMangleInlineLocals(t *testing.T) {
 	// Can substitute code without side effects into branches past an expression with side effects
 	check("let x = arg0; return y ? x : z;", "let x = arg0;\nreturn y ? x : z;")
 	check("let x = arg0; return y ? z : x;", "let x = arg0;\nreturn y ? z : x;")
-	check("let x = arg0; return (arg1 ? 1 : 2) ? x : 3;", "return (arg1 ? 1 : 2) ? arg0 : 3;")
-	check("let x = arg0; return (arg1 ? 1 : 2) ? 3 : x;", "return (arg1 ? 1 : 2) ? 3 : arg0;")
-	check("let x = arg0; return (arg1 ? y : 1) ? x : 2;", "let x = arg0;\nreturn (arg1 ? y : 1) ? x : 2;")
-	check("let x = arg0; return (arg1 ? 1 : y) ? x : 2;", "let x = arg0;\nreturn (arg1 ? 1 : y) ? x : 2;")
-	check("let x = arg0; return (arg1 ? y : 1) ? 2 : x;", "let x = arg0;\nreturn (arg1 ? y : 1) ? 2 : x;")
-	check("let x = arg0; return (arg1 ? 1 : y) ? 2 : x;", "let x = arg0;\nreturn (arg1 ? 1 : y) ? 2 : x;")
+	check("let x = arg0; return (arg1 ? 1 : 2) ? x : 3;", "return arg0;")
+	check("let x = arg0; return (arg1 ? 1 : 2) ? 3 : x;", "let x = arg0;\nreturn 3;")
+	check("let x = arg0; return (arg1 ? y : 1) ? x : 2;", "let x = arg0;\nreturn !arg1 || y ? x : 2;")
+	check("let x = arg0; return (arg1 ? 1 : y) ? x : 2;", "let x = arg0;\nreturn arg1 || y ? x : 2;")
+	check("let x = arg0; return (arg1 ? y : 1) ? 2 : x;", "let x = arg0;\nreturn !arg1 || y ? 2 : x;")
+	check("let x = arg0; return (arg1 ? 1 : y) ? 2 : x;", "let x = arg0;\nreturn arg1 || y ? 2 : x;")
 	check("let x = arg0; return y || x;", "let x = arg0;\nreturn y || x;")
 	check("let x = arg0; return y && x;", "let x = arg0;\nreturn y && x;")
 	check("let x = arg0; return y ?? x;", "let x = arg0;\nreturn y ?? x;")
