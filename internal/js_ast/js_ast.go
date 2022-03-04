@@ -2803,6 +2803,13 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 			}
 
 		case BinOpLogicalAnd, BinOpLogicalOr, BinOpNullishCoalescing:
+			// If this is a boolean logical operation and the result is unused, then
+			// we know the left operand will only be used for its boolean value and
+			// can be simplified under that assumption
+			if e.Op != BinOpNullishCoalescing {
+				e.Left = SimplifyBooleanExpr(e.Left)
+			}
+
 			// Preserve short-circuit behavior: the left expression is only unused if
 			// the right expression can be completely removed. Otherwise, the left
 			// expression is important for the branch.
@@ -3150,4 +3157,190 @@ func TryToInsertOptionalChain(test Expr, expr Expr) bool {
 	}
 
 	return false
+}
+
+type SideEffects uint8
+
+const (
+	CouldHaveSideEffects SideEffects = iota
+	NoSideEffects
+)
+
+func ToNullOrUndefinedWithSideEffects(data E) (isNullOrUndefined bool, sideEffects SideEffects, ok bool) {
+	switch e := data.(type) {
+	case *EInlinedEnum:
+		return ToNullOrUndefinedWithSideEffects(e.Value.Data)
+
+		// Never null or undefined
+	case *EBoolean, *ENumber, *EString, *ERegExp,
+		*EFunction, *EArrow, *EBigInt:
+		return false, NoSideEffects, true
+
+	// Never null or undefined
+	case *EObject, *EArray, *EClass:
+		return false, CouldHaveSideEffects, true
+
+	// Always null or undefined
+	case *ENull, *EUndefined:
+		return true, NoSideEffects, true
+
+	case *EUnary:
+		switch e.Op {
+		case
+			// Always number or bigint
+			UnOpPos, UnOpNeg, UnOpCpl,
+			UnOpPreDec, UnOpPreInc, UnOpPostDec, UnOpPostInc,
+			// Always boolean
+			UnOpNot, UnOpTypeof, UnOpDelete:
+			return false, CouldHaveSideEffects, true
+
+		// Always undefined
+		case UnOpVoid:
+			return true, CouldHaveSideEffects, true
+		}
+
+	case *EBinary:
+		switch e.Op {
+		case
+			// Always string or number or bigint
+			BinOpAdd, BinOpAddAssign,
+			// Always number or bigint
+			BinOpSub, BinOpMul, BinOpDiv, BinOpRem, BinOpPow,
+			BinOpSubAssign, BinOpMulAssign, BinOpDivAssign, BinOpRemAssign, BinOpPowAssign,
+			BinOpShl, BinOpShr, BinOpUShr,
+			BinOpShlAssign, BinOpShrAssign, BinOpUShrAssign,
+			BinOpBitwiseOr, BinOpBitwiseAnd, BinOpBitwiseXor,
+			BinOpBitwiseOrAssign, BinOpBitwiseAndAssign, BinOpBitwiseXorAssign,
+			// Always boolean
+			BinOpLt, BinOpLe, BinOpGt, BinOpGe, BinOpIn, BinOpInstanceof,
+			BinOpLooseEq, BinOpLooseNe, BinOpStrictEq, BinOpStrictNe:
+			return false, CouldHaveSideEffects, true
+
+		case BinOpComma:
+			if isNullOrUndefined, _, ok := ToNullOrUndefinedWithSideEffects(e.Right.Data); ok {
+				return isNullOrUndefined, CouldHaveSideEffects, true
+			}
+		}
+	}
+
+	return false, NoSideEffects, false
+}
+
+func ToBooleanWithSideEffects(data E) (boolean bool, SideEffects SideEffects, ok bool) {
+	switch e := data.(type) {
+	case *EInlinedEnum:
+		return ToBooleanWithSideEffects(e.Value.Data)
+
+	case *ENull, *EUndefined:
+		return false, NoSideEffects, true
+
+	case *EBoolean:
+		return e.Value, NoSideEffects, true
+
+	case *ENumber:
+		return e.Value != 0 && !math.IsNaN(e.Value), NoSideEffects, true
+
+	case *EBigInt:
+		return e.Value != "0", NoSideEffects, true
+
+	case *EString:
+		return len(e.Value) > 0, NoSideEffects, true
+
+	case *EFunction, *EArrow, *ERegExp:
+		return true, NoSideEffects, true
+
+	case *EObject, *EArray, *EClass:
+		return true, CouldHaveSideEffects, true
+
+	case *EUnary:
+		switch e.Op {
+		case UnOpVoid:
+			return false, CouldHaveSideEffects, true
+
+		case UnOpTypeof:
+			// Never an empty string
+			return true, CouldHaveSideEffects, true
+
+		case UnOpNot:
+			if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.Value.Data); ok {
+				return !boolean, SideEffects, true
+			}
+		}
+
+	case *EBinary:
+		switch e.Op {
+		case BinOpLogicalOr:
+			// "anything || truthy" is truthy
+			if boolean, _, ok := ToBooleanWithSideEffects(e.Right.Data); ok && boolean {
+				return true, CouldHaveSideEffects, true
+			}
+
+		case BinOpLogicalAnd:
+			// "anything && falsy" is falsy
+			if boolean, _, ok := ToBooleanWithSideEffects(e.Right.Data); ok && !boolean {
+				return false, CouldHaveSideEffects, true
+			}
+
+		case BinOpComma:
+			// "anything, truthy/falsy" is truthy/falsy
+			if boolean, _, ok := ToBooleanWithSideEffects(e.Right.Data); ok {
+				return boolean, CouldHaveSideEffects, true
+			}
+		}
+	}
+
+	return false, CouldHaveSideEffects, false
+}
+
+// Simplify syntax when we know it's used inside a boolean context
+func SimplifyBooleanExpr(expr Expr) Expr {
+	switch e := expr.Data.(type) {
+	case *EUnary:
+		if e.Op == UnOpNot {
+			// "!!a" => "a"
+			if e2, ok2 := e.Value.Data.(*EUnary); ok2 && e2.Op == UnOpNot {
+				return SimplifyBooleanExpr(e2.Value)
+			}
+
+			e.Value = SimplifyBooleanExpr(e.Value)
+		}
+
+	case *EBinary:
+		switch e.Op {
+		case BinOpLogicalAnd:
+			if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.Right.Data); ok && boolean && SideEffects == NoSideEffects {
+				// "if (anything && truthyNoSideEffects)" => "if (anything)"
+				return e.Left
+			}
+
+		case BinOpLogicalOr:
+			if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.Right.Data); ok && !boolean && SideEffects == NoSideEffects {
+				// "if (anything || falsyNoSideEffects)" => "if (anything)"
+				return e.Left
+			}
+		}
+
+	case *EIf:
+		if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.Yes.Data); ok && SideEffects == NoSideEffects {
+			if boolean {
+				// "if (anything1 ? truthyNoSideEffects : anything2)" => "if (anything1 || anything2)"
+				return JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, e.No)
+			} else {
+				// "if (anything1 ? falsyNoSideEffects : anything2)" => "if (!anything1 || anything2)"
+				return JoinWithLeftAssociativeOp(BinOpLogicalAnd, Not(e.Test), e.No)
+			}
+		}
+
+		if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.No.Data); ok && SideEffects == NoSideEffects {
+			if boolean {
+				// "if (anything1 ? anything2 : truthyNoSideEffects)" => "if (!anything1 || anything2)"
+				return JoinWithLeftAssociativeOp(BinOpLogicalOr, Not(e.Test), e.Yes)
+			} else {
+				// "if (anything1 ? anything2 : falsyNoSideEffects)" => "if (anything1 && anything2)"
+				return JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, e.Yes)
+			}
+		}
+	}
+
+	return expr
 }
