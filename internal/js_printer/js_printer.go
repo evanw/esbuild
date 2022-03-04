@@ -515,9 +515,9 @@ func (p *printer) printClauseAlias(alias string) {
 // anything that isn't guaranteed to be compatible with ES5, the oldest
 // JavaScript language target that we support.
 
-func CanEscapeIdentifier(name string, unsupportedJSFeatures compat.JSFeature, asciiOnly bool) bool {
+func CanEscapeIdentifier(name string, UnsupportedFeatures compat.JSFeature, asciiOnly bool) bool {
 	return js_lexer.IsIdentifierES5AndESNext(name) && (!asciiOnly ||
-		!unsupportedJSFeatures.Has(compat.UnicodeEscapes) ||
+		!UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
 		!helpers.ContainsNonBMPCodePoint(name))
 }
 
@@ -1411,14 +1411,14 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		if (symbolFlags & (js_ast.IsEmptyFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction {
 			var replacement js_ast.Expr
 			for _, arg := range e.Args {
-				replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(arg), p.isUnbound))
+				replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(arg), p.options.UnsupportedFeatures, p.isUnbound))
 			}
 			return replacement // Don't add "undefined" here because the result isn't used
 		}
 
 		// Inline non-mutated identity functions at print time
 		if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
-			return js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(e.Args[0]), p.isUnbound)
+			return js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(e.Args[0]), p.options.UnsupportedFeatures, p.isUnbound)
 		}
 	}
 
@@ -1778,7 +1778,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if (symbolFlags & (js_ast.IsEmptyFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction {
 				var replacement js_ast.Expr
 				for _, arg := range e.Args {
-					replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(arg, p.isUnbound))
+					replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(arg, p.options.UnsupportedFeatures, p.isUnbound))
 				}
 				if replacement.Data == nil || (flags&exprResultIsUnused) == 0 {
 					replacement = js_ast.JoinWithComma(replacement, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
@@ -1791,7 +1791,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
 				arg := e.Args[0]
 				if (flags & exprResultIsUnused) != 0 {
-					arg = js_ast.SimplifyUnusedExpr(arg, p.isUnbound)
+					arg = js_ast.SimplifyUnusedExpr(arg, p.options.UnsupportedFeatures, p.isUnbound)
 				}
 				p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(arg, flags), level, flags)
 				break

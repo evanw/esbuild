@@ -7,6 +7,7 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -2623,10 +2624,10 @@ func IsPrimitiveWithSideEffects(data E) bool {
 }
 
 // This will return a nil expression if the expression can be totally removed
-func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
+func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbound func(Ref) bool) Expr {
 	switch e := expr.Data.(type) {
 	case *EInlinedEnum:
-		return SimplifyUnusedExpr(e.Value, isUnbound)
+		return SimplifyUnusedExpr(e.Value, unsupportedFeatures, isUnbound)
 
 	case *ENull, *EUndefined, *EMissing, *EBoolean, *ENumber, *EBigInt,
 		*EString, *EThis, *ERegExp, *EFunction, *EArrow, *EImportMeta:
@@ -2658,7 +2659,7 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 						comma = JoinWithComma(comma, Expr{Loc: templateLoc, Data: template})
 						template = nil
 					}
-					comma = JoinWithComma(comma, SimplifyUnusedExpr(part.Value, isUnbound))
+					comma = JoinWithComma(comma, SimplifyUnusedExpr(part.Value, unsupportedFeatures, isUnbound))
 					continue
 				}
 
@@ -2684,7 +2685,7 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 			if _, ok := spread.Data.(*ESpread); ok {
 				end := 0
 				for _, item := range e.Items {
-					item = SimplifyUnusedExpr(item, isUnbound)
+					item = SimplifyUnusedExpr(item, unsupportedFeatures, isUnbound)
 					if item.Data != nil {
 						e.Items[end] = item
 						end++
@@ -2699,7 +2700,7 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 		// array items with side effects. Apply this simplification recursively.
 		var result Expr
 		for _, item := range e.Items {
-			result = JoinWithComma(result, SimplifyUnusedExpr(item, isUnbound))
+			result = JoinWithComma(result, SimplifyUnusedExpr(item, unsupportedFeatures, isUnbound))
 		}
 		return result
 
@@ -2713,7 +2714,7 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 				for _, property := range e.Properties {
 					// Spread properties must always be evaluated
 					if property.Kind != PropertySpread {
-						value := SimplifyUnusedExpr(property.ValueOrNil, isUnbound)
+						value := SimplifyUnusedExpr(property.ValueOrNil, unsupportedFeatures, isUnbound)
 						if value.Data != nil {
 							// Keep the value
 							property.ValueOrNil = value
@@ -2745,17 +2746,17 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 					Right: Expr{Loc: property.Key.Loc, Data: &EString{}},
 				}})
 			}
-			result = JoinWithComma(result, SimplifyUnusedExpr(property.ValueOrNil, isUnbound))
+			result = JoinWithComma(result, SimplifyUnusedExpr(property.ValueOrNil, unsupportedFeatures, isUnbound))
 		}
 		return result
 
 	case *EIf:
-		e.Yes = SimplifyUnusedExpr(e.Yes, isUnbound)
-		e.No = SimplifyUnusedExpr(e.No, isUnbound)
+		e.Yes = SimplifyUnusedExpr(e.Yes, unsupportedFeatures, isUnbound)
+		e.No = SimplifyUnusedExpr(e.No, unsupportedFeatures, isUnbound)
 
 		// "foo() ? 1 : 2" => "foo()"
 		if e.Yes.Data == nil && e.No.Data == nil {
-			return SimplifyUnusedExpr(e.Test, isUnbound)
+			return SimplifyUnusedExpr(e.Test, unsupportedFeatures, isUnbound)
 		}
 
 		// "foo() ? 1 : bar()" => "foo() || bar()"
@@ -2773,7 +2774,7 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 		// These operators must not have any type conversions that can execute code
 		// such as "toString" or "valueOf". They must also never throw any exceptions.
 		case UnOpVoid, UnOpNot:
-			return SimplifyUnusedExpr(e.Value, isUnbound)
+			return SimplifyUnusedExpr(e.Value, unsupportedFeatures, isUnbound)
 
 		case UnOpTypeof:
 			if _, ok := e.Value.Data.(*EIdentifier); ok {
@@ -2782,7 +2783,7 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 				// "typeof x" is special-cased in the standard to never throw.
 				return Expr{}
 			}
-			return SimplifyUnusedExpr(e.Value, isUnbound)
+			return SimplifyUnusedExpr(e.Value, unsupportedFeatures, isUnbound)
 		}
 
 	case *EBinary:
@@ -2790,7 +2791,7 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 		// These operators must not have any type conversions that can execute code
 		// such as "toString" or "valueOf". They must also never throw any exceptions.
 		case BinOpStrictEq, BinOpStrictNe, BinOpComma:
-			return JoinWithComma(SimplifyUnusedExpr(e.Left, isUnbound), SimplifyUnusedExpr(e.Right, isUnbound))
+			return JoinWithComma(SimplifyUnusedExpr(e.Left, unsupportedFeatures, isUnbound), SimplifyUnusedExpr(e.Right, unsupportedFeatures, isUnbound))
 
 		// We can simplify "==" and "!=" even though they can call "toString" and/or
 		// "valueOf" if we can statically determine that the types of both sides are
@@ -2798,16 +2799,36 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 		// "toString" and/or "valueOf" to be called.
 		case BinOpLooseEq, BinOpLooseNe:
 			if IsPrimitiveWithSideEffects(e.Left.Data) && IsPrimitiveWithSideEffects(e.Right.Data) {
-				return JoinWithComma(SimplifyUnusedExpr(e.Left, isUnbound), SimplifyUnusedExpr(e.Right, isUnbound))
+				return JoinWithComma(SimplifyUnusedExpr(e.Left, unsupportedFeatures, isUnbound), SimplifyUnusedExpr(e.Right, unsupportedFeatures, isUnbound))
 			}
 
 		case BinOpLogicalAnd, BinOpLogicalOr, BinOpNullishCoalescing:
 			// Preserve short-circuit behavior: the left expression is only unused if
 			// the right expression can be completely removed. Otherwise, the left
 			// expression is important for the branch.
-			e.Right = SimplifyUnusedExpr(e.Right, isUnbound)
+			e.Right = SimplifyUnusedExpr(e.Right, unsupportedFeatures, isUnbound)
 			if e.Right.Data == nil {
-				return SimplifyUnusedExpr(e.Left, isUnbound)
+				return SimplifyUnusedExpr(e.Left, unsupportedFeatures, isUnbound)
+			}
+
+			// Try to take advantage of the optional chain operator to shorten code
+			if !unsupportedFeatures.Has(compat.OptionalChain) {
+				if binary, ok := e.Left.Data.(*EBinary); ok {
+					// "a != null && a.b()" => "a?.b()"
+					// "a == null || a.b()" => "a?.b()"
+					if (binary.Op == BinOpLooseNe && e.Op == BinOpLogicalAnd) || (binary.Op == BinOpLooseEq && e.Op == BinOpLogicalOr) {
+						var test Expr
+						if _, ok := binary.Right.Data.(*ENull); ok {
+							test = binary.Left
+						} else if _, ok := binary.Left.Data.(*ENull); ok {
+							test = binary.Right
+						}
+						if id, ok := test.Data.(*EIdentifier); ok && !id.MustKeepDueToWithStmt &&
+							(id.CanBeRemovedIfUnused || !isUnbound(id.Ref)) && TryToInsertOptionalChain(test, e.Right) {
+							return e.Right
+						}
+					}
+				}
 			}
 
 		case BinOpAdd:
@@ -2822,7 +2843,7 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 		if e.CanBeUnwrappedIfUnused {
 			expr = Expr{}
 			for _, arg := range e.Args {
-				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, isUnbound))
+				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
 			}
 		}
 
@@ -2877,7 +2898,7 @@ func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
 		if e.CanBeUnwrappedIfUnused {
 			expr = Expr{}
 			for _, arg := range e.Args {
-				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, isUnbound))
+				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
 			}
 		}
 	}
@@ -2979,4 +3000,154 @@ func ExtractNumericValues(left Expr, right Expr) (float64, float64, bool) {
 		}
 	}
 	return 0, 0, false
+}
+
+// Returns "equal, ok". If "ok" is false, then nothing is known about the two
+// values. If "ok" is true, the equality or inequality of the two values is
+// stored in "equal".
+func CheckEqualityIfNoSideEffects(left E, right E) (bool, bool) {
+	if r, ok := right.(*EInlinedEnum); ok {
+		return CheckEqualityIfNoSideEffects(left, r.Value.Data)
+	}
+
+	switch l := left.(type) {
+	case *EInlinedEnum:
+		return CheckEqualityIfNoSideEffects(l.Value.Data, right)
+
+	case *ENull:
+		_, ok := right.(*ENull)
+		return ok, ok
+
+	case *EUndefined:
+		_, ok := right.(*EUndefined)
+		return ok, ok
+
+	case *EBoolean:
+		r, ok := right.(*EBoolean)
+		return ok && l.Value == r.Value, ok
+
+	case *ENumber:
+		r, ok := right.(*ENumber)
+		return ok && l.Value == r.Value, ok
+
+	case *EBigInt:
+		r, ok := right.(*EBigInt)
+		return ok && l.Value == r.Value, ok
+
+	case *EString:
+		r, ok := right.(*EString)
+		return ok && helpers.UTF16EqualsUTF16(l.Value, r.Value), ok
+	}
+
+	return false, false
+}
+
+func ValuesLookTheSame(left E, right E) bool {
+	if b, ok := right.(*EInlinedEnum); ok {
+		return ValuesLookTheSame(left, b.Value.Data)
+	}
+
+	switch a := left.(type) {
+	case *EInlinedEnum:
+		return ValuesLookTheSame(a.Value.Data, right)
+
+	case *EIdentifier:
+		if b, ok := right.(*EIdentifier); ok && a.Ref == b.Ref {
+			return true
+		}
+
+	case *EDot:
+		if b, ok := right.(*EDot); ok && a.HasSameFlagsAs(b) &&
+			a.Name == b.Name && ValuesLookTheSame(a.Target.Data, b.Target.Data) {
+			return true
+		}
+
+	case *EIndex:
+		if b, ok := right.(*EIndex); ok && a.HasSameFlagsAs(b) &&
+			ValuesLookTheSame(a.Target.Data, b.Target.Data) && ValuesLookTheSame(a.Index.Data, b.Index.Data) {
+			return true
+		}
+
+	case *EIf:
+		if b, ok := right.(*EIf); ok && ValuesLookTheSame(a.Test.Data, b.Test.Data) &&
+			ValuesLookTheSame(a.Yes.Data, b.Yes.Data) && ValuesLookTheSame(a.No.Data, b.No.Data) {
+			return true
+		}
+
+	case *EUnary:
+		if b, ok := right.(*EUnary); ok && a.Op == b.Op && ValuesLookTheSame(a.Value.Data, b.Value.Data) {
+			return true
+		}
+
+	case *EBinary:
+		if b, ok := right.(*EBinary); ok && a.Op == b.Op && ValuesLookTheSame(a.Left.Data, b.Left.Data) &&
+			ValuesLookTheSame(a.Right.Data, b.Right.Data) {
+			return true
+		}
+
+	case *ECall:
+		if b, ok := right.(*ECall); ok && a.HasSameFlagsAs(b) &&
+			len(a.Args) == len(b.Args) && ValuesLookTheSame(a.Target.Data, b.Target.Data) {
+			for i := range a.Args {
+				if !ValuesLookTheSame(a.Args[i].Data, b.Args[i].Data) {
+					return false
+				}
+			}
+			return true
+		}
+
+	// Special-case to distinguish between negative an non-negative zero when mangling
+	// "a ? -0 : 0" => "a ? -0 : 0"
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Equality_comparisons_and_sameness
+	case *ENumber:
+		b, ok := right.(*ENumber)
+		if ok && a.Value == 0 && b.Value == 0 && math.Signbit(a.Value) != math.Signbit(b.Value) {
+			return false
+		}
+	}
+
+	equal, ok := CheckEqualityIfNoSideEffects(left, right)
+	return ok && equal
+}
+
+func TryToInsertOptionalChain(test Expr, expr Expr) bool {
+	switch e := expr.Data.(type) {
+	case *EDot:
+		if ValuesLookTheSame(test.Data, e.Target.Data) {
+			e.OptionalChain = OptionalChainStart
+			return true
+		}
+		if TryToInsertOptionalChain(test, e.Target) {
+			if e.OptionalChain == OptionalChainNone {
+				e.OptionalChain = OptionalChainContinue
+			}
+			return true
+		}
+
+	case *EIndex:
+		if ValuesLookTheSame(test.Data, e.Target.Data) {
+			e.OptionalChain = OptionalChainStart
+			return true
+		}
+		if TryToInsertOptionalChain(test, e.Target) {
+			if e.OptionalChain == OptionalChainNone {
+				e.OptionalChain = OptionalChainContinue
+			}
+			return true
+		}
+
+	case *ECall:
+		if ValuesLookTheSame(test.Data, e.Target.Data) {
+			e.OptionalChain = OptionalChainStart
+			return true
+		}
+		if TryToInsertOptionalChain(test, e.Target) {
+			if e.OptionalChain == OptionalChainNone {
+				e.OptionalChain = OptionalChainContinue
+			}
+			return true
+		}
+	}
+
+	return false
 }

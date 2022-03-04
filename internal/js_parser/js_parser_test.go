@@ -2826,7 +2826,7 @@ func TestMangleLoopJump(t *testing.T) {
 	expectPrintedMangle(t, "while (x) { y(); debugger; if (1) continue; z(); }", "for (; x; ) {\n  y();\n  debugger;\n}\n")
 	expectPrintedMangle(t, "while (x) { let y = z(); if (1) continue; z(); }", "for (; x; ) {\n  let y = z();\n}\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (y) { if (1) break; z() } }", "for (; x; ) {\n  debugger;\n  if (y)\n    break;\n}\n")
-	expectPrintedMangle(t, "while (x) { debugger; if (y) { if (1) continue; z() } }", "for (; x; ) {\n  debugger;\n  !y;\n}\n")
+	expectPrintedMangle(t, "while (x) { debugger; if (y) { if (1) continue; z() } }", "for (; x; ) {\n  debugger;\n  y;\n}\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (1) { if (1) break; z() } }", "for (; x; ) {\n  debugger;\n  break;\n}\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (1) { if (1) continue; z() } }", "for (; x; )\n  debugger;\n")
 
@@ -3159,9 +3159,9 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "if (a) throw c; if (b) throw d;", "if (a)\n  throw c;\nif (b)\n  throw d;\n")
 	expectPrintedMangle(t, "if (a) throw c; if (b) throw c;", "if (a || b)\n  throw c;\n")
 	expectPrintedMangle(t, "while (x) { if (a) break; if (b) break; }", "for (; x && !(a || b); )\n  ;\n")
-	expectPrintedMangle(t, "while (x) { if (a) continue; if (b) continue; }", "for (; x; )\n  a || !b;\n")
+	expectPrintedMangle(t, "while (x) { if (a) continue; if (b) continue; }", "for (; x; )\n  a || b;\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (a) break; if (b) break; }", "for (; x; ) {\n  debugger;\n  if (a || b)\n    break;\n}\n")
-	expectPrintedMangle(t, "while (x) { debugger; if (a) continue; if (b) continue; }", "for (; x; ) {\n  debugger;\n  a || !b;\n}\n")
+	expectPrintedMangle(t, "while (x) { debugger; if (a) continue; if (b) continue; }", "for (; x; ) {\n  debugger;\n  a || b;\n}\n")
 	expectPrintedMangle(t, "x: while (x) y: while (y) { if (a) break x; if (b) break y; }",
 		"x:\n  for (; x; )\n    y:\n      for (; y; ) {\n        if (a)\n          break x;\n        if (b)\n          break y;\n      }\n")
 	expectPrintedMangle(t, "x: while (x) y: while (y) { if (a) continue x; if (b) continue y; }",
@@ -3205,6 +3205,24 @@ func TestMangleOptionalChain(t *testing.T) {
 	expectPrintedMangle(t, "let a; return a != null ? a?.b.c[d](e) : undefined", "let a;\nreturn a?.b.c[d](e);\n")
 	expectPrintedMangle(t, "let a; return a != null ? a.b.c?.[d](e) : undefined", "let a;\nreturn a?.b.c?.[d](e);\n")
 	expectPrintedMangle(t, "let a; return a != null ? a?.b.c?.[d](e) : undefined", "let a;\nreturn a?.b.c?.[d](e);\n")
+
+	expectPrintedMangle(t, "let a; a != null && a.b()", "let a;\na?.b();\n")
+	expectPrintedMangle(t, "let a; a == null || a.b()", "let a;\na?.b();\n")
+	expectPrintedMangle(t, "let a; null != a && a.b()", "let a;\na?.b();\n")
+	expectPrintedMangle(t, "let a; null == a || a.b()", "let a;\na?.b();\n")
+
+	expectPrintedMangle(t, "let a; a == null && a.b()", "let a;\na == null && a.b();\n")
+	expectPrintedMangle(t, "let a; a != null || a.b()", "let a;\na != null || a.b();\n")
+	expectPrintedMangle(t, "let a; null == a && a.b()", "let a;\na == null && a.b();\n")
+	expectPrintedMangle(t, "let a; null != a || a.b()", "let a;\na != null || a.b();\n")
+
+	expectPrintedMangle(t, "let a; if (a != null) a.b()", "let a;\na?.b();\n")
+	expectPrintedMangle(t, "let a; if (a == null) ; else a.b()", "let a;\na?.b();\n")
+
+	expectPrintedMangle(t, "let a; if (a == null) a.b()", "let a;\na == null && a.b();\n")
+	expectPrintedMangle(t, "let a; if (a != null) ; else a.b()", "let a;\na != null || a.b();\n")
+	expectPrintedMangle(t, "a != null && a.b()", "a != null && a.b();\n")
+	expectPrintedMangle(t, "a == null || a.b()", "a == null || a.b();\n")
 }
 
 func TestMangleNullOrUndefinedWithSideEffects(t *testing.T) {
@@ -3386,7 +3404,7 @@ func TestMangleReturn(t *testing.T) {
 	expectPrintedMangle(t, "function x() { debugger; if (y) return; z(); }", "function x() {\n  debugger;\n  y || z();\n}\n")
 	expectPrintedMangle(t, "function x() { debugger; if (y) return; else z(); w(); }", "function x() {\n  debugger;\n  y || (z(), w());\n}\n")
 	expectPrintedMangle(t, "function x() { if (y) { if (z) return; } }",
-		"function x() {\n  !(y && z);\n}\n")
+		"function x() {\n  y && z;\n}\n")
 	expectPrintedMangle(t, "function x() { if (y) { if (z) return; w(); } }",
 		"function x() {\n  if (y) {\n    if (z)\n      return;\n    w();\n  }\n}\n")
 

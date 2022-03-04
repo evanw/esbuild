@@ -8,17 +8,16 @@
 
     ```ts
     // Original code
-    let foo = (bar) => [
-      bar === null || bar === undefined ? undefined : bar.baz,
-      bar !== null && bar !== undefined ? bar.baz() : undefined,
-      null !== bar && undefined !== bar ? bar[baz] : undefined,
-    ]
+    let foo = (x) => {
+      if (x !== null && x !== undefined) x.y()
+      return x === null || x === undefined ? undefined : x.z
+    }
 
     // Old output (with --minify)
-    let foo=n=>[n==null?void 0:n.baz,n!=null?n.baz():void 0,n!=null?n[baz]:void 0];
+    let foo=n=>(n!=null&&n.y(),n==null?void 0:n.z);
 
     // New output (with --minify)
-    let foo=n=>[n?.baz,n?.baz(),n?.[baz]];
+    let foo=n=>(n?.y(),n?.z);
     ```
 
     This only takes effect when minification is enabled and when the configured target environment is known to support the optional chaining operator. As always, make sure to set `--target=` to the appropriate language target if you are running the minified code in an environment that doesn't support the latest JavaScript features.

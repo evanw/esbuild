@@ -490,7 +490,7 @@ func jsxExprsEqual(a config.JSXExpr, b config.JSXExpr) bool {
 	}
 
 	if a.Constant != nil {
-		if b.Constant == nil || !valuesLookTheSame(a.Constant, b.Constant) {
+		if b.Constant == nil || !js_ast.ValuesLookTheSame(a.Constant, b.Constant) {
 			return false
 		}
 	} else if b.Constant != nil {
@@ -991,114 +991,6 @@ func typeofWithoutSideEffects(data js_ast.E) (string, bool) {
 	return "", false
 }
 
-// Returns "equal, ok". If "ok" is false, then nothing is known about the two
-// values. If "ok" is true, the equality or inequality of the two values is
-// stored in "equal".
-func checkEqualityIfNoSideEffects(left js_ast.E, right js_ast.E) (bool, bool) {
-	if r, ok := right.(*js_ast.EInlinedEnum); ok {
-		return checkEqualityIfNoSideEffects(left, r.Value.Data)
-	}
-
-	switch l := left.(type) {
-	case *js_ast.EInlinedEnum:
-		return checkEqualityIfNoSideEffects(l.Value.Data, right)
-
-	case *js_ast.ENull:
-		_, ok := right.(*js_ast.ENull)
-		return ok, ok
-
-	case *js_ast.EUndefined:
-		_, ok := right.(*js_ast.EUndefined)
-		return ok, ok
-
-	case *js_ast.EBoolean:
-		r, ok := right.(*js_ast.EBoolean)
-		return ok && l.Value == r.Value, ok
-
-	case *js_ast.ENumber:
-		r, ok := right.(*js_ast.ENumber)
-		return ok && l.Value == r.Value, ok
-
-	case *js_ast.EBigInt:
-		r, ok := right.(*js_ast.EBigInt)
-		return ok && l.Value == r.Value, ok
-
-	case *js_ast.EString:
-		r, ok := right.(*js_ast.EString)
-		return ok && helpers.UTF16EqualsUTF16(l.Value, r.Value), ok
-	}
-
-	return false, false
-}
-
-func valuesLookTheSame(left js_ast.E, right js_ast.E) bool {
-	if b, ok := right.(*js_ast.EInlinedEnum); ok {
-		return valuesLookTheSame(left, b.Value.Data)
-	}
-
-	switch a := left.(type) {
-	case *js_ast.EInlinedEnum:
-		return valuesLookTheSame(a.Value.Data, right)
-
-	case *js_ast.EIdentifier:
-		if b, ok := right.(*js_ast.EIdentifier); ok && a.Ref == b.Ref {
-			return true
-		}
-
-	case *js_ast.EDot:
-		if b, ok := right.(*js_ast.EDot); ok && a.HasSameFlagsAs(b) &&
-			a.Name == b.Name && valuesLookTheSame(a.Target.Data, b.Target.Data) {
-			return true
-		}
-
-	case *js_ast.EIndex:
-		if b, ok := right.(*js_ast.EIndex); ok && a.HasSameFlagsAs(b) &&
-			valuesLookTheSame(a.Target.Data, b.Target.Data) && valuesLookTheSame(a.Index.Data, b.Index.Data) {
-			return true
-		}
-
-	case *js_ast.EIf:
-		if b, ok := right.(*js_ast.EIf); ok && valuesLookTheSame(a.Test.Data, b.Test.Data) &&
-			valuesLookTheSame(a.Yes.Data, b.Yes.Data) && valuesLookTheSame(a.No.Data, b.No.Data) {
-			return true
-		}
-
-	case *js_ast.EUnary:
-		if b, ok := right.(*js_ast.EUnary); ok && a.Op == b.Op && valuesLookTheSame(a.Value.Data, b.Value.Data) {
-			return true
-		}
-
-	case *js_ast.EBinary:
-		if b, ok := right.(*js_ast.EBinary); ok && a.Op == b.Op && valuesLookTheSame(a.Left.Data, b.Left.Data) &&
-			valuesLookTheSame(a.Right.Data, b.Right.Data) {
-			return true
-		}
-
-	case *js_ast.ECall:
-		if b, ok := right.(*js_ast.ECall); ok && a.HasSameFlagsAs(b) &&
-			len(a.Args) == len(b.Args) && valuesLookTheSame(a.Target.Data, b.Target.Data) {
-			for i := range a.Args {
-				if !valuesLookTheSame(a.Args[i].Data, b.Args[i].Data) {
-					return false
-				}
-			}
-			return true
-		}
-
-	// Special-case to distinguish between negative an non-negative zero when mangling
-	// "a ? -0 : 0" => "a ? -0 : 0"
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Equality_comparisons_and_sameness
-	case *js_ast.ENumber:
-		b, ok := right.(*js_ast.ENumber)
-		if ok && a.Value == 0 && b.Value == 0 && math.Signbit(a.Value) != math.Signbit(b.Value) {
-			return false
-		}
-	}
-
-	equal, ok := checkEqualityIfNoSideEffects(left, right)
-	return ok && equal
-}
-
 func jumpStmtsLookTheSame(left js_ast.S, right js_ast.S) bool {
 	switch a := left.(type) {
 	case *js_ast.SBreak:
@@ -1112,11 +1004,11 @@ func jumpStmtsLookTheSame(left js_ast.S, right js_ast.S) bool {
 	case *js_ast.SReturn:
 		b, ok := right.(*js_ast.SReturn)
 		return ok && (a.ValueOrNil.Data == nil) == (b.ValueOrNil.Data == nil) &&
-			(a.ValueOrNil.Data == nil || valuesLookTheSame(a.ValueOrNil.Data, b.ValueOrNil.Data))
+			(a.ValueOrNil.Data == nil || js_ast.ValuesLookTheSame(a.ValueOrNil.Data, b.ValueOrNil.Data))
 
 	case *js_ast.SThrow:
 		b, ok := right.(*js_ast.SThrow)
-		return ok && valuesLookTheSame(a.Value.Data, b.Value.Data)
+		return ok && js_ast.ValuesLookTheSame(a.Value.Data, b.Value.Data)
 	}
 
 	return false
@@ -8044,7 +7936,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					}
 
 					// Handle the returned values being the same
-					if boolean, ok := checkEqualityIfNoSideEffects(left.Data, right.Data); ok && boolean {
+					if boolean, ok := js_ast.CheckEqualityIfNoSideEffects(left.Data, right.Data); ok && boolean {
 						// "if (a) return b; return b;" => "return a, b;"
 						lastReturn = &js_ast.SReturn{ValueOrNil: js_ast.JoinWithComma(prevS.Test, left)}
 					} else {
@@ -8668,7 +8560,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 				// We can drop the "no" branch
 				if sideEffects == couldHaveSideEffects {
 					// Keep the condition if it could have side effects (but is still known to be truthy)
-					if test := js_ast.SimplifyUnusedExpr(s.Test, p.isUnbound); test.Data != nil {
+					if test := js_ast.SimplifyUnusedExpr(s.Test, p.options.unsupportedJSFeatures, p.isUnbound); test.Data != nil {
 						stmts = append(stmts, js_ast.Stmt{Loc: s.Test.Loc, Data: &js_ast.SExpr{Value: test}})
 					}
 				}
@@ -8682,7 +8574,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 				// We can drop the "yes" branch
 				if sideEffects == couldHaveSideEffects {
 					// Keep the condition if it could have side effects (but is still known to be falsy)
-					if test := js_ast.SimplifyUnusedExpr(s.Test, p.isUnbound); test.Data != nil {
+					if test := js_ast.SimplifyUnusedExpr(s.Test, p.options.unsupportedJSFeatures, p.isUnbound); test.Data != nil {
 						stmts = append(stmts, js_ast.Stmt{Loc: s.Test.Loc, Data: &js_ast.SExpr{Value: test}})
 					}
 				}
@@ -8696,25 +8588,25 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 		}
 	}
 
+	var expr js_ast.Expr
+
 	if yes, ok := s.Yes.Data.(*js_ast.SExpr); ok {
 		// "yes" is an expression
 		if s.NoOrNil.Data == nil {
 			if not, ok := s.Test.Data.(*js_ast.EUnary); ok && not.Op == js_ast.UnOpNot {
 				// "if (!a) b();" => "a || b();"
-				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
-					Value: js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, not.Value, yes.Value)}})
+				expr = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, not.Value, yes.Value)
 			} else {
 				// "if (a) b();" => "a && b();"
-				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
-					Value: js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, s.Test, yes.Value)}})
+				expr = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, s.Test, yes.Value)
 			}
 		} else if no, ok := s.NoOrNil.Data.(*js_ast.SExpr); ok {
 			// "if (a) b(); else c();" => "a ? b() : c();"
-			return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: p.mangleIfExpr(loc, &js_ast.EIf{
+			expr = p.mangleIfExpr(loc, &js_ast.EIf{
 				Test: s.Test,
 				Yes:  yes.Value,
 				No:   no.Value,
-			})}})
+			})
 		}
 	} else if _, ok := s.Yes.Data.(*js_ast.SEmpty); ok {
 		// "yes" is missing
@@ -8725,17 +8617,15 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 				return stmts
 			} else {
 				// "if (a) {}" => "a;"
-				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: s.Test}})
+				expr = s.Test
 			}
 		} else if no, ok := s.NoOrNil.Data.(*js_ast.SExpr); ok {
 			if not, ok := s.Test.Data.(*js_ast.EUnary); ok && not.Op == js_ast.UnOpNot {
 				// "if (!a) {} else b();" => "a && b();"
-				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
-					Value: js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, not.Value, no.Value)}})
+				expr = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, not.Value, no.Value)
 			} else {
 				// "if (a) {} else b();" => "a || b();"
-				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
-					Value: js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, s.Test, no.Value)}})
+				expr = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, s.Test, no.Value)
 			}
 		} else {
 			// "yes" is missing and "no" is not missing (and is not an expression)
@@ -8770,6 +8660,12 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 		}
 	}
 
+	// Return an expression if we replaced the if statement with an expression above
+	if expr.Data != nil {
+		expr = js_ast.SimplifyUnusedExpr(expr, p.options.unsupportedJSFeatures, p.isUnbound)
+		return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}})
+	}
+
 	return append(stmts, js_ast.Stmt{Loc: loc, Data: s})
 }
 
@@ -8789,7 +8685,7 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 		e.Yes, e.No = e.No, e.Yes
 	}
 
-	if valuesLookTheSame(e.Yes.Data, e.No.Data) {
+	if js_ast.ValuesLookTheSame(e.Yes.Data, e.No.Data) {
 		// "/* @__PURE__ */ a() ? b : b" => "b"
 		if p.exprCanBeRemovedIfUnused(e.Test) {
 			return e.Yes
@@ -8825,21 +8721,21 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 	}
 
 	// "a ? b ? c : d : d" => "a && b ? c : d"
-	if yesIf, ok := e.Yes.Data.(*js_ast.EIf); ok && valuesLookTheSame(yesIf.No.Data, e.No.Data) {
+	if yesIf, ok := e.Yes.Data.(*js_ast.EIf); ok && js_ast.ValuesLookTheSame(yesIf.No.Data, e.No.Data) {
 		e.Test = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, e.Test, yesIf.Test)
 		e.Yes = yesIf.Yes
 		return js_ast.Expr{Loc: loc, Data: e}
 	}
 
 	// "a ? b : c ? b : d" => "a || c ? b : d"
-	if noIf, ok := e.No.Data.(*js_ast.EIf); ok && valuesLookTheSame(e.Yes.Data, noIf.Yes.Data) {
+	if noIf, ok := e.No.Data.(*js_ast.EIf); ok && js_ast.ValuesLookTheSame(e.Yes.Data, noIf.Yes.Data) {
 		e.Test = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, e.Test, noIf.Test)
 		e.No = noIf.No
 		return js_ast.Expr{Loc: loc, Data: e}
 	}
 
 	// "a ? c : (b, c)" => "(a || b), c"
-	if comma, ok := e.No.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma && valuesLookTheSame(e.Yes.Data, comma.Right.Data) {
+	if comma, ok := e.No.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma && js_ast.ValuesLookTheSame(e.Yes.Data, comma.Right.Data) {
 		return js_ast.JoinWithComma(
 			js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, e.Test, comma.Left),
 			comma.Right,
@@ -8847,7 +8743,7 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 	}
 
 	// "a ? (b, c) : c" => "(a && b), c"
-	if comma, ok := e.Yes.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma && valuesLookTheSame(comma.Right.Data, e.No.Data) {
+	if comma, ok := e.Yes.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma && js_ast.ValuesLookTheSame(comma.Right.Data, e.No.Data) {
 		return js_ast.JoinWithComma(
 			js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, e.Test, comma.Left),
 			comma.Right,
@@ -8856,7 +8752,7 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 
 	// "a ? b || c : c" => "(a && b) || c"
 	if binary, ok := e.Yes.Data.(*js_ast.EBinary); ok && binary.Op == js_ast.BinOpLogicalOr &&
-		valuesLookTheSame(binary.Right.Data, e.No.Data) {
+		js_ast.ValuesLookTheSame(binary.Right.Data, e.No.Data) {
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    js_ast.BinOpLogicalOr,
 			Left:  js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, e.Test, binary.Left),
@@ -8866,7 +8762,7 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 
 	// "a ? c : b && c" => "(a || b) && c"
 	if binary, ok := e.No.Data.(*js_ast.EBinary); ok && binary.Op == js_ast.BinOpLogicalAnd &&
-		valuesLookTheSame(e.Yes.Data, binary.Right.Data) {
+		js_ast.ValuesLookTheSame(e.Yes.Data, binary.Right.Data) {
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 			Op:    js_ast.BinOpLogicalAnd,
 			Left:  js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, e.Test, binary.Left),
@@ -8877,7 +8773,7 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 	// "a ? b(c, d) : b(e, d)" => "b(a ? c : e, d)"
 	if y, ok := e.Yes.Data.(*js_ast.ECall); ok && len(y.Args) > 0 {
 		if n, ok := e.No.Data.(*js_ast.ECall); ok && len(n.Args) == len(y.Args) &&
-			y.HasSameFlagsAs(n) && valuesLookTheSame(y.Target.Data, n.Target.Data) {
+			y.HasSameFlagsAs(n) && js_ast.ValuesLookTheSame(y.Target.Data, n.Target.Data) {
 			// Only do this if the condition can be reordered past the call target
 			// without side effects. For example, if the test or the call target is
 			// an unbound identifier, reordering could potentially mean evaluating
@@ -8885,7 +8781,7 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 			if p.exprCanBeRemovedIfUnused(e.Test) && p.exprCanBeRemovedIfUnused(y.Target) {
 				sameTailArgs := true
 				for i, count := 1, len(y.Args); i < count; i++ {
-					if !valuesLookTheSame(y.Args[i].Data, n.Args[i].Data) {
+					if !js_ast.ValuesLookTheSame(y.Args[i].Data, n.Args[i].Data) {
 						sameTailArgs = false
 						break
 					}
@@ -8950,13 +8846,13 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 
 		if p.exprCanBeRemovedIfUnused(test) {
 			// "a != null ? a : b" => "a ?? b"
-			if !p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) && valuesLookTheSame(test.Data, whenNonNull.Data) {
+			if !p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) && js_ast.ValuesLookTheSame(test.Data, whenNonNull.Data) {
 				return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, test, whenNull)
 			}
 
 			// "a != null ? a.b.c[d](e) : undefined" => "a?.b.c[d](e)"
 			if !p.options.unsupportedJSFeatures.Has(compat.OptionalChain) {
-				if _, ok := whenNull.Data.(*js_ast.EUndefined); ok && tryToInsertOptionalChain(test, whenNonNull) {
+				if _, ok := whenNull.Data.(*js_ast.EUndefined); ok && js_ast.TryToInsertOptionalChain(test, whenNonNull) {
 					return whenNonNull
 				}
 			}
@@ -8964,48 +8860,6 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 	}
 
 	return js_ast.Expr{Loc: loc, Data: e}
-}
-
-func tryToInsertOptionalChain(test js_ast.Expr, expr js_ast.Expr) bool {
-	switch e := expr.Data.(type) {
-	case *js_ast.EDot:
-		if valuesLookTheSame(test.Data, e.Target.Data) {
-			e.OptionalChain = js_ast.OptionalChainStart
-			return true
-		}
-		if tryToInsertOptionalChain(test, e.Target) {
-			if e.OptionalChain == js_ast.OptionalChainNone {
-				e.OptionalChain = js_ast.OptionalChainContinue
-			}
-			return true
-		}
-
-	case *js_ast.EIndex:
-		if valuesLookTheSame(test.Data, e.Target.Data) {
-			e.OptionalChain = js_ast.OptionalChainStart
-			return true
-		}
-		if tryToInsertOptionalChain(test, e.Target) {
-			if e.OptionalChain == js_ast.OptionalChainNone {
-				e.OptionalChain = js_ast.OptionalChainContinue
-			}
-			return true
-		}
-
-	case *js_ast.ECall:
-		if valuesLookTheSame(test.Data, e.Target.Data) {
-			e.OptionalChain = js_ast.OptionalChainStart
-			return true
-		}
-		if tryToInsertOptionalChain(test, e.Target) {
-			if e.OptionalChain == js_ast.OptionalChainNone {
-				e.OptionalChain = js_ast.OptionalChainContinue
-			}
-			return true
-		}
-	}
-
-	return false
 }
 
 func (p *parser) isAnonymousNamedExpr(expr js_ast.Expr) bool {
@@ -9446,7 +9300,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Trim expressions without side effects
 		if p.options.minifySyntax {
-			s.Value = js_ast.SimplifyUnusedExpr(s.Value, p.isUnbound)
+			s.Value = js_ast.SimplifyUnusedExpr(s.Value, p.options.unsupportedJSFeatures, p.isUnbound)
 			if s.Value.Data == nil {
 				return stmts
 			}
@@ -11990,7 +11844,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// "(1, 2)" => "2"
 			// "(sideEffects(), 2)" => "(sideEffects(), 2)"
 			if p.options.minifySyntax {
-				e.Left = js_ast.SimplifyUnusedExpr(e.Left, p.isUnbound)
+				e.Left = js_ast.SimplifyUnusedExpr(e.Left, p.options.unsupportedJSFeatures, p.isUnbound)
 				if e.Left.Data == nil {
 					// "(1, fn)()" => "fn()"
 					// "(1, this.fn)" => "this.fn"
@@ -12003,7 +11857,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpLooseEq:
-			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: result}}, exprOut{}
 			}
 			afterOpLoc := locAfterOp(e)
@@ -12024,7 +11878,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpStrictEq:
-			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: result}}, exprOut{}
 			}
 			afterOpLoc := locAfterOp(e)
@@ -12045,7 +11899,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpLooseNe:
-			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: !result}}, exprOut{}
 			}
 			afterOpLoc := locAfterOp(e)
@@ -12066,7 +11920,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpStrictNe:
-			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: !result}}, exprOut{}
 			}
 			afterOpLoc := locAfterOp(e)
@@ -12875,7 +12729,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.options.minifySyntax {
 					// "(a, true) ? b : c" => "a, b"
 					if sideEffects == couldHaveSideEffects {
-						return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(e.Test, p.isUnbound), e.Yes), exprOut{}
+						return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(e.Test, p.options.unsupportedJSFeatures, p.isUnbound), e.Yes), exprOut{}
 					}
 
 					// "(1 ? fn : 2)()" => "fn()"
@@ -12898,7 +12752,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.options.minifySyntax {
 					// "(a, false) ? b : c" => "a, c"
 					if sideEffects == couldHaveSideEffects {
-						return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(e.Test, p.isUnbound), e.No), exprOut{}
+						return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(e.Test, p.options.unsupportedJSFeatures, p.isUnbound), e.No), exprOut{}
 					}
 
 					// "(0 ? 1 : fn)()" => "fn()"

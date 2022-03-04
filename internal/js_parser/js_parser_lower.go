@@ -585,7 +585,7 @@ flatten:
 	if p.options.minifySyntax {
 		if isNullOrUndefined, sideEffects, ok := toNullOrUndefinedWithSideEffects(expr.Data); ok && isNullOrUndefined {
 			if sideEffects == couldHaveSideEffects {
-				return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(expr, p.isUnbound), valueWhenUndefined), exprOut{}
+				return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(expr, p.options.unsupportedJSFeatures, p.isUnbound), valueWhenUndefined), exprOut{}
 			}
 			return valueWhenUndefined, exprOut{}
 		}
