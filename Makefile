@@ -6,11 +6,6 @@ GO_FLAGS += "-ldflags=-s -w"
 # Avoid embedding the build path in the executable for more reproducible builds
 GO_FLAGS += -trimpath
 
-# Temporary workaround for https://github.com/golang/go/issues/51101 before Go 1.18/1.17.8 is released
-ifeq ($(GOARCH), riscv64)
-	GO_FLAGS += "-gcflags=all=-N -l"
-endif
-
 esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
 	CGO_ENABLED=0 go build $(GO_FLAGS) ./cmd/esbuild
 
@@ -25,7 +20,7 @@ test-all:
 	@$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 check-go-version:
-	@go version | grep ' go1\.17\.7 ' || (echo 'Please install Go version 1.17.7' && false)
+	@go version | grep ' go1\.17\.8 ' || (echo 'Please install Go version 1.17.8' && false)
 
 # Note: Don't add "-race" here by default. The Go race detector is currently
 # only supported on the following configurations:
