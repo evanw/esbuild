@@ -155,6 +155,18 @@ func (p *parser) mangleTransforms(tokens []css_ast.Token) []css_ast.Token {
 						args[0].TurnLengthIntoNumberIfZero()
 					}
 
+				// Note: This is considered a 2D transform even though it's specified
+				// in terms of a 3D transform because it doesn't trigger Safari's 3D
+				// transform bugs.
+				case "rotatez":
+					// same as rotate3d(0, 0, 1, <angle>), which is a 3d transform
+					// equivalent to the 2d transform rotate(<angle>).
+					if n == 1 {
+						// "rotateZ(angle)" => "rotate(angle)"
+						token.Text = "rotate"
+						args[0].TurnLengthIntoNumberIfZero()
+					}
+
 				case "skew":
 					// specifies a 2D skew by [ax,ay] for X and Y. If the second
 					// parameter is not provided, it has a zero value.
@@ -189,6 +201,11 @@ func (p *parser) mangleTransforms(tokens []css_ast.Token) []css_ast.Token {
 					////////////////////////////////////////////////////////////////////////////////
 					// 3D transforms
 
+					// Note: Safari has a bug where 3D transforms render differently than
+					// other transforms. This means we should not minify a 3D transform
+					// into a 2D transform or it will cause a rendering difference in
+					// Safari.
+
 				case "matrix3d":
 					// specifies a 3D transformation as a 4x4 homogeneous matrix of 16
 					// values in column-major order.
@@ -206,39 +223,19 @@ func (p *parser) mangleTransforms(tokens []css_ast.Token) []css_ast.Token {
 							}
 						}
 						const onlyScale = 0b1000_0000_0000_0000_0111_1011_1101_1110
-						const only2D = 0b1000_0100_0000_0000_0100_1011_1100_1100
 						if (mask & onlyScale) == onlyScale {
 							// | m0 0  0   0 |
 							// | 0  m5 0   0 |
 							// | 0  0  m10 0 |
 							// | 0  0  0   1 |
-							sx, sy, sz := args[0], args[10], args[20]
-							if sx.EqualIgnoringWhitespace(sy) && sz.IsOne() {
-								token.Text = "scale"
-								*token.Children = args[:1]
-							} else if sy.IsOne() && sz.IsOne() {
-								token.Text = "scaleX"
-								*token.Children = args[:1]
-							} else if sx.IsOne() && sz.IsOne() {
-								token.Text = "scaleY"
-								*token.Children = args[10:11]
-							} else if sx.IsOne() && sy.IsOne() {
+							sx, sy := args[0], args[10]
+							if sx.IsOne() && sy.IsOne() {
 								token.Text = "scaleZ"
 								*token.Children = args[20:21]
-							} else if sz.IsOne() {
-								token.Text = "scale"
-								*token.Children = append(args[0:2], args[10])
 							} else {
 								token.Text = "scale3d"
 								*token.Children = append(append(args[0:2], args[10:12]...), args[20])
 							}
-						} else if (mask & only2D) == only2D {
-							// | m0 m4 0 m12 |
-							// | m1 m5 0 m13 |
-							// | 0  0  1 0   |
-							// | 0  0  0 1   |
-							token.Text = "matrix"
-							*token.Children = append(append(args[0:4], args[8:12]...), args[24:27]...)
 						}
 
 						// Note: A "matrix3d" cannot be directly converted into a "translate3d"
@@ -258,22 +255,10 @@ func (p *parser) mangleTransforms(tokens []css_ast.Token) []css_ast.Token {
 						tx.TurnLengthOrPercentageIntoNumberIfZero()
 						ty.TurnLengthOrPercentageIntoNumberIfZero()
 						tz.TurnLengthIntoNumberIfZero()
-						if ty.IsZero() && tz.IsZero() {
-							// "translate3d(tx, 0, 0)" => "translate(tx)"
-							token.Text = "translate"
-							*token.Children = args[:1]
-						} else if tx.IsZero() && tz.IsZero() {
-							// "translate3d(0, ty, 0)" => "translateY(ty)"
-							token.Text = "translateY"
-							*token.Children = args[2:3]
-						} else if tx.IsZero() && ty.IsZero() {
+						if tx.IsZero() && ty.IsZero() {
 							// "translate3d(0, 0, tz)" => "translateZ(tz)"
 							token.Text = "translateZ"
 							*token.Children = args[4:]
-						} else if tz.IsZero() {
-							// "translate3d(tx, ty, 0)" => "translate(tx, ty)"
-							token.Text = "translate"
-							*token.Children = args[:3]
 						}
 					}
 
@@ -292,26 +277,10 @@ func (p *parser) mangleTransforms(tokens []css_ast.Token) []css_ast.Token {
 						turnPercentIntoNumberIfShorter(sx)
 						turnPercentIntoNumberIfShorter(sy)
 						turnPercentIntoNumberIfShorter(sz)
-						if sx.EqualIgnoringWhitespace(*sy) && sz.IsOne() {
-							// "scale3d(s, s, 1)" => "scale(s)"
-							token.Text = "scale"
-							*token.Children = args[:1]
-						} else if sy.IsOne() && sz.IsOne() {
-							// "scale3d(sx, 1, 1)" => "scaleX(sx)"
-							token.Text = "scaleX"
-							*token.Children = args[:1]
-						} else if sx.IsOne() && sz.IsOne() {
-							// "scale3d(1, sy, 1)" => "scaleY(sy)"
-							token.Text = "scaleY"
-							*token.Children = args[2:3]
-						} else if sx.IsOne() && sy.IsOne() {
+						if sx.IsOne() && sy.IsOne() {
 							// "scale3d(1, 1, sz)" => "scaleZ(sz)"
 							token.Text = "scaleZ"
 							*token.Children = args[4:]
-						} else if sz.IsOne() {
-							// "scale3d(sx, sy, 1)" => "scale(sx, sy)"
-							token.Text = "scale"
-							*token.Children = args[:3]
 						}
 					}
 
@@ -338,10 +307,6 @@ func (p *parser) mangleTransforms(tokens []css_ast.Token) []css_ast.Token {
 							// "rotate3d(0, 1, 0, angle)" => "rotateY(angle)"
 							token.Text = "rotateY"
 							*token.Children = args[6:]
-						} else if x.IsZero() && y.IsZero() && z.IsOne() {
-							// "rotate3d(0, 0, 1, angle)" => "rotate(angle)"
-							token.Text = "rotate"
-							*token.Children = args[6:]
 						}
 					}
 
@@ -354,15 +319,6 @@ func (p *parser) mangleTransforms(tokens []css_ast.Token) []css_ast.Token {
 				case "rotatey":
 					// same as rotate3d(0, 1, 0, <angle>).
 					if n == 1 {
-						args[0].TurnLengthIntoNumberIfZero()
-					}
-
-				case "rotatez":
-					// same as rotate3d(0, 0, 1, <angle>), which is a 3d transform
-					// equivalent to the 2d transform rotate(<angle>).
-					if n == 1 {
-						// "rotateZ(angle)" => "rotate(angle)"
-						token.Text = "rotate"
 						args[0].TurnLengthIntoNumberIfZero()
 					}
 

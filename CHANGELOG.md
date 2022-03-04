@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+* Reduce minification of CSS transforms to avoid Safari bugs ([#2057](https://github.com/evanw/esbuild/issues/2057))
+
+    In Safari, applying a 3D CSS transform to an element can cause it to render in a different order than applying a 2D CSS transform even if the transformation matrix is identical. I believe this is a bug in Safari because the [CSS `transform` specification](https://drafts.csswg.org/css-transforms-1/#transform-rendering) doesn't seem to distinguish between 2D and 3D transforms as far as rendering order:
+
+    > For elements whose layout is governed by the CSS box model, any value other than `none` for the `transform` property results in the creation of a stacking context.
+
+    This bug means that minifying a 3D transform into a 2D transform must be avoided even though it's a valid transformation because it can cause rendering differences in Safari. Previously esbuild sometimes minified 3D CSS transforms into 2D CSS transforms but with this release, esbuild will no longer do that:
+
+    ```css
+    /* Original code */
+    div { transform: matrix3d(2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) }
+
+    /* Old output (with --minify) */
+    div{transform:scale(2)}
+
+    /* New output (with --minify) */
+    div{transform:scale3d(2,2,1)}
+    ```
+
 * Minification now takes advantage of the `?.` operator
 
     This adds new code minification rules that shorten code with the `?.` optional chaining operator when the result is equivalent:
