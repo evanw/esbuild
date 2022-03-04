@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+* Minification now takes advantage of the `?.` operator
+
+    This adds new code minification rules that shorten code with the `?.` optional chaining operator when the result is equivalent:
+
+    ```ts
+    // Original code
+    let foo = (bar) => [
+      bar === null || bar === undefined ? undefined : bar.baz,
+      bar !== null && bar !== undefined ? bar.baz() : undefined,
+      null !== bar && undefined !== bar ? bar[baz] : undefined,
+    ]
+
+    // Old output (with --minify)
+    let foo=n=>[n==null?void 0:n.baz,n!=null?n.baz():void 0,n!=null?n[baz]:void 0];
+
+    // New output (with --minify)
+    let foo=n=>[n?.baz,n?.baz(),n?.[baz]];
+    ```
+
+    This only takes effect when minification is enabled and when the configured target environment is known to support the optional chaining operator. As always, make sure to set `--target=` to the appropriate language target if you are running the minified code in an environment that doesn't support the latest JavaScript features.
+
 * Add source mapping information for some non-executable tokens ([#1448](https://github.com/evanw/esbuild/issues/1448))
 
     Code coverage tools can generate reports that tell you if any code exists that has not been run (or "covered") during your tests. You can use this information to add additional tests for code that isn't currently covered.

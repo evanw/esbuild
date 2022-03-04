@@ -8914,36 +8914,98 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 		}
 	}
 
-	// Try using the "??" operator, but only if it's supported
-	if !p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) {
-		if binary, ok := e.Test.Data.(*js_ast.EBinary); ok {
-			switch binary.Op {
-			case js_ast.BinOpLooseEq:
-				// "a == null ? b : a" => "a ?? b"
-				if _, ok := binary.Right.Data.(*js_ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Left) && valuesLookTheSame(binary.Left.Data, e.No.Data) {
-					return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, binary.Left, e.Yes)
-				}
+	// Try using the "??" or "?." operators
+	if binary, ok := e.Test.Data.(*js_ast.EBinary); ok {
+		var test js_ast.Expr
+		var whenNull js_ast.Expr
+		var whenNonNull js_ast.Expr
 
-				// "null == a ? b : a" => "a ?? b"
-				if _, ok := binary.Left.Data.(*js_ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Right) && valuesLookTheSame(binary.Right.Data, e.No.Data) {
-					return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, binary.Right, e.Yes)
-				}
+		switch binary.Op {
+		case js_ast.BinOpLooseEq:
+			if _, ok := binary.Right.Data.(*js_ast.ENull); ok {
+				// "a == null ? _ : _"
+				test = binary.Left
+				whenNull = e.Yes
+				whenNonNull = e.No
+			} else if _, ok := binary.Left.Data.(*js_ast.ENull); ok {
+				// "null == a ? _ : _"
+				test = binary.Right
+				whenNull = e.Yes
+				whenNonNull = e.No
+			}
 
-			case js_ast.BinOpLooseNe:
-				// "a != null ? a : b" => "a ?? b"
-				if _, ok := binary.Right.Data.(*js_ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Left) && valuesLookTheSame(binary.Left.Data, e.Yes.Data) {
-					return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, binary.Left, e.No)
-				}
+		case js_ast.BinOpLooseNe:
+			if _, ok := binary.Right.Data.(*js_ast.ENull); ok {
+				// "a != null ? _ : _"
+				test = binary.Left
+				whenNonNull = e.Yes
+				whenNull = e.No
+			} else if _, ok := binary.Left.Data.(*js_ast.ENull); ok {
+				// "null != a ? _ : _"
+				test = binary.Right
+				whenNonNull = e.Yes
+				whenNull = e.No
+			}
+		}
 
-				// "null != a ? a : b" => "a ?? b"
-				if _, ok := binary.Left.Data.(*js_ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Right) && valuesLookTheSame(binary.Right.Data, e.Yes.Data) {
-					return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, binary.Right, e.No)
+		if p.exprCanBeRemovedIfUnused(test) {
+			// "a != null ? a : b" => "a ?? b"
+			if !p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) && valuesLookTheSame(test.Data, whenNonNull.Data) {
+				return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, test, whenNull)
+			}
+
+			// "a != null ? a.b.c[d](e) : undefined" => "a?.b.c[d](e)"
+			if !p.options.unsupportedJSFeatures.Has(compat.OptionalChain) {
+				if _, ok := whenNull.Data.(*js_ast.EUndefined); ok && tryToInsertOptionalChain(test, whenNonNull) {
+					return whenNonNull
 				}
 			}
 		}
 	}
 
 	return js_ast.Expr{Loc: loc, Data: e}
+}
+
+func tryToInsertOptionalChain(test js_ast.Expr, expr js_ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *js_ast.EDot:
+		if valuesLookTheSame(test.Data, e.Target.Data) {
+			e.OptionalChain = js_ast.OptionalChainStart
+			return true
+		}
+		if tryToInsertOptionalChain(test, e.Target) {
+			if e.OptionalChain == js_ast.OptionalChainNone {
+				e.OptionalChain = js_ast.OptionalChainContinue
+			}
+			return true
+		}
+
+	case *js_ast.EIndex:
+		if valuesLookTheSame(test.Data, e.Target.Data) {
+			e.OptionalChain = js_ast.OptionalChainStart
+			return true
+		}
+		if tryToInsertOptionalChain(test, e.Target) {
+			if e.OptionalChain == js_ast.OptionalChainNone {
+				e.OptionalChain = js_ast.OptionalChainContinue
+			}
+			return true
+		}
+
+	case *js_ast.ECall:
+		if valuesLookTheSame(test.Data, e.Target.Data) {
+			e.OptionalChain = js_ast.OptionalChainStart
+			return true
+		}
+		if tryToInsertOptionalChain(test, e.Target) {
+			if e.OptionalChain == js_ast.OptionalChainNone {
+				e.OptionalChain = js_ast.OptionalChainContinue
+			}
+			return true
+		}
+	}
+
+	return false
 }
 
 func (p *parser) isAnonymousNamedExpr(expr js_ast.Expr) bool {

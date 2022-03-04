@@ -3172,6 +3172,36 @@ func TestMangleIf(t *testing.T) {
 		"x:\n  for (; x; )\n    y:\n      for (; y; )\n        if (a || b)\n          continue x;\n")
 }
 
+func TestMangleOptionalChain(t *testing.T) {
+	expectPrintedMangle(t, "let a; return a != null ? a.b : undefined", "let a;\nreturn a?.b;\n")
+	expectPrintedMangle(t, "let a; return a != null ? a[b] : undefined", "let a;\nreturn a?.[b];\n")
+	expectPrintedMangle(t, "let a; return a != null ? a(b) : undefined", "let a;\nreturn a?.(b);\n")
+
+	expectPrintedMangle(t, "let a; return a == null ? undefined : a.b", "let a;\nreturn a?.b;\n")
+	expectPrintedMangle(t, "let a; return a == null ? undefined : a[b]", "let a;\nreturn a?.[b];\n")
+	expectPrintedMangle(t, "let a; return a == null ? undefined : a(b)", "let a;\nreturn a?.(b);\n")
+
+	expectPrintedMangle(t, "let a; return null != a ? a.b : undefined", "let a;\nreturn a?.b;\n")
+	expectPrintedMangle(t, "let a; return null != a ? a[b] : undefined", "let a;\nreturn a?.[b];\n")
+	expectPrintedMangle(t, "let a; return null != a ? a(b) : undefined", "let a;\nreturn a?.(b);\n")
+
+	expectPrintedMangle(t, "let a; return null == a ? undefined : a.b", "let a;\nreturn a?.b;\n")
+	expectPrintedMangle(t, "let a; return null == a ? undefined : a[b]", "let a;\nreturn a?.[b];\n")
+	expectPrintedMangle(t, "let a; return null == a ? undefined : a(b)", "let a;\nreturn a?.(b);\n")
+
+	expectPrintedMangle(t, "return a != null ? a.b : undefined", "return a != null ? a.b : void 0;\n")
+	expectPrintedMangle(t, "let a; return a != null ? a.b : null", "let a;\nreturn a != null ? a.b : null;\n")
+	expectPrintedMangle(t, "let a; return a != null ? b.a : undefined", "let a;\nreturn a != null ? b.a : void 0;\n")
+	expectPrintedMangle(t, "let a; return a != 0 ? a.b : undefined", "let a;\nreturn a != 0 ? a.b : void 0;\n")
+	expectPrintedMangle(t, "let a; return a !== null ? a.b : undefined", "let a;\nreturn a !== null ? a.b : void 0;\n")
+	expectPrintedMangle(t, "let a; return a != undefined ? a.b : undefined", "let a;\nreturn a?.b;\n")
+	expectPrintedMangle(t, "let a; return a != null ? a?.b : undefined", "let a;\nreturn a?.b;\n")
+	expectPrintedMangle(t, "let a; return a != null ? a.b.c[d](e) : undefined", "let a;\nreturn a?.b.c[d](e);\n")
+	expectPrintedMangle(t, "let a; return a != null ? a?.b.c[d](e) : undefined", "let a;\nreturn a?.b.c[d](e);\n")
+	expectPrintedMangle(t, "let a; return a != null ? a.b.c?.[d](e) : undefined", "let a;\nreturn a?.b.c?.[d](e);\n")
+	expectPrintedMangle(t, "let a; return a != null ? a?.b.c?.[d](e) : undefined", "let a;\nreturn a?.b.c?.[d](e);\n")
+}
+
 func TestMangleNullOrUndefinedWithSideEffects(t *testing.T) {
 	expectPrintedMangle(t, "x(y ?? 1)", "x(y ?? 1);\n")
 	expectPrintedMangle(t, "x(y.z ?? 1)", "x(y.z ?? 1);\n")
