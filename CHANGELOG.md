@@ -55,7 +55,7 @@
 
 * Update to Go 1.17.8
 
-    The version of the Go compiler used to compile esbuild has been upgraded from Go 1.17.6 to Go 1.17.8, which fixes the RISC-V 64-bit build. Compiler optimizations for the RISC-V 64-bit build have now been re-enabled.
+    The version of the Go compiler used to compile esbuild has been upgraded from Go 1.17.7 to Go 1.17.8, which fixes the RISC-V 64-bit build. Compiler optimizations for the RISC-V 64-bit build have now been re-enabled.
 
 ## 0.14.24
 
