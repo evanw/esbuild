@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.25
 
 * Reduce minification of CSS transforms to avoid Safari bugs ([#2057](https://github.com/evanw/esbuild/issues/2057))
 

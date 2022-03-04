@@ -1,6 +1,6 @@
 {
   "name": "esbuild-linux-riscv64",
-  "version": "0.14.24",
+  "version": "0.14.25",
   "description": "The Linux RISC-V 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
