@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Avoid `new Function` in esbuild's library code ([#2081](https://github.com/evanw/esbuild/issues/2081))
+
+    Some JavaScript environments such as Cloudflare Workers or Deno Deploy don't allow `new Function` because they disallow dynamic JavaScript evaluation. Previously esbuild's WebAssembly-based library used this to construct the WebAssembly worker function. With this release, the code is now inlined without using `new Function` so it will be able to run even when this restriction is in place.
+
 ## 0.14.25
 
 * Reduce minification of CSS transforms to avoid Safari bugs ([#2057](https://github.com/evanw/esbuild/issues/2057))
