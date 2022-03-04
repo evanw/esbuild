@@ -630,8 +630,30 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 						} else if _, ok := binary.Left.Data.(*ENull); ok {
 							test = binary.Right
 						}
-						if id, ok := test.Data.(*EIdentifier); ok && !id.MustKeepDueToWithStmt &&
-							(id.CanBeRemovedIfUnused || !isUnbound(id.Ref)) && TryToInsertOptionalChain(test, e.Right) {
+
+						// Note: Technically unbound identifiers can refer to a getter on
+						// the global object and that getter can have side effects that can
+						// be observed if we run that getter once instead of twice. But this
+						// seems like terrible coding practice and very unlikely to come up
+						// in real software, so we deliberately ignore this possibility and
+						// optimize for size instead of for this obscure edge case.
+						//
+						// If this is ever changed, then we must also pessimize the lowering
+						// of "foo?.bar" to save the value of "foo" to ensure that it's only
+						// evaluated once. Specifically "foo?.bar" would have to expand to:
+						//
+						//   var _a;
+						//   (_a = foo) == null ? void 0 : _a.bar;
+						//
+						// instead of:
+						//
+						//   foo == null ? void 0 : foo.bar;
+						//
+						// Babel does the first one while TypeScript does the second one.
+						// Since TypeScript doesn't handle this extreme edge case and
+						// TypeScript is very widely used, I think it's fine for us to not
+						// handle this edge case either.
+						if id, ok := test.Data.(*EIdentifier); ok && !id.MustKeepDueToWithStmt && TryToInsertOptionalChain(test, e.Right) {
 							return e.Right
 						}
 					}
