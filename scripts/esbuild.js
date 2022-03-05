@@ -188,8 +188,8 @@ exports.buildWasmLib = async (esbuildPath) => {
       const firstNonComment = commentLines.findIndex(line => !line.startsWith('//'))
       const commentPrefix = '\n' + commentLines.slice(0, firstNonComment).join('\n') + '\n'
       wasmWorkerCode[format] = minify
-        ? `postMessage=>{${commentPrefix}${wasmExecAndWorker}}`
-        : `(postMessage) => {${(commentPrefix + wasmExecAndWorker).replace(/\n/g, '\n  ')}\n}`
+        ? `(postMessage=>{${commentPrefix}${wasmExecAndWorker}})`
+        : `((postMessage) => {${(commentPrefix + wasmExecAndWorker).replace(/\n/g, '\n      ')}\n    })`
     }
 
     // Generate "npm/esbuild-wasm/lib/browser.*"
@@ -201,6 +201,7 @@ exports.buildWasmLib = async (esbuildPath) => {
       '--target=' + umdBrowserTarget,
       '--format=cjs',
       '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+      '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmWorkerCode.umd),
       '--banner:js=' + umdPrefix,
       '--footer:js=' + umdSuffix,
       '--log-level=warning',
@@ -214,6 +215,7 @@ exports.buildWasmLib = async (esbuildPath) => {
       '--target=' + esmBrowserTarget,
       '--format=esm',
       '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+      '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmWorkerCode.esm),
       '--log-level=warning',
     ].concat(minifyFlags), { cwd: repoDir }).toString().replace('WEB_WORKER_FUNCTION', wasmWorkerCode.esm)
     fs.writeFileSync(path.join(esmDir, minify ? 'browser.min.js' : 'browser.js'), browserESM)

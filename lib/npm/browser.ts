@@ -3,8 +3,8 @@ import * as common from "../shared/common"
 import * as ourselves from "./browser"
 
 declare const ESBUILD_VERSION: string;
+declare let WEB_WORKER_SOURCE_CODE: string
 declare let WEB_WORKER_FUNCTION: (postMessage: (data: Uint8Array) => void) => (event: { data: Uint8Array | ArrayBuffer }) => void
-let webWorkerFunction = WEB_WORKER_FUNCTION
 
 export let version = ESBUILD_VERSION;
 
@@ -83,11 +83,11 @@ const startRunningService = async (wasmURL: string, useWorker: boolean): Promise
 
   if (useWorker) {
     // Run esbuild off the main thread
-    let blob = new Blob([`onmessage=(${webWorkerFunction})(postMessage)`], { type: 'text/javascript' })
+    let blob = new Blob([`onmessage=${WEB_WORKER_SOURCE_CODE}(postMessage)`], { type: 'text/javascript' })
     worker = new Worker(URL.createObjectURL(blob))
   } else {
     // Run esbuild on the main thread
-    let onmessage = webWorkerFunction((data: Uint8Array) => worker.onmessage!({ data }))
+    let onmessage = WEB_WORKER_FUNCTION((data: Uint8Array) => worker.onmessage!({ data }))
     worker = {
       onmessage: null,
       postMessage: data => onmessage({ data }),
