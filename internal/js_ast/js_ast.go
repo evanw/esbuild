@@ -1482,10 +1482,11 @@ type Scope struct {
 	// This will be non-nil if this is a TypeScript "namespace" or "enum"
 	TSNamespace *TSNamespaceScope
 
-	Parent    *Scope
-	Children  []*Scope
-	Members   map[string]ScopeMember
-	Generated []Ref
+	Parent     *Scope
+	Children   []*Scope
+	Members    map[string]ScopeMember
+	HoistFnRef map[string]*Ref
+	Generated  []Ref
 
 	// The location of the "use strict" directive for ExplicitStrictMode
 	UseStrictLoc logger.Loc

@@ -910,10 +910,11 @@ func (p *parser) selectLocalKind(kind js_ast.LocalKind) js_ast.LocalKind {
 func (p *parser) pushScopeForParsePass(kind js_ast.ScopeKind, loc logger.Loc) int {
 	parent := p.currentScope
 	scope := &js_ast.Scope{
-		Kind:    kind,
-		Parent:  parent,
-		Members: make(map[string]js_ast.ScopeMember),
-		Label:   js_ast.LocRef{Ref: js_ast.InvalidRef},
+		Kind:       kind,
+		Parent:     parent,
+		Members:    make(map[string]js_ast.ScopeMember),
+		HoistFnRef: make(map[string]*js_ast.Ref),
+		Label:      js_ast.LocRef{Ref: js_ast.InvalidRef},
 	}
 	if parent != nil {
 		parent.Children = append(parent.Children, scope)
@@ -1107,6 +1108,7 @@ const (
 	mergeForbidden = iota
 	mergeReplaceWithNew
 	mergeOverwriteWithNew
+	mergeHoistFunction
 	mergeKeepExisting
 	mergeBecomePrivateGetSetPair
 	mergeBecomePrivateStaticGetSetPair
@@ -1147,14 +1149,12 @@ func (p *parser) canMergeSymbols(scope *js_ast.Scope, existing js_ast.SymbolKind
 		}
 	}
 
-	// "var foo; var foo;"
-	// "var foo; function foo() {}"
-	// "function foo() {} var foo;"
+	// only top level function can be overwritten
 	// "function *foo() {} function *foo() {}" but not "{ function *foo() {} function *foo() {} }"
 	if new.IsHoistedOrFunction() && existing.IsHoistedOrFunction() &&
 		(scope.Kind == js_ast.ScopeEntry || scope.Kind == js_ast.ScopeFunctionBody ||
 			(new.IsHoisted() && existing.IsHoisted())) {
-		return mergeReplaceWithNew
+		return mergeHoistFunction
 	}
 
 	// "get #foo() {} set #foo() {}"
@@ -1219,9 +1219,32 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 		case mergeReplaceWithNew:
 			symbol.Link = ref
 
-			// If these are both functions, remove the overwritten declaration
-			if p.options.minifySyntax && kind.IsFunction() && symbol.Kind.IsFunction() {
-				symbol.Flags |= js_ast.RemoveOverwrittenFunctionDeclaration
+		case mergeHoistFunction:
+
+			if symbol.Kind.IsFunction() {
+				p.currentScope.HoistFnRef[name] = &existing.Ref
+			}
+
+			fnRef := p.currentScope.HoistFnRef[name]
+
+			if kind.IsFunction() {
+				if p.options.minifySyntax {
+					if fnRef != nil {
+						fnSymbol := &p.symbols[fnRef.InnerIndex]
+						fnSymbol.Flags |= js_ast.RemoveOverwrittenFunctionDeclaration
+					}
+				}
+
+				p.currentScope.HoistFnRef[name] = &ref
+			}
+
+			if !symbol.Kind.IsFunction() && !kind.IsFunction() {
+				ref = existing.Ref
+			}
+
+			if fnRef != nil && fnRef.InnerIndex != ref.InnerIndex {
+				fnSymbol := &p.symbols[fnRef.InnerIndex]
+				fnSymbol.Link = ref
 			}
 
 		case mergeBecomePrivateGetSetPair:
