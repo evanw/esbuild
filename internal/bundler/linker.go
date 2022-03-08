@@ -5242,6 +5242,25 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 
 		// Include this file in the metadata
 		if c.options.NeedsMetafile {
+			// bytes in output is based on `len(compileResult.CSS)` which is the result of the printer
+			// and it includes the hash inside the url instead of the actual path.
+			// example: background: url(hashthats25characterslong);
+			// Here we loop over files that have parts in the current chunk (i.e that are imported from the current chunk)
+			//   + calculate the final import path + add the offset (id - path) to the total offset
+			bytesInOutputOffset := 0
+			for fileIndex, file := range c.graph.Files {
+				if ok := chunk.filesWithPartsInChunk[uint32(fileIndex)]; ok {
+					for _, additionalFile := range file.InputFile.AdditionalFiles {
+						relPath, _ := c.fs.Rel(c.options.AbsOutputDir, additionalFile.AbsPath)
+						relPath = strings.ReplaceAll(relPath, "\\", "/")
+						finalRelDir := c.fs.Dir(chunk.finalRelPath)
+
+						importPath := c.pathBetweenChunks(finalRelDir, relPath)
+						// hash ids are 25 characters long
+						bytesInOutputOffset += 25 - len(importPath)
+					}
+				}
+			}
 			if isFirstMeta {
 				isFirstMeta = false
 			} else {
@@ -5249,7 +5268,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			}
 			jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
 				js_printer.QuoteForJSON(c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
-				len(compileResult.CSS)))
+				len(compileResult.CSS)-bytesInOutputOffset))
 		}
 	}
 

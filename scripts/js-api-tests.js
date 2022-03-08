@@ -855,6 +855,134 @@ body {
     assert.strictEqual(value.outputFiles[1].text, '\uFFFD\uFFFD')
   },
 
+  async metafileWithCSSImportAndCSSEntrypoint({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.css')
+    const image = path.join(testDir, 'image.png')
+    const outputJS = path.join(testDir, 'out.js')
+
+    await writeFileAsync(entry, `div { background: url(./image.png); }`)
+    await writeFileAsync(image, 'image')
+    const result = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      outfile: outputJS,
+      metafile: true,
+      sourcemap: true,
+      loader: { '.png': 'file' },
+    })
+
+    const json = result.metafile
+    assert.strictEqual(Object.keys(json.inputs).length, 2)
+    assert.strictEqual(Object.keys(json.outputs).length, 3)
+    const cwd = process.cwd()
+    const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
+
+    // Check inputs
+    assert.deepStrictEqual(json.inputs[makePath(entry)].bytes, 37)
+    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [
+      { path: makePath(image), kind: 'url-token' },
+    ])
+
+    // Check outputs
+    assert.strictEqual(typeof json.outputs[makePath(outputJS)].bytes, 'number')
+    assert.strictEqual(typeof json.outputs[makePath(outputJS) + '.map'].bytes, 'number')
+    assert.strictEqual(json.outputs[makePath(outputJS)].entryPoint, makePath(entry))
+    assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].exports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].inputs, {})
+
+    // Check inputs for main output
+    const outputInputs = json.outputs[makePath(outputJS)].inputs
+    assert.strictEqual(Object.keys(outputInputs).length, 1)
+    assert.strictEqual(typeof outputInputs[makePath(entry)].bytesInOutput, 'number')
+
+    // Check Bytes in output
+    assert.strictEqual(outputInputs[makePath(entry)].bytesInOutput, 49)
+
+    assert.strictEqual(json.outputs[makePath(outputJS)].bytes, 160)
+  },
+
+  async metafileWithCSSImport({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const imported = path.join(testDir, 'imported.js')
+    const text = path.join(testDir, 'text.txt')
+    const css = path.join(testDir, 'example.css')
+    const image = path.join(testDir, 'image.png')
+    const outputJS = path.join(testDir, 'out.js')
+    const outputCSS = path.join(testDir, 'out.css')
+    await writeFileAsync(entry, `
+      import x from "./imported"
+      const y = require("./text.txt")
+      import * as z from "./example.css"
+      console.log(x, y, z)
+    `)
+    await writeFileAsync(imported, 'export default 123')
+    await writeFileAsync(text, 'some text')
+    await writeFileAsync(css, 'body { background: url(./image.png); }')
+    await writeFileAsync(image, 'image')
+    const result = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      outfile: outputJS,
+      metafile: true,
+      sourcemap: true,
+      loader: { '.txt': 'file', '.png': 'file' },
+    })
+
+    const json = result.metafile
+    assert.strictEqual(Object.keys(json.inputs).length, 5)
+    assert.strictEqual(Object.keys(json.outputs).length, 6)
+    const cwd = process.cwd()
+    const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
+
+    // Check inputs
+    assert.deepStrictEqual(json.inputs[makePath(entry)].bytes, 144)
+    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [
+      { path: makePath(imported), kind: 'import-statement' },
+      { path: makePath(css), kind: 'import-statement' },
+      { path: makePath(text), kind: 'require-call' },
+    ])
+    assert.deepStrictEqual(json.inputs[makePath(imported)].bytes, 18)
+    assert.deepStrictEqual(json.inputs[makePath(imported)].imports, [])
+    assert.deepStrictEqual(json.inputs[makePath(text)].bytes, 9)
+    assert.deepStrictEqual(json.inputs[makePath(text)].imports, [])
+    assert.deepStrictEqual(json.inputs[makePath(css)].bytes, 38)
+    assert.deepStrictEqual(json.inputs[makePath(css)].imports, [
+      { path: makePath(image), kind: 'url-token' },
+    ])
+
+    // Check outputs
+    assert.strictEqual(typeof json.outputs[makePath(outputJS)].bytes, 'number')
+    assert.strictEqual(typeof json.outputs[makePath(outputCSS)].bytes, 'number')
+    assert.strictEqual(typeof json.outputs[makePath(outputJS) + '.map'].bytes, 'number')
+    assert.strictEqual(typeof json.outputs[makePath(outputCSS) + '.map'].bytes, 'number')
+    assert.strictEqual(json.outputs[makePath(outputJS)].entryPoint, makePath(entry))
+    assert.strictEqual(json.outputs[makePath(outputCSS)].entryPoint, undefined) // This is deliberately undefined
+    assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].exports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].inputs, {})
+    assert.deepStrictEqual(json.outputs[makePath(outputCSS) + '.map'].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outputCSS) + '.map'].exports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outputCSS) + '.map'].inputs, {})
+
+    // Check inputs for main output
+    const outputInputs = json.outputs[makePath(outputJS)].inputs
+    assert.strictEqual(Object.keys(outputInputs).length, 4)
+    assert.strictEqual(typeof outputInputs[makePath(entry)].bytesInOutput, 'number')
+    assert.strictEqual(typeof outputInputs[makePath(imported)].bytesInOutput, 'number')
+    assert.strictEqual(typeof outputInputs[makePath(text)].bytesInOutput, 'number')
+    assert.strictEqual(typeof outputInputs[makePath(css)].bytesInOutput, 'number')
+
+    // Check Bytes in output
+    assert.strictEqual(outputInputs[makePath(entry)].bytesInOutput, 72)
+    assert.strictEqual(outputInputs[makePath(imported)].bytesInOutput, 30)
+    assert.strictEqual(outputInputs[makePath(text)].bytesInOutput, 176)
+    assert.strictEqual(outputInputs[makePath(css)].bytesInOutput, 99)
+
+    const cssOutputInputs = json.outputs[makePath(outputCSS)].inputs
+    assert.strictEqual(cssOutputInputs[makePath(css)].bytesInOutput, 50)
+  },
+
   async metafile({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const imported = path.join(testDir, 'imported.js')
