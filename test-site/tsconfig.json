@@ -1,0 +1,47 @@
+
+
+{
+	"compilerOptions": {
+		"baseUrl": ".",
+		"outDir": "./project",
+		"target": "ES2020",
+		"module": "commonjs",
+		"lib": ["dom", "dom.iterable", "es2015", "es2016", "es2017"],
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
+		"charset": "utf8",
+		"allowJs": true,
+		"checkJs": false,
+		"pretty": true,
+		"jsx": "preserve",
+		"noEmitOnError": false,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"esModuleInterop": true,
+		"allowUnreachableCode": false,
+		"allowUnusedLabels": false,
+		"strictPropertyInitialization": false,
+		"noFallthroughCasesInSwitch": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"skipDefaultLibCheck": true,
+		"importHelpers": true,
+		"forceConsistentCasingInFileNames": true,
+		"allowSyntheticDefaultImports": true,
+		"moduleResolution": "node",
+		"resolveJsonModule": true,
+		"noImplicitReturns": true,
+		"noImplicitThis": true,
+		"noImplicitAny": false,
+		"strictNullChecks": true,
+		"paths": {
+			"@/*": ["./src/*"]
+		},
+		"typeRoots": ["./node_modules/@types"],
+		"plugins": []
+	},
+	"exclude": [
+		"node_modules",
+		"output"
+	]
+}

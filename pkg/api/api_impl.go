@@ -959,6 +959,7 @@ func rebuildImpl(
 		CSSFooter:             footerCSS,
 		PreserveSymlinks:      buildOpts.PreserveSymlinks,
 		WatchMode:             buildOpts.Watch != nil,
+		Incremental:           buildOpts.Incremental,
 		Plugins:               plugins,
 	}
 	if options.MainFields != nil {

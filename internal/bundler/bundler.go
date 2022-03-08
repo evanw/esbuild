@@ -136,7 +136,8 @@ func parseFile(args parseArgs) {
 			args.importSource,
 			args.importPathRange,
 			args.pluginData,
-			args.options.WatchMode,
+			args.options.WatchMode || args.options.Incremental,
+			&args.caches.PluginCache,
 		)
 		if !ok {
 			if args.inject != nil {
@@ -829,6 +830,7 @@ func runOnLoadPlugins(
 	importPathRange logger.Range,
 	pluginData interface{},
 	isWatchMode bool,
+	pluginCache *cache.PluginCache,
 ) (loaderPluginResult, bool) {
 	loaderArgs := config.OnLoadArgs{
 		Path:       source.KeyPath,
@@ -843,7 +845,27 @@ func runOnLoadPlugins(
 				continue
 			}
 
-			result := onLoad.Callback(loaderArgs)
+			// 更新 缓存 原来每次 调用不读文件
+			var result config.OnLoadResult
+			if isWatchMode && source.KeyPath.Namespace == "file" {
+
+				oldContent := fsCache.GetCache(loaderArgs.Path.Text)
+
+				fsCache.ReadFile(fs, source.KeyPath.Text)
+				newContent := fsCache.GetCache(loaderArgs.Path.Text)
+
+				cacheRes := pluginCache.GetLoadCache(loaderArgs.Path.Text)
+
+				if oldContent == newContent && cacheRes != nil {
+					result = *cacheRes
+				} else {
+					result = onLoad.Callback(loaderArgs)
+					pluginCache.SetLoadCache(loaderArgs.Path.Text, &result)
+				}
+			} else {
+				result = onLoad.Callback(loaderArgs)
+			}
+
 			pluginName := result.PluginName
 			if pluginName == "" {
 				pluginName = plugin.Name
@@ -881,9 +903,9 @@ func runOnLoadPlugins(
 			if result.AbsResolveDir == "" && source.KeyPath.Namespace == "file" {
 				result.AbsResolveDir = fs.Dir(source.KeyPath.Text)
 			}
-			if isWatchMode && source.KeyPath.Namespace == "file" {
-				fsCache.ReadFile(fs, source.KeyPath.Text) // Read the file for watch mode tracking
-			}
+			// if isWatchMode && source.KeyPath.Namespace == "file" {
+			// 	fsCache.ReadFile(fs, source.KeyPath.Text) // Read the file for watch mode tracking
+			// }
 			return loaderPluginResult{
 				loader:        loader,
 				absResolveDir: result.AbsResolveDir,

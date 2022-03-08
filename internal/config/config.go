@@ -267,6 +267,7 @@ type Options struct {
 	ProfilerNames     bool
 	CodeSplitting     bool
 	WatchMode         bool
+	Incremental       bool
 	AllowOverwrite    bool
 	LegalComments     LegalComments
 

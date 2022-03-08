@@ -294,7 +294,8 @@ exports.writeFileAtomic = (where, contents) => {
 }
 
 exports.buildBinary = () => {
-  childProcess.execFileSync('go', ['build', '-ldflags=-s -w', './cmd/esbuild'], { cwd: repoDir, stdio: 'ignore' })
+  // childProcess.execFileSync('go', ['build', '-ldflags=-s -w', './cmd/esbuild'], { cwd: repoDir, stdio: 'ignore' })
+  childProcess.execFileSync('go', ['build', '-gcflags="all=-N -l"', './cmd/esbuild'], { cwd: repoDir, stdio: 'ignore' })
   return path.join(repoDir, process.platform === 'win32' ? 'esbuild.exe' : 'esbuild')
 }
 

@@ -3,6 +3,7 @@ package cache
 import (
 	"sync"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/runtime"
 )
@@ -37,6 +38,7 @@ type CacheSet struct {
 	JSONCache        JSONCache
 	JSCache          JSCache
 	SourceIndexCache SourceIndexCache
+	PluginCache      PluginCache
 }
 
 func MakeCacheSet() *CacheSet {
@@ -56,6 +58,9 @@ func MakeCacheSet() *CacheSet {
 		},
 		JSCache: JSCache{
 			entries: make(map[logger.Path]*jsCacheEntry),
+		},
+		PluginCache: PluginCache{
+			loadEntries: make(map[string]*config.OnLoadResult),
 		},
 	}
 }

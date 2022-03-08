@@ -1,0 +1,25 @@
+{
+	"name": "test-site",
+	"version": "1.0.0",
+	"description": "test website with esbuild",
+	"private": "true",
+	"main": "index.js",
+	"scripts": {
+		"test": "../esbuild ../test-site/src/index.tsx --outdir=\"./test-site/dist\" --bundle",
+		"build": "ESBUILD_BINARY_PATH=/Users/zhushijie/Desktop/github/esbuild/esbuild ts-node-dev ./build/index.ts"
+	},
+	"dependencies": {
+		"react": "^17.0.2",
+		"react-dom": "^17.0.2",
+		"antd": "^4.16.13",
+		"tslib": "2.3.1",
+		"typescript": "^4.5.2",
+		"@types/node": "^16.11.7",
+		"@types/react": "17.0.35",
+		"@types/react-dom": "17.0.11",
+		"ts-node-dev": "1.1.8"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC"
+}
