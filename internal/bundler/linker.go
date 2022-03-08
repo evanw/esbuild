@@ -5248,17 +5248,17 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			// Here we loop over files that have parts in the current chunk (i.e that are imported from the current chunk)
 			//   + calculate the final import path + add the offset (id - path) to the total offset
 			bytesInOutputOffset := 0
-			for fileIndex, file := range c.graph.Files {
-				if ok := chunk.filesWithPartsInChunk[uint32(fileIndex)]; ok {
-					for _, additionalFile := range file.InputFile.AdditionalFiles {
-						relPath, _ := c.fs.Rel(c.options.AbsOutputDir, additionalFile.AbsPath)
-						relPath = strings.ReplaceAll(relPath, "\\", "/")
-						finalRelDir := c.fs.Dir(chunk.finalRelPath)
-
-						importPath := c.pathBetweenChunks(finalRelDir, relPath)
-						// hash ids are 25 characters long
-						bytesInOutputOffset += 25 - len(importPath)
-					}
+			for fileIndex, isPresent := range chunk.filesWithPartsInChunk {
+				if !isPresent {
+					continue
+				}
+				for _, additionalFile := range c.graph.Files[fileIndex].InputFile.AdditionalFiles {
+					relPath, _ := c.fs.Rel(c.options.AbsOutputDir, additionalFile.AbsPath)
+					relPath = strings.ReplaceAll(relPath, "\\", "/")
+					finalRelDir := c.fs.Dir(chunk.finalRelPath)
+					importPath := c.pathBetweenChunks(finalRelDir, relPath)
+					// hash ids are 25 characters long
+					bytesInOutputOffset += 25 - len(importPath)
 				}
 			}
 			if isFirstMeta {
