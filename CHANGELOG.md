@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+* Add support for parsing "instantiation expressions" from TypeScript 4.7 ([#2038](https://github.com/evanw/esbuild/pull/2038))
+
+    The upcoming version of TypeScript now lets you specify `<...>` type parameters on a JavaScript identifier without using a call expression:
+
+    ```ts
+    const ErrorMap = Map<string, Error>;  // new () => Map<string, Error>
+    const errorMap = new ErrorMap();  // Map<string, Error>
+    ```
+
+    With this release, esbuild can now parse these new type annotations. This feature was contributed by [@g-plane](https://github.com/g-plane).
+
 * Avoid `new Function` in esbuild's library code ([#2081](https://github.com/evanw/esbuild/issues/2081))
 
     Some JavaScript environments such as Cloudflare Workers or Deno Deploy don't allow `new Function` because they disallow dynamic JavaScript evaluation. Previously esbuild's WebAssembly-based library used this to construct the WebAssembly worker function. With this release, the code is now inlined without using `new Function` so it will be able to run even when this restriction is in place.

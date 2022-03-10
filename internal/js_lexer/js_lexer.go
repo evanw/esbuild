@@ -2191,12 +2191,10 @@ func (lexer *Lexer) ScanRegExp() {
 		}
 
 		switch lexer.codePoint {
-		case '\r', '\n', 0x2028, 0x2029:
-			// Newlines aren't allowed in regular expressions
-			lexer.SyntaxError()
-
-		case -1: // This indicates the end of the file
-			lexer.SyntaxError()
+		case -1, // This indicates the end of the file
+			'\r', '\n', 0x2028, 0x2029: // Newlines aren't allowed in regular expressions
+			lexer.addRangeError(logger.Range{Loc: logger.Loc{Start: int32(lexer.end)}}, "Unterminated regular expression")
+			panic(LexerPanic{})
 
 		default:
 			lexer.step()

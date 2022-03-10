@@ -790,17 +790,16 @@ func (p *parser) isTSArrowFnJSX() (isTSArrowFn bool) {
 func (p *parser) canFollowTypeArgumentsInExpression() bool {
 	switch p.lexer.Token {
 	case
-		// These are the only tokens can legally follow a type argument list. So we
-		// definitely want to treat them as type arg lists.
+		// These tokens can follow a type argument list in a call expression.
 		js_lexer.TOpenParen,                     // foo<x>(
 		js_lexer.TNoSubstitutionTemplateLiteral, // foo<T> `...`
 		js_lexer.TTemplateHead:                  // foo<T> `...${100}...`
 		return true
 
 	case
-		// These tokens can't follow in a call expression,
-		// nor can they start an expression.
-		// So, consider the type argument list part of an instantiation expression.
+		// These tokens can't follow in a call expression, nor can they start an
+		// expression. So, consider the type argument list part of an instantiation
+		// expression.
 		js_lexer.TComma,                   // foo<x>,
 		js_lexer.TDot,                     // foo<x>.
 		js_lexer.TQuestionDot,             // foo<x>?.

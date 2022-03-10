@@ -1620,6 +1620,14 @@ func TestTSInstantiationExpression(t *testing.T) {
 
 	expectParseErrorTS(t, "const a8 = f<number><number>;", "<stdin>: ERROR: Unexpected \";\"\n")
 	expectParseErrorTS(t, "const b1 = f?.<number>;", "<stdin>: ERROR: Expected \"(\" but found \";\"\n")
+
+	// The TypeScript compiler doesn't do semicolon insertion before "<" when
+	// inside "typeof" but does in other situations. Was this an oversight? Not sure,
+	// but we replicate this behavior because it matters when JSX syntax is enabled.
+	expectPrintedTSX(t, "type x = typeof y\n<number>\n1", "1;\n")
+	expectParseErrorTS(t, "type x = typeof y\n<number>\n1\n</number>", "<stdin>: ERROR: Unterminated regular expression\n")
+	expectParseErrorTSX(t, "type x = y\n<number>\n1", "<stdin>: ERROR: Unexpected end of file\n")
+	expectPrintedTSX(t, "type x = y\n<number>\n1\n</number>", "/* @__PURE__ */ React.createElement(\"number\", null, \"1\");\n")
 }
 
 func TestTSExponentiation(t *testing.T) {
@@ -1952,7 +1960,7 @@ func TestTSNoAmbiguousLessThan(t *testing.T) {
 		"<stdin>: ERROR: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n")
 	expectParseErrorTSNoAmbiguousLessThan(t, "<x>y</x>",
 		"<stdin>: ERROR: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n"+
-			"<stdin>: ERROR: Unexpected end of file\n")
+			"<stdin>: ERROR: Unterminated regular expression\n")
 	expectParseErrorTSNoAmbiguousLessThan(t, "<x extends></x>",
 		"<stdin>: ERROR: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n"+
 			"<stdin>: ERROR: Unexpected \">\"\n")
