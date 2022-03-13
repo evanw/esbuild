@@ -1108,7 +1108,7 @@ const (
 	mergeForbidden = iota
 	mergeReplaceWithNew
 	mergeOverwriteWithNew
-	mergeHoistFunction
+	mergeHoist
 	mergeKeepExisting
 	mergeBecomePrivateGetSetPair
 	mergeBecomePrivateStaticGetSetPair
@@ -1154,7 +1154,7 @@ func (p *parser) canMergeSymbols(scope *js_ast.Scope, existing js_ast.SymbolKind
 	if new.IsHoistedOrFunction() && existing.IsHoistedOrFunction() &&
 		(scope.Kind == js_ast.ScopeEntry || scope.Kind == js_ast.ScopeFunctionBody ||
 			(new.IsHoisted() && existing.IsHoisted())) {
-		return mergeHoistFunction
+		return mergeHoist
 	}
 
 	// "get #foo() {} set #foo() {}"
@@ -1219,33 +1219,40 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 		case mergeReplaceWithNew:
 			symbol.Link = ref
 
-		case mergeHoistFunction:
-
-			if symbol.Kind.IsFunction() {
-				p.currentScope.HoistFnRef[name] = &existing.Ref
+		case mergeHoist:
+			if !kind.IsFunction() && !symbol.Kind.IsFunction() {
+				ref = existing.Ref
+				break
 			}
 
 			fnRef := p.currentScope.HoistFnRef[name]
+			if fnRef == nil && symbol.Kind.IsFunction() {
+				p.currentScope.HoistFnRef[name] = &existing.Ref
+				fnRef = &existing.Ref
+			}
+
+			if p.options.minifySyntax && fnRef != nil && kind.IsFunction() {
+				fnSymbol := &p.symbols[fnRef.InnerIndex]
+				fnSymbol.Flags |= js_ast.RemoveOverwrittenFunctionDeclaration
+			}
+
+			if kind.IsFunction() && symbol.Kind.IsFunction() {
+				symbol.Link = ref
+				p.currentScope.HoistFnRef[name] = &ref
+				break
+			}
 
 			if kind.IsFunction() {
-				if p.options.minifySyntax {
-					if fnRef != nil {
-						fnSymbol := &p.symbols[fnRef.InnerIndex]
-						fnSymbol.Flags |= js_ast.RemoveOverwrittenFunctionDeclaration
-					}
-				}
-
+				// The past are variables, we encountered the first function
 				p.currentScope.HoistFnRef[name] = &ref
+				p.symbols[existing.Ref.InnerIndex].Link = ref
+
+				// do not update currentScope.Members
+				return ref
 			}
 
-			if !symbol.Kind.IsFunction() && !kind.IsFunction() {
-				ref = existing.Ref
-			}
-
-			if fnRef != nil && fnRef.InnerIndex != ref.InnerIndex {
-				fnSymbol := &p.symbols[fnRef.InnerIndex]
-				fnSymbol.Link = ref
-			}
+			// The past are functions, we encountered the first variable
+			p.symbols[existing.Ref.InnerIndex].Link = ref
 
 		case mergeBecomePrivateGetSetPair:
 			ref = existing.Ref
