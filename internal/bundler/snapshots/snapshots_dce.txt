@@ -895,6 +895,77 @@ TestJSONLoaderRemoveUnused
 console.log("unused import");
 
 ================================================================================
+TestMultipleDeclarationTreeShaking
+---------- /out/var2.js ----------
+// var2.js
+var x = 1;
+console.log(x);
+var x = 2;
+
+---------- /out/var3.js ----------
+// var3.js
+var x = 1;
+console.log(x);
+var x = 2;
+console.log(x);
+var x = 3;
+
+---------- /out/function2.js ----------
+// function2.js
+function x() {
+  return 1;
+}
+console.log(x());
+function x() {
+  return 2;
+}
+
+---------- /out/function3.js ----------
+// function3.js
+function x() {
+  return 1;
+}
+console.log(x());
+function x() {
+  return 2;
+}
+console.log(x());
+function x() {
+  return 3;
+}
+
+================================================================================
+TestMultipleDeclarationTreeShakingMinifySyntax
+---------- /out/var2.js ----------
+// var2.js
+var x = 1;
+console.log(x);
+var x = 2;
+
+---------- /out/var3.js ----------
+// var3.js
+var x = 1;
+console.log(x);
+var x = 2;
+console.log(x);
+var x = 3;
+
+---------- /out/function2.js ----------
+// function2.js
+console.log(x());
+function x() {
+  return 2;
+}
+
+---------- /out/function3.js ----------
+// function3.js
+console.log(x());
+console.log(x());
+function x() {
+  return 3;
+}
+
+================================================================================
 TestPackageJsonSideEffectsArrayGlob
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/keep/this/file.js

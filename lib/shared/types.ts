@@ -7,7 +7,7 @@ export type Drop = 'console' | 'debugger';
 
 interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#sourcemap */
-  sourcemap?: boolean | 'inline' | 'external' | 'both';
+  sourcemap?: boolean | 'linked' | 'inline' | 'external' | 'both';
   /** Documentation: https://esbuild.github.io/api/#legal-comments */
   legalComments?: 'none' | 'inline' | 'eof' | 'linked' | 'external';
   /** Documentation: https://esbuild.github.io/api/#source-root */
@@ -26,6 +26,8 @@ interface CommonOptions {
   mangleProps?: RegExp;
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
   reserveProps?: RegExp;
+  /** Documentation: https://esbuild.github.io/api/#mangle-props */
+  mangleQuoted?: boolean;
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
   mangleCache?: Record<string, string | false>;
   /** Documentation: https://esbuild.github.io/api/#drop */

@@ -1959,7 +1959,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 		// Add a getter property
 		var getter js_ast.Expr
-		body := js_ast.FnBody{Stmts: []js_ast.Stmt{{Loc: value.Loc, Data: &js_ast.SReturn{ValueOrNil: value}}}}
+		body := js_ast.FnBody{Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: value.Loc, Data: &js_ast.SReturn{ValueOrNil: value}}}}}
 		if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
 			getter = js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
 		} else {
@@ -3879,14 +3879,14 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				cjsArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
 					IsMethod:   !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
 					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
-					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
+					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}}}},
 				}}}}}
 			} else if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
 				// "__commonJS(function (exports, module) { ... })"
-				cjsArgs = []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}}}
+				cjsArgs = []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}}}}}
 			} else {
 				// "__commonJS((exports, module) => { ... })"
-				cjsArgs = []js_ast.Expr{{Data: &js_ast.EArrow{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}}
+				cjsArgs = []js_ast.Expr{{Data: &js_ast.EArrow{Args: args, Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}}}}
 			}
 			value := js_ast.Expr{Data: &js_ast.ECall{
 				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.cjsRuntimeRef}},
@@ -3947,14 +3947,14 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				esmArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
 					IsMethod:   !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
 					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
-					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}},
+					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}, IsAsync: isAsync}}},
 				}}}}}
 			} else if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
 				// "__esm(function () { ... })"
-				esmArgs = []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}}}
+				esmArgs = []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}, IsAsync: isAsync}}}}
 			} else {
 				// "__esm(() => { ... })"
-				esmArgs = []js_ast.Expr{{Data: &js_ast.EArrow{Body: js_ast.FnBody{Stmts: stmts}, IsAsync: isAsync}}}
+				esmArgs = []js_ast.Expr{{Data: &js_ast.EArrow{Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}, IsAsync: isAsync}}}
 			}
 			value := js_ast.Expr{Data: &js_ast.ECall{
 				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.esmRuntimeRef}},

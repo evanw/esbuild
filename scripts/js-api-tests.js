@@ -274,7 +274,7 @@ let buildTests = {
     assert.strictEqual(notcss, 'body {\n}\n')
   },
 
-  async sourceMap({ esbuild, testDir }) {
+  async sourceMapTrue({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
     const content = 'exports.foo = 123'
@@ -283,6 +283,28 @@ let buildTests = {
       entryPoints: [input],
       outfile: output,
       sourcemap: true,
+    })
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    const outputFile = await readFileAsync(output, 'utf8')
+    const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile)
+    assert.strictEqual(match[1], 'out.js.map')
+    const resultMap = await readFileAsync(output + '.map', 'utf8')
+    const json = JSON.parse(resultMap)
+    assert.strictEqual(json.version, 3)
+    assert.strictEqual(json.sources[0], path.basename(input))
+    assert.strictEqual(json.sourcesContent[0], content)
+  },
+
+  async sourceMapLinked({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    const content = 'exports.foo = 123'
+    await writeFileAsync(input, content)
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: 'linked',
     })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
@@ -3190,6 +3212,14 @@ let transformTests = {
     new Function(code)()
   },
 
+  async mangleQuotedTransform({ esbuild }) {
+    var { code } = await esbuild.transform(`x.foo_ = 'foo_' in x`, {
+      mangleProps: /_/,
+      mangleQuoted: true,
+    })
+    assert.strictEqual(code, 'x.a = "a" in x;\n')
+  },
+
   async mangleCacheTransform({ esbuild }) {
     var { code, mangleCache } = await esbuild.transform(`x = { x_: 0, y_: 1, z_: 2 }`, {
       mangleProps: /_/,
@@ -3816,8 +3846,18 @@ let transformTests = {
 
   async define({ esbuild }) {
     const define = { 'process.env.NODE_ENV': '"production"' }
-    const { code } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })
-    assert.strictEqual(code, `console.log("production");\n`)
+
+    const { code: code1 } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })
+    assert.strictEqual(code1, `console.log("production");\n`)
+
+    const { code: code2 } = await esbuild.transform(`console.log(process.env['NODE_ENV'])`, { define })
+    assert.strictEqual(code2, `console.log("production");\n`)
+
+    const { code: code3 } = await esbuild.transform(`console.log(process['env'].NODE_ENV)`, { define })
+    assert.strictEqual(code3, `console.log("production");\n`)
+
+    const { code: code4 } = await esbuild.transform(`console.log(process['env']['NODE_ENV'])`, { define })
+    assert.strictEqual(code4, `console.log("production");\n`)
   },
 
   async defineBuiltInConstants({ esbuild }) {
@@ -3875,10 +3915,19 @@ let transformTests = {
     assert.strictEqual(code, `module.exports = "data:application/octet-stream;base64,AAEC";\n`)
   },
 
-  async sourceMapWithName({ esbuild }) {
+  async sourceMapTrueWithName({ esbuild }) {
     const { code, map } = await esbuild.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js' })
     assert.strictEqual(code, `let x;\n`)
     await assertSourceMap(map, 'afile.js')
+  },
+
+  async sourceMapLinkedWithName({ esbuild }) {
+    try {
+      await esbuild.transform(`let       x`, { sourcemap: 'linked', sourcefile: 'afile.js' })
+      throw new Error('Expected a transform failure')
+    } catch (e) {
+      assert.strictEqual(e + '', `Error: Transform failed with 1 error:\nerror: Cannot transform with linked source maps`)
+    }
   },
 
   async sourceMapExternalWithName({ esbuild }) {

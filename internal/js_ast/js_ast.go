@@ -1,7 +1,6 @@
 package js_ast
 
 import (
-	"math"
 	"sort"
 	"strconv"
 
@@ -266,7 +265,7 @@ const (
 )
 
 type ClassStaticBlock struct {
-	Stmts []Stmt
+	Block SBlock
 	Loc   logger.Loc
 }
 
@@ -334,17 +333,18 @@ type Fn struct {
 }
 
 type FnBody struct {
-	Stmts []Stmt
+	Block SBlock
 	Loc   logger.Loc
 }
 
 type Class struct {
-	TSDecorators []Expr
-	Name         *LocRef
-	ExtendsOrNil Expr
-	Properties   []Property
-	ClassKeyword logger.Range
-	BodyLoc      logger.Loc
+	TSDecorators  []Expr
+	Name          *LocRef
+	ExtendsOrNil  Expr
+	Properties    []Property
+	ClassKeyword  logger.Range
+	BodyLoc       logger.Loc
+	CloseBraceLoc logger.Loc
 }
 
 type ArrayBinding struct {
@@ -432,6 +432,7 @@ func (*EImportCall) isExpr()           {}
 type EArray struct {
 	Items            []Expr
 	CommaAfterSpread logger.Loc
+	CloseBracketLoc  logger.Loc
 	IsSingleLine     bool
 	IsParenthesized  bool
 }
@@ -476,8 +477,9 @@ var EUndefinedShared = &EUndefined{}
 var EThisShared = &EThis{}
 
 type ENew struct {
-	Target Expr
-	Args   []Expr
+	Target        Expr
+	Args          []Expr
+	CloseParenLoc logger.Loc
 
 	// True if there is a comment containing "@__PURE__" or "#__PURE__" preceding
 	// this call expression. See the comment inside ECall for more details.
@@ -501,6 +503,7 @@ const (
 type ECall struct {
 	Target        Expr
 	Args          []Expr
+	CloseParenLoc logger.Loc
 	OptionalChain OptionalChain
 	IsDirectEval  bool
 
@@ -549,10 +552,21 @@ type EIndex struct {
 	Target        Expr
 	Index         Expr
 	OptionalChain OptionalChain
+
+	// If true, this property access is known to be free of side-effects. That
+	// means it can be removed if the resulting value isn't used.
+	CanBeRemovedIfUnused bool
+
+	// If true, this property access is a function that, when called, can be
+	// unwrapped if the resulting value is unused. Unwrapping means discarding
+	// the call target but keeping any arguments with side effects.
+	CallCanBeUnwrappedIfUnused bool
 }
 
 func (a *EIndex) HasSameFlagsAs(b *EIndex) bool {
-	return a.OptionalChain == b.OptionalChain
+	return a.OptionalChain == b.OptionalChain &&
+		a.CanBeRemovedIfUnused == b.CanBeRemovedIfUnused &&
+		a.CallCanBeUnwrappedIfUnused == b.CallCanBeUnwrappedIfUnused
 }
 
 type EArrow struct {
@@ -644,6 +658,7 @@ type EBigInt struct{ Value string }
 type EObject struct {
 	Properties       []Property
 	CommaAfterSpread logger.Loc
+	CloseBraceLoc    logger.Loc
 	IsSingleLine     bool
 	IsParenthesized  bool
 }
@@ -725,307 +740,6 @@ type EImportCall struct {
 	LeadingInteriorComments []Comment
 }
 
-func IsOptionalChain(value Expr) bool {
-	switch e := value.Data.(type) {
-	case *EDot:
-		return e.OptionalChain != OptionalChainNone
-	case *EIndex:
-		return e.OptionalChain != OptionalChainNone
-	case *ECall:
-		return e.OptionalChain != OptionalChainNone
-	}
-	return false
-}
-
-func Assign(a Expr, b Expr) Expr {
-	return Expr{Loc: a.Loc, Data: &EBinary{Op: BinOpAssign, Left: a, Right: b}}
-}
-
-func AssignStmt(a Expr, b Expr) Stmt {
-	return Stmt{Loc: a.Loc, Data: &SExpr{Value: Assign(a, b)}}
-}
-
-// Wraps the provided expression in the "!" prefix operator. The expression
-// will potentially be simplified to avoid generating unnecessary extra "!"
-// operators. For example, calling this with "!!x" will return "!x" instead
-// of returning "!!!x".
-func Not(expr Expr) Expr {
-	if result, ok := MaybeSimplifyNot(expr); ok {
-		return result
-	}
-	return Expr{Loc: expr.Loc, Data: &EUnary{Op: UnOpNot, Value: expr}}
-}
-
-// The given "expr" argument should be the operand of a "!" prefix operator
-// (i.e. the "x" in "!x"). This returns a simplified expression for the
-// whole operator (i.e. the "!x") if it can be simplified, or false if not.
-// It's separate from "Not()" above to avoid allocation on failure in case
-// that is undesired.
-func MaybeSimplifyNot(expr Expr) (Expr, bool) {
-	switch e := expr.Data.(type) {
-	case *EInlinedEnum:
-		if value, ok := MaybeSimplifyNot(e.Value); ok {
-			return value, true
-		}
-
-	case *ENull, *EUndefined:
-		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: true}}, true
-
-	case *EBoolean:
-		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: !e.Value}}, true
-
-	case *ENumber:
-		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: e.Value == 0 || math.IsNaN(e.Value)}}, true
-
-	case *EBigInt:
-		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: e.Value == "0"}}, true
-
-	case *EString:
-		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: len(e.Value) == 0}}, true
-
-	case *EFunction, *EArrow, *ERegExp:
-		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: false}}, true
-
-	case *EUnary:
-		// "!!!a" => "!a"
-		if e.Op == UnOpNot && KnownPrimitiveType(e.Value) == PrimitiveBoolean {
-			return e.Value, true
-		}
-
-	case *EBinary:
-		// Make sure that these transformations are all safe for special values.
-		// For example, "!(a < b)" is not the same as "a >= b" if a and/or b are
-		// NaN (or undefined, or null, or possibly other problem cases too).
-		switch e.Op {
-		case BinOpLooseEq:
-			// "!(a == b)" => "a != b"
-			e.Op = BinOpLooseNe
-			return expr, true
-
-		case BinOpLooseNe:
-			// "!(a != b)" => "a == b"
-			e.Op = BinOpLooseEq
-			return expr, true
-
-		case BinOpStrictEq:
-			// "!(a === b)" => "a !== b"
-			e.Op = BinOpStrictNe
-			return expr, true
-
-		case BinOpStrictNe:
-			// "!(a !== b)" => "a === b"
-			e.Op = BinOpStrictEq
-			return expr, true
-
-		case BinOpComma:
-			// "!(a, b)" => "a, !b"
-			e.Right = Not(e.Right)
-			return expr, true
-		}
-	}
-
-	return Expr{}, false
-}
-
-type PrimitiveType uint8
-
-const (
-	PrimitiveUnknown PrimitiveType = iota
-	PrimitiveMixed
-	PrimitiveNull
-	PrimitiveUndefined
-	PrimitiveBoolean
-	PrimitiveNumber
-	PrimitiveString
-	PrimitiveBigInt
-)
-
-// This can be used when the returned type is either one or the other
-func MergedKnownPrimitiveTypes(a Expr, b Expr) PrimitiveType {
-	x := KnownPrimitiveType(a)
-	y := KnownPrimitiveType(b)
-	if x == PrimitiveUnknown || y == PrimitiveUnknown {
-		return PrimitiveUnknown
-	}
-	if x == y {
-		return x
-	}
-	return PrimitiveMixed // Definitely some kind of primitive
-}
-
-func KnownPrimitiveType(a Expr) PrimitiveType {
-	switch e := a.Data.(type) {
-	case *EInlinedEnum:
-		return KnownPrimitiveType(e.Value)
-
-	case *ENull:
-		return PrimitiveNull
-
-	case *EUndefined:
-		return PrimitiveUndefined
-
-	case *EBoolean:
-		return PrimitiveBoolean
-
-	case *ENumber:
-		return PrimitiveNumber
-
-	case *EString:
-		return PrimitiveString
-
-	case *EBigInt:
-		return PrimitiveBigInt
-
-	case *ETemplate:
-		if e.TagOrNil.Data == nil {
-			return PrimitiveString
-		}
-
-	case *EIf:
-		return MergedKnownPrimitiveTypes(e.Yes, e.No)
-
-	case *EUnary:
-		switch e.Op {
-		case UnOpVoid:
-			return PrimitiveUndefined
-
-		case UnOpTypeof:
-			return PrimitiveString
-
-		case UnOpNot, UnOpDelete:
-			return PrimitiveBoolean
-
-		case UnOpPos:
-			return PrimitiveNumber // Cannot be bigint because that throws an exception
-
-		case UnOpNeg, UnOpCpl:
-			value := KnownPrimitiveType(e.Value)
-			if value == PrimitiveBigInt {
-				return PrimitiveBigInt
-			}
-			if value != PrimitiveUnknown && value != PrimitiveMixed {
-				return PrimitiveNumber
-			}
-			return PrimitiveMixed // Can be number or bigint
-
-		case UnOpPreDec, UnOpPreInc, UnOpPostDec, UnOpPostInc:
-			return PrimitiveMixed // Can be number or bigint
-		}
-
-	case *EBinary:
-		switch e.Op {
-		case BinOpStrictEq, BinOpStrictNe, BinOpLooseEq, BinOpLooseNe,
-			BinOpLt, BinOpGt, BinOpLe, BinOpGe,
-			BinOpInstanceof, BinOpIn:
-			return PrimitiveBoolean
-
-		case BinOpLogicalOr, BinOpLogicalAnd:
-			return MergedKnownPrimitiveTypes(e.Left, e.Right)
-
-		case BinOpNullishCoalescing:
-			left := KnownPrimitiveType(e.Left)
-			right := KnownPrimitiveType(e.Right)
-			if left == PrimitiveNull || left == PrimitiveUndefined {
-				return right
-			}
-			if left != PrimitiveUnknown {
-				if left != PrimitiveMixed {
-					return left // Definitely not null or undefined
-				}
-				if right != PrimitiveUnknown {
-					return PrimitiveMixed // Definitely some kind of primitive
-				}
-			}
-
-		case BinOpAdd:
-			left := KnownPrimitiveType(e.Left)
-			right := KnownPrimitiveType(e.Right)
-			if left == PrimitiveString || right == PrimitiveString {
-				return PrimitiveString
-			}
-			if left == PrimitiveBigInt && right == PrimitiveBigInt {
-				return PrimitiveBigInt
-			}
-			if left != PrimitiveUnknown && left != PrimitiveMixed && left != PrimitiveBigInt &&
-				right != PrimitiveUnknown && right != PrimitiveMixed && right != PrimitiveBigInt {
-				return PrimitiveNumber
-			}
-			return PrimitiveMixed // Can be number or bigint or string (or an exception)
-
-		case BinOpAddAssign:
-			right := KnownPrimitiveType(e.Right)
-			if right == PrimitiveString {
-				return PrimitiveString
-			}
-			return PrimitiveMixed // Can be number or bigint or string (or an exception)
-
-		case
-			BinOpSub, BinOpSubAssign,
-			BinOpMul, BinOpMulAssign,
-			BinOpDiv, BinOpDivAssign,
-			BinOpRem, BinOpRemAssign,
-			BinOpPow, BinOpPowAssign,
-			BinOpBitwiseAnd, BinOpBitwiseAndAssign,
-			BinOpBitwiseOr, BinOpBitwiseOrAssign,
-			BinOpBitwiseXor, BinOpBitwiseXorAssign,
-			BinOpShl, BinOpShlAssign,
-			BinOpShr, BinOpShrAssign,
-			BinOpUShr, BinOpUShrAssign:
-			return PrimitiveMixed // Can be number or bigint (or an exception)
-
-		case BinOpAssign, BinOpComma:
-			return KnownPrimitiveType(e.Right)
-		}
-	}
-
-	return PrimitiveUnknown
-}
-
-// The goal of this function is to "rotate" the AST if it's possible to use the
-// left-associative property of the operator to avoid unnecessary parentheses.
-//
-// When using this, make absolutely sure that the operator is actually
-// associative. For example, the "-" operator is not associative for
-// floating-point numbers.
-func JoinWithLeftAssociativeOp(op OpCode, a Expr, b Expr) Expr {
-	// "(a, b) op c" => "a, b op c"
-	if comma, ok := a.Data.(*EBinary); ok && comma.Op == BinOpComma {
-		comma.Right = JoinWithLeftAssociativeOp(op, comma.Right, b)
-		return a
-	}
-
-	// "a op (b op c)" => "(a op b) op c"
-	// "a op (b op (c op d))" => "((a op b) op c) op d"
-	if binary, ok := b.Data.(*EBinary); ok && binary.Op == op {
-		return JoinWithLeftAssociativeOp(
-			op,
-			JoinWithLeftAssociativeOp(op, a, binary.Left),
-			binary.Right,
-		)
-	}
-
-	// "a op b" => "a op b"
-	// "(a op b) op c" => "(a op b) op c"
-	return Expr{Loc: a.Loc, Data: &EBinary{Op: op, Left: a, Right: b}}
-}
-
-func JoinWithComma(a Expr, b Expr) Expr {
-	if a.Data == nil {
-		return b
-	}
-	if b.Data == nil {
-		return a
-	}
-	return Expr{Loc: a.Loc, Data: &EBinary{Op: BinOpComma, Left: a, Right: b}}
-}
-
-func JoinAllWithComma(all []Expr) (result Expr) {
-	for _, value := range all {
-		result = JoinWithComma(result, value)
-	}
-	return
-}
-
 type Stmt struct {
 	Data S
 	Loc  logger.Loc
@@ -1070,7 +784,8 @@ func (*SBreak) isStmt()         {}
 func (*SContinue) isStmt()      {}
 
 type SBlock struct {
-	Stmts []Stmt
+	Stmts         []Stmt
+	CloseBraceLoc logger.Loc
 }
 
 type SEmpty struct{}
@@ -1217,21 +932,21 @@ type SWith struct {
 
 type Catch struct {
 	BindingOrNil Binding
-	Body         []Stmt
+	Block        SBlock
 	Loc          logger.Loc
-	BodyLoc      logger.Loc
+	BlockLoc     logger.Loc
 }
 
 type Finally struct {
-	Stmts []Stmt
+	Block SBlock
 	Loc   logger.Loc
 }
 
 type STry struct {
-	Catch   *Catch
-	Finally *Finally
-	Body    []Stmt
-	BodyLoc logger.Loc
+	Catch    *Catch
+	Finally  *Finally
+	Block    SBlock
+	BlockLoc logger.Loc
 }
 
 type Case struct {
@@ -2486,477 +2201,4 @@ func EnsureValidIdentifier(base string) string {
 		return "_"
 	}
 	return string(bytes)
-}
-
-func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, Ref) Expr) Expr {
-	loc := binding.Loc
-
-	switch b := binding.Data.(type) {
-	case *BMissing:
-		return Expr{Loc: loc, Data: &EMissing{}}
-
-	case *BIdentifier:
-		if wrapIdentifier != nil {
-			return wrapIdentifier(loc, b.Ref)
-		}
-		return Expr{Loc: loc, Data: &EIdentifier{Ref: b.Ref}}
-
-	case *BArray:
-		exprs := make([]Expr, len(b.Items))
-		for i, item := range b.Items {
-			expr := ConvertBindingToExpr(item.Binding, wrapIdentifier)
-			if b.HasSpread && i+1 == len(b.Items) {
-				expr = Expr{Loc: expr.Loc, Data: &ESpread{Value: expr}}
-			} else if item.DefaultValueOrNil.Data != nil {
-				expr = Assign(expr, item.DefaultValueOrNil)
-			}
-			exprs[i] = expr
-		}
-		return Expr{Loc: loc, Data: &EArray{
-			Items:        exprs,
-			IsSingleLine: b.IsSingleLine,
-		}}
-
-	case *BObject:
-		properties := make([]Property, len(b.Properties))
-		for i, property := range b.Properties {
-			value := ConvertBindingToExpr(property.Value, wrapIdentifier)
-			kind := PropertyNormal
-			if property.IsSpread {
-				kind = PropertySpread
-			}
-			properties[i] = Property{
-				Kind:             kind,
-				IsComputed:       property.IsComputed,
-				Key:              property.Key,
-				ValueOrNil:       value,
-				InitializerOrNil: property.DefaultValueOrNil,
-			}
-		}
-		return Expr{Loc: loc, Data: &EObject{
-			Properties:   properties,
-			IsSingleLine: b.IsSingleLine,
-		}}
-
-	default:
-		panic("Internal error")
-	}
-}
-
-// Returns true if this expression is known to result in a primitive value (i.e.
-// null, undefined, boolean, number, bigint, or string), even if the expression
-// cannot be removed due to side effects.
-func IsPrimitiveWithSideEffects(data E) bool {
-	switch e := data.(type) {
-	case *EInlinedEnum:
-		return IsPrimitiveWithSideEffects(e.Value.Data)
-
-	case *ENull, *EUndefined, *EBoolean, *ENumber, *EBigInt, *EString:
-		return true
-
-	case *EUnary:
-		switch e.Op {
-		case
-			// Number or bigint
-			UnOpPos, UnOpNeg, UnOpCpl,
-			UnOpPreDec, UnOpPreInc, UnOpPostDec, UnOpPostInc,
-			// Boolean
-			UnOpNot, UnOpDelete,
-			// Undefined
-			UnOpVoid,
-			// String
-			UnOpTypeof:
-			return true
-		}
-
-	case *EBinary:
-		switch e.Op {
-		case
-			// Boolean
-			BinOpLt, BinOpLe, BinOpGt, BinOpGe, BinOpIn,
-			BinOpInstanceof, BinOpLooseEq, BinOpLooseNe, BinOpStrictEq, BinOpStrictNe,
-			// String, number, or bigint
-			BinOpAdd, BinOpAddAssign,
-			// Number or bigint
-			BinOpSub, BinOpMul, BinOpDiv, BinOpRem, BinOpPow,
-			BinOpSubAssign, BinOpMulAssign, BinOpDivAssign, BinOpRemAssign, BinOpPowAssign,
-			BinOpShl, BinOpShr, BinOpUShr,
-			BinOpShlAssign, BinOpShrAssign, BinOpUShrAssign,
-			BinOpBitwiseOr, BinOpBitwiseAnd, BinOpBitwiseXor,
-			BinOpBitwiseOrAssign, BinOpBitwiseAndAssign, BinOpBitwiseXorAssign:
-			return true
-
-		// These always return one of the arguments unmodified
-		case BinOpLogicalAnd, BinOpLogicalOr, BinOpNullishCoalescing,
-			BinOpLogicalAndAssign, BinOpLogicalOrAssign, BinOpNullishCoalescingAssign:
-			return IsPrimitiveWithSideEffects(e.Left.Data) && IsPrimitiveWithSideEffects(e.Right.Data)
-
-		case BinOpComma:
-			return IsPrimitiveWithSideEffects(e.Right.Data)
-		}
-
-	case *EIf:
-		return IsPrimitiveWithSideEffects(e.Yes.Data) && IsPrimitiveWithSideEffects(e.No.Data)
-	}
-
-	return false
-}
-
-// This will return a nil expression if the expression can be totally removed
-func SimplifyUnusedExpr(expr Expr, isUnbound func(Ref) bool) Expr {
-	switch e := expr.Data.(type) {
-	case *EInlinedEnum:
-		return SimplifyUnusedExpr(e.Value, isUnbound)
-
-	case *ENull, *EUndefined, *EMissing, *EBoolean, *ENumber, *EBigInt,
-		*EString, *EThis, *ERegExp, *EFunction, *EArrow, *EImportMeta:
-		return Expr{}
-
-	case *EDot:
-		if e.CanBeRemovedIfUnused {
-			return Expr{}
-		}
-
-	case *EIdentifier:
-		if e.MustKeepDueToWithStmt {
-			break
-		}
-		if e.CanBeRemovedIfUnused || !isUnbound(e.Ref) {
-			return Expr{}
-		}
-
-	case *ETemplate:
-		if e.TagOrNil.Data == nil {
-			var comma Expr
-			var templateLoc logger.Loc
-			var template *ETemplate
-			for _, part := range e.Parts {
-				// If we know this value is some kind of primitive, then we know that
-				// "ToString" has no side effects and can be avoided.
-				if KnownPrimitiveType(part.Value) != PrimitiveUnknown {
-					if template != nil {
-						comma = JoinWithComma(comma, Expr{Loc: templateLoc, Data: template})
-						template = nil
-					}
-					comma = JoinWithComma(comma, SimplifyUnusedExpr(part.Value, isUnbound))
-					continue
-				}
-
-				// Make sure "ToString" is still evaluated on the value. We can't use
-				// string addition here because that may evaluate "ValueOf" instead.
-				if template == nil {
-					template = &ETemplate{}
-					templateLoc = part.Value.Loc
-				}
-				template.Parts = append(template.Parts, TemplatePart{Value: part.Value})
-			}
-			if template != nil {
-				comma = JoinWithComma(comma, Expr{Loc: templateLoc, Data: template})
-			}
-			return comma
-		}
-
-	case *EArray:
-		// Arrays with "..." spread expressions can't be unwrapped because the
-		// "..." triggers code evaluation via iterators. In that case, just trim
-		// the other items instead and leave the array expression there.
-		for _, spread := range e.Items {
-			if _, ok := spread.Data.(*ESpread); ok {
-				end := 0
-				for _, item := range e.Items {
-					item = SimplifyUnusedExpr(item, isUnbound)
-					if item.Data != nil {
-						e.Items[end] = item
-						end++
-					}
-				}
-				e.Items = e.Items[:end]
-				return expr
-			}
-		}
-
-		// Otherwise, the array can be completely removed. We only need to keep any
-		// array items with side effects. Apply this simplification recursively.
-		var result Expr
-		for _, item := range e.Items {
-			result = JoinWithComma(result, SimplifyUnusedExpr(item, isUnbound))
-		}
-		return result
-
-	case *EObject:
-		// Objects with "..." spread expressions can't be unwrapped because the
-		// "..." triggers code evaluation via getters. In that case, just trim
-		// the other items instead and leave the object expression there.
-		for _, spread := range e.Properties {
-			if spread.Kind == PropertySpread {
-				end := 0
-				for _, property := range e.Properties {
-					// Spread properties must always be evaluated
-					if property.Kind != PropertySpread {
-						value := SimplifyUnusedExpr(property.ValueOrNil, isUnbound)
-						if value.Data != nil {
-							// Keep the value
-							property.ValueOrNil = value
-						} else if !property.IsComputed {
-							// Skip this property if the key doesn't need to be computed
-							continue
-						} else {
-							// Replace values without side effects with "0" because it's short
-							property.ValueOrNil.Data = &ENumber{}
-						}
-					}
-					e.Properties[end] = property
-					end++
-				}
-				e.Properties = e.Properties[:end]
-				return expr
-			}
-		}
-
-		// Otherwise, the object can be completely removed. We only need to keep any
-		// object properties with side effects. Apply this simplification recursively.
-		var result Expr
-		for _, property := range e.Properties {
-			if property.IsComputed {
-				// Make sure "ToString" is still evaluated on the key
-				result = JoinWithComma(result, Expr{Loc: property.Key.Loc, Data: &EBinary{
-					Op:    BinOpAdd,
-					Left:  property.Key,
-					Right: Expr{Loc: property.Key.Loc, Data: &EString{}},
-				}})
-			}
-			result = JoinWithComma(result, SimplifyUnusedExpr(property.ValueOrNil, isUnbound))
-		}
-		return result
-
-	case *EIf:
-		e.Yes = SimplifyUnusedExpr(e.Yes, isUnbound)
-		e.No = SimplifyUnusedExpr(e.No, isUnbound)
-
-		// "foo() ? 1 : 2" => "foo()"
-		if e.Yes.Data == nil && e.No.Data == nil {
-			return SimplifyUnusedExpr(e.Test, isUnbound)
-		}
-
-		// "foo() ? 1 : bar()" => "foo() || bar()"
-		if e.Yes.Data == nil {
-			return JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, e.No)
-		}
-
-		// "foo() ? bar() : 2" => "foo() && bar()"
-		if e.No.Data == nil {
-			return JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, e.Yes)
-		}
-
-	case *EUnary:
-		switch e.Op {
-		// These operators must not have any type conversions that can execute code
-		// such as "toString" or "valueOf". They must also never throw any exceptions.
-		case UnOpVoid, UnOpNot:
-			return SimplifyUnusedExpr(e.Value, isUnbound)
-
-		case UnOpTypeof:
-			if _, ok := e.Value.Data.(*EIdentifier); ok {
-				// "typeof x" must not be transformed into if "x" since doing so could
-				// cause an exception to be thrown. Instead we can just remove it since
-				// "typeof x" is special-cased in the standard to never throw.
-				return Expr{}
-			}
-			return SimplifyUnusedExpr(e.Value, isUnbound)
-		}
-
-	case *EBinary:
-		switch e.Op {
-		// These operators must not have any type conversions that can execute code
-		// such as "toString" or "valueOf". They must also never throw any exceptions.
-		case BinOpStrictEq, BinOpStrictNe, BinOpComma:
-			return JoinWithComma(SimplifyUnusedExpr(e.Left, isUnbound), SimplifyUnusedExpr(e.Right, isUnbound))
-
-		// We can simplify "==" and "!=" even though they can call "toString" and/or
-		// "valueOf" if we can statically determine that the types of both sides are
-		// primitives. In that case there won't be any chance for user-defined
-		// "toString" and/or "valueOf" to be called.
-		case BinOpLooseEq, BinOpLooseNe:
-			if IsPrimitiveWithSideEffects(e.Left.Data) && IsPrimitiveWithSideEffects(e.Right.Data) {
-				return JoinWithComma(SimplifyUnusedExpr(e.Left, isUnbound), SimplifyUnusedExpr(e.Right, isUnbound))
-			}
-
-		case BinOpLogicalAnd, BinOpLogicalOr, BinOpNullishCoalescing:
-			// Preserve short-circuit behavior: the left expression is only unused if
-			// the right expression can be completely removed. Otherwise, the left
-			// expression is important for the branch.
-			e.Right = SimplifyUnusedExpr(e.Right, isUnbound)
-			if e.Right.Data == nil {
-				return SimplifyUnusedExpr(e.Left, isUnbound)
-			}
-
-		case BinOpAdd:
-			if result, isStringAddition := simplifyUnusedStringAdditionChain(expr); isStringAddition {
-				return result
-			}
-		}
-
-	case *ECall:
-		// A call that has been marked "__PURE__" can be removed if all arguments
-		// can be removed. The annotation causes us to ignore the target.
-		if e.CanBeUnwrappedIfUnused {
-			expr = Expr{}
-			for _, arg := range e.Args {
-				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, isUnbound))
-			}
-		}
-
-		// Attempt to shorten IIFEs
-		if len(e.Args) == 0 {
-			switch target := e.Target.Data.(type) {
-			case *EFunction:
-				if len(target.Fn.Args) != 0 {
-					break
-				}
-
-				// Just delete "(function() {})()" completely
-				if len(target.Fn.Body.Stmts) == 0 {
-					return Expr{}
-				}
-
-			case *EArrow:
-				if len(target.Args) != 0 {
-					break
-				}
-
-				// Just delete "(() => {})()" completely
-				if len(target.Body.Stmts) == 0 {
-					return Expr{}
-				}
-
-				if len(target.Body.Stmts) == 1 {
-					switch s := target.Body.Stmts[0].Data.(type) {
-					case *SExpr:
-						if !target.IsAsync {
-							// Replace "(() => { foo() })()" with "foo()"
-							return s.Value
-						} else {
-							// Replace "(async () => { foo() })()" with "(async () => foo())()"
-							target.Body.Stmts[0].Data = &SReturn{ValueOrNil: s.Value}
-							target.PreferExpr = true
-						}
-
-					case *SReturn:
-						if !target.IsAsync {
-							// Replace "(() => foo())()" with "foo()"
-							return s.ValueOrNil
-						}
-					}
-				}
-			}
-		}
-
-	case *ENew:
-		// A constructor call that has been marked "__PURE__" can be removed if all
-		// arguments can be removed. The annotation causes us to ignore the target.
-		if e.CanBeUnwrappedIfUnused {
-			expr = Expr{}
-			for _, arg := range e.Args {
-				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, isUnbound))
-			}
-		}
-	}
-
-	return expr
-}
-
-func simplifyUnusedStringAdditionChain(expr Expr) (Expr, bool) {
-	switch e := expr.Data.(type) {
-	case *EString:
-		// "'x' + y" => "'' + y"
-		return Expr{Loc: expr.Loc, Data: &EString{}}, true
-
-	case *EBinary:
-		if e.Op == BinOpAdd {
-			left, leftIsStringAddition := simplifyUnusedStringAdditionChain(e.Left)
-			e.Left = left
-
-			if _, rightIsString := e.Right.Data.(*EString); rightIsString {
-				// "('' + x) + 'y'" => "'' + x"
-				if leftIsStringAddition {
-					return left, true
-				}
-
-				// "x + 'y'" => "x + ''"
-				if !leftIsStringAddition {
-					e.Right.Data = &EString{}
-					return expr, true
-				}
-			}
-
-			return expr, leftIsStringAddition
-		}
-	}
-
-	return expr, false
-}
-
-func ToInt32(f float64) int32 {
-	// The easy way
-	i := int32(f)
-	if float64(i) == f {
-		return i
-	}
-
-	// The hard way
-	i = int32(uint32(math.Mod(math.Abs(f), 4294967296)))
-	if math.Signbit(f) {
-		return -i
-	}
-	return i
-}
-
-func ToUint32(f float64) uint32 {
-	return uint32(ToInt32(f))
-}
-
-func ToNumberWithoutSideEffects(data E) (float64, bool) {
-	switch e := data.(type) {
-	case *EInlinedEnum:
-		return ToNumberWithoutSideEffects(e.Value.Data)
-
-	case *ENull:
-		return 0, true
-
-	case *EUndefined:
-		return math.NaN(), true
-
-	case *EBoolean:
-		if e.Value {
-			return 1, true
-		} else {
-			return 0, true
-		}
-
-	case *ENumber:
-		return e.Value, true
-	}
-
-	return 0, false
-}
-
-func extractNumericValue(data E) (float64, bool) {
-	switch e := data.(type) {
-	case *EInlinedEnum:
-		return extractNumericValue(e.Value.Data)
-
-	case *ENumber:
-		return e.Value, true
-	}
-
-	return 0, false
-}
-
-func ExtractNumericValues(left Expr, right Expr) (float64, float64, bool) {
-	if a, ok := extractNumericValue(left.Data); ok {
-		if b, ok := extractNumericValue(right.Data); ok {
-			return a, b, true
-		}
-	}
-	return 0, 0, false
 }

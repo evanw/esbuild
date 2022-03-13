@@ -157,10 +157,19 @@ mergeVersions('NullishCoalescing', { es2020: true })
 mergeVersions('OptionalChain', { es2020: true })
 mergeVersions('TypeofExoticObjectIsObject', { es2020: true }) // https://github.com/tc39/ecma262/pull/1441
 mergeVersions('LogicalAssignment', { es2021: true })
-mergeVersions('TopLevelAwait', {})
-mergeVersions('ArbitraryModuleNamespaceNames', {})
+mergeVersions('ClassField', { es2022: true })
+mergeVersions('ClassPrivateAccessor', { es2022: true })
+mergeVersions('ClassPrivateBrandCheck', { es2022: true })
+mergeVersions('ClassPrivateField', { es2022: true })
+mergeVersions('ClassPrivateMethod', { es2022: true })
+mergeVersions('ClassPrivateStaticAccessor', { es2022: true })
+mergeVersions('ClassPrivateStaticField', { es2022: true })
+mergeVersions('ClassPrivateStaticMethod', { es2022: true })
+mergeVersions('ClassStaticBlocks', { es2022: true })
+mergeVersions('ClassStaticField', { es2022: true })
+mergeVersions('TopLevelAwait', { es2022: true })
+mergeVersions('ArbitraryModuleNamespaceNames', { es2022: true })
 mergeVersions('ImportAssertions', {})
-mergeVersions('ClassStaticBlocks', {})
 
 // Manually copied from https://caniuse.com/?search=export%20*%20as
 mergeVersions('ExportStarAs', {

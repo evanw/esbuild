@@ -123,6 +123,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let globalName = getFlag(options, keys, 'globalName', mustBeString);
   let mangleProps = getFlag(options, keys, 'mangleProps', mustBeRegExp);
   let reserveProps = getFlag(options, keys, 'reserveProps', mustBeRegExp);
+  let mangleQuoted = getFlag(options, keys, 'mangleQuoted', mustBeBoolean);
   let minify = getFlag(options, keys, 'minify', mustBeBoolean);
   let minifySyntax = getFlag(options, keys, 'minifySyntax', mustBeBoolean);
   let minifyWhitespace = getFlag(options, keys, 'minifyWhitespace', mustBeBoolean);
@@ -158,6 +159,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (drop) for (let what of drop) flags.push(`--drop:${what}`);
   if (mangleProps) flags.push(`--mangle-props=${mangleProps.source}`);
   if (reserveProps) flags.push(`--reserve-props=${reserveProps.source}`);
+  if (mangleQuoted !== void 0) flags.push(`--mangle-quoted=${mangleQuoted}`)
 
   if (jsx) flags.push(`--jsx=${jsx}`);
   if (jsxFactory) flags.push(`--jsx-factory=${jsxFactory}`);

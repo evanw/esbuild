@@ -622,7 +622,7 @@ func OutputOptionsForArgs(osArgs []string) OutputOptions {
 		switch arg {
 		case "--color=false":
 			options.Color = ColorNever
-		case "--color=true":
+		case "--color=true", "--color":
 			options.Color = ColorAlways
 		case "--log-level=info":
 			options.LogLevel = LevelInfo

@@ -146,6 +146,8 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x = 'x' as keyof typeof Foo", "let x = \"x\";\n")
 	expectPrintedTS(t, "let fs: typeof import('fs') = require('fs')", "let fs = require(\"fs\");\n")
 	expectPrintedTS(t, "let fs: typeof import('fs').exists = require('fs').exists", "let fs = require(\"fs\").exists;\n")
+	expectPrintedTS(t, "let fs: typeof import('fs', { assert: { type: 'json' } }) = require('fs')", "let fs = require(\"fs\");\n")
+	expectPrintedTS(t, "let fs: typeof import('fs', { assert: { 'resolution-mode': 'import' } }) = require('fs')", "let fs = require(\"fs\");\n")
 	expectPrintedTS(t, "let x: <T>() => Foo<T>", "let x;\n")
 	expectPrintedTS(t, "let x: new <T>() => Foo<T>", "let x;\n")
 	expectPrintedTS(t, "let x: <T extends object>() => Foo<T>", "let x;\n")
@@ -404,6 +406,12 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { foo!(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { foo!(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectParseErrorTS(t, "class Foo { foo!(): void foo(): void {} }", "<stdin>: ERROR: Expected \";\" but found \"foo\"\n")
+
+	expectPrintedTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { [foo] = 0 }", "var _a;\nclass Foo {\n  constructor() {\n    this[_a] = 0;\n  }\n}\n_a = foo;\n")
+	expectPrintedMangleTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+	expectPrintedMangleTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 
 	expectPrintedTS(t, "class Foo { foo \n ?: number }", "class Foo {\n}\n")
 	expectParseErrorTS(t, "class Foo { foo \n !: number }", "<stdin>: ERROR: Expected identifier but found \"!\"\n")
@@ -1321,8 +1329,8 @@ func TestTSDecl(t *testing.T) {
 	expectPrintedTS(t, "var a!: string, b!: boolean", "var a, b;\n")
 	expectPrintedTS(t, "let a!: string, b!: boolean", "let a, b;\n")
 	expectPrintedTS(t, "const a!: string = '', b!: boolean = false", "const a = \"\", b = false;\n")
-	expectPrintedTS(t, "var a\n!0", "var a;\ntrue;\n")
-	expectPrintedTS(t, "let a\n!0", "let a;\ntrue;\n")
+	expectPrintedTS(t, "var a\n!b", "var a;\n!b;\n")
+	expectPrintedTS(t, "let a\n!b", "let a;\n!b;\n")
 	expectParseErrorTS(t, "var a!", "<stdin>: ERROR: Expected \":\" but found end of file\n")
 	expectParseErrorTS(t, "var a! = ", "<stdin>: ERROR: Expected \":\" but found \"=\"\n")
 	expectParseErrorTS(t, "var a!, b", "<stdin>: ERROR: Expected \":\" but found \",\"\n")
@@ -1387,6 +1395,10 @@ func TestTSDeclare(t *testing.T) {
 	expectParseErrorTS(t, "function fn(x: any, ...y, ) {}", "<stdin>: ERROR: Expected \")\" but found \",\"\n")
 	expectParseErrorTS(t, "function fn(x: any, ...y: any, )", "<stdin>: ERROR: Expected \")\" but found \",\"\n")
 	expectParseErrorTS(t, "function fn(x: any, ...y: any, ) {}", "<stdin>: ERROR: Expected \")\" but found \",\"\n")
+
+	// This declares a global module
+	expectPrintedTS(t, "export as namespace ns", "")
+	expectParseErrorTS(t, "export as namespace ns.foo", "<stdin>: ERROR: Expected \";\" but found \".\"\n")
 }
 
 func TestTSDecorator(t *testing.T) {
@@ -1400,27 +1412,30 @@ func TestTSDecorator(t *testing.T) {
 	expectPrintedTS(t, "declare class Foo { foo(@dec(() => 0) x) } {let foo}", "{\n  let foo;\n}\n")
 
 	// Decorators must only work on class statements
-	expectParseErrorTS(t, "@dec enum foo {}", "<stdin>: ERROR: Expected \"class\" but found \"enum\"\n")
-	expectParseErrorTS(t, "@dec namespace foo {}", "<stdin>: ERROR: Expected \"class\" but found \"namespace\"\n")
-	expectParseErrorTS(t, "@dec function foo() {}", "<stdin>: ERROR: Expected \"class\" but found \"function\"\n")
+	notes := "<stdin>: NOTE: The preceding TypeScript decorator is here:\n" +
+		"NOTE: Decorators can only be used with class declarations in TypeScript.\n"
+	expectParseErrorTS(t, "@dec enum foo {}", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"enum\"\n"+notes)
+	expectParseErrorTS(t, "@dec namespace foo {}", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"namespace\"\n"+notes)
+	expectParseErrorTS(t, "@dec function foo() {}", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"function\"\n"+notes)
 	expectParseErrorTS(t, "@dec abstract", "<stdin>: ERROR: Expected \"class\" but found end of file\n")
-	expectParseErrorTS(t, "@dec declare: x", "<stdin>: ERROR: Expected \"class\" but found \":\"\n")
-	expectParseErrorTS(t, "@dec declare enum foo {}", "<stdin>: ERROR: Expected \"class\" but found \"enum\"\n")
-	expectParseErrorTS(t, "@dec declare namespace foo {}", "<stdin>: ERROR: Expected \"class\" but found \"namespace\"\n")
-	expectParseErrorTS(t, "@dec declare function foo()", "<stdin>: ERROR: Expected \"class\" but found \"function\"\n")
-	expectParseErrorTS(t, "@dec export {}", "<stdin>: ERROR: Expected \"class\" but found \"{\"\n")
-	expectParseErrorTS(t, "@dec export enum foo {}", "<stdin>: ERROR: Expected \"class\" but found \"enum\"\n")
-	expectParseErrorTS(t, "@dec export namespace foo {}", "<stdin>: ERROR: Expected \"class\" but found \"namespace\"\n")
-	expectParseErrorTS(t, "@dec export function foo() {}", "<stdin>: ERROR: Expected \"class\" but found \"function\"\n")
+	expectParseErrorTS(t, "@dec declare: x", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \":\"\n"+notes)
+	expectParseErrorTS(t, "@dec declare enum foo {}", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"enum\"\n"+notes)
+	expectParseErrorTS(t, "@dec declare namespace foo {}", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"namespace\"\n"+notes)
+	expectParseErrorTS(t, "@dec declare function foo()", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"function\"\n"+notes)
+	expectParseErrorTS(t, "@dec export {}", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"{\"\n"+notes)
+	expectParseErrorTS(t, "@dec export enum foo {}", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"enum\"\n"+notes)
+	expectParseErrorTS(t, "@dec export namespace foo {}", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"namespace\"\n"+notes)
+	expectParseErrorTS(t, "@dec export function foo() {}", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"function\"\n"+notes)
 	expectParseErrorTS(t, "@dec export default abstract", "<stdin>: ERROR: Expected \"class\" but found end of file\n")
-	expectParseErrorTS(t, "@dec export declare enum foo {}", "<stdin>: ERROR: Expected \"class\" but found \"enum\"\n")
-	expectParseErrorTS(t, "@dec export declare namespace foo {}", "<stdin>: ERROR: Expected \"class\" but found \"namespace\"\n")
-	expectParseErrorTS(t, "@dec export declare function foo()", "<stdin>: ERROR: Expected \"class\" but found \"function\"\n")
+	expectParseErrorTS(t, "@dec export declare enum foo {}", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"enum\"\n"+notes)
+	expectParseErrorTS(t, "@dec export declare namespace foo {}", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"namespace\"\n"+notes)
+	expectParseErrorTS(t, "@dec export declare function foo()", "<stdin>: ERROR: Expected \"class\" after TypeScript decorator but found \"function\"\n"+notes)
 
 	// Decorators must be forbidden outside class statements
-	expectParseErrorTS(t, "(class { @dec foo })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
-	expectParseErrorTS(t, "(class { @dec foo() {} })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
-	expectParseErrorTS(t, "(class { foo(@dec x) {} })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
+	note := "<stdin>: NOTE: This is a class expression, not a class declaration:\n"
+	expectParseErrorTS(t, "(class { @dec foo })", "<stdin>: ERROR: Decorators can only be used with class declarations in TypeScript\n"+note)
+	expectParseErrorTS(t, "(class { @dec foo() {} })", "<stdin>: ERROR: Decorators can only be used with class declarations in TypeScript\n"+note)
+	expectParseErrorTS(t, "(class { foo(@dec x) {} })", "<stdin>: ERROR: Decorators can only be used with class declarations in TypeScript\n"+note)
 	expectParseErrorTS(t, "({ @dec foo })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
 	expectParseErrorTS(t, "({ @dec foo() {} })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
 	expectParseErrorTS(t, "({ foo(@dec x) {} })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
@@ -1549,6 +1564,8 @@ func TestTSNew(t *testing.T) {
 	expectPrintedTS(t, "new Foo()", "new Foo();\n")
 	expectPrintedTS(t, "new Foo<number>()", "new Foo();\n")
 	expectPrintedTS(t, "new Foo<number, boolean>()", "new Foo();\n")
+	expectPrintedTS(t, "new Foo<number>", "new Foo();\n")
+	expectPrintedTS(t, "new Foo<number, boolean>", "new Foo();\n")
 
 	expectPrintedTS(t, "new Foo!()", "new Foo();\n")
 	expectPrintedTS(t, "new Foo!<number>()", "new Foo();\n")
@@ -1560,6 +1577,57 @@ func TestTSNew(t *testing.T) {
 	expectParseErrorTS(t, "new Foo<number>!()", "<stdin>: ERROR: Unexpected \")\"\n")
 	expectParseErrorTS(t, "new Foo\n!.Bar()", "<stdin>: ERROR: Unexpected \".\"\n")
 	expectParseError(t, "new Foo!()", "<stdin>: ERROR: Unexpected \"!\"\n")
+}
+
+func TestTSInstantiationExpression(t *testing.T) {
+	expectPrintedTS(t, "f<number>", "f;\n")
+	expectPrintedTS(t, "f<number, boolean>", "f;\n")
+	expectPrintedTS(t, "f.g<number>", "f.g;\n")
+	expectPrintedTS(t, "f<number>.g", "f.g;\n")
+	expectPrintedTS(t, "f<number>.g<number>", "f.g;\n")
+	expectPrintedTS(t, "f['g']<number>", "f[\"g\"];\n")
+	expectPrintedTS(t, "(f<number>)<number>", "f;\n")
+
+	// function call
+	expectPrintedTS(t, "const x1 = f<true>\n(true);", "const x1 = f(true);\n")
+	// relational expression
+	expectPrintedTS(t, "const x1 = f<true>\ntrue;", "const x1 = f < true > true;\n")
+	// instantiation expression
+	expectPrintedTS(t, "const x1 = f<true>;\n(true);", "const x1 = f;\ntrue;\n")
+
+	expectPrintedTS(t, "f<number>?.();", "f?.();\n")
+	expectPrintedTS(t, "f?.<number>();", "f?.();\n")
+
+	expectPrintedTS(t, "f<number>['g'];", "f < number > [\"g\"];\n")
+
+	expectPrintedTS(t, "type T21 = typeof Array<string>; f();", "f();\n")
+	expectPrintedTS(t, "type T22 = typeof Array<string, number>; f();", "f();\n")
+
+	expectPrintedTS(t, "f<x>, g<y>;", "f, g;\n")
+	expectPrintedTS(t, "[f<x>];", "[f];\n")
+	expectPrintedTS(t, "f<x> ? g<y> : h<z>;", "f ? g : h;\n")
+	expectPrintedTS(t, "f<x> ^ g<y>;", "f ^ g;\n")
+	expectPrintedTS(t, "f<x> & g<y>;", "f & g;\n")
+	expectPrintedTS(t, "f<x> | g<y>;", "f | g;\n")
+	expectPrintedTS(t, "f<x> && g<y>;", "f && g;\n")
+	expectPrintedTS(t, "f<x> || g<y>;", "f || g;\n")
+	expectPrintedTS(t, "f<x> ?? g<y>;", "f ?? g;\n")
+	expectPrintedTS(t, "{ f<x> }", "{\n  f;\n}\n")
+	expectPrintedTS(t, "f<x> == g<y>;", "f == g;\n")
+	expectPrintedTS(t, "f<x> === g<y>;", "f === g;\n")
+	expectPrintedTS(t, "f<x> != g<y>;", "f != g;\n")
+	expectPrintedTS(t, "f<x> !== g<y>;", "f !== g;\n")
+
+	expectParseErrorTS(t, "const a8 = f<number><number>;", "<stdin>: ERROR: Unexpected \";\"\n")
+	expectParseErrorTS(t, "const b1 = f?.<number>;", "<stdin>: ERROR: Expected \"(\" but found \";\"\n")
+
+	// The TypeScript compiler doesn't do semicolon insertion before "<" when
+	// inside "typeof" but does in other situations. Was this an oversight? Not sure,
+	// but we replicate this behavior because it matters when JSX syntax is enabled.
+	expectPrintedTSX(t, "type x = typeof y\n<number>\n1", "1;\n")
+	expectParseErrorTS(t, "type x = typeof y\n<number>\n1\n</number>", "<stdin>: ERROR: Unterminated regular expression\n")
+	expectParseErrorTSX(t, "type x = y\n<number>\n1", "<stdin>: ERROR: Unexpected end of file\n")
+	expectPrintedTSX(t, "type x = y\n<number>\n1\n</number>", "/* @__PURE__ */ React.createElement(\"number\", null, \"1\");\n")
 }
 
 func TestTSExponentiation(t *testing.T) {
@@ -1892,7 +1960,7 @@ func TestTSNoAmbiguousLessThan(t *testing.T) {
 		"<stdin>: ERROR: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n")
 	expectParseErrorTSNoAmbiguousLessThan(t, "<x>y</x>",
 		"<stdin>: ERROR: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n"+
-			"<stdin>: ERROR: Unexpected end of file\n")
+			"<stdin>: ERROR: Unterminated regular expression\n")
 	expectParseErrorTSNoAmbiguousLessThan(t, "<x extends></x>",
 		"<stdin>: ERROR: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n"+
 			"<stdin>: ERROR: Unexpected \">\"\n")

@@ -251,7 +251,7 @@ func (p *parser) lowerFunction(
 	isAsync *bool,
 	args *[]js_ast.Arg,
 	bodyLoc logger.Loc,
-	bodyStmts *[]js_ast.Stmt,
+	bodyBlock *js_ast.SBlock,
 	preferExpr *bool,
 	hasRestArg *bool,
 	isArrow bool,
@@ -310,7 +310,7 @@ func (p *parser) lowerFunction(
 		}
 
 		if len(prefixStmts) > 0 {
-			*bodyStmts = append(prefixStmts, *bodyStmts...)
+			bodyBlock.Stmts = append(prefixStmts, bodyBlock.Stmts...)
 		}
 	}
 
@@ -336,9 +336,9 @@ func (p *parser) lowerFunction(
 		// Move the code into a nested generator function
 		fn := js_ast.Fn{
 			IsGenerator: true,
-			Body:        js_ast.FnBody{Loc: bodyLoc, Stmts: *bodyStmts},
+			Body:        js_ast.FnBody{Loc: bodyLoc, Block: *bodyBlock},
 		}
-		*bodyStmts = nil
+		bodyBlock.Stmts = nil
 
 		// Errors thrown during argument evaluation must reject the
 		// resulting promise, which needs more complex code to handle
@@ -468,12 +468,12 @@ func (p *parser) lowerFunction(
 							},
 							Body: js_ast.FnBody{
 								Loc: bodyLoc,
-								Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
+								Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
 									ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
 										Target: js_ast.Expr{Loc: bodyLoc, Data: js_ast.ESuperShared},
 										Index:  js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: keyRef}},
 									}},
-								}}},
+								}}}},
 							},
 							PreferExpr: true,
 						}},
@@ -497,7 +497,7 @@ func (p *parser) lowerFunction(
 							},
 							Body: js_ast.FnBody{
 								Loc: bodyLoc,
-								Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
+								Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
 									ValueOrNil: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EBinary{
 										Op: js_ast.BinOpAssign,
 										Left: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
@@ -506,7 +506,7 @@ func (p *parser) lowerFunction(
 										}},
 										Right: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: valueRef}},
 									}},
-								}}},
+								}}}},
 							},
 							PreferExpr: true,
 						}},
@@ -517,7 +517,7 @@ func (p *parser) lowerFunction(
 				bodyStmtList = append(bodyStmtList, superSetStmt)
 			}
 		}
-		*bodyStmts = append(bodyStmtList, returnStmt)
+		bodyBlock.Stmts = append(bodyStmtList, returnStmt)
 	}
 }
 
@@ -583,9 +583,9 @@ flatten:
 	// Stop now if we can strip the whole chain as dead code. Since the chain is
 	// lazily evaluated, it's safe to just drop the code entirely.
 	if p.options.minifySyntax {
-		if isNullOrUndefined, sideEffects, ok := toNullOrUndefinedWithSideEffects(expr.Data); ok && isNullOrUndefined {
-			if sideEffects == couldHaveSideEffects {
-				return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(expr, p.isUnbound), valueWhenUndefined), exprOut{}
+		if isNullOrUndefined, sideEffects, ok := js_ast.ToNullOrUndefinedWithSideEffects(expr.Data); ok && isNullOrUndefined {
+			if sideEffects == js_ast.CouldHaveSideEffects {
+				return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(expr, p.options.unsupportedJSFeatures, p.isUnbound), valueWhenUndefined), exprOut{}
 			}
 			return valueWhenUndefined, exprOut{}
 		}
@@ -1054,8 +1054,9 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 	if len(properties) > 0 {
 		// "{...a, b}" => "__spreadProps(__spreadValues({}, a), {b})"
 		result = p.callRuntime(loc, "__spreadProps", []js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
-			Properties:   properties,
-			IsSingleLine: e.IsSingleLine,
+			Properties:    properties,
+			IsSingleLine:  e.IsSingleLine,
+			CloseBraceLoc: e.CloseBraceLoc,
 		}}})
 	}
 
@@ -1340,9 +1341,9 @@ func (p *parser) lowerObjectRestInCatchBinding(catch *js_ast.Catch) {
 		p.recordUsage(ref)
 		decls := p.lowerObjectRestInDecls([]js_ast.Decl{decl})
 		catch.BindingOrNil.Data = &js_ast.BIdentifier{Ref: ref}
-		stmts := make([]js_ast.Stmt, 0, 1+len(catch.Body))
+		stmts := make([]js_ast.Stmt, 0, 1+len(catch.Block.Stmts))
 		stmts = append(stmts, js_ast.Stmt{Loc: catch.BindingOrNil.Loc, Data: &js_ast.SLocal{Kind: js_ast.LocalLet, Decls: decls}})
-		catch.Body = append(stmts, catch.Body...)
+		catch.Block.Stmts = append(stmts, catch.Block.Stmts...)
 	}
 }
 
@@ -1834,7 +1835,7 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	//
 	for _, prop := range class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
-			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) && len(prop.ClassStaticBlock.Stmts) > 0 {
+			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) && len(prop.ClassStaticBlock.Block.Stmts) > 0 {
 				result.lowerAllStaticFields = true
 			}
 			continue
@@ -2127,10 +2128,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	for _, prop := range class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
 			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) {
-				if block := *prop.ClassStaticBlock; len(block.Stmts) > 0 {
+				if block := *prop.ClassStaticBlock; len(block.Block.Stmts) > 0 {
 					staticMembers = append(staticMembers, js_ast.Expr{Loc: block.Loc, Data: &js_ast.ECall{
 						Target: js_ast.Expr{Loc: block.Loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{
-							Stmts: block.Stmts,
+							Block: block.Block,
 						}}},
 					}})
 				}
@@ -2209,7 +2210,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			if !needsKey {
 				// Just evaluate the key for its side effects
 				computedPropertyCache = js_ast.JoinWithComma(computedPropertyCache, prop.Key)
-			} else {
+			} else if _, ok := prop.Key.Data.(*js_ast.EString); !ok {
 				// Store the key in a temporary so we can assign to it later
 				ref := p.generateTempRef(tempRefNeedsDeclare, "")
 				computedPropertyCache = js_ast.JoinWithComma(computedPropertyCache,
@@ -2334,7 +2335,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 						memberExpr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key, init})
 					}
 				} else {
-					if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.IsComputed {
+					if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.IsComputed && !prop.PreferQuotedKey {
 						target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
 							Target:  target,
 							Name:    helpers.UTF16ToString(key.Value),
@@ -2471,7 +2472,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	if len(parameterFields) > 0 || len(instancePrivateMethods) > 0 || len(instanceMembers) > 0 {
 		// Create a constructor if one doesn't already exist
 		if ctor == nil {
-			ctor = &js_ast.EFunction{}
+			ctor = &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Loc: classLoc}}}
 
 			// Append it to the list to reuse existing allocation space
 			class.Properties = append(class.Properties, js_ast.Property{
@@ -2484,7 +2485,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			if class.ExtendsOrNil.Data != nil {
 				argumentsRef := p.newSymbol(js_ast.SymbolUnbound, "arguments")
 				p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
-				ctor.Fn.Body.Stmts = append(ctor.Fn.Body.Stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.ECall{
+				ctor.Fn.Body.Block.Stmts = append(ctor.Fn.Body.Block.Stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.ECall{
 					Target: js_ast.Expr{Loc: classLoc, Data: js_ast.ESuperShared},
 					Args:   []js_ast.Expr{{Loc: classLoc, Data: &js_ast.ESpread{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: argumentsRef}}}}},
 				}}}})
@@ -2492,7 +2493,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		}
 
 		// Insert the instance field initializers after the super call if there is one
-		stmtsFrom := ctor.Fn.Body.Stmts
+		stmtsFrom := ctor.Fn.Body.Block.Stmts
 		stmtsTo := []js_ast.Stmt{}
 		for i, stmt := range stmtsFrom {
 			if js_ast.IsSuperCall(stmt) {
@@ -2504,7 +2505,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		stmtsTo = append(stmtsTo, parameterFields...)
 		stmtsTo = append(stmtsTo, instancePrivateMethods...)
 		stmtsTo = append(stmtsTo, instanceMembers...)
-		ctor.Fn.Body.Stmts = append(stmtsTo, stmtsFrom...)
+		ctor.Fn.Body.Block.Stmts = append(stmtsTo, stmtsFrom...)
 
 		// Sort the constructor first to match the TypeScript compiler's output
 		for i := 0; i < len(class.Properties); i++ {

@@ -253,6 +253,18 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 
 			p.lexer.Expect(js_lexer.TOpenParen)
 			p.lexer.Expect(js_lexer.TStringLiteral)
+
+			// "import('./foo.json', { assert: { type: 'json' } })"
+			if p.lexer.Token == js_lexer.TComma {
+				p.lexer.Next()
+				p.skipTypeScriptObjectType()
+
+				// "import('./foo.json', { assert: { type: 'json' } }, )"
+				if p.lexer.Token == js_lexer.TComma {
+					p.lexer.Next()
+				}
+			}
+
 			p.lexer.Expect(js_lexer.TCloseParen)
 
 		case js_lexer.TNew:
@@ -364,6 +376,7 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 					}
 					p.lexer.Next()
 				}
+				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
 			}
 
 		case js_lexer.TOpenBracket:
@@ -777,18 +790,19 @@ func (p *parser) isTSArrowFnJSX() (isTSArrowFn bool) {
 func (p *parser) canFollowTypeArgumentsInExpression() bool {
 	switch p.lexer.Token {
 	case
-		// These are the only tokens can legally follow a type argument list. So we
-		// definitely want to treat them as type arg lists.
+		// These tokens can follow a type argument list in a call expression.
 		js_lexer.TOpenParen,                     // foo<x>(
 		js_lexer.TNoSubstitutionTemplateLiteral, // foo<T> `...`
 		js_lexer.TTemplateHead:                  // foo<T> `...${100}...`
 		return true
 
 	case
-		// These cases can't legally follow a type arg list. However, they're not
-		// legal expressions either. The user is probably in the middle of a
-		// generic type. So treat it as such.
+		// These tokens can't follow in a call expression, nor can they start an
+		// expression. So, consider the type argument list part of an instantiation
+		// expression.
+		js_lexer.TComma,                   // foo<x>,
 		js_lexer.TDot,                     // foo<x>.
+		js_lexer.TQuestionDot,             // foo<x>?.
 		js_lexer.TCloseParen,              // foo<x>)
 		js_lexer.TCloseBracket,            // foo<x>]
 		js_lexer.TColon,                   // foo<x>:
@@ -807,14 +821,6 @@ func (p *parser) canFollowTypeArgumentsInExpression() bool {
 		js_lexer.TCloseBrace,              // foo<x> }
 		js_lexer.TEndOfFile:               // foo<x>
 		return true
-
-	case
-		// We don't want to treat these as type arguments. Otherwise we'll parse
-		// this as an invocation expression. Instead, we want to parse out the
-		// expression in isolation from the type arguments.
-		js_lexer.TComma,     // foo<x>,
-		js_lexer.TOpenBrace: // foo<x> {
-		return false
 
 	default:
 		// Anything else treat as an expression.
@@ -887,6 +893,7 @@ func (p *parser) parseTypeScriptDecorators() []js_ast.Expr {
 	var tsDecorators []js_ast.Expr
 	if p.options.ts.Parse {
 		for p.lexer.Token == js_lexer.TAt {
+			loc := p.lexer.Loc()
 			p.lexer.Next()
 
 			// Parse a new/call expression with "exprFlagTSDecorator" so we ignore
@@ -897,10 +904,39 @@ func (p *parser) parseTypeScriptDecorators() []js_ast.Expr {
 			//   }
 			//
 			// This matches the behavior of the TypeScript compiler.
-			tsDecorators = append(tsDecorators, p.parseExprWithFlags(js_ast.LNew, exprFlagTSDecorator))
+			value := p.parseExprWithFlags(js_ast.LNew, exprFlagTSDecorator)
+			value.Loc = loc
+			tsDecorators = append(tsDecorators, value)
 		}
 	}
 	return tsDecorators
+}
+
+func (p *parser) logInvalidDecoratorError(classKeyword logger.Range) {
+	if p.options.ts.Parse && p.lexer.Token == js_lexer.TAt {
+		// Forbid decorators inside class expressions
+		p.lexer.AddRangeErrorWithNotes(p.lexer.Range(), "Decorators can only be used with class declarations in TypeScript",
+			[]logger.MsgData{p.tracker.MsgData(classKeyword, "This is a class expression, not a class declaration:")})
+
+		// Parse and discard decorators for error recovery
+		scopeIndex := len(p.scopesInOrder)
+		p.parseTypeScriptDecorators()
+		p.discardScopesUpTo(scopeIndex)
+	}
+}
+
+func (p *parser) logMisplacedDecoratorError(tsDecorators *deferredTSDecorators) {
+	found := fmt.Sprintf("%q", p.lexer.Raw())
+	if p.lexer.Token == js_lexer.TEndOfFile {
+		found = "end of file"
+	}
+
+	// Try to be helpful by pointing out the decorator
+	p.lexer.AddRangeErrorWithNotes(p.lexer.Range(), fmt.Sprintf("Expected \"class\" after TypeScript decorator but found %s", found), []logger.MsgData{
+		p.tracker.MsgData(logger.Range{Loc: tsDecorators.values[0].Loc}, "The preceding TypeScript decorator is here:"),
+		{Text: "Decorators can only be used with class declarations in TypeScript."},
+	})
+	p.discardScopesUpTo(tsDecorators.scopeIndex)
 }
 
 func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
@@ -1487,7 +1523,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
 		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
 			Args: args,
-			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			Body: js_ast.FnBody{Loc: stmtLoc, Block: js_ast.SBlock{Stmts: stmtsInsideClosure}},
 		}}}
 	} else {
 		// "(() => { foo() })()" => "(() => foo())()"
@@ -1498,7 +1534,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 		}
 		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EArrow{
 			Args:       args,
-			Body:       js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			Body:       js_ast.FnBody{Loc: stmtLoc, Block: js_ast.SBlock{Stmts: stmtsInsideClosure}},
 			PreferExpr: true,
 		}}
 	}
@@ -1599,12 +1635,12 @@ func (p *parser) generateClosureForTypeScriptEnum(
 	if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
 		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
 			Args: args,
-			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			Body: js_ast.FnBody{Loc: stmtLoc, Block: js_ast.SBlock{Stmts: stmtsInsideClosure}},
 		}}}
 	} else {
 		targetExpr = js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EArrow{
 			Args:       args,
-			Body:       js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+			Body:       js_ast.FnBody{Loc: stmtLoc, Block: js_ast.SBlock{Stmts: stmtsInsideClosure}},
 			PreferExpr: p.options.minifySyntax,
 		}}
 	}
