@@ -2572,9 +2572,9 @@ func (p *printer) isCallExprSuperfluous(value *js_ast.ECall) bool {
 		}
 	}
 
-	keptName := helpers.UTF16ToString(value.Args[1].Data.(*js_ast.EString).Value)
+	keptName := value.Args[1].Data.(*js_ast.EString).Value
 
-	if fnNameOrNil != nil && keptName == p.renamer.NameForSymbol(*fnNameOrNil) {
+	if fnNameOrNil != nil && helpers.UTF16EqualsString(keptName, p.renamer.NameForSymbol(*fnNameOrNil)) {
 		return true
 	}
 
