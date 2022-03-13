@@ -3387,17 +3387,15 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		update := s.UpdateOrNil
 
 		// Omit calls to empty functions from the output completely
-		if p.options.MinifySyntax {
-			if expr, ok := init.Data.(*js_ast.SExpr); ok {
-				if value := p.simplifyUnusedExpr(expr.Value); value.Data == nil {
-					init.Data = nil
-				} else if value.Data != expr.Value.Data {
-					init.Data = &js_ast.SExpr{Value: value}
-				}
+		if expr, ok := init.Data.(*js_ast.SExpr); ok {
+			if value := p.simplifyUnusedExpr(expr.Value); value.Data == nil {
+				init.Data = nil
+			} else if value.Data != expr.Value.Data {
+				init.Data = &js_ast.SExpr{Value: value}
 			}
-			if update.Data != nil {
-				update = p.simplifyUnusedExpr(update)
-			}
+		}
+		if update.Data != nil {
+			update = p.simplifyUnusedExpr(update)
 		}
 
 		p.printIndent()
@@ -3611,20 +3609,18 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		value := s.Value
 
 		// Omit calls to empty functions from the output completely
-		if p.options.MinifySyntax {
-			value = p.simplifyUnusedExpr(value)
-			if value.Data == nil {
-				// If this statement is not in a block, then we still need to emit something
-				if (flags & canOmitStatement) == 0 {
-					// "if (x) empty();" => "if (x) ;"
-					p.printIndent()
-					p.print(";")
-					p.printNewline()
-				} else {
-					// "if (x) { empty(); }" => "if (x) {}"
-				}
-				break
+		value = p.simplifyUnusedExpr(value)
+		if value.Data == nil {
+			// If this statement is not in a block, then we still need to emit something
+			if (flags & canOmitStatement) == 0 {
+				// "if (x) empty();" => "if (x) ;"
+				p.printIndent()
+				p.print(";")
+				p.printNewline()
+			} else {
+				// "if (x) { empty(); }" => "if (x) {}"
 			}
+			break
 		}
 
 		p.printIndent()

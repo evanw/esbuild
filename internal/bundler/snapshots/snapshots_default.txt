@@ -1419,11 +1419,9 @@ TestKeepNamesWithNecessaryHelperFunctionCalls
 function functionStmt() {
   return "copy1";
 }
-functionStmt;
 var classStmt = class {
   foo = "copy1";
 };
-classStmt;
 var functionExpr = function fn() {
   return "copy1";
 };
@@ -1434,7 +1432,6 @@ var classStmtSideEffect = class {
   static [copy1]() {
   }
 };
-classStmtSideEffect;
 var classExprSideEffect = class clsSideEffect {
   static [copy1]() {
   }
