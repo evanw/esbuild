@@ -2560,25 +2560,27 @@ func (p *printer) isCallExprSuperfluous(value *js_ast.ECall) bool {
 		return false
 	}
 
-	fn := value.Args[0]
-
-	var fnNameOrNil *js_ast.Ref
-	switch e := fn.Data.(type) {
+	var ref *js_ast.Ref
+	switch e := value.Args[0].Data.(type) {
 	case *js_ast.EIdentifier:
-		fnNameOrNil = &e.Ref
+		// "__name(foo, 'foo')"
+		ref = &e.Ref
+
 	case *js_ast.EFunction:
+		// "__name(function foo() {}, 'foo')"
 		if e.Fn.Name != nil {
-			fnNameOrNil = &e.Fn.Name.Ref
+			ref = &e.Fn.Name.Ref
+		}
+
+	case *js_ast.EClass:
+		// "__name(class foo {}, 'foo')"
+		if e.Class.Name != nil {
+			ref = &e.Class.Name.Ref
 		}
 	}
 
 	keptName := value.Args[1].Data.(*js_ast.EString).Value
-
-	if fnNameOrNil != nil && helpers.UTF16EqualsString(keptName, p.renamer.NameForSymbol(*fnNameOrNil)) {
-		return true
-	}
-
-	return false
+	return ref != nil && helpers.UTF16EqualsString(keptName, p.renamer.NameForSymbol(*ref))
 }
 
 func (p *printer) isUnboundEvalIdentifier(value js_ast.Expr) bool {
