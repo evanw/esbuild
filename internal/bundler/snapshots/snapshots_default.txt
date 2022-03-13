@@ -1413,6 +1413,71 @@ var clsExprKeep = /* @__PURE__ */ __name(class {
 new clsExprKeep();
 
 ================================================================================
+TestKeepNamesWithNecessaryHelperFunctionCalls
+---------- /out.js ----------
+// copy1.js
+function functionStmt() {
+  return "copy1";
+}
+functionStmt;
+var classStmt = class {
+  foo = "copy1";
+};
+classStmt;
+var functionExpr = function fn() {
+  return "copy1";
+};
+var classExpr = class cls {
+  foo = "copy1";
+};
+var classStmtSideEffect = class {
+  static [copy1]() {
+  }
+};
+classStmtSideEffect;
+var classExprSideEffect = class clsSideEffect {
+  static [copy1]() {
+  }
+};
+
+// copy2.js
+function functionStmt2() {
+  return "copy2";
+}
+__name(functionStmt2, "functionStmt");
+var classStmt2 = class {
+  foo = "copy2";
+};
+__name(classStmt2, "classStmt");
+var functionExpr2 = /* @__PURE__ */ __name(function fn2() {
+  return "copy2";
+}, "fn");
+var classExpr2 = /* @__PURE__ */ __name(class cls2 {
+  foo = "copy2";
+}, "cls");
+var classStmtSideEffect2 = class {
+  static [copy2]() {
+  }
+};
+__name(classStmtSideEffect2, "classStmtSideEffect");
+var classExprSideEffect2 = /* @__PURE__ */ __name(class clsSideEffect2 {
+  static [copy2]() {
+  }
+}, "clsSideEffect");
+
+// entry.js
+console.log([
+  functionStmt,
+  functionStmt2,
+  functionExpr,
+  functionExpr2,
+  classStmt,
+  classStmt2,
+  classExpr,
+  classExpr2
+]);
+
+================================================================================
 TestLegalCommentsAvoidSlashTagEndOfFile
 ---------- /out/entry.js ----------
 // entry.js

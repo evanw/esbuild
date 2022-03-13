@@ -4358,6 +4358,61 @@ func TestDefineThis(t *testing.T) {
 	})
 }
 
+func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {
+					functionStmt as functionStmt1,
+					functionExpr as functionExpr1,
+					classStmt as classStmt1,
+					classExpr as classExpr1,
+				} from './copy1'
+
+				import {
+					functionStmt as functionStmt2,
+					functionExpr as functionExpr2,
+					classStmt as classStmt2,
+					classExpr as classExpr2,
+				} from './copy2'
+
+				console.log([
+					functionStmt1, functionStmt2,
+					functionExpr1, functionExpr2,
+					classStmt1, classStmt2,
+					classExpr1, classExpr2,
+				])
+			`,
+
+			"/copy1.js": `
+				export function functionStmt() { return 'copy1' }
+				export class classStmt { foo = 'copy1' }
+				export let functionExpr = function fn() { return 'copy1' }
+				export let classExpr = class cls { foo = 'copy1' }
+
+				class classStmtSideEffect { static [copy1]() {} }
+				let classExprSideEffect = class clsSideEffect { static [copy1]() {} }
+			`,
+
+			"/copy2.js": `
+				export function functionStmt() { return 'copy2' }
+				export class classStmt { foo = 'copy2' }
+				export let functionExpr = function fn() { return 'copy2' }
+				export let classExpr = class cls { foo = 'copy2' }
+
+				class classStmtSideEffect { static [copy2]() {} }
+				let classExprSideEffect = class clsSideEffect { static [copy2]() {} }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			KeepNames:     true,
+		},
+	})
+}
+
 func TestKeepNamesTreeShaking(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
