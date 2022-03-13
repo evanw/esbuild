@@ -56,6 +56,48 @@
 
     Some JavaScript environments such as Cloudflare Workers or Deno Deploy don't allow `new Function` because they disallow dynamic JavaScript evaluation. Previously esbuild's WebAssembly-based library used this to construct the WebAssembly worker function. With this release, the code is now inlined without using `new Function` so it will be able to run even when this restriction is in place.
 
+* Drop superfluous `__name()` calls ([#2062](https://github.com/evanw/esbuild/pull/2062))
+
+    When the `--keep-names` option is specified, esbuild inserts calls to a `__name` helper function to ensure that the `.name` property on function and class objects remains consistent even if the function or class name is renamed to avoid a name collision or because name minification is enabled. With this release, esbuild will now try to omit these calls to the `__name` helper function when the name of the function or class object was not renamed during the linking process after all:
+
+    ```js
+    // Original code
+    import { foo as foo1 } from 'data:text/javascript,export function foo() { return "foo1" }'
+    import { foo as foo2 } from 'data:text/javascript,export function foo() { return "foo2" }'
+    console.log(foo1.name, foo2.name)
+
+    // Old output (with --bundle --keep-names)
+    (() => {
+      var __defProp = Object.defineProperty;
+      var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+      function foo() {
+        return "foo1";
+      }
+      __name(foo, "foo");
+      function foo2() {
+        return "foo2";
+      }
+      __name(foo2, "foo");
+      console.log(foo.name, foo2.name);
+    })();
+
+    // New output (with --bundle --keep-names)
+    (() => {
+      var __defProp = Object.defineProperty;
+      var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+      function foo() {
+        return "foo1";
+      }
+      function foo2() {
+        return "foo2";
+      }
+      __name(foo2, "foo");
+      console.log(foo.name, foo2.name);
+    })();
+    ```
+
+    Notice how one of the calls to `__name` is now no longer printed. This change was contributed by [@indutny](https://github.com/indutny).
+
 ## 0.14.25
 
 * Reduce minification of CSS transforms to avoid Safari bugs ([#2057](https://github.com/evanw/esbuild/issues/2057))
