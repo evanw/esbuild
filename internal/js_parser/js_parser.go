@@ -7724,7 +7724,6 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 				prevStmt := result[len(result)-1]
 				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) && !js_ast.IsSuperCall(stmt) {
 					prevS.Value = js_ast.JoinWithComma(prevS.Value, s.Value)
-					prevS.DoesNotAffectTreeShaking = prevS.DoesNotAffectTreeShaking && s.DoesNotAffectTreeShaking
 					continue
 				}
 			}
@@ -8957,12 +8956,7 @@ func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string)
 	})
 	call.Data.(*js_ast.ECall).IsKeepName = true
 
-	return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
-		Value: call,
-
-		// Make sure tree shaking removes this if the function is never used
-		DoesNotAffectTreeShaking: true,
-	}}
+	return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: call}}
 }
 
 func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_ast.Stmt {
@@ -14428,12 +14422,6 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
 			}
 
 		case *js_ast.SExpr:
-			if s.DoesNotAffectTreeShaking {
-				// Expressions marked with this are automatically generated and have
-				// no side effects by construction.
-				break
-			}
-
 			if !p.exprCanBeRemovedIfUnused(s.Value) {
 				return false
 			}
@@ -14607,7 +14595,7 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 		return true
 
 	case *js_ast.ECall:
-		canCallBeRemoved := e.CanBeUnwrappedIfUnused
+		canCallBeRemoved := e.CanBeUnwrappedIfUnused || e.IsKeepName
 
 		// Consider calls to our runtime "__publicField" function to be free of
 		// side effects for the purpose of expression removal. This allows class

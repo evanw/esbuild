@@ -1135,11 +1135,6 @@ type SLazyExport struct {
 
 type SExpr struct {
 	Value Expr
-
-	// This is set to true for automatically-generated expressions that should
-	// not affect tree shaking. For example, calling a function from the runtime
-	// that doesn't have externally-visible side effects.
-	DoesNotAffectTreeShaking bool
 }
 
 type EnumValue struct {
