@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+* Fix a tree shaking regression regarding `var` declarations ([#2080](https://github.com/evanw/esbuild/issues/2080), [#2085](https://github.com/evanw/esbuild/pull/2085), [#2098](https://github.com/evanw/esbuild/issues/2098), [#2099](https://github.com/evanw/esbuild/issues/2099))
+
+    Version 0.14.8 of esbuild enabled removal of duplicate function declarations when minification is enabled (see [#610](https://github.com/evanw/esbuild/issues/610)):
+
+    ```js
+    // Original code
+    function x() { return 1 }
+    console.log(x())
+    function x() { return 2 }
+
+    // Output (with --minify-syntax)
+    console.log(x());
+    function x() {
+      return 2;
+    }
+    ```
+
+    This transformation is safe because function declarations are "hoisted" in JavaScript, which means they are all done first before any other code is evaluted. This means the last function declaration will overwrite all previous function declarations with the same name.
+
+    However, this introduced an unintentional regression for `var` declarations in which all but the last declaration was dropped if tree-shaking was enabled. This only happens for top-level `var` declarations that re-declare the same variable multiple times. This regression has now been fixed:
+
+    ```js
+    // Original code
+    var x = 1
+    console.log(x)
+    var x = 2
+
+    // Old output (with --tree-shaking=true)
+    console.log(x);
+    var x = 2;
+
+    // New output (with --tree-shaking=true)
+    var x = 1;
+    console.log(x);
+    var x = 2;
+    ```
+
+    This case now has test coverage.
+
 * Add support for parsing "instantiation expressions" from TypeScript 4.7 ([#2038](https://github.com/evanw/esbuild/pull/2038))
 
     The upcoming version of TypeScript now lets you specify `<...>` type parameters on a JavaScript identifier without using a call expression:

@@ -15303,8 +15303,15 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 		for partIndex, part := range parts {
 			for _, declared := range part.DeclaredSymbols {
 				if declared.IsTopLevel {
-					p.topLevelSymbolToParts[declared.Ref] = append(
-						p.topLevelSymbolToParts[declared.Ref], uint32(partIndex))
+					// If this symbol was merged, use the symbol at the end of the
+					// linked list in the map. This is the case for multiple "var"
+					// declarations with the same name, for example.
+					ref := declared.Ref
+					for p.symbols[ref.InnerIndex].Link != js_ast.InvalidRef {
+						ref = p.symbols[ref.InnerIndex].Link
+					}
+					p.topLevelSymbolToParts[ref] = append(
+						p.topLevelSymbolToParts[ref], uint32(partIndex))
 				}
 			}
 		}
