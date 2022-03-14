@@ -175,6 +175,7 @@ const (
 	tsTypeIdentifierAsserts
 	tsTypeIdentifierPrefix
 	tsTypeIdentifierPrimitive
+	tsTypeIdentifierOut
 )
 
 // Use a map to improve lookup speed
@@ -182,6 +183,7 @@ var tsTypeIdentifierMap = map[string]tsTypeIdentifierKind{
 	"unique":   tsTypeIdentifierUnique,
 	"abstract": tsTypeIdentifierAbstract,
 	"asserts":  tsTypeIdentifierAsserts,
+	"out":      tsTypeIdentifierOut,
 
 	"keyof":    tsTypeIdentifierPrefix,
 	"readonly": tsTypeIdentifierPrefix,
@@ -610,7 +612,23 @@ func (p *parser) skipTypeScriptTypeParameters() {
 		p.lexer.Next()
 
 		for {
-			p.lexer.Expect(js_lexer.TIdentifier)
+			// type X<out> = out;
+			inOutMaybeIdentifier := false
+
+			if p.lexer.Token == js_lexer.TIn {
+				p.lexer.Next()
+				inOutMaybeIdentifier = true
+			}
+
+			kind := tsTypeIdentifierMap[p.lexer.Identifier.String]
+			if kind == tsTypeIdentifierOut {
+				p.lexer.Next()
+				inOutMaybeIdentifier = true
+			}
+
+			if p.lexer.Token == js_lexer.TIdentifier || !inOutMaybeIdentifier {
+				p.lexer.Expect(js_lexer.TIdentifier)
+			}
 
 			// "class Foo<T extends number> {}"
 			if p.lexer.Token == js_lexer.TExtends {
