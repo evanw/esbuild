@@ -3521,7 +3521,9 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 	// external CommonJS "module.exports" object in addition to our internal ESM
 	// export namespace object. The difference between these two objects is that
 	// our internal one must not have the "__esModule" marker while the external
-	// one must have the "__esModule" marker.
+	// one must have the "__esModule" marker. This is done because an ES module
+	// importing itself should not see the "__esModule" marker but a CommonJS module
+	// importing us should see the "__esModule" marker.
 	var moduleExportsForReExportOrNil js_ast.Expr
 	if c.options.OutputFormat == config.FormatCommonJS && file.IsEntryPoint() {
 		moduleExportsForReExportOrNil = js_ast.Expr{Data: &js_ast.EDot{

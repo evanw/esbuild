@@ -8,6 +8,16 @@
 
     Previously esbuild always created the forwarding `default` import in Babel mode, even if `module.exports` had no property called `default`. This was problematic because the getter named `default` still showed up as a property on the imported namespace object, and could potentially interfere with code that iterated over the properties of the imported namespace object. With this release the getter named `default` will now only be added in Babel mode if the `default` property exists at the time of the import.
 
+* Fix a circular import edge case regarding ESM-to-CommonJS conversion ([#1894](https://github.com/evanw/esbuild/issues/1894), [#2059](https://github.com/evanw/esbuild/pull/2059))
+
+    This fixes a regression that was introduced in version 0.14.5 of esbuild. Ever since that version, esbuild now creates two separate export objects when you convert an ES module file into a CommonJS module: one for ES modules and one for CommonJS modules. The one for CommonJS modules is written to `module.exports` and exported from the file, and the one for ES modules is internal and can be accessed by bundling code that imports the entry point (for example, the entry point might import itself to be able to inspect its own exports).
+
+    The reason for these two separate export objects is that CommonJS modules are supposed to see a special export called `__esModule` which indicates that the module used to be an ES module, while ES modules are not supposed to see any automatically-added export named `__esModule`. This matters for real-world code both because people sometimes iterate over the properties of ES module export namespace objects and because some people write ES module code containing their own exports named `__esModule` that they expect other ES module code to be able to read.
+
+    However, this change to split exports into two separate objects broke ES module re-exports in the edge case where the imported module is involved in an import cycle. This happened because the CommonJS `module.exports` object was no longer mutated as exports were added. Instead it was being initialized at the end of the generated file after the import statements to other modules (which are converted into `require()` calls). This release changes `module.exports` initialization to happen earlier in the file and then double-writes further exports to both the ES module and CommonJS module export objects.
+
+    This fix was contributed by [@indutny](https://github.com/indutny).
+
 ## 0.14.26
 
 * Fix a tree shaking regression regarding `var` declarations ([#2080](https://github.com/evanw/esbuild/issues/2080), [#2085](https://github.com/evanw/esbuild/pull/2085), [#2098](https://github.com/evanw/esbuild/issues/2098), [#2099](https://github.com/evanw/esbuild/issues/2099))
