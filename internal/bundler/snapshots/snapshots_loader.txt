@@ -968,7 +968,7 @@ var entry_exports = {};
 module.exports = __toCommonJS(entry_exports);
 var import_a_nowrap = require("a_nowrap");
 var import_b_nowrap = require("b_nowrap");
-__reExport(entry_exports, module.exports, require("c_nowrap"));
+__reExport(entry_exports, require("c_nowrap"), module.exports);
 var d = __toESM(require("d_WRAP"));
 var import_e_WRAP = __toESM(require("e_WRAP"));
 var import_f_WRAP = __toESM(require("f_WRAP"));

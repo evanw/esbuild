@@ -208,7 +208,7 @@ func code(isES6 bool) string {
 			return to
 		}
 
-		export var __reExport = (target, secondTarget, mod) => (
+		export var __reExport = (target, mod, secondTarget) => (
 			__copyProps(target, mod, 'default'),
 			secondTarget && __copyProps(secondTarget, mod, 'default')
 		)

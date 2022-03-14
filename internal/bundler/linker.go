@@ -3524,8 +3524,6 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
 			Name:   "exports",
 		}}
-	} else {
-		moduleExportsOrNil = js_ast.Expr{Data: js_ast.ENullShared}
 	}
 
 	for _, stmt := range partStmts {
@@ -3583,17 +3581,20 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 						ImportRecordIndex: s.ImportRecordIndex,
 					}
 
-					// Prefix this module with "__reExport(exports, module.exports, ns)"
+					// Prefix this module with "__reExport(exports, ns, module.exports)"
 					exportStarRef := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.ModuleScope.Members["__reExport"].Ref
+					args := []js_ast.Expr{
+						{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
+						{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: s.NamespaceRef}},
+					}
+					if moduleExportsOrNil.Data != nil {
+						args = append(args, moduleExportsOrNil)
+					}
 					stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
 						Loc: stmt.Loc,
 						Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
 							Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
-							Args: []js_ast.Expr{
-								{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
-								moduleExportsOrNil,
-								{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: s.NamespaceRef}},
-							},
+							Args:   args,
 						}}},
 					})
 
@@ -3616,26 +3617,29 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					var target js_ast.E
 					if record.SourceIndex.IsValid() {
 						if otherRepr := c.graph.Files[record.SourceIndex.GetIndex()].InputFile.Repr.(*graph.JSRepr); otherRepr.AST.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
-							// Prefix this module with "__reExport(exports, module.exports, otherExports)"
+							// Prefix this module with "__reExport(exports, otherExports, module.exports)"
 							target = &js_ast.EIdentifier{Ref: otherRepr.AST.ExportsRef}
 						}
 					}
 					if target == nil {
-						// Prefix this module with "__reExport(exports, module.exports, require(path))"
+						// Prefix this module with "__reExport(exports, require(path), module.exports)"
 						target = &js_ast.ERequireString{
 							ImportRecordIndex: s.ImportRecordIndex,
 						}
 					}
 					exportStarRef := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.ModuleScope.Members["__reExport"].Ref
+					args := []js_ast.Expr{
+						{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
+						{Loc: record.Range.Loc, Data: target},
+					}
+					if moduleExportsOrNil.Data != nil {
+						args = append(args, moduleExportsOrNil)
+					}
 					stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
 						Loc: stmt.Loc,
 						Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
 							Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
-							Args: []js_ast.Expr{
-								{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
-								moduleExportsOrNil,
-								{Loc: record.Range.Loc, Data: target},
-							},
+							Args:   args,
 						}}},
 					})
 				}

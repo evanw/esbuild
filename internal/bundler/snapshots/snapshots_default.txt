@@ -858,7 +858,7 @@ TestExportWildcardFSNodeCommonJS
 // entry.js
 var entry_exports = {};
 module.exports = __toCommonJS(entry_exports);
-__reExport(entry_exports, module.exports, require("fs"));
+__reExport(entry_exports, require("fs"), module.exports);
 
 ================================================================================
 TestExportWildcardFSNodeES6
@@ -938,7 +938,7 @@ var e_exports = {};
 import * as x_star from "x";
 var init_e = __esm({
   "e.js"() {
-    __reExport(e_exports, null, x_star);
+    __reExport(e_exports, x_star);
   }
 });
 
