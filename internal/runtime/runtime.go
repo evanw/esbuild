@@ -228,15 +228,10 @@ func code(isES6 bool) string {
 			), module)
 		}
 
-		// Converts the module from ESM to CommonJS
-		export var __toCommonJS = /* @__PURE__ */ (cache => {
-			return (module, temp) => {
-				return (cache && cache.get(module)) || (
-					temp = __reExport(__markAsModule({}), module, /* copyDefault */ 1),
-					cache && cache.set(module, temp),
-					temp)
-			}
-		})(typeof WeakMap !== 'undefined' ? new WeakMap : 0)
+		// Converts the module from ESM to CommonJS. This clones the input module
+		// object with the addition of a non-enumerable "__esModule" property set
+		// to "true", which overwrites any existing export named "__esModule".
+		export var __toCommonJS = module => __reExport(__markAsModule({}), module, /* copyDefault */ 1)
 
 		// For TypeScript decorators
 		// - kind === undefined: class
