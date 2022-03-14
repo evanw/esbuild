@@ -208,7 +208,15 @@ func code(isES6 bool) string {
 			return to
 		}
 
-		export var __reExport = (target, mod) => __copyProps(target, mod, 'default')
+		// This is used to implement "export * from" statements. It copies properties
+		// from the imported module to the current module's ESM export object. If the
+		// current module is an entry point and the target format is CommonJS, we
+		// also copy the properties to "module.exports" in addition to our module's
+		// internal ESM export object.
+		export var __reExport = (target, mod, secondTarget) => (
+			__copyProps(target, mod, 'default'),
+			secondTarget && __copyProps(secondTarget, mod, 'default')
+		)
 
 		// Converts the module from CommonJS to ESM. When in node mode (i.e. in an
 		// ".mjs" file, package.json has "type: module", or the "__esModule" export

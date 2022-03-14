@@ -1100,11 +1100,7 @@
       'node.ts': `
         import {a} from './re-export'
         let fn = a()
-
-        // Note: The "void 0" is different here. This case broke when fixing
-        // something else ("default" export semantics in node). This test still
-        // exists to document this broken behavior.
-        if (fn === a || fn() !== void 0) throw 'fail'
+        if (fn === a || fn() !== a) throw 'fail'
       `,
       're-export.ts': `
         export * from './a'
@@ -1116,6 +1112,38 @@
       'b.ts': `
         import {a} from './re-export'
         export let b = () => a
+      `,
+    }),
+
+    // Failure case due to a bug in https://github.com/evanw/esbuild/pull/2059
+    test(['in.ts', '--bundle', '--format=cjs', '--outfile=out.js', '--external:*.cjs'], {
+      'in.ts': `
+        export * from './a.cjs'
+        import * as inner from './inner.js'
+        export { inner }
+      `,
+      'inner.ts': `export * from './b.cjs'`,
+      'a.cjs': `exports.a = 'a'`,
+      'b.cjs': `exports.b = 'b'`,
+      'node.js': `
+        const out = require('./out.js')
+        if (out.a !== 'a' || out.inner === void 0 || out.inner.b !== 'b' || out.b !== void 0) throw 'fail'
+      `,
+    }),
+
+    // Validate internal and external export correctness regarding "__esModule".
+    // An ES module importing itself should not see "__esModule". But a CommonJS
+    // module importing an ES module should see "__esModule".
+    test(['in.ts', '--bundle', '--format=cjs', '--outfile=out.js', '--external:*.cjs'], {
+      'in.ts': `
+        export * from './a.cjs'
+        import * as us from './in.js'
+        if (us.a !== 'a' || us.__esModule !== void 0) throw 'fail'
+      `,
+      'a.cjs': `exports.a = 'a'`,
+      'node.js': `
+        const out = require('./out.js')
+        if (out.a !== 'a' || out.__esModule !== true) throw 'fail'
       `,
     }),
 

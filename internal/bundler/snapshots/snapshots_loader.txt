@@ -965,9 +965,10 @@ export default {
 TestToESMWrapperOmission
 ---------- /out/entry.js ----------
 var entry_exports = {};
+module.exports = __toCommonJS(entry_exports);
 var import_a_nowrap = require("a_nowrap");
 var import_b_nowrap = require("b_nowrap");
-__reExport(entry_exports, require("c_nowrap"));
+__reExport(entry_exports, require("c_nowrap"), module.exports);
 var d = __toESM(require("d_WRAP"));
 var import_e_WRAP = __toESM(require("e_WRAP"));
 var import_f_WRAP = __toESM(require("f_WRAP"));
@@ -984,7 +985,6 @@ x = h;
 i.x();
 j.x``;
 x = Promise.resolve().then(() => __toESM(require("k_WRAP")));
-module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
 TestWarnCommonJSExportsInESMBundle
@@ -994,10 +994,10 @@ var cjs_in_esm_exports = {};
 __export(cjs_in_esm_exports, {
   foo: () => foo
 });
+module.exports = __toCommonJS(cjs_in_esm_exports);
 var foo = 1;
 exports.foo = 2;
 module.exports = 3;
-module.exports = __toCommonJS(cjs_in_esm_exports);
 
 ---------- /out/import-in-cjs.js ----------
 // import-in-cjs.js
@@ -1016,19 +1016,19 @@ var cjs_in_esm_exports = {};
 __export(cjs_in_esm_exports, {
   foo: () => foo
 });
+module.exports = __toCommonJS(cjs_in_esm_exports);
 let foo = 1;
 exports.foo = 2;
 module.exports = 3;
-module.exports = __toCommonJS(cjs_in_esm_exports);
 
 ---------- /out/cjs-in-esm2.js ----------
 var cjs_in_esm2_exports = {};
 __export(cjs_in_esm2_exports, {
   foo: () => foo
 });
+module.exports = __toCommonJS(cjs_in_esm2_exports);
 let foo = 1;
 module.exports.bar = 3;
-module.exports = __toCommonJS(cjs_in_esm2_exports);
 
 ---------- /out/import-in-cjs.js ----------
 var import_bar = require("bar");
