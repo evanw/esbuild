@@ -3518,9 +3518,9 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 	repr := file.InputFile.Repr.(*graph.JSRepr)
 	shouldExtractESMStmtsForWrap := repr.Meta.Wrap != graph.WrapNone
 
-	var moduleExportsOrNil js_ast.Expr
+	var moduleExportsForReExportOrNil js_ast.Expr
 	if c.options.OutputFormat == config.FormatCommonJS {
-		moduleExportsOrNil = js_ast.Expr{Data: &js_ast.EDot{
+		moduleExportsForReExportOrNil = js_ast.Expr{Data: &js_ast.EDot{
 			Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
 			Name:   "exports",
 		}}
@@ -3587,8 +3587,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 						{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
 						{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: s.NamespaceRef}},
 					}
-					if moduleExportsOrNil.Data != nil {
-						args = append(args, moduleExportsOrNil)
+					if moduleExportsForReExportOrNil.Data != nil {
+						args = append(args, moduleExportsForReExportOrNil)
 					}
 					stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
 						Loc: stmt.Loc,
@@ -3632,8 +3632,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 						{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
 						{Loc: record.Range.Loc, Data: target},
 					}
-					if moduleExportsOrNil.Data != nil {
-						args = append(args, moduleExportsOrNil)
+					if moduleExportsForReExportOrNil.Data != nil {
+						args = append(args, moduleExportsForReExportOrNil)
 					}
 					stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
 						Loc: stmt.Loc,
