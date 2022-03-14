@@ -2029,8 +2029,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// instead of by mutating the exports object because other modules in the
 	// bundle (including the entry point module) may do "import * as" to get
 	// access to the exports object and should NOT see the "__esModule" flag.
-	if repr.Meta.NeedsExportsVariable &&
-		repr.Meta.ForceIncludeExportsForEntryPoint &&
+	if repr.Meta.ForceIncludeExportsForEntryPoint &&
 		c.options.OutputFormat == config.FormatCommonJS {
 
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
