@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.27
 
 * Avoid generating an enumerable `default` import for CommonJS files in Babel mode ([#2097](https://github.com/evanw/esbuild/issues/2097))
 
