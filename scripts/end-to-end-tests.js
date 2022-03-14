@@ -1116,6 +1116,22 @@
       `,
     }),
 
+    // Failure case due to a bug in https://github.com/evanw/esbuild/pull/2059
+    test(['in.ts', '--bundle', '--format=cjs', '--outfile=out.js', '--external:*.cjs'], {
+      'in.ts': `
+        export * from './a.cjs'
+        import * as inner from './inner.js'
+        export { inner }
+      `,
+      'inner.ts': `export * from './b.cjs'`,
+      'a.cjs': `exports.a = 'a'`,
+      'b.cjs': `exports.b = 'b'`,
+      'node.js': `
+        const out = require('./out.js')
+        if (out.a !== 'a' || out.inner === void 0 || out.inner.b !== 'b' || out.b !== void 0) throw 'fail'
+      `,
+    }),
+
     // Use "eval" to access CommonJS variables
     test(['--bundle', 'in.js', '--outfile=node.js'], {
       'in.js': `if (require('./eval').foo !== 123) throw 'fail'`,
