@@ -1131,6 +1131,22 @@
       `,
     }),
 
+    // Validate internal and external export correctness regarding "__esModule".
+    // An ES module importing itself should not see "__esModule". But a CommonJS
+    // module importing an ES module should see "__esModule".
+    test(['in.ts', '--bundle', '--format=cjs', '--outfile=out.js', '--external:*.cjs'], {
+      'in.ts': `
+        export * from './a.cjs'
+        import * as us from './in.js'
+        if (us.a !== 'a' || us.__esModule !== void 0) throw 'fail'
+      `,
+      'a.cjs': `exports.a = 'a'`,
+      'node.js': `
+        const out = require('./out.js')
+        if (out.a !== 'a' || out.__esModule !== true) throw 'fail'
+      `,
+    }),
+
     // Use "eval" to access CommonJS variables
     test(['--bundle', 'in.js', '--outfile=node.js'], {
       'in.js': `if (require('./eval').foo !== 123) throw 'fail'`,
