@@ -441,6 +441,8 @@ type printer struct {
 	callTarget             js_ast.E
 	extractedLegalComments map[string]bool
 	js                     []byte
+	keepNamesAssignTarget  js_ast.E
+	keepNamesRef           js_ast.Ref
 	options                Options
 	builder                sourcemap.ChunkBuilder
 	stmtStart              int
@@ -2596,6 +2598,16 @@ func (p *printer) isCallExprSuperfluous(value *js_ast.ECall) bool {
 		}
 	}
 
+	// If this is an anonymous function or class expression but the assign target
+	// has a name binding, use the name from the name binding instead:
+	//
+	//   let foo = __name(function() {}, "foo");
+	//   let bar = __name(class {}, "bar");
+	//
+	if ref == nil && p.keepNamesAssignTarget == value {
+		ref = &p.keepNamesRef
+	}
+
 	keptName := value.Args[1].Data.(*js_ast.EString).Value
 	return ref != nil && helpers.UTF16EqualsString(keptName, p.renamer.NameForSymbol(*ref))
 }
@@ -2814,6 +2826,11 @@ func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags printExp
 		p.printBinding(decl.Binding)
 
 		if decl.ValueOrNil.Data != nil {
+			if id, ok := decl.Binding.Data.(*js_ast.BIdentifier); ok {
+				p.keepNamesAssignTarget = decl.ValueOrNil.Data
+				p.keepNamesRef = id.Ref
+			}
+
 			p.printSpace()
 			p.print("=")
 			p.printSpace()

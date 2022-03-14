@@ -1428,6 +1428,12 @@ var functionExpr = function fn() {
 var classExpr = class cls {
   foo = "copy1";
 };
+var functionAnonExpr = function() {
+  return "copy1";
+};
+var classAnonExpr = class {
+  foo = "copy1";
+};
 var classStmtSideEffect = class {
   static [copy1]() {
   }
@@ -1452,6 +1458,12 @@ var functionExpr2 = /* @__PURE__ */ __name(function fn2() {
 var classExpr2 = /* @__PURE__ */ __name(class cls2 {
   foo = "copy2";
 }, "cls");
+var functionAnonExpr2 = /* @__PURE__ */ __name(function() {
+  return "copy2";
+}, "functionAnonExpr");
+var classAnonExpr2 = /* @__PURE__ */ __name(class {
+  foo = "copy2";
+}, "classAnonExpr");
 var classStmtSideEffect2 = class {
   static [copy2]() {
   }
@@ -1471,7 +1483,11 @@ console.log([
   classStmt,
   classStmt2,
   classExpr,
-  classExpr2
+  classExpr2,
+  functionAnonExpr,
+  functionAnonExpr2,
+  classAnonExpr,
+  classAnonExpr2
 ]);
 
 ================================================================================

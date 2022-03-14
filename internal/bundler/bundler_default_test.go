@@ -4367,6 +4367,8 @@ func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
 					functionExpr as functionExpr1,
 					classStmt as classStmt1,
 					classExpr as classExpr1,
+					functionAnonExpr as functionAnonExpr1,
+					classAnonExpr as classAnonExpr1,
 				} from './copy1'
 
 				import {
@@ -4374,6 +4376,8 @@ func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
 					functionExpr as functionExpr2,
 					classStmt as classStmt2,
 					classExpr as classExpr2,
+					functionAnonExpr as functionAnonExpr2,
+					classAnonExpr as classAnonExpr2,
 				} from './copy2'
 
 				console.log([
@@ -4381,6 +4385,8 @@ func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
 					functionExpr1, functionExpr2,
 					classStmt1, classStmt2,
 					classExpr1, classExpr2,
+					functionAnonExpr1, functionAnonExpr2,
+					classAnonExpr1, classAnonExpr2,
 				])
 			`,
 
@@ -4389,6 +4395,8 @@ func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
 				export class classStmt { foo = 'copy1' }
 				export let functionExpr = function fn() { return 'copy1' }
 				export let classExpr = class cls { foo = 'copy1' }
+				export let functionAnonExpr = function() { return 'copy1' }
+				export let classAnonExpr = class { foo = 'copy1' }
 
 				class classStmtSideEffect { static [copy1]() {} }
 				let classExprSideEffect = class clsSideEffect { static [copy1]() {} }
@@ -4399,6 +4407,8 @@ func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
 				export class classStmt { foo = 'copy2' }
 				export let functionExpr = function fn() { return 'copy2' }
 				export let classExpr = class cls { foo = 'copy2' }
+				export let functionAnonExpr = function() { return 'copy2' }
+				export let classAnonExpr = class { foo = 'copy2' }
 
 				class classStmtSideEffect { static [copy2]() {} }
 				let classExprSideEffect = class clsSideEffect { static [copy2]() {} }
