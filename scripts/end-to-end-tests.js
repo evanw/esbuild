@@ -1100,8 +1100,7 @@
       'node.ts': `
         import {a} from './re-export'
         let fn = a()
-
-        if (fn === a) throw 'fail'
+        if (fn === a || fn() !== a) throw 'fail'
       `,
       're-export.ts': `
         export * from './a'
