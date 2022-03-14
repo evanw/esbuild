@@ -4358,6 +4358,71 @@ func TestDefineThis(t *testing.T) {
 	})
 }
 
+func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {
+					functionStmt as functionStmt1,
+					functionExpr as functionExpr1,
+					classStmt as classStmt1,
+					classExpr as classExpr1,
+					functionAnonExpr as functionAnonExpr1,
+					classAnonExpr as classAnonExpr1,
+				} from './copy1'
+
+				import {
+					functionStmt as functionStmt2,
+					functionExpr as functionExpr2,
+					classStmt as classStmt2,
+					classExpr as classExpr2,
+					functionAnonExpr as functionAnonExpr2,
+					classAnonExpr as classAnonExpr2,
+				} from './copy2'
+
+				console.log([
+					functionStmt1, functionStmt2,
+					functionExpr1, functionExpr2,
+					classStmt1, classStmt2,
+					classExpr1, classExpr2,
+					functionAnonExpr1, functionAnonExpr2,
+					classAnonExpr1, classAnonExpr2,
+				])
+			`,
+
+			"/copy1.js": `
+				export function functionStmt() { return 'copy1' }
+				export class classStmt { foo = 'copy1' }
+				export let functionExpr = function fn() { return 'copy1' }
+				export let classExpr = class cls { foo = 'copy1' }
+				export let functionAnonExpr = function() { return 'copy1' }
+				export let classAnonExpr = class { foo = 'copy1' }
+
+				class classStmtSideEffect { static [copy1]() {} }
+				let classExprSideEffect = class clsSideEffect { static [copy1]() {} }
+			`,
+
+			"/copy2.js": `
+				export function functionStmt() { return 'copy2' }
+				export class classStmt { foo = 'copy2' }
+				export let functionExpr = function fn() { return 'copy2' }
+				export let classExpr = class cls { foo = 'copy2' }
+				export let functionAnonExpr = function() { return 'copy2' }
+				export let classAnonExpr = class { foo = 'copy2' }
+
+				class classStmtSideEffect { static [copy2]() {} }
+				let classExprSideEffect = class clsSideEffect { static [copy2]() {} }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			KeepNames:     true,
+		},
+	})
+}
+
 func TestKeepNamesTreeShaking(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -5869,6 +5934,82 @@ func TestManglePropsSuperCall(t *testing.T) {
 			Mode:          config.ModePassThrough,
 			AbsOutputFile: "/out.js",
 			MangleProps:   regexp.MustCompile("."),
+		},
+	})
+}
+
+func TestMangleNoQuotedProps(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				x['_doNotMangleThis'];
+				x?.['_doNotMangleThis'];
+				x[y ? '_doNotMangleThis' : z];
+				x?.[y ? '_doNotMangleThis' : z];
+				x[y ? z : '_doNotMangleThis'];
+				x?.[y ? z : '_doNotMangleThis'];
+				({ '_doNotMangleThis': x });
+				(class { '_doNotMangleThis' = x });
+				var { '_doNotMangleThis': x } = y;
+				'_doNotMangleThis' in x;
+				(y ? '_doNotMangleThis' : z) in x;
+				(y ? z : '_doNotMangleThis') in x;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MangleProps:  regexp.MustCompile("_"),
+			MangleQuoted: false,
+		},
+	})
+}
+
+func TestMangleQuotedProps(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/keep.js": `
+				foo("_keepThisProperty");
+				foo((x, "_keepThisProperty"));
+				foo(x ? "_keepThisProperty" : "_keepThisPropertyToo");
+				x[foo("_keepThisProperty")];
+				x?.[foo("_keepThisProperty")];
+				({ [foo("_keepThisProperty")]: x });
+				(class { [foo("_keepThisProperty")] = x });
+				var { [foo("_keepThisProperty")]: x } = y;
+				foo("_keepThisProperty") in x;
+			`,
+			"/mangle.js": `
+				x['_mangleThis'];
+				x?.['_mangleThis'];
+				x[y ? '_mangleThis' : z];
+				x?.[y ? '_mangleThis' : z];
+				x[y ? z : '_mangleThis'];
+				x?.[y ? z : '_mangleThis'];
+				x[y, '_mangleThis'];
+				x?.[y, '_mangleThis'];
+				({ '_mangleThis': x });
+				({ ['_mangleThis']: x });
+				({ [(y, '_mangleThis')]: x });
+				(class { '_mangleThis' = x });
+				(class { ['_mangleThis'] = x });
+				(class { [(y, '_mangleThis')] = x });
+				var { '_mangleThis': x } = y;
+				var { ['_mangleThis']: x } = y;
+				var { [(z, '_mangleThis')]: x } = y;
+				'_mangleThis' in x;
+				(y ? '_mangleThis' : z) in x;
+				(y ? z : '_mangleThis') in x;
+				(y, '_mangleThis') in x;
+			`,
+		},
+		entryPaths: []string{"/keep.js", "/mangle.js"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MangleProps:  regexp.MustCompile("_"),
+			MangleQuoted: true,
 		},
 	})
 }

@@ -1211,6 +1211,10 @@ func (s *scanner) maybeParseFile(
 	if path.Namespace == "dataurl" {
 		if _, ok := resolver.ParseDataURL(path.Text); ok {
 			prettyPath = path.Text
+			if len(prettyPath) > 65 {
+				prettyPath = prettyPath[:65]
+			}
+			prettyPath = strings.ReplaceAll(prettyPath, "\n", "\\n")
 			if len(prettyPath) > 64 {
 				prettyPath = prettyPath[:64] + "..."
 			}

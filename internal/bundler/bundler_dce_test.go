@@ -3016,3 +3016,87 @@ func TestCrossModuleConstantFolding(t *testing.T) {
 		},
 	})
 }
+
+func TestMultipleDeclarationTreeShaking(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/var2.js": `
+				var x = 1
+				console.log(x)
+				var x = 2
+			`,
+			"/var3.js": `
+				var x = 1
+				console.log(x)
+				var x = 2
+				console.log(x)
+				var x = 3
+			`,
+			"/function2.js": `
+				function x() { return 1 }
+				console.log(x())
+				function x() { return 2 }
+			`,
+			"/function3.js": `
+				function x() { return 1 }
+				console.log(x())
+				function x() { return 2 }
+				console.log(x())
+				function x() { return 3 }
+			`,
+		},
+		entryPaths: []string{
+			"/var2.js",
+			"/var3.js",
+			"/function2.js",
+			"/function3.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: false,
+		},
+	})
+}
+
+func TestMultipleDeclarationTreeShakingMinifySyntax(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/var2.js": `
+				var x = 1
+				console.log(x)
+				var x = 2
+			`,
+			"/var3.js": `
+				var x = 1
+				console.log(x)
+				var x = 2
+				console.log(x)
+				var x = 3
+			`,
+			"/function2.js": `
+				function x() { return 1 }
+				console.log(x())
+				function x() { return 2 }
+			`,
+			"/function3.js": `
+				function x() { return 1 }
+				console.log(x())
+				function x() { return 2 }
+				console.log(x())
+				function x() { return 3 }
+			`,
+		},
+		entryPaths: []string{
+			"/var2.js",
+			"/var3.js",
+			"/function2.js",
+			"/function3.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}

@@ -441,6 +441,8 @@ type printer struct {
 	callTarget             js_ast.E
 	extractedLegalComments map[string]bool
 	js                     []byte
+	keepNamesAssignTarget  js_ast.E
+	keepNamesRef           js_ast.Ref
 	options                Options
 	builder                sourcemap.ChunkBuilder
 	stmtStart              int
@@ -515,9 +517,9 @@ func (p *printer) printClauseAlias(alias string) {
 // anything that isn't guaranteed to be compatible with ES5, the oldest
 // JavaScript language target that we support.
 
-func CanEscapeIdentifier(name string, unsupportedJSFeatures compat.JSFeature, asciiOnly bool) bool {
+func CanEscapeIdentifier(name string, UnsupportedFeatures compat.JSFeature, asciiOnly bool) bool {
 	return js_lexer.IsIdentifierES5AndESNext(name) && (!asciiOnly ||
-		!unsupportedJSFeatures.Has(compat.UnicodeEscapes) ||
+		!UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
 		!helpers.ContainsNonBMPCodePoint(name))
 }
 
@@ -877,7 +879,7 @@ func (p *printer) printFnArgs(args []js_ast.Arg, hasRestArg bool, isArrow bool) 
 func (p *printer) printFn(fn js_ast.Fn) {
 	p.printFnArgs(fn.Args, fn.HasRestArg, false /* isArrow */)
 	p.printSpace()
-	p.printBlock(fn.Body.Loc, fn.Body.Stmts)
+	p.printBlock(fn.Body.Loc, fn.Body.Block)
 }
 
 func (p *printer) printClass(class js_ast.Class) {
@@ -900,7 +902,7 @@ func (p *printer) printClass(class js_ast.Class) {
 		if item.Kind == js_ast.PropertyClassStaticBlock {
 			p.print("static")
 			p.printSpace()
-			p.printBlock(item.ClassStaticBlock.Loc, item.ClassStaticBlock.Stmts)
+			p.printBlock(item.ClassStaticBlock.Loc, item.ClassStaticBlock.Block)
 			p.printNewline()
 			continue
 		}
@@ -918,6 +920,9 @@ func (p *printer) printClass(class js_ast.Class) {
 	p.needsSemicolon = false
 	p.options.Indent--
 	p.printIndent()
+	if class.CloseBraceLoc.Start > class.BodyLoc.Start {
+		p.addSourceMapping(class.CloseBraceLoc)
+	}
 	p.print("}")
 }
 
@@ -1395,6 +1400,10 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		}
 
 	case *js_ast.ECall:
+		if p.isCallExprSuperfluous(e) {
+			return js_ast.Expr{Loc: expr.Loc}
+		}
+
 		var symbolFlags js_ast.SymbolFlags
 		switch target := e.Target.Data.(type) {
 		case *js_ast.EIdentifier:
@@ -1408,14 +1417,14 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		if (symbolFlags & (js_ast.IsEmptyFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction {
 			var replacement js_ast.Expr
 			for _, arg := range e.Args {
-				replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(arg), p.isUnbound))
+				replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(arg), p.options.UnsupportedFeatures, p.isUnbound))
 			}
 			return replacement // Don't add "undefined" here because the result isn't used
 		}
 
 		// Inline non-mutated identity functions at print time
 		if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
-			return js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(e.Args[0]), p.isUnbound)
+			return js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(e.Args[0]), p.options.UnsupportedFeatures, p.isUnbound)
 		}
 	}
 
@@ -1750,6 +1759,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				}
 				p.printExpr(arg, js_ast.LComma, 0)
 			}
+			if e.CloseParenLoc.Start > expr.Loc.Start {
+				p.addSourceMapping(e.CloseParenLoc)
+			}
 			p.print(")")
 		}
 
@@ -1772,7 +1784,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if (symbolFlags & (js_ast.IsEmptyFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction {
 				var replacement js_ast.Expr
 				for _, arg := range e.Args {
-					replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(arg, p.isUnbound))
+					replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(arg, p.options.UnsupportedFeatures, p.isUnbound))
 				}
 				if replacement.Data == nil || (flags&exprResultIsUnused) == 0 {
 					replacement = js_ast.JoinWithComma(replacement, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
@@ -1785,11 +1797,16 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
 				arg := e.Args[0]
 				if (flags & exprResultIsUnused) != 0 {
-					arg = js_ast.SimplifyUnusedExpr(arg, p.isUnbound)
+					arg = js_ast.SimplifyUnusedExpr(arg, p.options.UnsupportedFeatures, p.isUnbound)
 				}
 				p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(arg, flags), level, flags)
 				break
 			}
+		}
+
+		if p.isCallExprSuperfluous(e) {
+			p.printExpr(e.Args[0], level, flags)
+			return
 		}
 
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
@@ -1841,6 +1858,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				p.printSpace()
 			}
 			p.printExpr(arg, js_ast.LComma, 0)
+		}
+		if e.CloseParenLoc.Start > expr.Loc.Start {
+			p.addSourceMapping(e.CloseParenLoc)
 		}
 		p.print(")")
 		if wrap {
@@ -2074,15 +2094,15 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.printSpace()
 
 		wasPrinted := false
-		if len(e.Body.Stmts) == 1 && e.PreferExpr {
-			if s, ok := e.Body.Stmts[0].Data.(*js_ast.SReturn); ok && s.ValueOrNil.Data != nil {
+		if len(e.Body.Block.Stmts) == 1 && e.PreferExpr {
+			if s, ok := e.Body.Block.Stmts[0].Data.(*js_ast.SReturn); ok && s.ValueOrNil.Data != nil {
 				p.arrowExprStart = len(p.js)
 				p.printExpr(s.ValueOrNil, js_ast.LComma, flags&forbidIn)
 				wasPrinted = true
 			}
 		}
 		if !wasPrinted {
-			p.printBlock(e.Body.Loc, e.Body.Stmts)
+			p.printBlock(e.Body.Loc, e.Body.Block)
 		}
 		if wrap {
 			p.print(")")
@@ -2120,6 +2140,8 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.printSpaceBeforeIdentifier()
 		p.print("class")
 		if e.Class.Name != nil {
+			p.print(" ")
+			p.addSourceMapping(e.Class.Name.Loc)
 			p.printSymbol(e.Class.Name.Ref)
 		}
 		p.printClass(e.Class)
@@ -2160,6 +2182,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				p.printIndent()
 			}
 		}
+		if e.CloseBracketLoc.Start > expr.Loc.Start {
+			p.addSourceMapping(e.CloseBracketLoc)
+		}
 		p.print("]")
 
 	case *js_ast.EObject:
@@ -2194,6 +2219,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			} else if len(e.Properties) > 0 {
 				p.printSpace()
 			}
+		}
+		if e.CloseBraceLoc.Start > expr.Loc.Start {
+			p.addSourceMapping(e.CloseBraceLoc)
 		}
 		p.print("}")
 		if wrap {
@@ -2546,6 +2574,44 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	}
 }
 
+func (p *printer) isCallExprSuperfluous(value *js_ast.ECall) bool {
+	if !value.IsKeepName {
+		return false
+	}
+
+	var ref *js_ast.Ref
+	switch e := value.Args[0].Data.(type) {
+	case *js_ast.EIdentifier:
+		// "__name(foo, 'foo')"
+		ref = &e.Ref
+
+	case *js_ast.EFunction:
+		// "__name(function foo() {}, 'foo')"
+		if e.Fn.Name != nil {
+			ref = &e.Fn.Name.Ref
+		}
+
+	case *js_ast.EClass:
+		// "__name(class foo {}, 'foo')"
+		if e.Class.Name != nil {
+			ref = &e.Class.Name.Ref
+		}
+	}
+
+	// If this is an anonymous function or class expression but the assign target
+	// has a name binding, use the name from the name binding instead:
+	//
+	//   let foo = __name(function() {}, "foo");
+	//   let bar = __name(class {}, "bar");
+	//
+	if ref == nil && p.keepNamesAssignTarget == value {
+		ref = &p.keepNamesRef
+	}
+
+	keptName := value.Args[1].Data.(*js_ast.EString).Value
+	return ref != nil && helpers.UTF16EqualsString(keptName, p.renamer.NameForSymbol(*ref))
+}
+
 func (p *printer) isUnboundEvalIdentifier(value js_ast.Expr) bool {
 	if id, ok := value.Data.(*js_ast.EIdentifier); ok {
 		// Using the original name here is ok since unbound symbols are not renamed
@@ -2760,6 +2826,11 @@ func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags printExp
 		p.printBinding(decl.Binding)
 
 		if decl.ValueOrNil.Data != nil {
+			if id, ok := decl.Binding.Data.(*js_ast.BIdentifier); ok {
+				p.keepNamesAssignTarget = decl.ValueOrNil.Data
+				p.keepNamesRef = id.Ref
+			}
+
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
@@ -2771,7 +2842,7 @@ func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags printExp
 func (p *printer) printBody(body js_ast.Stmt) {
 	if block, ok := body.Data.(*js_ast.SBlock); ok {
 		p.printSpace()
-		p.printBlock(body.Loc, block.Stmts)
+		p.printBlock(body.Loc, *block)
 		p.printNewline()
 	} else {
 		p.printNewline()
@@ -2781,13 +2852,13 @@ func (p *printer) printBody(body js_ast.Stmt) {
 	}
 }
 
-func (p *printer) printBlock(loc logger.Loc, stmts []js_ast.Stmt) {
+func (p *printer) printBlock(loc logger.Loc, block js_ast.SBlock) {
 	p.addSourceMapping(loc)
 	p.print("{")
 	p.printNewline()
 
 	p.options.Indent++
-	for _, stmt := range stmts {
+	for _, stmt := range block.Stmts {
 		p.printSemicolonIfNeeded()
 		p.printStmt(stmt, canOmitStatement)
 	}
@@ -2795,6 +2866,9 @@ func (p *printer) printBlock(loc logger.Loc, stmts []js_ast.Stmt) {
 	p.needsSemicolon = false
 
 	p.printIndent()
+	if block.CloseBraceLoc.Start > loc.Start {
+		p.addSourceMapping(block.CloseBraceLoc)
+	}
 	p.print("}")
 }
 
@@ -2848,7 +2922,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 
 	if yes, ok := s.Yes.Data.(*js_ast.SBlock); ok {
 		p.printSpace()
-		p.printBlock(s.Yes.Loc, yes.Stmts)
+		p.printBlock(s.Yes.Loc, *yes)
 
 		if no.Data != nil {
 			p.printSpace()
@@ -2891,7 +2965,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 
 		if block, ok := no.Data.(*js_ast.SBlock); ok {
 			p.printSpace()
-			p.printBlock(no.Loc, block.Stmts)
+			p.printBlock(no.Loc, *block)
 			p.printNewline()
 		} else if ifStmt, ok := no.Data.(*js_ast.SIf); ok {
 			p.printIf(ifStmt)
@@ -3051,7 +3125,8 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		if s.IsExport {
 			p.print("export ")
 		}
-		p.print("class")
+		p.print("class ")
+		p.addSourceMapping(s.Class.Name.Loc)
 		p.printSymbol(s.Class.Name.Ref)
 		p.printClass(s.Class)
 		p.printNewline()
@@ -3096,6 +3171,8 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			p.printSpaceBeforeIdentifier()
 			p.print("class")
 			if s2.Class.Name != nil {
+				p.print(" ")
+				p.addSourceMapping(s2.Class.Name.Loc)
 				p.printSymbol(s2.Class.Name.Ref)
 			}
 			p.printClass(s2.Class)
@@ -3235,7 +3312,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.print("do")
 		if block, ok := s.Body.Data.(*js_ast.SBlock); ok {
 			p.printSpace()
-			p.printBlock(s.Body.Loc, block.Stmts)
+			p.printBlock(s.Body.Loc, *block)
 			p.printSpace()
 		} else {
 			p.printNewline()
@@ -3321,7 +3398,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printSpaceBeforeIdentifier()
 		p.print("try")
 		p.printSpace()
-		p.printBlock(s.BodyLoc, s.Body)
+		p.printBlock(s.BlockLoc, s.Block)
 
 		if s.Catch != nil {
 			p.printSpace()
@@ -3333,14 +3410,14 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 				p.print(")")
 			}
 			p.printSpace()
-			p.printBlock(s.Catch.Loc, s.Catch.Body)
+			p.printBlock(s.Catch.Loc, s.Catch.Block)
 		}
 
 		if s.Finally != nil {
 			p.printSpace()
 			p.print("finally")
 			p.printSpace()
-			p.printBlock(s.Finally.Loc, s.Finally.Stmts)
+			p.printBlock(s.Finally.Loc, s.Finally.Block)
 		}
 
 		p.printNewline()
@@ -3350,17 +3427,15 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		update := s.UpdateOrNil
 
 		// Omit calls to empty functions from the output completely
-		if p.options.MinifySyntax {
-			if expr, ok := init.Data.(*js_ast.SExpr); ok {
-				if value := p.simplifyUnusedExpr(expr.Value); value.Data == nil {
-					init.Data = nil
-				} else if value.Data != expr.Value.Data {
-					init.Data = &js_ast.SExpr{Value: value}
-				}
+		if expr, ok := init.Data.(*js_ast.SExpr); ok {
+			if value := p.simplifyUnusedExpr(expr.Value); value.Data == nil {
+				init.Data = nil
+			} else if value.Data != expr.Value.Data {
+				init.Data = &js_ast.SExpr{Value: value}
 			}
-			if update.Data != nil {
-				update = p.simplifyUnusedExpr(update)
-			}
+		}
+		if update.Data != nil {
+			update = p.simplifyUnusedExpr(update)
 		}
 
 		p.printIndent()
@@ -3413,7 +3488,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			if len(c.Body) == 1 {
 				if block, ok := c.Body[0].Data.(*js_ast.SBlock); ok {
 					p.printSpace()
-					p.printBlock(c.Body[0].Loc, block.Stmts)
+					p.printBlock(c.Body[0].Loc, *block)
 					p.printNewline()
 					continue
 				}
@@ -3517,7 +3592,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 
 	case *js_ast.SBlock:
 		p.printIndent()
-		p.printBlock(stmt.Loc, s.Stmts)
+		p.printBlock(stmt.Loc, *s)
 		p.printNewline()
 
 	case *js_ast.SDebugger:
@@ -3574,20 +3649,18 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		value := s.Value
 
 		// Omit calls to empty functions from the output completely
-		if p.options.MinifySyntax {
-			value = p.simplifyUnusedExpr(value)
-			if value.Data == nil {
-				// If this statement is not in a block, then we still need to emit something
-				if (flags & canOmitStatement) == 0 {
-					// "if (x) empty();" => "if (x) ;"
-					p.printIndent()
-					p.print(";")
-					p.printNewline()
-				} else {
-					// "if (x) { empty(); }" => "if (x) {}"
-				}
-				break
+		value = p.simplifyUnusedExpr(value)
+		if value.Data == nil {
+			// If this statement is not in a block, then we still need to emit something
+			if (flags & canOmitStatement) == 0 {
+				// "if (x) empty();" => "if (x) ;"
+				p.printIndent()
+				p.print(";")
+				p.printNewline()
+			} else {
+				// "if (x) { empty(); }" => "if (x) {}"
 			}
+			break
 		}
 
 		p.printIndent()

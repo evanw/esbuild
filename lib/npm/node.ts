@@ -68,7 +68,12 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
     return ['node', [path.join(__dirname, '..', 'bin', 'esbuild')]];
   }
 
-  return [generateBinPath(), []];
+  const { binPath, isWASM } = generateBinPath()
+  if (isWASM) {
+    return ['node', [binPath]]
+  } else {
+    return [binPath, []];
+  }
 };
 
 // Return true if stderr is a TTY

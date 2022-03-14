@@ -2,6 +2,246 @@
 
 ## Unreleased
 
+* Avoid generating an enumerable `default` import for CommonJS files in Babel mode ([#2097](https://github.com/evanw/esbuild/issues/2097))
+
+    Importing a CommonJS module into an ES module can be done in two different ways. In node mode the `default` import is always set to `module.exports`, while in Babel mode the `default` import passes through to `module.exports.default` instead. Node mode is triggered when the importing file ends in `.mjs`, has `type: "module"` in its `package.json` file, or the imported module does not have a `__esModule` marker.
+
+    Previously esbuild always created the forwarding `default` import in Babel mode, even if `module.exports` had no property called `default`. This was problematic because the getter named `default` still showed up as a property on the imported namespace object, and could potentially interfere with code that iterated over the properties of the imported namespace object. With this release the getter named `default` will now only be added in Babel mode if the `default` property exists at the time of the import.
+
+## 0.14.26
+
+* Fix a tree shaking regression regarding `var` declarations ([#2080](https://github.com/evanw/esbuild/issues/2080), [#2085](https://github.com/evanw/esbuild/pull/2085), [#2098](https://github.com/evanw/esbuild/issues/2098), [#2099](https://github.com/evanw/esbuild/issues/2099))
+
+    Version 0.14.8 of esbuild enabled removal of duplicate function declarations when minification is enabled (see [#610](https://github.com/evanw/esbuild/issues/610)):
+
+    ```js
+    // Original code
+    function x() { return 1 }
+    console.log(x())
+    function x() { return 2 }
+
+    // Output (with --minify-syntax)
+    console.log(x());
+    function x() {
+      return 2;
+    }
+    ```
+
+    This transformation is safe because function declarations are "hoisted" in JavaScript, which means they are all done first before any other code is evaluted. This means the last function declaration will overwrite all previous function declarations with the same name.
+
+    However, this introduced an unintentional regression for `var` declarations in which all but the last declaration was dropped if tree-shaking was enabled. This only happens for top-level `var` declarations that re-declare the same variable multiple times. This regression has now been fixed:
+
+    ```js
+    // Original code
+    var x = 1
+    console.log(x)
+    var x = 2
+
+    // Old output (with --tree-shaking=true)
+    console.log(x);
+    var x = 2;
+
+    // New output (with --tree-shaking=true)
+    var x = 1;
+    console.log(x);
+    var x = 2;
+    ```
+
+    This case now has test coverage.
+
+* Add support for parsing "instantiation expressions" from TypeScript 4.7 ([#2038](https://github.com/evanw/esbuild/pull/2038))
+
+    The upcoming version of TypeScript now lets you specify `<...>` type parameters on a JavaScript identifier without using a call expression:
+
+    ```ts
+    const ErrorMap = Map<string, Error>;  // new () => Map<string, Error>
+    const errorMap = new ErrorMap();  // Map<string, Error>
+    ```
+
+    With this release, esbuild can now parse these new type annotations. This feature was contributed by [@g-plane](https://github.com/g-plane).
+
+* Avoid `new Function` in esbuild's library code ([#2081](https://github.com/evanw/esbuild/issues/2081))
+
+    Some JavaScript environments such as Cloudflare Workers or Deno Deploy don't allow `new Function` because they disallow dynamic JavaScript evaluation. Previously esbuild's WebAssembly-based library used this to construct the WebAssembly worker function. With this release, the code is now inlined without using `new Function` so it will be able to run even when this restriction is in place.
+
+* Drop superfluous `__name()` calls ([#2062](https://github.com/evanw/esbuild/pull/2062))
+
+    When the `--keep-names` option is specified, esbuild inserts calls to a `__name` helper function to ensure that the `.name` property on function and class objects remains consistent even if the function or class name is renamed to avoid a name collision or because name minification is enabled. With this release, esbuild will now try to omit these calls to the `__name` helper function when the name of the function or class object was not renamed during the linking process after all:
+
+    ```js
+    // Original code
+    import { foo as foo1 } from 'data:text/javascript,export function foo() { return "foo1" }'
+    import { foo as foo2 } from 'data:text/javascript,export function foo() { return "foo2" }'
+    console.log(foo1.name, foo2.name)
+
+    // Old output (with --bundle --keep-names)
+    (() => {
+      var __defProp = Object.defineProperty;
+      var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+      function foo() {
+        return "foo1";
+      }
+      __name(foo, "foo");
+      function foo2() {
+        return "foo2";
+      }
+      __name(foo2, "foo");
+      console.log(foo.name, foo2.name);
+    })();
+
+    // New output (with --bundle --keep-names)
+    (() => {
+      var __defProp = Object.defineProperty;
+      var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+      function foo() {
+        return "foo1";
+      }
+      function foo2() {
+        return "foo2";
+      }
+      __name(foo2, "foo");
+      console.log(foo.name, foo2.name);
+    })();
+    ```
+
+    Notice how one of the calls to `__name` is now no longer printed. This change was contributed by [@indutny](https://github.com/indutny).
+
+## 0.14.25
+
+* Reduce minification of CSS transforms to avoid Safari bugs ([#2057](https://github.com/evanw/esbuild/issues/2057))
+
+    In Safari, applying a 3D CSS transform to an element can cause it to render in a different order than applying a 2D CSS transform even if the transformation matrix is identical. I believe this is a bug in Safari because the [CSS `transform` specification](https://drafts.csswg.org/css-transforms-1/#transform-rendering) doesn't seem to distinguish between 2D and 3D transforms as far as rendering order:
+
+    > For elements whose layout is governed by the CSS box model, any value other than `none` for the `transform` property results in the creation of a stacking context.
+
+    This bug means that minifying a 3D transform into a 2D transform must be avoided even though it's a valid transformation because it can cause rendering differences in Safari. Previously esbuild sometimes minified 3D CSS transforms into 2D CSS transforms but with this release, esbuild will no longer do that:
+
+    ```css
+    /* Original code */
+    div { transform: matrix3d(2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) }
+
+    /* Old output (with --minify) */
+    div{transform:scale(2)}
+
+    /* New output (with --minify) */
+    div{transform:scale3d(2,2,1)}
+    ```
+
+* Minification now takes advantage of the `?.` operator
+
+    This adds new code minification rules that shorten code with the `?.` optional chaining operator when the result is equivalent:
+
+    ```ts
+    // Original code
+    let foo = (x) => {
+      if (x !== null && x !== undefined) x.y()
+      return x === null || x === undefined ? undefined : x.z
+    }
+
+    // Old output (with --minify)
+    let foo=n=>(n!=null&&n.y(),n==null?void 0:n.z);
+
+    // New output (with --minify)
+    let foo=n=>(n?.y(),n?.z);
+    ```
+
+    This only takes effect when minification is enabled and when the configured target environment is known to support the optional chaining operator. As always, make sure to set `--target=` to the appropriate language target if you are running the minified code in an environment that doesn't support the latest JavaScript features.
+
+* Add source mapping information for some non-executable tokens ([#1448](https://github.com/evanw/esbuild/issues/1448))
+
+    Code coverage tools can generate reports that tell you if any code exists that has not been run (or "covered") during your tests. You can use this information to add additional tests for code that isn't currently covered.
+
+    Some popular JavaScript code coverage tools have bugs where they incorrectly consider lines without any executable code as uncovered, even though there's no test you could possibly write that would cause those lines to be executed. For example, they apparently complain about the lines that only contain the trailing `}` token of an object literal.
+
+    With this release, esbuild now generates source mappings for some of these trailing non-executable tokens. This may not successfully work around bugs in code coverage tools because there are many non-executable tokens in JavaScript and esbuild doesn't map them all (the drawback of mapping these extra tokens is that esbuild will use more memory, build more slowly, and output a bigger source map). The true solution is to fix the bugs in the code coverage tools in the first place.
+
+* Fall back to WebAssembly on Android x64 ([#2068](https://github.com/evanw/esbuild/issues/2068))
+
+    Go's compiler supports trivial cross-compiling to almost all platforms without installing any additional software other than the Go compiler itself. This has made it very easy for esbuild to publish native binary executables for many platforms. However, it strangely doesn't support cross-compiling to Android x64 without installing the Android build tools. So instead of publishing a native esbuild binary executable to npm, this release publishes a WebAssembly fallback build. This is essentially the same as the `esbuild-wasm` package but it's installed automatically when you install the `esbuild` package on Android x64. So packages that depend on the `esbuild` package should now work on Android x64. If you want to use a native binary executable of esbuild on Android x64, you may be able to build it yourself from source after installing the Android build tools.
+
+* Update to Go 1.17.8
+
+    The version of the Go compiler used to compile esbuild has been upgraded from Go 1.17.7 to Go 1.17.8, which fixes the RISC-V 64-bit build. Compiler optimizations for the RISC-V 64-bit build have now been re-enabled.
+
+## 0.14.24
+
+* Allow `es2022` as a target environment ([#2012](https://github.com/evanw/esbuild/issues/2012))
+
+    TypeScript recently [added support for `es2022`](https://devblogs.microsoft.com/typescript/announcing-typescript-4-6/#target-es2022) as a compilation target so esbuild now supports this too. Support for this is preliminary as there is no published ES2022 specification yet (i.e. https://tc39.es/ecma262/2021/ exists but https://tc39.es/ecma262/2022/ is a 404 error). The meaning of esbuild's `es2022` target may change in the future when the specification is finalized. Right now I have made the `es2022` target enable support for the syntax-related [finished proposals](https://github.com/tc39/proposals/blob/main/finished-proposals.md) that are marked as `2022`:
+
+    * Class fields
+    * Class private members
+    * Class static blocks
+    * Ergonomic class private member checks
+    * Top-level await
+
+    I have also included the "arbitrary module namespace names" feature since I'm guessing it will end up in the ES2022 specification (this syntax feature was added to the specification without a proposal). TypeScript has [not added support for this yet](https://github.com/microsoft/TypeScript/issues/40594).
+
+* Match `define` to strings in index expressions ([#2050](https://github.com/evanw/esbuild/issues/2050))
+
+    With this release, configuring `--define:foo.bar=baz` now matches and replaces both `foo.bar` and `foo['bar']` expressions in the original source code. This is necessary for people who have enabled TypeScript's [`noPropertyAccessFromIndexSignature` feature](https://www.typescriptlang.org/tsconfig#noPropertyAccessFromIndexSignature), which prevents you from using normal property access syntax on a type with an index signature such as in the following code:
+
+    ```ts
+    declare let foo: { [key: string]: any }
+    foo.bar // This is a type error if noPropertyAccessFromIndexSignature is enabled
+    foo['bar']
+    ```
+
+    Previously esbuild would generate the following output with `--define:foo.bar=baz`:
+
+    ```js
+    baz;
+    foo["bar"];
+    ```
+
+    Now esbuild will generate the following output instead:
+
+    ```js
+    baz;
+    baz;
+    ```
+
+* Add `--mangle-quoted` to mangle quoted properties ([#218](https://github.com/evanw/esbuild/issues/218))
+
+    The `--mangle-props=` flag tells esbuild to automatically rename all properties matching the provided regular expression to shorter names to save space. Previously esbuild never modified the contents of string literals. In particular, `--mangle-props=_` would mangle `foo._bar` but not `foo['_bar']`. There are some coding patterns where renaming quoted property names is desirable, such as when using TypeScript's [`noPropertyAccessFromIndexSignature` feature](https://www.typescriptlang.org/tsconfig#noPropertyAccessFromIndexSignature) or when using TypeScript's [discriminated union narrowing behavior](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions):
+
+    ```ts
+    interface Foo { _foo: string }
+    interface Bar { _bar: number }
+    declare const value: Foo | Bar
+    console.log('_foo' in value ? value._foo : value._bar)
+    ```
+
+    The `'_foo' in value` check tells TypeScript to narrow the type of `value` to `Foo` in the true branch and to `Bar` in the false branch. Previously esbuild didn't mangle the property name `'_foo'` because it was inside a string literal. With this release, you can now use `--mangle-quoted` to also rename property names inside string literals:
+
+    ```js
+    // Old output (with --mangle-props=_)
+    console.log("_foo" in value ? value.a : value.b);
+
+    // New output (with --mangle-props=_ --mangle-quoted)
+    console.log("a" in value ? value.a : value.b);
+    ```
+
+* Parse and discard TypeScript `export as namespace` statements ([#2070](https://github.com/evanw/esbuild/issues/2070))
+
+    TypeScript `.d.ts` type declaration files can sometimes contain statements of the form `export as namespace foo;`. I believe these serve to declare that the module adds a property of that name to the global object. You aren't supposed to feed `.d.ts` files to esbuild so this normally doesn't matter, but sometimes esbuild can end up having to parse them. One such case is if you import a type-only package who's `main` field in `package.json` is a `.d.ts` file.
+
+    Previously esbuild only allowed `export as namespace` statements inside a `declare` context:
+
+    ```ts
+    declare module Foo {
+      export as namespace foo;
+    }
+    ```
+
+    Now esbuild will also allow these statements outside of a `declare` context:
+
+    ```ts
+    export as namespace foo;
+    ```
+
+    These statements are still just ignored and discarded.
+
 * Strip import assertions from unrecognized `import()` expressions ([#2036](https://github.com/evanw/esbuild/issues/2036))
 
     The new "import assertions" JavaScript language feature adds an optional second argument to dynamic `import()` expressions, which esbuild does support. However, this optional argument must be stripped when targeting older JavaScript environments for which this second argument would be a syntax error. Previously esbuild failed to strip this second argument in cases when the first argument to `import()` wasn't a string literal. This problem is now fixed:
@@ -16,6 +256,20 @@
     // New output (with --target=es6)
     console.log(import(foo));
     ```
+
+* Remove simplified statement-level literal expressions ([#2063](https://github.com/evanw/esbuild/issues/2063))
+
+    With this release, esbuild now removes simplified statement-level expressions if the simplified result is a literal expression even when minification is disabled. Previously this was only done when minification is enabled. This change was only made because some people are bothered by seeing top-level literal expressions. This change has no effect on code behavior.
+
+* Ignore `.d.ts` rules in `paths` in `tsconfig.json` files ([#2074](https://github.com/evanw/esbuild/issues/2074), [#2075](https://github.com/evanw/esbuild/pull/2075))
+
+    TypeScript's `tsconfig.json` configuration file has a `paths` field that lets you remap import paths to alternative files on the file system. This field is interpreted by esbuild during bundling so that esbuild's behavior matches that of the TypeScript type checker. However, people sometimes override import paths to JavaScript files to instead point to a `.d.ts` TypeScript type declaration file for that JavaScript file. The intent of this is to just use the remapping for type information and not to actually import the `.d.ts` file during the build.
+
+    With this release, esbuild will now ignore rules in `paths` that result in a `.d.ts` file during path resolution. This means code that does this should now be able to be bundled without modifying its `tsconfig.json` file to remove the `.d.ts` rule. This change was contributed by [@magic-akari](https://github.com/magic-akari).
+
+* Disable Go compiler optimizations for the Linux RISC-V 64bit build ([#2035](https://github.com/evanw/esbuild/pull/2035))
+
+    Go's RISC-V 64bit compiler target has a fatal compiler optimization bug that causes esbuild to crash when it's run: https://github.com/golang/go/issues/51101. As a temporary workaround until a version of the Go compiler with the fix is published, Go compiler optimizations have been disabled for RISC-V. The 7.7mb esbuild binary executable for RISC-V is now 8.7mb instead. This workaround was contributed by [@piggynl](https://github.com/piggynl).
 
 ## 0.14.23
 

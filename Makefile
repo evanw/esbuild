@@ -20,7 +20,7 @@ test-all:
 	@$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 check-go-version:
-	@go version | grep ' go1\.17\.7 ' || (echo 'Please install Go version 1.17.7' && false)
+	@go version | grep ' go1\.17\.8 ' || (echo 'Please install Go version 1.17.8' && false)
 
 # Note: Don't add "-race" here by default. The Go race detector is currently
 # only supported on the following configurations:
@@ -206,26 +206,38 @@ cmd/esbuild/version.go: version.txt
 
 wasm-napi-exit0-darwin:
 	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
-		| clang -x c -dynamiclib -mmacosx-version-min=10.5 -o npm/esbuild-wasm/exit0/darwin-x64-LE.node -
-	ls -l npm/esbuild-wasm/exit0/darwin-x64-LE.node
+		| clang -x c -dynamiclib -mmacosx-version-min=10.5 -o lib/npm/exit0/darwin-x64-LE.node -
+	ls -l lib/npm/exit0/darwin-x64-LE.node
+
+wasm-napi-exit0-darwin-arm:
+	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
+		| clang -x c -dynamiclib -mmacosx-version-min=10.5 -o lib/npm/exit0/darwin-arm64-LE.node -
+	ls -l lib/npm/exit0/darwin-arm64-LE.node
 
 wasm-napi-exit0-linux:
 	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
-		| gcc -x c -shared -o npm/esbuild-wasm/exit0/linux-x64-LE.node -
-	strip npm/esbuild-wasm/exit0/linux-x64-LE.node
-	ls -l npm/esbuild-wasm/exit0/linux-x64-LE.node
+		| gcc -x c -shared -o lib/npm/exit0/linux-x64-LE.node -
+	strip lib/npm/exit0/linux-x64-LE.node
+	ls -l lib/npm/exit0/linux-x64-LE.node
+
+wasm-napi-exit0-linux-arm:
+	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
+		| gcc -x c -shared -o lib/npm/exit0/linux-arm64-LE.node -
+	strip lib/npm/exit0/linux-arm64-LE.node
+	ls -l lib/npm/exit0/linux-arm64-LE.node
 
 wasm-napi-exit0-windows:
 	# This isn't meant to be run directly but is a rough overview of the instructions
 	echo '__declspec(dllexport) void* napi_register_module_v1(void* a, void* b) { ExitProcess(0); }' > main.c
 	echo 'setlocal' > main.bat
 	echo 'call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" x64' >> main.bat
-	echo 'cl.exe /LD main.c /link /DLL /NODEFAULTLIB /NOENTRY kernel32.lib /OUT:npm/esbuild-wasm/exit0/win32-x64-LE.node' >> main.bat
+	echo 'cl.exe /LD main.c /link /DLL /NODEFAULTLIB /NOENTRY kernel32.lib /OUT:lib/npm/exit0/win32-x64-LE.node' >> main.bat
 	main.bat
 	rm -f main.*
 
 platform-all:
 	@$(MAKE) --no-print-directory -j4 \
+		platform-android \
 		platform-android-arm64 \
 		platform-darwin \
 		platform-darwin-arm64 \
@@ -267,6 +279,9 @@ platform-unixlike: cmd/esbuild/version.go
 	@test -n "$(NPMDIR)" || (echo "The environment variable NPMDIR must be provided" && false)
 	node scripts/esbuild.js "$(NPMDIR)/package.json" --version
 	CGO_ENABLED=0 GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
+
+platform-android: platform-wasm
+	node scripts/esbuild.js npm/esbuild-android-64/package.json --version
 
 platform-android-arm64:
 	@$(MAKE) --no-print-directory GOOS=android GOARCH=arm64 NPMDIR=npm/esbuild-android-arm64 platform-unixlike
@@ -353,7 +368,8 @@ publish-all: check-go-version
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-windows \
 		publish-windows-32 \
-		publish-windows-arm64
+		publish-windows-arm64 \
+		publish-sunos
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
@@ -364,10 +380,10 @@ publish-all: check-go-version
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
+		publish-android \
 		publish-android-arm64 \
 		publish-darwin \
-		publish-darwin-arm64 \
-		publish-sunos
+		publish-darwin-arm64
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
@@ -400,6 +416,9 @@ publish-windows-32: platform-windows-32
 
 publish-windows-arm64: platform-windows-arm64
 	test -n "$(OTP)" && cd npm/esbuild-windows-arm64 && npm publish --otp="$(OTP)"
+
+publish-android: platform-android
+	test -n "$(OTP)" && cd npm/esbuild-android-64 && npm publish --otp="$(OTP)"
 
 publish-android-arm64: platform-android-arm64
 	test -n "$(OTP)" && cd npm/esbuild-android-arm64 && npm publish --otp="$(OTP)"
@@ -468,6 +487,8 @@ clean:
 	rm -f npm/esbuild-windows-32/esbuild.exe
 	rm -f npm/esbuild-windows-64/esbuild.exe
 	rm -f npm/esbuild-windows-arm64/esbuild.exe
+	rm -rf npm/esbuild-android-64/bin
+	rm -rf npm/esbuild-android-64/esbuild.wasm npm/esbuild-android-64/wasm_exec.js npm/esbuild-android-64/exit0.js
 	rm -rf npm/esbuild-android-arm64/bin
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-darwin-arm64/bin
@@ -484,8 +505,11 @@ clean:
 	rm -rf npm/esbuild-netbsd-64/bin
 	rm -rf npm/esbuild-openbsd-64/bin
 	rm -rf npm/esbuild-sunos-64/bin
-	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
+	rm -rf npm/esbuild/bin
+	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js npm/esbuild-wasm/exit0.js
+	rm -r npm/esbuild/install.js
 	rm -rf npm/esbuild/lib
+	rm -rf npm/esbuild-wasm/esm
 	rm -rf npm/esbuild-wasm/lib
 	rm -rf require/*/bench/
 	rm -rf require/*/demo/

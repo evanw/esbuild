@@ -92,6 +92,7 @@ var helpText = func(colors logger.Colors) string {
                             browser and "main,module" when platform is node)
   --mangle-cache=...        Save "mangle props" decisions to a JSON file
   --mangle-props=...        Rename all properties matching a regular expression
+  --mangle-quoted=...       Enable renaming of quoted properties (true | false)
   --metafile=...            Write metadata about the build to a JSON file
   --minify-whitespace       Remove whitespace in output files
   --minify-identifiers      Shorten identifiers in output files

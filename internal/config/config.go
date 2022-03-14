@@ -281,6 +281,7 @@ type Options struct {
 	IgnoreDCEAnnotations    bool
 	TreeShaking             bool
 	DropDebugger            bool
+	MangleQuoted            bool
 	Platform                Platform
 	TargetFromAPI           TargetFromAPI
 	OutputFormat            Format

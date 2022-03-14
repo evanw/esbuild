@@ -32,9 +32,14 @@ export const knownUnixlikePackages: Record<string, string> = {
   'sunos x64 LE': 'esbuild-sunos-64',
 };
 
-export function pkgAndSubpathForCurrentPlatform(): { pkg: string, subpath: string } {
+export const knownWebAssemblyFallbackPackages: Record<string, string> = {
+  'android x64 LE': 'esbuild-android-64',
+};
+
+export function pkgAndSubpathForCurrentPlatform(): { pkg: string, subpath: string, isWASM: boolean } {
   let pkg: string;
   let subpath: string;
+  let isWASM = false;
   let platformKey = `${process.platform} ${os.arch()} ${os.endianness()}`;
 
   if (platformKey in knownWindowsPackages) {
@@ -47,11 +52,17 @@ export function pkgAndSubpathForCurrentPlatform(): { pkg: string, subpath: strin
     subpath = 'bin/esbuild';
   }
 
+  else if (platformKey in knownWebAssemblyFallbackPackages) {
+    pkg = knownWebAssemblyFallbackPackages[platformKey];
+    subpath = 'bin/esbuild';
+    isWASM = true;
+  }
+
   else {
     throw new Error(`Unsupported platform: ${platformKey}`);
   }
 
-  return { pkg, subpath };
+  return { pkg, subpath, isWASM };
 }
 
 function pkgForSomeOtherPlatform(): string | null {
@@ -84,15 +95,15 @@ export function downloadedBinPath(pkg: string, subpath: string): string {
   return path.join(esbuildLibDir, `downloaded-${pkg}-${path.basename(subpath)}`);
 }
 
-export function generateBinPath(): string {
+export function generateBinPath(): { binPath: string, isWASM: boolean } {
   // This feature was added to give external code a way to modify the binary
   // path without modifying the code itself. Do not remove this because
   // external code relies on this (in addition to esbuild's own test suite).
   if (ESBUILD_BINARY_PATH) {
-    return ESBUILD_BINARY_PATH;
+    return { binPath: ESBUILD_BINARY_PATH, isWASM: false };
   }
 
-  const { pkg, subpath } = pkgAndSubpathForCurrentPlatform();
+  const { pkg, subpath, isWASM } = pkgAndSubpathForCurrentPlatform();
   let binPath: string;
 
   try {
@@ -180,8 +191,8 @@ by esbuild to install the correct binary executable for your current platform.`)
       fs.copyFileSync(binPath, binTargetPath);
       fs.chmodSync(binTargetPath, 0o755);
     }
-    return binTargetPath;
+    return { binPath: binTargetPath, isWASM };
   }
 
-  return binPath;
+  return { binPath, isWASM };
 }

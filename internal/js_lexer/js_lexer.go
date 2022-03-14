@@ -465,7 +465,7 @@ func (lexer *Lexer) ExpectedString(text string) {
 			note.Location.Suggestion = "async"
 			notes = []logger.MsgData{note}
 		}
-		lexer.addRangeErrorWithNotes(RangeOfIdentifier(lexer.source, lexer.AwaitKeywordLoc),
+		lexer.AddRangeErrorWithNotes(RangeOfIdentifier(lexer.source, lexer.AwaitKeywordLoc),
 			"\"await\" can only be used inside an \"async\" function",
 			notes)
 		panic(LexerPanic{})
@@ -1093,7 +1093,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
-						lexer.addRangeErrorWithNotes(logger.Range{Loc: lexer.Loc()}, "Expected \"*/\" to terminate multi-line comment",
+						lexer.AddRangeErrorWithNotes(logger.Range{Loc: lexer.Loc()}, "Expected \"*/\" to terminate multi-line comment",
 							[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here:")})
 						panic(LexerPanic{})
 
@@ -1506,7 +1506,7 @@ func (lexer *Lexer) Next() {
 
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
-						lexer.addRangeErrorWithNotes(logger.Range{Loc: lexer.Loc()}, "Expected \"*/\" to terminate multi-line comment",
+						lexer.AddRangeErrorWithNotes(logger.Range{Loc: lexer.Loc()}, "Expected \"*/\" to terminate multi-line comment",
 							[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here:")})
 						panic(LexerPanic{})
 
@@ -2191,12 +2191,10 @@ func (lexer *Lexer) ScanRegExp() {
 		}
 
 		switch lexer.codePoint {
-		case '\r', '\n', 0x2028, 0x2029:
-			// Newlines aren't allowed in regular expressions
-			lexer.SyntaxError()
-
-		case -1: // This indicates the end of the file
-			lexer.SyntaxError()
+		case -1, // This indicates the end of the file
+			'\r', '\n', 0x2028, 0x2029: // Newlines aren't allowed in regular expressions
+			lexer.addRangeError(logger.Range{Loc: logger.Loc{Start: int32(lexer.end)}}, "Unterminated regular expression")
+			panic(LexerPanic{})
 
 		default:
 			lexer.step()
@@ -2648,7 +2646,7 @@ func (lexer *Lexer) addRangeErrorWithSuggestion(r logger.Range, text string, sug
 	}
 }
 
-func (lexer *Lexer) addRangeErrorWithNotes(r logger.Range, text string, notes []logger.MsgData) {
+func (lexer *Lexer) AddRangeErrorWithNotes(r logger.Range, text string, notes []logger.MsgData) {
 	// Don't report multiple errors in the same spot
 	if r.Loc == lexer.prevErrorLoc {
 		return
