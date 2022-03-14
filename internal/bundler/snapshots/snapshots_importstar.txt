@@ -950,7 +950,7 @@ __reExport(entry_exports, require("a"), module.exports);
 
 // inner.js
 var inner_exports = {};
-__reExport(inner_exports, require("b"), module.exports);
+__reExport(inner_exports, require("b"));
 
 ================================================================================
 TestReExportStarExternalCommonJS
