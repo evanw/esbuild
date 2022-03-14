@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.26
 
 * Fix a tree shaking regression regarding `var` declarations ([#2080](https://github.com/evanw/esbuild/issues/2080), [#2085](https://github.com/evanw/esbuild/pull/2085), [#2098](https://github.com/evanw/esbuild/issues/2098), [#2099](https://github.com/evanw/esbuild/issues/2099))
 
