@@ -112,9 +112,6 @@ func code(isES6 bool) string {
 		}
 		export var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b))
 
-		// Tells importing modules that this can be considered an ES module
-		var __markAsModule = target => __defProp(target, '__esModule', { value: true })
-
 		// Update the "name" property on the function or class for "--keep-names"
 		export var __name = (target, value) => __defProp(target, 'name', { value, configurable: true })
 
@@ -185,53 +182,55 @@ func code(isES6 bool) string {
 			for (var name in all)
 				__defProp(target, name, { get: all[name], enumerable: true })
 		}
-		export var __reExport = (target, module, copyDefault, desc) => {
-			if (module && typeof module === 'object' || typeof module === 'function')
+
+		var __copyProps = (to, from, except, desc) => {
+			if (from && typeof from === 'object' || typeof from === 'function')
 	`
 
 	// Avoid "let" when not using ES6
 	if isES6 {
 		text += `
-				for (let key of __getOwnPropNames(module))
-					if (!__hasOwnProp.call(target, key) && (copyDefault || key !== 'default'))
-						__defProp(target, key, { get: () => module[key], enumerable: !(desc = __getOwnPropDesc(module, key)) || desc.enumerable })
+				for (let key of __getOwnPropNames(from))
+					if (!__hasOwnProp.call(to, key) && key !== except)
+						__defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable })
 		`
 	} else {
 		text += `
-				for (var keys = __getOwnPropNames(module), i = 0, n = keys.length, key; i < n; i++) {
+				for (var keys = __getOwnPropNames(from), i = 0, n = keys.length, key; i < n; i++) {
 					key = keys[i]
-					if (!__hasOwnProp.call(target, key) && (copyDefault || key !== 'default'))
-						__defProp(target, key, { get: (k => module[k]).bind(null, key), enumerable: !(desc = __getOwnPropDesc(module, key)) || desc.enumerable })
+					if (!__hasOwnProp.call(to, key) && key !== except)
+						__defProp(to, key, { get: (k => from[k]).bind(null, key), enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable })
 				}
 		`
 	}
 
 	text += `
-			return target
+			return to
 		}
 
-		// Converts the module from CommonJS to ESM
-		export var __toESM = (module, isNodeMode) => {
-			return __reExport(__markAsModule(
-				__defProp(
-					module != null ? __create(__getProtoOf(module)) : {},
-					'default',
+		export var __reExport = (target, mod) => __copyProps(target, mod, 'default')
 
-					// If the importer is not in node compatibility mode and this is an ESM
-					// file that has been converted to a CommonJS file using a Babel-
-					// compatible transform (i.e. "__esModule" has been set), then forward
-					// "default" to the export named "default". Otherwise set "default" to
-					// "module.exports" for node compatibility.
-					!isNodeMode && module && module.__esModule
-						? { get: () => module.default, enumerable: true }
-						: { value: module, enumerable: true })
-			), module)
-		}
+		// Converts the module from CommonJS to ESM. When in node mode (i.e. in an
+		// ".mjs" file, package.json has "type: module", or the "__esModule" export
+		// in the CommonJS file is falsy or missing), the "default" property is
+		// overridden to point to the original CommonJS exports object instead.
+		export var __toESM = (mod, isNodeMode, target) => (
+			target = mod != null ? __create(__getProtoOf(mod)) : {},
+			__copyProps(
+				// If the importer is in node compatibility mode or this is not an ESM
+				// file that has been converted to a CommonJS file using a Babel-
+				// compatible transform (i.e. "__esModule" has not been set), then set
+				// "default" to the CommonJS "module.exports" for node compatibility.
+				isNodeMode || !mod || !mod.__esModule
+					? __defProp(target, 'default', { value: mod, enumerable: true })
+					: target,
+				mod)
+		)
 
 		// Converts the module from ESM to CommonJS. This clones the input module
 		// object with the addition of a non-enumerable "__esModule" property set
 		// to "true", which overwrites any existing export named "__esModule".
-		export var __toCommonJS = module => __reExport(__markAsModule({}), module, /* copyDefault */ 1)
+		export var __toCommonJS = mod => __copyProps(__defProp({}, '__esModule', { value: true }), mod)
 
 		// For TypeScript decorators
 		// - kind === undefined: class

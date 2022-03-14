@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Avoid generating an enumerable `default` import for CommonJS files in Babel mode ([#2097](https://github.com/evanw/esbuild/issues/2097))
+
+    Importing a CommonJS module into an ES module can be done in two different ways. In node mode the `default` import is always set to `module.exports`, while in Babel mode the `default` import passes through to `module.exports.default` instead. Node mode is triggered when the importing file ends in `.mjs`, has `type: "module"` in its `package.json` file, or the imported module does not have a `__esModule` marker.
+
+    Previously esbuild always created the forwarding `default` import in Babel mode, even if `module.exports` had no property called `default`. This was problematic because the getter named `default` still showed up as a property on the imported namespace object, and could potentially interfere with code that iterated over the properties of the imported namespace object. With this release the getter named `default` will now only be added in Babel mode if the `default` property exists at the time of the import.
+
 ## 0.14.26
 
 * Fix a tree shaking regression regarding `var` declarations ([#2080](https://github.com/evanw/esbuild/issues/2080), [#2085](https://github.com/evanw/esbuild/pull/2085), [#2098](https://github.com/evanw/esbuild/issues/2098), [#2099](https://github.com/evanw/esbuild/issues/2099))
