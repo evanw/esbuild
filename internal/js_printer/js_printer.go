@@ -2580,6 +2580,7 @@ func (p *printer) isCallExprSuperfluous(value *js_ast.ECall) bool {
 	}
 
 	var ref *js_ast.Ref
+	isAnonymousFnOrClass := false
 	switch e := value.Args[0].Data.(type) {
 	case *js_ast.EIdentifier:
 		// "__name(foo, 'foo')"
@@ -2589,12 +2590,16 @@ func (p *printer) isCallExprSuperfluous(value *js_ast.ECall) bool {
 		// "__name(function foo() {}, 'foo')"
 		if e.Fn.Name != nil {
 			ref = &e.Fn.Name.Ref
+		} else {
+			isAnonymousFnOrClass = true
 		}
 
 	case *js_ast.EClass:
 		// "__name(class foo {}, 'foo')"
 		if e.Class.Name != nil {
 			ref = &e.Class.Name.Ref
+		} else {
+			isAnonymousFnOrClass = true
 		}
 	}
 
@@ -2604,7 +2609,7 @@ func (p *printer) isCallExprSuperfluous(value *js_ast.ECall) bool {
 	//   let foo = __name(function() {}, "foo");
 	//   let bar = __name(class {}, "bar");
 	//
-	if ref == nil && p.keepNamesAssignTarget == value {
+	if ref == nil && p.keepNamesAssignTarget == value && isAnonymousFnOrClass {
 		ref = &p.keepNamesRef
 	}
 
