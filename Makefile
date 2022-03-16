@@ -507,7 +507,7 @@ clean:
 	rm -rf npm/esbuild-sunos-64/bin
 	rm -rf npm/esbuild/bin
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js npm/esbuild-wasm/exit0.js
-	rm -r npm/esbuild/install.js
+	rm -f npm/esbuild/install.js
 	rm -rf npm/esbuild/lib
 	rm -rf npm/esbuild-wasm/esm
 	rm -rf npm/esbuild-wasm/lib
