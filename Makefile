@@ -820,7 +820,8 @@ bench/three: | github/three
 	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/src/entry.js; done
 	echo 'Line count:' && find bench/three/src -name '*.js' | xargs wc -l | tail -n 1
 
-bench-three: bench-three-esbuild bench-three-spack bench-three-rollup bench-three-webpack5 bench-three-parcel2
+# Leaving spack out till it's ready
+bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack5 bench-three-parcel2 #bench-three-spack
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
