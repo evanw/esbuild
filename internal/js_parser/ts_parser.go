@@ -175,7 +175,6 @@ const (
 	tsTypeIdentifierAsserts
 	tsTypeIdentifierPrefix
 	tsTypeIdentifierPrimitive
-	tsTypeIdentifierOut
 )
 
 // Use a map to improve lookup speed
@@ -183,7 +182,6 @@ var tsTypeIdentifierMap = map[string]tsTypeIdentifierKind{
 	"unique":   tsTypeIdentifierUnique,
 	"abstract": tsTypeIdentifierAbstract,
 	"asserts":  tsTypeIdentifierAsserts,
-	"out":      tsTypeIdentifierOut,
 
 	"keyof":    tsTypeIdentifierPrefix,
 	"readonly": tsTypeIdentifierPrefix,
@@ -613,20 +611,18 @@ func (p *parser) skipTypeScriptTypeParameters() {
 
 		for {
 			// type X<out> = out;
-			inOutMaybeIdentifier := false
+			outMaybeIdentifier := false
 
-			if p.lexer.Token == js_lexer.TIn {
+			if p.isTSModifierIn() {
 				p.lexer.Next()
-				inOutMaybeIdentifier = true
 			}
 
-			kind := tsTypeIdentifierMap[p.lexer.Identifier.String]
-			if kind == tsTypeIdentifierOut {
+			if p.isTSModifierInOut() {
 				p.lexer.Next()
-				inOutMaybeIdentifier = true
+				outMaybeIdentifier = true
 			}
 
-			if p.lexer.Token == js_lexer.TIdentifier || !inOutMaybeIdentifier {
+			if p.lexer.Token == js_lexer.TIdentifier || !outMaybeIdentifier {
 				p.lexer.Expect(js_lexer.TIdentifier)
 			}
 
@@ -781,11 +777,26 @@ func (p *parser) trySkipTypeScriptArrowArgsWithBacktracking() bool {
 	return true
 }
 
+func (p *parser) isTSModifierIn() bool {
+	return p.lexer.Token == js_lexer.TIn
+}
+
+func (p *parser) isTSModifierOut() bool {
+	return p.lexer.Identifier.String == "out"
+}
+
+func (p *parser) isTSModifierInOut() bool {
+	return p.isTSModifierIn() || p.isTSModifierOut()
+}
+
 // Returns true if the current less-than token is considered to be an arrow
 // function under TypeScript's rules for files containing JSX syntax
 func (p *parser) isTSArrowFnJSX() (isTSArrowFn bool) {
 	oldLexer := p.lexer
-	p.lexer.Next()
+
+	for skip := true; skip; skip = p.isTSModifierInOut() {
+		p.lexer.Next()
+	}
 
 	// Look ahead to see if this should be an arrow function instead
 	if p.lexer.Token == js_lexer.TIdentifier {

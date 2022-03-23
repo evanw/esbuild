@@ -3313,16 +3313,21 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		//     <A>(x) => {}</A>
 		//     <A extends>(x) => {}</A>
 		//     <A extends={false}>(x) => {}</A>
+		//     <in out A>(x) => {}</in>
+		//     <in out A extends={false}>(x) => {}
 		//
 		//   An arrow function with type parameters:
 		//     <A, B>(x) => {}
 		//     <A extends B>(x) => {}
+		//     <in out A, B>(x) => {}
+		//     <in out A extends B>(x) => {}
 		//
 		//   A syntax error:
 		//     <[]>(x)
 		//     <A[]>(x)
 		//     <A>(x) => {}
 		//     <A = B>(x) => {}
+		//     <in out A>(x) => {}
 
 		if p.options.ts.Parse && p.options.jsx.Parse && p.isTSArrowFnJSX() {
 			p.skipTypeScriptTypeParameters()
