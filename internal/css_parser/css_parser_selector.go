@@ -51,6 +51,7 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 type parseSelectorOpts struct {
 	atNestRange  logger.Range
 	allowNesting bool
+	isTopLevel   bool
 }
 
 func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.ComplexSelector, ok bool, hasNestPrefix bool) {

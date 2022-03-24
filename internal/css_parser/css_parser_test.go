@@ -775,6 +775,8 @@ func TestAtRule(t *testing.T) {
 	expectPrinted(t, "@-moz-document url-prefix() { h1 { color: green } }",
 		"@-moz-document url-prefix() {\n  h1 {\n    color: green;\n  }\n}\n")
 
+	expectPrinted(t, "@media foo { bar }", "@media foo {\n  bar {\n  }\n}\n")
+
 	// https://www.w3.org/TR/css-page-3/#syntax-page-selector
 	expectPrinted(t, `
 		@page :first { margin: 0 }
@@ -1100,6 +1102,9 @@ func TestEmptyRule(t *testing.T) {
 	expectPrintedMangleMinify(t, "@page { color: red; @top-left {} }", "@page{color:red}")
 	expectPrintedMangleMinify(t, "@keyframes test { from {} to { color: red } }", "@keyframes test{to{color:red}}")
 	expectPrintedMangleMinify(t, "@keyframes test { from { color: red } to {} }", "@keyframes test{0%{color:red}}")
+
+	expectPrinted(t, "invalid", "invalid {\n}\n")
+	expectPrinted(t, "invalid }", "invalid } {\n}\n")
 }
 
 func TestMarginAndPaddingAndInset(t *testing.T) {
