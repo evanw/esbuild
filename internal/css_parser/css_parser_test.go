@@ -883,6 +883,26 @@ func TestAtRule(t *testing.T) {
   suffix: ": ";
 }
 `)
+
+	// https://drafts.csswg.org/css-fonts/#font-feature-values
+	expectPrinted(t, `
+		@font-feature-values Roboto {
+			font-display: swap;
+		}
+	`, `@font-feature-values Roboto {
+  font-display: swap;
+}
+`)
+	expectPrinted(t, `
+		@font-feature-values Bongo {
+			@swash { ornate: 1 }
+		}
+	`, `@font-feature-values Bongo {
+  @swash {
+    ornate: 1;
+  }
+}
+`)
 }
 
 func TestAtCharset(t *testing.T) {

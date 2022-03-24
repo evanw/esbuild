@@ -689,6 +689,17 @@ var specialAtRules = map[string]atRuleKind{
 	// Documentation: https://developer.mozilla.org/en-US/docs/Web/CSS/@counter-style
 	// Reference: https://drafts.csswg.org/css-counter-styles/#the-counter-style-rule
 	"counter-style": atRuleDeclarations,
+
+	// Documentation: https://developer.mozilla.org/en-US/docs/Web/CSS/@font-feature-values
+	// Reference: https://drafts.csswg.org/css-fonts/#font-feature-values
+	"font-feature-values": atRuleDeclarations,
+	"annotation":          atRuleDeclarations,
+	"character-variant":   atRuleDeclarations,
+	"historical-forms":    atRuleDeclarations,
+	"ornaments":           atRuleDeclarations,
+	"styleset":            atRuleDeclarations,
+	"stylistic":           atRuleDeclarations,
+	"swash":               atRuleDeclarations,
 }
 
 type atRuleValidity uint8
