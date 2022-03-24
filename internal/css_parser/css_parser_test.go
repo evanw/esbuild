@@ -850,6 +850,23 @@ func TestAtRule(t *testing.T) {
   }
 }
 `)
+
+	// https://drafts.csswg.org/css-fonts-4/#font-palette-values
+	expectPrinted(t, `
+		@font-palette-values Augusta {
+			font-family: Handover Sans;
+			base-palette: 3;
+			override-colors: 1 rgb(43, 12, 9), 2 #000, 3 var(--highlight)
+		}
+	`, `@font-palette-values Augusta {
+  font-family: Handover Sans;
+  base-palette: 3;
+  override-colors:
+    1 rgb(43, 12, 9),
+    2 #000,
+    3 var(--highlight);
+}
+`)
 }
 
 func TestAtCharset(t *testing.T) {

@@ -681,6 +681,9 @@ var specialAtRules = map[string]atRuleKind{
 
 	// Reference: https://drafts.csswg.org/css-nesting-1/
 	"nest": atRuleDeclarations,
+
+	// Reference: https://drafts.csswg.org/css-fonts-4/#font-palette-values
+	"font-palette-values": atRuleDeclarations,
 }
 
 type atRuleValidity uint8

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Add support for some new CSS rules ([#2115](https://github.com/evanw/esbuild/issues/2115))
+
+    This release adds support for [`@font-palette-values`](https://drafts.csswg.org/css-fonts-4/#font-palette-values):
+
+    ```css
+    /* Original code */
+    @font-palette-values Foo { base-palette: 1; }
+
+    /* Old output (with --minify) */
+    @font-palette-values Foo{base-palette: 1;}
+
+    /* New output (with --minify) */
+    @font-palette-values Foo{base-palette:1}
+    ```
+
 ## 0.14.27
 
 * Avoid generating an enumerable `default` import for CommonJS files in Babel mode ([#2097](https://github.com/evanw/esbuild/issues/2097))
