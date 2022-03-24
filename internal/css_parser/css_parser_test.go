@@ -867,6 +867,20 @@ func TestAtRule(t *testing.T) {
     3 var(--highlight);
 }
 `)
+
+	// https://drafts.csswg.org/css-counter-styles/#the-counter-style-rule
+	expectPrinted(t, `
+		@counter-style box-corner {
+			system: fixed;
+			symbols: ◰ ◳ ◲ ◱;
+			suffix: ': '
+		}
+	`, `@counter-style box-corner {
+  system: fixed;
+  symbols: ◰ ◳ ◲ ◱;
+  suffix: ": ";
+}
+`)
 }
 
 func TestAtCharset(t *testing.T) {

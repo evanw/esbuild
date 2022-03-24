@@ -2,19 +2,20 @@
 
 ## Unreleased
 
-* Add support for some new CSS rules ([#2115](https://github.com/evanw/esbuild/issues/2115))
+* Add support for some new CSS rules ([#2115](https://github.com/evanw/esbuild/issues/2115), [#2116](https://github.com/evanw/esbuild/issues/2116))
 
-    This release adds support for [`@font-palette-values`](https://drafts.csswg.org/css-fonts-4/#font-palette-values):
+    This release adds support for [`@font-palette-values`](https://drafts.csswg.org/css-fonts-4/#font-palette-values) and [`@counter-style`](https://developer.mozilla.org/en-US/docs/Web/CSS/@counter-style):
 
     ```css
     /* Original code */
     @font-palette-values Foo { base-palette: 1; }
+    @counter-style bar { symbols: b a r; }
 
     /* Old output (with --minify) */
-    @font-palette-values Foo{base-palette: 1;}
+    @font-palette-values Foo{base-palette: 1;}@counter-style bar{symbols: b a r;}
 
     /* New output (with --minify) */
-    @font-palette-values Foo{base-palette:1}
+    @font-palette-values Foo{base-palette:1}@counter-style bar{symbols:b a r}
     ```
 
 ## 0.14.27

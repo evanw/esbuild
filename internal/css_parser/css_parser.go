@@ -684,6 +684,10 @@ var specialAtRules = map[string]atRuleKind{
 
 	// Reference: https://drafts.csswg.org/css-fonts-4/#font-palette-values
 	"font-palette-values": atRuleDeclarations,
+
+	// Documentation: https://developer.mozilla.org/en-US/docs/Web/CSS/@counter-style
+	// Reference: https://drafts.csswg.org/css-counter-styles/#the-counter-style-rule
+	"counter-style": atRuleDeclarations,
 }
 
 type atRuleValidity uint8
