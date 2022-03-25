@@ -19,9 +19,11 @@
     @font-palette-values Foo{base-palette:1}@counter-style bar{symbols:b a r}@font-feature-values Bop{@styleset{test:1}}
     ```
 
-* Upgrade to Go 1.18.0
+* Upgrade to Go 1.18.0 ([#2105](https://github.com/evanw/esbuild/issues/2105))
 
     Binary executables for this version are now published with Go version 1.18.0. The [Go release notes](https://go.dev/doc/go1.18) say that the linker generates smaller binaries and that on 64-bit ARM chips, compiled binaries run around 10% faster. On an M1 MacBook Pro, esbuild's benchmark runs approximately 8% faster than before and the binary executable is approximately 4% smaller than before.
+
+    This also fixes a regression from version 0.14.26 of esbuild where the browser builds of the `esbuild-wasm` package could fail to be bundled due to the use of built-in node libraries. The primary WebAssembly shim for Go 1.18.0 no longer uses built-in node libraries.
 
 ## 0.14.27
 
