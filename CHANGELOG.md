@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+* Add support for [`@container`](https://drafts.csswg.org/css-contain-3/#container-rule) at rule, this is the main syntax for CSS container queries.
+
+    ```css
+    /* Original code */
+    @supports ( container-type: size ) {
+      @container ( width <= 150px ) {
+        #inner {
+          background-color: skyblue;
+        }
+      }
+    }
+
+    /* Old output (with --minify) */
+    @supports (container-type: size){@container (width <= 150px){#inner {background-color: skyblue;}}}
+
+    /* New output (with --minify) */
+    @supports (container-type: size){@container (width <= 150px){#inner{background-color:#87ceeb}}}
+    ```
+
 ## 0.14.28
 
 * Add support for some new CSS rules ([#2115](https://github.com/evanw/esbuild/issues/2115), [#2116](https://github.com/evanw/esbuild/issues/2116), [#2117](https://github.com/evanw/esbuild/issues/2117))
@@ -294,7 +315,7 @@
 
 * Remove simplified statement-level literal expressions ([#2063](https://github.com/evanw/esbuild/issues/2063))
 
-    With this release, esbuild now removes simplified statement-level expressions if the simplified result is a literal expression even when minification is disabled. Previously this was only done when minification is enabled. This change was only made because some people are bothered by seeing top-level literal expressions. This change has no effect on code behavior.
+    With this release, esbuild now removes simplified statement-level expressions if the simplified result is a literal expression even when minification is disabled. Previously this was only done when minification is enabled. This change was only made because some people are bothered by seeing top-level literal expressions. This change has no effect on code behavior.
 
 * Ignore `.d.ts` rules in `paths` in `tsconfig.json` files ([#2074](https://github.com/evanw/esbuild/issues/2074), [#2075](https://github.com/evanw/esbuild/pull/2075))
 
@@ -5238,7 +5259,7 @@ In addition to the breaking changes above, the following features are also inclu
 
 * Fix some obscure TypeScript type parsing edge cases
 
-    In TypeScript, type parameters come after a type and are placed in angle brackets like `Foo<T>`. However, certain built-in types do not accept type parameters including primitive types such as `number`. This means `if (x as number < 1) {}` is not a syntax error while `if (x as Foo < 1) {}` is a syntax error. This release changes TypeScript type parsing to allow type parameters in a more restricted set of situations, which should hopefully better resolve these type parsing ambiguities.
+    In TypeScript, type parameters come after a type and are placed in angle brackets like `Foo<T>`. However, certain built-in types do not accept type parameters including primitive types such as `number`. This means `if (x as number < 1) {}` is not a syntax error while `if (x as Foo < 1) {}` is a syntax error. This release changes TypeScript type parsing to allow type parameters in a more restricted set of situations, which should hopefully better resolve these type parsing ambiguities.
 
 ## 0.10.2
 

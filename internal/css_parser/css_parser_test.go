@@ -870,6 +870,35 @@ func TestAtRule(t *testing.T) {
 }
 `)
 
+	// https://drafts.csswg.org/css-contain-3/#container-rule
+	expectPrinted(t, `
+		@container my-layout (inline-size > 45em) {
+			.foo {
+				color: skyblue;
+			}
+		}
+	`, `@container my-layout (inline-size > 45em) {
+  .foo {
+    color: skyblue;
+  }
+}
+`)
+
+	expectPrintedMinify(t, `@container  card (  inline-size  >  30em  )   and   style(  --responsive   =   true  )  {
+	.foo {
+			color: skyblue;
+		}
+}`, "@container card (inline-size > 30em) and style(--responsive = true){.foo{color:skyblue}}")
+
+	// Nested @supports
+	expectPrintedMangleMinify(t, `@supports (  container-type: size  ) {
+	@container (  width  <=  150px  ) {
+		#inner {
+			background-color: skyblue;
+		}
+	}
+}`, "@supports (container-type: size){@container (width <= 150px){#inner{background-color:#87ceeb}}}")
+
 	// https://drafts.csswg.org/css-counter-styles/#the-counter-style-rule
 	expectPrinted(t, `
 		@counter-style box-corner {
