@@ -19,6 +19,10 @@
     @font-palette-values Foo{base-palette:1}@counter-style bar{symbols:b a r}@font-feature-values Bop{@styleset{test:1}}
     ```
 
+* Upgrade to Go 1.18.0
+
+    Binary executables for this version are now published with Go version 1.18.0. The [Go release notes](https://go.dev/doc/go1.18) say that the linker generates smaller binaries and that on 64-bit ARM chips, compiled binaries run around 10% faster. On an M1 MacBook Pro, esbuild's benchmark runs approximately 8% faster than before and the binary executable is approximately 4% smaller than before.
+
 ## 0.14.27
 
 * Avoid generating an enumerable `default` import for CommonJS files in Babel mode ([#2097](https://github.com/evanw/esbuild/issues/2097))
