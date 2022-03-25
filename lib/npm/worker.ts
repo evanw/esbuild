@@ -5,7 +5,7 @@ declare function postMessage(message: any): void;
 
 onmessage = ({ data: wasm }) => {
   let decoder = new TextDecoder()
-  let fs = (global as any).fs
+  let fs = (globalThis as any).fs
 
   let stderr = ''
   fs.writeSync = (fd: number, buffer: Uint8Array) => {
@@ -57,7 +57,7 @@ onmessage = ({ data: wasm }) => {
     callback(null, count)
   }
 
-  let go = new (global as any).Go()
+  let go = new (globalThis as any).Go()
   go.argv = ['', `--service=${ESBUILD_VERSION}`]
 
   WebAssembly.instantiate(wasm, go.importObject)
