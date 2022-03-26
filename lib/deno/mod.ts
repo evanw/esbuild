@@ -224,7 +224,7 @@ let ensureServiceIsRunning = (): Promise<Service> => {
       const stdoutBuffer = new Uint8Array(4 * 1024 * 1024)
       const readMoreStdout = () => child.stdout.read(stdoutBuffer).then(n => {
         if (n === null) {
-          afterClose()
+          afterClose(null)
         } else {
           readFromStdout(stdoutBuffer.subarray(0, n))
           readMoreStdout()
@@ -232,7 +232,7 @@ let ensureServiceIsRunning = (): Promise<Service> => {
       }).catch(e => {
         if (e instanceof Deno.errors.Interrupted || e instanceof Deno.errors.BadResource) {
           // ignore the error if read was interrupted (stdout was closed)
-          afterClose()
+          afterClose(e)
         } else {
           throw e;
         }
