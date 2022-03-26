@@ -257,7 +257,7 @@ let ensureServiceIsRunning = (): Service => {
     writeToStdin(bytes) {
       child.stdin.write(bytes, err => {
         // Assume the service was stopped if we get an error writing to stdin
-        if (err) afterClose();
+        if (err) afterClose(err);
       });
     },
     readFileSync: fs.readFileSync,
@@ -268,6 +268,9 @@ let ensureServiceIsRunning = (): Service => {
 
   // Assume the service was stopped if we get an error writing to stdin
   child.stdin.on('error', afterClose);
+
+  // Propagate errors about failure to run the executable itself
+  child.on('error', afterClose);
 
   const stdin: typeof child.stdin & { unref?(): void } = child.stdin;
   const stdout: typeof child.stdout & { unref?(): void } = child.stdout;
@@ -377,7 +380,7 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
     maxBuffer: +process.env.ESBUILD_MAX_BUFFER! || 16 * 1024 * 1024,
   });
   readFromStdout(stdout);
-  afterClose();
+  afterClose(null);
 };
 
 let randomFileName = () => {
