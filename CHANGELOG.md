@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.28
 
 * Add support for some new CSS rules ([#2115](https://github.com/evanw/esbuild/issues/2115), [#2116](https://github.com/evanw/esbuild/issues/2116), [#2117](https://github.com/evanw/esbuild/issues/2117))
 
