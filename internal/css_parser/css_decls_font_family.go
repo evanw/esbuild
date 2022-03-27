@@ -7,13 +7,23 @@ import (
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
 
-// Specification: https://drafts.csswg.org/css-values-4/#common-keywords
-var wideKeywords = map[string]bool{
-	"initial": true,
-	"inherit": true,
-	"unset":   true,
+// CSS-wide keywords and reserved keyword
+// These keywords usually require special handling when parsing.
+// The latest definition is in CSS Cascading and Inheritance Level 5:
+// https://drafts.csswg.org/css-cascade-5/#defaulting-keywords
+// Old Specification: https://drafts.csswg.org/css-values-4/#common-keywords
+var CSSWideAndReservedKeywords = map[string]bool{
+	"initial":      true,
+	"inherit":      true,
+	"unset":        true,
+	"revert":       true,
+	"revert-layer": true,
+	"default":      true, // CSS reserved keyword
 }
 
+// Font family names that happen to be the same as a keyword value
+// must be quoted to prevent confusion with the keywords with the same names.
+// UAs must not consider these keywords as matching the <family-name> type.
 // Specification: https://drafts.csswg.org/css-fonts/#generic-font-families
 var genericFamilyNames = map[string]bool{
 	"serif":         true,
@@ -118,10 +128,7 @@ func isValidCustomIdent(text string, predefinedKeywords map[string]bool) bool {
 	if predefinedKeywords[loweredText] {
 		return false
 	}
-	if wideKeywords[loweredText] {
-		return false
-	}
-	if loweredText == "default" {
+	if CSSWideAndReservedKeywords[loweredText] {
 		return false
 	}
 	if loweredText == "" {

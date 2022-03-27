@@ -10,6 +10,23 @@
 
     If the esbuild binary executable is corrupted or missing, previously there was one situation where esbuild's JavaScript API could hang instead of generating an error. This release changes esbuild's library code to generate an error instead in this case.
 
+* Fix when CSS-wide keywords(`initial`, `inherit`, `unset`, `revert`, `revert-layer`, `default`) is present in the `font-family`, must keep the quotation marks, otherwise it will be invalid.
+
+    ```css
+    /* Original code */
+    .foo { font-family: 'revert'; }
+    a { font-family: 'revert-layer', 'Segoe UI', serif; }
+
+    /* Old output (with --minify) */
+    /* Invalid rules */
+    .foo{font-family:revert}
+    a{font-family:revert-layer,Segoe UI,serif}
+
+    /* New output (with --minify) */
+    .foo{font-family:"revert"}
+    a{font-family:"revert-layer",Segoe UI,serif}
+    ```
+
 ## 0.14.28
 
 * Add support for some new CSS rules ([#2115](https://github.com/evanw/esbuild/issues/2115), [#2116](https://github.com/evanw/esbuild/issues/2116), [#2117](https://github.com/evanw/esbuild/issues/2117))
@@ -3586,15 +3603,15 @@ In addition to the breaking changes above, the following features are also inclu
 
 * Minify the syntax `Infinity` to `1 / 0` ([#1385](https://github.com/evanw/esbuild/pull/1385))
 
-	The `--minify-syntax` flag (automatically enabled by `--minify`) will now minify the expression `Infinity` to `1 / 0`, which uses fewer bytes:
-
-	```js
-	// Original code
-	const a = Infinity;
-
-	// Output with "--minify-syntax"
-	const a = 1 / 0;
-	```
+    The `--minify-syntax` flag (automatically enabled by `--minify`) will now minify the expression   `Infinity` to `1 / 0`, which uses fewer bytes:
+  
+    ```js
+    // Original code
+    const a = Infinity;
+  
+    // Output with "--minify-syntax"
+    const a = 1 / 0;
+    ```
 
     This change was contributed by [@Gusted](https://github.com/Gusted).
 
