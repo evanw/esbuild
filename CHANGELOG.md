@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix edge case regarding `baseUrl` and `paths` in `tsconfig.json` ([#2119](https://github.com/evanw/esbuild/issues/2119))
+
+    In `tsconfig.json`, TypeScript forbids non-relative values inside `paths` if `baseUrl` is not present, and esbuild does too. However, TypeScript checked this after the entire `tsconfig.json` hierarchy was parsed while esbuild incorrectly checked this immediately when parsing the file containing the `paths` map. This caused incorrect warnings to be generated for `tsconfig.json` files that specify a `baseUrl` value and that inherit a `paths` value from an `extends` clause. Now esbuild will only check for non-relative `paths` values after the entire hierarchy has been parsed to avoid generating incorrect warnings.
+
 * Better handle errors where the esbuild binary executable is corrupted or missing ([#2129](https://github.com/evanw/esbuild/issues/2129))
 
     If the esbuild binary executable is corrupted or missing, previously there was one situation where esbuild's JavaScript API could hang instead of generating an error. This release changes esbuild's library code to generate an error instead in this case.
