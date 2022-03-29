@@ -2901,6 +2901,9 @@ func wrapToAvoidAmbiguousElse(s js_ast.S) bool {
 		case *js_ast.SWith:
 			s = current.Body.Data
 
+		case *js_ast.SLabel:
+			s = current.Stmt.Data
+
 		default:
 			return false
 		}
