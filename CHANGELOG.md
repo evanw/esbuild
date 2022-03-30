@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.29
 
 * Fix a minification bug with a double-nested `if` inside a label followed by `else` ([#2139](https://github.com/evanw/esbuild/issues/2139))
 
