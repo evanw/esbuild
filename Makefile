@@ -498,7 +498,7 @@ validate-build:
 
 # This checks that the published binaries are bitwise-identical to the locally-build binaries
 validate-builds:
-	git checkout "v$(ESBUILD_VERSION)"
+	git fetch --all --tags && git checkout "v$(ESBUILD_VERSION)"
 	@$(MAKE) --no-print-directory TARGET=platform-android PACKAGE=esbuild-android-64 SUBPATH=esbuild.wasm validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-android-arm64 PACKAGE=esbuild-android-arm64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-darwin PACKAGE=esbuild-darwin-64 SUBPATH=bin/esbuild validate-build
