@@ -131,7 +131,7 @@ type DebugMeta struct {
 	notes             []logger.MsgData
 }
 
-func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string, notes []logger.MsgData) {
+func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string, suggestion string, notes []logger.MsgData) {
 	tracker := logger.MakeLineColumnTracker(source)
 
 	if source != nil && dm.suggestionMessage != "" {
@@ -144,6 +144,10 @@ func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.
 		Kind:  logger.Error,
 		Data:  tracker.MsgData(r, text),
 		Notes: append(dm.notes, notes...),
+	}
+
+	if msg.Data.Location != nil && suggestion != "" {
+		msg.Data.Location.Suggestion = suggestion
 	}
 
 	log.AddMsg(msg)
