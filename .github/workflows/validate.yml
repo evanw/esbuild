@@ -1,0 +1,22 @@
+name: Validate release builds
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.18.0
+        id: go
+
+      - name: Validation checks
+        run: |
+          make validate-builds
