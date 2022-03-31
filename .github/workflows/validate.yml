@@ -3,6 +3,7 @@ name: Validate release builds
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 jobs:
   release:
