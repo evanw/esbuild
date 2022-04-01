@@ -1314,6 +1314,9 @@ const (
 	// This means the symbol is a normal function that takes a single argument
 	// and returns that argument.
 	IsIdentityFunction
+
+	// This means that symbol was merged with js_ast.MergeSymbols
+	WasMerged
 )
 
 func (flags SymbolFlags) Has(flag SymbolFlags) bool {
@@ -2146,6 +2149,7 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 
 	oldSymbol.Link = new
 	newSymbol.MergeContentsWith(oldSymbol)
+	newSymbol.Flags |= WasMerged
 	return new
 }
 

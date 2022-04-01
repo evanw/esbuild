@@ -1941,28 +1941,28 @@ const local_const = __objRest({}, []);
 let local_let = __objRest({}, []);
 var local_var = __objRest({}, []);
 let arrow_fn = (_a) => {
-  var x2 = __objRest(_a, []);
+  var x = __objRest(_a, []);
 };
 let fn_expr = function(_b = default_value) {
-  var x2 = __objRest(_b, []);
+  var x = __objRest(_b, []);
 };
 let class_expr = class {
-  method(x2, ..._c) {
+  method(x, ..._c) {
     var [y, _d] = _c, z = __objRest(_d, []);
   }
 };
 function fn_stmt(_e, _g) {
-  var _f = _e, { a = b() } = _f, x2 = __objRest(_f, ["a"]);
+  var _f = _e, { a = b() } = _f, x = __objRest(_f, ["a"]);
   var _h = _g, { c = d() } = _h, y = __objRest(_h, ["c"]);
 }
 class class_stmt {
   method(_i) {
-    var x2 = __objRest(_i, []);
+    var x = __objRest(_i, []);
   }
 }
 var ns;
-((ns2) => {
-  ns2.x = __objRest({}, []);
+((ns) => {
+  ns.x = __objRest({}, []);
 })(ns || (ns = {}));
 try {
 } catch (_j) {
@@ -2006,7 +2006,7 @@ for (x = __objRest({}, []); x; x = null) {
 }
 assign = __objRest({}, []);
 ({ obj_method(_s) {
-  var x2 = __objRest(_s, []);
+  var x = __objRest(_s, []);
 } });
 x = __objRest(x, []);
 for (x = __objRest(x, []); 0; )
@@ -2021,23 +2021,23 @@ TestTSLowerObjectRest2018NoBundle
 const { ...local_const } = {};
 let { ...local_let } = {};
 var { ...local_var } = {};
-let arrow_fn = ({ ...x2 }) => {
+let arrow_fn = ({ ...x }) => {
 };
-let fn_expr = function({ ...x2 } = default_value) {
+let fn_expr = function({ ...x } = default_value) {
 };
 let class_expr = class {
-  method(x2, ...[y, { ...z }]) {
+  method(x, ...[y, { ...z }]) {
   }
 };
-function fn_stmt({ a = b(), ...x2 }, { c = d(), ...y }) {
+function fn_stmt({ a = b(), ...x }, { c = d(), ...y }) {
 }
 class class_stmt {
-  method({ ...x2 }) {
+  method({ ...x }) {
   }
 }
 var ns;
-((ns2) => {
-  ({ ...ns2.x } = {});
+((ns) => {
+  ({ ...ns.x } = {});
 })(ns || (ns = {}));
 try {
 } catch ({ ...catch_clause }) {
@@ -2067,7 +2067,7 @@ for ({ ...x } of [{}]) {
 for ({ ...x } = {}; x; x = null) {
 }
 ({ ...assign } = {});
-({ obj_method({ ...x2 }) {
+({ obj_method({ ...x }) {
 } });
 ({ ...x } = x);
 for ({ ...x } = x; 0; )

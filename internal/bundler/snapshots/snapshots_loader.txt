@@ -564,10 +564,10 @@ var require_cjs = __commonJS({
 // entry-cjs.js
 var require_entry_cjs = __commonJS({
   "entry-cjs.js"(exports) {
-    var { b: esm_foo_2 } = (init_esm(), __toCommonJS(esm_exports));
+    var { b: esm_foo_ } = (init_esm(), __toCommonJS(esm_exports));
     var { a: cjs_foo_ } = require_cjs();
     exports.c = [
-      esm_foo_2,
+      esm_foo_,
       cjs_foo_
     ];
   }
@@ -739,29 +739,29 @@ console.log(foo.KEEP_FIELD, foo.a);
 
 ---------- /out/namespace-exports.js ----------
 var ns;
-((ns2) => {
-  ns2.b = 1;
-  ns2.c = 2;
-  ns2.d = 3;
-  ({ i: { a: ns2.a } } = 4);
+((ns) => {
+  ns.b = 1;
+  ns.c = 2;
+  ns.d = 3;
+  ({ i: { a: ns.a } } = 4);
   function MANGLE_FUNCTION_() {
   }
-  ns2.g = MANGLE_FUNCTION_;
+  ns.g = MANGLE_FUNCTION_;
   class MANGLE_CLASS_ {
   }
-  ns2.h = MANGLE_CLASS_;
+  ns.h = MANGLE_CLASS_;
   let MANGLE_NAMESPACE_;
-  ((MANGLE_NAMESPACE_2) => {
+  ((MANGLE_NAMESPACE_) => {
     ;
-  })(MANGLE_NAMESPACE_ = ns2.e || (ns2.e = {}));
+  })(MANGLE_NAMESPACE_ = ns.e || (ns.e = {}));
   let MANGLE_ENUM_;
-  ((MANGLE_ENUM_2) => {
-  })(MANGLE_ENUM_ = ns2.f || (ns2.f = {}));
+  ((MANGLE_ENUM_) => {
+  })(MANGLE_ENUM_ = ns.f || (ns.f = {}));
   console.log({
-    VAR: ns2.b,
-    LET: ns2.c,
-    CONST: ns2.d,
-    DESTRUCTURING: ns2.a,
+    VAR: ns.b,
+    LET: ns.c,
+    CONST: ns.d,
+    DESTRUCTURING: ns.a,
     FUNCTION: MANGLE_FUNCTION_,
     CLASS: MANGLE_CLASS_,
     NAMESPACE: MANGLE_NAMESPACE_,
@@ -778,27 +778,27 @@ console.log({
   NAMESPACE: ns.e,
   ENUM: ns.f
 });
-((ns2) => {
+((ns) => {
   console.log({
-    VAR: ns2.b,
-    LET: ns2.c,
-    CONST: ns2.d,
-    DESTRUCTURING: ns2.a,
-    FUNCTION: ns2.g,
-    CLASS: ns2.h,
-    NAMESPACE: ns2.e,
-    ENUM: ns2.f
+    VAR: ns.b,
+    LET: ns.c,
+    CONST: ns.d,
+    DESTRUCTURING: ns.a,
+    FUNCTION: ns.g,
+    CLASS: ns.h,
+    NAMESPACE: ns.e,
+    ENUM: ns.f
   });
 })(ns || (ns = {}));
 
 ---------- /out/enum-values.js ----------
-var TopLevelNumber = /* @__PURE__ */ ((TopLevelNumber2) => {
-  TopLevelNumber2[TopLevelNumber2["foo_"] = 0] = "foo_";
-  return TopLevelNumber2;
+var TopLevelNumber = /* @__PURE__ */ ((TopLevelNumber) => {
+  TopLevelNumber[TopLevelNumber["foo_"] = 0] = "foo_";
+  return TopLevelNumber;
 })(TopLevelNumber || {});
-var TopLevelString = /* @__PURE__ */ ((TopLevelString2) => {
-  TopLevelString2["bar_"] = "";
-  return TopLevelString2;
+var TopLevelString = /* @__PURE__ */ ((TopLevelString) => {
+  TopLevelString["bar_"] = "";
+  return TopLevelString;
 })(TopLevelString || {});
 console.log({
   foo: TopLevelNumber.a,
@@ -806,12 +806,12 @@ console.log({
 });
 function fn() {
   let NestedNumber;
-  ((NestedNumber2) => {
-    NestedNumber2[NestedNumber2["foo_"] = 0] = "foo_";
+  ((NestedNumber) => {
+    NestedNumber[NestedNumber["foo_"] = 0] = "foo_";
   })(NestedNumber || (NestedNumber = {}));
   let NestedString;
-  ((NestedString2) => {
-    NestedString2["bar_"] = "";
+  ((NestedString) => {
+    NestedString["bar_"] = "";
   })(NestedString || (NestedString = {}));
   console.log({
     foo: TopLevelNumber.a,

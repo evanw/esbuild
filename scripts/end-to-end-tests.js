@@ -3178,6 +3178,43 @@
     )
   }
 
+  // NumberRenamer tests
+  tests.push(
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        import { outer as first } from './first.js';
+        import { outer as second } from './second.js';
+
+        if (first() !== first || first() === second) throw 'fail';
+        if (second() !== second || second() === first) throw 'fail';
+        if (first(1) !== 1 || second(1) !== 1) throw 'fail';
+      `,
+      'first.js': `
+        export const outer = function outer(self = outer) {
+          return self;
+        }
+      `,
+      'second.js': `
+        export const outer = function outer(self = outer) {
+          return self;
+        }
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js'], {
+      'in.js': `
+        import { num as otherNum } from './first.js';
+
+        function sum(num) {
+          return num + otherNum;
+        }
+        if (sum(321) !== 123 + 321) throw 'fail';
+      `,
+      'first.js': `
+         export const num = 123;
+      `,
+    }),
+  );
+
   // Class lowering tests
   for (let flags of [[], ['--target=es6']]) {
     // Skip running these tests untransformed. I believe V8 actually has a bug

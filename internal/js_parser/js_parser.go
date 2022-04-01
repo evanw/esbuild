@@ -8985,7 +8985,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				}
 			}
 
-			p.visitFn(&s2.Fn, s2.Fn.OpenParenLoc)
+			p.visitFn(&s2.Fn, s2.Fn.OpenParenLoc, false)
 			stmts = append(stmts, stmt)
 
 			// Optionally preserve the name
@@ -9516,7 +9516,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 	case *js_ast.SFunction:
-		p.visitFn(&s.Fn, s.Fn.OpenParenLoc)
+		p.visitFn(&s.Fn, s.Fn.OpenParenLoc, false)
 
 		// Strip this function declaration if it was overwritten
 		if p.symbols[s.Fn.Name.Ref.InnerIndex].Flags.Has(js_ast.RemoveOverwrittenFunctionDeclaration) && !s.IsExport {
@@ -13449,7 +13449,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EFunction:
-		p.visitFn(&e.Fn, expr.Loc)
+		p.visitFn(&e.Fn, expr.Loc, true)
 		name := e.Fn.Name
 
 		// Remove unused function names when minifying
@@ -13811,7 +13811,7 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 	return js_ast.Expr{Loc: loc, Data: e}
 }
 
-func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
+func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, isExpr bool) {
 	oldFnOrArrowData := p.fnOrArrowDataVisit
 	oldFnOnlyData := p.fnOnlyDataVisit
 	p.fnOrArrowDataVisit = fnOrArrowDataVisit{
@@ -13836,11 +13836,14 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 		}
 	}
 
-	if fn.Name != nil {
+	if !isExpr && fn.Name != nil {
 		p.recordDeclaredSymbol(fn.Name.Ref)
 	}
 
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, scopeLoc)
+	if fn.Name != nil && isExpr {
+		p.recordDeclaredSymbol(fn.Name.Ref)
+	}
 	p.visitArgs(fn.Args, visitArgsOpts{
 		hasRestArg:               fn.HasRestArg,
 		body:                     fn.Body.Block.Stmts,

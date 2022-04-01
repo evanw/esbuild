@@ -410,7 +410,7 @@ func NewNumberRenamer(symbols js_ast.SymbolMap, reservedNames map[string]uint32)
 	return &NumberRenamer{
 		symbols: symbols,
 		names:   make([][]string, len(symbols.SymbolsForSource)),
-		root:    numberScope{nameCounts: reservedNames},
+		root:    numberScope{nameCounts: reservedNames, mergedRefs: make(map[string]js_ast.Ref)},
 	}
 }
 
@@ -425,10 +425,10 @@ func (r *NumberRenamer) NameForSymbol(ref js_ast.Ref) string {
 }
 
 func (r *NumberRenamer) AddTopLevelSymbol(ref js_ast.Ref) {
-	r.assignName(&r.root, ref)
+	r.assignName(&r.root, ref, false)
 }
 
-func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
+func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref, shallowLookup bool) {
 	ref = js_ast.FollowSymbols(r.symbols, ref)
 
 	// Don't rename the same symbol more than once
@@ -452,7 +452,7 @@ func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
 	}
 
 	// Compute a new name
-	name := scope.findUnusedName(originalName)
+	name := scope.findUnusedName(symbol, ref, originalName, shallowLookup)
 
 	// Store the new name
 	if inner == nil {
@@ -472,7 +472,7 @@ func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
 }
 
 func (r *NumberRenamer) assignNamesRecursive(scope *js_ast.Scope, sourceIndex uint32, parent *numberScope, sorted *[]int) {
-	s := &numberScope{parent: parent, nameCounts: make(map[string]uint32)}
+	s := &numberScope{parent: parent, nameCounts: make(map[string]uint32), mergedRefs: make(map[string]js_ast.Ref)}
 
 	// Sort member map keys for determinism, reusing a shared memory buffer
 	*sorted = (*sorted)[:0]
@@ -483,10 +483,10 @@ func (r *NumberRenamer) assignNamesRecursive(scope *js_ast.Scope, sourceIndex ui
 
 	// Rename all symbols in this scope
 	for _, innerIndex := range *sorted {
-		r.assignName(s, js_ast.Ref{SourceIndex: sourceIndex, InnerIndex: uint32(innerIndex)})
+		r.assignName(s, js_ast.Ref{SourceIndex: sourceIndex, InnerIndex: uint32(innerIndex)}, scope.Kind.StopsHoisting())
 	}
 	for _, ref := range scope.Generated {
-		r.assignName(s, ref)
+		r.assignName(s, ref, false)
 	}
 
 	// Symbols in child scopes may also have to be renamed to avoid conflicts
@@ -523,6 +523,8 @@ type numberScope struct {
 	// count here so that subsequent collisions can start counting from where the
 	// previous collision ended instead of having to start counting from 1.
 	nameCounts map[string]uint32
+
+	mergedRefs map[string]js_ast.Ref
 }
 
 type nameUse uint8
@@ -533,26 +535,38 @@ const (
 	nameUsedInSameScope
 )
 
-func (s *numberScope) findNameUse(name string) nameUse {
+func (s *numberScope) findNameUse(ref js_ast.Ref, name string, shallowLookup bool) nameUse {
 	original := s
+	depth := 0
 	for {
-		if _, ok := s.nameCounts[name]; ok {
-			if s == original {
-				return nameUsedInSameScope
+		if otherRef, ok := s.mergedRefs[name]; ok {
+			if otherRef.SourceIndex != ref.SourceIndex {
+				return nameUsed
 			}
-			return nameUsed
 		}
+
+		if !shallowLookup || depth == 0 {
+			if _, ok := s.nameCounts[name]; ok {
+				if s == original {
+					return nameUsedInSameScope
+				}
+				return nameUsed
+			}
+		}
+
 		s = s.parent
 		if s == nil {
 			return nameUnused
 		}
+
+		depth++
 	}
 }
 
-func (s *numberScope) findUnusedName(name string) string {
+func (s *numberScope) findUnusedName(symbol *js_ast.Symbol, ref js_ast.Ref, name string, shallowLookup bool) string {
 	name = js_lexer.ForceValidIdentifier(name)
 
-	if use := s.findNameUse(name); use != nameUnused {
+	if use := s.findNameUse(ref, name, shallowLookup); use != nameUnused {
 		// If the name is already in use, generate a new name by appending a number
 		tries := uint32(1)
 		if use == nameUsedInSameScope {
@@ -573,7 +587,7 @@ func (s *numberScope) findUnusedName(name string) string {
 			name = prefix + strconv.Itoa(int(tries))
 
 			// Make sure this new name is unused
-			if s.findNameUse(name) == nameUnused {
+			if s.findNameUse(ref, name, shallowLookup) == nameUnused {
 				// Store the count so we can start here next time instead of starting
 				// from 1. This means we avoid O(n^2) behavior.
 				if use == nameUsedInSameScope {
@@ -587,6 +601,9 @@ func (s *numberScope) findUnusedName(name string) string {
 	// Each name starts off with a count of 1 so that the first collision with
 	// "name" is called "name2"
 	s.nameCounts[name] = 1
+	if symbol.Flags.Has(js_ast.WasMerged) {
+		s.mergedRefs[name] = ref
+	}
 	return name
 }
 
