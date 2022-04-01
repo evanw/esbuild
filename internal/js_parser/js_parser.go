@@ -573,13 +573,13 @@ type fnOrArrowDataVisit struct {
 	tryBodyCount int32
 	tryCatchLoc  logger.Loc
 
-	isArrow            bool
-	isAsync            bool
-	isGenerator        bool
-	isInsideLoop       bool
-	isInsideSwitch     bool
-	isOutsideFnOrArrow bool
-	shouldLowerSuper   bool
+	isArrow                        bool
+	isAsync                        bool
+	isGenerator                    bool
+	isInsideLoop                   bool
+	isInsideSwitch                 bool
+	isOutsideFnOrArrow             bool
+	shouldLowerSuperPropertyAccess bool
 }
 
 type superHelpers struct {
@@ -10210,7 +10210,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
 
 				// Need to lower "super" since it won't be valid outside the class body
-				p.fnOrArrowDataVisit.shouldLowerSuper = true
+				p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
 			}
 
 			p.pushScopeForVisitPass(js_ast.ScopeClassStaticInit, property.ClassStaticBlock.Loc)
@@ -10280,8 +10280,8 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 
 		// The value of "this" and "super" is shadowed inside property values
 		oldFnOnlyDataVisit := p.fnOnlyDataVisit
-		oldShouldLowerSuper := p.fnOrArrowDataVisit.shouldLowerSuper
-		p.fnOrArrowDataVisit.shouldLowerSuper = false
+		oldShouldLowerSuperPropertyAccess := p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess
+		p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = false
 		p.fnOnlyDataVisit.isThisNested = true
 		p.fnOnlyDataVisit.isNewTargetAllowed = true
 		p.fnOnlyDataVisit.thisClassStaticRef = nil
@@ -10317,7 +10317,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
 
 				// Need to lower "super" since it won't be valid outside the class body
-				p.fnOrArrowDataVisit.shouldLowerSuper = true
+				p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
 			}
 			if nameToKeep != "" {
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.InitializerOrNil)
@@ -10329,7 +10329,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 
 		// Restore "this" so it will take the inherited value in property keys
 		p.fnOnlyDataVisit = oldFnOnlyDataVisit
-		p.fnOrArrowDataVisit.shouldLowerSuper = oldShouldLowerSuper
+		p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = oldShouldLowerSuperPropertyAccess
 
 		// Restore the ability to use "arguments" in decorators and computed properties
 		p.currentScope.ForbidArguments = false
@@ -13389,9 +13389,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		asyncArrowNeedsToBeLowered := e.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait)
 		oldFnOrArrowData := p.fnOrArrowDataVisit
 		p.fnOrArrowDataVisit = fnOrArrowDataVisit{
-			isArrow:          true,
-			isAsync:          e.IsAsync,
-			shouldLowerSuper: oldFnOrArrowData.shouldLowerSuper || asyncArrowNeedsToBeLowered,
+			isArrow:                        true,
+			isAsync:                        e.IsAsync,
+			shouldLowerSuperPropertyAccess: oldFnOrArrowData.shouldLowerSuperPropertyAccess || asyncArrowNeedsToBeLowered,
 		}
 
 		// Mark if we're inside an async arrow function. This value should be true
@@ -13831,9 +13831,9 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, tsDecoratorScope *j
 	oldFnOrArrowData := p.fnOrArrowDataVisit
 	oldFnOnlyData := p.fnOnlyDataVisit
 	p.fnOrArrowDataVisit = fnOrArrowDataVisit{
-		isAsync:          fn.IsAsync,
-		isGenerator:      fn.IsGenerator,
-		shouldLowerSuper: fn.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait),
+		isAsync:                        fn.IsAsync,
+		isGenerator:                    fn.IsGenerator,
+		shouldLowerSuperPropertyAccess: fn.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait),
 	}
 	p.fnOnlyDataVisit = fnOnlyDataVisit{
 		isThisNested:       true,
@@ -13845,7 +13845,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, tsDecoratorScope *j
 	// "super" property accesses within this function. This object will be
 	// populated if "super" is used, and then any necessary helper functions
 	// will be placed in the function body by "lowerFunction" below.
-	if p.fnOrArrowDataVisit.shouldLowerSuper {
+	if p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess {
 		p.fnOnlyDataVisit.superHelpers = &superHelpers{
 			getRef: js_ast.InvalidRef,
 			setRef: js_ast.InvalidRef,

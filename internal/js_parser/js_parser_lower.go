@@ -2833,7 +2833,7 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 }
 
 func (p *parser) shouldLowerSuperPropertyAccess(expr js_ast.Expr) bool {
-	if p.fnOrArrowDataVisit.shouldLowerSuper {
+	if p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess {
 		_, isSuper := expr.Data.(*js_ast.ESuper)
 		return isSuper
 	}
