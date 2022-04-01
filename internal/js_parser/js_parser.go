@@ -10159,10 +10159,10 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		p.validateDeclaredSymbolName(class.Name.Loc, p.symbols[class.Name.Ref.InnerIndex].OriginalName)
 	}
 
-	classNameRef := js_ast.InvalidRef
+	var classNameRef js_ast.Ref
 	if class.Name != nil {
 		classNameRef = class.Name.Ref
-	} else if classLoweringInfo.lowerAllStaticFields {
+	} else {
 		// Generate a name if one doesn't already exist. This is necessary for
 		// handling "this" in static class property initializers.
 		classNameRef = p.newSymbol(js_ast.SymbolOther, "this")
@@ -10173,16 +10173,13 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 	// original value of the name. This matters for class statements because the
 	// symbol can be re-assigned to something else later. The captured values
 	// must be the original value of the name, not the re-assigned value.
-	shadowRef := js_ast.InvalidRef
-	if classNameRef != js_ast.InvalidRef {
-		// Use "const" for this symbol to match JavaScript run-time semantics. You
-		// are not allowed to assign to this symbol (it throws a TypeError).
-		name := p.symbols[classNameRef.InnerIndex].OriginalName
-		shadowRef = p.newSymbol(js_ast.SymbolConst, "_"+name)
-		p.recordDeclaredSymbol(shadowRef)
-		if class.Name != nil {
-			p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: shadowRef}
-		}
+	// Use "const" for this symbol to match JavaScript run-time semantics. You
+	// are not allowed to assign to this symbol (it throws a TypeError).
+	name := p.symbols[classNameRef.InnerIndex].OriginalName
+	shadowRef := p.newSymbol(js_ast.SymbolConst, "_"+name)
+	p.recordDeclaredSymbol(shadowRef)
+	if class.Name != nil {
+		p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: shadowRef}
 	}
 
 	if class.ExtendsOrNil.Data != nil {
@@ -10348,18 +10345,16 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 	p.enclosingClassKeyword = oldEnclosingClassKeyword
 	p.popScope()
 
-	if shadowRef != js_ast.InvalidRef {
-		if p.symbols[shadowRef.InnerIndex].UseCountEstimate == 0 {
-			// Don't generate a shadowing name if one isn't needed
-			shadowRef = js_ast.InvalidRef
-		} else if class.Name == nil {
-			// If there was originally no class name but something inside needed one
-			// (e.g. there was a static property initializer that referenced "this"),
-			// store our generated name so the class expression ends up with a name.
-			class.Name = &js_ast.LocRef{Loc: nameScopeLoc, Ref: classNameRef}
-			p.currentScope.Generated = append(p.currentScope.Generated, classNameRef)
-			p.recordDeclaredSymbol(classNameRef)
-		}
+	if p.symbols[shadowRef.InnerIndex].UseCountEstimate == 0 {
+		// Don't generate a shadowing name if one isn't needed
+		shadowRef = js_ast.InvalidRef
+	} else if class.Name == nil {
+		// If there was originally no class name but something inside needed one
+		// (e.g. there was a static property initializer that referenced "this"),
+		// store our generated name so the class expression ends up with a name.
+		class.Name = &js_ast.LocRef{Loc: nameScopeLoc, Ref: classNameRef}
+		p.currentScope.Generated = append(p.currentScope.Generated, classNameRef)
+		p.recordDeclaredSymbol(classNameRef)
 	}
 
 	return shadowRef
