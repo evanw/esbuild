@@ -2,53 +2,88 @@
 
 ## Unreleased
 
-* Change the context of TypeScript parameter decorators
+* Change the context of TypeScript parameter decorators ([#2147](https://github.com/evanw/esbuild/issues/2147))
 
     While TypeScript parameter decorators are expressions, they are not evaluated where they exist in the code. They are moved to after the class declaration and evaluated there instead. Specifically this TypeScript code:
 
     ```ts
-    class Foo {
-      foo(@bar() baz) {}
+    class Class {
+      method(@decorator() arg) {}
     }
     ```
 
     becomes this JavaScript code:
 
     ```js
-    class Foo {
-      foo(baz) {}
+    class Class {
+      method(arg) {}
     }
     __decorate([
-      __param(0, bar())
-    ], Foo.prototype, "foo", null);
+      __param(0, decorator())
+    ], Class.prototype, "method", null);
     ```
 
-    One consequence of this is that whether `await` is allowed or not depends on whether the class declaration itself is inside an `async` function or not. The TypeScript compiler allows code that does this:
+    This has several consequences:
 
-    ```ts
-    async function fn(foo) {
-      class Foo {
-        foo(@bar(await foo) baz) {}
-      }
-      return Foo
-    }
-    ```
+    * Whether `await` is allowed inside a decorator expression or not depends on whether the class declaration itself is in an `async` context or not. With this release, you can now use `await` inside a decorator expression when the class declaration is either inside an `async` function or is at the top-level of an ES module and top-level await is supported. Note that the TypeScript compiler currently has a bug regarding this edge case: https://github.com/microsoft/TypeScript/issues/48509.
 
-    because that becomes the following valid JavaScript:
+        ```ts
+        // Using "await" inside a decorator expression is now allowed
+        async function fn(foo: Promise<any>) {
+          class Class {
+            method(@decorator(await foo) arg) {}
+          }
+          return Class
+        }
+        ```
 
-    ```js
-    async function fn(foo) {
-      class Foo {
-        foo(baz) {}
-      }
-      __decorate([
-        __param(0, bar(await foo))
-      ], Foo.prototype, "foo", null);
-      return Foo;
-    }
-    ```
+        Also while TypeScript currently allows `await` to be used like this in `async` functions, it doesn't currently allow `yield` to be used like this in generator functions. It's not yet clear whether this behavior with `yield` is a bug or by design, so I haven't made any changes to esbuild's handling of `yield` inside decorator expressions in this release.
 
-    Previously using `await` like this wasn't allowed. With this release, esbuild now handles `await` correctly in TypeScript parameter decorators. Note that the TypeScript compiler currently has some bugs regarding this behavior: https://github.com/microsoft/TypeScript/issues/48509. Also while TypeScript currently allows `await` to be used like this in `async` functions, it doesn't currently allow `yield` to be used like this in generator functions. It's not yet clear whether this behavior with `yield` is a bug or by design, so I haven't made any changes to esbuild's handling of `yield` inside decorator expressions.
+    * Since the scope of a decorator expression is the scope enclosing the class declaration, they cannot access private identifiers. Previously this was incorrectly allowed but with this release, esbuild no longer allows this. Note that the TypeScript compiler currently has a bug regarding this edge case: https://github.com/microsoft/TypeScript/issues/48515.
+
+        ```ts
+        // Using private names inside a decorator expression is no longer allowed
+        class Class {
+          static #priv = 123
+          method(@decorator(Class.#priv) arg) {}
+        }
+        ```
+
+    * Since the scope of a decorator expression is the scope enclosing the class declaration, identifiers inside parameter decorator expressions should never be resolved to a parameter of the enclosing method. Previously this could happen, which was a bug with esbuild. This bug no longer happens in this release.
+
+        ```ts
+        // Name collisions now resolve to the outer name instead of the inner name
+        let arg = 1
+        class Class {
+          method(@decorator(arg) arg = 2) {}
+        }
+        ```
+
+        Specifically previous versions of esbuild generated the following incorrect JavaScript (notice the use of `arg2`):
+
+        ```js
+        let arg = 1;
+        class Class {
+          method(arg2 = 2) {
+          }
+        }
+        __decorateClass([
+          __decorateParam(0, decorator(arg2))
+        ], Class.prototype, "method", 1);
+        ```
+
+        This release now generates the following correct JavaScript (notice the use of `arg`):
+
+        ```js
+        let arg = 1;
+        class Class {
+          method(arg2 = 2) {
+          }
+        }
+        __decorateClass([
+          __decorateParam(0, decorator(arg))
+        ], Class.prototype, "method", 1);
+        ```
 
 ## 0.14.29
 

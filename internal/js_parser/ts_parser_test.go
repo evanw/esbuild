@@ -501,6 +501,14 @@ func TestTSPrivateIdentifiers(t *testing.T) {
 	expectParseErrorTS(t, "class Foo { @dec static #foo() {} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
 	expectParseErrorTS(t, "class Foo { @dec static get #foo() {} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
 	expectParseErrorTS(t, "class Foo { @dec static set #foo() {x} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+
+	// Decorators are not able to access private names, since they use the scope
+	// that encloses the class declaration. Note that the TypeScript compiler has
+	// a bug where it doesn't handle this case and generates invalid code as a
+	// result: https://github.com/microsoft/TypeScript/issues/48515.
+	expectParseErrorTS(t, "class Foo { static #foo; @dec(Foo.#foo) bar }", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
+	expectParseErrorTS(t, "class Foo { static #foo; @dec(Foo.#foo) bar() {} }", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
+	expectParseErrorTS(t, "class Foo { static #foo; bar(@dec(Foo.#foo) x) {} }", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
 }
 
 func TestTSInterface(t *testing.T) {

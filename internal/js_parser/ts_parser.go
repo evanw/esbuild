@@ -889,9 +889,16 @@ func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 	p.lexer.ExpectOrInsertSemicolon()
 }
 
-func (p *parser) parseTypeScriptDecorators() []js_ast.Expr {
+func (p *parser) parseTypeScriptDecorators(tsDecoratorScope *js_ast.Scope) []js_ast.Expr {
 	var tsDecorators []js_ast.Expr
+
 	if p.options.ts.Parse {
+		// TypeScript decorators cause us to temporarily revert to the scope that
+		// encloses the class declaration, since that's where the generated code
+		// for TypeScript decorators will be inserted.
+		oldScope := p.currentScope
+		p.currentScope = tsDecoratorScope
+
 		for p.lexer.Token == js_lexer.TAt {
 			loc := p.lexer.Loc()
 			p.lexer.Next()
@@ -908,7 +915,11 @@ func (p *parser) parseTypeScriptDecorators() []js_ast.Expr {
 			value.Loc = loc
 			tsDecorators = append(tsDecorators, value)
 		}
+
+		// Avoid "popScope" because this decorator scope is not hierarchical
+		p.currentScope = oldScope
 	}
+
 	return tsDecorators
 }
 
@@ -920,7 +931,7 @@ func (p *parser) logInvalidDecoratorError(classKeyword logger.Range) {
 
 		// Parse and discard decorators for error recovery
 		scopeIndex := len(p.scopesInOrder)
-		p.parseTypeScriptDecorators()
+		p.parseTypeScriptDecorators(p.currentScope)
 		p.discardScopesUpTo(scopeIndex)
 	}
 }

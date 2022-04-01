@@ -833,6 +833,57 @@ export var x;
 })(x || (x = {}));
 
 ================================================================================
+TestTypeScriptDecoratorScopeIssue2147
+---------- /out.js ----------
+var _a;
+let foo = 1;
+class Foo {
+  method1(foo2 = 2) {
+  }
+  method2(foo2 = 3) {
+  }
+}
+__decorateClass([
+  __decorateParam(0, dec(foo))
+], Foo.prototype, "method1", 1);
+__decorateClass([
+  __decorateParam(0, dec(() => foo))
+], Foo.prototype, "method2", 1);
+class Bar {
+}
+Bar.x = (_a = class {
+}, _a.y = () => {
+  let bar = 1;
+  let Baz = class {
+    method1() {
+    }
+    method2() {
+    }
+    method3(bar2) {
+    }
+    method4(bar2) {
+    }
+  };
+  __decorateClass([
+    dec(bar)
+  ], Baz.prototype, "method1", 1);
+  __decorateClass([
+    dec(() => bar)
+  ], Baz.prototype, "method2", 1);
+  __decorateClass([
+    __decorateParam(0, dec(() => bar))
+  ], Baz.prototype, "method3", 1);
+  __decorateClass([
+    __decorateParam(0, dec(() => bar))
+  ], Baz.prototype, "method4", 1);
+  Baz = __decorateClass([
+    dec(bar),
+    dec(() => bar)
+  ], Baz);
+  return Baz;
+}, _a);
+
+================================================================================
 TestTypeScriptDecorators
 ---------- /out.js ----------
 // all.ts
@@ -1074,7 +1125,7 @@ var k_default = class {
   }
 };
 __decorateClass([
-  __decorateParam(0, x2(() => 0)),
+  __decorateParam(0, x(() => 0)),
   __decorateParam(0, y(() => 1))
 ], k_default.prototype, "foo", 1);
 
