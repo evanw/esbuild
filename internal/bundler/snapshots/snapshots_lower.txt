@@ -443,6 +443,21 @@ class Derived extends Base {
     });
   }
 }
+let fn = () => __async(this, null, function* () {
+  return class extends Base {
+    constructor() {
+      super(...arguments);
+      __publicField(this, "a", super.a);
+      __publicField(this, "b", () => super.b);
+    }
+    c() {
+      return super.c;
+    }
+    d() {
+      return () => super.d;
+    }
+  };
+});
 
 ================================================================================
 TestLowerAsyncSuperES2017NoBundle
@@ -478,6 +493,19 @@ class Derived extends Base {
     ];
   }
 }
+let fn = async () => class extends Base {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "a", super.a);
+    __publicField(this, "b", () => super.b);
+  }
+  c() {
+    return super.c;
+  }
+  d() {
+    return () => super.d;
+  }
+};
 
 ================================================================================
 TestLowerAsyncThis2016CommonJS
@@ -1694,6 +1722,17 @@ __publicField(Derived, "test", (key) => __async(_Derived, null, function* () {
     yield (() => __superStaticGet(_Derived, key).call(this))()
   ];
 }));
+let fn = () => __async(this, null, function* () {
+  var _a;
+  return _a = class extends Base {
+    static c() {
+      return super.c;
+    }
+    static d() {
+      return () => super.d;
+    }
+  }, __publicField(_a, "a", __superStaticGet(_a, "a")), __publicField(_a, "b", () => __superStaticGet(_a, "b")), _a;
+});
 
 ================================================================================
 TestLowerStaticAsyncSuperES2021NoBundle
@@ -1729,6 +1768,17 @@ __publicField(Derived, "test", async (key) => {
     await (() => __superStaticGet(_Derived, key).call(this))()
   ];
 });
+let fn = async () => {
+  var _a;
+  return _a = class extends Base {
+    static c() {
+      return super.c;
+    }
+    static d() {
+      return () => super.d;
+    }
+  }, __publicField(_a, "a", __superStaticGet(_a, "a")), __publicField(_a, "b", () => __superStaticGet(_a, "b")), _a;
+};
 
 ================================================================================
 TestLowerStaticSuperES2016NoBundle

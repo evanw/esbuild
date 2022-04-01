@@ -85,6 +85,18 @@
         ], Class.prototype, "method", 1);
         ```
 
+* Fix a compiler crash regarding `super` property access
+
+    This release fixes a compiler crash that happened when an async arrow function contained a class with a field initializer that used a `super` property access, which can be seen in the following code below:
+
+    ```js
+    let foo = async () => class extends Object {
+      bar = super.toString;
+    };
+    ```
+
+    This crash only happened when targeting an older JavaScript environment that doesn't support `async` such as `--target=es6`.
+
 ## 0.14.29
 
 * Fix a minification bug with a double-nested `if` inside a label followed by `else` ([#2139](https://github.com/evanw/esbuild/issues/2139))

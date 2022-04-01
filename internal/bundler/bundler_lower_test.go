@@ -959,6 +959,14 @@ func TestLowerAsyncSuperES2017NoBundle(t *testing.T) {
 						]
 					}
 				}
+
+				// This covers a bug that caused a compiler crash
+				let fn = async () => class extends Base {
+					a = super.a
+					b = () => super.b
+					c() { return super.c }
+					d() { return () => super.d }
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1007,6 +1015,14 @@ func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 							await (() => super[key]())(),
 						]
 					}
+				}
+
+				// This covers a bug that caused a compiler crash
+				let fn = async () => class extends Base {
+					a = super.a
+					b = () => super.b
+					c() { return super.c }
+					d() { return () => super.d }
 				}
 			`,
 		},
@@ -1057,6 +1073,14 @@ func TestLowerStaticAsyncSuperES2021NoBundle(t *testing.T) {
 						]
 					}
 				}
+
+				// This covers a bug that caused a compiler crash
+				let fn = async () => class extends Base {
+					static a = super.a
+					static b = () => super.b
+					static c() { return super.c }
+					static d() { return () => super.d }
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1105,6 +1129,14 @@ func TestLowerStaticAsyncSuperES2016NoBundle(t *testing.T) {
 							await (() => super[key]())(),
 						]
 					}
+				}
+
+				// This covers a bug that caused a compiler crash
+				let fn = async () => class extends Base {
+					static a = super.a
+					static b = () => super.b
+					static c() { return super.c }
+					static d() { return () => super.d }
 				}
 			`,
 		},

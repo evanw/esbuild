@@ -4679,6 +4679,88 @@
         `,
       }, { async: true }),
       test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Check various "super" edge cases
+        'in.js': `
+          exports.async = async () => {
+            const log = [];
+            let o, Base, Derived;
+
+            ({
+              __proto__: { foo() { log.push(1) } },
+              bar() { super.foo() },
+            }.bar());
+
+            o = { bar() { super.foo() } };
+            o.__proto__ = { foo() { log.push(2) } };
+            o.bar();
+
+            o = {
+              __proto__: { foo() { log.push(3) } },
+              bar() { super.foo() },
+            };
+            ({ bar: o.bar }).bar();
+
+            Base = class { foo() { log.push(4) } };
+            Derived = class extends Base { bar() { super.foo() } };
+            new Derived().bar();
+
+            Base = class {};
+            Derived = class extends Base { bar() { super.foo() } };
+            Derived.prototype.__proto__ = { foo() { log.push(5) } };
+            new Derived().bar();
+
+            Base = class { foo() { log.push(6) } };
+            Derived = class extends Base { bar() { super.foo() } };
+            ({ bar: Derived.prototype.bar }).bar();
+
+            Base = class { foo() { log.push(7) } };
+            Derived = class extends Base { bar() { super.foo() } };
+            Derived.prototype.foo = () => log.push(false);
+            new Derived().bar();
+
+            Base = class { foo() { log.push(8) } };
+            Derived = class extends Base { bar = () => super.foo() };
+            new Derived().bar();
+
+            Base = class { foo() { log.push(9) } };
+            Derived = class extends Base { bar = () => super.foo() };
+            o = new Derived();
+            o.__proto__ = {};
+            o.bar();
+
+            Base = class { static foo() { log.push(10) } };
+            Derived = class extends Base { static bar() { super.foo() } };
+            Derived.bar();
+
+            Base = class { static foo() { log.push(11) } };
+            Derived = class extends Base { static bar() { super.foo() } };
+            ({ bar: Derived.bar }).bar();
+
+            Base = class {};
+            Derived = class extends Base { static bar() { super.foo() } };
+            Derived.__proto__ = { foo() { log.push(12) } };
+            Derived.bar();
+
+            Base = class { static foo() { log.push(13) } };
+            Derived = class extends Base { static bar = () => super.foo() };
+            Derived.bar();
+
+            Base = class { static foo() { log.push(14) } };
+            Derived = class extends Base { static bar = () => super.foo() };
+            ({ bar: Derived.bar }).bar();
+
+            Base = class {};
+            Derived = class extends Base { static bar = () => super.foo() };
+            Derived.__proto__ = { foo() { log.push(15) } };
+            Derived.bar();
+
+            const observed = log.join(',');
+            const expected = '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15';
+            if (observed !== expected) throw 'fail: ' + observed + ' != ' + expected;
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
         // Test coverage for a TypeScript bug: https://github.com/microsoft/TypeScript/issues/46580
         'in.js': `
           class A {
