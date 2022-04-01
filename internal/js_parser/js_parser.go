@@ -5122,6 +5122,9 @@ func (p *parser) parseFn(name *js_ast.LocRef, classKeyword logger.Range, data fn
 		p.fnOrArrowDataParse.yield = allowIdent
 	}
 
+	// Don't suggest inserting "async" before anything if "await" is found
+	p.fnOrArrowDataParse.needsAsyncLoc.Start = -1
+
 	// If "super" is allowed in the body, it's allowed in the arguments
 	p.fnOrArrowDataParse.allowSuperCall = data.allowSuperCall
 	p.fnOrArrowDataParse.allowSuperProperty = data.allowSuperProperty
