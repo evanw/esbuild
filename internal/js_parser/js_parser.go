@@ -608,9 +608,14 @@ type fnOnlyDataVisit struct {
 	thisCaptureRef      *js_ast.Ref
 	argumentsCaptureRef *js_ast.Ref
 
-	// Inside a static class property initializer, "this" expressions should be
-	// replaced with the class name.
-	thisClassStaticRef *js_ast.Ref
+	// If true, we're inside a static class context where "this" expressions
+	// should be replaced with the class name.
+	shouldReplaceThisWithClassNameRef bool
+
+	// This is a reference to the enclosing class name if there is one. It's used
+	// to implement "this" and "super" references. A name is automatically generated
+	// if one is missing so this will always be present inside a class body.
+	classNameRef *js_ast.Ref
 
 	// If we're inside an async arrow function and async functions are not
 	// supported, then we will have to convert that arrow function to a generator
@@ -10203,13 +10208,12 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 			p.fnOnlyDataVisit = fnOnlyDataVisit{
 				isThisNested:       true,
 				isNewTargetAllowed: true,
+				classNameRef:       &shadowRef,
 			}
 
 			if classLoweringInfo.lowerAllStaticFields {
-				// Replace "this" with the class name inside static class blocks
-				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
-
-				// Need to lower "super" since it won't be valid outside the class body
+				// Need to lower "this" and "super" since they won't be valid outside the class body
+				p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef = true
 				p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
 			}
 
@@ -10282,10 +10286,11 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		oldFnOnlyDataVisit := p.fnOnlyDataVisit
 		oldShouldLowerSuperPropertyAccess := p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess
 		p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = false
+		p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef = false
 		p.fnOnlyDataVisit.isThisNested = true
 		p.fnOnlyDataVisit.isNewTargetAllowed = true
-		p.fnOnlyDataVisit.thisClassStaticRef = nil
 		p.fnOnlyDataVisit.superHelpers = nil
+		p.fnOnlyDataVisit.classNameRef = &shadowRef
 
 		// We need to explicitly assign the name to the property initializer if it
 		// will be transformed such that it is no longer an inline initializer.
@@ -10313,10 +10318,8 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 
 		if property.InitializerOrNil.Data != nil {
 			if property.IsStatic && classLoweringInfo.lowerAllStaticFields {
-				// Replace "this" with the class name inside static property initializers
-				p.fnOnlyDataVisit.thisClassStaticRef = &shadowRef
-
-				// Need to lower "super" since it won't be valid outside the class body
+				// Need to lower "this" and "super" since they won't be valid outside the class body
+				p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef = true
 				p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
 			}
 			if nameToKeep != "" {
@@ -11118,10 +11121,10 @@ func (p *parser) valueForThis(
 	isCallTarget bool,
 	isDeleteTarget bool,
 ) (js_ast.Expr, bool) {
-	// Substitute "this" if we're inside a static class property initializer
-	if p.fnOnlyDataVisit.thisClassStaticRef != nil {
-		p.recordUsage(*p.fnOnlyDataVisit.thisClassStaticRef)
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.thisClassStaticRef}}, true
+	// Substitute "this" if we're inside a static class context
+	if p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef {
+		p.recordUsage(*p.fnOnlyDataVisit.classNameRef)
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.classNameRef}}, true
 	}
 
 	// Is this a top-level use of "this"?

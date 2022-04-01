@@ -2859,10 +2859,10 @@ func (p *parser) ensureSuperSet() {
 func (p *parser) callSuperPropertyWrapper(loc logger.Loc, property js_ast.Expr, includeGet bool) js_ast.Expr {
 	var result js_ast.Expr
 
-	if thisRef := p.fnOnlyDataVisit.thisClassStaticRef; thisRef != nil {
-		p.recordUsage(*thisRef)
+	if p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef {
+		p.recordUsage(*p.fnOnlyDataVisit.classNameRef)
 		result = p.callRuntime(loc, "__superStaticWrapper", []js_ast.Expr{
-			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *thisRef}},
+			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.classNameRef}},
 			property,
 		})
 	} else {
@@ -2888,10 +2888,10 @@ func (p *parser) callSuperPropertyWrapper(loc logger.Loc, property js_ast.Expr, 
 }
 
 func (p *parser) lowerSuperPropertyGet(loc logger.Loc, key js_ast.Expr) js_ast.Expr {
-	if thisRef := p.fnOnlyDataVisit.thisClassStaticRef; thisRef != nil {
-		p.recordUsage(*thisRef)
+	if p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef {
+		p.recordUsage(*p.fnOnlyDataVisit.classNameRef)
 		return p.callRuntime(loc, "__superStaticGet", []js_ast.Expr{
-			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *thisRef}},
+			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.classNameRef}},
 			key,
 		})
 	}
@@ -2906,10 +2906,10 @@ func (p *parser) lowerSuperPropertyGet(loc logger.Loc, key js_ast.Expr) js_ast.E
 }
 
 func (p *parser) lowerSuperPropertySet(loc logger.Loc, key js_ast.Expr, value js_ast.Expr) js_ast.Expr {
-	if thisRef := p.fnOnlyDataVisit.thisClassStaticRef; thisRef != nil {
-		p.recordUsage(*thisRef)
+	if p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef {
+		p.recordUsage(*p.fnOnlyDataVisit.classNameRef)
 		return p.callRuntime(loc, "__superStaticSet", []js_ast.Expr{
-			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *thisRef}},
+			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.classNameRef}},
 			key,
 			value,
 		})
