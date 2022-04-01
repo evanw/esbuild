@@ -1457,6 +1457,71 @@ func TestTSDecorator(t *testing.T) {
 	// Decorators aren't allowed on class constructors
 	expectParseErrorTS(t, "class Foo { @dec constructor() {} }", "<stdin>: ERROR: TypeScript does not allow decorators on class constructors\n")
 	expectParseErrorTS(t, "class Foo { @dec public constructor() {} }", "<stdin>: ERROR: TypeScript does not allow decorators on class constructors\n")
+
+	// Check use of "await"
+	friendlyAwaitErrorWithNote := "<stdin>: ERROR: \"await\" can only be used inside an \"async\" function\n" +
+		"<stdin>: NOTE: Consider adding the \"async\" keyword here:\n"
+	expectPrintedTS(t, "async function foo() { @dec(await x) class Foo {} }",
+		"async function foo() {\n  let Foo = class {\n  };\n  Foo = __decorateClass([\n    dec(await x)\n  ], Foo);\n}\n")
+	expectPrintedTS(t, "async function foo() { class Foo { @dec(await x) foo() {} } }",
+		"async function foo() {\n  class Foo {\n    foo() {\n    }\n  }\n  __decorateClass([\n    dec(await x)\n  ], Foo.prototype, \"foo\", 1);\n}\n")
+	expectPrintedTS(t, "async function foo() { class Foo { foo(@dec(await x) y) {} } }",
+		"async function foo() {\n  class Foo {\n    foo(y) {\n    }\n  }\n  __decorateClass([\n    __decorateParam(0, dec(await x))\n  ], Foo.prototype, \"foo\", 1);\n}\n")
+	expectParseErrorTS(t, "function foo() { @dec(await x) class Foo {} }", friendlyAwaitErrorWithNote)
+	expectParseErrorTS(t, "function foo() { class Foo { @dec(await x) foo() {} } }", friendlyAwaitErrorWithNote)
+	expectParseErrorTS(t, "function foo() { class Foo { foo(@dec(await x) y) {} } }", friendlyAwaitErrorWithNote)
+	expectParseErrorTS(t, "function foo() { class Foo { @dec(await x) async foo() {} } }", friendlyAwaitErrorWithNote)
+	expectParseErrorTS(t, "function foo() { class Foo { async foo(@dec(await x) y) {} } }",
+		"<stdin>: ERROR: The keyword \"await\" cannot be used here:\n<stdin>: ERROR: Expected \")\" but found \"x\"\n")
+
+	// Check lowered use of "await"
+	expectPrintedTargetTS(t, 2015, "async function foo() { @dec(await x) class Foo {} }",
+		`function foo() {
+  return __async(this, null, function* () {
+    let Foo = class {
+    };
+    Foo = __decorateClass([
+      dec(yield x)
+    ], Foo);
+  });
+}
+`)
+	expectPrintedTargetTS(t, 2015, "async function foo() { class Foo { @dec(await x) foo() {} } }",
+		`function foo() {
+  return __async(this, null, function* () {
+    class Foo {
+      foo() {
+      }
+    }
+    __decorateClass([
+      dec(yield x)
+    ], Foo.prototype, "foo", 1);
+  });
+}
+`)
+	expectPrintedTargetTS(t, 2015, "async function foo() { class Foo { foo(@dec(await x) y) {} } }",
+		`function foo() {
+  return __async(this, null, function* () {
+    class Foo {
+      foo(y) {
+      }
+    }
+    __decorateClass([
+      __decorateParam(0, dec(yield x))
+    ], Foo.prototype, "foo", 1);
+  });
+}
+`)
+
+	// Check use of "yield"
+	expectPrintedTS(t, "function *foo() { @dec(yield x) class Foo {} }", // We currently allow this but TypeScript doesn't
+		"function* foo() {\n  let Foo = class {\n  };\n  Foo = __decorateClass([\n    dec(yield x)\n  ], Foo);\n}\n")
+	expectPrintedTS(t, "function *foo() { class Foo { @dec(yield x) foo() {} } }", // We currently allow this but TypeScript doesn't
+		"function* foo() {\n  class Foo {\n    foo() {\n    }\n  }\n  __decorateClass([\n    dec(yield x)\n  ], Foo.prototype, \"foo\", 1);\n}\n")
+	expectParseErrorTS(t, "function *foo() { class Foo { foo(@dec(yield x) y) {} } }", // TypeScript doesn't allow this (although it could because it would work fine)
+		"<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
+	expectParseErrorTS(t, "function foo() { @dec(yield x) class Foo {} }", "<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
+	expectParseErrorTS(t, "function foo() { class Foo { @dec(yield x) foo() {} } }", "<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
 }
 
 func TestTSTry(t *testing.T) {

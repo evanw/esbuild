@@ -1,5 +1,55 @@
 # Changelog
 
+## Unreleased
+
+* Change the context of TypeScript parameter decorators
+
+    While TypeScript parameter decorators are expressions, they are not evaluated where they exist in the code. They are moved to after the class declaration and evaluated there instead. Specifically this TypeScript code:
+
+    ```ts
+    class Foo {
+      foo(@bar() baz) {}
+    }
+    ```
+
+    becomes this JavaScript code:
+
+    ```js
+    class Foo {
+      foo(baz) {}
+    }
+    __decorate([
+      __param(0, bar())
+    ], Foo.prototype, "foo", null);
+    ```
+
+    One consequence of this is that whether `await` is allowed or not depends on whether the class declaration itself is inside an `async` function or not. The TypeScript compiler allows code that does this:
+
+    ```ts
+    async function fn(foo) {
+      class Foo {
+        foo(@bar(await foo) baz) {}
+      }
+      return Foo
+    }
+    ```
+
+    because that becomes the following valid JavaScript:
+
+    ```js
+    async function fn(foo) {
+      class Foo {
+        foo(baz) {}
+      }
+      __decorate([
+        __param(0, bar(await foo))
+      ], Foo.prototype, "foo", null);
+      return Foo;
+    }
+    ```
+
+    Previously using `await` like this wasn't allowed. With this release, esbuild now handles `await` correctly in TypeScript parameter decorators. Note that the TypeScript compiler currently has some bugs regarding this behavior: https://github.com/microsoft/TypeScript/issues/48509. Also while TypeScript currently allows `await` to be used like this in `async` functions, it doesn't currently allow `yield` to be used like this in generator functions. It's not yet clear whether this behavior with `yield` is a bug or by design, so I haven't made any changes to esbuild's handling of `yield` inside decorator expressions.
+
 ## 0.14.29
 
 * Fix a minification bug with a double-nested `if` inside a label followed by `else` ([#2139](https://github.com/evanw/esbuild/issues/2139))

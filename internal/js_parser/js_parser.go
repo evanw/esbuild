@@ -5146,7 +5146,60 @@ func (p *parser) parseFn(name *js_ast.LocRef, classKeyword logger.Range, data fn
 
 		var tsDecorators []js_ast.Expr
 		if data.allowTSDecorators {
+			oldAwait := p.fnOrArrowDataParse.await
+			oldNeedsAsyncLoc := p.fnOrArrowDataParse.needsAsyncLoc
+
+			// While TypeScript parameter decorators are expressions, they are not
+			// evaluated where they exist in the code. They are moved to after the
+			// class declaration and evaluated there instead. Specifically this
+			// TypeScript code:
+			//
+			//   class Foo {
+			//     foo(@bar() baz) {}
+			//   }
+			//
+			// becomes this JavaScript code:
+			//
+			//   class Foo {
+			//     foo(baz) {}
+			//   }
+			//   __decorate([
+			//     __param(0, bar())
+			//   ], Foo.prototype, "foo", null);
+			//
+			// One consequence of this is that whether "await" is allowed or not
+			// depends on whether the class declaration itself is inside an "async"
+			// function or not. The TypeScript compiler allows code that does this:
+			//
+			//   async function fn(foo) {
+			//     class Foo {
+			//       foo(@bar(await foo) baz) {}
+			//     }
+			//     return Foo
+			//   }
+			//
+			// because that becomes the following valid JavaScript:
+			//
+			//   async function fn(foo) {
+			//     class Foo {
+			//       foo(baz) {}
+			//     }
+			//     __decorate([
+			//       __param(0, bar(await foo))
+			//     ], Foo.prototype, "foo", null);
+			//     return Foo;
+			//   }
+			//
+			if oldFnOrArrowData.await == allowExpr {
+				p.fnOrArrowDataParse.await = allowExpr
+			} else {
+				p.fnOrArrowDataParse.needsAsyncLoc = oldFnOrArrowData.needsAsyncLoc
+			}
+
 			tsDecorators = p.parseTypeScriptDecorators()
+
+			p.fnOrArrowDataParse.await = oldAwait
+			p.fnOrArrowDataParse.needsAsyncLoc = oldNeedsAsyncLoc
 		} else if classKeyword.Len > 0 {
 			p.logInvalidDecoratorError(classKeyword)
 		}
