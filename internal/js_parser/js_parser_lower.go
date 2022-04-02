@@ -1300,6 +1300,7 @@ func (p *parser) lowerObjectRestInForLoopInit(init js_ast.Stmt, body *js_ast.Stm
 		if exprHasObjectRest(s.Value) {
 			ref := p.generateTempRef(tempRefNeedsDeclare, "")
 			if expr, ok := p.lowerAssign(s.Value, js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, objRestReturnValueIsUnused); ok {
+				p.recordUsage(ref)
 				s.Value.Data = &js_ast.EIdentifier{Ref: ref}
 				bodyPrefixStmt = js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}}
 			}
@@ -2213,6 +2214,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			} else if _, ok := prop.Key.Data.(*js_ast.EString); !ok {
 				// Store the key in a temporary so we can assign to it later
 				ref := p.generateTempRef(tempRefNeedsDeclare, "")
+				p.recordUsage(ref)
 				computedPropertyCache = js_ast.JoinWithComma(computedPropertyCache,
 					js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key))
 				prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
@@ -2429,6 +2431,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				} else {
 					p.symbols[methodRef.InnerIndex].Link = p.privateGetters[private.Ref]
 				}
+				p.recordUsage(methodRef)
 				privateMembers = append(privateMembers, js_ast.Assign(
 					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: methodRef}},
 					prop.ValueOrNil,
@@ -2815,6 +2818,8 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 
 	// Cache it in a temporary object (required by the specification)
 	tempRef := p.generateTopLevelTempRef()
+	p.recordUsage(tempRef)
+	p.recordUsage(tempRef)
 	args[0] = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 		Op:   js_ast.BinOpLogicalOr,
 		Left: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}},

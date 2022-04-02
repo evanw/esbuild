@@ -7303,14 +7303,16 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 	}
 
 	// Prepend the generated temporary variables to the beginning of the statement list
-	if len(p.tempRefsToDeclare) > 0 {
-		decls := []js_ast.Decl{}
-		for _, temp := range p.tempRefsToDeclare {
+	decls := []js_ast.Decl{}
+	for _, temp := range p.tempRefsToDeclare {
+		if p.symbols[temp.ref.InnerIndex].UseCountEstimate > 0 {
 			decls = append(decls, js_ast.Decl{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: temp.ref}}, ValueOrNil: temp.valueOrNil})
 			p.recordDeclaredSymbol(temp.ref)
 		}
+	}
 
-		// If the first statement is a super() call, make sure it stays that way
+	// If the first statement is a super() call, make sure it stays that way
+	if len(decls) > 0 {
 		stmt := js_ast.Stmt{Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: decls}}
 		if len(stmts) > 0 && js_ast.IsSuperCall(stmts[0]) {
 			stmts = append([]js_ast.Stmt{stmts[0], stmt}, stmts[1:]...)
@@ -13720,7 +13722,9 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 		isInsideUnsupportedArrow := p.fnOrArrowDataVisit.isArrow && p.options.unsupportedJSFeatures.Has(compat.Arrow)
 		isInsideUnsupportedAsyncArrow := p.fnOnlyDataVisit.isInsideAsyncArrowFn && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait)
 		if isInsideUnsupportedArrow || isInsideUnsupportedAsyncArrow {
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.captureArguments()}}
+			argumentsRef := p.captureArguments()
+			p.recordUsage(argumentsRef)
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: argumentsRef}}
 		}
 	}
 
