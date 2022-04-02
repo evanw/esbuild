@@ -97,6 +97,24 @@
 
     This crash only happened when targeting an older JavaScript environment that doesn't support `async` such as `--target=es6`.
 
+* Fix an obscure edge case with `super` property access
+
+    This release fixes incorrect code generation in the case when an async method of a derived class contained a nested class with a computed class member involving a `super` property access on the derived class, which can be seen in the following code below:
+
+    ```js
+    class Base {
+      foo() { return 'bar' }
+    }
+    class Derived extends Base {
+      async foo() {
+        return new class { [super.foo()] = 'success' }
+      }
+    }
+    new Derived().foo().then(obj => console.log(obj.bar))
+    ```
+
+    In that case, esbuild previously generated invalid code that would crash when run due to a missing helper function. This only happened when targeting an older JavaScript environment that doesn't support `async` such as `--target=es6`, and has now been fixed.
+
 ## 0.14.29
 
 * Fix a minification bug with a double-nested `if` inside a label followed by `else` ([#2139](https://github.com/evanw/esbuild/issues/2139))

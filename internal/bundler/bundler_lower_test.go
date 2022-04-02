@@ -967,6 +967,12 @@ func TestLowerAsyncSuperES2017NoBundle(t *testing.T) {
 					c() { return super.c }
 					d() { return () => super.d }
 				}
+
+				// This covers a bug that generated bad code
+				class Derived2 extends Base {
+					async a() { return class { [super.foo] = 123 } }
+					b = async () => class { [super.foo] = 123 }
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1023,6 +1029,12 @@ func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 					b = () => super.b
 					c() { return super.c }
 					d() { return () => super.d }
+				}
+
+				// This covers a bug that generated bad code
+				class Derived2 extends Base {
+					async a() { return class { [super.foo] = 123 } }
+					b = async () => class { [super.foo] = 123 }
 				}
 			`,
 		},
@@ -1081,6 +1093,12 @@ func TestLowerStaticAsyncSuperES2021NoBundle(t *testing.T) {
 					static c() { return super.c }
 					static d() { return () => super.d }
 				}
+
+				// This covers a bug that generated bad code
+				class Derived2 extends Base {
+					static async a() { return class { [super.foo] = 123 } }
+					static b = async () => class { [super.foo] = 123 }
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1137,6 +1155,12 @@ func TestLowerStaticAsyncSuperES2016NoBundle(t *testing.T) {
 					static b = () => super.b
 					static c() { return super.c }
 					static d() { return () => super.d }
+				}
+
+				// This covers a bug that generated bad code
+				class Derived2 extends Base {
+					static async a() { return class { [super.foo] = 123 } }
+					static b = async () => class { [super.foo] = 123 }
 				}
 			`,
 		},

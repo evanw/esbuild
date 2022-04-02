@@ -10282,8 +10282,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		p.currentScope.ForbidArguments = true
 
 		// The value of "this" and "super" is shadowed inside property values
-		oldIsThisCaptured := p.fnOnlyDataVisit.isThisNested
-		oldThis := p.fnOnlyDataVisit.thisClassStaticRef
+		oldFnOnlyDataVisit := p.fnOnlyDataVisit
 		oldShouldLowerSuper := p.fnOrArrowDataVisit.shouldLowerSuper
 		p.fnOrArrowDataVisit.shouldLowerSuper = false
 		p.fnOnlyDataVisit.isThisNested = true
@@ -10332,8 +10331,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		}
 
 		// Restore "this" so it will take the inherited value in property keys
-		p.fnOnlyDataVisit.thisClassStaticRef = oldThis
-		p.fnOnlyDataVisit.isThisNested = oldIsThisCaptured
+		p.fnOnlyDataVisit = oldFnOnlyDataVisit
 		p.fnOrArrowDataVisit.shouldLowerSuper = oldShouldLowerSuper
 
 		// Restore the ability to use "arguments" in decorators and computed properties

@@ -458,6 +458,33 @@ let fn = () => __async(this, null, function* () {
     }
   };
 });
+class Derived2 extends Base {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "b", () => {
+      var __superGet = (key) => super[key];
+      return __async(this, null, function* () {
+        var _a, _b;
+        return _b = class {
+          constructor() {
+            __publicField(this, _a, 123);
+          }
+        }, _a = __superGet("foo"), _b;
+      });
+    });
+  }
+  a() {
+    var __superGet = (key) => super[key];
+    return __async(this, null, function* () {
+      var _a, _b;
+      return _b = class {
+        constructor() {
+          __publicField(this, _a, 123);
+        }
+      }, _a = __superGet("foo"), _b;
+    });
+  }
+}
 
 ================================================================================
 TestLowerAsyncSuperES2017NoBundle
@@ -506,6 +533,27 @@ let fn = async () => class extends Base {
     return () => super.d;
   }
 };
+class Derived2 extends Base {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "b", async () => {
+      var _a, _b;
+      return _b = class {
+        constructor() {
+          __publicField(this, _a, 123);
+        }
+      }, _a = super.foo, _b;
+    });
+  }
+  async a() {
+    var _a, _b;
+    return _b = class {
+      constructor() {
+        __publicField(this, _a, 123);
+      }
+    }, _a = super.foo, _b;
+  }
+}
 
 ================================================================================
 TestLowerAsyncThis2016CommonJS
@@ -1733,6 +1781,28 @@ let fn = () => __async(this, null, function* () {
     }
   }, __publicField(_a, "a", __superStaticGet(_a, "a")), __publicField(_a, "b", () => __superStaticGet(_a, "b")), _a;
 });
+const _Derived2 = class extends Base {
+  static a() {
+    var __superGet = (key) => super[key];
+    return __async(this, null, function* () {
+      var _a, _b;
+      return _b = class {
+        constructor() {
+          __publicField(this, _a, 123);
+        }
+      }, _a = __superGet("foo"), _b;
+    });
+  }
+};
+let Derived2 = _Derived2;
+__publicField(Derived2, "b", () => __async(_Derived2, null, function* () {
+  var _a, _b;
+  return _b = class {
+    constructor() {
+      __publicField(this, _a, 123);
+    }
+  }, _a = __superStaticGet(_Derived2, "foo"), _b;
+}));
 
 ================================================================================
 TestLowerStaticAsyncSuperES2021NoBundle
@@ -1779,6 +1849,25 @@ let fn = async () => {
     }
   }, __publicField(_a, "a", __superStaticGet(_a, "a")), __publicField(_a, "b", () => __superStaticGet(_a, "b")), _a;
 };
+const _Derived2 = class extends Base {
+  static async a() {
+    var _a, _b;
+    return _b = class {
+      constructor() {
+        __publicField(this, _a, 123);
+      }
+    }, _a = super.foo, _b;
+  }
+};
+let Derived2 = _Derived2;
+__publicField(Derived2, "b", async () => {
+  var _a, _b;
+  return _b = class {
+    constructor() {
+      __publicField(this, _a, 123);
+    }
+  }, _a = __superStaticGet(_Derived2, "foo"), _b;
+});
 
 ================================================================================
 TestLowerStaticSuperES2016NoBundle
