@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.30
 
 * Change the context of TypeScript parameter decorators ([#2147](https://github.com/evanw/esbuild/issues/2147))
 
