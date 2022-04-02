@@ -4770,8 +4770,16 @@
             Derived = class extends Base { static x = async () => class { [super.foo()] = 123 } };
             if (new (await Derived.x())().bar === 123) log.push(19);
 
+            // Check that an captured temporary for object methods has the correct scope
+            o = [];
+            for (let i = 0; i < 3; i++) o.push({
+              __proto__: { foo() { return i } },
+              async bar() { return super.foo() },
+            })
+            for (const x of o) log.push(20 + await x.bar());
+
             const observed = log.join(',');
-            const expected = '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19';
+            const expected = '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22';
             if (observed !== expected) throw 'fail: ' + observed + ' != ' + expected;
           }
         `,
