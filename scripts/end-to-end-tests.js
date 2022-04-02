@@ -4784,6 +4784,30 @@
           }
         `,
       }, { async: true }),
+      test(['in.js', '--outfile=node.js', '--keep-names', '--bundle'].concat(flags), {
+        // Check default export name preservation with lowered "super" inside lowered "async"
+        'in.js': `
+          import fn from './export'
+          if (fn.name !== 'default') throw 'fail: ' + fn.name
+        `,
+        'export.js': `
+          export default class extends Object {
+            async foo() { super.bar() }
+          }
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', '--keep-names', '--bundle', '--minify'].concat(flags), {
+        // (minified) Check default export name preservation with lowered "super" inside lowered "async"
+        'in.js': `
+          import fn from './export'
+          if (fn.name !== 'default') throw 'fail: ' + fn.name
+        `,
+        'export.js': `
+          export default class extends Object {
+            async foo() { super.bar() }
+          }
+        `,
+      }),
       test(['in.js', '--outfile=node.js'].concat(flags), {
         // Test coverage for a TypeScript bug: https://github.com/microsoft/TypeScript/issues/46580
         'in.js': `
