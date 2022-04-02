@@ -1525,36 +1525,36 @@ var foo4_default = class extends x {
 };
 
 // bar1.js
-var _this = class extends x {
+var _default = class extends x {
 };
-var this2 = _this;
-__publicField(this2, "bar1", () => __async(_this, null, function* () {
-  return __superStaticGet(_this, "foo").call(this, "bar1");
+var default2 = _default;
+__publicField(default2, "bar1", () => __async(_default, null, function* () {
+  return __superStaticGet(_default, "foo").call(this, "bar1");
 }));
 
 // bar2.js
-var _this2 = class extends x {
+var _default2 = class extends x {
 };
-var this2 = _this2;
-__publicField(this2, "bar2", () => __async(_this2, null, function* () {
-  return () => __superStaticGet(_this2, "foo").call(this, "bar2");
+var default2 = _default2;
+__publicField(default2, "bar2", () => __async(_default2, null, function* () {
+  return () => __superStaticGet(_default2, "foo").call(this, "bar2");
 }));
 
 // bar3.js
-var _this3 = class extends x {
+var _default3 = class extends x {
 };
-var this2 = _this3;
-__publicField(this2, "bar3", () => () => __async(_this3, null, function* () {
-  return __superStaticGet(_this3, "foo").call(this, "bar3");
+var default2 = _default3;
+__publicField(default2, "bar3", () => () => __async(_default3, null, function* () {
+  return __superStaticGet(_default3, "foo").call(this, "bar3");
 }));
 
 // bar4.js
-var _this4 = class extends x {
+var _default4 = class extends x {
 };
-var this2 = _this4;
-__publicField(this2, "bar4", () => __async(_this4, null, function* () {
-  return () => __async(_this4, null, function* () {
-    return __superStaticGet(_this4, "foo").call(this, "bar4");
+var default2 = _default4;
+__publicField(default2, "bar4", () => __async(_default4, null, function* () {
+  return () => __async(_default4, null, function* () {
+    return __superStaticGet(_default4, "foo").call(this, "bar4");
   });
 }));
 
@@ -1591,10 +1591,10 @@ var outer_default = function() {
   });
 }();
 export {
-  bar1_default as bar1,
-  bar2_default as bar2,
-  bar3_default as bar3,
-  bar4_default as bar4,
+  _default as bar1,
+  _default2 as bar2,
+  _default3 as bar3,
+  _default4 as bar4,
   baz1_default as baz1,
   baz2_default as baz2,
   foo1_default as foo1,
@@ -1657,36 +1657,36 @@ var foo4_default = class extends x {
 };
 
 // bar1.js
-var _this = class extends x {
+var _default = class extends x {
 };
-var this2 = _this;
-__publicField(this2, "bar1", () => __async(_this, null, function* () {
-  return __superStaticSet(_this, "foo", "bar1");
+var default2 = _default;
+__publicField(default2, "bar1", () => __async(_default, null, function* () {
+  return __superStaticSet(_default, "foo", "bar1");
 }));
 
 // bar2.js
-var _this2 = class extends x {
+var _default2 = class extends x {
 };
-var this2 = _this2;
-__publicField(this2, "bar2", () => __async(_this2, null, function* () {
-  return () => __superStaticSet(_this2, "foo", "bar2");
+var default2 = _default2;
+__publicField(default2, "bar2", () => __async(_default2, null, function* () {
+  return () => __superStaticSet(_default2, "foo", "bar2");
 }));
 
 // bar3.js
-var _this3 = class extends x {
+var _default3 = class extends x {
 };
-var this2 = _this3;
-__publicField(this2, "bar3", () => () => __async(_this3, null, function* () {
-  return __superStaticSet(_this3, "foo", "bar3");
+var default2 = _default3;
+__publicField(default2, "bar3", () => () => __async(_default3, null, function* () {
+  return __superStaticSet(_default3, "foo", "bar3");
 }));
 
 // bar4.js
-var _this4 = class extends x {
+var _default4 = class extends x {
 };
-var this2 = _this4;
-__publicField(this2, "bar4", () => __async(_this4, null, function* () {
-  return () => __async(_this4, null, function* () {
-    return __superStaticSet(_this4, "foo", "bar4");
+var default2 = _default4;
+__publicField(default2, "bar4", () => __async(_default4, null, function* () {
+  return () => __async(_default4, null, function* () {
+    return __superStaticSet(_default4, "foo", "bar4");
   });
 }));
 
@@ -1723,10 +1723,10 @@ var outer_default = function() {
   });
 }();
 export {
-  bar1_default as bar1,
-  bar2_default as bar2,
-  bar3_default as bar3,
-  bar4_default as bar4,
+  _default as bar1,
+  _default2 as bar2,
+  _default3 as bar3,
+  _default4 as bar4,
   baz1_default as baz1,
   baz2_default as baz2,
   foo1_default as foo1,

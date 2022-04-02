@@ -1101,11 +1101,26 @@ func (p *parser) newSymbol(kind js_ast.SymbolKind, name string) js_ast.Ref {
 // one-level symbol map instead of the linker's two-level symbol map. It also
 // doesn't handle cycles since they shouldn't come up due to the way this
 // function is used.
-func (p *parser) mergeSymbols(old js_ast.Ref, new js_ast.Ref) {
+func (p *parser) mergeSymbols(old js_ast.Ref, new js_ast.Ref) js_ast.Ref {
+	if old == new {
+		return new
+	}
+
 	oldSymbol := &p.symbols[old.InnerIndex]
+	if oldSymbol.Link != js_ast.InvalidRef {
+		oldSymbol.Link = p.mergeSymbols(oldSymbol.Link, new)
+		return oldSymbol.Link
+	}
+
 	newSymbol := &p.symbols[new.InnerIndex]
+	if newSymbol.Link != js_ast.InvalidRef {
+		newSymbol.Link = p.mergeSymbols(old, newSymbol.Link)
+		return newSymbol.Link
+	}
+
 	oldSymbol.Link = new
 	newSymbol.MergeContentsWith(oldSymbol)
+	return new
 }
 
 type mergeResult int
@@ -9005,7 +9020,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			return stmts
 
 		case *js_ast.SClass:
-			shadowRef := p.visitClass(s.Value.Loc, &s2.Class)
+			shadowRef := p.visitClass(s.Value.Loc, &s2.Class, true /* isDefaultExport */)
 
 			// Lower class field syntax for browsers that don't support it
 			classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, shadowRef)
@@ -9581,7 +9596,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		return stmts
 
 	case *js_ast.SClass:
-		shadowRef := p.visitClass(stmt.Loc, &s.Class)
+		shadowRef := p.visitClass(stmt.Loc, &s.Class, false /* isDefaultExport */)
 
 		// Remove the export flag inside a namespace
 		wasExportInsideNamespace := s.IsExport && p.enclosingNamespaceArgRef != nil
@@ -10101,7 +10116,7 @@ func (p *parser) visitTSDecorators(tsDecorators []js_ast.Expr, tsDecoratorScope 
 	return tsDecorators
 }
 
-func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast.Ref {
+func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefaultExport bool) js_ast.Ref {
 	tsDecoratorScope := p.currentScope
 	class.TSDecorators = p.visitTSDecorators(class.TSDecorators, tsDecoratorScope)
 
@@ -10172,7 +10187,11 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 	} else {
 		// Generate a name if one doesn't already exist. This is necessary for
 		// handling "this" in static class property initializers.
-		classNameRef = p.newSymbol(js_ast.SymbolOther, "this")
+		name := "this"
+		if isDefaultExport {
+			name = "default" // This is important for "--keep-names"
+		}
+		classNameRef = p.newSymbol(js_ast.SymbolOther, name)
 	}
 
 	// Insert a shadowing name that spans the whole class, which matches
@@ -13485,7 +13504,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EClass:
-		shadowRef := p.visitClass(expr.Loc, &e.Class)
+		shadowRef := p.visitClass(expr.Loc, &e.Class, false /* isDefaultExport */)
 
 		// Lower class field syntax for browsers that don't support it
 		_, expr = p.lowerClass(js_ast.Stmt{}, expr, shadowRef)

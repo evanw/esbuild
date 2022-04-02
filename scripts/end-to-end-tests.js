@@ -3767,6 +3767,37 @@
           if (t.x !== 1 || t.y[0] !== 2 || t.y[1] !== 3 || t.z !== 4) throw 'fail';
         `,
       }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `
+          import x from './class'
+          if (x.bar !== 123) throw 'fail'
+        `,
+        'class.js': `
+          class Foo {
+            static foo = 123
+          }
+          export default class extends Foo {
+            static #foo = super.foo
+            static bar = this.#foo
+          }
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle', '--keep-names'].concat(flags), {
+        'in.js': `
+          import x from './class'
+          if (x.bar !== 123) throw 'fail'
+          if (x.name !== 'default') throw 'fail: ' + x.name
+        `,
+        'class.js': `
+          class Foo {
+            static foo = 123
+          }
+          export default class extends Foo {
+            static #foo = super.foo
+            static bar = this.#foo
+          }
+        `,
+      }),
       test(['in.js', '--outfile=node.js'].concat(flags), {
         'in.js': `
           class Foo {

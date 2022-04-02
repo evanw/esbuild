@@ -85,35 +85,43 @@
         ], Class.prototype, "method", 1);
         ```
 
-* Fix a compiler crash regarding `super` property access
+* Fix some obscure edge cases with `super` property access
 
-    This release fixes a compiler crash that happened when an async arrow function contained a class with a field initializer that used a `super` property access, which can be seen in the following code below:
+    This release fixes the following obscure problems with `super` when targeting an older JavaScript environment such as `--target=es6`:
 
-    ```js
-    let foo = async () => class extends Object {
-      bar = super.toString;
-    };
-    ```
+    1. The compiler could previously crash when a lowered `async` arrow function contained a class with a field initializer that used a `super` property access:
 
-    This crash only happened when targeting an older JavaScript environment that doesn't support `async` such as `--target=es6`.
+        ```js
+        let foo = async () => class extends Object {
+          bar = super.toString
+        }
+        ```
 
-* Fix an obscure edge case with `super` property access
+    2. The compiler could previously generate incorrect code when a lowered `async` method of a derived class contained a nested class with a computed class member involving a `super` property access on the derived class:
 
-    This release fixes incorrect code generation in the case when an async method of a derived class contained a nested class with a computed class member involving a `super` property access on the derived class, which can be seen in the following code below:
+        ```js
+        class Base {
+          foo() { return 'bar' }
+        }
+        class Derived extends Base {
+          async foo() {
+            return new class { [super.foo()] = 'success' }
+          }
+        }
+        new Derived().foo().then(obj => console.log(obj.bar))
+        ```
 
-    ```js
-    class Base {
-      foo() { return 'bar' }
-    }
-    class Derived extends Base {
-      async foo() {
-        return new class { [super.foo()] = 'success' }
-      }
-    }
-    new Derived().foo().then(obj => console.log(obj.bar))
-    ```
+    3. The compiler could previously generate incorrect code when a default-exported class containing a `super` property access inside a lowered static private class field:
 
-    In that case, esbuild previously generated invalid code that would crash when run due to a missing helper function. This only happened when targeting an older JavaScript environment that doesn't support `async` such as `--target=es6`, and has now been fixed.
+        ```js
+        class Foo {
+          static foo = 123
+        }
+        export default class extends Foo {
+          static #foo = super.foo
+          static bar = this.#foo
+        }
+        ```
 
 ## 0.14.29
 

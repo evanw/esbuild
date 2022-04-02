@@ -2038,6 +2038,13 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		class = &s2.Class
 		defaultName = s.DefaultName
 		kind = classKindExportDefaultStmt
+
+		// The shadowing name inside the class expression should be the same as
+		// the default export name
+		if shadowRef != js_ast.InvalidRef {
+			p.mergeSymbols(shadowRef, defaultName.Ref)
+		}
+
 		if class.Name != nil {
 			nameToKeep = p.symbols[class.Name.Ref.InnerIndex].OriginalName
 		} else {
