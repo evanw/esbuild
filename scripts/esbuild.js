@@ -93,6 +93,7 @@ exports.buildWasmLib = async (esbuildPath) => {
       'build',
       '-o', path.join(npmWasmDir, 'esbuild.wasm'),
       '-ldflags=-s -w', // This removes ~0.14mb of unnecessary WebAssembly code
+      '-trimpath',
       path.join(repoDir, 'cmd', 'esbuild'),
     ],
     { cwd: repoDir, stdio: 'inherit', env: { ...process.env, GOOS: 'js', GOARCH: 'wasm' } },
@@ -263,7 +264,7 @@ exports.writeFileAtomic = (where, contents) => {
 }
 
 exports.buildBinary = () => {
-  childProcess.execFileSync('go', ['build', '-ldflags=-s -w', './cmd/esbuild'], { cwd: repoDir, stdio: 'ignore' })
+  childProcess.execFileSync('go', ['build', '-ldflags=-s -w', '-trimpath', './cmd/esbuild'], { cwd: repoDir, stdio: 'ignore' })
   return path.join(repoDir, process.platform === 'win32' ? 'esbuild.exe' : 'esbuild')
 }
 
