@@ -111,7 +111,7 @@
         new Derived().foo().then(obj => console.log(obj.bar))
         ```
 
-    3. The compiler could previously generate incorrect code when a default-exported class containing a `super` property access inside a lowered static private class field:
+    3. The compiler could previously generate incorrect code when a default-exported class contained a `super` property access inside a lowered static private class field:
 
         ```js
         class Foo {
