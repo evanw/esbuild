@@ -277,12 +277,12 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 				return
 			}
 
-			p.skipTypeScriptTypeParameters()
+			p.skipTypeScriptTypeParameters(typeParametersNormal)
 			p.skipTypeScriptParenOrFnType()
 
 		case js_lexer.TLessThan:
 			// "<T>() => Foo<T>"
-			p.skipTypeScriptTypeParameters()
+			p.skipTypeScriptTypeParameters(typeParametersNormal)
 			p.skipTypeScriptParenOrFnType()
 
 		case js_lexer.TOpenParen:
@@ -562,7 +562,7 @@ func (p *parser) skipTypeScriptObjectType() {
 		}
 
 		// Type parameters come right after the optional mark
-		p.skipTypeScriptTypeParameters()
+		p.skipTypeScriptTypeParameters(typeParametersNormal)
 
 		switch p.lexer.Token {
 		case js_lexer.TColon:
@@ -603,14 +603,79 @@ func (p *parser) skipTypeScriptObjectType() {
 	p.lexer.Expect(js_lexer.TCloseBrace)
 }
 
+type typeParameters uint8
+
+const (
+	typeParametersNormal typeParameters = iota
+	typeParametersWithInOutVarianceAnnotations
+)
+
 // This is the type parameter declarations that go with other symbol
 // declarations (class, function, type, etc.)
-func (p *parser) skipTypeScriptTypeParameters() {
+func (p *parser) skipTypeScriptTypeParameters(mode typeParameters) {
 	if p.lexer.Token == js_lexer.TLessThan {
 		p.lexer.Next()
 
 		for {
-			p.lexer.Expect(js_lexer.TIdentifier)
+			hasIn := false
+			hasOut := false
+			expectIdentifier := true
+			invalidModifierRange := logger.Range{}
+
+			// Scan over a sequence of "in" and "out" modifiers (a.k.a. optional variance annotations)
+			for {
+				if p.lexer.Token == js_lexer.TIn {
+					if invalidModifierRange.Len == 0 && (mode != typeParametersWithInOutVarianceAnnotations || hasIn || hasOut) {
+						// Valid:
+						//   "type Foo<in T> = T"
+						// Invalid:
+						//   "type Foo<in in T> = T"
+						//   "type Foo<out in T> = T"
+						invalidModifierRange = p.lexer.Range()
+					}
+					p.lexer.Next()
+					hasIn = true
+					expectIdentifier = true
+					continue
+				}
+
+				if p.lexer.IsContextualKeyword("out") {
+					r := p.lexer.Range()
+					if invalidModifierRange.Len == 0 && mode != typeParametersWithInOutVarianceAnnotations {
+						invalidModifierRange = r
+					}
+					p.lexer.Next()
+					if invalidModifierRange.Len == 0 && hasOut && (p.lexer.Token == js_lexer.TIn || p.lexer.Token == js_lexer.TIdentifier) {
+						// Valid:
+						//   "type Foo<out T> = T"
+						//   "type Foo<out out> = T"
+						//   "type Foo<out out, T> = T"
+						//   "type Foo<out out = T> = T"
+						//   "type Foo<out out extends T> = T"
+						// Invalid:
+						//   "type Foo<out out in T> = T"
+						//   "type Foo<out out T> = T"
+						invalidModifierRange = r
+					}
+					hasOut = true
+					expectIdentifier = false
+					continue
+				}
+
+				break
+			}
+
+			// Only report an error for the first invalid modifier
+			if invalidModifierRange.Len > 0 {
+				p.log.Add(logger.Error, &p.tracker, invalidModifierRange, fmt.Sprintf(
+					"The modifier %q is not valid here:", p.source.TextForRange(invalidModifierRange)))
+			}
+
+			// expectIdentifier => Mandatory identifier (e.g. after "type Foo <in ___")
+			// !expectIdentifier => Optional identifier (e.g. after "type Foo <out ___" since "out" may be the identifier)
+			if expectIdentifier || p.lexer.Token == js_lexer.TIdentifier {
+				p.lexer.Expect(js_lexer.TIdentifier)
+			}
 
 			// "class Foo<T extends number> {}"
 			if p.lexer.Token == js_lexer.TExtends {
@@ -701,7 +766,7 @@ func (p *parser) trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() 
 		}
 	}()
 
-	p.skipTypeScriptTypeParameters()
+	p.skipTypeScriptTypeParameters(typeParametersNormal)
 	if p.lexer.Token != js_lexer.TOpenParen {
 		p.lexer.Unexpected()
 	}
@@ -836,7 +901,7 @@ func (p *parser) skipTypeScriptInterfaceStmt(opts parseStmtOpts) {
 		p.localTypeNames[name] = true
 	}
 
-	p.skipTypeScriptTypeParameters()
+	p.skipTypeScriptTypeParameters(typeParametersWithInOutVarianceAnnotations)
 
 	if p.lexer.Token == js_lexer.TExtends {
 		p.lexer.Next()
@@ -883,7 +948,7 @@ func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 		p.localTypeNames[name] = true
 	}
 
-	p.skipTypeScriptTypeParameters()
+	p.skipTypeScriptTypeParameters(typeParametersWithInOutVarianceAnnotations)
 	p.lexer.Expect(js_lexer.TEquals)
 	p.skipTypeScriptType(js_ast.LLowest)
 	p.lexer.ExpectOrInsertSemicolon()
