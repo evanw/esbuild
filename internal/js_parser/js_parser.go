@@ -13159,74 +13159,24 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			return js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}, exprOut{}
 		}
 
-		// Recognize "require.resolve()" calls
-		if couldBeRequireResolve {
-			if dot, ok := e.Target.Data.(*js_ast.EDot); ok && dot.Name == "resolve" {
-				if id, ok := dot.Target.Data.(*js_ast.EIdentifier); ok && id.Ref == p.requireRef {
-					p.ignoreUsage(p.requireRef)
-					return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
-						if str, ok := e.Args[0].Data.(*js_ast.EString); ok {
-							// Ignore calls to require.resolve() if the control flow is provably
-							// dead here. We don't want to spend time scanning the required files
-							// if they will never be used.
-							if p.isControlFlowDead {
-								return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
-							}
-
-							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, helpers.UTF16ToString(str.Value), nil)
-							if p.fnOrArrowDataVisit.tryBodyCount != 0 {
-								record := &p.importRecords[importRecordIndex]
-								record.Flags |= ast.HandlesImportErrors
-								record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
-							}
-							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
-
-							// Create a new expression to represent the operation
-							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequireResolveString{
-								ImportRecordIndex: importRecordIndex,
-							}}
-						}
-
-						// Otherwise just return a clone of the "require.resolve()" call
-						return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
-							Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EDot{
-								Target:  p.valueToSubstituteForRequire(dot.Target.Loc),
-								Name:    dot.Name,
-								NameLoc: dot.NameLoc,
-							}},
-							Args: []js_ast.Expr{arg},
-						}}
-					}), exprOut{}
-				}
-			}
-		}
-
-		// Recognize "Object.create()" calls
-		if couldBeObjectCreate {
-			if dot, ok := e.Target.Data.(*js_ast.EDot); ok && dot.Name == "create" {
-				if id, ok := dot.Target.Data.(*js_ast.EIdentifier); ok {
-					if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound && symbol.OriginalName == "Object" {
-						switch e.Args[0].Data.(type) {
-						case *js_ast.ENull, *js_ast.EObject:
-							// Mark "Object.create(null)" and "Object.create({})" as pure
-							e.CanBeUnwrappedIfUnused = true
-						}
-					}
-				}
-			}
-		}
-
 		// "foo(1, ...[2, 3], 4)" => "foo(1, 2, 3, 4)"
 		if p.options.minifySyntax && hasSpread && in.assignTarget == js_ast.AssignTargetNone {
 			e.Args = inlineSpreadsOfArrayLiterals(e.Args)
 		}
 
-		// Detect if this is a direct eval. Note that "(1 ? eval : 0)(x)" will
-		// become "eval(x)" after we visit the target due to dead code elimination,
-		// but that doesn't mean it should become a direct eval.
-		if wasIdentifierBeforeVisit {
-			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok {
-				if symbol := p.symbols[id.Ref.InnerIndex]; symbol.OriginalName == "eval" {
+		switch t := target.Data.(type) {
+		case *js_ast.EImportIdentifier:
+			// If this function is inlined, allow it to be tree-shaken
+			if p.options.minifySyntax && !p.isControlFlowDead {
+				p.convertSymbolUseToCall(t.Ref, len(e.Args) == 1)
+			}
+
+		case *js_ast.EIdentifier:
+			// Detect if this is a direct eval. Note that "(1 ? eval : 0)(x)" will
+			// become "eval(x)" after we visit the target due to dead code elimination,
+			// but that doesn't mean it should become a direct eval.
+			if wasIdentifierBeforeVisit {
+				if symbol := p.symbols[t.Ref.InnerIndex]; symbol.OriginalName == "eval" {
 					e.IsDirectEval = true
 
 					// Pessimistically assume that if this looks like a CommonJS module
@@ -13259,16 +13209,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}
 				}
 			}
-		}
 
-		switch t := target.Data.(type) {
-		case *js_ast.EImportIdentifier:
-			// If this function is inlined, allow it to be tree-shaken
-			if p.options.minifySyntax && !p.isControlFlowDead {
-				p.convertSymbolUseToCall(t.Ref, len(e.Args) == 1)
-			}
-
-		case *js_ast.EIdentifier:
 			// Copy the call side effect flag over if this is a known target
 			if t.CallCanBeUnwrappedIfUnused {
 				e.CanBeUnwrappedIfUnused = true
@@ -13280,6 +13221,59 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case *js_ast.EDot:
+			// Recognize "require.resolve()" calls
+			if couldBeRequireResolve && t.Name == "resolve" {
+				if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok && id.Ref == p.requireRef {
+					p.ignoreUsage(p.requireRef)
+					return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
+						if str, ok := e.Args[0].Data.(*js_ast.EString); ok {
+							// Ignore calls to require.resolve() if the control flow is provably
+							// dead here. We don't want to spend time scanning the required files
+							// if they will never be used.
+							if p.isControlFlowDead {
+								return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
+							}
+
+							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, helpers.UTF16ToString(str.Value), nil)
+							if p.fnOrArrowDataVisit.tryBodyCount != 0 {
+								record := &p.importRecords[importRecordIndex]
+								record.Flags |= ast.HandlesImportErrors
+								record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
+							}
+							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+
+							// Create a new expression to represent the operation
+							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequireResolveString{
+								ImportRecordIndex: importRecordIndex,
+							}}
+						}
+
+						// Otherwise just return a clone of the "require.resolve()" call
+						return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
+							Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EDot{
+								Target:  p.valueToSubstituteForRequire(t.Target.Loc),
+								Name:    t.Name,
+								NameLoc: t.NameLoc,
+							}},
+							Args: []js_ast.Expr{arg},
+						}}
+					}), exprOut{}
+				}
+			}
+
+			// Recognize "Object.create()" calls
+			if couldBeObjectCreate && t.Name == "create" {
+				if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok {
+					if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound && symbol.OriginalName == "Object" {
+						switch e.Args[0].Data.(type) {
+						case *js_ast.ENull, *js_ast.EObject:
+							// Mark "Object.create(null)" and "Object.create({})" as pure
+							e.CanBeUnwrappedIfUnused = true
+						}
+					}
+				}
+			}
+
 			// Copy the call side effect flag over if this is a known target
 			if t.CallCanBeUnwrappedIfUnused {
 				e.CanBeUnwrappedIfUnused = true
