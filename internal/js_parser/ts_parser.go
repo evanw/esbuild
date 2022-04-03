@@ -608,7 +608,7 @@ func (p *parser) isTSModifierIn() bool {
 }
 
 func (p *parser) isTSModifierOut() bool {
-	return p.lexer.Identifier.String == "out"
+	return p.lexer.IsContextualKeyword("out")
 }
 
 func (p *parser) isTSModifierInOut() bool {

@@ -304,6 +304,8 @@ func TestTSTypes(t *testing.T) {
 	expectParseErrorTS(t, "declare function f1<in T>(x: T): void;", "<stdin>: ERROR: Expected identifier but found \"in\"\n")
 	expectParseErrorTS(t, "declare function f2<out T>(): T;", "<stdin>: ERROR: Expected \">\" but found \"T\"\n")
 	expectParseErrorTS(t, "class C { in a = 0; out b = 0; };", "<stdin>: ERROR: Expected \";\" but found \"a\"\n")
+	expectParseErrorTS(t, "type T<i\\u006E T> = T", "<stdin>: ERROR: Expected identifier but found \"i\\\\u006E\"\n")
+	expectParseErrorTS(t, "type T<ou\\u0074 T> = T", "<stdin>: ERROR: Expected \">\" but found \"T\"\n")
 	expectPrintedTS(t, "interface Baz<out T> {}", "")
 	expectPrintedTS(t, "interface Baz<in T> {}", "")
 	expectPrintedTS(t, "interface Parent<out A> { child: Child<A> | null; parent: Parent<A> | null; }", "")
