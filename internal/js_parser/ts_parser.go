@@ -277,12 +277,12 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 				return
 			}
 
-			p.skipTypeScriptTypeParameters()
+			p.skipTypeScriptTypeParameters(false)
 			p.skipTypeScriptParenOrFnType()
 
 		case js_lexer.TLessThan:
 			// "<T>() => Foo<T>"
-			p.skipTypeScriptTypeParameters()
+			p.skipTypeScriptTypeParameters(false)
 			p.skipTypeScriptParenOrFnType()
 
 		case js_lexer.TOpenParen:
@@ -562,7 +562,7 @@ func (p *parser) skipTypeScriptObjectType() {
 		}
 
 		// Type parameters come right after the optional mark
-		p.skipTypeScriptTypeParameters()
+		p.skipTypeScriptTypeParameters(false)
 
 		switch p.lexer.Token {
 		case js_lexer.TColon:
@@ -603,9 +603,21 @@ func (p *parser) skipTypeScriptObjectType() {
 	p.lexer.Expect(js_lexer.TCloseBrace)
 }
 
+func (p *parser) isTSModifierIn() bool {
+	return p.lexer.Token == js_lexer.TIn
+}
+
+func (p *parser) isTSModifierOut() bool {
+	return p.lexer.Identifier.String == "out"
+}
+
+func (p *parser) isTSModifierInOut() bool {
+	return p.isTSModifierIn() || p.isTSModifierOut()
+}
+
 // This is the type parameter declarations that go with other symbol
 // declarations (class, function, type, etc.)
-func (p *parser) skipTypeScriptTypeParameters() {
+func (p *parser) skipTypeScriptTypeParameters(allowModifier bool) {
 	if p.lexer.Token == js_lexer.TLessThan {
 		p.lexer.Next()
 
@@ -613,11 +625,11 @@ func (p *parser) skipTypeScriptTypeParameters() {
 			// type X<out> = out;
 			outMaybeIdentifier := false
 
-			if p.isTSModifierIn() {
+			if allowModifier && p.isTSModifierIn() {
 				p.lexer.Next()
 			}
 
-			if p.isTSModifierInOut() {
+			if allowModifier && p.isTSModifierInOut() {
 				p.lexer.Next()
 				outMaybeIdentifier = true
 			}
@@ -715,7 +727,7 @@ func (p *parser) trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() 
 		}
 	}()
 
-	p.skipTypeScriptTypeParameters()
+	p.skipTypeScriptTypeParameters(false)
 	if p.lexer.Token != js_lexer.TOpenParen {
 		p.lexer.Unexpected()
 	}
@@ -777,26 +789,11 @@ func (p *parser) trySkipTypeScriptArrowArgsWithBacktracking() bool {
 	return true
 }
 
-func (p *parser) isTSModifierIn() bool {
-	return p.lexer.Token == js_lexer.TIn
-}
-
-func (p *parser) isTSModifierOut() bool {
-	return p.lexer.Identifier.String == "out"
-}
-
-func (p *parser) isTSModifierInOut() bool {
-	return p.isTSModifierIn() || p.isTSModifierOut()
-}
-
 // Returns true if the current less-than token is considered to be an arrow
 // function under TypeScript's rules for files containing JSX syntax
 func (p *parser) isTSArrowFnJSX() (isTSArrowFn bool) {
 	oldLexer := p.lexer
-
-	for skip := true; skip; skip = p.isTSModifierInOut() {
-		p.lexer.Next()
-	}
+	p.lexer.Next()
 
 	// Look ahead to see if this should be an arrow function instead
 	if p.lexer.Token == js_lexer.TIdentifier {
@@ -865,7 +862,7 @@ func (p *parser) skipTypeScriptInterfaceStmt(opts parseStmtOpts) {
 		p.localTypeNames[name] = true
 	}
 
-	p.skipTypeScriptTypeParameters()
+	p.skipTypeScriptTypeParameters(true)
 
 	if p.lexer.Token == js_lexer.TExtends {
 		p.lexer.Next()
@@ -912,7 +909,7 @@ func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 		p.localTypeNames[name] = true
 	}
 
-	p.skipTypeScriptTypeParameters()
+	p.skipTypeScriptTypeParameters(true)
 	p.lexer.Expect(js_lexer.TEquals)
 	p.skipTypeScriptType(js_ast.LLowest)
 	p.lexer.ExpectOrInsertSemicolon()
