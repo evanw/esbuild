@@ -10116,7 +10116,11 @@ func (p *parser) visitTSDecorators(tsDecorators []js_ast.Expr, tsDecoratorScope 
 	return tsDecorators
 }
 
-func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefaultExport bool) js_ast.Ref {
+type visitClassResult struct {
+	shadowRef js_ast.Ref
+}
+
+func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefaultExport bool) (result visitClassResult) {
 	tsDecoratorScope := p.currentScope
 	class.TSDecorators = p.visitTSDecorators(class.TSDecorators, tsDecoratorScope)
 
@@ -10202,10 +10206,10 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefa
 	// Use "const" for this symbol to match JavaScript run-time semantics. You
 	// are not allowed to assign to this symbol (it throws a TypeError).
 	name := p.symbols[classNameRef.InnerIndex].OriginalName
-	shadowRef := p.newSymbol(js_ast.SymbolConst, "_"+name)
-	p.recordDeclaredSymbol(shadowRef)
+	result.shadowRef = p.newSymbol(js_ast.SymbolConst, "_"+name)
+	p.recordDeclaredSymbol(result.shadowRef)
 	if class.Name != nil {
-		p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: shadowRef}
+		p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: result.shadowRef}
 	}
 
 	if class.ExtendsOrNil.Data != nil {
@@ -10229,7 +10233,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefa
 			p.fnOnlyDataVisit = fnOnlyDataVisit{
 				isThisNested:       true,
 				isNewTargetAllowed: true,
-				classNameRef:       &shadowRef,
+				classNameRef:       &result.shadowRef,
 			}
 
 			if classLoweringInfo.lowerAllStaticFields {
@@ -10311,7 +10315,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefa
 		p.fnOnlyDataVisit.isThisNested = true
 		p.fnOnlyDataVisit.isNewTargetAllowed = true
 		p.fnOnlyDataVisit.superHelpers = nil
-		p.fnOnlyDataVisit.classNameRef = &shadowRef
+		p.fnOnlyDataVisit.classNameRef = &result.shadowRef
 
 		// We need to explicitly assign the name to the property initializer if it
 		// will be transformed such that it is no longer an inline initializer.
@@ -10369,9 +10373,9 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefa
 	p.enclosingClassKeyword = oldEnclosingClassKeyword
 	p.popScope()
 
-	if p.symbols[shadowRef.InnerIndex].UseCountEstimate == 0 {
+	if p.symbols[result.shadowRef.InnerIndex].UseCountEstimate == 0 {
 		// Don't generate a shadowing name if one isn't needed
-		shadowRef = js_ast.InvalidRef
+		result.shadowRef = js_ast.InvalidRef
 	} else if class.Name == nil {
 		// If there was originally no class name but something inside needed one
 		// (e.g. there was a static property initializer that referenced "this"),
@@ -10381,7 +10385,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefa
 		p.recordDeclaredSymbol(classNameRef)
 	}
 
-	return shadowRef
+	return
 }
 
 func isSimpleParameterList(args []js_ast.Arg, hasRestArg bool) bool {

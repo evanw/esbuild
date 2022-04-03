@@ -1989,7 +1989,7 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 
 // Lower class fields for environments that don't support them. This either
 // takes a statement or an expression.
-func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast.Ref) ([]js_ast.Stmt, js_ast.Expr) {
+func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClassResult) ([]js_ast.Stmt, js_ast.Expr) {
 	type classKind uint8
 	const (
 		classKindExpr classKind = iota
@@ -2014,8 +2014,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 			// The shadowing name inside the class expression should be the same as
 			// the class expression name itself
-			if shadowRef != js_ast.InvalidRef {
-				p.mergeSymbols(shadowRef, class.Name.Ref)
+			if result.shadowRef != js_ast.InvalidRef {
+				p.mergeSymbols(result.shadowRef, class.Name.Ref)
 			}
 
 			// Remove unused class names when minifying. Check this after we merge in
@@ -2041,8 +2041,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 		// The shadowing name inside the class expression should be the same as
 		// the default export name
-		if shadowRef != js_ast.InvalidRef {
-			p.mergeSymbols(shadowRef, defaultName.Ref)
+		if result.shadowRef != js_ast.InvalidRef {
+			p.mergeSymbols(result.shadowRef, defaultName.Ref)
 		}
 
 		if class.Name != nil {
@@ -2574,7 +2574,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 	// potentially contain an expression that captures the shadowing class name.
 	// This could lead to incorrect behavior if the class is later re-assigned,
 	// since the removed code would no longer be in the shadowing scope.
-	hasPotentialShadowCaptureEscape := shadowRef != js_ast.InvalidRef &&
+	hasPotentialShadowCaptureEscape := result.shadowRef != js_ast.InvalidRef &&
 		(computedPropertyCache.Data != nil ||
 			len(privateMembers) > 0 ||
 			len(staticPrivateMethods) > 0 ||
@@ -2637,10 +2637,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			// because the shadowing name isn't a top-level symbol and we are now
 			// making a top-level symbol. This symbol must be minified along with
 			// other top-level symbols to avoid name collisions.
-			captureRef := p.newSymbol(js_ast.SymbolOther, p.symbols[shadowRef.InnerIndex].OriginalName)
+			captureRef := p.newSymbol(js_ast.SymbolOther, p.symbols[result.shadowRef.InnerIndex].OriginalName)
 			p.currentScope.Generated = append(p.currentScope.Generated, captureRef)
 			p.recordDeclaredSymbol(captureRef)
-			p.mergeSymbols(shadowRef, captureRef)
+			p.mergeSymbols(result.shadowRef, captureRef)
 			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
 				Kind: p.selectLocalKind(js_ast.LocalConst),
 				Decls: []js_ast.Decl{{
@@ -2656,8 +2656,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			// The official TypeScript compiler does this by rewriting all class name
 			// references in the class body to another temporary variable. This is
 			// basically what we're doing here.
-			if shadowRef != js_ast.InvalidRef {
-				p.mergeSymbols(shadowRef, nameRef)
+			if result.shadowRef != js_ast.InvalidRef {
+				p.mergeSymbols(result.shadowRef, nameRef)
 			}
 		}
 
@@ -2685,8 +2685,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 
 		// The shadowing name inside the class statement should be the same as
 		// the class statement name itself
-		if class.Name != nil && shadowRef != js_ast.InvalidRef {
-			p.mergeSymbols(shadowRef, class.Name.Ref)
+		if class.Name != nil && result.shadowRef != js_ast.InvalidRef {
+			p.mergeSymbols(result.shadowRef, class.Name.Ref)
 		}
 	}
 	if keepNameStmt.Data != nil {
