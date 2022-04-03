@@ -161,15 +161,15 @@
 
     ```css
     /* Original code */
-    @font-palette-values Foo { base-palette: 1; }
+    @font-palette-values --Foo { base-palette: 1; }
     @counter-style bar { symbols: b a r; }
     @font-feature-values Bop { @styleset { test: 1; } }
 
     /* Old output (with --minify) */
-    @font-palette-values Foo{base-palette: 1;}@counter-style bar{symbols: b a r;}@font-feature-values Bop{@styleset {test: 1;}}
+    @font-palette-values --Foo{base-palette: 1;}@counter-style bar{symbols: b a r;}@font-feature-values Bop{@styleset {test: 1;}}
 
     /* New output (with --minify) */
-    @font-palette-values Foo{base-palette:1}@counter-style bar{symbols:b a r}@font-feature-values Bop{@styleset{test:1}}
+    @font-palette-values --Foo{base-palette:1}@counter-style bar{symbols:b a r}@font-feature-values Bop{@styleset{test:1}}
     ```
 
 * Upgrade to Go 1.18.0 ([#2105](https://github.com/evanw/esbuild/issues/2105))
