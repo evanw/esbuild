@@ -429,9 +429,9 @@ func parseFile(args parseArgs) {
 					// code pattern for conditionally importing a module with a graceful
 					// fallback.
 					if !didLogError && !record.Flags.Has(ast.HandlesImportErrors) {
-						text, notes := ResolveFailureErrorTextAndNotes(args.res, record.Path.Text, record.Kind,
+						text, suggestion, notes := ResolveFailureErrorTextSuggestionNotes(args.res, record.Path.Text, record.Kind,
 							pluginName, args.fs, absResolveDir, args.options.Platform, source.PrettyPath)
-						debug.LogErrorMsg(args.log, &source, record.Range, text, notes)
+						debug.LogErrorMsg(args.log, &source, record.Range, text, suggestion, notes)
 					} else if args.log.Level <= logger.LevelDebug && !didLogError && record.Flags.Has(ast.HandlesImportErrors) {
 						args.log.AddWithNotes(logger.Debug, &tracker, record.Range,
 							fmt.Sprintf("Importing %q was allowed even though it could not be resolved because dynamic import failures appear to be handled here:",
@@ -470,7 +470,7 @@ func parseFile(args parseArgs) {
 	args.results <- result
 }
 
-func ResolveFailureErrorTextAndNotes(
+func ResolveFailureErrorTextSuggestionNotes(
 	res resolver.Resolver,
 	path string,
 	kind ast.ImportKind,
@@ -479,7 +479,8 @@ func ResolveFailureErrorTextAndNotes(
 	absResolveDir string,
 	platform config.Platform,
 	originatingFilePath string,
-) (string, []logger.MsgData) {
+) (text string, suggestion string, notes []logger.MsgData) {
+	text = fmt.Sprintf("Could not resolve %q", path)
 	hint := ""
 
 	if resolver.IsPackagePath(path) {
@@ -494,6 +495,7 @@ func ResolveFailureErrorTextAndNotes(
 				hint = fmt.Sprintf("Use the relative path %q to reference the file %q. "+
 					"Without the leading \"./\", the path %q is being interpreted as a package path instead.",
 					"./"+path, res.PrettyPath(query.PathPair.Primary), path)
+				suggestion = string(js_printer.QuoteForJSON("./"+path, false))
 			}
 		}
 	}
@@ -523,11 +525,10 @@ func ResolveFailureErrorTextAndNotes(
 			"so esbuild did not search for %q on the file system.", pluginName, where, path)
 	}
 
-	var notes []logger.MsgData
 	if hint != "" {
 		notes = append(notes, logger.MsgData{Text: hint})
 	}
-	return fmt.Sprintf("Could not resolve %q", path), notes
+	return
 }
 
 func joinWithPublicPath(publicPath string, relPath string) string {
@@ -1211,6 +1212,10 @@ func (s *scanner) maybeParseFile(
 	if path.Namespace == "dataurl" {
 		if _, ok := resolver.ParseDataURL(path.Text); ok {
 			prettyPath = path.Text
+			if len(prettyPath) > 65 {
+				prettyPath = prettyPath[:65]
+			}
+			prettyPath = strings.ReplaceAll(prettyPath, "\n", "\\n")
 			if len(prettyPath) > 64 {
 				prettyPath = prettyPath[:64] + "..."
 			}
@@ -1469,7 +1474,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 						})
 					}
 				}
-				debug.LogErrorMsg(s.log, nil, logger.Range{}, fmt.Sprintf("Could not resolve %q", entryPoint.InputPath), notes)
+				debug.LogErrorMsg(s.log, nil, logger.Range{}, fmt.Sprintf("Could not resolve %q", entryPoint.InputPath), "", notes)
 			}
 			entryPointWaitGroup.Done()
 		}(i, entryPoint)

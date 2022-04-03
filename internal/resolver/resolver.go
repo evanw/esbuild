@@ -131,7 +131,7 @@ type DebugMeta struct {
 	notes             []logger.MsgData
 }
 
-func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string, notes []logger.MsgData) {
+func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string, suggestion string, notes []logger.MsgData) {
 	tracker := logger.MakeLineColumnTracker(source)
 
 	if source != nil && dm.suggestionMessage != "" {
@@ -144,6 +144,10 @@ func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.
 		Kind:  logger.Error,
 		Data:  tracker.MsgData(r, text),
 		Notes: append(dm.notes, notes...),
+	}
+
+	if msg.Data.Location != nil && suggestion != "" {
+		msg.Data.Location.Suggestion = suggestion
 	}
 
 	log.AddMsg(msg)
@@ -860,6 +864,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 	if visited[file] {
 		return nil, errParseErrorImportCycle
 	}
+	isExtends := len(visited) != 0
 	visited[file] = true
 
 	contents, err, originalError := r.caches.FSCache.ReadFile(r.fs, file)
@@ -963,6 +968,27 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 
 	if result.Paths != nil && !r.fs.IsAbs(result.BaseURLForPaths) {
 		result.BaseURLForPaths = r.fs.Join(fileDir, result.BaseURLForPaths)
+	}
+
+	// Now that we have parsed the entire "tsconfig.json" file, filter out any
+	// paths that are invalid due to being a package-style path without a base
+	// URL specified. This must be done here instead of when we're parsing the
+	// original file because TypeScript allows one "tsconfig.json" file to
+	// specify "baseUrl" and inherit a "paths" from another file via "extends".
+	if !isExtends && result.Paths != nil && result.BaseURL == nil {
+		var tracker *logger.LineColumnTracker
+		for key, paths := range result.Paths.Map {
+			end := 0
+			for _, path := range paths {
+				if isValidTSConfigPathNoBaseURLPattern(path.Text, r.log, &result.Paths.Source, &tracker, path.Loc) {
+					paths[end] = path
+					end++
+				}
+			}
+			if end < len(paths) {
+				result.Paths.Map[key] = paths[:end]
+			}
+		}
 	}
 
 	return result, nil
@@ -1486,24 +1512,24 @@ func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path strin
 	}
 
 	// Check for exact matches first
-	for key, originalPaths := range tsConfigJSON.Paths {
+	for key, originalPaths := range tsConfigJSON.Paths.Map {
 		if key == path {
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("Found an exact match for %q in \"paths\"", key))
 			}
 			for _, originalPath := range originalPaths {
 				// Ignore ".d.ts" files because this rule is obviously only here for type checking
-				if hasCaseInsensitiveSuffix(originalPath, ".d.ts") {
+				if hasCaseInsensitiveSuffix(originalPath.Text, ".d.ts") {
 					if r.debugLogs != nil {
-						r.debugLogs.addNote(fmt.Sprintf("Ignoring substitution %q because it ends in \".d.ts\"", originalPath))
+						r.debugLogs.addNote(fmt.Sprintf("Ignoring substitution %q because it ends in \".d.ts\"", originalPath.Text))
 					}
 					continue
 				}
 
 				// Load the original path relative to the "baseUrl" from tsconfig.json
-				absoluteOriginalPath := originalPath
-				if !r.fs.IsAbs(originalPath) {
-					absoluteOriginalPath = r.fs.Join(absBaseURL, originalPath)
+				absoluteOriginalPath := originalPath.Text
+				if !r.fs.IsAbs(absoluteOriginalPath) {
+					absoluteOriginalPath = r.fs.Join(absBaseURL, absoluteOriginalPath)
 				}
 				if absolute, ok, diffCase := r.loadAsFileOrDirectory(absoluteOriginalPath); ok {
 					return absolute, true, diffCase
@@ -1516,14 +1542,14 @@ func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path strin
 	type match struct {
 		prefix        string
 		suffix        string
-		originalPaths []string
+		originalPaths []TSConfigPath
 	}
 
 	// Check for pattern matches next
 	longestMatchPrefixLength := -1
 	longestMatchSuffixLength := -1
 	var longestMatch match
-	for key, originalPaths := range tsConfigJSON.Paths {
+	for key, originalPaths := range tsConfigJSON.Paths.Map {
 		if starIndex := strings.IndexByte(key, '*'); starIndex != -1 {
 			prefix, suffix := key[:starIndex], key[starIndex+1:]
 
@@ -1555,7 +1581,7 @@ func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path strin
 		for _, originalPath := range longestMatch.originalPaths {
 			// Swap out the "*" in the original path for whatever the "*" matched
 			matchedText := path[len(longestMatch.prefix) : len(path)-len(longestMatch.suffix)]
-			originalPath = strings.Replace(originalPath, "*", matchedText, 1)
+			originalPath := strings.Replace(originalPath.Text, "*", matchedText, 1)
 
 			// Ignore ".d.ts" files because this rule is obviously only here for type checking
 			if hasCaseInsensitiveSuffix(originalPath, ".d.ts") {

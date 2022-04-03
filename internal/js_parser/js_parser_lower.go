@@ -1300,6 +1300,7 @@ func (p *parser) lowerObjectRestInForLoopInit(init js_ast.Stmt, body *js_ast.Stm
 		if exprHasObjectRest(s.Value) {
 			ref := p.generateTempRef(tempRefNeedsDeclare, "")
 			if expr, ok := p.lowerAssign(s.Value, js_ast.Expr{Loc: init.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, objRestReturnValueIsUnused); ok {
+				p.recordUsage(ref)
 				s.Value.Data = &js_ast.EIdentifier{Ref: ref}
 				bodyPrefixStmt = js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}}
 			}
@@ -2037,6 +2038,13 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		class = &s2.Class
 		defaultName = s.DefaultName
 		kind = classKindExportDefaultStmt
+
+		// The shadowing name inside the class expression should be the same as
+		// the default export name
+		if shadowRef != js_ast.InvalidRef {
+			p.mergeSymbols(shadowRef, defaultName.Ref)
+		}
+
 		if class.Name != nil {
 			nameToKeep = p.symbols[class.Name.Ref.InnerIndex].OriginalName
 		} else {
@@ -2213,6 +2221,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			} else if _, ok := prop.Key.Data.(*js_ast.EString); !ok {
 				// Store the key in a temporary so we can assign to it later
 				ref := p.generateTempRef(tempRefNeedsDeclare, "")
+				p.recordUsage(ref)
 				computedPropertyCache = js_ast.JoinWithComma(computedPropertyCache,
 					js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key))
 				prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
@@ -2429,6 +2438,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 				} else {
 					p.symbols[methodRef.InnerIndex].Link = p.privateGetters[private.Ref]
 				}
+				p.recordUsage(methodRef)
 				privateMembers = append(privateMembers, js_ast.Assign(
 					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: methodRef}},
 					prop.ValueOrNil,
@@ -2815,6 +2825,8 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 
 	// Cache it in a temporary object (required by the specification)
 	tempRef := p.generateTopLevelTempRef()
+	p.recordUsage(tempRef)
+	p.recordUsage(tempRef)
 	args[0] = js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 		Op:   js_ast.BinOpLogicalOr,
 		Left: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}},
@@ -2833,7 +2845,7 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 }
 
 func (p *parser) shouldLowerSuperPropertyAccess(expr js_ast.Expr) bool {
-	if p.fnOrArrowDataVisit.shouldLowerSuper {
+	if p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess {
 		_, isSuper := expr.Data.(*js_ast.ESuper)
 		return isSuper
 	}
@@ -2859,10 +2871,10 @@ func (p *parser) ensureSuperSet() {
 func (p *parser) callSuperPropertyWrapper(loc logger.Loc, property js_ast.Expr, includeGet bool) js_ast.Expr {
 	var result js_ast.Expr
 
-	if thisRef := p.fnOnlyDataVisit.thisClassStaticRef; thisRef != nil {
-		p.recordUsage(*thisRef)
+	if p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef {
+		p.recordUsage(*p.fnOnlyDataVisit.classNameRef)
 		result = p.callRuntime(loc, "__superStaticWrapper", []js_ast.Expr{
-			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *thisRef}},
+			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.classNameRef}},
 			property,
 		})
 	} else {
@@ -2888,10 +2900,10 @@ func (p *parser) callSuperPropertyWrapper(loc logger.Loc, property js_ast.Expr, 
 }
 
 func (p *parser) lowerSuperPropertyGet(loc logger.Loc, key js_ast.Expr) js_ast.Expr {
-	if thisRef := p.fnOnlyDataVisit.thisClassStaticRef; thisRef != nil {
-		p.recordUsage(*thisRef)
+	if p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef {
+		p.recordUsage(*p.fnOnlyDataVisit.classNameRef)
 		return p.callRuntime(loc, "__superStaticGet", []js_ast.Expr{
-			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *thisRef}},
+			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.classNameRef}},
 			key,
 		})
 	}
@@ -2906,10 +2918,10 @@ func (p *parser) lowerSuperPropertyGet(loc logger.Loc, key js_ast.Expr) js_ast.E
 }
 
 func (p *parser) lowerSuperPropertySet(loc logger.Loc, key js_ast.Expr, value js_ast.Expr) js_ast.Expr {
-	if thisRef := p.fnOnlyDataVisit.thisClassStaticRef; thisRef != nil {
-		p.recordUsage(*thisRef)
+	if p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef {
+		p.recordUsage(*p.fnOnlyDataVisit.classNameRef)
 		return p.callRuntime(loc, "__superStaticSet", []js_ast.Expr{
-			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *thisRef}},
+			{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.classNameRef}},
 			key,
 			value,
 		})

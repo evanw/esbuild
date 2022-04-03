@@ -857,8 +857,8 @@ TestExportWildcardFSNodeCommonJS
 ---------- /out.js ----------
 // entry.js
 var entry_exports = {};
-__reExport(entry_exports, require("fs"));
 module.exports = __toCommonJS(entry_exports);
+__reExport(entry_exports, require("fs"), module.exports);
 
 ================================================================================
 TestExportWildcardFSNodeES6
@@ -1434,6 +1434,9 @@ var functionAnonExpr = function() {
 var classAnonExpr = class {
   foo = "copy1";
 };
+var _a;
+var classAnonExprLowered = /* @__PURE__ */ __name((_a = class {
+}, __publicField(_a, "foo", "copy2"), _a), "classAnonExprLowered");
 var classStmtSideEffect = class {
   static [copy1]() {
   }
@@ -1464,6 +1467,9 @@ var functionAnonExpr2 = /* @__PURE__ */ __name(function() {
 var classAnonExpr2 = /* @__PURE__ */ __name(class {
   foo = "copy2";
 }, "classAnonExpr");
+var _a2;
+var classAnonExprLowered2 = /* @__PURE__ */ __name((_a2 = class {
+}, __publicField(_a2, "foo", "copy2"), _a2), "classAnonExprLowered");
 var classStmtSideEffect2 = class {
   static [copy2]() {
   }
@@ -1487,7 +1493,9 @@ console.log([
   functionAnonExpr,
   functionAnonExpr2,
   classAnonExpr,
-  classAnonExpr2
+  classAnonExpr2,
+  classAnonExprLowered,
+  classAnonExprLowered2
 ]);
 
 ================================================================================
@@ -2440,11 +2448,11 @@ __export(entry_exports, {
   bar: () => import_bar.default,
   foo: () => import_foo.default
 });
+module.exports = __toCommonJS(entry_exports);
 var import_foo = __toESM(require("foo"));
 
 // bar.js
 var import_bar = __toESM(require("bar"));
-module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
 TestReExportDefaultExternalES6
@@ -2486,9 +2494,9 @@ __export(entry_exports, {
   bar: () => import_bar.default,
   foo: () => import_foo.default
 });
+module.exports = __toCommonJS(entry_exports);
 var import_foo = __toESM(require("./foo"));
 var import_bar = __toESM(require("./bar"));
-module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
 TestReExportDefaultNoBundleES6

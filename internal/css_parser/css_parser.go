@@ -181,6 +181,7 @@ func (p *parser) parseListOfRules(context ruleContext) []css_ast.Rule {
 	if context.isTopLevel {
 		atRuleContext.charsetValidity = atRuleValid
 		atRuleContext.importValidity = atRuleValid
+		atRuleContext.isTopLevel = true
 	}
 	rules := []css_ast.Rule{}
 	didFindAtImport := false
@@ -271,9 +272,9 @@ loop:
 		}
 
 		if context.parseSelectors {
-			rules = append(rules, p.parseSelectorRuleFrom(p.index, parseSelectorOpts{}))
+			rules = append(rules, p.parseSelectorRuleFrom(p.index, parseSelectorOpts{isTopLevel: context.isTopLevel}))
 		} else {
-			rules = append(rules, p.parseQualifiedRuleFrom(p.index, false /* isAlreadyInvalid */))
+			rules = append(rules, p.parseQualifiedRuleFrom(p.index, parseQualifiedRuleOpts{isTopLevel: context.isTopLevel}))
 		}
 	}
 
@@ -681,6 +682,24 @@ var specialAtRules = map[string]atRuleKind{
 
 	// Reference: https://drafts.csswg.org/css-nesting-1/
 	"nest": atRuleDeclarations,
+
+	// Reference: https://drafts.csswg.org/css-fonts-4/#font-palette-values
+	"font-palette-values": atRuleDeclarations,
+
+	// Documentation: https://developer.mozilla.org/en-US/docs/Web/CSS/@counter-style
+	// Reference: https://drafts.csswg.org/css-counter-styles/#the-counter-style-rule
+	"counter-style": atRuleDeclarations,
+
+	// Documentation: https://developer.mozilla.org/en-US/docs/Web/CSS/@font-feature-values
+	// Reference: https://drafts.csswg.org/css-fonts/#font-feature-values
+	"font-feature-values": atRuleDeclarations,
+	"annotation":          atRuleDeclarations,
+	"character-variant":   atRuleDeclarations,
+	"historical-forms":    atRuleDeclarations,
+	"ornaments":           atRuleDeclarations,
+	"styleset":            atRuleDeclarations,
+	"stylistic":           atRuleDeclarations,
+	"swash":               atRuleDeclarations,
 }
 
 type atRuleValidity uint8
@@ -697,6 +716,7 @@ type atRuleContext struct {
 	importValidity    atRuleValidity
 	isDeclarationList bool
 	allowNesting      bool
+	isTopLevel        bool
 }
 
 func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
@@ -912,7 +932,11 @@ abortRuleParser:
 		p.eat(css_lexer.TWhitespace)
 		if kind := p.current().Kind; kind != css_lexer.TSemicolon && kind != css_lexer.TOpenBrace &&
 			kind != css_lexer.TCloseBrace && kind != css_lexer.TEndOfFile {
-			return p.parseSelectorRuleFrom(preludeStart-1, parseSelectorOpts{atNestRange: atRange, allowNesting: context.allowNesting})
+			return p.parseSelectorRuleFrom(preludeStart-1, parseSelectorOpts{
+				atNestRange:  atRange,
+				allowNesting: context.allowNesting,
+				isTopLevel:   context.isTopLevel,
+			})
 		}
 
 	case "layer":
@@ -1466,10 +1490,18 @@ func (p *parser) parseSelectorRuleFrom(preludeStart int, opts parseSelectorOpts)
 	}
 
 	// Otherwise, parse a generic qualified rule
-	return p.parseQualifiedRuleFrom(preludeStart, true /* isAlreadyInvalid */)
+	return p.parseQualifiedRuleFrom(preludeStart, parseQualifiedRuleOpts{
+		isAlreadyInvalid: true,
+		isTopLevel:       opts.isTopLevel,
+	})
 }
 
-func (p *parser) parseQualifiedRuleFrom(preludeStart int, isAlreadyInvalid bool) css_ast.Rule {
+type parseQualifiedRuleOpts struct {
+	isAlreadyInvalid bool
+	isTopLevel       bool
+}
+
+func (p *parser) parseQualifiedRuleFrom(preludeStart int, opts parseQualifiedRuleOpts) css_ast.Rule {
 	preludeLoc := p.tokens[preludeStart].Range.Loc
 
 loop:
@@ -1477,6 +1509,12 @@ loop:
 		switch p.current().Kind {
 		case css_lexer.TOpenBrace, css_lexer.TEndOfFile:
 			break loop
+
+		case css_lexer.TCloseBrace:
+			if !opts.isTopLevel {
+				break loop
+			}
+			p.parseComponentValue()
 
 		default:
 			p.parseComponentValue()
@@ -1490,7 +1528,7 @@ loop:
 	if p.eat(css_lexer.TOpenBrace) {
 		qualified.Rules = p.parseListOfDeclarations()
 		p.expect(css_lexer.TCloseBrace)
-	} else if !isAlreadyInvalid {
+	} else if !opts.isAlreadyInvalid {
 		p.expect(css_lexer.TOpenBrace)
 	}
 

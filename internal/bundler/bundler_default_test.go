@@ -4369,6 +4369,7 @@ func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
 					classExpr as classExpr1,
 					functionAnonExpr as functionAnonExpr1,
 					classAnonExpr as classAnonExpr1,
+					classAnonExprLowered as classAnonExprLowered1,
 				} from './copy1'
 
 				import {
@@ -4378,6 +4379,7 @@ func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
 					classExpr as classExpr2,
 					functionAnonExpr as functionAnonExpr2,
 					classAnonExpr as classAnonExpr2,
+					classAnonExprLowered as classAnonExprLowered2,
 				} from './copy2'
 
 				console.log([
@@ -4387,6 +4389,7 @@ func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
 					classExpr1, classExpr2,
 					functionAnonExpr1, functionAnonExpr2,
 					classAnonExpr1, classAnonExpr2,
+					classAnonExprLowered1, classAnonExprLowered2,
 				])
 			`,
 
@@ -4397,6 +4400,7 @@ func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
 				export let classExpr = class cls { foo = 'copy1' }
 				export let functionAnonExpr = function() { return 'copy1' }
 				export let classAnonExpr = class { foo = 'copy1' }
+				export let classAnonExprLowered = class { static foo = 'copy2' }
 
 				class classStmtSideEffect { static [copy1]() {} }
 				let classExprSideEffect = class clsSideEffect { static [copy1]() {} }
@@ -4409,6 +4413,7 @@ func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
 				export let classExpr = class cls { foo = 'copy2' }
 				export let functionAnonExpr = function() { return 'copy2' }
 				export let classAnonExpr = class { foo = 'copy2' }
+				export let classAnonExprLowered = class { static foo = 'copy2' }
 
 				class classStmtSideEffect { static [copy2]() {} }
 				let classExprSideEffect = class clsSideEffect { static [copy2]() {} }
@@ -4416,9 +4421,10 @@ func TestKeepNamesWithNecessaryHelperFunctionCalls(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
-			KeepNames:     true,
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			KeepNames:             true,
+			UnsupportedJSFeatures: compat.ClassStaticField,
 		},
 	})
 }

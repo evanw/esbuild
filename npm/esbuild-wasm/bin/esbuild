@@ -2,17 +2,18 @@
 
 // Forward to the automatically-generated WebAssembly loader from the Go compiler
 
+const module_ = require('module');
 const crypto = require('crypto');
 const path = require('path');
 const zlib = require('zlib');
 const fs = require('fs');
 const os = require('os');
 
-const wasm_exec = path.join(__dirname, '..', 'wasm_exec.js');
+const wasm_exec_node = path.join(__dirname, '..', 'wasm_exec_node.js');
 const esbuild_wasm = path.join(__dirname, '..', 'esbuild.wasm');
 
-const code = fs.readFileSync(wasm_exec, 'utf8');
-const wrapper = new Function('require', 'module', 'process', 'WebAssembly', code);
+const code = fs.readFileSync(wasm_exec_node, 'utf8');
+const wrapper = new Function('require', 'WebAssembly', code);
 
 function instantiate(bytes, importObject) {
   // Using this API causes "./esbuild --version" to run around 1 second faster
@@ -80,6 +81,37 @@ fs.read = function () {
   return read.apply(this, arguments);
 };
 
+// Hack around a Unicode bug in node: https://github.com/nodejs/node/issues/24550.
+// See this for the matching Go issue: https://github.com/golang/go/issues/43917.
+const write = fs.write;
+fs.write = function (fd, buf, offset, length, position, callback) {
+  if (offset === 0 && length === buf.length && position === null) {
+    if (fd === process.stdout.fd) {
+      try {
+        process.stdout.write(buf, err => err ? callback(err, 0, null) : callback(null, length, buf));
+      } catch (err) {
+        callback(err, 0, null);
+      }
+      return;
+    }
+    if (fd === process.stderr.fd) {
+      try {
+        process.stderr.write(buf, err => err ? callback(err, 0, null) : callback(null, length, buf));
+      } catch (err) {
+        callback(err, 0, null);
+      }
+      return;
+    }
+  }
+  return write.apply(this, arguments);
+};
+const writeSync = fs.writeSync;
+fs.writeSync = function (fd, buf) {
+  if (fd === process.stdout.fd) return process.stdout.write(buf), buf.length;
+  if (fd === process.stderr.fd) return process.stderr.write(buf), buf.length;
+  return writeSync.apply(this, arguments);
+};
+
 // WASM code generated with Go 1.17.2+ will crash when run in a situation with
 // many environment variables: https://github.com/golang/go/issues/49011. An
 // example of this situation is running a Go-compiled WASM executable in GitHub
@@ -97,5 +129,5 @@ for (let key in process.env) {
   }
 }
 
-const argv = ['node', wasm_exec, esbuild_wasm].concat(process.argv.slice(2));
-wrapper(require, require.main, Object.assign(Object.create(process), { argv }), Object.assign(Object.create(WebAssembly), { instantiate }));
+process.argv.splice(2, 0, esbuild_wasm);
+wrapper(module_.createRequire(wasm_exec_node), Object.assign(Object.create(WebAssembly), { instantiate }));

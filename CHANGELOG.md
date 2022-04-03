@@ -1,5 +1,201 @@
 # Changelog
 
+## 0.14.30
+
+* Change the context of TypeScript parameter decorators ([#2147](https://github.com/evanw/esbuild/issues/2147))
+
+    While TypeScript parameter decorators are expressions, they are not evaluated where they exist in the code. They are moved to after the class declaration and evaluated there instead. Specifically this TypeScript code:
+
+    ```ts
+    class Class {
+      method(@decorator() arg) {}
+    }
+    ```
+
+    becomes this JavaScript code:
+
+    ```js
+    class Class {
+      method(arg) {}
+    }
+    __decorate([
+      __param(0, decorator())
+    ], Class.prototype, "method", null);
+    ```
+
+    This has several consequences:
+
+    * Whether `await` is allowed inside a decorator expression or not depends on whether the class declaration itself is in an `async` context or not. With this release, you can now use `await` inside a decorator expression when the class declaration is either inside an `async` function or is at the top-level of an ES module and top-level await is supported. Note that the TypeScript compiler currently has a bug regarding this edge case: https://github.com/microsoft/TypeScript/issues/48509.
+
+        ```ts
+        // Using "await" inside a decorator expression is now allowed
+        async function fn(foo: Promise<any>) {
+          class Class {
+            method(@decorator(await foo) arg) {}
+          }
+          return Class
+        }
+        ```
+
+        Also while TypeScript currently allows `await` to be used like this in `async` functions, it doesn't currently allow `yield` to be used like this in generator functions. It's not yet clear whether this behavior with `yield` is a bug or by design, so I haven't made any changes to esbuild's handling of `yield` inside decorator expressions in this release.
+
+    * Since the scope of a decorator expression is the scope enclosing the class declaration, they cannot access private identifiers. Previously this was incorrectly allowed but with this release, esbuild no longer allows this. Note that the TypeScript compiler currently has a bug regarding this edge case: https://github.com/microsoft/TypeScript/issues/48515.
+
+        ```ts
+        // Using private names inside a decorator expression is no longer allowed
+        class Class {
+          static #priv = 123
+          method(@decorator(Class.#priv) arg) {}
+        }
+        ```
+
+    * Since the scope of a decorator expression is the scope enclosing the class declaration, identifiers inside parameter decorator expressions should never be resolved to a parameter of the enclosing method. Previously this could happen, which was a bug with esbuild. This bug no longer happens in this release.
+
+        ```ts
+        // Name collisions now resolve to the outer name instead of the inner name
+        let arg = 1
+        class Class {
+          method(@decorator(arg) arg = 2) {}
+        }
+        ```
+
+        Specifically previous versions of esbuild generated the following incorrect JavaScript (notice the use of `arg2`):
+
+        ```js
+        let arg = 1;
+        class Class {
+          method(arg2 = 2) {
+          }
+        }
+        __decorateClass([
+          __decorateParam(0, decorator(arg2))
+        ], Class.prototype, "method", 1);
+        ```
+
+        This release now generates the following correct JavaScript (notice the use of `arg`):
+
+        ```js
+        let arg = 1;
+        class Class {
+          method(arg2 = 2) {
+          }
+        }
+        __decorateClass([
+          __decorateParam(0, decorator(arg))
+        ], Class.prototype, "method", 1);
+        ```
+
+* Fix some obscure edge cases with `super` property access
+
+    This release fixes the following obscure problems with `super` when targeting an older JavaScript environment such as `--target=es6`:
+
+    1. The compiler could previously crash when a lowered `async` arrow function contained a class with a field initializer that used a `super` property access:
+
+        ```js
+        let foo = async () => class extends Object {
+          bar = super.toString
+        }
+        ```
+
+    2. The compiler could previously generate incorrect code when a lowered `async` method of a derived class contained a nested class with a computed class member involving a `super` property access on the derived class:
+
+        ```js
+        class Base {
+          foo() { return 'bar' }
+        }
+        class Derived extends Base {
+          async foo() {
+            return new class { [super.foo()] = 'success' }
+          }
+        }
+        new Derived().foo().then(obj => console.log(obj.bar))
+        ```
+
+    3. The compiler could previously generate incorrect code when a default-exported class contained a `super` property access inside a lowered static private class field:
+
+        ```js
+        class Foo {
+          static foo = 123
+        }
+        export default class extends Foo {
+          static #foo = super.foo
+          static bar = this.#foo
+        }
+        ```
+
+## 0.14.29
+
+* Fix a minification bug with a double-nested `if` inside a label followed by `else` ([#2139](https://github.com/evanw/esbuild/issues/2139))
+
+    This fixes a minification bug that affects the edge case where `if` is followed by `else` and the `if` contains a label that contains a nested `if`. Normally esbuild's AST printer automatically wraps the body of a single-statement `if` in braces to avoid the "dangling else" `if`/`else` ambiguity common to C-like languages (where the `else` accidentally becomes associated with the inner `if` instead of the outer `if`). However, I was missing automatic wrapping of label statements, which did not have test coverage because they are a rarely-used feature. This release fixes the bug:
+
+    ```js
+    // Original code
+    if (a)
+      b: {
+        if (c) break b
+      }
+    else if (d)
+      e()
+
+    // Old output (with --minify)
+    if(a)e:if(c)break e;else d&&e();
+
+    // New output (with --minify)
+    if(a){e:if(c)break e}else d&&e();
+    ```
+
+* Fix edge case regarding `baseUrl` and `paths` in `tsconfig.json` ([#2119](https://github.com/evanw/esbuild/issues/2119))
+
+    In `tsconfig.json`, TypeScript forbids non-relative values inside `paths` if `baseUrl` is not present, and esbuild does too. However, TypeScript checked this after the entire `tsconfig.json` hierarchy was parsed while esbuild incorrectly checked this immediately when parsing the file containing the `paths` map. This caused incorrect warnings to be generated for `tsconfig.json` files that specify a `baseUrl` value and that inherit a `paths` value from an `extends` clause. Now esbuild will only check for non-relative `paths` values after the entire hierarchy has been parsed to avoid generating incorrect warnings.
+
+* Better handle errors where the esbuild binary executable is corrupted or missing ([#2129](https://github.com/evanw/esbuild/issues/2129))
+
+    If the esbuild binary executable is corrupted or missing, previously there was one situation where esbuild's JavaScript API could hang instead of generating an error. This release changes esbuild's library code to generate an error instead in this case.
+
+## 0.14.28
+
+* Add support for some new CSS rules ([#2115](https://github.com/evanw/esbuild/issues/2115), [#2116](https://github.com/evanw/esbuild/issues/2116), [#2117](https://github.com/evanw/esbuild/issues/2117))
+
+    This release adds support for [`@font-palette-values`](https://drafts.csswg.org/css-fonts-4/#font-palette-values), [`@counter-style`](https://developer.mozilla.org/en-US/docs/Web/CSS/@counter-style), and [`@font-feature-values`](https://developer.mozilla.org/en-US/docs/Web/CSS/@font-feature-values). This means esbuild will now pretty-print and minify these rules better since it now better understands the internal structure of these rules:
+
+    ```css
+    /* Original code */
+    @font-palette-values --Foo { base-palette: 1; }
+    @counter-style bar { symbols: b a r; }
+    @font-feature-values Bop { @styleset { test: 1; } }
+
+    /* Old output (with --minify) */
+    @font-palette-values --Foo{base-palette: 1;}@counter-style bar{symbols: b a r;}@font-feature-values Bop{@styleset {test: 1;}}
+
+    /* New output (with --minify) */
+    @font-palette-values --Foo{base-palette:1}@counter-style bar{symbols:b a r}@font-feature-values Bop{@styleset{test:1}}
+    ```
+
+* Upgrade to Go 1.18.0 ([#2105](https://github.com/evanw/esbuild/issues/2105))
+
+    Binary executables for this version are now published with Go version 1.18.0. The [Go release notes](https://go.dev/doc/go1.18) say that the linker generates smaller binaries and that on 64-bit ARM chips, compiled binaries run around 10% faster. On an M1 MacBook Pro, esbuild's benchmark runs approximately 8% faster than before and the binary executable is approximately 4% smaller than before.
+
+    This also fixes a regression from version 0.14.26 of esbuild where the browser builds of the `esbuild-wasm` package could fail to be bundled due to the use of built-in node libraries. The primary WebAssembly shim for Go 1.18.0 no longer uses built-in node libraries.
+
+## 0.14.27
+
+* Avoid generating an enumerable `default` import for CommonJS files in Babel mode ([#2097](https://github.com/evanw/esbuild/issues/2097))
+
+    Importing a CommonJS module into an ES module can be done in two different ways. In node mode the `default` import is always set to `module.exports`, while in Babel mode the `default` import passes through to `module.exports.default` instead. Node mode is triggered when the importing file ends in `.mjs`, has `type: "module"` in its `package.json` file, or the imported module does not have a `__esModule` marker.
+
+    Previously esbuild always created the forwarding `default` import in Babel mode, even if `module.exports` had no property called `default`. This was problematic because the getter named `default` still showed up as a property on the imported namespace object, and could potentially interfere with code that iterated over the properties of the imported namespace object. With this release the getter named `default` will now only be added in Babel mode if the `default` property exists at the time of the import.
+
+* Fix a circular import edge case regarding ESM-to-CommonJS conversion ([#1894](https://github.com/evanw/esbuild/issues/1894), [#2059](https://github.com/evanw/esbuild/pull/2059))
+
+    This fixes a regression that was introduced in version 0.14.5 of esbuild. Ever since that version, esbuild now creates two separate export objects when you convert an ES module file into a CommonJS module: one for ES modules and one for CommonJS modules. The one for CommonJS modules is written to `module.exports` and exported from the file, and the one for ES modules is internal and can be accessed by bundling code that imports the entry point (for example, the entry point might import itself to be able to inspect its own exports).
+
+    The reason for these two separate export objects is that CommonJS modules are supposed to see a special export called `__esModule` which indicates that the module used to be an ES module, while ES modules are not supposed to see any automatically-added export named `__esModule`. This matters for real-world code both because people sometimes iterate over the properties of ES module export namespace objects and because some people write ES module code containing their own exports named `__esModule` that they expect other ES module code to be able to read.
+
+    However, this change to split exports into two separate objects broke ES module re-exports in the edge case where the imported module is involved in an import cycle. This happened because the CommonJS `module.exports` object was no longer mutated as exports were added. Instead it was being initialized at the end of the generated file after the import statements to other modules (which are converted into `require()` calls). This release changes `module.exports` initialization to happen earlier in the file and then double-writes further exports to both the ES module and CommonJS module export objects.
+
+    This fix was contributed by [@indutny](https://github.com/indutny).
+
 ## 0.14.26
 
 * Fix a tree shaking regression regarding `var` declarations ([#2080](https://github.com/evanw/esbuild/issues/2080), [#2085](https://github.com/evanw/esbuild/pull/2085), [#2098](https://github.com/evanw/esbuild/issues/2098), [#2099](https://github.com/evanw/esbuild/issues/2099))
