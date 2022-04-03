@@ -1717,6 +1717,69 @@ func TestTSArrow(t *testing.T) {
 		"<stdin>: ERROR: Transforming default arguments to the configured target environment is not supported yet\n")
 }
 
+func TestTSSuperCall(t *testing.T) {
+	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { foo(); super(1); } }",
+		`class A extends B {
+  constructor(x = 1) {
+    foo();
+    super(1);
+    this.x = x;
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { foo(); super(1); super(2); } }",
+		`class A extends B {
+  constructor(x = 1) {
+    var __super = (...args) => {
+      super(...args);
+      this.x = x;
+    };
+    foo();
+    __super(1);
+    __super(2);
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { if (false) super(1); super(2); } }", `class A extends B {
+  constructor(x = 1) {
+    if (false)
+      __super(1);
+    super(2);
+    this.x = x;
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { if (foo) super(1); super(2); } }", `class A extends B {
+  constructor(x = 1) {
+    var __super = (...args) => {
+      super(...args);
+      this.x = x;
+    };
+    if (foo)
+      __super(1);
+    __super(2);
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { if (foo) super(1); else super(2); } }", `class A extends B {
+  constructor(x = 1) {
+    var __super = (...args) => {
+      super(...args);
+      this.x = x;
+    };
+    if (foo)
+      __super(1);
+    else
+      __super(2);
+  }
+}
+`)
+}
+
 func TestTSCall(t *testing.T) {
 	expectPrintedTS(t, "foo()", "foo();\n")
 	expectPrintedTS(t, "foo<number>()", "foo();\n")

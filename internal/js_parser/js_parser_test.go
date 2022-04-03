@@ -1584,6 +1584,10 @@ func TestSuperCall(t *testing.T) {
 		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    return c;\n  }\n}\n")
 	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); throw c } }",
 		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    throw c;\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { if (true) super(1); else super(2); } }",
+		"class A extends B {\n  constructor() {\n    super(1);\n    __publicField(this, \"x\", 1);\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { if (foo) super(1); else super(2); } }",
+		"class A extends B {\n  constructor() {\n    var __super = (...args) => {\n      super(...args);\n      __publicField(this, \"x\", 1);\n    };\n    foo ? __super(1) : __super(2);\n  }\n}\n")
 }
 
 func TestSuperProp(t *testing.T) {

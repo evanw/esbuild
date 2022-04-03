@@ -199,6 +199,7 @@ type parser struct {
 	importMetaRef            js_ast.Ref
 	promiseRef               js_ast.Ref
 	runtimePublicFieldImport js_ast.Ref
+	superCtorRef             js_ast.Ref
 
 	// For lowering private methods
 	weakMapRef js_ast.Ref
@@ -7325,15 +7326,8 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 			p.recordDeclaredSymbol(temp.ref)
 		}
 	}
-
-	// If the first statement is a super() call, make sure it stays that way
 	if len(decls) > 0 {
-		stmt := js_ast.Stmt{Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: decls}}
-		if len(stmts) > 0 && js_ast.IsSuperCall(stmts[0]) {
-			stmts = append([]js_ast.Stmt{stmts[0], stmt}, stmts[1:]...)
-		} else {
-			stmts = append([]js_ast.Stmt{stmt}, stmts...)
-		}
+		stmts = append([]js_ast.Stmt{{Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: decls}}}, stmts...)
 	}
 
 	p.tempRefsToDeclare = oldTempRefs
@@ -7590,7 +7584,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			// Merge adjacent expression statements
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) && !js_ast.IsSuperCall(stmt) {
+				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok {
 					prevS.Value = js_ast.JoinWithComma(prevS.Value, s.Value)
 					continue
 				}
@@ -7600,7 +7594,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			// Absorb a previous expression statement
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
+				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok {
 					s.Test = js_ast.JoinWithComma(prevS.Value, s.Test)
 					result = result[:len(result)-1]
 				}
@@ -7610,7 +7604,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			// Absorb a previous expression statement
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
+				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok {
 					s.Test = js_ast.JoinWithComma(prevS.Value, s.Test)
 					result = result[:len(result)-1]
 				}
@@ -7713,7 +7707,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			// Merge return statements with the previous expression statement
 			if len(result) > 0 && s.ValueOrNil.Data != nil {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
+				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok {
 					result[len(result)-1] = js_ast.Stmt{Loc: prevStmt.Loc,
 						Data: &js_ast.SReturn{ValueOrNil: js_ast.JoinWithComma(prevS.Value, s.ValueOrNil)}}
 					continue
@@ -7726,7 +7720,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			// Merge throw statements with the previous expression statement
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
+				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok {
 					result[len(result)-1] = js_ast.Stmt{Loc: prevStmt.Loc, Data: &js_ast.SThrow{Value: js_ast.JoinWithComma(prevS.Value, s.Value)}}
 					continue
 				}
@@ -7740,7 +7734,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 		case *js_ast.SFor:
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
+				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok {
 					// Insert the previous expression into the for loop initializer
 					if s.InitOrNil.Data == nil {
 						result[len(result)-1] = stmt
@@ -7841,11 +7835,6 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 						break returnLoop
 					}
 
-					// Do not absorb a "super()" call so that we keep it first
-					if js_ast.IsSuperCall(prevStmt) {
-						break returnLoop
-					}
-
 					// "a(); return b;" => "return a(), b;"
 					lastReturn = &js_ast.SReturn{ValueOrNil: js_ast.JoinWithComma(prevS.Value, lastReturn.ValueOrNil)}
 
@@ -7918,11 +7907,6 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 
 				switch prevS := prevStmt.Data.(type) {
 				case *js_ast.SExpr:
-					// Do not absorb a "super()" call so that we keep it first
-					if js_ast.IsSuperCall(prevStmt) {
-						break throwLoop
-					}
-
 					// "a(); throw b;" => "throw a(), b;"
 					lastThrow = &js_ast.SThrow{Value: js_ast.JoinWithComma(prevS.Value, lastThrow.Value)}
 
@@ -9020,10 +9004,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			return stmts
 
 		case *js_ast.SClass:
-			shadowRef := p.visitClass(s.Value.Loc, &s2.Class, true /* isDefaultExport */)
+			result := p.visitClass(s.Value.Loc, &s2.Class, true /* isDefaultExport */)
 
 			// Lower class field syntax for browsers that don't support it
-			classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, shadowRef)
+			classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, result)
 			return append(stmts, classStmts...)
 
 		default:
@@ -9596,7 +9580,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		return stmts
 
 	case *js_ast.SClass:
-		shadowRef := p.visitClass(stmt.Loc, &s.Class, false /* isDefaultExport */)
+		result := p.visitClass(stmt.Loc, &s.Class, false /* isDefaultExport */)
 
 		// Remove the export flag inside a namespace
 		wasExportInsideNamespace := s.IsExport && p.enclosingNamespaceArgRef != nil
@@ -9605,7 +9589,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		// Lower class field syntax for browsers that don't support it
-		classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, shadowRef)
+		classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, result)
 		stmts = append(stmts, classStmts...)
 
 		// Handle exporting this class from a namespace
@@ -10117,7 +10101,8 @@ func (p *parser) visitTSDecorators(tsDecorators []js_ast.Expr, tsDecoratorScope 
 }
 
 type visitClassResult struct {
-	shadowRef js_ast.Ref
+	shadowRef    js_ast.Ref
+	superCtorRef js_ast.Ref
 }
 
 func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefaultExport bool) (result visitClassResult) {
@@ -10184,6 +10169,18 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefa
 	if class.Name != nil {
 		p.validateDeclaredSymbolName(class.Name.Loc, p.symbols[class.Name.Ref.InnerIndex].OriginalName)
 	}
+
+	// Create the "__super" symbol if necessary. This will cause us to replace
+	// all "super()" call expressions with a call to this symbol, which will
+	// then be inserted into the "constructor" method.
+	result.superCtorRef = js_ast.InvalidRef
+	if classLoweringInfo.shimSuperCtorCalls {
+		result.superCtorRef = p.newSymbol(js_ast.SymbolOther, "__super")
+		p.currentScope.Generated = append(p.currentScope.Generated, result.superCtorRef)
+		p.recordDeclaredSymbol(result.superCtorRef)
+	}
+	oldSuperCtorRef := p.superCtorRef
+	p.superCtorRef = result.superCtorRef
 
 	var classNameRef js_ast.Ref
 	if class.Name != nil {
@@ -10371,6 +10368,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefa
 	class.Properties = class.Properties[:end]
 
 	p.enclosingClassKeyword = oldEnclosingClassKeyword
+	p.superCtorRef = oldSuperCtorRef
 	p.popScope()
 
 	if p.symbols[result.shadowRef.InnerIndex].UseCountEstimate == 0 {
@@ -13288,6 +13286,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if t.CallCanBeUnwrappedIfUnused {
 				e.CanBeUnwrappedIfUnused = true
 			}
+
+		case *js_ast.ESuper:
+			// If we're shimming "super()" calls, replace this call with "__super()"
+			if p.superCtorRef != js_ast.InvalidRef {
+				p.recordUsage(p.superCtorRef)
+				target.Data = &js_ast.EIdentifier{Ref: p.superCtorRef}
+				e.Target.Data = target.Data
+			}
 		}
 
 		// Handle parenthesized optional chains
@@ -13502,10 +13508,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EClass:
-		shadowRef := p.visitClass(expr.Loc, &e.Class, false /* isDefaultExport */)
+		result := p.visitClass(expr.Loc, &e.Class, false /* isDefaultExport */)
 
 		// Lower class field syntax for browsers that don't support it
-		_, expr = p.lowerClass(js_ast.Stmt{}, expr, shadowRef)
+		_, expr = p.lowerClass(js_ast.Stmt{}, expr, result)
 
 	default:
 		// Note: EPrivateIdentifier and EMangledProperty should have already been handled
@@ -14729,6 +14735,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		afterArrowBodyLoc:        logger.Loc{Start: -1},
 		importMetaRef:            js_ast.InvalidRef,
 		runtimePublicFieldImport: js_ast.InvalidRef,
+		superCtorRef:             js_ast.InvalidRef,
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,

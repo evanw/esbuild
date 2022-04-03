@@ -5,9 +5,9 @@ export class A {
 }
 export class B extends A {
   constructor(c) {
+    var _a;
     super();
     __privateAdd(this, _e, void 0);
-    var _a;
     __privateSet(this, _e, (_a = c.d) != null ? _a : "test");
   }
   f() {

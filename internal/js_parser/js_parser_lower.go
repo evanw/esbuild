@@ -1788,6 +1788,7 @@ type classLoweringInfo struct {
 	avoidTDZ                bool
 	lowerAllInstanceFields  bool
 	lowerAllStaticFields    bool
+	shimSuperCtorCalls      bool
 }
 
 func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLoweringInfo) {
@@ -1933,6 +1934,21 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 		// In that case the initializer of "bar" would fail to call "#foo" because
 		// it's only added to the instance in the body of the constructor.
 		if prop.IsMethod {
+			// We need to shim "super()" inside the constructor if this is a derived
+			// class and the constructor has any parameter properties, since those
+			// use "this" and we can only access "this" after "super()" is called
+			if class.ExtendsOrNil.Data != nil {
+				if key, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
+					if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
+						for _, arg := range fn.Fn.Args {
+							if arg.IsTypeScriptCtorField {
+								result.shimSuperCtorCalls = true
+								break
+							}
+						}
+					}
+				}
+			}
 			continue
 		}
 
@@ -1982,6 +1998,13 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 				result.lowerAllInstanceFields = true
 			}
 		}
+	}
+
+	// We need to shim "super()" inside the constructor if this is a derived
+	// class and there are any instance fields that need to be lowered, since
+	// those use "this" and we can only access "this" after "super()" is called
+	if result.lowerAllInstanceFields && class.ExtendsOrNil.Data != nil {
+		result.shimSuperCtorCalls = true
 	}
 
 	return
@@ -2493,29 +2516,27 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 			// Make sure the constructor has a super() call if needed
 			if class.ExtendsOrNil.Data != nil {
+				target := js_ast.Expr{Loc: classLoc, Data: js_ast.ESuperShared}
+				if classLoweringInfo.shimSuperCtorCalls {
+					p.recordUsage(result.superCtorRef)
+					target.Data = &js_ast.EIdentifier{Ref: result.superCtorRef}
+				}
 				argumentsRef := p.newSymbol(js_ast.SymbolUnbound, "arguments")
 				p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
 				ctor.Fn.Body.Block.Stmts = append(ctor.Fn.Body.Block.Stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.ECall{
-					Target: js_ast.Expr{Loc: classLoc, Data: js_ast.ESuperShared},
+					Target: target,
 					Args:   []js_ast.Expr{{Loc: classLoc, Data: &js_ast.ESpread{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: argumentsRef}}}}},
 				}}}})
 			}
 		}
 
-		// Insert the instance field initializers after the super call if there is one
-		stmtsFrom := ctor.Fn.Body.Block.Stmts
-		stmtsTo := []js_ast.Stmt{}
-		for i, stmt := range stmtsFrom {
-			if js_ast.IsSuperCall(stmt) {
-				stmtsTo = append(stmtsTo, stmtsFrom[0:i+1]...)
-				stmtsFrom = stmtsFrom[i+1:]
-				break
-			}
-		}
-		stmtsTo = append(stmtsTo, parameterFields...)
-		stmtsTo = append(stmtsTo, instancePrivateMethods...)
-		stmtsTo = append(stmtsTo, instanceMembers...)
-		ctor.Fn.Body.Block.Stmts = append(stmtsTo, stmtsFrom...)
+		// Make sure the instance field initializers come after "super()" since
+		// they need "this" to ba available
+		generatedStmts := make([]js_ast.Stmt, 0, len(parameterFields)+len(instancePrivateMethods)+len(instanceMembers))
+		generatedStmts = append(generatedStmts, parameterFields...)
+		generatedStmts = append(generatedStmts, instancePrivateMethods...)
+		generatedStmts = append(generatedStmts, instanceMembers...)
+		p.insertStmtsAfterSuperCall(&ctor.Fn.Body, generatedStmts, result.superCtorRef)
 
 		// Sort the constructor first to match the TypeScript compiler's output
 		for i := 0; i < len(class.Properties); i++ {
@@ -2739,6 +2760,149 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		class.Name = nil
 	}
 	return stmts, js_ast.Expr{}
+}
+
+// Replace "super()" calls with our shim so that we can guarantee
+// that instance field initialization doesn't happen before "super()"
+// is called, since at that point "this" isn't available.
+func (p *parser) insertStmtsAfterSuperCall(body *js_ast.FnBody, stmtsToInsert []js_ast.Stmt, superCtorRef js_ast.Ref) {
+	// If this class has no base class, then there's no "super()" call to handle
+	if superCtorRef == js_ast.InvalidRef {
+		body.Block.Stmts = append(stmtsToInsert, body.Block.Stmts...)
+		return
+	}
+
+	// It's likely that there's only one "super()" call, and that it's a
+	// top-level expression in the constructor function body. If so, we
+	// can generate tighter code for this common case.
+	if p.symbols[superCtorRef.InnerIndex].UseCountEstimate == 1 {
+		for i, stmt := range body.Block.Stmts {
+			var before js_ast.Expr
+			var callLoc logger.Loc
+			var callData *js_ast.ECall
+			var after js_ast.Stmt
+
+			switch s := stmt.Data.(type) {
+			case *js_ast.SExpr:
+				if b, loc, c, a := findFirstTopLevelSuperCall(s.Value, superCtorRef); c != nil {
+					before, callLoc, callData = b, loc, c
+					if a.Data != nil {
+						s.Value = a
+						after = js_ast.Stmt{Loc: a.Loc, Data: s}
+					}
+				}
+
+			case *js_ast.SReturn:
+				if s.ValueOrNil.Data != nil {
+					if b, loc, c, a := findFirstTopLevelSuperCall(s.ValueOrNil, superCtorRef); c != nil && a.Data != nil {
+						before, callLoc, callData = b, loc, c
+						s.ValueOrNil = a
+						after = js_ast.Stmt{Loc: a.Loc, Data: s}
+					}
+				}
+
+			case *js_ast.SThrow:
+				if b, loc, c, a := findFirstTopLevelSuperCall(s.Value, superCtorRef); c != nil && a.Data != nil {
+					before, callLoc, callData = b, loc, c
+					s.Value = a
+					after = js_ast.Stmt{Loc: a.Loc, Data: s}
+				}
+
+			case *js_ast.SIf:
+				if b, loc, c, a := findFirstTopLevelSuperCall(s.Test, superCtorRef); c != nil && a.Data != nil {
+					before, callLoc, callData = b, loc, c
+					s.Test = a
+					after = js_ast.Stmt{Loc: a.Loc, Data: s}
+				}
+
+			case *js_ast.SSwitch:
+				if b, loc, c, a := findFirstTopLevelSuperCall(s.Test, superCtorRef); c != nil && a.Data != nil {
+					before, callLoc, callData = b, loc, c
+					s.Test = a
+					after = js_ast.Stmt{Loc: a.Loc, Data: s}
+				}
+
+			case *js_ast.SFor:
+				if expr, ok := s.InitOrNil.Data.(*js_ast.SExpr); ok {
+					if b, loc, c, a := findFirstTopLevelSuperCall(expr.Value, superCtorRef); c != nil {
+						before, callLoc, callData = b, loc, c
+						if a.Data != nil {
+							expr.Value = a
+						} else {
+							s.InitOrNil.Data = nil
+						}
+						after = js_ast.Stmt{Loc: a.Loc, Data: s}
+					}
+				}
+			}
+
+			if callData != nil {
+				// Revert "__super()" back to "super()"
+				callData.Target.Data = js_ast.ESuperShared
+				p.ignoreUsage(superCtorRef)
+
+				// Inject "stmtsToInsert" after "super()"
+				stmtsBefore := body.Block.Stmts[:i]
+				stmtsAfter := body.Block.Stmts[i+1:]
+				stmts := append([]js_ast.Stmt{}, stmtsBefore...)
+				if before.Data != nil {
+					stmts = append(stmts, js_ast.Stmt{Loc: before.Loc, Data: &js_ast.SExpr{Value: before}})
+				}
+				stmts = append(stmts, js_ast.Stmt{Loc: callLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: callLoc, Data: callData}}})
+				stmts = append(stmts, stmtsToInsert...)
+				if after.Data != nil {
+					stmts = append(stmts, after)
+				}
+				stmts = append(stmts, stmtsAfter...)
+				body.Block.Stmts = stmts
+				return
+			}
+		}
+	}
+
+	// Otherwise, inject a generated "__super" helper function at the top of the
+	// constructor that looks like this:
+	//
+	//   var __super = (...args) => {
+	//     super(...args);
+	//     ...stmtsToInsert...
+	//   };
+	//
+	argsRef := p.newSymbol(js_ast.SymbolOther, "args")
+	p.currentScope.Generated = append(p.currentScope.Generated, argsRef)
+	stmtsToInsert = append([]js_ast.Stmt{{Loc: body.Loc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: body.Loc, Data: &js_ast.ECall{
+		Target: js_ast.Expr{Loc: body.Loc, Data: js_ast.ESuperShared},
+		Args:   []js_ast.Expr{{Loc: body.Loc, Data: &js_ast.ESpread{Value: js_ast.Expr{Loc: body.Loc, Data: &js_ast.EIdentifier{Ref: argsRef}}}}},
+	}}}}}, stmtsToInsert...)
+	body.Block.Stmts = append([]js_ast.Stmt{{Loc: body.Loc, Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
+		Binding: js_ast.Binding{Loc: body.Loc, Data: &js_ast.BIdentifier{Ref: superCtorRef}}, ValueOrNil: js_ast.Expr{Loc: body.Loc, Data: &js_ast.EArrow{
+			HasRestArg: true,
+			Args:       []js_ast.Arg{{Binding: js_ast.Binding{Loc: body.Loc, Data: &js_ast.BIdentifier{Ref: argsRef}}}},
+			Body:       js_ast.FnBody{Loc: body.Loc, Block: js_ast.SBlock{Stmts: stmtsToInsert}},
+		}},
+	}}}}}, body.Block.Stmts...)
+}
+
+func findFirstTopLevelSuperCall(expr js_ast.Expr, superCtorRef js_ast.Ref) (js_ast.Expr, logger.Loc, *js_ast.ECall, js_ast.Expr) {
+	if call, ok := expr.Data.(*js_ast.ECall); ok {
+		if target, ok := call.Target.Data.(*js_ast.EIdentifier); ok && target.Ref == superCtorRef {
+			call.Target.Data = js_ast.ESuperShared
+			return js_ast.Expr{}, expr.Loc, call, js_ast.Expr{}
+		}
+	}
+
+	// Also search down comma operator chains for a super call
+	if comma, ok := expr.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma {
+		if before, loc, call, after := findFirstTopLevelSuperCall(comma.Left, superCtorRef); call != nil {
+			return before, loc, call, js_ast.JoinWithComma(after, comma.Right)
+		}
+
+		if before, loc, call, after := findFirstTopLevelSuperCall(comma.Right, superCtorRef); call != nil {
+			return js_ast.JoinWithComma(comma.Left, before), loc, call, after
+		}
+	}
+
+	return js_ast.Expr{}, logger.Loc{}, nil, js_ast.Expr{}
 }
 
 func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr {

@@ -15,6 +15,52 @@
 
     With this release, esbuild can now parse these new type parameter modifiers. This feature was contributed by [@magic-akari](https://github.com/magic-akari).
 
+* Improve support for `super()` constructor calls in nested locations ([#2134](https://github.com/evanw/esbuild/issues/2134))
+
+    In JavaScript, derived classes must call `super()` somewhere in the `constructor` method before being able to access `this`. Class public instance fields, class private instance fields, and TypeScript constructor parameter properties can all potentially cause code which uses `this` to be inserted into the constructor body, which must be inserted after the `super()` call. To make these insertions straightforward to implement, the TypeScript compiler doesn't allow calling `super()` somewhere other than in a root-level statement in the constructor body in these cases.
+
+    Previously esbuild's class transformations only worked correctly when `super()` was called in a root-level statement in the constructor body, just like the TypeScript compiler. But with this release, esbuild should now generate correct code as long as the call to `super()` appears anywhere in the constructor body:
+
+    ```ts
+    // Original code
+    class Foo extends Bar {
+      constructor(public skip = false) {
+        if (skip) {
+          super(null)
+          return
+        }
+        super({ keys: [] })
+      }
+    }
+
+    // Old output (incorrect)
+    class Foo extends Bar {
+      constructor(skip = false) {
+        if (skip) {
+          super(null);
+          return;
+        }
+        super({ keys: [] });
+        this.skip = skip;
+      }
+    }
+
+    // New output (correct)
+    class Foo extends Bar {
+      constructor(skip = false) {
+        var __super = (...args) => {
+          super(...args);
+          this.skip = skip;
+        };
+        if (skip) {
+          __super(null);
+          return;
+        }
+        __super({ keys: [] });
+      }
+    }
+    ```
+
 ## 0.14.30
 
 * Change the context of TypeScript parameter decorators ([#2147](https://github.com/evanw/esbuild/issues/2147))
