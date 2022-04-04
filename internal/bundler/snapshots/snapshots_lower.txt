@@ -1525,36 +1525,36 @@ var foo4_default = class extends x {
 };
 
 // bar1.js
-var _default = class extends x {
+var _bar1_default = class extends x {
 };
-var default2 = _default;
-__publicField(default2, "bar1", () => __async(_default, null, function* () {
-  return __superStaticGet(_default, "foo").call(this, "bar1");
+var bar1_default = _bar1_default;
+__publicField(bar1_default, "bar1", () => __async(_bar1_default, null, function* () {
+  return __superStaticGet(_bar1_default, "foo").call(this, "bar1");
 }));
 
 // bar2.js
-var _default2 = class extends x {
+var _bar2_default = class extends x {
 };
-var default2 = _default2;
-__publicField(default2, "bar2", () => __async(_default2, null, function* () {
-  return () => __superStaticGet(_default2, "foo").call(this, "bar2");
+var bar2_default = _bar2_default;
+__publicField(bar2_default, "bar2", () => __async(_bar2_default, null, function* () {
+  return () => __superStaticGet(_bar2_default, "foo").call(this, "bar2");
 }));
 
 // bar3.js
-var _default3 = class extends x {
+var _bar3_default = class extends x {
 };
-var default2 = _default3;
-__publicField(default2, "bar3", () => () => __async(_default3, null, function* () {
-  return __superStaticGet(_default3, "foo").call(this, "bar3");
+var bar3_default = _bar3_default;
+__publicField(bar3_default, "bar3", () => () => __async(_bar3_default, null, function* () {
+  return __superStaticGet(_bar3_default, "foo").call(this, "bar3");
 }));
 
 // bar4.js
-var _default4 = class extends x {
+var _bar4_default = class extends x {
 };
-var default2 = _default4;
-__publicField(default2, "bar4", () => __async(_default4, null, function* () {
-  return () => __async(_default4, null, function* () {
-    return __superStaticGet(_default4, "foo").call(this, "bar4");
+var bar4_default = _bar4_default;
+__publicField(bar4_default, "bar4", () => __async(_bar4_default, null, function* () {
+  return () => __async(_bar4_default, null, function* () {
+    return __superStaticGet(_bar4_default, "foo").call(this, "bar4");
   });
 }));
 
@@ -1591,10 +1591,10 @@ var outer_default = function() {
   });
 }();
 export {
-  _default as bar1,
-  _default2 as bar2,
-  _default3 as bar3,
-  _default4 as bar4,
+  bar1_default as bar1,
+  bar2_default as bar2,
+  bar3_default as bar3,
+  bar4_default as bar4,
   baz1_default as baz1,
   baz2_default as baz2,
   foo1_default as foo1,
@@ -1657,36 +1657,36 @@ var foo4_default = class extends x {
 };
 
 // bar1.js
-var _default = class extends x {
+var _bar1_default = class extends x {
 };
-var default2 = _default;
-__publicField(default2, "bar1", () => __async(_default, null, function* () {
-  return __superStaticSet(_default, "foo", "bar1");
+var bar1_default = _bar1_default;
+__publicField(bar1_default, "bar1", () => __async(_bar1_default, null, function* () {
+  return __superStaticSet(_bar1_default, "foo", "bar1");
 }));
 
 // bar2.js
-var _default2 = class extends x {
+var _bar2_default = class extends x {
 };
-var default2 = _default2;
-__publicField(default2, "bar2", () => __async(_default2, null, function* () {
-  return () => __superStaticSet(_default2, "foo", "bar2");
+var bar2_default = _bar2_default;
+__publicField(bar2_default, "bar2", () => __async(_bar2_default, null, function* () {
+  return () => __superStaticSet(_bar2_default, "foo", "bar2");
 }));
 
 // bar3.js
-var _default3 = class extends x {
+var _bar3_default = class extends x {
 };
-var default2 = _default3;
-__publicField(default2, "bar3", () => () => __async(_default3, null, function* () {
-  return __superStaticSet(_default3, "foo", "bar3");
+var bar3_default = _bar3_default;
+__publicField(bar3_default, "bar3", () => () => __async(_bar3_default, null, function* () {
+  return __superStaticSet(_bar3_default, "foo", "bar3");
 }));
 
 // bar4.js
-var _default4 = class extends x {
+var _bar4_default = class extends x {
 };
-var default2 = _default4;
-__publicField(default2, "bar4", () => __async(_default4, null, function* () {
-  return () => __async(_default4, null, function* () {
-    return __superStaticSet(_default4, "foo", "bar4");
+var bar4_default = _bar4_default;
+__publicField(bar4_default, "bar4", () => __async(_bar4_default, null, function* () {
+  return () => __async(_bar4_default, null, function* () {
+    return __superStaticSet(_bar4_default, "foo", "bar4");
   });
 }));
 
@@ -1723,10 +1723,10 @@ var outer_default = function() {
   });
 }();
 export {
-  _default as bar1,
-  _default2 as bar2,
-  _default3 as bar3,
-  _default4 as bar4,
+  bar1_default as bar1,
+  bar2_default as bar2,
+  bar3_default as bar3,
+  bar4_default as bar4,
   baz1_default as baz1,
   baz2_default as baz2,
   foo1_default as foo1,

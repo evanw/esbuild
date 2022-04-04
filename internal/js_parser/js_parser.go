@@ -5876,7 +5876,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 			// The default name is lazily generated only if no other name is present
 			createDefaultName := func() js_ast.LocRef {
-				defaultName := js_ast.LocRef{Loc: defaultLoc, Ref: p.newSymbol(js_ast.SymbolOther, p.source.IdentifierName+"_default")}
+				// This must be named "default" for when "--keep-names" is active
+				defaultName := js_ast.LocRef{Loc: defaultLoc, Ref: p.newSymbol(js_ast.SymbolOther, "default")}
 				p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
 				return defaultName
 			}
@@ -8980,6 +8981,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				}
 			}
 
+			stmts = append(stmts, stmt)
+
 		case *js_ast.SFunction:
 			// If we need to preserve the name but there is no name, generate a name
 			var name string
@@ -9001,18 +9004,25 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				stmts = append(stmts, p.keepStmtSymbolName(s2.Fn.Name.Loc, s2.Fn.Name.Ref, name))
 			}
 
-			return stmts
-
 		case *js_ast.SClass:
-			result := p.visitClass(s.Value.Loc, &s2.Class, true /* isDefaultExport */)
+			result := p.visitClass(s.Value.Loc, &s2.Class, s.DefaultName.Ref)
 
 			// Lower class field syntax for browsers that don't support it
 			classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, result)
-			return append(stmts, classStmts...)
+
+			stmts = append(stmts, classStmts...)
 
 		default:
 			panic("Internal error")
 		}
+
+		// Use a more friendly name than "default" now that "--keep-names" has
+		// been applied and has made sure to enforce the name "default"
+		if p.symbols[s.DefaultName.Ref.InnerIndex].OriginalName == "default" {
+			p.symbols[s.DefaultName.Ref.InnerIndex].OriginalName = p.source.IdentifierName + "_default"
+		}
+
+		return stmts
 
 	case *js_ast.SExportEquals:
 		// "module.exports = value"
@@ -9580,7 +9590,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		return stmts
 
 	case *js_ast.SClass:
-		result := p.visitClass(stmt.Loc, &s.Class, false /* isDefaultExport */)
+		result := p.visitClass(stmt.Loc, &s.Class, js_ast.InvalidRef)
 
 		// Remove the export flag inside a namespace
 		wasExportInsideNamespace := s.IsExport && p.enclosingNamespaceArgRef != nil
@@ -10105,7 +10115,7 @@ type visitClassResult struct {
 	superCtorRef js_ast.Ref
 }
 
-func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefaultExport bool) (result visitClassResult) {
+func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaultNameRef js_ast.Ref) (result visitClassResult) {
 	tsDecoratorScope := p.currentScope
 	class.TSDecorators = p.visitTSDecorators(class.TSDecorators, tsDecoratorScope)
 
@@ -10182,19 +10192,6 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefa
 	oldSuperCtorRef := p.superCtorRef
 	p.superCtorRef = result.superCtorRef
 
-	var classNameRef js_ast.Ref
-	if class.Name != nil {
-		classNameRef = class.Name.Ref
-	} else {
-		// Generate a name if one doesn't already exist. This is necessary for
-		// handling "this" in static class property initializers.
-		name := "this"
-		if isDefaultExport {
-			name = "default" // This is important for "--keep-names"
-		}
-		classNameRef = p.newSymbol(js_ast.SymbolOther, name)
-	}
-
 	// Insert a shadowing name that spans the whole class, which matches
 	// JavaScript's semantics. The class body (and extends clause) "captures" the
 	// original value of the name. This matters for class statements because the
@@ -10202,12 +10199,18 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefa
 	// must be the original value of the name, not the re-assigned value.
 	// Use "const" for this symbol to match JavaScript run-time semantics. You
 	// are not allowed to assign to this symbol (it throws a TypeError).
-	name := p.symbols[classNameRef.InnerIndex].OriginalName
-	result.shadowRef = p.newSymbol(js_ast.SymbolConst, "_"+name)
-	p.recordDeclaredSymbol(result.shadowRef)
 	if class.Name != nil {
+		name := p.symbols[class.Name.Ref.InnerIndex].OriginalName
+		result.shadowRef = p.newSymbol(js_ast.SymbolConst, "_"+name)
 		p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: result.shadowRef}
+	} else {
+		name := "_this"
+		if defaultNameRef != js_ast.InvalidRef {
+			name = "_" + p.source.IdentifierName + "_default"
+		}
+		result.shadowRef = p.newSymbol(js_ast.SymbolConst, name)
 	}
+	p.recordDeclaredSymbol(result.shadowRef)
 
 	if class.ExtendsOrNil.Data != nil {
 		class.ExtendsOrNil = p.visitExpr(class.ExtendsOrNil)
@@ -10377,10 +10380,15 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, isDefa
 	} else if class.Name == nil {
 		// If there was originally no class name but something inside needed one
 		// (e.g. there was a static property initializer that referenced "this"),
-		// store our generated name so the class expression ends up with a name.
+		// populate the class name. If this is an "export default class" statement,
+		// use the existing default name so that things will work as expected if
+		// this is turned into a regular class statement later on.
+		classNameRef := defaultNameRef
+		if classNameRef == js_ast.InvalidRef {
+			classNameRef = p.newSymbol(js_ast.SymbolOther, "this")
+			p.recordDeclaredSymbol(classNameRef)
+		}
 		class.Name = &js_ast.LocRef{Loc: nameScopeLoc, Ref: classNameRef}
-		p.currentScope.Generated = append(p.currentScope.Generated, classNameRef)
-		p.recordDeclaredSymbol(classNameRef)
 	}
 
 	return
@@ -13508,7 +13516,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EClass:
-		result := p.visitClass(expr.Loc, &e.Class, false /* isDefaultExport */)
+		result := p.visitClass(expr.Loc, &e.Class, js_ast.InvalidRef)
 
 		// Lower class field syntax for browsers that don't support it
 		_, expr = p.lowerClass(js_ast.Stmt{}, expr, result)

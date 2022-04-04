@@ -2061,13 +2061,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		class = &s2.Class
 		defaultName = s.DefaultName
 		kind = classKindExportDefaultStmt
-
-		// The shadowing name inside the class expression should be the same as
-		// the default export name
-		if result.shadowRef != js_ast.InvalidRef {
-			p.mergeSymbols(result.shadowRef, defaultName.Ref)
-		}
-
 		if class.Name != nil {
 			nameToKeep = p.symbols[class.Name.Ref.InnerIndex].OriginalName
 		} else {
@@ -2691,6 +2684,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 				ValueOrNil: init,
 			}},
 		}})
+		p.recordUsage(nameRef)
 	} else {
 		switch kind {
 		case classKindStmt:
