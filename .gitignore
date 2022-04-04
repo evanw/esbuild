@@ -22,6 +22,7 @@
 /require/*/bench/
 /require/*/demo/
 /scripts/.*/
+/validate/
 bin
 esbuild.exe
 node_modules/

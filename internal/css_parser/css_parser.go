@@ -700,6 +700,10 @@ var specialAtRules = map[string]atRuleKind{
 	"styleset":            atRuleDeclarations,
 	"stylistic":           atRuleDeclarations,
 	"swash":               atRuleDeclarations,
+
+	// Container Queries
+	// Reference: https://drafts.csswg.org/css-contain-3/#container-rule
+	"container": atRuleInheritContext,
 }
 
 type atRuleValidity uint8
