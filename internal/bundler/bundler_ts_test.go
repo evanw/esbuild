@@ -864,6 +864,43 @@ func TestTypeScriptDecoratorsKeepNames(t *testing.T) {
 	})
 }
 
+// See: https://github.com/evanw/esbuild/issues/2147
+func TestTypeScriptDecoratorScopeIssue2147(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				let foo = 1
+				class Foo {
+					method1(@dec(foo) foo = 2) {}
+					method2(@dec(() => foo) foo = 3) {}
+				}
+
+				class Bar {
+					static x = class {
+						static y = () => {
+							let bar = 1
+							@dec(bar)
+							@dec(() => bar)
+							class Baz {
+								@dec(bar) method1() {}
+								@dec(() => bar) method2() {}
+								method3(@dec(() => bar) bar) {}
+								method4(@dec(() => bar) bar) {}
+							}
+							return Baz
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestTSExportDefaultTypeIssue316(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{

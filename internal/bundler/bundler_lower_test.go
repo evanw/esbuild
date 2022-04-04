@@ -959,6 +959,20 @@ func TestLowerAsyncSuperES2017NoBundle(t *testing.T) {
 						]
 					}
 				}
+
+				// This covers a bug that caused a compiler crash
+				let fn = async () => class extends Base {
+					a = super.a
+					b = () => super.b
+					c() { return super.c }
+					d() { return () => super.d }
+				}
+
+				// This covers a bug that generated bad code
+				class Derived2 extends Base {
+					async a() { return class { [super.foo] = 123 } }
+					b = async () => class { [super.foo] = 123 }
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1007,6 +1021,20 @@ func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 							await (() => super[key]())(),
 						]
 					}
+				}
+
+				// This covers a bug that caused a compiler crash
+				let fn = async () => class extends Base {
+					a = super.a
+					b = () => super.b
+					c() { return super.c }
+					d() { return () => super.d }
+				}
+
+				// This covers a bug that generated bad code
+				class Derived2 extends Base {
+					async a() { return class { [super.foo] = 123 } }
+					b = async () => class { [super.foo] = 123 }
 				}
 			`,
 		},
@@ -1057,6 +1085,20 @@ func TestLowerStaticAsyncSuperES2021NoBundle(t *testing.T) {
 						]
 					}
 				}
+
+				// This covers a bug that caused a compiler crash
+				let fn = async () => class extends Base {
+					static a = super.a
+					static b = () => super.b
+					static c() { return super.c }
+					static d() { return () => super.d }
+				}
+
+				// This covers a bug that generated bad code
+				class Derived2 extends Base {
+					static async a() { return class { [super.foo] = 123 } }
+					static b = async () => class { [super.foo] = 123 }
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1105,6 +1147,20 @@ func TestLowerStaticAsyncSuperES2016NoBundle(t *testing.T) {
 							await (() => super[key]())(),
 						]
 					}
+				}
+
+				// This covers a bug that caused a compiler crash
+				let fn = async () => class extends Base {
+					static a = super.a
+					static b = () => super.b
+					static c() { return super.c }
+					static d() { return () => super.d }
+				}
+
+				// This covers a bug that generated bad code
+				class Derived2 extends Base {
+					static async a() { return class { [super.foo] = 123 } }
+					static b = async () => class { [super.foo] = 123 }
 				}
 			`,
 		},

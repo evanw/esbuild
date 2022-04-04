@@ -2,6 +2,65 @@
 
 ## Unreleased
 
+* Add support for parsing "optional variance annotations" from TypeScript 4.7 ([#2102](https://github.com/evanw/esbuild/pull/2102))
+
+    The upcoming version of TypeScript now lets you specify `in` and/or `out` on certain type parameters (specifically only on a type alias, an interface declaration, or a class declaration). These modifiers control type paramemter covariance and contravariance:
+
+    ```ts
+    type Provider<out T> = () => T;
+    type Consumer<in T> = (x: T) => void;
+    type Mapper<in T, out U> = (x: T) => U;
+    type Processor<in out T> = (x: T) => T;
+    ```
+
+    With this release, esbuild can now parse these new type parameter modifiers. This feature was contributed by [@magic-akari](https://github.com/magic-akari).
+
+* Improve support for `super()` constructor calls in nested locations ([#2134](https://github.com/evanw/esbuild/issues/2134))
+
+    In JavaScript, derived classes must call `super()` somewhere in the `constructor` method before being able to access `this`. Class public instance fields, class private instance fields, and TypeScript constructor parameter properties can all potentially cause code which uses `this` to be inserted into the constructor body, which must be inserted after the `super()` call. To make these insertions straightforward to implement, the TypeScript compiler doesn't allow calling `super()` somewhere other than in a root-level statement in the constructor body in these cases.
+
+    Previously esbuild's class transformations only worked correctly when `super()` was called in a root-level statement in the constructor body, just like the TypeScript compiler. But with this release, esbuild should now generate correct code as long as the call to `super()` appears anywhere in the constructor body:
+
+    ```ts
+    // Original code
+    class Foo extends Bar {
+      constructor(public skip = false) {
+        if (skip) {
+          super(null)
+          return
+        }
+        super({ keys: [] })
+      }
+    }
+
+    // Old output (incorrect)
+    class Foo extends Bar {
+      constructor(skip = false) {
+        if (skip) {
+          super(null);
+          return;
+        }
+        super({ keys: [] });
+        this.skip = skip;
+      }
+    }
+
+    // New output (correct)
+    class Foo extends Bar {
+      constructor(skip = false) {
+        var __super = (...args) => {
+          super(...args);
+          this.skip = skip;
+        };
+        if (skip) {
+          __super(null);
+          return;
+        }
+        __super({ keys: [] });
+      }
+    }
+    ```
+
 * Add support for [`@container`](https://drafts.csswg.org/css-contain-3/#container-rule) at rule, this is the main syntax for CSS container queries.
 
     ```css
@@ -21,6 +80,159 @@
     @supports (container-type: size){@container (width <= 150px){#inner{background-color:#87ceeb}}}
     ```
 
+## 0.14.30
+
+* Change the context of TypeScript parameter decorators ([#2147](https://github.com/evanw/esbuild/issues/2147))
+
+    While TypeScript parameter decorators are expressions, they are not evaluated where they exist in the code. They are moved to after the class declaration and evaluated there instead. Specifically this TypeScript code:
+
+    ```ts
+    class Class {
+      method(@decorator() arg) {}
+    }
+    ```
+
+    becomes this JavaScript code:
+
+    ```js
+    class Class {
+      method(arg) {}
+    }
+    __decorate([
+      __param(0, decorator())
+    ], Class.prototype, "method", null);
+    ```
+
+    This has several consequences:
+
+    * Whether `await` is allowed inside a decorator expression or not depends on whether the class declaration itself is in an `async` context or not. With this release, you can now use `await` inside a decorator expression when the class declaration is either inside an `async` function or is at the top-level of an ES module and top-level await is supported. Note that the TypeScript compiler currently has a bug regarding this edge case: https://github.com/microsoft/TypeScript/issues/48509.
+
+        ```ts
+        // Using "await" inside a decorator expression is now allowed
+        async function fn(foo: Promise<any>) {
+          class Class {
+            method(@decorator(await foo) arg) {}
+          }
+          return Class
+        }
+        ```
+
+        Also while TypeScript currently allows `await` to be used like this in `async` functions, it doesn't currently allow `yield` to be used like this in generator functions. It's not yet clear whether this behavior with `yield` is a bug or by design, so I haven't made any changes to esbuild's handling of `yield` inside decorator expressions in this release.
+
+    * Since the scope of a decorator expression is the scope enclosing the class declaration, they cannot access private identifiers. Previously this was incorrectly allowed but with this release, esbuild no longer allows this. Note that the TypeScript compiler currently has a bug regarding this edge case: https://github.com/microsoft/TypeScript/issues/48515.
+
+        ```ts
+        // Using private names inside a decorator expression is no longer allowed
+        class Class {
+          static #priv = 123
+          method(@decorator(Class.#priv) arg) {}
+        }
+        ```
+
+    * Since the scope of a decorator expression is the scope enclosing the class declaration, identifiers inside parameter decorator expressions should never be resolved to a parameter of the enclosing method. Previously this could happen, which was a bug with esbuild. This bug no longer happens in this release.
+
+        ```ts
+        // Name collisions now resolve to the outer name instead of the inner name
+        let arg = 1
+        class Class {
+          method(@decorator(arg) arg = 2) {}
+        }
+        ```
+
+        Specifically previous versions of esbuild generated the following incorrect JavaScript (notice the use of `arg2`):
+
+        ```js
+        let arg = 1;
+        class Class {
+          method(arg2 = 2) {
+          }
+        }
+        __decorateClass([
+          __decorateParam(0, decorator(arg2))
+        ], Class.prototype, "method", 1);
+        ```
+
+        This release now generates the following correct JavaScript (notice the use of `arg`):
+
+        ```js
+        let arg = 1;
+        class Class {
+          method(arg2 = 2) {
+          }
+        }
+        __decorateClass([
+          __decorateParam(0, decorator(arg))
+        ], Class.prototype, "method", 1);
+        ```
+
+* Fix some obscure edge cases with `super` property access
+
+    This release fixes the following obscure problems with `super` when targeting an older JavaScript environment such as `--target=es6`:
+
+    1. The compiler could previously crash when a lowered `async` arrow function contained a class with a field initializer that used a `super` property access:
+
+        ```js
+        let foo = async () => class extends Object {
+          bar = super.toString
+        }
+        ```
+
+    2. The compiler could previously generate incorrect code when a lowered `async` method of a derived class contained a nested class with a computed class member involving a `super` property access on the derived class:
+
+        ```js
+        class Base {
+          foo() { return 'bar' }
+        }
+        class Derived extends Base {
+          async foo() {
+            return new class { [super.foo()] = 'success' }
+          }
+        }
+        new Derived().foo().then(obj => console.log(obj.bar))
+        ```
+
+    3. The compiler could previously generate incorrect code when a default-exported class contained a `super` property access inside a lowered static private class field:
+
+        ```js
+        class Foo {
+          static foo = 123
+        }
+        export default class extends Foo {
+          static #foo = super.foo
+          static bar = this.#foo
+        }
+        ```
+
+## 0.14.29
+
+* Fix a minification bug with a double-nested `if` inside a label followed by `else` ([#2139](https://github.com/evanw/esbuild/issues/2139))
+
+    This fixes a minification bug that affects the edge case where `if` is followed by `else` and the `if` contains a label that contains a nested `if`. Normally esbuild's AST printer automatically wraps the body of a single-statement `if` in braces to avoid the "dangling else" `if`/`else` ambiguity common to C-like languages (where the `else` accidentally becomes associated with the inner `if` instead of the outer `if`). However, I was missing automatic wrapping of label statements, which did not have test coverage because they are a rarely-used feature. This release fixes the bug:
+
+    ```js
+    // Original code
+    if (a)
+      b: {
+        if (c) break b
+      }
+    else if (d)
+      e()
+
+    // Old output (with --minify)
+    if(a)e:if(c)break e;else d&&e();
+
+    // New output (with --minify)
+    if(a){e:if(c)break e}else d&&e();
+    ```
+
+* Fix edge case regarding `baseUrl` and `paths` in `tsconfig.json` ([#2119](https://github.com/evanw/esbuild/issues/2119))
+
+    In `tsconfig.json`, TypeScript forbids non-relative values inside `paths` if `baseUrl` is not present, and esbuild does too. However, TypeScript checked this after the entire `tsconfig.json` hierarchy was parsed while esbuild incorrectly checked this immediately when parsing the file containing the `paths` map. This caused incorrect warnings to be generated for `tsconfig.json` files that specify a `baseUrl` value and that inherit a `paths` value from an `extends` clause. Now esbuild will only check for non-relative `paths` values after the entire hierarchy has been parsed to avoid generating incorrect warnings.
+
+* Better handle errors where the esbuild binary executable is corrupted or missing ([#2129](https://github.com/evanw/esbuild/issues/2129))
+
+    If the esbuild binary executable is corrupted or missing, previously there was one situation where esbuild's JavaScript API could hang instead of generating an error. This release changes esbuild's library code to generate an error instead in this case.
+
 ## 0.14.28
 
 * Add support for some new CSS rules ([#2115](https://github.com/evanw/esbuild/issues/2115), [#2116](https://github.com/evanw/esbuild/issues/2116), [#2117](https://github.com/evanw/esbuild/issues/2117))
@@ -29,15 +241,15 @@
 
     ```css
     /* Original code */
-    @font-palette-values Foo { base-palette: 1; }
+    @font-palette-values --Foo { base-palette: 1; }
     @counter-style bar { symbols: b a r; }
     @font-feature-values Bop { @styleset { test: 1; } }
 
     /* Old output (with --minify) */
-    @font-palette-values Foo{base-palette: 1;}@counter-style bar{symbols: b a r;}@font-feature-values Bop{@styleset {test: 1;}}
+    @font-palette-values --Foo{base-palette: 1;}@counter-style bar{symbols: b a r;}@font-feature-values Bop{@styleset {test: 1;}}
 
     /* New output (with --minify) */
-    @font-palette-values Foo{base-palette:1}@counter-style bar{symbols:b a r}@font-feature-values Bop{@styleset{test:1}}
+    @font-palette-values --Foo{base-palette:1}@counter-style bar{symbols:b a r}@font-feature-values Bop{@styleset{test:1}}
     ```
 
 * Upgrade to Go 1.18.0 ([#2105](https://github.com/evanw/esbuild/issues/2105))

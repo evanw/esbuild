@@ -3767,6 +3767,37 @@
           if (t.x !== 1 || t.y[0] !== 2 || t.y[1] !== 3 || t.z !== 4) throw 'fail';
         `,
       }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        'in.js': `
+          import x from './class'
+          if (x.bar !== 123) throw 'fail'
+        `,
+        'class.js': `
+          class Foo {
+            static foo = 123
+          }
+          export default class extends Foo {
+            static #foo = super.foo
+            static bar = this.#foo
+          }
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', '--bundle', '--keep-names'].concat(flags), {
+        'in.js': `
+          import x from './class'
+          if (x.bar !== 123) throw 'fail'
+          if (x.name !== 'default') throw 'fail: ' + x.name
+        `,
+        'class.js': `
+          class Foo {
+            static foo = 123
+          }
+          export default class extends Foo {
+            static #foo = super.foo
+            static bar = this.#foo
+          }
+        `,
+      }),
       test(['in.js', '--outfile=node.js'].concat(flags), {
         'in.js': `
           class Foo {
@@ -4678,6 +4709,136 @@
           }
         `,
       }, { async: true }),
+      test(['in.js', '--outfile=node.js'].concat(flags), {
+        // Check various "super" edge cases
+        'in.js': `
+          exports.async = async () => {
+            const log = [];
+            let o, Base, Derived;
+
+            ({
+              __proto__: { foo() { log.push(1) } },
+              bar() { super.foo() },
+            }.bar());
+
+            o = { bar() { super.foo() } };
+            o.__proto__ = { foo() { log.push(2) } };
+            o.bar();
+
+            o = {
+              __proto__: { foo() { log.push(3) } },
+              bar() { super.foo() },
+            };
+            ({ bar: o.bar }).bar();
+
+            Base = class { foo() { log.push(4) } };
+            Derived = class extends Base { bar() { super.foo() } };
+            new Derived().bar();
+
+            Base = class {};
+            Derived = class extends Base { bar() { super.foo() } };
+            Derived.prototype.__proto__ = { foo() { log.push(5) } };
+            new Derived().bar();
+
+            Base = class { foo() { log.push(6) } };
+            Derived = class extends Base { bar() { super.foo() } };
+            ({ bar: Derived.prototype.bar }).bar();
+
+            Base = class { foo() { log.push(7) } };
+            Derived = class extends Base { bar() { super.foo() } };
+            Derived.prototype.foo = () => log.push(false);
+            new Derived().bar();
+
+            Base = class { foo() { log.push(8) } };
+            Derived = class extends Base { bar = () => super.foo() };
+            new Derived().bar();
+
+            Base = class { foo() { log.push(9) } };
+            Derived = class extends Base { bar = () => super.foo() };
+            o = new Derived();
+            o.__proto__ = {};
+            o.bar();
+
+            Base = class { static foo() { log.push(10) } };
+            Derived = class extends Base { static bar() { super.foo() } };
+            Derived.bar();
+
+            Base = class { static foo() { log.push(11) } };
+            Derived = class extends Base { static bar() { super.foo() } };
+            ({ bar: Derived.bar }).bar();
+
+            Base = class {};
+            Derived = class extends Base { static bar() { super.foo() } };
+            Derived.__proto__ = { foo() { log.push(12) } };
+            Derived.bar();
+
+            Base = class { static foo() { log.push(13) } };
+            Derived = class extends Base { static bar = () => super.foo() };
+            Derived.bar();
+
+            Base = class { static foo() { log.push(14) } };
+            Derived = class extends Base { static bar = () => super.foo() };
+            ({ bar: Derived.bar }).bar();
+
+            Base = class {};
+            Derived = class extends Base { static bar = () => super.foo() };
+            Derived.__proto__ = { foo() { log.push(15) } };
+            Derived.bar();
+
+            Base = class { foo() { return 'bar' } };
+            Derived = class extends Base { async x() { return class { [super.foo()] = 123 } } };
+            if (new (await new Derived().x())().bar === 123) log.push(16);
+
+            Base = class { foo() { return 'bar' } };
+            Derived = class extends Base { x = async () => class { [super.foo()] = 123 } };
+            if (new (await new Derived().x())().bar === 123) log.push(17);
+
+            Base = class { static foo() { return 'bar' } };
+            Derived = class extends Base { static async x() { return class { [super.foo()] = 123 } } };
+            if (new (await Derived.x())().bar === 123) log.push(18);
+
+            Base = class { static foo() { return 'bar' } };
+            Derived = class extends Base { static x = async () => class { [super.foo()] = 123 } };
+            if (new (await Derived.x())().bar === 123) log.push(19);
+
+            // Check that an captured temporary for object methods has the correct scope
+            o = [];
+            for (let i = 0; i < 3; i++) o.push({
+              __proto__: { foo() { return i } },
+              async bar() { return super.foo() },
+            })
+            for (const x of o) log.push(20 + await x.bar());
+
+            const observed = log.join(',');
+            const expected = '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22';
+            if (observed !== expected) throw 'fail: ' + observed + ' != ' + expected;
+          }
+        `,
+      }, { async: true }),
+      test(['in.js', '--outfile=node.js', '--keep-names', '--bundle'].concat(flags), {
+        // Check default export name preservation with lowered "super" inside lowered "async"
+        'in.js': `
+          import fn from './export'
+          if (fn.name !== 'default') throw 'fail: ' + fn.name
+        `,
+        'export.js': `
+          export default class extends Object {
+            async foo() { super.bar() }
+          }
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', '--keep-names', '--bundle', '--minify'].concat(flags), {
+        // (minified) Check default export name preservation with lowered "super" inside lowered "async"
+        'in.js': `
+          import fn from './export'
+          if (fn.name !== 'default') throw 'fail: ' + fn.name
+        `,
+        'export.js': `
+          export default class extends Object {
+            async foo() { super.bar() }
+          }
+        `,
+      }),
       test(['in.js', '--outfile=node.js'].concat(flags), {
         // Test coverage for a TypeScript bug: https://github.com/microsoft/TypeScript/issues/46580
         'in.js': `
