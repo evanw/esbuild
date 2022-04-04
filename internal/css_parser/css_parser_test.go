@@ -883,16 +883,13 @@ func TestAtRule(t *testing.T) {
   }
 }
 `)
-
-	expectPrintedMinify(t, `@container  card (  inline-size  >  30em  )   and   style(  --responsive   =   true  )  {
+	expectPrintedMinify(t, `@container card ( inline-size > 30em ) and style( --responsive = true ) {
 	.foo {
-			color: skyblue;
-		}
+		color: skyblue;
+	}
 }`, "@container card (inline-size > 30em) and style(--responsive = true){.foo{color:skyblue}}")
-
-	// Nested @supports
-	expectPrintedMangleMinify(t, `@supports (  container-type: size  ) {
-	@container (  width  <=  150px  ) {
+	expectPrintedMangleMinify(t, `@supports ( container-type: size ) {
+	@container ( width <= 150px ) {
 		#inner {
 			background-color: skyblue;
 		}
