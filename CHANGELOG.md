@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.31
 
 * Add support for parsing "optional variance annotations" from TypeScript 4.7 ([#2102](https://github.com/evanw/esbuild/pull/2102))
 
