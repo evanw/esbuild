@@ -61,24 +61,26 @@
     }
     ```
 
-* Add support for [`@container`](https://drafts.csswg.org/css-contain-3/#container-rule) at rule, this is the main syntax for CSS container queries.
+* Add support for the new `@container` CSS rule ([#2127](https://github.com/evanw/esbuild/pull/2127))
+
+    This release adds support for [`@container`](https://drafts.csswg.org/css-contain-3/#container-rule) in CSS files. This means esbuild will now pretty-print and minify these rules better since it now better understands the internal structure of these rules:
 
     ```css
     /* Original code */
-    @supports ( container-type: size ) {
-      @container ( width <= 150px ) {
-        #inner {
-          background-color: skyblue;
-        }
+    @container (width <= 150px) {
+      #inner {
+        color: yellow;
       }
     }
 
     /* Old output (with --minify) */
-    @supports (container-type: size){@container (width <= 150px){#inner {background-color: skyblue;}}}
+    @container (width <= 150px){#inner {color: yellow;}}
 
     /* New output (with --minify) */
-    @supports (container-type: size){@container (width <= 150px){#inner{background-color:#87ceeb}}}
+    @container (width <= 150px){#inner{color:#ff0}}
     ```
+
+    This was contributed by [@yisibl](https://github.com/yisibl).
 
 ## 0.14.30
 
