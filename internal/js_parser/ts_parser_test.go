@@ -1718,6 +1718,56 @@ func TestTSArrow(t *testing.T) {
 }
 
 func TestTSSuperCall(t *testing.T) {
+	expectPrintedTS(t, "class A extends B { x = 1 }",
+		`class A extends B {
+  constructor() {
+    super(...arguments);
+    this.x = 1;
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { x }",
+		`class A extends B {
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { x = 1; constructor() { foo() } }",
+		`class A extends B {
+  constructor() {
+    this.x = 1;
+    foo();
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { x; constructor() { foo() } }",
+		`class A extends B {
+  constructor() {
+    foo();
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { x = 1; constructor() { foo(); super(1); } }",
+		`class A extends B {
+  constructor() {
+    foo();
+    super(1);
+    this.x = 1;
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { x; constructor() { foo(); super(1); } }",
+		`class A extends B {
+  constructor() {
+    foo();
+    super(1);
+  }
+}
+`)
+
 	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { foo(); super(1); } }",
 		`class A extends B {
   constructor(x = 1) {

@@ -1568,6 +1568,8 @@ func TestSuperCall(t *testing.T) {
 	expectPrinted(t, "class Foo extends Bar { constructor(x = () => super()) {} }",
 		"class Foo extends Bar {\n  constructor(x = () => super()) {\n  }\n}\n")
 
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x; constructor() { super() } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\");\n  }\n}\n")
 	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super() } }",
 		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n  }\n}\n")
 	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); c() } }",

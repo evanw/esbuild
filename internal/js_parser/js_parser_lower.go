@@ -2502,7 +2502,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	class.Properties = class.Properties[:end]
 
 	// Insert instance field initializers into the constructor
-	if len(parameterFields) > 0 || len(instancePrivateMethods) > 0 || len(instanceMembers) > 0 {
+	if len(parameterFields) > 0 || len(instancePrivateMethods) > 0 || len(instanceMembers) > 0 || (ctor != nil && result.superCtorRef != js_ast.InvalidRef) {
 		// Create a constructor if one doesn't already exist
 		if ctor == nil {
 			ctor = &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Loc: classLoc}}}
@@ -2767,7 +2767,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 // is called, since at that point "this" isn't available.
 func (p *parser) insertStmtsAfterSuperCall(body *js_ast.FnBody, stmtsToInsert []js_ast.Stmt, superCtorRef js_ast.Ref) {
 	// If this class has no base class, then there's no "super()" call to handle
-	if superCtorRef == js_ast.InvalidRef {
+	if superCtorRef == js_ast.InvalidRef || p.symbols[superCtorRef.InnerIndex].UseCountEstimate == 0 {
 		body.Block.Stmts = append(stmtsToInsert, body.Block.Stmts...)
 		return
 	}
