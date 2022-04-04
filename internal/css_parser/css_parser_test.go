@@ -1814,6 +1814,12 @@ func TestFontFamily(t *testing.T) {
 
 	expectPrintedMangleMinify(t, "a {font-family: 'aaa bbb', serif }", "a{font-family:aaa bbb,serif}")
 	expectPrintedMangleMinify(t, "a {font-family: 'aaa bbb', 'ccc ddd' }", "a{font-family:aaa bbb,ccc ddd}")
+	expectPrintedMangleMinify(t, "a {font-family: 'initial', serif;}", "a{font-family:\"initial\",serif}")
+	expectPrintedMangleMinify(t, "a {font-family: 'inherit', serif;}", "a{font-family:\"inherit\",serif}")
+	expectPrintedMangleMinify(t, "a {font-family: 'unset', serif;}", "a{font-family:\"unset\",serif}")
+	expectPrintedMangleMinify(t, "a {font-family: 'revert', serif;}", "a{font-family:\"revert\",serif}")
+	expectPrintedMangleMinify(t, "a {font-family: 'revert-layer', 'Segoe UI', serif;}", "a{font-family:\"revert-layer\",Segoe UI,serif}")
+	expectPrintedMangleMinify(t, "a {font-family: 'default', serif;}", "a{font-family:\"default\",serif}")
 }
 
 func TestFont(t *testing.T) {

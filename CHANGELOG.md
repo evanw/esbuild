@@ -82,6 +82,26 @@
 
     This was contributed by [@yisibl](https://github.com/yisibl).
 
+* Avoid CSS cascade-dependent keywords in the `font-family` property ([#2135](https://github.com/evanw/esbuild/pull/2135))
+
+    In CSS, [`initial`](https://developer.mozilla.org/en-US/docs/Web/CSS/initial), [`inherit`](https://developer.mozilla.org/en-US/docs/Web/CSS/inherit), and [`unset`](https://developer.mozilla.org/en-US/docs/Web/CSS/unset) are [CSS-wide keywords](https://drafts.csswg.org/css-values-4/#css-wide-keywords) which means they have special behavior when they are specified as a property value. For example, while `font-family: 'Arial'` (as a string) and `font-family: Arial` (as an identifier) are the same, `font-family: 'inherit'` (as a string) uses the font family named `inherit` but `font-family: inherit` (as an identifier) inherits the font family from the parent element. This means esbuild must not unquote these CSS-wide keywords (and `default`, which is also reserved) during minification to avoid changing the meaning of the minified CSS.
+
+    The current draft of the new CSS Cascading and Inheritance Level 5 specification adds another concept called [cascade-dependent keywords](https://drafts.csswg.org/css-cascade-5/#defaulting-keywords) of which there are two: [`revert`](https://developer.mozilla.org/en-US/docs/Web/CSS/revert) and [`revert-layer`](https://developer.mozilla.org/en-US/docs/Web/CSS/revert-layer). This release of esbuild guards against unquoting these additional keywords as well to avoid accidentally breaking pages that use a font with the same name:
+
+    ```css
+    /* Original code */
+    a { font-family: 'revert'; }
+    b { font-family: 'revert-layer', 'Segoe UI', serif; }
+
+    /* Old output (with --minify) */
+    a{font-family:revert}b{font-family:revert-layer,Segoe UI,serif}
+
+    /* New output (with --minify) */
+    a{font-family:"revert"}b{font-family:"revert-layer",Segoe UI,serif}
+    ```
+
+    This fix was contributed by [@yisibl](https://github.com/yisibl).
+
 ## 0.14.30
 
 * Change the context of TypeScript parameter decorators ([#2147](https://github.com/evanw/esbuild/issues/2147))
@@ -3811,15 +3831,15 @@ In addition to the breaking changes above, the following features are also inclu
 
 * Minify the syntax `Infinity` to `1 / 0` ([#1385](https://github.com/evanw/esbuild/pull/1385))
 
-	The `--minify-syntax` flag (automatically enabled by `--minify`) will now minify the expression `Infinity` to `1 / 0`, which uses fewer bytes:
+    The `--minify-syntax` flag (automatically enabled by `--minify`) will now minify the expression   `Infinity` to `1 / 0`, which uses fewer bytes:
 
-	```js
-	// Original code
-	const a = Infinity;
+    ```js
+    // Original code
+    const a = Infinity;
 
-	// Output with "--minify-syntax"
-	const a = 1 / 0;
-	```
+    // Output with "--minify-syntax"
+    const a = 1 / 0;
+    ```
 
     This change was contributed by [@Gusted](https://github.com/Gusted).
 
