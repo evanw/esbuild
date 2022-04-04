@@ -7,23 +7,35 @@ import (
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
 
-// CSS-wide keywords and reserved keyword
 // These keywords usually require special handling when parsing.
-// The latest definition is in CSS Cascading and Inheritance Level 5:
-// https://drafts.csswg.org/css-cascade-5/#defaulting-keywords
-// Old Specification: https://drafts.csswg.org/css-values-4/#common-keywords
-var CSSWideAndReservedKeywords = map[string]bool{
-	"initial":      true,
-	"inherit":      true,
-	"unset":        true,
-	"revert":       true,
-	"revert-layer": true,
-	"default":      true, // CSS reserved keyword
+
+// Declaring a property to have these values explicitly specifies a particular
+// defaulting behavior instead of setting the property to that identifier value.
+// As specified in CSS Values and Units Level 3, all CSS properties can accept
+// these values.
+//
+// For example, "font-family: 'inherit'" sets the font family to the font named
+// "inherit" while "font-family: inherit" sets the font family to the inherited
+// value.
+//
+// Note that other CSS specifications can define additional CSS-wide keywords,
+// which we should copy here whenever new ones are created so we can quote those
+// identifiers to avoid collisions with any newly-created CSS-wide keywords.
+var cssWideAndReservedKeywords = map[string]bool{
+	// CSS Values and Units Level 3: https://drafts.csswg.org/css-values-3/#common-keywords
+	"initial": true, // CSS-wide keyword
+	"inherit": true, // CSS-wide keyword
+	"unset":   true, // CSS-wide keyword
+	"default": true, // CSS reserved keyword
+
+	// CSS Cascading and Inheritance Level 5: https://drafts.csswg.org/css-cascade-5/#defaulting-keywords
+	"revert":       true, // Cascade-dependent keyword
+	"revert-layer": true, // Cascade-dependent keyword
 }
 
-// Font family names that happen to be the same as a keyword value
-// must be quoted to prevent confusion with the keywords with the same names.
-// UAs must not consider these keywords as matching the <family-name> type.
+// Font family names that happen to be the same as a keyword value must be
+// quoted to prevent confusion with the keywords with the same names. UAs must
+// not consider these keywords as matching the <family-name> type.
 // Specification: https://drafts.csswg.org/css-fonts/#generic-font-families
 var genericFamilyNames = map[string]bool{
 	"serif":         true,
@@ -128,7 +140,7 @@ func isValidCustomIdent(text string, predefinedKeywords map[string]bool) bool {
 	if predefinedKeywords[loweredText] {
 		return false
 	}
-	if CSSWideAndReservedKeywords[loweredText] {
+	if cssWideAndReservedKeywords[loweredText] {
 		return false
 	}
 	if loweredText == "" {
