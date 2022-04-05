@@ -1435,6 +1435,196 @@ __privateAdd(Foo, _sa);
 __privateAdd(Foo, _sag);
 
 ================================================================================
+TestLowerPrivateSuperES2021
+---------- /out.js ----------
+// foo1.js
+var _foo, foo_fn;
+var _foo1_default = class extends x {
+  constructor() {
+    super(...arguments);
+    __privateAdd(this, _foo);
+  }
+};
+var foo1_default = _foo1_default;
+_foo = new WeakSet();
+foo_fn = function() {
+  __superGet(_foo1_default.prototype, this, "foo").call(this);
+};
+
+// foo2.js
+var _foo2, foo_fn2;
+var _foo2_default = class extends x {
+  constructor() {
+    super(...arguments);
+    __privateAdd(this, _foo2);
+  }
+};
+var foo2_default = _foo2_default;
+_foo2 = new WeakSet();
+foo_fn2 = function() {
+  __superWrapper(_foo2_default.prototype, this, "foo")._++;
+};
+
+// foo3.js
+var _foo3, foo_fn3;
+var _foo3_default = class extends x {
+};
+var foo3_default = _foo3_default;
+_foo3 = new WeakSet();
+foo_fn3 = function() {
+  __superGet(_foo3_default, this, "foo").call(this);
+};
+__privateAdd(foo3_default, _foo3);
+
+// foo4.js
+var _foo4, foo_fn4;
+var _foo4_default = class extends x {
+};
+var foo4_default = _foo4_default;
+_foo4 = new WeakSet();
+foo_fn4 = function() {
+  __superWrapper(_foo4_default, this, "foo")._++;
+};
+__privateAdd(foo4_default, _foo4);
+
+// foo5.js
+var _foo5;
+var foo5_default = class extends x {
+  constructor() {
+    super(...arguments);
+    __privateAdd(this, _foo5, () => {
+      super.foo();
+    });
+  }
+};
+_foo5 = new WeakMap();
+
+// foo6.js
+var _foo6;
+var foo6_default = class extends x {
+  constructor() {
+    super(...arguments);
+    __privateAdd(this, _foo6, () => {
+      super.foo++;
+    });
+  }
+};
+_foo6 = new WeakMap();
+
+// foo7.js
+var _foo7;
+var _foo7_default = class extends x {
+};
+var foo7_default = _foo7_default;
+_foo7 = new WeakMap();
+__privateAdd(foo7_default, _foo7, () => {
+  __superGet(_foo7_default, _foo7_default, "foo").call(this);
+});
+
+// foo8.js
+var _foo8;
+var _foo8_default = class extends x {
+};
+var foo8_default = _foo8_default;
+_foo8 = new WeakMap();
+__privateAdd(foo8_default, _foo8, () => {
+  __superWrapper(_foo8_default, _foo8_default, "foo")._++;
+});
+export {
+  foo1_default as foo1,
+  foo2_default as foo2,
+  foo3_default as foo3,
+  foo4_default as foo4,
+  foo5_default as foo5,
+  foo6_default as foo6,
+  foo7_default as foo7,
+  foo8_default as foo8
+};
+
+================================================================================
+TestLowerPrivateSuperES2022
+---------- /out.js ----------
+// foo1.js
+var foo1_default = class extends x {
+  #foo() {
+    super.foo();
+  }
+};
+
+// foo2.js
+var foo2_default = class extends x {
+  #foo() {
+    super.foo++;
+  }
+};
+
+// foo3.js
+var _foo, foo_fn;
+var _foo3_default = class extends x {
+};
+var foo3_default = _foo3_default;
+_foo = new WeakSet();
+foo_fn = function() {
+  __superGet(_foo3_default, this, "foo").call(this);
+};
+__privateAdd(foo3_default, _foo);
+
+// foo4.js
+var _foo2, foo_fn2;
+var _foo4_default = class extends x {
+};
+var foo4_default = _foo4_default;
+_foo2 = new WeakSet();
+foo_fn2 = function() {
+  __superWrapper(_foo4_default, this, "foo")._++;
+};
+__privateAdd(foo4_default, _foo2);
+
+// foo5.js
+var foo5_default = class extends x {
+  #foo = () => {
+    super.foo();
+  };
+};
+
+// foo6.js
+var foo6_default = class extends x {
+  #foo = () => {
+    super.foo++;
+  };
+};
+
+// foo7.js
+var _foo3;
+var _foo7_default = class extends x {
+};
+var foo7_default = _foo7_default;
+_foo3 = new WeakMap();
+__privateAdd(foo7_default, _foo3, () => {
+  __superGet(_foo7_default, _foo7_default, "foo").call(this);
+});
+
+// foo8.js
+var _foo4;
+var _foo8_default = class extends x {
+};
+var foo8_default = _foo8_default;
+_foo4 = new WeakMap();
+__privateAdd(foo8_default, _foo4, () => {
+  __superWrapper(_foo8_default, _foo8_default, "foo")._++;
+});
+export {
+  foo1_default as foo1,
+  foo2_default as foo2,
+  foo3_default as foo3,
+  foo4_default as foo4,
+  foo5_default as foo5,
+  foo6_default as foo6,
+  foo7_default as foo7,
+  foo8_default as foo8
+};
+
+================================================================================
 TestLowerStaticAsyncArrowSuperES2016
 ---------- /out.js ----------
 // foo1.js

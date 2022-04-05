@@ -4126,7 +4126,7 @@
   }
 
   // Async lowering tests
-  for (let flags of [[], ['--target=es6']]) {
+  for (let flags of [[], ['--target=es2017'], ['--target=es6']]) {
     tests.push(
       test(['in.js', '--outfile=node.js'].concat(flags), {
         'in.js': `
@@ -4582,20 +4582,47 @@
               bar4 = async () => async () => super.foo('bar4')
               async baz1() { return () => super.foo('baz1') }
               async baz2() { return () => () => super.foo('baz2') }
+
+              #foo1() { return async () => super.foo('foo1') }
+              #foo2() { return async () => () => super.foo('foo2') }
+              #foo3() { return () => async () => super.foo('foo3') }
+              #foo4() { return async () => async () => super.foo('foo4') }
+              #bar1 = async () => super.foo('bar1')
+              #bar2 = async () => () => super.foo('bar2')
+              #bar3 = () => async () => super.foo('bar3')
+              #bar4 = async () => async () => super.foo('bar4')
+              async #baz1() { return () => super.foo('baz1') }
+              async #baz2() { return () => () => super.foo('baz2') }
+
+              async run() {
+                await derived.foo1()();
+                (await derived.foo2()())();
+                await derived.foo3()()();
+                await (await derived.foo4()())();
+                await derived.bar1();
+                (await derived.bar2())();
+                await derived.bar3()();
+                await (await derived.bar4())();
+                (await derived.baz1())();
+                (await derived.baz2())()();
+
+                await this.#foo1()();
+                (await this.#foo2()())();
+                await this.#foo3()()();
+                await (await this.#foo4()())();
+                await this.#bar1();
+                (await this.#bar2())();
+                await this.#bar3()();
+                await (await this.#bar4())();
+                (await this.#baz1())();
+                (await this.#baz2())()();
+              }
             }
-            const derived = new Derived;
-            await derived.foo1()();
-            (await derived.foo2()())();
-            await derived.foo3()()();
-            await (await derived.foo4()())();
-            await derived.bar1();
-            (await derived.bar2())();
-            await derived.bar3()();
-            await (await derived.bar4())();
-            (await derived.baz1())();
-            (await derived.baz2())()();
-            const observed = log.join(',');
-            const expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            let derived = new Derived;
+            await derived.run();
+            let observed = log.join(',');
+            let expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            expected += ',' + expected;
             if (observed !== expected) throw 'fail: ' + observed + ' != ' + expected;
           }
         `,
@@ -4619,20 +4646,47 @@
               bar4 = async () => async () => super.foo = 'bar4'
               async baz1() { return () => super.foo = 'baz1' }
               async baz2() { return () => () => super.foo = 'baz2' }
+
+              #foo1() { return async () => super.foo = 'foo1' }
+              #foo2() { return async () => () => super.foo = 'foo2' }
+              #foo3() { return () => async () => super.foo = 'foo3' }
+              #foo4() { return async () => async () => super.foo = 'foo4' }
+              #bar1 = async () => super.foo = 'bar1'
+              #bar2 = async () => () => super.foo = 'bar2'
+              #bar3 = () => async () => super.foo = 'bar3'
+              #bar4 = async () => async () => super.foo = 'bar4'
+              async #baz1() { return () => super.foo = 'baz1' }
+              async #baz2() { return () => () => super.foo = 'baz2' }
+
+              async run() {
+                await this.foo1()();
+                (await this.foo2()())();
+                await this.foo3()()();
+                await (await this.foo4()())();
+                await this.bar1();
+                (await this.bar2())();
+                await this.bar3()();
+                await (await this.bar4())();
+                (await this.baz1())();
+                (await this.baz2())()();
+
+                await this.#foo1()();
+                (await this.#foo2()())();
+                await this.#foo3()()();
+                await (await this.#foo4()())();
+                await this.#bar1();
+                (await this.#bar2())();
+                await this.#bar3()();
+                await (await this.#bar4())();
+                (await this.#baz1())();
+                (await this.#baz2())()();
+              }
             }
-            const derived = new Derived;
-            await derived.foo1()();
-            (await derived.foo2()())();
-            await derived.foo3()()();
-            await (await derived.foo4()())();
-            await derived.bar1();
-            (await derived.bar2())();
-            await derived.bar3()();
-            await (await derived.bar4())();
-            (await derived.baz1())();
-            (await derived.baz2())()();
-            const observed = log.join(',');
-            const expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            let derived = new Derived;
+            await derived.run();
+            let observed = log.join(',');
+            let expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            expected += ',' + expected;
             if (observed !== expected) throw 'fail: ' + observed + ' != ' + expected;
           }
         `,
@@ -4656,19 +4710,46 @@
               static bar4 = async () => async () => super.foo('bar4')
               static async baz1() { return () => super.foo('baz1') }
               static async baz2() { return () => () => super.foo('baz2') }
+
+              static #foo1() { return async () => super.foo('foo1') }
+              static #foo2() { return async () => () => super.foo('foo2') }
+              static #foo3() { return () => async () => super.foo('foo3') }
+              static #foo4() { return async () => async () => super.foo('foo4') }
+              static #bar1 = async () => super.foo('bar1')
+              static #bar2 = async () => () => super.foo('bar2')
+              static #bar3 = () => async () => super.foo('bar3')
+              static #bar4 = async () => async () => super.foo('bar4')
+              static async #baz1() { return () => super.foo('baz1') }
+              static async #baz2() { return () => () => super.foo('baz2') }
+
+              static async run() {
+                await this.foo1()();
+                (await this.foo2()())();
+                await this.foo3()()();
+                await (await this.foo4()())();
+                await this.bar1();
+                (await this.bar2())();
+                await this.bar3()();
+                await (await this.bar4())();
+                (await this.baz1())();
+                (await this.baz2())()();
+
+                await this.#foo1()();
+                (await this.#foo2()())();
+                await this.#foo3()()();
+                await (await this.#foo4()())();
+                await this.#bar1();
+                (await this.#bar2())();
+                await this.#bar3()();
+                await (await this.#bar4())();
+                (await this.#baz1())();
+                (await this.#baz2())()();
+              }
             }
-            await Derived.foo1()();
-            (await Derived.foo2()())();
-            await Derived.foo3()()();
-            await (await Derived.foo4()())();
-            await Derived.bar1();
-            (await Derived.bar2())();
-            await Derived.bar3()();
-            await (await Derived.bar4())();
-            (await Derived.baz1())();
-            (await Derived.baz2())()();
-            const observed = log.join(',');
-            const expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            await Derived.run();
+            let observed = log.join(',');
+            let expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            expected += ',' + expected;
             if (observed !== expected) throw 'fail: ' + observed + ' != ' + expected;
           }
         `,
@@ -4692,19 +4773,46 @@
               static bar4 = async () => async () => super.foo = 'bar4'
               static async baz1() { return () => super.foo = 'baz1' }
               static async baz2() { return () => () => super.foo = 'baz2' }
+
+              static #foo1() { return async () => super.foo = 'foo1' }
+              static #foo2() { return async () => () => super.foo = 'foo2' }
+              static #foo3() { return () => async () => super.foo = 'foo3' }
+              static #foo4() { return async () => async () => super.foo = 'foo4' }
+              static #bar1 = async () => super.foo = 'bar1'
+              static #bar2 = async () => () => super.foo = 'bar2'
+              static #bar3 = () => async () => super.foo = 'bar3'
+              static #bar4 = async () => async () => super.foo = 'bar4'
+              static async #baz1() { return () => super.foo = 'baz1' }
+              static async #baz2() { return () => () => super.foo = 'baz2' }
+
+              static async run() {
+                await this.foo1()();
+                (await this.foo2()())();
+                await this.foo3()()();
+                await (await this.foo4()())();
+                await this.bar1();
+                (await this.bar2())();
+                await this.bar3()();
+                await (await this.bar4())();
+                (await this.baz1())();
+                (await this.baz2())()();
+
+                await this.#foo1()();
+                (await this.#foo2()())();
+                await this.#foo3()()();
+                await (await this.#foo4()())();
+                await this.#bar1();
+                (await this.#bar2())();
+                await this.#bar3()();
+                await (await this.#bar4())();
+                (await this.#baz1())();
+                (await this.#baz2())()();
+              }
             }
-            await Derived.foo1()();
-            (await Derived.foo2()())();
-            await Derived.foo3()()();
-            await (await Derived.foo4()())();
-            await Derived.bar1();
-            (await Derived.bar2())();
-            await Derived.bar3()();
-            await (await Derived.bar4())();
-            (await Derived.baz1())();
-            (await Derived.baz2())()();
-            const observed = log.join(',');
-            const expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            await Derived.run();
+            let observed = log.join(',');
+            let expected = 'foo1,foo2,foo3,foo4,bar1,bar2,bar3,bar4,baz1,baz2';
+            expected += ',' + expected;
             if (observed !== expected) throw 'fail: ' + observed + ' != ' + expected;
           }
         `,

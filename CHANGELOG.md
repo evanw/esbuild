@@ -1,5 +1,82 @@
 # Changelog
 
+## Unreleased
+
+* Fix `super` usage in lowered private methods ([#2039](https://github.com/evanw/esbuild/issues/2039))
+
+    Previously esbuild failed to transform `super` property accesses inside private methods in the case when private methods have to be lowered because the target environment doesn't support them. The generated code still contained the `super` keyword even though the method was moved outside of the class body, which is a syntax error in JavaScript. This release fixes this transformation issue and now produces valid code:
+
+    ```js
+    // Original code
+    class Derived extends Base {
+      #foo() { super.foo() }
+      bar() { this.#foo() }
+    }
+
+    // Old output (with --target=es6)
+    var _foo, foo_fn;
+    class Derived extends Base {
+      constructor() {
+        super(...arguments);
+        __privateAdd(this, _foo);
+      }
+      bar() {
+        __privateMethod(this, _foo, foo_fn).call(this);
+      }
+    }
+    _foo = new WeakSet();
+    foo_fn = function() {
+      super.foo();
+    };
+
+    // New output (with --target=es6)
+    var _foo, foo_fn;
+    const _Derived = class extends Base {
+      constructor() {
+        super(...arguments);
+        __privateAdd(this, _foo);
+      }
+      bar() {
+        __privateMethod(this, _foo, foo_fn).call(this);
+      }
+    };
+    let Derived = _Derived;
+    _foo = new WeakSet();
+    foo_fn = function() {
+      __superGet(_Derived.prototype, this, "foo").call(this);
+    };
+    ```
+
+    Because of this change, lowered `super` property accesses on instances were rewritten so that they can exist outside of the class body. This rewrite affects code generation for a `super` property accesses on instances including those inside lowered `async` functions. The new approach is different but should be equivalent to the old approach:
+
+    ```js
+    // Original code
+    class Foo {
+      foo = async () => super.foo()
+    }
+
+    // Old output (with --target=es6)
+    class Foo {
+      constructor() {
+        __publicField(this, "foo", () => {
+          var __superGet = (key) => super[key];
+          return __async(this, null, function* () {
+            return __superGet("foo").call(this);
+          });
+        });
+      }
+    }
+
+    // New output (with --target=es6)
+    class Foo {
+      constructor() {
+        __publicField(this, "foo", () => __async(this, null, function* () {
+          return __superGet(Foo.prototype, this, "foo").call(this);
+        }));
+      }
+    }
+    ```
+
 ## 0.14.31
 
 * Add support for parsing "optional variance annotations" from TypeScript 4.7 ([#2102](https://github.com/evanw/esbuild/pull/2102))

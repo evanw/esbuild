@@ -10353,6 +10353,15 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		nameToKeep := ""
 		if private, isPrivate := property.Key.Data.(*js_ast.EPrivateIdentifier); isPrivate && p.privateSymbolNeedsToBeLowered(private) {
 			nameToKeep = p.symbols[private.Ref.InnerIndex].OriginalName
+
+			// Lowered private methods (both instance and static) are initialized
+			// outside of the class body, so we must rewrite "super" property
+			// accesses inside them. Lowered private instance fields are initialized
+			// inside the constructor where "super" is valid, so those don't need to
+			// be rewritten.
+			if property.IsMethod {
+				p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
+			}
 		} else if !property.IsMethod && !property.IsComputed &&
 			((!property.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassField)) ||
 				(property.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassStaticField))) {
@@ -13932,6 +13941,9 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
 		tsDecoratorScope = p.propMethodTSDecoratorScope
 		p.fnOnlyDataVisit.classNameRef = oldFnOnlyData.classNameRef
 		p.fnOnlyDataVisit.isInStaticClassContext = oldFnOnlyData.isInStaticClassContext
+		if oldFnOrArrowData.shouldLowerSuperPropertyAccess {
+			p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
+		}
 	}
 
 	if fn.Name != nil {
