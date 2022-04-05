@@ -47,7 +47,7 @@
     };
     ```
 
-    Because of this change, lowered `super` property accesses on instances were rewritten so that they can exist outside of the class body. This rewrite affects code generation for a `super` property accesses on instances including those inside lowered `async` functions. The new approach is different but should be equivalent to the old approach:
+    Because of this change, lowered `super` property accesses on instances were rewritten so that they can exist outside of the class body. This rewrite affects code generation for all `super` property accesses on instances including those inside lowered `async` functions. The new approach is different but should be equivalent to the old approach:
 
     ```js
     // Original code
