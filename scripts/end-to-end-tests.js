@@ -4819,11 +4819,18 @@
         // Check default export name preservation with lowered "super" inside lowered "async"
         'in.js': `
           import fn from './export'
+          import pfn from './export-private'
           if (fn.name !== 'default') throw 'fail: ' + fn.name
+          if (pfn.name !== 'default') throw 'fail: ' + pfn.name
         `,
         'export.js': `
           export default class extends Object {
             async foo() { super.bar() }
+          }
+        `,
+        'export-private.js': `
+          export default class extends Object {
+            async #foo() { super.bar() }
           }
         `,
       }),
@@ -4831,11 +4838,18 @@
         // (minified) Check default export name preservation with lowered "super" inside lowered "async"
         'in.js': `
           import fn from './export'
+          import pfn from './export-private'
           if (fn.name !== 'default') throw 'fail: ' + fn.name
+          if (pfn.name !== 'default') throw 'fail: ' + pfn.name
         `,
         'export.js': `
           export default class extends Object {
             async foo() { super.bar() }
+          }
+        `,
+        'export-private.js': `
+          export default class extends Object {
+            async #foo() { super.bar() }
           }
         `,
       }),

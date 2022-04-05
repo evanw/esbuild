@@ -292,20 +292,12 @@ func code(isES6 bool) string {
 		}
 
 		// For "super" property accesses
-		export var __superStaticGet = (obj, member) => __reflectGet(__getProtoOf(obj), member, obj)
-		export var __superStaticSet = (obj, member, value) => (__reflectSet(__getProtoOf(obj), member, value, obj), value)
-		export var __superWrapper = (getter, setter, member) => {
-			return {
-				set _(value) { setter(member, value) },
-				get _() { return getter(member) },
-			}
-		}
-		export var __superStaticWrapper = (obj, member) => {
-			return {
-				set _(value) { __superStaticSet(obj, member, value) },
-				get _() { return __superStaticGet(obj, member) },
-			}
-		}
+		export var __superGet = (cls, obj, key) => __reflectGet(__getProtoOf(cls), key, obj)
+		export var __superSet = (cls, obj, key, val) => (__reflectSet(__getProtoOf(cls), key, val, obj), val)
+		export var __superWrapper = (cls, obj, key) => ({
+			get _() { return __superGet(cls, obj, key) },
+			set _(val) { __superSet(cls, obj, key, val) },
+		})
 
 		// For lowering tagged template literals
 		export var __template = (cooked, raw) => __freeze(__defProp(cooked, 'raw', { value: __freeze(raw || cooked.slice()) }))

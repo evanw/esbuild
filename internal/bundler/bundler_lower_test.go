@@ -973,6 +973,16 @@ func TestLowerAsyncSuperES2017NoBundle(t *testing.T) {
 					async a() { return class { [super.foo] = 123 } }
 					b = async () => class { [super.foo] = 123 }
 				}
+
+				// This covers putting the generated temporary variable inside the loop
+				for (let i = 0; i < 3; i++) {
+					objs.push({
+						__proto__: {
+							foo() { return i },
+						},
+						async bar() { return super.foo() },
+					})
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1035,6 +1045,16 @@ func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 				class Derived2 extends Base {
 					async a() { return class { [super.foo] = 123 } }
 					b = async () => class { [super.foo] = 123 }
+				}
+
+				// This covers putting the generated temporary variable inside the loop
+				for (let i = 0; i < 3; i++) {
+					objs.push({
+						__proto__: {
+							foo() { return i },
+						},
+						async bar() { return super.foo() },
+					})
 				}
 			`,
 		},

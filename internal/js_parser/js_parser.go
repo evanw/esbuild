@@ -90,8 +90,8 @@ type parser struct {
 	localTypeNames             map[string]bool
 	tsEnums                    map[js_ast.Ref]map[string]js_ast.TSEnumValue
 	constValues                map[js_ast.Ref]js_ast.ConstValue
-	classPropValue             js_ast.E
-	classPropTSDecoratorScope  *js_ast.Scope
+	propMethodValue            js_ast.E
+	propMethodTSDecoratorScope *js_ast.Scope
 
 	// This is the reference to the generated function argument for the namespace,
 	// which is different than the reference to the namespace itself:
@@ -184,6 +184,7 @@ type parser struct {
 	classPrivateBrandChecksToLower map[string]bool
 
 	// Temporary variables used for lowering
+	tempLetsToDeclare         []js_ast.Ref
 	tempRefsToDeclare         []tempRef
 	topLevelTempRefsToDeclare []tempRef
 
@@ -583,20 +584,10 @@ type fnOrArrowDataVisit struct {
 	shouldLowerSuperPropertyAccess bool
 }
 
-type superHelpers struct {
-	getRef js_ast.Ref
-	setRef js_ast.Ref
-}
-
 // This is function-specific information used during visiting. It is saved and
 // restored on the call stack around code that parses nested functions (but not
 // nested arrow functions).
 type fnOnlyDataVisit struct {
-	// These helpers are necessary to forward access to "super" into lowered
-	// async functions. Lowering transforms async functions into generator
-	// functions, which no longer have direct access to "super".
-	superHelpers *superHelpers
-
 	// This is a reference to the magic "arguments" variable that exists inside
 	// functions in JavaScript. It will be non-nil inside functions and nil
 	// otherwise.
@@ -612,6 +603,11 @@ type fnOnlyDataVisit struct {
 	// If true, we're inside a static class context where "this" expressions
 	// should be replaced with the class name.
 	shouldReplaceThisWithClassNameRef bool
+
+	// This is true if "this" is equal to the class name. It's true if we're in a
+	// static class field initializer, a static class method, or a static class
+	// block.
+	isInStaticClassContext bool
 
 	// This is a reference to the enclosing class name if there is one. It's used
 	// to implement "this" and "super" references. A name is automatically generated
@@ -7045,21 +7041,37 @@ type generateTempRefArg uint8
 const (
 	tempRefNeedsDeclare generateTempRefArg = iota
 	tempRefNoDeclare
+
+	// This is used when the generated temporary may a) be used inside of a loop
+	// body and b) may be used inside of a closure. In that case we can't use
+	// "var" for the temporary and we can't declare the temporary at the top of
+	// the enclosing function. Instead, we need to use "let" and we need to
+	// declare the temporary in the enclosing block (so it's inside of the loop
+	// body).
+	tempRefNeedsDeclareMayBeCapturedInsideLoop
 )
 
 func (p *parser) generateTempRef(declare generateTempRefArg, optionalName string) js_ast.Ref {
 	scope := p.currentScope
-	for !scope.Kind.StopsHoisting() {
-		scope = scope.Parent
+
+	if declare != tempRefNeedsDeclareMayBeCapturedInsideLoop {
+		for !scope.Kind.StopsHoisting() {
+			scope = scope.Parent
+		}
 	}
+
 	if optionalName == "" {
 		optionalName = "_" + js_ast.DefaultNameMinifier.NumberToMinifiedName(p.tempRefCount)
 		p.tempRefCount++
 	}
 	ref := p.newSymbol(js_ast.SymbolOther, optionalName)
-	if declare == tempRefNeedsDeclare {
+
+	if declare == tempRefNeedsDeclareMayBeCapturedInsideLoop && !scope.Kind.StopsHoisting() {
+		p.tempLetsToDeclare = append(p.tempLetsToDeclare, ref)
+	} else if declare != tempRefNoDeclare {
 		p.tempRefsToDeclare = append(p.tempRefsToDeclare, tempRef{ref: ref})
 	}
+
 	scope.Generated = append(scope.Generated, ref)
 	return ref
 }
@@ -7349,6 +7361,9 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 	// currently inside an "if (false) { ... }" block.
 	oldIsControlFlowDead := p.isControlFlowDead
 
+	oldTempLetsToDeclare := p.tempLetsToDeclare
+	p.tempLetsToDeclare = nil
+
 	// Visit all statements first
 	visited := make([]js_ast.Stmt, 0, len(stmts))
 	var before []js_ast.Stmt
@@ -7374,6 +7389,18 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 		}
 		visited = p.visitAndAppendStmt(visited, stmt)
 	}
+
+	// This is used for temporary variables that could be captured in a closure,
+	// and therefore need to be generated inside the nearest enclosing block in
+	// case they are generated inside a loop.
+	if len(p.tempLetsToDeclare) > 0 {
+		decls := make([]js_ast.Decl, 0, len(p.tempLetsToDeclare))
+		for _, ref := range p.tempLetsToDeclare {
+			decls = append(decls, js_ast.Decl{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: ref}}})
+		}
+		before = append(before, js_ast.Stmt{Data: &js_ast.SLocal{Kind: js_ast.LocalLet, Decls: decls}})
+	}
+	p.tempLetsToDeclare = oldTempLetsToDeclare
 
 	// Transform block-level function declarations into variable declarations
 	if len(before) > 0 {
@@ -7411,11 +7438,14 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 		}
 
 		// Reuse memory from "before"
+		before = before[:0]
 		kind := js_ast.LocalLet
 		if p.options.unsupportedJSFeatures.Has(compat.Let) {
 			kind = js_ast.LocalVar
 		}
-		before = append(before[:0], js_ast.Stmt{Loc: letDecls[0].ValueOrNil.Loc, Data: &js_ast.SLocal{Kind: kind, Decls: letDecls}})
+		if len(letDecls) > 0 {
+			before = append(before, js_ast.Stmt{Loc: letDecls[0].ValueOrNil.Loc, Data: &js_ast.SLocal{Kind: kind, Decls: letDecls}})
+		}
 		if len(varDecls) > 0 {
 			// Potentially relocate "var" declarations to the top level
 			if assign, ok := p.maybeRelocateVarsToTopLevel(varDecls, relocateVarsNormal); ok {
@@ -8996,7 +9026,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				}
 			}
 
-			p.visitFn(&s2.Fn, s2.Fn.OpenParenLoc, nil)
+			p.visitFn(&s2.Fn, s2.Fn.OpenParenLoc, visitFnOpts{})
 			stmts = append(stmts, stmt)
 
 			// Optionally preserve the name
@@ -9534,7 +9564,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 	case *js_ast.SFunction:
-		p.visitFn(&s.Fn, s.Fn.OpenParenLoc, nil)
+		p.visitFn(&s.Fn, s.Fn.OpenParenLoc, visitFnOpts{})
 
 		// Strip this function declaration if it was overwritten
 		if p.symbols[s.Fn.Name.Ref.InnerIndex].Flags.Has(js_ast.RemoveOverwrittenFunctionDeclaration) && !s.IsExport {
@@ -10231,9 +10261,10 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 			p.fnOrArrowDataVisit = fnOrArrowDataVisit{}
 			p.fnOnlyDataVisit = fnOnlyDataVisit{
-				isThisNested:       true,
-				isNewTargetAllowed: true,
-				classNameRef:       &result.shadowRef,
+				isThisNested:           true,
+				isNewTargetAllowed:     true,
+				isInStaticClassContext: true,
+				classNameRef:           &result.shadowRef,
 			}
 
 			if classLoweringInfo.lowerAllStaticFields {
@@ -10314,7 +10345,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef = false
 		p.fnOnlyDataVisit.isThisNested = true
 		p.fnOnlyDataVisit.isNewTargetAllowed = true
-		p.fnOnlyDataVisit.superHelpers = nil
+		p.fnOnlyDataVisit.isInStaticClassContext = property.IsStatic
 		p.fnOnlyDataVisit.classNameRef = &result.shadowRef
 
 		// We need to explicitly assign the name to the property initializer if it
@@ -10331,8 +10362,8 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		}
 
 		if property.ValueOrNil.Data != nil {
-			p.classPropValue = property.ValueOrNil.Data
-			p.classPropTSDecoratorScope = tsDecoratorScope
+			p.propMethodValue = property.ValueOrNil.Data
+			p.propMethodTSDecoratorScope = tsDecoratorScope
 			if nameToKeep != "" {
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.ValueOrNil)
 				property.ValueOrNil = p.maybeKeepExprSymbolName(p.visitExpr(property.ValueOrNil), nameToKeep, wasAnonymousNamedExpr)
@@ -10385,7 +10416,8 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		// this is turned into a regular class statement later on.
 		classNameRef := defaultNameRef
 		if classNameRef == js_ast.InvalidRef {
-			classNameRef = p.newSymbol(js_ast.SymbolOther, "this")
+			classNameRef = p.newSymbol(js_ast.SymbolOther, "_this")
+			p.currentScope.Generated = append(p.currentScope.Generated, classNameRef)
 			p.recordDeclaredSymbol(classNameRef)
 		}
 		class.Name = &js_ast.LocRef{Loc: nameScopeLoc, Ref: classNameRef}
@@ -12598,7 +12630,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					return p.lowerPrivateSetUnOp(target, loc, private, e.Op), exprOut{}
 				}
 				if property := p.extractSuperProperty(e.Value); property.Data != nil {
-					e.Value = p.callSuperPropertyWrapper(expr.Loc, property, true /* includeGet */)
+					e.Value = p.callSuperPropertyWrapper(expr.Loc, property)
 				}
 			}
 		}
@@ -12748,8 +12780,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 			p.markSyntaxFeature(compat.Destructuring, logger.Range{Loc: expr.Loc, Len: 1})
 		}
+
 		hasSpread := false
 		protoRange := logger.Range{}
+		classNameRef := js_ast.InvalidRef
+
 		for i := range e.Properties {
 			property := &e.Properties[i]
 
@@ -12797,8 +12832,30 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			if property.ValueOrNil.Data != nil {
+				oldIsInStaticClassContext := p.fnOnlyDataVisit.isInStaticClassContext
+				oldClassNameRef := p.fnOnlyDataVisit.classNameRef
+
+				// If this is an async method and async methods are unsupported,
+				// generate a temporary variable in case this async method contains a
+				// "super" property reference. If that happens, the "super" expression
+				// must be lowered which will need a reference to this object literal.
+				if property.IsMethod && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
+					if fn, ok := property.ValueOrNil.Data.(*js_ast.EFunction); ok && fn.Fn.IsAsync {
+						if classNameRef == js_ast.InvalidRef {
+							classNameRef = p.generateTempRef(tempRefNeedsDeclareMayBeCapturedInsideLoop, "")
+						}
+						p.propMethodValue = property.ValueOrNil.Data
+						p.fnOnlyDataVisit.isInStaticClassContext = true
+						p.fnOnlyDataVisit.classNameRef = &classNameRef
+					}
+				}
+
 				property.ValueOrNil, _ = p.visitExprInOut(property.ValueOrNil, exprIn{assignTarget: in.assignTarget})
+
+				p.fnOnlyDataVisit.classNameRef = oldClassNameRef
+				p.fnOnlyDataVisit.isInStaticClassContext = oldIsInStaticClassContext
 			}
+
 			if property.InitializerOrNil.Data != nil {
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.InitializerOrNil)
 				property.InitializerOrNil = p.visitExpr(property.InitializerOrNil)
@@ -12902,7 +12959,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			// Object expressions represent both object literals and binding patterns.
 			// Only lower object spread if we're an object literal, not a binding pattern.
-			return p.lowerObjectSpread(expr.Loc, e), exprOut{}
+			value := p.lowerObjectSpread(expr.Loc, e)
+
+			// If we generated and used the temporary variable for a lowered "super"
+			// property reference inside a lowered "async" method, then initialize
+			// the temporary with this object literal.
+			if classNameRef != js_ast.InvalidRef && p.symbols[classNameRef.InnerIndex].UseCountEstimate > 0 {
+				p.recordUsage(classNameRef)
+				value = js_ast.Assign(js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: classNameRef}}, value)
+			}
+
+			return value, exprOut{}
 		}
 
 	case *js_ast.EImportCall:
@@ -13439,19 +13506,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			p.fnOnlyDataVisit.isInsideAsyncArrowFn = true
 		}
 
-		// If this function is "async" and we need to lower it, also lower any
-		// "super" property accesses within this function. This object will be
-		// populated if "super" is used, and then any necessary helper functions
-		// will be placed in the function body by "lowerFunction" below.
-		var superHelpersOrNil *superHelpers
-		if asyncArrowNeedsToBeLowered && p.fnOnlyDataVisit.superHelpers == nil {
-			superHelpersOrNil = &superHelpers{
-				getRef: js_ast.InvalidRef,
-				setRef: js_ast.InvalidRef,
-			}
-			p.fnOnlyDataVisit.superHelpers = superHelpersOrNil
-		}
-
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, expr.Loc)
 		p.visitArgs(e.Args, visitArgsOpts{
 			hasRestArg:               e.HasRestArg,
@@ -13461,14 +13515,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, e.Body.Loc)
 		e.Body.Block.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Block.Stmts, prependTempRefsOpts{kind: stmtsFnBody})
 		p.popScope()
-		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Block, &e.PreferExpr, &e.HasRestArg, true /* isArrow */, superHelpersOrNil)
+		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Block, &e.PreferExpr, &e.HasRestArg, true /* isArrow */)
 		p.popScope()
-
-		// If we intercepted "super" accesses above, clear out the helpers so they
-		// don't propagate into other function calls later on.
-		if superHelpersOrNil != nil {
-			p.fnOnlyDataVisit.superHelpers = nil
-		}
 
 		if p.options.minifySyntax && len(e.Body.Block.Stmts) == 1 {
 			if s, ok := e.Body.Block.Stmts[0].Data.(*js_ast.SReturn); ok {
@@ -13497,11 +13545,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EFunction:
-		var tsDecoratorScope *js_ast.Scope
-		if e == p.classPropValue {
-			tsDecoratorScope = p.classPropTSDecoratorScope
-		}
-		p.visitFn(&e.Fn, expr.Loc, tsDecoratorScope)
+		p.visitFn(&e.Fn, expr.Loc, visitFnOpts{isClassMethod: e == p.propMethodValue})
 		name := e.Fn.Name
 
 		// Remove unused function names when minifying
@@ -13865,7 +13909,12 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 	return js_ast.Expr{Loc: loc, Data: e}
 }
 
-func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, tsDecoratorScope *js_ast.Scope) {
+type visitFnOpts struct {
+	isClassMethod bool
+}
+
+func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
+	var tsDecoratorScope *js_ast.Scope
 	oldFnOrArrowData := p.fnOrArrowDataVisit
 	oldFnOnlyData := p.fnOnlyDataVisit
 	p.fnOrArrowDataVisit = fnOrArrowDataVisit{
@@ -13879,15 +13928,10 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, tsDecoratorScope *j
 		argumentsRef:       &fn.ArgumentsRef,
 	}
 
-	// If this function is "async" and we need to lower it, also lower any
-	// "super" property accesses within this function. This object will be
-	// populated if "super" is used, and then any necessary helper functions
-	// will be placed in the function body by "lowerFunction" below.
-	if p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess {
-		p.fnOnlyDataVisit.superHelpers = &superHelpers{
-			getRef: js_ast.InvalidRef,
-			setRef: js_ast.InvalidRef,
-		}
+	if opts.isClassMethod {
+		tsDecoratorScope = p.propMethodTSDecoratorScope
+		p.fnOnlyDataVisit.classNameRef = oldFnOnlyData.classNameRef
+		p.fnOnlyDataVisit.isInStaticClassContext = oldFnOnlyData.isInStaticClassContext
 	}
 
 	if fn.Name != nil {
@@ -13907,7 +13951,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, tsDecoratorScope *j
 	}
 	fn.Body.Block.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Block.Stmts, prependTempRefsOpts{fnBodyLoc: &fn.Body.Loc, kind: stmtsFnBody})
 	p.popScope()
-	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Block, nil, &fn.HasRestArg, false /* isArrow */, p.fnOnlyDataVisit.superHelpers)
+	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Block, nil, &fn.HasRestArg, false /* isArrow */)
 	p.popScope()
 
 	p.fnOrArrowDataVisit = oldFnOrArrowData
