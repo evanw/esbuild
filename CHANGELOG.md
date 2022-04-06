@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add Linux ARM64 support for Deno ([#2156](https://github.com/evanw/esbuild/issues/2156))
+
+    This release adds Linux ARM64 support to esbuild's [Deno](https://deno.land/) API implementation, which allows esbuild to be used with Deno on a Raspberry Pi.
+
 ## 0.14.32
 
 * Fix `super` usage in lowered private methods ([#2039](https://github.com/evanw/esbuild/issues/2039))

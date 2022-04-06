@@ -146,6 +146,7 @@ async function install(): Promise<string> {
   }
   const knownUnixlikePackages: Record<string, string> = {
     'aarch64-apple-darwin': 'esbuild-darwin-arm64',
+    'aarch64-unknown-linux-gnu': 'esbuild-linux-arm64',
     'x86_64-apple-darwin': 'esbuild-darwin-64',
     'x86_64-unknown-linux-gnu': 'esbuild-linux-64',
   }
