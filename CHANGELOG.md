@@ -116,12 +116,7 @@
 
     ```js
     await esbuild.initialize({
-      wasmModule: await fetch('/node_modules/esbuild-wasm/esbuild.wasm')
-        .then(r => {
-          if (!r.ok) throw new Error('Failed to download "/node_modules/esbuild-wasm/esbuild.wasm"')
-          return r.arrayBuffer()
-        })
-        .then(ab => new WebAssembly.Module(ab)),
+      wasmModule: await WebAssembly.compileStreaming(fetch('/node_modules/esbuild-wasm/esbuild.wasm'))
     })
     console.log(await esbuild.transform('1+2'))
     ```

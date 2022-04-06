@@ -195,15 +195,10 @@ for (let format of ['iife', 'esm']) {
                   wasmURL: '/esbuild.wasm',
                   worker: ${worker},
                 })
-              : fetch('/esbuild.wasm')
-                  .then(r => {
-                    if (!r.ok) throw new Error('Failed to download "/esbuild.wasm"')
-                    return r.arrayBuffer()
-                  })
-                  .then(ab => esbuild.initialize({
-                    wasmModule: new WebAssembly.Module(ab),
-                    worker: ${worker},
-                  }))
+              : esbuild.initialize({
+                  wasmModule: await WebAssembly.compileStreaming(fetch('/esbuild.wasm')),
+                  worker: ${worker},
+                })
             promise.then(() => {
               return (${runAllTests})({ esbuild })
             }).then(() => {
