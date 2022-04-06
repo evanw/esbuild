@@ -78,6 +78,22 @@ var knownGlobals = [][]string{
 	{"Object", "prototype", "valueOf"},
 	{"Object", "prototype", "watch"},
 
+	// Symbol: Static properties
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol#static_properties
+	{"Symbol", "asyncIterator"},
+	{"Symbol", "hasInstance"},
+	{"Symbol", "isConcatSpreadable"},
+	{"Symbol", "iterator"},
+	{"Symbol", "match"},
+	{"Symbol", "matchAll"},
+	{"Symbol", "replace"},
+	{"Symbol", "search"},
+	{"Symbol", "species"},
+	{"Symbol", "split"},
+	{"Symbol", "toPrimitive"},
+	{"Symbol", "toStringTag"},
+	{"Symbol", "unscopables"},
+
 	// Math: Static properties
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math#Static_properties
 	{"Math", "E"},
