@@ -35,6 +35,9 @@ let mustBeArray = <T>(value: T[] | undefined): string | null =>
 let mustBeObject = (value: Object | undefined): string | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? null : 'an object';
 
+let mustBeWebAssemblyModule = (value: WebAssembly.Module | undefined): string | null =>
+  value instanceof WebAssembly.Module ? null : 'a WebAssembly.Module';
+
 let mustBeArrayOrRecord = <T extends string>(value: T[] | Record<T, T> | undefined): string | null =>
   typeof value === 'object' && value !== null ? null : 'an array or an object';
 
@@ -75,10 +78,12 @@ function checkForInvalidFlags(object: Object, keys: OptionKeys, where: string): 
 export function validateInitializeOptions(options: types.InitializeOptions): types.InitializeOptions {
   let keys: OptionKeys = Object.create(null);
   let wasmURL = getFlag(options, keys, 'wasmURL', mustBeString);
+  let wasmModule = getFlag(options, keys, 'wasmModule', mustBeWebAssemblyModule);
   let worker = getFlag(options, keys, 'worker', mustBeBoolean);
-  checkForInvalidFlags(options, keys, 'in startService() call');
+  checkForInvalidFlags(options, keys, 'in initialize() call');
   return {
     wasmURL,
+    wasmModule,
     worker,
   };
 }

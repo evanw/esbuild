@@ -144,7 +144,7 @@ exports.buildWasmLib = async (esbuildPath) => {
           for (let k of Object.getOwnPropertyNames(o))
             if (!(k in globalThis))
               Object.defineProperty(globalThis, k, { get: () => self[k] });
-        ${wasm_exec_js}
+        ${wasm_exec_js.replace(/\bfs\./g, 'globalThis.fs.')}
         ${fs.readFileSync(path.join(repoDir, 'lib', 'npm', 'worker.ts'), 'utf8')}
         return m => onmessage(m)
       `;

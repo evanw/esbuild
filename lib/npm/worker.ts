@@ -3,7 +3,7 @@
 declare const ESBUILD_VERSION: string;
 declare function postMessage(message: any): void;
 
-onmessage = ({ data: wasm }) => {
+onmessage = ({ data: wasm }: { data: ArrayBuffer | WebAssembly.Module }) => {
   let decoder = new TextDecoder()
   let fs = (globalThis as any).fs
 
@@ -60,6 +60,10 @@ onmessage = ({ data: wasm }) => {
   let go = new (globalThis as any).Go()
   go.argv = ['', `--service=${ESBUILD_VERSION}`]
 
-  WebAssembly.instantiate(wasm, go.importObject)
-    .then(({ instance }) => go.run(instance))
+  if (wasm instanceof WebAssembly.Module) {
+    go.run(new WebAssembly.Instance(wasm, go.importObject))
+  } else {
+    WebAssembly.instantiate(wasm, go.importObject)
+      .then(({ instance }) => go.run(instance))
+  }
 }
