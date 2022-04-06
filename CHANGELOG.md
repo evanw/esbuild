@@ -101,6 +101,28 @@
     };
     ```
 
+* Add the `wasmModule` option to the `initialize` JS API ([#1093](https://github.com/evanw/esbuild/issues/1093))
+
+    The `initialize` JS API must be called when using esbuild in the browser to provide the WebAssembly module for esbuild to use. Previously the only way to do that was using the `wasmURL` API option like this:
+
+    ```js
+    await esbuild.initialize({
+      wasmURL: '/node_modules/esbuild-wasm/esbuild.wasm',
+    })
+    console.log(await esbuild.transform('1+2'))
+    ```
+
+    With this release, you can now also initialize esbuild using a `WebAssembly.Module` instance using the `wasmModule` API option instead. The example above is equivalent to the following code:
+
+    ```js
+    await esbuild.initialize({
+      wasmModule: await WebAssembly.compileStreaming(fetch('/node_modules/esbuild-wasm/esbuild.wasm'))
+    })
+    console.log(await esbuild.transform('1+2'))
+    ```
+
+    This could be useful for environments where you want more control over how the WebAssembly download happens or where downloading the WebAssembly module is not possible.
+
 ## 0.14.31
 
 * Add support for parsing "optional variance annotations" from TypeScript 4.7 ([#2102](https://github.com/evanw/esbuild/pull/2102))

@@ -186,37 +186,45 @@ let pages = {};
 
 for (let format of ['iife', 'esm']) {
   for (let min of [false, true]) {
-    for (let async of [false, true]) {
-      let code = `
-        window.testStart = function() {
-          esbuild.initialize({
-            wasmURL: '/esbuild.wasm',
-            worker: ${async},
-          }).then(() => {
-            return (${runAllTests})({ esbuild })
-          }).then(() => {
-            testDone()
-          }).catch(e => {
-            testFail('' + (e && e.stack || e))
-            testDone()
-          })
+    for (let worker of [false, true]) {
+      for (let module of [false, true]) {
+        let code = `
+          window.testStart = function() {
+            let promise = ${module}
+              ? esbuild.initialize({
+                  wasmURL: '/esbuild.wasm',
+                  worker: ${worker},
+                })
+              : WebAssembly.compileStreaming(fetch('/esbuild.wasm')).then(module => esbuild.initialize({
+                  wasmModule: module,
+                  worker: ${worker},
+                }))
+            promise.then(() => {
+              return (${runAllTests})({ esbuild })
+            }).then(() => {
+              testDone()
+            }).catch(e => {
+              testFail('' + (e && e.stack || e))
+              testDone()
+            })
+          }
+        `;
+        let page;
+        if (format === 'esm') {
+          page = `
+            <script type="module">
+              import * as esbuild from '/esm/browser${min ? '.min' : ''}.js'
+              ${code}
+            </script>
+          `;
+        } else {
+          page = `
+            <script src="/lib/browser${min ? '.min' : ''}.js"></script>
+            <script>${code}</script>
+          `;
         }
-      `;
-      let page;
-      if (format === 'esm') {
-        page = `
-          <script type="module">
-            import * as esbuild from '/esm/browser${min ? '.min' : ''}.js'
-            ${code}
-          </script>
-        `;
-      } else {
-        page = `
-          <script src="/lib/browser${min ? '.min' : ''}.js"></script>
-          <script>${code}</script>
-        `;
+        pages[format + (min ? 'Min' : '') + (worker ? 'Worker' : '') + (module ? 'Module' : '')] = page;
       }
-      pages[format + (min ? 'Min' : '') + (async ? 'Async' : '')] = page;
     }
   }
 }
