@@ -195,10 +195,10 @@ for (let format of ['iife', 'esm']) {
                   wasmURL: '/esbuild.wasm',
                   worker: ${worker},
                 })
-              : esbuild.initialize({
-                  wasmModule: await WebAssembly.compileStreaming(fetch('/esbuild.wasm')),
+              : WebAssembly.compileStreaming(fetch('/esbuild.wasm')).then(module => esbuild.initialize({
+                  wasmModule: module,
                   worker: ${worker},
-                })
+                }))
             promise.then(() => {
               return (${runAllTests})({ esbuild })
             }).then(() => {
