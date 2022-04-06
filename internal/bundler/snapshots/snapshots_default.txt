@@ -3773,76 +3773,22 @@ x === [];
 // plugin-dir/node_modules/equals-object.js
 x === [];
 
-// write-getter.js
-var Foo = class {
-  get #foo() {
-  }
-  foo() {
-    this.#foo = 123;
-  }
-};
-
-// node_modules/write-getter.js
-var Foo2 = class {
-  get #foo() {
-  }
-  foo() {
-    this.#foo = 123;
-  }
-};
-
-// plugin-dir/node_modules/write-getter.js
-var Foo3 = class {
-  get #foo() {
-  }
-  foo() {
-    this.#foo = 123;
-  }
-};
-
-// read-setter.js
-var Foo4 = class {
-  set #foo(x2) {
-  }
-  foo() {
-    return this.#foo;
-  }
-};
-
-// node_modules/read-setter.js
-var Foo5 = class {
-  set #foo(x2) {
-  }
-  foo() {
-    return this.#foo;
-  }
-};
-
-// plugin-dir/node_modules/read-setter.js
-var Foo6 = class {
-  set #foo(x2) {
-  }
-  foo() {
-    return this.#foo;
-  }
-};
-
 // delete-super.js
-var Foo7 = class extends Bar {
+var Foo = class extends Bar {
   foo() {
     delete super.foo;
   }
 };
 
 // node_modules/delete-super.js
-var Foo8 = class extends Bar {
+var Foo2 = class extends Bar {
   foo() {
     delete super.foo;
   }
 };
 
 // plugin-dir/node_modules/delete-super.js
-var Foo9 = class extends Bar {
+var Foo3 = class extends Bar {
   foo() {
     delete super.foo;
   }

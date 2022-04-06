@@ -558,7 +558,7 @@ func TestLowerPrivateGetterSetterNext(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				class Foo {
+				export class Foo {
 					get #foo() { return this.foo }
 					set #bar(val) { this.bar = val }
 					get #prop() { return this.prop }
@@ -692,7 +692,7 @@ func TestLowerPrivateMethodNext(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				class Foo {
+				export class Foo {
 					#field
 					#method() {}
 					baseline() {
@@ -2179,7 +2179,7 @@ func TestLowerNullishCoalescingAssignmentIssue1493(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				class A {
+				export class A {
 					#a;
 					f() {
 						this.#a ??= 1;

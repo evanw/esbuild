@@ -77,6 +77,30 @@
     }
     ```
 
+* Fix some tree-shaking bugs regarding property side effects
+
+    This release fixes some cases where side effects in computed properties were not being handled correctly. Specifically primitives and private names as properties should not be considered to have side effects, and object literals as properties should be considered to have side effects:
+
+    ```js
+    // Original code
+    let shouldRemove = { [1]: 2 }
+    let shouldRemove2 = class { #foo }
+    let shouldKeep = class { [{ toString() { sideEffect() } }] }
+
+    // Old output (with --tree-shaking=true)
+    let shouldRemove = { [1]: 2 };
+    let shouldRemove2 = class {
+      #foo;
+    };
+
+    // New output (with --tree-shaking=true)
+    let shouldKeep = class {
+      [{ toString() {
+        sideEffect();
+      } }];
+    };
+    ```
+
 ## 0.14.31
 
 * Add support for parsing "optional variance annotations" from TypeScript 4.7 ([#2102](https://github.com/evanw/esbuild/pull/2102))

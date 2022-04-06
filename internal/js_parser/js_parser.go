@@ -14521,14 +14521,19 @@ func (p *parser) classCanBeRemovedIfUnused(class js_ast.Class) bool {
 			}
 			continue
 		}
-		if !p.exprCanBeRemovedIfUnused(property.Key) {
+
+		if property.IsComputed && !isPrimitiveLiteral(property.Key.Data) {
 			return false
 		}
-		if property.ValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.ValueOrNil) {
-			return false
-		}
-		if property.InitializerOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.InitializerOrNil) {
-			return false
+
+		if property.IsStatic {
+			if property.ValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.ValueOrNil) {
+				return false
+			}
+
+			if property.InitializerOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.InitializerOrNil) {
+				return false
+			}
 		}
 	}
 
@@ -14613,7 +14618,7 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 	case *js_ast.EObject:
 		for _, property := range e.Properties {
 			// The key must still be evaluated if it's computed or a spread
-			if property.Kind == js_ast.PropertySpread || property.IsComputed {
+			if property.Kind == js_ast.PropertySpread || (property.IsComputed && !isPrimitiveLiteral(property.Key.Data)) {
 				return false
 			}
 			if property.ValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.ValueOrNil) {
