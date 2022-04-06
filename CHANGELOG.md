@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.32
 
 * Fix `super` usage in lowered private methods ([#2039](https://github.com/evanw/esbuild/issues/2039))
 
