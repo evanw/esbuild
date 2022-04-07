@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
 )
@@ -953,7 +954,7 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 
 		// Try to merge with existing dot defines first
 		for i, define := range dotDefines {
-			if arePartsEqual(parts, define.Parts) {
+			if helpers.StringArraysEqual(parts, define.Parts) {
 				define := &dotDefines[i]
 				define.Data = mergeDefineData(define.Data, data)
 				found = true
@@ -976,16 +977,4 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 		}
 	}
 	return result
-}
-
-func arePartsEqual(a []string, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

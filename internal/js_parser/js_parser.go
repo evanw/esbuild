@@ -489,7 +489,7 @@ func isSameRegexp(a *regexp.Regexp, b *regexp.Regexp) bool {
 }
 
 func jsxExprsEqual(a config.JSXExpr, b config.JSXExpr) bool {
-	if !stringArraysEqual(a.Parts, b.Parts) {
+	if !helpers.StringArraysEqual(a.Parts, b.Parts) {
 		return false
 	}
 
@@ -501,18 +501,6 @@ func jsxExprsEqual(a config.JSXExpr, b config.JSXExpr) bool {
 		return false
 	}
 
-	return true
-}
-
-func stringArraysEqual(a []string, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, x := range a {
-		if x != b[i] {
-			return false
-		}
-	}
 	return true
 }
 
