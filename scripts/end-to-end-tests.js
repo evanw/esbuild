@@ -4923,6 +4923,26 @@
           }
         `,
       }, { async: true }),
+      test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+        // Check edge case in https://github.com/evanw/esbuild/issues/2158
+        'in.js': `
+        class Foo {
+          constructor(x) {
+            this.base = x
+          }
+        }
+        class Bar extends Foo {
+          static FOO = 1
+          constructor() {
+            super(2)
+            this.derived = this.#foo + Bar.FOO
+          }
+          #foo = 3
+        }
+        let bar = new Bar
+        if (bar.base !== 2 || bar.derived !== 4) throw 'fail'
+        `,
+      }),
       test(['in.js', '--outfile=node.js', '--keep-names', '--bundle'].concat(flags), {
         // Check default export name preservation with lowered "super" inside lowered "async"
         'in.js': `

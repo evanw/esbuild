@@ -1532,6 +1532,28 @@ func TestLowerPrivateSuperES2021(t *testing.T) {
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/2158
+func TestLowerPrivateSuperStaticBundleIssue2158(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export class Foo extends Object {
+					static FOO;
+					constructor() {
+						super();
+					}
+					#foo;
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestLowerClassField2020NoBundle(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -1634,6 +1634,23 @@ export {
 };
 
 ================================================================================
+TestLowerPrivateSuperStaticBundleIssue2158
+---------- /out.js ----------
+// entry.js
+var _foo;
+var Foo = class extends Object {
+  constructor() {
+    super();
+    __privateAdd(this, _foo, void 0);
+  }
+};
+_foo = new WeakMap();
+__publicField(Foo, "FOO");
+export {
+  Foo
+};
+
+================================================================================
 TestLowerStaticAsyncArrowSuperES2016
 ---------- /out.js ----------
 // foo1.js

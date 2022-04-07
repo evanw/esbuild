@@ -2,6 +2,65 @@
 
 ## Unreleased
 
+* Fix a regression regarding `super` ([#2158](https://github.com/evanw/esbuild/issues/2158))
+
+    This fixes a regression from the previous release regarding classes with a super class, a private member, and a static field in the scenario where the static field needs to be lowered but where private members are supported by the configured target environment. In this scenario, esbuild could incorrectly inject the instance field initializers that use `this` into the constructor before the call to `super()`, which is invalid. This problem has now been fixed (notice that `this` is now used after `super()` instead of before):
+
+    ```js
+    // Original code
+    class Foo extends Object {
+      static FOO;
+      constructor() {
+        super();
+      }
+      #foo;
+    }
+
+    // Old output (with --bundle)
+    var _foo;
+    var Foo = class extends Object {
+      constructor() {
+        __privateAdd(this, _foo, void 0);
+        super();
+      }
+    };
+    _foo = new WeakMap();
+    __publicField(Foo, "FOO");
+
+    // New output (with --bundle)
+    var _foo;
+    var Foo = class extends Object {
+      constructor() {
+        super();
+        __privateAdd(this, _foo, void 0);
+      }
+    };
+    _foo = new WeakMap();
+    __publicField(Foo, "FOO");
+    ```
+
+    During parsing, esbuild scans the class and makes certain decisions about the class such as whether to lower all static fields, whether to lower each private member, or whether calls to `super()` need to be tracked and adjusted. Previously esbuild made two passes through the class members to compute this information. However, with the new `super()` call lowering logic added in the previous release, we now need three passes to capture the whole dependency chain for this case: 1) lowering static fields requires 2) lowering private members which requires 3) adjusting `super()` calls.
+
+    The reason lowering static fields requires lowering private members is because lowering static fields moves their initializers outside of the class body, where they can't access private members anymore. Consider this code:
+
+    ```js
+    class Foo {
+      get #foo() {}
+      static bar = new Foo().#foo
+    }
+    ```
+
+    We can't just lower static fields without also lowering private members, since that causes a syntax error:
+
+    ```js
+    class Foo {
+      get #foo() {}
+    }
+    Foo.bar = new Foo().#foo;
+    ```
+
+    And the reason lowering private members requires adjusting `super()` calls is because the injected private member initializers use `this`, which is only accessible after `super()` calls in the constructor.
+
 * Add Linux ARM64 support for Deno ([#2156](https://github.com/evanw/esbuild/issues/2156))
 
     This release adds Linux ARM64 support to esbuild's [Deno](https://deno.land/) API implementation, which allows esbuild to be used with Deno on a Raspberry Pi.

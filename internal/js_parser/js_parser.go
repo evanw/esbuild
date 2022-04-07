@@ -10158,6 +10158,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 	// field initializers outside of the class body and "this" will no longer
 	// reference the same thing.
 	classLoweringInfo := p.computeClassLoweringInfo(class)
+	recomputeClassLoweringInfo := false
 
 	// Sometimes we need to lower private members even though they are supported.
 	// This flags them for lowering so that we lower references to them as we
@@ -10186,6 +10187,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			// The private getter must be lowered too.
 			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
 				p.symbols[private.Ref.InnerIndex].Flags |= js_ast.PrivateSymbolMustBeLowered
+				recomputeClassLoweringInfo = true
 			}
 		}
 	}
@@ -10197,9 +10199,16 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
 				if symbol := &p.symbols[private.Ref.InnerIndex]; p.classPrivateBrandChecksToLower[symbol.OriginalName] {
 					symbol.Flags |= js_ast.PrivateSymbolMustBeLowered
+					recomputeClassLoweringInfo = true
 				}
 			}
 		}
+	}
+
+	// If we changed private symbol lowering decisions, then recompute class
+	// lowering info because that may have changed other decisions too
+	if recomputeClassLoweringInfo {
+		classLoweringInfo = p.computeClassLoweringInfo(class)
 	}
 
 	p.pushScopeForVisitPass(js_ast.ScopeClassName, nameScopeLoc)
