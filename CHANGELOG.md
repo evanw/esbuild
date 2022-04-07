@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.33
 
 * Fix a regression regarding `super` ([#2158](https://github.com/evanw/esbuild/issues/2158))
 
