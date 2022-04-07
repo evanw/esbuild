@@ -98,6 +98,9 @@ type SideEffectsData struct {
 type ResolveResult struct {
 	PathPair PathPair
 
+	// If non-empty, this was the result of an "onResolve" plugin
+	PluginName string
+
 	// If this was resolved by a plugin, the plugin gets to store its data here
 	PluginData interface{}
 
@@ -123,6 +126,134 @@ type ResolveResult struct {
 
 	// This is the "importsNotUsedAsValues" and "preserveValueImports" fields from "package.json"
 	UnusedImportsTS config.UnusedImportsTS
+}
+
+func prettyPrintPluginName(prefix string, key string, value string) string {
+	if value == "" {
+		return fmt.Sprintf("%s  %q: null,", prefix, key)
+	}
+	return fmt.Sprintf("%s  %q: %q,", prefix, key, value)
+}
+
+func prettyPrintPath(prefix string, key string, value logger.Path) string {
+	lines := []string{
+		fmt.Sprintf("%s  %q: {", prefix, key),
+		fmt.Sprintf("%s    \"text\": %q,", prefix, value.Text),
+		fmt.Sprintf("%s    \"namespace\": %q,", prefix, value.Namespace),
+	}
+	if value.IgnoredSuffix != "" {
+		lines = append(lines, fmt.Sprintf("%s    \"suffix\": %q,", prefix, value.IgnoredSuffix))
+	}
+	if value.IsDisabled() {
+		lines = append(lines, fmt.Sprintf("%s    \"disabled\": true,", prefix))
+	}
+	lines = append(lines, fmt.Sprintf("%s  },", prefix))
+	return strings.Join(lines, "\n")
+}
+
+func prettyPrintStringArray(prefix string, key string, value []string) string {
+	quoted := make([]string, len(value))
+	for i, v := range value {
+		quoted[i] = fmt.Sprintf("%q", v)
+	}
+	return fmt.Sprintf("%s  %q: [%s],", prefix, key, strings.Join(quoted, ","))
+}
+
+func prettyPrintTSTarget(prefix string, key string, value *config.TSTarget) string {
+	if value == nil {
+		return fmt.Sprintf("%s  %q: null,", prefix, key)
+	}
+	return fmt.Sprintf("%s  %q: %q,", prefix, key, value.Target)
+}
+
+func prettyPrintModuleType(prefix string, key string, value js_ast.ModuleType) string {
+	kind := "null"
+	if value.IsCommonJS() {
+		kind = "\"commonjs\""
+	} else if value.IsESM() {
+		kind = "\"module\""
+	}
+	return fmt.Sprintf("%s  %q: %s,", prefix, key, kind)
+}
+
+func prettyPrintUnusedImports(prefix string, key string, value config.UnusedImportsTS) string {
+	source := "null"
+	switch value {
+	case config.UnusedImportsKeepStmtRemoveValues:
+		source = "{ \"importsNotUsedAsValues\": \"preserve\" }"
+	case config.UnusedImportsKeepValues:
+		source = "{ \"preserveValueImports\": true }"
+	}
+	return fmt.Sprintf("%s  %q: %s,", prefix, key, source)
+}
+
+func (old *ResolveResult) Compare(new *ResolveResult) (diff []string) {
+	var oldDiff []string
+	var newDiff []string
+
+	if old.PluginName != new.PluginName {
+		oldDiff = append(oldDiff, prettyPrintPluginName("-", "pluginName", old.PluginName))
+		newDiff = append(newDiff, prettyPrintPluginName("+", "pluginName", new.PluginName))
+	}
+
+	if old.PathPair.Primary != new.PathPair.Primary {
+		oldDiff = append(oldDiff, prettyPrintPath("-", "path", old.PathPair.Primary))
+		newDiff = append(newDiff, prettyPrintPath("+", "path", new.PathPair.Primary))
+	}
+
+	if old.PathPair.Secondary != new.PathPair.Secondary {
+		oldDiff = append(oldDiff, prettyPrintPath("-", "secondaryPath", old.PathPair.Secondary))
+		newDiff = append(newDiff, prettyPrintPath("+", "secondaryPath", new.PathPair.Secondary))
+	}
+
+	if !helpers.StringArraysEqual(old.JSXFactory, new.JSXFactory) {
+		oldDiff = append(oldDiff, prettyPrintStringArray("-", "jsxFactory", old.JSXFactory))
+		newDiff = append(newDiff, prettyPrintStringArray("+", "jsxFactory", new.JSXFactory))
+	}
+
+	if !helpers.StringArraysEqual(old.JSXFragment, new.JSXFragment) {
+		oldDiff = append(oldDiff, prettyPrintStringArray("-", "jsxFragment", old.JSXFragment))
+		newDiff = append(newDiff, prettyPrintStringArray("+", "jsxFragment", new.JSXFragment))
+	}
+
+	if (old.PrimarySideEffectsData != nil) != (new.PrimarySideEffectsData != nil) {
+		oldDiff = append(oldDiff, fmt.Sprintf("-  \"sideEffects\": %v,", old.PrimarySideEffectsData != nil))
+		newDiff = append(newDiff, fmt.Sprintf("+  \"sideEffects\": %v,", new.PrimarySideEffectsData != nil))
+	}
+
+	if !old.TSTarget.IsEquivalentTo(new.TSTarget) {
+		oldDiff = append(oldDiff, prettyPrintTSTarget("-", "tsTarget", old.TSTarget))
+		newDiff = append(newDiff, prettyPrintTSTarget("+", "tsTarget", new.TSTarget))
+	}
+
+	if !old.ModuleTypeData.Type.IsEquivalentTo(new.ModuleTypeData.Type) {
+		oldDiff = append(oldDiff, prettyPrintModuleType("-", "type", old.ModuleTypeData.Type))
+		newDiff = append(newDiff, prettyPrintModuleType("+", "type", new.ModuleTypeData.Type))
+	}
+
+	if old.IsExternal != new.IsExternal {
+		oldDiff = append(oldDiff, fmt.Sprintf("-  \"external\": %v,", old.IsExternal))
+		newDiff = append(newDiff, fmt.Sprintf("+  \"external\": %v,", new.IsExternal))
+	}
+
+	if old.UseDefineForClassFieldsTS != new.UseDefineForClassFieldsTS {
+		oldDiff = append(oldDiff, fmt.Sprintf("-  \"useDefineForClassFields\": %v,", old.UseDefineForClassFieldsTS))
+		newDiff = append(newDiff, fmt.Sprintf("+  \"useDefineForClassFields\": %v,", new.UseDefineForClassFieldsTS))
+	}
+
+	if old.UnusedImportsTS != new.UnusedImportsTS {
+		oldDiff = append(oldDiff, prettyPrintUnusedImports("-", "unusedImports", old.UnusedImportsTS))
+		newDiff = append(newDiff, prettyPrintUnusedImports("+", "unusedImports", new.UnusedImportsTS))
+	}
+
+	if oldDiff != nil {
+		diff = make([]string, 0, 2+len(oldDiff)+len(newDiff))
+		diff = append(diff, " {")
+		diff = append(diff, oldDiff...)
+		diff = append(diff, newDiff...)
+		diff = append(diff, " }")
+	}
+	return
 }
 
 type DebugMeta struct {

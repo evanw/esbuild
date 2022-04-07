@@ -6,6 +6,55 @@
 
     TypeScript 4.3 introduced a breaking change where class field behavior changes from assign semantics to define semantics when the `target` setting in `tsconfig.json` is set to `ESNext`. Specifically, the default value for TypeScript's `useDefineForClassFields` setting when unspecified is `true` if and only if `target` is `ESNext`. TypeScript 4.6 introduced another change where this behavior now happens for both `ESNext` and `ES2022`. Presumably this will be the case for `ES2023` and up as well. With this release, esbuild's behavior has also been changed to match. Now configuring esbuild with `--target=es2022` will also cause TypeScript files to use the new class field behavior.
 
+* Validate that path metadata returned by plugins is consistent
+
+    The plugin API assumes that all metadata for the same path returned by a plugin's `onResolve` callback is consistent. Previously this assumption was just assumed without any enforcement. Starting with this release, esbuild will now enforce this by generating a build error if this assumption is violated. The lack of validation has not been an issue (I have never heard of this being a problem), but it still seems like a good idea to enforce it. Here's a simple example of a plugin that generates inconsistent `sideEffects` metadata:
+
+    ```js
+    let buggyPlugin = {
+      name: 'buggy',
+      setup(build) {
+        let count = 0
+        build.onResolve({ filter: /^react$/ }, args => {
+          return {
+            path: require.resolve(args.path),
+            sideEffects: count++ > 0,
+          }
+        })
+      },
+    }
+    ```
+
+    Since esbuild processes everything in parallel, the set of metadata that ends up being used for a given path is essentially random since it's whatever the task scheduler decides to schedule first. Thus if a plugin does not consistently provide the same metadata for a given path, subsequent builds may return different results. This new validation check prevents this problem.
+
+    Here's the new error message that's shown when this happens:
+
+    ```
+    ✘ [ERROR] [plugin buggy] Detected inconsistent metadata for the path "node_modules/react/index.js" when it was imported here:
+
+        button.tsx:1:30:
+          1 │ import { createElement } from 'react'
+            ╵                               ~~~~~~~
+
+      The original metadata for that path comes from when it was imported here:
+
+        app.tsx:1:23:
+          1 │ import * as React from 'react'
+            ╵                        ~~~~~~~
+
+      The difference in metadata is displayed below:
+
+       {
+      -  "sideEffects": true,
+      +  "sideEffects": false,
+       }
+
+      This is a bug in the "buggy" plugin. Plugins provide metadata for a given path in an "onResolve"
+      callback. All metadata provided for the same path must be consistent to ensure deterministic
+      builds. Due to parallelism, one set of provided metadata will be randomly chosen for a given path,
+      so providing inconsistent metadata for the same path can cause non-determinism.
+    ```
+
 ## 0.14.34
 
 Something went wrong with the publishing script for the previous release. Publishing again.

@@ -1091,6 +1091,16 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 
 	case Note:
 		sb := strings.Builder{}
+		reset := ""
+
+		// Add special color support for rendering textual diffs
+		if strings.HasPrefix(data.Text, "-") {
+			sb.WriteString(colors.Red)
+			reset = colors.Reset
+		} else if strings.HasPrefix(data.Text, "+") {
+			sb.WriteString(colors.Green)
+			reset = colors.Reset
+		}
 
 		for _, line := range strings.Split(data.Text, "\n") {
 			// Special-case word wrapping
@@ -1113,6 +1123,7 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 		}
 
 		sb.WriteString(location)
+		sb.WriteString(reset)
 		return sb.String()
 	}
 

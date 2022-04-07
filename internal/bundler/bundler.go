@@ -788,6 +788,7 @@ func RunOnResolvePlugins(
 			return &resolver.ResolveResult{
 				PathPair:               resolver.PathPair{Primary: result.Path},
 				IsExternal:             result.External,
+				PluginName:             pluginName,
 				PluginData:             result.PluginData,
 				PrimarySideEffectsData: sideEffectsData,
 			}, false, resolver.DebugMeta{}
@@ -1002,7 +1003,10 @@ type scanner struct {
 }
 
 type visitedFile struct {
-	sourceIndex uint32
+	importSource    *logger.Source
+	resolveResult   resolver.ResolveResult
+	importPathRange logger.Range
+	sourceIndex     uint32
 }
 
 type EntryPoint struct {
@@ -1162,11 +1166,56 @@ func (s *scanner) maybeParseFile(
 	// Only parse a given file path once
 	visited, ok := s.visited[visitedKey]
 	if ok {
+		// Validate that the resolved metadata for this file is the same as before
+		if diff := visited.resolveResult.Compare(&resolveResult); diff != nil {
+			prettyPath := s.res.PrettyPath(resolveResult.PathPair.Primary)
+			tracker := logger.MakeLineColumnTracker(importSource)
+			notes := make([]logger.MsgData, 0, 5+len(diff))
+
+			if visited.importSource != nil {
+				visitedTracker := logger.MakeLineColumnTracker(visited.importSource)
+				notes = append(notes, visitedTracker.MsgData(visited.importPathRange,
+					"The original metadata for that path comes from when it was imported here:"))
+			}
+
+			notes = append(notes,
+				logger.MsgData{Text: "The difference in metadata is displayed below:"},
+				logger.MsgData{},
+			)
+			for _, line := range diff {
+				notes = append(notes, logger.MsgData{Text: line})
+			}
+			explain := ""
+			if a, b := resolveResult.PluginName, visited.resolveResult.PluginName; a != "" && (a == b || b == "") {
+				explain += fmt.Sprintf("This is a bug in the %q plugin. ", a)
+			} else if a == "" && b != "" {
+				explain += fmt.Sprintf("This is a bug in the %q plugin. ", b)
+			}
+			explain += "Plugins provide metadata for a given path in an \"onResolve\" callback. " +
+				"All metadata provided for the same path must be consistent to ensure deterministic builds. " +
+				"Due to parallelism, one set of provided metadata will be randomly chosen for a given path, " +
+				"so providing inconsistent metadata for the same path can cause non-determinism."
+			notes = append(notes,
+				logger.MsgData{},
+				logger.MsgData{Text: explain},
+			)
+
+			s.log.AddMsg(logger.Msg{
+				Kind: logger.Error,
+				Data: tracker.MsgData(importPathRange,
+					fmt.Sprintf("Detected inconsistent metadata for the path %q when it was imported here:", prettyPath)),
+				Notes:      notes,
+				PluginName: resolveResult.PluginName,
+			})
+		}
 		return visited.sourceIndex
 	}
 
 	visited = visitedFile{
-		sourceIndex: s.allocateSourceIndex(visitedKey, cache.SourceIndexNormal),
+		sourceIndex:     s.allocateSourceIndex(visitedKey, cache.SourceIndexNormal),
+		resolveResult:   resolveResult,
+		importSource:    importSource,
+		importPathRange: importPathRange,
 	}
 	s.visited[visitedKey] = visited
 	s.remaining++

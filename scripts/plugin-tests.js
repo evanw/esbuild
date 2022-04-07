@@ -2848,6 +2848,58 @@ let syncTests = {
       result.stop()
     }
   },
+
+  async testNonDeterministicBuild({ esbuild, testDir }) {
+    const srcDir = path.join(testDir, 'src')
+    const entry = path.join(srcDir, 'entry.js')
+    const a = path.join(srcDir, 'a.js')
+    const b = path.join(srcDir, 'b.js')
+    const c = path.join(srcDir, 'c.js')
+    await mkdirAsync(srcDir, { recursive: true })
+    await writeFileAsync(entry, `import './a'; import './b'`)
+    await writeFileAsync(a, `import 'c'`)
+    await writeFileAsync(b, `import 'c'`)
+    await writeFileAsync(c, ``)
+
+    try {
+      await esbuild.build({
+        entryPoints: [entry],
+        bundle: true,
+        write: false,
+        logLevel: 'silent',
+        plugins: [
+          {
+            name: 'some-plugin',
+            setup(build) {
+              let count = 0
+              build.onResolve({ filter: /^c$/ }, args => {
+                return {
+                  path: c,
+                  sideEffects: count++ > 0,
+                }
+              })
+            },
+          },
+        ],
+      })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.strictEqual(e.message.split('\n')[0], 'Build failed with 1 error:')
+      assert.strictEqual(e.errors[0].text,
+        'Detected inconsistent metadata for the path "scripts/.plugin-tests/testNonDeterministicBuild/src/c.js" when it was imported here:')
+      assert.strictEqual(e.errors[0].notes.map(x => x.text).join('\n'), `The original metadata for that path comes from when it was imported here:
+The difference in metadata is displayed below:
+
+ {
+-  "sideEffects": true,
++  "sideEffects": false,
+ }
+
+This is a bug in the "some-plugin" plugin. Plugins provide metadata for a given path in an "onResolve" callback. \
+All metadata provided for the same path must be consistent to ensure deterministic builds. Due to parallelism, \
+one set of provided metadata will be randomly chosen for a given path, so providing inconsistent metadata for the same path can cause non-determinism.`)
+    }
+  },
 }
 
 async function main() {
