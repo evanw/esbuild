@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.34
+
+Something went wrong with the publishing script for the previous release. Publishing again.
+
 ## 0.14.33
 
 * Fix a regression regarding `super` ([#2158](https://github.com/evanw/esbuild/issues/2158))
