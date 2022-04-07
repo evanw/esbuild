@@ -61,6 +61,25 @@
 
     And the reason lowering private members requires adjusting `super()` calls is because the injected private member initializers use `this`, which is only accessible after `super()` calls in the constructor.
 
+* Print some large integers using hexadecimal when minifying ([#2162](https://github.com/evanw/esbuild/issues/2162))
+
+    When `--minify` is active, esbuild will now use one fewer byte to represent certain large integers:
+
+    ```js
+    // Original code
+    x = 123456787654321;
+
+    // Old output (with --minify)
+    x=123456787654321;
+
+    // New output (with --minify)
+    x=0x704885f926b1;
+    ```
+
+    This works because a hexadecimal representation can be shorter than a decimal representation starting at around 10<sup>12</sup> and above.
+
+    _This optimization made me realize that there's probably an opportunity to optimize printed numbers for smaller gzipped size instead of or in addition to just optimizing for minimal uncompressed byte count. The gzip algorithm does better with repetitive sequences, so for example `0xFFFFFFFF` is probably a better representation than `4294967295` even though the byte counts are the same. As far as I know, no JavaScript minifier does this optimization yet. I don't know enough about how gzip works to know if this is a good idea or what the right metric for this might be._
+
 * Add Linux ARM64 support for Deno ([#2156](https://github.com/evanw/esbuild/issues/2156))
 
     This release adds Linux ARM64 support to esbuild's [Deno](https://deno.land/) API implementation, which allows esbuild to be used with Deno on a Raspberry Pi.

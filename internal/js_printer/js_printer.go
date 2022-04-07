@@ -2788,6 +2788,15 @@ func (p *printer) printNonNegativeFloat(absValue float64) {
 		}
 	}
 
+	// Numbers in this range can potentially be printed with one fewer byte as hex
+	if p.options.MinifyWhitespace && absValue >= 1_000_000_000_000 && absValue <= 0xFFFF_FFFF_FFFF_FFFF {
+		if asInt := uint64(absValue); absValue == float64(asInt) {
+			if hex := strconv.FormatUint(asInt, 16); 2+len(hex) < len(result) {
+				result = append(append(result[:0], '0', 'x'), hex...)
+			}
+		}
+	}
+
 	p.printBytes(result)
 }
 
