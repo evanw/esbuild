@@ -441,8 +441,6 @@ type printer struct {
 	callTarget             js_ast.E
 	extractedLegalComments map[string]bool
 	js                     []byte
-	keepNamesAssignTarget  js_ast.E
-	keepNamesRef           js_ast.Ref
 	options                Options
 	builder                sourcemap.ChunkBuilder
 	stmtStart              int
@@ -1400,10 +1398,6 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		}
 
 	case *js_ast.ECall:
-		if p.isCallExprSuperfluous(e) {
-			return js_ast.Expr{Loc: expr.Loc}
-		}
-
 		var symbolFlags js_ast.SymbolFlags
 		switch target := e.Target.Data.(type) {
 		case *js_ast.EIdentifier:
@@ -1802,11 +1796,6 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(arg, flags), level, flags)
 				break
 			}
-		}
-
-		if p.isCallExprSuperfluous(e) {
-			p.printExpr(e.Args[0], level, flags)
-			return
 		}
 
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
@@ -2574,49 +2563,6 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	}
 }
 
-func (p *printer) isCallExprSuperfluous(value *js_ast.ECall) bool {
-	if !value.IsKeepName {
-		return false
-	}
-
-	var ref *js_ast.Ref
-	isAnonymousFnOrClass := false
-	switch e := value.Args[0].Data.(type) {
-	case *js_ast.EIdentifier:
-		// "__name(foo, 'foo')"
-		ref = &e.Ref
-
-	case *js_ast.EFunction:
-		// "__name(function foo() {}, 'foo')"
-		if e.Fn.Name != nil {
-			ref = &e.Fn.Name.Ref
-		} else {
-			isAnonymousFnOrClass = true
-		}
-
-	case *js_ast.EClass:
-		// "__name(class foo {}, 'foo')"
-		if e.Class.Name != nil {
-			ref = &e.Class.Name.Ref
-		} else {
-			isAnonymousFnOrClass = true
-		}
-	}
-
-	// If this is an anonymous function or class expression but the assign target
-	// has a name binding, use the name from the name binding instead:
-	//
-	//   let foo = __name(function() {}, "foo");
-	//   let bar = __name(class {}, "bar");
-	//
-	if ref == nil && p.keepNamesAssignTarget == value && isAnonymousFnOrClass {
-		ref = &p.keepNamesRef
-	}
-
-	keptName := value.Args[1].Data.(*js_ast.EString).Value
-	return ref != nil && helpers.UTF16EqualsString(keptName, p.renamer.NameForSymbol(*ref))
-}
-
 func (p *printer) isUnboundEvalIdentifier(value js_ast.Expr) bool {
 	if id, ok := value.Data.(*js_ast.EIdentifier); ok {
 		// Using the original name here is ok since unbound symbols are not renamed
@@ -2840,11 +2786,6 @@ func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags printExp
 		p.printBinding(decl.Binding)
 
 		if decl.ValueOrNil.Data != nil {
-			if id, ok := decl.Binding.Data.(*js_ast.BIdentifier); ok {
-				p.keepNamesAssignTarget = decl.ValueOrNil.Data
-				p.keepNamesRef = id.Ref
-			}
-
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
@@ -3444,15 +3385,17 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		update := s.UpdateOrNil
 
 		// Omit calls to empty functions from the output completely
-		if expr, ok := init.Data.(*js_ast.SExpr); ok {
-			if value := p.simplifyUnusedExpr(expr.Value); value.Data == nil {
-				init.Data = nil
-			} else if value.Data != expr.Value.Data {
-				init.Data = &js_ast.SExpr{Value: value}
+		if p.options.MinifySyntax {
+			if expr, ok := init.Data.(*js_ast.SExpr); ok {
+				if value := p.simplifyUnusedExpr(expr.Value); value.Data == nil {
+					init.Data = nil
+				} else if value.Data != expr.Value.Data {
+					init.Data = &js_ast.SExpr{Value: value}
+				}
 			}
-		}
-		if update.Data != nil {
-			update = p.simplifyUnusedExpr(update)
+			if update.Data != nil {
+				update = p.simplifyUnusedExpr(update)
+			}
 		}
 
 		p.printIndent()
@@ -3666,18 +3609,20 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		value := s.Value
 
 		// Omit calls to empty functions from the output completely
-		value = p.simplifyUnusedExpr(value)
-		if value.Data == nil {
-			// If this statement is not in a block, then we still need to emit something
-			if (flags & canOmitStatement) == 0 {
-				// "if (x) empty();" => "if (x) ;"
-				p.printIndent()
-				p.print(";")
-				p.printNewline()
-			} else {
-				// "if (x) { empty(); }" => "if (x) {}"
+		if p.options.MinifySyntax {
+			value = p.simplifyUnusedExpr(value)
+			if value.Data == nil {
+				// If this statement is not in a block, then we still need to emit something
+				if (flags & canOmitStatement) == 0 {
+					// "if (x) empty();" => "if (x) ;"
+					p.printIndent()
+					p.print(";")
+					p.printNewline()
+				} else {
+					// "if (x) { empty(); }" => "if (x) {}"
+				}
+				break
 			}
-			break
 		}
 
 		p.printIndent()
