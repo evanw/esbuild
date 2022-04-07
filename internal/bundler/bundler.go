@@ -992,13 +992,17 @@ type scanner struct {
 	// thread. Note that not all results in the "results" array are necessarily
 	// valid. Make sure to check the "ok" flag before using them.
 	results       []parseResult
-	visited       map[logger.Path]uint32
+	visited       map[logger.Path]visitedFile
 	resultChannel chan parseResult
 
 	options config.Options
 
 	// Also not guarded by a mutex for the same reason
 	remaining int
+}
+
+type visitedFile struct {
+	sourceIndex uint32
 }
 
 type EntryPoint struct {
@@ -1059,7 +1063,7 @@ func ScanBundle(
 		options:         options,
 		timer:           timer,
 		results:         make([]parseResult, 0, caches.SourceIndexCache.LenHint()),
-		visited:         make(map[logger.Path]uint32),
+		visited:         make(map[logger.Path]visitedFile),
 		resultChannel:   make(chan parseResult),
 		uniqueKeyPrefix: uniqueKeyPrefix,
 	}
@@ -1156,13 +1160,15 @@ func (s *scanner) maybeParseFile(
 	}
 
 	// Only parse a given file path once
-	sourceIndex, ok := s.visited[visitedKey]
+	visited, ok := s.visited[visitedKey]
 	if ok {
-		return sourceIndex
+		return visited.sourceIndex
 	}
 
-	sourceIndex = s.allocateSourceIndex(visitedKey, cache.SourceIndexNormal)
-	s.visited[visitedKey] = sourceIndex
+	visited = visitedFile{
+		sourceIndex: s.allocateSourceIndex(visitedKey, cache.SourceIndexNormal),
+	}
+	s.visited[visitedKey] = visited
 	s.remaining++
 	optionsClone := s.options
 	if kind != inputKindStdin {
@@ -1236,7 +1242,7 @@ func (s *scanner) maybeParseFile(
 		caches:          s.caches,
 		keyPath:         path,
 		prettyPath:      prettyPath,
-		sourceIndex:     sourceIndex,
+		sourceIndex:     visited.sourceIndex,
 		importSource:    importSource,
 		sideEffects:     sideEffects,
 		importPathRange: importPathRange,
@@ -1248,7 +1254,7 @@ func (s *scanner) maybeParseFile(
 		uniqueKeyPrefix: s.uniqueKeyPrefix,
 	})
 
-	return sourceIndex
+	return visited.sourceIndex
 }
 
 func (s *scanner) allocateSourceIndex(path logger.Path, kind cache.SourceIndexKind) uint32 {
@@ -1285,7 +1291,7 @@ func (s *scanner) preprocessInjectedFiles() {
 		// These should be unique by construction so no need to check for collisions
 		visitedKey := logger.Path{Text: fmt.Sprintf("<define:%s>", define.Name)}
 		sourceIndex := s.allocateSourceIndex(visitedKey, cache.SourceIndexNormal)
-		s.visited[visitedKey] = sourceIndex
+		s.visited[visitedKey] = visitedFile{sourceIndex: sourceIndex}
 		source := logger.Source{
 			Index:          sourceIndex,
 			KeyPath:        visitedKey,
@@ -1729,8 +1735,8 @@ func (s *scanner) processScannedFiles() []scannerFile {
 					if secondaryKey.Namespace == "file" {
 						secondaryKey.Text = canonicalFileSystemPathForWindows(secondaryKey.Text)
 					}
-					if secondarySourceIndex, ok := s.visited[secondaryKey]; ok {
-						record.SourceIndex = ast.MakeIndex32(secondarySourceIndex)
+					if secondaryVisited, ok := s.visited[secondaryKey]; ok {
+						record.SourceIndex = ast.MakeIndex32(secondaryVisited.sourceIndex)
 					}
 				}
 
