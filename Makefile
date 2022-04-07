@@ -6,7 +6,7 @@ GO_FLAGS += "-ldflags=-s -w"
 # Avoid embedding the build path in the executable for more reproducible builds
 GO_FLAGS += -trimpath
 
-esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
+esbuild: version-go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
 	CGO_ENABLED=0 go build $(GO_FLAGS) ./cmd/esbuild
 
 test:
@@ -67,23 +67,23 @@ test-wasm-browser: platform-wasm | scripts/browser/node_modules
 test-deno: esbuild platform-deno
 	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno test --allow-run --allow-env --allow-net --allow-read --allow-write --no-check scripts/deno-tests.js
 
-register-test: cmd/esbuild/version.go | scripts/node_modules
+register-test: version-go | scripts/node_modules
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/register-test.js
 
-verify-source-map: cmd/esbuild/version.go | scripts/node_modules
+verify-source-map: version-go | scripts/node_modules
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/verify-source-map.js
 
-end-to-end-tests: cmd/esbuild/version.go | scripts/node_modules
+end-to-end-tests: version-go | scripts/node_modules
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/end-to-end-tests.js
 
-js-api-tests: cmd/esbuild/version.go | scripts/node_modules
+js-api-tests: version-go | scripts/node_modules
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/js-api-tests.js
 
-plugin-tests: cmd/esbuild/version.go | scripts/node_modules
+plugin-tests: version-go | scripts/node_modules
 	node scripts/plugin-tests.js
 
 ts-type-tests: | scripts/node_modules
@@ -201,7 +201,18 @@ test-e2e-yarn-berry:
 	# Clean up
 	rm -fr e2e-yb
 
-cmd/esbuild/version.go: version.txt
+# Note: This used to only be rebuilt when "version.txt" was newer than
+# "cmd/esbuild/version.go", but that caused the publishing script to publish
+# invalid builds in the case when the publishing script failed once, the change
+# to "cmd/esbuild/version.go" was reverted, and then the publishing script was
+# run again, since in that case "cmd/esbuild/version.go" has a later mtime than
+# "version.txt" but is still outdated.
+#
+# To avoid this problem, we now always run this step regardless of mtime status.
+# This step still avoids writing to "cmd/esbuild/version.go" if it already has
+# the correct contents, so it won't unnecessarily invalidate anything that uses
+# "cmd/esbuild/version.go" as a dependency.
+version-go:
 	node scripts/esbuild.js --update-version-go
 
 wasm-napi-exit0-darwin:
@@ -261,19 +272,19 @@ platform-all:
 		platform-windows-32 \
 		platform-windows-arm64
 
-platform-windows: cmd/esbuild/version.go
+platform-windows: version-go
 	node scripts/esbuild.js npm/esbuild-windows-64/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GO_FLAGS) -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
 
-platform-windows-32: cmd/esbuild/version.go
+platform-windows-32: version-go
 	node scripts/esbuild.js npm/esbuild-windows-32/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=386 go build $(GO_FLAGS) -o npm/esbuild-windows-32/esbuild.exe ./cmd/esbuild
 
-platform-windows-arm64: cmd/esbuild/version.go
+platform-windows-arm64: version-go
 	node scripts/esbuild.js npm/esbuild-windows-arm64/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(GO_FLAGS) -o npm/esbuild-windows-arm64/esbuild.exe ./cmd/esbuild
 
-platform-unixlike: cmd/esbuild/version.go
+platform-unixlike: version-go
 	@test -n "$(GOOS)" || (echo "The environment variable GOOS must be provided" && false)
 	@test -n "$(GOARCH)" || (echo "The environment variable GOARCH must be provided" && false)
 	@test -n "$(NPMDIR)" || (echo "The environment variable NPMDIR must be provided" && false)
