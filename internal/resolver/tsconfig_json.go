@@ -135,6 +135,7 @@ func ParseTSConfigJSON(
 				ok := true
 
 				// See https://www.typescriptlang.org/tsconfig#target
+				targetIsAtLeastES2022 := false
 				switch strings.ToLower(value) {
 				case "es5":
 					constraints[compat.ES] = []int{5}
@@ -154,8 +155,9 @@ func ParseTSConfigJSON(
 					constraints[compat.ES] = []int{2021}
 				case "es2022":
 					constraints[compat.ES] = []int{2022}
+					targetIsAtLeastES2022 = true
 				case "esnext":
-					// Nothing to do in this case
+					targetIsAtLeastES2022 = true
 				default:
 					ok = false
 					if !helpers.IsInsideNodeModules(source.KeyPath.Text) {
@@ -171,6 +173,7 @@ func ParseTSConfigJSON(
 						Range:                 r,
 						Target:                value,
 						UnsupportedJSFeatures: compat.UnsupportedJSFeatures(constraints),
+						TargetIsAtLeastES2022: targetIsAtLeastES2022,
 					}
 				}
 			}

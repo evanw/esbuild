@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Change TypeScript class field behavior when targeting ES2022
+
+    TypeScript 4.3 introduced a breaking change where class field behavior changes from assign semantics to define semantics when the `target` setting in `tsconfig.json` is set to `ESNext`. Specifically, the default value for TypeScript's `useDefineForClassFields` setting when unspecified is `true` if and only if `target` is `ESNext`. TypeScript 4.6 introduced another change where this behavior now happens for both `ESNext` and `ES2022`. Presumably this will be the case for `ES2023` and up as well. With this release, esbuild's behavior has also been changed to match. Now configuring esbuild with `--target=es2022` will also cause TypeScript files to use the new class field behavior.
+
 ## 0.14.34
 
 Something went wrong with the publishing script for the previous release. Publishing again.

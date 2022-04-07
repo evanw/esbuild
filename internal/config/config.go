@@ -300,7 +300,7 @@ const (
 	TargetWasConfigured
 
 	// In this state, "useDefineForClassFields" is true unless overridden
-	TargetWasConfiguredIncludingESNext
+	TargetWasConfiguredAndAtLeastES2022
 )
 
 type UnusedImportsTS uint8
@@ -327,10 +327,14 @@ func UnusedImportsFromTsconfigValues(preserveImportsNotUsedAsValues bool, preser
 }
 
 type TSTarget struct {
-	Target                string
-	Source                logger.Source
-	Range                 logger.Range
+	// This information is only used for error messages
+	Target string
+	Source logger.Source
+	Range  logger.Range
+
+	// This information can affect code transformation
 	UnsupportedJSFeatures compat.JSFeature
+	TargetIsAtLeastES2022 bool
 }
 
 type PathPlaceholder uint8

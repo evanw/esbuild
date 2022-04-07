@@ -3445,16 +3445,28 @@ let transformTests = {
   },
 
   async tsImplicitUseDefineForClassFields({ esbuild }) {
-    const { code: code1 } = await esbuild.transform(`class Foo { foo }`, {
+    var { code } = await esbuild.transform(`class Foo { foo }`, {
       loader: 'ts',
     })
-    assert.strictEqual(code1, `class Foo {\n}\n`)
+    assert.strictEqual(code, `class Foo {\n}\n`)
 
-    const { code: code2 } = await esbuild.transform(`class Foo { foo }`, {
+    var { code } = await esbuild.transform(`class Foo { foo }`, {
+      target: 'es2021',
+      loader: 'ts',
+    })
+    assert.strictEqual(code, `class Foo {\n}\n`)
+
+    var { code } = await esbuild.transform(`class Foo { foo }`, {
+      target: 'es2022',
+      loader: 'ts',
+    })
+    assert.strictEqual(code, `class Foo {\n  foo;\n}\n`)
+
+    var { code } = await esbuild.transform(`class Foo { foo }`, {
       target: 'esnext',
       loader: 'ts',
     })
-    assert.strictEqual(code2, `class Foo {\n  foo;\n}\n`)
+    assert.strictEqual(code, `class Foo {\n  foo;\n}\n`)
   },
 
   async tsconfigRawJSX({ esbuild }) {
