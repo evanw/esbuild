@@ -61,6 +61,45 @@
 
     And the reason lowering private members requires adjusting `super()` calls is because the injected private member initializers use `this`, which is only accessible after `super()` calls in the constructor.
 
+* Fix an issue with `--keep-names` not keeping some names ([#2149](https://github.com/evanw/esbuild/issues/2149))
+
+    This release fixes a regression with `--keep-names` from version 0.14.26. PR [#2062](https://github.com/evanw/esbuild/pull/2062) attempted to remove superfluous calls to the `__name` helper function by omitting calls of the form `__name(foo, "foo")` where the name of the symbol in the first argument is equal to the string in the second argument. This was assuming that the initializer for the symbol would automatically be assigned the expected `.name` property by the JavaScript VM, which turned out to be an incorrect assumption. To fix the regression, this PR has been reverted.
+
+    The assumption is true in many cases but isn't true when the initializer is moved into another automatically-generated variable, which can sometimes be necessary during the various syntax transformations that esbuild does. For example, consider the following code:
+
+    ```js
+    class Foo {
+      static get #foo() { return Foo.name }
+      static get foo() { return this.#foo }
+    }
+    let Bar = Foo
+    Foo = { name: 'Bar' }
+    console.log(Foo.name, Bar.name)
+    ```
+
+    This code should print `Bar Foo`. With `--keep-names --target=es6` that code is lowered by esbuild into the following code (omitting the helper function definitions for brevity):
+
+    ```js
+    var _foo, foo_get;
+    const _Foo = class {
+      static get foo() {
+        return __privateGet(this, _foo, foo_get);
+      }
+    };
+    let Foo = _Foo;
+    __name(Foo, "Foo");
+    _foo = new WeakSet();
+    foo_get = /* @__PURE__ */ __name(function() {
+      return _Foo.name;
+    }, "#foo");
+    __privateAdd(Foo, _foo);
+    let Bar = Foo;
+    Foo = { name: "Bar" };
+    console.log(Foo.name, Bar.name);
+    ```
+
+    The injection of the automatically-generated `_Foo` variable is necessary to preserve the semantics of the captured `Foo` binding for methods defined within the class body, even when the definition needs to be moved outside of the class body during code transformation. Due to a JavaScript quirk, this binding is immutable and does not change even if `Foo` is later reassigned. The PR that was reverted was incorrectly removing the call to `__name(Foo, "Foo")`, which turned out to be necessary after all in this case.
+
 * Print some large integers using hexadecimal when minifying ([#2162](https://github.com/evanw/esbuild/issues/2162))
 
     When `--minify` is active, esbuild will now use one fewer byte to represent certain large integers:
