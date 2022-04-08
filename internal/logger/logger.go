@@ -254,6 +254,24 @@ func (a Path) ComesBeforeInSortedOrder(b Path) bool {
 				(a.Flags == b.Flags && a.IgnoredSuffix < b.IgnoredSuffix)))))
 }
 
+func (a Path) IsEquivalentTo(b Path) bool {
+	if a.Namespace == "file" {
+		a.Text = CanonicalFileSystemPathForWindows(a.Text)
+	}
+	if b.Namespace == "file" {
+		b.Text = CanonicalFileSystemPathForWindows(b.Text)
+	}
+	return a == b
+}
+
+// Identify the path by its lowercase absolute path name with Windows-specific
+// slashes substituted for standard slashes. This should hopefully avoid path
+// issues on Windows where multiple different paths can refer to the same
+// underlying file.
+func CanonicalFileSystemPathForWindows(absPath string) string {
+	return strings.ReplaceAll(strings.ToLower(absPath), "\\", "/")
+}
+
 var noColorResult bool
 var noColorOnce sync.Once
 
