@@ -29,13 +29,16 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{79, 0, 0}}},
 		Firefox: {{start: v{49, 0, 0}}},
 		IOS:     {{start: v{9, 3, 0}}},
+		Opera:   {{start: v{49, 0, 0}}},
 		Safari:  {{start: v{9, 1, 0}}},
 	},
 	RebeccaPurple: {
 		Chrome:  {{start: v{38, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},
 		Firefox: {{start: v{33, 0, 0}}},
+		IE:      {{start: v{11, 0, 0}}},
 		IOS:     {{start: v{8, 0, 0}}},
+		Opera:   {{start: v{25, 0, 0}}},
 		Safari:  {{start: v{9, 0, 0}}},
 	},
 	Modern_RGB_HSL: {
@@ -43,6 +46,7 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{79, 0, 0}}},
 		Firefox: {{start: v{52, 0, 0}}},
 		IOS:     {{start: v{12, 2, 0}}},
+		Opera:   {{start: v{53, 0, 0}}},
 		Safari:  {{start: v{12, 1, 0}}},
 	},
 
@@ -52,6 +56,7 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{87, 0, 0}}},
 		Firefox: {{start: v{66, 0, 0}}},
 		IOS:     {{start: v{14, 5, 0}}},
+		Opera:   {{start: v{73, 0, 0}}},
 		Safari:  {{start: v{14, 1, 0}}},
 	},
 
