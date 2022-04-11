@@ -365,6 +365,9 @@ func TestTSTypes(t *testing.T) {
 	expectParseErrorTSX(t, "<in T extends any>() => {}", jsxErrorArrow)
 	expectParseErrorTSX(t, "<out T extends any>() => {}", jsxErrorArrow)
 	expectParseErrorTSX(t, "<in out T extends any>() => {}", jsxErrorArrow)
+	expectPrintedTS(t, "class Container { get data(): typeof this.#data {} }", "class Container {\n  get data() {\n  }\n}\n")
+	expectPrintedTS(t, "const a: typeof this.#a = 1;", "const a = 1;\n")
+	expectParseErrorTS(t, "const a: typeof #a = 1;", "<stdin>: ERROR: Expected identifier but found \"#a\"\n")
 }
 
 func TestTSAsCast(t *testing.T) {

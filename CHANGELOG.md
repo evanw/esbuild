@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+* Add support for parsing `typeof` on #private fields from TypeScript 4.7 ([#2174](https://github.com/evanw/esbuild/pull/2174))
+
+    The upcoming version of TypeScript now lets you use `#private` fields in `typeof` type expressions:
+
+    https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#typeof-on-private-fields
+
+    ```ts
+    class Container {
+      #data = "hello!";
+
+      get data(): typeof this.#data {
+        return this.#data;
+      }
+
+      set data(value: typeof this.#data) {
+        this.#data = value;
+      }
+    }
+    ```
+
+    With this release, esbuild can now parse these new type expressions as well. This feature was contributed by [@magic-akari](https://github.com/magic-akari).
+
 * Change TypeScript class field behavior when targeting ES2022
 
     TypeScript 4.3 introduced a breaking change where class field behavior changes from assign semantics to define semantics when the `target` setting in `tsconfig.json` is set to `ESNext`. Specifically, the default value for TypeScript's `useDefineForClassFields` setting when unspecified is `true` if and only if `target` is `ESNext`. TypeScript 4.6 introduced another change where this behavior now happens for both `ESNext` and `ES2022`. Presumably this will be the case for `ES2023` and up as well. With this release, esbuild's behavior has also been changed to match. Now configuring esbuild with `--target=es2022` will also cause TypeScript files to use the new class field behavior.

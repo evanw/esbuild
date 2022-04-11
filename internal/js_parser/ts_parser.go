@@ -365,17 +365,21 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 				continue
 			} else {
 				// "typeof x"
+				if !p.lexer.IsIdentifierOrKeyword() {
+					p.lexer.Expected(js_lexer.TIdentifier)
+				}
+				p.lexer.Next()
+
 				// "typeof x.y"
-				for {
-					if !p.lexer.IsIdentifierOrKeyword() {
+				// "typeof x.#y"
+				for p.lexer.Token == js_lexer.TDot {
+					p.lexer.Next()
+					if !p.lexer.IsIdentifierOrKeyword() && p.lexer.Token != js_lexer.TPrivateIdentifier {
 						p.lexer.Expected(js_lexer.TIdentifier)
 					}
 					p.lexer.Next()
-					if p.lexer.Token != js_lexer.TDot {
-						break
-					}
-					p.lexer.Next()
 				}
+
 				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
 			}
 
