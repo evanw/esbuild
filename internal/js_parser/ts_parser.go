@@ -366,8 +366,9 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 			} else {
 				// "typeof x"
 				// "typeof x.y"
-				for {
-					if !p.lexer.IsIdentifierOrKeyword() {
+				// "typeof x.#y"
+				for isProp := false; ; isProp = true {
+					if !p.lexer.IsIdentifierOrKeyword() && !(isProp && p.lexer.IsPrivateIdentifier()) {
 						p.lexer.Expected(js_lexer.TIdentifier)
 					}
 					p.lexer.Next()
