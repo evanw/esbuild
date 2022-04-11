@@ -701,8 +701,9 @@ func (status pjStatus) isUndefined() bool {
 
 type pjDebug struct {
 	// If the status is "pjStatusUndefinedNoConditionsMatch", this is the set of
-	// conditions that didn't match. This information is used for error messages.
-	unmatchedConditions []string
+	// conditions that didn't match, in the order that they were found in the file.
+	// This information is used for error messages.
+	unmatchedConditions []logger.Span
 
 	// This is the range of the token to use for error messages
 	token logger.Range
@@ -1056,9 +1057,9 @@ func (r resolverQuery) esmPackageTargetResolve(
 				// More information: https://github.com/evanw/esbuild/issues/1484
 				target = lastMapEntry.value
 			}
-			keys := make([]string, len(target.mapData))
+			keys := make([]logger.Span, len(target.mapData))
 			for i, p := range target.mapData {
-				keys[i] = p.key
+				keys[i] = logger.Span{Text: p.key, Range: p.keyRange}
 			}
 			return "", pjStatusUndefinedNoConditionsMatch, pjDebug{
 				token:               target.firstToken,

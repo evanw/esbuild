@@ -1979,10 +1979,12 @@ func TestPackageJsonExportsNoConditionsMatch(t *testing.T) {
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "." is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import"):
+Users/user/project/node_modules/pkg1/package.json: NOTE: Consider enabling the "what" condition if this package expects it to be enabled. You can use 'Conditions: []string{"what"}' to do that.
 NOTE: You can mark the path "pkg1" as external to exclude it from the bundle, which will remove this error.
 Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo.js"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "./foo.js" is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import"):
+Users/user/project/node_modules/pkg1/package.json: NOTE: Consider enabling the "what" condition if this package expects it to be enabled. You can use 'Conditions: []string{"what"}' to do that.
 NOTE: You can mark the path "pkg1/foo.js" as external to exclude it from the bundle, which will remove this error.
 `,
 	})
@@ -2019,12 +2021,12 @@ func TestPackageJsonExportsMustUseRequire(t *testing.T) {
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "." is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import"):
-Users/user/project/src/entry.js: NOTE: Consider using a "require()" call to import this file:
+Users/user/project/src/entry.js: NOTE: Consider using a "require()" call to import this file, which will work because the "require" condition is supported by this package:
 NOTE: You can mark the path "pkg1" as external to exclude it from the bundle, which will remove this error.
 Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo.js"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "./foo.js" is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import"):
-Users/user/project/src/entry.js: NOTE: Consider using a "require()" call to import this file:
+Users/user/project/src/entry.js: NOTE: Consider using a "require()" call to import this file, which will work because the "require" condition is supported by this package:
 NOTE: You can mark the path "pkg1/foo.js" as external to exclude it from the bundle, which will remove this error.
 `,
 	})
@@ -2061,12 +2063,12 @@ func TestPackageJsonExportsMustUseImport(t *testing.T) {
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "." is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("import") match any of the currently active conditions ("browser", "default", "require"):
-Users/user/project/src/entry.js: NOTE: Consider using an "import" statement to import this file:
+Users/user/project/src/entry.js: NOTE: Consider using an "import" statement to import this file, which will work because the "import" condition is supported by this package:
 NOTE: You can mark the path "pkg1" as external to exclude it from the bundle, which will remove this error. You can also surround this "require" call with a try/catch block to handle this failure at run-time instead of bundle-time.
 Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo.js"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "./foo.js" is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("import") match any of the currently active conditions ("browser", "default", "require"):
-Users/user/project/src/entry.js: NOTE: Consider using an "import" statement to import this file:
+Users/user/project/src/entry.js: NOTE: Consider using an "import" statement to import this file, which will work because the "import" condition is supported by this package:
 NOTE: You can mark the path "pkg1/foo.js" as external to exclude it from the bundle, which will remove this error. You can also surround this "require" call with a try/catch block to handle this failure at run-time instead of bundle-time.
 `,
 	})

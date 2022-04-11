@@ -96,6 +96,50 @@
       so providing inconsistent metadata for the same path can cause non-determinism.
     ```
 
+* Suggest enabling a missing condition when `exports` map fails ([#2163](https://github.com/evanw/esbuild/issues/2163))
+
+    This release adds another suggestion to the error message that happens when an `exports` map lookup fails if the failure could potentially be fixed by adding a missing condition. Here's what the new error message looks like (which now suggests `--conditions=module` as a possible workaround):
+
+    ```
+    ✘ [ERROR] Could not resolve "@sentry/electron/main"
+
+        index.js:1:24:
+          1 │ import * as Sentry from '@sentry/electron/main'
+            ╵                         ~~~~~~~~~~~~~~~~~~~~~~~
+
+      The path "./main" is not currently exported by package "@sentry/electron":
+
+        node_modules/@sentry/electron/package.json:8:13:
+          8 │   "exports": {
+            ╵              ^
+
+      None of the conditions provided ("require", "module") match any of the currently active conditions
+      ("browser", "default", "import"):
+
+        node_modules/@sentry/electron/package.json:16:14:
+          16 │     "./main": {
+             ╵               ^
+
+      Consider enabling the "module" condition if this package expects it to be enabled. You can use
+      "--conditions=module" to do that.
+
+        node_modules/@sentry/electron/package.json:18:6:
+          18 │       "module": "./esm/main/index.js"
+             ╵       ~~~~~~~~
+
+      Consider using a "require()" call to import this file, which will work because the "require"
+      condition is supported by this package:
+
+        index.js:1:24:
+          1 │ import * as Sentry from '@sentry/electron/main'
+            ╵                         ~~~~~~~~~~~~~~~~~~~~~~~
+
+      You can mark the path "@sentry/electron/main" as external to exclude it from the bundle, which
+      will remove this error.
+    ```
+
+    This particular package had an issue where it was using the Webpack-specific `module` condition without providing a `default` condition. It looks like the intent in this case was to use the standard `import` condition instead. This specific change wasn't suggested here because this error message is for package consumers, not package authors.
+
 ## 0.14.34
 
 Something went wrong with the publishing script for the previous release. Publishing again.
