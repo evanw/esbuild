@@ -425,10 +425,6 @@ func (lexer *Lexer) IsIdentifierOrKeyword() bool {
 	return lexer.Token >= TIdentifier
 }
 
-func (lexer *Lexer) IsPrivateIdentifier() bool {
-	return lexer.Token == TPrivateIdentifier
-}
-
 func (lexer *Lexer) IsContextualKeyword(text string) bool {
 	return lexer.Token == TIdentifier && lexer.Raw() == text
 }
