@@ -24,6 +24,25 @@
 
     With this release, esbuild can now parse these new type expressions as well. This feature was contributed by [@magic-akari](https://github.com/magic-akari).
 
+* Add Opera and IE to internal CSS feature support matrix ([#2170](https://github.com/evanw/esbuild/pull/2170))
+
+    Version 0.14.18 of esbuild added Opera and IE as available target environments, and added them to the internal JS feature support matrix. CSS feature support was overlooked, however. This release adds knowledge of Opera and IE to esbuild's internal CSS feature support matrix:
+
+    ```css
+    /* Original input */
+    a {
+      color: rgba(0, 0, 0, 0.5);
+    }
+
+    /* Old output (with --target=opera49 --minify) */
+    a{color:rgba(0,0,0,.5)}
+
+    /* New output (with --target=opera49 --minify) */
+    a{color:#00000080}
+    ```
+
+    The fix for this issue was contributed by [@sapphi-red](https://github.com/sapphi-red).
+
 * Change TypeScript class field behavior when targeting ES2022
 
     TypeScript 4.3 introduced a breaking change where class field behavior changes from assign semantics to define semantics when the `target` setting in `tsconfig.json` is set to `ESNext`. Specifically, the default value for TypeScript's `useDefineForClassFields` setting when unspecified is `true` if and only if `target` is `ESNext`. TypeScript 4.6 introduced another change where this behavior now happens for both `ESNext` and `ES2022`. Presumably this will be the case for `ES2023` and up as well. With this release, esbuild's behavior has also been changed to match. Now configuring esbuild with `--target=es2022` will also cause TypeScript files to use the new class field behavior.
