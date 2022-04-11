@@ -2887,17 +2887,24 @@ let syncTests = {
       assert.strictEqual(e.message.split('\n')[0], 'Build failed with 1 error:')
       assert.strictEqual(e.errors[0].text,
         'Detected inconsistent metadata for the path "scripts/.plugin-tests/testNonDeterministicBuild/src/c.js" when it was imported here:')
-      assert.strictEqual(e.errors[0].notes.map(x => x.text).join('\n'), `The original metadata for that path comes from when it was imported here:
+
+      const expectedError = sideEffects => `The original metadata for that path comes from when it was imported here:
 The difference in metadata is displayed below:
 
  {
--  "sideEffects": true,
-+  "sideEffects": false,
+-  "sideEffects": ${!sideEffects},
++  "sideEffects": ${sideEffects},
  }
 
 This is a bug in the "some-plugin" plugin. Plugins provide metadata for a given path in an "onResolve" callback. \
 All metadata provided for the same path must be consistent to ensure deterministic builds. Due to parallelism, \
-one set of provided metadata will be randomly chosen for a given path, so providing inconsistent metadata for the same path can cause non-determinism.`)
+one set of provided metadata will be randomly chosen for a given path, so providing inconsistent metadata for the same path can cause non-determinism.`
+
+      // Try both orders to avoid flakes (since this test is deliberately non-deterministic)
+      const observedError = e.errors[0].notes.map(x => x.text).join('\n')
+      if (observedError !== expectedError(false) && observedError !== expectedError(true)) {
+        assert.strictEqual(observedError, expectedError(true))
+      }
     }
   },
 }
