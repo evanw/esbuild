@@ -2096,7 +2096,7 @@ func (r resolverQuery) finalizeImportsExportsResult(
 					var how string
 					switch logger.API {
 					case logger.CLIAPI:
-						how = fmt.Sprintf("%q", "--conditions="+key.Text)
+						how = fmt.Sprintf("\"--conditions=%s\"", key.Text)
 					case logger.JSAPI:
 						how = fmt.Sprintf("\"conditions: ['%s']\"", key.Text)
 					case logger.GoAPI:
@@ -2104,7 +2104,7 @@ func (r resolverQuery) finalizeImportsExportsResult(
 					}
 					r.debugMeta.notes = append(r.debugMeta.notes, tracker.MsgData(key.Range,
 						fmt.Sprintf("Consider enabling the %q condition if this package expects it to be enabled. "+
-							"You can use %s to do that.", key.Text, how)))
+							"You can use %s to do that:", key.Text, how)))
 					didSuggestEnablingCondition = true
 				}
 			}

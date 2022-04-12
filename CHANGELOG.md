@@ -121,7 +121,7 @@
              ╵               ^
 
       Consider enabling the "module" condition if this package expects it to be enabled. You can use
-      "--conditions=module" to do that.
+      "--conditions=module" to do that:
 
         node_modules/@sentry/electron/package.json:18:6:
           18 │       "module": "./esm/main/index.js"
