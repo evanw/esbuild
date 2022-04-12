@@ -284,6 +284,7 @@ type Resolver interface {
 	Resolve(sourceDir string, importPath string, kind ast.ImportKind) (result *ResolveResult, debug DebugMeta)
 	ResolveAbs(absPath string) *ResolveResult
 	PrettyPath(path logger.Path) string
+	Finalize(result *ResolveResult)
 
 	// This tries to run "Resolve" on a package path as a relative path. If
 	// successful, the user just forgot a leading "./" in front of the path.
@@ -591,6 +592,15 @@ func (rr *resolver) ResolveAbs(absPath string) *ResolveResult {
 	r.finalizeResolve(result)
 	r.flushDebugLogs(flushDueToSuccess)
 	return result
+}
+
+func (rr *resolver) Finalize(result *ResolveResult) {
+	r := resolverQuery{resolver: rr}
+
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.finalizeResolve(result)
 }
 
 func (rr *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {

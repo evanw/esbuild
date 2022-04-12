@@ -785,13 +785,15 @@ func RunOnResolvePlugins(
 				}
 			}
 
-			return &resolver.ResolveResult{
+			resolveResult := &resolver.ResolveResult{
 				PathPair:               resolver.PathPair{Primary: result.Path},
 				IsExternal:             result.External,
 				PluginName:             pluginName,
 				PluginData:             result.PluginData,
 				PrimarySideEffectsData: sideEffectsData,
-			}, false, resolver.DebugMeta{}
+			}
+			res.Finalize(resolveResult)
+			return resolveResult, false, resolver.DebugMeta{}
 		}
 	}
 
