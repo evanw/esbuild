@@ -38,6 +38,7 @@ type TSConfigJSON struct {
 	TSTarget                       *config.TSTarget
 	JSXFactory                     []string
 	JSXFragmentFactory             []string
+	ModuleSuffixes                 []string
 	UseDefineForClassFields        config.MaybeBool
 	PreserveImportsNotUsedAsValues bool
 	PreserveValueImports           bool
@@ -113,6 +114,22 @@ func ParseTSConfigJSON(
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsxFragmentFactory"); ok {
 			if value, ok := getString(valueJSON); ok {
 				result.JSXFragmentFactory = parseMemberExpressionForJSX(log, &source, &tracker, valueJSON.Loc, value)
+			}
+		}
+
+		// Parse "moduleSuffixes"
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "moduleSuffixes"); ok {
+			if value, ok := valueJSON.Data.(*js_ast.EArray); ok {
+				result.ModuleSuffixes = make([]string, 0, len(value.Items))
+				for _, item := range value.Items {
+					if str, ok := item.Data.(*js_ast.EString); ok {
+						result.ModuleSuffixes = append(result.ModuleSuffixes, helpers.UTF16ToString(str.Value))
+					} else {
+						log.Add(logger.Warning, &tracker, logger.Range{Loc: item.Loc}, "Expected module suffix to be a string")
+						result.ModuleSuffixes = nil
+						break
+					}
+				}
 			}
 		}
 

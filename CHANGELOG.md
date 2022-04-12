@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add support for TypeScript's `moduleSuffixes` field from TypeScript 4.7
+
+    The upcoming version of TypeScript adds the `moduleSuffixes` field to `tsconfig.json` that introduces more rules to import path resolution. Setting `moduleSuffixes` to `[".ios", ".native", ""]` will try to look at the the relative files `./foo.ios.ts`, `./foo.native.ts`, and finally `./foo.ts` for an import path of `./foo`. Note that the empty string `""` in `moduleSuffixes` is necessary for TypeScript to also look-up `./foo.ts`. This was announced in the [TypeScript 4.7 beta blog post](https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#resolution-customization-with-modulesuffixes).
+
 ## 0.14.36
 
 * Revert path metadata validation for now ([#2177](https://github.com/evanw/esbuild/issues/2177))

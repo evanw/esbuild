@@ -217,9 +217,10 @@ type resolver struct {
 
 type resolverQuery struct {
 	*resolver
-	debugMeta *DebugMeta
-	debugLogs *debugLogs
-	kind      ast.ImportKind
+	moduleSuffixes []string
+	debugMeta      *DebugMeta
+	debugLogs      *debugLogs
+	kind           ast.ImportKind
 }
 
 func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options config.Options) Resolver {
@@ -403,8 +404,9 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	sourceDirInfo := r.loadModuleSuffixesForSourceDir(sourceDir)
 
-	result := r.resolveWithoutSymlinks(sourceDir, importPath)
+	result := r.resolveWithoutSymlinks(sourceDir, sourceDirInfo, importPath)
 	if result == nil {
 		// If resolution failed, try again with the URL query and/or hash removed
 		suffix := strings.IndexAny(importPath, "?#")
@@ -415,7 +417,7 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		if r.debugLogs != nil {
 			r.debugLogs.addNote(fmt.Sprintf("Retrying resolution after removing the suffix %q", importPath[suffix:]))
 		}
-		if result2 := r.resolveWithoutSymlinks(sourceDir, importPath[:suffix]); result2 == nil {
+		if result2 := r.resolveWithoutSymlinks(sourceDir, sourceDirInfo, importPath[:suffix]); result2 == nil {
 			r.flushDebugLogs(flushDueToFailure)
 			return nil, debugMeta
 		} else {
@@ -431,6 +433,28 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 	r.finalizeResolve(result)
 	r.flushDebugLogs(flushDueToSuccess)
 	return result, debugMeta
+}
+
+func (r *resolverQuery) loadModuleSuffixesForSourceDir(sourceDir string) *dirInfo {
+	// Load TypeScript's "moduleSuffixes" setting from the "tsconfig.json" file
+	// enclosing the source directory if present. Otherwise default to a single
+	// empty string, which means "no suffix".
+	r.moduleSuffixes = defaultModuleSuffixes
+	sourceDirInfo := r.dirInfoCached(sourceDir)
+	if sourceDirInfo != nil {
+		if tsConfig := sourceDirInfo.enclosingTSConfigJSON; tsConfig != nil {
+			if moduleSuffixes := tsConfig.ModuleSuffixes; moduleSuffixes != nil {
+				if r.debugLogs != nil {
+					r.debugLogs.addNote(fmt.Sprintf("Using \"moduleSuffixes\" value of [%s] from %q",
+						helpers.StringArrayToQuotedCommaSeparatedString(moduleSuffixes), tsConfig.AbsPath))
+				}
+				r.moduleSuffixes = moduleSuffixes
+			}
+		}
+	}
+
+	// Return this so we don't have to look it up again later
+	return sourceDirInfo
 }
 
 func (r resolverQuery) isExternal(matchers config.ExternalMatchers, path string) bool {
@@ -475,6 +499,7 @@ func (rr *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath s
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	r.loadModuleSuffixesForSourceDir(sourceDir)
 
 	if pair, ok, diffCase := r.loadAsFileOrDirectory(absPath); ok {
 		result := &ResolveResult{PathPair: pair, DifferentCase: diffCase}
@@ -654,7 +679,7 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 	}
 }
 
-func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath string) *ResolveResult {
+func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *dirInfo, importPath string) *ResolveResult {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
 	var result ResolveResult
@@ -674,8 +699,8 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 		}
 
 		// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-		if dirInfo := r.dirInfoCached(sourceDir); dirInfo != nil && dirInfo.enclosingTSConfigJSON != nil && dirInfo.enclosingTSConfigJSON.Paths != nil {
-			if absolute, ok, diffCase := r.matchTSConfigPaths(dirInfo.enclosingTSConfigJSON, importPath); ok {
+		if sourceDirInfo != nil && sourceDirInfo.enclosingTSConfigJSON != nil && sourceDirInfo.enclosingTSConfigJSON.Paths != nil {
+			if absolute, ok, diffCase := r.matchTSConfigPaths(sourceDirInfo.enclosingTSConfigJSON, importPath); ok {
 				return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
 			}
 		}
@@ -730,7 +755,6 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, importPath strin
 	}
 
 	if checkPackage {
-		sourceDirInfo := r.dirInfoCached(sourceDir)
 		if sourceDirInfo == nil {
 			// Bail if the directory is missing for some reason
 			return nil
@@ -1119,6 +1143,11 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	return info
 }
 
+// https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#resolution-customization-with-modulesuffixes
+// "Note that the empty string '' in moduleSuffixes is necessary for TypeScript to
+// also look-up ./foo.ts. In a sense, the default value for moduleSuffixes is ['']."
+var defaultModuleSuffixes = []string{""}
+
 var rewrittenFileExtensions = map[string][]string{
 	// Note that the official compiler code always tries ".ts" before
 	// ".tsx" even if the original extension was ".jsx".
@@ -1126,6 +1155,18 @@ var rewrittenFileExtensions = map[string][]string{
 	".jsx": {".ts", ".tsx"},
 	".mjs": {".mts"},
 	".cjs": {".cts"},
+}
+
+var tsExtensionsToRemove = map[string]bool{
+	".mjs":  true,
+	".mts":  true,
+	".cjs":  true,
+	".cts":  true,
+	".ts":   true,
+	".js":   true,
+	".tsx":  true,
+	".jsx":  true,
+	".json": true,
 }
 
 func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string, bool, *fs.DifferentCase) {
@@ -1150,29 +1191,107 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 		return "", false, nil
 	}
 
+	tryFile := func(base string) (string, bool, *fs.DifferentCase) {
+		// TypeScript lets you configure custom module suffixes
+		for _, suffix := range r.moduleSuffixes {
+			baseWithSuffix := base
+
+			// Splice in the suffix before the extension
+			if suffix != "" {
+				if lastDot := strings.LastIndexByte(base, '.'); lastDot != -1 && tsExtensionsToRemove[base[lastDot:]] {
+					baseWithSuffix = base[:lastDot]
+					suffix += base[lastDot:]
+				}
+				baseWithSuffix += suffix
+			}
+
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("Checking for file %q", baseWithSuffix))
+			}
+			if entry, diffCase := entries.Get(baseWithSuffix); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+				if r.debugLogs != nil {
+					r.debugLogs.addNote(fmt.Sprintf("Found file %q", baseWithSuffix))
+				}
+				return r.fs.Join(dirPath, baseWithSuffix), true, diffCase
+			}
+		}
+
+		return "", false, nil
+	}
+
 	base := r.fs.Base(path)
 
+	// Given "./x.js", node's algorithm tries things in the following order:
+	//
+	//   ./x.js
+	//   ./x.js.js
+	//   ./x.js.json
+	//   ./x.js.node
+	//   ./x.js/index.js
+	//   ./x.js/index.json
+	//   ./x.js/index.node
+	//
+	// Given "./x.js" and a "moduleSuffixes" value of [".y", ""], TypeScript's
+	// algorithm tries things in the following order:
+	//
+	//   ./x.js.y.ts
+	//   ./x.js.ts
+	//   ./x.js.y.tsx
+	//   ./x.js.tsx
+	//   ./x.js.d.y.ts
+	//   ./x.js.d.ts
+	//   ./x.y.ts
+	//   ./x.ts
+	//   ./x.y.tsx
+	//   ./x.tsx
+	//   ./x.d.y.ts
+	//   ./x.d.ts
+	//   ./x.js/index.y.ts
+	//   ./x.js/index.ts
+	//   ./x.js/index.y.tsx
+	//   ./x.js/index.tsx
+	//   ./x.js/index.d.y.ts
+	//   ./x.js/index.d.ts
+	//   ./x.js.y.js
+	//   ./x.js.js
+	//   ./x.js.y.jsx
+	//   ./x.js.jsx
+	//   ./x.y.js
+	//   ./x.js
+	//   ./x.y.jsx
+	//   ./x.jsx
+	//   ./x.js/index.y.js
+	//   ./x.js/index.js
+	//   ./x.js/index.y.jsx
+	//   ./x.js/index.jsx
+	//
+	// Our order below is a blend of both. We try to follow node's algorithm but
+	// with the features of TypeScript's algorithm (omitting ".d.ts" files, which
+	// don't contain code). This means we should end up checking the same files
+	// as TypeScript, but in a different order.
+	//
+	// One reason we use a different order is because we support a customizable
+	// extension resolution order, which doesn't fit well into TypeScript's
+	// algorithm. For example, you can configure esbuild to check for extensions
+	// in the order ".js,.ts,.jsx,.tsx" but TypeScript always checks TypeScript
+	// extensions before JavaScript extensions, so we can't obey the user's
+	// intent if we follow TypeScript's algorithm exactly.
+	//
+	// Another reason we deviate from TypeScript's order is because our code is
+	// structured to handle node's algorithm and TypeScript's algorithm has a
+	// different structure. It intermixes multiple calls to LOAD_AS_FILE and
+	// LOAD_INDEX together while node always does one LOAD_AS_FILE before one
+	// LOAD_INDEX.
+
 	// Try the plain path without any extensions
-	if r.debugLogs != nil {
-		r.debugLogs.addNote(fmt.Sprintf("Checking for file %q", base))
-	}
-	if entry, diffCase := entries.Get(base); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
-		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("Found file %q", base))
-		}
-		return path, true, diffCase
+	if absolute, ok, diffCase := tryFile(base); ok {
+		return absolute, ok, diffCase
 	}
 
 	// Try the path with extensions
 	for _, ext := range extensionOrder {
-		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("Checking for file %q", base+ext))
-		}
-		if entry, diffCase := entries.Get(base + ext); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Found file %q", base+ext))
-			}
-			return path + ext, true, diffCase
+		if absolute, ok, diffCase := tryFile(base + ext); ok {
+			return absolute, ok, diffCase
 		}
 	}
 
@@ -1197,14 +1316,8 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 		}
 		lastDot := strings.LastIndexByte(base, '.')
 		for _, ext := range exts {
-			if entry, diffCase := entries.Get(base[:lastDot] + ext); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
-				if r.debugLogs != nil {
-					r.debugLogs.addNote(fmt.Sprintf("Rewrote to %q", base[:lastDot]+ext))
-				}
-				return path[:len(path)-(len(base)-lastDot)] + ext, true, diffCase
-			}
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Failed to rewrite to %q", base[:lastDot]+ext))
+			if absolute, ok, diffCase := tryFile(base[:lastDot] + ext); ok {
+				return absolute, ok, diffCase
 			}
 		}
 		break
