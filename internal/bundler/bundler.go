@@ -788,7 +788,6 @@ func RunOnResolvePlugins(
 			return &resolver.ResolveResult{
 				PathPair:               resolver.PathPair{Primary: result.Path},
 				IsExternal:             result.External,
-				PluginName:             pluginName,
 				PluginData:             result.PluginData,
 				PrimarySideEffectsData: sideEffectsData,
 			}, false, resolver.DebugMeta{}
@@ -969,6 +968,14 @@ func loaderFromFileExtension(extensionToLoader map[string]config.Loader, base st
 	return config.LoaderNone
 }
 
+// Identify the path by its lowercase absolute path name with Windows-specific
+// slashes substituted for standard slashes. This should hopefully avoid path
+// issues on Windows where multiple different paths can refer to the same
+// underlying file.
+func canonicalFileSystemPathForWindows(absPath string) string {
+	return strings.ReplaceAll(strings.ToLower(absPath), "\\", "/")
+}
+
 func hashForFileName(hashBytes []byte) string {
 	return base32.StdEncoding.EncodeToString(hashBytes)[:8]
 }
@@ -995,10 +1002,7 @@ type scanner struct {
 }
 
 type visitedFile struct {
-	importSource    *logger.Source
-	resolveResult   resolver.ResolveResult
-	importPathRange logger.Range
-	sourceIndex     uint32
+	sourceIndex uint32
 }
 
 type EntryPoint struct {
@@ -1152,62 +1156,17 @@ func (s *scanner) maybeParseFile(
 	path := resolveResult.PathPair.Primary
 	visitedKey := path
 	if visitedKey.Namespace == "file" {
-		visitedKey.Text = logger.CanonicalFileSystemPathForWindows(visitedKey.Text)
+		visitedKey.Text = canonicalFileSystemPathForWindows(visitedKey.Text)
 	}
 
 	// Only parse a given file path once
 	visited, ok := s.visited[visitedKey]
 	if ok {
-		// Validate that the resolved metadata for this file is the same as before
-		if diff := visited.resolveResult.Compare(&resolveResult); diff != nil {
-			prettyPath := s.res.PrettyPath(resolveResult.PathPair.Primary)
-			tracker := logger.MakeLineColumnTracker(importSource)
-			notes := make([]logger.MsgData, 0, 5+len(diff))
-
-			if visited.importSource != nil {
-				visitedTracker := logger.MakeLineColumnTracker(visited.importSource)
-				notes = append(notes, visitedTracker.MsgData(visited.importPathRange,
-					"The original metadata for that path comes from when it was imported here:"))
-			}
-
-			notes = append(notes,
-				logger.MsgData{Text: "The difference in metadata is displayed below:"},
-				logger.MsgData{},
-			)
-			for _, line := range diff {
-				notes = append(notes, logger.MsgData{Text: line})
-			}
-			explain := ""
-			if a, b := resolveResult.PluginName, visited.resolveResult.PluginName; a != "" && (a == b || b == "") {
-				explain += fmt.Sprintf("This is a bug in the %q plugin. ", a)
-			} else if a == "" && b != "" {
-				explain += fmt.Sprintf("This is a bug in the %q plugin. ", b)
-			}
-			explain += "Plugins provide metadata for a given path in an \"onResolve\" callback. " +
-				"All metadata provided for the same path must be consistent to ensure deterministic builds. " +
-				"Due to parallelism, one set of provided metadata will be randomly chosen for a given path, " +
-				"so providing inconsistent metadata for the same path can cause non-determinism."
-			notes = append(notes,
-				logger.MsgData{},
-				logger.MsgData{Text: explain},
-			)
-
-			s.log.AddMsg(logger.Msg{
-				Kind: logger.Error,
-				Data: tracker.MsgData(importPathRange,
-					fmt.Sprintf("Detected inconsistent metadata for the path %q when it was imported here:", prettyPath)),
-				Notes:      notes,
-				PluginName: resolveResult.PluginName,
-			})
-		}
 		return visited.sourceIndex
 	}
 
 	visited = visitedFile{
-		sourceIndex:     s.allocateSourceIndex(visitedKey, cache.SourceIndexNormal),
-		resolveResult:   resolveResult,
-		importSource:    importSource,
-		importPathRange: importPathRange,
+		sourceIndex: s.allocateSourceIndex(visitedKey, cache.SourceIndexNormal),
 	}
 	s.visited[visitedKey] = visited
 	s.remaining++
@@ -1374,7 +1333,7 @@ func (s *scanner) preprocessInjectedFiles() {
 	j := 0
 	for _, absPath := range s.options.InjectAbsPaths {
 		prettyPath := s.res.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
-		absPathKey := logger.CanonicalFileSystemPathForWindows(absPath)
+		absPathKey := canonicalFileSystemPathForWindows(absPath)
 
 		if duplicateInjectedFiles[absPathKey] {
 			s.log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Duplicate injected file %q", prettyPath))
@@ -1774,7 +1733,7 @@ func (s *scanner) processScannedFiles() []scannerFile {
 				if resolveResult.PathPair.HasSecondary() {
 					secondaryKey := resolveResult.PathPair.Secondary
 					if secondaryKey.Namespace == "file" {
-						secondaryKey.Text = logger.CanonicalFileSystemPathForWindows(secondaryKey.Text)
+						secondaryKey.Text = canonicalFileSystemPathForWindows(secondaryKey.Text)
 					}
 					if secondaryVisited, ok := s.visited[secondaryKey]; ok {
 						record.SourceIndex = ast.MakeIndex32(secondaryVisited.sourceIndex)
@@ -1834,7 +1793,7 @@ func (s *scanner) processScannedFiles() []scannerFile {
 						} else if !css.JSSourceIndex.IsValid() {
 							stubKey := otherFile.inputFile.Source.KeyPath
 							if stubKey.Namespace == "file" {
-								stubKey.Text = logger.CanonicalFileSystemPathForWindows(stubKey.Text)
+								stubKey.Text = canonicalFileSystemPathForWindows(stubKey.Text)
 							}
 							sourceIndex := s.allocateSourceIndex(stubKey, cache.SourceIndexJSStubForCSS)
 							source := logger.Source{
@@ -2214,12 +2173,12 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 			for _, sourceIndex := range allReachableFiles {
 				keyPath := b.files[sourceIndex].inputFile.Source.KeyPath
 				if keyPath.Namespace == "file" {
-					absPathKey := logger.CanonicalFileSystemPathForWindows(keyPath.Text)
+					absPathKey := canonicalFileSystemPathForWindows(keyPath.Text)
 					sourceAbsPaths[absPathKey] = sourceIndex
 				}
 			}
 			for _, outputFile := range outputFiles {
-				absPathKey := logger.CanonicalFileSystemPathForWindows(outputFile.AbsPath)
+				absPathKey := canonicalFileSystemPathForWindows(outputFile.AbsPath)
 				if sourceIndex, ok := sourceAbsPaths[absPathKey]; ok {
 					hint := ""
 					switch logger.API {
@@ -2246,7 +2205,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.
 		outputFileMap := make(map[string][]byte)
 		end := 0
 		for _, outputFile := range outputFiles {
-			absPathKey := logger.CanonicalFileSystemPathForWindows(outputFile.AbsPath)
+			absPathKey := canonicalFileSystemPathForWindows(outputFile.AbsPath)
 			contents, ok := outputFileMap[absPathKey]
 
 			// If this isn't a duplicate, keep the output file

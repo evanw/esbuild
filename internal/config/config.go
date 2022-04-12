@@ -337,12 +337,6 @@ type TSTarget struct {
 	TargetIsAtLeastES2022 bool
 }
 
-func (a *TSTarget) IsEquivalentTo(b *TSTarget) bool {
-	return (a == nil && b == nil) || (a != nil && b != nil &&
-		a.UnsupportedJSFeatures == b.UnsupportedJSFeatures &&
-		a.TargetIsAtLeastES2022 == b.TargetIsAtLeastES2022)
-}
-
 type PathPlaceholder uint8
 
 const (

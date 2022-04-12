@@ -254,24 +254,6 @@ func (a Path) ComesBeforeInSortedOrder(b Path) bool {
 				(a.Flags == b.Flags && a.IgnoredSuffix < b.IgnoredSuffix)))))
 }
 
-func (a Path) IsEquivalentTo(b Path) bool {
-	if a.Namespace == "file" {
-		a.Text = CanonicalFileSystemPathForWindows(a.Text)
-	}
-	if b.Namespace == "file" {
-		b.Text = CanonicalFileSystemPathForWindows(b.Text)
-	}
-	return a == b
-}
-
-// Identify the path by its lowercase absolute path name with Windows-specific
-// slashes substituted for standard slashes. This should hopefully avoid path
-// issues on Windows where multiple different paths can refer to the same
-// underlying file.
-func CanonicalFileSystemPathForWindows(absPath string) string {
-	return strings.ReplaceAll(strings.ToLower(absPath), "\\", "/")
-}
-
 var noColorResult bool
 var noColorOnce sync.Once
 
@@ -1109,16 +1091,6 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 
 	case Note:
 		sb := strings.Builder{}
-		reset := ""
-
-		// Add special color support for rendering textual diffs
-		if strings.HasPrefix(data.Text, "-") {
-			sb.WriteString(colors.Red)
-			reset = colors.Reset
-		} else if strings.HasPrefix(data.Text, "+") {
-			sb.WriteString(colors.Green)
-			reset = colors.Reset
-		}
 
 		for _, line := range strings.Split(data.Text, "\n") {
 			// Special-case word wrapping
@@ -1141,7 +1113,6 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 		}
 
 		sb.WriteString(location)
-		sb.WriteString(reset)
 		return sb.String()
 	}
 

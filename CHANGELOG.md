@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Revert path metadata validation for now ([#2177](https://github.com/evanw/esbuild/issues/2177))
+
+    This release reverts the path metadata validation that was introduced in the previous release. This validation has uncovered a potential issue with how esbuild handles `onResolve` callbacks in plugins that will need to be fixed before path metadata validation is re-enabled.
+
 ## 0.14.35
 
 * Add support for parsing `typeof` on #private fields from TypeScript 4.7 ([#2174](https://github.com/evanw/esbuild/pull/2174))

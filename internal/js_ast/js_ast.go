@@ -1732,12 +1732,6 @@ func (mt ModuleType) IsESM() bool {
 	return mt >= ModuleESM_MJS && mt <= ModuleESM_PackageJSON
 }
 
-func (a ModuleType) IsEquivalentTo(b ModuleType) bool {
-	return (a == ModuleUnknown && b == ModuleUnknown) ||
-		(a.IsCommonJS() && b.IsCommonJS()) ||
-		(a.IsESM() && b.IsESM())
-}
-
 type ModuleTypeData struct {
 	Source *logger.Source
 	Range  logger.Range
