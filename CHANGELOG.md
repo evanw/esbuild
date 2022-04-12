@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.36
 
 * Revert path metadata validation for now ([#2177](https://github.com/evanw/esbuild/issues/2177))
 
