@@ -152,11 +152,7 @@ func prettyPrintPath(prefix string, key string, value logger.Path) string {
 }
 
 func prettyPrintStringArray(prefix string, key string, value []string) string {
-	quoted := make([]string, len(value))
-	for i, v := range value {
-		quoted[i] = fmt.Sprintf("%q", v)
-	}
-	return fmt.Sprintf("%s  %q: [%s],", prefix, key, strings.Join(quoted, ","))
+	return fmt.Sprintf("%s  %q: [%s],", prefix, key, helpers.StringArrayToQuotedCommaSeparatedString(value))
 }
 
 func prettyPrintTSTarget(prefix string, key string, value *config.TSTarget) string {
@@ -1600,13 +1596,9 @@ func (r resolverQuery) loadAsMainField(dirInfo *dirInfo, path string, extensionO
 						fmt.Sprintf("The %q field here was ignored. Main fields must be configured explicitly when using the \"neutral\" platform.",
 							field)))
 				} else {
-					quoted := make([]string, len(mainFieldKeys))
-					for i, key := range mainFieldKeys {
-						quoted[i] = fmt.Sprintf("%q", key)
-					}
 					r.debugMeta.notes = append(r.debugMeta.notes, tracker.MsgData(keyRange,
 						fmt.Sprintf("The %q field here was ignored because the list of main fields to use is currently set to [%s].",
-							field, strings.Join(quoted, ", "))))
+							field, helpers.StringArrayToQuotedCommaSeparatedString(mainFieldKeys))))
 				}
 				break
 			}
@@ -2045,14 +2037,6 @@ func (r resolverQuery) finalizeImportsExportsResult(
 			fmt.Sprintf("Importing the directory %q is not supported:", resolvedPath))}
 
 	case pjStatusUndefinedNoConditionsMatch:
-		prettyPrintConditions := func(conditions []string) string {
-			quoted := make([]string, len(conditions))
-			for i, condition := range conditions {
-				quoted[i] = fmt.Sprintf("%q", condition)
-			}
-			return strings.Join(quoted, ", ")
-		}
-
 		keys := make([]string, 0, len(conditions))
 		for key := range conditions {
 			keys = append(keys, key)
@@ -2071,8 +2055,8 @@ func (r resolverQuery) finalizeImportsExportsResult(
 
 			tracker.MsgData(debug.token,
 				fmt.Sprintf("None of the conditions provided (%s) match any of the currently active conditions (%s):",
-					prettyPrintConditions(unmatchedConditions),
-					prettyPrintConditions(keys),
+					helpers.StringArrayToQuotedCommaSeparatedString(unmatchedConditions),
+					helpers.StringArrayToQuotedCommaSeparatedString(keys),
 				)),
 		}
 

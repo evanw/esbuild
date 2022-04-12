@@ -364,11 +364,11 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (config.T
 		case 3:
 			text = fmt.Sprintf("%s%d.%d.%d", engine.String(), version[0], version[1], version[2])
 		}
-		targets = append(targets, fmt.Sprintf("%q", text))
+		targets = append(targets, text)
 	}
 
 	sort.Strings(targets)
-	targetEnv := strings.Join(targets, ", ")
+	targetEnv := helpers.StringArrayToQuotedCommaSeparatedString(targets)
 
 	return targetFromAPI, compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints), targetEnv
 }
