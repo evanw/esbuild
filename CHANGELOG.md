@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.35
 
 * Add support for parsing `typeof` on #private fields from TypeScript 4.7 ([#2174](https://github.com/evanw/esbuild/pull/2174))
 
