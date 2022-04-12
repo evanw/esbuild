@@ -187,11 +187,6 @@ func (old *ResolveResult) Compare(new *ResolveResult) (diff []string) {
 	var oldDiff []string
 	var newDiff []string
 
-	if old.PluginName != new.PluginName {
-		oldDiff = append(oldDiff, prettyPrintPluginName("-", "pluginName", old.PluginName))
-		newDiff = append(newDiff, prettyPrintPluginName("+", "pluginName", new.PluginName))
-	}
-
 	if !old.PathPair.Primary.IsEquivalentTo(new.PathPair.Primary) {
 		oldDiff = append(oldDiff, prettyPrintPath("-", "path", old.PathPair.Primary))
 		newDiff = append(newDiff, prettyPrintPath("+", "path", new.PathPair.Primary))
