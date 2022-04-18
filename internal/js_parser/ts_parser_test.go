@@ -1896,6 +1896,7 @@ func TestTSInstantiationExpression(t *testing.T) {
 	expectPrintedTS(t, "f<x> === g<y>;", "f === g;\n")
 	expectPrintedTS(t, "f<x> != g<y>;", "f != g;\n")
 	expectPrintedTS(t, "f<x> !== g<y>;", "f !== g;\n")
+	expectPrintedTS(t, "const x4 = f<true>\nif (true) {}", "const x4 = f;\nif (true) {\n}\n")
 
 	expectParseErrorTS(t, "const a8 = f<number><number>;", "<stdin>: ERROR: Unexpected \";\"\n")
 	expectParseErrorTS(t, "const b1 = f?.<number>;", "<stdin>: ERROR: Expected \"(\" but found \";\"\n")

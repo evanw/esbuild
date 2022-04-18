@@ -866,34 +866,36 @@ func (p *parser) canFollowTypeArgumentsInExpression() bool {
 		return true
 
 	case
-		// These tokens can't follow in a call expression, nor can they start an
-		// expression. So, consider the type argument list part of an instantiation
-		// expression.
-		js_lexer.TComma,                   // foo<x>,
-		js_lexer.TDot,                     // foo<x>.
-		js_lexer.TQuestionDot,             // foo<x>?.
-		js_lexer.TCloseParen,              // foo<x>)
-		js_lexer.TCloseBracket,            // foo<x>]
-		js_lexer.TColon,                   // foo<x>:
-		js_lexer.TSemicolon,               // foo<x>;
-		js_lexer.TQuestion,                // foo<x>?
-		js_lexer.TEqualsEquals,            // foo<x> ==
-		js_lexer.TEqualsEqualsEquals,      // foo<x> ===
-		js_lexer.TExclamationEquals,       // foo<x> !=
-		js_lexer.TExclamationEqualsEquals, // foo<x> !==
-		js_lexer.TAmpersandAmpersand,      // foo<x> &&
-		js_lexer.TBarBar,                  // foo<x> ||
-		js_lexer.TQuestionQuestion,        // foo<x> ??
-		js_lexer.TCaret,                   // foo<x> ^
-		js_lexer.TAmpersand,               // foo<x> &
-		js_lexer.TBar,                     // foo<x> |
-		js_lexer.TCloseBrace,              // foo<x> }
-		js_lexer.TEndOfFile:               // foo<x>
-		return true
+		js_lexer.TPlus,
+		js_lexer.TMinus,
+		js_lexer.TTilde,
+		js_lexer.TExclamation,
+		js_lexer.TDelete,
+		js_lexer.TTypeof,
+		js_lexer.TVoid,
+		js_lexer.TPlusPlus,
+		js_lexer.TMinusMinus,
+		js_lexer.TLessThan,
+		js_lexer.TThis,
+		js_lexer.TSuper,
+		js_lexer.TNull,
+		js_lexer.TTrue,
+		js_lexer.TFalse,
+		js_lexer.TNumericLiteral,
+		js_lexer.TBigIntegerLiteral,
+		js_lexer.TStringLiteral,
+		js_lexer.TOpenBracket,
+		js_lexer.TOpenBrace,
+		js_lexer.TFunction,
+		js_lexer.TClass,
+		js_lexer.TNew,
+		js_lexer.TSlash,
+		js_lexer.TSlashEquals,
+		js_lexer.TIdentifier:
+		return false
 
 	default:
-		// Anything else treat as an expression.
-		return false
+		return true
 	}
 }
 
