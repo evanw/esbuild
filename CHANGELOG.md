@@ -6,6 +6,12 @@
 
     The upcoming version of TypeScript adds the `moduleSuffixes` field to `tsconfig.json` that introduces more rules to import path resolution. Setting `moduleSuffixes` to `[".ios", ".native", ""]` will try to look at the the relative files `./foo.ios.ts`, `./foo.native.ts`, and finally `./foo.ts` for an import path of `./foo`. Note that the empty string `""` in `moduleSuffixes` is necessary for TypeScript to also look-up `./foo.ts`. This was announced in the [TypeScript 4.7 beta blog post](https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#resolution-customization-with-modulesuffixes).
 
+* Match the new ASI behavior from TypeScript nightly builds
+
+    This release updates esbuild to match some very recent behavior changes in the TypeScript parser regarding automatic semicolon insertion. For more information, see the following issues:
+
+    * https://github.com/microsoft/TypeScript/issues/48711
+
 ## 0.14.36
 
 * Revert path metadata validation for now ([#2177](https://github.com/evanw/esbuild/issues/2177))
