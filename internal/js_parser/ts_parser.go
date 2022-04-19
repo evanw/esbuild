@@ -856,6 +856,19 @@ func (p *parser) isTSArrowFnJSX() (isTSArrowFn bool) {
 	return
 }
 
+func (p *parser) nextTokenIsOpenParenOrLessThanOrDot() (result bool) {
+	oldLexer := p.lexer
+	p.lexer.Next()
+
+	result = p.lexer.Token == js_lexer.TOpenParen ||
+		p.lexer.Token == js_lexer.TLessThan ||
+		p.lexer.Token == js_lexer.TDot
+
+	// Restore the lexer
+	p.lexer = oldLexer
+	return
+}
+
 // This function is taken from the official TypeScript compiler source code:
 // https://github.com/microsoft/TypeScript/blob/master/src/compiler/parser.ts
 func (p *parser) canFollowTypeArgumentsInExpression() bool {
@@ -867,7 +880,9 @@ func (p *parser) canFollowTypeArgumentsInExpression() bool {
 		js_lexer.TTemplateHead:                  // foo<T> `...${100}...`
 		return true
 
+	// Consider something a type argument list only if the following token can't start an expression.
 	case
+		// From "isStartOfExpression()"
 		js_lexer.TPlus,
 		js_lexer.TMinus,
 		js_lexer.TTilde,
@@ -878,6 +893,8 @@ func (p *parser) canFollowTypeArgumentsInExpression() bool {
 		js_lexer.TPlusPlus,
 		js_lexer.TMinusMinus,
 		js_lexer.TLessThan,
+
+		// From "isStartOfLeftHandSideExpression()"
 		js_lexer.TThis,
 		js_lexer.TSuper,
 		js_lexer.TNull,
@@ -895,6 +912,9 @@ func (p *parser) canFollowTypeArgumentsInExpression() bool {
 		js_lexer.TSlashEquals,
 		js_lexer.TIdentifier:
 		return false
+
+	case js_lexer.TImport:
+		return !p.nextTokenIsOpenParenOrLessThanOrDot()
 
 	default:
 		return true
