@@ -380,7 +380,9 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 					p.lexer.Next()
 				}
 
-				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+				if !p.lexer.HasNewlineBefore {
+					p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+				}
 			}
 
 		case js_lexer.TOpenBracket:
