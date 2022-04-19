@@ -6,11 +6,22 @@
 
     The upcoming version of TypeScript adds the `moduleSuffixes` field to `tsconfig.json` that introduces more rules to import path resolution. Setting `moduleSuffixes` to `[".ios", ".native", ""]` will try to look at the the relative files `./foo.ios.ts`, `./foo.native.ts`, and finally `./foo.ts` for an import path of `./foo`. Note that the empty string `""` in `moduleSuffixes` is necessary for TypeScript to also look-up `./foo.ts`. This was announced in the [TypeScript 4.7 beta blog post](https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#resolution-customization-with-modulesuffixes).
 
-* Match the new ASI behavior from TypeScript nightly builds
+* Match the new ASI behavior from TypeScript nightly builds ([#2188](https://github.com/evanw/esbuild/pull/2188))
 
-    This release updates esbuild to match some very recent behavior changes in the TypeScript parser regarding automatic semicolon insertion. For more information, see the following issues:
+    This release updates esbuild to match some very recent behavior changes in the TypeScript parser regarding automatic semicolon insertion. For more information, see TypeScript issues #48711 and #48654 (I'm not linking to them directly to avoid Dependabot linkback spam on these issues due to esbuild's popularity). The result is that the following TypeScript code is now considered valid TypeScript syntax:
 
-    * https://github.com/microsoft/TypeScript/issues/48711
+    ```ts
+    class A<T> {}
+    new A<number> /* ASI now happens here */
+    if (0) {}
+
+    interface B {
+      (a: number): typeof a /* ASI now happens here */
+      <T>(): void
+    }
+    ```
+
+    This fix was contributed by [@g-plane](https://github.com/g-plane).
 
 ## 0.14.36
 

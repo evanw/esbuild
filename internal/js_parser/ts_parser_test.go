@@ -1913,6 +1913,22 @@ func TestTSInstantiationExpression(t *testing.T) {
 	expectParseErrorTSX(t, "type x = y\n<number>\nz", "<stdin>: ERROR: Unexpected end of file\n")
 	expectParseErrorTS(t, "type x = typeof y\n<number>\nz\n</number>", "<stdin>: ERROR: Unterminated regular expression\n")
 	expectParseErrorTSX(t, "type x = typeof y\n<number>\nz", "<stdin>: ERROR: Unexpected end of file\n")
+
+	// See: https://github.com/microsoft/TypeScript/issues/48654
+	expectPrintedTS(t, "x<true>\ny", "x < true > y;\n")
+	expectPrintedTS(t, "x<true>\nif (y) {}", "x;\nif (y) {\n}\n")
+	expectPrintedTS(t, "x<true>\nimport 'y'", "x;\nimport \"y\";\n")
+	expectPrintedTS(t, "x<true>\nimport('y')", "x < true > import(\"y\");\n")
+	expectPrintedTS(t, "x<true>\nimport.meta", "x < true > import.meta;\n")
+	expectPrintedTS(t, "new x<number>\ny", "new x() < number > y;\n")
+	expectPrintedTS(t, "new x<number>\nif (y) {}", "new x();\nif (y) {\n}\n")
+	expectPrintedTS(t, "new x<true>\nimport 'y'", "new x();\nimport \"y\";\n")
+	expectPrintedTS(t, "new x<true>\nimport('y')", "new x() < true > import(\"y\");\n")
+	expectPrintedTS(t, "new x<true>\nimport.meta", "new x() < true > import.meta;\n")
+
+	// See: https://github.com/microsoft/TypeScript/issues/48759
+	expectParseErrorTS(t, "x<true>\nimport<T>('y')", "<stdin>: ERROR: Expected \"(\" but found \"<\"\n")
+	expectParseErrorTS(t, "new x<true>\nimport<T>('y')", "<stdin>: ERROR: Expected \"(\" but found \"<\"\n")
 }
 
 func TestTSExponentiation(t *testing.T) {
