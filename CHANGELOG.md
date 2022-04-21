@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.37
 
 * Add support for TypeScript's `moduleSuffixes` field from TypeScript 4.7
 
