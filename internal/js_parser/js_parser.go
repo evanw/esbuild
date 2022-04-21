@@ -2984,8 +2984,10 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			})}
 		}
 
-		// Allow `const a = b<c>`
-		p.trySkipTypeScriptTypeArgumentsWithBacktracking()
+		// Allow "const a = b<c>"
+		if p.options.ts.Parse {
+			p.trySkipTypeScriptTypeArgumentsWithBacktracking()
+		}
 
 		ref := p.storeNameInRef(name)
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}

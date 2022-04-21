@@ -1867,11 +1867,11 @@ func TestTSInstantiationExpression(t *testing.T) {
 	expectPrintedTS(t, "f['g']<number>", "f[\"g\"];\n")
 	expectPrintedTS(t, "(f<number>)<number>", "f;\n")
 
-	// function call
+	// Function call
 	expectPrintedTS(t, "const x1 = f<true>\n(true);", "const x1 = f(true);\n")
-	// relational expression
+	// Relational expression
 	expectPrintedTS(t, "const x1 = f<true>\ntrue;", "const x1 = f < true > true;\n")
-	// instantiation expression
+	// Instantiation expression
 	expectPrintedTS(t, "const x1 = f<true>;\n(true);", "const x1 = f;\ntrue;\n")
 
 	expectPrintedTS(t, "f<number>?.();", "f?.();\n")
@@ -1882,20 +1882,32 @@ func TestTSInstantiationExpression(t *testing.T) {
 	expectPrintedTS(t, "type T21 = typeof Array<string>; f();", "f();\n")
 	expectPrintedTS(t, "type T22 = typeof Array<string, number>; f();", "f();\n")
 
+	// This behavior matches TypeScript 4.7.0 nightly (specifically "typescript@4.7.0-dev.20220421")
+	// after various fixes from Microsoft that landed after the TypeScript 4.7.0 beta
 	expectPrintedTS(t, "f<x>, g<y>;", "f, g;\n")
+	expectPrintedTS(t, "f<x>g<y>;", "f < x > g;\n")
+	expectPrintedTS(t, "f<x>=g<y>;", "f = g;\n")
+	expectPrintedTS(t, "f<x>>g<y>;", "f < x >> g;\n")
+	expectPrintedTS(t, "f<x>>>g<y>;", "f < x >>> g;\n")
+	expectParseErrorTS(t, "f<x>>=g<y>;", "<stdin>: ERROR: Invalid assignment target\n")
+	expectParseErrorTS(t, "f<x>>>=g<y>;", "<stdin>: ERROR: Invalid assignment target\n")
+	expectPrintedTS(t, "f<x> = g<y>;", "f = g;\n")
+	expectParseErrorTS(t, "f<x> > g<y>;", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectParseErrorTS(t, "f<x> >> g<y>;", "<stdin>: ERROR: Unexpected \">>\"\n")
+	expectParseErrorTS(t, "f<x> >>> g<y>;", "<stdin>: ERROR: Unexpected \">>>\"\n")
+	expectParseErrorTS(t, "f<x> >= g<y>;", "<stdin>: ERROR: Unexpected \">=\"\n")
+	expectParseErrorTS(t, "f<x> >>= g<y>;", "<stdin>: ERROR: Unexpected \">>=\"\n")
+	expectParseErrorTS(t, "f<x> >>>= g<y>;", "<stdin>: ERROR: Unexpected \">>>=\"\n")
 	expectPrintedTS(t, "[f<x>];", "[f];\n")
 	expectPrintedTS(t, "f<x> ? g<y> : h<z>;", "f ? g : h;\n")
-	expectPrintedTS(t, "f<x> ^ g<y>;", "f ^ g;\n")
-	expectPrintedTS(t, "f<x> & g<y>;", "f & g;\n")
-	expectPrintedTS(t, "f<x> | g<y>;", "f | g;\n")
-	expectPrintedTS(t, "f<x> && g<y>;", "f && g;\n")
-	expectPrintedTS(t, "f<x> || g<y>;", "f || g;\n")
-	expectPrintedTS(t, "f<x> ?? g<y>;", "f ?? g;\n")
 	expectPrintedTS(t, "{ f<x> }", "{\n  f;\n}\n")
-	expectPrintedTS(t, "f<x> == g<y>;", "f == g;\n")
-	expectPrintedTS(t, "f<x> === g<y>;", "f === g;\n")
-	expectPrintedTS(t, "f<x> != g<y>;", "f != g;\n")
-	expectPrintedTS(t, "f<x> !== g<y>;", "f !== g;\n")
+	expectPrintedTS(t, "f<x> + g<y>;", "f < x > +g;\n")
+	expectPrintedTS(t, "f<x> - g<y>;", "f < x > -g;\n")
+	expectParseErrorTS(t, "f<x> * g<y>;", "<stdin>: ERROR: Unexpected \"*\"\n")
+	expectParseErrorTS(t, "f<x> == g<y>;", "<stdin>: ERROR: Unexpected \"==\"\n")
+	expectParseErrorTS(t, "f<x> ?? g<y>;", "<stdin>: ERROR: Unexpected \"??\"\n")
+	expectParseErrorTS(t, "f<x> in g<y>;", "<stdin>: ERROR: Unexpected \"in\"\n")
+	expectParseErrorTS(t, "f<x> instanceof g<y>;", "<stdin>: ERROR: Unexpected \"instanceof\"\n")
 
 	expectParseErrorTS(t, "const a8 = f<number><number>;", "<stdin>: ERROR: Unexpected \";\"\n")
 	expectParseErrorTS(t, "const b1 = f?.<number>;", "<stdin>: ERROR: Expected \"(\" but found \";\"\n")
@@ -1929,6 +1941,31 @@ func TestTSInstantiationExpression(t *testing.T) {
 	// See: https://github.com/microsoft/TypeScript/issues/48759
 	expectParseErrorTS(t, "x<true>\nimport<T>('y')", "<stdin>: ERROR: Expected \"(\" but found \"<\"\n")
 	expectParseErrorTS(t, "new x<true>\nimport<T>('y')", "<stdin>: ERROR: Expected \"(\" but found \"<\"\n")
+
+	// See: https://github.com/evanw/esbuild/issues/2201
+	expectParseErrorTS(t, "return Array < ;", "<stdin>: ERROR: Unexpected \";\"\n")
+	expectParseErrorTS(t, "return Array < > ;", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectParseErrorTS(t, "return Array < , > ;", "<stdin>: ERROR: Unexpected \",\"\n")
+	expectPrintedTS(t, "return Array < number > ;", "return Array;\n")
+	expectPrintedTS(t, "return Array < number > 1;", "return Array < number > 1;\n")
+	expectPrintedTS(t, "return Array < number > +1;", "return Array < number > 1;\n")
+	expectPrintedTS(t, "return Array < number > (1);", "return Array(1);\n")
+	expectPrintedTS(t, "return Array < number >> 1;", "return Array < number >> 1;\n")
+	expectPrintedTS(t, "return Array < number >>> 1;", "return Array < number >>> 1;\n")
+	expectPrintedTS(t, "return Array < Array < number >> ;", "return Array;\n")
+	expectPrintedTS(t, "return Array < Array < number > > ;", "return Array;\n")
+	expectParseErrorTS(t, "return Array < Array < number > > 1;", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectPrintedTS(t, "return Array < Array < number >> 1;", "return Array < Array < number >> 1;\n")
+	expectParseErrorTS(t, "return Array < Array < number > > +1;", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectPrintedTS(t, "return Array < Array < number >> +1;", "return Array < Array < number >> 1;\n")
+	expectPrintedTS(t, "return Array < Array < number >> (1);", "return Array(1);\n")
+	expectPrintedTS(t, "return Array < Array < number > > (1);", "return Array(1);\n")
+	expectParseErrorTS(t, "return Array < number > in x;", "<stdin>: ERROR: Unexpected \"in\"\n")
+	expectParseErrorTS(t, "return Array < Array < number >> in x;", "<stdin>: ERROR: Unexpected \"in\"\n")
+	expectParseErrorTS(t, "return Array < Array < number > > in x;", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectPrintedTS(t, "for (var x = Array < number > in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
+	expectPrintedTS(t, "for (var x = Array < Array < number >> in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
+	expectPrintedTS(t, "for (var x = Array < Array < number > > in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
 }
 
 func TestTSExponentiation(t *testing.T) {

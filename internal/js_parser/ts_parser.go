@@ -745,11 +745,11 @@ func (p *parser) trySkipTypeScriptTypeArgumentsWithBacktracking() bool {
 		}
 	}()
 
-	p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
-
-	// Check the token after this and backtrack if it's the wrong one
-	if !p.canFollowTypeArgumentsInExpression() {
-		p.lexer.Unexpected()
+	if p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */) {
+		// Check the token after the type argument list and backtrack if it's invalid
+		if !p.canFollowTypeArgumentsInExpression() {
+			p.lexer.Unexpected()
+		}
 	}
 
 	// Restore the log disabled flag. Note that we can't just set it back to false
@@ -910,8 +910,39 @@ func (p *parser) canFollowTypeArgumentsInExpression() bool {
 		js_lexer.TNew,
 		js_lexer.TSlash,
 		js_lexer.TSlashEquals,
-		js_lexer.TIdentifier:
+		js_lexer.TIdentifier,
+
+		// From "isBinaryOperator()"
+		js_lexer.TQuestionQuestion,
+		js_lexer.TBarBar,
+		js_lexer.TAmpersandAmpersand,
+		js_lexer.TBar,
+		js_lexer.TCaret,
+		js_lexer.TAmpersand,
+		js_lexer.TEqualsEquals,
+		js_lexer.TExclamationEquals,
+		js_lexer.TEqualsEqualsEquals,
+		js_lexer.TExclamationEqualsEquals,
+		js_lexer.TGreaterThan,
+		js_lexer.TLessThanEquals,
+		js_lexer.TGreaterThanEquals,
+		js_lexer.TInstanceof,
+		js_lexer.TLessThanLessThan,
+		js_lexer.TGreaterThanGreaterThan,
+		js_lexer.TGreaterThanGreaterThanGreaterThan,
+		js_lexer.TAsterisk,
+		js_lexer.TPercent,
+		js_lexer.TAsteriskAsterisk,
+
+		// TypeScript always sees "TGreaterThan" instead of these tokens since
+		// their scanner works a little differently than our lexer. So since
+		// "TGreaterThan" is forbidden above, we also forbid these too.
+		js_lexer.TGreaterThanGreaterThanEquals,
+		js_lexer.TGreaterThanGreaterThanGreaterThanEquals:
 		return false
+
+	case js_lexer.TIn:
+		return !p.allowIn
 
 	case js_lexer.TImport:
 		return !p.nextTokenIsOpenParenOrLessThanOrDot()

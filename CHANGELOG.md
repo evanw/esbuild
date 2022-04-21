@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+* Further fixes to TypeScript 4.7 instantiation expression parsing ([#2201](https://github.com/evanw/esbuild/issues/2201))
+
+    This release fixes some additional edge cases with parsing instantiation expressions from the upcoming version 4.7 of TypeScript. Previously it was allowed for an instantiation expression to precede a binary operator but with this release, that's no longer allowed. This was sometimes valid in the TypeScript 4.7 beta but is no longer allowed in the latest version of TypeScript 4.7. Fixing this also fixed a regression that was introduced by the previous release of esbuild:
+
+    | Code           | TS 4.6.3     | TS 4.7.0 beta | TS 4.7.0 nightly | esbuild 0.14.36 | esbuild 0.14.37 | esbuild 0.14.38 |
+    |----------------|--------------|---------------|------------------|-----------------|-----------------|-----------------|
+    | `a<b> == c<d>` | Invalid      | `a == c`      | Invalid          | `a == c`        | `a == c`        | Invalid         |
+    | `a<b> in c<d>` | Invalid      | Invalid       | Invalid          | Invalid         | `a in c`        | Invalid         |
+    | `a<b>>=c<d>`   | Invalid      | Invalid       | Invalid          | Invalid         | `a >= c`        | Invalid         |
+    | `a<b>=c<d>`    | Invalid      | `a < b >= c`  | `a = c`          | `a < b >= c`    | `a = c`         | `a = c`         |
+    | `a<b>>c<d>`    | `a < b >> c` | `a < b >> c`  | `a < b >> c`     | `a < b >> c`    | `a > c`         | `a < b >> c`    |
+
+    This table illustrates some of the more significant changes between all of these parsers. The most important part is that esbuild 0.14.38 now matches the behavior of the latest TypeScript compiler for all of these cases.
+
 ## 0.14.37
 
 * Add support for TypeScript's `moduleSuffixes` field from TypeScript 4.7
