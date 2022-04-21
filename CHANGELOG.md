@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.38
 
 * Further fixes to TypeScript 4.7 instantiation expression parsing ([#2201](https://github.com/evanw/esbuild/issues/2201))
 
