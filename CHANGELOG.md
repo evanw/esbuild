@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Fix code generation for `export default` and `/* @__PURE__ */` call ([#2203](https://github.com/evanw/esbuild/issues/2203))
+
+    The `/* @__PURE__ */` comment annotation can be added to function calls to indicate that they are side-effect free. These annotations are passed through into the output by esbuild since many JavaScript tools understand them. However, there was an edge case where printing this comment before a function call caused esbuild to fail to parenthesize a function literal because it thought it was no longer at the start of the expression. This problem has been fixed:
+
+    ```js
+    // Original code
+    export default /* @__PURE__ */ (function() {
+    })()
+
+    // Old output
+    export default /* @__PURE__ */ function() {
+    }();
+
+    // New output
+    export default /* @__PURE__ */ (function() {
+    })();
+    ```
+
 ## 0.14.38
 
 * Further fixes to TypeScript 4.7 instantiation expression parsing ([#2201](https://github.com/evanw/esbuild/issues/2201))

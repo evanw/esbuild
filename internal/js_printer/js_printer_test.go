@@ -547,6 +547,16 @@ func TestPureComment(t *testing.T) {
 	expectPrinted(t,
 		"/*@__PURE__*/new (function() {})()",
 		"/* @__PURE__ */ new function() {\n}();\n")
+
+	expectPrinted(t,
+		"export default (function() {})",
+		"export default (function() {\n});\n")
+	expectPrinted(t,
+		"export default (function() {})()",
+		"export default (function() {\n})();\n")
+	expectPrinted(t,
+		"export default /*@__PURE__*/(function() {})()",
+		"export default /* @__PURE__ */ (function() {\n})();\n")
 }
 
 func TestGenerator(t *testing.T) {

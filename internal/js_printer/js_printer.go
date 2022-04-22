@@ -1817,9 +1817,13 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		if hasPureComment {
 			wasStmtStart := p.stmtStart == len(p.js)
+			wasExportDefaultStart := p.exportDefaultStart == len(p.js)
 			p.print("/* @__PURE__ */ ")
 			if wasStmtStart {
 				p.stmtStart = len(p.js)
+			}
+			if wasExportDefaultStart {
+				p.exportDefaultStart = len(p.js)
 			}
 		}
 
