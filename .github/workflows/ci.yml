@@ -16,13 +16,13 @@ jobs:
 
     steps:
       - name: Set up Go 1.x
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: 1.18.1
         id: go
 
       - name: Setup Node.js environment
-        uses: actions/setup-node@v1.4.4
+        uses: actions/setup-node@v3
         with:
           node-version: 16
 
@@ -32,7 +32,7 @@ jobs:
           deno-version: v1.x
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: go test
         run: go test -race ./internal/...
@@ -137,13 +137,13 @@ jobs:
 
     steps:
       - name: Set up Go 1.13 (the minimum required Go version for esbuild)
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: 1.13
         id: go
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: go build
         run: go build ./cmd/esbuild
