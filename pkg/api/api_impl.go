@@ -1035,8 +1035,14 @@ func rebuildImpl(
 	}
 
 	// Code splitting is experimental and currently only enabled for ES6 modules
-	if options.CodeSplitting && options.OutputFormat != config.FormatESModule {
-		log.AddError(nil, logger.Range{}, "Splitting currently only works with the \"esm\" format")
+	if options.CodeSplitting {
+		switch options.OutputFormat {
+		case config.FormatCommonJS:
+		case config.FormatESModule:
+
+		default:
+			log.AddError(nil, logger.Range{}, "Splitting currently only works with the \"esm\" and \"cjs\" format")
+		}
 	}
 
 	var outputFiles []OutputFile
