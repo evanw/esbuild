@@ -2598,7 +2598,17 @@ func (lexer *Lexer) RescanCloseBraceAsTemplateToken() {
 }
 
 func (lexer *Lexer) step() {
-	codePoint, width := utf8.DecodeRuneInString(lexer.source.Contents[lexer.current:])
+	if lexer.current >= len(lexer.source.Contents) {
+		lexer.codePoint = -1
+		lexer.end = lexer.current
+		return
+	}
+	// Fast-path for ASCII-runes.
+	codePoint, width := rune(lexer.source.Contents[lexer.current]), 1
+
+	if codePoint >= utf8.RuneSelf {
+		codePoint, width = utf8.DecodeRuneInString(lexer.source.Contents[lexer.current:])
+	}
 
 	// Use -1 to indicate the end of the file
 	if width == 0 {

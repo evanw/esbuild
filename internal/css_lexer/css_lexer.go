@@ -232,7 +232,17 @@ func Tokenize(log logger.Log, source logger.Source) TokenizeResult {
 }
 
 func (lexer *lexer) step() {
-	codePoint, width := utf8.DecodeRuneInString(lexer.source.Contents[lexer.current:])
+	if lexer.current >= len(lexer.source.Contents) {
+		lexer.codePoint = eof
+		lexer.Token.Range.Len = int32(lexer.current) - lexer.Token.Range.Loc.Start
+		return
+	}
+	// Add fast-path for ASCII runes.
+	codePoint, width := rune(lexer.source.Contents[lexer.current]), 1
+
+	if codePoint >= utf8.RuneSelf {
+		codePoint, width = utf8.DecodeRuneInString(lexer.source.Contents[lexer.current:])
+	}
 
 	// Use -1 to indicate the end of the file
 	if width == 0 {
