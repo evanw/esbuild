@@ -873,35 +873,37 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 pluginData: stash.load(request.pluginData),
               });
 
-              if (result == null || typeof result !== 'object') throw new Error(`Expected onResolve() callback in plugin ${JSON.stringify(name)} to return an object`);
-              let keys: OptionKeys = {};
-              let path = getFlag(result, keys, 'path', mustBeString);
-              if (path != null) {
-                let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
-                let namespace = getFlag(result, keys, 'namespace', mustBeString);
-                let suffix = getFlag(result, keys, 'suffix', mustBeString);
-                let external = getFlag(result, keys, 'external', mustBeBoolean);
-                let sideEffects = getFlag(result, keys, 'sideEffects', mustBeBoolean);
-                let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
-                let errors = getFlag(result, keys, 'errors', mustBeArray);
-                let warnings = getFlag(result, keys, 'warnings', mustBeArray);
-                let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
-                let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
-                checkForInvalidFlags(result, keys, `from onResolve() callback in plugin ${JSON.stringify(name)}`);
-
-                response.id = id;
-                response.path = path;
-                if (pluginName != null) response.pluginName = pluginName;
-                if (namespace != null) response.namespace = namespace;
-                if (suffix != null) response.suffix = suffix;
-                if (external != null) response.external = external;
-                if (sideEffects != null) response.sideEffects = sideEffects;
-                if (pluginData != null) response.pluginData = stash.store(pluginData);
-                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash, name);
-                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash, name);
-                if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
-                if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
-                break;
+              if (result != null) {
+                if (typeof result !== 'object') throw new Error(`Expected onResolve() callback in plugin ${JSON.stringify(name)} to return an object`);
+                let keys: OptionKeys = {};
+                let path = getFlag(result, keys, 'path', mustBeString);
+                if (path != null) {
+                  let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
+                  let namespace = getFlag(result, keys, 'namespace', mustBeString);
+                  let suffix = getFlag(result, keys, 'suffix', mustBeString);
+                  let external = getFlag(result, keys, 'external', mustBeBoolean);
+                  let sideEffects = getFlag(result, keys, 'sideEffects', mustBeBoolean);
+                  let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
+                  let errors = getFlag(result, keys, 'errors', mustBeArray);
+                  let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+                  let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
+                  let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
+                  checkForInvalidFlags(result, keys, `from onResolve() callback in plugin ${JSON.stringify(name)}`);
+  
+                  response.id = id;
+                  response.path = path;
+                  if (pluginName != null) response.pluginName = pluginName;
+                  if (namespace != null) response.namespace = namespace;
+                  if (suffix != null) response.suffix = suffix;
+                  if (external != null) response.external = external;
+                  if (sideEffects != null) response.sideEffects = sideEffects;
+                  if (pluginData != null) response.pluginData = stash.store(pluginData);
+                  if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash, name);
+                  if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash, name);
+                  if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
+                  if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
+                  break;
+                }
               }
             } catch (e) {
               return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note && note(), name)] };
@@ -922,32 +924,34 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 pluginData: stash.load(request.pluginData),
               });
 
-              if (result ==null || typeof result !== 'object') throw new Error(`Expected onLoad() callback in plugin ${JSON.stringify(name)} to return an object`);
-              let keys: OptionKeys = {};
-              let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array);
-              if (contents != null) {
-                let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
-                let resolveDir = getFlag(result, keys, 'resolveDir', mustBeString);
-                let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
-                let loader = getFlag(result, keys, 'loader', mustBeString);
-                let errors = getFlag(result, keys, 'errors', mustBeArray);
-                let warnings = getFlag(result, keys, 'warnings', mustBeArray);
-                let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
-                let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
-                checkForInvalidFlags(result, keys, `from onLoad() callback in plugin ${JSON.stringify(name)}`);
-
-                response.id = id;
-                if (pluginName != null) response.pluginName = pluginName;
-                if (contents instanceof Uint8Array) response.contents = contents;
-                else response.contents = protocol.encodeUTF8(contents);
-                if (resolveDir != null) response.resolveDir = resolveDir;
-                if (pluginData != null) response.pluginData = stash.store(pluginData);
-                if (loader != null) response.loader = loader;
-                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash, name);
-                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash, name);
-                if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
-                if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
-                break;
+              if (result != null) {
+                if (typeof result !== 'object') throw new Error(`Expected onLoad() callback in plugin ${JSON.stringify(name)} to return an object`);
+                let keys: OptionKeys = {};
+                let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array);
+                if (contents != null) {
+                  let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
+                  let resolveDir = getFlag(result, keys, 'resolveDir', mustBeString);
+                  let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
+                  let loader = getFlag(result, keys, 'loader', mustBeString);
+                  let errors = getFlag(result, keys, 'errors', mustBeArray);
+                  let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+                  let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
+                  let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
+                  checkForInvalidFlags(result, keys, `from onLoad() callback in plugin ${JSON.stringify(name)}`);
+  
+                  response.id = id;
+                  if (pluginName != null) response.pluginName = pluginName;
+                  if (contents instanceof Uint8Array) response.contents = contents;
+                  else response.contents = protocol.encodeUTF8(contents);
+                  if (resolveDir != null) response.resolveDir = resolveDir;
+                  if (pluginData != null) response.pluginData = stash.store(pluginData);
+                  if (loader != null) response.loader = loader;
+                  if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash, name);
+                  if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash, name);
+                  if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
+                  if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
+                  break;
+                }
               }
             } catch (e) {
               return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note && note(), name)] };
