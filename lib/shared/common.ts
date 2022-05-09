@@ -890,8 +890,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 checkForInvalidFlags(result, keys, `from onResolve() callback in plugin ${JSON.stringify(name)}`);
 
                 response.id = id;
+                response.path = path;
                 if (pluginName != null) response.pluginName = pluginName;
-                if (path != null) response.path = path;
                 if (namespace != null) response.namespace = namespace;
                 if (suffix != null) response.suffix = suffix;
                 if (external != null) response.external = external;
@@ -939,7 +939,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 response.id = id;
                 if (pluginName != null) response.pluginName = pluginName;
                 if (contents instanceof Uint8Array) response.contents = contents;
-                else if (contents != null) response.contents = protocol.encodeUTF8(contents);
+                else response.contents = protocol.encodeUTF8(contents);
                 if (resolveDir != null) response.resolveDir = resolveDir;
                 if (pluginData != null) response.pluginData = stash.store(pluginData);
                 if (loader != null) response.loader = loader;
