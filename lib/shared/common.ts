@@ -873,11 +873,11 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 pluginData: stash.load(request.pluginData),
               });
 
-              if (result != null) {
-                if (typeof result !== 'object') throw new Error(`Expected onResolve() callback in plugin ${JSON.stringify(name)} to return an object`);
-                let keys: OptionKeys = {};
+              if (result == null || typeof result !== 'object') throw new Error(`Expected onResolve() callback in plugin ${JSON.stringify(name)} to return an object`);
+              let keys: OptionKeys = {};
+              let path = getFlag(result, keys, 'path', mustBeString);
+              if (path != null) {
                 let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
-                let path = getFlag(result, keys, 'path', mustBeString);
                 let namespace = getFlag(result, keys, 'namespace', mustBeString);
                 let suffix = getFlag(result, keys, 'suffix', mustBeString);
                 let external = getFlag(result, keys, 'external', mustBeBoolean);
@@ -922,11 +922,11 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 pluginData: stash.load(request.pluginData),
               });
 
-              if (result != null) {
-                if (typeof result !== 'object') throw new Error(`Expected onLoad() callback in plugin ${JSON.stringify(name)} to return an object`);
-                let keys: OptionKeys = {};
+              if (result ==null || typeof result !== 'object') throw new Error(`Expected onLoad() callback in plugin ${JSON.stringify(name)} to return an object`);
+              let keys: OptionKeys = {};
+              let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array);
+              if (contents != null) {
                 let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
-                let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array);
                 let resolveDir = getFlag(result, keys, 'resolveDir', mustBeString);
                 let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
                 let loader = getFlag(result, keys, 'loader', mustBeString);
