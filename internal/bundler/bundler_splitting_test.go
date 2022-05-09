@@ -33,6 +33,29 @@ func TestSplittingSharedES6IntoES6(t *testing.T) {
 	})
 }
 
+func TestSplittingSharedES6IntoCommonjs(t *testing.T) {
+	splitting_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import {foo} from "./shared.js"
+				console.log(foo)
+			`,
+			"/b.js": `
+				import {foo} from "./shared.js"
+				console.log(foo)
+			`,
+			"/shared.js": `export let foo = 123`,
+		},
+		entryPaths: []string{"/a.js", "/b.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputDir:  "/out",
+		},
+	})
+}
+
 func TestSplittingSharedCommonJSIntoES6(t *testing.T) {
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
