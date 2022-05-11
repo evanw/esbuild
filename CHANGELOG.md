@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.39
 
 * Fix code generation for `export default` and `/* @__PURE__ */` call ([#2203](https://github.com/evanw/esbuild/issues/2203))
 
