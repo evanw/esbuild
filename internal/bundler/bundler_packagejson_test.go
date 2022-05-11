@@ -848,6 +848,28 @@ func TestPackageJsonBrowserIssue2002B(t *testing.T) {
 	})
 }
 
+// See https://github.com/evanw/esbuild/issues/2239
+func TestPackageJsonBrowserIssue2002C(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `require('pkg/sub')`,
+			"/Users/user/project/src/node_modules/pkg/package.json": `{
+				"browser": {
+					"./sub": "./sub/foo.js",
+					"./sub/sub.js": "./sub/bar.js"
+				}
+			}`,
+			"/Users/user/project/src/node_modules/pkg/sub/foo.js": `require('sub')`,
+			"/Users/user/project/src/node_modules/sub/index.js":   `works()`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestPackageJsonDualPackageHazardImportOnly(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{

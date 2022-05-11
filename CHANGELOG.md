@@ -37,6 +37,41 @@
 
     Note that this behavior is TypeScript-specific. Babel doesn't support the `...` token at all (it gives the error "Spread children are not supported in React").
 
+* Slightly adjust esbuild's handling of the `browser` field in `package.json` ([#2239](https://github.com/evanw/esbuild/issues/2239))
+
+    This release changes esbuild's interpretation of `browser` path remapping to fix a regression that was introduced in esbuild version 0.14.21. Browserify has a bug where it incorrectly matches package paths to relative paths in the `browser` field, and esbuild replicates this bug for compatibility with Browserify. I have a set of tests that I use to verify that esbuild's replication of this Browserify is accurate here: https://github.com/evanw/package-json-browser-tests. However, I was missing a test case and esbuild's behavior diverges from Browserify in this case. This release now handles this edge case as well:
+
+    * `entry.js`:
+
+        ```js
+        require('pkg/sub')
+        ```
+
+    * `node_modules/pkg/package.json`:
+
+        ```json
+        {
+          "browser": {
+            "./sub": "./sub/foo.js",
+            "./sub/sub.js": "./sub/foo.js"
+          }
+        }
+        ```
+
+    * `node_modules/pkg/sub/foo.js`:
+
+        ```js
+        require('sub')
+        ```
+
+    * `node_modules/sub/index.js`:
+
+        ```js
+        console.log('works')
+        ```
+
+    The import path `sub` in `require('sub')` was previously matching the remapping `"./sub/sub.js": "./sub/foo.js"` but with this release it should now no longer match that remapping. Now `require('sub')` will only match the remapping `"./sub/sub": "./sub/foo.js"` (without the trailing `.js`). Browserify apparently only matches without the `.js` suffix here.
+
 ## 0.14.38
 
 * Further fixes to TypeScript 4.7 instantiation expression parsing ([#2201](https://github.com/evanw/esbuild/issues/2201))
