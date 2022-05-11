@@ -4518,14 +4518,21 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			// Use Next() instead of NextJSXElementChild() here since the next token is an expression
 			p.lexer.Next()
 
-			// The "..." here is ignored (it's used to signal an array type in TypeScript)
-			if p.lexer.Token == js_lexer.TDotDotDot && p.options.ts.Parse {
-				p.lexer.Next()
-			}
-
 			// The expression is optional, and may be absent
 			if p.lexer.Token != js_lexer.TCloseBrace {
-				children = append(children, p.parseExpr(js_ast.LLowest))
+				if p.lexer.Token == js_lexer.TDotDotDot {
+					// TypeScript preserves "..." before JSX child expressions here.
+					// Babel gives the error "Spread children are not supported in React"
+					// instead, so it should be safe to support this TypeScript-specific
+					// behavior. Note that TypeScript's behavior changed in TypeScript 4.5.
+					// Before that, the "..." was omitted instead of being preserved.
+					itemLoc := p.lexer.Loc()
+					p.markSyntaxFeature(compat.RestArgument, p.lexer.Range())
+					p.lexer.Next()
+					children = append(children, js_ast.Expr{Loc: itemLoc, Data: &js_ast.ESpread{Value: p.parseExpr(js_ast.LLowest)}})
+				} else {
+					children = append(children, p.parseExpr(js_ast.LLowest))
+				}
 			}
 
 			// Use ExpectJSXElementChild() so we parse child strings

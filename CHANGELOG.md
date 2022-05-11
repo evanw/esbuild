@@ -20,6 +20,23 @@
     })();
     ```
 
+* Preserve `...` before JSX child expressions ([#2245](https://github.com/evanw/esbuild/issues/2245))
+
+    TypeScript 4.5 changed how JSX child expressions that start with `...` are emitted. Previously the `...` was omitted but starting with TypeScript 4.5, the `...` is now preserved instead. This release updates esbuild to match TypeScript's new output in this case:
+
+    ```jsx
+    // Original code
+    console.log(<a>{...b}</a>)
+
+    // Old output
+    console.log(/* @__PURE__ */ React.createElement("a", null, b));
+
+    // New output
+    console.log(/* @__PURE__ */ React.createElement("a", null, ...b));
+    ```
+
+    Note that this behavior is TypeScript-specific. Babel doesn't support the `...` token at all (it gives the error "Spread children are not supported in React").
+
 ## 0.14.38
 
 * Further fixes to TypeScript 4.7 instantiation expression parsing ([#2201](https://github.com/evanw/esbuild/issues/2201))
