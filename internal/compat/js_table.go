@@ -497,6 +497,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{89, 0, 0}}},
 		Node:    {{start: v{14, 8, 0}}},
+		Opera:   {{start: v{75, 0, 0}}},
 		Safari:  {{start: v{15, 0, 0}}},
 	},
 	TypeofExoticObjectIsObject: {
