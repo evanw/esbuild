@@ -178,6 +178,7 @@ mergeVersions('ExportStarAs', {
   es2020: true,
   firefox80: true,
   node12: true, // From https://developer.mozilla.org/en-US/docs/web/javascript/reference/statements/export
+  opera60: true,
 
   // This feature has been implemented in Safari but I have no idea what version
   // this bug corresponds to: https://bugs.webkit.org/show_bug.cgi?id=214379
@@ -190,6 +191,7 @@ mergeVersions('ImportMeta', {
   firefox62: true,
   ios12: true,
   node10_4: true, // From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import.meta
+  opera51: true,
   safari11_1: true,
 })
 
@@ -209,6 +211,7 @@ mergeVersions('DynamicImport', {
   edge79: true,
   firefox67: true,
   ios11: true,
+  opera50: true,
   safari11_1: true,
 })
 
@@ -269,18 +272,16 @@ mergeVersions('ImportAssertions', {
   // From https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V16.md#16.14.0
   node16_14: true,
 
-  // Not yet in Firefox: https://bugzilla.mozilla.org/show_bug.cgi?id=1668330
+  // Not yet in Firefox: https://bugzilla.mozilla.org/show_bug.cgi?id=1736059
 })
 
+// Manually copied from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/Class_static_initialization_blocks
 mergeVersions('ClassStaticBlocks', {
-  // From https://www.chromestatus.com/feature/6482797915013120
-  chrome91: true,
-
-  // https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V16.md
-  // combined with https://v8.dev/blog/v8-release-94
+  chrome91: true, // From https://www.chromestatus.com/feature/6482797915013120
+  edge94: true,
+  firefox93: true,
   node16_11: true,
-
-  // Not yet in Firefox: https://bugzilla.mozilla.org/show_bug.cgi?id=1670018
+  opera80: true,
 })
 
 for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests]) {

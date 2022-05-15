@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Add Opera to more internal feature compatibility tables ([#2247](https://github.com/evanw/esbuild/issues/2247), [#2252](https://github.com/evanw/esbuild/pull/2252))
+
+    The internal compatibility tables that esbuild uses to determine which environments support which features are derived from multiple sources. Most of it is automatically derived from [these ECMAScript compatibility tables](https://kangax.github.io/compat-table/), but missing information is manually copied from [MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/), GitHub PR comments, and various other websites. Version 0.14.35 of esbuild introduced Opera as a possible target environment which was automatically picked up by the compatibility table script, but the manually-copied information wasn't updated to include Opera. This release fixes this omission so Opera feature compatibility should now be accurate.
+
+    This was contributed by [@lbwa](https://github.com/lbwa).
+
 ## 0.14.39
 
 * Fix code generation for `export default` and `/* @__PURE__ */` call ([#2203](https://github.com/evanw/esbuild/issues/2203))
