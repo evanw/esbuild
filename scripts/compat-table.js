@@ -199,6 +199,7 @@ mergeVersions('TopLevelAwait', {
   edge89: true,
   firefox89: true,
   node14_8: true,
+  opera75: true,
   safari15: true,
 })
 
