@@ -1033,7 +1033,7 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 
 	// List the directories
 	entries, err, originalError := r.fs.ReadDirectory(path)
-	if err == syscall.EACCES {
+	if err == syscall.EACCES || err == syscall.EPERM {
 		// Just pretend this directory is empty if we can't access it. This is the
 		// case on Unix for directories that only have the execute permission bit
 		// set. It means we will just pass through the empty directory and
