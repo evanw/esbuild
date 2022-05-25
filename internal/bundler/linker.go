@@ -3924,8 +3924,12 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			var cjsArgs []js_ast.Expr
 			if c.options.ProfilerNames {
 				// "__commonJS({ 'file.js'(exports, module) { ... } })"
+				var flags js_ast.PropertyFlags
+				if !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions) {
+					flags |= js_ast.PropertyIsMethod
+				}
 				cjsArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
-					IsMethod:   !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
+					Flags:      flags,
 					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
 					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}}}},
 				}}}}}
@@ -3992,8 +3996,12 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			var esmArgs []js_ast.Expr
 			if c.options.ProfilerNames {
 				// "__esm({ 'file.js'() { ... } })"
+				var flags js_ast.PropertyFlags
+				if !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions) {
+					flags |= js_ast.PropertyIsMethod
+				}
 				esmArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
-					IsMethod:   !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions),
+					Flags:      flags,
 					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
 					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}, IsAsync: isAsync}}},
 				}}}}}

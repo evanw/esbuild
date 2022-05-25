@@ -269,6 +269,20 @@ type ClassStaticBlock struct {
 	Loc   logger.Loc
 }
 
+type PropertyFlags uint8
+
+const (
+	PropertyIsComputed PropertyFlags = 1 << iota
+	PropertyIsMethod
+	PropertyIsStatic
+	PropertyWasShorthand
+	PropertyPreferQuotedKey
+)
+
+func (flags PropertyFlags) Has(flag PropertyFlags) bool {
+	return (flags & flag) != 0
+}
+
 type Property struct {
 	ClassStaticBlock *ClassStaticBlock
 
@@ -290,12 +304,8 @@ type Property struct {
 
 	TSDecorators []Expr
 
-	Kind            PropertyKind
-	IsComputed      bool
-	IsMethod        bool
-	IsStatic        bool
-	WasShorthand    bool
-	PreferQuotedKey bool
+	Kind  PropertyKind
+	Flags PropertyFlags
 }
 
 type PropertyBinding struct {

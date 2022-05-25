@@ -931,7 +931,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 		return
 	}
 
-	if item.IsStatic {
+	if item.Flags.Has(js_ast.PropertyIsStatic) {
 		p.print("static")
 		p.printSpace()
 	}
@@ -948,7 +948,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 		p.printSpace()
 	}
 
-	if fn, ok := item.ValueOrNil.Data.(*js_ast.EFunction); item.IsMethod && ok {
+	if fn, ok := item.ValueOrNil.Data.(*js_ast.EFunction); item.Flags.Has(js_ast.PropertyIsMethod) && ok {
 		if fn.Fn.IsAsync {
 			p.printSpaceBeforeIdentifier()
 			p.print("async")
@@ -959,13 +959,13 @@ func (p *printer) printProperty(item js_ast.Property) {
 		}
 	}
 
-	if item.IsComputed {
+	if item.Flags.Has(js_ast.PropertyIsComputed) {
 		p.print("[")
 		p.printExpr(item.Key, js_ast.LComma, 0)
 		p.print("]")
 
 		if item.ValueOrNil.Data != nil {
-			if fn, ok := item.ValueOrNil.Data.(*js_ast.EFunction); item.IsMethod && ok {
+			if fn, ok := item.ValueOrNil.Data.(*js_ast.EFunction); item.Flags.Has(js_ast.PropertyIsMethod) && ok {
 				p.printFn(fn.Fn)
 				return
 			}
@@ -1030,7 +1030,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 
 	case *js_ast.EString:
 		p.addSourceMapping(item.Key.Loc)
-		if !item.PreferQuotedKey && p.canPrintIdentifierUTF16(key.Value) {
+		if !item.Flags.Has(js_ast.PropertyPreferQuotedKey) && p.canPrintIdentifierUTF16(key.Value) {
 			p.printSpaceBeforeIdentifier()
 			p.printIdentifierUTF16(key.Value)
 
@@ -1080,7 +1080,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 	}
 
 	if item.ValueOrNil.Data != nil {
-		if fn, ok := item.ValueOrNil.Data.(*js_ast.EFunction); item.IsMethod && ok {
+		if fn, ok := item.ValueOrNil.Data.(*js_ast.EFunction); item.Flags.Has(js_ast.PropertyIsMethod) && ok {
 			p.printFn(fn.Fn)
 			return
 		}
@@ -1661,7 +1661,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 
 			// Implicit "true" value
-			if boolean, ok := property.ValueOrNil.Data.(*js_ast.EBoolean); ok && boolean.Value && property.WasShorthand {
+			if boolean, ok := property.ValueOrNil.Data.(*js_ast.EBoolean); ok && boolean.Value && property.Flags.Has(js_ast.PropertyWasShorthand) {
 				continue
 			}
 
