@@ -304,6 +304,7 @@ type Property struct {
 
 	TSDecorators []Expr
 
+	Loc   logger.Loc
 	Kind  PropertyKind
 	Flags PropertyFlags
 }

@@ -898,6 +898,7 @@ func (p *printer) printClass(class js_ast.Class) {
 		p.printIndent()
 
 		if item.Kind == js_ast.PropertyClassStaticBlock {
+			p.addSourceMapping(item.Loc)
 			p.print("static")
 			p.printSpace()
 			p.printBlock(item.ClassStaticBlock.Loc, item.ClassStaticBlock.Block)
@@ -925,6 +926,8 @@ func (p *printer) printClass(class js_ast.Class) {
 }
 
 func (p *printer) printProperty(item js_ast.Property) {
+	p.addSourceMapping(item.Loc)
+
 	if item.Kind == js_ast.PropertySpread {
 		p.print("...")
 		p.printExpr(item.ValueOrNil, js_ast.LComma, 0)
