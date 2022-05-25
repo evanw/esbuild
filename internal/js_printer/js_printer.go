@@ -2029,6 +2029,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if e.OptionalChain != js_ast.OptionalChainStart {
 				p.print(".")
 			}
+			p.addSourceMapping(e.Index.Loc)
 			p.printSymbol(index.Ref)
 
 		case *js_ast.EMangledProp:
@@ -2530,6 +2531,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		// Special-case "#foo in bar"
 		if private, ok := e.Left.Data.(*js_ast.EPrivateIdentifier); ok && e.Op == js_ast.BinOpIn {
+			p.addSourceMapping(e.Left.Loc)
 			p.printSymbol(private.Ref)
 		} else if e.Op == js_ast.BinOpComma {
 			// The result of the left operand of the comma operator is unused

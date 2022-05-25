@@ -1897,6 +1897,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 
 			return js_ast.Property{
 				Kind:             kind,
+				Loc:              startLoc,
 				Key:              key,
 				ValueOrNil:       value,
 				InitializerOrNil: initializerOrNil,
@@ -3250,10 +3251,12 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		for p.lexer.Token != js_lexer.TCloseBrace {
 			if p.lexer.Token == js_lexer.TDotDotDot {
+				dotLoc := p.lexer.Loc()
 				p.lexer.Next()
 				value := p.parseExpr(js_ast.LComma)
 				properties = append(properties, js_ast.Property{
 					Kind:       js_ast.PropertySpread,
+					Loc:        dotLoc,
 					ValueOrNil: value,
 				})
 
@@ -4425,6 +4428,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 
 				// Add a property
 				properties = append(properties, js_ast.Property{
+					Loc:        keyRange.Loc,
 					Key:        key,
 					ValueOrNil: value,
 					Flags:      flags,
@@ -4433,10 +4437,12 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			case js_lexer.TOpenBrace:
 				// Use Next() not ExpectInsideJSXElement() so we can parse "..."
 				p.lexer.Next()
+				dotLoc := p.lexer.Loc()
 				p.lexer.Expect(js_lexer.TDotDotDot)
 				value := p.parseExpr(js_ast.LComma)
 				properties = append(properties, js_ast.Property{
 					Kind:       js_ast.PropertySpread,
+					Loc:        dotLoc,
 					ValueOrNil: value,
 				})
 

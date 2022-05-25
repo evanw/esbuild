@@ -2086,8 +2086,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
 			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) {
 				if block := *prop.ClassStaticBlock; len(block.Block.Stmts) > 0 {
-					staticMembers = append(staticMembers, js_ast.Expr{Loc: block.Loc, Data: &js_ast.ECall{
-						Target: js_ast.Expr{Loc: block.Loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{
+					staticMembers = append(staticMembers, js_ast.Expr{Loc: prop.Loc, Data: &js_ast.ECall{
+						Target: js_ast.Expr{Loc: prop.Loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{
+							Loc:   block.Loc,
 							Block: block.Block,
 						}}},
 					}})
@@ -2243,7 +2244,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
 			if !shouldOmitFieldInitializer {
-				loc := prop.Key.Loc
+				loc := prop.Loc
 
 				// Determine where to store the field
 				var target js_ast.Expr
@@ -2274,15 +2275,15 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 						p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakMapRef)
 					}
 					privateMembers = append(privateMembers, js_ast.Assign(
-						js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
-						js_ast.Expr{Loc: loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.weakMapRef}}}},
+						js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
+						js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.weakMapRef}}}},
 					))
 					p.recordUsage(ref)
 
 					// Add every newly-constructed instance into this map
 					memberExpr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
 						target,
-						{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
+						{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
 						init,
 					})
 					p.recordUsage(ref)
@@ -2297,7 +2298,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 						target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
 							Target:  target,
 							Name:    helpers.UTF16ToString(key.Value),
-							NameLoc: loc,
+							NameLoc: prop.Key.Loc,
 						}}
 					} else {
 						target = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
@@ -2329,7 +2330,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 		if prop.Flags.Has(js_ast.PropertyIsMethod) {
 			if mustLowerPrivate {
-				loc := prop.Key.Loc
+				loc := prop.Loc
 
 				// Don't generate a symbol for a getter/setter pair twice
 				if p.symbols[private.Ref.InnerIndex].Link == js_ast.InvalidRef {
@@ -2343,8 +2344,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 						p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakSetRef)
 					}
 					privateMembers = append(privateMembers, js_ast.Assign(
-						js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
-						js_ast.Expr{Loc: loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.weakSetRef}}}},
+						js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
+						js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.weakSetRef}}}},
 					))
 					p.recordUsage(ref)
 
@@ -2359,7 +2360,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 					// Add every newly-constructed instance into this map
 					methodExpr := p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
 						target,
-						{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
+						{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
 					})
 					p.recordUsage(ref)
 
@@ -2389,7 +2390,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 				}
 				p.recordUsage(methodRef)
 				privateMembers = append(privateMembers, js_ast.Assign(
-					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: methodRef}},
+					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: methodRef}},
 					prop.ValueOrNil,
 				))
 				continue
@@ -2436,6 +2437,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			// Append it to the list to reuse existing allocation space
 			class.Properties = append(class.Properties, js_ast.Property{
 				Flags:      js_ast.PropertyIsMethod,
+				Loc:        classLoc,
 				Key:        js_ast.Expr{Loc: classLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16("constructor")}},
 				ValueOrNil: js_ast.Expr{Loc: classLoc, Data: ctor},
 			})
