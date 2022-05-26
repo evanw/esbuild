@@ -1361,7 +1361,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	})
 
 	// Settings from the user come first
-	unusedImportsTS := config.UnusedImportsRemoveStmt
+	var unusedImportFlagsTS config.UnusedImportFlagsTS
 	useDefineForClassFieldsTS := config.Unspecified
 	jsx := config.JSXOptions{
 		Preserve: transformOpts.JSXMode == JSXModePreserve,
@@ -1388,7 +1388,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			if result.UseDefineForClassFields != config.Unspecified {
 				useDefineForClassFieldsTS = result.UseDefineForClassFields
 			}
-			unusedImportsTS = config.UnusedImportsFromTsconfigValues(
+			unusedImportFlagsTS = config.UnusedImportFlagsFromTsconfigValues(
 				result.PreserveImportsNotUsedAsValues,
 				result.PreserveValueImports,
 			)
@@ -1436,7 +1436,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		AbsOutputFile:           transformOpts.Sourcefile + "-out",
 		KeepNames:               transformOpts.KeepNames,
 		UseDefineForClassFields: useDefineForClassFieldsTS,
-		UnusedImportsTS:         unusedImportsTS,
+		UnusedImportFlagsTS:     unusedImportFlagsTS,
 		Stdin: &config.StdinInfo{
 			Loader:     validateLoader(transformOpts.Loader),
 			Contents:   input,

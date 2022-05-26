@@ -1162,13 +1162,55 @@ func TestTsconfigPreserveValueImports(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
-				import {x, y} from "./foo"
-				import z from "./foo"
-				import * as ns from "./foo"
-				console.log(1 as x, 2 as z, 3 as ns.y)
+				import {} from "a"
+				import {b1} from "b"
+				import {c1, type c2} from "c"
+				import {d1, d2, type d3} from "d"
+				import {type e1, type e2} from "e"
+				import f1, {} from "f"
+				import g1, {g2} from "g"
+				import h1, {type h2} from "h"
+				import * as i1 from "i"
+				import "j"
 			`,
 			"/Users/user/project/src/tsconfig.json": `{
 				"compilerOptions": {
+					"preserveValueImports": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/Users/user/project/out.js",
+			ExternalSettings: config.ExternalSettings{
+				PostResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"/Users/user/project/src/foo": true,
+				}},
+			},
+		},
+	})
+}
+
+func TestTsconfigPreserveValueImportsAndImportsNotUsedAsValuesPreserve(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import {} from "a"
+				import {b1} from "b"
+				import {c1, type c2} from "c"
+				import {d1, d2, type d3} from "d"
+				import {type e1, type e2} from "e"
+				import f1, {} from "f"
+				import g1, {g2} from "g"
+				import h1, {type h2} from "h"
+				import * as i1 from "i"
+				import "j"
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"importsNotUsedAsValues": "preserve",
 					"preserveValueImports": true
 				}
 			}`,

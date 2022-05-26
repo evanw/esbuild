@@ -395,7 +395,7 @@ type optionsThatSupportStructuralEquality struct {
 	treeShaking             bool
 	dropDebugger            bool
 	mangleQuoted            bool
-	unusedImportsTS         config.UnusedImportsTS
+	unusedImportFlagsTS     config.UnusedImportFlagsTS
 	useDefineForClassFields config.MaybeBool
 }
 
@@ -426,7 +426,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			treeShaking:             options.TreeShaking,
 			dropDebugger:            options.DropDebugger,
 			mangleQuoted:            options.MangleQuoted,
-			unusedImportsTS:         options.UnusedImportsTS,
+			unusedImportFlagsTS:     options.UnusedImportFlagsTS,
 			useDefineForClassFields: options.UseDefineForClassFields,
 		},
 	}
@@ -6628,11 +6628,38 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		}
 
 		pathLoc, pathText, assertions := p.parsePath()
+		p.lexer.ExpectOrInsertSemicolon()
+
+		// If TypeScript's "preserveValueImports": true setting is active, TypeScript's
+		// "importsNotUsedAsValues": "preserve" setting is NOT active, and the import
+		// clause is present and empty (or is non-empty but filled with type-only
+		// items), then the import statement should still be removed entirely to match
+		// the behavior of the TypeScript compiler:
+		//
+		//   // Keep these
+		//   import 'x'
+		//   import { y } from 'x'
+		//   import { y, type z } from 'x'
+		//
+		//   // Remove these
+		//   import {} from 'x'
+		//   import { type y } from 'x'
+		//
+		//   // Remove the items from these
+		//   import d, {} from 'x'
+		//   import d, { type y } from 'x'
+		//
+		if p.options.ts.Parse && p.options.unusedImportFlagsTS == config.UnusedImportKeepValues && stmt.Items != nil && len(*stmt.Items) == 0 {
+			if stmt.DefaultName == nil {
+				return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+			}
+			stmt.Items = nil
+		}
+
 		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertions)
 		if wasOriginallyBareImport {
 			p.importRecords[stmt.ImportRecordIndex].Flags |= ast.WasOriginallyBareImport
 		}
-		p.lexer.ExpectOrInsertSemicolon()
 
 		if stmt.StarNameLoc != nil {
 			name := p.loadNameFromRef(stmt.NamespaceRef)
@@ -14164,7 +14191,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 			//     user is expecting the output to be as small as possible. So we
 			//     should omit unused imports.
 			//
-			keepUnusedImports := p.options.ts.Parse && p.options.unusedImportsTS == config.UnusedImportsKeepValues &&
+			keepUnusedImports := p.options.ts.Parse && (p.options.unusedImportFlagsTS&config.UnusedImportKeepValues) != 0 &&
 				p.options.mode != config.ModeBundle && !p.options.minifyIdentifiers
 
 			// TypeScript always trims unused imports. This is important for
@@ -14180,7 +14207,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					symbol := p.symbols[s.DefaultName.Ref.InnerIndex]
 
 					// TypeScript has a separate definition of unused
-					if p.options.ts.Parse && p.tsUseCounts[s.DefaultName.Ref.InnerIndex] != 0 {
+					if p.options.ts.Parse && (p.tsUseCounts[s.DefaultName.Ref.InnerIndex] != 0 || (p.options.unusedImportFlagsTS&config.UnusedImportKeepValues) != 0) {
 						isUnusedInTypeScript = false
 					}
 
@@ -14196,7 +14223,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					symbol := p.symbols[s.NamespaceRef.InnerIndex]
 
 					// TypeScript has a separate definition of unused
-					if p.options.ts.Parse && p.tsUseCounts[s.NamespaceRef.InnerIndex] != 0 {
+					if p.options.ts.Parse && (p.tsUseCounts[s.NamespaceRef.InnerIndex] != 0 || (p.options.unusedImportFlagsTS&config.UnusedImportKeepValues) != 0) {
 						isUnusedInTypeScript = false
 					}
 
@@ -14219,7 +14246,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 						symbol := p.symbols[item.Name.Ref.InnerIndex]
 
 						// TypeScript has a separate definition of unused
-						if p.options.ts.Parse && p.tsUseCounts[item.Name.Ref.InnerIndex] != 0 {
+						if p.options.ts.Parse && (p.tsUseCounts[item.Name.Ref.InnerIndex] != 0 || (p.options.unusedImportFlagsTS&config.UnusedImportKeepValues) != 0) {
 							isUnusedInTypeScript = false
 						}
 
@@ -14251,7 +14278,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 				//
 				// We do not want to do this culling in JavaScript though because the
 				// module may have side effects even if all imports are unused.
-				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && p.options.unusedImportsTS == config.UnusedImportsRemoveStmt {
+				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && (p.options.unusedImportFlagsTS&config.UnusedImportKeepStmt) == 0 {
 					// Ignore import records with a pre-filled source index. These are
 					// for injected files and we definitely do not want to trim these.
 					if !record.SourceIndex.IsValid() {

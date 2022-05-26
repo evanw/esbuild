@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+* Correct esbuild's implementation of `"preserveValueImports": true` ([#2268](https://github.com/evanw/esbuild/issues/2268))
+
+    TypeScript's [`preserveValueImports` setting](https://www.typescriptlang.org/tsconfig#preserveValueImports) tells the compiler to preserve unused imports, which can sometimes be necessary because otherwise TypeScript will remove unused imports as it assumes they are type annotations. This setting is useful for programming environments that strip TypeScript types as part of a larger code transformation where additional code is appended later that will then make use of those unused imports, such as with [Svelte](https://svelte.dev/) or [Vue](https://vuejs.org/).
+
+    This release fixes an issue where esbuild's implementation of `preserveValueImports` diverged from the official TypeScript compiler. If the import clause is present but empty of values (even if it contains types), then the import clause should be considered a type-only import clause. This was an oversight, and has now been fixed:
+
+    ```ts
+    // Original code
+    import "keep"
+    import { k1 } from "keep"
+    import k2, { type t1 } from "keep"
+    import {} from "remove"
+    import { type t2 } from "remove"
+
+    // Old output under "preserveValueImports": true
+    import "keep";
+    import { k1 } from "keep";
+    import k2, {} from "keep";
+    import {} from "remove";
+    import {} from "remove";
+
+    // New output under "preserveValueImports": true (matches the TypeScript compiler)
+    import "keep";
+    import { k1 } from "keep";
+    import k2 from "keep";
+    ```
+
 * Add Opera to more internal feature compatibility tables ([#2247](https://github.com/evanw/esbuild/issues/2247), [#2252](https://github.com/evanw/esbuild/pull/2252))
 
     The internal compatibility tables that esbuild uses to determine which environments support which features are derived from multiple sources. Most of it is automatically derived from [these ECMAScript compatibility tables](https://kangax.github.io/compat-table/), but missing information is manually copied from [MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/), GitHub PR comments, and various other websites. Version 0.14.35 of esbuild introduced Opera as a possible target environment which was automatically picked up by the compatibility table script, but the manually-copied information wasn't updated to include Opera. This release fixes this omission so Opera feature compatibility should now be accurate.

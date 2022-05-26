@@ -122,7 +122,7 @@ type ResolveResult struct {
 	UseDefineForClassFieldsTS config.MaybeBool
 
 	// This is the "importsNotUsedAsValues" and "preserveValueImports" fields from "package.json"
-	UnusedImportsTS config.UnusedImportsTS
+	UnusedImportFlagsTS config.UnusedImportFlagsTS
 }
 
 type DebugMeta struct {
@@ -626,7 +626,7 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 						result.JSXFactory = dirInfo.enclosingTSConfigJSON.JSXFactory
 						result.JSXFragment = dirInfo.enclosingTSConfigJSON.JSXFragmentFactory
 						result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
-						result.UnusedImportsTS = config.UnusedImportsFromTsconfigValues(
+						result.UnusedImportFlagsTS = config.UnusedImportFlagsFromTsconfigValues(
 							dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues,
 							dirInfo.enclosingTSConfigJSON.PreserveValueImports,
 						)
