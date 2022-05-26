@@ -6239,3 +6239,52 @@ func TestMangleQuotedProps(t *testing.T) {
 		},
 	})
 }
+
+func TestMangleQuotedPropsMinifySyntax(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/keep.js": `
+				foo("_keepThisProperty");
+				foo((x, "_keepThisProperty"));
+				foo(x ? "_keepThisProperty" : "_keepThisPropertyToo");
+				x[foo("_keepThisProperty")];
+				x?.[foo("_keepThisProperty")];
+				({ [foo("_keepThisProperty")]: x });
+				(class { [foo("_keepThisProperty")] = x });
+				var { [foo("_keepThisProperty")]: x } = y;
+				foo("_keepThisProperty") in x;
+			`,
+			"/mangle.js": `
+				x['_mangleThis'];
+				x?.['_mangleThis'];
+				x[y ? '_mangleThis' : z];
+				x?.[y ? '_mangleThis' : z];
+				x[y ? z : '_mangleThis'];
+				x?.[y ? z : '_mangleThis'];
+				x[y, '_mangleThis'];
+				x?.[y, '_mangleThis'];
+				({ '_mangleThis': x });
+				({ ['_mangleThis']: x });
+				({ [(y, '_mangleThis')]: x });
+				(class { '_mangleThis' = x });
+				(class { ['_mangleThis'] = x });
+				(class { [(y, '_mangleThis')] = x });
+				var { '_mangleThis': x } = y;
+				var { ['_mangleThis']: x } = y;
+				var { [(z, '_mangleThis')]: x } = y;
+				'_mangleThis' in x;
+				(y ? '_mangleThis' : z) in x;
+				(y ? z : '_mangleThis') in x;
+				(y, '_mangleThis') in x;
+			`,
+		},
+		entryPaths: []string{"/keep.js", "/mangle.js"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MangleProps:  regexp.MustCompile("_"),
+			MangleQuoted: true,
+			MinifySyntax: true,
+		},
+	})
+}
