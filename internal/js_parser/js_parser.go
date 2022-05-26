@@ -12522,12 +12522,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// "a['b']" => "a.b"
 		if p.options.minifySyntax {
 			if str, ok := e.Index.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
-				dot := &js_ast.EDot{
-					Target:        e.Target,
-					Name:          helpers.UTF16ToString(str.Value),
-					NameLoc:       e.Index.Loc,
-					OptionalChain: e.OptionalChain,
-				}
+				dot := p.dotOrMangledPropParse(e.Target, js_lexer.MaybeSubstring{String: helpers.UTF16ToString(str.Value)}, e.Index.Loc, e.OptionalChain)
 				if isCallTarget {
 					p.callTarget = dot
 				}

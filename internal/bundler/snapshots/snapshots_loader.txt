@@ -873,7 +873,7 @@ var { [foo("_keepThisProperty")]: x } = y;
 foo("_keepThisProperty") in x;
 
 ---------- /out/mangle.js ----------
-x._mangleThis, x?._mangleThis, x[y ? "a" : z], x?.[y ? "a" : z], x[y ? z : "a"], x?.[y ? z : "a"], x[y, "a"], x?.[y, "a"], "a" + "", (y, "a") + "", class {
+x.a, x?.a, x[y ? "a" : z], x?.[y ? "a" : z], x[y ? z : "a"], x?.[y ? z : "a"], x[y, "a"], x?.[y, "a"], "a" + "", (y, "a") + "", class {
   a = x;
 }, class {
   ["a"] = x;
