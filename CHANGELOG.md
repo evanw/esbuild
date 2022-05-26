@@ -43,6 +43,23 @@
 
     The presence of a `"use strict"` directive in the output file is controlled by the presence of one in the entry point. However, there was a bug that would include one twice if the output format is ESM. This bug has been fixed.
 
+* Minify strings into integers inside computed properties ([#2214](https://github.com/evanw/esbuild/issues/2214))
+
+    This release now minifies `a["0"]` into `a[0]` when the result is equivalent:
+
+    ```js
+    // Original code
+    console.log(x['0'], { '0': x }, class { '0' = x })
+
+    // Old output (with --minify)
+    console.log(x["0"],{"0":x},class{"0"=x});
+
+    // New output (with --minify)
+    console.log(x[0],{0:x},class{0=x});
+    ```
+
+    This transformation currently only happens when the numeric property represents an integer within the signed 32-bit integer range.
+
 ## 0.14.39
 
 * Fix code generation for `export default` and `/* @__PURE__ */` call ([#2203](https://github.com/evanw/esbuild/issues/2203))

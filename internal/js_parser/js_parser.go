@@ -5,6 +5,7 @@ import (
 	"math"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -10370,25 +10371,31 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			})
 			property.Key = key
 
-			// "class {['x'] = y}" => "class {x = y}"
-			if p.options.minifySyntax && property.Flags.Has(js_ast.PropertyIsComputed) {
-				if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
-					isInvalidConstructor := false
-					if helpers.UTF16EqualsString(str.Value, "constructor") {
-						if !property.Flags.Has(js_ast.PropertyIsMethod) {
-							// "constructor" is an invalid name for both instance and static fields
-							isInvalidConstructor = true
-						} else if !property.Flags.Has(js_ast.PropertyIsStatic) {
-							// Calling an instance method "constructor" is problematic so avoid that too
-							isInvalidConstructor = true
-						}
-					}
-
-					// A static property must not be called "prototype"
-					isInvalidPrototype := property.Flags.Has(js_ast.PropertyIsStatic) && helpers.UTF16EqualsString(str.Value, "prototype")
-
-					if !isInvalidConstructor && !isInvalidPrototype {
+			if p.options.minifySyntax {
+				if str, ok := key.Data.(*js_ast.EString); ok {
+					if numberValue, ok := stringToEquivalentNumberValue(str.Value); ok {
+						// "class { '123' }" => "class { 123 }"
+						property.Key.Data = &js_ast.ENumber{Value: numberValue}
 						property.Flags &= ^js_ast.PropertyIsComputed
+					} else if property.Flags.Has(js_ast.PropertyIsComputed) {
+						// "class {['x'] = y}" => "class {'x' = y}"
+						isInvalidConstructor := false
+						if helpers.UTF16EqualsString(str.Value, "constructor") {
+							if !property.Flags.Has(js_ast.PropertyIsMethod) {
+								// "constructor" is an invalid name for both instance and static fields
+								isInvalidConstructor = true
+							} else if !property.Flags.Has(js_ast.PropertyIsStatic) {
+								// Calling an instance method "constructor" is problematic so avoid that too
+								isInvalidConstructor = true
+							}
+						}
+
+						// A static property must not be called "prototype"
+						isInvalidPrototype := property.Flags.Has(js_ast.PropertyIsStatic) && helpers.UTF16EqualsString(str.Value, "prototype")
+
+						if !isInvalidConstructor && !isInvalidPrototype {
+							property.Flags &= ^js_ast.PropertyIsComputed
+						}
 					}
 				}
 			}
@@ -11348,6 +11355,36 @@ func (p *parser) valueForImportMeta(loc logger.Loc) (js_ast.Expr, bool) {
 	}
 
 	return js_ast.Expr{}, false
+}
+
+func stringToEquivalentNumberValue(value []uint16) (float64, bool) {
+	if len(value) > 0 {
+		var intValue int32
+		isNegative := false
+		start := 0
+
+		if value[0] == '-' && len(value) > 1 {
+			isNegative = true
+			start++
+		}
+
+		for _, c := range value[start:] {
+			if c < '0' || c > '9' {
+				return 0, false
+			}
+			intValue = intValue*10 + int32(c) - '0'
+		}
+
+		if isNegative {
+			intValue = -intValue
+		}
+
+		if helpers.UTF16EqualsString(value, strconv.FormatInt(int64(intValue), 10)) {
+			return float64(intValue), true
+		}
+	}
+
+	return 0, false
 }
 
 func isBinaryNullAndUndefined(left js_ast.Expr, right js_ast.Expr, op js_ast.OpCode) (js_ast.Expr, js_ast.Expr, bool) {
@@ -12606,6 +12643,15 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
+		// "a['123']" => "a[123]" (this is done late to allow "'123'" to be mangled)
+		if p.options.minifySyntax {
+			if str, ok := e.Index.Data.(*js_ast.EString); ok {
+				if numberValue, ok := stringToEquivalentNumberValue(str.Value); ok {
+					e.Index.Data = &js_ast.ENumber{Value: numberValue}
+				}
+			}
+		}
+
 		return js_ast.Expr{Loc: expr.Loc, Data: e}, out
 
 	case *js_ast.EUnary:
@@ -12969,6 +13015,15 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					if id, ok := property.ValueOrNil.Data.(*js_ast.EIdentifier); ok {
 						property.InitializerOrNil = p.maybeKeepExprSymbolName(
 							property.InitializerOrNil, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+					}
+				}
+			}
+
+			// "{ '123': 4 }" => "{ 123: 4 }" (this is done late to allow "'123'" to be mangled)
+			if p.options.minifySyntax {
+				if str, ok := property.Key.Data.(*js_ast.EString); ok {
+					if numberValue, ok := stringToEquivalentNumberValue(str.Value); ok {
+						property.Key.Data = &js_ast.ENumber{Value: numberValue}
 					}
 				}
 			}

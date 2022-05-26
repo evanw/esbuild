@@ -1214,6 +1214,20 @@ func TestObject(t *testing.T) {
 	expectParseError(t, "({get x() {}, set x(y) {}, set x(y) {}})", duplicateWarning)
 	expectParseError(t, "({get x() {}, set x(y) {}})", "")
 	expectParseError(t, "({set x(y) {}, get x() {}})", "")
+
+	// Check the string-to-int optimization
+	expectPrintedMangle(t, "x = { '0': y }", "x = { 0: y };\n")
+	expectPrintedMangle(t, "x = { '123': y }", "x = { 123: y };\n")
+	expectPrintedMangle(t, "x = { '-123': y }", "x = { -123: y };\n")
+	expectPrintedMangle(t, "x = { '-0': y }", "x = { \"-0\": y };\n")
+	expectPrintedMangle(t, "x = { '01': y }", "x = { \"01\": y };\n")
+	expectPrintedMangle(t, "x = { '-01': y }", "x = { \"-01\": y };\n")
+	expectPrintedMangle(t, "x = { '0x1': y }", "x = { \"0x1\": y };\n")
+	expectPrintedMangle(t, "x = { '-0x1': y }", "x = { \"-0x1\": y };\n")
+	expectPrintedMangle(t, "x = { '2147483647': y }", "x = { 2147483647: y };\n")
+	expectPrintedMangle(t, "x = { '2147483648': y }", "x = { \"2147483648\": y };\n")
+	expectPrintedMangle(t, "x = { '-2147483648': y }", "x = { -2147483648: y };\n")
+	expectPrintedMangle(t, "x = { '-2147483649': y }", "x = { \"-2147483649\": y };\n")
 }
 
 func TestComputedProperty(t *testing.T) {
@@ -1556,6 +1570,20 @@ func TestClass(t *testing.T) {
 		"class Foo {\n  constructor() {\n  }\n  [\"constructor\"]() {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { static constructor() {} static ['constructor']() {} }",
 		"class Foo {\n  static constructor() {\n  }\n  static constructor() {\n  }\n}\n")
+
+	// Check the string-to-int optimization
+	expectPrintedMangle(t, "class x { '0' = y }", "class x {\n  0 = y;\n}\n")
+	expectPrintedMangle(t, "class x { '123' = y }", "class x {\n  123 = y;\n}\n")
+	expectPrintedMangle(t, "class x { ['-123'] = y }", "class x {\n  -123 = y;\n}\n")
+	expectPrintedMangle(t, "class x { '-0' = y }", "class x {\n  \"-0\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { '01' = y }", "class x {\n  \"01\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { '-01' = y }", "class x {\n  \"-01\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { '0x1' = y }", "class x {\n  \"0x1\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { '-0x1' = y }", "class x {\n  \"-0x1\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { '2147483647' = y }", "class x {\n  2147483647 = y;\n}\n")
+	expectPrintedMangle(t, "class x { '2147483648' = y }", "class x {\n  \"2147483648\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { ['-2147483648'] = y }", "class x {\n  -2147483648 = y;\n}\n")
+	expectPrintedMangle(t, "class x { ['-2147483649'] = y }", "class x {\n  \"-2147483649\" = y;\n}\n")
 }
 
 func TestSuperCall(t *testing.T) {
@@ -2913,6 +2941,20 @@ func TestMangleIndex(t *testing.T) {
 	expectPrintedMangle(t, "x?.['y z']", "x?.[\"y z\"];\n")
 	expectPrintedMangle(t, "x?.['y']()", "x?.y();\n")
 	expectPrintedMangle(t, "x?.['y z']()", "x?.[\"y z\"]();\n")
+
+	// Check the string-to-int optimization
+	expectPrintedMangle(t, "x['0']", "x[0];\n")
+	expectPrintedMangle(t, "x['123']", "x[123];\n")
+	expectPrintedMangle(t, "x['-123']", "x[-123];\n")
+	expectPrintedMangle(t, "x['-0']", "x[\"-0\"];\n")
+	expectPrintedMangle(t, "x['01']", "x[\"01\"];\n")
+	expectPrintedMangle(t, "x['-01']", "x[\"-01\"];\n")
+	expectPrintedMangle(t, "x['0x1']", "x[\"0x1\"];\n")
+	expectPrintedMangle(t, "x['-0x1']", "x[\"-0x1\"];\n")
+	expectPrintedMangle(t, "x['2147483647']", "x[2147483647];\n")
+	expectPrintedMangle(t, "x['2147483648']", "x[\"2147483648\"];\n")
+	expectPrintedMangle(t, "x['-2147483648']", "x[-2147483648];\n")
+	expectPrintedMangle(t, "x['-2147483649']", "x[\"-2147483649\"];\n")
 }
 
 func TestMangleBlock(t *testing.T) {
