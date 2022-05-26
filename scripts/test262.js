@@ -179,13 +179,16 @@ async function main() {
       } else {
         const result3 = await esbuildFile(result2.output, { minify: true });
         if (!result3.success) {
-          throw new Error('This should have succeeded');
-        }
-        const result4 = await esbuildFile(result3.output, { minify: true });
-        if (!result4.success) {
-          console.log(`\n!!! MINIFY ERROR: ${file} !!!`);
-          console.log(`${result4.error}`);
+          console.log(`\n!!! MINIFY 1x ERROR: ${file} !!!`);
+          console.log(`${result3.error}`);
           minifyCount++;
+        } else {
+          const result4 = await esbuildFile(result3.output, { minify: true });
+          if (!result4.success) {
+            console.log(`\n!!! MINIFY 2x ERROR: ${file} !!!`);
+            console.log(`${result4.error}`);
+            minifyCount++;
+          }
         }
       }
     }
