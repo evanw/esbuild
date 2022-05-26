@@ -243,9 +243,12 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{15, 0, 0}}},
 	},
 	ClassStaticBlocks: {
-		Chrome: {{start: v{91, 0, 0}}},
-		ES:     {{start: v{2022, 0, 0}}},
-		Node:   {{start: v{16, 11, 0}}},
+		Chrome:  {{start: v{91, 0, 0}}},
+		Edge:    {{start: v{94, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
+		Firefox: {{start: v{93, 0, 0}}},
+		Node:    {{start: v{16, 11, 0}}},
+		Opera:   {{start: v{80, 0, 0}}},
 	},
 	ClassStaticField: {
 		Chrome:  {{start: v{73, 0, 0}}},
@@ -295,6 +298,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Firefox: {{start: v{67, 0, 0}}},
 		IOS:     {{start: v{11, 0, 0}}},
 		Node:    {{start: v{12, 20, 0}, end: v{13, 0, 0}}, {start: v{13, 2, 0}}},
+		Opera:   {{start: v{50, 0, 0}}},
 		Safari:  {{start: v{11, 1, 0}}},
 	},
 	ExponentOperator: {
@@ -313,6 +317,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		ES:      {{start: v{2020, 0, 0}}},
 		Firefox: {{start: v{80, 0, 0}}},
 		Node:    {{start: v{12, 0, 0}}},
+		Opera:   {{start: v{60, 0, 0}}},
 	},
 	ForAwait: {
 		Chrome:  {{start: v{63, 0, 0}}},
@@ -364,6 +369,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Firefox: {{start: v{62, 0, 0}}},
 		IOS:     {{start: v{12, 0, 0}}},
 		Node:    {{start: v{10, 4, 0}}},
+		Opera:   {{start: v{51, 0, 0}}},
 		Safari:  {{start: v{11, 1, 0}}},
 	},
 	Let: {
