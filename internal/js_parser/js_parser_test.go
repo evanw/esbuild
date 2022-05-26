@@ -1122,6 +1122,12 @@ func TestPattern(t *testing.T) {
 
 	expectPrinted(t, "let {1_2_3n: x} = y", "let { 123n: x } = y;\n")
 	expectPrinted(t, "let {0x1_2_3n: x} = y", "let { 0x123n: x } = y;\n")
+
+	expectParseError(t, "var [ (x) ] = 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "var [ ...(x) ] = 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "var { (x) } = 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "var { x: (y) } = 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "var { ...(x) } = 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
 }
 
 func TestAssignTarget(t *testing.T) {
@@ -1135,6 +1141,12 @@ func TestAssignTarget(t *testing.T) {
 	expectParseError(t, "({...x} = 0)", "")
 	expectParseError(t, "({x = 0} = 0)", "")
 	expectParseError(t, "({x: y = 0} = 0)", "")
+
+	expectParseError(t, "[ (y) ] = 0", "")
+	expectParseError(t, "[ ...(y) ] = 0", "")
+	expectParseError(t, "({ (y) } = 0)", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "({ y: (z) } = 0)", "")
+	expectParseError(t, "({ ...(y) } = 0)", "")
 
 	expectParseError(t, "[...x = y] = 0", "<stdin>: ERROR: Invalid assignment target\n")
 	expectParseError(t, "x() = 0", "<stdin>: ERROR: Invalid assignment target\n")
@@ -1978,6 +1990,17 @@ func TestArrow(t *testing.T) {
 	expectParseError(t, "({a: b, c() {}}) => {}", "<stdin>: ERROR: Invalid binding pattern\n")
 	expectParseError(t, "({a: b, get c() {}}) => {}", "<stdin>: ERROR: Invalid binding pattern\n")
 	expectParseError(t, "({a: b, set c(x) {}}) => {}", "<stdin>: ERROR: Invalid binding pattern\n")
+
+	expectParseError(t, "x = ([ (y) ]) => 0", "<stdin>: ERROR: Invalid binding pattern\n")
+	expectParseError(t, "x = ([ ...(y) ]) => 0", "<stdin>: ERROR: Invalid binding pattern\n")
+	expectParseError(t, "x = ({ (y) }) => 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "x = ({ y: (z) }) => 0", "<stdin>: ERROR: Invalid binding pattern\n")
+	expectParseError(t, "x = ({ ...(y) }) => 0", "<stdin>: ERROR: Invalid binding pattern\n")
+
+	expectPrinted(t, "x = ([ y = [ (z) ] ]) => 0", "x = ([y = [z]]) => 0;\n")
+	expectPrinted(t, "x = ([ y = [ ...(z) ] ]) => 0", "x = ([y = [...z]]) => 0;\n")
+	expectPrinted(t, "x = ({ y = { y: (z) } }) => 0", "x = ({ y = { y: z } }) => 0;\n")
+	expectPrinted(t, "x = ({ y = { ...(y) } }) => 0", "x = ({ y = { ...y } }) => 0;\n")
 
 	expectPrinted(t, "x => function() {}", "(x) => function() {\n};\n")
 	expectPrinted(t, "(x) => function() {}", "(x) => function() {\n};\n")

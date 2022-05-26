@@ -1561,6 +1561,9 @@ type deferredErrors struct {
 	invalidExprDefaultValue  logger.Range
 	invalidExprAfterQuestion logger.Range
 	arraySpreadFeature       logger.Range
+
+	// These errors are for arrow functions
+	invalidParens []logger.Range
 }
 
 func (from *deferredErrors) mergeInto(to *deferredErrors) {
@@ -1572,6 +1575,13 @@ func (from *deferredErrors) mergeInto(to *deferredErrors) {
 	}
 	if from.arraySpreadFeature.Len > 0 {
 		to.arraySpreadFeature = from.arraySpreadFeature
+	}
+	if len(from.invalidParens) > 0 {
+		if len(to.invalidParens) > 0 {
+			to.invalidParens = append(to.invalidParens, from.invalidParens...)
+		} else {
+			to.invalidParens = from.invalidParens
+		}
 	}
 }
 
@@ -1587,6 +1597,12 @@ func (p *parser) logExprErrors(errors *deferredErrors) {
 
 	if errors.arraySpreadFeature.Len > 0 {
 		p.markSyntaxFeature(compat.ArraySpread, errors.arraySpreadFeature)
+	}
+}
+
+func (p *parser) logDeferredArrowArgErrors(errors *deferredErrors) {
+	for _, paren := range errors.invalidParens {
+		p.log.Add(logger.Error, &p.tracker, paren, "Invalid binding pattern")
 	}
 }
 
@@ -1619,13 +1635,11 @@ type deferredArrowArgErrors struct {
 
 func (p *parser) logArrowArgErrors(errors *deferredArrowArgErrors) {
 	if errors.invalidExprAwait.Len > 0 {
-		r := errors.invalidExprAwait
-		p.log.Add(logger.Error, &p.tracker, r, "Cannot use an \"await\" expression here:")
+		p.log.Add(logger.Error, &p.tracker, errors.invalidExprAwait, "Cannot use an \"await\" expression here:")
 	}
 
 	if errors.invalidExprYield.Len > 0 {
-		r := errors.invalidExprYield
-		p.log.Add(logger.Error, &p.tracker, r, "Cannot use a \"yield\" expression here:")
+		p.log.Add(logger.Error, &p.tracker, errors.invalidExprYield, "Cannot use a \"yield\" expression here:")
 	}
 }
 
@@ -2630,6 +2644,7 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 				p.log.Add(logger.Error, &p.tracker, logger.Range{Loc: commaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
 			}
 			p.logArrowArgErrors(&arrowArgErrors)
+			p.logDeferredArrowArgErrors(&errors)
 
 			// Now that we've decided we're an arrow function, report binding pattern
 			// conversion errors
@@ -2749,9 +2764,6 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 		if e.CommaAfterSpread.Start != 0 {
 			invalidLog.invalidTokens = append(invalidLog.invalidTokens, logger.Range{Loc: e.CommaAfterSpread, Len: 1})
 		}
-		if e.IsParenthesized {
-			invalidLog.invalidTokens = append(invalidLog.invalidTokens, p.source.RangeOfOperatorBefore(expr.Loc, "("))
-		}
 		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "["))
 		items := []js_ast.ArrayBinding{}
 		isSpread := false
@@ -2776,9 +2788,6 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 	case *js_ast.EObject:
 		if e.CommaAfterSpread.Start != 0 {
 			invalidLog.invalidTokens = append(invalidLog.invalidTokens, logger.Range{Loc: e.CommaAfterSpread, Len: 1})
-		}
-		if e.IsParenthesized {
-			invalidLog.invalidTokens = append(invalidLog.invalidTokens, p.source.RangeOfOperatorBefore(expr.Loc, "("))
 		}
 		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "{"))
 		properties := []js_ast.PropertyBinding{}
@@ -2843,6 +2852,10 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		return js_ast.Expr{Loc: loc, Data: js_ast.ESuperShared}
 
 	case js_lexer.TOpenParen:
+		if errors != nil {
+			errors.invalidParens = append(errors.invalidParens, p.lexer.Range())
+		}
+
 		p.lexer.Next()
 
 		// Arrow functions aren't allowed in the middle of expressions
@@ -3253,7 +3266,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			if p.lexer.Token == js_lexer.TDotDotDot {
 				dotLoc := p.lexer.Loc()
 				p.lexer.Next()
-				value := p.parseExpr(js_ast.LComma)
+				value := p.parseExprOrBindings(js_ast.LComma, &selfErrors)
 				properties = append(properties, js_ast.Property{
 					Kind:       js_ast.PropertySpread,
 					Loc:        dotLoc,
