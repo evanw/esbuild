@@ -1370,6 +1370,64 @@ console.log(/* @__PURE__ */ React.createElement("[", null));
 console.log(/* @__PURE__ */ React.createElement("]", null));
 
 ================================================================================
+TestJSXImportMetaProperty
+---------- /out/factory.js ----------
+// factory.jsx
+var import_meta = {};
+console.log([
+  /* @__PURE__ */ import_meta.factory("x", null),
+  /* @__PURE__ */ import_meta.factory("x", null)
+]);
+f = function() {
+  console.log([
+    /* @__PURE__ */ import_meta.factory("y", null),
+    /* @__PURE__ */ import_meta.factory("y", null)
+  ]);
+};
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+var import_meta = {};
+console.log([
+  /* @__PURE__ */ import_meta.factory(import_meta.fragment, null, "x"),
+  /* @__PURE__ */ import_meta.factory(import_meta.fragment, null, "x")
+]), f = function() {
+  console.log([
+    /* @__PURE__ */ import_meta.factory(import_meta.fragment, null, "y"),
+    /* @__PURE__ */ import_meta.factory(import_meta.fragment, null, "y")
+  ]);
+};
+
+================================================================================
+TestJSXImportMetaValue
+---------- /out/factory.js ----------
+// factory.jsx
+var import_meta = {};
+console.log([
+  /* @__PURE__ */ import_meta("x", null),
+  /* @__PURE__ */ import_meta("x", null)
+]);
+f = function() {
+  console.log([
+    /* @__PURE__ */ import_meta("y", null),
+    /* @__PURE__ */ import_meta("y", null)
+  ]);
+};
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+var import_meta = {};
+console.log([
+  /* @__PURE__ */ import_meta(import_meta, null, "x"),
+  /* @__PURE__ */ import_meta(import_meta, null, "x")
+]), f = function() {
+  console.log([
+    /* @__PURE__ */ import_meta(import_meta, null, "y"),
+    /* @__PURE__ */ import_meta(import_meta, null, "y")
+  ]);
+};
+
+================================================================================
 TestJSXImportsCommonJS
 ---------- /out.js ----------
 // custom-react.js
@@ -1394,6 +1452,134 @@ function frag() {
 
 // entry.jsx
 console.log(/* @__PURE__ */ elem("div", null), /* @__PURE__ */ elem(frag, null, "fragment"));
+
+================================================================================
+TestJSXThisPropertyCommonJS
+---------- /out/factory.js ----------
+// factory.jsx
+var require_factory = __commonJS({
+  "factory.jsx"(exports) {
+    console.log([
+      /* @__PURE__ */ exports.factory("x", null),
+      /* @__PURE__ */ exports.factory("x", null)
+    ]);
+    f = function() {
+      console.log([
+        /* @__PURE__ */ this.factory("y", null),
+        /* @__PURE__ */ this.factory("y", null)
+      ]);
+    };
+  }
+});
+export default require_factory();
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+var require_fragment = __commonJS({
+  "fragment.jsx"(exports) {
+    console.log([
+      /* @__PURE__ */ exports.factory(exports.fragment, null, "x"),
+      /* @__PURE__ */ exports.factory(exports.fragment, null, "x")
+    ]), f = function() {
+      console.log([
+        /* @__PURE__ */ this.factory(this.fragment, null, "y"),
+        /* @__PURE__ */ this.factory(this.fragment, null, "y")
+      ]);
+    };
+  }
+});
+export default require_fragment();
+
+================================================================================
+TestJSXThisPropertyESM
+---------- /out/factory.js ----------
+// factory.jsx
+console.log([
+  /* @__PURE__ */ (void 0).factory("x", null),
+  /* @__PURE__ */ (void 0).factory("x", null)
+]);
+f = function() {
+  console.log([
+    /* @__PURE__ */ this.factory("y", null),
+    /* @__PURE__ */ this.factory("y", null)
+  ]);
+};
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+console.log([
+  /* @__PURE__ */ (void 0).factory((void 0).fragment, null, "x"),
+  /* @__PURE__ */ (void 0).factory((void 0).fragment, null, "x")
+]), f = function() {
+  console.log([
+    /* @__PURE__ */ this.factory(this.fragment, null, "y"),
+    /* @__PURE__ */ this.factory(this.fragment, null, "y")
+  ]);
+};
+
+================================================================================
+TestJSXThisValueCommonJS
+---------- /out/factory.js ----------
+// factory.jsx
+var require_factory = __commonJS({
+  "factory.jsx"(exports) {
+    console.log([
+      /* @__PURE__ */ exports("x", null),
+      /* @__PURE__ */ exports("x", null)
+    ]);
+    f = function() {
+      console.log([
+        /* @__PURE__ */ this("y", null),
+        /* @__PURE__ */ this("y", null)
+      ]);
+    };
+  }
+});
+export default require_factory();
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+var require_fragment = __commonJS({
+  "fragment.jsx"(exports) {
+    console.log([
+      /* @__PURE__ */ exports(exports, null, "x"),
+      /* @__PURE__ */ exports(exports, null, "x")
+    ]), f = function() {
+      console.log([
+        /* @__PURE__ */ this(this, null, "y"),
+        /* @__PURE__ */ this(this, null, "y")
+      ]);
+    };
+  }
+});
+export default require_fragment();
+
+================================================================================
+TestJSXThisValueESM
+---------- /out/factory.js ----------
+// factory.jsx
+console.log([
+  /* @__PURE__ */ (void 0)("x", null),
+  /* @__PURE__ */ (void 0)("x", null)
+]);
+f = function() {
+  console.log([
+    /* @__PURE__ */ this("y", null),
+    /* @__PURE__ */ this("y", null)
+  ]);
+};
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+console.log([
+  /* @__PURE__ */ (void 0)(void 0, null, "x"),
+  /* @__PURE__ */ (void 0)(void 0, null, "x")
+]), f = function() {
+  console.log([
+    /* @__PURE__ */ this(this, null, "y"),
+    /* @__PURE__ */ this(this, null, "y")
+  ]);
+};
 
 ================================================================================
 TestKeepNamesTreeShaking

@@ -4663,6 +4663,280 @@ NOTE: Make sure to enable TypeScript's "esModuleInterop" setting so that TypeScr
 	})
 }
 
+func TestJSXThisValueCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/factory.jsx": `
+				console.log([
+					<x />,
+					/* @__PURE__ */ this('x', null),
+				])
+				f = function() {
+					console.log([
+						<y />,
+						/* @__PURE__ */ this('y', null),
+					])
+				}
+			`,
+			"/fragment.jsx": `
+				console.log([
+					<>x</>,
+					/* @__PURE__ */ this(this, null, 'x'),
+				]),
+				f = function() {
+					console.log([
+						<>y</>,
+						/* @__PURE__ */ this(this, null, 'y'),
+					])
+				}
+			`,
+		},
+		entryPaths: []string{"/factory.jsx", "/fragment.jsx"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			JSX: config.JSXOptions{
+				Factory:  config.JSXExpr{Parts: []string{"this"}},
+				Fragment: config.JSXExpr{Parts: []string{"this"}},
+			},
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestJSXThisValueESM(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/factory.jsx": `
+				console.log([
+					<x />,
+					/* @__PURE__ */ this('x', null),
+				])
+				f = function() {
+					console.log([
+						<y />,
+						/* @__PURE__ */ this('y', null),
+					])
+				}
+				export {}
+			`,
+			"/fragment.jsx": `
+				console.log([
+					<>x</>,
+					/* @__PURE__ */ this(this, null, 'x'),
+				]),
+				f = function() {
+					console.log([
+						<>y</>,
+						/* @__PURE__ */ this(this, null, 'y'),
+					])
+				}
+				export {}
+			`,
+		},
+		entryPaths: []string{"/factory.jsx", "/fragment.jsx"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			JSX: config.JSXOptions{
+				Factory:  config.JSXExpr{Parts: []string{"this"}},
+				Fragment: config.JSXExpr{Parts: []string{"this"}},
+			},
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `factory.jsx: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+factory.jsx: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+fragment.jsx: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+fragment.jsx: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+`,
+	})
+}
+
+func TestJSXThisPropertyCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/factory.jsx": `
+				console.log([
+					<x />,
+					/* @__PURE__ */ this.factory('x', null),
+				])
+				f = function() {
+					console.log([
+						<y />,
+						/* @__PURE__ */ this.factory('y', null),
+					])
+				}
+			`,
+			"/fragment.jsx": `
+				console.log([
+					<>x</>,
+					/* @__PURE__ */ this.factory(this.fragment, null, 'x'),
+				]),
+				f = function() {
+					console.log([
+						<>y</>,
+						/* @__PURE__ */ this.factory(this.fragment, null, 'y'),
+					])
+				}
+			`,
+		},
+		entryPaths: []string{"/factory.jsx", "/fragment.jsx"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			JSX: config.JSXOptions{
+				Factory:  config.JSXExpr{Parts: []string{"this", "factory"}},
+				Fragment: config.JSXExpr{Parts: []string{"this", "fragment"}},
+			},
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestJSXThisPropertyESM(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/factory.jsx": `
+				console.log([
+					<x />,
+					/* @__PURE__ */ this.factory('x', null),
+				])
+				f = function() {
+					console.log([
+						<y />,
+						/* @__PURE__ */ this.factory('y', null),
+					])
+				}
+				export {}
+			`,
+			"/fragment.jsx": `
+				console.log([
+					<>x</>,
+					/* @__PURE__ */ this.factory(this.fragment, null, 'x'),
+				]),
+				f = function() {
+					console.log([
+						<>y</>,
+						/* @__PURE__ */ this.factory(this.fragment, null, 'y'),
+					])
+				}
+				export {}
+			`,
+		},
+		entryPaths: []string{"/factory.jsx", "/fragment.jsx"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			JSX: config.JSXOptions{
+				Factory:  config.JSXExpr{Parts: []string{"this", "factory"}},
+				Fragment: config.JSXExpr{Parts: []string{"this", "fragment"}},
+			},
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `factory.jsx: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+factory.jsx: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+fragment.jsx: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+fragment.jsx: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+`,
+	})
+}
+
+func TestJSXImportMetaValue(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/factory.jsx": `
+				console.log([
+					<x />,
+					/* @__PURE__ */ import.meta('x', null),
+				])
+				f = function() {
+					console.log([
+						<y />,
+						/* @__PURE__ */ import.meta('y', null),
+					])
+				}
+				export {}
+			`,
+			"/fragment.jsx": `
+				console.log([
+					<>x</>,
+					/* @__PURE__ */ import.meta(import.meta, null, 'x'),
+				]),
+				f = function() {
+					console.log([
+						<>y</>,
+						/* @__PURE__ */ import.meta(import.meta, null, 'y'),
+					])
+				}
+				export {}
+			`,
+		},
+		entryPaths: []string{"/factory.jsx", "/fragment.jsx"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: compat.ImportMeta,
+			JSX: config.JSXOptions{
+				Factory:  config.JSXExpr{Parts: []string{"import", "meta"}},
+				Fragment: config.JSXExpr{Parts: []string{"import", "meta"}},
+			},
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `factory.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+factory.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+fragment.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+fragment.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+fragment.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+fragment.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+`,
+	})
+}
+
+func TestJSXImportMetaProperty(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/factory.jsx": `
+				console.log([
+					<x />,
+					/* @__PURE__ */ import.meta.factory('x', null),
+				])
+				f = function() {
+					console.log([
+						<y />,
+						/* @__PURE__ */ import.meta.factory('y', null),
+					])
+				}
+				export {}
+			`,
+			"/fragment.jsx": `
+				console.log([
+					<>x</>,
+					/* @__PURE__ */ import.meta.factory(import.meta.fragment, null, 'x'),
+				]),
+				f = function() {
+					console.log([
+						<>y</>,
+						/* @__PURE__ */ import.meta.factory(import.meta.fragment, null, 'y'),
+					])
+				}
+				export {}
+			`,
+		},
+		entryPaths: []string{"/factory.jsx", "/fragment.jsx"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: compat.ImportMeta,
+			JSX: config.JSXOptions{
+				Factory:  config.JSXExpr{Parts: []string{"import", "meta", "factory"}},
+				Fragment: config.JSXExpr{Parts: []string{"import", "meta", "fragment"}},
+			},
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `factory.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+factory.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+fragment.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+fragment.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+fragment.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+fragment.jsx: WARNING: "import.meta" is not available in the configured target environment and will be empty
+`,
+	})
+}
+
 func TestBundlingFilesOutsideOfOutbase(t *testing.T) {
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{

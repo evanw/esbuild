@@ -10606,19 +10606,46 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 	}
 
 	// Generate an identifier for the first part
-	result := p.findSymbol(loc, parts[0])
-	value := p.handleIdentifier(loc, &js_ast.EIdentifier{
-		Ref:                   result.ref,
-		MustKeepDueToWithStmt: result.isInsideWithScope,
+	var value js_ast.Expr
+	firstPart := parts[0]
+	nextPart := 1
+	switch firstPart {
+	case "null":
+		value = js_ast.Expr{Loc: loc, Data: js_ast.ENullShared}
 
-		// Enable tree shaking
-		CanBeRemovedIfUnused: true,
-	}, identifierOpts{
-		wasOriginallyIdentifier: true,
-	})
+	case "undefined":
+		value = js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}
+
+	case "this":
+		if thisValue, ok := p.valueForThis(loc, false, js_ast.AssignTargetNone, false, false); ok {
+			value = thisValue
+		} else {
+			value = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
+		}
+
+	default:
+		if firstPart == "import" && len(parts) > 1 && parts[1] == "meta" {
+			if importMeta, ok := p.valueForImportMeta(loc); ok {
+				value = importMeta
+				nextPart = 2
+				break
+			}
+		}
+
+		result := p.findSymbol(loc, firstPart)
+		value = p.handleIdentifier(loc, &js_ast.EIdentifier{
+			Ref:                   result.ref,
+			MustKeepDueToWithStmt: result.isInsideWithScope,
+
+			// Enable tree shaking
+			CanBeRemovedIfUnused: true,
+		}, identifierOpts{
+			wasOriginallyIdentifier: true,
+		})
+	}
 
 	// Build up a chain of property access expressions for subsequent parts
-	for _, part := range parts[1:] {
+	for _, part := range parts[nextPart:] {
 		if expr, ok := p.maybeRewritePropertyAccess(loc, js_ast.AssignTargetNone, false, value, part, loc, false, false); ok {
 			value = expr
 		} else if p.isMangledProp(part) {
@@ -11266,6 +11293,23 @@ func (p *parser) valueForThis(
 	return js_ast.Expr{}, false
 }
 
+func (p *parser) valueForImportMeta(loc logger.Loc) (js_ast.Expr, bool) {
+	if p.options.unsupportedJSFeatures.Has(compat.ImportMeta) ||
+		(p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepES6ImportExportSyntax()) {
+		// Generate the variable if it doesn't exist yet
+		if p.importMetaRef == js_ast.InvalidRef {
+			p.importMetaRef = p.newSymbol(js_ast.SymbolOther, "import_meta")
+			p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
+		}
+
+		// Replace "import.meta" with a reference to the symbol
+		p.recordUsage(p.importMetaRef)
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.importMetaRef}}, true
+	}
+
+	return js_ast.Expr{}, false
+}
+
 func isBinaryNullAndUndefined(left js_ast.Expr, right js_ast.Expr, op js_ast.OpCode) (js_ast.Expr, js_ast.Expr, bool) {
 	if a, ok := left.Data.(*js_ast.EBinary); ok && a.Op == op {
 		if b, ok := right.Data.(*js_ast.EBinary); ok && b.Op == op {
@@ -11488,17 +11532,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Convert "import.meta" to a variable if it's not supported in the output format
-		if p.options.unsupportedJSFeatures.Has(compat.ImportMeta) ||
-			(p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepES6ImportExportSyntax()) {
-			// Generate the variable if it doesn't exist yet
-			if p.importMetaRef == js_ast.InvalidRef {
-				p.importMetaRef = p.newSymbol(js_ast.SymbolOther, "import_meta")
-				p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
-			}
-
-			// Replace "import.meta" with a reference to the symbol
-			p.recordUsage(p.importMetaRef)
-			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.importMetaRef}}, exprOut{}
+		if importMeta, ok := p.valueForImportMeta(expr.Loc); ok {
+			return importMeta, exprOut{}
 		}
 
 	case *js_ast.ESpread:
