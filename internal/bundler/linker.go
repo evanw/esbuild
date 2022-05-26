@@ -4363,6 +4363,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 	}
 
 	tree := repr.AST
+	tree.Directive = ""
 	tree.Parts = []js_ast.Part{{Stmts: stmts}}
 
 	// Indent the file if everything is wrapped in an IIFE

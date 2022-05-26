@@ -3780,6 +3780,17 @@ TestUseStrictDirectiveBundleIssue1837
 })();
 
 ================================================================================
+TestUseStrictDirectiveBundleIssue2264
+---------- /out.js ----------
+"use strict";
+
+// entry.js
+var a = 1;
+export {
+  a
+};
+
+================================================================================
 TestUseStrictDirectiveMinifyNoBundle
 ---------- /out.js ----------
 "use strict";a,b;

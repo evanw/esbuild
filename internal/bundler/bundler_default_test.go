@@ -2788,6 +2788,23 @@ func TestUseStrictDirectiveBundleIssue1837(t *testing.T) {
 	})
 }
 
+func TestUseStrictDirectiveBundleIssue2264(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				'use strict'
+				export let a = 1
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatESModule,
+		},
+	})
+}
+
 func TestNoOverwriteInputFileError(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
