@@ -1222,7 +1222,7 @@ func TestObject(t *testing.T) {
 	// Check the string-to-int optimization
 	expectPrintedMangle(t, "x = { '0': y }", "x = { 0: y };\n")
 	expectPrintedMangle(t, "x = { '123': y }", "x = { 123: y };\n")
-	expectPrintedMangle(t, "x = { '-123': y }", "x = { -123: y };\n")
+	expectPrintedMangle(t, "x = { '-123': y }", "x = { \"-123\": y };\n")
 	expectPrintedMangle(t, "x = { '-0': y }", "x = { \"-0\": y };\n")
 	expectPrintedMangle(t, "x = { '01': y }", "x = { \"01\": y };\n")
 	expectPrintedMangle(t, "x = { '-01': y }", "x = { \"-01\": y };\n")
@@ -1230,7 +1230,7 @@ func TestObject(t *testing.T) {
 	expectPrintedMangle(t, "x = { '-0x1': y }", "x = { \"-0x1\": y };\n")
 	expectPrintedMangle(t, "x = { '2147483647': y }", "x = { 2147483647: y };\n")
 	expectPrintedMangle(t, "x = { '2147483648': y }", "x = { \"2147483648\": y };\n")
-	expectPrintedMangle(t, "x = { '-2147483648': y }", "x = { -2147483648: y };\n")
+	expectPrintedMangle(t, "x = { '-2147483648': y }", "x = { \"-2147483648\": y };\n")
 	expectPrintedMangle(t, "x = { '-2147483649': y }", "x = { \"-2147483649\": y };\n")
 }
 
