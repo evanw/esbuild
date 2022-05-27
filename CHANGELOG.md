@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.40
 
 * Correct esbuild's implementation of `"preserveValueImports": true` ([#2268](https://github.com/evanw/esbuild/issues/2268))
 
