@@ -13183,7 +13183,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// "{ '123': 4 }" => "{ 123: 4 }" (this is done late to allow "'123'" to be mangled)
 			if p.options.minifySyntax {
 				if str, ok := property.Key.Data.(*js_ast.EString); ok {
-					if numberValue, ok := stringToEquivalentNumberValue(str.Value); ok {
+					if numberValue, ok := stringToEquivalentNumberValue(str.Value); numberValue >= 0 && ok {
 						property.Key.Data = &js_ast.ENumber{Value: numberValue}
 					}
 				}
