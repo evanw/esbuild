@@ -37,6 +37,7 @@ const features = {
   'class': { target: 'Class' },
   'generators': { target: 'Generator' },
   'Unicode code point escapes': { target: 'UnicodeEscapes' },
+  'RegExp "y" and "u" flags': { target: 'RegExpStickyAndUnicodeFlags' },
 
   // >ES6 features
   'exponentiation (**) operator': { target: 'ExponentOperator' },
@@ -44,6 +45,10 @@ const features = {
   'nested rest destructuring, parameters': { target: 'NestedRestBinding' },
   'async functions': { target: 'AsyncAwait' },
   'object rest/spread properties': { target: 'ObjectRestSpread' },
+  'RegExp Lookbehind Assertions': { target: 'RegExpLookbehindAssertions' },
+  'RegExp named capture groups': { target: 'RegExpNamedCaptureGroups' },
+  'RegExp Unicode Property Escapes': { target: 'RegExpUnicodePropertyEscapes' },
+  's (dotAll) flag for regular expressions': { target: 'RegExpDotAllFlag' },
   'Asynchronous Iterators: async generators': { target: 'AsyncGenerator' },
   'Asynchronous Iterators: for-await-of loops': { target: 'ForAwait' },
   'optional catch binding': { target: 'OptionalCatchBinding' },
@@ -139,6 +144,7 @@ mergeVersions('Generator', { es2015: true })
 mergeVersions('Let', { es2015: true })
 mergeVersions('NewTarget', { es2015: true })
 mergeVersions('ObjectExtensions', { es2015: true })
+mergeVersions('RegExpStickyAndUnicodeFlags', { es2015: true })
 mergeVersions('RestArgument', { es2015: true })
 mergeVersions('TemplateLiteral', { es2015: true })
 mergeVersions('UnicodeEscapes', { es2015: true })
@@ -150,6 +156,10 @@ mergeVersions('AsyncAwait', { es2017: true })
 mergeVersions('AsyncGenerator', { es2018: true })
 mergeVersions('ForAwait', { es2018: true })
 mergeVersions('ObjectRestSpread', { es2018: true })
+mergeVersions('RegExpDotAllFlag', { es2018: true })
+mergeVersions('RegExpLookbehindAssertions', { es2018: true })
+mergeVersions('RegExpNamedCaptureGroups', { es2018: true })
+mergeVersions('RegExpUnicodePropertyEscapes', { es2018: true })
 mergeVersions('OptionalCatchBinding', { es2019: true })
 mergeVersions('BigInt', { es2020: true })
 mergeVersions('ImportMeta', { es2020: true })
@@ -169,6 +179,7 @@ mergeVersions('ClassStaticBlocks', { es2022: true })
 mergeVersions('ClassStaticField', { es2022: true })
 mergeVersions('TopLevelAwait', { es2022: true })
 mergeVersions('ArbitraryModuleNamespaceNames', { es2022: true })
+mergeVersions('RegExpMatchIndices', { es2022: true })
 mergeVersions('ImportAssertions', {})
 
 // Manually copied from https://caniuse.com/?search=export%20*%20as
@@ -282,6 +293,16 @@ mergeVersions('ClassStaticBlocks', {
   firefox93: true,
   node16_11: true,
   opera80: true,
+})
+
+// Manually copied from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp/hasIndices
+mergeVersions('RegExpMatchIndices', {
+  chrome90: true,
+  edge90: true,
+  firefox88: true,
+  ios15: true,
+  opera76: true,
+  safari15: true,
 })
 
 for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests]) {

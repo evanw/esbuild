@@ -2208,7 +2208,7 @@ func (lexer *Lexer) ScanRegExp() {
 			bits := uint32(0)
 			for IsIdentifierContinue(lexer.codePoint) {
 				switch lexer.codePoint {
-				case 'g', 'i', 'm', 's', 'u', 'y':
+				case 'd', 'g', 'i', 'm', 's', 'u', 'y':
 					bit := uint32(1) << uint32(lexer.codePoint-'a')
 					if (bit & bits) != 0 {
 						// Reject duplicate flags

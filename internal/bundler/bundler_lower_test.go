@@ -2280,3 +2280,21 @@ func TestStaticClassBlockES2021(t *testing.T) {
 		},
 	})
 }
+
+func TestLowerRegExpNameCollision(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export function foo(RegExp) {
+					return new RegExp(/./d, 'd')
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: es(2021),
+		},
+	})
+}

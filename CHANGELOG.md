@@ -29,6 +29,25 @@
     import k2 from "keep";
     ```
 
+* Avoid regular expression syntax errors in older browsers ([#2215](https://github.com/evanw/esbuild/issues/2215))
+
+    Previously esbuild always passed JavaScript regular expression literals through unmodified from the input to the output. This is undesirable when the regular expression uses newer features that the configured target environment doesn't support. For example, the `d` flag (i.e. the [match indices feature](https://v8.dev/features/regexp-match-indices)) is new in ES2022 and doesn't work in older browsers. If esbuild generated a regular expression literal containing the `d` flag, then older browsers would consider esbuild's output to be a syntax error and none of the code would run.
+
+    With this release, esbuild now detects when an unsupported feature is being used and converts the regular expression literal into a `new RegExp()` constructor instead. One consequence of this is that the syntax error is transformed into a run-time error, which allows the output code to run (and to potentially handle the run-time error). Another consequence of this is that it allows you to include a polyfill that overwrites the `RegExp` constructor in older browsers with one that supports modern features. Note that esbuild does not handle polyfills for you, so you will need to include a `RegExp` polyfill yourself if you want one.
+
+    ```js
+    // Original code
+    console.log(/b/d.exec('abc').indices)
+
+    // New output (with --target=chrome90)
+    console.log(/b/d.exec("abc").indices);
+
+    // New output (with --target=chrome89)
+    console.log(new RegExp("b", "d").exec("abc").indices);
+    ```
+
+    This is currently done transparently without a warning. If you would like to debug this transformation to see where in your code esbuild is transforming regular expression literals and why, you can pass `--log-level=debug` to esbuild and review the information present in esbuild's debug logs.
+
 * Add Opera to more internal feature compatibility tables ([#2247](https://github.com/evanw/esbuild/issues/2247), [#2252](https://github.com/evanw/esbuild/pull/2252))
 
     The internal compatibility tables that esbuild uses to determine which environments support which features are derived from multiple sources. Most of it is automatically derived from [these ECMAScript compatibility tables](https://kangax.github.io/compat-table/), but missing information is manually copied from [MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/), GitHub PR comments, and various other websites. Version 0.14.35 of esbuild introduced Opera as a possible target environment which was automatically picked up by the compatibility table script, but the manually-copied information wasn't updated to include Opera. This release fixes this omission so Opera feature compatibility should now be accurate.

@@ -1651,6 +1651,17 @@ export {
 };
 
 ================================================================================
+TestLowerRegExpNameCollision
+---------- /out.js ----------
+// entry.js
+function foo(RegExp2) {
+  return new RegExp2(new RegExp(".", "d"), "d");
+}
+export {
+  foo
+};
+
+================================================================================
 TestLowerStaticAsyncArrowSuperES2016
 ---------- /out.js ----------
 // foo1.js

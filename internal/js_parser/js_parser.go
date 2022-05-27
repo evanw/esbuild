@@ -200,6 +200,7 @@ type parser struct {
 	moduleRef                js_ast.Ref
 	importMetaRef            js_ast.Ref
 	promiseRef               js_ast.Ref
+	regExpRef                js_ast.Ref
 	runtimePublicFieldImport js_ast.Ref
 	superCtorRef             js_ast.Ref
 
@@ -1508,6 +1509,14 @@ func (p *parser) makePromiseRef() js_ast.Ref {
 		p.promiseRef = p.newSymbol(js_ast.SymbolUnbound, "Promise")
 	}
 	return p.promiseRef
+}
+
+func (p *parser) makeRegExpRef() js_ast.Ref {
+	if p.regExpRef == js_ast.InvalidRef {
+		p.regExpRef = p.newSymbol(js_ast.SymbolUnbound, "RegExp")
+		p.moduleScope.Generated = append(p.moduleScope.Generated, p.regExpRef)
+	}
+	return p.regExpRef
 }
 
 // The name is temporarily stored in the ref until the scope traversal pass
@@ -11526,6 +11535,144 @@ func containsClosingScriptTag(text string) bool {
 	return false
 }
 
+func (p *parser) isUnsupportedRegularExpression(loc logger.Loc, value string) (pattern string, flags string, isUnsupported bool) {
+	var feature compat.JSFeature
+	var what string
+	var r logger.Range
+
+	end := strings.LastIndexByte(value, '/')
+	pattern = value[1:end]
+	flags = value[end+1:]
+	isUnicode := strings.IndexByte(flags, 'u') >= 0
+	parenDepth := 0
+	i := 0
+
+	// Do a simple scan for unsupported features assuming the regular expression
+	// is valid. This doesn't do a full validation of the regular expression
+	// because regular expression grammar is complicated. If it contains a syntax
+	// error that we don't catch, then we will just generate output code with a
+	// syntax error. Garbage in, garbage out.
+pattern:
+	for i < len(pattern) {
+		c := pattern[i]
+		i++
+
+		switch c {
+		case '[':
+		class:
+			for i < len(pattern) {
+				c := pattern[i]
+				i++
+
+				switch c {
+				case ']':
+					break class
+
+				case '\\':
+					i++ // Skip the escaped character
+				}
+				break
+			}
+
+		case '(':
+			tail := pattern[i:]
+
+			if strings.HasPrefix(tail, "?<=") || strings.HasPrefix(tail, "?<!") {
+				if p.options.unsupportedJSFeatures.Has(compat.RegExpLookbehindAssertions) {
+					feature = compat.RegExpLookbehindAssertions
+					what = "Lookbehind assertions in regular expressions are not available"
+					r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i) + 1}, Len: 3}
+					isUnsupported = true
+					break pattern
+				}
+			} else if strings.HasPrefix(tail, "?<") {
+				if p.options.unsupportedJSFeatures.Has(compat.RegExpNamedCaptureGroups) {
+					if end := strings.IndexByte(tail, '>'); end >= 0 {
+						feature = compat.RegExpNamedCaptureGroups
+						what = "Named capture groups in regular expressions are not available"
+						r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i) + 1}, Len: int32(end) + 1}
+						isUnsupported = true
+						break pattern
+					}
+				}
+			}
+
+			parenDepth++
+
+		case ')':
+			if parenDepth == 0 {
+				r := logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i)}, Len: 1}
+				p.log.Add(logger.Error, &p.tracker, r, "Unexpected \")\" in regular expression")
+				return
+			}
+
+			parenDepth--
+
+		case '\\':
+			tail := pattern[i:]
+
+			if isUnicode && (strings.HasPrefix(tail, "p{") || strings.HasPrefix(tail, "P{")) {
+				if p.options.unsupportedJSFeatures.Has(compat.RegExpUnicodePropertyEscapes) {
+					if end := strings.IndexByte(tail, '}'); end >= 0 {
+						feature = compat.RegExpUnicodePropertyEscapes
+						what = "Unicode property escapes in regular expressions are not available"
+						r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i)}, Len: int32(end) + 2}
+						isUnsupported = true
+						break pattern
+					}
+				}
+			}
+
+			i++ // Skip the escaped character
+		}
+	}
+
+	if !isUnsupported {
+		for i, c := range flags {
+			switch c {
+			case 'g', 'i', 'm':
+				continue // These are part of ES5 and are always supported
+
+			case 's':
+				if !p.options.unsupportedJSFeatures.Has(compat.RegExpDotAllFlag) {
+					continue // This is part of ES2018
+				}
+				feature = compat.RegExpDotAllFlag
+
+			case 'y', 'u':
+				if !p.options.unsupportedJSFeatures.Has(compat.RegExpStickyAndUnicodeFlags) {
+					continue // These are part of ES2018
+				}
+				feature = compat.RegExpStickyAndUnicodeFlags
+
+			case 'd':
+				if !p.options.unsupportedJSFeatures.Has(compat.RegExpMatchIndices) {
+					continue // This is part of ES2022
+				}
+				feature = compat.RegExpMatchIndices
+
+			default:
+				// Unknown flags are never supported
+			}
+
+			r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(end+1) + int32(i)}, Len: 1}
+			what = fmt.Sprintf("The regular expression flag \"%c\" is not available", c)
+			isUnsupported = true
+			break
+		}
+	}
+
+	if isUnsupported {
+		where, notes := p.prettyPrintTargetEnvironment(feature)
+		p.log.AddWithNotes(logger.Debug, &p.tracker, r, fmt.Sprintf("%s in %s", what, where), append(notes, logger.MsgData{
+			Text: "This regular expression literal has been converted to a \"new RegExp()\" constructor " +
+				"to avoid generating code with a syntax error. However, you will need to include a " +
+				"polyfill for \"RegExp\" for your code to have the correct behavior at run-time."}))
+	}
+
+	return
+}
+
 // This function takes "exprIn" as input from the caller and produces "exprOut"
 // for the caller to pass along extra data. This is mostly for optional chaining.
 func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprOut) {
@@ -11534,9 +11681,29 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	}
 
 	switch e := expr.Data.(type) {
-	case *js_ast.ENull, *js_ast.ESuper,
-		*js_ast.EBoolean, *js_ast.EBigInt,
-		*js_ast.ERegExp, *js_ast.EUndefined:
+	case *js_ast.ENull, *js_ast.ESuper, *js_ast.EBoolean, *js_ast.EBigInt, *js_ast.EUndefined:
+
+	case *js_ast.ERegExp:
+		// "/pattern/flags" => "new RegExp('pattern', 'flags')"
+		if pattern, flags, ok := p.isUnsupportedRegularExpression(expr.Loc, e.Value); ok {
+			args := []js_ast.Expr{{
+				Loc:  logger.Loc{Start: expr.Loc.Start + 1},
+				Data: &js_ast.EString{Value: helpers.StringToUTF16(pattern)},
+			}}
+			if flags != "" {
+				args = append(args, js_ast.Expr{
+					Loc:  logger.Loc{Start: expr.Loc.Start + int32(len(pattern)) + 2},
+					Data: &js_ast.EString{Value: helpers.StringToUTF16(flags)},
+				})
+			}
+			regExpRef := p.makeRegExpRef()
+			p.recordUsage(regExpRef)
+			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENew{
+				Target:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: regExpRef}},
+				Args:          args,
+				CloseParenLoc: logger.Loc{Start: expr.Loc.Start + int32(len(e.Value))},
+			}}, exprOut{}
+		}
 
 	case *js_ast.ENewTarget:
 		if !p.fnOnlyDataVisit.isNewTargetAllowed {
@@ -14952,6 +15119,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		options:                  *options,
 		runtimeImports:           make(map[string]js_ast.Ref),
 		promiseRef:               js_ast.InvalidRef,
+		regExpRef:                js_ast.InvalidRef,
 		afterArrowBodyLoc:        logger.Loc{Start: -1},
 		importMetaRef:            js_ast.InvalidRef,
 		runtimePublicFieldImport: js_ast.InvalidRef,

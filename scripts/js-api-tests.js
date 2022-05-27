@@ -4350,6 +4350,40 @@ let transformTests = {
     }
   },
 
+  async regExpFeatures({ esbuild }) {
+    const check = async (target, input, expected) =>
+      assert.strictEqual((await esbuild.transform(input, { target })).code, expected)
+    await Promise.all([
+      // RegExpStickyAndUnicodeFlags
+      check('es6', `x1 = /./y`, `x1 = /./y;\n`),
+      check('es6', `x2 = /./u`, `x2 = /./u;\n`),
+      check('es5', `x3 = /./y`, `x3 = new RegExp(".", "y");\n`),
+      check('es5', `x4 = /./u`, `x4 = new RegExp(".", "u");\n`),
+
+      // RegExpDotAllFlag
+      check('es2018', `x1 = /a.b/s`, `x1 = /a.b/s;\n`),
+      check('es2017', `x2 = /a.b/s`, `x2 = new RegExp("a.b", "s");\n`),
+
+      // RegExpLookbehindAssertions
+      check('es2018', `x1 = /(?<=x)/`, `x1 = /(?<=x)/;\n`),
+      check('es2018', `x2 = /(?<!x)/`, `x2 = /(?<!x)/;\n`),
+      check('es2017', `x3 = /(?<=x)/`, `x3 = new RegExp("(?<=x)");\n`),
+      check('es2017', `x4 = /(?<!x)/`, `x4 = new RegExp("(?<!x)");\n`),
+
+      // RegExpNamedCaptureGroups
+      check('es2018', `x1 = /(?<a>b)/`, `x1 = /(?<a>b)/;\n`),
+      check('es2017', `x2 = /(?<a>b)/`, `x2 = new RegExp("(?<a>b)");\n`),
+
+      // RegExpUnicodePropertyEscapes
+      check('es2018', `x1 = /\\p{Emoji}/u`, `x1 = /\\p{Emoji}/u;\n`),
+      check('es2017', `x2 = /\\p{Emoji}/u`, `x2 = new RegExp("\\\\p{Emoji}", "u");\n`),
+
+      // RegExpMatchIndices
+      check('es2022', `x1 = /y/d`, `x1 = /y/d;\n`),
+      check('es2021', `x2 = /y/d`, `x2 = new RegExp("y", "d");\n`),
+    ])
+  },
+
   // Future syntax
   forAwait: ({ esbuild }) => futureSyntax(esbuild, 'async function foo() { for await (let x of y) {} }', 'es2017', 'es2018'),
   bigInt: ({ esbuild }) => futureSyntax(esbuild, '123n', 'es2019', 'es2020'),

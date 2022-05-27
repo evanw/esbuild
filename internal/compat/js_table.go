@@ -84,6 +84,12 @@ const (
 	ObjectRestSpread
 	OptionalCatchBinding
 	OptionalChain
+	RegExpDotAllFlag
+	RegExpLookbehindAssertions
+	RegExpMatchIndices
+	RegExpNamedCaptureGroups
+	RegExpStickyAndUnicodeFlags
+	RegExpUnicodePropertyEscapes
 	RestArgument
 	TemplateLiteral
 	TopLevelAwait
@@ -436,7 +442,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Firefox: {{start: v{2, 0, 0}}},
 		IE:      {{start: v{9, 0, 0}}},
 		IOS:     {{start: v{6, 0, 0}}},
-		Node:    {{start: v{0, 4, 0}}},
+		Node:    {{start: v{0, 10, 0}}},
 		Opera:   {{start: v{10, 10, 0}}},
 		Safari:  {{start: v{3, 1, 0}}},
 	},
@@ -476,6 +482,63 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Node:    {{start: v{16, 9, 0}}},
 		Opera:   {{start: v{77, 0, 0}}},
 		Safari:  {{start: v{13, 1, 0}}},
+	},
+	RegExpDotAllFlag: {
+		Chrome:  {{start: v{62, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		ES:      {{start: v{2018, 0, 0}}},
+		Firefox: {{start: v{78, 0, 0}}},
+		IOS:     {{start: v{11, 3, 0}}},
+		Node:    {{start: v{8, 10, 0}}},
+		Opera:   {{start: v{49, 0, 0}}},
+		Safari:  {{start: v{11, 1, 0}}},
+	},
+	RegExpLookbehindAssertions: {
+		Chrome:  {{start: v{62, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		ES:      {{start: v{2018, 0, 0}}},
+		Firefox: {{start: v{78, 0, 0}}},
+		Node:    {{start: v{8, 10, 0}}},
+		Opera:   {{start: v{49, 0, 0}}},
+	},
+	RegExpMatchIndices: {
+		Chrome:  {{start: v{90, 0, 0}}},
+		Edge:    {{start: v{90, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
+		Firefox: {{start: v{88, 0, 0}}},
+		IOS:     {{start: v{15, 0, 0}}},
+		Opera:   {{start: v{76, 0, 0}}},
+		Safari:  {{start: v{15, 0, 0}}},
+	},
+	RegExpNamedCaptureGroups: {
+		Chrome:  {{start: v{64, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		ES:      {{start: v{2018, 0, 0}}},
+		Firefox: {{start: v{78, 0, 0}}},
+		IOS:     {{start: v{11, 3, 0}}},
+		Node:    {{start: v{10, 0, 0}}},
+		Opera:   {{start: v{51, 0, 0}}},
+		Safari:  {{start: v{11, 1, 0}}},
+	},
+	RegExpStickyAndUnicodeFlags: {
+		Chrome:  {{start: v{50, 0, 0}}},
+		Edge:    {{start: v{13, 0, 0}}},
+		ES:      {{start: v{2015, 0, 0}}},
+		Firefox: {{start: v{46, 0, 0}}},
+		IOS:     {{start: v{12, 0, 0}}},
+		Node:    {{start: v{6, 0, 0}}},
+		Opera:   {{start: v{37, 0, 0}}},
+		Safari:  {{start: v{12, 0, 0}}},
+	},
+	RegExpUnicodePropertyEscapes: {
+		Chrome:  {{start: v{64, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		ES:      {{start: v{2018, 0, 0}}},
+		Firefox: {{start: v{78, 0, 0}}},
+		IOS:     {{start: v{11, 3, 0}}},
+		Node:    {{start: v{10, 0, 0}}},
+		Opera:   {{start: v{51, 0, 0}}},
+		Safari:  {{start: v{11, 1, 0}}},
 	},
 	RestArgument: {
 		Chrome:  {{start: v{47, 0, 0}}},
