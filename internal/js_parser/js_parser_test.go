@@ -1578,7 +1578,7 @@ func TestClass(t *testing.T) {
 	// Check the string-to-int optimization
 	expectPrintedMangle(t, "class x { '0' = y }", "class x {\n  0 = y;\n}\n")
 	expectPrintedMangle(t, "class x { '123' = y }", "class x {\n  123 = y;\n}\n")
-	expectPrintedMangle(t, "class x { ['-123'] = y }", "class x {\n  -123 = y;\n}\n")
+	expectPrintedMangle(t, "class x { ['-123'] = y }", "class x {\n  \"-123\" = y;\n}\n")
 	expectPrintedMangle(t, "class x { '-0' = y }", "class x {\n  \"-0\" = y;\n}\n")
 	expectPrintedMangle(t, "class x { '01' = y }", "class x {\n  \"01\" = y;\n}\n")
 	expectPrintedMangle(t, "class x { '-01' = y }", "class x {\n  \"-01\" = y;\n}\n")
@@ -1586,7 +1586,7 @@ func TestClass(t *testing.T) {
 	expectPrintedMangle(t, "class x { '-0x1' = y }", "class x {\n  \"-0x1\" = y;\n}\n")
 	expectPrintedMangle(t, "class x { '2147483647' = y }", "class x {\n  2147483647 = y;\n}\n")
 	expectPrintedMangle(t, "class x { '2147483648' = y }", "class x {\n  \"2147483648\" = y;\n}\n")
-	expectPrintedMangle(t, "class x { ['-2147483648'] = y }", "class x {\n  -2147483648 = y;\n}\n")
+	expectPrintedMangle(t, "class x { ['-2147483648'] = y }", "class x {\n  \"-2147483648\" = y;\n}\n")
 	expectPrintedMangle(t, "class x { ['-2147483649'] = y }", "class x {\n  \"-2147483649\" = y;\n}\n")
 }
 

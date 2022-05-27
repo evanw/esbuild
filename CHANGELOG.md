@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Fix a minification regression in 0.14.40 ([#2270](https://github.com/evanw/esbuild/issues/2270), [#2271](https://github.com/evanw/esbuild/issues/2271), [#2273](https://github.com/evanw/esbuild/pull/2273))
+
+    Version 0.14.40 substituted string property keys with numeric property keys if the number has the same string representation as the original string. This was done in three places: computed member expressions, object literal properties, and class fields. However, negative numbers are only valid in computed member expressions while esbuild incorrectly applied this substitution for negative numbers in all places. This release fixes the regression by only doing this substitution for negative numbers in computed member expressions.
+
+    This fix was contributed by [@susiwen8](https://github.com/susiwen8).
+
 ## 0.14.40
 
 * Correct esbuild's implementation of `"preserveValueImports": true` ([#2268](https://github.com/evanw/esbuild/issues/2268))

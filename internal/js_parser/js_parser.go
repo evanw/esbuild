@@ -10382,7 +10382,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 			if p.options.minifySyntax {
 				if str, ok := key.Data.(*js_ast.EString); ok {
-					if numberValue, ok := stringToEquivalentNumberValue(str.Value); ok {
+					if numberValue, ok := stringToEquivalentNumberValue(str.Value); ok && numberValue >= 0 {
 						// "class { '123' }" => "class { 123 }"
 						property.Key.Data = &js_ast.ENumber{Value: numberValue}
 						property.Flags &= ^js_ast.PropertyIsComputed
@@ -13183,7 +13183,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// "{ '123': 4 }" => "{ 123: 4 }" (this is done late to allow "'123'" to be mangled)
 			if p.options.minifySyntax {
 				if str, ok := property.Key.Data.(*js_ast.EString); ok {
-					if numberValue, ok := stringToEquivalentNumberValue(str.Value); numberValue >= 0 && ok {
+					if numberValue, ok := stringToEquivalentNumberValue(str.Value); ok && numberValue >= 0 {
 						property.Key.Data = &js_ast.ENumber{Value: numberValue}
 					}
 				}
