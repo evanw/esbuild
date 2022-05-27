@@ -11571,7 +11571,6 @@ pattern:
 				case '\\':
 					i++ // Skip the escaped character
 				}
-				break
 			}
 
 		case '(':

@@ -577,12 +577,16 @@ func TestAwait(t *testing.T) {
 }
 
 func TestRegExp(t *testing.T) {
+	expectPrinted(t, "/x/d", "/x/d;\n")
 	expectPrinted(t, "/x/g", "/x/g;\n")
 	expectPrinted(t, "/x/i", "/x/i;\n")
 	expectPrinted(t, "/x/m", "/x/m;\n")
 	expectPrinted(t, "/x/s", "/x/s;\n")
 	expectPrinted(t, "/x/u", "/x/u;\n")
 	expectPrinted(t, "/x/y", "/x/y;\n")
+
+	expectParseError(t, "/)/", "<stdin>: ERROR: Unexpected \")\" in regular expression\n")
+	expectPrinted(t, "/[\\])]/", "/[\\])]/;\n")
 
 	expectParseError(t, "/x/msuygig",
 		`<stdin>: ERROR: Duplicate flag "g" in regular expression
