@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.41
 
 * Fix a minification regression in 0.14.40 ([#2270](https://github.com/evanw/esbuild/issues/2270), [#2271](https://github.com/evanw/esbuild/issues/2271), [#2273](https://github.com/evanw/esbuild/pull/2273))
 
