@@ -150,6 +150,7 @@ type Msg struct {
 	PluginName string
 	Data       MsgData
 	Kind       MsgKind
+	ID         MsgID
 }
 
 type MsgData struct {
@@ -991,7 +992,7 @@ type OutputOptions struct {
 
 func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	// Format the message
-	text := msgString(options.IncludeSource, terminalInfo, msg.Kind, msg.Data, msg.PluginName)
+	text := msgString(options.IncludeSource, terminalInfo, msg.ID, msg.Kind, msg.Data, msg.PluginName)
 
 	// Format the notes
 	var oldData MsgData
@@ -999,7 +1000,7 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 		if options.IncludeSource && (i == 0 || strings.IndexByte(oldData.Text, '\n') >= 0 || oldData.Location != nil) {
 			text += "\n"
 		}
-		text += msgString(options.IncludeSource, terminalInfo, Note, note, "")
+		text += msgString(options.IncludeSource, terminalInfo, MsgID_None, Note, note, "")
 		oldData = note
 	}
 
@@ -1026,7 +1027,7 @@ func emptyMarginText(maxMargin int, isLast bool) string {
 	return fmt.Sprintf("      %s │ ", space)
 }
 
-func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data MsgData, pluginName string) string {
+func msgString(includeSource bool, terminalInfo TerminalInfo, id MsgID, kind MsgKind, data MsgData, pluginName string) string {
 	if !includeSource {
 		if loc := data.Location; loc != nil {
 			return fmt.Sprintf("%s: %s: %s\n", loc.File, kind.String(), data.Text)
@@ -1124,11 +1125,16 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 		pluginName = fmt.Sprintf("%s%s[plugin %s]%s ", colors.Bold, colors.Magenta, pluginName, colors.Reset)
 	}
 
-	return fmt.Sprintf("%s%s %s[%s%s%s]%s %s%s%s%s\n%s",
+	msgID := MsgIDToString(id)
+	if msgID != "" {
+		msgID = fmt.Sprintf(" [%s]", msgID)
+	}
+
+	return fmt.Sprintf("%s%s %s[%s%s%s]%s %s%s%s%s%s\n%s",
 		iconColor, kind.Icon(),
 		kindColorBrackets, kindColorText, kind.String(), kindColorBrackets, colors.Reset,
 		pluginName,
-		colors.Bold, data.Text, colors.Reset,
+		colors.Bold, data.Text, colors.Reset, msgID,
 		location,
 	)
 }
@@ -1612,6 +1618,7 @@ func (log Log) AddError(tracker *LineColumnTracker, r Range, text string) {
 func (log Log) AddID(id MsgID, kind MsgKind, tracker *LineColumnTracker, r Range, text string) {
 	if override, ok := allowOverride(log.Overrides, id, kind); ok {
 		log.AddMsg(Msg{
+			ID:   id,
 			Kind: override,
 			Data: tracker.MsgData(r, text),
 		})
@@ -1629,6 +1636,7 @@ func (log Log) AddErrorWithNotes(tracker *LineColumnTracker, r Range, text strin
 func (log Log) AddIDWithNotes(id MsgID, kind MsgKind, tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
 	if override, ok := allowOverride(log.Overrides, id, kind); ok {
 		log.AddMsg(Msg{
+			ID:    id,
 			Kind:  override,
 			Data:  tracker.MsgData(r, text),
 			Notes: notes,
@@ -1638,6 +1646,7 @@ func (log Log) AddIDWithNotes(id MsgID, kind MsgKind, tracker *LineColumnTracker
 
 func (log Log) AddMsgID(id MsgID, msg Msg) {
 	if override, ok := allowOverride(log.Overrides, id, msg.Kind); ok {
+		msg.ID = id
 		msg.Kind = override
 		log.AddMsg(msg)
 	}
