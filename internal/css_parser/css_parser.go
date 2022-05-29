@@ -158,9 +158,7 @@ func (p *parser) expectWithMatchingLoc(kind css_lexer.T, matchingLoc logger.Loc)
 	if t.Range.Loc.Start > p.prevError.Start {
 		data := p.tracker.MsgData(t.Range, text)
 		data.Location.Suggestion = suggestion
-		if override, ok := logger.AllowOverride(p.log.Overrides, logger.MsgID_CSS_CSSSyntaxError, logger.Warning); ok {
-			p.log.AddMsg(logger.Msg{Kind: override, Data: data, Notes: notes})
-		}
+		p.log.AddMsgID(logger.MsgID_CSS_CSSSyntaxError, logger.Msg{Kind: logger.Warning, Data: data, Notes: notes})
 		p.prevError = t.Range.Loc
 	}
 	return false
@@ -1638,10 +1636,8 @@ stop:
 		if corrected, ok := css_ast.MaybeCorrectDeclarationTypo(keyText); ok {
 			data := p.tracker.MsgData(keyToken.Range, fmt.Sprintf("%q is not a known CSS property", keyText))
 			data.Location.Suggestion = corrected
-			if override, ok := logger.AllowOverride(p.log.Overrides, logger.MsgID_CSS_UnsupportedCSSProperty, logger.Warning); ok {
-				p.log.AddMsg(logger.Msg{Kind: override, Data: data,
-					Notes: []logger.MsgData{{Text: fmt.Sprintf("Did you mean %q instead?", corrected)}}})
-			}
+			p.log.AddMsgID(logger.MsgID_CSS_UnsupportedCSSProperty, logger.Msg{Kind: logger.Warning, Data: data,
+				Notes: []logger.MsgData{{Text: fmt.Sprintf("Did you mean %q instead?", corrected)}}})
 		}
 	}
 

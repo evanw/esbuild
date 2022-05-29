@@ -1610,7 +1610,7 @@ func (log Log) AddError(tracker *LineColumnTracker, r Range, text string) {
 }
 
 func (log Log) AddID(id MsgID, kind MsgKind, tracker *LineColumnTracker, r Range, text string) {
-	if override, ok := AllowOverride(log.Overrides, id, kind); ok {
+	if override, ok := allowOverride(log.Overrides, id, kind); ok {
 		log.AddMsg(Msg{
 			Kind: override,
 			Data: tracker.MsgData(r, text),
@@ -1627,7 +1627,7 @@ func (log Log) AddErrorWithNotes(tracker *LineColumnTracker, r Range, text strin
 }
 
 func (log Log) AddIDWithNotes(id MsgID, kind MsgKind, tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
-	if override, ok := AllowOverride(log.Overrides, id, kind); ok {
+	if override, ok := allowOverride(log.Overrides, id, kind); ok {
 		log.AddMsg(Msg{
 			Kind:  override,
 			Data:  tracker.MsgData(r, text),
@@ -1636,7 +1636,14 @@ func (log Log) AddIDWithNotes(id MsgID, kind MsgKind, tracker *LineColumnTracker
 	}
 }
 
-func AllowOverride(overrides map[MsgID]LogLevel, id MsgID, kind MsgKind) (MsgKind, bool) {
+func (log Log) AddMsgID(id MsgID, msg Msg) {
+	if override, ok := allowOverride(log.Overrides, id, msg.Kind); ok {
+		msg.Kind = override
+		log.AddMsg(msg)
+	}
+}
+
+func allowOverride(overrides map[MsgID]LogLevel, id MsgID, kind MsgKind) (MsgKind, bool) {
 	if logLevel, ok := overrides[id]; ok {
 		switch logLevel {
 		case LevelVerbose:

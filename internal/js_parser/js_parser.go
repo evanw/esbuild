@@ -4179,20 +4179,20 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			}
 
 			// Warn about "!a in b" instead of "!(a in b)"
-			if !p.suppressWarningsAboutWeirdCode {
-				if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
-					r := logger.Range{Loc: left.Loc, Len: p.source.LocBeforeWhitespace(p.lexer.Loc()).Start - left.Loc.Start}
-					data := p.tracker.MsgData(r, "Suspicious use of the \"!\" operator inside the \"in\" operator")
-					data.Location.Suggestion = fmt.Sprintf("(%s)", p.source.TextForRange(r))
-					if override, ok := logger.AllowOverride(p.log.Overrides, logger.MsgID_JS_SuspiciousBooleanNot, logger.Warning); ok {
-						p.log.AddMsg(logger.Msg{
-							Kind: override,
-							Data: data,
-							Notes: []logger.MsgData{{Text: "The code \"!x in y\" is parsed as \"(!x) in y\". " +
-								"You need to insert parentheses to get \"!(x in y)\" instead."}},
-						})
-					}
-				}
+			kind := logger.Warning
+			if p.suppressWarningsAboutWeirdCode {
+				kind = logger.Debug
+			}
+			if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
+				r := logger.Range{Loc: left.Loc, Len: p.source.LocBeforeWhitespace(p.lexer.Loc()).Start - left.Loc.Start}
+				data := p.tracker.MsgData(r, "Suspicious use of the \"!\" operator inside the \"in\" operator")
+				data.Location.Suggestion = fmt.Sprintf("(%s)", p.source.TextForRange(r))
+				p.log.AddMsgID(logger.MsgID_JS_SuspiciousBooleanNot, logger.Msg{
+					Kind: kind,
+					Data: data,
+					Notes: []logger.MsgData{{Text: "The code \"!x in y\" is parsed as \"(!x) in y\". " +
+						"You need to insert parentheses to get \"!(x in y)\" instead."}},
+				})
 			}
 
 			p.lexer.Next()
@@ -4205,20 +4205,20 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 
 			// Warn about "!a instanceof b" instead of "!(a instanceof b)". Here's an
 			// example of code with this problem: https://github.com/mrdoob/three.js/pull/11182.
-			if !p.suppressWarningsAboutWeirdCode {
-				if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
-					r := logger.Range{Loc: left.Loc, Len: p.source.LocBeforeWhitespace(p.lexer.Loc()).Start - left.Loc.Start}
-					data := p.tracker.MsgData(r, "Suspicious use of the \"!\" operator inside the \"instanceof\" operator")
-					data.Location.Suggestion = fmt.Sprintf("(%s)", p.source.TextForRange(r))
-					if override, ok := logger.AllowOverride(p.log.Overrides, logger.MsgID_JS_SuspiciousBooleanNot, logger.Warning); ok {
-						p.log.AddMsg(logger.Msg{
-							Kind: override,
-							Data: data,
-							Notes: []logger.MsgData{{Text: "The code \"!x instanceof y\" is parsed as \"(!x) instanceof y\". " +
-								"You need to insert parentheses to get \"!(x instanceof y)\" instead."}},
-						})
-					}
-				}
+			kind := logger.Warning
+			if p.suppressWarningsAboutWeirdCode {
+				kind = logger.Debug
+			}
+			if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
+				r := logger.Range{Loc: left.Loc, Len: p.source.LocBeforeWhitespace(p.lexer.Loc()).Start - left.Loc.Start}
+				data := p.tracker.MsgData(r, "Suspicious use of the \"!\" operator inside the \"instanceof\" operator")
+				data.Location.Suggestion = fmt.Sprintf("(%s)", p.source.TextForRange(r))
+				p.log.AddMsgID(logger.MsgID_JS_SuspiciousBooleanNot, logger.Msg{
+					Kind: kind,
+					Data: data,
+					Notes: []logger.MsgData{{Text: "The code \"!x instanceof y\" is parsed as \"(!x) instanceof y\". " +
+						"You need to insert parentheses to get \"!(x instanceof y)\" instead."}},
+				})
 			}
 
 			p.lexer.Next()
@@ -11333,9 +11333,7 @@ func (p *parser) valueForThis(
 					data := p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, loc),
 						"Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module")
 					data.Location.Suggestion = "undefined"
-					if override, ok := logger.AllowOverride(p.log.Overrides, logger.MsgID_JS_ThisIsUndefinedInESM, kind); ok {
-						p.log.AddMsg(logger.Msg{Kind: override, Data: data, Notes: p.whyESModule()})
-					}
+					p.log.AddMsgID(logger.MsgID_JS_ThisIsUndefinedInESM, logger.Msg{Kind: kind, Data: data, Notes: p.whyESModule()})
 				}
 
 				// In an ES6 module, "this" is supposed to be undefined. Instead of

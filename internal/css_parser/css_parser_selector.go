@@ -36,13 +36,11 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 		if firstHasNestPrefix && !hasNestPrefix && opts.atNestRange.Len == 0 {
 			data := p.tracker.MsgData(logger.Range{Loc: loc}, "Every selector in a nested style rule must start with \"&\"")
 			data.Location.Suggestion = "&"
-			if override, ok := logger.AllowOverride(p.log.Overrides, logger.MsgID_CSS_InvalidAtNest, logger.Warning); ok {
-				p.log.AddMsg(logger.Msg{
-					Kind:  override,
-					Data:  data,
-					Notes: []logger.MsgData{p.tracker.MsgData(firstRange, "This is a nested style rule because of the \"&\" here:")},
-				})
-			}
+			p.log.AddMsgID(logger.MsgID_CSS_InvalidAtNest, logger.Msg{
+				Kind:  logger.Warning,
+				Data:  data,
+				Notes: []logger.MsgData{p.tracker.MsgData(firstRange, "This is a nested style rule because of the \"&\" here:")},
+			})
 		}
 	}
 
