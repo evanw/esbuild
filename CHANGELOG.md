@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.42
 
 * Fix a parser hang on invalid CSS ([#2276](https://github.com/evanw/esbuild/issues/2276))
 
