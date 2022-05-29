@@ -6254,13 +6254,13 @@
         'file1.js': `export default 123`,
         'File2.js': `export default 234`,
       }, {
-        expectedStderr: `▲ [WARNING] Use "file1.js" instead of "File1.js" to avoid issues with case-sensitive file systems
+        expectedStderr: `▲ [WARNING] Use "file1.js" instead of "File1.js" to avoid issues with case-sensitive file systems [different-path-case]
 
     in.js:2:24:
       2 │           import x from "./File1.js"
         ╵                         ~~~~~~~~~~~~
 
-▲ [WARNING] Use "File2.js" instead of "file2.js" to avoid issues with case-sensitive file systems
+▲ [WARNING] Use "File2.js" instead of "file2.js" to avoid issues with case-sensitive file systems [different-path-case]
 
     in.js:3:24:
       3 │           import y from "./file2.js"
@@ -6288,13 +6288,13 @@
         'node_modules/pkg/file1.js': `export default 123`,
         'node_modules/pkg/File2.js': `export default 234`,
       }, {
-        expectedStderr: `▲ [WARNING] Use "node_modules/pkg/file1.js" instead of "node_modules/pkg/File1.js" to avoid issues with case-sensitive file systems
+        expectedStderr: `▲ [WARNING] Use "node_modules/pkg/file1.js" instead of "node_modules/pkg/File1.js" to avoid issues with case-sensitive file systems [different-path-case]
 
     in.js:2:24:
       2 │           import x from "pkg/File1.js"
         ╵                         ~~~~~~~~~~~~~~
 
-▲ [WARNING] Use "node_modules/pkg/File2.js" instead of "node_modules/pkg/file2.js" to avoid issues with case-sensitive file systems
+▲ [WARNING] Use "node_modules/pkg/File2.js" instead of "node_modules/pkg/file2.js" to avoid issues with case-sensitive file systems [different-path-case]
 
     in.js:3:24:
       3 │           import y from "pkg/file2.js"
