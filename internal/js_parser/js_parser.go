@@ -13806,11 +13806,22 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		return expr, out
 
 	case *js_ast.ENew:
+		hasSpread := false
+
 		e.Target = p.visitExpr(e.Target)
 		p.warnAboutImportNamespaceCall(e.Target, exprKindNew)
 
 		for i, arg := range e.Args {
-			e.Args[i] = p.visitExpr(arg)
+			arg = p.visitExpr(arg)
+			if _, ok := arg.Data.(*js_ast.ESpread); ok {
+				hasSpread = true
+			}
+			e.Args[i] = arg
+		}
+
+		// "new foo(1, ...[2, 3], 4)" => "new foo(1, 2, 3, 4)"
+		if p.options.minifySyntax && hasSpread && in.assignTarget == js_ast.AssignTargetNone {
+			e.Args = inlineSpreadsOfArrayLiterals(e.Args)
 		}
 
 		p.maybeMarkKnownGlobalConstructorAsPure(e)

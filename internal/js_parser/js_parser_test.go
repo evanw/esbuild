@@ -3561,6 +3561,18 @@ func TestMangleCall(t *testing.T) {
 	expectPrintedMangle(t, "x = foo(1, ...[,2,,], 3)", "x = foo(1, void 0, 2, void 0, 3);\n")
 }
 
+func TestMangleNew(t *testing.T) {
+	expectPrintedMangle(t, "x = new foo(1, ...[], 2)", "x = new foo(1, 2);\n")
+	expectPrintedMangle(t, "x = new foo(1, ...2, 3)", "x = new foo(1, ...2, 3);\n")
+	expectPrintedMangle(t, "x = new foo(1, ...[2], 3)", "x = new foo(1, 2, 3);\n")
+	expectPrintedMangle(t, "x = new foo(1, ...[2, 3], 4)", "x = new foo(1, 2, 3, 4);\n")
+	expectPrintedMangle(t, "x = new foo(1, ...[2, ...y, 3], 4)", "x = new foo(1, 2, ...y, 3, 4);\n")
+	expectPrintedMangle(t, "x = new foo(1, ...{a, b}, 4)", "x = new foo(1, ...{ a, b }, 4);\n")
+
+	// Holes must become undefined
+	expectPrintedMangle(t, "x = new foo(1, ...[,2,,], 3)", "x = new foo(1, void 0, 2, void 0, 3);\n")
+}
+
 func TestMangleArray(t *testing.T) {
 	expectPrintedMangle(t, "x = [1, ...[], 2]", "x = [1, 2];\n")
 	expectPrintedMangle(t, "x = [1, ...2, 3]", "x = [1, ...2, 3];\n")
