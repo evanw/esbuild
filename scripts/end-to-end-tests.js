@@ -1284,7 +1284,7 @@
     }, {
       // There are two possible output orders due to log output order non-determinism
       expectedStderr: [
-        `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+        `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
 
     runner1.js:2:19:
       2 │         let data = eval('"runner1" + ".js"')
@@ -1292,7 +1292,7 @@
 
   You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
 
-▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
 
     runner2.js:2:19:
       2 │         let data = eval('"runner2" + ".js"')
@@ -1300,7 +1300,7 @@
 
   You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
 
-`, `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+`, `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
 
     runner2.js:2:19:
       2 │         let data = eval('"runner2" + ".js"')
@@ -1308,7 +1308,7 @@
 
   You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
 
-▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
 
     runner1.js:2:19:
       2 │         let data = eval('"runner1" + ".js"')
@@ -1352,7 +1352,7 @@
     }, {
       // There are two possible output orders due to log output order non-determinism
       expectedStderr: [
-        `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+        `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
 
     runner1.js:2:19:
       2 │         let data = eval('"runner1" + ".js"')
@@ -1360,7 +1360,7 @@
 
   You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
 
-▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
 
     runner2.js:2:19:
       2 │         let data = eval('"runner2" + ".js"')
@@ -1368,7 +1368,7 @@
 
   You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
 
-`, `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+`, `▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
 
     runner2.js:2:19:
       2 │         let data = eval('"runner2" + ".js"')
@@ -1376,7 +1376,7 @@
 
   You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
 
-▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems
+▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
 
     runner1.js:2:19:
       2 │         let data = eval('"runner1" + ".js"')
@@ -2039,7 +2039,7 @@
       `,
     }, {
       async: true,
-      expectedStderr: `▲ [WARNING] Converting "require" to "esm" is currently not supported
+      expectedStderr: `▲ [WARNING] Converting "require" to "esm" is currently not supported [unsupported-require-call]
 
     in.js:2:25:
       2 │         const {exists} = require('fs')
@@ -2062,7 +2062,7 @@
       `,
     }, {
       async: true,
-      expectedStderr: `▲ [WARNING] Converting "require" to "esm" is currently not supported
+      expectedStderr: `▲ [WARNING] Converting "require" to "esm" is currently not supported [unsupported-require-call]
 
     in.js:2:19:
       2 │         const fs = require('fs')
@@ -3505,25 +3505,25 @@
           new Foo().bar()
         `,
       }, {
-        expectedStderr: `▲ [WARNING] Writing to read-only method "#method" will throw
+        expectedStderr: `▲ [WARNING] Writing to read-only method "#method" will throw [private-name-will-throw]
 
     in.js:22:31:
       22 │               expect(() => obj.#method = 1, 'Cannot write to priva...
          ╵                                ~~~~~~~
 
-▲ [WARNING] Reading from setter-only property "#setter" will throw
+▲ [WARNING] Reading from setter-only property "#setter" will throw [private-name-will-throw]
 
     in.js:23:32:
       23 │ ...          expect(() => this.#setter, 'member.get is not a funct...
          ╵                                ~~~~~~~
 
-▲ [WARNING] Writing to getter-only property "#getter" will throw
+▲ [WARNING] Writing to getter-only property "#getter" will throw [private-name-will-throw]
 
     in.js:24:32:
       24 │ ...          expect(() => this.#getter = 1, 'member.set is not a f...
          ╵                                ~~~~~~~
 
-▲ [WARNING] Writing to read-only method "#method" will throw
+▲ [WARNING] Writing to read-only method "#method" will throw [private-name-will-throw]
 
     in.js:25:32:
       25 │ ...          expect(() => this.#method = 1, 'member.set is not a f...
@@ -3690,7 +3690,7 @@
           }
         `,
       }, {
-        expectedStderr: `▲ [WARNING] This assignment will throw because "Foo" is a constant
+        expectedStderr: `▲ [WARNING] This assignment will throw because "Foo" is a constant [assign-to-constant]
 
     in.js:5:28:
       5 │               static #foo = Foo = class Bar {}
@@ -3719,7 +3719,7 @@
           }
         `,
       }, {
-        expectedStderr: `▲ [WARNING] This assignment will throw because "Foo" is a constant
+        expectedStderr: `▲ [WARNING] This assignment will throw because "Foo" is a constant [assign-to-constant]
 
     in.js:4:28:
       4 │             static #foo() { Foo = class Bar{} }
@@ -5756,7 +5756,7 @@
       `,
         'src/entry.js.map/x': ``,
       }, {
-        expectedStderr: `▲ [WARNING] Cannot read file "src/entry.js.map": ${errorText}
+        expectedStderr: `▲ [WARNING] Cannot read file "src/entry.js.map": ${errorText} [missing-source-map]
 
     src/entry.js:2:29:
       2 │         //# sourceMappingURL=entry.js.map
