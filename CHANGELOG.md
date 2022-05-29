@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a parser hang on invalid CSS ([#2276](https://github.com/evanw/esbuild/issues/2276))
+
+    Previously invalid CSS with unbalanced parentheses could cause esbuild's CSS parser to hang. An example of such an input is the CSS file `:x(`. This hang has been fixed.
+
 ## 0.14.41
 
 * Fix a minification regression in 0.14.40 ([#2270](https://github.com/evanw/esbuild/issues/2270), [#2271](https://github.com/evanw/esbuild/issues/2271), [#2273](https://github.com/evanw/esbuild/pull/2273))

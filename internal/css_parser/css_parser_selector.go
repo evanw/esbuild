@@ -169,7 +169,6 @@ subclassSelectors:
 			p.expect(css_lexer.TIdent)
 
 		case css_lexer.TOpenBracket:
-			p.advance()
 			attr, good := p.parseAttributeSelector()
 			if !good {
 				return
@@ -231,6 +230,9 @@ subclassSelectors:
 }
 
 func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
+	matchingLoc := p.current().Range.Loc
+	p.advance()
+
 	// Parse the namespaced name
 	switch p.current().Kind {
 	case css_lexer.TDelimBar, css_lexer.TDelimAsterisk:
@@ -314,7 +316,7 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 		}
 	}
 
-	p.expect(css_lexer.TCloseBracket)
+	p.expectWithMatchingLoc(css_lexer.TCloseBracket, matchingLoc)
 	ok = true
 	return
 }
@@ -324,9 +326,10 @@ func (p *parser) parsePseudoClassSelector() css_ast.SSPseudoClass {
 
 	if p.peek(css_lexer.TFunction) {
 		text := p.decoded()
+		matchingLoc := logger.Loc{Start: p.current().Range.End() - 1}
 		p.advance()
 		args := p.convertTokens(p.parseAnyValue())
-		p.expect(css_lexer.TCloseParen)
+		p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc)
 		return css_ast.SSPseudoClass{Name: text, Args: args}
 	}
 
@@ -367,6 +370,9 @@ loop:
 
 		case css_lexer.TOpenBrace:
 			p.stack = append(p.stack, css_lexer.TCloseBrace)
+
+		case css_lexer.TEndOfFile:
+			break loop
 		}
 
 		p.advance()

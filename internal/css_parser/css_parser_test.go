@@ -273,22 +273,26 @@ func TestString(t *testing.T) {
 	expectParseError(t, "a:after { content: '\r' }",
 		`<stdin>: ERROR: Unterminated string token
 <stdin>: ERROR: Unterminated string token
-<stdin>: WARNING: Expected "}" but found end of file
+<stdin>: WARNING: Expected "}" to go with "{"
+<stdin>: NOTE: The unbalanced "{" is here:
 `)
 	expectParseError(t, "a:after { content: '\n' }",
 		`<stdin>: ERROR: Unterminated string token
 <stdin>: ERROR: Unterminated string token
-<stdin>: WARNING: Expected "}" but found end of file
+<stdin>: WARNING: Expected "}" to go with "{"
+<stdin>: NOTE: The unbalanced "{" is here:
 `)
 	expectParseError(t, "a:after { content: '\f' }",
 		`<stdin>: ERROR: Unterminated string token
 <stdin>: ERROR: Unterminated string token
-<stdin>: WARNING: Expected "}" but found end of file
+<stdin>: WARNING: Expected "}" to go with "{"
+<stdin>: NOTE: The unbalanced "{" is here:
 `)
 	expectParseError(t, "a:after { content: '\r\n' }",
 		`<stdin>: ERROR: Unterminated string token
 <stdin>: ERROR: Unterminated string token
-<stdin>: WARNING: Expected "}" but found end of file
+<stdin>: WARNING: Expected "}" to go with "{"
+<stdin>: NOTE: The unbalanced "{" is here:
 `)
 
 	expectPrinted(t, "a:after { content: '\\1010101' }", "a:after {\n  content: \"\U001010101\";\n}\n")
@@ -596,9 +600,9 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "a[b] {}", "a[b] {\n}\n")
 	expectPrinted(t, "a [b] {}", "a [b] {\n}\n")
 	expectParseError(t, "[] {}", "<stdin>: WARNING: Expected identifier but found \"]\"\n")
-	expectParseError(t, "[b {}", "<stdin>: WARNING: Expected \"]\" but found \"{\"\n")
+	expectParseError(t, "[b {}", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n")
 	expectParseError(t, "[b]] {}", "<stdin>: WARNING: Unexpected \"]\"\n")
-	expectParseError(t, "a[b {}", "<stdin>: WARNING: Expected \"]\" but found \"{\"\n")
+	expectParseError(t, "a[b {}", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n")
 	expectParseError(t, "a[b]] {}", "<stdin>: WARNING: Unexpected \"]\"\n")
 
 	expectPrinted(t, "[|b]{}", "[b] {\n}\n") // "[|b]" is equivalent to "[b]"
@@ -618,7 +622,7 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "[b$=\"c\"] {}", "[b$=c] {\n}\n")
 	expectPrinted(t, "[b*=\"c\"] {}", "[b*=c] {\n}\n")
 	expectPrinted(t, "[b|=\"c\"] {}", "[b|=c] {\n}\n")
-	expectParseError(t, "[b?=\"c\"] {}", "<stdin>: WARNING: Expected \"]\" but found \"?\"\n")
+	expectParseError(t, "[b?=\"c\"] {}", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n")
 
 	expectPrinted(t, "[b = \"c\"] {}", "[b=c] {\n}\n")
 	expectPrinted(t, "[b ~= \"c\"] {}", "[b~=c] {\n}\n")
@@ -626,16 +630,16 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "[b $= \"c\"] {}", "[b$=c] {\n}\n")
 	expectPrinted(t, "[b *= \"c\"] {}", "[b*=c] {\n}\n")
 	expectPrinted(t, "[b |= \"c\"] {}", "[b|=c] {\n}\n")
-	expectParseError(t, "[b ?= \"c\"] {}", "<stdin>: WARNING: Expected \"]\" but found \"?\"\n")
+	expectParseError(t, "[b ?= \"c\"] {}", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n")
 
 	expectPrinted(t, "[b = \"c\" i] {}", "[b=c i] {\n}\n")
 	expectPrinted(t, "[b = \"c\" I] {}", "[b=c I] {\n}\n")
 	expectPrinted(t, "[b = \"c\" s] {}", "[b=c s] {\n}\n")
 	expectPrinted(t, "[b = \"c\" S] {}", "[b=c S] {\n}\n")
-	expectParseError(t, "[b i] {}", "<stdin>: WARNING: Expected \"]\" but found \"i\"\n<stdin>: WARNING: Unexpected \"]\"\n")
-	expectParseError(t, "[b I] {}", "<stdin>: WARNING: Expected \"]\" but found \"I\"\n<stdin>: WARNING: Unexpected \"]\"\n")
-	expectParseError(t, "[b s] {}", "<stdin>: WARNING: Expected \"]\" but found \"s\"\n<stdin>: WARNING: Unexpected \"]\"\n")
-	expectParseError(t, "[b S] {}", "<stdin>: WARNING: Expected \"]\" but found \"S\"\n<stdin>: WARNING: Unexpected \"]\"\n")
+	expectParseError(t, "[b i] {}", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n<stdin>: WARNING: Unexpected \"]\"\n")
+	expectParseError(t, "[b I] {}", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n<stdin>: WARNING: Unexpected \"]\"\n")
+	expectParseError(t, "[b s] {}", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n<stdin>: WARNING: Unexpected \"]\"\n")
+	expectParseError(t, "[b S] {}", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n<stdin>: WARNING: Unexpected \"]\"\n")
 
 	expectPrinted(t, "|b {}", "|b {\n}\n")
 	expectPrinted(t, "|* {}", "|* {\n}\n")
@@ -664,6 +668,11 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "a:b:c {}", "a:b:c {\n}\n")
 	expectPrinted(t, "a:b(:c) {}", "a:b(:c) {\n}\n")
 	expectPrinted(t, "a: b {}", "a: b {\n}\n")
+
+	// These test cases previously caused a hang (see https://github.com/evanw/esbuild/issues/2276)
+	expectParseError(t, ":x(", "<stdin>: WARNING: Unexpected end of file\n")
+	expectParseError(t, ":x( {}", "<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")
+	expectParseError(t, ":x(, :y() {}", "<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")
 
 	expectPrinted(t, "#id {}", "#id {\n}\n")
 	expectPrinted(t, "#--0 {}", "#--0 {\n}\n")
@@ -964,7 +973,7 @@ func TestAtImport(t *testing.T) {
 	expectParseError(t, "@import;", "<stdin>: WARNING: Expected URL token but found \";\"\n")
 	expectParseError(t, "@import ;", "<stdin>: WARNING: Expected URL token but found \";\"\n")
 	expectParseError(t, "@import \"foo.css\"", "<stdin>: WARNING: Expected \";\" but found end of file\n")
-	expectParseError(t, "@import url(\"foo.css\";", "<stdin>: WARNING: Expected \")\" but found \";\"\n")
+	expectParseError(t, "@import url(\"foo.css\";", "<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")
 	expectParseError(t, "@import noturl(\"foo.css\");", "<stdin>: WARNING: Expected URL token but found \"noturl(\"\n")
 	expectParseError(t, "@import url(", `<stdin>: WARNING: Expected URL token but found bad URL token
 <stdin>: ERROR: Expected ")" to end URL token
@@ -1041,7 +1050,7 @@ func TestAtKeyframes(t *testing.T) {
 	expectParseError(t, "@keyframes name { 1% }", "<stdin>: WARNING: Expected \"{\" but found \"}\"\n")
 	expectParseError(t, "@keyframes name { 1%", "<stdin>: WARNING: Expected \"{\" but found end of file\n")
 	expectParseError(t, "@keyframes name { 1%,,2% {} }", "<stdin>: WARNING: Expected percentage but found \",\"\n")
-	expectParseError(t, "@keyframes name {", "<stdin>: WARNING: Expected \"}\" but found end of file\n")
+	expectParseError(t, "@keyframes name {", "<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
 
 	expectPrinted(t, "@keyframes x { 1%, {} } @keyframes z { 1% {} }", "@keyframes x { 1%, {} }\n@keyframes z {\n  1% {\n  }\n}\n")
 	expectPrinted(t, "@keyframes x { .y {} } @keyframes z { 1% {} }", "@keyframes x { .y {} }\n@keyframes z {\n  1% {\n  }\n}\n")
