@@ -67,6 +67,8 @@ interface CommonOptions {
   logLevel?: LogLevel;
   /** Documentation: https://esbuild.github.io/api/#log-limit */
   logLimit?: number;
+  /** Documentation: https://esbuild.github.io/api/#log-override */
+  logOverride?: Record<string, LogLevel>;
 }
 
 export interface BuildOptions extends CommonOptions {

@@ -15,7 +15,7 @@ func expectParseError(t *testing.T, contents string, expected string) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 		Parse(log, test.SourceForTest(contents), Options{})
 		msgs := log.Done()
 		text := ""
@@ -30,7 +30,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 		tree := Parse(log, test.SourceForTest(contents), Options{
 			MinifySyntax:           options.MinifySyntax,
 			MinifyWhitespace:       options.MinifyWhitespace,

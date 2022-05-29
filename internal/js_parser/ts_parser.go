@@ -213,7 +213,7 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 
 			// "[const: number]"
 			if opts.allowTupleLabels && p.lexer.Token == js_lexer.TColon {
-				p.log.Add(logger.Error, &p.tracker, r, "Unexpected \"const\"")
+				p.log.AddError(&p.tracker, r, "Unexpected \"const\"")
 			}
 
 		case js_lexer.TThis:
@@ -427,7 +427,7 @@ func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
 			// "[function: number]"
 			if opts.allowTupleLabels && p.lexer.IsIdentifierOrKeyword() {
 				if p.lexer.Token != js_lexer.TFunction {
-					p.log.Add(logger.Error, &p.tracker, p.lexer.Range(), fmt.Sprintf("Unexpected %q", p.lexer.Raw()))
+					p.log.AddError(&p.tracker, p.lexer.Range(), fmt.Sprintf("Unexpected %q", p.lexer.Raw()))
 				}
 				p.lexer.Next()
 				if p.lexer.Token != js_lexer.TColon {
@@ -673,7 +673,7 @@ func (p *parser) skipTypeScriptTypeParameters(mode typeParameters) {
 
 			// Only report an error for the first invalid modifier
 			if invalidModifierRange.Len > 0 {
-				p.log.Add(logger.Error, &p.tracker, invalidModifierRange, fmt.Sprintf(
+				p.log.AddError(&p.tracker, invalidModifierRange, fmt.Sprintf(
 					"The modifier %q is not valid here:", p.source.TextForRange(invalidModifierRange)))
 			}
 

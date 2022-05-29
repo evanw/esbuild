@@ -87,7 +87,7 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 		if args.debugLogs {
 			logKind = logger.DeferLogAll
 		}
-		log := logger.NewDeferLog(logKind)
+		log := logger.NewDeferLog(logKind, nil)
 		caches := cache.MakeCacheSet()
 		resolver := resolver.NewResolver(fs, log, caches, args.options)
 		entryPoints := make([]EntryPoint, 0, len(args.entryPaths)+len(args.entryPathsAdvanced))
@@ -104,7 +104,7 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 			return
 		}
 
-		log = logger.NewDeferLog(logKind)
+		log = logger.NewDeferLog(logKind, nil)
 		args.options.OmitRuntimeForTests = true
 		results, _ := bundle.Compile(log, args.options, nil, nil)
 		msgs = log.Done()

@@ -29,7 +29,8 @@ type Log struct {
 
 	Done func() []Msg
 
-	Level LogLevel
+	Level     LogLevel
+	Overrides map[MsgID]LogLevel
 }
 
 type LogLevel int8
@@ -520,7 +521,8 @@ func NewStderrLog(options OutputOptions) Log {
 	}
 
 	return Log{
-		Level: options.LogLevel,
+		Level:     options.LogLevel,
+		Overrides: options.Overrides,
 
 		AddMsg: func(msg Msg) {
 			mutex.Lock()
@@ -932,13 +934,14 @@ const (
 	DeferLogNoVerboseOrDebug
 )
 
-func NewDeferLog(kind DeferLogKind) Log {
+func NewDeferLog(kind DeferLogKind, overrides map[MsgID]LogLevel) Log {
 	var msgs SortableMsgs
 	var mutex sync.Mutex
 	var hasErrors bool
 
 	return Log{
-		Level: LevelInfo,
+		Level:     LevelInfo,
+		Overrides: overrides,
 
 		AddMsg: func(msg Msg) {
 			if kind == DeferLogNoVerboseOrDebug && (msg.Kind == Verbose || msg.Kind == Debug) {
@@ -983,6 +986,7 @@ type OutputOptions struct {
 	IncludeSource bool
 	Color         UseColor
 	LogLevel      LogLevel
+	Overrides     map[MsgID]LogLevel
 }
 
 func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
@@ -1598,17 +1602,57 @@ func renderTabStops(withTabs string, spacesPerTab int) string {
 	return withoutTabs.String()
 }
 
-func (log Log) Add(kind MsgKind, tracker *LineColumnTracker, r Range, text string) {
+func (log Log) AddError(tracker *LineColumnTracker, r Range, text string) {
 	log.AddMsg(Msg{
-		Kind: kind,
+		Kind: Error,
 		Data: tracker.MsgData(r, text),
 	})
 }
 
-func (log Log) AddWithNotes(kind MsgKind, tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
+func (log Log) AddID(id MsgID, kind MsgKind, tracker *LineColumnTracker, r Range, text string) {
+	if override, ok := AllowOverride(log.Overrides, id, kind); ok {
+		log.AddMsg(Msg{
+			Kind: override,
+			Data: tracker.MsgData(r, text),
+		})
+	}
+}
+
+func (log Log) AddErrorWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
 	log.AddMsg(Msg{
-		Kind:  kind,
+		Kind:  Error,
 		Data:  tracker.MsgData(r, text),
 		Notes: notes,
 	})
+}
+
+func (log Log) AddIDWithNotes(id MsgID, kind MsgKind, tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
+	if override, ok := AllowOverride(log.Overrides, id, kind); ok {
+		log.AddMsg(Msg{
+			Kind:  override,
+			Data:  tracker.MsgData(r, text),
+			Notes: notes,
+		})
+	}
+}
+
+func AllowOverride(overrides map[MsgID]LogLevel, id MsgID, kind MsgKind) (MsgKind, bool) {
+	if logLevel, ok := overrides[id]; ok {
+		switch logLevel {
+		case LevelVerbose:
+			return Verbose, true
+		case LevelDebug:
+			return Debug, true
+		case LevelInfo:
+			return Info, true
+		case LevelWarning:
+			return Warning, true
+		case LevelError:
+			return Error, true
+		default:
+			// Setting the log level to "silent" silences this log message
+			return MsgKind(0), false
+		}
+	}
+	return kind, true
 }

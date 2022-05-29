@@ -260,9 +260,10 @@ const (
 // Build API
 
 type BuildOptions struct {
-	Color    StderrColor // Documentation: https://esbuild.github.io/api/#color
-	LogLimit int         // Documentation: https://esbuild.github.io/api/#log-limit
-	LogLevel LogLevel    // Documentation: https://esbuild.github.io/api/#log-level
+	Color       StderrColor         // Documentation: https://esbuild.github.io/api/#color
+	LogLevel    LogLevel            // Documentation: https://esbuild.github.io/api/#log-level
+	LogLimit    int                 // Documentation: https://esbuild.github.io/api/#log-limit
+	LogOverride map[string]LogLevel // Documentation: https://esbuild.github.io/api/#log-override
 
 	Sourcemap      SourceMap      // Documentation: https://esbuild.github.io/api/#sourcemap
 	SourceRoot     string         // Documentation: https://esbuild.github.io/api/#source-root
@@ -374,9 +375,10 @@ func Build(options BuildOptions) BuildResult {
 // Transform API
 
 type TransformOptions struct {
-	Color    StderrColor // Documentation: https://esbuild.github.io/api/#color
-	LogLimit int         // Documentation: https://esbuild.github.io/api/#log-limit
-	LogLevel LogLevel    // Documentation: https://esbuild.github.io/api/#log-level
+	Color       StderrColor         // Documentation: https://esbuild.github.io/api/#color
+	LogLevel    LogLevel            // Documentation: https://esbuild.github.io/api/#log-level
+	LogLimit    int                 // Documentation: https://esbuild.github.io/api/#log-limit
+	LogOverride map[string]LogLevel // Documentation: https://esbuild.github.io/api/#log-override
 
 	Sourcemap      SourceMap      // Documentation: https://esbuild.github.io/api/#sourcemap
 	SourceRoot     string         // Documentation: https://esbuild.github.io/api/#source-root

@@ -141,6 +141,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let jsxFactory = getFlag(options, keys, 'jsxFactory', mustBeString);
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
   let define = getFlag(options, keys, 'define', mustBeObject);
+  let logOverride = getFlag(options, keys, 'logOverride', mustBeObject);
   let pure = getFlag(options, keys, 'pure', mustBeArray);
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
 
@@ -174,6 +175,12 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
     for (let key in define) {
       if (key.indexOf('=') >= 0) throw new Error(`Invalid define: ${key}`);
       flags.push(`--define:${key}=${define[key]}`);
+    }
+  }
+  if (logOverride) {
+    for (let key in logOverride) {
+      if (key.indexOf('=') >= 0) throw new Error(`Invalid log override: ${key}`);
+      flags.push(`--log-override:${key}=${logOverride[key]}`);
     }
   }
   if (pure) for (let fn of pure) flags.push(`--pure:${fn}`);

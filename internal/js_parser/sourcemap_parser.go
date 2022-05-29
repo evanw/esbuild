@@ -20,7 +20,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	obj, ok := expr.Data.(*js_ast.EObject)
 	tracker := logger.MakeLineColumnTracker(&source)
 	if !ok {
-		log.Add(logger.Error, &tracker, logger.Range{Loc: expr.Loc}, "Invalid source map")
+		log.AddError(&tracker, logger.Range{Loc: expr.Loc}, "Invalid source map")
 		return nil
 	}
 
@@ -35,7 +35,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 
 		switch helpers.UTF16ToString(prop.Key.Data.(*js_ast.EString).Value) {
 		case "sections":
-			log.Add(logger.Warning, &tracker, keyRange, "Source maps with \"sections\" are not supported")
+			log.AddID(logger.MsgID_SourceMap_SectionsInSourceMap, logger.Warning, &tracker, keyRange, "Source maps with \"sections\" are not supported")
 			return nil
 
 		case "version":
@@ -218,7 +218,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 
 	if errorText != "" {
 		r := logger.Range{Loc: logger.Loc{Start: mappingsStart + int32(current)}, Len: int32(errorLen)}
-		log.Add(logger.Warning, &tracker, r,
+		log.AddID(logger.MsgID_SourceMap_InvalidSourceMappings, logger.Warning, &tracker, r,
 			fmt.Sprintf("Bad \"mappings\" data in source map at character %d: %s", current, errorText))
 		return nil
 	}

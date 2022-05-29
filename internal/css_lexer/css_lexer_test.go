@@ -8,7 +8,7 @@ import (
 )
 
 func lexToken(contents string) (T, string) {
-	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 	result := Tokenize(log, test.SourceForTest(contents))
 	if len(result.Tokens) > 0 {
 		t := result.Tokens[0]
@@ -18,7 +18,7 @@ func lexToken(contents string) (T, string) {
 }
 
 func lexerError(contents string) string {
-	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 	Tokenize(log, test.SourceForTest(contents))
 	text := ""
 	for _, msg := range log.Done() {

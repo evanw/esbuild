@@ -36,11 +36,13 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 		if firstHasNestPrefix && !hasNestPrefix && opts.atNestRange.Len == 0 {
 			data := p.tracker.MsgData(logger.Range{Loc: loc}, "Every selector in a nested style rule must start with \"&\"")
 			data.Location.Suggestion = "&"
-			p.log.AddMsg(logger.Msg{
-				Kind:  logger.Warning,
-				Data:  data,
-				Notes: []logger.MsgData{p.tracker.MsgData(firstRange, "This is a nested style rule because of the \"&\" here:")},
-			})
+			if override, ok := logger.AllowOverride(p.log.Overrides, logger.MsgID_CSS_InvalidAtNest, logger.Warning); ok {
+				p.log.AddMsg(logger.Msg{
+					Kind:  override,
+					Data:  data,
+					Notes: []logger.MsgData{p.tracker.MsgData(firstRange, "This is a nested style rule because of the \"&\" here:")},
+				})
+			}
 		}
 	}
 
@@ -91,7 +93,8 @@ func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.Co
 
 	// Validate nest selector consistency
 	if opts.atNestRange.Len != 0 && !isNestContaining {
-		p.log.AddWithNotes(logger.Warning, &p.tracker, logger.Range{Loc: loc}, "Every selector in a nested style rule must contain \"&\"",
+		p.log.AddIDWithNotes(logger.MsgID_CSS_InvalidAtNest, logger.Warning, &p.tracker, logger.Range{Loc: loc},
+			"Every selector in a nested style rule must contain \"&\"",
 			[]logger.MsgData{p.tracker.MsgData(opts.atNestRange, "This is a nested style rule because of the \"@nest\" here:")})
 	}
 
@@ -108,13 +111,13 @@ func (p *parser) nameToken() css_ast.NameToken {
 
 func (p *parser) maybeWarnAboutNesting(r logger.Range, opts parseSelectorOpts) {
 	if !opts.allowNesting {
-		p.log.Add(logger.Warning, &p.tracker, r, "CSS nesting syntax cannot be used outside of a style rule")
+		p.log.AddID(logger.MsgID_CSS_InvalidAtNest, logger.Warning, &p.tracker, r, "CSS nesting syntax cannot be used outside of a style rule")
 	} else if p.options.UnsupportedCSSFeatures.Has(compat.Nesting) {
 		text := "CSS nesting syntax is not supported in the configured target environment"
 		if p.options.OriginalTargetEnv != "" {
 			text = fmt.Sprintf("%s (%s)", text, p.options.OriginalTargetEnv)
 		}
-		p.log.Add(logger.Warning, &p.tracker, r, text)
+		p.log.AddID(logger.MsgID_CSS_InvalidAtNest, logger.Warning, &p.tracker, r, text)
 	}
 }
 

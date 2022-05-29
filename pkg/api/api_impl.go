@@ -351,7 +351,7 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (config.T
 			}
 		}
 
-		log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid version: %q", engine.Version))
+		log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid version: %q", engine.Version))
 	}
 
 	for engine, version := range constraints {
@@ -395,7 +395,7 @@ func validateRegex(log logger.Log, what string, value string) *regexp.Regexp {
 	}
 	regex, err := regexp.Compile(value)
 	if err != nil {
-		log.Add(logger.Error, nil, logger.Range{},
+		log.AddError(nil, logger.Range{},
 			fmt.Sprintf("The %q setting is not a valid Go regular expression: %s", what, value))
 		return nil
 	}
@@ -412,7 +412,7 @@ func validateExternals(log logger.Log, fs fs.FS, paths []string) config.External
 		if index := strings.IndexByte(path, '*'); index != -1 {
 			// Wildcard behavior
 			if strings.ContainsRune(path[index+1:], '*') {
-				log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("External path %q cannot have more than one \"*\" wildcard", path))
+				log.AddError(nil, logger.Range{}, fmt.Sprintf("External path %q cannot have more than one \"*\" wildcard", path))
 			} else {
 				result.PreResolve.Patterns = append(result.PreResolve.Patterns, config.WildcardPattern{Prefix: path[:index], Suffix: path[index+1:]})
 				if !resolver.IsPackagePath(path) {
@@ -447,7 +447,7 @@ func validateResolveExtensions(log logger.Log, order []string) []string {
 	}
 	for _, ext := range order {
 		if !isValidExtension(ext) {
-			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid file extension: %q", ext))
+			log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid file extension: %q", ext))
 		}
 	}
 	return order
@@ -458,7 +458,7 @@ func validateLoaders(log logger.Log, loaders map[string]Loader) map[string]confi
 	if loaders != nil {
 		for ext, loader := range loaders {
 			if !isValidExtension(ext) {
-				log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid file extension: %q", ext))
+				log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid file extension: %q", ext))
 			}
 			result[ext] = validateLoader(loader)
 		}
@@ -470,7 +470,7 @@ func validateJSXExpr(log logger.Log, text string, name string, kind js_parser.JS
 	if expr, ok := js_parser.ParseJSXExpr(text, kind); ok {
 		return expr
 	}
-	log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
+	log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
 	return config.JSXExpr{}
 }
 
@@ -491,9 +491,9 @@ func validateDefines(
 		for _, part := range strings.Split(key, ".") {
 			if !js_lexer.IsIdentifier(part) {
 				if part == key {
-					log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("The define key %q must be a valid identifier", key))
+					log.AddError(nil, logger.Range{}, fmt.Sprintf("The define key %q must be a valid identifier", key))
 				} else {
-					log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("The define key %q contains invalid identifier %q", key, part))
+					log.AddError(nil, logger.Range{}, fmt.Sprintf("The define key %q contains invalid identifier %q", key, part))
 				}
 				continue
 			}
@@ -529,9 +529,9 @@ func validateDefines(
 
 		// Parse the value as JSON
 		source := logger.Source{Contents: value}
-		expr, ok := js_parser.ParseJSON(logger.NewDeferLog(logger.DeferLogAll), source, js_parser.JSONOptions{})
+		expr, ok := js_parser.ParseJSON(logger.NewDeferLog(logger.DeferLogAll, nil), source, js_parser.JSONOptions{})
 		if !ok {
-			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid define value (must be valid JSON syntax or a single identifier): %s", value))
+			log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid define value (must be valid JSON syntax or a single identifier): %s", value))
 			continue
 		}
 
@@ -612,7 +612,7 @@ func validateDefines(
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
 			if !js_lexer.IsIdentifier(part) {
-				log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid pure function: %q", key))
+				log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid pure function: %q", key))
 				continue
 			}
 		}
@@ -629,13 +629,126 @@ func validateDefines(
 	return &processed, injectedDefines
 }
 
+func validateLogOverrides(input map[string]LogLevel) (output map[logger.MsgID]logger.LogLevel) {
+	output = make(map[uint8]logger.LogLevel)
+	for k, v := range input {
+		logLevel := validateLogLevel(v)
+
+		switch k {
+		// JS
+		case "assign-to-constant":
+			output[logger.MsgID_JS_AssignToConstant] = logLevel
+		case "call-import-namespace":
+			output[logger.MsgID_JS_CallImportNamespace] = logLevel
+		case "commonjs-variable-in-esm":
+			output[logger.MsgID_JS_CommonJSVariableInESM] = logLevel
+		case "delete-super-property":
+			output[logger.MsgID_JS_DeleteSuperProperty] = logLevel
+		case "direct-eval":
+			output[logger.MsgID_JS_DirectEval] = logLevel
+		case "duplicate-case":
+			output[logger.MsgID_JS_DuplicateCase] = logLevel
+		case "duplicate-object-key":
+			output[logger.MsgID_JS_DuplicateObjectKey] = logLevel
+		case "empty-import-meta":
+			output[logger.MsgID_JS_EmptyImportMeta] = logLevel
+		case "equals-nan":
+			output[logger.MsgID_JS_EqualsNaN] = logLevel
+		case "equals-negative-zero":
+			output[logger.MsgID_JS_EqualsNegativeZero] = logLevel
+		case "equals-new-object":
+			output[logger.MsgID_JS_EqualsNewObject] = logLevel
+		case "html-comment-in-js":
+			output[logger.MsgID_JS_HTMLCommentInJS] = logLevel
+		case "impossible-typeof":
+			output[logger.MsgID_JS_ImpossibleTypeof] = logLevel
+		case "private-name-will-throw":
+			output[logger.MsgID_JS_PrivateNameWillThrow] = logLevel
+		case "semicolon-after-return":
+			output[logger.MsgID_JS_SemicolonAfterReturn] = logLevel
+		case "suspicious-boolean-not":
+			output[logger.MsgID_JS_SuspiciousBooleanNot] = logLevel
+		case "this-is-undefined-in-esm":
+			output[logger.MsgID_JS_ThisIsUndefinedInESM] = logLevel
+		case "unsupported-dynamic-import":
+			output[logger.MsgID_JS_UnsupportedDynamicImport] = logLevel
+		case "unsupported-jsx-comment":
+			output[logger.MsgID_JS_UnsupportedJSXComment] = logLevel
+		case "unsupported-regexp":
+			output[logger.MsgID_JS_UnsupportedRegExp] = logLevel
+		case "unsupported-require-call":
+			output[logger.MsgID_JS_UnsupportedRequireCall] = logLevel
+
+		// CSS
+		case "css-syntax-error":
+			output[logger.MsgID_CSS_CSSSyntaxError] = logLevel
+		case "invalid-@charset":
+			output[logger.MsgID_CSS_InvalidAtCharset] = logLevel
+		case "invalid-@import":
+			output[logger.MsgID_CSS_InvalidAtImport] = logLevel
+		case "invalid-@nest":
+			output[logger.MsgID_CSS_InvalidAtNest] = logLevel
+		case "invalid-@layer":
+			output[logger.MsgID_CSS_InvalidAtLayer] = logLevel
+		case "invalid-calc":
+			output[logger.MsgID_CSS_InvalidCalc] = logLevel
+		case "js-comment-in-css":
+			output[logger.MsgID_CSS_JSCommentInCSS] = logLevel
+		case "unsupported-@charset":
+			output[logger.MsgID_CSS_UnsupportedAtCharset] = logLevel
+		case "unsupported-@namespace":
+			output[logger.MsgID_CSS_UnsupportedAtNamespace] = logLevel
+		case "unsupported-css-property":
+			output[logger.MsgID_CSS_UnsupportedCSSProperty] = logLevel
+
+		// Bundler
+		case "different-path-case":
+			output[logger.MsgID_Bundler_DifferentPathCase] = logLevel
+		case "ignored-bare-import":
+			output[logger.MsgID_Bundler_IgnoredBareImport] = logLevel
+		case "ignored-dynamic-import":
+			output[logger.MsgID_Bundler_IgnoredDynamicImport] = logLevel
+		case "import-is-undefined":
+			output[logger.MsgID_Bundler_ImportIsUndefined] = logLevel
+		case "require-resolve-not-external":
+			output[logger.MsgID_Bundler_RequireResolveNotExternal] = logLevel
+
+		// Source maps
+		case "invalid-source-mappings":
+			output[logger.MsgID_SourceMap_InvalidSourceMappings] = logLevel
+		case "sections-in-source-map":
+			output[logger.MsgID_SourceMap_SectionsInSourceMap] = logLevel
+		case "missing-source-map":
+			output[logger.MsgID_SourceMap_MissingSourceMap] = logLevel
+		case "unsupported-source-map-comment":
+			output[logger.MsgID_SourceMap_UnsupportedSourceMapComment] = logLevel
+
+		case "package.json":
+			for i := logger.MsgID_PackageJSON_FIRST; i <= logger.MsgID_PackageJSON_LAST; i++ {
+				output[i] = logLevel
+			}
+
+		case "tsconfig.json":
+			for i := logger.MsgID_TsconfigJSON_FIRST; i <= logger.MsgID_TsconfigJSON_LAST; i++ {
+				output[i] = logLevel
+			}
+
+		default:
+			// Ignore invalid entries since this message id may have
+			// been renamed/removed since when this code was written
+			continue
+		}
+	}
+	return
+}
+
 func validatePath(log logger.Log, fs fs.FS, relPath string, pathKind string) string {
 	if relPath == "" {
 		return ""
 	}
 	absPath, ok := fs.Abs(relPath)
 	if !ok {
-		log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid %s: %s", pathKind, relPath))
+		log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid %s: %s", pathKind, relPath))
 	}
 	return absPath
 }
@@ -643,7 +756,7 @@ func validatePath(log logger.Log, fs fs.FS, relPath string, pathKind string) str
 func validateOutputExtensions(log logger.Log, outExtensions map[string]string) (js string, css string) {
 	for key, value := range outExtensions {
 		if !isValidExtension(value) {
-			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid output extension: %q", value))
+			log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid output extension: %q", value))
 		}
 		switch key {
 		case ".js":
@@ -651,7 +764,7 @@ func validateOutputExtensions(log logger.Log, outExtensions map[string]string) (
 		case ".css":
 			css = value
 		default:
-			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid output extension: %q (valid: .css, .js)", key))
+			log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid output extension: %q (valid: .css, .js)", key))
 		}
 	}
 	return
@@ -665,7 +778,7 @@ func validateBannerOrFooter(log logger.Log, name string, values map[string]strin
 		case "css":
 			css = value
 		default:
-			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Invalid %s file type: %q (valid: css, js)", name, key))
+			log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid %s file type: %q (valid: css, js)", name, key))
 		}
 	}
 	return
@@ -760,12 +873,12 @@ func cloneMangleCache(log logger.Log, mangleCache map[string]interface{}) map[st
 		if v == "__proto__" {
 			// This could cause problems for our binary serialization protocol. It's
 			// also unnecessary because we already avoid mangling this property name.
-			log.Add(logger.Error, nil, logger.Range{},
+			log.AddError(nil, logger.Range{},
 				fmt.Sprintf("Invalid identifier name %q in mangle cache", k))
 		} else if _, ok := v.(string); ok || v == false {
 			clone[k] = v
 		} else {
-			log.Add(logger.Error, nil, logger.Range{},
+			log.AddError(nil, logger.Range{},
 				fmt.Sprintf("Expected %q in mangle cache to map to either a string or false", k))
 		}
 	}
@@ -788,6 +901,7 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 		MessageLimit:  buildOpts.LogLimit,
 		Color:         validateColor(buildOpts.Color),
 		LogLevel:      validateLogLevel(buildOpts.LogLevel),
+		Overrides:     validateLogOverrides(buildOpts.LogOverride),
 	}
 	log := logger.NewStderrLog(logOptions)
 
@@ -801,7 +915,7 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 		DoNotCache: true,
 	})
 	if err != nil {
-		log.Add(logger.Error, nil, logger.Range{}, err.Error())
+		log.AddError(nil, logger.Range{}, err.Error())
 		return internalBuildResult{result: BuildResult{Errors: convertMessagesToPublic(logger.Error, log.Done())}}
 	}
 
@@ -990,13 +1104,13 @@ func rebuildImpl(
 	}
 
 	if options.AbsOutputDir == "" && entryPointCount > 1 {
-		log.Add(logger.Error, nil, logger.Range{},
+		log.AddError(nil, logger.Range{},
 			"Must use \"outdir\" when there are multiple input files")
 	} else if options.AbsOutputDir == "" && options.CodeSplitting {
-		log.Add(logger.Error, nil, logger.Range{},
+		log.AddError(nil, logger.Range{},
 			"Must use \"outdir\" when code splitting is enabled")
 	} else if options.AbsOutputFile != "" && options.AbsOutputDir != "" {
-		log.Add(logger.Error, nil, logger.Range{}, "Cannot use both \"outfile\" and \"outdir\"")
+		log.AddError(nil, logger.Range{}, "Cannot use both \"outfile\" and \"outdir\"")
 	} else if options.AbsOutputFile != "" {
 		// If the output file is specified, use it to derive the output directory
 		options.AbsOutputDir = realFS.Dir(options.AbsOutputFile)
@@ -1005,14 +1119,14 @@ func rebuildImpl(
 
 		// Forbid certain features when writing to stdout
 		if options.SourceMap != config.SourceMapNone && options.SourceMap != config.SourceMapInline {
-			log.Add(logger.Error, nil, logger.Range{}, "Cannot use an external source map without an output path")
+			log.AddError(nil, logger.Range{}, "Cannot use an external source map without an output path")
 		}
 		if options.LegalComments.HasExternalFile() {
-			log.Add(logger.Error, nil, logger.Range{}, "Cannot use linked or external legal comments without an output path")
+			log.AddError(nil, logger.Range{}, "Cannot use linked or external legal comments without an output path")
 		}
 		for _, loader := range options.ExtensionToLoader {
 			if loader == config.LoaderFile {
-				log.Add(logger.Error, nil, logger.Range{}, "Cannot use the \"file\" loader without an output path")
+				log.AddError(nil, logger.Range{}, "Cannot use the \"file\" loader without an output path")
 				break
 			}
 		}
@@ -1025,7 +1139,7 @@ func rebuildImpl(
 	if !buildOpts.Bundle {
 		// Disallow bundle-only options when not bundling
 		if options.ExternalSettings.PreResolve.HasMatchers() || options.ExternalSettings.PostResolve.HasMatchers() {
-			log.Add(logger.Error, nil, logger.Range{}, "Cannot use \"external\" without \"bundle\"")
+			log.AddError(nil, logger.Range{}, "Cannot use \"external\" without \"bundle\"")
 		}
 	} else if options.OutputFormat == config.FormatPreserve {
 		// If the format isn't specified, set the default format using the platform
@@ -1048,7 +1162,7 @@ func rebuildImpl(
 
 	// Code splitting is experimental and currently only enabled for ES6 modules
 	if options.CodeSplitting && options.OutputFormat != config.FormatESModule {
-		log.Add(logger.Error, nil, logger.Range{}, "Splitting currently only works with the \"esm\" format")
+		log.AddError(nil, logger.Range{}, "Splitting currently only works with the \"esm\" format")
 	}
 
 	var outputFiles []OutputFile
@@ -1089,10 +1203,10 @@ func rebuildImpl(
 					if options.WriteToStdout {
 						// Special-case writing to stdout
 						if len(results) != 1 {
-							log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf(
+							log.AddError(nil, logger.Range{}, fmt.Sprintf(
 								"Internal error: did not expect to generate %d files when writing to stdout", len(results)))
 						} else if _, err := os.Stdout.Write(results[0].Contents); err != nil {
-							log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf(
+							log.AddError(nil, logger.Range{}, fmt.Sprintf(
 								"Failed to write to stdout: %s", err.Error()))
 						}
 					} else {
@@ -1104,7 +1218,7 @@ func rebuildImpl(
 								fs.BeforeFileOpen()
 								defer fs.AfterFileClose()
 								if err := fs.MkdirAll(realFS, realFS.Dir(result.AbsPath), 0755); err != nil {
-									log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf(
+									log.AddError(nil, logger.Range{}, fmt.Sprintf(
 										"Failed to create output directory: %s", err.Error()))
 								} else {
 									var mode os.FileMode = 0644
@@ -1112,7 +1226,7 @@ func rebuildImpl(
 										mode = 0755
 									}
 									if err := ioutil.WriteFile(result.AbsPath, result.Contents, mode); err != nil {
-										log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf(
+										log.AddError(nil, logger.Range{}, fmt.Sprintf(
 											"Failed to write to output file: %s", err.Error()))
 									}
 								}
@@ -1358,6 +1472,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		MessageLimit:  transformOpts.LogLimit,
 		Color:         validateColor(transformOpts.Color),
 		LogLevel:      validateLogLevel(transformOpts.LogLevel),
+		Overrides:     validateLogOverrides(transformOpts.LogOverride),
 	})
 
 	// Settings from the user come first
@@ -1452,14 +1567,14 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 	if options.SourceMap == config.SourceMapLinkedWithComment {
 		// Linked source maps don't make sense because there's no output file name
-		log.Add(logger.Error, nil, logger.Range{}, "Cannot transform with linked source maps")
+		log.AddError(nil, logger.Range{}, "Cannot transform with linked source maps")
 	}
 	if options.SourceMap != config.SourceMapNone && options.Stdin.SourceFile == "" {
-		log.Add(logger.Error, nil, logger.Range{},
+		log.AddError(nil, logger.Range{},
 			"Must use \"sourcefile\" with \"sourcemap\" to set the original file name")
 	}
 	if options.LegalComments.HasExternalFile() {
-		log.Add(logger.Error, nil, logger.Range{}, "Cannot transform with linked or external legal comments")
+		log.AddError(nil, logger.Range{}, "Cannot transform with linked or external legal comments")
 	}
 
 	// Set the output mode using other settings
@@ -1599,7 +1714,7 @@ func resolveKindToImportKind(kind ResolveKind) ast.ImportKind {
 func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnResolve", options.Filter)
 	if filter == nil {
-		impl.log.Add(logger.Error, nil, logger.Range{}, err.Error())
+		impl.log.AddError(nil, logger.Range{}, err.Error())
 		return
 	}
 
@@ -1655,7 +1770,7 @@ func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnReso
 func (impl *pluginImpl) onLoad(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnLoad", options.Filter)
 	if filter == nil {
-		impl.log.Add(logger.Error, nil, logger.Range{}, err.Error())
+		impl.log.AddError(nil, logger.Range{}, err.Error())
 		return
 	}
 
@@ -1737,7 +1852,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 
 	for i, item := range clone {
 		if item.Name == "" {
-			log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Plugin at index %d is missing a name", i))
+			log.AddError(nil, logger.Range{}, fmt.Sprintf("Plugin at index %d is missing a name", i))
 			continue
 		}
 
@@ -1761,7 +1876,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 			}
 
 			// Make a new resolver so it has its own log
-			log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+			log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, validateLogOverrides(initialOptions.LogOverride))
 			resolver := resolver.NewResolver(fs, log, caches, *buildOptions)
 
 			// Make sure the resolve directory is an absolute path, which can fail
@@ -1908,7 +2023,7 @@ func getObjectPropertyArray(expr js_ast.Expr, key string) *js_ast.EArray {
 }
 
 func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
-	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 	source := logger.Source{Contents: metafile}
 
 	if result, ok := js_parser.ParseJSON(log, source, js_parser.JSONOptions{}); ok {

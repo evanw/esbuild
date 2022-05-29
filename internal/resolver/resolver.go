@@ -542,9 +542,9 @@ const (
 func (r resolverQuery) flushDebugLogs(mode flushMode) {
 	if r.debugLogs != nil {
 		if mode == flushDueToFailure {
-			r.log.AddWithNotes(logger.Debug, nil, logger.Range{}, r.debugLogs.what, r.debugLogs.notes)
+			r.log.AddIDWithNotes(logger.MsgID_None, logger.Debug, nil, logger.Range{}, r.debugLogs.what, r.debugLogs.notes)
 		} else if r.log.Level <= logger.LevelVerbose {
-			r.log.AddWithNotes(logger.Verbose, nil, logger.Range{}, r.debugLogs.what, r.debugLogs.notes)
+			r.log.AddIDWithNotes(logger.MsgID_None, logger.Verbose, nil, logger.Range{}, r.debugLogs.what, r.debugLogs.notes)
 		}
 	}
 }
@@ -931,10 +931,10 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 						} else if err == syscall.ENOENT {
 							continue
 						} else if err == errParseErrorImportCycle {
-							r.log.Add(logger.Warning, &tracker, extendsRange,
+							r.log.AddID(logger.MsgID_TsconfigJSON_Cycle, logger.Warning, &tracker, extendsRange,
 								fmt.Sprintf("Base config file %q forms cycle", extends))
 						} else if err != errParseErrorAlreadyLogged {
-							r.log.Add(logger.Error, &tracker, extendsRange,
+							r.log.AddError(&tracker, extendsRange,
 								fmt.Sprintf("Cannot read file %q: %s",
 									r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
 						}
@@ -962,10 +962,10 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 				} else if err == syscall.ENOENT {
 					continue
 				} else if err == errParseErrorImportCycle {
-					r.log.Add(logger.Warning, &tracker, extendsRange,
+					r.log.AddID(logger.MsgID_TsconfigJSON_Cycle, logger.Warning, &tracker, extendsRange,
 						fmt.Sprintf("Base config file %q forms cycle", extends))
 				} else if err != errParseErrorAlreadyLogged {
-					r.log.Add(logger.Error, &tracker, extendsRange,
+					r.log.AddError(&tracker, extendsRange,
 						fmt.Sprintf("Cannot read file %q: %s",
 							r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
 				}
@@ -975,7 +975,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 
 		// Suppress warnings about missing base config files inside "node_modules"
 		if !helpers.IsInsideNodeModules(file) {
-			r.log.Add(logger.Warning, &tracker, extendsRange,
+			r.log.AddID(logger.MsgID_TsconfigJSON_Missing, logger.Warning, &tracker, extendsRange,
 				fmt.Sprintf("Cannot find base config file %q", extends))
 		}
 
@@ -1053,7 +1053,7 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 		// list which contains such paths and treating them as missing means we just
 		// ignore them during path resolution.
 		if err != syscall.ENOENT && err != syscall.ENOTDIR {
-			r.log.Add(logger.Error, nil, logger.Range{},
+			r.log.AddError(nil, logger.Range{},
 				fmt.Sprintf("Cannot read directory %q: %s",
 					r.PrettyPath(logger.Path{Text: path, Namespace: "file"}), err.Error()))
 		}
@@ -1129,10 +1129,10 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 			info.enclosingTSConfigJSON, err = r.parseTSConfig(tsConfigPath, make(map[string]bool))
 			if err != nil {
 				if err == syscall.ENOENT {
-					r.log.Add(logger.Error, nil, logger.Range{}, fmt.Sprintf("Cannot find tsconfig file %q",
+					r.log.AddError(nil, logger.Range{}, fmt.Sprintf("Cannot find tsconfig file %q",
 						r.PrettyPath(logger.Path{Text: tsConfigPath, Namespace: "file"})))
 				} else if err != errParseErrorAlreadyLogged {
-					r.log.Add(logger.Debug, nil, logger.Range{},
+					r.log.AddID(logger.MsgID_TsconfigJSON_Missing, logger.Debug, nil, logger.Range{},
 						fmt.Sprintf("Cannot read file %q: %s",
 							r.PrettyPath(logger.Path{Text: tsConfigPath, Namespace: "file"}), err.Error()))
 				}
@@ -1184,7 +1184,7 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 	}
 	if err != nil {
 		if err != syscall.ENOENT {
-			r.log.Add(logger.Error, nil, logger.Range{},
+			r.log.AddError(nil, logger.Range{},
 				fmt.Sprintf("  Cannot read directory %q: %s",
 					r.PrettyPath(logger.Path{Text: dirPath, Namespace: "file"}), err.Error()))
 		}

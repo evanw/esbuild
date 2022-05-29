@@ -246,7 +246,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 		r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", packageJSONPath, originalError.Error()))
 	}
 	if err != nil {
-		r.log.Add(logger.Error, nil, logger.Range{},
+		r.log.AddError(nil, logger.Range{},
 			fmt.Sprintf("Cannot read file %q: %s",
 				r.PrettyPath(logger.Path{Text: packageJSONPath, Namespace: "file"}), err.Error()))
 		return nil
@@ -305,12 +305,12 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 					}
 				}
 
-				r.log.AddWithNotes(kind, &tracker, jsonSource.RangeOfString(typeJSON.Loc),
+				r.log.AddIDWithNotes(logger.MsgID_PackageJSON_InvalidType, kind, &tracker, jsonSource.RangeOfString(typeJSON.Loc),
 					fmt.Sprintf("%q is not a valid value for the \"type\" field", typeValue),
 					notes)
 			}
 		} else {
-			r.log.Add(logger.Warning, &tracker, logger.Range{Loc: typeJSON.Loc},
+			r.log.AddID(logger.MsgID_PackageJSON_InvalidType, logger.Warning, &tracker, logger.Range{Loc: typeJSON.Loc},
 				"The value for \"type\" must be a string")
 		}
 	}
@@ -366,7 +366,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 							browserMap[key] = nil
 						}
 					} else {
-						r.log.Add(logger.Warning, &tracker, logger.Range{Loc: prop.ValueOrNil.Loc},
+						r.log.AddID(logger.MsgID_PackageJSON_InvalidBrowser, logger.Warning, &tracker, logger.Range{Loc: prop.ValueOrNil.Loc},
 							"Each \"browser\" mapping must be a string or a boolean")
 					}
 				}
@@ -403,7 +403,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 			for _, itemJSON := range data.Items {
 				item, ok := itemJSON.Data.(*js_ast.EString)
 				if !ok || item.Value == nil {
-					r.log.Add(logger.Warning, &tracker, logger.Range{Loc: itemJSON.Loc},
+					r.log.AddID(logger.MsgID_PackageJSON_InvalidSideEffects, logger.Warning, &tracker, logger.Range{Loc: itemJSON.Loc},
 						"Expected string in array for \"sideEffects\"")
 					continue
 				}
@@ -427,7 +427,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 			}
 
 		default:
-			r.log.Add(logger.Warning, &tracker, logger.Range{Loc: sideEffectsJSON.Loc},
+			r.log.AddID(logger.MsgID_PackageJSON_InvalidSideEffects, logger.Warning, &tracker, logger.Range{Loc: sideEffectsJSON.Loc},
 				"The value for \"sideEffects\" must be a boolean or an array")
 		}
 	}
@@ -436,7 +436,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	if importsJSON, _, ok := getProperty(json, "imports"); ok {
 		if importsMap := parseImportsExportsMap(jsonSource, r.log, importsJSON); importsMap != nil {
 			if importsMap.root.kind != pjObject {
-				r.log.Add(logger.Warning, &tracker, importsMap.root.firstToken,
+				r.log.AddID(logger.MsgID_PackageJSON_InvalidImportsOrExports, logger.Warning, &tracker, importsMap.root.firstToken,
 					"The value for \"imports\" must be an object")
 			}
 			packageJSON.importsMap = importsMap
@@ -612,7 +612,7 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 					isConditionalSugar = curIsConditionalSugar
 				} else if isConditionalSugar != curIsConditionalSugar {
 					prevEntry := mapData[i-1]
-					log.AddWithNotes(logger.Warning, &tracker, keyRange,
+					log.AddIDWithNotes(logger.MsgID_PackageJSON_InvalidImportsOrExports, logger.Warning, &tracker, keyRange,
 						"This object cannot contain keys that both start with \".\" and don't start with \".\"",
 						[]logger.MsgData{tracker.MsgData(prevEntry.keyRange,
 							fmt.Sprintf("The key %q is incompatible with the previous key %q:", key, prevEntry.key))})
@@ -656,7 +656,7 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 			firstToken.Loc = expr.Loc
 		}
 
-		log.Add(logger.Warning, &tracker, firstToken,
+		log.AddID(logger.MsgID_PackageJSON_InvalidImportsOrExports, logger.Warning, &tracker, firstToken,
 			"This value must be a string, an object, an array, or null")
 		return pjEntry{
 			kind:       pjInvalid,

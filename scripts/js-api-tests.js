@@ -3615,6 +3615,20 @@ let transformTests = {
     assert.strictEqual(code, `.π:after {\n  content: "π";\n}\n`)
   },
 
+  async cssSyntaxErrorWarning({ esbuild }) {
+    const { code } = await esbuild.transform(`. {}`, { loader: 'css' })
+    assert.strictEqual(code, `.\\  {\n}\n`)
+  },
+
+  async cssSyntaxErrorWarningOverride({ esbuild }) {
+    try {
+      await esbuild.transform(`. {}`, { loader: 'css', logOverride: { 'css-syntax-error': 'error' } })
+      throw new Error('Expected a transform failure')
+    } catch (e) {
+      assert.strictEqual((e && e.message || e) + '', `Transform failed with 1 error:\n<stdin>:1:1: ERROR: Expected identifier but found whitespace`)
+    }
+  },
+
   async cssMinify({ esbuild }) {
     const { code } = await esbuild.transform(`div { color: #abcd }`, { loader: 'css', minify: true })
     assert.strictEqual(code, `div{color:#abcd}\n`)

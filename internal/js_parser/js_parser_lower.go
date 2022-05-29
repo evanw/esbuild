@@ -34,7 +34,7 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 
 	if !p.options.unsupportedJSFeatures.Has(feature) {
 		if feature == compat.TopLevelAwait && !p.options.outputFormat.KeepES6ImportExportSyntax() {
-			p.log.Add(logger.Error, &p.tracker, r, fmt.Sprintf(
+			p.log.AddError(&p.tracker, r, fmt.Sprintf(
 				"Top-level await is currently not supported with the %q output format", p.options.outputFormat.String()))
 			return
 		}
@@ -96,39 +96,39 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 		name = "non-identifier array rest patterns"
 
 	case compat.ImportAssertions:
-		p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
+		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
 			"Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where), notes)
 		return
 
 	case compat.TopLevelAwait:
-		p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
+		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
 			"Top-level await is not available in %s", where), notes)
 		return
 
 	case compat.ArbitraryModuleNamespaceNames:
-		p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
+		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
 			"Using a string as a module namespace identifier name is not supported in %s", where), notes)
 		return
 
 	case compat.BigInt:
 		// Transforming these will never be supported
-		p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
+		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
 			"Big integer literals are not available in %s", where), notes)
 		return
 
 	case compat.ImportMeta:
 		// This can't be polyfilled
-		p.log.AddWithNotes(logger.Warning, &p.tracker, r, fmt.Sprintf(
+		p.log.AddIDWithNotes(logger.MsgID_JS_EmptyImportMeta, logger.Warning, &p.tracker, r, fmt.Sprintf(
 			"\"import.meta\" is not available in %s and will be empty", where), notes)
 		return
 
 	default:
-		p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
+		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
 			"This feature is not available in %s", where), notes)
 		return
 	}
 
-	p.log.AddWithNotes(logger.Error, &p.tracker, r, fmt.Sprintf(
+	p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
 		"Transforming %s to %s is not supported yet", name, where), notes)
 	return
 }
@@ -210,10 +210,10 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 			where = "in an ECMAScript module"
 		}
 
-		p.log.AddWithNotes(logger.Error, &p.tracker, r,
+		p.log.AddErrorWithNotes(&p.tracker, r,
 			fmt.Sprintf("%s cannot be used %s", text, where), notes)
 	} else if !canBeTransformed && p.isStrictModeOutputFormat() {
-		p.log.Add(logger.Error, &p.tracker, r,
+		p.log.AddError(&p.tracker, r,
 			fmt.Sprintf("%s cannot be used with the \"esm\" output format due to strict mode", text))
 	}
 }

@@ -23,7 +23,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 		tree, ok := js_parser.Parse(log, test.SourceForTest(contents), js_parser.OptionsFromConfig(&options))
 		msgs := log.Done()
 		text := ""
