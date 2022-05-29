@@ -674,10 +674,11 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		// A call that has been marked "__PURE__" can be removed if all arguments
 		// can be removed. The annotation causes us to ignore the target.
 		if e.CanBeUnwrappedIfUnused {
-			expr = Expr{}
+			var result Expr
 			for _, arg := range e.Args {
-				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
+				result = JoinWithComma(result, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
 			}
+			return result
 		}
 
 		// Attempt to shorten IIFEs
@@ -729,10 +730,11 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		// A constructor call that has been marked "__PURE__" can be removed if all
 		// arguments can be removed. The annotation causes us to ignore the target.
 		if e.CanBeUnwrappedIfUnused {
-			expr = Expr{}
+			var result Expr
 			for _, arg := range e.Args {
-				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
+				result = JoinWithComma(result, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
 			}
+			return result
 		}
 	}
 

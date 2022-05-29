@@ -3674,6 +3674,10 @@ func TestMangleIIFE(t *testing.T) {
 	expectPrintedMangle(t, "(function() { a() })()", "(function() {\n  a();\n})();\n")
 	expectPrintedMangle(t, "(function*() { a() })()", "(function* () {\n  a();\n})();\n")
 	expectPrintedMangle(t, "(async function() { a() })()", "(async function() {\n  a();\n})();\n")
+
+	expectPrintedMangle(t, "(() => x)()", "x;\n")
+	expectPrintedMangle(t, "/* @__PURE__ */ (() => x)()", "")
+	expectPrintedMangle(t, "/* @__PURE__ */ (() => x)(y, z)", "y, z;\n")
 }
 
 func TestMangleTemplate(t *testing.T) {

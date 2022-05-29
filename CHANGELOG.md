@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Fix minification regression with pure IIFEs ([#2279](https://github.com/evanw/esbuild/issues/2279))
+
+    An Immediately Invoked Function Expression (IIFE) is a function call to an anonymous function, and is a way of introducing a new function-level scope in JavaScript since JavaScript lacks a way to do this otherwise. And a pure function call is a function call with the special `/* @__PURE__ */` comment before it, which tells JavaScript build tools that the function call can be considered to have no side effects (and can be removed if it's unused).
+
+    Version 0.14.9 of esbuild introduced a regression that changed esbuild's behavior when these two features were combined. If the IIFE body contains a single expression, the resulting output still contained that expression instead of being empty. This is a minor regression because you normally wouldn't write code like this, so this shouldn't come up in practice, and it doesn't cause any correctness issues (just larger-than-necessary output). It's unusual that you would tell esbuild "remove this if the result is unused" and then not store the result anywhere, since the result is unused by construction. But regardless, the issue has now been fixed.
+
+    For example, the following code is a pure IIFE, which means it should be completely removed when minification is enabled. Previously it was replaced by the contents of the IIFE but it's now completely removed:
+
+    ```js
+    // Original code
+    /* @__PURE__ */ (() => console.log(1))()
+
+    // Old output (with --minify)
+    console.log(1);
+
+    // New output (with --minify)
+    ```
+
 ## 0.14.42
 
 * Fix a parser hang on invalid CSS ([#2276](https://github.com/evanw/esbuild/issues/2276))
