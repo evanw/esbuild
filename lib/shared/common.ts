@@ -1199,7 +1199,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       };
       copyResponseToResult(response!, result);
       runOnEndCallbacks(result, logPluginError, () => {
-        if (result.errors.length > 0) {
+        if (result.errors.length > 0 && !watch) {
           return callback(failureErrorWithLog('Build failed', result.errors, result.warnings), null);
         }
 
