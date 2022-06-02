@@ -6288,3 +6288,33 @@ func TestMangleQuotedPropsMinifySyntax(t *testing.T) {
 		},
 	})
 }
+
+func TestIndirectRequireMessage(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/array.js":  `let x = [require]`,
+			"/assign.js": `require = x`,
+			"/ident.js":  `let x = require`,
+
+			// These shouldn't log anything: https://github.com/evanw/esbuild/issues/812
+			"/dot.js":   `let x = require.cache`,
+			"/index.js": `let x = require[cache]`,
+		},
+		entryPaths: []string{
+			"/array.js",
+			"/assign.js",
+			"/dot.js",
+			"/ident.js",
+			"/index.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		debugLogs: true,
+		expectedScanLog: `array.js: DEBUG: Indirect calls to "require" will not be bundled
+assign.js: DEBUG: Indirect calls to "require" will not be bundled
+ident.js: DEBUG: Indirect calls to "require" will not be bundled
+`,
+	})
+}

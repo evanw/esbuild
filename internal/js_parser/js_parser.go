@@ -143,12 +143,13 @@ type parser struct {
 	// The visit pass binds identifiers to declared symbols, does constant
 	// folding, substitutes compile-time variable definitions, and lowers certain
 	// syntactic constructs as appropriate.
-	stmtExprValue js_ast.E
-	callTarget    js_ast.E
-	templateTag   js_ast.E
-	deleteTarget  js_ast.E
-	loopBody      js_ast.S
-	moduleScope   *js_ast.Scope
+	stmtExprValue    js_ast.E
+	callTarget       js_ast.E
+	dotOrIndexTarget js_ast.E
+	templateTag      js_ast.E
+	deleteTarget     js_ast.E
+	loopBody         js_ast.S
+	moduleScope      *js_ast.Scope
 
 	// This helps recognize the "await import()" pattern. When this is present,
 	// warnings about non-string import paths will be omitted inside try blocks.
@@ -12619,6 +12620,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
+		p.dotOrIndexTarget = e.Target.Data
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
 		})
@@ -12703,6 +12705,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
+		p.dotOrIndexTarget = e.Target.Data
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
 		})
@@ -14234,6 +14237,11 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 
 	// Swap references to the global "require" function with our "__require" stub
 	if ref == p.requireRef && !opts.isCallTarget {
+		if p.options.mode == config.ModeBundle && p.source.Index != runtime.SourceIndex && e != p.dotOrIndexTarget {
+			p.log.AddID(logger.MsgID_JS_IndirectRequire, logger.Debug, &p.tracker, js_lexer.RangeOfIdentifier(p.source, loc),
+				"Indirect calls to \"require\" will not be bundled")
+		}
+
 		return p.valueToSubstituteForRequire(loc)
 	}
 

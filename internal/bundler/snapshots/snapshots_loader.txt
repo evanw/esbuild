@@ -41,6 +41,24 @@ a:after {
 }
 
 ================================================================================
+TestIndirectRequireMessage
+---------- /out/array.js ----------
+
+---------- /out/assign.js ----------
+// assign.js
+__require = x;
+
+---------- /out/dot.js ----------
+// dot.js
+var x = __require.cache;
+
+---------- /out/ident.js ----------
+
+---------- /out/index.js ----------
+// index.js
+var x = __require[cache];
+
+================================================================================
 TestJSXPreserveCapitalLetter
 ---------- /out.js ----------
 // foo.js

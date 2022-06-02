@@ -25,6 +25,7 @@ const (
 	MsgID_JS_EqualsNewObject
 	MsgID_JS_HTMLCommentInJS
 	MsgID_JS_ImpossibleTypeof
+	MsgID_JS_IndirectRequire
 	MsgID_JS_PrivateNameWillThrow
 	MsgID_JS_SemicolonAfterReturn
 	MsgID_JS_SuspiciousBooleanNot
@@ -110,6 +111,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_JS_HTMLCommentInJS] = logLevel
 	case "impossible-typeof":
 		overrides[MsgID_JS_ImpossibleTypeof] = logLevel
+	case "indirect-require":
+		overrides[MsgID_JS_IndirectRequire] = logLevel
 	case "private-name-will-throw":
 		overrides[MsgID_JS_PrivateNameWillThrow] = logLevel
 	case "semicolon-after-return":
@@ -216,6 +219,8 @@ func MsgIDToString(id MsgID) string {
 		return "html-comment-in-js"
 	case MsgID_JS_ImpossibleTypeof:
 		return "impossible-typeof"
+	case MsgID_JS_IndirectRequire:
+		return "indirect-require"
 	case MsgID_JS_PrivateNameWillThrow:
 		return "private-name-will-throw"
 	case MsgID_JS_SemicolonAfterReturn:

@@ -20,6 +20,25 @@
     // New output (with --minify)
     ```
 
+* Add log messages for indirect `require` references ([#2231](https://github.com/evanw/esbuild/issues/2231))
+
+    A long time ago esbuild used to warn about indirect uses of `require` because they break esbuild's ability to analyze the dependencies of the code and cause dependencies to not be bundled, resulting in a potentially broken bundle. However, this warning was removed because many people wanted the warning to be removed. Some packages have code that uses `require` like this but on a code path that isn't used at run-time, so their code still happens to work even though the bundle is incomplete. For example, the following code will _not_ bundle `bindings`:
+
+    ```js
+    // Prevent React Native packager from seeing modules required with this
+    const nodeRequire = require;
+
+    function getRealmConstructor(environment) {
+      switch (environment) {
+        case "node.js":
+        case "electron":
+          return nodeRequire("bindings")("realm.node").Realm;
+      }
+    }
+    ```
+
+    Version 0.11.11 of esbuild removed this warning, which means people no longer have a way to know at compile time whether their bundle is broken in this way. Now that esbuild has custom log message levels, this warning can be added back in a way that should make both people happy. With this release, there is now a log message for this that defaults to the `debug` log level, which normally isn't visible. You can either do `--log-override:indirect-require=warning` to make this log message a warning (and therefore visible) or use `--log-level=debug` to see this and all other `debug` log messages.
+
 ## 0.14.42
 
 * Fix a parser hang on invalid CSS ([#2276](https://github.com/evanw/esbuild/issues/2276))
