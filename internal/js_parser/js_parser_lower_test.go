@@ -33,6 +33,11 @@ func TestLowerFunctionArgumentScope(t *testing.T) {
 	}
 }
 
+func TestLowerArrowFunction(t *testing.T) {
+	expectPrintedTarget(t, 5, "function foo(a) { arr.forEach(e=>this.foo(e)) }",
+		"function foo(a) {\n  var _this = this;\n  arr.forEach(function(e) {\n    return _this.foo(e);\n  });\n}\n")
+}
+
 func TestLowerNullishCoalescing(t *testing.T) {
 	expectParseError(t, "a ?? b && c", "<stdin>: ERROR: Unexpected \"&&\"\n")
 	expectParseError(t, "a ?? b || c", "<stdin>: ERROR: Unexpected \"||\"\n")
