@@ -11754,7 +11754,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Capture "this" inside arrow functions that will be lowered into normal
 		// function expressions for older language environments
 		if p.fnOrArrowDataVisit.isArrow && p.options.unsupportedJSFeatures.Has(compat.Arrow) && p.fnOnlyDataVisit.isThisNested {
-			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.captureThis()}}, exprOut{}
+			ref := p.captureThis()
+			p.recordUsage(ref)
+			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, exprOut{}
 		}
 
 	case *js_ast.EImportMeta:
