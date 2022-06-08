@@ -34,8 +34,19 @@ func TestLowerFunctionArgumentScope(t *testing.T) {
 }
 
 func TestLowerArrowFunction(t *testing.T) {
-	expectPrintedTarget(t, 5, "function foo(a) { arr.forEach(e=>this.foo(e)) }",
+	expectPrintedTarget(t, 5, "function foo(a) { arr.forEach(e => this.foo(e)) }",
 		"function foo(a) {\n  var _this = this;\n  arr.forEach(function(e) {\n    return _this.foo(e);\n  });\n}\n")
+	expectPrintedTarget(t, 5, "function foo(a) { return () => arguments[0] }",
+		"function foo(a) {\n  var _arguments = arguments;\n  return function() {\n    return _arguments[0];\n  };\n}\n")
+
+	expectPrintedTarget(t, 5, "function foo(a) { arr.forEach(function(e) { return this.foo(e) }) }",
+		"function foo(a) {\n  arr.forEach(function(e) {\n    return this.foo(e);\n  });\n}\n")
+	expectPrintedTarget(t, 5, "function foo(a) { return function() { return arguments[0] } }",
+		"function foo(a) {\n  return function() {\n    return arguments[0];\n  };\n}\n")
+
+	// Handling this case isn't implemented yet
+	expectPrintedTarget(t, 5, "var foo = () => this",
+		"var foo = function() {\n  return this;\n};\n")
 }
 
 func TestLowerNullishCoalescing(t *testing.T) {
