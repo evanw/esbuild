@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.43
 
 * Fix TypeScript parse error whe a generic function is the first type argument ([#2306](https://github.com/evanw/esbuild/issues/2306))
 
