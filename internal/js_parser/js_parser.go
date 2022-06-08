@@ -3014,11 +3014,6 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			})}
 		}
 
-		// Allow "const a = b<c>"
-		if p.options.ts.Parse {
-			p.trySkipTypeScriptTypeArgumentsWithBacktracking()
-		}
-
 		ref := p.storeNameInRef(name)
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
 
@@ -3679,8 +3674,9 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 					OptionalChain: optionalStart,
 				}}
 
-			case js_lexer.TLessThan:
+			case js_lexer.TLessThan, js_lexer.TLessThanLessThan:
 				// "a?.<T>()"
+				// "a?.<<T>() => T>()"
 				if !p.options.ts.Parse {
 					p.lexer.Expected(js_lexer.TIdentifier)
 				}
@@ -4013,6 +4009,14 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EBinary{Op: js_ast.BinOpGe, Left: left, Right: p.parseExpr(js_ast.LCompare)}}
 
 		case js_lexer.TLessThanLessThan:
+			// TypeScript allows type arguments to be specified with angle brackets
+			// inside an expression. Unlike in other languages, this unfortunately
+			// appears to require backtracking to parse.
+			if p.options.ts.Parse && p.trySkipTypeScriptTypeArgumentsWithBacktracking() {
+				optionalChain = oldOptionalChain
+				continue
+			}
+
 			if level >= js_ast.LShift {
 				return left
 			}

@@ -1876,6 +1876,8 @@ func TestTSInstantiationExpression(t *testing.T) {
 
 	expectPrintedTS(t, "f<number>?.();", "f?.();\n")
 	expectPrintedTS(t, "f?.<number>();", "f?.();\n")
+	expectPrintedTS(t, "f<<T>() => T>?.();", "f?.();\n")
+	expectPrintedTS(t, "f?.<<T>() => T>();", "f?.();\n")
 
 	expectPrintedTS(t, "f<number>['g'];", "f < number > [\"g\"];\n")
 
@@ -1885,6 +1887,9 @@ func TestTSInstantiationExpression(t *testing.T) {
 	// This behavior matches TypeScript 4.7.0 nightly (specifically "typescript@4.7.0-dev.20220421")
 	// after various fixes from Microsoft that landed after the TypeScript 4.7.0 beta
 	expectPrintedTS(t, "f<x>, g<y>;", "f, g;\n")
+	expectPrintedTS(t, "f<<T>() => T>;", "f;\n")
+	expectPrintedTS(t, "f.x<<T>() => T>;", "f.x;\n")
+	expectPrintedTS(t, "f['x']<<T>() => T>;", "f[\"x\"];\n")
 	expectPrintedTS(t, "f<x>g<y>;", "f < x > g;\n")
 	expectPrintedTS(t, "f<x>=g<y>;", "f = g;\n")
 	expectPrintedTS(t, "f<x>>g<y>;", "f < x >> g;\n")
@@ -2193,9 +2198,13 @@ func TestTSTypeOnlyExport(t *testing.T) {
 
 func TestTSOptionalChain(t *testing.T) {
 	expectParseError(t, "a?.<T>()", "<stdin>: ERROR: Expected identifier but found \"<\"\n")
+	expectParseError(t, "a?.<<T>() => T>()", "<stdin>: ERROR: Expected identifier but found \"<<\"\n")
 	expectPrintedTS(t, "a?.<T>()", "a?.();\n")
+	expectPrintedTS(t, "a?.<<T>() => T>()", "a?.();\n")
 	expectParseErrorTS(t, "a?.<T>b", "<stdin>: ERROR: Expected \"(\" but found \"b\"\n")
 	expectParseErrorTS(t, "a?.<T>[b]", "<stdin>: ERROR: Expected \"(\" but found \"[\"\n")
+	expectParseErrorTS(t, "a?.<<T>() => T>b", "<stdin>: ERROR: Expected \"(\" but found \"b\"\n")
+	expectParseErrorTS(t, "a?.<<T>() => T>[b]", "<stdin>: ERROR: Expected \"(\" but found \"[\"\n")
 
 	expectPrintedTS(t, "a?.b.c", "a?.b.c;\n")
 	expectPrintedTS(t, "(a?.b).c", "(a?.b).c;\n")
@@ -2208,7 +2217,10 @@ func TestTSOptionalChain(t *testing.T) {
 	expectPrintedTS(t, "a?.b(c)", "a?.b(c);\n")
 	expectPrintedTS(t, "(a?.b)(c)", "(a?.b)(c);\n")
 	expectPrintedTS(t, "a?.b!(c)", "a?.b(c);\n")
+
 	expectPrintedTS(t, "a?.b<T>(c)", "a?.b(c);\n")
+	expectPrintedTS(t, "a?.b<+T>(c)", "a?.b < +T > c;\n")
+	expectPrintedTS(t, "a?.b<<T>() => T>(c)", "a?.b(c);\n")
 }
 
 func TestTSJSX(t *testing.T) {
