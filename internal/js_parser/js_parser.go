@@ -9665,6 +9665,14 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					}
 				}
 			}
+
+			if len(s.Fn.Body.Block.Stmts) == 1 {
+				if ret, ok := s.Fn.Body.Block.Stmts[0].Data.(*js_ast.SReturn); ok {
+					if _, ok := ret.ValueOrNil.Data.(*js_ast.ENull); ok {
+						p.symbols[s.Fn.Name.Ref.InnerIndex].Flags |= js_ast.IsReturnNull
+					}
+				}
+			}
 		}
 
 		// Handle exporting this function from a namespace
