@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.44
 
 * Add a `copy` loader ([#2255](https://github.com/evanw/esbuild/issues/2255))
 
