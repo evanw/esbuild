@@ -3887,15 +3887,30 @@ let transformTests = {
   },
 
   async defineBuiltInConstants({ esbuild }) {
-    const define = { a: 'NaN', b: 'Infinity', c: 'undefined', d: 'something' }
-    const { code } = await esbuild.transform(`console.log([typeof a, typeof b, typeof c, typeof d])`, { define })
-    assert.strictEqual(code, `console.log(["number", "number", "undefined", typeof something]);\n`)
+    const define = { a: 'NaN', b: 'Infinity', c: 'undefined', d: 'something', e: 'null' }
+    const { code } = await esbuild.transform(`console.log([typeof a, typeof b, typeof c, typeof d, typeof e])`, { define })
+    assert.strictEqual(code, `console.log(["number", "number", "undefined", typeof something, "object"]);\n`)
   },
 
   async defineArray({ esbuild }) {
     const define = { 'process.env.NODE_ENV': '[1,2,3]', 'something.else': '[2,3,4]' }
     const { code } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })
     assert.strictEqual(code, `var define_process_env_NODE_ENV_default = [1, 2, 3];\nconsole.log(define_process_env_NODE_ENV_default);\n`)
+  },
+
+  async defineThis({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'this', b: 'this.foo' }, format: 'esm' })
+    assert.strictEqual(code, `console.log(void 0, (void 0).foo);\n`)
+  },
+
+  async defineImportMetaESM({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'import.meta', b: 'import.meta.foo' }, format: 'esm' })
+    assert.strictEqual(code, `console.log(import.meta, import.meta.foo);\n`)
+  },
+
+  async defineImportMetaIIFE({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'import.meta', b: 'import.meta.foo' }, format: 'iife' })
+    assert.strictEqual(code, `(() => {\n  const import_meta = {};\n  console.log(import_meta, import_meta.foo);\n})();\n`)
   },
 
   async json({ esbuild }) {

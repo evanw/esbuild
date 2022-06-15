@@ -13,15 +13,10 @@ import (
 )
 
 type JSXOptions struct {
-	Factory  JSXExpr
-	Fragment JSXExpr
+	Factory  DefineExpr
+	Fragment DefineExpr
 	Parse    bool
 	Preserve bool
-}
-
-type JSXExpr struct {
-	Constant js_ast.E
-	Parts    []string
 }
 
 type TSOptions struct {

@@ -5,7 +5,6 @@ import (
 
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/js_ast"
 )
 
 var ts_suite = suite{
@@ -1719,8 +1718,8 @@ func TestTSEnumDefine(t *testing.T) {
 			Defines: &config.ProcessedDefines{
 				IdentifierDefines: map[string]config.DefineData{
 					"d": {
-						DefineFunc: func(args config.DefineArgs) js_ast.E {
-							return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, "b")}
+						DefineExpr: &config.DefineExpr{
+							Parts: []string{"b"},
 						},
 					},
 				},

@@ -46,8 +46,6 @@ type parser struct {
 	symbols                    []js_ast.Symbol
 	isUnbound                  func(js_ast.Ref) bool
 	tsUseCounts                []uint32
-	findSymbolHelper           func(loc logger.Loc, name string) js_ast.Ref
-	symbolForDefineHelper      func(int) js_ast.Ref
 	injectedDefineSymbols      []js_ast.Ref
 	injectedSymbolSources      map[js_ast.Ref]injectedSymbolSource
 	mangledProps               map[string]js_ast.Ref
@@ -499,7 +497,7 @@ func isSameRegexp(a *regexp.Regexp, b *regexp.Regexp) bool {
 	}
 }
 
-func jsxExprsEqual(a config.JSXExpr, b config.JSXExpr) bool {
+func jsxExprsEqual(a config.DefineExpr, b config.DefineExpr) bool {
 	if !helpers.StringArraysEqual(a.Parts, b.Parts) {
 		return false
 	}
@@ -10658,7 +10656,22 @@ func (p *parser) isDotOrIndexDefineMatch(expr js_ast.Expr, parts []string) bool 
 	return false
 }
 
-func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js_ast.Expr {
+func (p *parser) instantiateDefineExpr(loc logger.Loc, expr config.DefineExpr, opts identifierOpts) js_ast.Expr {
+	if expr.Constant != nil {
+		return js_ast.Expr{Loc: loc, Data: expr.Constant}
+	}
+
+	if expr.InjectedDefineIndex.IsValid() {
+		ref := p.injectedDefineSymbols[expr.InjectedDefineIndex.GetIndex()]
+		p.recordUsage(ref)
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
+	}
+
+	parts := expr.Parts
+	if len(parts) == 0 {
+		return js_ast.Expr{}
+	}
+
 	// Check both user-specified defines and known globals
 	if defines, ok := p.options.defines.DotDefines[parts[len(parts)-1]]; ok {
 	next:
@@ -10672,8 +10685,8 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 			}
 
 			// Substitute user-specified defines
-			if define.Data.DefineFunc != nil {
-				return p.valueForDefine(loc, define.Data.DefineFunc, identifierOpts{})
+			if define.Data.DefineExpr != nil {
+				return p.instantiateDefineExpr(loc, *define.Data.DefineExpr, opts)
 			}
 		}
 	}
@@ -10681,8 +10694,14 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 	// Generate an identifier for the first part
 	var value js_ast.Expr
 	firstPart := parts[0]
-	nextPart := 1
+	parts = parts[1:]
 	switch firstPart {
+	case "NaN":
+		value = js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: math.NaN()}}
+
+	case "Infinity":
+		value = js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: math.Inf(1)}}
+
 	case "null":
 		value = js_ast.Expr{Loc: loc, Data: js_ast.ENullShared}
 
@@ -10697,12 +10716,14 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 		}
 
 	default:
-		if firstPart == "import" && len(parts) > 1 && parts[1] == "meta" {
+		if firstPart == "import" && len(parts) > 0 && parts[0] == "meta" {
 			if importMeta, ok := p.valueForImportMeta(loc); ok {
 				value = importMeta
-				nextPart = 2
-				break
+			} else {
+				value = js_ast.Expr{Loc: loc, Data: &js_ast.EImportMeta{}}
 			}
+			parts = parts[1:]
+			break
 		}
 
 		result := p.findSymbol(loc, firstPart)
@@ -10712,13 +10733,11 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js
 
 			// Enable tree shaking
 			CanBeRemovedIfUnused: true,
-		}, identifierOpts{
-			wasOriginallyIdentifier: true,
-		})
+		}, opts)
 	}
 
 	// Build up a chain of property access expressions for subsequent parts
-	for _, part := range parts[nextPart:] {
+	for _, part := range parts {
 		if expr, ok := p.maybeRewritePropertyAccess(loc, js_ast.AssignTargetNone, false, value, part, loc, false, false); ok {
 			value = expr
 		} else if p.isMangledProp(part) {
@@ -11322,8 +11341,8 @@ func (p *parser) valueForThis(
 	if !p.fnOnlyDataVisit.isThisNested {
 		// Substitute user-specified defines
 		if data, ok := p.options.defines.IdentifierDefines["this"]; ok {
-			if data.DefineFunc != nil {
-				return p.valueForDefine(loc, data.DefineFunc, identifierOpts{
+			if data.DefineExpr != nil {
+				return p.instantiateDefineExpr(loc, *data.DefineExpr, identifierOpts{
 					assignTarget:   assignTarget,
 					isCallTarget:   isCallTarget,
 					isDeleteTarget: isDeleteTarget,
@@ -11774,8 +11793,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			for _, define := range defines {
 				if p.isDotOrIndexDefineMatch(expr, define.Parts) {
 					// Substitute user-specified defines
-					if define.Data.DefineFunc != nil {
-						return p.valueForDefine(expr.Loc, define.Data.DefineFunc, identifierOpts{
+					if define.Data.DefineExpr != nil {
+						return p.instantiateDefineExpr(expr.Loc, *define.Data.DefineExpr, identifierOpts{
 							assignTarget:   in.assignTarget,
 							isCallTarget:   isCallTarget,
 							isDeleteTarget: isDeleteTarget,
@@ -11846,8 +11865,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		methodCallMustBeReplacedWithUndefined := false
 		if p.symbols[e.Ref.InnerIndex].Kind.IsUnboundOrInjected() && !result.isInsideWithScope && e != p.deleteTarget {
 			if data, ok := p.options.defines.IdentifierDefines[name]; ok {
-				if data.DefineFunc != nil {
-					new := p.valueForDefine(expr.Loc, data.DefineFunc, identifierOpts{
+				if data.DefineExpr != nil {
+					new := p.instantiateDefineExpr(expr.Loc, *data.DefineExpr, identifierOpts{
 						assignTarget:   in.assignTarget,
 						isCallTarget:   isCallTarget,
 						isDeleteTarget: isDeleteTarget,
@@ -11928,13 +11947,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		} else {
 			// A missing tag is a fragment
 			if e.TagOrNil.Data == nil {
-				var value js_ast.Expr
-				if len(p.options.jsx.Fragment.Parts) > 0 {
-					value = p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Fragment.Parts)
-				} else if constant := p.options.jsx.Fragment.Constant; constant != nil {
-					value = js_ast.Expr{Loc: expr.Loc, Data: constant}
-				}
-				e.TagOrNil = value
+				e.TagOrNil = p.instantiateDefineExpr(expr.Loc, p.options.jsx.Fragment, identifierOpts{
+					wasOriginallyIdentifier: true,
+				})
 			}
 
 			// Arguments to createElement()
@@ -11951,7 +11966,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			// Call createElement()
-			target := p.jsxStringsToMemberExpression(expr.Loc, p.options.jsx.Factory.Parts)
+			target := p.instantiateDefineExpr(expr.Loc, p.options.jsx.Factory, identifierOpts{
+				wasOriginallyIdentifier: true,
+			})
 			p.warnAboutImportNamespaceCall(target, exprKindCall)
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
 				Target:        target,
@@ -12595,8 +12612,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			for _, define := range defines {
 				if p.isDotOrIndexDefineMatch(expr, define.Parts) {
 					// Substitute user-specified defines
-					if define.Data.DefineFunc != nil {
-						return p.valueForDefine(expr.Loc, define.Data.DefineFunc, identifierOpts{
+					if define.Data.DefineExpr != nil {
+						return p.instantiateDefineExpr(expr.Loc, *define.Data.DefineExpr, identifierOpts{
 							assignTarget:   in.assignTarget,
 							isCallTarget:   isCallTarget,
 							isDeleteTarget: isDeleteTarget,
@@ -12682,8 +12699,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				for _, define := range defines {
 					if p.isDotOrIndexDefineMatch(expr, define.Parts) {
 						// Substitute user-specified defines
-						if define.Data.DefineFunc != nil {
-							return p.valueForDefine(expr.Loc, define.Data.DefineFunc, identifierOpts{
+						if define.Data.DefineExpr != nil {
+							return p.instantiateDefineExpr(expr.Loc, *define.Data.DefineExpr, identifierOpts{
 								assignTarget:   in.assignTarget,
 								isCallTarget:   isCallTarget,
 								isDeleteTarget: isDeleteTarget,
@@ -14111,19 +14128,6 @@ func (p *parser) maybeMarkKnownGlobalConstructorAsPure(e *js_ast.ENew) {
 	}
 }
 
-func (p *parser) valueForDefine(loc logger.Loc, defineFunc config.DefineFunc, opts identifierOpts) js_ast.Expr {
-	expr := js_ast.Expr{Loc: loc, Data: defineFunc(config.DefineArgs{
-		Loc:             loc,
-		FindSymbol:      p.findSymbolHelper,
-		SymbolForDefine: p.symbolForDefineHelper,
-	})}
-	if id, ok := expr.Data.(*js_ast.EIdentifier); ok {
-		opts.wasOriginallyIdentifier = true
-		return p.handleIdentifier(loc, id, opts)
-	}
-	return expr
-}
-
 type identifierOpts struct {
 	assignTarget            js_ast.AssignTarget
 	isCallTarget            bool
@@ -15193,16 +15197,6 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		return p.symbols[ref.InnerIndex].Kind == js_ast.SymbolUnbound
 	}
 
-	p.findSymbolHelper = func(loc logger.Loc, name string) js_ast.Ref {
-		return p.findSymbol(loc, name).ref
-	}
-
-	p.symbolForDefineHelper = func(index int) js_ast.Ref {
-		ref := p.injectedDefineSymbols[index]
-		p.recordUsage(ref)
-		return ref
-	}
-
 	p.pushScopeForParsePass(js_ast.ScopeEntry, logger.Loc{Start: locModuleScope})
 
 	return p
@@ -15224,10 +15218,10 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 
 	// Default options for JSX elements
 	if len(options.jsx.Factory.Parts) == 0 {
-		options.jsx.Factory = config.JSXExpr{Parts: defaultJSXFactory}
+		options.jsx.Factory = config.DefineExpr{Parts: defaultJSXFactory}
 	}
 	if len(options.jsx.Fragment.Parts) == 0 && options.jsx.Fragment.Constant == nil {
-		options.jsx.Fragment = config.JSXExpr{Parts: defaultJSXFragment}
+		options.jsx.Fragment = config.DefineExpr{Parts: defaultJSXFragment}
 	}
 
 	if !options.ts.Parse {
@@ -15458,39 +15452,47 @@ const (
 	JSXFragment
 )
 
-func ParseJSXExpr(text string, kind JSXExprKind) (config.JSXExpr, bool) {
+func ParseDefineExprOrJSON(text string) (config.DefineExpr, js_ast.E) {
 	if text == "" {
-		return config.JSXExpr{}, true
+		return config.DefineExpr{}, nil
 	}
 
 	// Try a property chain
 	parts := strings.Split(text, ".")
-	for _, part := range parts {
+	for i, part := range parts {
 		if !js_lexer.IsIdentifier(part) {
 			parts = nil
 			break
 		}
+
+		// Don't allow most keywords as the identifier
+		if i == 0 {
+			if token, ok := js_lexer.Keywords[part]; ok && token != js_lexer.TNull && token != js_lexer.TThis &&
+				(token != js_lexer.TImport || len(parts) < 2 || parts[1] != "meta") {
+				parts = nil
+				break
+			}
+		}
 	}
 	if parts != nil {
-		return config.JSXExpr{Parts: parts}, true
+		return config.DefineExpr{Parts: parts}, nil
 	}
 
-	if kind == JSXFragment {
-		// Try a JSON value
-		source := logger.Source{Contents: text}
-		expr, ok := ParseJSON(logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil), source, JSONOptions{})
-		if !ok {
-			return config.JSXExpr{}, false
-		}
-
-		// Only primitives are supported for now
-		switch expr.Data.(type) {
-		case *js_ast.ENull, *js_ast.EBoolean, *js_ast.EString, *js_ast.ENumber:
-			return config.JSXExpr{Constant: expr.Data}, true
-		}
+	// Try parsing a JSON value
+	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
+	expr, ok := ParseJSON(log, logger.Source{Contents: text}, JSONOptions{})
+	if !ok {
+		return config.DefineExpr{}, nil
 	}
 
-	return config.JSXExpr{}, false
+	// Only primitive literals are inlined directly
+	switch expr.Data.(type) {
+	case *js_ast.ENull, *js_ast.EBoolean, *js_ast.EString, *js_ast.ENumber:
+		return config.DefineExpr{Constant: expr.Data}, nil
+	}
+
+	// If it's not a primitive, return the whole compound JSON value to be injected out-of-line
+	return config.DefineExpr{}, expr.Data
 }
 
 // Say why this the current file is being considered an ES module
@@ -15585,17 +15587,21 @@ func (p *parser) prepareForVisitPass() {
 
 	// Handle "@jsx" and "@jsxFrag" pragmas now that lexing is done
 	if p.options.jsx.Parse {
-		if expr, ok := ParseJSXExpr(p.lexer.JSXFactoryPragmaComment.Text, JSXFactory); !ok {
-			p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, p.lexer.JSXFactoryPragmaComment.Range,
-				fmt.Sprintf("Invalid JSX factory: %s", p.lexer.JSXFactoryPragmaComment.Text))
-		} else if len(expr.Parts) > 0 {
-			p.options.jsx.Factory = expr
+		if jsxFactory := p.lexer.JSXFactoryPragmaComment; jsxFactory.Text != "" {
+			if expr, _ := ParseDefineExprOrJSON(jsxFactory.Text); len(expr.Parts) > 0 {
+				p.options.jsx.Factory = expr
+			} else {
+				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFactory.Range,
+					fmt.Sprintf("Invalid JSX factory: %s", jsxFactory.Text))
+			}
 		}
-		if expr, ok := ParseJSXExpr(p.lexer.JSXFragmentPragmaComment.Text, JSXFragment); !ok {
-			p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, p.lexer.JSXFragmentPragmaComment.Range,
-				fmt.Sprintf("Invalid JSX fragment: %s", p.lexer.JSXFragmentPragmaComment.Text))
-		} else if len(expr.Parts) > 0 || expr.Constant != nil {
-			p.options.jsx.Fragment = expr
+		if jsxFragment := p.lexer.JSXFragmentPragmaComment; jsxFragment.Text != "" {
+			if expr, _ := ParseDefineExprOrJSON(jsxFragment.Text); len(expr.Parts) > 0 || expr.Constant != nil {
+				p.options.jsx.Fragment = expr
+			} else {
+				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFragment.Range,
+					fmt.Sprintf("Invalid JSX fragment: %s", jsxFragment.Text))
+			}
 		}
 	}
 }

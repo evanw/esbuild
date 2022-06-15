@@ -449,8 +449,8 @@ func TestJSXImportsCommonJS(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory:  config.JSXExpr{Parts: []string{"elem"}},
-				Fragment: config.JSXExpr{Parts: []string{"frag"}},
+				Factory:  config.DefineExpr{Parts: []string{"elem"}},
+				Fragment: config.DefineExpr{Parts: []string{"frag"}},
 			},
 			AbsOutputFile: "/out.js",
 		},
@@ -473,8 +473,8 @@ func TestJSXImportsES6(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory:  config.JSXExpr{Parts: []string{"elem"}},
-				Fragment: config.JSXExpr{Parts: []string{"frag"}},
+				Factory:  config.DefineExpr{Parts: []string{"elem"}},
+				Fragment: config.DefineExpr{Parts: []string{"frag"}},
 			},
 			AbsOutputFile: "/out.js",
 		},
@@ -529,7 +529,7 @@ func TestJSXConstantFragments(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			JSX: config.JSXOptions{
-				Fragment: config.JSXExpr{
+				Fragment: config.DefineExpr{
 					Constant: &js_ast.EString{Value: helpers.StringToUTF16("]")},
 				},
 			},
@@ -2090,7 +2090,7 @@ func TestImportReExportES6Issue149(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory: config.JSXExpr{Parts: []string{"h"}},
+				Factory: config.DefineExpr{Parts: []string{"h"}},
 			},
 			AbsOutputFile: "/out.js",
 			ExternalSettings: config.ExternalSettings{
@@ -3979,18 +3979,18 @@ func TestInjectDuplicate(t *testing.T) {
 func TestInject(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"chain.prop": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, "replace")}
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"replace"},
 			},
 		},
 		"obj.defined": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.EString{Value: helpers.StringToUTF16("defined")}
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.EString{Value: helpers.StringToUTF16("defined")},
 			},
 		},
 		"injectedAndDefined": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.EString{Value: helpers.StringToUTF16("should be used")}
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.EString{Value: helpers.StringToUTF16("should be used")},
 			},
 		},
 	})
@@ -4059,18 +4059,18 @@ func TestInject(t *testing.T) {
 func TestInjectNoBundle(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"chain.prop": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, "replace")}
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"replace"},
 			},
 		},
 		"obj.defined": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.EString{Value: helpers.StringToUTF16("defined")}
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.EString{Value: helpers.StringToUTF16("defined")},
 			},
 		},
 		"injectedAndDefined": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.EString{Value: helpers.StringToUTF16("should be used")}
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.EString{Value: helpers.StringToUTF16("should be used")},
 			},
 		},
 	})
@@ -4134,8 +4134,8 @@ func TestInjectNoBundle(t *testing.T) {
 func TestInjectJSX(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"React.createElement": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, "el")}
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"el"},
 			},
 		},
 	})
@@ -4310,18 +4310,18 @@ func TestAvoidTDZNoBundle(t *testing.T) {
 func TestDefineImportMeta(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"import.meta": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.ENumber{Value: 1}
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.ENumber{Value: 1},
 			},
 		},
 		"import.meta.foo": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.ENumber{Value: 2}
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.ENumber{Value: 2},
 			},
 		},
 		"import.meta.foo.bar": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.ENumber{Value: 3}
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.ENumber{Value: 3},
 			},
 		},
 	})
@@ -4354,8 +4354,8 @@ func TestDefineImportMeta(t *testing.T) {
 func TestDefineImportMetaES5(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"import.meta.x": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.ENumber{Value: 1}
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.ENumber{Value: 1},
 			},
 		},
 	})
@@ -4391,18 +4391,18 @@ kept.js: WARNING: "import.meta" is not available in the configured target enviro
 func TestDefineThis(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"this": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.ENumber{Value: 1}
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.ENumber{Value: 1},
 			},
 		},
 		"this.foo": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.ENumber{Value: 2}
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.ENumber{Value: 2},
 			},
 		},
 		"this.foo.bar": {
-			DefineFunc: func(args config.DefineArgs) js_ast.E {
-				return &js_ast.ENumber{Value: 3}
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.ENumber{Value: 3},
 			},
 		},
 	})
@@ -4791,8 +4791,8 @@ func TestJSXThisValueCommonJS(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory:  config.JSXExpr{Parts: []string{"this"}},
-				Fragment: config.JSXExpr{Parts: []string{"this"}},
+				Factory:  config.DefineExpr{Parts: []string{"this"}},
+				Fragment: config.DefineExpr{Parts: []string{"this"}},
 			},
 			AbsOutputDir: "/out",
 		},
@@ -4833,8 +4833,8 @@ func TestJSXThisValueESM(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory:  config.JSXExpr{Parts: []string{"this"}},
-				Fragment: config.JSXExpr{Parts: []string{"this"}},
+				Factory:  config.DefineExpr{Parts: []string{"this"}},
+				Fragment: config.DefineExpr{Parts: []string{"this"}},
 			},
 			AbsOutputDir: "/out",
 		},
@@ -4878,8 +4878,8 @@ func TestJSXThisPropertyCommonJS(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory:  config.JSXExpr{Parts: []string{"this", "factory"}},
-				Fragment: config.JSXExpr{Parts: []string{"this", "fragment"}},
+				Factory:  config.DefineExpr{Parts: []string{"this", "factory"}},
+				Fragment: config.DefineExpr{Parts: []string{"this", "fragment"}},
 			},
 			AbsOutputDir: "/out",
 		},
@@ -4920,8 +4920,8 @@ func TestJSXThisPropertyESM(t *testing.T) {
 		options: config.Options{
 			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
-				Factory:  config.JSXExpr{Parts: []string{"this", "factory"}},
-				Fragment: config.JSXExpr{Parts: []string{"this", "fragment"}},
+				Factory:  config.DefineExpr{Parts: []string{"this", "factory"}},
+				Fragment: config.DefineExpr{Parts: []string{"this", "fragment"}},
 			},
 			AbsOutputDir: "/out",
 		},
@@ -4968,8 +4968,8 @@ func TestJSXImportMetaValue(t *testing.T) {
 			Mode:                  config.ModeBundle,
 			UnsupportedJSFeatures: compat.ImportMeta,
 			JSX: config.JSXOptions{
-				Factory:  config.JSXExpr{Parts: []string{"import", "meta"}},
-				Fragment: config.JSXExpr{Parts: []string{"import", "meta"}},
+				Factory:  config.DefineExpr{Parts: []string{"import", "meta"}},
+				Fragment: config.DefineExpr{Parts: []string{"import", "meta"}},
 			},
 			AbsOutputDir: "/out",
 		},
@@ -5018,8 +5018,8 @@ func TestJSXImportMetaProperty(t *testing.T) {
 			Mode:                  config.ModeBundle,
 			UnsupportedJSFeatures: compat.ImportMeta,
 			JSX: config.JSXOptions{
-				Factory:  config.JSXExpr{Parts: []string{"import", "meta", "factory"}},
-				Fragment: config.JSXExpr{Parts: []string{"import", "meta", "fragment"}},
+				Factory:  config.DefineExpr{Parts: []string{"import", "meta", "factory"}},
+				Fragment: config.DefineExpr{Parts: []string{"import", "meta", "fragment"}},
 			},
 			AbsOutputDir: "/out",
 		},
@@ -5978,8 +5978,8 @@ func TestManglePropsJSXTransform(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			MangleProps:   regexp.MustCompile("_$"),
 			JSX: config.JSXOptions{
-				Factory:  config.JSXExpr{Parts: []string{"Foo", "createElement_"}},
-				Fragment: config.JSXExpr{Parts: []string{"Foo", "Fragment_"}},
+				Factory:  config.DefineExpr{Parts: []string{"Foo", "createElement_"}},
+				Fragment: config.DefineExpr{Parts: []string{"Foo", "Fragment_"}},
 			},
 		},
 	})

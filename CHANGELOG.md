@@ -40,6 +40,10 @@
 
     This fix was contributed by [@nkeynes](https://github.com/nkeynes).
 
+* Allow entity names as define values ([#2292](https://github.com/evanw/esbuild/issues/2292))
+
+    The "define" feature allows you to replace certain expressions with certain other expressions at compile time. For example, you might want to replace the global identifier `IS_PRODUCTION` with the boolean value `true` when building for production. Previously the only expressions you could substitute in were either identifier expressions or anything that is valid JSON syntax. This limitation exists because supporting more complex expressions is more complex (for example, substituting in a `require()` call could potentially pull in additional files, which would need to be handled). With this release, you can now also now define something as a member expression chain of the form `foo.abc.xyz`.
+
 * Implement package self-references ([#2312](https://github.com/evanw/esbuild/issues/2312))
 
     This release implements a rarely-used feature in node where a package can import itself by name instead of using relative imports. You can read more about this feature here: https://nodejs.org/api/packages.html#self-referencing-a-package-using-its-name. For example, assuming the `package.json` in a given package looks like this:
