@@ -1714,6 +1714,61 @@ func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path strin
 	return PathPair{}, false, nil
 }
 
+func (r resolverQuery) loadPackageImports(importPath string, dirInfoPackageJSON *dirInfo) (PathPair, bool, *fs.DifferentCase) {
+	packageJSON := dirInfoPackageJSON.packageJSON
+
+	if r.debugLogs != nil {
+		r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"imports\" map in %q", importPath, packageJSON.source.KeyPath.Text))
+		r.debugLogs.increaseIndent()
+		defer r.debugLogs.decreaseIndent()
+	}
+
+	// Filter out invalid module specifiers now where we have more information for
+	// a better error message instead of later when we're inside the algorithm
+	if importPath == "#" || strings.HasPrefix(importPath, "#/") {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("The path %q must not equal \"#\" and must not start with \"#/\".", importPath))
+		}
+		tracker := logger.MakeLineColumnTracker(&packageJSON.source)
+		r.debugMeta.notes = append(r.debugMeta.notes, tracker.MsgData(packageJSON.importsMap.root.firstToken,
+			fmt.Sprintf("This \"imports\" map was ignored because the module specifier %q is invalid:", importPath)))
+		return PathPair{}, false, nil
+	}
+
+	// The condition set is determined by the kind of import
+	conditions := r.esmConditionsDefault
+	switch r.kind {
+	case ast.ImportStmt, ast.ImportDynamic:
+		conditions = r.esmConditionsImport
+	case ast.ImportRequire, ast.ImportRequireResolve:
+		conditions = r.esmConditionsRequire
+	}
+
+	resolvedPath, status, debug := r.esmPackageImportsResolve(importPath, packageJSON.importsMap.root, conditions)
+	resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
+
+	if status == pjStatusPackageResolve {
+		// The import path was remapped via "imports" to another import path
+		// that now needs to be resolved too. Set "forbidImports" to true
+		// so we don't try to resolve "imports" again and end up in a loop.
+		absolute, ok, diffCase := r.loadNodeModules(resolvedPath, dirInfoPackageJSON, true /* forbidImports */)
+		if !ok {
+			tracker := logger.MakeLineColumnTracker(&packageJSON.source)
+			r.debugMeta.notes = append(
+				[]logger.MsgData{tracker.MsgData(debug.token,
+					fmt.Sprintf("The remapped path %q could not be resolved:", resolvedPath))},
+				r.debugMeta.notes...)
+		}
+		return absolute, ok, diffCase
+	}
+
+	return r.finalizeImportsExportsResult(
+		dirInfoPackageJSON.absPath, conditions, *packageJSON.importsMap, packageJSON,
+		resolvedPath, status, debug,
+		"", "", "",
+	)
+}
+
 func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forbidImports bool) (PathPair, bool, *fs.DifferentCase) {
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Searching for %q in \"node_modules\" directories starting from %q", importPath, dirInfo.absPath))
@@ -1745,62 +1800,12 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		dirInfoPackageJSON = dirInfoPackageJSON.parent
 	}
 
-	// Then check for the package in any enclosing "node_modules" directories
+	// Check for subpath imports: https://nodejs.org/api/packages.html#subpath-imports
 	if dirInfoPackageJSON != nil && strings.HasPrefix(importPath, "#") && !forbidImports && dirInfoPackageJSON.packageJSON.importsMap != nil {
-		packageJSON := dirInfoPackageJSON.packageJSON
-
-		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"imports\" map in %q", importPath, packageJSON.source.KeyPath.Text))
-			r.debugLogs.increaseIndent()
-			defer r.debugLogs.decreaseIndent()
-		}
-
-		// Filter out invalid module specifiers now where we have more information for
-		// a better error message instead of later when we're inside the algorithm
-		if importPath == "#" || strings.HasPrefix(importPath, "#/") {
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("The path %q must not equal \"#\" and must not start with \"#/\".", importPath))
-			}
-			tracker := logger.MakeLineColumnTracker(&packageJSON.source)
-			r.debugMeta.notes = append(r.debugMeta.notes, tracker.MsgData(packageJSON.importsMap.root.firstToken,
-				fmt.Sprintf("This \"imports\" map was ignored because the module specifier %q is invalid:", importPath)))
-			return PathPair{}, false, nil
-		}
-
-		// The condition set is determined by the kind of import
-		conditions := r.esmConditionsDefault
-		switch r.kind {
-		case ast.ImportStmt, ast.ImportDynamic:
-			conditions = r.esmConditionsImport
-		case ast.ImportRequire, ast.ImportRequireResolve:
-			conditions = r.esmConditionsRequire
-		}
-
-		resolvedPath, status, debug := r.esmPackageImportsResolve(importPath, packageJSON.importsMap.root, conditions)
-		resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
-
-		if status == pjStatusPackageResolve {
-			// The import path was remapped via "imports" to another import path
-			// that now needs to be resolved too. Set "forbidImports" to true
-			// so we don't try to resolve "imports" again and end up in a loop.
-			absolute, ok, diffCase := r.loadNodeModules(resolvedPath, dirInfoPackageJSON, true /* forbidImports */)
-			if !ok {
-				tracker := logger.MakeLineColumnTracker(&packageJSON.source)
-				r.debugMeta.notes = append(
-					[]logger.MsgData{tracker.MsgData(debug.token,
-						fmt.Sprintf("The remapped path %q could not be resolved:", resolvedPath))},
-					r.debugMeta.notes...)
-			}
-			return absolute, ok, diffCase
-		}
-
-		return r.finalizeImportsExportsResult(
-			dirInfoPackageJSON.absPath, conditions, *packageJSON.importsMap, packageJSON,
-			resolvedPath, status, debug,
-			"", "", "",
-		)
+		return r.loadPackageImports(importPath, dirInfoPackageJSON)
 	}
 
+	// Try to parse the package name using node's ESM-specific rules
 	esmPackageName, esmPackageSubpath, esmOK := esmParsePackageName(importPath)
 	if r.debugLogs != nil && esmOK {
 		r.debugLogs.addNote(fmt.Sprintf("Parsed package name %q and package subpath %q", esmPackageName, esmPackageSubpath))
