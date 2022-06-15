@@ -111,7 +111,9 @@ type ResolveResult struct {
 	// effects. This means they should be removed if unused.
 	PrimarySideEffectsData *SideEffectsData
 
-	TSTarget *config.TSTarget
+	// These are from "tsconfig.json"
+	TSTarget       *config.TSTarget
+	TSAlwaysStrict *config.TSAlwaysStrict
 
 	// This is the "type" field from "package.json"
 	ModuleTypeData js_ast.ModuleTypeData
@@ -631,6 +633,12 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 							dirInfo.enclosingTSConfigJSON.PreserveValueImports,
 						)
 						result.TSTarget = dirInfo.enclosingTSConfigJSON.TSTarget
+						if tsAlwaysStrict := dirInfo.enclosingTSConfigJSON.TSAlwaysStrict; tsAlwaysStrict != nil {
+							result.TSAlwaysStrict = tsAlwaysStrict
+						} else {
+							// If "alwaysStrict" is absent, it defaults to "strict" instead
+							result.TSAlwaysStrict = dirInfo.enclosingTSConfigJSON.TSStrict
+						}
 
 						if r.debugLogs != nil {
 							r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",

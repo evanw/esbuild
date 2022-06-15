@@ -1651,3 +1651,215 @@ func TestTsConfigModuleSuffixesNoEmpty(t *testing.T) {
 `,
 	})
 }
+
+func TestTsConfigWithStatementAlwaysStrictFalse(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": false
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigWithStatementAlwaysStrictTrue(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: With statements cannot be used in strict mode
+Users/user/project/tsconfig.json: NOTE: TypeScript's "alwaysStrict" setting was enabled here:
+`,
+	})
+}
+
+func TestTsConfigWithStatementStrictFalse(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"strict": false
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigWithStatementStrictTrue(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"strict": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: With statements cannot be used in strict mode
+Users/user/project/tsconfig.json: NOTE: TypeScript's "strict" setting was enabled here:
+`,
+	})
+}
+
+func TestTsConfigWithStatementStrictFalseAlwaysStrictTrue(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"strict": false,
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: With statements cannot be used in strict mode
+Users/user/project/tsconfig.json: NOTE: TypeScript's "alwaysStrict" setting was enabled here:
+`,
+	})
+}
+
+func TestTsConfigWithStatementStrictTrueAlwaysStrictFalse(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"strict": true,
+					"alwaysStrict": false
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigAlwaysStrictTrueEmitDirectivePassThrough(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/implicit.ts": `
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/src/explicit.ts": `
+				'use strict'
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/implicit.ts",
+			"/Users/user/project/src/explicit.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}
+
+func TestTsConfigAlwaysStrictTrueEmitDirectiveFormat(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/implicit.ts": `
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/src/explicit.ts": `
+				'use strict'
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/implicit.ts",
+			"/Users/user/project/src/explicit.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeConvertFormat,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}
+
+func TestTsConfigAlwaysStrictTrueEmitDirectiveBundle(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/implicit.ts": `
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/src/explicit.ts": `
+				'use strict'
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/implicit.ts",
+			"/Users/user/project/src/explicit.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}

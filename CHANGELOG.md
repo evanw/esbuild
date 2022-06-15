@@ -100,6 +100,10 @@
 
     This new warning can be turned off with `--log-override:assign-to-import=silent` if you don't want to see it.
 
+* Implement `alwaysStrict` in `tsconfig.json` ([#2264](https://github.com/evanw/esbuild/issues/2264))
+
+    This release adds `alwaysStrict` to the set of TypeScript `tsconfig.json` configuration values that esbuild supports. When this is enabled, esbuild will forbid syntax that isn't allowed in strict mode and will automatically insert `"use strict";` at the top of generated output files. This matches the behavior of the TypeScript compiler: https://www.typescriptlang.org/tsconfig#alwaysStrict.
+
 ## 0.14.43
 
 * Fix TypeScript parse error whe a generic function is the first type argument ([#2306](https://github.com/evanw/esbuild/issues/2306))

@@ -14,6 +14,40 @@ var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
+TestTsConfigAlwaysStrictTrueEmitDirectiveBundle
+---------- /Users/user/project/out/implicit.js ----------
+"use strict";
+
+// Users/user/project/src/implicit.ts
+console.log('this file should start with "use strict"');
+
+---------- /Users/user/project/out/explicit.js ----------
+"use strict";
+
+// Users/user/project/src/explicit.ts
+console.log('this file should start with "use strict"');
+
+================================================================================
+TestTsConfigAlwaysStrictTrueEmitDirectiveFormat
+---------- /Users/user/project/out/implicit.js ----------
+"use strict";
+console.log('this file should start with "use strict"');
+
+---------- /Users/user/project/out/explicit.js ----------
+"use strict";
+console.log('this file should start with "use strict"');
+
+================================================================================
+TestTsConfigAlwaysStrictTrueEmitDirectivePassThrough
+---------- /Users/user/project/out/implicit.js ----------
+"use strict";
+console.log('this file should start with "use strict"');
+
+---------- /Users/user/project/out/explicit.js ----------
+"use strict";
+console.log('this file should start with "use strict"');
+
+================================================================================
 TestTsConfigBaseURLExtendsPaths
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/lib/foo.ts
@@ -253,6 +287,27 @@ function fib(input) {
 
 // Users/user/project/entry.ts
 console.log(fib(10));
+
+================================================================================
+TestTsConfigWithStatementAlwaysStrictFalse
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+with (x)
+  y;
+
+================================================================================
+TestTsConfigWithStatementStrictFalse
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+with (x)
+  y;
+
+================================================================================
+TestTsConfigWithStatementStrictTrueAlwaysStrictFalse
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+with (x)
+  y;
 
 ================================================================================
 TestTsconfigImportsNotUsedAsValuesPreserve

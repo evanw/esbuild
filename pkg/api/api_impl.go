@@ -1387,6 +1387,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Settings from "tsconfig.json" override those
 	var tsTarget *config.TSTarget
+	var tsAlwaysStrict *config.TSAlwaysStrict
 	caches := cache.MakeCacheSet()
 	if transformOpts.TsconfigRaw != "" {
 		source := logger.Source{
@@ -1409,6 +1410,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 				result.PreserveValueImports,
 			)
 			tsTarget = result.TSTarget
+			tsAlwaysStrict = result.TSAlwaysStrict
 		}
 	}
 
@@ -1430,6 +1432,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		UnsupportedCSSFeatures:  cssFeatures,
 		OriginalTargetEnv:       targetEnv,
 		TSTarget:                tsTarget,
+		TSAlwaysStrict:          tsAlwaysStrict,
 		JSX:                     jsx,
 		Defines:                 defines,
 		InjectedDefines:         injectedDefines,

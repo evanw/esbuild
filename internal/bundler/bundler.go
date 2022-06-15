@@ -1201,6 +1201,7 @@ func (s *scanner) maybeParseFile(
 		optionsClone.UnusedImportFlagsTS = resolveResult.UnusedImportFlagsTS
 	}
 	optionsClone.TSTarget = resolveResult.TSTarget
+	optionsClone.TSAlwaysStrict = resolveResult.TSAlwaysStrict
 
 	// Set the module type preference using node's module type rules
 	if strings.HasSuffix(path.Text, ".mjs") {

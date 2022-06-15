@@ -201,6 +201,12 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 			notes = []logger.MsgData{p.tracker.MsgData(p.enclosingClassKeyword,
 				"All code inside a class is implicitly in strict mode")}
 
+		case js_ast.ImplicitStrictModeTSAlwaysStrict:
+			tsAlwaysStrict := p.options.tsAlwaysStrict
+			t := logger.MakeLineColumnTracker(&tsAlwaysStrict.Source)
+			notes = []logger.MsgData{t.MsgData(tsAlwaysStrict.Range, fmt.Sprintf(
+				"TypeScript's %q setting was enabled here:", tsAlwaysStrict.Name))}
+
 		case js_ast.ExplicitStrictMode:
 			notes = []logger.MsgData{p.tracker.MsgData(p.source.RangeOfString(p.currentScope.UseStrictLoc),
 				"Strict mode is triggered by the \"use strict\" directive here:")}

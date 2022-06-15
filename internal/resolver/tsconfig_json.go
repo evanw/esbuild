@@ -36,6 +36,8 @@ type TSConfigJSON struct {
 	Paths *TSConfigPaths
 
 	TSTarget                       *config.TSTarget
+	TSStrict                       *config.TSAlwaysStrict
+	TSAlwaysStrict                 *config.TSAlwaysStrict
 	JSXFactory                     []string
 	JSXFragmentFactory             []string
 	ModuleSuffixes                 []string
@@ -196,6 +198,32 @@ func ParseTSConfigJSON(
 			}
 		}
 
+		// Parse "strict"
+		if valueJSON, keyLoc, ok := getProperty(compilerOptionsJSON, "strict"); ok {
+			if value, ok := getBool(valueJSON); ok {
+				valueRange := js_lexer.RangeOfIdentifier(source, valueJSON.Loc)
+				result.TSStrict = &config.TSAlwaysStrict{
+					Name:   "strict",
+					Value:  value,
+					Source: source,
+					Range:  logger.Range{Loc: keyLoc, Len: valueRange.End() - keyLoc.Start},
+				}
+			}
+		}
+
+		// Parse "alwaysStrict"
+		if valueJSON, keyLoc, ok := getProperty(compilerOptionsJSON, "alwaysStrict"); ok {
+			if value, ok := getBool(valueJSON); ok {
+				valueRange := js_lexer.RangeOfIdentifier(source, valueJSON.Loc)
+				result.TSStrict = &config.TSAlwaysStrict{
+					Name:   "alwaysStrict",
+					Value:  value,
+					Source: source,
+					Range:  logger.Range{Loc: keyLoc, Len: valueRange.End() - keyLoc.Start},
+				}
+			}
+		}
+
 		// Parse "importsNotUsedAsValues"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "importsNotUsedAsValues"); ok {
 			if value, ok := getString(valueJSON); ok {
@@ -203,6 +231,8 @@ func ParseTSConfigJSON(
 				case "preserve", "error":
 					result.PreserveImportsNotUsedAsValues = true
 				case "remove":
+					// Clear away any inherited values from the base config
+					result.PreserveImportsNotUsedAsValues = false
 				default:
 					log.AddID(logger.MsgID_TsconfigJSON_InvalidImportsNotUsedAsValues, logger.Warning, &tracker, source.RangeOfString(valueJSON.Loc),
 						fmt.Sprintf("Invalid value %q for \"importsNotUsedAsValues\"", value))

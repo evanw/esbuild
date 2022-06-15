@@ -361,11 +361,12 @@ type thenCatchChain struct {
 // "package.json" or "tsconfig.json" files that were changed since the last
 // build.
 type Options struct {
-	injectedFiles []config.InjectedFile
-	jsx           config.JSXOptions
-	tsTarget      *config.TSTarget
-	mangleProps   *regexp.Regexp
-	reserveProps  *regexp.Regexp
+	injectedFiles  []config.InjectedFile
+	jsx            config.JSXOptions
+	tsTarget       *config.TSTarget
+	tsAlwaysStrict *config.TSAlwaysStrict
+	mangleProps    *regexp.Regexp
+	reserveProps   *regexp.Regexp
 
 	// This pointer will always be different for each build but the contents
 	// shouldn't ever behave different semantically. We ignore this field for the
@@ -404,12 +405,13 @@ type optionsThatSupportStructuralEquality struct {
 
 func OptionsFromConfig(options *config.Options) Options {
 	return Options{
-		injectedFiles: options.InjectedFiles,
-		jsx:           options.JSX,
-		defines:       options.Defines,
-		tsTarget:      options.TSTarget,
-		mangleProps:   options.MangleProps,
-		reserveProps:  options.ReserveProps,
+		injectedFiles:  options.InjectedFiles,
+		jsx:            options.JSX,
+		defines:        options.Defines,
+		tsTarget:       options.TSTarget,
+		tsAlwaysStrict: options.TSAlwaysStrict,
+		mangleProps:    options.MangleProps,
+		reserveProps:   options.ReserveProps,
 
 		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
 			unsupportedJSFeatures:   options.UnsupportedJSFeatures,
@@ -444,6 +446,12 @@ func (a *Options) Equal(b *Options) bool {
 	// Compare "TSTarget"
 	if (a.tsTarget == nil && b.tsTarget != nil) || (a.tsTarget != nil && b.tsTarget == nil) ||
 		(a.tsTarget != nil && b.tsTarget != nil && *a.tsTarget != *b.tsTarget) {
+		return false
+	}
+
+	// Compare "TSAlwaysStrict"
+	if (a.tsAlwaysStrict == nil && b.tsAlwaysStrict != nil) || (a.tsAlwaysStrict != nil && b.tsAlwaysStrict == nil) ||
+		(a.tsAlwaysStrict != nil && b.tsAlwaysStrict != nil && *a.tsAlwaysStrict != *b.tsAlwaysStrict) {
 		return false
 	}
 
@@ -15271,8 +15279,13 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	})
 	p.prepareForVisitPass()
 
-	// Strip off a leading "use strict" directive when not bundling
+	// Insert a "use strict" directive if "alwaysStrict" is active
 	directive := ""
+	if tsAlwaysStrict := p.options.tsAlwaysStrict; tsAlwaysStrict != nil && tsAlwaysStrict.Value {
+		directive = "use strict"
+	}
+
+	// Strip off a leading "use strict" directive when not bundling
 	for i, stmt := range stmts {
 		switch s := stmt.Data.(type) {
 		case *js_ast.SComment:
@@ -15521,6 +15534,11 @@ func (p *parser) prepareForVisitPass() {
 	p.pushScopeForVisitPass(js_ast.ScopeEntry, logger.Loc{Start: locModuleScope})
 	p.fnOrArrowDataVisit.isOutsideFnOrArrow = true
 	p.moduleScope = p.currentScope
+
+	// Force-enable strict mode if that's the way TypeScript is configured
+	if tsAlwaysStrict := p.options.tsAlwaysStrict; tsAlwaysStrict != nil && tsAlwaysStrict.Value {
+		p.currentScope.StrictMode = js_ast.ImplicitStrictModeTSAlwaysStrict
+	}
 
 	// Determine whether or not this file is ESM
 	p.isFileConsideredToHaveESMExports =

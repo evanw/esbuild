@@ -200,6 +200,7 @@ type Options struct {
 	ModuleTypeData js_ast.ModuleTypeData
 	Defines        *ProcessedDefines
 	TSTarget       *TSTarget
+	TSAlwaysStrict *TSAlwaysStrict
 	MangleProps    *regexp.Regexp
 	ReserveProps   *regexp.Regexp
 
@@ -358,6 +359,16 @@ type TSTarget struct {
 	// This information can affect code transformation
 	UnsupportedJSFeatures compat.JSFeature
 	TargetIsAtLeastES2022 bool
+}
+
+type TSAlwaysStrict struct {
+	// This information is only used for error messages
+	Name   string
+	Source logger.Source
+	Range  logger.Range
+
+	// This information can affect code transformation
+	Value bool
 }
 
 type PathPlaceholder uint8

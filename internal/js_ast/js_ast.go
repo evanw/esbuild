@@ -1518,6 +1518,7 @@ const (
 	ExplicitStrictMode
 	ImplicitStrictModeClass
 	ImplicitStrictModeESM
+	ImplicitStrictModeTSAlwaysStrict
 )
 
 func (s *Scope) RecursiveSetStrictMode(kind StrictModeKind) {
