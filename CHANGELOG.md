@@ -34,6 +34,35 @@
 
     This fix was contributed by [@nkeynes](https://github.com/nkeynes).
 
+* Implement package self-references ([#2312](https://github.com/evanw/esbuild/issues/2312))
+
+    This release implements a rarely-used feature in node where a package can import itself by name instead of using relative imports. You can read more about this feature here: https://nodejs.org/api/packages.html#self-referencing-a-package-using-its-name. For example, assuming the `package.json` in a given package looks like this:
+
+    ```json
+    // package.json
+    {
+      "name": "a-package",
+      "exports": {
+        ".": "./main.mjs",
+        "./foo": "./foo.js"
+      }
+    }
+    ```
+
+    Then any module in that package can reference an export in the package itself:
+
+    ```js
+    // ./a-module.mjs
+    import { something } from 'a-package'; // Imports "something" from ./main.mjs.
+    ```
+
+    Self-referencing is also available when using `require`, both in an ES module, and in a CommonJS one. For example, this code will also work:
+
+    ```js
+    // ./a-module.js
+    const { something } = require('a-package/foo'); // Loads from ./foo.js.
+    ```
+
 * Add a warning for assigning to an import ([#2319](https://github.com/evanw/esbuild/issues/2319))
 
     Import bindings are immutable in JavaScript, and assigning to them will throw an error. So instead of doing this:

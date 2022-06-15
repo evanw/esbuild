@@ -1769,6 +1769,47 @@ func (r resolverQuery) loadPackageImports(importPath string, dirInfoPackageJSON 
 	)
 }
 
+func (r resolverQuery) esmResolveAlgorithm(esmPackageName string, esmPackageSubpath string, packageJSON *packageJSON, absPkgPath string, absPath string) (PathPair, bool, *fs.DifferentCase) {
+	if r.debugLogs != nil {
+		r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"exports\" map in %q", esmPackageSubpath, packageJSON.source.KeyPath.Text))
+		r.debugLogs.increaseIndent()
+		defer r.debugLogs.decreaseIndent()
+	}
+
+	// The condition set is determined by the kind of import
+	conditions := r.esmConditionsDefault
+	switch r.kind {
+	case ast.ImportStmt, ast.ImportDynamic:
+		conditions = r.esmConditionsImport
+	case ast.ImportRequire, ast.ImportRequireResolve:
+		conditions = r.esmConditionsRequire
+	case ast.ImportEntryPoint:
+		// Treat entry points as imports instead of requires for consistency with
+		// Webpack and Rollup. More information:
+		//
+		// * https://github.com/evanw/esbuild/issues/1956
+		// * https://github.com/nodejs/node/issues/41686
+		// * https://github.com/evanw/entry-point-resolve-test
+		//
+		conditions = r.esmConditionsImport
+	}
+
+	// Resolve against the path "/", then join it with the absolute
+	// directory path. This is done because ESM package resolution uses
+	// URLs while our path resolution uses file system paths. We don't
+	// want problems due to Windows paths, which are very unlike URL
+	// paths. We also want to avoid any "%" characters in the absolute
+	// directory path accidentally being interpreted as URL escapes.
+	resolvedPath, status, debug := r.esmPackageExportsResolve("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
+	resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
+
+	return r.finalizeImportsExportsResult(
+		absPkgPath, conditions, *packageJSON.exportsMap, packageJSON,
+		resolvedPath, status, debug,
+		esmPackageName, esmPackageSubpath, absPath,
+	)
+}
+
 func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forbidImports bool) (PathPair, bool, *fs.DifferentCase) {
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Searching for %q in \"node_modules\" directories starting from %q", importPath, dirInfo.absPath))
@@ -1811,6 +1852,14 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		r.debugLogs.addNote(fmt.Sprintf("Parsed package name %q and package subpath %q", esmPackageName, esmPackageSubpath))
 	}
 
+	// Check for self-references
+	if dirInfoPackageJSON != nil {
+		if packageJSON := dirInfoPackageJSON.packageJSON; packageJSON.name == esmPackageName && packageJSON.exportsMap != nil {
+			return r.esmResolveAlgorithm(esmPackageName, esmPackageSubpath, packageJSON,
+				dirInfoPackageJSON.absPath, r.fs.Join(dirInfoPackageJSON.absPath, esmPackageSubpath))
+		}
+	}
+
 	// Then check for the package in any enclosing "node_modules" directories
 	for {
 		// Skip directories that are themselves called "node_modules", since we
@@ -1827,44 +1876,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 				if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil {
 					// Check the "exports" map
 					if packageJSON := pkgDirInfo.packageJSON; packageJSON != nil && packageJSON.exportsMap != nil {
-						if r.debugLogs != nil {
-							r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"exports\" map in %q", esmPackageSubpath, packageJSON.source.KeyPath.Text))
-							r.debugLogs.increaseIndent()
-							defer r.debugLogs.decreaseIndent()
-						}
-
-						// The condition set is determined by the kind of import
-						conditions := r.esmConditionsDefault
-						switch r.kind {
-						case ast.ImportStmt, ast.ImportDynamic:
-							conditions = r.esmConditionsImport
-						case ast.ImportRequire, ast.ImportRequireResolve:
-							conditions = r.esmConditionsRequire
-						case ast.ImportEntryPoint:
-							// Treat entry points as imports instead of requires for consistency with
-							// Webpack and Rollup. More information:
-							//
-							// * https://github.com/evanw/esbuild/issues/1956
-							// * https://github.com/nodejs/node/issues/41686
-							// * https://github.com/evanw/entry-point-resolve-test
-							//
-							conditions = r.esmConditionsImport
-						}
-
-						// Resolve against the path "/", then join it with the absolute
-						// directory path. This is done because ESM package resolution uses
-						// URLs while our path resolution uses file system paths. We don't
-						// want problems due to Windows paths, which are very unlike URL
-						// paths. We also want to avoid any "%" characters in the absolute
-						// directory path accidentally being interpreted as URL escapes.
-						resolvedPath, status, debug := r.esmPackageExportsResolve("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
-						resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
-
-						return r.finalizeImportsExportsResult(
-							absPkgPath, conditions, *packageJSON.exportsMap, packageJSON,
-							resolvedPath, status, debug,
-							esmPackageName, esmPackageSubpath, absPath,
-						)
+						return r.esmResolveAlgorithm(esmPackageName, esmPackageSubpath, packageJSON, absPkgPath, absPath)
 					}
 
 					// Check the "browser" map

@@ -17,6 +17,7 @@ import (
 )
 
 type packageJSON struct {
+	name           string
 	mainFields     map[string]mainField
 	moduleTypeData js_ast.ModuleTypeData
 
@@ -271,6 +272,13 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	packageJSON := &packageJSON{
 		source:     jsonSource,
 		mainFields: make(map[string]mainField),
+	}
+
+	// Read the "name" field
+	if nameJSON, _, ok := getProperty(json, "name"); ok {
+		if nameValue, ok := getString(nameJSON); ok {
+			packageJSON.name = nameValue
+		}
 	}
 
 	// Read the "type" field

@@ -2395,3 +2395,221 @@ Users/user/project/package.json: NOTE: TypeScript type declarations use the "typ
 `,
 	})
 }
+
+func TestPackageJsonImportSelfUsingRequire(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				module.exports = 'index'
+				console.log(
+					require("xyz"),
+					require("xyz/bar"),
+				)
+			`,
+			"/Users/user/project/src/foo-import.js": `
+				export default 'foo'
+			`,
+			"/Users/user/project/src/foo-require.js": `
+				module.exports = 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": {
+							"import": "./src/foo-import.js",
+							"require": "./src/foo-require.js"
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+	})
+}
+
+func TestPackageJsonImportSelfUsingImport(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				import xyz from "xyz"
+				import foo from "xyz/bar"
+				export default 'index'
+				console.log(xyz, foo)
+			`,
+			"/Users/user/project/src/foo-import.js": `
+				export default 'foo'
+			`,
+			"/Users/user/project/src/foo-require.js": `
+				module.exports = 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": {
+							"import": "./src/foo-import.js",
+							"require": "./src/foo-require.js"
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+	})
+}
+
+func TestPackageJsonImportSelfUsingRequireScoped(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				module.exports = 'index'
+				console.log(
+					require("@some-scope/xyz"),
+					require("@some-scope/xyz/bar"),
+				)
+			`,
+			"/Users/user/project/src/foo-import.js": `
+				export default 'foo'
+			`,
+			"/Users/user/project/src/foo-require.js": `
+				module.exports = 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "@some-scope/xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": {
+							"import": "./src/foo-import.js",
+							"require": "./src/foo-require.js"
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+	})
+}
+
+func TestPackageJsonImportSelfUsingImportScoped(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				import xyz from "@some-scope/xyz"
+				import foo from "@some-scope/xyz/bar"
+				export default 'index'
+				console.log(xyz, foo)
+			`,
+			"/Users/user/project/src/foo-import.js": `
+				export default 'foo'
+			`,
+			"/Users/user/project/src/foo-require.js": `
+				module.exports = 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "@some-scope/xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": {
+							"import": "./src/foo-import.js",
+							"require": "./src/foo-require.js"
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+	})
+}
+
+func TestPackageJsonImportSelfUsingRequireFailure(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				require("xyz/src/foo.js")
+			`,
+			"/Users/user/project/src/foo.js": `
+				module.exports = 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": "./src/foo.js"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+		expectedScanLog: `Users/user/project/src/index.js: ERROR: Could not resolve "xyz/src/foo.js"
+Users/user/project/package.json: NOTE: The path "./src/foo.js" is not exported by package "xyz":
+Users/user/project/package.json: NOTE: The file "./src/foo.js" is exported at path "./bar":
+Users/user/project/src/index.js: NOTE: Import from "xyz/bar" to get the file "Users/user/project/src/foo.js":
+NOTE: You can mark the path "xyz/src/foo.js" as external to exclude it from the bundle, which will remove this error. You can also surround this "require" call with a try/catch block to handle this failure at run-time instead of bundle-time.
+`,
+	})
+}
+
+func TestPackageJsonImportSelfUsingImportFailure(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				import "xyz/src/foo.js"
+			`,
+			"/Users/user/project/src/foo.js": `
+				export default 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": "./src/foo.js"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+		expectedScanLog: `Users/user/project/src/index.js: ERROR: Could not resolve "xyz/src/foo.js"
+Users/user/project/package.json: NOTE: The path "./src/foo.js" is not exported by package "xyz":
+Users/user/project/package.json: NOTE: The file "./src/foo.js" is exported at path "./bar":
+Users/user/project/src/index.js: NOTE: Import from "xyz/bar" to get the file "Users/user/project/src/foo.js":
+NOTE: You can mark the path "xyz/src/foo.js" as external to exclude it from the bundle, which will remove this error.
+`,
+	})
+}
