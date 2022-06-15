@@ -42,7 +42,7 @@ var helpText = func(colors logger.Colors) string {
                         is browser and cjs when platform is node)
   --loader:X=L          Use loader L to load file extension X, where L is
                         one of: js | jsx | ts | tsx | css | json | text |
-                        base64 | file | dataurl | binary
+                        base64 | file | dataurl | binary | copy
   --minify              Minify the output (sets all --minify-* flags)
   --outdir=...          The output directory (for multiple entry points)
   --outfile=...         The output file (for one entry point)

@@ -488,11 +488,11 @@ func parseOptionsImpl(
 			if err != nil {
 				return parseOptionsExtras{}, err
 			}
-			if loader == api.LoaderFile {
+			if loader == api.LoaderFile || loader == api.LoaderCopy {
 				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("%q is not supported when transforming stdin", arg),
-					"Using esbuild to transform stdin only generates one output file, so you cannot use the \"file\" loader "+
-						"since that needs to generate two output files.",
+					fmt.Sprintf("Using esbuild to transform stdin only generates one output file, so you cannot use the %q loader "+
+						"since that needs to generate two output files.", value),
 				)
 			}
 			if buildOpts != nil {

@@ -252,8 +252,11 @@ func link(
 		c.esmRuntimeRef = runtimeRepr.AST.NamedExports["__esmMin"].Ref
 	}
 
+	var additionalFiles []graph.OutputFile
 	for _, entryPoint := range entryPoints {
-		if repr, ok := c.graph.Files[entryPoint.SourceIndex].InputFile.Repr.(*graph.JSRepr); ok {
+		file := &c.graph.Files[entryPoint.SourceIndex].InputFile
+		switch repr := file.Repr.(type) {
+		case *graph.JSRepr:
 			// Loaders default to CommonJS when they are the entry point and the output
 			// format is not ESM-compatible since that avoids generating the ESM-to-CJS
 			// machinery.
@@ -271,6 +274,13 @@ func link(
 				repr.AST.UsesExportsRef = true
 				repr.Meta.ForceIncludeExportsForEntryPoint = true
 			}
+
+		case *graph.CopyRepr:
+			// If an entry point uses the copy loader, then copy the file manually
+			// here. Other uses of the copy loader will automatically be included
+			// along with the corresponding bundled chunk but that doesn't happen
+			// for entry points.
+			additionalFiles = append(additionalFiles, file.AdditionalFiles...)
 		}
 	}
 
@@ -313,7 +323,7 @@ func link(
 	// won't hit concurrent map mutation hazards
 	js_ast.FollowAllSymbols(c.graph.Symbols)
 
-	return c.generateChunksInParallel(chunks)
+	return c.generateChunksInParallel(chunks, additionalFiles)
 }
 
 func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
@@ -448,7 +458,7 @@ func (c *linkerContext) enforceNoCyclicChunkImports(chunks []chunkInfo) {
 	}
 }
 
-func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.OutputFile {
+func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo, additionalFiles []graph.OutputFile) []graph.OutputFile {
 	c.timer.Begin("Generate chunks")
 	defer c.timer.End("Generate chunks")
 
@@ -616,11 +626,12 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []graph.Out
 	c.timer.End("Generate final output files")
 
 	// Merge the output files from the different goroutines together in order
-	outputFilesLen := 0
+	outputFilesLen := len(additionalFiles)
 	for _, result := range results {
 		outputFilesLen += len(result)
 	}
 	outputFiles := make([]graph.OutputFile, 0, outputFilesLen)
+	outputFiles = append(outputFiles, additionalFiles...)
 	for _, result := range results {
 		outputFiles = append(outputFiles, result...)
 	}
@@ -666,7 +677,7 @@ func (c *linkerContext) substituteFinalPaths(
 
 			importPath := modifyPath(relPath)
 			j.AddString(importPath)
-			shift.Before.AdvanceString(file.InputFile.UniqueKeyForFileLoader)
+			shift.Before.AdvanceString(file.InputFile.UniqueKeyForAdditionalFile)
 			shift.After.AdvanceString(importPath)
 			shifts = append(shifts, shift)
 
@@ -1195,10 +1206,11 @@ func (c *linkerContext) scanImportsAndExports() {
 	c.timer.Begin("Step 1")
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		file := &c.graph.Files[sourceIndex]
+		additionalFiles := file.InputFile.AdditionalFiles
+
 		switch repr := file.InputFile.Repr.(type) {
 		case *graph.CSSRepr:
 			// Inline URLs for non-CSS files into the CSS file
-			var additionalFiles []graph.OutputFile
 			for importRecordIndex := range repr.AST.ImportRecords {
 				if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() {
 					otherFile := &c.graph.Files[record.SourceIndex.GetIndex()]
@@ -1210,14 +1222,34 @@ func (c *linkerContext) scanImportsAndExports() {
 						// Copy the additional files to the output directory
 						additionalFiles = append(additionalFiles, otherFile.InputFile.AdditionalFiles...)
 					}
+				} else if record.CopySourceIndex.IsValid() {
+					otherFile := &c.graph.Files[record.CopySourceIndex.GetIndex()]
+					if otherRepr, ok := otherFile.InputFile.Repr.(*graph.CopyRepr); ok {
+						record.Path.Text = otherRepr.URLForCode
+						record.Path.Namespace = ""
+						record.CopySourceIndex = ast.Index32{}
+
+						// Copy the additional files to the output directory
+						additionalFiles = append(additionalFiles, otherFile.InputFile.AdditionalFiles...)
+					}
 				}
 			}
-			file.InputFile.AdditionalFiles = additionalFiles
 
 		case *graph.JSRepr:
 			for importRecordIndex := range repr.AST.ImportRecords {
 				record := &repr.AST.ImportRecords[importRecordIndex]
 				if !record.SourceIndex.IsValid() {
+					if record.CopySourceIndex.IsValid() {
+						otherFile := &c.graph.Files[record.CopySourceIndex.GetIndex()]
+						if otherRepr, ok := otherFile.InputFile.Repr.(*graph.CopyRepr); ok {
+							record.Path.Text = otherRepr.URLForCode
+							record.Path.Namespace = ""
+							record.CopySourceIndex = ast.Index32{}
+
+							// Copy the additional files to the output directory
+							additionalFiles = append(additionalFiles, otherFile.InputFile.AdditionalFiles...)
+						}
+					}
 					continue
 				}
 
@@ -1284,6 +1316,8 @@ func (c *linkerContext) scanImportsAndExports() {
 				repr.Meta.Wrap = graph.WrapCJS
 			}
 		}
+
+		file.InputFile.AdditionalFiles = additionalFiles
 	}
 	c.timer.End("Step 1")
 

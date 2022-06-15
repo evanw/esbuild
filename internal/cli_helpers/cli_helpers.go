@@ -47,10 +47,12 @@ func ParseLoader(text string) (api.Loader, *ErrorWithNote) {
 		return api.LoaderBinary, nil
 	case "default":
 		return api.LoaderDefault, nil
+	case "copy":
+		return api.LoaderCopy, nil
 	default:
 		return api.LoaderNone, MakeErrorWithNote(
 			fmt.Sprintf("Invalid loader value: %q", text),
-			"Valid values are \"js\", \"jsx\", \"ts\", \"tsx\", \"css\", \"json\", \"text\", \"base64\", \"dataurl\", \"file\", or \"binary\".",
+			"Valid values are \"js\", \"jsx\", \"ts\", \"tsx\", \"css\", \"json\", \"text\", \"base64\", \"dataurl\", \"file\", \"binary\", or \"copy\".",
 		)
 	}
 }
