@@ -13,6 +13,7 @@ const (
 
 	// JavaScript
 	MsgID_JS_AssignToConstant
+	MsgID_JS_AssignToImport
 	MsgID_JS_CallImportNamespace
 	MsgID_JS_CommonJSVariableInESM
 	MsgID_JS_DeleteSuperProperty
@@ -87,6 +88,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 	// JS
 	case "assign-to-constant":
 		overrides[MsgID_JS_AssignToConstant] = logLevel
+	case "assign-to-import":
+		overrides[MsgID_JS_AssignToImport] = logLevel
 	case "call-import-namespace":
 		overrides[MsgID_JS_CallImportNamespace] = logLevel
 	case "commonjs-variable-in-esm":
@@ -195,6 +198,8 @@ func MsgIDToString(id MsgID) string {
 	// JS
 	case MsgID_JS_AssignToConstant:
 		return "assign-to-constant"
+	case MsgID_JS_AssignToImport:
+		return "assign-to-import"
 	case MsgID_JS_CallImportNamespace:
 		return "call-import-namespace"
 	case MsgID_JS_CommonJSVariableInESM:

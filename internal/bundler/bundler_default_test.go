@@ -3641,12 +3641,8 @@ bad1.js: ERROR: Cannot assign to import "x"
 NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
 bad10.js: ERROR: Cannot assign to import "y z"
 NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file and then import and call that function here instead.
-bad11.js: ERROR: Cannot assign to import "x"
-NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
 bad11.js: ERROR: Delete of a bare identifier cannot be used in an ECMAScript module
 bad11.js: NOTE: This file is considered to be an ECMAScript module because of the "import" keyword here:
-bad12.js: ERROR: Cannot assign to import "x"
-NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
 bad12.js: ERROR: Delete of a bare identifier cannot be used in an ECMAScript module
 bad12.js: NOTE: This file is considered to be an ECMAScript module because of the "import" keyword here:
 bad13.js: ERROR: Cannot assign to import "y"
@@ -3671,6 +3667,89 @@ bad8.js: ERROR: Cannot assign to property on import "x"
 NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file and then import and call that function here instead.
 bad9.js: ERROR: Cannot assign to import "y"
 NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setY") and then import and call that function here instead.
+`,
+	})
+}
+
+func TestAssignToImportNoBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			// The cases labeled "uncaught" below are not caught when bundling is
+			// disabled. This is because bundling enables extra transforms and
+			// analysis that isn't done otherwise that then allows these cases
+			// to be caught. Despite these gaps, we still enable the warning
+			// because it's still useful for the cases it does catch.
+
+			"/bad0.js":       `import x from "foo"; x = 1`,
+			"/bad1.js":       `import x from "foo"; x++`,
+			"/bad2.js":       `import x from "foo"; ([x] = 1)`,
+			"/bad3.js":       `import x from "foo"; ({x} = 1)`,
+			"/bad4.js":       `import x from "foo"; ({y: x} = 1)`,
+			"/bad5.js":       `import {x} from "foo"; x++`,
+			"/bad6.js":       `import * as x from "foo"; x++`,
+			"/uncaught7.js":  `import * as x from "foo"; x.y = 1`,
+			"/uncaught8.js":  `import * as x from "foo"; x[y] = 1`,
+			"/uncaught9.js":  `import * as x from "foo"; x['y'] = 1`,
+			"/uncaught10.js": `import * as x from "foo"; x['y z'] = 1`,
+			"/bad11.js":      `import x from "foo"; delete x`,
+			"/bad12.js":      `import {x} from "foo"; delete x`,
+			"/uncaught13.js": `import * as x from "foo"; delete x.y`,
+			"/uncaught14.js": `import * as x from "foo"; delete x['y']`,
+			"/uncaught15.js": `import * as x from "foo"; delete x[y]`,
+
+			"/good0.js": `import x from "foo"; ({y = x} = 1)`,
+			"/good1.js": `import x from "foo"; ({[x]: y} = 1)`,
+			"/good2.js": `import x from "foo"; x.y = 1`,
+			"/good3.js": `import x from "foo"; x[y] = 1`,
+			"/good4.js": `import x from "foo"; x['y'] = 1`,
+			"/good5.js": `import x from "foo"; x['y z'] = 1`,
+		},
+		entryPaths: []string{
+			"/bad0.js",
+			"/bad1.js",
+			"/bad2.js",
+			"/bad3.js",
+			"/bad4.js",
+			"/bad5.js",
+			"/bad6.js",
+			"/uncaught7.js",
+			"/uncaught8.js",
+			"/uncaught9.js",
+			"/uncaught10.js",
+			"/bad11.js",
+			"/bad12.js",
+			"/uncaught13.js",
+			"/uncaught14.js",
+			"/uncaught15.js",
+			"/good0.js",
+			"/good1.js",
+			"/good2.js",
+			"/good3.js",
+			"/good4.js",
+			"/good5.js",
+		},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `bad0.js: WARNING: This assignment will throw because "x" is an import
+NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
+bad1.js: WARNING: This assignment will throw because "x" is an import
+NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
+bad11.js: ERROR: Delete of a bare identifier cannot be used in an ECMAScript module
+bad11.js: NOTE: This file is considered to be an ECMAScript module because of the "import" keyword here:
+bad12.js: ERROR: Delete of a bare identifier cannot be used in an ECMAScript module
+bad12.js: NOTE: This file is considered to be an ECMAScript module because of the "import" keyword here:
+bad2.js: WARNING: This assignment will throw because "x" is an import
+NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
+bad3.js: WARNING: This assignment will throw because "x" is an import
+NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
+bad4.js: WARNING: This assignment will throw because "x" is an import
+NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
+bad5.js: WARNING: This assignment will throw because "x" is an import
+NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
+bad6.js: WARNING: This assignment will throw because "x" is an import
+NOTE: Imports are immutable in JavaScript. To modify the value of this import, you must export a setter function in the imported file (e.g. "setX") and then import and call that function here instead.
 `,
 	})
 }

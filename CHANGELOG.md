@@ -34,6 +34,37 @@
 
     This fix was contributed by [@nkeynes](https://github.com/nkeynes).
 
+* Add a warning for assigning to an import ([#2319](https://github.com/evanw/esbuild/issues/2319))
+
+    Import bindings are immutable in JavaScript, and assigning to them will throw an error. So instead of doing this:
+
+    ```js
+    import { foo } from 'foo'
+    foo++
+    ```
+
+    You need to do something like this instead:
+
+    ```js
+    import { foo, setFoo } from 'foo'
+    setFoo(foo + 1)
+    ```
+
+    This is already an error if you try to bundle this code with esbuild. However, this was previously allowed silently when bundling is disabled, which can lead to confusion for people who don't know about this aspect of how JavaScript works. So with this release, there is now a warning when you do this:
+
+    ```
+    ▲ [WARNING] This assignment will throw because "foo" is an import [assign-to-import]
+
+        example.js:2:0:
+          2 │ foo++
+            ╵ ~~~
+
+      Imports are immutable in JavaScript. To modify the value of this import, you must export a setter
+      function in the imported file (e.g. "setFoo") and then import and call that function here instead.
+    ```
+
+    This new warning can be turned off with `--log-override:assign-to-import=silent` if you don't want to see it.
+
 ## 0.14.43
 
 * Fix TypeScript parse error whe a generic function is the first type argument ([#2306](https://github.com/evanw/esbuild/issues/2306))

@@ -14145,8 +14145,8 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 	}
 
 	// Create an error for assigning to an import namespace
-	if p.options.mode == config.ModeBundle &&
-		(opts.assignTarget != js_ast.AssignTargetNone || opts.isDeleteTarget) &&
+	if (opts.assignTarget != js_ast.AssignTargetNone ||
+		(opts.isDeleteTarget && p.symbols[ref.InnerIndex].ImportItemStatus == js_ast.ImportItemGenerated)) &&
 		p.symbols[ref.InnerIndex].Kind == js_ast.SymbolImport {
 		r := js_lexer.RangeOfIdentifier(p.source, loc)
 
@@ -14161,10 +14161,20 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 			}
 		}
 
-		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf("Cannot assign to import %q", originalName),
-			[]logger.MsgData{{Text: "Imports are immutable in JavaScript. " +
-				fmt.Sprintf("To modify the value of this import, you must export a setter function in the "+
-					"imported file%s and then import and call that function here instead.", setterHint)}})
+		notes := []logger.MsgData{{Text: "Imports are immutable in JavaScript. " +
+			fmt.Sprintf("To modify the value of this import, you must export a setter function in the "+
+				"imported file%s and then import and call that function here instead.", setterHint)}}
+
+		if p.options.mode == config.ModeBundle {
+			p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf("Cannot assign to import %q", originalName), notes)
+		} else {
+			kind := logger.Warning
+			if p.suppressWarningsAboutWeirdCode {
+				kind = logger.Debug
+			}
+			p.log.AddIDWithNotes(logger.MsgID_JS_AssignToImport, kind, &p.tracker, r,
+				fmt.Sprintf("This assignment will throw because %q is an import", originalName), notes)
+		}
 	}
 
 	// Substitute an EImportIdentifier now if this has a namespace alias
